@@ -6,13 +6,18 @@ DataFrame creation and introspection.
 
 | Function | Description |
 |----------|-------------|
-| `read_csv(path)` | Read a CSV file into a DataFrame |
-| `write_csv(df, path)` | Write a DataFrame to a CSV file |
-| `colnames(df)` | Return column names |
-| `nrow(df)` | Return number of rows |
-| `ncol(df)` | Return number of columns |
-| `clean_colnames(df)` | Clean column names (snake_case) |
-| `glimpse(df)` | Compact summary of a DataFrame |
+| `dataframe(data)` | Create a DataFrame from rows or columns |
+| `read_csv(path)` | Read CSV file |
+| `read_parquet(path)` | Read Parquet file |
+| `read_arrow(path)` | Read Arrow IPC file |
+| `write_csv(df, path)` | Write CSV file |
+| `write_arrow(df, path)` | Write Arrow IPC file |
+| `nrow(df)` / `ncol(df)` | Get dimensions |
+| `colnames(df)` | Get column names |
+| `clean_colnames(df)` | Normalize column names |
+| `glimpse(df)` | Summarize structure |
+| `pull(df, col)` | Extract column as vector |
+| `to_array(df)` | Convert to NDArray |
 
 ## Named Arguments
 

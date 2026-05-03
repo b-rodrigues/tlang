@@ -111,6 +111,22 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">License</span> <span class="pp">[</span><span class="ss">EUPL</span><span class="pp">-</span><span class="ss">1.2</span><span class="pp">]</span>: EUPL-1.2</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Package <span class="st">&#39;advanced-stats&#39;</span> created successfully!</span></code></pre></div>
+<h3 id="ai-agent-onboarding-optional">1.1 AI Agent Onboarding
+(Optional)</h3>
+<p>When running <code>t init</code>, you will be prompted to select an
+<strong>AI Agent Context Level</strong>. This generates two essential
+files in your package root:</p>
+<ul>
+<li><strong>AGENTS.md</strong>: A package-specific guide for AI
+assistants (and human collaborators).</li>
+<li><strong>T-LANGUAGE-REFERENCE.md</strong>: A technical reference of
+the T language tailored to the requested depth (small, medium, full, or
+huge).</li>
+</ul>
+<p>These files are designed to be read by LLMs (like Antigravity,
+Claude, or ChatGPT) at the start of a session to give them immediate,
+high-fidelity context about your package and the specific version of T
+you are using.</p>
 <p>This creates a standard directory structure:</p>
 <ul>
 <li><strong>DESCRIPTION.toml</strong>: Package metadata and
@@ -126,6 +142,9 @@ definition.</li>
 <li><strong>examples/</strong>: Usage examples.</li>
 <li><strong>docs/</strong>: Documentation (e.g.,
 <code>index.md</code>).</li>
+<li><strong>AGENTS.md</strong>: Onboarding guide for AI Agents.</li>
+<li><strong>T-LANGUAGE-REFERENCE.md</strong>: Tiered language reference
+for LLMs.</li>
 </ul>
 <h2 id="managing-dependencies">2. Managing Dependencies</h2>
 <p>Dependencies are declared in <code>DESCRIPTION.toml</code>. To add a

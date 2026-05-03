@@ -243,6 +243,82 @@ expr(select(df, !!sym(&quot;mpg&quot;)))       -- expr(select(df, mpg))
 name = &quot;result&quot;
 expr(f(!!sym(name) := 42))           -- expr(f(result = 42))</code></pre>
 <hr />
+<h3 id="argsfn"><code>args(fn)</code></h3>
+<p>Returns a dictionary of parameter names and their expected types for
+a function.</p>
+<hr />
+<h3 id="is_errorvalue"><code>is_error(value)</code></h3>
+<p>Returns <code>true</code> if the value is an Error object.</p>
+<hr />
+<h3
+id="gettarget-selector-na-default-na"><code>get(target, selector = NA, default = NA)</code></h3>
+<p>Unified retrieval for variables, collection elements, pipeline nodes,
+or lens focuses.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>get(&quot;salary&quot;)                -- variable lookup
+get(list, 0)                  -- indexing
+get(df, col_lens(&quot;mpg&quot;))      -- lens focus
+get(val, 0)                   -- fallback if val is NA/Error</code></pre>
+<hr />
+<h3
+id="ifelsecondition-true_val-false_val-missing-na-out_type-na"><code>ifelse(condition, true_val, false_val, missing = NA, out_type = NA)</code></h3>
+<p>Vectorized conditional selection.</p>
+<hr />
+<h3
+id="casewhen...formulas-.default-na"><code>casewhen(...formulas, .default = NA)</code></h3>
+<p>Vectorized multi-condition switch. Uses
+<code>condition ~ value</code> formulas.</p>
+<hr />
+<h3 id="identicala-b"><code>identical(a, b)</code></h3>
+<p>Deep equality check. Works for collections and complex objects.</p>
+<hr />
+<h3 id="evalexpr-exprx-exprs..."><code>eval(expr)</code> /
+<code>expr(x)</code> / <code>exprs(...)</code></h3>
+<h3 id="quox-quos...-enquop-enquos..."><code>quo(x)</code> /
+<code>quos(...)</code> / <code>enquo(p)</code> /
+<code>enquos(...)</code></h3>
+<p>Metaprogramming and quotation utilities.</p>
+<hr />
+<h3 id="bodyfn-sourcefn"><code>body(fn)</code> /
+<code>source(fn)</code></h3>
+<p>Inspect function implementation.</p>
+<hr />
+<h3 id="runcmd"><code>run(cmd)</code></h3>
+<p>Execute a shell command and return its stdout as a string.</p>
+<hr />
+<h3
+id="cat...values-sep-file-na-append-false"><code>cat(...values, sep = " ", file = NA, append = false)</code></h3>
+<p>Print values to stdout or a file without a trailing newline (unless
+specified).</p>
+<hr />
+<h3 id="getwd-exitcode-0"><code>getwd()</code> /
+<code>exit(code = 0)</code></h3>
+<p>Environment and process control.</p>
+<hr />
+<h3
+id="file_existspath-dir_existspath-list_filespath-pattern-na"><code>file_exists(path)</code>
+/ <code>dir_exists(path)</code> /
+<code>list_files(path, pattern = NA)</code></h3>
+<h3 id="read_filepath-read_linespath"><code>read_file(path)</code> /
+<code>read_lines(path)</code></h3>
+<p>File system introspection and reading.</p>
+<hr />
+<h3 id="path_join...-path_abspath"><code>path_join(...)</code> /
+<code>path_abs(path)</code></h3>
+<h3
+id="path_basenamepath-path_dirnamepath"><code>path_basename(path)</code>
+/ <code>path_dirname(path)</code></h3>
+<h3 id="path_extpath-path_stempath"><code>path_ext(path)</code> /
+<code>path_stem(path)</code></h3>
+<p>Cross-platform path manipulation.</p>
+<hr />
+<h3 id="show_plotplot"><code>show_plot(plot)</code></h3>
+<p>Display a plot object (depends on the environment’s plot viewer).</p>
+<hr />
+<h3 id="env"><code>env()</code></h3>
+<p>Returns a list of all variable names currently in the
+environment.</p>
+<hr />
 <h3 id="lengthcollection"><code>length(collection)</code></h3>
 <p>Get the number of elements in a collection.</p>
 <p><strong>Parameters:</strong></p>
@@ -349,7 +425,7 @@ sum([])                 -- 0</code></pre>
 seq(0, 10, 2)   -- [0, 2, 4, 6, 8, 10]
 seq(5, 1, -1)   -- [5, 4, 3, 2, 1]</code></pre>
 <hr />
-<h3 id="is_errorvalue"><code>is_error(value)</code></h3>
+<h3 id="is_errorvalue-1"><code>is_error(value)</code></h3>
 <p>Check if a value is an error.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
@@ -510,8 +586,9 @@ rm(list = vars)   -- Removes variables &#39;a&#39; and &#39;b&#39;</code></pre>
 <p>Create an error value.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>message</code> — Error message string</li>
-<li><code>code</code> (optional) — Error code string</li>
+<li><code>message_or_code</code> — Error message (if 1 arg) or error
+code (if 2 args)</li>
+<li><code>message</code> (optional) — Error message (if 2 args)</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>Error</code> value</p>
@@ -522,7 +599,7 @@ error(&quot;ValueError&quot;, &quot;Invalid input&quot;)
 e = error(&quot;custom error&quot;)
 error_message(e)  -- &quot;custom error&quot;</code></pre>
 <hr />
-<h3 id="is_errorvalue-1"><code>is_error(value)</code></h3>
+<h3 id="is_errorvalue-2"><code>is_error(value)</code></h3>
 <p>Check if a value is an error (see Core package).</p>
 <hr />
 <h3 id="error_codeerr"><code>error_code(err)</code></h3>
@@ -562,7 +639,7 @@ error_message(e2)  -- &quot;Division by zero&quot;</code></pre>
 <li><code>err</code> — Error value</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p><code>String</code> — Context information</p>
+<p><code>Dict</code> — A dictionary of related context data.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>error_context(e)  -- Additional debugging information</code></pre>
 <hr />
@@ -614,6 +691,49 @@ is_na(na_int())     -- true
 is_na(42)           -- false
 is_na(&quot;hello&quot;)      -- false</code></pre>
 <hr />
+<h3 id="serializevalue-path"><code>serialize(value, path)</code></h3>
+<p>Serializes a value to a <code>.tobj</code> file.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value to serialize</li>
+<li><code>path</code> — Output file path (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>NA</code></p>
+<p><strong>Seealso:</strong> <code>deserialize</code></p>
+<hr />
+<h3 id="deserializepath"><code>deserialize(path)</code></h3>
+<p>Deserializes a value from a <code>.tobj</code> file.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Input file path (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Any</code> — The deserialized value</p>
+<p><strong>Seealso:</strong> <code>serialize</code></p>
+<hr />
+<h3
+id="t_write_jsonvalue-path"><code>t_write_json(value, path)</code></h3>
+<p>Serializes a T value to a JSON file. This is used as the universal
+baseline for object transport between runtimes.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value to serialize</li>
+<li><code>path</code> — Path to the destination file (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>NA</code></p>
+<hr />
+<h3 id="t_read_jsonpath"><code>t_read_json(path)</code></h3>
+<p>Deserializes a T value from a JSON file. Automatically handles type
+conversion for scalars, lists, and dictionaries.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Path to the JSON file (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Any</code> — The deserialized value</p>
+<hr />
 <h2 id="math-package">Math Package</h2>
 <p>Mathematical functions operating on scalars and vectors.</p>
 <h3 id="sqrtx"><code>sqrt(x)</code></h3>
@@ -643,12 +763,49 @@ sqrt(-1)     -- Error (negative input)</code></pre>
 abs(3.14)    -- 3.14
 abs(0)       -- 0</code></pre>
 <hr />
-<h3 id="logx"><code>log(x)</code></h3>
-<p>Natural logarithm (base e).</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>x</code> — Number (must be &gt; 0)</li>
-</ul>
+<h3 id="logx-expx-powx-y"><code>log(x)</code> / <code>exp(x)</code> /
+<code>pow(x, y)</code></h3>
+<p>Natural logarithm, exponential, and power functions.</p>
+<hr />
+<h3 id="sinx-cosx-tanx"><code>sin(x)</code> / <code>cos(x)</code> /
+<code>tan(x)</code></h3>
+<h3 id="asinx-acosx-atanx-atan2y-x"><code>asin(x)</code> /
+<code>acos(x)</code> / <code>atan(x)</code> /
+<code>atan2(y, x)</code></h3>
+<p>Trigonometric and inverse trigonometric functions (radians).</p>
+<hr />
+<h3 id="sinhx-coshx-tanhx"><code>sinh(x)</code> / <code>cosh(x)</code> /
+<code>tanh(x)</code></h3>
+<h3 id="asinhx-acoshx-atanhx"><code>asinh(x)</code> /
+<code>acosh(x)</code> / <code>atanh(x)</code></h3>
+<p>Hyperbolic functions.</p>
+<hr />
+<h3 id="floorx-ceilingx-roundx-digits-0"><code>floor(x)</code> /
+<code>ceiling(x)</code> / <code>round(x, digits = 0)</code></h3>
+<h3 id="truncx-signifx-digits-6"><code>trunc(x)</code> /
+<code>signif(x, digits = 6)</code></h3>
+<p>Rounding and truncation.</p>
+<hr />
+<h3
+id="ndarraydata-shape-na-reshapearray-shape"><code>ndarray(data, shape = NA)</code>
+/ <code>reshape(array, shape)</code></h3>
+<p>Create or reshape N-dimensional arrays.</p>
+<hr />
+<h3 id="shapearray-ndarray_dataarray"><code>shape(array)</code> /
+<code>ndarray_data(array)</code></h3>
+<p>Get NDArray dimensions or flat data.</p>
+<hr />
+<h3 id="matmula-b-invmatrix-transposematrix"><code>matmul(a, b)</code> /
+<code>inv(matrix)</code> / <code>transpose(matrix)</code></h3>
+<p>Linear algebra operations on NDArrays.</p>
+<hr />
+<h3 id="diagx-krona-b-cbinda-b"><code>diag(x)</code> /
+<code>kron(a, b)</code> / <code>cbind(a, b)</code></h3>
+<p>Matrix creation and manipulation.</p>
+<hr />
+<h3 id="iotan"><code>iota(n)</code></h3>
+<p>Returns a 1D NDArray of integers from 0 to n-1.</p>
+<hr />
 <p><strong>Returns:</strong></p>
 <p><code>Float</code></p>
 <p><strong>Examples:</strong></p>
@@ -719,159 +876,154 @@ max([])             -- Error</code></pre>
 <h2 id="stats-package">Stats Package</h2>
 <p>Statistical functions for data analysis.</p>
 <h3
-id="meancollection-na_rm-false"><code>mean(collection, na_rm = false)</code></h3>
-<p>Arithmetic mean (average).</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>collection</code> — List or Vector of numbers</li>
-<li><code>na_rm</code> (optional) — If true, skip NA values (default:
-false)</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>Float</code> — Mean value</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>mean([1, 2, 3, 4, 5])              -- 3.0
-mean([10, 20, 30])                 -- 20.0
-mean([1, 2, NA, 4])                -- Error (NA encountered)
-mean([1, 2, NA, 4], na_rm = true)  -- 2.33333333333
-mean([NA, NA], na_rm = true)       -- NA(Float)</code></pre>
+id="medianx-na_rm-false-minx-maxx-rangex"><code>median(x, na_rm = false)</code>
+/ <code>min(x)</code> / <code>max(x)</code> / <code>range(x)</code></h3>
+<p>Basic descriptive statistics.</p>
 <hr />
 <h3
-id="sdcollection-na_rm-false"><code>sd(collection, na_rm = false)</code></h3>
-<p>Standard deviation (sample).</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>collection</code> — List or Vector of numbers</li>
-<li><code>na_rm</code> (optional) — If true, skip NA values (default:
-false)</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>Float</code> — Standard deviation</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>sd([2, 4, 4, 4, 5, 5, 7, 9])       -- 2.1380899353
-sd([1, 2, 3])                       -- 1.0
-sd([1, NA, 3], na_rm = true)        -- 1.41421356237
-sd([5, 5, 5])                       -- 0.0 (no variation)</code></pre>
+id="varx-na_rm-false-sdx-na_rm-false"><code>var(x, na_rm = false)</code>
+/ <code>sd(x, na_rm = false)</code></h3>
+<p>Variance and standard deviation.</p>
+<hr />
+<h3 id="iqrx-madx"><code>iqr(x)</code> / <code>mad(x)</code></h3>
+<p>Interquartile range and Median Absolute Deviation.</p>
+<hr />
+<h3 id="fivenumx"><code>fivenum(x)</code></h3>
+<p>Tukey’s five-number summary (min, lower-hinge, median, upper-hinge,
+max).</p>
+<hr />
+<h3 id="skewnessx-kurtosisx"><code>skewness(x)</code> /
+<code>kurtosis(x)</code></h3>
+<p>Higher-order moments.</p>
+<hr />
+<h3
+id="trimmed_meanx-trim-0.1-na_rm-false"><code>trimmed_mean(x, trim = 0.1, na_rm = false)</code></h3>
+<p>Mean calculated after trimming a fraction of observations from each
+end.</p>
 <hr />
 <h3
 id="quantilecollection-p-na_rm-false"><code>quantile(collection, p, na_rm = false)</code></h3>
-<p>Compute quantile/percentile.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>collection</code> — List or Vector of numbers</li>
-<li><code>p</code> — Probability (0.0 to 1.0)</li>
-<li><code>na_rm</code> (optional) — If true, skip NA values (default:
-false)</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>Float</code> — Quantile value</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>quantile([1, 2, 3, 4, 5], 0.5)     -- 3.0 (median)
-quantile([1, 2, 3, 4, 5], 0.25)    -- 2.0 (Q1)
-quantile([1, 2, 3, 4, 5], 0.75)    -- 4.0 (Q3)
-quantile([1, NA, 3], 0.5, na_rm = true)  -- 2.0</code></pre>
+<p>Compute quantile/percentile (p between 0 and 1).</p>
 <hr />
-<h3 id="corx-y-na_rm-false"><code>cor(x, y, na_rm = false)</code></h3>
-<p>Pearson correlation coefficient.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>x</code> — List or Vector of numbers</li>
-<li><code>y</code> — List or Vector of numbers (same length as x)</li>
-<li><code>na_rm</code> (optional) — If true, use pairwise deletion for
-NA (default: false)</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>Float</code> — Correlation (-1.0 to 1.0)</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>cor([1, 2, 3], [2, 4, 6])                  -- 1.0 (perfect positive)
-cor([1, 2, 3], [3, 2, 1])                  -- -1.0 (perfect negative)
-cor([1, 2, 3], [4, 5, 6])                  -- 1.0
-cor([1, NA, 3], [2, 4, NA], na_rm = true)  -- 1.0 (uses [1,3] and [2,4])</code></pre>
+<h3 id="normalizex-standardizex-scalex"><code>normalize(x)</code> /
+<code>standardize(x)</code> / <code>scale(x)</code></h3>
+<p>Rescale or center numeric data. <code>scale</code> and
+<code>standardize</code> compute z-scores. <code>normalize</code> scales
+to [0, 1].</p>
 <hr />
-<h3 id="lmdata-formula"><code>lm(data, formula)</code></h3>
-<p>Fit a linear regression model (ordinary least squares).</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>data</code> — DataFrame</li>
-<li><code>formula</code> — Formula object
-(<code>y ~ x1 + x2</code>)</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p>Model object. Use <code>summary()</code> and <code>fit_stats()</code>
-to inspect. PMML imports accept T’s extended fields
-(e.g. <code>std_error</code>, <code>statistic</code>,
-<code>p_value</code>) and are not schema-validated.</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>model = lm(data = df, formula = mpg ~ wt + hp)
-print(model)</code></pre>
+<h3 id="corx-y-na_rm-false-covx-y"><code>cor(x, y, na_rm = false)</code>
+/ <code>cov(x, y)</code></h3>
+<p>Pearson correlation and covariance.</p>
 <hr />
-<h3 id="summarymodel"><code>summary(model)</code></h3>
-<p>Get a tidy DataFrame of model coefficients. Similar to
-<code>broom::tidy()</code> in R.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>model</code> — Linear model object (from <code>lm()</code> or
-imported via PMML)</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p>DataFrame with columns: <code>term</code>, <code>estimate</code>,
-<code>std_error</code>, <code>statistic</code>,
-<code>p_value</code>.</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>summary(model)</code></pre>
-<hr />
-<h3 id="fit_statsmodel"><code>fit_stats(model)</code></h3>
-<p>Get a single-row DataFrame of model-level statistics. Similar to
-<code>broom::glance()</code> in R.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>model</code> — Model object (linear model, decision tree, or
-random forest; PMML imports supported)</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p>DataFrame with statistics like <code>r_squared</code>,
-<code>AIC</code>, <code>BIC</code>, <code>sigma</code>, etc.</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>fit_stats(model)</code></pre>
+<h3 id="pnormx-ptx-df-pfq-df1-df2-pchisqq-df"><code>pnorm(x)</code> /
+<code>pt(x, df)</code> / <code>pf(q, df1, df2)</code> /
+<code>pchisq(q, df)</code></h3>
+<p>Cumulative Distribution Functions (CDFs) for Normal, T, F, and
+Chi-squared distributions.</p>
 <hr />
 <h3
-id="add_diagnosticsmodel-data"><code>add_diagnostics(model, data)</code></h3>
-<p>Augment data with per-observation diagnostics. Similar to
-<code>broom::augment()</code> in R.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>model</code> — Linear model object</li>
-<li><code>data</code> — Original DataFrame used for fitting</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p>DataFrame with original columns plus diagnostics
-(<code>.fitted</code>, <code>.resid</code>, etc.).</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>add_diagnostics(model, data = df)</code></pre>
+id="polyx-degree-raw-true-cutx-breaks"><code>poly(x, degree, raw = true)</code>
+/ <code>cut(x, breaks)</code></h3>
+<p>Basis expansion and discretization. <code>poly</code> returns a List
+of terms suitable for use with the <code>!!!</code> splat operator in
+<code>mutate</code>.</p>
 <hr />
-<h3 id="predictdata-model"><code>predict(data, model)</code></h3>
-<p>Perform vectorized prediction on a new DataFrame. Supports linear
-models as well as PMML decision trees and random forests.</p>
+<h3 id="lmdata-formula"><code>lm(data, formula)</code></h3>
+<p>Fit a linear regression model (ordinary least squares). Use
+<code>summary()</code> and <code>fit_stats()</code> to inspect.</p>
+<hr />
+<h3 id="summarymodel-fit_statsmodel"><code>summary(model)</code> /
+<code>fit_stats(model)</code></h3>
+<p>Extract tidy coefficients or model-level metrics.</p>
+<hr />
+<h3
+id="predictdata-model-scoredata-model"><code>predict(data, model)</code>
+/ <code>score(data, model)</code></h3>
+<p>Perform vectorized prediction. <code>score</code> is a generic
+alias.</p>
+<hr />
+<h3
+id="add_diagnosticsmodel-data-augmentmodel-data"><code>add_diagnostics(model, data)</code>
+/ <code>augment(model, data)</code></h3>
+<p>Augment data with per-observation diagnostics (.fitted, .resid,
+etc.).</p>
+<hr />
+<h3
+id="anovamodel1-model2-..."><code>anova(model1, model2, ...)</code></h3>
+<p>Compare multiple nested models.</p>
+<hr />
+<h3 id="coefmodel-residualsmodel-vcovmodel"><code>coef(model)</code> /
+<code>residuals(model)</code> / <code>vcov(model)</code></h3>
+<p>Extract coefficients, residuals, or variance-covariance matrix.</p>
+<hr />
+<h3 id="wald_testmodel-terms"><code>wald_test(model, terms)</code></h3>
+<p>Perform a Wald test for a joint hypothesis.</p>
+<hr />
+<h3 id="read_onnxpath-read_pmmlpath"><code>read_onnx(path)</code> /
+<code>read_pmml(path)</code></h3>
+<p>Import pre-trained models from ONNX or PMML formats.</p>
+<hr />
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>data</code> — DataFrame containing predictor columns</li>
-<li><code>model</code> — Linear model object</li>
+<li><code>model</code> — Model object</li>
+<li><code>terms</code> — List of coefficient names to test</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>Vector of predicted values.</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>preds = predict(new_df, model)</code></pre>
+<p>DataFrame with test statistics.</p>
+<hr />
+<h3
+id="medianx-na_rm-false-varx-na_rm-false-covx-y-na_rm-false"><code>median(x, na_rm = false)</code>
+/ <code>var(x, na_rm = false)</code> /
+<code>cov(x, y, na_rm = false)</code></h3>
+<p>Additional descriptive statistics.</p>
+<hr />
+<h3 id="normalizex-standardizex-scalex-1"><code>normalize(x)</code> /
+<code>standardize(x)</code> / <code>scale(x)</code></h3>
+<p>Data normalization and scaling utilities.</p>
+<hr />
+<h3
+id="trimmed_meanx-trim-0.1-na_rm-false-1"><code>trimmed_mean(x, trim = 0.1, na_rm = false)</code></h3>
+<p>Compute the trimmed mean of a collection.</p>
+<hr />
+<h3
+id="winsorizex-probs-0.05-0.95"><code>winsorize(x, probs = [0.05, 0.95])</code></h3>
+<p>Replace extreme values with quantiles.</p>
+<hr />
+<h3
+id="huber_lossactual-predicted-delta-1.0"><code>huber_loss(actual, predicted, delta = 1.0)</code></h3>
+<p>Compute the Huber loss between two vectors.</p>
+<hr />
+<h3
+id="cutx-breaks-...-polyx-degree-..."><code>cut(x, breaks, ...)</code> /
+<code>poly(x, degree, ...)</code></h3>
+<p>Basis functions for modeling.</p>
+<hr />
 <hr />
 <h2 id="dataframe-package">DataFrame Package</h2>
 <p>CSV I/O and DataFrame introspection.</p>
+<h3 id="dataframedata"><code>dataframe(data)</code></h3>
+<p>Constructs a DataFrame from either a list of rows (Dictionaries) or a
+Dictionary of columns (Vectors/Lists).</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>data</code> — List of Dictionaries (row-wise) or a single
+Dictionary (column-wise)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>DataFrame</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>-- Column-wise
+df = dataframe([x: [1, 2], y: [3, 4]])
+
+-- Row-wise
+df = dataframe([
+  [name: &quot;Alice&quot;, age: 30],
+  [name: &quot;Bob&quot;, age: 25]
+])</code></pre>
+<hr />
 <h3
 id="read_csvpath-separator-skip_lines-0-skip_header-false-clean_colnames-false"><code>read_csv(path, separator = ",", skip_lines = 0, skip_header = false, clean_colnames = false)</code></h3>
 <p>Read a CSV file into a DataFrame.</p>
-<p><strong>Current implementation note:</strong></p>
-<p><code>read_csv()</code> currently parses CSV in OCaml and then
-constructs an Arrow-backed <code>DataFrame</code>. The repository also
-contains a lower-level native Arrow CSV reader, but that backend path is
-not yet the public default entry point.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>path</code> — File path (String)</li>
@@ -886,75 +1038,62 @@ names (default: false)</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>DataFrame</code></p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>df = read_csv(&quot;data.csv&quot;)
-df = read_csv(&quot;data.tsv&quot;, separator = &quot;\t&quot;)
-df = read_csv(&quot;data.csv&quot;, skip_lines = 2)
-df = read_csv(&quot;messy.csv&quot;, clean_colnames = true)</code></pre>
 <hr />
-<h3 id="read_arrowpath"><code>read_arrow(path)</code></h3>
-<p>Read an Arrow IPC file into a DataFrame.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>path</code> — Input file path (String)</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>DataFrame</code></p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>df = read_arrow(&quot;data.arrow&quot;)</code></pre>
+<h3 id="read_parquetpath"><code>read_parquet(path)</code></h3>
+<p>Read a Parquet file into a DataFrame.</p>
 <hr />
 <h3
-id="write_arrowdataframe-path"><code>write_arrow(dataframe, path)</code></h3>
-<p>Write a DataFrame to an Arrow IPC file.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>dataframe</code> — DataFrame to write</li>
-<li><code>path</code> — Output file path (String)</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>NA</code></p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>write_arrow(df, &quot;snapshot.arrow&quot;)</code></pre>
+id="read_arrowpath-write_arrowdataframe-path"><code>read_arrow(path)</code>
+/ <code>write_arrow(dataframe, path)</code></h3>
+<p>Read or write Arrow IPC files.</p>
 <hr />
 <h3
 id="write_csvdataframe-path-separator"><code>write_csv(dataframe, path, separator = ",")</code></h3>
 <p>Write a DataFrame to a CSV file.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>dataframe</code> — DataFrame to write</li>
-<li><code>path</code> — Output file path (String)</li>
-<li><code>separator</code> (optional) — Column separator (default:
-“,”)</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>NA</code></p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>write_csv(df, &quot;output.csv&quot;)
-write_csv(df, &quot;output.tsv&quot;, separator = &quot;\t&quot;)</code></pre>
 <hr />
-<h3 id="nrowdataframe"><code>nrow(dataframe)</code></h3>
-<p>Get number of rows.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>dataframe</code> — DataFrame</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>Int</code> — Row count</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>nrow(df)  -- 100</code></pre>
-<hr />
-<h3 id="ncoldataframe"><code>ncol(dataframe)</code></h3>
-<p>Get number of columns.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>dataframe</code> — DataFrame</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>Int</code> — Column count</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>ncol(df)  -- 5</code></pre>
+<h3 id="nrowdataframe-ncoldataframe"><code>nrow(dataframe)</code> /
+<code>ncol(dataframe)</code></h3>
+<p>Get number of rows or columns.</p>
 <hr />
 <h3 id="colnamesdataframe"><code>colnames(dataframe)</code></h3>
+<p>Get column names as a List of strings.</p>
+<hr />
+<h3 id="clean_colnamesx"><code>clean_colnames(x)</code></h3>
+<p>Standardizes column names using a snake_case convention. Works on
+DataFrames or Lists of strings.</p>
+<hr />
+<h3 id="glimpsedataframe"><code>glimpse(dataframe)</code></h3>
+<p>Prints a summary of the DataFrame structure, including dimensions,
+column names, types, and first few values.</p>
+<hr />
+<h3 id="pulldataframe-column"><code>pull(dataframe, column)</code></h3>
+<p>Extracts a single column as a Vector.</p>
+<hr />
+<h3
+id="to_arraydataframe-columns-na"><code>to_array(dataframe, columns = NA)</code></h3>
+<p>Converts numeric columns of a DataFrame to a matrix (NDArray).
+nrow(df) – 100</p>
+<pre><code>
+---
+
+### `ncol(dataframe)`
+
+Get number of columns.
+
+**Parameters:**
+
+
+- `dataframe` — DataFrame
+
+**Returns:**
+
+`Int` — Column count
+
+**Examples:**
+```t
+ncol(df)  -- 5</code></pre>
+<hr />
+<h3 id="colnamesdataframe-1"><code>colnames(dataframe)</code></h3>
 <p>Get column names.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
@@ -965,7 +1104,7 @@ write_csv(df, &quot;output.tsv&quot;, separator = &quot;\t&quot;)</code></pre>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>colnames(df)  -- [&quot;name&quot;, &quot;age&quot;, &quot;dept&quot;, &quot;salary&quot;]</code></pre>
 <hr />
-<h3 id="glimpsedataframe"><code>glimpse(dataframe)</code></h3>
+<h3 id="glimpsedataframe-1"><code>glimpse(dataframe)</code></h3>
 <p>Get a compact overview of a DataFrame, showing column names, types,
 and example values. Similar to dplyr’s <code>glimpse()</code>.</p>
 <p><strong>Parameters:</strong></p>
@@ -1142,6 +1281,101 @@ df |&gt; group_by($dept) |&gt; summarize($count, \(g) nrow(g))</code></pre>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>ungrouped = df |&gt; group_by($dept) |&gt; ungroup()</code></pre>
 <hr />
+<h3 id="join-and-bind-functions">Join and Bind Functions</h3>
+<h4
+id="left_joinx-y-by-na-inner_join-full_join-semi_join-anti_join"><code>left_join(x, y, by = NA)</code>
+/ <code>inner_join</code> / <code>full_join</code> /
+<code>semi_join</code> / <code>anti_join</code></h4>
+<p>Join two DataFrames.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code>, <code>y</code> — DataFrames to join</li>
+<li><code>by</code> (optional) — Column(s) to join on. If omitted, uses
+common columns.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Joined DataFrame</p>
+<hr />
+<h4 id="bind_rows...-bind_cols..."><code>bind_rows(...)</code> /
+<code>bind_cols(...)</code></h4>
+<p>Combine multiple DataFrames by stacking rows or placing columns
+side-by-side.</p>
+<hr />
+<h3 id="wrangling-utilities">Wrangling Utilities</h3>
+<h4 id="countdf-...columns"><code>count(df, ...columns)</code></h4>
+<p>Count occurrences of unique values.</p>
+<hr />
+<h4
+id="distinctdf-...columns"><code>distinct(df, ...columns)</code></h4>
+<p>Keep only unique rows.</p>
+<hr />
+<h4 id="drop_nadf-...columns"><code>drop_na(df, ...columns)</code></h4>
+<p>Drop rows containing NA values in the specified columns.</p>
+<hr />
+<h4 id="replace_nadf-values"><code>replace_na(df, values)</code></h4>
+<p>Replace NA values with specified defaults.</p>
+<hr />
+<h4
+id="renamedf-...new_name-old_name"><code>rename(df, ...new_name = old_name)</code></h4>
+<p>Rename columns.</p>
+<hr />
+<h4
+id="relocatedf-...columns-before-na-after-na"><code>relocate(df, ...columns, before = NA, after = NA)</code></h4>
+<p>Change column order.</p>
+<hr />
+<h4
+id="slicedf-...indices-slice_mindf-col-n-1-slice_maxdf-col-n-1"><code>slice(df, ...indices)</code>
+/ <code>slice_min(df, col, n = 1)</code> /
+<code>slice_max(df, col, n = 1)</code></h4>
+<p>Subset rows by position or extreme values.</p>
+<hr />
+<h4
+id="pivot_longerdf-cols-names_to-name-values_to-value"><code>pivot_longer(df, cols, names_to = "name", values_to = "value")</code></h4>
+<h4
+id="pivot_widerdf-names_from-name-values_from-value"><code>pivot_wider(df, names_from = "name", values_from = "value")</code></h4>
+<p>Reshape DataFrames between long and wide formats.</p>
+<hr />
+<h4
+id="separatedf-col-into-sep-a-za-z0-9-unitedf-col-...from-sep-_"><code>separate(df, col, into, sep = "[^a-zA-Z0-9]+")</code>
+/ <code>unite(df, col, ...from, sep = "_")</code></h4>
+<p>Split a column into multiple columns, or combine multiple columns
+into one.</p>
+<hr />
+<h3 id="factor-manipulation">Factor Manipulation</h3>
+<h4
+id="factorx-levels-na-ordered-false-fctx-as_factorx"><code>factor(x, levels = NA, ordered = false)</code>
+/ <code>fct(x)</code> / <code>as_factor(x)</code></h4>
+<p>Create factor-encoded vectors. <code>fct</code> uses first-appearance
+levels by default.</p>
+<hr />
+<h4 id="levelsf"><code>levels(f)</code></h4>
+<p>Get labels from a factor.</p>
+<hr />
+<h4
+id="fct_recodef-...new-old-fct_relevelf-...levels-after-0"><code>fct_recode(f, ...new = old)</code>
+/ <code>fct_relevel(f, ...levels, after = 0)</code></h4>
+<p>Rename or reorder factor levels.</p>
+<hr />
+<h4
+id="fct_lump_nf-n-other_level-other-fct_lump_min-fct_lump_prop"><code>fct_lump_n(f, n, other_level = "Other")</code>
+/ <code>fct_lump_min</code> / <code>fct_lump_prop</code></h4>
+<p>Collapse infrequent levels into an “Other” category.</p>
+<hr />
+<h4
+id="fct_infreqf-fct_revf-fct_reorderf-x-.desc-false"><code>fct_infreq(f)</code>
+/ <code>fct_rev(f)</code> /
+<code>fct_reorder(f, x, .desc = false)</code></h4>
+<p>Reorder levels by frequency, reversal, or summary of another
+vector.</p>
+<hr />
+<h3 id="aggregation-context">Aggregation Context</h3>
+<h4 id="n"><code>n()</code></h4>
+<p>Returns the number of rows in the current group. Only valid inside
+<code>summarize()</code>.</p>
+<hr />
+<h4 id="n_distinctx"><code>n_distinct(x)</code></h4>
+<p>Returns the number of unique non-NA values.</p>
+<hr />
 <h3 id="window-functions">Window Functions</h3>
 <p>Window functions compute values across rows without collapsing
 them.</p>
@@ -1296,77 +1530,203 @@ cumsum([1, NA, 3])           -- Vector[1, NA, NA]</code></pre>
 <pre class="t"><code>as_date(&quot;2023-05-15&quot;)  -- 2023-05-15
 as_datetime(&quot;2023-05-15 14:00:00&quot;)</code></pre>
 <hr />
-<h3 id="ymdstring-dmystring"><code>ymd(string)</code> /
-<code>dmy(string)</code></h3>
-<p>Parse strings into dates using common formats.</p>
+<h3
+id="ymdstring-mdystring-dmystring-ydmstring"><code>ymd(string)</code> /
+<code>mdy(string)</code> / <code>dmy(string)</code> /
+<code>ydm(string)</code></h3>
+<h3
+id="ymd_hstring-ymd_hmstring-ymd_hmsstring"><code>ymd_h(string)</code> /
+<code>ymd_hm(string)</code> / <code>ymd_hms(string)</code></h3>
+<p>Parse strings into dates or datetimes using common layouts.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>string</code> — Date string</li>
+<li><code>string</code> — Date or Datetime string</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p><code>Date</code></p>
+<p><code>Date</code> / <code>Datetime</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>ymd(&quot;2023-05-15&quot;)
-dmy(&quot;15/05/2023&quot;)</code></pre>
+mdy(&quot;05-15-2023&quot;)
+ymd_hms(&quot;2023-05-15 14:30:05&quot;)</code></pre>
 <hr />
 <h3
-id="floor_datedatetime-unit"><code>floor_date(datetime, unit)</code></h3>
-<p>Round a date/datetime down to the nearest unit (year, month, day,
+id="parse_datestring-format-parse_datetimestring-format-tz-utc"><code>parse_date(string, format)</code>
+/ <code>parse_datetime(string, format, tz = "UTC")</code></h3>
+<p>Parse strings into temporal values using explicit
+<code>strptime</code>-style formats.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>string</code> — Input string</li>
+<li><code>format</code> — Format string (e.g., “%Y-%m-%d”)</li>
+<li><code>tz</code> (optional) — Timezone label for
+<code>parse_datetime</code></li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Date</code> / <code>Datetime</code></p>
+<hr />
+<h3 id="today-nowtz-utc"><code>today()</code> /
+<code>now(tz = "UTC")</code></h3>
+<p>Get the current UTC date or datetime.</p>
+<p><strong>Returns:</strong></p>
+<p><code>Date</code> / <code>Datetime</code></p>
+<hr />
+<h3 id="yearx-monthx-label-false-dayx-mdayx"><code>year(x)</code> /
+<code>month(x, label = false)</code> / <code>day(x)</code> /
+<code>mday(x)</code></h3>
+<h3
+id="ydayx-wdayx-label-false-week_start-7-weekx-isoweekx-isoyearx"><code>yday(x)</code>
+/ <code>wday(x, label = false, week_start = 7)</code> /
+<code>week(x)</code> / <code>isoweek(x)</code> /
+<code>isoyear(x)</code></h3>
+<h3 id="quarterx-semesterx"><code>quarter(x)</code> /
+<code>semester(x)</code></h3>
+<p>Extract calendar components from Date or Datetime values.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — Date or Datetime</li>
+<li><code>label</code> (optional) — If true, returns month/weekday names
+as strings.</li>
+<li><code>week_start</code> (optional) — Day the week starts on (1=Mon,
+7=Sun).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Int</code> / <code>String</code></p>
+<hr />
+<h3 id="hourx-minutex-secondx-tzx"><code>hour(x)</code> /
+<code>minute(x)</code> / <code>second(x)</code> /
+<code>tz(x)</code></h3>
+<p>Extract time-of-day components or timezone labels from Datetime
+values.</p>
+<p><strong>Returns:</strong></p>
+<p><code>Int</code> / <code>Float</code> / <code>String</code></p>
+<hr />
+<h3 id="amx-pmx"><code>am(x)</code> / <code>pm(x)</code></h3>
+<p>Check whether a time is before or after noon.</p>
+<p><strong>Returns:</strong></p>
+<p><code>Bool</code></p>
+<hr />
+<h3
+id="floor_datedatetime-unit-ceiling_datedatetime-unit-round_datedatetime-unit"><code>floor_date(datetime, unit)</code>
+/ <code>ceiling_date(datetime, unit)</code> /
+<code>round_date(datetime, unit)</code></h3>
+<p>Round a date/datetime to the nearest unit boundary (year, month, day,
 hour, etc.).</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>datetime</code> — Date or Datetime</li>
-<li><code>unit</code> — Unit as string (“month”, “day”, etc.)</li>
+<li><code>unit</code> — Unit as string (“month”, “day”, “hour”,
+etc.)</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>Same as input type</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>floor_date(as_date(&quot;2023-05-15&quot;), &quot;month&quot;)  -- 2023-05-01</code></pre>
 <hr />
+<h3
+id="make_dateyear-month-day-make_datetimeyear-month-day-hour-min-sec-tz"><code>make_date(year, month, day)</code>
+/ <code>make_datetime(year, month, day, hour, min, sec, tz)</code></h3>
+<p>Construct temporal values from numeric components.</p>
+<hr />
+<h3
+id="format_datex-format-format_datetimex-format"><code>format_date(x, format)</code>
+/ <code>format_datetime(x, format)</code></h3>
+<p>Format temporal values as strings using <code>strftime</code>-style
+patterns.</p>
+<hr />
+<h3
+id="intervalstart-end-withinx-interval"><code>interval(start, end)</code>
+/ <code>%within%(x, interval)</code></h3>
+<p>Construct temporal intervals and test membership.</p>
+<hr />
+<h3
+id="yearsn-monthsn-weeksn-daysn-hoursn-minutesn-secondsn"><code>years(n)</code>
+/ <code>months(n)</code> / <code>weeks(n)</code> / <code>days(n)</code>
+/ <code>hours(n)</code> / <code>minutes(n)</code> /
+<code>seconds(n)</code></h3>
+<p>Construct Period objects for date arithmetic.</p>
+<hr />
+<h3
+id="is_datex-is_datetimex-is_periodx-is_durationx-is_intervalx"><code>is_date(x)</code>
+/ <code>is_datetime(x)</code> / <code>is_period(x)</code> /
+<code>is_duration(x)</code> / <code>is_interval(x)</code></h3>
+<p>Type predicates for temporal values.</p>
+<hr />
+<h3 id="is_leap_yearx-days_in_monthx"><code>is_leap_year(x)</code> /
+<code>days_in_month(x)</code></h3>
+<p>Calendar helpers.</p>
+<hr />
+<h3 id="with_tzx-tz-force_tzx-tz"><code>with_tz(x, tz)</code> /
+<code>force_tz(x, tz)</code></h3>
+<p>Update the timezone label of a Datetime value.</p>
+<hr />
 <h2 id="strcraft-package">Strcraft Package</h2>
 <p>Modern string manipulation utilities, inspired by R’s
 <code>stringr</code>.</p>
 <h3
-id="str_replacestring-pattern-replacement"><code>str_replace(string, pattern, replacement)</code></h3>
-<p>Replace the first occurrence of a pattern with a replacement string.
-Use <code>str_replace_all</code> for all occurrences.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>string</code> — Input string</li>
-<li><code>pattern</code> — Regex pattern</li>
-<li><code>replacement</code> — Replacement string</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>String</code></p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>str_replace(&quot;hello world&quot;, &quot;world&quot;, &quot;T&quot;)  -- &quot;hello T&quot;</code></pre>
+id="str_replacestring-pattern-replacement-str_replace_all..."><code>str_replace(string, pattern, replacement)</code>
+/ <code>str_replace_all(...)</code></h3>
+<p>Replace occurrences of a pattern.</p>
 <hr />
 <h3
-id="str_detectstring-pattern"><code>str_detect(string, pattern)</code></h3>
-<p>Check if a pattern exists in a string.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>string</code> — Input string</li>
-<li><code>pattern</code> — Regex pattern</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>Bool</code></p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>str_detect(&quot;apple&quot;, &quot;p&quot;)  -- true</code></pre>
+id="str_detectstring-pattern-containss-sub"><code>str_detect(string, pattern)</code>
+/ <code>contains(s, sub)</code></h3>
+<p>Check if a pattern or substring exists.</p>
 <hr />
-<h3 id="str_glue..."><code>str_glue(...)</code></h3>
-<p>Interpolate variables and expressions into strings. Similar to Python
-f-strings.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>...</code> — String with <code>{expression}</code>
-placeholders</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>String</code></p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>name = &quot;Alice&quot;
-str_glue(&quot;Hello {name}&quot;)  -- &quot;Hello Alice&quot;</code></pre>
+<h3
+id="starts_withs-prefix-ends_withs-suffix"><code>starts_with(s, prefix)</code>
+/ <code>ends_with(s, suffix)</code></h3>
+<p>Check string boundaries.</p>
+<hr />
+<h3
+id="str_extracts-pattern-str_extract_alls-pattern"><code>str_extract(s, pattern)</code>
+/ <code>str_extract_all(s, pattern)</code></h3>
+<p>Extract matching substrings. <code>str_extract</code> returns the
+first match; <code>str_extract_all</code> returns a List of all
+matches.</p>
+<hr />
+<h3
+id="str_counts-pattern-str_nchars"><code>str_count(s, pattern)</code> /
+<code>str_nchar(s)</code></h3>
+<p>Count matches or total characters.</p>
+<hr />
+<h3 id="str_trims-trim_starts-trim_ends"><code>str_trim(s)</code> /
+<code>trim_start(s)</code> / <code>trim_end(s)</code></h3>
+<p>Remove whitespace.</p>
+<hr />
+<h3 id="str_liness-str_wordss-str_splits-sep"><code>str_lines(s)</code>
+/ <code>str_words(s)</code> / <code>str_split(s, sep)</code></h3>
+<p>Split strings into parts. <code>str_lines</code> splits on newlines;
+<code>str_words</code> splits on any whitespace.</p>
+<hr />
+<h3
+id="str_pads-width-side-left-pad"><code>str_pad(s, width, side = "left", pad = " ")</code></h3>
+<p>Pad strings to a fixed width.</p>
+<hr />
+<h3
+id="str_truncs-width-side-right-ellipsis-..."><code>str_trunc(s, width, side = "right", ellipsis = "...")</code></h3>
+<p>Truncate strings with an ellipsis.</p>
+<hr />
+<h3
+id="str_flattenvalues-collapse-str_joinitems-sep"><code>str_flatten(values, collapse = "")</code>
+/ <code>str_join(items, sep = "")</code></h3>
+<p>Combine multiple strings into one.</p>
+<hr />
+<h3 id="to_lowers-to_uppers"><code>to_lower(s)</code> /
+<code>to_upper(s)</code></h3>
+<p>Case normalization.</p>
+<hr />
+<h3 id="str_repeats-n"><code>str_repeat(s, n)</code></h3>
+<p>Repeat a string <code>n</code> times.</p>
+<hr />
+<h3
+id="str_glue...-str_formatfmt-values-str_sprintffmt-..."><code>str_glue(...)</code>
+/ <code>str_format(fmt, values)</code> /
+<code>str_sprintf(fmt, ...)</code></h3>
+<p>String interpolation and formatting. <code>str_glue</code> uses
+<code>{expr}</code> syntax; <code>str_format</code> uses
+<code>{name}</code> with a Dictionary; <code>str_sprintf</code> uses
+C-style <code>%</code> specifiers.</p>
+<hr />
 <hr />
 <h2 id="lens-package">Lens Package</h2>
 <p>Composable access and update lenses for dictionaries, lists, data
@@ -1374,77 +1734,92 @@ frames, and pipeline inspection.</p>
 <p>For the full walkthrough and worked examples, see the <a
 href="lens.html">Lens guide</a>. For the generated per-function entries,
 see the <a href="reference/index.html">Function Reference</a>.</p>
-<p>Common lens entry points include:</p>
-<ul>
-<li><code>col_lens(name)</code> — focus a dictionary key or data-frame
-column</li>
-<li><code>idx_lens(i)</code> — focus a list/vector position</li>
-<li><code>compose(l1, l2, ...)</code> — build larger traversals from
-smaller ones</li>
-<li><code>get(data, lens)</code> — read through a lens</li>
-<li><code>set(data, lens, value)</code> /
-<code>over(data, lens, fn)</code> — update through a lens</li>
-<li><code>filter_lens(predicate)</code> — keep only matching elements
-inside a focused collection</li>
-</ul>
+<h3 id="col_lensname-idx_lensi-row_lensi"><code>col_lens(name)</code> /
+<code>idx_lens(i)</code> / <code>row_lens(i)</code></h3>
+<p>Focus on a dictionary key/column, a list index, or a DataFrame
+row.</p>
+<hr />
+<h3 id="filter_lenspredicate"><code>filter_lens(predicate)</code></h3>
+<p>Focus on elements matching a predicate (supports DataFrames, Lists,
+and Vectors).</p>
+<hr />
+<h3
+id="node_lensname-node_meta_lensname-field-env_var_lensnode-var"><code>node_lens(name)</code>
+/ <code>node_meta_lens(name, field)</code> /
+<code>env_var_lens(node, var)</code></h3>
+<p>Focus on pipeline nodes, their metadata, or environment
+variables.</p>
+<hr />
+<h3 id="compose...lenses"><code>compose(...lenses)</code></h3>
+<p>Combine multiple lenses into a deep traversal.</p>
+<hr />
+<h3
+id="getdata-lens-setdata-lens-value-overdata-lens-fn"><code>get(data, lens)</code>
+/ <code>set(data, lens, value)</code> /
+<code>over(data, lens, fn)</code></h3>
+<p>Read, write, or transform data at the focused location.</p>
+<hr />
+<h3 id="modifydata-...pairs"><code>modify(data, ...pairs)</code></h3>
+<p>Apply a sequence of <code>(lens, function)</code> pairs to the same
+data structure.</p>
 <hr />
 <h2 id="pipeline-package">Pipeline Package</h2>
 <p>Pipeline introspection and management.</p>
+<h3 id="pipeline..."><code>pipeline(...)</code></h3>
+<p>Constructs a Pipeline from a Dictionary of named nodes or a List of
+node records.</p>
+<hr />
+<h3
+id="build_pipelinep-verbose-0-populate_pipelinep-build-true"><code>build_pipeline(p, verbose = 0)</code>
+/ <code>populate_pipeline(p, build = true)</code></h3>
+<p>Materialize a pipeline to Nix artifacts. <code>build_pipeline</code>
+is the primary entry point for full Nix builds.
+<code>populate_pipeline</code> can be used to generate the Nix
+expression without building (with <code>build = false</code>).</p>
+<hr />
+<h3 id="read_pipelinep-inspect_pipelinep"><code>read_pipeline(p)</code>
+/ <code>inspect_pipeline(p)</code></h3>
+<p>Returns a dictionary with node metadata and diagnostics summary.
+<code>inspect_pipeline</code> focuses on the DAG structure (edges).</p>
+<hr />
+<h3
+id="read_nodenode-name-na-which_log-na"><code>read_node(node, name = NA, which_log = NA)</code></h3>
+<p>Retrieves a node artifact. Supports in-memory Pipelines (needs
+<code>name</code>), built node names (String), or ComputedNode
+objects.</p>
+<hr />
+<h3
+id="filter_nodep-predicate-select_nodep-..."><code>filter_node(p, predicate)</code>
+/ <code>select_node(p, ...)</code></h3>
+<p>Subsetting nodes in a pipeline. <code>filter_node</code> keeps nodes
+matching a condition; <code>select_node</code> picks nodes by name.</p>
+<hr />
+<h3
+id="mutate_nodep-...-rename_nodep-..."><code>mutate_node(p, ...)</code>
+/ <code>rename_node(p, ...)</code></h3>
+<p>Modify nodes within a pipeline. <code>mutate_node</code> can redefine
+or add nodes; <code>rename_node</code> changes node labels while
+preserving dependencies.</p>
+<hr />
+<h3 id="arrange_nodep-..."><code>arrange_node(p, ...)</code></h3>
+<p>Reorders nodes in the pipeline definition (does not affect execution
+order, which is DAG-driven).</p>
+<hr />
+<h3
+id="trace_nodesp-node_names"><code>trace_nodes(p, node_names)</code></h3>
+<p>Returns a sub-pipeline containing only the specified nodes and all
+their recursive dependencies.</p>
+<hr />
 <h3
 id="which_nodesp-predicate"><code>which_nodes(p, predicate)</code></h3>
 <p>Filter the richer node records from
 <code>read_pipeline(p).nodes</code> without manually writing
 <code>read_pipeline</code>, <code>compose</code>, or an explicit
 lambda.</p>
-<p>Instead of writing:</p>
-<pre class="t"><code>pipe_info = read_pipeline(p)
-
-errored_nodes_l = compose(
-  col_lens(&quot;nodes&quot;),
-  filter_lens(\(node) !is_na(node.diagnostics.error))
-)
-
-get(pipe_info, errored_nodes_l)</code></pre>
-<p>you can simply do this:</p>
-<pre class="t"><code>which_nodes(p, !is_na(diagnostics.error))</code></pre>
-<p>This is the diagnostics-friendly companion to
-<code>filter_node</code>:</p>
-<ul>
-<li><code>filter_node</code> returns a new <code>Pipeline</code></li>
-<li><code>which_nodes</code> returns a <code>List</code> of node
-records</li>
-</ul>
-<p>Each node record exposes:</p>
-<ul>
-<li><code>name</code></li>
-<li><code>value</code></li>
-<li><code>diagnostics</code></li>
-</ul>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>p</code> — The pipeline to inspect</li>
-<li><code>predicate</code> — A predicate over node records</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>List</code> — Matching node records</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>which_nodes(p, !is_na(diagnostics.error))
-which_nodes(p, name == &quot;model&quot;)
-
-has_error = \(node) !is_na(node.diagnostics.error)
-which_nodes(p, has_error)</code></pre>
+<hr />
 <h3 id="errored_nodesp"><code>errored_nodes(p)</code></h3>
 <p>Convenience wrapper returning the subset of node records whose
 <code>diagnostics.error</code> is not <code>NA</code>.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>p</code> — The pipeline to inspect</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>List</code> — Node records with captured errors</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>errored_nodes(p)
-errored_nodes(p) |&gt; map(\(node) node.name)</code></pre>
 <h3
 id="nodecommand-script-na-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-na-shell_args-functions-include-noop-false"><code>node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)</code></h3>
 <p>Configure execution settings such as the runtime and custom
@@ -1776,16 +2151,14 @@ node_info.diagnostics     -- node diagnostics
 node_info.contents        -- explained node payload</code></pre>
 <hr />
 <h3 id="explain_jsonvalue"><code>explain_json(value)</code></h3>
-<p>Export value metadata as JSON (for LLM consumption).</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>value</code> — Any value</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p>JSON String</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>explain_json(df)
--- {&quot;type&quot;: &quot;DataFrame&quot;, &quot;rows&quot;: 100, &quot;columns&quot;: [&quot;name&quot;, &quot;age&quot;, ...]}</code></pre>
+<p>Returns a JSON string representation of the <code>explain</code>
+output.</p>
+<hr />
+<h3
+id="intent_fieldsintent-intent_getintent-key"><code>intent_fields(intent)</code>
+/ <code>intent_get(intent, key)</code></h3>
+<p>Access metadata fields from an Intent object (e.g. from an
+<code>intent { ... }</code> block).</p>
 <hr />
 <h3 id="intent_fieldsintent"><code>intent_fields(intent)</code></h3>
 <p>Get all fields from an intent block.</p>

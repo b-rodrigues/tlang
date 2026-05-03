@@ -13,6 +13,13 @@ DataFrame manipulation verbs, inspired by dplyr.
 | `group_by(df, ...)` | Group by one or more columns |
 | `ungroup(df)` | Remove grouping |
 | `summarize(df, ...)` | Aggregate grouped data |
+| `count(df, ...)` | Count unique combinations |
+| `distinct(df, ...)` | Keep unique rows |
+| `left_join(x, y)` | Join DataFrames |
+| `pivot_longer(...)` | Reshape to long format |
+| `pivot_wider(...)` | Reshape to wide format |
+| `factor(x)` | Create factor vectors |
+| `fct_reorder(...)` | Reorder factor levels |
 
 ## NSE (Non-Standard Evaluation)
 

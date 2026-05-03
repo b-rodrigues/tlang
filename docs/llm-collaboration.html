@@ -119,6 +119,65 @@ of localized edits</li>
 <p><strong>Result</strong>: LLM-generated code is useful for prototyping
 but hard to maintain, audit, or regenerate.</p>
 <hr />
+<h2 id="tiered-ai-onboarding">Tiered AI Onboarding</h2>
+<p>T provides a structured way to onboard LLMs to new projects via the
+<code>t init</code> command. When a project is initialized, T generates
+two essential files that should be provided to the AI agent at the start
+of any conversation:</p>
+<h3 id="project-specific-guide-agents.html">1. Project-Specific Guide
+(<code>AGENTS.md</code>)</h3>
+<p>This file tells the LLM exactly how the current project is structured
+and what the coding conventions are (e.g., “Nix is mandatory”, “Use
+Arrow for data transfer”). It serves as the project’s “rules of
+engagement” for AI assistants.</p>
+<h3 id="tiered-language-reference-t-language-reference.html">2. Tiered
+Language Reference (<code>T-LANGUAGE-REFERENCE.md</code>)</h3>
+<p>To handle different LLM context windows and project needs, T allows
+you to select a “Context Level” during initialization:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Level</th>
+<th style="text-align: left;">Description</th>
+<th style="text-align: left;">Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>small</strong></td>
+<td style="text-align: left;">Core syntax and top 20 functions</td>
+<td style="text-align: left;">Simple scripts, low-context models</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>medium</strong></td>
+<td style="text-align: left;">Exhaustive standard library index
+(Default)</td>
+<td style="text-align: left;">General analysis and pipeline
+development</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>full</strong></td>
+<td style="text-align: left;">Comprehensive manual with detailed
+examples</td>
+<td style="text-align: left;">Complex logic and package development</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>huge</strong></td>
+<td style="text-align: left;">Concatenated documentation of the entire
+ecosystem</td>
+<td style="text-align: left;">Deep debugging and system-level tasks</td>
+</tr>
+</tbody>
+</table>
+<p>By providing these files, you ensure the LLM has the exact technical
+context needed to generate valid, idiomatic T code without
+trial-and-error.</p>
+<hr />
 <h2 id="ts-llm-native-design">T’s LLM-Native Design</h2>
 <p>T treats LLMs as <strong>first-class collaborators</strong> with
 structured boundaries:</p>

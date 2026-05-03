@@ -8,7 +8,7 @@ open Ast
 --# @name serialize
 --# @param value :: Any Value to serialize.
 --# @param path :: String Output file path.
---# @return :: Null
+--# @return :: NA
 --# @family base
 --# @seealso deserialize
 --# @export

@@ -266,7 +266,7 @@ Purpose: assertions, missing values, error values, serialization, JSON.
 
 - Assertions and missingness: `assert(condition, message = NA)`, `is_na(x)`, `na()`, `na_int()`, `na_float()`, `na_bool()`, `na_string()`
 - Error values: `error(message)`, `error(code, message)`, `error_code(err)`, `error_message(err)`, `error_context(err)`
-- Serialization: `serialize(value, path = na())`, `deserialize(path_or_bytes)`, `t_write_json(value, path)`, `t_read_json(path)`
+- Serialization: `serialize(value, path)`, `deserialize(path)`, `t_write_json(value, path)`, `t_read_json(path)`
 
 ### `core`
 

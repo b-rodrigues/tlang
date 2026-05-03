@@ -11,7 +11,7 @@ let register env =
     --# @name t_write_json
     --# @param value :: Any The value to serialize.
     --# @param path :: String Path to the destination file.
-    --# @return :: Null
+    --# @return :: NA
     --# @family json
     --# @export
     *)

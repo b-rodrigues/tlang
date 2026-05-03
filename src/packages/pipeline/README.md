@@ -16,6 +16,12 @@ Pipeline definition and introspection.
 | `read_pipeline(p)` | Read aggregated diagnostics and node metadata from a pipeline |
 | `which_nodes(p, predicate)` | Filter `read_pipeline(p).nodes` records with concise predicates |
 | `errored_nodes(p)` | Return only node records with captured errors |
+| `filter_node(p, pred)` | Filter nodes by predicate |
+| `select_node(p, ...)` | Select nodes by name |
+| `mutate_node(p, ...)` | Add/modify nodes |
+| `rename_node(p, ...)` | Rename nodes |
+| `arrange_node(p, ...)` | Reorder node definitions |
+| `trace_nodes(p, names)` | Extract node sub-graph |
 
 ## Examples
 

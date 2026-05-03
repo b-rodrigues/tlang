@@ -32,6 +32,16 @@ Statistical summaries and models.
 | `huber_loss(x, delta)` | Robust Huber loss |
 | `scale(x)` / `standardize(x)` | z-score standardization |
 | `normalize(x)` | Min-max scaling to [0,1] |
+| `predict(model, data)` | Vectorized prediction |
+| `anova(m1, m2)` | Compare nested models |
+| `pnorm(x)` | Normal distribution CDF |
+| `pt(x, df)` | Student-t CDF |
+| `pf(q, df1, df2)` | F-distribution CDF |
+| `pchisq(q, df)` | Chi-squared CDF |
+| `poly(x, degree)` | Polynomial basis expansion |
+| `cut(x, breaks)` | Discretize numeric vector |
+| `read_onnx(path)` | Import ONNX model |
+| `read_pmml(path)` | Import PMML model |
 
 ## Examples
 

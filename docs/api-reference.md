@@ -247,6 +247,108 @@ expr(f(!!sym(name) := 42))           -- expr(f(result = 42))
 
 ---
 
+### `args(fn)`
+
+Returns a dictionary of parameter names and their expected types for a function.
+
+---
+
+### `is_error(value)`
+
+Returns `true` if the value is an Error object.
+
+---
+
+### `get(target, selector = NA, default = NA)`
+
+Unified retrieval for variables, collection elements, pipeline nodes, or lens focuses.
+
+**Examples:**
+```t
+get("salary")                -- variable lookup
+get(list, 0)                  -- indexing
+get(df, col_lens("mpg"))      -- lens focus
+get(val, 0)                   -- fallback if val is NA/Error
+```
+
+---
+
+### `ifelse(condition, true_val, false_val, missing = NA, out_type = NA)`
+
+Vectorized conditional selection.
+
+---
+
+### `casewhen(...formulas, .default = NA)`
+
+Vectorized multi-condition switch. Uses `condition ~ value` formulas.
+
+---
+
+### `identical(a, b)`
+
+Deep equality check. Works for collections and complex objects.
+
+---
+
+### `eval(expr)` / `expr(x)` / `exprs(...)`
+### `quo(x)` / `quos(...)` / `enquo(p)` / `enquos(...)`
+
+Metaprogramming and quotation utilities.
+
+---
+
+### `body(fn)` / `source(fn)`
+
+Inspect function implementation.
+
+---
+
+### `run(cmd)`
+
+Execute a shell command and return its stdout as a string.
+
+---
+
+### `cat(...values, sep = " ", file = NA, append = false)`
+
+Print values to stdout or a file without a trailing newline (unless specified).
+
+---
+
+### `getwd()` / `exit(code = 0)`
+
+Environment and process control.
+
+---
+
+### `file_exists(path)` / `dir_exists(path)` / `list_files(path, pattern = NA)`
+### `read_file(path)` / `read_lines(path)`
+
+File system introspection and reading.
+
+---
+
+### `path_join(...)` / `path_abs(path)`
+### `path_basename(path)` / `path_dirname(path)`
+### `path_ext(path)` / `path_stem(path)`
+
+Cross-platform path manipulation.
+
+---
+
+### `show_plot(plot)`
+
+Display a plot object (depends on the environment's plot viewer).
+
+---
+
+### `env()`
+
+Returns a list of all variable names currently in the environment.
+
+---
+
 ### `length(collection)`
 
 Get the number of elements in a collection.
@@ -659,8 +761,8 @@ Create an error value.
 **Parameters:**
 
 
-- `message` — Error message string
-- `code` (optional) — Error code string
+- `message_or_code` — Error message (if 1 arg) or error code (if 2 args)
+- `message` (optional) — Error message (if 2 args)
 
 **Returns:**
 
@@ -742,7 +844,7 @@ Get additional context from an Error value (if available).
 
 **Returns:**
 
-`String` — Context information
+`Dict` — A dictionary of related context data.
 
 **Examples:**
 ```t
@@ -827,6 +929,68 @@ is_na("hello")      -- false
 
 ---
 
+### `serialize(value, path)`
+
+Serializes a value to a `.tobj` file.
+
+**Parameters:**
+
+- `value` — Any value to serialize
+- `path` — Output file path (String)
+
+**Returns:**
+
+`NA`
+
+**Seealso:** `deserialize`
+
+---
+
+### `deserialize(path)`
+
+Deserializes a value from a `.tobj` file.
+
+**Parameters:**
+
+- `path` — Input file path (String)
+
+**Returns:**
+
+`Any` — The deserialized value
+
+**Seealso:** `serialize`
+
+---
+
+### `t_write_json(value, path)`
+
+Serializes a T value to a JSON file. This is used as the universal baseline for object transport between runtimes.
+
+**Parameters:**
+
+- `value` — Any value to serialize
+- `path` — Path to the destination file (String)
+
+**Returns:**
+
+`NA`
+
+---
+
+### `t_read_json(path)`
+
+Deserializes a T value from a JSON file. Automatically handles type conversion for scalars, lists, and dictionaries.
+
+**Parameters:**
+
+- `path` — Path to the JSON file (String)
+
+**Returns:**
+
+`Any` — The deserialized value
+
+---
+
 ## Math Package
 
 Mathematical functions operating on scalars and vectors.
@@ -876,14 +1040,62 @@ abs(0)       -- 0
 
 ---
 
-### `log(x)`
+### `log(x)` / `exp(x)` / `pow(x, y)`
 
-Natural logarithm (base e).
+Natural logarithm, exponential, and power functions.
 
-**Parameters:**
+---
 
+### `sin(x)` / `cos(x)` / `tan(x)`
+### `asin(x)` / `acos(x)` / `atan(x)` / `atan2(y, x)`
 
-- `x` — Number (must be > 0)
+Trigonometric and inverse trigonometric functions (radians).
+
+---
+
+### `sinh(x)` / `cosh(x)` / `tanh(x)`
+### `asinh(x)` / `acosh(x)` / `atanh(x)`
+
+Hyperbolic functions.
+
+---
+
+### `floor(x)` / `ceiling(x)` / `round(x, digits = 0)`
+### `trunc(x)` / `signif(x, digits = 6)`
+
+Rounding and truncation.
+
+---
+
+### `ndarray(data, shape = NA)` / `reshape(array, shape)`
+
+Create or reshape N-dimensional arrays.
+
+---
+
+### `shape(array)` / `ndarray_data(array)`
+
+Get NDArray dimensions or flat data.
+
+---
+
+### `matmul(a, b)` / `inv(matrix)` / `transpose(matrix)`
+
+Linear algebra operations on NDArrays.
+
+---
+
+### `diag(x)` / `kron(a, b)` / `cbind(a, b)`
+
+Matrix creation and manipulation.
+
+---
+
+### `iota(n)`
+
+Returns a 1D NDArray of integers from 0 to n-1.
+
+---
 
 **Returns:**
 
@@ -996,275 +1208,119 @@ max([])             -- Error
 
 Statistical functions for data analysis.
 
-### `mean(collection, na_rm = false)`
+### `median(x, na_rm = false)` / `min(x)` / `max(x)` / `range(x)`
 
-Arithmetic mean (average).
-
-**Parameters:**
-
-
-- `collection` — List or Vector of numbers
-- `na_rm` (optional) — If true, skip NA values (default: false)
-
-**Returns:**
-
-`Float` — Mean value
-
-**Examples:**
-```t
-mean([1, 2, 3, 4, 5])              -- 3.0
-mean([10, 20, 30])                 -- 20.0
-mean([1, 2, NA, 4])                -- Error (NA encountered)
-mean([1, 2, NA, 4], na_rm = true)  -- 2.33333333333
-mean([NA, NA], na_rm = true)       -- NA(Float)
-```
+Basic descriptive statistics.
 
 ---
 
-### `sd(collection, na_rm = false)`
+### `var(x, na_rm = false)` / `sd(x, na_rm = false)`
 
-Standard deviation (sample).
+Variance and standard deviation.
 
-**Parameters:**
+---
 
+### `iqr(x)` / `mad(x)`
 
-- `collection` — List or Vector of numbers
-- `na_rm` (optional) — If true, skip NA values (default: false)
+Interquartile range and Median Absolute Deviation.
 
-**Returns:**
+---
 
-`Float` — Standard deviation
+### `fivenum(x)`
 
-**Examples:**
-```t
-sd([2, 4, 4, 4, 5, 5, 7, 9])       -- 2.1380899353
-sd([1, 2, 3])                       -- 1.0
-sd([1, NA, 3], na_rm = true)        -- 1.41421356237
-sd([5, 5, 5])                       -- 0.0 (no variation)
-```
+Tukey's five-number summary (min, lower-hinge, median, upper-hinge, max).
+
+---
+
+### `skewness(x)` / `kurtosis(x)`
+
+Higher-order moments.
+
+---
+
+### `trimmed_mean(x, trim = 0.1, na_rm = false)`
+
+Mean calculated after trimming a fraction of observations from each end.
 
 ---
 
 ### `quantile(collection, p, na_rm = false)`
 
-Compute quantile/percentile.
-
-**Parameters:**
-
-
-- `collection` — List or Vector of numbers
-- `p` — Probability (0.0 to 1.0)
-- `na_rm` (optional) — If true, skip NA values (default: false)
-
-**Returns:**
-
-`Float` — Quantile value
-
-**Examples:**
-```t
-quantile([1, 2, 3, 4, 5], 0.5)     -- 3.0 (median)
-quantile([1, 2, 3, 4, 5], 0.25)    -- 2.0 (Q1)
-quantile([1, 2, 3, 4, 5], 0.75)    -- 4.0 (Q3)
-quantile([1, NA, 3], 0.5, na_rm = true)  -- 2.0
-```
+Compute quantile/percentile (p between 0 and 1).
 
 ---
 
-### `cor(x, y, na_rm = false)`
+### `normalize(x)` / `standardize(x)` / `scale(x)`
 
-Pearson correlation coefficient.
+Rescale or center numeric data. `scale` and `standardize` compute z-scores. `normalize` scales to [0, 1].
 
-**Parameters:**
+---
 
+### `cor(x, y, na_rm = false)` / `cov(x, y)`
 
-- `x` — List or Vector of numbers
-- `y` — List or Vector of numbers (same length as x)
-- `na_rm` (optional) — If true, use pairwise deletion for NA (default: false)
+Pearson correlation and covariance.
 
-**Returns:**
+---
 
-`Float` — Correlation (-1.0 to 1.0)
+### `pnorm(x)` / `pt(x, df)` / `pf(q, df1, df2)` / `pchisq(q, df)`
 
-**Examples:**
-```t
-cor([1, 2, 3], [2, 4, 6])                  -- 1.0 (perfect positive)
-cor([1, 2, 3], [3, 2, 1])                  -- -1.0 (perfect negative)
-cor([1, 2, 3], [4, 5, 6])                  -- 1.0
-cor([1, NA, 3], [2, 4, NA], na_rm = true)  -- 1.0 (uses [1,3] and [2,4])
-```
+Cumulative Distribution Functions (CDFs) for Normal, T, F, and Chi-squared distributions.
+
+---
+
+### `poly(x, degree, raw = true)` / `cut(x, breaks)`
+
+Basis expansion and discretization. `poly` returns a List of terms suitable for use with the `!!!` splat operator in `mutate`.
 
 ---
 
 ### `lm(data, formula)`
 
-Fit a linear regression model (ordinary least squares).
-
-**Parameters:**
-
-
-- `data` — DataFrame
-- `formula` — Formula object (`y ~ x1 + x2`)
-
-**Returns:**
-
-Model object. Use `summary()` and `fit_stats()` to inspect. PMML imports accept T's extended fields (e.g. `std_error`, `statistic`, `p_value`) and are not schema-validated.
-
-**Examples:**
-```t
-model = lm(data = df, formula = mpg ~ wt + hp)
-print(model)
-```
+Fit a linear regression model (ordinary least squares). Use `summary()` and `fit_stats()` to inspect.
 
 ---
 
-### `summary(model)`
+### `summary(model)` / `fit_stats(model)`
 
-Get a tidy DataFrame of model coefficients. Similar to `broom::tidy()` in R.
-
-**Parameters:**
-
-
-- `model` — Linear model object (from `lm()` or imported via PMML)
-
-**Returns:**
-
-DataFrame with columns: `term`, `estimate`, `std_error`, `statistic`, `p_value`.
-
-**Examples:**
-```t
-summary(model)
-```
+Extract tidy coefficients or model-level metrics.
 
 ---
 
-### `fit_stats(model)`
+### `predict(data, model)` / `score(data, model)`
 
-Get a single-row DataFrame of model-level statistics. Similar to `broom::glance()` in R.
-
-**Parameters:**
-
-
-- `model` — Model object (linear model, decision tree, or random forest; PMML imports supported)
-
-**Returns:**
-
-DataFrame with statistics like `r_squared`, `AIC`, `BIC`, `sigma`, etc.
-
-**Examples:**
-```t
-fit_stats(model)
-```
+Perform vectorized prediction. `score` is a generic alias.
 
 ---
 
-### `add_diagnostics(model, data)`
+### `add_diagnostics(model, data)` / `augment(model, data)`
 
-Augment data with per-observation diagnostics. Similar to `broom::augment()` in R.
-
-**Parameters:**
-
-
-- `model` — Linear model object
-- `data` — Original DataFrame used for fitting
-
-**Returns:**
-
-DataFrame with original columns plus diagnostics (`.fitted`, `.resid`, etc.).
-
-**Examples:**
-```t
-add_diagnostics(model, data = df)
-```
-
----
-
-### `predict(data, model)`
-
-Perform vectorized prediction on a new DataFrame. Supports linear models as well as PMML decision trees and random forests.
-
-**Parameters:**
-
-
-- `data` — DataFrame containing predictor columns
-- `model` — Model object
-
-**Returns:**
-
-Vector of predicted values.
-
-**Examples:**
-```t
-preds = predict(new_df, model)
-```
+Augment data with per-observation diagnostics (.fitted, .resid, etc.).
 
 ---
 
 ### `anova(model1, model2, ...)`
 
-Perform analysis of variance (ANOVA) to compare multiple nested models.
-
-**Parameters:**
-
-- `model1, model2, ...` — Two or more nested model objects
-
-**Returns:**
-
-DataFrame with ANOVA table results (Df, RSS, AIC, BIC, F-statistic, p-value).
-
-**Examples:**
-```t
-anova(m1, m2)
-```
+Compare multiple nested models.
 
 ---
 
-### `coef(model)` / `coefficients(model)`
+### `coef(model)` / `residuals(model)` / `vcov(model)`
 
-Extract model coefficients.
-
-**Parameters:**
-
-- `model` — Model object
-
-**Returns:**
-
-Dict of coefficient names and values.
-
----
-
-### `residuals(model)`
-
-Extract model residuals.
-
-**Parameters:**
-
-- `model` — Model object
-
-**Returns:**
-
-Vector of residuals.
-
----
-
-### `augment(model, data)`
-
-Alias for `add_diagnostics`. Augments a DataFrame with model diagnostics.
-
----
-
-### `vcov(model)`
-
-Extract variance-covariance matrix of the main parameters of a fitted model object.
-
-**Returns:**
-
-Dict (Matrix representation)
+Extract coefficients, residuals, or variance-covariance matrix.
 
 ---
 
 ### `wald_test(model, terms)`
 
 Perform a Wald test for a joint hypothesis.
+
+---
+
+### `read_onnx(path)` / `read_pmml(path)`
+
+Import pre-trained models from ONNX or PMML formats.
+
+---
 
 **Parameters:**
 
@@ -1320,13 +1376,35 @@ Basis functions for modeling.
 
 CSV I/O and DataFrame introspection.
 
+### `dataframe(data)`
+
+Constructs a DataFrame from either a list of rows (Dictionaries) or a Dictionary of columns (Vectors/Lists).
+
+**Parameters:**
+
+- `data` — List of Dictionaries (row-wise) or a single Dictionary (column-wise)
+
+**Returns:**
+
+`DataFrame`
+
+**Examples:**
+```t
+-- Column-wise
+df = dataframe([x: [1, 2], y: [3, 4]])
+
+-- Row-wise
+df = dataframe([
+  [name: "Alice", age: 30],
+  [name: "Bob", age: 25]
+])
+```
+
+---
+
 ### `read_csv(path, separator = ",", skip_lines = 0, skip_header = false, clean_colnames = false)`
 
 Read a CSV file into a DataFrame.
-
-**Current implementation note:**
-
-`read_csv()` currently parses CSV in OCaml and then constructs an Arrow-backed `DataFrame`. The repository also contains a lower-level native Arrow CSV reader, but that backend path is not yet the public default entry point.
 
 **Parameters:**
 
@@ -1341,52 +1419,17 @@ Read a CSV file into a DataFrame.
 
 `DataFrame`
 
-**Examples:**
-```t
-df = read_csv("data.csv")
-df = read_csv("data.tsv", separator = "\t")
-df = read_csv("data.csv", skip_lines = 2)
-df = read_csv("messy.csv", clean_colnames = true)
-```
+---
+
+### `read_parquet(path)`
+
+Read a Parquet file into a DataFrame.
 
 ---
 
-### `read_arrow(path)`
+### `read_arrow(path)` / `write_arrow(dataframe, path)`
 
-Read an Arrow IPC file into a DataFrame.
-
-**Parameters:**
-
-- `path` — Input file path (String)
-
-**Returns:**
-
-`DataFrame`
-
-**Examples:**
-```t
-df = read_arrow("data.arrow")
-```
-
----
-
-### `write_arrow(dataframe, path)`
-
-Write a DataFrame to an Arrow IPC file.
-
-**Parameters:**
-
-- `dataframe` — DataFrame to write
-- `path` — Output file path (String)
-
-**Returns:**
-
-`NA`
-
-**Examples:**
-```t
-write_arrow(df, "snapshot.arrow")
-```
+Read or write Arrow IPC files.
 
 ---
 
@@ -1394,40 +1437,41 @@ write_arrow(df, "snapshot.arrow")
 
 Write a DataFrame to a CSV file.
 
-**Parameters:**
+---
 
+### `nrow(dataframe)` / `ncol(dataframe)`
 
-- `dataframe` — DataFrame to write
-- `path` — Output file path (String)
-- `separator` (optional) — Column separator (default: ",")
-
-**Returns:**
-
-`NA`
-
-**Examples:**
-```t
-write_csv(df, "output.csv")
-write_csv(df, "output.tsv", separator = "\t")
-```
+Get number of rows or columns.
 
 ---
 
-### `nrow(dataframe)`
+### `colnames(dataframe)`
 
-Get number of rows.
+Get column names as a List of strings.
 
-**Parameters:**
+---
 
+### `clean_colnames(x)`
 
-- `dataframe` — DataFrame
+Standardizes column names using a snake_case convention. Works on DataFrames or Lists of strings.
 
-**Returns:**
+---
 
-`Int` — Row count
+### `glimpse(dataframe)`
 
-**Examples:**
-```t
+Prints a summary of the DataFrame structure, including dimensions, column names, types, and first few values.
+
+---
+
+### `pull(dataframe, column)`
+
+Extracts a single column as a Vector.
+
+---
+
+### `to_array(dataframe, columns = NA)`
+
+Converts numeric columns of a DataFrame to a matrix (NDArray).
 nrow(df)  -- 100
 ```
 
@@ -1718,6 +1762,132 @@ ungrouped = df |> group_by($dept) |> ungroup()
 
 ---
 
+### Join and Bind Functions
+
+#### `left_join(x, y, by = NA)` / `inner_join` / `full_join` / `semi_join` / `anti_join`
+
+Join two DataFrames.
+
+**Parameters:**
+
+- `x`, `y` — DataFrames to join
+- `by` (optional) — Column(s) to join on. If omitted, uses common columns.
+
+**Returns:**
+
+Joined DataFrame
+
+---
+
+#### `bind_rows(...)` / `bind_cols(...)`
+
+Combine multiple DataFrames by stacking rows or placing columns side-by-side.
+
+---
+
+### Wrangling Utilities
+
+#### `count(df, ...columns)`
+
+Count occurrences of unique values.
+
+---
+
+#### `distinct(df, ...columns)`
+
+Keep only unique rows.
+
+---
+
+#### `drop_na(df, ...columns)`
+
+Drop rows containing NA values in the specified columns.
+
+---
+
+#### `replace_na(df, values)`
+
+Replace NA values with specified defaults.
+
+---
+
+#### `rename(df, ...new_name = old_name)`
+
+Rename columns.
+
+---
+
+#### `relocate(df, ...columns, before = NA, after = NA)`
+
+Change column order.
+
+---
+
+#### `slice(df, ...indices)` / `slice_min(df, col, n = 1)` / `slice_max(df, col, n = 1)`
+
+Subset rows by position or extreme values.
+
+---
+
+#### `pivot_longer(df, cols, names_to = "name", values_to = "value")`
+#### `pivot_wider(df, names_from = "name", values_from = "value")`
+
+Reshape DataFrames between long and wide formats.
+
+---
+
+#### `separate(df, col, into, sep = "[^a-zA-Z0-9]+")` / `unite(df, col, ...from, sep = "_")`
+
+Split a column into multiple columns, or combine multiple columns into one.
+
+---
+
+### Factor Manipulation
+
+#### `factor(x, levels = NA, ordered = false)` / `fct(x)` / `as_factor(x)`
+
+Create factor-encoded vectors. `fct` uses first-appearance levels by default.
+
+---
+
+#### `levels(f)`
+
+Get labels from a factor.
+
+---
+
+#### `fct_recode(f, ...new = old)` / `fct_relevel(f, ...levels, after = 0)`
+
+Rename or reorder factor levels.
+
+---
+
+#### `fct_lump_n(f, n, other_level = "Other")` / `fct_lump_min` / `fct_lump_prop`
+
+Collapse infrequent levels into an "Other" category.
+
+---
+
+#### `fct_infreq(f)` / `fct_rev(f)` / `fct_reorder(f, x, .desc = false)`
+
+Reorder levels by frequency, reversal, or summary of another vector.
+
+---
+
+### Aggregation Context
+
+#### `n()`
+
+Returns the number of rows in the current group. Only valid inside `summarize()`.
+
+---
+
+#### `n_distinct(x)`
+
+Returns the number of unique non-NA values.
+
+---
+
 ### Window Functions
 
 Window functions compute values across rows without collapsing them.
@@ -1991,34 +2161,100 @@ as_datetime("2023-05-15 14:00:00")
 
 ---
 
-### `ymd(string)` / `dmy(string)`
+### `ymd(string)` / `mdy(string)` / `dmy(string)` / `ydm(string)`
+### `ymd_h(string)` / `ymd_hm(string)` / `ymd_hms(string)`
 
-Parse strings into dates using common formats.
+Parse strings into dates or datetimes using common layouts.
 
 **Parameters:**
 
-- `string` — Date string
+- `string` — Date or Datetime string
 
 **Returns:**
 
-`Date`
+`Date` / `Datetime`
 
 **Examples:**
 ```t
 ymd("2023-05-15")
-dmy("15/05/2023")
+mdy("05-15-2023")
+ymd_hms("2023-05-15 14:30:05")
 ```
 
 ---
 
-### `floor_date(datetime, unit)`
+### `parse_date(string, format)` / `parse_datetime(string, format, tz = "UTC")`
 
-Round a date/datetime down to the nearest unit (year, month, day, hour, etc.).
+Parse strings into temporal values using explicit `strptime`-style formats.
+
+**Parameters:**
+
+- `string` — Input string
+- `format` — Format string (e.g., "%Y-%m-%d")
+- `tz` (optional) — Timezone label for `parse_datetime`
+
+**Returns:**
+
+`Date` / `Datetime`
+
+---
+
+### `today()` / `now(tz = "UTC")`
+
+Get the current UTC date or datetime.
+
+**Returns:**
+
+`Date` / `Datetime`
+
+---
+
+### `year(x)` / `month(x, label = false)` / `day(x)` / `mday(x)`
+### `yday(x)` / `wday(x, label = false, week_start = 7)` / `week(x)` / `isoweek(x)` / `isoyear(x)`
+### `quarter(x)` / `semester(x)`
+
+Extract calendar components from Date or Datetime values.
+
+**Parameters:**
+
+- `x` — Date or Datetime
+- `label` (optional) — If true, returns month/weekday names as strings.
+- `week_start` (optional) — Day the week starts on (1=Mon, 7=Sun).
+
+**Returns:**
+
+`Int` / `String`
+
+---
+
+### `hour(x)` / `minute(x)` / `second(x)` / `tz(x)`
+
+Extract time-of-day components or timezone labels from Datetime values.
+
+**Returns:**
+
+`Int` / `Float` / `String`
+
+---
+
+### `am(x)` / `pm(x)`
+
+Check whether a time is before or after noon.
+
+**Returns:**
+
+`Bool`
+
+---
+
+### `floor_date(datetime, unit)` / `ceiling_date(datetime, unit)` / `round_date(datetime, unit)`
+
+Round a date/datetime to the nearest unit boundary (year, month, day, hour, etc.).
 
 **Parameters:**
 
 - `datetime` — Date or Datetime
-- `unit` — Unit as string ("month", "day", etc.)
+- `unit` — Unit as string ("month", "day", "hour", etc.)
 
 **Returns:**
 
@@ -2031,68 +2267,129 @@ floor_date(as_date("2023-05-15"), "month")  -- 2023-05-01
 
 ---
 
+### `make_date(year, month, day)` / `make_datetime(year, month, day, hour, min, sec, tz)`
+
+Construct temporal values from numeric components.
+
+---
+
+### `format_date(x, format)` / `format_datetime(x, format)`
+
+Format temporal values as strings using `strftime`-style patterns.
+
+---
+
+### `interval(start, end)` / `%within%(x, interval)`
+
+Construct temporal intervals and test membership.
+
+---
+
+### `years(n)` / `months(n)` / `weeks(n)` / `days(n)` / `hours(n)` / `minutes(n)` / `seconds(n)`
+
+Construct Period objects for date arithmetic.
+
+---
+
+### `is_date(x)` / `is_datetime(x)` / `is_period(x)` / `is_duration(x)` / `is_interval(x)`
+
+Type predicates for temporal values.
+
+---
+
+### `is_leap_year(x)` / `days_in_month(x)`
+
+Calendar helpers.
+
+---
+
+### `with_tz(x, tz)` / `force_tz(x, tz)`
+
+Update the timezone label of a Datetime value.
+
+---
+
 ## Strcraft Package
 
 Modern string manipulation utilities, inspired by R's `stringr`.
 
-### `str_replace(string, pattern, replacement)`
+### `str_replace(string, pattern, replacement)` / `str_replace_all(...)`
 
-Replace the first occurrence of a pattern with a replacement string. Use `str_replace_all` for all occurrences.
-
-**Parameters:**
-
-- `string` — Input string
-- `pattern` — Regex pattern
-- `replacement` — Replacement string
-
-**Returns:**
-
-`String`
-
-**Examples:**
-```t
-str_replace("hello world", "world", "T")  -- "hello T"
-```
+Replace occurrences of a pattern.
 
 ---
 
-### `str_detect(string, pattern)`
+### `str_detect(string, pattern)` / `contains(s, sub)`
 
-Check if a pattern exists in a string.
-
-**Parameters:**
-
-- `string` — Input string
-- `pattern` — Regex pattern
-
-**Returns:**
-
-`Bool`
-
-**Examples:**
-```t
-str_detect("apple", "p")  -- true
-```
+Check if a pattern or substring exists.
 
 ---
 
-### `str_glue(...)`
+### `starts_with(s, prefix)` / `ends_with(s, suffix)`
 
-Interpolate variables and expressions into strings. Similar to Python f-strings.
+Check string boundaries.
 
-**Parameters:**
+---
 
-- `...` — String with `{expression}` placeholders
+### `str_extract(s, pattern)` / `str_extract_all(s, pattern)`
 
-**Returns:**
+Extract matching substrings. `str_extract` returns the first match; `str_extract_all` returns a List of all matches.
 
-`String`
+---
 
-**Examples:**
-```t
-name = "Alice"
-str_glue("Hello {name}")  -- "Hello Alice"
-```
+### `str_count(s, pattern)` / `str_nchar(s)`
+
+Count matches or total characters.
+
+---
+
+### `str_trim(s)` / `trim_start(s)` / `trim_end(s)`
+
+Remove whitespace.
+
+---
+
+### `str_lines(s)` / `str_words(s)` / `str_split(s, sep)`
+
+Split strings into parts. `str_lines` splits on newlines; `str_words` splits on any whitespace.
+
+---
+
+### `str_pad(s, width, side = "left", pad = " ")`
+
+Pad strings to a fixed width.
+
+---
+
+### `str_trunc(s, width, side = "right", ellipsis = "...")`
+
+Truncate strings with an ellipsis.
+
+---
+
+### `str_flatten(values, collapse = "")` / `str_join(items, sep = "")`
+
+Combine multiple strings into one.
+
+---
+
+### `to_lower(s)` / `to_upper(s)`
+
+Case normalization.
+
+---
+
+### `str_repeat(s, n)`
+
+Repeat a string `n` times.
+
+---
+
+### `str_glue(...)` / `str_format(fmt, values)` / `str_sprintf(fmt, ...)`
+
+String interpolation and formatting. `str_glue` uses `{expr}` syntax; `str_format` uses `{name}` with a Dictionary; `str_sprintf` uses C-style `%` specifiers.
+
+---
 
 ---
 
@@ -2102,14 +2399,39 @@ Composable access and update lenses for dictionaries, lists, data frames, and pi
 
 For the full walkthrough and worked examples, see the [Lens guide](lens.md). For the generated per-function entries, see the [Function Reference](reference/index.md).
 
-Common lens entry points include:
+### `col_lens(name)` / `idx_lens(i)` / `row_lens(i)`
 
-- `col_lens(name)` — focus a dictionary key or data-frame column
-- `idx_lens(i)` — focus a list/vector position
-- `compose(l1, l2, ...)` — build larger traversals from smaller ones
-- `get(data, lens)` — read through a lens
-- `set(data, lens, value)` / `over(data, lens, fn)` — update through a lens
-- `filter_lens(predicate)` — keep only matching elements inside a focused collection
+Focus on a dictionary key/column, a list index, or a DataFrame row.
+
+---
+
+### `filter_lens(predicate)`
+
+Focus on elements matching a predicate (supports DataFrames, Lists, and Vectors).
+
+---
+
+### `node_lens(name)` / `node_meta_lens(name, field)` / `env_var_lens(node, var)`
+
+Focus on pipeline nodes, their metadata, or environment variables.
+
+---
+
+### `compose(...lenses)`
+
+Combine multiple lenses into a deep traversal.
+
+---
+
+### `get(data, lens)` / `set(data, lens, value)` / `over(data, lens, fn)`
+
+Read, write, or transform data at the focused location.
+
+---
+
+### `modify(data, ...pairs)`
+
+Apply a sequence of `(lens, function)` pairs to the same data structure.
 
 ---
 
@@ -2117,77 +2439,63 @@ Common lens entry points include:
 
 Pipeline introspection and management.
 
+### `pipeline(...)`
+
+Constructs a Pipeline from a Dictionary of named nodes or a List of node records.
+
+---
+
+### `build_pipeline(p, verbose = 0)` / `populate_pipeline(p, build = true)`
+
+Materialize a pipeline to Nix artifacts. `build_pipeline` is the primary entry point for full Nix builds. `populate_pipeline` can be used to generate the Nix expression without building (with `build = false`).
+
+---
+
+### `read_pipeline(p)` / `inspect_pipeline(p)`
+
+Returns a dictionary with node metadata and diagnostics summary. `inspect_pipeline` focuses on the DAG structure (edges).
+
+---
+
+### `read_node(node, name = NA, which_log = NA)`
+
+Retrieves a node artifact. Supports in-memory Pipelines (needs `name`), built node names (String), or ComputedNode objects.
+
+---
+
+### `filter_node(p, predicate)` / `select_node(p, ...)`
+
+Subsetting nodes in a pipeline. `filter_node` keeps nodes matching a condition; `select_node` picks nodes by name.
+
+---
+
+### `mutate_node(p, ...)` / `rename_node(p, ...)`
+
+Modify nodes within a pipeline. `mutate_node` can redefine or add nodes; `rename_node` changes node labels while preserving dependencies.
+
+---
+
+### `arrange_node(p, ...)`
+
+Reorders nodes in the pipeline definition (does not affect execution order, which is DAG-driven).
+
+---
+
+### `trace_nodes(p, node_names)`
+
+Returns a sub-pipeline containing only the specified nodes and all their recursive dependencies.
+
+---
+
 ### `which_nodes(p, predicate)`
 
 Filter the richer node records from `read_pipeline(p).nodes` without manually writing `read_pipeline`, `compose`, or an explicit lambda.
 
-Instead of writing:
-
-```t
-pipe_info = read_pipeline(p)
-
-errored_nodes_l = compose(
-  col_lens("nodes"),
-  filter_lens(\(node) !is_na(node.diagnostics.error))
-)
-
-get(pipe_info, errored_nodes_l)
-```
-
-you can simply do this:
-
-```t
-which_nodes(p, !is_na(diagnostics.error))
-```
-
-This is the diagnostics-friendly companion to `filter_node`:
-
-- `filter_node` returns a new `Pipeline`
-- `which_nodes` returns a `List` of node records
-
-Each node record exposes:
-
-- `name`
-- `value`
-- `diagnostics`
-
-**Parameters:**
-
-- `p` — The pipeline to inspect
-- `predicate` — A predicate over node records
-
-**Returns:**
-
-`List` — Matching node records
-
-**Examples:**
-
-```t
-which_nodes(p, !is_na(diagnostics.error))
-which_nodes(p, name == "model")
-
-has_error = \(node) !is_na(node.diagnostics.error)
-which_nodes(p, has_error)
-```
+---
 
 ### `errored_nodes(p)`
 
 Convenience wrapper returning the subset of node records whose `diagnostics.error` is not `NA`.
-
-**Parameters:**
-
-- `p` — The pipeline to inspect
-
-**Returns:**
-
-`List` — Node records with captured errors
-
-**Examples:**
-
-```t
-errored_nodes(p)
-errored_nodes(p) |> map(\(node) node.name)
-```
 
 ### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)`
 
@@ -2547,22 +2855,13 @@ node_info.contents        -- explained node payload
 
 ### `explain_json(value)`
 
-Export value metadata as JSON (for LLM consumption).
+Returns a JSON string representation of the `explain` output.
 
-**Parameters:**
+---
 
+### `intent_fields(intent)` / `intent_get(intent, key)`
 
-- `value` — Any value
-
-**Returns:**
-
-JSON String
-
-**Examples:**
-```t
-explain_json(df)
--- {"type": "DataFrame", "rows": 100, "columns": ["name", "age", ...]}
-```
+Access metadata fields from an Intent object (e.g. from an `intent { ... }` block).
 
 ---
 

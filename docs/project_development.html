@@ -116,6 +116,22 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Nixpkgs</span> date <span class="pp">[</span><span class="ss">2026</span><span class="pp">-</span><span class="ss">02</span><span class="pp">-</span><span class="ss">19</span><span class="pp">]</span>: 2026-02-19</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Project <span class="st">&#39;housing-analysis&#39;</span> created successfully!</span></code></pre></div>
+<h3 id="ai-agent-onboarding-optional">1.1 AI Agent Onboarding
+(Optional)</h3>
+<p>When running <code>t init</code>, you will be prompted to select an
+<strong>AI Agent Context Level</strong>. This generates two essential
+files in your project root:</p>
+<ul>
+<li><strong>AGENTS.md</strong>: A project-specific guide for AI
+assistants (and human collaborators).</li>
+<li><strong>T-LANGUAGE-REFERENCE.md</strong>: A technical reference of
+the T language tailored to the requested depth (small, medium, full, or
+huge).</li>
+</ul>
+<p>These files are designed to be read by LLMs (like Antigravity,
+Claude, or ChatGPT) at the start of a session to give them immediate,
+high-fidelity context about your project and the specific version of T
+you are using.</p>
 <p>This creates the following structure:</p>
 <ul>
 <li><strong>tproject.toml</strong>: Project metadata and
@@ -129,6 +145,9 @@ definition.</li>
 <li><strong>data/</strong>: Data files.</li>
 <li><strong>outputs/</strong>: Output directory for results.</li>
 <li><strong>tests/</strong>: Project-specific tests.</li>
+<li><strong>AGENTS.md</strong>: Onboarding guide for AI Agents.</li>
+<li><strong>T-LANGUAGE-REFERENCE.md</strong>: Tiered language reference
+for LLMs.</li>
 </ul>
 <h2 id="entering-the-development-environment">2. Entering the
 Development Environment</h2>
