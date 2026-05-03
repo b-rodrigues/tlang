@@ -2,9 +2,15 @@
 
 ## [0.51.x] - 2026-05-xx
 
-The focus of this release was to increase test coverage across all packages.
+The focus of this release was to improve language ergonomics for data guardrails and increase test coverage across all packages.
 
 **Status**: Beta  
+
+### Language Ergonomics
+- **Default Value Support in `get()`**: Enhanced the `get()` primitive to support default value fallbacks. It now handles:
+    - `get(potential_error_or_na, default)`: Returns the default if the first argument is an error or NA.
+    - `get(target, selector, default)`: Returns the default if the retrieval from the target fails.
+    - This enables concise and safe data guardrails, such as `get(s.min_age, 0) >= 0`, which gracefully handles missing columns or empty summaries.
 
 ### Quality & Test Coverage
 - **Expanded Stats Package Coverage**:

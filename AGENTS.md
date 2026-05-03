@@ -389,6 +389,12 @@ Safe changes (no approval needed):
 
 ## Maintenance and Release
 
+### Versioning Policy for Agents
+
+- **Never upgrade the version string** in the `VERSION` file or `docs/changelog.md` without an explicit request from the user. 
+- Agents should only perform release workflows (like running `sync_version.sh` for a version bump) if specifically instructed to do so.
+- When in doubt, stop and ask.
+
 ### Releasing a new version of T
 
 T uses a single source of truth for its version. To release a new version:
