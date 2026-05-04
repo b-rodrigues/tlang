@@ -155,6 +155,20 @@ min_version = "0.51.0"
                 && cfg.proj_py_dependencies = ["pandas"]
     | Error _ -> false);
 
+  test_pm "format project sync message reports T, R, and Python counts" (fun () ->
+    match Toml_parser.parse_tproject_toml project_toml with
+    | Ok cfg ->
+        Update_manager.format_project_sync_message cfg
+        = "Syncing 0 T, 2 R and 1 Python dependencies from tproject.toml → flake.nix...\n"
+    | Error _ -> false);
+
+  test_pm "format no-T dependency message includes R and Python counts" (fun () ->
+    match Toml_parser.parse_tproject_toml project_toml with
+    | Ok cfg ->
+        Update_manager.format_no_t_project_dependencies_message "tproject.toml" cfg
+        = "No T package dependencies declared in tproject.toml; project defines 2 R and 1 Python dependencies.\n"
+    | Error _ -> false);
+
   test_pm "serialize and re-parse package config" (fun () ->
     let cfg = Package_types.default_package_config "roundtrip" in
     let toml_str = Toml_parser.serialize_description_toml cfg in

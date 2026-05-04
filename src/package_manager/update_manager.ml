@@ -83,7 +83,35 @@ let latest_semver_tag tags =
       in
       Some latest_tag
 
-let load_current_dependencies () =
+type loaded_dependency_source =
+  | Project_config of string * project_config
+  | Package_config of string * package_config
+
+let project_dependency_counts cfg =
+  ( List.length cfg.proj_dependencies,
+    List.length cfg.proj_r_dependencies,
+    List.length cfg.proj_py_dependencies )
+
+let format_project_sync_message cfg =
+  let t_count, r_count, py_count = project_dependency_counts cfg in
+  Printf.sprintf
+    "Syncing %d T, %d R and %d Python dependencies from tproject.toml → flake.nix...\n"
+    t_count
+    r_count
+    py_count
+
+let format_no_t_project_dependencies_message config_name cfg =
+  let _, r_count, py_count = project_dependency_counts cfg in
+  if r_count = 0 && py_count = 0 then
+    Printf.sprintf "No T package dependencies declared in %s.\n" config_name
+  else
+    Printf.sprintf
+      "No T package dependencies declared in %s; project defines %d R and %d Python dependencies.\n"
+      config_name
+      r_count
+      py_count
+
+let load_current_dependency_source () =
   let dir = Sys.getcwd () in
   let tproject_path = Filename.concat dir "tproject.toml" in
   let description_path = Filename.concat dir "DESCRIPTION.toml" in
@@ -93,14 +121,14 @@ let load_current_dependencies () =
     | Ok content ->
         (match Toml_parser.parse_tproject_toml content with
         | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
-        | Ok cfg -> Ok ("tproject.toml", cfg.proj_dependencies))
+        | Ok cfg -> Ok (Project_config ("tproject.toml", cfg)))
   else if Sys.file_exists description_path then
     match read_file description_path with
     | Error msg -> Error (Printf.sprintf "Cannot read DESCRIPTION.toml: %s" msg)
     | Ok content ->
         (match Toml_parser.parse_description_toml content with
         | Error msg -> Error (Printf.sprintf "Cannot parse DESCRIPTION.toml: %s" msg)
-        | Ok cfg -> Ok ("DESCRIPTION.toml", cfg.dependencies))
+        | Ok cfg -> Ok (Package_config ("DESCRIPTION.toml", cfg)))
   else
     Error "No tproject.toml or DESCRIPTION.toml found in the current directory."
 
@@ -224,11 +252,22 @@ let check_dependency_remote_tag dep =
               | _ -> None)
 
 let check_remote_tags () =
-  match load_current_dependencies () with
+  match load_current_dependency_source () with
   | Error msg -> Error msg
-  | Ok (config_name, deps) ->
+  | Ok source ->
+      let config_name, deps, no_deps_message =
+        match source with
+        | Project_config (config_name, cfg) ->
+            ( config_name,
+              cfg.proj_dependencies,
+              format_no_t_project_dependencies_message config_name cfg )
+        | Package_config (config_name, cfg) ->
+            ( config_name,
+              cfg.dependencies,
+              Printf.sprintf "No T package dependencies declared in %s.\n" config_name )
+      in
       if deps = [] then begin
-        Printf.printf "No T package dependencies declared in %s.\n" config_name;
+        Printf.printf "%s" no_deps_message;
         flush stdout;
         Ok []
       end else
@@ -549,8 +588,7 @@ let update_flake_lock () =
                   match Toml_parser.parse_tproject_toml content with
                   | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
                   | Ok cfg ->
-                      Printf.printf "Syncing %d dependency(ies) from tproject.toml → flake.nix...\n"
-                        (List.length cfg.proj_dependencies);
+                      Printf.printf "%s" (format_project_sync_message cfg);
                       flush stdout;
                       match Nix_generator.install_flake
                               ~kind:Project
