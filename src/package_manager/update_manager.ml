@@ -107,44 +107,42 @@ let project_dependency_counts cfg =
 let pluralize count singular plural =
   if count = 1 then singular else plural
 
+let format_labeled_count count label singular plural =
+  Printf.sprintf "%d %s %s" count label (pluralize count singular plural)
+
+let optional_labeled_count count label singular plural =
+  if count > 0 then
+    Some (format_labeled_count count label singular plural)
+  else
+    None
+
 let project_dependency_count_segments counts =
   let base_segments =
     [
-      Printf.sprintf
-        "%d T %s"
-        counts.t_dependencies
-        (pluralize counts.t_dependencies "dependency" "dependencies");
-      Printf.sprintf
-        "%d R %s"
-        counts.r_dependencies
-        (pluralize counts.r_dependencies "dependency" "dependencies");
-      Printf.sprintf
-        "%d Python %s"
+      format_labeled_count counts.t_dependencies "T" "dependency" "dependencies";
+      format_labeled_count counts.r_dependencies "R" "dependency" "dependencies";
+      format_labeled_count
         counts.python_dependencies
-        (pluralize counts.python_dependencies "dependency" "dependencies");
+        "Python"
+        "dependency"
+        "dependencies";
     ]
   in
   let extra_segments =
-    []
-    |> (fun acc ->
-         if counts.additional_tools > 0 then
-           Printf.sprintf
-             "%d additional %s"
-             counts.additional_tools
-             (pluralize counts.additional_tools "tool" "tools")
-           :: acc
-         else
-           acc)
-    |> (fun acc ->
-         if counts.latex_packages > 0 then
-           Printf.sprintf
-             "%d LaTeX %s"
-             counts.latex_packages
-             (pluralize counts.latex_packages "package" "packages")
-           :: acc
-         else
-           acc)
-    |> List.rev
+    List.filter_map
+      (fun segment -> segment)
+      [
+        optional_labeled_count
+          counts.additional_tools
+          "additional"
+          "tool"
+          "tools";
+        optional_labeled_count
+          counts.latex_packages
+          "LaTeX"
+          "package"
+          "packages";
+      ]
   in
   base_segments @ extra_segments
 
@@ -169,44 +167,26 @@ let format_project_sync_message cfg =
 let format_no_t_project_dependencies_message config_name cfg =
   let counts = project_dependency_counts cfg in
   let non_t_segments =
-    []
-    |> (fun acc ->
-         if counts.r_dependencies > 0 then
-           Printf.sprintf
-             "%d R %s"
-             counts.r_dependencies
-             (pluralize counts.r_dependencies "dependency" "dependencies")
-           :: acc
-         else
-           acc)
-    |> (fun acc ->
-         if counts.python_dependencies > 0 then
-           Printf.sprintf
-             "%d Python %s"
-             counts.python_dependencies
-             (pluralize counts.python_dependencies "dependency" "dependencies")
-           :: acc
-         else
-           acc)
-    |> (fun acc ->
-         if counts.additional_tools > 0 then
-           Printf.sprintf
-             "%d additional %s"
-             counts.additional_tools
-             (pluralize counts.additional_tools "tool" "tools")
-           :: acc
-         else
-           acc)
-    |> (fun acc ->
-         if counts.latex_packages > 0 then
-           Printf.sprintf
-             "%d LaTeX %s"
-             counts.latex_packages
-             (pluralize counts.latex_packages "package" "packages")
-           :: acc
-         else
-           acc)
-    |> List.rev
+    List.filter_map
+      (fun segment -> segment)
+      [
+        optional_labeled_count counts.r_dependencies "R" "dependency" "dependencies";
+        optional_labeled_count
+          counts.python_dependencies
+          "Python"
+          "dependency"
+          "dependencies";
+        optional_labeled_count
+          counts.additional_tools
+          "additional"
+          "tool"
+          "tools";
+        optional_labeled_count
+          counts.latex_packages
+          "LaTeX"
+          "package"
+          "packages";
+      ]
   in
   if non_t_segments = [] then
     Printf.sprintf "No T package dependencies declared in %s.\n" config_name
