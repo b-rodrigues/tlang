@@ -145,6 +145,30 @@ command = "xdg-open"
 min_version = "0.51.0"
 |} in
 
+  let project_tools_toml = {|
+[project]
+name = "tools-project"
+description = "Project with tools only"
+
+[dependencies]
+
+[r-dependencies]
+packages = []
+
+[py-dependencies]
+version = "python314"
+packages = []
+
+[additional-tools]
+packages = ["quarto"]
+
+[latex]
+packages = ["scheme-small"]
+
+[t]
+min_version = "0.51.0"
+|} in
+
   test_pm "parse valid tproject.toml" (fun () ->
     match Toml_parser.parse_tproject_toml project_toml with
     | Ok cfg -> cfg.proj_name = "my-project"
@@ -159,14 +183,28 @@ min_version = "0.51.0"
     match Toml_parser.parse_tproject_toml project_toml with
     | Ok cfg ->
         Update_manager.format_project_sync_message cfg
-        = "Syncing 0 T, 2 R and 1 Python dependencies from tproject.toml → flake.nix...\n"
+        = "Syncing 0 T dependencies, 2 R dependencies and 1 Python dependency from tproject.toml → flake.nix...\n"
     | Error _ -> false);
 
   test_pm "format no-T dependency message includes R and Python counts" (fun () ->
     match Toml_parser.parse_tproject_toml project_toml with
     | Ok cfg ->
         Update_manager.format_no_t_project_dependencies_message "tproject.toml" cfg
-        = "No T package dependencies declared in tproject.toml; project defines 2 R and 1 Python dependencies.\n"
+        = "No T package dependencies declared in tproject.toml; project defines 2 R dependencies and 1 Python dependency.\n"
+    | Error _ -> false);
+
+  test_pm "format project sync message includes additional tools and latex packages" (fun () ->
+    match Toml_parser.parse_tproject_toml project_tools_toml with
+    | Ok cfg ->
+        Update_manager.format_project_sync_message cfg
+        = "Syncing 0 T dependencies, 0 R dependencies, 0 Python dependencies, 1 additional tool and 1 LaTeX package from tproject.toml → flake.nix...\n"
+    | Error _ -> false);
+
+  test_pm "format no-T dependency message includes tools-only project config" (fun () ->
+    match Toml_parser.parse_tproject_toml project_tools_toml with
+    | Ok cfg ->
+        Update_manager.format_no_t_project_dependencies_message "tproject.toml" cfg
+        = "No T package dependencies declared in tproject.toml; project defines 1 additional tool and 1 LaTeX package.\n"
     | Error _ -> false);
 
   test_pm "serialize and re-parse package config" (fun () ->

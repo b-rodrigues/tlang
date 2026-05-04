@@ -87,29 +87,134 @@ type loaded_dependency_source =
   | Project_config of string * project_config
   | Package_config of string * package_config
 
+type project_dependency_counts = {
+  t_dependencies : int;
+  r_dependencies : int;
+  python_dependencies : int;
+  additional_tools : int;
+  latex_packages : int;
+}
+
 let project_dependency_counts cfg =
-  ( List.length cfg.proj_dependencies,
-    List.length cfg.proj_r_dependencies,
-    List.length cfg.proj_py_dependencies )
+  {
+    t_dependencies = List.length cfg.proj_dependencies;
+    r_dependencies = List.length cfg.proj_r_dependencies;
+    python_dependencies = List.length cfg.proj_py_dependencies;
+    additional_tools = List.length cfg.proj_additional_tools;
+    latex_packages = List.length cfg.proj_latex_packages;
+  }
+
+let pluralize count singular plural =
+  if count = 1 then singular else plural
+
+let project_dependency_count_segments counts =
+  let base_segments =
+    [
+      Printf.sprintf
+        "%d T %s"
+        counts.t_dependencies
+        (pluralize counts.t_dependencies "dependency" "dependencies");
+      Printf.sprintf
+        "%d R %s"
+        counts.r_dependencies
+        (pluralize counts.r_dependencies "dependency" "dependencies");
+      Printf.sprintf
+        "%d Python %s"
+        counts.python_dependencies
+        (pluralize counts.python_dependencies "dependency" "dependencies");
+    ]
+  in
+  let extra_segments =
+    []
+    |> (fun acc ->
+         if counts.additional_tools > 0 then
+           Printf.sprintf
+             "%d additional %s"
+             counts.additional_tools
+             (pluralize counts.additional_tools "tool" "tools")
+           :: acc
+         else
+           acc)
+    |> (fun acc ->
+         if counts.latex_packages > 0 then
+           Printf.sprintf
+             "%d LaTeX %s"
+             counts.latex_packages
+             (pluralize counts.latex_packages "package" "packages")
+           :: acc
+         else
+           acc)
+    |> List.rev
+  in
+  base_segments @ extra_segments
+
+let format_count_segments segments =
+  match segments with
+  | [] -> ""
+  | [segment] -> segment
+  | [first; second] -> first ^ " and " ^ second
+  | _ ->
+      let reversed = List.rev segments in
+      (match reversed with
+      | last :: rest_rev ->
+          String.concat ", " (List.rev rest_rev) ^ " and " ^ last
+      | [] -> "")
 
 let format_project_sync_message cfg =
-  let t_count, r_count, py_count = project_dependency_counts cfg in
+  let counts = project_dependency_counts cfg in
   Printf.sprintf
-    "Syncing %d T, %d R and %d Python dependencies from tproject.toml → flake.nix...\n"
-    t_count
-    r_count
-    py_count
+    "Syncing %s from tproject.toml → flake.nix...\n"
+    (format_count_segments (project_dependency_count_segments counts))
 
 let format_no_t_project_dependencies_message config_name cfg =
-  let _, r_count, py_count = project_dependency_counts cfg in
-  if r_count = 0 && py_count = 0 then
+  let counts = project_dependency_counts cfg in
+  let non_t_segments =
+    []
+    |> (fun acc ->
+         if counts.r_dependencies > 0 then
+           Printf.sprintf
+             "%d R %s"
+             counts.r_dependencies
+             (pluralize counts.r_dependencies "dependency" "dependencies")
+           :: acc
+         else
+           acc)
+    |> (fun acc ->
+         if counts.python_dependencies > 0 then
+           Printf.sprintf
+             "%d Python %s"
+             counts.python_dependencies
+             (pluralize counts.python_dependencies "dependency" "dependencies")
+           :: acc
+         else
+           acc)
+    |> (fun acc ->
+         if counts.additional_tools > 0 then
+           Printf.sprintf
+             "%d additional %s"
+             counts.additional_tools
+             (pluralize counts.additional_tools "tool" "tools")
+           :: acc
+         else
+           acc)
+    |> (fun acc ->
+         if counts.latex_packages > 0 then
+           Printf.sprintf
+             "%d LaTeX %s"
+             counts.latex_packages
+             (pluralize counts.latex_packages "package" "packages")
+           :: acc
+         else
+           acc)
+    |> List.rev
+  in
+  if non_t_segments = [] then
     Printf.sprintf "No T package dependencies declared in %s.\n" config_name
   else
     Printf.sprintf
-      "No T package dependencies declared in %s; project defines %d R and %d Python dependencies.\n"
+      "No T package dependencies declared in %s; project defines %s.\n"
       config_name
-      r_count
-      py_count
+      (format_count_segments non_t_segments)
 
 let load_current_dependency_source () =
   let dir = Sys.getcwd () in
