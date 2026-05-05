@@ -505,22 +505,45 @@ let flatten_list_column ?schema_hint (nested : t option array)
       | ArrowDictionary ->
           let flat_indices : int option array = Array.make n_total None in
           let levels = ref None in
-          let ordered = ref false in
+          let ordered = ref None in
+          let validate_levels expected actual =
+            Array.length expected = Array.length actual &&
+            let rec loop i =
+              if i = Array.length expected then true
+              else if expected.(i) <> actual.(i) then false
+              else loop (i + 1)
+            in
+            loop 0
+          in
           let pos = ref 0 in
           Array.iter (function
             | None -> ()
             | Some sub_t ->
                 (match List.assoc_opt fname sub_t.columns with
                  | Some (DictionaryColumn (indices, lvl, ord)) ->
-                     if !levels = None then begin
-                       levels := Some lvl;
-                       ordered := ord
-                     end;
-                     Array.iteri (fun j v -> flat_indices.(!pos + j) <- v) indices
+                     if Array.length indices <> sub_t.nrows then
+                       invalid_arg ("ArrowDictionary flatten: invalid index array length for field " ^ fname);
+                     (match !levels, !ordered with
+                      | None, None ->
+                          levels := Some lvl;
+                          ordered := Some ord
+                      | Some expected_levels, Some expected_ordered ->
+                          if expected_ordered <> ord || not (validate_levels expected_levels lvl) then
+                            invalid_arg ("ArrowDictionary flatten: incompatible dictionary payloads for field " ^ fname)
+                      | _ ->
+                          invalid_arg ("ArrowDictionary flatten: inconsistent dictionary metadata state for field " ^ fname));
+                     let level_count = Array.length lvl in
+                     Array.iteri (fun j v ->
+                       (match v with
+                        | Some idx when idx < 0 || idx >= level_count ->
+                            invalid_arg ("ArrowDictionary flatten: out-of-bounds dictionary index for field " ^ fname)
+                        | _ -> ());
+                       flat_indices.(!pos + j) <- v
+                     ) indices
                  | _ -> ());
                 pos := !pos + sub_t.nrows
           ) nested;
-          Obj.repr (flat_indices, Option.value !levels ~default:[], !ordered)
+          Obj.repr (flat_indices, Option.value !levels ~default:[], Option.value !ordered ~default:false)
       | _ ->
           let flat_data : Obj.t array = Array.make n_total (Obj.repr None) in
           let pos = ref 0 in
