@@ -39,6 +39,11 @@ dune exec src/repl.exe
 
 # Run a T script
 dune exec src/repl.exe -- run myfile.t
+
+# Build with coverage instrumentation (Nix)
+nix build .#t-coverage
+./result/bin/t run myfile.t
+./result/bin/bisect-ppx-report html
 ```
 
 **Do not edit `flake.nix` unless absolutely necessary.** The only valid reason to touch it is to add a new system-level dependency required by newly developed functionality (e.g., a new C library or OCaml package). Any such change must be discussed and justified in the PR description.

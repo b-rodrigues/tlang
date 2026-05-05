@@ -61,6 +61,10 @@ The focus of this release was to improve language ergonomics for data guardrails
 - **Enhanced Arity Error Reporting**:
     - Updated the core evaluator to include function names in arity error messages for all builtins (e.g., `Function `length` expects...`).
     - Standardized arity error expectations across the entire test suite (1944/1944 tests passing).
+- **Developer Experience & Coverage Tools**:
+    - **Nix-based Coverage**: Introduced the `packages.t-coverage` Nix output for simplified code coverage collection.
+    - **Instrumentation Isolation**: Fixed coverage baseline contamination by isolating documentation generation during the Nix build process.
+    - **Integrated Reporting**: Bundled `bisect-ppx-report` within the coverage derivation to streamline local reporting workflows.
 
 ## [0.51.4] - 2026-04-30
 

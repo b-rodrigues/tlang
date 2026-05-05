@@ -93,6 +93,16 @@ dune build
 dune runtest
 ```
 
+For coverage-instrumented builds:
+
+```bash
+nix build .#t-coverage
+# or run directly
+nix run .#t-coverage -- run my_script.t
+# then generate report
+bisect-ppx-report html
+```
+
 ## Syntax and Semantics That Matter for LLMs
 
 ### Core syntax
