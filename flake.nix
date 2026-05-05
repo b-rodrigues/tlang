@@ -192,9 +192,9 @@
                   "$out/bin/.t-unwrapped doc --parse --generate"}
               ${if withCoverage
                 then
-                  # Expose bisect-ppx-report alongside t so `nix shell .#t-coverage`
-                  # provides the reporting tool without an extra shell input.
-                  "ln -s ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report $out/bin/bisect-ppx-report"
+                  # Expose a wrapped bisect-ppx-report alongside t so `nix shell .#t-coverage`
+                  # provides the reporting tool with the source path pre-configured.
+                  "makeWrapper ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report $out/bin/bisect-ppx-report --add-flags \"-I $out/share/tlang\""
                 else ""}
             '';
 
