@@ -209,7 +209,7 @@ if [ -n "\$cmd" ]; then
       ;;
   esac
 else
-  exec ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report
+  exec ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report "\$@"
 fi
 EOF
 chmod +x $out/bin/bisect-ppx-report
