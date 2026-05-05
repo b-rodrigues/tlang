@@ -157,6 +157,9 @@
               cp _build/default/src/lsp_server.exe $out/bin/.t-lsp-unwrapped
               mkdir -p $out/share/tlang
               cp -r src $out/share/tlang/
+              # Copy generated source files so coverage reports can find them
+              cp _build/default/src/nixpkgs_date.ml $out/share/tlang/src/
+              cp _build/default/src/version.ml $out/share/tlang/src/
               mkdir -p $out/share/tlang/quarto
               cp -r editors/quarto/tlang/_extensions/tlang $out/share/tlang/quarto/
               makeWrapper $out/bin/.t-unwrapped $out/bin/t \
