@@ -35,7 +35,7 @@ static gchar *extract_arrow_timezone_identifier(GArrowDataType *dtype) {
       gchar *start = g_strstr_len(type_str, -1, tz_prefix);
       if (start != NULL) {
         start += 3;
-        gchar *end = strchr(start, ']');
+        gchar *end = g_strstr_len(start, -1, "]");
         if (end != NULL && end >= start) {
           result = g_strndup(start, end - start);
         }
