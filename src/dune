@@ -31,7 +31,7 @@
  (name t_lang)
  (wrapped false)
  (instrumentation
-  (backend bisect_ppx))
+  (backend bisect_ppx (exclusions nixpkgs_date)))
  (foreign_stubs
   (language c)
   (names arrow_stubs stats_stubs onnx_stubs)
