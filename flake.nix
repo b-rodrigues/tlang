@@ -194,7 +194,7 @@
                 then
                   # Expose a wrapped bisect-ppx-report alongside t so `nix shell .#t-coverage`
                   # provides the reporting tool with the source path pre-configured.
-                  "makeWrapper ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report $out/bin/bisect-ppx-report --add-flags \"-I $out/share/tlang\""
+                  "makeWrapper ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report $out/bin/bisect-ppx-report --add-flags \"--source-path $out/share/tlang\""
                 else ""}
             '';
 
