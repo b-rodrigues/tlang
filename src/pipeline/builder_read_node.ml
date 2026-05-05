@@ -121,7 +121,7 @@ let read_standard_node_value cn =
 
 let read_logged_node_value name cn =
   if cn.Ast.cn_runtime = "T"
-     && (cn.Ast.cn_serializer = "default" || cn.Ast.cn_serializer = "serialize")
+     && cn.Ast.cn_serializer = "default"
   then
     (match Serialization.deserialize_from_file cn.Ast.cn_path with
      | Ok v -> v
