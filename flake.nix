@@ -195,24 +195,24 @@
                   # Expose a wrapped bisect-ppx-report alongside t so `nix shell .#t-coverage`
                   # provides the reporting tool with the source path pre-configured.
                   ''
-                  cat > $out/bin/bisect-ppx-report <<EOF
-                  #!/bin/sh
-                  cmd=\$1
-                  if [ -n "\$cmd" ]; then
-                    shift
-                    case "\$cmd" in
-                      html|summary|cobertura|merge)
-                        exec ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report "\$cmd" --source-path "$out/share/tlang" "\$@"
-                        ;;
-                      *)
-                        exec ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report "\$cmd" "\$@"
-                        ;;
-                    esac
-                  else
-                    exec ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report
-                  fi
-                  EOF
-                  chmod +x $out/bin/bisect-ppx-report
+cat > $out/bin/bisect-ppx-report <<EOF
+#!/bin/sh
+cmd=\$1
+if [ -n "\$cmd" ]; then
+  shift
+  case "\$cmd" in
+    html|summary|cobertura|merge)
+      exec ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report "\$cmd" --source-path "$out/share/tlang" "\$@"
+      ;;
+    *)
+      exec ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report "\$cmd" "\$@"
+      ;;
+  esac
+else
+  exec ${ocamlVersion.bisect_ppx}/bin/bisect-ppx-report
+fi
+EOF
+chmod +x $out/bin/bisect-ppx-report
                   ''
                 else ""}
             '';
