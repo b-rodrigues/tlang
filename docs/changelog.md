@@ -2,9 +2,15 @@
 
 ## [Unreleased]
 
-The focus of this release was to improve language ergonomics for data guardrails and increase test coverage across all packages.
+The focus of this release was to improve language ergonomics for data guardrails, enhance package manager feedback, and increase test coverage across all packages.
 
 **Status**: Beta  
+
+### Package Management & User Feedback
+- **Improved Dependency Sync Messages**:
+    - Enhanced `t update` feedback to explicitly report counts for R, Python, Additional Tools, and LaTeX packages being synchronized to `flake.nix`.
+    - Introduced context-aware "No T dependencies" messages that accurately reflect when a project still defines other runtime requirements (R/Python/Tools).
+    - Verified message formatting logic with new unit tests for tools-only and polyglot project configurations.
 
 ### Language Ergonomics
 - **Default Value Support in `get()`**: Enhanced the `get()` primitive to support default value fallbacks. It now handles:

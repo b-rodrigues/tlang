@@ -83,7 +83,120 @@ let latest_semver_tag tags =
       in
       Some latest_tag
 
-let load_current_dependencies () =
+type loaded_dependency_source =
+  | Project_config of string * project_config
+  | Package_config of string * package_config
+
+type project_dependency_counts = {
+  t_dependencies : int;
+  r_dependencies : int;
+  python_dependencies : int;
+  additional_tools : int;
+  latex_packages : int;
+}
+
+let project_dependency_counts cfg =
+  {
+    t_dependencies = List.length cfg.proj_dependencies;
+    r_dependencies = List.length cfg.proj_r_dependencies;
+    python_dependencies = List.length cfg.proj_py_dependencies;
+    additional_tools = List.length cfg.proj_additional_tools;
+    latex_packages = List.length cfg.proj_latex_packages;
+  }
+
+let pluralize count singular plural =
+  if count = 1 then singular else plural
+
+let format_labeled_count count label singular plural =
+  Printf.sprintf "%d %s %s" count label (pluralize count singular plural)
+
+let optional_labeled_count count label singular plural =
+  if count > 0 then
+    Some (format_labeled_count count label singular plural)
+  else
+    None
+
+let project_dependency_count_segments counts =
+  let base_segments =
+    [
+      format_labeled_count counts.t_dependencies "T" "dependency" "dependencies";
+      format_labeled_count counts.r_dependencies "R" "dependency" "dependencies";
+      format_labeled_count
+        counts.python_dependencies
+        "Python"
+        "dependency"
+        "dependencies";
+    ]
+  in
+  let extra_segments =
+    List.filter_map
+      (fun segment -> segment)
+      [
+        optional_labeled_count
+          counts.additional_tools
+          "additional"
+          "tool"
+          "tools";
+        optional_labeled_count
+          counts.latex_packages
+          "LaTeX"
+          "package"
+          "packages";
+      ]
+  in
+  base_segments @ extra_segments
+
+let format_count_segments segments =
+  match segments with
+  | [] -> ""
+  | [segment] -> segment
+  | [first; second] -> first ^ " and " ^ second
+  | _ ->
+      let reversed = List.rev segments in
+      (match reversed with
+      | last :: rest_rev ->
+          String.concat ", " (List.rev rest_rev) ^ " and " ^ last
+      | [] -> "")
+
+let format_project_sync_message cfg =
+  let counts = project_dependency_counts cfg in
+  Printf.sprintf
+    "Syncing %s from tproject.toml → flake.nix...\n"
+    (format_count_segments (project_dependency_count_segments counts))
+
+let format_no_t_project_dependencies_message config_name cfg =
+  let counts = project_dependency_counts cfg in
+  let non_t_segments =
+    List.filter_map
+      (fun segment -> segment)
+      [
+        optional_labeled_count counts.r_dependencies "R" "dependency" "dependencies";
+        optional_labeled_count
+          counts.python_dependencies
+          "Python"
+          "dependency"
+          "dependencies";
+        optional_labeled_count
+          counts.additional_tools
+          "additional"
+          "tool"
+          "tools";
+        optional_labeled_count
+          counts.latex_packages
+          "LaTeX"
+          "package"
+          "packages";
+      ]
+  in
+  if non_t_segments = [] then
+    Printf.sprintf "No T package dependencies declared in %s.\n" config_name
+  else
+    Printf.sprintf
+      "No T package dependencies declared in %s; project defines %s.\n"
+      config_name
+      (format_count_segments non_t_segments)
+
+let load_current_dependency_source () =
   let dir = Sys.getcwd () in
   let tproject_path = Filename.concat dir "tproject.toml" in
   let description_path = Filename.concat dir "DESCRIPTION.toml" in
@@ -93,14 +206,14 @@ let load_current_dependencies () =
     | Ok content ->
         (match Toml_parser.parse_tproject_toml content with
         | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
-        | Ok cfg -> Ok ("tproject.toml", cfg.proj_dependencies))
+        | Ok cfg -> Ok (Project_config ("tproject.toml", cfg)))
   else if Sys.file_exists description_path then
     match read_file description_path with
     | Error msg -> Error (Printf.sprintf "Cannot read DESCRIPTION.toml: %s" msg)
     | Ok content ->
         (match Toml_parser.parse_description_toml content with
         | Error msg -> Error (Printf.sprintf "Cannot parse DESCRIPTION.toml: %s" msg)
-        | Ok cfg -> Ok ("DESCRIPTION.toml", cfg.dependencies))
+        | Ok cfg -> Ok (Package_config ("DESCRIPTION.toml", cfg)))
   else
     Error "No tproject.toml or DESCRIPTION.toml found in the current directory."
 
@@ -224,11 +337,22 @@ let check_dependency_remote_tag dep =
               | _ -> None)
 
 let check_remote_tags () =
-  match load_current_dependencies () with
+  match load_current_dependency_source () with
   | Error msg -> Error msg
-  | Ok (config_name, deps) ->
+  | Ok source ->
+      let config_name, deps, no_deps_message =
+        match source with
+        | Project_config (config_name, cfg) ->
+            ( config_name,
+              cfg.proj_dependencies,
+              format_no_t_project_dependencies_message config_name cfg )
+        | Package_config (config_name, cfg) ->
+            ( config_name,
+              cfg.dependencies,
+              Printf.sprintf "No T package dependencies declared in %s.\n" config_name )
+      in
       if deps = [] then begin
-        Printf.printf "No T package dependencies declared in %s.\n" config_name;
+        Printf.printf "%s" no_deps_message;
         flush stdout;
         Ok []
       end else
@@ -549,8 +673,7 @@ let update_flake_lock () =
                   match Toml_parser.parse_tproject_toml content with
                   | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
                   | Ok cfg ->
-                      Printf.printf "Syncing %d dependency(ies) from tproject.toml → flake.nix...\n"
-                        (List.length cfg.proj_dependencies);
+                      Printf.printf "%s" (format_project_sync_message cfg);
                       flush stdout;
                       match Nix_generator.install_flake
                               ~kind:Project
