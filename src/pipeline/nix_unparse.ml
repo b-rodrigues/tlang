@@ -37,6 +37,10 @@ let rec expr_to_string expr =
   match expr.node with
   | Ast.Value (Ast.VSymbol s) -> strip_hat s
   | Ast.Value (Ast.VSerializer s) -> s.s_format
+  | Ast.Value (Ast.VNodeResult nr) -> 
+      (match nr.v with
+       | Ast.VSerializer s -> s.s_format
+       | _ -> unparse_expr expr)
   | _ -> unparse_expr expr
 
 and unparse_expr expr =

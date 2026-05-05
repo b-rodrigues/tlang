@@ -67,10 +67,10 @@ let register env =
     let uses_builtin_fallback_reader cn =
       (cn.cn_runtime = "T"
        && cn.cn_serializer = "default")
-      || cn.cn_serializer = "json" || cn.cn_serializer = "serializer<^json>"
-      || cn.cn_serializer = "arrow" || cn.cn_serializer = "serializer<^arrow>"
-      || cn.cn_serializer = "csv" || cn.cn_serializer = "serializer<^csv>"
-      || cn.cn_serializer = "pmml" || cn.cn_serializer = "serializer<^pmml>"
+      || cn.cn_serializer = "json"
+      || cn.cn_serializer = "arrow"
+      || cn.cn_serializer = "csv"
+      || cn.cn_serializer = "pmml"
     in
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VPipeline p ->
