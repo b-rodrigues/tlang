@@ -35,8 +35,12 @@ let dedent s =
 let rec expr_to_string expr =
   let strip_hat s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in
   match expr.node with
-  | Ast.Value (Ast.VString s) | Ast.Value (Ast.VSymbol s) -> strip_hat s
+  | Ast.Value (Ast.VSymbol s) -> strip_hat s
   | Ast.Value (Ast.VSerializer s) -> s.s_format
+  | Ast.Value (Ast.VNodeResult nr) -> 
+      (match nr.v with
+       | Ast.VSerializer s -> s.s_format
+       | _ -> unparse_expr expr)
   | _ -> unparse_expr expr
 
 and unparse_expr expr =

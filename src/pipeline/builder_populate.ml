@@ -33,10 +33,26 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
       let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
       let des = match List.assoc_opt name p.p_deserializers with Some e -> e | None -> Ast.mk_expr (Ast.Var "default") in
       let funcs = match List.assoc_opt name p.p_functions with Some f -> eval_string_list f | None -> [] in
+      let rec check_serializer_type expr =
+        match expr.Ast.node with
+        | Ast.Value (Ast.VString s) when List.mem (String.lowercase_ascii s) ["pmml"; "arrow"; "json"; "csv"; "default"; "serialize"] ->
+            Printf.eprintf "Warning: Node `%s` uses a string literal for a built-in serializer (\"%s\").\nPlease use a symbol instead, e.g.: serializer = ^%s\n%!" 
+              name s (if s = "serialize" then "default" else s)
+        | Ast.ListLit items -> List.iter (fun (_, e) -> check_serializer_type e) items
+        | Ast.DictLit items -> List.iter (fun (_, e) -> check_serializer_type e) items
+        | _ -> ()
+      in
+      check_serializer_type ser;
+      
       let rec requires_functions expr =
         match expr.Ast.node with
-        | Ast.Value (Ast.VString s) -> not (List.mem s ["pmml"; "arrow"; "json"; "csv"; "default"])
-        | Ast.Var _ -> false (* They passed a variable natively, they handle imports *)
+        | Ast.Value (Ast.VSymbol s) -> 
+            let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in
+            not (List.mem s ["pmml"; "arrow"; "json"; "csv"; "default"])
+        | Ast.Value (Ast.VSerializer s) ->
+            not (List.mem s.s_format ["pmml"; "arrow"; "json"; "csv"; "default"])
+        | Ast.Value (Ast.VString _) -> true
+        | Ast.Var _ -> false
         | Ast.DotAccess _ | Ast.RawCode _ -> false
         | Ast.ListLit items -> List.exists (fun (_, e) -> requires_functions e) items
         | Ast.DictLit items -> List.exists (fun (_, e) -> requires_functions e) items
@@ -45,7 +61,7 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
       let is_custom_ser = requires_functions ser in
       let is_custom_des = requires_functions des in
       if (is_custom_ser || is_custom_des) && funcs = [] then
-        Printf.eprintf "Warning: Node `%s` uses a custom or unknown strategy (not 'default', 'arrow', 'pmml', etc.) but has no supporting `functions` specified.\nIf this is a built-in strategy, check the spelling (strings should be quoted, e.g., \"arrow\").\nIf it is a custom function, ensure it is available in the runtime environment.\n%!" name
+        Printf.eprintf "Warning: Node `%s` uses a custom or unknown strategy (not 'default', 'arrow', 'pmml', etc.) but has no supporting `functions` specified.\nIf this is a built-in strategy, check the spelling (e.g., ^arrow).\nIf it is a custom function, ensure it is available in the runtime environment.\n%!" name
     ) p.p_exprs
   in
 

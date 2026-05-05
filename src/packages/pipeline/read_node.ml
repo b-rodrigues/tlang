@@ -33,7 +33,7 @@ let register env =
 
   let read_fn named_args _env =
     let read_computed_node_value cn =
-      if cn.cn_runtime = "T" && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize") then
+      if cn.cn_runtime = "T" && cn.cn_serializer = "default" then
         (match Serialization.deserialize_from_file cn.cn_path with
          | Ok v -> v
          | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
@@ -66,7 +66,7 @@ let register env =
     in
     let uses_builtin_fallback_reader cn =
       (cn.cn_runtime = "T"
-       && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize"))
+       && cn.cn_serializer = "default")
       || cn.cn_serializer = "json"
       || cn.cn_serializer = "arrow"
       || cn.cn_serializer = "csv"
