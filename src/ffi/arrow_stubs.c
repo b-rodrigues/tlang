@@ -16,6 +16,41 @@
 #include <math.h>
 #include <stdint.h>
 
+static gchar *extract_arrow_timezone_identifier(GArrowDataType *dtype) {
+  GTimeZone *time_zone = NULL;
+  g_object_get(G_OBJECT(dtype), "time-zone", &time_zone, NULL);
+
+  const gchar *identifier = NULL;
+  if (time_zone != NULL) {
+    identifier = g_time_zone_get_identifier(time_zone);
+  }
+
+  gchar *result = NULL;
+  if (identifier != NULL) {
+    result = g_strdup(identifier);
+  } else {
+    gchar *type_str = garrow_data_type_to_string(dtype);
+    if (type_str != NULL) {
+      const gchar *tz_prefix = "tz=";
+      gchar *start = g_strstr_len(type_str, -1, tz_prefix);
+      if (start != NULL) {
+        start += 3;
+        gchar *end = g_strrstr(start, "]");
+        if (end != NULL && end >= start) {
+          result = g_strndup(start, end - start);
+        }
+      }
+      g_free(type_str);
+    }
+  }
+
+  if (time_zone != NULL) {
+    g_time_zone_unref(time_zone);
+  }
+
+  return result;
+}
+
 /* ===================================================================== */
 /* Memory Management                                                     */
 /* ===================================================================== */
@@ -92,39 +127,11 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
              GARROW_IS_DATE64_DATA_TYPE(dtype))   type_tag = 7; /* ArrowDate */
     else if (GARROW_IS_TIMESTAMP_DATA_TYPE(dtype)) { /* ArrowTimestamp */
       type_tag = 8;
-      GTimeZone *time_zone = NULL;
-      g_object_get(G_OBJECT(dtype), "time-zone", &time_zone, NULL);
-      
-      const gchar *identifier = NULL;
-      if (time_zone != NULL) {
-        identifier = g_time_zone_get_identifier(time_zone);
-      }
-
-      /* Fallback: parse from string representation if identifier is NULL.
-         Arrow string format: timestamp[unit, tz=identifier] */
-      if (identifier == NULL) {
-        gchar *type_str = garrow_data_type_to_string(dtype);
-        if (type_str != NULL) {
-          const gchar *tz_prefix = "tz=";
-          gchar *start = g_strstr_len(type_str, -1, tz_prefix);
-          if (start != NULL) {
-            start += 3;
-            gchar *end = g_strrstr(start, "]");
-            if (end != NULL) {
-              *end = '\0';
-              v_tz = caml_alloc(1, 0);
-              Store_field(v_tz, 0, caml_copy_string(start));
-            }
-          }
-          g_free(type_str);
-        }
-      } else {
+      gchar *tz_identifier = extract_arrow_timezone_identifier(dtype);
+      if (tz_identifier != NULL) {
         v_tz = caml_alloc(1, 0);
-        Store_field(v_tz, 0, caml_copy_string(identifier));
-      }
-
-      if (time_zone != NULL) {
-        g_time_zone_unref(time_zone);
+        Store_field(v_tz, 0, caml_copy_string(tz_identifier));
+        g_free(tz_identifier);
       }
     }
     else                                          type_tag = 6; /* ArrowNull */
@@ -218,37 +225,11 @@ CAMLprim value caml_arrow_table_get_list_field_schema(value v_ptr, value v_col_n
              GARROW_IS_DATE64_DATA_TYPE(sub_dtype))   type_tag = 7;
     else if (GARROW_IS_TIMESTAMP_DATA_TYPE(sub_dtype)) {
                                                    type_tag = 8;
-      GTimeZone *time_zone = NULL;
-      g_object_get(G_OBJECT(sub_dtype), "time-zone", &time_zone, NULL);
-
-      const gchar *identifier = NULL;
-      if (time_zone != NULL) {
-        identifier = g_time_zone_get_identifier(time_zone);
-      }
-
-      if (identifier == NULL) {
-        gchar *type_str = garrow_data_type_to_string(sub_dtype);
-        if (type_str != NULL) {
-          const gchar *tz_prefix = "tz=";
-          gchar *start = g_strstr_len(type_str, -1, tz_prefix);
-          if (start != NULL) {
-            start += 3;
-            gchar *end = g_strrstr(start, "]");
-            if (end != NULL) {
-              *end = '\0';
-              v_tz = caml_alloc(1, 0);
-              Store_field(v_tz, 0, caml_copy_string(start));
-            }
-          }
-          g_free(type_str);
-        }
-      } else {
+      gchar *tz_identifier = extract_arrow_timezone_identifier(sub_dtype);
+      if (tz_identifier != NULL) {
         v_tz = caml_alloc(1, 0);
-        Store_field(v_tz, 0, caml_copy_string(identifier));
-      }
-
-      if (time_zone != NULL) {
-        g_time_zone_unref(time_zone);
+        Store_field(v_tz, 0, caml_copy_string(tz_identifier));
+        g_free(tz_identifier);
       }
     }
     else                                           type_tag = 6;
@@ -816,37 +797,11 @@ CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
              GARROW_IS_DATE64_DATA_TYPE(fdtype))   type_tag = 7;
     else if (GARROW_IS_TIMESTAMP_DATA_TYPE(fdtype)) {
                                                    type_tag = 8;
-      GTimeZone *time_zone = NULL;
-      g_object_get(G_OBJECT(fdtype), "time-zone", &time_zone, NULL);
-
-      const gchar *identifier = NULL;
-      if (time_zone != NULL) {
-        identifier = g_time_zone_get_identifier(time_zone);
-      }
-
-      if (identifier == NULL) {
-        gchar *type_str = garrow_data_type_to_string(fdtype);
-        if (type_str != NULL) {
-          const gchar *tz_prefix = "tz=";
-          gchar *start = g_strstr_len(type_str, -1, tz_prefix);
-          if (start != NULL) {
-            start += 3;
-            gchar *end = g_strrstr(start, "]");
-            if (end != NULL) {
-              *end = '\0';
-              v_tz = caml_alloc(1, 0);
-              Store_field(v_tz, 0, caml_copy_string(start));
-            }
-          }
-          g_free(type_str);
-        }
-      } else {
+      gchar *tz_identifier = extract_arrow_timezone_identifier(fdtype);
+      if (tz_identifier != NULL) {
         v_tz = caml_alloc(1, 0);
-        Store_field(v_tz, 0, caml_copy_string(identifier));
-      }
-
-      if (time_zone != NULL) {
-        g_time_zone_unref(time_zone);
+        Store_field(v_tz, 0, caml_copy_string(tz_identifier));
+        g_free(tz_identifier);
       }
     }
     else                                           type_tag = 6;
@@ -4065,6 +4020,9 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           value v_sub_tz = Field(v_sub, 2);
           value v_sub_data = Field(v_sub, 3);
 
+          /* Tag 4 = Dictionary. Nested dictionary payloads are tuples
+             (indices, levels, ordered), so only non-dictionary sub-columns
+             use flat arrays that must match n_total_vals directly. */
           if (sub_tag != 4 && Wosize_val(v_sub_data) != n_total_vals) {
             sub_ok = 0;
             break;
