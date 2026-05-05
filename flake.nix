@@ -140,7 +140,9 @@
               pkgs.jpmml-evaluator
               pkgs.jre
               pkgs.onnxruntime
-            ] ++ runtimeTools;
+            ] ++ runtimeTools ++ pkgs.lib.optionals withCoverage [
+              ocamlVersion.ppxlib
+            ];
 
             buildPhase = ''
               export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:${pkgs.onnxruntime}/lib/pkgconfig:$PKG_CONFIG_PATH"
