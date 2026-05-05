@@ -1,6 +1,11 @@
 open Ast
 open Arrow_table
 
+let nested_schema_hint table col_name =
+  match Arrow_table.column_type table col_name with
+  | Some (ArrowList (ArrowStruct schema)) -> schema
+  | _ -> []
+
 let unnest_impl (named_args : (string option * value) list) _env =
   match named_args with
   | (_, VDataFrame df) :: rest ->
@@ -22,28 +27,31 @@ let unnest_impl (named_args : (string option * value) list) _env =
                let final_nrows = ref 0 in
                Array.iter (function Some t -> final_nrows := !final_nrows + t.nrows | None -> ()) data;
                
-               if !final_nrows = 0 then begin
-                 (* Return a 0-row DataFrame that preserves the expected schema:
-                    other columns + the nested columns from the first non-null sub-table. *)
-                 let nested_schema =
-                   match Array.to_list data |> List.find_opt (function Some _ -> true | None -> false) with
-                   | Some (Some t) -> t.schema
-                   | _ -> []
-                 in
+                if !final_nrows = 0 then begin
+                  (* Return a 0-row DataFrame that preserves the expected schema:
+                     other columns + the nested columns from the first non-null sub-table. *)
+                  let nested_schema =
+                    match Array.to_list data |> List.find_opt (function Some _ -> true | None -> false) with
+                    | Some (Some t) -> t.schema
+                    | _ -> nested_schema_hint df.arrow_table col_name
+                  in
                  let other_schema =
                    List.filter_map (fun (n, t) ->
                      if n = col_name then None else Some (n, t)
                    ) df.arrow_table.schema
                  in
-                 let zero_col (_, t) name =
-                   let col = match t with
-                     | ArrowInt64 -> IntColumn [||]
-                     | ArrowFloat64 -> FloatColumn [||]
-                     | ArrowBoolean -> BoolColumn [||]
-                     | ArrowString -> StringColumn [||]
-                     | _ -> NAColumn 0
-                   in
-                   (name, col)
+                  let zero_col (_, t) name =
+                    let col = match t with
+                      | ArrowInt64 -> IntColumn [||]
+                      | ArrowFloat64 -> FloatColumn [||]
+                      | ArrowBoolean -> BoolColumn [||]
+                      | ArrowString -> StringColumn [||]
+                      | ArrowDate -> DateColumn [||]
+                      | ArrowTimestamp tz -> DatetimeColumn ([||], tz)
+                      | ArrowDictionary -> DictionaryColumn ([||], [], false)
+                      | _ -> NAColumn 0
+                    in
+                    (name, col)
                  in
                  let other_cols = List.map (fun (n, t) -> zero_col (n, t) n) other_schema in
                  let nested_cols = List.map (fun (n, t) -> zero_col (n, t) n) nested_schema in
@@ -55,11 +63,11 @@ let unnest_impl (named_args : (string option * value) list) _env =
                  } in
                  VDataFrame { arrow_table = final_table; group_keys = df.group_keys }
                end else
-                 (* 2. Extract nested columns schema from first non-empty nested table *)
-                 let nested_schema = match Array.to_list data |> List.find_opt (function Some t -> t.nrows > 0 | None -> false) with
-                   | Some (Some t) -> t.schema
-                   | _ -> []
-                 in
+                  (* 2. Extract nested columns schema from first non-empty nested table *)
+                  let nested_schema = match Array.to_list data |> List.find_opt (function Some t -> t.nrows > 0 | None -> false) with
+                    | Some (Some t) -> t.schema
+                    | _ -> nested_schema_hint df.arrow_table col_name
+                  in
                  
                  (* 3. Build indices for "other" columns expansion *)
                  let expansion_indices = Array.make !final_nrows 0 in

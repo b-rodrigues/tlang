@@ -40,6 +40,9 @@ external arrow_table_num_columns : nativeint -> int
 external arrow_table_get_schema : nativeint -> (string * int * string option) list
   = "caml_arrow_table_get_schema"
 
+external arrow_table_get_list_field_schema : nativeint -> string -> (string * int * string option) list option
+  = "caml_arrow_table_get_list_field_schema"
+
 (* ===================================================================== *)
 (* Column Data Extraction                                                *)
 (* ===================================================================== *)
@@ -71,7 +74,7 @@ external arrow_read_dictionary_column : nativeint -> (int option array * string 
 external arrow_read_list_column : nativeint -> (nativeint option * (int * int) option array)
   = "caml_arrow_read_list_column"
 
-external arrow_read_struct_fields : nativeint -> (string * int) list
+external arrow_read_struct_fields : nativeint -> (string * int * string option) list
   = "caml_arrow_read_struct_fields"
 
 external arrow_read_struct_field : nativeint -> int -> nativeint option

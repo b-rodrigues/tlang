@@ -149,6 +149,129 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
   CAMLreturn(v_result);
 }
 
+/* Get nested struct field schema for a list column as
+   Some((name, type_tag, timezone) list) or None if the column is not List<Struct>. */
+CAMLprim value caml_arrow_table_get_list_field_schema(value v_ptr, value v_col_name) {
+  CAMLparam2(v_ptr, v_col_name);
+  CAMLlocal5(v_result, v_field_tuple, v_cons, v_tz, v_some);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col_name);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, col_name);
+  if (idx < 0) {
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowField *field = garrow_schema_get_field(schema, idx);
+  g_object_unref(schema);
+  if (field == NULL) {
+    CAMLreturn(Val_none);
+  }
+
+  GArrowDataType *dtype = garrow_field_get_data_type(field);
+  if (!GARROW_IS_LIST_DATA_TYPE(dtype)) {
+    g_object_unref(field);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowField *value_field = garrow_list_data_type_get_value_field(GARROW_LIST_DATA_TYPE(dtype));
+  if (value_field == NULL) {
+    g_object_unref(field);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowDataType *value_dtype = garrow_field_get_data_type(value_field);
+  if (!GARROW_IS_STRUCT_DATA_TYPE(value_dtype)) {
+    g_object_unref(value_field);
+    g_object_unref(field);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowStructDataType *struct_dtype = GARROW_STRUCT_DATA_TYPE(value_dtype);
+  int n_fields = garrow_struct_data_type_get_n_fields(struct_dtype);
+  v_result = Val_emptylist;
+
+  for (int i = n_fields - 1; i >= 0; i--) {
+    GArrowField *sub_field = garrow_struct_data_type_get_field(struct_dtype, i);
+    const gchar *sub_name = garrow_field_get_name(sub_field);
+    GArrowDataType *sub_dtype = garrow_field_get_data_type(sub_field);
+
+    int type_tag;
+    v_tz = Val_none;
+    if (GARROW_IS_INT8_DATA_TYPE(sub_dtype) || GARROW_IS_INT16_DATA_TYPE(sub_dtype) ||
+        GARROW_IS_INT32_DATA_TYPE(sub_dtype) || GARROW_IS_INT64_DATA_TYPE(sub_dtype) ||
+        GARROW_IS_UINT8_DATA_TYPE(sub_dtype) || GARROW_IS_UINT16_DATA_TYPE(sub_dtype) ||
+        GARROW_IS_UINT32_DATA_TYPE(sub_dtype) || GARROW_IS_UINT64_DATA_TYPE(sub_dtype))
+                                                   type_tag = 0;
+    else if (GARROW_IS_DOUBLE_DATA_TYPE(sub_dtype))   type_tag = 1;
+    else if (GARROW_IS_BOOLEAN_DATA_TYPE(sub_dtype))  type_tag = 2;
+    else if (GARROW_IS_STRING_DATA_TYPE(sub_dtype) ||
+             GARROW_IS_LARGE_STRING_DATA_TYPE(sub_dtype))
+                                                   type_tag = 3;
+    else if (GARROW_IS_DICTIONARY_DATA_TYPE(sub_dtype))
+                                                   type_tag = 4;
+    else if (GARROW_IS_LIST_DATA_TYPE(sub_dtype))     type_tag = 5;
+    else if (GARROW_IS_DATE32_DATA_TYPE(sub_dtype) ||
+             GARROW_IS_DATE64_DATA_TYPE(sub_dtype))   type_tag = 7;
+    else if (GARROW_IS_TIMESTAMP_DATA_TYPE(sub_dtype)) {
+                                                   type_tag = 8;
+      GTimeZone *time_zone = NULL;
+      g_object_get(G_OBJECT(sub_dtype), "time-zone", &time_zone, NULL);
+
+      const gchar *identifier = NULL;
+      if (time_zone != NULL) {
+        identifier = g_time_zone_get_identifier(time_zone);
+      }
+
+      if (identifier == NULL) {
+        gchar *type_str = garrow_data_type_to_string(sub_dtype);
+        if (type_str != NULL) {
+          const gchar *tz_prefix = "tz=";
+          gchar *start = g_strstr_len(type_str, -1, tz_prefix);
+          if (start != NULL) {
+            start += 3;
+            gchar *end = g_strrstr(start, "]");
+            if (end != NULL) {
+              *end = '\0';
+              v_tz = caml_alloc(1, 0);
+              Store_field(v_tz, 0, caml_copy_string(start));
+            }
+          }
+          g_free(type_str);
+        }
+      } else {
+        v_tz = caml_alloc(1, 0);
+        Store_field(v_tz, 0, caml_copy_string(identifier));
+      }
+
+      if (time_zone != NULL) {
+        g_time_zone_unref(time_zone);
+      }
+    }
+    else                                           type_tag = 6;
+
+    v_field_tuple = caml_alloc(3, 0);
+    Store_field(v_field_tuple, 0, caml_copy_string(sub_name));
+    Store_field(v_field_tuple, 1, Val_int(type_tag));
+    Store_field(v_field_tuple, 2, v_tz);
+
+    v_cons = caml_alloc(2, 0);
+    Store_field(v_cons, 0, v_field_tuple);
+    Store_field(v_cons, 1, v_result);
+    v_result = v_cons;
+  }
+
+  g_object_unref(value_field);
+  g_object_unref(field);
+
+  v_some = caml_alloc(1, 0);
+  Store_field(v_some, 0, v_result);
+  CAMLreturn(v_some);
+}
+
 /* ===================================================================== */
 /* Column Data Extraction                                                */
 /* ===================================================================== */
@@ -647,12 +770,12 @@ CAMLprim value caml_arrow_read_list_column(value v_array_ptr) {
   CAMLreturn(v_result);
 }
 
-/* Read the schema (field names + type tags) from a struct array.
-   Returns OCaml list of (string * int) pairs.
+/* Read the schema (field names + type tags + timestamp timezones) from a struct array.
+   Returns OCaml list of (string * int * string option) triples.
    Does NOT take ownership of the input array — caller manages lifecycle. */
 CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
   CAMLparam1(v_ptr);
-  CAMLlocal3(v_result, v_tuple, v_cons);
+  CAMLlocal4(v_result, v_tuple, v_cons, v_tz);
 
   GArrowArray *arr = (GArrowArray *)Nativeint_val(v_ptr);
 
@@ -675,6 +798,7 @@ CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
     GArrowDataType *fdtype = garrow_field_get_data_type(field);
 
     int type_tag;
+    v_tz = Val_none;
     if (GARROW_IS_INT8_DATA_TYPE(fdtype) || GARROW_IS_INT16_DATA_TYPE(fdtype) ||
         GARROW_IS_INT32_DATA_TYPE(fdtype) || GARROW_IS_INT64_DATA_TYPE(fdtype) ||
         GARROW_IS_UINT8_DATA_TYPE(fdtype) || GARROW_IS_UINT16_DATA_TYPE(fdtype) ||
@@ -690,11 +814,47 @@ CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
     else if (GARROW_IS_LIST_DATA_TYPE(fdtype))     type_tag = 5;
     else if (GARROW_IS_DATE32_DATA_TYPE(fdtype) ||
              GARROW_IS_DATE64_DATA_TYPE(fdtype))   type_tag = 7;
+    else if (GARROW_IS_TIMESTAMP_DATA_TYPE(fdtype)) {
+                                                   type_tag = 8;
+      GTimeZone *time_zone = NULL;
+      g_object_get(G_OBJECT(fdtype), "time-zone", &time_zone, NULL);
+
+      const gchar *identifier = NULL;
+      if (time_zone != NULL) {
+        identifier = g_time_zone_get_identifier(time_zone);
+      }
+
+      if (identifier == NULL) {
+        gchar *type_str = garrow_data_type_to_string(fdtype);
+        if (type_str != NULL) {
+          const gchar *tz_prefix = "tz=";
+          gchar *start = g_strstr_len(type_str, -1, tz_prefix);
+          if (start != NULL) {
+            start += 3;
+            gchar *end = g_strrstr(start, "]");
+            if (end != NULL) {
+              *end = '\0';
+              v_tz = caml_alloc(1, 0);
+              Store_field(v_tz, 0, caml_copy_string(start));
+            }
+          }
+          g_free(type_str);
+        }
+      } else {
+        v_tz = caml_alloc(1, 0);
+        Store_field(v_tz, 0, caml_copy_string(identifier));
+      }
+
+      if (time_zone != NULL) {
+        g_time_zone_unref(time_zone);
+      }
+    }
     else                                           type_tag = 6;
 
-    v_tuple = caml_alloc(2, 0);
+    v_tuple = caml_alloc(3, 0);
     Store_field(v_tuple, 0, caml_copy_string(fname));
     Store_field(v_tuple, 1, Val_int(type_tag));
+    Store_field(v_tuple, 2, v_tz);
 
     v_cons = caml_alloc(2, 0);
     Store_field(v_cons, 0, v_tuple);
@@ -3851,9 +4011,9 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
       }
       case 5: { // List of Structs (ListColumn — nested DataFrames)
         /* v_arr is a tuple:
-           Field 0 = offsets (int array, length = n_list_rows+1)
-           Field 1 = present (bool array, length = n_list_rows, true=valid)
-           Field 2 = sub_columns ((string * int * data) list — same format as top-level cols) */
+            Field 0 = offsets (int array, length = n_list_rows+1)
+            Field 1 = present (bool array, length = n_list_rows, true=valid)
+            Field 2 = sub_columns ((string * int * string option * data) list) */
         value v_offsets = Field(v_arr, 0);
         value v_present = Field(v_arr, 1);
         value v_sub_cols_list = Field(v_arr, 2);
@@ -3902,9 +4062,10 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           value v_sub = Field(v_sc, 0);
           const char *sub_name = String_val(Field(v_sub, 0));
           int sub_tag = Int_val(Field(v_sub, 1));
-          value v_sub_data = Field(v_sub, 2);
+          value v_sub_tz = Field(v_sub, 2);
+          value v_sub_data = Field(v_sub, 3);
 
-          if (Wosize_val(v_sub_data) != n_total_vals) {
+          if (sub_tag != 4 && Wosize_val(v_sub_data) != n_total_vals) {
             sub_ok = 0;
             break;
           }
@@ -3965,6 +4126,92 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
               }
               break;
             }
+            case 4: { /* Dictionary */
+              value v_dict_indices = Field(v_sub_data, 0);
+              value v_dict_levels = Field(v_sub_data, 1);
+              gboolean dict_ordered = Bool_val(Field(v_sub_data, 2));
+              int n_indices = Wosize_val(v_dict_indices);
+
+              if (n_indices != n_total_vals) {
+                sub_ok = 0;
+                break;
+              }
+
+              GArrowStringArrayBuilder *dict_builder = garrow_string_array_builder_new();
+              value v_level_iter = v_dict_levels;
+              while (v_level_iter != Val_emptylist) {
+                value v_head = Field(v_level_iter, 0);
+                garrow_string_array_builder_append_string(dict_builder, String_val(v_head), &error);
+                if (error) break;
+                v_level_iter = Field(v_level_iter, 1);
+              }
+              if (error) {
+                g_object_unref(dict_builder);
+                sub_ok = 0;
+                break;
+              }
+
+              GArrowArray *dict_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(dict_builder), &error);
+              g_object_unref(dict_builder);
+              if (error || dict_arr == NULL) {
+                if (dict_arr) g_object_unref(dict_arr);
+                sub_ok = 0;
+                break;
+              }
+
+              GArrowInt32ArrayBuilder *idx_builder = garrow_int32_array_builder_new();
+              for (int j = 0; j < n_indices; j++) {
+                value v_opt = Field(v_dict_indices, j);
+                if (Is_block(v_opt)) {
+                  garrow_int32_array_builder_append_value(
+                    idx_builder, (gint32)Long_val(Field(v_opt, 0)), &error);
+                } else {
+                  garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(idx_builder), &error);
+                }
+                if (error) break;
+              }
+              if (error) {
+                g_object_unref(idx_builder);
+                g_object_unref(dict_arr);
+                sub_ok = 0;
+                break;
+              }
+
+              GArrowArray *idx_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(idx_builder), &error);
+              g_object_unref(idx_builder);
+              if (error || idx_arr == NULL) {
+                if (idx_arr) g_object_unref(idx_arr);
+                g_object_unref(dict_arr);
+                sub_ok = 0;
+                break;
+              }
+
+              GArrowDataType *idx_dtype = (GArrowDataType *)garrow_int32_data_type_new();
+              GArrowDataType *val_dtype = (GArrowDataType *)garrow_string_data_type_new();
+              sub_dtype = (GArrowDataType *)garrow_dictionary_data_type_new(idx_dtype, val_dtype, dict_ordered);
+              g_object_unref(idx_dtype);
+              g_object_unref(val_dtype);
+
+              GArrowDictionaryArray *dict_array_obj = garrow_dictionary_array_new(
+                sub_dtype, idx_arr, dict_arr, &error);
+              g_object_unref(idx_arr);
+              g_object_unref(dict_arr);
+
+              if (error || dict_array_obj == NULL) {
+                if (dict_array_obj) g_object_unref(dict_array_obj);
+                if (sub_dtype) g_object_unref(sub_dtype);
+                sub_dtype = NULL;
+                sub_ok = 0;
+                break;
+              }
+
+              sub_fields[si] = garrow_field_new(sub_name, sub_dtype);
+              sub_arrays[si] = GARROW_ARRAY(dict_array_obj);
+              g_object_unref(sub_dtype);
+              sub_dtype = NULL;
+              si++;
+              break;
+            }
             case 7: { /* Date32 */
               sub_dtype = (GArrowDataType *)garrow_date32_data_type_new();
               sub_builder = (GArrowArrayBuilder *)garrow_date32_array_builder_new();
@@ -3972,6 +4219,28 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
                 value v_opt = Field(v_sub_data, j);
                 if (Is_block(v_opt))
                   garrow_date32_array_builder_append_value(GARROW_DATE32_ARRAY_BUILDER(sub_builder), (gint32)Long_val(Field(v_opt, 0)), &error);
+                else
+                  garrow_array_builder_append_null(sub_builder, &error);
+                if (error) { sub_ok = 0; break; }
+              }
+              break;
+            }
+            case 8: { /* Timestamp */
+              GTimeZone *sub_time_zone = Is_block(v_sub_tz)
+                ? g_time_zone_new_identifier(String_val(Field(v_sub_tz, 0)))
+                : NULL;
+              GArrowTimestampDataType *timestamp_dtype =
+                garrow_timestamp_data_type_new(GARROW_TIME_UNIT_MICRO, sub_time_zone);
+              if (sub_time_zone) g_time_zone_unref(sub_time_zone);
+              sub_dtype = (GArrowDataType *)timestamp_dtype;
+              sub_builder = (GArrowArrayBuilder *)garrow_timestamp_array_builder_new(timestamp_dtype);
+              for (int j = 0; j < n_total_vals; j++) {
+                value v_opt = Field(v_sub_data, j);
+                if (Is_block(v_opt))
+                  garrow_timestamp_array_builder_append_value(
+                    GARROW_TIMESTAMP_ARRAY_BUILDER(sub_builder),
+                    Int64_val(Field(v_opt, 0)),
+                    &error);
                 else
                   garrow_array_builder_append_null(sub_builder, &error);
                 if (error) { sub_ok = 0; break; }

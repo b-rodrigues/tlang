@@ -1580,6 +1580,76 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       "ListColumn with Float+Bool sub-fields materializes"
   end;
 
+  let nested_factor_ts_a = Arrow_table.create [
+    ("color", Arrow_table.DictionaryColumn (
+      [| Some 0; Some 1 |],
+      ["red"; "blue"],
+      false
+    ));
+    ("ts", Arrow_table.DatetimeColumn (
+      [| Some (Chrono.datetime_of_components 2024 1 15 9 30 0 0);
+         Some (Chrono.datetime_of_components 2024 1 15 10 45 0 0) |],
+      Some "Europe/Paris"
+    ));
+  ] 2 in
+  let nested_factor_ts_b = Arrow_table.create [
+    ("color", Arrow_table.DictionaryColumn (
+      [| Some 1 |],
+      ["red"; "blue"],
+      false
+    ));
+    ("ts", Arrow_table.DatetimeColumn (
+      [| Some (Chrono.datetime_of_components 2024 1 16 8 0 0 0) |],
+      Some "Europe/Paris"
+    ));
+  ] 1 in
+  let list_factor_ts_tbl = Arrow_table.create [
+    ("id", Arrow_table.IntColumn [| Some 1; Some 2 |]);
+    ("nested", Arrow_table.ListColumn [| Some nested_factor_ts_a; Some nested_factor_ts_b |]);
+  ] 2 in
+  let mat_factor_ts_tbl = Arrow_table.materialize list_factor_ts_tbl in
+  if Arrow_table.is_native_backed mat_factor_ts_tbl then begin
+    (match Arrow_table.get_column mat_factor_ts_tbl "nested" with
+     | Some (Arrow_table.ListColumn nested) ->
+         let dict_ok =
+           match nested.(0) with
+           | Some t ->
+               (match Arrow_table.get_column t "color" with
+                | Some (Arrow_table.DictionaryColumn (idx, levels, ordered)) ->
+                    Array.length idx = 2
+                    && idx.(0) = Some 0
+                    && idx.(1) = Some 1
+                    && levels = ["red"; "blue"]
+                    && not ordered
+                | _ -> false)
+           | None -> false
+         in
+         let ts_ok =
+           match nested.(0), nested.(1) with
+           | Some t0, Some t1 ->
+               (match Arrow_table.get_column t0 "ts", Arrow_table.get_column t1 "ts" with
+                | Some (Arrow_table.DatetimeColumn (a0, tz0)),
+                  Some (Arrow_table.DatetimeColumn (a1, tz1)) ->
+                    tz0 = Some "Europe/Paris"
+                    && tz1 = Some "Europe/Paris"
+                    && a0.(0) = Some (Chrono.datetime_of_components 2024 1 15 9 30 0 0)
+                    && a0.(1) = Some (Chrono.datetime_of_components 2024 1 15 10 45 0 0)
+                    && a1.(0) = Some (Chrono.datetime_of_components 2024 1 16 8 0 0 0)
+                | _ -> false)
+           | _ -> false
+         in
+         if Array.length nested = 2 && dict_ok && ts_ok then begin
+           incr pass_count; Printf.printf "  ✓ ListColumn with nested Dictionary+Timestamp sub-fields round-trip correct\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ ListColumn with nested Dictionary+Timestamp data mismatch\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ ListColumn with nested Dictionary+Timestamp returned wrong type\n")
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "ListColumn with nested Dictionary+Timestamp sub-fields materializes"
+  end;
+
   (* Test: All-NA ListColumn stays in pure OCaml fallback while preserving shape *)
   let list_col_all_null = Arrow_table.ListColumn [| None; None |] in
   let list_tbl_all_null = Arrow_table.create [
@@ -1742,6 +1812,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let ipc_path = "test_arrow_roundtrip.arrow" in
   let dict_ipc_path = "test_arrow_dict_roundtrip.arrow" in
   let list_ipc_path = "test_arrow_list_roundtrip.arrow" in
+  let nested_factor_ts_ipc_path = "test_arrow_nested_factor_ts_roundtrip.arrow" in
+  let hinted_empty_list_ipc_path = "test_arrow_hinted_empty_list_roundtrip.arrow" in
+  let nested_roundtrip_ipc_path = "test_arrow_nested_roundtrip.arrow" in
   let null_ipc_path = "test_arrow_null_roundtrip.arrow" in
   let dt_ipc_path = "test_arrow_datetime_roundtrip.arrow" in
   let ipc_tbl_src = Arrow_table.create [
@@ -1848,7 +1921,99 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
           | Error msg ->
               incr fail_count; Printf.printf "  ✗ ListColumn IPC read failed: %s\n" msg)
      | Error msg ->
-         incr fail_count; Printf.printf "  ✗ ListColumn IPC write failed: %s\n" msg);
+          incr fail_count; Printf.printf "  ✗ ListColumn IPC write failed: %s\n" msg);
+
+    let nested_factor_ts_ipc_tbl = Arrow_table.create [
+      ("grp", Arrow_table.StringColumn [| Some "a"; Some "b" |]);
+      ("nested", Arrow_table.ListColumn [| Some nested_factor_ts_a; Some nested_factor_ts_b |]);
+    ] 2 in
+    (match Arrow_io.write_ipc nested_factor_ts_ipc_tbl nested_factor_ts_ipc_path with
+     | Ok () ->
+         (match Arrow_io.read_ipc nested_factor_ts_ipc_path with
+          | Ok nested_factor_ts_back ->
+              (match Arrow_table.get_column nested_factor_ts_back "nested" with
+               | Some (Arrow_table.ListColumn nested) ->
+                   let ok =
+                     Array.length nested = 2
+                     && (match nested.(0), nested.(1) with
+                     | Some t0, Some t1 ->
+                         (match Arrow_table.get_column t0 "color",
+                                Arrow_table.get_column t0 "ts",
+                                Arrow_table.get_column t1 "color",
+                                Arrow_table.get_column t1 "ts" with
+                          | Some (Arrow_table.DictionaryColumn (idx0, levels0, ordered0)),
+                            Some (Arrow_table.DatetimeColumn (ts0, tz0)),
+                            Some (Arrow_table.DictionaryColumn (idx1, levels1, ordered1)),
+                            Some (Arrow_table.DatetimeColumn (ts1, tz1)) ->
+                              idx0.(0) = Some 0
+                              && idx0.(1) = Some 1
+                              && levels0 = ["red"; "blue"]
+                              && not ordered0
+                              && tz0 = Some "Europe/Paris"
+                              && ts0.(0) = Some (Chrono.datetime_of_components 2024 1 15 9 30 0 0)
+                              && ts0.(1) = Some (Chrono.datetime_of_components 2024 1 15 10 45 0 0)
+                              && idx1.(0) = Some 1
+                              && levels1 = ["red"; "blue"]
+                              && not ordered1
+                              && tz1 = Some "Europe/Paris"
+                              && ts1.(0) = Some (Chrono.datetime_of_components 2024 1 16 8 0 0 0)
+                          | _ -> false)
+                     | _ -> false)
+                   in
+                   if ok then begin
+                     incr pass_count; Printf.printf "  ✓ Nested Dictionary+Timestamp IPC round-trip preserves schema and values\n"
+                   end else begin
+                     incr fail_count; Printf.printf "  ✗ Nested Dictionary+Timestamp IPC round-trip data mismatch\n"
+                   end
+               | _ ->
+                   incr fail_count; Printf.printf "  ✗ Nested Dictionary+Timestamp IPC read-back returned wrong type\n")
+          | Error msg ->
+              incr fail_count; Printf.printf "  ✗ Nested Dictionary+Timestamp IPC read failed: %s\n" msg)
+     | Error msg ->
+         incr fail_count; Printf.printf "  ✗ Nested Dictionary+Timestamp IPC write failed: %s\n" msg);
+
+    let hinted_empty_list_tbl = {
+      Arrow_table.schema = [
+        ("id", Arrow_table.ArrowInt64);
+        ("nested", Arrow_table.ArrowList (Arrow_table.ArrowStruct [
+          ("color", Arrow_table.ArrowDictionary);
+          ("ts", Arrow_table.ArrowTimestamp (Some "Europe/Paris"))
+        ]));
+      ];
+      columns = [
+        ("id", Arrow_table.IntColumn [| Some 1; Some 2 |]);
+        ("nested", Arrow_table.ListColumn [| None; None |]);
+      ];
+      nrows = 2;
+      native_handle = None;
+    } in
+    (match Arrow_io.write_ipc hinted_empty_list_tbl hinted_empty_list_ipc_path with
+     | Ok () ->
+         (match Arrow_io.read_ipc hinted_empty_list_ipc_path with
+          | Ok hinted_empty_back ->
+              let schema_ok =
+                match Arrow_table.column_type hinted_empty_back "nested" with
+                | Some (Arrow_table.ArrowList (Arrow_table.ArrowStruct [
+                    ("color", Arrow_table.ArrowDictionary);
+                    ("ts", Arrow_table.ArrowTimestamp (Some "Europe/Paris"))
+                  ])) -> true
+                | _ -> false
+              in
+              let data_ok =
+                match Arrow_table.get_column hinted_empty_back "nested" with
+                | Some (Arrow_table.ListColumn nested) ->
+                    Array.length nested = 2 && nested.(0) = None && nested.(1) = None
+                | _ -> false
+              in
+              if schema_ok && data_ok then begin
+                incr pass_count; Printf.printf "  ✓ Empty/all-null hinted ListColumn IPC round-trip preserves schema hints\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ Empty/all-null hinted ListColumn IPC round-trip lost schema hints\n"
+              end
+          | Error msg ->
+              incr fail_count; Printf.printf "  ✗ Empty/all-null hinted ListColumn IPC read failed: %s\n" msg)
+     | Error msg ->
+         incr fail_count; Printf.printf "  ✗ Empty/all-null hinted ListColumn IPC write failed: %s\n" msg);
 
     let null_ipc_tbl = Arrow_table.create [
       ("missing", Arrow_table.NAColumn 3);
@@ -1928,7 +2093,37 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       incr pass_count; Printf.printf "  ✓ read_arrow preserves schema/column names\n"
     end else begin
       incr fail_count; Printf.printf "  ✗ read_arrow schema mismatch: %s\n" colnames_result
-    end
+    end;
+
+    test "write_arrow/read_arrow preserves nested factor levels after unnest"
+      (Printf.sprintf
+         {|df_nested = dataframe([
+             [g: "a", color: "red", ts: with_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")],
+             [g: "a", color: "blue", ts: with_tz(ymd_hms("2024-01-15 10:45:00"), "Europe/Paris")],
+             [g: "b", color: "red", ts: with_tz(ymd_hms("2024-01-16 08:00:00"), "Europe/Paris")]
+           ]);
+           df_nested = mutate(df_nested, $color = factor($color));
+           nested = group_by(df_nested, $g) |> nest();
+           write_arrow(nested, "%s");
+           flat = read_arrow("%s") |> unnest($data);
+           levels(flat.color)|}
+         nested_roundtrip_ipc_path nested_roundtrip_ipc_path)
+      {|Vector["red", "blue"]|};
+
+    test "write_arrow/read_arrow preserves nested timestamp timezones after unnest"
+      (Printf.sprintf
+         {|df_nested = dataframe([
+             [g: "a", color: "red", ts: with_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")],
+             [g: "a", color: "blue", ts: with_tz(ymd_hms("2024-01-15 10:45:00"), "Europe/Paris")],
+             [g: "b", color: "red", ts: with_tz(ymd_hms("2024-01-16 08:00:00"), "Europe/Paris")]
+           ]);
+           df_nested = mutate(df_nested, $color = factor($color));
+           nested = group_by(df_nested, $g) |> nest();
+           write_arrow(nested, "%s");
+           flat = read_arrow("%s") |> unnest($data);
+           tz(flat.ts)|}
+         nested_roundtrip_ipc_path nested_roundtrip_ipc_path)
+      {|Vector["Europe/Paris", "Europe/Paris", "Europe/Paris"]|}
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Arrow_io.write_ipc/read_ipc round-trip";
@@ -1937,15 +2132,26 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "ListColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Nested Dictionary+Timestamp IPC round-trip";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Empty/all-null hinted ListColumn IPC round-trip";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "NAColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "DatetimeColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-      "write_arrow/read_arrow round-trip"
+      "write_arrow/read_arrow round-trip";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "write_arrow/read_arrow preserves nested factor levels after unnest";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "write_arrow/read_arrow preserves nested timestamp timezones after unnest"
   end;
 
   if Sys.file_exists null_ipc_path then Sys.remove null_ipc_path;
   if Sys.file_exists list_ipc_path then Sys.remove list_ipc_path;
+  if Sys.file_exists nested_roundtrip_ipc_path then Sys.remove nested_roundtrip_ipc_path;
+  if Sys.file_exists hinted_empty_list_ipc_path then Sys.remove hinted_empty_list_ipc_path;
+  if Sys.file_exists nested_factor_ts_ipc_path then Sys.remove nested_factor_ts_ipc_path;
   if Sys.file_exists dict_ipc_path then Sys.remove dict_ipc_path;
   if Sys.file_exists dt_ipc_path then Sys.remove dt_ipc_path;
   if Sys.file_exists ipc_path then Sys.remove ipc_path;
@@ -2116,6 +2322,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (try Sys.remove csv_path with _ -> ());
   (try Sys.remove csv_skip_path with _ -> ());
   (try Sys.remove ipc_path with _ -> ());
+  (try Sys.remove nested_roundtrip_ipc_path with _ -> ());
+  (try Sys.remove hinted_empty_list_ipc_path with _ -> ());
+  (try Sys.remove nested_factor_ts_ipc_path with _ -> ());
   (try Sys.remove dict_ipc_path with _ -> ());
   (try Sys.remove list_ipc_path with _ -> ());
   (try Sys.remove parquet_path with _ -> ());

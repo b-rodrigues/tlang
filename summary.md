@@ -222,6 +222,7 @@ p = pipeline {
 ### Data interchange and sandboxes
 
 - **Arrow** is the preferred interchange for DataFrames.
+- Arrow IPC round-trips now preserve nested `nest()`/`unnest()` list-columns with factor and timezone-aware datetime fields, including empty/all-null nested schemas.
 - **PMML** is used for model interchange.
 - **JSON** is available for simpler values.
 - Nodes run in Nix-managed sandboxes, so R/Python/shell/Quarto dependencies must be declared in the project/package metadata and synced via `t update`.
