@@ -35,7 +35,7 @@ static gchar *extract_arrow_timezone_identifier(GArrowDataType *dtype) {
       gchar *start = g_strstr_len(type_str, -1, tz_prefix);
       if (start != NULL) {
         start += 3;
-        gchar *end = g_strrstr(start, "]");
+        gchar *end = strchr(start, ']');
         if (end != NULL && end >= start) {
           result = g_strndup(start, end - start);
         }
@@ -3972,6 +3972,7 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         value v_offsets = Field(v_arr, 0);
         value v_present = Field(v_arr, 1);
         value v_sub_cols_list = Field(v_arr, 2);
+        const int arrow_dictionary_tag = 4;
 
         int n_offsets = Wosize_val(v_offsets);
         int n_list_rows = Wosize_val(v_present);
@@ -4023,7 +4024,7 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           /* Tag 4 = Dictionary. Nested dictionary payloads are tuples
              (indices, levels, ordered), so only non-dictionary sub-columns
              use flat arrays that must match n_total_vals directly. */
-          if (sub_tag != 4 && Wosize_val(v_sub_data) != n_total_vals) {
+          if (sub_tag != arrow_dictionary_tag && Wosize_val(v_sub_data) != n_total_vals) {
             sub_ok = 0;
             break;
           }

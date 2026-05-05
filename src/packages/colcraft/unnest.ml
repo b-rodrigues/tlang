@@ -49,7 +49,7 @@ let unnest_impl (named_args : (string option * value) list) _env =
                       | ArrowDate -> DateColumn [||]
                       | ArrowTimestamp tz -> DatetimeColumn ([||], tz)
                       | ArrowDictionary -> DictionaryColumn ([||], [], false)
-                      | _ -> NAColumn 0
+                      | ArrowNA | ArrowList _ | ArrowStruct _ -> NAColumn 0
                     in
                     (name, col)
                  in
