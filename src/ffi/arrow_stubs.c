@@ -184,7 +184,7 @@ CAMLprim value caml_arrow_table_get_list_field_schema(value v_ptr, value v_col_n
     CAMLreturn(Val_none);
   }
 
-  GArrowField *value_field = garrow_list_data_type_get_value_field(GARROW_LIST_DATA_TYPE(dtype));
+  GArrowField *value_field = garrow_list_data_type_get_field(GARROW_LIST_DATA_TYPE(dtype));
   if (value_field == NULL) {
     g_object_unref(field);
     CAMLreturn(Val_none);
