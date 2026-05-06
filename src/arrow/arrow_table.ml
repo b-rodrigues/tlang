@@ -535,7 +535,6 @@ let rec flatten_list_column ?schema_hint (nested : t option array)
   let n_total = !total in
   let sub_schema = Option.value (effective_list_schema ?schema_hint nested) ~default:[] in
   (* Flatten each sub-column *)
-  let pack_opt v = Obj.repr (Option.map Obj.repr v) in
   let sub_cols = List.map (fun (fname, ftype) ->
     let tag = sub_tag_of ftype in
     let timezone =
