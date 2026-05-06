@@ -899,6 +899,7 @@ let init_env () =
   let env = Conf_int.register env in
   let env = Nobs.register env in
   let env = Df_residual.register env in
+  let env = Deviance.register env in
   let env = Sigma.register env in
   let env = Dispersion.register env in
   let env = Vcov.register env in
