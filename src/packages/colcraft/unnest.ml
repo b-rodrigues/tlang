@@ -124,10 +124,24 @@ let unnest_impl (named_args : (string option * value) list) _env =
                            native_handle = None;
                          }
                  in
-                 VDataFrame { arrow_table = final_df_table; group_keys = [] }
+                  VDataFrame { arrow_table = final_df_table; group_keys = df.group_keys }
             | _ -> Error.type_error (Printf.sprintf "Column `%s` is not a list-column." col_name))
   | _ :: _ -> Error.type_error "Function `unnest` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `unnest` requires a DataFrame."
 
+(*
+--# Expand nested columns
+--#
+--# Expands a nested list-column (produced by nest() or similar) back into its
+--# constituent rows and columns, effectively duplicating rows of the "parent"
+--# DataFrame for every row in the nested table.
+--#
+--# @name unnest
+--# @param df :: DataFrame The DataFrame containing a nested column.
+--# @param cols :: Column Selection column to unnest (positional or 'cols=' arg).
+--# @return :: DataFrame The expanded DataFrame.
+--# @family colcraft
+--# @export
+*)
 let register env =
   Env.add "unnest" (make_builtin_named ~name:"unnest" ~variadic:true 1 unnest_impl) env

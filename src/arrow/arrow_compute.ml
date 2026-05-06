@@ -446,7 +446,8 @@ let nest (grouped : grouped_table) (nest_cols : string list) : (string * Arrow_t
       (* Fallback: use OCaml-side indices and take_rows *)
       let groups = get_ocaml_groups grouped in
       List.map (fun (key, indices) ->
-        (key, take_rows grouped.base_table indices)
+        let sub = take_rows grouped.base_table indices in
+        (key, project sub nest_cols)
       ) groups
 
 (** Whether the OCaml fallback groups have already been materialized. *)
