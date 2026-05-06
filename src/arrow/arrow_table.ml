@@ -506,15 +506,8 @@ let flatten_list_column ?schema_hint (nested : t option array)
           let flat_indices : int option array = Array.make n_total None in
           let levels = ref None in
           let ordered = ref None in
-          let validate_levels expected actual =
-            Array.length expected = Array.length actual &&
-            let rec loop i =
-              if i = Array.length expected then true
-              else if expected.(i) <> actual.(i) then false
-              else loop (i + 1)
-            in
-            loop 0
-          in
+          let validate_levels expected actual = expected = actual in
+
           let pos = ref 0 in
           Array.iter (function
             | None -> ()
@@ -532,7 +525,7 @@ let flatten_list_column ?schema_hint (nested : t option array)
                             invalid_arg ("ArrowDictionary flatten: incompatible dictionary payloads for field " ^ fname)
                       | _ ->
                           invalid_arg ("ArrowDictionary flatten: inconsistent dictionary metadata state for field " ^ fname));
-                     let level_count = Array.length lvl in
+                     let level_count = List.length lvl in
                      Array.iteri (fun j v ->
                        (match v with
                         | Some idx when idx < 0 || idx >= level_count ->
