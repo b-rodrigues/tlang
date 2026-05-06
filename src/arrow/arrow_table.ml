@@ -501,7 +501,7 @@ let is_arrow_table_new_supported = function
     offsets : int array of length nrows+1
     present : bool array of length nrows (true = non-null)
     sub_cols : (string * int * string option * Obj.t) list — flattened column data *)
-let flatten_list_column ?schema_hint (nested : t option array)
+let rec flatten_list_column ?schema_hint (nested : t option array)
   : (int array * bool array * (string * int * string option * Obj.t) list) =
   let nrows = Array.length nested in
   let arrow_int64_tag = 0 in
