@@ -142,6 +142,9 @@ external arrow_table_sort : nativeint -> string -> bool -> nativeint option
 external arrow_table_new : (string * int * string option * 'a array) list -> nativeint option
   = "caml_arrow_table_new"
 
+external arrow_table_concatenate : nativeint list -> nativeint option
+  = "caml_arrow_table_concatenate"
+
 (* ===================================================================== *)
 (* Scalar Arithmetic Operations                                          *)
 (* ===================================================================== *)

@@ -5341,3 +5341,45 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
   Store_field(v_result, 0, caml_copy_nativeint((intnat)gt));
   CAMLreturn(v_result);
 }
+
+/* Vertical concatenation of multiple tables.
+   Args: v_table_ptrs (nativeint list)
+   Returns: Some(new_table_ptr) or None on failure. */
+CAMLprim value caml_arrow_table_concatenate(value v_table_ptrs) {
+  CAMLparam1(v_table_ptrs);
+  CAMLlocal1(v_head);
+
+  GList *all_tables = NULL;
+  value v_curr = v_table_ptrs;
+  while (v_curr != Val_emptylist) {
+    v_head = Field(v_curr, 0);
+    GArrowTable *table = (GArrowTable *)Nativeint_val(v_head);
+    if (table != NULL) {
+      all_tables = g_list_prepend(all_tables, table);
+    }
+    v_curr = Field(v_curr, 1);
+  }
+
+  if (all_tables == NULL) {
+    CAMLreturn(Val_none);
+  }
+
+  all_tables = g_list_reverse(all_tables);
+  GArrowTable *first = (GArrowTable *)all_tables->data;
+  GList *others = all_tables->next;
+
+  GError *error = NULL;
+  GArrowTable *result = garrow_table_concatenate(first, others, NULL, &error);
+
+  g_list_free(all_tables);
+
+  if (result == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  CAMLlocal1(v_res);
+  v_res = caml_alloc(1, 0);
+  Store_field(v_res, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_res);
+}

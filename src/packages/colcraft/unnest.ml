@@ -29,8 +29,6 @@ let unnest_impl (named_args : (string option * value) list) _env =
                Array.iter (function Some t -> final_nrows := !final_nrows + t.nrows | None -> ()) data;
                
                 if !final_nrows = 0 then begin
-                  (* Return a 0-row DataFrame that preserves the expected schema:
-                     other columns + the nested columns from the first non-null sub-table. *)
                   let nested_schema =
                     match Array.to_list data |> List.find_opt (function Some _ -> true | None -> false) with
                     | Some (Some t) -> t.schema
@@ -53,24 +51,22 @@ let unnest_impl (named_args : (string option * value) list) _env =
                       | ArrowNA | ArrowList _ | ArrowStruct _ -> NAColumn 0
                     in
                     (name, col)
-                 in
-                 let other_cols = List.map (fun (n, t) -> zero_col (n, t) n) other_schema in
-                 let nested_cols = List.map (fun (n, t) -> zero_col (n, t) n) nested_schema in
-                 let final_table = {
-                   Arrow_table.schema = other_schema @ nested_schema;
-                   columns = other_cols @ nested_cols;
-                   nrows = 0;
-                   native_handle = None;
-                 } in
-                 VDataFrame { arrow_table = final_table; group_keys = df.group_keys }
-               end else
-                  (* 2. Extract nested columns schema from first non-empty nested table *)
+                  in
+                  let other_cols = List.map (fun (n, t) -> zero_col (n, t) n) other_schema in
+                  let nested_cols = List.map (fun (n, t) -> zero_col (n, t) n) nested_schema in
+                  let final_table = {
+                    Arrow_table.schema = other_schema @ nested_schema;
+                    columns = other_cols @ nested_cols;
+                    nrows = 0;
+                    native_handle = None;
+                  } in
+                  VDataFrame { arrow_table = final_table; group_keys = df.group_keys }
+                end else
                   let nested_schema = match Array.to_list data |> List.find_opt (function Some t -> t.nrows > 0 | None -> false) with
                     | Some (Some t) -> t.schema
                     | _ -> nested_schema_hint df.arrow_table col_name
                   in
                  
-                 (* 3. Build indices for "other" columns expansion *)
                  let expansion_indices = Array.make !final_nrows 0 in
                  let curr = ref 0 in
                  Array.iteri (fun i -> function
@@ -82,58 +78,43 @@ let unnest_impl (named_args : (string option * value) list) _env =
                    | None -> ()
                  ) data;
                  
-                 let other_cols =
+                 let final_df_table =
                    match df.arrow_table.native_handle with
-                   | Some handle when not handle.Arrow_table.freed ->
-                       (* Optimized path: use native Arrow take (via sort_by_indices) for expansion *)
+                   | Some handle when not handle.freed && Arrow_ffi.arrow_available ->
                        let other_table = project df.arrow_table other_names in
                        let expanded_other = sort_by_indices other_table expansion_indices in
-                       List.map (fun name ->
-                         match Arrow_table.get_column expanded_other name with
-                         | Some col -> (name, col)
-                         | None -> (name, Arrow_table.NAColumn !final_nrows)
-                       ) other_names
+                       let tables_to_stack = List.filter_map (fun x -> x) (Array.to_list data) in
+                       let stacked_table = Arrow_table.concatenate tables_to_stack in
+                       let current_res = ref expanded_other in
+                       List.iter (fun (n, _) ->
+                         current_res := Arrow_table.add_column_from_table !current_res n stacked_table n
+                       ) nested_schema;
+                       !current_res
                    | _ ->
-                       List.map (fun name ->
+                       let other_schema = List.filter (fun (n, _) -> n <> col_name) df.arrow_table.schema in
+                       let other_cols = List.map (fun (name, _) ->
                          match Arrow_table.get_column df.arrow_table name with
                          | Some col -> (name, Arrow_table.take_col col expansion_indices !final_nrows)
                          | None -> (name, Arrow_table.NAColumn !final_nrows)
-                       ) other_names
+                       ) other_schema in
+                       let tables_to_stack = List.filter_map (fun x -> x) (Array.to_list data) in
+                       let stacked_table = Arrow_table.concatenate tables_to_stack in
+                       let nested_cols = List.map (fun (n, _) ->
+                         match Arrow_table.get_column stacked_table n with
+                         | Some col -> (n, col)
+                         | None -> (n, Arrow_table.NAColumn !final_nrows)
+                       ) nested_schema in
+                       {
+                         schema = other_schema @ nested_schema;
+                         columns = other_cols @ nested_cols;
+                         nrows = !final_nrows;
+                         native_handle = None;
+                       }
                  in
-                 
-                 (* 4. Combine nested tables *)
-                 let nested_cols = List.map (fun (n, _) ->
-                   let cols_to_concat = List.filter_map (function
-                     | Some t_sub -> Arrow_table.get_column t_sub n
-                     | None -> None
-                   ) (Array.to_list data) in
-                   (n, Arrow_table.concatenate_columns cols_to_concat)
-                 ) nested_schema in
-                 
-                 let final_table = {
-                   Arrow_table.schema = (List.map (fun (n, _) -> (n, match Arrow_table.column_type df.arrow_table n with Some t -> t | None -> ArrowNA)) other_cols) @ nested_schema;
-                   columns = other_cols @ nested_cols;
-                   nrows = !final_nrows;
-                   native_handle = None;
-                 } in
-                 VDataFrame { arrow_table = final_table; group_keys = df.group_keys }
-           | _ -> Error.type_error (Printf.sprintf "Column `%s` is not a list-column." col_name))
+                 VDataFrame { arrow_table = final_df_table; group_keys = [] }
+            | _ -> Error.type_error (Printf.sprintf "Column `%s` is not a list-column." col_name))
   | _ :: _ -> Error.type_error "Function `unnest` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `unnest` requires a DataFrame."
 
-(*
---# Expand nested columns
---#
---# Expands a nested list-column (produced by nest() or similar) back into its
---# constituent rows and columns, effectively duplicating rows of the "parent"
---# DataFrame for every row in the nested table.
---#
---# @name unnest
---# @param df :: DataFrame The DataFrame containing a nested column.
---# @param cols :: Column Selection column to unnest (positional or 'cols=' arg).
---# @return :: DataFrame The expanded DataFrame.
---# @family colcraft
---# @export
-*)
 let register env =
   Env.add "unnest" (make_builtin_named ~name:"unnest" ~variadic:true 1 unnest_impl) env

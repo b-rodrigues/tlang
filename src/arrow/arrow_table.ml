@@ -380,18 +380,39 @@ let get_column (t : t) (name : string) : column_data option =
            NAColumn total
  
  (** Concatenate multiple tables with the same schema *)
- let concatenate (tables : t list) : t =
+ let rec concatenate (tables : t list) : t =
    match tables with
    | [] -> empty
    | [t] -> t
    | first :: _ ->
-       let schema = first.schema in
-       let nrows = List.fold_left (fun acc t -> acc + t.nrows) 0 tables in
-       let columns = List.map (fun (name, _) ->
-         let cols_to_concat = List.filter_map (fun t -> get_column t name) tables in
-         (name, concatenate_columns cols_to_concat)
-       ) schema in
-       { schema; columns; nrows; native_handle = None }
+       let all_native = List.for_all (fun t ->
+         match t.native_handle with
+         | Some handle -> not handle.freed
+         | None -> false
+       ) tables in
+
+       if all_native && Arrow_ffi.arrow_available then
+         let ptrs = List.map (fun t -> (Option.get t.native_handle).ptr) tables in
+         match Arrow_ffi.arrow_table_concatenate ptrs with
+         | Some new_ptr ->
+             let nrows = List.fold_left (fun acc t -> acc + t.nrows) 0 tables in
+             create_from_native new_ptr first.schema nrows
+         | None -> concatenate_ocaml tables
+       else
+         concatenate_ocaml tables
+
+and concatenate_ocaml (tables : t list) : t =
+  match tables with
+  | [] -> empty
+  | [t] -> t
+  | first :: _ ->
+      let schema = first.schema in
+      let nrows = List.fold_left (fun acc t -> acc + t.nrows) 0 tables in
+      let columns = List.map (fun (name, _) ->
+        let cols_to_concat = List.filter_map (fun t -> get_column t name) tables in
+        (name, concatenate_columns cols_to_concat)
+      ) schema in
+      { schema; columns; nrows; native_handle = None }
 
 let column_type (t : t) (name : string) : arrow_type option =
   List.assoc_opt name t.schema
