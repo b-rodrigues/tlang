@@ -6,7 +6,7 @@ args <- commandArgs(trailingOnly = TRUE)
 parquet_dir <- args[1]
 
 start_time <- Sys.time()
-ds <- open_dataset(parquet_dir, partitioning = "hive")
+ds <- open_dataset(parquet_dir)
 
 df <- ds %>% collect()
 

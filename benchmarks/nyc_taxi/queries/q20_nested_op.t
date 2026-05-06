@@ -10,9 +10,9 @@ if (type(input_parquet) == "String") {
   exit(1)
 }
 
-# q20: Nesting by VendorID then unnesting
-# This tests the performance of Arrow ListColumn (Struct) round-trips
-# on large datasets.
+-- q20: Nesting by VendorID then unnesting
+-- This tests the performance of Arrow ListColumn (Struct) round-trips
+-- on large datasets.
 result = df
   |> group_by($VendorID)
   |> nest()
