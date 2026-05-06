@@ -192,6 +192,27 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end else begin
     incr fail_count; Printf.printf "  ✗ fit_stats() returns 1 row\n    Expected: 1\n    Got: %s\n" result
   end;
+  
+  (* Test deviance() *)
+  let (v, _) = eval_string_env "model.deviance" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  (* For y=2x on [1,2,3,4,5], deviance should be 0 (perfect fit) *)
+  if result = "0." then begin
+    incr pass_count; Printf.printf "  ✓ model.deviance = 0.0\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ model.deviance = 0.0\n    Expected: 0.\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "deviance(model)" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "0." then begin
+    incr pass_count; Printf.printf "  ✓ deviance(model) = 0.0\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ deviance(model) = 0.0\n    Expected: 0.\n    Got: %s\n" result
+  end;
+
+  test "deviance non-dict" "deviance(\"hello\")" {|Error(TypeError: "Function `deviance` expects a model (Dict).")|};
+  test "deviance missing key" "deviance([a: 1])" {|Error(TypeError: "Function `deviance` could not find 'deviance' in model object.")|};
 
   (* Test add_diagnostics() *)
   let (v, _) = eval_string_env "type(add_diagnostics(model, data = df))" env_lm in

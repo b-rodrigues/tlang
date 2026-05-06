@@ -117,6 +117,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "nobs coerces float payloads"
     "nobs([nobs: 5.9])"
     "5";
+  test "deviance extracts float payloads"
+    "deviance([deviance: 12.34])"
+    "12.34";
   test "vcov falls back to diagonal matrix from std errors"
     {|tidy = dataframe([
         [term: "a", std_error: 2],
