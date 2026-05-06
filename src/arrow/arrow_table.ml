@@ -233,47 +233,6 @@ let slice_column (col : column_data) (offset : int) (len : int) : column_data =
   | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.sub a offset len, levels, ordered)
   | ListColumn a -> ListColumn (Array.sub a offset len)
  
- (** Concatenate multiple columns of the same type *)
- let concatenate_columns (cols : column_data list) : column_data =
-   match cols with
-   | [] -> NAColumn 0
-   | first :: _ ->
-       match first with
-       | IntColumn _ -> IntColumn (Array.concat (List.map (function IntColumn a -> a | _ -> [||]) cols))
-       | FloatColumn _ -> FloatColumn (Array.concat (List.map (function FloatColumn a -> a | _ -> [||]) cols))
-       | BoolColumn _ -> BoolColumn (Array.concat (List.map (function BoolColumn a -> a | _ -> [||]) cols))
-       | StringColumn _ -> StringColumn (Array.concat (List.map (function StringColumn a -> a | _ -> [||]) cols))
-       | DateColumn _ -> DateColumn (Array.concat (List.map (function DateColumn a -> a | _ -> [||]) cols))
-       | DatetimeColumn (_, tz) -> DatetimeColumn (Array.concat (List.map (function DatetimeColumn (a, _) -> a | _ -> [||]) cols), tz)
-       | DictionaryColumn (_, levels, ordered) -> DictionaryColumn (Array.concat (List.map (function DictionaryColumn (a, _, _) -> a | _ -> [||]) cols), levels, ordered)
-       | ListColumn _ -> ListColumn (Array.concat (List.map (function ListColumn a -> a | _ -> [||]) cols))
-       | NAColumn _ ->
-           let total = List.fold_left (fun acc -> function 
-             | NAColumn n -> acc + n 
-             | IntColumn a -> acc + Array.length a
-             | FloatColumn a -> acc + Array.length a
-             | StringColumn a -> acc + Array.length a
-             | BoolColumn a -> acc + Array.length a
-             | DateColumn a -> acc + Array.length a
-             | DatetimeColumn (a, _) -> acc + Array.length a
-             | DictionaryColumn (a, _, _) -> acc + Array.length a
-             | ListColumn a -> acc + Array.length a
-           ) 0 cols in
-           NAColumn total
- 
- (** Concatenate multiple tables with the same schema *)
- let concatenate (tables : t list) : t =
-   match tables with
-   | [] -> empty
-   | [t] -> t
-   | first :: _ ->
-       let schema = first.schema in
-       let nrows = List.fold_left (fun acc t -> acc + t.nrows) 0 tables in
-       let columns = List.map (fun (name, _) ->
-         let cols_to_concat = List.filter_map (fun t -> get_column t name) tables in
-         (name, concatenate_columns cols_to_concat)
-       ) schema in
-       { schema; columns; nrows; native_handle = None }
 
 (** Read a native list-of-struct column and reconstruct as ListColumn.
     Takes the already-fetched array pointer from arrow_table_get_column_data.
@@ -391,6 +350,48 @@ let get_column (t : t) (name : string) : column_data option =
   | _ ->
       (* Fallback to pure OCaml *)
       List.assoc_opt name t.columns
+ 
+ (** Concatenate multiple columns of the same type *)
+ let concatenate_columns (cols : column_data list) : column_data =
+   match cols with
+   | [] -> NAColumn 0
+   | first :: _ ->
+       match first with
+       | IntColumn _ -> IntColumn (Array.concat (List.map (function IntColumn a -> a | _ -> [||]) cols))
+       | FloatColumn _ -> FloatColumn (Array.concat (List.map (function FloatColumn a -> a | _ -> [||]) cols))
+       | BoolColumn _ -> BoolColumn (Array.concat (List.map (function BoolColumn a -> a | _ -> [||]) cols))
+       | StringColumn _ -> StringColumn (Array.concat (List.map (function StringColumn a -> a | _ -> [||]) cols))
+       | DateColumn _ -> DateColumn (Array.concat (List.map (function DateColumn a -> a | _ -> [||]) cols))
+       | DatetimeColumn (_, tz) -> DatetimeColumn (Array.concat (List.map (function DatetimeColumn (a, _) -> a | _ -> [||]) cols), tz)
+       | DictionaryColumn (_, levels, ordered) -> DictionaryColumn (Array.concat (List.map (function DictionaryColumn (a, _, _) -> a | _ -> [||]) cols), levels, ordered)
+       | ListColumn _ -> ListColumn (Array.concat (List.map (function ListColumn a -> a | _ -> [||]) cols))
+       | NAColumn _ ->
+           let total = List.fold_left (fun acc -> function 
+             | NAColumn n -> acc + n 
+             | IntColumn a -> acc + Array.length a
+             | FloatColumn a -> acc + Array.length a
+             | StringColumn a -> acc + Array.length a
+             | BoolColumn a -> acc + Array.length a
+             | DateColumn a -> acc + Array.length a
+             | DatetimeColumn (a, _) -> acc + Array.length a
+             | DictionaryColumn (a, _, _) -> acc + Array.length a
+             | ListColumn a -> acc + Array.length a
+           ) 0 cols in
+           NAColumn total
+ 
+ (** Concatenate multiple tables with the same schema *)
+ let concatenate (tables : t list) : t =
+   match tables with
+   | [] -> empty
+   | [t] -> t
+   | first :: _ ->
+       let schema = first.schema in
+       let nrows = List.fold_left (fun acc t -> acc + t.nrows) 0 tables in
+       let columns = List.map (fun (name, _) ->
+         let cols_to_concat = List.filter_map (fun t -> get_column t name) tables in
+         (name, concatenate_columns cols_to_concat)
+       ) schema in
+       { schema; columns; nrows; native_handle = None }
 
 let column_type (t : t) (name : string) : arrow_type option =
   List.assoc_opt name t.schema
