@@ -512,7 +512,7 @@ let flatten_list_column ?schema_hint (nested : t option array)
           Array.iter (function
             | None -> ()
             | Some sub_t ->
-                (match List.assoc_opt fname sub_t.columns with
+                (match get_column sub_t fname with
                  | Some (DictionaryColumn (indices, lvl, ord)) ->
                      if Array.length indices <> sub_t.nrows then
                        invalid_arg ("ArrowDictionary flatten: invalid index array length for field " ^ fname);
@@ -543,7 +543,7 @@ let flatten_list_column ?schema_hint (nested : t option array)
           Array.iter (function
             | None -> ()
             | Some sub_t ->
-                (match List.assoc_opt fname sub_t.columns with
+                (match get_column sub_t fname with
                  | Some (IntColumn a) ->
                      Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
                  | Some (FloatColumn a) ->
