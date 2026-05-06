@@ -18,7 +18,7 @@ Options:
   --csv-path PATH      Path to the materialized CSV used by T
   --months LIST        Comma-separated YYYY-MM list used if auto-preparing data
   --results PATH       Output CSV path
-  --queries LIST       Comma-separated query ids (default: q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13,q14,q15,q16,q17,q18,q19)
+  --queries LIST       Comma-separated query ids (default: q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13,q14,q15,q16,q17,q18,q19,q20)
   --iterations N       Number of runs per engine/query (default: 1)
   --help               Show this message
 EOF
@@ -29,7 +29,7 @@ CSV_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.csv"
 PARQUET_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.parquet"
 MONTHS="2023-01,2023-02,2023-03"
 RESULTS_PATH="$SCRIPT_DIR/results/results.csv"
-QUERIES="q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13,q14,q15,q16,q17,q18,q19"
+QUERIES="q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13,q14,q15,q16,q17,q18,q19,q20"
 ITERATIONS=1
 CORE_100K_CSV="$SCRIPT_DIR/data/nyc_taxi_core_100k.csv"
 CORE_100K_PARQUET="$SCRIPT_DIR/data/nyc_taxi_core_100k.parquet"
@@ -458,6 +458,11 @@ for query in "${QUERY_LIST[@]}"; do
       r_args=("$CORE_1M_PARQUET")
       t_csv="$CORE_1M_CSV"
       t_parquet="$CORE_1M_PARQUET"
+      ;;
+    q20)
+      python_script="$SCRIPT_DIR/python/q20_nested_op.py"
+      r_script="$SCRIPT_DIR/r/q20_nested_op.R"
+      t_script="$SCRIPT_DIR/queries/q20_nested_op.t"
       ;;
     *)
       echo "Unknown query id: $query" >&2
