@@ -1,5 +1,6 @@
 open Ast
 open Arrow_table
+open Arrow_compute
 
 let nested_schema_hint table col_name =
   match Arrow_table.column_type table col_name with
@@ -81,11 +82,24 @@ let unnest_impl (named_args : (string option * value) list) _env =
                    | None -> ()
                  ) data;
                  
-                 let other_cols = List.map (fun name ->
-                   match Arrow_table.get_column df.arrow_table name with
-                   | Some col -> (name, Arrow_table.take_col col expansion_indices !final_nrows)
-                   | None -> (name, Arrow_table.NAColumn !final_nrows)
-                 ) other_names in
+                 let other_cols =
+                   match df.arrow_table.native_handle with
+                   | Some handle when not handle.Arrow_table.freed ->
+                       (* Optimized path: use native Arrow take (via sort_by_indices) for expansion *)
+                       let other_table = project df.arrow_table other_names in
+                       let expanded_other = sort_by_indices other_table expansion_indices in
+                       List.map (fun name ->
+                         match Arrow_table.get_column expanded_other name with
+                         | Some col -> (name, col)
+                         | None -> (name, Arrow_table.NAColumn !final_nrows)
+                       ) other_names
+                   | _ ->
+                       List.map (fun name ->
+                         match Arrow_table.get_column df.arrow_table name with
+                         | Some col -> (name, Arrow_table.take_col col expansion_indices !final_nrows)
+                         | None -> (name, Arrow_table.NAColumn !final_nrows)
+                       ) other_names
+                 in
                  
                  (* 4. Combine nested tables *)
                  let nested_cols = List.map (fun (n, _) ->

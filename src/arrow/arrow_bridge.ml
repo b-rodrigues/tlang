@@ -26,7 +26,20 @@ let column_to_values (col : Arrow_table.column_data) : value array =
   | Arrow_table.ListColumn a ->
       Array.map (function Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric)) a
 
-(** Convert a T value array to an Arrow column, inferring the type *)
+(** Extract a single value from an Arrow column at a given row index *)
+let value_at (col : Arrow_table.column_data) (row : int) : value =
+  match col with
+  | Arrow_table.IntColumn a -> (match a.(row) with Some i -> VInt i | None -> VNA NAInt)
+  | Arrow_table.FloatColumn a -> (match a.(row) with Some f -> VFloat f | None -> VNA NAFloat)
+  | Arrow_table.BoolColumn a -> (match a.(row) with Some b -> VBool b | None -> VNA NABool)
+  | Arrow_table.StringColumn a -> (match a.(row) with Some s -> VString s | None -> VNA NAString)
+  | Arrow_table.DateColumn a -> (match a.(row) with Some d -> VDate d | None -> VNA NADate)
+  | Arrow_table.DatetimeColumn (a, tz) -> (match a.(row) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
+  | Arrow_table.NAColumn _ -> (VNA NAGeneric)
+  | Arrow_table.DictionaryColumn (a, levels, ordered) ->
+      (match a.(row) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
+  | Arrow_table.ListColumn a ->
+      (match a.(row) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric))
 let values_to_column (values : value array) : Arrow_table.column_data =
   (* Infer column type from non-NA values *)
   let has_int = ref false in

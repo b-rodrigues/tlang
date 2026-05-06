@@ -104,20 +104,20 @@ let nest_impl (named_args : (string option * value) list) _env =
               group_keys = [];
             }
           end else begin
+          let groups_arr = Array.of_list groups in
           let key_cols = List.map (fun k ->
             match Arrow_table.get_column df.arrow_table k with
             | Some col ->
-                let vals = Arrow_bridge.column_to_values col in
                 (k, Array.init n_groups (fun i ->
-                  let (_, indices) = List.nth groups i in
+                  let (_, indices) = groups_arr.(i) in
                   match indices with
-                  | first :: _ -> vals.(first)
+                  | first :: _ -> Arrow_bridge.value_at col first
                   | [] -> (VNA NAGeneric)))
             | None -> (k, Array.make n_groups ((VNA NAGeneric)))
           ) group_cols in
 
           let nested_data = Array.init n_groups (fun i ->
-            let (_, indices) = List.nth groups i in
+            let (_, indices) = groups_arr.(i) in
             let sub_table = Arrow_compute.take_rows df.arrow_table indices in
             let project_table = Arrow_compute.project sub_table to_nest in
             Some project_table
