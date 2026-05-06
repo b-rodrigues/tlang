@@ -138,7 +138,7 @@ let unnest_impl (named_args : (string option * value) list) _env =
 --#
 --# @name unnest
 --# @param df :: DataFrame The DataFrame containing a nested column.
---# @param cols :: Column Selection column to unnest (positional or 'cols=' arg).
+--# @param cols :: Column Selection Column to unnest (positional or 'cols=' arg).
 --# @return :: DataFrame The expanded DataFrame.
 --# @family colcraft
 --# @export
