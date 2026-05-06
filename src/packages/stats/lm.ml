@@ -96,6 +96,7 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
     ("r_squared", VFloat result.r_squared);
     ("adj_r_squared", VFloat result.adj_r_squared);
     ("sigma", VFloat result.sigma);
+    ("deviance", VFloat result.deviance);
     ("nobs", VInt result.nobs);
     ("model_type", VString "lm");
     ("mining_function", VString "regression");
@@ -106,6 +107,7 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
       (None, VString "r_squared");
       (None, VString "adj_r_squared");
       (None, VString "sigma");
+      (None, VString "deviance");
       (None, VString "nobs");
     ]);
   ]
