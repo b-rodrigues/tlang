@@ -580,29 +580,22 @@ let flatten_list_column ?schema_hint (nested : t option array)
           ) nested;
           Obj.repr (flat_indices, Option.value !levels ~default:[], Option.value !ordered ~default:false)
       | _ ->
-          let flat_data : Obj.t array = Array.make n_total (Obj.repr None) in
-          let pos = ref 0 in
-          Array.iter (function
-            | None -> ()
-            | Some sub_t ->
-                (match get_column sub_t fname with
-                 | Some (IntColumn a) ->
-                     Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-                 | Some (FloatColumn a) ->
-                     Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-                 | Some (BoolColumn a) ->
-                     Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-                 | Some (StringColumn a) ->
-                     Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-                 | Some (DateColumn a) ->
-                     Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-                 | Some (DatetimeColumn (a, _)) ->
-                     Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-                 | _ ->
-                     for j = 0 to sub_t.nrows - 1 do flat_data.(!pos + j) <- Obj.repr None done);
-                pos := !pos + sub_t.nrows
-          ) nested;
-          Obj.repr flat_data
+          let cols_to_concat = List.filter_map (fun x -> x) (Array.to_list nested) 
+                               |> List.filter_map (fun t -> get_column t fname) in
+          let combined = concatenate_columns cols_to_concat in
+          (match combined with
+           | IntColumn a -> Obj.repr a
+           | FloatColumn a -> Obj.repr a
+           | StringColumn a -> Obj.repr a
+           | BoolColumn a -> Obj.repr a
+           | DateColumn a -> Obj.repr a
+           | DatetimeColumn (a, _) -> Obj.repr a
+           | DictionaryColumn (a, lvl, ord) -> Obj.repr (a, lvl, ord)
+           | ListColumn a -> 
+               let schema_hint = match ftype with ArrowList (ArrowStruct s) -> Some s | _ -> None in
+               Obj.repr (flatten_list_column ?schema_hint a)
+           | NAColumn n -> 
+               Obj.repr (Array.make n None))
     in
     (fname, tag, timezone, raw_data)
   ) sub_schema in
