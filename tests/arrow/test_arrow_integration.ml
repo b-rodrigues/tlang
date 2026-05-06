@@ -2102,13 +2102,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
              [g: "a", color: "blue", ts: with_tz(ymd_hms("2024-01-15 10:45:00"), "Europe/Paris")],
              [g: "b", color: "red", ts: with_tz(ymd_hms("2024-01-16 08:00:00"), "Europe/Paris")]
            ]);
-           df_nested = mutate(df_nested, $color = factor($color));
+           df_nested := mutate(df_nested, $color = factor($color));
            nested = group_by(df_nested, $g) |> nest();
            write_arrow(nested, "%s");
            flat = read_arrow("%s") |> unnest($data);
            levels(flat.color)|}
          nested_roundtrip_ipc_path nested_roundtrip_ipc_path)
-      {|Vector["red", "blue"]|};
+      {|Vector["blue", "red"]|};
 
     test "write_arrow/read_arrow preserves nested timestamp timezones after unnest"
       (Printf.sprintf
@@ -2117,7 +2117,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
              [g: "a", color: "blue", ts: with_tz(ymd_hms("2024-01-15 10:45:00"), "Europe/Paris")],
              [g: "b", color: "red", ts: with_tz(ymd_hms("2024-01-16 08:00:00"), "Europe/Paris")]
            ]);
-           df_nested = mutate(df_nested, $color = factor($color));
+           df_nested := mutate(df_nested, $color = factor($color));
            nested = group_by(df_nested, $g) |> nest();
            write_arrow(nested, "%s");
            flat = read_arrow("%s") |> unnest($data);
