@@ -99,17 +99,30 @@ let unnest_impl (named_args : (string option * value) list) _env =
                        ) other_schema in
                        let tables_to_stack = List.filter_map (fun x -> x) (Array.to_list data) in
                        let stacked_table = Arrow_table.concatenate tables_to_stack in
-                       let nested_cols = List.map (fun (n, _) ->
-                         match Arrow_table.get_column stacked_table n with
-                         | Some col -> (n, col)
-                         | None -> (n, Arrow_table.NAColumn !final_nrows)
-                       ) nested_schema in
-                       {
-                         schema = other_schema @ nested_schema;
-                         columns = other_cols @ nested_cols;
-                         nrows = !final_nrows;
-                         native_handle = None;
-                       }
+                       if is_native_backed stacked_table then
+                         let base_table = {
+                           schema = other_schema;
+                           columns = other_cols;
+                           nrows = !final_nrows;
+                           native_handle = None;
+                         } |> materialize in
+                         let res = ref base_table in
+                         List.iter (fun (n, _) ->
+                           res := add_column_from_table !res n stacked_table n
+                         ) nested_schema;
+                         !res
+                       else
+                         let nested_cols = List.map (fun (n, _) ->
+                           match Arrow_table.get_column stacked_table n with
+                           | Some col -> (n, col)
+                           | None -> (n, Arrow_table.NAColumn !final_nrows)
+                         ) nested_schema in
+                         {
+                           schema = other_schema @ nested_schema;
+                           columns = other_cols @ nested_cols;
+                           nrows = !final_nrows;
+                           native_handle = None;
+                         }
                  in
                  VDataFrame { arrow_table = final_df_table; group_keys = [] }
             | _ -> Error.type_error (Printf.sprintf "Column `%s` is not a list-column." col_name))

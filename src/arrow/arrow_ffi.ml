@@ -200,6 +200,15 @@ external arrow_table_group_by : nativeint -> string list -> nativeint option
 external arrow_grouped_table_free : nativeint -> unit
   = "caml_arrow_grouped_table_free"
 
+external arrow_table_merge_horizontal : nativeint -> nativeint -> nativeint option
+  = "caml_arrow_table_merge_horizontal"
+
+external arrow_grouped_table_get_indices : nativeint -> (string * int list) list
+  = "caml_arrow_grouped_table_get_indices"
+
+external arrow_grouped_table_nest : nativeint -> (string * nativeint) list
+  = "caml_arrow_grouped_table_nest"
+
 (** Compute sum per group for a named column.
     Returns Some(result_table_ptr) with key columns + aggregated column. *)
 external arrow_group_sum : nativeint -> string -> nativeint option

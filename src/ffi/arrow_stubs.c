@@ -1125,6 +1125,29 @@ CAMLprim value caml_arrow_table_take(value v_ptr, value v_indices) {
   CAMLreturn(v_result);
 }
 
+CAMLprim value caml_arrow_table_merge_horizontal(value v_t1, value v_t2) {
+  CAMLparam2(v_t1, v_t2);
+  GArrowTable *t1 = (GArrowTable *)Nativeint_val(v_t1);
+  GArrowTable *t2 = (GArrowTable *)Nativeint_val(v_t2);
+  if (!t1 || !t2) CAMLreturn(Val_none);
+  GArrowSchema *s2 = garrow_table_get_schema(t2);
+  guint n2 = garrow_table_get_n_columns(t2);
+  GArrowTable *curr = g_object_ref(t1);
+  for (guint i = 0; i < n2; i++) {
+    GArrowField *f = garrow_schema_get_field(s2, i);
+    GArrowChunkedArray *c = garrow_table_get_column_data(t2, i);
+    GError *e = NULL;
+    GArrowTable *nxt = garrow_table_add_column(curr, garrow_table_get_n_columns(curr), f, c, &e);
+    g_object_unref(f); g_object_unref(c); g_object_unref(curr);
+    if (!nxt) { if (e) g_error_free(e); g_object_unref(s2); CAMLreturn(Val_none); }
+    curr = nxt;
+  }
+  g_object_unref(s2);
+  CAMLlocal1(v_r); v_r = caml_alloc(1, 0);
+  Store_field(v_r, 0, caml_copy_nativeint((intnat)curr));
+  CAMLreturn(v_r);
+}
+
 /* ===================================================================== */
 /* Sort                                                                  */
 /* ===================================================================== */
@@ -1638,7 +1661,7 @@ typedef struct {
   GArrowTable *table;       /* Original table (ref counted) */
   int n_groups;             /* Number of unique groups */
   int n_keys;               /* Number of key columns */
-  int **group_row_indices;  /* group_row_indices[g] = array of row indices for group g */
+  gint64 **group_row_indices; /* changed from int** */
   int *group_sizes;         /* group_sizes[g] = number of rows in group g */
   gchar ***group_key_values; /* group_key_values[g][k] = string key value for group g, key k */
   gchar **key_names;        /* key_names[k] = name of key column k */
@@ -1663,6 +1686,112 @@ static void grouped_table_free(GroupedTable *gt) {
   free(gt->key_names);
   g_object_unref(gt->table);
   free(gt);
+}
+
+CAMLprim value caml_arrow_grouped_table_free(value v_ptr) {
+  CAMLparam1(v_ptr);
+  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_ptr);
+  grouped_table_free(gt);
+  CAMLreturn(Val_unit);
+}
+
+/* Extract pre-computed group indices from a native grouped table.
+   Returns (string * int list) list to match OCaml fallback structure. */
+CAMLprim value caml_arrow_grouped_table_get_indices(value v_ptr) {
+  CAMLparam1(v_ptr);
+  CAMLlocal5(v_result, v_group_indices, v_cons, v_tuple, v_key_str);
+
+  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_ptr);
+  if (gt == NULL) {
+    CAMLreturn(Val_emptylist);
+  }
+
+  v_result = Val_emptylist;
+  for (int i = gt->n_groups - 1; i >= 0; i--) {
+    /* Build composite key string */
+    GString *s = g_string_new("");
+    for (int k = 0; k < gt->n_keys; k++) {
+      if (k > 0) g_string_append(s, "|");
+      if (gt->group_key_values[i][k] != NULL) {
+        g_string_append(s, gt->group_key_values[i][k]);
+      }
+    }
+    v_key_str = caml_copy_string(s->str);
+    g_string_free(s, TRUE);
+
+    /* Build row indices list */
+    v_group_indices = Val_emptylist;
+    for (int j = gt->group_sizes[i] - 1; j >= 0; j--) {
+      v_cons = caml_alloc(2, 0);
+      Store_field(v_cons, 0, Val_int(gt->group_row_indices[i][j]));
+      Store_field(v_cons, 1, v_group_indices);
+      v_group_indices = v_cons;
+    }
+
+    /* Build (key_str, indices_list) tuple and cons onto result */
+    v_tuple = caml_alloc(2, 0);
+    Store_field(v_tuple, 0, v_key_str);
+    Store_field(v_tuple, 1, v_group_indices);
+
+    v_cons = caml_alloc(2, 0);
+    Store_field(v_cons, 0, v_tuple);
+    Store_field(v_cons, 1, v_result);
+    v_result = v_cons;
+  }
+
+  CAMLreturn(v_result);
+}
+
+/* Native nest: returns a list of (string * nativeint) where nativeint is a GArrowTable*.
+   Each GArrowTable* corresponds to one group's subset of the original table. */
+CAMLprim value caml_arrow_grouped_table_nest(value v_ptr) {
+  CAMLparam1(v_ptr);
+  CAMLlocal3(v_result, v_cons, v_tuple);
+
+  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_ptr);
+  if (gt == NULL) {
+    CAMLreturn(Val_emptylist);
+  }
+
+  GArrowTable *base_table = gt->table;
+  v_result = Val_emptylist;
+
+  for (int i = gt->n_groups - 1; i >= 0; i--) {
+    /* Build indices array for garrow_table_take */
+    GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
+    GError *error = NULL;
+    garrow_int64_array_builder_append_values(builder, gt->group_row_indices[i], gt->group_sizes[i], NULL, 0, &error);
+    GArrowArray *indices_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), NULL);
+    g_object_unref(builder);
+
+    GArrowTable *sub = garrow_table_take(base_table, indices_arr, NULL, &error);
+    g_object_unref(indices_arr);
+
+    if (sub != NULL) {
+      /* Build composite key string */
+      GString *s = g_string_new("");
+      for (int k = 0; k < gt->n_keys; k++) {
+        if (k > 0) g_string_append(s, "|");
+        if (gt->group_key_values[i][k] != NULL) {
+          g_string_append(s, gt->group_key_values[i][k]);
+        }
+      }
+
+      v_tuple = caml_alloc(2, 0);
+      Store_field(v_tuple, 0, caml_copy_string(s->str));
+      Store_field(v_tuple, 1, caml_copy_nativeint((intnat)sub));
+      g_string_free(s, TRUE);
+
+      v_cons = caml_alloc(2, 0);
+      Store_field(v_cons, 0, v_tuple);
+      Store_field(v_cons, 1, v_result);
+      v_result = v_cons;
+    } else if (error) {
+      g_error_free(error);
+    }
+  }
+
+  CAMLreturn(v_result);
 }
 
 typedef struct {
@@ -2155,8 +2284,8 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
       int group_idx = group_order->len;
       g_hash_table_insert(group_map, g_strdup(key_str), GINT_TO_POINTER(group_idx + 1)); /* +1 to distinguish from NULL */
       g_ptr_array_add(group_order, g_strdup(key_str));
-      GArray *rows = g_array_new(FALSE, FALSE, sizeof(int));
-      int ri = (int)r;
+      GArray *rows = g_array_new(FALSE, FALSE, sizeof(gint64));
+      gint64 ri = (gint64)r;
       g_array_append_val(rows, ri);
       g_ptr_array_add(group_rows, rows);
       /* Store key values for this group (take ownership of row_keys) */
@@ -2165,7 +2294,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
       /* Existing group */
       int group_idx = GPOINTER_TO_INT(group_idx_ptr) - 1;
       GArray *rows = (GArray *)g_ptr_array_index(group_rows, group_idx);
-      int ri = (int)r;
+      gint64 ri = (gint64)r;
       g_array_append_val(rows, ri);
       /* Free duplicate row_keys for existing group */
       for (int k = 0; k < n_keys; k++) g_free(row_keys[k]);
@@ -2203,15 +2332,15 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   gt->n_keys = n_keys;
   gt->key_names = key_names;
   gt->group_sizes = (int *)malloc(sizeof(int) * n_groups);
-  gt->group_row_indices = (int **)malloc(sizeof(int *) * n_groups);
+  gt->group_row_indices = (gint64 **)malloc(sizeof(gint64 *) * n_groups);
   gt->group_key_values = (gchar ***)malloc(sizeof(gchar **) * n_groups);
 
   for (int i = 0; i < n_groups; i++) {
     int g = group_permutation[i];
     GArray *rows = (GArray *)g_ptr_array_index(group_rows, g);
     gt->group_sizes[i] = rows->len;
-    gt->group_row_indices[i] = (int *)malloc(sizeof(int) * rows->len);
-    memcpy(gt->group_row_indices[i], rows->data, sizeof(int) * rows->len);
+    gt->group_row_indices[i] = (gint64 *)malloc(sizeof(gint64) * rows->len);
+    memcpy(gt->group_row_indices[i], rows->data, sizeof(gint64) * rows->len);
     /* GArray itself will be free'd later, but we need to manage row_keys ownership */
 
     /* Copy key values for this group */
@@ -2254,13 +2383,6 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   CAMLreturn(v_result);
 }
 
-/* Free a grouped table handle (called from OCaml GC finalizer) */
-CAMLprim value caml_arrow_grouped_table_free(value v_ptr) {
-  CAMLparam1(v_ptr);
-  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_ptr);
-  grouped_table_free(gt);
-  CAMLreturn(Val_unit);
-}
 
 /* Helper: get a numeric value from a column cursor at a given row index.
    Sets *is_null when the row is outside the available chunks or the value is
@@ -5231,9 +5353,8 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
       g_hash_table_insert(group_map, key_copy, GUINT_TO_POINTER(group_id + 1));
       g_ptr_array_add(group_order, g_strdup(key_buf->str));
 
-      GArray *rows_arr = g_array_new(FALSE, FALSE, sizeof(int));
-      int row_int = (int)row;
-      g_array_append_val(rows_arr, row_int);
+      GArray *rows_arr = g_array_new(FALSE, FALSE, sizeof(gint64));
+      g_array_append_val(rows_arr, row);
       g_ptr_array_add(group_rows, rows_arr);
 
       /* Store per-group key values */
@@ -5245,8 +5366,7 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
     } else {
       guint group_id = GPOINTER_TO_UINT(existing) - 1;
       GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, group_id);
-      int row_int = (int)row;
-      g_array_append_val(rows_arr, row_int);
+      g_array_append_val(rows_arr, row);
     }
   }
 
@@ -5308,15 +5428,15 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
   gt->n_keys = n_keys;
   gt->key_names = key_names;
   gt->group_sizes = (int *)malloc(sizeof(int) * n_groups);
-  gt->group_row_indices = (int **)malloc(sizeof(int *) * n_groups);
+  gt->group_row_indices = (gint64 **)malloc(sizeof(gint64 *) * n_groups);
   gt->group_key_values = (gchar ***)malloc(sizeof(gchar **) * n_groups);
 
   for (int i = 0; i < n_groups; i++) {
     int g = group_permutation[i];
     GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, g);
     gt->group_sizes[i] = (int)rows_arr->len;
-    gt->group_row_indices[i] = (int *)malloc(sizeof(int) * rows_arr->len);
-    memcpy(gt->group_row_indices[i], rows_arr->data, sizeof(int) * rows_arr->len);
+    gt->group_row_indices[i] = (gint64 *)malloc(sizeof(gint64) * rows_arr->len);
+    memcpy(gt->group_row_indices[i], rows_arr->data, sizeof(gint64) * rows_arr->len);
     /* GArray itself will be free'd later */
 
     gt->group_key_values[i] = (gchar **)g_ptr_array_index(group_key_vals, g);

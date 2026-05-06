@@ -1006,3 +1006,13 @@ let rename_columns (t : t) (mapping : (string * string) list) : t =
         match List.assoc_opt name old_to_new with
         | Some new_name -> (new_name, data) | None -> (name, data)) t.columns in
       { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> materialize
+
+let merge_horizontal (t1 : t) (t2 : t) : t option =
+  match t1.native_handle, t2.native_handle with
+  | Some h1, Some h2 when not h1.freed && not h2.freed ->
+      (match Arrow_ffi.arrow_table_merge_horizontal h1.ptr h2.ptr with
+       | Some ptr ->
+           let schema = schema_from_native_ptr ptr in
+           Some (create_from_native ptr schema t1.nrows)
+       | None -> None)
+  | _ -> None
