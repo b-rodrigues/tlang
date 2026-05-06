@@ -69,8 +69,9 @@ The benchmark runner supports these query ids:
 - `q17` — core `select()` baseline on 1M rows (reuses `q14` scripts)
 - `q18` — core `filter()` baseline on 1M rows (reuses `q15` scripts)
 - `q19` — core `mutate()` baseline on 1M rows (reuses `q16` scripts)
+- `q20` — nesting/unnesting of dataframes
 
-By default, `run_benchmark.sh` runs the full `q1`-`q19` suite. Use `--queries`
+By default, `run_benchmark.sh` runs the full `q1`-`q20` suite. Use `--queries`
 to run a subset when you only want a faster smoke benchmark.
 
 ## Prepare the dataset

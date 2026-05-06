@@ -40,6 +40,9 @@ external arrow_table_num_columns : nativeint -> int
 external arrow_table_get_schema : nativeint -> (string * int * string option) list
   = "caml_arrow_table_get_schema"
 
+external arrow_table_get_list_field_schema : nativeint -> string -> (string * int * string option) list option
+  = "caml_arrow_table_get_list_field_schema"
+
 (* ===================================================================== *)
 (* Column Data Extraction                                                *)
 (* ===================================================================== *)
@@ -71,7 +74,7 @@ external arrow_read_dictionary_column : nativeint -> (int option array * string 
 external arrow_read_list_column : nativeint -> (nativeint option * (int * int) option array)
   = "caml_arrow_read_list_column"
 
-external arrow_read_struct_fields : nativeint -> (string * int) list
+external arrow_read_struct_fields : nativeint -> (string * int * string option) list
   = "caml_arrow_read_struct_fields"
 
 external arrow_read_struct_field : nativeint -> int -> nativeint option
@@ -139,6 +142,9 @@ external arrow_table_sort : nativeint -> string -> bool -> nativeint option
 external arrow_table_new : (string * int * string option * 'a array) list -> nativeint option
   = "caml_arrow_table_new"
 
+external arrow_table_concatenate : nativeint list -> nativeint option
+  = "caml_arrow_table_concatenate"
+
 (* ===================================================================== *)
 (* Scalar Arithmetic Operations                                          *)
 (* ===================================================================== *)
@@ -193,6 +199,15 @@ external arrow_table_group_by : nativeint -> string list -> nativeint option
 (** Free a grouped table handle (called from GC finalizer). *)
 external arrow_grouped_table_free : nativeint -> unit
   = "caml_arrow_grouped_table_free"
+
+external arrow_table_merge_horizontal : nativeint -> nativeint -> nativeint option
+  = "caml_arrow_table_merge_horizontal"
+
+external arrow_grouped_table_get_indices : nativeint -> (string * int list) list
+  = "caml_arrow_grouped_table_get_indices"
+
+external arrow_grouped_table_nest : nativeint -> (string * nativeint) list
+  = "caml_arrow_grouped_table_nest"
 
 (** Compute sum per group for a named column.
     Returns Some(result_table_ptr) with key columns + aggregated column. *)

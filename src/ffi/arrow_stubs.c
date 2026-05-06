@@ -16,6 +16,41 @@
 #include <math.h>
 #include <stdint.h>
 
+static gchar *extract_arrow_timezone_identifier(GArrowDataType *dtype) {
+  GTimeZone *time_zone = NULL;
+  g_object_get(G_OBJECT(dtype), "time-zone", &time_zone, NULL);
+
+  const gchar *identifier = NULL;
+  if (time_zone != NULL) {
+    identifier = g_time_zone_get_identifier(time_zone);
+  }
+
+  gchar *result = NULL;
+  if (identifier != NULL) {
+    result = g_strdup(identifier);
+  } else {
+    gchar *type_str = garrow_data_type_to_string(dtype);
+    if (type_str != NULL) {
+      const gchar *tz_prefix = "tz=";
+      gchar *start = g_strstr_len(type_str, -1, tz_prefix);
+      if (start != NULL) {
+        start += 3;
+        gchar *end = g_strstr_len(start, -1, "]");
+        if (end != NULL && end >= start) {
+          result = g_strndup(start, end - start);
+        }
+      }
+      g_free(type_str);
+    }
+  }
+
+  if (time_zone != NULL) {
+    g_time_zone_unref(time_zone);
+  }
+
+  return result;
+}
+
 /* ===================================================================== */
 /* Memory Management                                                     */
 /* ===================================================================== */
@@ -92,39 +127,11 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
              GARROW_IS_DATE64_DATA_TYPE(dtype))   type_tag = 7; /* ArrowDate */
     else if (GARROW_IS_TIMESTAMP_DATA_TYPE(dtype)) { /* ArrowTimestamp */
       type_tag = 8;
-      GTimeZone *time_zone = NULL;
-      g_object_get(G_OBJECT(dtype), "time-zone", &time_zone, NULL);
-      
-      const gchar *identifier = NULL;
-      if (time_zone != NULL) {
-        identifier = g_time_zone_get_identifier(time_zone);
-      }
-
-      /* Fallback: parse from string representation if identifier is NULL.
-         Arrow string format: timestamp[unit, tz=identifier] */
-      if (identifier == NULL) {
-        gchar *type_str = garrow_data_type_to_string(dtype);
-        if (type_str != NULL) {
-          const gchar *tz_prefix = "tz=";
-          gchar *start = g_strstr_len(type_str, -1, tz_prefix);
-          if (start != NULL) {
-            start += 3;
-            gchar *end = g_strrstr(start, "]");
-            if (end != NULL) {
-              *end = '\0';
-              v_tz = caml_alloc(1, 0);
-              Store_field(v_tz, 0, caml_copy_string(start));
-            }
-          }
-          g_free(type_str);
-        }
-      } else {
+      gchar *tz_identifier = extract_arrow_timezone_identifier(dtype);
+      if (tz_identifier != NULL) {
         v_tz = caml_alloc(1, 0);
-        Store_field(v_tz, 0, caml_copy_string(identifier));
-      }
-
-      if (time_zone != NULL) {
-        g_time_zone_unref(time_zone);
+        Store_field(v_tz, 0, caml_copy_string(tz_identifier));
+        g_free(tz_identifier);
       }
     }
     else                                          type_tag = 6; /* ArrowNull */
@@ -147,6 +154,103 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
 
   g_object_unref(schema);
   CAMLreturn(v_result);
+}
+
+/* Get nested struct field schema for a list column as
+   Some((name, type_tag, timezone) list) or None if the column is not List<Struct>. */
+CAMLprim value caml_arrow_table_get_list_field_schema(value v_ptr, value v_col_name) {
+  CAMLparam2(v_ptr, v_col_name);
+  CAMLlocal5(v_result, v_field_tuple, v_cons, v_tz, v_some);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col_name);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, col_name);
+  if (idx < 0) {
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowField *field = garrow_schema_get_field(schema, idx);
+  g_object_unref(schema);
+  if (field == NULL) {
+    CAMLreturn(Val_none);
+  }
+
+  GArrowDataType *dtype = garrow_field_get_data_type(field);
+  if (!GARROW_IS_LIST_DATA_TYPE(dtype)) {
+    g_object_unref(field);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowField *value_field = garrow_list_data_type_get_field(GARROW_LIST_DATA_TYPE(dtype));
+  if (value_field == NULL) {
+    g_object_unref(field);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowDataType *value_dtype = garrow_field_get_data_type(value_field);
+  if (!GARROW_IS_STRUCT_DATA_TYPE(value_dtype)) {
+    g_object_unref(value_field);
+    g_object_unref(field);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowStructDataType *struct_dtype = GARROW_STRUCT_DATA_TYPE(value_dtype);
+  int n_fields = garrow_struct_data_type_get_n_fields(struct_dtype);
+  v_result = Val_emptylist;
+
+  for (int i = n_fields - 1; i >= 0; i--) {
+    GArrowField *sub_field = garrow_struct_data_type_get_field(struct_dtype, i);
+    const gchar *sub_name = garrow_field_get_name(sub_field);
+    GArrowDataType *sub_dtype = garrow_field_get_data_type(sub_field);
+
+    int type_tag;
+    v_tz = Val_none;
+    if (GARROW_IS_INT8_DATA_TYPE(sub_dtype) || GARROW_IS_INT16_DATA_TYPE(sub_dtype) ||
+        GARROW_IS_INT32_DATA_TYPE(sub_dtype) || GARROW_IS_INT64_DATA_TYPE(sub_dtype) ||
+        GARROW_IS_UINT8_DATA_TYPE(sub_dtype) || GARROW_IS_UINT16_DATA_TYPE(sub_dtype) ||
+        GARROW_IS_UINT32_DATA_TYPE(sub_dtype) || GARROW_IS_UINT64_DATA_TYPE(sub_dtype))
+                                                   type_tag = 0;
+    else if (GARROW_IS_DOUBLE_DATA_TYPE(sub_dtype))   type_tag = 1;
+    else if (GARROW_IS_BOOLEAN_DATA_TYPE(sub_dtype))  type_tag = 2;
+    else if (GARROW_IS_STRING_DATA_TYPE(sub_dtype) ||
+             GARROW_IS_LARGE_STRING_DATA_TYPE(sub_dtype))
+                                                   type_tag = 3;
+    else if (GARROW_IS_DICTIONARY_DATA_TYPE(sub_dtype))
+                                                   type_tag = 4;
+    else if (GARROW_IS_LIST_DATA_TYPE(sub_dtype))     type_tag = 5;
+    else if (GARROW_IS_DATE32_DATA_TYPE(sub_dtype) ||
+             GARROW_IS_DATE64_DATA_TYPE(sub_dtype))   type_tag = 7;
+    else if (GARROW_IS_TIMESTAMP_DATA_TYPE(sub_dtype)) {
+                                                   type_tag = 8;
+      gchar *tz_identifier = extract_arrow_timezone_identifier(sub_dtype);
+      if (tz_identifier != NULL) {
+        v_tz = caml_alloc(1, 0);
+        Store_field(v_tz, 0, caml_copy_string(tz_identifier));
+        g_free(tz_identifier);
+      }
+    }
+    else                                           type_tag = 6;
+
+    v_field_tuple = caml_alloc(3, 0);
+    Store_field(v_field_tuple, 0, caml_copy_string(sub_name));
+    Store_field(v_field_tuple, 1, Val_int(type_tag));
+    Store_field(v_field_tuple, 2, v_tz);
+
+    v_cons = caml_alloc(2, 0);
+    Store_field(v_cons, 0, v_field_tuple);
+    Store_field(v_cons, 1, v_result);
+    v_result = v_cons;
+  }
+
+  g_object_unref(value_field);
+  g_object_unref(field);
+
+  v_some = caml_alloc(1, 0);
+  Store_field(v_some, 0, v_result);
+  CAMLreturn(v_some);
 }
 
 /* ===================================================================== */
@@ -647,12 +751,12 @@ CAMLprim value caml_arrow_read_list_column(value v_array_ptr) {
   CAMLreturn(v_result);
 }
 
-/* Read the schema (field names + type tags) from a struct array.
-   Returns OCaml list of (string * int) pairs.
+/* Read the schema (field names + type tags + timestamp timezones) from a struct array.
+   Returns OCaml list of (string * int * string option) triples.
    Does NOT take ownership of the input array — caller manages lifecycle. */
 CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
   CAMLparam1(v_ptr);
-  CAMLlocal3(v_result, v_tuple, v_cons);
+  CAMLlocal4(v_result, v_tuple, v_cons, v_tz);
 
   GArrowArray *arr = (GArrowArray *)Nativeint_val(v_ptr);
 
@@ -675,6 +779,7 @@ CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
     GArrowDataType *fdtype = garrow_field_get_data_type(field);
 
     int type_tag;
+    v_tz = Val_none;
     if (GARROW_IS_INT8_DATA_TYPE(fdtype) || GARROW_IS_INT16_DATA_TYPE(fdtype) ||
         GARROW_IS_INT32_DATA_TYPE(fdtype) || GARROW_IS_INT64_DATA_TYPE(fdtype) ||
         GARROW_IS_UINT8_DATA_TYPE(fdtype) || GARROW_IS_UINT16_DATA_TYPE(fdtype) ||
@@ -690,11 +795,21 @@ CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
     else if (GARROW_IS_LIST_DATA_TYPE(fdtype))     type_tag = 5;
     else if (GARROW_IS_DATE32_DATA_TYPE(fdtype) ||
              GARROW_IS_DATE64_DATA_TYPE(fdtype))   type_tag = 7;
+    else if (GARROW_IS_TIMESTAMP_DATA_TYPE(fdtype)) {
+                                                   type_tag = 8;
+      gchar *tz_identifier = extract_arrow_timezone_identifier(fdtype);
+      if (tz_identifier != NULL) {
+        v_tz = caml_alloc(1, 0);
+        Store_field(v_tz, 0, caml_copy_string(tz_identifier));
+        g_free(tz_identifier);
+      }
+    }
     else                                           type_tag = 6;
 
-    v_tuple = caml_alloc(2, 0);
+    v_tuple = caml_alloc(3, 0);
     Store_field(v_tuple, 0, caml_copy_string(fname));
     Store_field(v_tuple, 1, Val_int(type_tag));
+    Store_field(v_tuple, 2, v_tz);
 
     v_cons = caml_alloc(2, 0);
     Store_field(v_cons, 0, v_tuple);
@@ -1008,6 +1123,29 @@ CAMLprim value caml_arrow_table_take(value v_ptr, value v_indices) {
   v_result = caml_alloc(1, 0);
   Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
   CAMLreturn(v_result);
+}
+
+CAMLprim value caml_arrow_table_merge_horizontal(value v_t1, value v_t2) {
+  CAMLparam2(v_t1, v_t2);
+  GArrowTable *t1 = (GArrowTable *)Nativeint_val(v_t1);
+  GArrowTable *t2 = (GArrowTable *)Nativeint_val(v_t2);
+  if (!t1 || !t2) CAMLreturn(Val_none);
+  GArrowSchema *s2 = garrow_table_get_schema(t2);
+  guint n2 = garrow_table_get_n_columns(t2);
+  GArrowTable *curr = g_object_ref(t1);
+  for (guint i = 0; i < n2; i++) {
+    GArrowField *f = garrow_schema_get_field(s2, i);
+    GArrowChunkedArray *c = garrow_table_get_column_data(t2, i);
+    GError *e = NULL;
+    GArrowTable *nxt = garrow_table_add_column(curr, garrow_table_get_n_columns(curr), f, c, &e);
+    g_object_unref(f); g_object_unref(c); g_object_unref(curr);
+    if (!nxt) { if (e) g_error_free(e); g_object_unref(s2); CAMLreturn(Val_none); }
+    curr = nxt;
+  }
+  g_object_unref(s2);
+  CAMLlocal1(v_r); v_r = caml_alloc(1, 0);
+  Store_field(v_r, 0, caml_copy_nativeint((intnat)curr));
+  CAMLreturn(v_r);
 }
 
 /* ===================================================================== */
@@ -1523,7 +1661,7 @@ typedef struct {
   GArrowTable *table;       /* Original table (ref counted) */
   int n_groups;             /* Number of unique groups */
   int n_keys;               /* Number of key columns */
-  int **group_row_indices;  /* group_row_indices[g] = array of row indices for group g */
+  gint64 **group_row_indices; /* changed from int** */
   int *group_sizes;         /* group_sizes[g] = number of rows in group g */
   gchar ***group_key_values; /* group_key_values[g][k] = string key value for group g, key k */
   gchar **key_names;        /* key_names[k] = name of key column k */
@@ -1548,6 +1686,112 @@ static void grouped_table_free(GroupedTable *gt) {
   free(gt->key_names);
   g_object_unref(gt->table);
   free(gt);
+}
+
+CAMLprim value caml_arrow_grouped_table_free(value v_ptr) {
+  CAMLparam1(v_ptr);
+  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_ptr);
+  grouped_table_free(gt);
+  CAMLreturn(Val_unit);
+}
+
+/* Extract pre-computed group indices from a native grouped table.
+   Returns (string * int list) list to match OCaml fallback structure. */
+CAMLprim value caml_arrow_grouped_table_get_indices(value v_ptr) {
+  CAMLparam1(v_ptr);
+  CAMLlocal5(v_result, v_group_indices, v_cons, v_tuple, v_key_str);
+
+  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_ptr);
+  if (gt == NULL) {
+    CAMLreturn(Val_emptylist);
+  }
+
+  v_result = Val_emptylist;
+  for (int i = gt->n_groups - 1; i >= 0; i--) {
+    /* Build composite key string */
+    GString *s = g_string_new("");
+    for (int k = 0; k < gt->n_keys; k++) {
+      if (k > 0) g_string_append(s, "|");
+      if (gt->group_key_values[i][k] != NULL) {
+        g_string_append(s, gt->group_key_values[i][k]);
+      }
+    }
+    v_key_str = caml_copy_string(s->str);
+    g_string_free(s, TRUE);
+
+    /* Build row indices list */
+    v_group_indices = Val_emptylist;
+    for (int j = gt->group_sizes[i] - 1; j >= 0; j--) {
+      v_cons = caml_alloc(2, 0);
+      Store_field(v_cons, 0, Val_int(gt->group_row_indices[i][j]));
+      Store_field(v_cons, 1, v_group_indices);
+      v_group_indices = v_cons;
+    }
+
+    /* Build (key_str, indices_list) tuple and cons onto result */
+    v_tuple = caml_alloc(2, 0);
+    Store_field(v_tuple, 0, v_key_str);
+    Store_field(v_tuple, 1, v_group_indices);
+
+    v_cons = caml_alloc(2, 0);
+    Store_field(v_cons, 0, v_tuple);
+    Store_field(v_cons, 1, v_result);
+    v_result = v_cons;
+  }
+
+  CAMLreturn(v_result);
+}
+
+/* Native nest: returns a list of (string * nativeint) where nativeint is a GArrowTable*.
+   Each GArrowTable* corresponds to one group's subset of the original table. */
+CAMLprim value caml_arrow_grouped_table_nest(value v_ptr) {
+  CAMLparam1(v_ptr);
+  CAMLlocal3(v_result, v_cons, v_tuple);
+
+  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_ptr);
+  if (gt == NULL) {
+    CAMLreturn(Val_emptylist);
+  }
+
+  GArrowTable *base_table = gt->table;
+  v_result = Val_emptylist;
+
+  for (int i = gt->n_groups - 1; i >= 0; i--) {
+    /* Build indices array for garrow_table_take */
+    GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
+    GError *error = NULL;
+    garrow_int64_array_builder_append_values(builder, gt->group_row_indices[i], gt->group_sizes[i], NULL, 0, &error);
+    GArrowArray *indices_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), NULL);
+    g_object_unref(builder);
+
+    GArrowTable *sub = garrow_table_take(base_table, indices_arr, NULL, &error);
+    g_object_unref(indices_arr);
+
+    if (sub != NULL) {
+      /* Build composite key string */
+      GString *s = g_string_new("");
+      for (int k = 0; k < gt->n_keys; k++) {
+        if (k > 0) g_string_append(s, "|");
+        if (gt->group_key_values[i][k] != NULL) {
+          g_string_append(s, gt->group_key_values[i][k]);
+        }
+      }
+
+      v_tuple = caml_alloc(2, 0);
+      Store_field(v_tuple, 0, caml_copy_string(s->str));
+      Store_field(v_tuple, 1, caml_copy_nativeint((intnat)sub));
+      g_string_free(s, TRUE);
+
+      v_cons = caml_alloc(2, 0);
+      Store_field(v_cons, 0, v_tuple);
+      Store_field(v_cons, 1, v_result);
+      v_result = v_cons;
+    } else if (error) {
+      g_error_free(error);
+    }
+  }
+
+  CAMLreturn(v_result);
 }
 
 typedef struct {
@@ -2040,8 +2284,8 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
       int group_idx = group_order->len;
       g_hash_table_insert(group_map, g_strdup(key_str), GINT_TO_POINTER(group_idx + 1)); /* +1 to distinguish from NULL */
       g_ptr_array_add(group_order, g_strdup(key_str));
-      GArray *rows = g_array_new(FALSE, FALSE, sizeof(int));
-      int ri = (int)r;
+      GArray *rows = g_array_new(FALSE, FALSE, sizeof(gint64));
+      gint64 ri = (gint64)r;
       g_array_append_val(rows, ri);
       g_ptr_array_add(group_rows, rows);
       /* Store key values for this group (take ownership of row_keys) */
@@ -2050,7 +2294,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
       /* Existing group */
       int group_idx = GPOINTER_TO_INT(group_idx_ptr) - 1;
       GArray *rows = (GArray *)g_ptr_array_index(group_rows, group_idx);
-      int ri = (int)r;
+      gint64 ri = (gint64)r;
       g_array_append_val(rows, ri);
       /* Free duplicate row_keys for existing group */
       for (int k = 0; k < n_keys; k++) g_free(row_keys[k]);
@@ -2088,15 +2332,15 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   gt->n_keys = n_keys;
   gt->key_names = key_names;
   gt->group_sizes = (int *)malloc(sizeof(int) * n_groups);
-  gt->group_row_indices = (int **)malloc(sizeof(int *) * n_groups);
+  gt->group_row_indices = (gint64 **)malloc(sizeof(gint64 *) * n_groups);
   gt->group_key_values = (gchar ***)malloc(sizeof(gchar **) * n_groups);
 
   for (int i = 0; i < n_groups; i++) {
     int g = group_permutation[i];
     GArray *rows = (GArray *)g_ptr_array_index(group_rows, g);
     gt->group_sizes[i] = rows->len;
-    gt->group_row_indices[i] = (int *)malloc(sizeof(int) * rows->len);
-    memcpy(gt->group_row_indices[i], rows->data, sizeof(int) * rows->len);
+    gt->group_row_indices[i] = (gint64 *)malloc(sizeof(gint64) * rows->len);
+    memcpy(gt->group_row_indices[i], rows->data, sizeof(gint64) * rows->len);
     /* GArray itself will be free'd later, but we need to manage row_keys ownership */
 
     /* Copy key values for this group */
@@ -2139,13 +2383,6 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   CAMLreturn(v_result);
 }
 
-/* Free a grouped table handle (called from OCaml GC finalizer) */
-CAMLprim value caml_arrow_grouped_table_free(value v_ptr) {
-  CAMLparam1(v_ptr);
-  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_ptr);
-  grouped_table_free(gt);
-  CAMLreturn(Val_unit);
-}
 
 /* Helper: get a numeric value from a column cursor at a given row index.
    Sets *is_null when the row is outside the available chunks or the value is
@@ -3851,12 +4088,13 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
       }
       case 5: { // List of Structs (ListColumn — nested DataFrames)
         /* v_arr is a tuple:
-           Field 0 = offsets (int array, length = n_list_rows+1)
-           Field 1 = present (bool array, length = n_list_rows, true=valid)
-           Field 2 = sub_columns ((string * int * data) list — same format as top-level cols) */
+            Field 0 = offsets (int array, length = n_list_rows+1)
+            Field 1 = present (bool array, length = n_list_rows, true=valid)
+            Field 2 = sub_columns ((string * int * string option * data) list) */
         value v_offsets = Field(v_arr, 0);
         value v_present = Field(v_arr, 1);
         value v_sub_cols_list = Field(v_arr, 2);
+        const int arrow_dictionary_tag = 4;
 
         int n_offsets = Wosize_val(v_offsets);
         int n_list_rows = Wosize_val(v_present);
@@ -3902,9 +4140,13 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           value v_sub = Field(v_sc, 0);
           const char *sub_name = String_val(Field(v_sub, 0));
           int sub_tag = Int_val(Field(v_sub, 1));
-          value v_sub_data = Field(v_sub, 2);
+          value v_sub_tz = Field(v_sub, 2);
+          value v_sub_data = Field(v_sub, 3);
 
-          if (Wosize_val(v_sub_data) != n_total_vals) {
+          /* Tag 4 = Dictionary. Nested dictionary payloads are tuples
+             (indices, levels, ordered), so only non-dictionary sub-columns
+             use flat arrays that must match n_total_vals directly. */
+          if (sub_tag != arrow_dictionary_tag && Wosize_val(v_sub_data) != n_total_vals) {
             sub_ok = 0;
             break;
           }
@@ -3965,6 +4207,92 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
               }
               break;
             }
+            case 4: { /* Dictionary */
+              value v_dict_indices = Field(v_sub_data, 0);
+              value v_dict_levels = Field(v_sub_data, 1);
+              gboolean dict_ordered = Bool_val(Field(v_sub_data, 2));
+              int n_indices = Wosize_val(v_dict_indices);
+
+              if (n_indices != n_total_vals) {
+                sub_ok = 0;
+                break;
+              }
+
+              GArrowStringArrayBuilder *dict_builder = garrow_string_array_builder_new();
+              value v_level_iter = v_dict_levels;
+              while (v_level_iter != Val_emptylist) {
+                value v_head = Field(v_level_iter, 0);
+                garrow_string_array_builder_append_string(dict_builder, String_val(v_head), &error);
+                if (error) break;
+                v_level_iter = Field(v_level_iter, 1);
+              }
+              if (error) {
+                g_object_unref(dict_builder);
+                sub_ok = 0;
+                break;
+              }
+
+              GArrowArray *dict_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(dict_builder), &error);
+              g_object_unref(dict_builder);
+              if (error || dict_arr == NULL) {
+                if (dict_arr) g_object_unref(dict_arr);
+                sub_ok = 0;
+                break;
+              }
+
+              GArrowInt32ArrayBuilder *idx_builder = garrow_int32_array_builder_new();
+              for (int j = 0; j < n_indices; j++) {
+                value v_opt = Field(v_dict_indices, j);
+                if (Is_block(v_opt)) {
+                  garrow_int32_array_builder_append_value(
+                    idx_builder, (gint32)Long_val(Field(v_opt, 0)), &error);
+                } else {
+                  garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(idx_builder), &error);
+                }
+                if (error) break;
+              }
+              if (error) {
+                g_object_unref(idx_builder);
+                g_object_unref(dict_arr);
+                sub_ok = 0;
+                break;
+              }
+
+              GArrowArray *idx_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(idx_builder), &error);
+              g_object_unref(idx_builder);
+              if (error || idx_arr == NULL) {
+                if (idx_arr) g_object_unref(idx_arr);
+                g_object_unref(dict_arr);
+                sub_ok = 0;
+                break;
+              }
+
+              GArrowDataType *idx_dtype = (GArrowDataType *)garrow_int32_data_type_new();
+              GArrowDataType *val_dtype = (GArrowDataType *)garrow_string_data_type_new();
+              sub_dtype = (GArrowDataType *)garrow_dictionary_data_type_new(idx_dtype, val_dtype, dict_ordered);
+              g_object_unref(idx_dtype);
+              g_object_unref(val_dtype);
+
+              GArrowDictionaryArray *dict_array_obj = garrow_dictionary_array_new(
+                sub_dtype, idx_arr, dict_arr, &error);
+              g_object_unref(idx_arr);
+              g_object_unref(dict_arr);
+
+              if (error || dict_array_obj == NULL) {
+                if (dict_array_obj) g_object_unref(dict_array_obj);
+                if (sub_dtype) g_object_unref(sub_dtype);
+                sub_dtype = NULL;
+                sub_ok = 0;
+                break;
+              }
+
+              sub_fields[si] = garrow_field_new(sub_name, sub_dtype);
+              sub_arrays[si] = GARROW_ARRAY(dict_array_obj);
+              g_object_unref(sub_dtype);
+              sub_dtype = NULL;
+              si++;
+              break;
+            }
             case 7: { /* Date32 */
               sub_dtype = (GArrowDataType *)garrow_date32_data_type_new();
               sub_builder = (GArrowArrayBuilder *)garrow_date32_array_builder_new();
@@ -3972,6 +4300,28 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
                 value v_opt = Field(v_sub_data, j);
                 if (Is_block(v_opt))
                   garrow_date32_array_builder_append_value(GARROW_DATE32_ARRAY_BUILDER(sub_builder), (gint32)Long_val(Field(v_opt, 0)), &error);
+                else
+                  garrow_array_builder_append_null(sub_builder, &error);
+                if (error) { sub_ok = 0; break; }
+              }
+              break;
+            }
+            case 8: { /* Timestamp */
+              GTimeZone *sub_time_zone = Is_block(v_sub_tz)
+                ? g_time_zone_new_identifier(String_val(Field(v_sub_tz, 0)))
+                : NULL;
+              GArrowTimestampDataType *timestamp_dtype =
+                garrow_timestamp_data_type_new(GARROW_TIME_UNIT_MICRO, sub_time_zone);
+              if (sub_time_zone) g_time_zone_unref(sub_time_zone);
+              sub_dtype = (GArrowDataType *)timestamp_dtype;
+              sub_builder = (GArrowArrayBuilder *)garrow_timestamp_array_builder_new(timestamp_dtype);
+              for (int j = 0; j < n_total_vals; j++) {
+                value v_opt = Field(v_sub_data, j);
+                if (Is_block(v_opt))
+                  garrow_timestamp_array_builder_append_value(
+                    GARROW_TIMESTAMP_ARRAY_BUILDER(sub_builder),
+                    Int64_val(Field(v_opt, 0)),
+                    &error);
                 else
                   garrow_array_builder_append_null(sub_builder, &error);
                 if (error) { sub_ok = 0; break; }
@@ -5003,9 +5353,8 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
       g_hash_table_insert(group_map, key_copy, GUINT_TO_POINTER(group_id + 1));
       g_ptr_array_add(group_order, g_strdup(key_buf->str));
 
-      GArray *rows_arr = g_array_new(FALSE, FALSE, sizeof(int));
-      int row_int = (int)row;
-      g_array_append_val(rows_arr, row_int);
+      GArray *rows_arr = g_array_new(FALSE, FALSE, sizeof(gint64));
+      g_array_append_val(rows_arr, row);
       g_ptr_array_add(group_rows, rows_arr);
 
       /* Store per-group key values */
@@ -5017,8 +5366,7 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
     } else {
       guint group_id = GPOINTER_TO_UINT(existing) - 1;
       GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, group_id);
-      int row_int = (int)row;
-      g_array_append_val(rows_arr, row_int);
+      g_array_append_val(rows_arr, row);
     }
   }
 
@@ -5080,15 +5428,15 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
   gt->n_keys = n_keys;
   gt->key_names = key_names;
   gt->group_sizes = (int *)malloc(sizeof(int) * n_groups);
-  gt->group_row_indices = (int **)malloc(sizeof(int *) * n_groups);
+  gt->group_row_indices = (gint64 **)malloc(sizeof(gint64 *) * n_groups);
   gt->group_key_values = (gchar ***)malloc(sizeof(gchar **) * n_groups);
 
   for (int i = 0; i < n_groups; i++) {
     int g = group_permutation[i];
     GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, g);
     gt->group_sizes[i] = (int)rows_arr->len;
-    gt->group_row_indices[i] = (int *)malloc(sizeof(int) * rows_arr->len);
-    memcpy(gt->group_row_indices[i], rows_arr->data, sizeof(int) * rows_arr->len);
+    gt->group_row_indices[i] = (gint64 *)malloc(sizeof(gint64) * rows_arr->len);
+    memcpy(gt->group_row_indices[i], rows_arr->data, sizeof(gint64) * rows_arr->len);
     /* GArray itself will be free'd later */
 
     gt->group_key_values[i] = (gchar **)g_ptr_array_index(group_key_vals, g);
@@ -5112,4 +5460,46 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
   v_result = caml_alloc(1, 0);
   Store_field(v_result, 0, caml_copy_nativeint((intnat)gt));
   CAMLreturn(v_result);
+}
+
+/* Vertical concatenation of multiple tables.
+   Args: v_table_ptrs (nativeint list)
+   Returns: Some(new_table_ptr) or None on failure. */
+CAMLprim value caml_arrow_table_concatenate(value v_table_ptrs) {
+  CAMLparam1(v_table_ptrs);
+  CAMLlocal1(v_head);
+
+  GList *all_tables = NULL;
+  value v_curr = v_table_ptrs;
+  while (v_curr != Val_emptylist) {
+    v_head = Field(v_curr, 0);
+    GArrowTable *table = (GArrowTable *)Nativeint_val(v_head);
+    if (table != NULL) {
+      all_tables = g_list_prepend(all_tables, table);
+    }
+    v_curr = Field(v_curr, 1);
+  }
+
+  if (all_tables == NULL) {
+    CAMLreturn(Val_none);
+  }
+
+  all_tables = g_list_reverse(all_tables);
+  GArrowTable *first = (GArrowTable *)all_tables->data;
+  GList *others = all_tables->next;
+
+  GError *error = NULL;
+  GArrowTable *result = garrow_table_concatenate(first, others, NULL, &error);
+
+  g_list_free(all_tables);
+
+  if (result == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  CAMLlocal1(v_res);
+  v_res = caml_alloc(1, 0);
+  Store_field(v_res, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_res);
 }

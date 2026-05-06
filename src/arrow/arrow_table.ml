@@ -140,10 +140,28 @@ let arrow_type_of_schema_tag tag tz =
   | 8 -> ArrowTimestamp tz
   | _ -> arrow_type_of_tag tag
 
+let list_schema_from_native_ptr (ptr : nativeint) (name : string) : arrow_type =
+  match Arrow_ffi.arrow_table_get_list_field_schema ptr name with
+  | Some field_infos ->
+      let schema =
+        List.map (fun (fname, ftag, ftz) ->
+          (fname, arrow_type_of_schema_tag ftag ftz)
+        ) field_infos
+      in
+      ArrowList (ArrowStruct schema)
+  | None -> ArrowList ArrowNA
+
 (** Rebuild schema from a native table pointer *)
 let schema_from_native_ptr (ptr : nativeint) : arrow_schema =
   let pairs = Arrow_ffi.arrow_table_get_schema ptr in
-  List.map (fun (name, tag, tz) -> (name, arrow_type_of_schema_tag tag tz)) pairs
+  List.map (fun (name, tag, tz) ->
+    let ty =
+      match tag with
+      | 5 -> list_schema_from_native_ptr ptr name
+      | _ -> arrow_type_of_schema_tag tag tz
+    in
+    (name, ty)
+  ) pairs
 
 (* --- GC Finalizer --- *)
 
@@ -214,6 +232,7 @@ let slice_column (col : column_data) (offset : int) (len : int) : column_data =
   | NAColumn _ -> NAColumn len
   | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.sub a offset len, levels, ordered)
   | ListColumn a -> ListColumn (Array.sub a offset len)
+ 
 
 (** Read a native list-of-struct column and reconstruct as ListColumn.
     Takes the already-fetched array pointer from arrow_table_get_column_data.
@@ -226,9 +245,9 @@ let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : col
   | Some child_ptr ->
       let field_infos = Arrow_ffi.arrow_read_struct_fields child_ptr in
       (* Read each field using the appropriate column reader *)
-      let field_cols = List.mapi (fun i (fname, ftag) ->
+      let field_cols = List.mapi (fun i (fname, ftag, ftz) ->
         match Arrow_ffi.arrow_read_struct_field child_ptr i with
-        | None -> (fname, ftag, NAColumn 0)
+        | None -> (fname, ftag, ftz, NAColumn 0)
         | Some fptr ->
             let col = match ftag with
               | 0 -> IntColumn (Arrow_ffi.arrow_read_int64_column fptr)
@@ -239,16 +258,17 @@ let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : col
                   let (idx, lvl, ord) = Arrow_ffi.arrow_read_dictionary_column fptr in
                   DictionaryColumn (idx, lvl, ord)
               | 7 -> DateColumn (Arrow_ffi.arrow_read_date32_column fptr)
+              | 8 -> DatetimeColumn (Arrow_ffi.arrow_read_timestamp_column fptr, ftz)
               | _ -> Arrow_ffi.arrow_unref fptr; NAColumn 0
             in
-            (fname, ftag, col)
+            (fname, ftag, ftz, col)
       ) field_infos in
       (* Clean up the child struct array *)
       Arrow_ffi.arrow_unref child_ptr;
       let max_len =
         match field_cols with
         | [] -> 0
-        | (_, _, col) :: _ -> column_length col
+        | (_, _, _, col) :: _ -> column_length col
       in
       (* Reconstruct sub-tables by slicing the flattened columns *)
       let nested_opt =
@@ -259,11 +279,11 @@ let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : col
                 if offset < 0 || len < 0 || offset + len > max_len then
                   raise Exit
                 else
-                let sub_cols = List.map (fun (fname, _, col) ->
+                let sub_cols = List.map (fun (fname, _, _, col) ->
                   (fname, slice_column col offset len)
                 ) field_cols in
-                let sub_schema = List.map (fun (fname, ftag, _) ->
-                  (fname, arrow_type_of_tag ftag)
+                let sub_schema = List.map (fun (fname, ftag, ftz, _) ->
+                  (fname, arrow_type_of_schema_tag ftag ftz)
                 ) field_cols in
                 Some { schema = sub_schema; columns = sub_cols;
                        nrows = len; native_handle = None }
@@ -330,6 +350,69 @@ let get_column (t : t) (name : string) : column_data option =
   | _ ->
       (* Fallback to pure OCaml *)
       List.assoc_opt name t.columns
+ 
+ (** Concatenate multiple columns of the same type *)
+ let concatenate_columns (cols : column_data list) : column_data =
+   match cols with
+   | [] -> NAColumn 0
+   | first :: _ ->
+       match first with
+       | IntColumn _ -> IntColumn (Array.concat (List.map (function IntColumn a -> a | _ -> [||]) cols))
+       | FloatColumn _ -> FloatColumn (Array.concat (List.map (function FloatColumn a -> a | _ -> [||]) cols))
+       | BoolColumn _ -> BoolColumn (Array.concat (List.map (function BoolColumn a -> a | _ -> [||]) cols))
+       | StringColumn _ -> StringColumn (Array.concat (List.map (function StringColumn a -> a | _ -> [||]) cols))
+       | DateColumn _ -> DateColumn (Array.concat (List.map (function DateColumn a -> a | _ -> [||]) cols))
+       | DatetimeColumn (_, tz) -> DatetimeColumn (Array.concat (List.map (function DatetimeColumn (a, _) -> a | _ -> [||]) cols), tz)
+       | DictionaryColumn (_, levels, ordered) -> DictionaryColumn (Array.concat (List.map (function DictionaryColumn (a, _, _) -> a | _ -> [||]) cols), levels, ordered)
+       | ListColumn _ -> ListColumn (Array.concat (List.map (function ListColumn a -> a | _ -> [||]) cols))
+       | NAColumn _ ->
+           let total = List.fold_left (fun acc -> function 
+             | NAColumn n -> acc + n 
+             | IntColumn a -> acc + Array.length a
+             | FloatColumn a -> acc + Array.length a
+             | StringColumn a -> acc + Array.length a
+             | BoolColumn a -> acc + Array.length a
+             | DateColumn a -> acc + Array.length a
+             | DatetimeColumn (a, _) -> acc + Array.length a
+             | DictionaryColumn (a, _, _) -> acc + Array.length a
+             | ListColumn a -> acc + Array.length a
+           ) 0 cols in
+           NAColumn total
+ 
+ (** Concatenate multiple tables with the same schema *)
+ let rec concatenate (tables : t list) : t =
+   match tables with
+   | [] -> empty
+   | [t] -> t
+   | first :: _ ->
+       let all_native = List.for_all (fun t ->
+         match t.native_handle with
+         | Some handle -> not handle.freed
+         | None -> false
+       ) tables in
+
+       if all_native && Arrow_ffi.arrow_available then
+         let ptrs = List.map (fun t -> (Option.get t.native_handle).ptr) tables in
+         match Arrow_ffi.arrow_table_concatenate ptrs with
+         | Some new_ptr ->
+             let nrows = List.fold_left (fun acc t -> acc + t.nrows) 0 tables in
+             create_from_native new_ptr first.schema nrows
+         | None -> concatenate_ocaml tables
+       else
+         concatenate_ocaml tables
+
+and concatenate_ocaml (tables : t list) : t =
+  match tables with
+  | [] -> empty
+  | [t] -> t
+  | first :: _ ->
+      let schema = first.schema in
+      let nrows = List.fold_left (fun acc t -> acc + t.nrows) 0 tables in
+      let columns = List.map (fun (name, _) ->
+        let cols_to_concat = List.filter_map (fun t -> get_column t name) tables in
+        (name, concatenate_columns cols_to_concat)
+      ) schema in
+      { schema; columns; nrows; native_handle = None }
 
 let column_type (t : t) (name : string) : arrow_type option =
   List.assoc_opt name t.schema
@@ -394,8 +477,37 @@ let get_string (col : column_data) (row : int) : string option =
 
 (** Check if a primitive column type tag is supported for native struct fields *)
 let is_primitive_tag_supported = function
-  | ArrowInt64 | ArrowFloat64 | ArrowBoolean | ArrowString | ArrowDate -> true
+  | ArrowInt64 | ArrowFloat64 | ArrowBoolean | ArrowString
+  | ArrowDate | ArrowTimestamp _ | ArrowDictionary -> true
   | _ -> false
+
+let list_schema_hint_of_arrow_type = function
+  | ArrowList (ArrowStruct schema) when schema <> [] -> Some schema
+  | _ -> None
+
+let effective_list_schema ?schema_hint (nested : t option array) : arrow_schema option =
+  let inferred =
+    Array.fold_left (fun acc entry ->
+      match acc, entry with
+      | Some _, _ -> acc
+      | None, Some t when t.schema <> [] -> Some t.schema
+      | None, _ -> None
+    ) None nested
+  in
+  match inferred with
+  | Some schema -> Some schema
+  | None -> schema_hint
+
+let is_supported_list_column ?schema_hint (nested : t option array) =
+  match effective_list_schema ?schema_hint nested with
+  | None | Some [] -> false
+  | Some schema ->
+      List.for_all (fun (_, ty) -> is_primitive_tag_supported ty) schema
+      &&
+      Array.for_all (function
+        | None -> true
+        | Some t -> t.schema = [] || t.schema = schema
+      ) nested
 
 (** Column builders currently supported by Arrow_ffi.arrow_table_new.
      Primitive columns, null-only columns, dictionary columns, datetime
@@ -403,35 +515,31 @@ let is_primitive_tag_supported = function
      are supported. *)
 let is_arrow_table_new_supported = function
   | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DateColumn _ | NAColumn _ | DictionaryColumn _ -> true
-  | ListColumn a ->
-      (* All non-None sub-tables must have same schema of only primitive types.
-         At least one non-None sub-table must exist to determine the struct schema. *)
-      let sub_tables = Array.to_list a |> List.filter_map Fun.id in
-      (match sub_tables with
-       | [] -> false  (* no sub-tables → no struct schema → can't build native list array *)
-       | first :: rest ->
-           first.schema <> [] &&
-           List.for_all (fun t -> t.schema = first.schema) rest &&
-           List.for_all (fun (_, ty) -> is_primitive_tag_supported ty) first.schema)
+  | ListColumn a -> is_supported_list_column a
   | DatetimeColumn _ -> true
 
 (** Flatten a ListColumn into (offsets, present_flags, sub_column_specs) for FFI.
     offsets : int array of length nrows+1
     present : bool array of length nrows (true = non-null)
-    sub_cols : (string * int * Obj.t array) list — flattened column data *)
-let flatten_list_column (nested : t option array) : (int array * bool array * (string * int * Obj.t array) list) =
+    sub_cols : (string * int * string option * Obj.t) list — flattened column data *)
+let rec flatten_list_column ?schema_hint (nested : t option array)
+  : (int array * bool array * (string * int * string option * Obj.t) list) =
   let nrows = Array.length nested in
   let arrow_int64_tag = 0 in
   let arrow_float64_tag = 1 in
   let arrow_boolean_tag = 2 in
   let arrow_string_tag = 3 in
+  let arrow_dictionary_tag = 4 in
   let arrow_date_tag = 7 in
+  let arrow_timestamp_tag = 8 in
   let sub_tag_of = function
     | ArrowInt64 -> arrow_int64_tag
     | ArrowFloat64 -> arrow_float64_tag
     | ArrowBoolean -> arrow_boolean_tag
     | ArrowString -> arrow_string_tag
+    | ArrowDictionary -> arrow_dictionary_tag
     | ArrowDate -> arrow_date_tag
+    | ArrowTimestamp _ -> arrow_timestamp_tag
     | _ -> arrow_string_tag (* fallback *)
   in
   (* Compute offsets and total value count *)
@@ -446,36 +554,71 @@ let flatten_list_column (nested : t option array) : (int array * bool array * (s
   ) nested;
   offsets.(nrows) <- !total;
   let n_total = !total in
-  (* Get sub-column schema from first non-None table *)
-  let sub_schema = match Array.find_map Fun.id nested with
-    | Some t -> t.schema
-    | None -> []
-  in
+  let sub_schema = Option.value (effective_list_schema ?schema_hint nested) ~default:[] in
   (* Flatten each sub-column *)
-  let pack_opt v = Obj.repr (Option.map Obj.repr v) in
   let sub_cols = List.map (fun (fname, ftype) ->
     let tag = sub_tag_of ftype in
-    let flat_data : Obj.t array = Array.make n_total (Obj.repr None) in
-    let pos = ref 0 in
-    Array.iter (function
-      | None -> ()
-      | Some sub_t ->
-          (match List.assoc_opt fname sub_t.columns with
-           | Some (IntColumn a) ->
-               Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-           | Some (FloatColumn a) ->
-               Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-           | Some (BoolColumn a) ->
-               Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-           | Some (StringColumn a) ->
-               Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-           | Some (DateColumn a) ->
-               Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
-           | _ ->
-               for j = 0 to sub_t.nrows - 1 do flat_data.(!pos + j) <- Obj.repr None done);
-          pos := !pos + sub_t.nrows
-    ) nested;
-    (fname, tag, flat_data)
+    let timezone =
+      match ftype with
+      | ArrowTimestamp tz -> tz
+      | _ -> None
+    in
+    let raw_data =
+      match ftype with
+      | ArrowDictionary ->
+          let flat_indices : int option array = Array.make n_total None in
+          let levels = ref None in
+          let ordered = ref None in
+          let validate_levels expected actual = expected = actual in
+
+          let pos = ref 0 in
+          Array.iter (function
+            | None -> ()
+            | Some sub_t ->
+                (match get_column sub_t fname with
+                 | Some (DictionaryColumn (indices, lvl, ord)) ->
+                     if Array.length indices <> sub_t.nrows then
+                       invalid_arg ("ArrowDictionary flatten: invalid index array length for field " ^ fname);
+                     (match !levels, !ordered with
+                      | None, None ->
+                          levels := Some lvl;
+                          ordered := Some ord
+                      | Some expected_levels, Some expected_ordered ->
+                          if expected_ordered <> ord || not (validate_levels expected_levels lvl) then
+                            invalid_arg ("ArrowDictionary flatten: incompatible dictionary payloads for field " ^ fname)
+                      | _ ->
+                          invalid_arg ("ArrowDictionary flatten: inconsistent dictionary metadata state for field " ^ fname));
+                     let level_count = List.length lvl in
+                     Array.iteri (fun j v ->
+                       (match v with
+                        | Some idx when idx < 0 || idx >= level_count ->
+                            invalid_arg ("ArrowDictionary flatten: out-of-bounds dictionary index for field " ^ fname)
+                        | _ -> ());
+                       flat_indices.(!pos + j) <- v
+                     ) indices
+                 | _ -> ());
+                pos := !pos + sub_t.nrows
+          ) nested;
+          Obj.repr (flat_indices, Option.value !levels ~default:[], Option.value !ordered ~default:false)
+      | _ ->
+          let cols_to_concat = List.filter_map (fun x -> x) (Array.to_list nested) 
+                               |> List.filter_map (fun t -> get_column t fname) in
+          let combined = concatenate_columns cols_to_concat in
+          (match combined with
+           | IntColumn a -> Obj.repr a
+           | FloatColumn a -> Obj.repr a
+           | StringColumn a -> Obj.repr a
+           | BoolColumn a -> Obj.repr a
+           | DateColumn a -> Obj.repr a
+           | DatetimeColumn (a, _) -> Obj.repr a
+           | DictionaryColumn (a, lvl, ord) -> Obj.repr (a, lvl, ord)
+           | ListColumn a -> 
+               let schema_hint = match ftype with ArrowList (ArrowStruct s) -> Some s | _ -> None in
+               Obj.repr (flatten_list_column ?schema_hint a)
+           | NAColumn n -> 
+               Obj.repr (Array.make n None))
+    in
+    (fname, tag, timezone, raw_data)
   ) sub_schema in
   (offsets, present, sub_cols)
 
@@ -488,7 +631,14 @@ let materialize (t : t) : t =
   | _ ->
       let has_unsupported =
         (not Arrow_ffi.arrow_available) ||
-        List.exists (fun (_, col) -> not (is_arrow_table_new_supported col)) t.columns in
+        List.exists (fun (name, col) ->
+          let declared_type = Option.value (List.assoc_opt name t.schema) ~default:(column_type_of col) in
+          match col with
+          | ListColumn nested ->
+              not (is_supported_list_column ?schema_hint:(list_schema_hint_of_arrow_type declared_type) nested)
+          | _ ->
+              not (is_arrow_table_new_supported col)
+        ) t.columns in
       if has_unsupported then t
       else
         let arrow_int64_tag = 0 in
@@ -528,7 +678,8 @@ let materialize (t : t) : t =
                 Obj.repr (indices, levels, ordered)
             | Some (ListColumn nested) ->
                 (* Pack as tuple (offsets, present, sub_col_specs) for C FFI. *)
-                let (offsets, present, sub_cols) = flatten_list_column nested in
+                let schema_hint = list_schema_hint_of_arrow_type type_ in
+                let (offsets, present, sub_cols) = flatten_list_column ?schema_hint nested in
                 Obj.repr (offsets, present, sub_cols)
             | Some (IntColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (FloatColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
@@ -855,3 +1006,13 @@ let rename_columns (t : t) (mapping : (string * string) list) : t =
         match List.assoc_opt name old_to_new with
         | Some new_name -> (new_name, data) | None -> (name, data)) t.columns in
       { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> materialize
+
+let merge_horizontal (t1 : t) (t2 : t) : t option =
+  match t1.native_handle, t2.native_handle with
+  | Some h1, Some h2 when not h1.freed && not h2.freed ->
+      (match Arrow_ffi.arrow_table_merge_horizontal h1.ptr h2.ptr with
+       | Some ptr ->
+           let schema = schema_from_native_ptr ptr in
+           Some (create_from_native ptr schema t1.nrows)
+       | None -> None)
+  | _ -> None

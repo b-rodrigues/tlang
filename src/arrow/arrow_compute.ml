@@ -420,9 +420,35 @@ let get_ocaml_groups (grouped : grouped_table) : (string * int list) list =
   match !(grouped.ocaml_groups) with
   | Some groups -> groups
   | None ->
-      let groups = build_ocaml_groups grouped.base_table grouped.group_keys in
+      let groups = 
+        match grouped.native_group with
+        | Some gh when not gh.freed ->
+            Arrow_ffi.arrow_grouped_table_get_indices gh.ptr
+        | _ -> 
+            build_ocaml_groups grouped.base_table grouped.group_keys 
+      in
       grouped.ocaml_groups := Some groups;
       groups
+
+(** Nest a grouped table: returns a list of (key_string, sub_table).
+    Uses native Arrow take for zero-copy sub-table creation when possible. *)
+let nest (grouped : grouped_table) (nest_cols : string list) : (string * Arrow_table.t) list =
+  match grouped.native_group with
+  | Some gh when not gh.freed && Arrow_ffi.arrow_available ->
+      let res = Arrow_ffi.arrow_grouped_table_nest gh.ptr in
+      List.map (fun (key, ptr) ->
+        (* Create native table wrapper. Sub-tables initially have full schema. *)
+        let sub = Arrow_table.create_from_native ptr grouped.base_table.schema (Arrow_ffi.arrow_table_num_rows ptr) in
+        (* Project to only include requested columns for nesting *)
+        (key, project sub nest_cols)
+      ) res
+  | _ ->
+      (* Fallback: use OCaml-side indices and take_rows *)
+      let groups = get_ocaml_groups grouped in
+      List.map (fun (key, indices) ->
+        let sub = take_rows grouped.base_table indices in
+        (key, project sub nest_cols)
+      ) groups
 
 (** Whether the OCaml fallback groups have already been materialized. *)
 let ocaml_groups_materialized (grouped : grouped_table) : bool =

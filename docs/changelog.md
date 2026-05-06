@@ -6,6 +6,15 @@ The focus of this release was to improve language ergonomics for data guardrails
 
 **Status**: Beta  
 
+### Performance & Arrow FFI
+- **Native Table Nesting & Unnesting**:
+    - Implemented a zero-copy native Arrow FFI pipeline for `nest()` and `unnest()` operations to eliminate OCaml-side materialization bottlenecks.
+    - Optimized `GroupedTable` to use `gint64` row indices, enabling direct bulk transfer of group subsets to Arrow.
+- **Native Vertical Concatenation**:
+    - Introduced high-performance native vertical concatenation for Arrow-backed tables, significantly reducing memory overhead when stacking large data chunks.
+- **Native Horizontal Merging**:
+    - Added native support for merging columns between two tables directly in Arrow memory (`merge_horizontal`), enabling efficient expansion of key columns during unnesting.
+
 ### Package Management & User Feedback
 - **Improved Dependency Sync Messages**:
     - Enhanced `t update` feedback to explicitly report counts for R, Python, Additional Tools, and LaTeX packages being synchronized to `flake.nix`.
