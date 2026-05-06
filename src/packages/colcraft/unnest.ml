@@ -89,19 +89,11 @@ let unnest_impl (named_args : (string option * value) list) _env =
                  
                  (* 4. Combine nested tables *)
                  let nested_cols = List.map (fun (n, _) ->
-                   let combined_data = Array.make !final_nrows (VNA NAGeneric) in
-                   let curr = ref 0 in
-                   Array.iter (function
-                     | Some t_sub ->
-                         (match Arrow_table.get_column t_sub n with
-                          | Some col_sub ->
-                              let vals = Arrow_bridge.column_to_values col_sub in
-                              Array.blit vals 0 combined_data !curr t_sub.nrows;
-                              curr := !curr + t_sub.nrows
-                          | None -> curr := !curr + t_sub.nrows)
-                     | None -> ()
-                   ) data;
-                   (n, Arrow_bridge.values_to_column combined_data)
+                   let cols_to_concat = List.filter_map (function
+                     | Some t_sub -> Arrow_table.get_column t_sub n
+                     | None -> None
+                   ) (Array.to_list data) in
+                   (n, Arrow_table.concatenate_columns cols_to_concat)
                  ) nested_schema in
                  
                  let final_table = {
