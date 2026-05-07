@@ -162,7 +162,7 @@ let float_array_of_numeric_column col_name = function
               "Function `lm` column `%s` must be numeric or categorical without NA values."
               col_name))
 
-let float_array_of_weights label expected_len = function
+let rec float_array_of_weights label expected_len = function
   | VVector arr ->
       if Array.length arr <> expected_len then
         Error
