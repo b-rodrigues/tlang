@@ -1177,44 +1177,44 @@ Statistical functions for data analysis. Most functions handle missingness via a
 
 ### Descriptive Statistics
 
-#### `median(x, na_rm = false, weight = NA)` / `mean(x, na_rm = false, weight = NA)`
+#### `median(x, na_rm = false, weights = NA)` / `mean(x, na_rm = false, weights = NA)`
 #### `min(x, na_rm = false)` / `max(x, na_rm = false)` / `range(x, na_rm = false)`
 
 Basic descriptive statistics. `mean` and `median` also accept optional non-negative observation weights. `range` returns a List of [min, max].
 
 ---
 
-#### `var(x, na_rm = false, weight = NA)` / `sd(x, na_rm = false, weight = NA)` / `cv(x, na_rm = false, weight = NA)`
+#### `var(x, na_rm = false, weights = NA)` / `sd(x, na_rm = false, weights = NA)` / `cv(x, na_rm = false, weights = NA)`
 
 Variance, standard deviation, and coefficient of variation (sd/mean). These also accept optional non-negative observation weights.
 
 ---
 
-#### `iqr(x, na_rm = false, weight = NA)` / `mad(x, na_rm = false)`
+#### `iqr(x, na_rm = false, weights = NA)` / `mad(x, na_rm = false)`
 
 Interquartile range and Median Absolute Deviation (scaled by 1.4826). `iqr` accepts optional non-negative observation weights.
 
 ---
 
-#### `fivenum(x, na_rm = false, weight = NA)`
+#### `fivenum(x, na_rm = false, weights = NA)`
 
 Tukey's five-number summary (min, lower-hinge, median, upper-hinge, max), with optional non-negative observation weights.
 
 ---
 
-#### `skewness(x, na_rm = false, weight = NA)` / `kurtosis(x, na_rm = false, weight = NA)`
+#### `skewness(x, na_rm = false, weights = NA)` / `kurtosis(x, na_rm = false, weights = NA)`
 
 Skewness and excess kurtosis, with optional non-negative observation weights.
 
 ---
 
-#### `trimmed_mean(x, trim = 0.1, na_rm = false, weight = NA)`
+#### `trimmed_mean(x, trim = 0.1, na_rm = false, weights = NA)`
 
 Mean calculated after trimming a fraction of observations from each end. Optional weights affect the trim cut points and the retained mean.
 
 ---
 
-#### `quantile(x, p, na_rm = false, weight = NA)`
+#### `quantile(x, p, na_rm = false, weights = NA)`
 
 Compute quantile/percentile (p between 0 and 1), with optional non-negative observation weights.
 
@@ -1234,7 +1234,7 @@ Rescale or center numeric data. `scale` and `standardize` compute z-scores. `nor
 
 ---
 
-#### `winsorize(x, probs = [0.05, 0.95], na_rm = false, weight = NA)`
+#### `winsorize(x, probs = [0.05, 0.95], na_rm = false, weights = NA)`
 
 Replace extreme values with quantiles. Optional weights affect the lower and upper cut points.
 
@@ -1256,9 +1256,9 @@ Cumulative Distribution Functions for Normal, Student-t, F, and Chi-squared dist
 
 ### Modeling
 
-#### `lm(data, formula, weight = NA)`
+#### `lm(data, formula, weights = NA)`
 
-Fit a linear regression model. Without weights this is OLS; with `weight` it performs weighted least squares. The formula is a `Formula` value such as `mpg ~ wt + hp`.
+Fit a linear regression model. Without weights this is OLS; with `weights` it performs weighted least squares. The formula is a `Formula` value such as `mpg ~ wt + hp`.
 
 ---
 

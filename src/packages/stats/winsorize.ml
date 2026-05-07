@@ -9,7 +9,7 @@ open Ast
 --# @param x :: Vector | List Numeric input.
 --# @param limits :: Float | Vector[Float] One-sided or (lo, hi) limits in [0, 0.5).
 --# @param na_rm :: Bool = false Remove NA values first.
---# @param weight :: Vector[Float] | List[Float] = NA Optional non-negative observation weights used to determine the cut points.
+--# @param weights :: Vector[Float] | List[Float] = NA Optional non-negative observation weights used to determine the cut points.
 --# @return :: Number | Vector Computed result (scalar or vectorized).
 --# @family stats
 --# @export
@@ -65,8 +65,8 @@ let register env =
     match Math_common.get_bool_flag "na_rm" false named_args with
     | Error e -> e
     | Ok na_rm ->
-    let weight_arg = List.assoc_opt (Some "weight") named_args in
-    let args = Math_common.positional_args_without ["na_rm"; "weight"] named_args in
+    let weight_arg = List.assoc_opt (Some "weights") named_args in
+    let args = Math_common.positional_args_without ["na_rm"; "weights"] named_args in
     let limits_of = function
       | VFloat f when f >= 0.0 && f < 0.5 -> Some (f, f)
       | VInt i when i >= 0 -> let f = float_of_int i in if f < 0.5 then Some (f, f) else None

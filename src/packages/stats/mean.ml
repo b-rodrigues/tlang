@@ -9,7 +9,7 @@ open Ast
 --# @name mean
 --# @param x :: Vector[Float] | List[Float] Input numeric data. Must contain at least one value.
 --# @param na_rm :: Bool = false Remove NA values before computation.
---# @param weight :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
+--# @param weights :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Float | NA The arithmetic mean, or NA if input contains NA and na_rm is false
 --# @example
 --#   mean([1, 2, 3])
@@ -32,8 +32,8 @@ let register env =
       (match Math_common.get_bool_flag "na_rm" false named_args with
       | Error e -> e
       | Ok na_rm ->
-      let args = Math_common.positional_args_without ["na_rm"; "weight"] named_args in
-      let weight_arg = List.assoc_opt (Some "weight") named_args in
+      let args = Math_common.positional_args_without ["na_rm"; "weights"] named_args in
+      let weight_arg = List.assoc_opt (Some "weights") named_args in
       let extract_nums label vals =
         let rec go acc = function
           | [] -> Ok (List.rev acc)
@@ -83,7 +83,7 @@ let register env =
                  | Ok (xs, ws) ->
                      (match Math_utils.weighted_mean_array xs ws with
                       | Some m -> VFloat m
-                      | None -> Error.value_error "Function `mean` expects `weight` to contain at least one positive value."))
+                      | None -> Error.value_error "Function `mean` expects `weights` to contain at least one positive value."))
             | None ->
                 (match extract_nums "mean" items with
                  | Error e -> e
@@ -100,7 +100,7 @@ let register env =
                  | Ok (xs, ws) ->
                      (match Math_utils.weighted_mean_array xs ws with
                       | Some m -> VFloat m
-                      | None -> Error.value_error "Function `mean` expects `weight` to contain at least one positive value."))
+                      | None -> Error.value_error "Function `mean` expects `weights` to contain at least one positive value."))
             | None ->
                 if na_rm then
                   (match extract_nums_arr_na_rm "mean" arr with

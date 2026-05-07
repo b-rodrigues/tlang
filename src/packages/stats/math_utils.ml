@@ -18,7 +18,7 @@ let collection_values ~label = function
 let numeric_weight_error label =
   Error.type_error
     (Printf.sprintf
-       "Function `%s` expects `weight` to be a numeric List or Vector."
+       "Function `%s` expects `weights` to be a numeric List or Vector."
        label)
 
 let invalid_weight_value_error label =
@@ -30,19 +30,19 @@ let invalid_weight_value_error label =
 let invalid_weight_total_error label =
   Error.value_error
     (Printf.sprintf
-       "Function `%s` expects `weight` to contain at least one positive value."
+       "Function `%s` expects `weights` to contain at least one positive value."
        label)
 
 let invalid_weight_length_error label =
   Error.value_error
     (Printf.sprintf
-       "Function `%s` expects `weight` to have the same length as the data."
+       "Function `%s` expects `weights` to have the same length as the data."
        label)
 
 let invalid_weight_pair_length_error label =
   Error.value_error
     (Printf.sprintf
-       "Function `%s` expects `weight` to have the same length as both inputs."
+       "Function `%s` expects `weights` to have the same length as both inputs."
        label)
 
 let numeric_value_of_value ~label = function

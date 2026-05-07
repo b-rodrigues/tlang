@@ -8,7 +8,7 @@ open Ast
 --# @name iqr
 --# @param x :: Vector | List Numeric input.
 --# @param na_rm :: Bool = false Remove NA values first.
---# @param weight :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
+--# @param weights :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Number | Vector Computed result (scalar or vectorized).
 --# @family stats
 --# @export
@@ -62,10 +62,10 @@ let vecf xs = VVector (Array.of_list (List.map (fun x -> VFloat x) xs))
 let register env =
   Env.add "iqr" (make_builtin_named ~name:"iqr" ~variadic:true 1 (fun named_args _ ->
     let na_rm = has_na_rm named_args in
-    let weight_arg = List.assoc_opt (Some "weight") named_args in
+    let weight_arg = List.assoc_opt (Some "weights") named_args in
     let args =
       named_args
-      |> List.filter (fun (name, _) -> name <> Some "na_rm" && name <> Some "weight")
+      |> List.filter (fun (name, _) -> name <> Some "na_rm" && name <> Some "weights")
       |> List.map snd
     in
     match args with

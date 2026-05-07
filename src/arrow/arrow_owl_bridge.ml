@@ -488,11 +488,11 @@ let linreg_multi ?weights (xs_list : float array list) (ys : float array)
           let h = ref 0.0 in
           for j1 = 0 to p - 1 do
             for j2 = 0 to p - 1 do
-             h := !h +. obs_weights.(i) *. x_matrix.(i).(j1) *. xtx_inv.(j1).(j2) *. x_matrix.(i).(j2)
-           done
-         done;
-         !h
-       ) in
+              h := !h +. obs_weights.(i) *. x_matrix.(i).(j1) *. xtx_inv.(j1).(j2) *. x_matrix.(i).(j2)
+            done
+          done;
+          !h
+        ) in
         (* Cook's distance and standardised residuals *)
        let pf = float_of_int p in
        let cooks_d = Array.init n (fun i ->

@@ -4,7 +4,7 @@ df = dataframe([
   y: [1, 2, 2, 4]
 ])
 
-model = lm(data = df, formula = y ~ x, weight = [1, 1, 2, 2])
+model = lm(data = df, formula = y ~ x, weights = [1, 1, 2, 2])
 
 result = dataframe([
   intercept: head(model._tidy_df.estimate),

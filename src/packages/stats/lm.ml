@@ -168,7 +168,7 @@ let float_array_of_weights label expected_len = function
         Error
           (Error.value_error
              (Printf.sprintf
-                "Function `%s` expects `weight` to have the same length as the data."
+                "Function `%s` expects `weights` to have the same length as the data."
                 label))
       else
         let result = Array.make expected_len 0.0 in
@@ -185,7 +185,7 @@ let float_array_of_weights label expected_len = function
              if Array.for_all (fun w -> w = 0.0) ws then
                Error
                  (Error.value_error
-                    "Function `lm` expects `weight` to contain at least one positive value.")
+                    "Function `lm` expects `weights` to contain at least one positive value.")
              else Ok ws)
   | VList items ->
       float_array_of_weights label expected_len
@@ -194,7 +194,7 @@ let float_array_of_weights label expected_len = function
       Error
         (Error.type_error
            (Printf.sprintf
-              "Function `%s` expects `weight` to be a numeric List or Vector."
+              "Function `%s` expects `weights` to be a numeric List or Vector."
               label))
 
 let unique_levels values =
@@ -357,7 +357,7 @@ let predictor_terms_for_formula_term arrow_table term =
 --# @name lm
 --# @param data :: DataFrame The data to use.
 --# @param formula :: Formula The model formula (e.g., mpg ~ wt + hp).
---# @param weight :: Vector[Float] | List[Float] = NA Optional non-negative observation weights for weighted least squares.
+--# @param weights :: Vector[Float] | List[Float] = NA Optional non-negative observation weights for weighted least squares.
 --# @return :: Model A model object containing coefficients, residuals, and statistics.
 --# @example
 --#   model = lm(mtcars, mpg ~ wt + hp)
@@ -385,7 +385,7 @@ let register env =
         | Some v -> Some v
         | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_val <> Some v -> Some v | _ -> None))
       in
-      let weight_val = List.assoc_opt "weight" named in
+      let weight_val = List.assoc_opt "weights" named in
       match (data_val, formula_val) with
       | (None, _) -> Error.make_error ArityError "Function `lm` missing required argument 'data'."
       | (_, None) -> Error.make_error ArityError "Function `lm` missing required argument 'formula'."

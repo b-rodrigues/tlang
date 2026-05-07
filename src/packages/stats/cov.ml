@@ -9,7 +9,7 @@ open Ast
 --# @param x :: Vector | List First numeric input.
 --# @param y :: Vector | List Second numeric input.
 --# @param na_rm :: Bool = false Pairwise remove NA values.
---# @param weight :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
+--# @param weights :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Number | Vector Computed result (scalar or vectorized).
 --# @family stats
 --# @export
@@ -89,10 +89,10 @@ let paired_numeric_values ~label ~na_rm x y =
 let register env =
   Env.add "cov" (make_builtin_named ~name:"cov" ~variadic:true 2 (fun named_args _ ->
     let na_rm = has_na_rm named_args in
-    let weight_arg = List.assoc_opt (Some "weight") named_args in
+    let weight_arg = List.assoc_opt (Some "weights") named_args in
     let args =
       named_args
-      |> List.filter (fun (name, _) -> name <> Some "na_rm" && name <> Some "weight")
+      |> List.filter (fun (name, _) -> name <> Some "na_rm" && name <> Some "weights")
       |> List.map snd
     in
     match args with

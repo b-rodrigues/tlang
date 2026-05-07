@@ -176,11 +176,11 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "iqr([NA], na_rm = true)"
     "NA(Float)";
   test "weighted mean rejects mismatched weights"
-    "mean([1, 2, 3], weight = [1, 2])"
-    {|Error(ValueError: "Function `mean` expects `weight` to have the same length as the data.")|};
+    "mean([1, 2, 3], weights = [1, 2])"
+    {|Error(ValueError: "Function `mean` expects `weights` to have the same length as the data.")|};
   test "weighted lm rejects all-zero weights"
-    {|df = dataframe([x: [1, 2], y: [3, 4]]); lm(data = df, formula = y ~ x, weight = [0, 0])|}
-    {|Error(ValueError: "Function `lm` expects `weight` to contain at least one positive value.")|};
+    {|df = dataframe([x: [1, 2], y: [3, 4]]); lm(data = df, formula = y ~ x, weights = [0, 0])|}
+    {|Error(ValueError: "Function `lm` expects `weights` to contain at least one positive value.")|};
   test "winsorize accepts two-sided limits"
     "length(winsorize([1, 2, 3, 4], [0.25, 0.0]))"
     "4";
