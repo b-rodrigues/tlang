@@ -901,7 +901,7 @@ All packages are loaded automatically at startup:
 | Package     | Functions                                               |
 |-------------|----------------------------------------------------------|
 | `core`      | `print`, `type`, `length`, `head`, `tail`, `map`, `filter`, `sum`, `seq`, `getwd`, `file_exists`, `dir_exists`, `read_file`, `list_files`, `env`, `path_join`, `path_basename`, `path_dirname`, `path_ext`, `path_stem`, `path_abs`, `rm` |
-| `base`      | `assert`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
+| `base`      | `assert`, `assert_file_exists`, `assert_dir_exists`, `assert_size_of_file`, `assert_non_empty_file`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`, `predict`        |
 | `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames` |

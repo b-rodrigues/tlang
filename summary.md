@@ -275,7 +275,7 @@ All standard packages are auto-loaded. Each package lives under `src/packages/<p
 
 Purpose: assertions, missing values, error values, serialization, JSON.
 
-- Assertions and missingness: `assert(condition, message = NA)`, `is_na(x)`, `na()`, `na_int()`, `na_float()`, `na_bool()`, `na_string()`
+- Assertions and missingness: `assert(condition, message = NA)`, `assert_file_exists(path, message = NA)`, `assert_dir_exists(path, message = NA)`, `assert_size_of_file(path, size, message = NA)`, `assert_non_empty_file(path, message = NA)`, `is_na(x)`, `na()`, `na_int()`, `na_float()`, `na_bool()`, `na_string()`
 - Error values: `error(message)`, `error(code, message)`, `error_code(err)`, `error_message(err)`, `error_context(err)`
 - Serialization: `serialize(value, path)`, `deserialize(path)`, `t_write_json(value, path)`, `t_read_json(path)`
 

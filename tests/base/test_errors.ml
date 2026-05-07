@@ -88,6 +88,63 @@ let run_tests pass_count fail_count eval_string _eval_string_env test =
   test "assert arity error" {|assert(true, "ok", "extra")|} {|Error(ArityError: "Function `assert` expects 1 or 2 arguments but received 3.")|};
   print_newline ();
 
+  Printf.printf "Phase 1 — Filesystem Assert Helpers:\n";
+  let temp_dir_root = Filename.get_temp_dir_name () in
+  let temp_dir =
+    Filename.concat temp_dir_root
+      (Printf.sprintf "tlang-assert-tests-%d" (Unix.getpid ()))
+  in
+  (try Unix.mkdir temp_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let existing_file = Filename.concat temp_dir "artifact.txt" in
+  let empty_file = Filename.concat temp_dir "empty.txt" in
+  let missing_file = Filename.concat temp_dir "missing.txt" in
+  let file_contents = "hello" in
+  let oc = open_out existing_file in
+  output_string oc file_contents;
+  close_out oc;
+  let oc_empty = open_out empty_file in
+  close_out oc_empty;
+  test "assert_file_exists passes on regular file"
+    (Printf.sprintf {|assert_file_exists("%s")|} existing_file)
+    "true";
+  test "assert_file_exists fails on missing file"
+    (Printf.sprintf {|assert_file_exists("%s")|} missing_file)
+    (Printf.sprintf {|Error(AssertionError: "Expected file `%s` to exist.")|} missing_file);
+  test "assert_file_exists accepts custom message"
+    (Printf.sprintf {|assert_file_exists("%s", "output file missing")|} missing_file)
+    {|Error(AssertionError: "Assertion failed: output file missing.")|};
+  test "assert_file_exists rejects non-string message"
+    (Printf.sprintf {|assert_file_exists("%s", 1)|} existing_file)
+    {|Error(TypeError: "Function `assert_file_exists` expects a String as its second argument, got Int.")|};
+  test "assert_dir_exists passes on directory"
+    (Printf.sprintf {|assert_dir_exists("%s")|} temp_dir)
+    "true";
+  test "assert_dir_exists fails on file path"
+    (Printf.sprintf {|assert_dir_exists("%s")|} existing_file)
+    (Printf.sprintf {|Error(AssertionError: "Expected directory `%s` to exist.")|} existing_file);
+  test "assert_size_of_file passes on exact size"
+    (Printf.sprintf {|assert_size_of_file("%s", %d)|} existing_file (String.length file_contents))
+    "true";
+  test "assert_size_of_file fails on wrong size"
+    (Printf.sprintf {|assert_size_of_file("%s", 4)|} existing_file)
+    (Printf.sprintf {|Error(AssertionError: "Expected file `%s` to have size 4 bytes but found 5 bytes.")|} existing_file);
+  test "assert_size_of_file rejects negative size"
+    (Printf.sprintf {|assert_size_of_file("%s", -1)|} existing_file)
+    {|Error(ValueError: "Function `assert_size_of_file` expects a non-negative file size.")|};
+  test "assert_non_empty_file passes on non-empty file"
+    (Printf.sprintf {|assert_non_empty_file("%s")|} existing_file)
+    "true";
+  test "assert_non_empty_file fails on empty file"
+    (Printf.sprintf {|assert_non_empty_file("%s")|} empty_file)
+    (Printf.sprintf {|Error(AssertionError: "Expected file `%s` to be non-empty.")|} empty_file);
+  test "assert_non_empty_file accepts custom message"
+    (Printf.sprintf {|assert_non_empty_file("%s", "artifact should not be empty")|} empty_file)
+    {|Error(AssertionError: "Assertion failed: artifact should not be empty.")|};
+  (try Sys.remove existing_file with Sys_error _ -> ());
+  (try Sys.remove empty_file with Sys_error _ -> ());
+  (try Unix.rmdir temp_dir with Unix.Unix_error _ -> ());
+  print_newline ();
+
   Printf.printf "Phase 1 — Error Values (No Crashes):\n";
   test "name error returns error value" "undefined_func(1)" {|Error(NameError: "Name `undefined_func` is not defined.")|};
   test "calling non-function returns error" "x = 42; x(1)" {|Error(TypeError: "Value of type Int is not callable.")|};
