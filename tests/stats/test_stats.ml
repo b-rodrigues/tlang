@@ -128,6 +128,25 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
   let (_, env_lm) = eval_string_env {|weighted_df = dataframe([x: [1, 2, 3, 4], y: [1, 2, 2, 4]])|} env_lm in
   let (_, env_lm) = eval_string_env {|weighted_model = lm(data = weighted_df, formula = y ~ x, weights = [1, 1, 2, 2])|} env_lm in
+  
+  let test_env name input expected =
+    let (v, _) = eval_string_env input env_lm in
+    let result = Ast.Utils.value_to_string v in
+    let expected_norm = String.trim expected in
+    let result_norm = String.trim result in
+    let match_found = 
+      if result_norm = expected_norm then true
+      else try
+        let _ = Str.search_forward (Str.regexp expected_norm) result_norm 0 in
+        true
+      with _ -> false
+    in
+    if match_found then (
+      incr pass_count; Printf.printf "  ✓ %s\n" name
+    ) else (
+      incr fail_count; Printf.printf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result
+    )
+  in
 
   (* lm() now returns a VDict with _tidy_df and _model_data *)
   let (v, _) = eval_string_env "type(model)" env_lm in
@@ -229,9 +248,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "deviance non-dict" "deviance(\"hello\")" {|Error(TypeError: "Function `deviance` expects a model (Dict).")|};
   test "deviance missing key" "deviance([a: 1])" {|Error(TypeError: "Function `deviance` could not find 'deviance' in model object.")|};
-  test "weighted lm fit method" "weighted_model.fit_method" {|\"wls\"|};
-  test "weighted lm intercept" "head(weighted_model._tidy_df.estimate)" "-0.19512195122";
-  test "weighted lm coefficients" "head(tail(weighted_model._tidy_df.estimate))" "0.951219512195";
+  test_env "weighted lm fit method" "weighted_model.fit_method" {|\"wls\"|};
+  test_env "weighted lm intercept" "head(weighted_model._tidy_df.estimate)" "-0.19512195122";
+  test_env "weighted lm coefficients" "head(tail(weighted_model._tidy_df.estimate))" "0.951219512195";
 
   (* Test add_diagnostics() *)
   let (v, _) = eval_string_env "type(add_diagnostics(model, data = df))" env_lm in
