@@ -88,7 +88,7 @@ let run_tests pass_count fail_count eval_string _eval_string_env test =
   test "assert arity error" {|assert(true, "ok", "extra")|} {|Error(ArityError: "Function `assert` expects 1 or 2 arguments but received 3.")|};
   print_newline ();
 
-  Printf.printf "Phase 1 — Filesystem Assert Helpers:\n";
+  Printf.printf "Filesystem Assert Helpers:\n";
   let temp_dir_root = Filename.get_temp_dir_name () in
   let temp_dir =
     Filename.concat temp_dir_root

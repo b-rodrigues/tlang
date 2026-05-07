@@ -6,7 +6,7 @@ let assertion_failure ?message default_message =
   | None -> Error.make_error AssertionError default_message
 
 let path_arg function_name ordinal = function
-  | VString path | VSymbol path -> Ok path
+  | VString path -> Ok path
   | other ->
       Error
         (Error.type_error
@@ -36,11 +36,16 @@ let expected_size_arg = function
               "Function `assert_size_of_file` expects an Int as its second argument, got %s."
               (Utils.type_name other)))
 
-let regular_file_stat path =
+type file_target =
+  | Missing
+  | NotRegular
+  | RegularFile of Unix.stats
+
+let inspect_file_target path =
   match Unix.stat path with
-  | { Unix.st_kind = Unix.S_REG; _ } as stats -> Ok stats
-  | _ -> Error ()
-  | exception Unix.Unix_error _ -> Error ()
+  | { Unix.st_kind = Unix.S_REG; _ } as stats -> RegularFile stats
+  | _ -> NotRegular
+  | exception Unix.Unix_error _ -> Missing
 
 let directory_exists path =
   match Unix.stat path with
@@ -117,11 +122,14 @@ let register env =
     Env.add "assert_file_exists"
       (make_builtin ~name:"assert_file_exists" ~variadic:true 1 (fun args _env ->
         let exists path message =
-          match regular_file_stat path with
-          | Ok _ -> VBool true
-          | Error () ->
+          match inspect_file_target path with
+          | RegularFile _ -> VBool true
+          | Missing ->
               assertion_failure ?message
                 (Printf.sprintf "Expected file `%s` to exist." path)
+          | NotRegular ->
+              assertion_failure ?message
+                (Printf.sprintf "Expected `%s` to be a regular file." path)
         in
         match args with
         | [path_value] ->
@@ -201,11 +209,14 @@ let register env =
     Env.add "assert_size_of_file"
       (make_builtin ~name:"assert_size_of_file" ~variadic:true 2 (fun args _env ->
         let matches_size path expected_size message =
-          match regular_file_stat path with
-          | Error () ->
+          match inspect_file_target path with
+          | Missing ->
               assertion_failure ?message
                 (Printf.sprintf "Expected file `%s` to exist." path)
-          | Ok stats ->
+          | NotRegular ->
+              assertion_failure ?message
+                (Printf.sprintf "Expected `%s` to be a regular file." path)
+          | RegularFile stats ->
               if stats.Unix.st_size = expected_size then VBool true
               else
                 assertion_failure ?message
@@ -254,11 +265,14 @@ let register env =
     Env.add "assert_non_empty_file"
       (make_builtin ~name:"assert_non_empty_file" ~variadic:true 1 (fun args _env ->
         let non_empty path message =
-          match regular_file_stat path with
-          | Error () ->
+          match inspect_file_target path with
+          | Missing ->
               assertion_failure ?message
                 (Printf.sprintf "Expected file `%s` to exist." path)
-          | Ok stats ->
+          | NotRegular ->
+              assertion_failure ?message
+                (Printf.sprintf "Expected `%s` to be a regular file." path)
+          | RegularFile stats ->
               if stats.Unix.st_size > 0 then VBool true
               else
                 assertion_failure ?message
