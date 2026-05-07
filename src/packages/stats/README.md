@@ -6,29 +6,29 @@ Statistical summaries and models.
 
 | Function | Description |
 |----------|-------------|
-| `mean(x)` | Arithmetic mean of a numeric list/vector |
-| `sd(x)` | Standard deviation |
-| `quantile(x, p)` | Compute quantile at probability p |
-| `cor(x, y)` | Pearson correlation coefficient |
-| `lm(data, formula)` | Linear regression model object |
+| `mean(x, weight = NA)` | Arithmetic mean of a numeric list/vector, optionally weighted |
+| `sd(x, weight = NA)` | Standard deviation, optionally weighted |
+| `quantile(x, p, weight = NA)` | Compute quantile at probability p, optionally weighted |
+| `cor(x, y, weight = NA)` | Pearson correlation coefficient, optionally weighted |
+| `lm(data, formula, weight = NA)` | Linear regression / weighted least squares model object |
 | `summary(model)` | Tidy coefficients table (like `broom::tidy`) |
 | `fit_stats(model)` | Goodness-of-fit statistics (like `broom::fit_stats`) |
 | `add_diagnostics(model, data)` | Augment data with diagnostics (like `broom::augment`) |
 | `min(x)` | Minimum value |
 | `max(x)` | Maximum value |
-| `median(x, na_rm = false)` | Median value |
-| `var(x, na_rm = false)` | Sample variance |
-| `cov(x, y, na_rm = false)` | Sample covariance |
+| `median(x, na_rm = false, weight = NA)` | Median value, optionally weighted |
+| `var(x, na_rm = false, weight = NA)` | Variance, optionally weighted |
+| `cov(x, y, na_rm = false, weight = NA)` | Covariance, optionally weighted |
 | `range(x, na_rm = false)` | Min/max as a length-2 vector |
-| `iqr(x, na_rm = false)` | Interquartile range |
+| `iqr(x, na_rm = false, weight = NA)` | Interquartile range, optionally weighted |
 | `mad(x, na_rm = false)` | Median absolute deviation (scaled) |
-| `skewness(x, na_rm = false)` | Distribution skewness |
-| `kurtosis(x, na_rm = false)` | Excess kurtosis |
+| `skewness(x, na_rm = false, weight = NA)` | Distribution skewness, optionally weighted |
+| `kurtosis(x, na_rm = false, weight = NA)` | Excess kurtosis, optionally weighted |
 | `mode(x)` | Most frequent value |
-| `cv(x, na_rm = false)` | Coefficient of variation (sd / mean) |
-| `fivenum(x, na_rm = false)` | Five-number summary |
-| `trimmed_mean(x, trim)` | Mean after trimming both tails |
-| `winsorize(x, limits)` | Cap tails by quantile limits |
+| `cv(x, na_rm = false, weight = NA)` | Coefficient of variation (sd / mean), optionally weighted |
+| `fivenum(x, na_rm = false, weight = NA)` | Five-number summary, optionally weighted |
+| `trimmed_mean(x, trim, weight = NA)` | Mean after trimming both tails, optionally weighted |
+| `winsorize(x, limits, weight = NA)` | Cap tails by quantile limits, optionally weighted |
 | `huber_loss(x, delta)` | Robust Huber loss |
 | `scale(x)` / `standardize(x)` | z-score standardization |
 | `normalize(x)` | Min-max scaling to [0,1] |

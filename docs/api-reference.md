@@ -1177,46 +1177,46 @@ Statistical functions for data analysis. Most functions handle missingness via a
 
 ### Descriptive Statistics
 
-#### `median(x, na_rm = false)` / `mean(x, na_rm = false)`
+#### `median(x, na_rm = false, weight = NA)` / `mean(x, na_rm = false, weight = NA)`
 #### `min(x, na_rm = false)` / `max(x, na_rm = false)` / `range(x, na_rm = false)`
 
-Basic descriptive statistics. `range` returns a List of [min, max].
+Basic descriptive statistics. `mean` and `median` also accept optional non-negative observation weights. `range` returns a List of [min, max].
 
 ---
 
-#### `var(x, na_rm = false)` / `sd(x, na_rm = false)` / `cv(x, na_rm = false)`
+#### `var(x, na_rm = false, weight = NA)` / `sd(x, na_rm = false, weight = NA)` / `cv(x, na_rm = false, weight = NA)`
 
-Variance, standard deviation, and coefficient of variation (sd/mean).
-
----
-
-#### `iqr(x, na_rm = false)` / `mad(x, na_rm = false)`
-
-Interquartile range and Median Absolute Deviation (scaled by 1.4826).
+Variance, standard deviation, and coefficient of variation (sd/mean). These also accept optional non-negative observation weights.
 
 ---
 
-#### `fivenum(x, na_rm = false)`
+#### `iqr(x, na_rm = false, weight = NA)` / `mad(x, na_rm = false)`
 
-Tukey's five-number summary (min, lower-hinge, median, upper-hinge, max).
-
----
-
-#### `skewness(x, na_rm = false)` / `kurtosis(x, na_rm = false)`
-
-Skewness and excess kurtosis.
+Interquartile range and Median Absolute Deviation (scaled by 1.4826). `iqr` accepts optional non-negative observation weights.
 
 ---
 
-#### `trimmed_mean(x, trim = 0.1, na_rm = false)`
+#### `fivenum(x, na_rm = false, weight = NA)`
 
-Mean calculated after trimming a fraction of observations from each end.
+Tukey's five-number summary (min, lower-hinge, median, upper-hinge, max), with optional non-negative observation weights.
 
 ---
 
-#### `quantile(x, p, na_rm = false)`
+#### `skewness(x, na_rm = false, weight = NA)` / `kurtosis(x, na_rm = false, weight = NA)`
 
-Compute quantile/percentile (p between 0 and 1).
+Skewness and excess kurtosis, with optional non-negative observation weights.
+
+---
+
+#### `trimmed_mean(x, trim = 0.1, na_rm = false, weight = NA)`
+
+Mean calculated after trimming a fraction of observations from each end. Optional weights affect the trim cut points and the retained mean.
+
+---
+
+#### `quantile(x, p, na_rm = false, weight = NA)`
+
+Compute quantile/percentile (p between 0 and 1), with optional non-negative observation weights.
 
 ---
 
@@ -1234,9 +1234,9 @@ Rescale or center numeric data. `scale` and `standardize` compute z-scores. `nor
 
 ---
 
-#### `winsorize(x, probs = [0.05, 0.95], na_rm = false)`
+#### `winsorize(x, probs = [0.05, 0.95], na_rm = false, weight = NA)`
 
-Replace extreme values with quantiles.
+Replace extreme values with quantiles. Optional weights affect the lower and upper cut points.
 
 ---
 
@@ -1256,9 +1256,9 @@ Cumulative Distribution Functions for Normal, Student-t, F, and Chi-squared dist
 
 ### Modeling
 
-#### `lm(data, formula)`
+#### `lm(data, formula, weight = NA)`
 
-Fit a linear regression model (OLS). The formula is a `Formula` value such as `mpg ~ wt + hp`.
+Fit a linear regression model. Without weights this is OLS; with `weight` it performs weighted least squares. The formula is a `Formula` value such as `mpg ~ wt + hp`.
 
 ---
 
