@@ -72,10 +72,10 @@ let register env =
         done;
         match !had_error with Some e -> Error e | None -> Ok result
       in
-       let first_arg = match args with a :: _ -> Some a | [] -> None in
-       match first_arg with
-       | Some (VList []) -> Error.value_error "Function `mean` called on empty List."
-       | Some (VList items) ->
+      let first_arg = match args with a :: _ -> Some a | [] -> None in
+      match first_arg with
+      | Some (VList []) -> Error.value_error "Function `mean` called on empty List."
+      | Some (VList items) ->
            (match weight_arg with
             | Some weight_v ->
                 (match Math_utils.extract_numeric_array_with_weights ~label:"mean" ~na_rm (VList items) weight_v with
@@ -91,8 +91,8 @@ let register env =
                  | Ok nums ->
                    let sum = List.fold_left ( +. ) 0.0 nums in
                    VFloat (sum /. float_of_int (List.length nums))))
-       | Some (VVector arr) when Array.length arr = 0 -> Error.value_error "Function `mean` called on empty Vector."
-       | Some (VVector arr) ->
+      | Some (VVector arr) when Array.length arr = 0 -> Error.value_error "Function `mean` called on empty Vector."
+      | Some (VVector arr) ->
            (match weight_arg with
             | Some weight_v ->
                 (match Math_utils.extract_numeric_array_with_weights ~label:"mean" ~na_rm (VVector arr) weight_v with
@@ -115,7 +115,7 @@ let register env =
                    | Ok nums ->
                      let sum = Array.fold_left ( +. ) 0.0 nums in
                      VFloat (sum /. float_of_int (Array.length nums))))
-       | Some (VNA _) -> Error.na_value_error ~na_rm:true "mean"
+      | Some (VNA _) -> Error.na_value_error ~na_rm:true "mean"
       | Some _ -> Error.type_error "Function `mean` expects a numeric List or Vector."
       | None -> Error.arity_error_named "mean" 1 (List.length args)
     )))

@@ -381,12 +381,12 @@ let register env =
         | Some v -> Some v
         | None -> (match positional with v :: _ -> Some v | [] -> None)
       in
-       let formula_val = match List.assoc_opt "formula" named with
-         | Some v -> Some v
-         | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_val <> Some v -> Some v | _ -> None))
-       in
-       let weight_val = List.assoc_opt "weight" named in
-       match (data_val, formula_val) with
+      let formula_val = match List.assoc_opt "formula" named with
+        | Some v -> Some v
+        | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_val <> Some v -> Some v | _ -> None))
+      in
+      let weight_val = List.assoc_opt "weight" named in
+      match (data_val, formula_val) with
       | (None, _) -> Error.make_error ArityError "Function `lm` missing required argument 'data'."
       | (_, None) -> Error.make_error ArityError "Function `lm` missing required argument 'formula'."
       | (Some data_v, Some formula_v) ->

@@ -461,7 +461,7 @@ let linreg_multi ?weights (xs_list : float array list) (ys : float array)
         let r_sq = if !ss_tot = 0.0 then 1.0 else 1.0 -. !ss_res /. !ss_tot in
         let adj_r_sq = if !ss_tot = 0.0 || df_resid = 0 then r_sq
                        else 1.0 -. (1.0 -. r_sq) *. (nf -. 1.0) /. dff in
-      (* Standard errors, t-statistics, p-values *)
+        (* Standard errors, t-statistics, p-values *)
         let std_errs = Array.init p (fun j ->
           if sigma2 > 0.0 && xtx_inv.(j).(j) >= 0.0
           then sqrt (sigma2 *. xtx_inv.(j).(j))
@@ -470,13 +470,13 @@ let linreg_multi ?weights (xs_list : float array list) (ys : float array)
         let t_stats = Array.init p (fun j ->
           if std_errs.(j) > 0.0 then beta.(j) /. std_errs.(j) else 0.0
         ) in
-       let p_vals = Array.init p (fun j ->
-         if df_resid > 0 && std_errs.(j) > 0.0
-         then t_pvalue t_stats.(j) dff
-         else 1.0
-       ) in
-       (* F-statistic *)
-       let ss_model = !ss_tot -. !ss_res in
+        let p_vals = Array.init p (fun j ->
+          if df_resid > 0 && std_errs.(j) > 0.0
+          then t_pvalue t_stats.(j) dff
+          else 1.0
+        ) in
+        (* F-statistic *)
+        let ss_model = !ss_tot -. !ss_res in
         let f_stat = if k > 0 && df_resid > 0 && !ss_res > 0.0
                      then (ss_model /. float_of_int k) /. (!ss_res /. dff)
                      else 0.0 in
@@ -484,10 +484,10 @@ let linreg_multi ?weights (xs_list : float array list) (ys : float array)
                      then f_pvalue f_stat k (float_of_int df_resid)
                      else 1.0 in
         (* Hat matrix diagonal: h_ii = x_i' (X'X)^{-1} x_i *)
-       let hat_vals = Array.init n (fun i ->
-         let h = ref 0.0 in
-         for j1 = 0 to p - 1 do
-           for j2 = 0 to p - 1 do
+        let hat_vals = Array.init n (fun i ->
+          let h = ref 0.0 in
+          for j1 = 0 to p - 1 do
+            for j2 = 0 to p - 1 do
              h := !h +. obs_weights.(i) *. x_matrix.(i).(j1) *. xtx_inv.(j1).(j2) *. x_matrix.(i).(j2)
            done
          done;
