@@ -65,45 +65,45 @@ let register env =
     match Math_common.get_bool_flag "na_rm" false named_args with
     | Error e -> e
     | Ok na_rm ->
-    let weight_arg = List.assoc_opt (Some "weights") named_args in
-    let args = Math_common.positional_args_without ["na_rm"; "weights"] named_args in
-    let limits_of = function
-      | VFloat f when f >= 0.0 && f < 0.5 -> Some (f, f)
-      | VInt i when i >= 0 -> let f = float_of_int i in if f < 0.5 then Some (f, f) else None
-      | VList [(_, VFloat lo); (_, VFloat hi)] when lo >= 0.0 && hi >= 0.0 && lo < 0.5 && hi < 0.5 -> Some (lo, hi)
-      | VVector [|VFloat lo; VFloat hi|] when lo >= 0.0 && hi >= 0.0 && lo < 0.5 && hi < 0.5 -> Some (lo, hi)
-      | _ -> None
-    in
-    match args with
-    | [x; limits] ->
-        (match limits_of limits with
-         | None -> Error.value_error "Function `winsorize` expects limits in [0, 0.5)."
-         | Some (lo, hi) ->
-             (match weight_arg with
-              | Some weight_v ->
-                  (match Math_utils.extract_numeric_array_with_weights ~label:"winsorize" ~na_rm x weight_v with
-                   | Error e -> e
-                   | Ok (xs, ws) ->
-                       (match Math_utils.weighted_quantile_array xs ws lo,
-                              Math_utils.weighted_quantile_array xs ws (1.0 -. hi) with
-                        | Some lq, Some uq ->
-                            vecf
-                              (Array.to_list
-                                 (Array.map
-                                    (fun v ->
-                                      if v < lq then lq
-                                      else if v > uq then uq
-                                      else v)
-                                    xs))
-                        | _ ->
-                            Error.value_error "Function `winsorize` could not compute quantiles for the given input."))
-              | None ->
-                  (match numeric_values ~label:"winsorize" ~na_rm x with
-                   | Error e -> e
-                   | Ok [] -> VNA NAFloat
-                   | Ok xs ->
-                       (match quantile xs lo, quantile xs (1.0 -. hi) with
-                        | Some lq, Some uq ->
-                            vecf (List.map (fun v -> if v < lq then lq else if v > uq then uq else v) xs)
-                        | _ -> Error.value_error "Function `winsorize` could not compute quantiles for the given input."))))
-    | _ -> Error.arity_error_named "winsorize" 2 (List.length args)))) env
+        let weight_arg = List.assoc_opt (Some "weights") named_args in
+        let args = Math_common.positional_args_without ["na_rm"; "weights"] named_args in
+        let limits_of = function
+          | VFloat f when f >= 0.0 && f < 0.5 -> Some (f, f)
+          | VInt i when i >= 0 -> let f = float_of_int i in if f < 0.5 then Some (f, f) else None
+          | VList [(_, VFloat lo); (_, VFloat hi)] when lo >= 0.0 && hi >= 0.0 && lo < 0.5 && hi < 0.5 -> Some (lo, hi)
+          | VVector [|VFloat lo; VFloat hi|] when lo >= 0.0 && hi >= 0.0 && lo < 0.5 && hi < 0.5 -> Some (lo, hi)
+          | _ -> None
+        in
+        match args with
+        | [x; limits] ->
+            (match limits_of limits with
+             | None -> Error.value_error "Function `winsorize` expects limits in [0, 0.5)."
+             | Some (lo, hi) ->
+                 (match weight_arg with
+                  | Some weight_v ->
+                      (match Math_utils.extract_numeric_array_with_weights ~label:"winsorize" ~na_rm x weight_v with
+                       | Error e -> e
+                       | Ok (xs, ws) ->
+                           (match Math_utils.weighted_quantile_array xs ws lo,
+                                  Math_utils.weighted_quantile_array xs ws (1.0 -. hi) with
+                            | Some lq, Some uq ->
+                                vecf
+                                  (Array.to_list
+                                     (Array.map
+                                        (fun v ->
+                                          if v < lq then lq
+                                          else if v > uq then uq
+                                          else v)
+                                        xs))
+                            | _ ->
+                                Error.value_error "Function `winsorize` could not compute quantiles for the given input."))
+                  | None ->
+                      (match numeric_values ~label:"winsorize" ~na_rm x with
+                       | Error e -> e
+                       | Ok [] -> VNA NAFloat
+                       | Ok xs ->
+                           (match quantile xs lo, quantile xs (1.0 -. hi) with
+                            | Some lq, Some uq ->
+                                vecf (List.map (fun v -> if v < lq then lq else if v > uq then uq else v) xs)
+                            | _ -> Error.value_error "Function `winsorize` could not compute quantiles for the given input."))))
+        | _ -> Error.arity_error_named "winsorize" 2 (List.length args))) env
