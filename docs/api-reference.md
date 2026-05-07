@@ -866,6 +866,91 @@ assert(false, "Custom message")   -- Error(AssertionError: Custom message)
 
 ---
 
+### `assert_file_exists(path)` / `assert_file_exists(path, message)`
+
+Assert that a regular file exists at `path`.
+
+**Parameters:**
+
+- `path` — File path
+- `message` (optional) — Custom assertion message
+
+**Returns:**
+
+`true` if the file exists
+
+**Examples:**
+```t
+assert_file_exists("output.csv")
+assert_file_exists("report.html", "report generation failed")
+```
+
+---
+
+### `assert_dir_exists(path)` / `assert_dir_exists(path, message)`
+
+Assert that a directory exists at `path`.
+
+**Parameters:**
+
+- `path` — Directory path
+- `message` (optional) — Custom assertion message
+
+**Returns:**
+
+`true` if the directory exists
+
+**Examples:**
+```t
+assert_dir_exists("results")
+assert_dir_exists("artifacts", "artifact directory was not created")
+```
+
+---
+
+### `assert_size_of_file(path, size)` / `assert_size_of_file(path, size, message)`
+
+Assert that a regular file exists and has the expected size in bytes.
+
+**Parameters:**
+
+- `path` — File path
+- `size` — Expected size in bytes
+- `message` (optional) — Custom assertion message
+
+**Returns:**
+
+`true` if the file exists and matches the expected size
+
+**Examples:**
+```t
+assert_size_of_file("output.csv", 128)
+assert_size_of_file("report.html", 0, "report should be empty")
+```
+
+---
+
+### `assert_non_empty_file(path)` / `assert_non_empty_file(path, message)`
+
+Assert that a regular file exists and contains at least one byte.
+
+**Parameters:**
+
+- `path` — File path
+- `message` (optional) — Custom assertion message
+
+**Returns:**
+
+`true` if the file exists and is non-empty
+
+**Examples:**
+```t
+assert_non_empty_file("output.csv")
+assert_non_empty_file("plot.png", "plot was not written")
+```
+
+---
+
 ### `NA`
 
 Untyped missing value constant.

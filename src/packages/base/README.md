@@ -7,6 +7,10 @@ Assertions, NA handling, and error utilities.
 | Function | Description |
 |----------|-------------|
 | `assert(condition)` | Assert a condition is true; error on false |
+| `assert_file_exists(path)` | Assert that a regular file exists |
+| `assert_dir_exists(path)` | Assert that a directory exists |
+| `assert_size_of_file(path, size)` | Assert that a file has an exact size in bytes |
+| `assert_non_empty_file(path)` | Assert that a file exists and is non-empty |
 | `is_na(x)` | Check if a value is NA |
 | `na()` | Generic NA value |
 | `na_int()` | Integer NA value |
