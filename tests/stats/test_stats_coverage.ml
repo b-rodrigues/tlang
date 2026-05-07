@@ -178,12 +178,21 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "weighted mean rejects mismatched weights"
     "mean([1, 2, 3], weights = [1, 2])"
     {|Error(ValueError: "Function `mean` expects `weights` to have the same length as the data.")|};
+  test "weighted mean treats NA weights as omitted"
+    "mean([1, 2, 3], weights = NA)"
+    "2.";
   test "weighted lm rejects all-zero weights"
     {|df = dataframe([x: [1, 2], y: [3, 4]]); lm(data = df, formula = y ~ x, weights = [0, 0])|}
     {|Error(ValueError: "Function `lm` expects `weights` to contain at least one positive value.")|};
+  test "lm treats NA weights as omitted"
+    {|df = dataframe([x: [1, 2, 3], y: [2, 3, 4]]); lm(data = df, formula = y ~ x, weights = NA).fit_method|}
+    {|"ols"|};
   test "winsorize accepts two-sided limits"
     "length(winsorize([1, 2, 3, 4], [0.25, 0.0]))"
     "4";
+  test "weighted winsorize keeps zero-weight observations"
+    "winsorize([1, 2, 100], 0.25, weights = [0, 1, 1])"
+    "Vector[2., 2., 100.]";
   test "huber_loss rejects non numeric values in lists"
     {|huber_loss([1, "a"], 1)|}
     {|Error(TypeError: "Function `huber_loss` requires numeric values.")|};

@@ -17,7 +17,8 @@ compare_csvs <- function(test_name, tolerance = 1e-6) {
   
   # Check both files exist
   if (!file.exists(expected_file)) {
-    skip(paste("Expected file not found:", expected_file))
+    fail(paste("Expected file not found:", expected_file))
+    return()
   }
   
   if (!file.exists(t_output_file)) {

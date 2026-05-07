@@ -23,7 +23,7 @@ let register env =
       | Error e -> e
       | Ok na_rm ->
       let args = Math_common.positional_args_without ["na_rm"; "weights"] named_args in
-      let weight_arg = List.assoc_opt (Some "weights") named_args in
+      let weight_arg = Math_common.optional_named_arg "weights" named_args in
       let extract_nums_arr label arr =
         let len = Array.length arr in
         let had_error = ref None in

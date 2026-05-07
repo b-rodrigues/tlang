@@ -385,7 +385,11 @@ let register env =
         | Some v -> Some v
         | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_val <> Some v -> Some v | _ -> None))
       in
-      let weight_val = List.assoc_opt "weights" named in
+      let weight_val =
+        match List.assoc_opt "weights" named with
+        | Some (VNA _) | None -> None
+        | Some v -> Some v
+      in
       match (data_val, formula_val) with
       | (None, _) -> Error.make_error ArityError "Function `lm` missing required argument 'data'."
       | (_, None) -> Error.make_error ArityError "Function `lm` missing required argument 'formula'."

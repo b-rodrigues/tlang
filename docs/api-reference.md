@@ -1186,7 +1186,7 @@ Basic descriptive statistics. `mean` and `median` also accept optional non-negat
 
 #### `var(x, na_rm = false, weights = NA)` / `sd(x, na_rm = false, weights = NA)` / `cv(x, na_rm = false, weights = NA)`
 
-Variance, standard deviation, and coefficient of variation (sd/mean). These also accept optional non-negative observation weights.
+Variance, standard deviation, and coefficient of variation (sd/mean). These also accept optional non-negative observation weights. The weighted `sd`/`var` path uses the weighted population denominator (`sum(weights)`), while the unweighted path uses sample formulas.
 
 ---
 
@@ -1234,9 +1234,9 @@ Rescale or center numeric data. `scale` and `standardize` compute z-scores. `nor
 
 ---
 
-#### `winsorize(x, probs = [0.05, 0.95], na_rm = false, weights = NA)`
+#### `winsorize(x, limits = [0.05, 0.05], na_rm = false, weights = NA)`
 
-Replace extreme values with quantiles. Optional weights affect the lower and upper cut points.
+Clamp values to lower and upper tail limits in `[0, 0.5)`. Optional weights affect the cut points only; zero-weight observations remain in the output.
 
 ---
 

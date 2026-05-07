@@ -60,12 +60,49 @@ let mean xs =
 
 let vecf xs = VVector (Array.of_list (List.map (fun x -> VFloat x) xs))
 
+let weighted_numeric_values ~label ~na_rm x weight_v =
+  match (Math_utils.collection_values ~label x, Math_utils.collection_values ~label weight_v) with
+  | Error _ as err, _ -> err
+  | _, Error _ -> Error (Math_utils.numeric_weight_error label)
+  | Ok xs_raw, Ok ws_raw ->
+      if Array.length xs_raw <> Array.length ws_raw then
+        Error (Math_utils.invalid_weight_length_error label)
+      else
+        let xs = ref [] in
+        let ws = ref [] in
+        let had_error = ref None in
+        for i = 0 to Array.length xs_raw - 1 do
+          if !had_error = None then
+            match
+              ( Math_utils.numeric_value_of_value ~label xs_raw.(i),
+                Math_utils.weight_value_of_value ~label ws_raw.(i) )
+            with
+            | Ok xv, Ok w ->
+                xs := xv :: !xs;
+                ws := w :: !ws
+            | (Error _, _) | (_, Error _)
+              when na_rm
+                   &&
+                   (match (xs_raw.(i), ws_raw.(i)) with
+                    | VNA _, _ | _, VNA _ -> true
+                    | _ -> false) -> ()
+            | Error e, _ | _, Error e -> had_error := Some e
+        done;
+        (match !had_error with
+         | Some e -> Error e
+         | None ->
+             let xs = Array.of_list (List.rev !xs) in
+             let ws = Array.of_list (List.rev !ws) in
+             if Array.length xs = 0 then Ok (xs, ws)
+             else if Array.exists (fun w -> w > 0.0) ws then Ok (xs, ws)
+             else Error (Math_utils.invalid_weight_total_error label))
+
 let register env =
   Env.add "winsorize" (make_builtin_named ~name:"winsorize" ~variadic:true 2 (fun named_args _ ->
     match Math_common.get_bool_flag "na_rm" false named_args with
     | Error e -> e
     | Ok na_rm ->
-        let weight_arg = List.assoc_opt (Some "weights") named_args in
+        let weight_arg = Math_common.optional_named_arg "weights" named_args in
         let args = Math_common.positional_args_without ["na_rm"; "weights"] named_args in
         let limits_of = function
           | VFloat f when f >= 0.0 && f < 0.5 -> Some (f, f)
@@ -81,11 +118,12 @@ let register env =
              | Some (lo, hi) ->
                  (match weight_arg with
                   | Some weight_v ->
-                      (match Math_utils.extract_numeric_array_with_weights ~label:"winsorize" ~na_rm x weight_v with
-                       | Error e -> e
-                       | Ok (xs, ws) ->
-                           (match Math_utils.weighted_quantile_array xs ws lo,
-                                  Math_utils.weighted_quantile_array xs ws (1.0 -. hi) with
+                       (match weighted_numeric_values ~label:"winsorize" ~na_rm x weight_v with
+                        | Error e -> e
+                        | Ok (xs, _) when Array.length xs = 0 -> VNA NAFloat
+                        | Ok (xs, ws) ->
+                            (match Math_utils.weighted_quantile_array xs ws lo,
+                                   Math_utils.weighted_quantile_array xs ws (1.0 -. hi) with
                             | Some lq, Some uq ->
                                 vecf
                                   (Array.to_list
