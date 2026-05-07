@@ -1236,7 +1236,7 @@ Rescale or center numeric data. `scale` and `standardize` compute z-scores. `nor
 
 #### `winsorize(x, limits = [0.05, 0.05], na_rm = false, weights = NA)`
 
-Clamp values to lower and upper tail limits in `[0, 0.5)`. Optional weights affect the cut points only; zero-weight observations remain in the output.
+Clamp values using one limit or a two-element vector `[lower_tail_fraction, upper_tail_fraction]`, with each fraction in `[0, 0.5)`. Optional weights affect the cut points only; zero-weight observations remain in the output.
 
 ---
 
