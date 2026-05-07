@@ -129,10 +129,12 @@ let extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights
             | Ok xv, Ok w when w > 0.0 ->
                 xs := xv :: !xs;
                 ws := w :: !ws
-            | Ok xv, Ok w when w = 0.0 && not drop_zero_weights ->
-                xs := xv :: !xs;
-                ws := w :: !ws
-            | Ok _, Ok w when w = 0.0 && drop_zero_weights -> ()
+            | Ok xv, Ok w when w = 0.0 ->
+                if drop_zero_weights then ()
+                else begin
+                  xs := xv :: !xs;
+                  ws := w :: !ws
+                end
             | (Error _, _) | (_, Error _)
               when na_rm
                    &&
