@@ -121,16 +121,34 @@ let run_tests pass_count fail_count eval_string _eval_string_env test =
     "true";
   test "assert_dir_exists fails on file path"
     (Printf.sprintf {|assert_dir_exists("%s")|} existing_file)
-    (Printf.sprintf {|Error(AssertionError: "Expected directory `%s` to exist.")|} existing_file);
+    (Printf.sprintf {|Error(AssertionError: "Expected `%s` to be a directory.")|} existing_file);
+  test "assert_dir_exists fails on missing directory"
+    (Printf.sprintf {|assert_dir_exists("%s")|} missing_file)
+    (Printf.sprintf {|Error(AssertionError: "Expected directory `%s` to exist.")|} missing_file);
+  test "assert_dir_exists accepts custom message"
+    (Printf.sprintf {|assert_dir_exists("%s", "artifact directory missing")|} existing_file)
+    {|Error(AssertionError: "Assertion failed: artifact directory missing.")|};
+  test "assert_dir_exists rejects non-string path"
+    {|assert_dir_exists(1)|}
+    {|Error(TypeError: "Function `assert_dir_exists` expects a String as its first argument, got Int.")|};
   test "assert_size_of_file passes on exact size"
     (Printf.sprintf {|assert_size_of_file("%s", %d)|} existing_file (String.length file_contents))
     "true";
   test "assert_size_of_file fails on wrong size"
     (Printf.sprintf {|assert_size_of_file("%s", 4)|} existing_file)
     (Printf.sprintf {|Error(AssertionError: "Expected file `%s` to have size 4 bytes but found 5 bytes.")|} existing_file);
+  test "assert_size_of_file accepts custom message"
+    (Printf.sprintf {|assert_size_of_file("%s", 4, "artifact has wrong size")|} existing_file)
+    {|Error(AssertionError: "Assertion failed: artifact has wrong size.")|};
   test "assert_size_of_file rejects negative size"
     (Printf.sprintf {|assert_size_of_file("%s", -1)|} existing_file)
     {|Error(ValueError: "Function `assert_size_of_file` expects a non-negative file size.")|};
+  test "assert_size_of_file rejects non-string path"
+    {|assert_size_of_file(1, 0)|}
+    {|Error(TypeError: "Function `assert_size_of_file` expects a String as its first argument, got Int.")|};
+  test "assert_size_of_file rejects non-int size"
+    (Printf.sprintf {|assert_size_of_file("%s", "five")|} existing_file)
+    {|Error(TypeError: "Function `assert_size_of_file` expects an Int as its second argument, got String.")|};
   test "assert_non_empty_file passes on non-empty file"
     (Printf.sprintf {|assert_non_empty_file("%s")|} existing_file)
     "true";
@@ -140,6 +158,9 @@ let run_tests pass_count fail_count eval_string _eval_string_env test =
   test "assert_non_empty_file accepts custom message"
     (Printf.sprintf {|assert_non_empty_file("%s", "artifact should not be empty")|} empty_file)
     {|Error(AssertionError: "Assertion failed: artifact should not be empty.")|};
+  test "assert_non_empty_file rejects non-string path"
+    {|assert_non_empty_file(1)|}
+    {|Error(TypeError: "Function `assert_non_empty_file` expects a String as its first argument, got Int.")|};
   (try Sys.remove existing_file with Sys_error _ -> ());
   (try Sys.remove empty_file with Sys_error _ -> ());
   (try Unix.rmdir temp_dir with Unix.Unix_error _ -> ());

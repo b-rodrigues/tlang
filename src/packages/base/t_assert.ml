@@ -47,11 +47,16 @@ let inspect_file_target path =
   | _ -> NotRegular
   | exception Unix.Unix_error _ -> Missing
 
-let directory_exists path =
+type directory_target =
+  | DirectoryMissing
+  | NotDirectory
+  | Directory
+
+let inspect_directory_target path =
   match Unix.stat path with
-  | { Unix.st_kind = Unix.S_DIR; _ } -> true
-  | _ -> false
-  | exception Unix.Unix_error _ -> false
+  | { Unix.st_kind = Unix.S_DIR; _ } -> Directory
+  | _ -> NotDirectory
+  | exception Unix.Unix_error _ -> DirectoryMissing
 
 let optional_arity_error function_name expected received =
   Error.make_error ArityError
@@ -167,10 +172,14 @@ let register env =
     Env.add "assert_dir_exists"
       (make_builtin ~name:"assert_dir_exists" ~variadic:true 1 (fun args _env ->
         let exists path message =
-          if directory_exists path then VBool true
-          else
-            assertion_failure ?message
-              (Printf.sprintf "Expected directory `%s` to exist." path)
+          match inspect_directory_target path with
+          | Directory -> VBool true
+          | DirectoryMissing ->
+              assertion_failure ?message
+                (Printf.sprintf "Expected directory `%s` to exist." path)
+          | NotDirectory ->
+              assertion_failure ?message
+                (Printf.sprintf "Expected `%s` to be a directory." path)
         in
         match args with
         | [path_value] ->
