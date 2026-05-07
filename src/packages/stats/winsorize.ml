@@ -81,9 +81,9 @@ let register env =
              | Some (lo, hi) ->
                  (match weight_arg with
                   | Some weight_v ->
-                       (match Math_utils.extract_numeric_array_with_weights_preserve_zeros ~label:"winsorize" ~na_rm x weight_v with
+                       (match Math_utils.extract_numeric_array_with_weights_preserve_zeros_allow_empty ~label:"winsorize" ~na_rm x weight_v with
                         | Error e -> e
-                        | Ok (xs, ws) when Array.length xs = 0 && Array.length ws = 0 -> VNA NAFloat
+                        | Ok (xs, _) when Array.length xs = 0 -> VNA NAFloat
                         | Ok (xs, ws) ->
                             (match Math_utils.weighted_quantile_array xs ws lo,
                                    Math_utils.weighted_quantile_array xs ws (1.0 -. hi) with

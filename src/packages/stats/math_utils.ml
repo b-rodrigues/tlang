@@ -109,7 +109,7 @@ let extract_numeric_array ~label ~na_rm v =
       | Some e -> Error e
       | None -> Ok (Array.of_list (List.rev !acc))
 
-let extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights x weight_v =
+let extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights ~allow_empty x weight_v =
   match (collection_values ~label x, collection_values ~label weight_v) with
   | Error _ as err, _ -> err
   | _, Error _ -> Error (numeric_weight_error label)
@@ -145,15 +145,20 @@ let extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights
           | None ->
               let xs = Array.of_list (List.rev !xs) in
               let ws = Array.of_list (List.rev !ws) in
-              if Array.length xs = 0 then Ok (xs, ws)
+              if Array.length xs = 0 then
+                if allow_empty then Ok (xs, ws)
+                else Error (invalid_weight_total_error label)
               else if Array.exists (fun w -> w > 0.0) ws then Ok (xs, ws)
               else Error (invalid_weight_total_error label))
 
 let extract_numeric_array_with_weights ~label ~na_rm x weight_v =
-  extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights:true x weight_v
+  extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights:true ~allow_empty:false x weight_v
 
 let extract_numeric_array_with_weights_preserve_zeros ~label ~na_rm x weight_v =
-  extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights:false x weight_v
+  extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights:false ~allow_empty:false x weight_v
+
+let extract_numeric_array_with_weights_preserve_zeros_allow_empty ~label ~na_rm x weight_v =
+  extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights:false ~allow_empty:true x weight_v
 
 let extract_paired_numeric_arrays ~label ~na_rm x y =
   match (collection_values ~label x, collection_values ~label y) with
