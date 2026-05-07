@@ -279,6 +279,8 @@ weighted_df <- tibble(
   y = c(1, 2, 2, 4),
   w = c(1, 1, 2, 2)
 )
+# Normalize weights to sum to n, matching T's behavior
+weighted_df$w <- weighted_df$w * nrow(weighted_df) / sum(weighted_df$w)
 weighted_lm <- lm(y ~ x, data = weighted_df, weights = w)
 weighted_lm_stats <- tibble(
   intercept = coef(weighted_lm)[1],
