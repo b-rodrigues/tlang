@@ -202,6 +202,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 - **Native Arrow I/O**: High-performance reading and writing of `CSV`, `Parquet`, and `Arrow` (IPC/Feather) formats.
 - **Polyglot & Metaprogramming**: First-class support for R, Python, and shell/CLI nodes, plus a robust metaprogramming layer (`expr`, `enquo`, `get`, `sym`).
 - **Pipeline Introspection**: High-level tools for auditing and querying complex execution graphs (`which_nodes`, `filter_node`, `errored_nodes`).
+- **Weighted Statistics**: Core descriptive statistics and `lm()` now support optional observation weights for weighted summaries and weighted least squares.
 
 What is currently missing:
 * **Native T Plotting**: While T provides first-class metadata capture and headless rendering for **R (ggplot2)** and **Python (matplotlib, plotnine, plotly, altair)** objects, it does not yet have its own native charting library, and will likely never have one.

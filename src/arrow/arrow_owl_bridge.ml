@@ -373,145 +373,175 @@ let f_pvalue f_stat df1 df2 =
     let x = df2 /. (df2 +. float_of_int df1 *. f_stat) in
     betai x (df2 /. 2.0) (float_of_int df1 /. 2.0)
 
-(** Multi-predictor OLS regression.
-    xs: list of predictor arrays (each length n)
-    ys: response array (length n)
-    predictor_names: names of predictor columns
-    Returns None if system is singular or inputs invalid. *)
-let linreg_multi (xs_list : float array list) (ys : float array)
+(** Multi-predictor OLS/WLS regression.
+     xs: list of predictor arrays (each length n)
+     ys: response array (length n)
+     weights: optional observation weights
+     predictor_names: names of predictor columns
+     Returns None if system is singular or inputs invalid. *)
+let linreg_multi ?weights (xs_list : float array list) (ys : float array)
     (predictor_names : string list) : lm_result option =
   let n = Array.length ys in
   let k = List.length xs_list in  (* number of predictors *)
   let p = k + 1 in  (* total parameters including intercept *)
   if n < p || n < 2 then None
   else begin
-    (* Build design matrix X (n × p): column 0 = intercept (all 1s) *)
-    let xs_arr = Array.of_list xs_list in
-    let x_matrix = Array.init n (fun i ->
-      Array.init p (fun j ->
-        if j = 0 then 1.0 else xs_arr.(j - 1).(i)
-      )
-    ) in
-    (* Compute X'X (p × p) *)
-    let xtx = Array.init p (fun i ->
-      Array.init p (fun j ->
+    let obs_weights =
+      match weights with
+      | None -> Array.make n 1.0
+      | Some ws when Array.length ws <> n -> [||]
+      | Some ws ->
+          let total_w = Array.fold_left ( +. ) 0.0 ws in
+          if total_w <= 0.0 then [||]
+          else
+            Array.map (fun w -> w *. float_of_int n /. total_w) ws
+    in
+    if Array.length obs_weights <> n then None
+    else begin
+      (* Build design matrix X (n × p): column 0 = intercept (all 1s) *)
+      let xs_arr = Array.of_list xs_list in
+      let x_matrix = Array.init n (fun i ->
+        Array.init p (fun j ->
+          if j = 0 then 1.0 else xs_arr.(j - 1).(i)
+        )
+      ) in
+      (* Compute X'X (p × p) *)
+      let xtx = Array.init p (fun i ->
+        Array.init p (fun j ->
+          let s = ref 0.0 in
+          for row = 0 to n - 1 do
+            s := !s +. obs_weights.(row) *. x_matrix.(row).(i) *. x_matrix.(row).(j)
+          done;
+          !s
+        )
+      ) in
+      (* Compute X'y (p-vector) *)
+      let xty = Array.init p (fun j ->
         let s = ref 0.0 in
         for row = 0 to n - 1 do
-          s := !s +. x_matrix.(row).(i) *. x_matrix.(row).(j)
-        done;
-        !s
-      )
-    ) in
-    (* Compute X'y (p-vector) *)
-    let xty = Array.init p (fun j ->
-      let s = ref 0.0 in
-      for row = 0 to n - 1 do
-        s := !s +. x_matrix.(row).(j) *. ys.(row)
-      done;
-      !s
-    ) in
-    (* Solve (X'X) β = X'y and get (X'X)^{-1} *)
-    match solve_and_invert xtx xty with
-    | None -> None
-    | Some (beta, xtx_inv) ->
-      (* Fitted values and residuals *)
-      let fitted = Array.init n (fun i ->
-        let s = ref 0.0 in
-        for j = 0 to p - 1 do
-          s := !s +. x_matrix.(i).(j) *. beta.(j)
+          s := !s +. obs_weights.(row) *. x_matrix.(row).(j) *. ys.(row)
         done;
         !s
       ) in
-      let resid = Array.init n (fun i -> ys.(i) -. fitted.(i)) in
-      (* SS_res, SS_tot *)
-      let nf = float_of_int n in
-      let mean_y = Array.fold_left ( +. ) 0.0 ys /. nf in
-      let ss_res = Array.fold_left (fun acc r -> acc +. r *. r) 0.0 resid in
-      let ss_tot = Array.fold_left (fun acc y -> acc +. (y -. mean_y) *. (y -. mean_y)) 0.0 ys in
-      let df_resid = n - p in
-      let dff = float_of_int df_resid in
-      let sigma2 = if df_resid > 0 then ss_res /. dff else 0.0 in
-      let sigma = sqrt sigma2 in
-      (* R² and adjusted R² *)
-      let r_sq = if ss_tot = 0.0 then 1.0 else 1.0 -. ss_res /. ss_tot in
-      let adj_r_sq = if ss_tot = 0.0 || df_resid = 0 then r_sq
-                     else 1.0 -. (1.0 -. r_sq) *. (nf -. 1.0) /. dff in
-      (* Standard errors, t-statistics, p-values *)
-      let std_errs = Array.init p (fun j ->
-        if sigma2 > 0.0 && xtx_inv.(j).(j) >= 0.0
-        then sqrt (sigma2 *. xtx_inv.(j).(j))
-        else 0.0
-      ) in
-      let t_stats = Array.init p (fun j ->
-        if std_errs.(j) > 0.0 then beta.(j) /. std_errs.(j) else 0.0
-      ) in
-      let p_vals = Array.init p (fun j ->
-        if df_resid > 0 && std_errs.(j) > 0.0
-        then t_pvalue t_stats.(j) dff
-        else 1.0
-      ) in
-      (* F-statistic *)
-      let ss_model = ss_tot -. ss_res in
-      let f_stat = if k > 0 && df_resid > 0 && ss_res > 0.0
-                   then (ss_model /. float_of_int k) /. (ss_res /. dff)
-                   else 0.0 in
-      let f_pval = if k > 0 && df_resid > 0
-                   then f_pvalue f_stat k (float_of_int df_resid)
-                   else 1.0 in
-      (* Hat matrix diagonal: h_ii = x_i' (X'X)^{-1} x_i *)
-      let hat_vals = Array.init n (fun i ->
-        let h = ref 0.0 in
-        for j1 = 0 to p - 1 do
-          for j2 = 0 to p - 1 do
-            h := !h +. x_matrix.(i).(j1) *. xtx_inv.(j1).(j2) *. x_matrix.(i).(j2)
-          done
+      (* Solve (X'X) β = X'y and get (X'X)^{-1} *)
+      match solve_and_invert xtx xty with
+      | None -> None
+      | Some (beta, xtx_inv) ->
+        (* Fitted values and residuals *)
+        let fitted = Array.init n (fun i ->
+          let s = ref 0.0 in
+          for j = 0 to p - 1 do
+            s := !s +. x_matrix.(i).(j) *. beta.(j)
+          done;
+          !s
+        ) in
+        let resid = Array.init n (fun i -> ys.(i) -. fitted.(i)) in
+        (* SS_res, SS_tot *)
+        let nf = float_of_int n in
+        let total_w = Array.fold_left ( +. ) 0.0 obs_weights in
+        let mean_y =
+          let s = ref 0.0 in
+          for i = 0 to n - 1 do
+            s := !s +. (obs_weights.(i) *. ys.(i))
+          done;
+          !s /. total_w
+        in
+        let ss_res = ref 0.0 in
+        let ss_tot = ref 0.0 in
+        for i = 0 to n - 1 do
+          let dy = ys.(i) -. mean_y in
+          ss_res := !ss_res +. (obs_weights.(i) *. resid.(i) *. resid.(i));
+          ss_tot := !ss_tot +. (obs_weights.(i) *. dy *. dy)
         done;
-        !h
-      ) in
-      (* Cook's distance and standardised residuals *)
-      let pf = float_of_int p in
-      let cooks_d = Array.init n (fun i ->
-        let hi = hat_vals.(i) in
-        let denom = pf *. sigma2 *. (1.0 -. hi) *. (1.0 -. hi) in
-        if denom > 0.0 then resid.(i) *. resid.(i) *. hi /. denom else 0.0
-      ) in
-      let std_resid = Array.init n (fun i ->
-        let hi = hat_vals.(i) in
-        let denom = sigma *. sqrt (1.0 -. hi) in
-        if denom > 0.0 then resid.(i) /. denom else 0.0
-      ) in
-      (* Leave-one-out sigma estimates *)
-      (* Log-likelihood, AIC, BIC *)
-      let log_lik = -. nf /. 2.0 *. (1.0 +. log (2.0 *. Float.pi) +. log (ss_res /. nf)) in
-      let aic = -2.0 *. log_lik +. 2.0 *. (pf +. 1.0) in (* +1 for sigma *)
-      let bic = -2.0 *. log_lik +. (pf +. 1.0) *. log nf in
-      let term_names = "(Intercept)" :: predictor_names in
-      let vcov = Array.init p (fun i ->
-        Array.init p (fun j -> sigma2 *. xtx_inv.(i).(j))
-      ) in
-      Some {
-        coefficients = beta;
-        std_errors = std_errs;
-        t_statistics = t_stats;
-        p_values = p_vals;
-        r_squared = r_sq;
-        adj_r_squared = adj_r_sq;
-        sigma;
-        f_statistic = f_stat;
-        f_p_value = f_pval;
-        df_model = k;
-        df_residual = df_resid;
-        nobs = n;
-        log_lik;
-        aic;
-        bic;
-        deviance = ss_res;
-        residuals_arr = resid;
-        fitted_values = fitted;
-        hat_values = hat_vals;
-        cooks_distance = cooks_d;
-        std_residuals = std_resid;
-        vcov;
-        term_names;
-      }
+        let df_resid = n - p in
+        let dff = float_of_int df_resid in
+        let sigma2 = if df_resid > 0 then !ss_res /. dff else 0.0 in
+        let sigma = sqrt sigma2 in
+        (* R² and adjusted R² *)
+        let r_sq = if !ss_tot = 0.0 then 1.0 else 1.0 -. !ss_res /. !ss_tot in
+        let adj_r_sq = if !ss_tot = 0.0 || df_resid = 0 then r_sq
+                       else 1.0 -. (1.0 -. r_sq) *. (nf -. 1.0) /. dff in
+        (* Standard errors, t-statistics, p-values *)
+        let std_errs = Array.init p (fun j ->
+          if sigma2 > 0.0 && xtx_inv.(j).(j) >= 0.0
+          then sqrt (sigma2 *. xtx_inv.(j).(j))
+          else 0.0
+        ) in
+        let t_stats = Array.init p (fun j ->
+          if std_errs.(j) > 0.0 then beta.(j) /. std_errs.(j) else 0.0
+        ) in
+        let p_vals = Array.init p (fun j ->
+          if df_resid > 0 && std_errs.(j) > 0.0
+          then t_pvalue t_stats.(j) dff
+          else 1.0
+        ) in
+        (* F-statistic *)
+        let ss_model = !ss_tot -. !ss_res in
+        let f_stat = if k > 0 && df_resid > 0 && !ss_res > 0.0
+                     then (ss_model /. float_of_int k) /. (!ss_res /. dff)
+                     else 0.0 in
+        let f_pval = if k > 0 && df_resid > 0
+                     then f_pvalue f_stat k (float_of_int df_resid)
+                     else 1.0 in
+        (* Hat matrix diagonal: h_ii = x_i' (X'X)^{-1} x_i *)
+        let hat_vals = Array.init n (fun i ->
+          let h = ref 0.0 in
+          for j1 = 0 to p - 1 do
+            for j2 = 0 to p - 1 do
+              h := !h +. obs_weights.(i) *. x_matrix.(i).(j1) *. xtx_inv.(j1).(j2) *. x_matrix.(i).(j2)
+            done
+          done;
+          !h
+        ) in
+        (* Cook's distance and standardised residuals *)
+       let pf = float_of_int p in
+       let cooks_d = Array.init n (fun i ->
+         let hi = hat_vals.(i) in
+         let denom = pf *. sigma2 *. (1.0 -. hi) *. (1.0 -. hi) in
+         if denom > 0.0
+         then obs_weights.(i) *. resid.(i) *. resid.(i) *. hi /. denom
+         else 0.0
+       ) in
+       let std_resid = Array.init n (fun i ->
+         let hi = hat_vals.(i) in
+         let denom = sigma *. sqrt (1.0 -. hi) in
+         if denom > 0.0
+         then (sqrt obs_weights.(i) *. resid.(i)) /. denom
+         else 0.0
+       ) in
+        (* Leave-one-out sigma estimates *)
+        (* Log-likelihood, AIC, BIC *)
+       let log_lik = -. nf /. 2.0 *. (1.0 +. log (2.0 *. Float.pi) +. log (!ss_res /. nf)) in
+       let aic = -2.0 *. log_lik +. 2.0 *. (pf +. 1.0) in (* +1 for sigma *)
+       let bic = -2.0 *. log_lik +. (pf +. 1.0) *. log nf in
+        let term_names = "(Intercept)" :: predictor_names in
+        let vcov = Array.init p (fun i ->
+          Array.init p (fun j -> sigma2 *. xtx_inv.(i).(j))
+        ) in
+        Some {
+          coefficients = beta;
+          std_errors = std_errs;
+          t_statistics = t_stats;
+          p_values = p_vals;
+          r_squared = r_sq;
+          adj_r_squared = adj_r_sq;
+          sigma;
+          f_statistic = f_stat;
+          f_p_value = f_pval;
+          df_model = k;
+          df_residual = df_resid;
+          nobs = n;
+          log_lik;
+          aic;
+          bic;
+          deviance = !ss_res;
+          residuals_arr = resid;
+          fitted_values = fitted;
+          hat_values = hat_vals;
+          cooks_distance = cooks_d;
+          std_residuals = std_resid;
+          vcov;
+          term_names;
+        }
+    end
   end

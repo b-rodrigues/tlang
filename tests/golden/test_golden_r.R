@@ -17,7 +17,7 @@ compare_csvs <- function(test_name, tolerance = 1e-6) {
   
   # Check both files exist
   if (!file.exists(expected_file)) {
-    skip(paste("Expected file not found:", expected_file))
+    stop(paste("Expected file not found:", expected_file))
   }
   
   if (!file.exists(t_output_file)) {
@@ -210,6 +210,14 @@ test_that("COR: simple correlation", {
 
 test_that("COR: iris correlation", {
   compare_csvs("cor_iris_sepal_petal", tolerance = 1e-6)
+})
+
+test_that("WEIGHTED STATS: descriptive baselines", {
+  compare_csvs("weighted_stats_baselines", tolerance = 1e-6)
+})
+
+test_that("WEIGHTED STATS: weighted lm baselines", {
+  compare_csvs("weighted_lm_baselines", tolerance = 1e-6)
 })
 
 # ============================================================================

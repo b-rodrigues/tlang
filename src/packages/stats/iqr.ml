@@ -8,6 +8,7 @@ open Ast
 --# @name iqr
 --# @param x :: Vector | List Numeric input.
 --# @param na_rm :: Bool = false Remove NA values first.
+--# @param weights :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Number | Vector Computed result (scalar or vectorized).
 --# @family stats
 --# @export
@@ -61,6 +62,28 @@ let vecf xs = VVector (Array.of_list (List.map (fun x -> VFloat x) xs))
 let register env =
   Env.add "iqr" (make_builtin_named ~name:"iqr" ~variadic:true 1 (fun named_args _ ->
     let na_rm = has_na_rm named_args in
-    match strip_na_rm named_args with
-    | [x] -> (match numeric_values ~label:"iqr" ~na_rm x with Error e -> e | Ok [] -> VNA NAFloat | Ok xs -> (match quantile xs 0.25, quantile xs 0.75 with Some q1, Some q3 -> VFloat (q3 -. q1) | _ -> VNA NAFloat))
+    let weight_arg = Math_common.optional_named_arg "weights" named_args in
+    let args =
+      named_args
+      |> List.filter (fun (name, _) -> name <> Some "na_rm" && name <> Some "weights")
+      |> List.map snd
+    in
+    match args with
+    | [x] ->
+        (match weight_arg with
+         | Some weight_v ->
+             (match Math_utils.extract_numeric_array_with_weights ~label:"iqr" ~na_rm x weight_v with
+              | Error e -> e
+              | Ok (xs, ws) ->
+                  (match Math_utils.weighted_quantile_array xs ws 0.25, Math_utils.weighted_quantile_array xs ws 0.75 with
+                   | Some q1, Some q3 -> VFloat (q3 -. q1)
+                   | _ -> VNA NAFloat))
+         | None ->
+             (match numeric_values ~label:"iqr" ~na_rm x with
+              | Error e -> e
+              | Ok [] -> VNA NAFloat
+              | Ok xs ->
+                  (match quantile xs 0.25, quantile xs 0.75 with
+                   | Some q1, Some q3 -> VFloat (q3 -. q1)
+                   | _ -> VNA NAFloat)))
     | args -> Error.arity_error_named "iqr" 1 (List.length args))) env

@@ -9,6 +9,7 @@ open Ast
 --# @param x :: Vector | List The numeric data.
 --# @param probs :: Float The probability (0 to 1).
 --# @param na_rm :: Bool (Optional) Should missing values be removed? Default is false.
+--# @param weights :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Float The quantile value.
 --# @example
 --#   quantile(x, 0.5)
@@ -23,7 +24,8 @@ let register env =
       match Math_common.get_bool_flag "na_rm" false named_args with
       | Error e -> e
       | Ok na_rm ->
-      let args = Math_common.positional_args_without ["na_rm"] named_args in
+      let args = Math_common.positional_args_without ["na_rm"; "weights"] named_args in
+      let weight_arg = Math_common.optional_named_arg "weights" named_args in
       let extract_nums_arr label arr =
         let len = Array.length arr in
         let had_error = ref None in
@@ -58,46 +60,56 @@ let register env =
         | _ -> None
       in
       let compute_quantile nums p =
-        let n = Array.length nums in
-        if n = 0 then Error.value_error "Function `quantile` called on empty data."
-        else begin
-          let sorted = Array.copy nums in
-          Array.sort compare sorted;
-          let h = p *. float_of_int (n - 1) in
-          let lo = int_of_float (Float.floor h) in
-          let hi = min (lo + 1) (n - 1) in
-          let frac = h -. float_of_int lo in
-          VFloat (sorted.(lo) +. frac *. (sorted.(hi) -. sorted.(lo)))
-        end
+        match Math_utils.quantile_array nums p with
+        | Some q -> VFloat q
+        | None -> Error.value_error "Function `quantile` called on empty data."
       in
       (match args with
       | [VVector arr; p_val] ->
           (match get_p p_val with
-           | None -> Error.value_error "Function `quantile` expects a probability between 0 and 1."
-           | Some p ->
-             if na_rm then
-               (match extract_nums_arr_na_rm "quantile" arr with
-                | Error e -> e
-                | Ok nums when Array.length nums = 0 -> VNA NAFloat
-                | Ok nums -> compute_quantile nums p)
-             else
-               (match extract_nums_arr "quantile" arr with
-                | Error e -> e
-                | Ok nums -> compute_quantile nums p))
+            | None -> Error.value_error "Function `quantile` expects a probability between 0 and 1."
+            | Some p ->
+              (match weight_arg with
+               | Some weight_v ->
+                   (match Math_utils.extract_numeric_array_with_weights ~label:"quantile" ~na_rm (VVector arr) weight_v with
+                    | Error e -> e
+                    | Ok (xs, ws) ->
+                        (match Math_utils.weighted_quantile_array xs ws p with
+                         | Some q -> VFloat q
+                         | None -> VNA NAFloat))
+               | None ->
+                   if na_rm then
+                     (match extract_nums_arr_na_rm "quantile" arr with
+                      | Error e -> e
+                      | Ok nums when Array.length nums = 0 -> VNA NAFloat
+                      | Ok nums -> compute_quantile nums p)
+                   else
+                     (match extract_nums_arr "quantile" arr with
+                      | Error e -> e
+                      | Ok nums -> compute_quantile nums p)))
       | [VList items; p_val] ->
           (match get_p p_val with
-           | None -> Error.value_error "Function `quantile` expects a probability between 0 and 1."
-           | Some p ->
-             let arr = Array.of_list (List.map snd items) in
-             if na_rm then
-               (match extract_nums_arr_na_rm "quantile" arr with
-                | Error e -> e
-                | Ok nums when Array.length nums = 0 -> VNA NAFloat
-                | Ok nums -> compute_quantile nums p)
-             else
-               (match extract_nums_arr "quantile" arr with
-                | Error e -> e
-                | Ok nums -> compute_quantile nums p))
+            | None -> Error.value_error "Function `quantile` expects a probability between 0 and 1."
+            | Some p ->
+              (match weight_arg with
+               | Some weight_v ->
+                   (match Math_utils.extract_numeric_array_with_weights ~label:"quantile" ~na_rm (VList items) weight_v with
+                    | Error e -> e
+                    | Ok (xs, ws) ->
+                        (match Math_utils.weighted_quantile_array xs ws p with
+                         | Some q -> VFloat q
+                         | None -> VNA NAFloat))
+               | None ->
+                   let arr = Array.of_list (List.map snd items) in
+                   if na_rm then
+                     (match extract_nums_arr_na_rm "quantile" arr with
+                      | Error e -> e
+                      | Ok nums when Array.length nums = 0 -> VNA NAFloat
+                      | Ok nums -> compute_quantile nums p)
+                   else
+                     (match extract_nums_arr "quantile" arr with
+                      | Error e -> e
+                      | Ok nums -> compute_quantile nums p)))
       | [VNA _; _] | [_; VNA _] -> Error.na_value_error ~na_rm:true "quantile"
       | [_; _] -> Error.type_error "Function `quantile` expects a numeric List or Vector as first argument."
       | _ -> Error.arity_error_named "quantile" 2 (List.length args))

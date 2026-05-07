@@ -353,7 +353,14 @@ Every new user-facing feature must be documented **before the PR is merged**:
 | `summary.md` | One-line entry in the feature list |
 | `docs/<topic>.md` | Detailed guide if the feature is complex |
 
-Documentation should follow the style of existing files. Use the `--#` format for inline docstrings, plain Markdown for `docs/` pages.
+### Changelog Guidelines
+
+When updating `docs/changelog.md`, always focus on features, enhancements, and bug fixes from the **user's perspective**. 
+
+- **Do not mention fixing tests** or test suite adjustments. Reliable testing is a baseline expectation for all contributions; mentioning it in the public changelog is unnecessary noise for users.
+- Emphasize the new capabilities or resolved user-facing issues (e.g., say "Implemented weights argument" instead of "Fixed failing weighted tests").
+
+---
 
 ---
 

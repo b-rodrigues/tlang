@@ -21,6 +21,11 @@ let positional_args_without names named_args =
     named_args
   |> List.map snd
 
+let optional_named_arg name named_args =
+  match List.find_opt (fun (n, _) -> n = Some name) named_args with
+  | Some (_, VNA _) | None -> None
+  | Some (_, v) -> Some v
+
 (** Shared numeric-unary mapper for math builtins.
     - [fname] is the user-facing function name for error messages.
     - [expects] describes the accepted input shape in arity/type errors.

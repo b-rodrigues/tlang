@@ -9,6 +9,7 @@ open Ast
 --# @param x :: Vector | List First numeric input.
 --# @param y :: Vector | List Second numeric input.
 --# @param na_rm :: Bool = false Pairwise remove NA values.
+--# @param weights :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Number | Vector Computed result (scalar or vectorized).
 --# @family stats
 --# @export
@@ -88,17 +89,34 @@ let paired_numeric_values ~label ~na_rm x y =
 let register env =
   Env.add "cov" (make_builtin_named ~name:"cov" ~variadic:true 2 (fun named_args _ ->
     let na_rm = has_na_rm named_args in
-    match strip_na_rm named_args with
+    let weight_arg = Math_common.optional_named_arg "weights" named_args in
+    let args =
+      named_args
+      |> List.filter (fun (name, _) -> name <> Some "na_rm" && name <> Some "weights")
+      |> List.map snd
+    in
+    match args with
     | [x; y] ->
-        (match paired_numeric_values ~label:"cov" ~na_rm x y with
-         | Error e -> e
-         | Ok (xs, ys) ->
-             let n = List.length xs in
-             if n = 0 then VNA NAFloat
-             else if n < 2 then Error.value_error "Function `cov` requires at least 2 paired values."
-             else
-               match mean xs, mean ys with
-               | None, _ | _, None -> Error.make_error RuntimeError "Function `cov` internal error: mean returned None for non-empty list."
-               | Some mx, Some my ->
-               VFloat (List.fold_left2 (fun a xv yv -> a +. (xv -. mx) *. (yv -. my)) 0.0 xs ys /. float_of_int (n - 1)))
+        (match weight_arg with
+         | Some weight_v ->
+             (match Math_utils.extract_paired_numeric_arrays_with_weights ~label:"cov" ~na_rm x y weight_v with
+              | Error e -> e
+              | Ok (xs, ys, ws) ->
+                  if Array.length xs < 2 then Error.value_error "Function `cov` requires at least 2 paired values."
+                  else
+                    (match Math_utils.weighted_covariance_population xs ys ws with
+                     | Some v -> VFloat v
+                     | None -> Error.make_error RuntimeError "Function `cov` internal error: weighted covariance could not be computed."))
+         | None ->
+             (match paired_numeric_values ~label:"cov" ~na_rm x y with
+              | Error e -> e
+              | Ok (xs, ys) ->
+                  let n = List.length xs in
+                  if n = 0 then VNA NAFloat
+                  else if n < 2 then Error.value_error "Function `cov` requires at least 2 paired values."
+                  else
+                    match mean xs, mean ys with
+                    | None, _ | _, None -> Error.make_error RuntimeError "Function `cov` internal error: mean returned None for non-empty list."
+                    | Some mx, Some my ->
+                    VFloat (List.fold_left2 (fun a xv yv -> a +. (xv -. mx) *. (yv -. my)) 0.0 xs ys /. float_of_int (n - 1))))
     | args -> Error.arity_error_named "cov" 2 (List.length args))) env

@@ -4,10 +4,12 @@ open Ast
 --# Standard Deviation
 --#
 --# Calculates the sample standard deviation of a numeric vector.
+--# With `weights`, uses the weighted population denominator (`sum(weights)`).
 --#
 --# @name sd
 --# @param x :: Vector | List The numeric data.
 --# @param na_rm :: Bool (Optional) logical. Should missing values be removed? Default is false.
+--# @param weights :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Float The standard deviation.
 --# @example
 --#   sd([1, 2, 3, 4, 5])
@@ -22,7 +24,8 @@ let register env =
       match Math_common.get_bool_flag "na_rm" false named_args with
       | Error e -> e
       | Ok na_rm ->
-      let args = Math_common.positional_args_without ["na_rm"] named_args in
+      let args = Math_common.positional_args_without ["na_rm"; "weights"] named_args in
+      let weight_arg = Math_common.optional_named_arg "weights" named_args in
       let extract_nums_arr label arr =
         let len = Array.length arr in
         let had_error = ref None in
@@ -60,26 +63,48 @@ let register env =
       let first_arg = match args with a :: _ -> Some a | [] -> None in
       (match first_arg with
       | Some (VList items) ->
-          let arr = Array.of_list (List.map snd items) in
-          if na_rm then
-            (match extract_nums_arr_na_rm "sd" arr with
-             | Error e -> e
-             | Ok nums when Array.length nums = 0 -> VNA NAFloat
-             | Ok nums -> compute_sd nums (Array.length nums))
-          else
-            (match extract_nums_arr "sd" arr with
-             | Error e -> e
-             | Ok nums -> compute_sd nums (Array.length nums))
+          (match weight_arg with
+           | Some weight_v ->
+               (match Math_utils.extract_numeric_array_with_weights ~label:"sd" ~na_rm (VList items) weight_v with
+                | Error e -> e
+                | Ok (xs, ws) ->
+                    if Array.length xs < 2 then Error.value_error "Function `sd` requires at least 2 values."
+                    else
+                      (match Math_utils.weighted_variance_population xs ws with
+                       | Some v -> VFloat (Float.sqrt v)
+                       | None -> Error.make_error RuntimeError "Function `sd` internal error: weighted variance could not be computed."))
+           | None ->
+               let arr = Array.of_list (List.map snd items) in
+               if na_rm then
+                 (match extract_nums_arr_na_rm "sd" arr with
+                  | Error e -> e
+                  | Ok nums when Array.length nums = 0 -> VNA NAFloat
+                  | Ok nums -> compute_sd nums (Array.length nums))
+               else
+                 (match extract_nums_arr "sd" arr with
+                  | Error e -> e
+                  | Ok nums -> compute_sd nums (Array.length nums)))
       | Some (VVector arr) ->
-          if na_rm then
-            (match extract_nums_arr_na_rm "sd" arr with
-             | Error e -> e
-             | Ok nums when Array.length nums = 0 -> VNA NAFloat
-             | Ok nums -> compute_sd nums (Array.length nums))
-          else
-            (match extract_nums_arr "sd" arr with
-             | Error e -> e
-             | Ok nums -> compute_sd nums (Array.length nums))
+          (match weight_arg with
+           | Some weight_v ->
+               (match Math_utils.extract_numeric_array_with_weights ~label:"sd" ~na_rm (VVector arr) weight_v with
+                | Error e -> e
+                | Ok (xs, ws) ->
+                    if Array.length xs < 2 then Error.value_error "Function `sd` requires at least 2 values."
+                    else
+                      (match Math_utils.weighted_variance_population xs ws with
+                       | Some v -> VFloat (Float.sqrt v)
+                       | None -> Error.make_error RuntimeError "Function `sd` internal error: weighted variance could not be computed."))
+           | None ->
+               if na_rm then
+                 (match extract_nums_arr_na_rm "sd" arr with
+                  | Error e -> e
+                  | Ok nums when Array.length nums = 0 -> VNA NAFloat
+                  | Ok nums -> compute_sd nums (Array.length nums))
+               else
+                 (match extract_nums_arr "sd" arr with
+                  | Error e -> e
+                  | Ok nums -> compute_sd nums (Array.length nums)))
       | Some (VNA _) -> Error.na_value_error ~na_rm:true "sd"
       | Some _ -> Error.type_error "Function `sd` expects a numeric List or Vector."
       | None -> Error.arity_error_named "sd" 1 (List.length args))

@@ -8,6 +8,7 @@ open Ast
 --# @name fivenum
 --# @param x :: Vector | List Numeric input.
 --# @param na_rm :: Bool = false Remove NA values first.
+--# @param weights :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Number | Vector Computed result (scalar or vectorized).
 --# @family stats
 --# @export
@@ -61,15 +62,34 @@ let vecf xs = VVector (Array.of_list (List.map (fun x -> VFloat x) xs))
 let register env =
   Env.add "fivenum" (make_builtin_named ~name:"fivenum" ~variadic:true 1 (fun named_args _ ->
     let na_rm = has_na_rm named_args in
-    match strip_na_rm named_args with
+    let weight_arg = Math_common.optional_named_arg "weights" named_args in
+    let args =
+      named_args
+      |> List.filter (fun (name, _) -> name <> Some "na_rm" && name <> Some "weights")
+      |> List.map snd
+    in
+    match args with
     | [x] ->
-        (match numeric_values ~label:"fivenum" ~na_rm x with
-         | Error e -> e
-         | Ok [] -> VNA NAFloat
-         | Ok xs ->
-             let mn = List.fold_left min infinity xs in
-             let mx = List.fold_left max neg_infinity xs in
-             (match quantile xs 0.25, quantile xs 0.5, quantile xs 0.75 with
-              | Some q1, Some med, Some q3 -> vecf [mn; q1; med; q3; mx]
-              | _ -> VNA NAFloat))
+        (match weight_arg with
+         | Some weight_v ->
+             (match Math_utils.extract_numeric_array_with_weights ~label:"fivenum" ~na_rm x weight_v with
+              | Error e -> e
+              | Ok (xs, ws) ->
+                  let mn = Array.fold_left min infinity xs in
+                  let mx = Array.fold_left max neg_infinity xs in
+                  (match Math_utils.weighted_quantile_array xs ws 0.25,
+                         Math_utils.weighted_quantile_array xs ws 0.5,
+                         Math_utils.weighted_quantile_array xs ws 0.75 with
+                   | Some q1, Some med, Some q3 -> vecf [mn; q1; med; q3; mx]
+                   | _ -> VNA NAFloat))
+         | None ->
+             (match numeric_values ~label:"fivenum" ~na_rm x with
+              | Error e -> e
+              | Ok [] -> VNA NAFloat
+              | Ok xs ->
+                  let mn = List.fold_left min infinity xs in
+                  let mx = List.fold_left max neg_infinity xs in
+                  (match quantile xs 0.25, quantile xs 0.5, quantile xs 0.75 with
+                   | Some q1, Some med, Some q3 -> vecf [mn; q1; med; q3; mx]
+                   | _ -> VNA NAFloat)))
     | args -> Error.arity_error_named "fivenum" 1 (List.length args))) env
