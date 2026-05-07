@@ -8,7 +8,7 @@ type design_term = {
 module StringSet = Set.Make (String)
 
 (** Build a tidy DataFrame from an lm_result and return it as the model VDict *)
-let build_model_value (result : Arrow_owl_bridge.lm_result)
+let build_model_value ?weights (result : Arrow_owl_bridge.lm_result)
     (formula_v : value) (data_v : value) : value =
   let p = Array.length result.coefficients in
   let nrows = p in
@@ -38,7 +38,13 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
   let tidy_df = VDataFrame { arrow_table = tidy_table; group_keys = [] } in
   (* Model internals dict — used by fit_stats() and add_diagnostics() *)
   let n = result.nobs in
-  let model_data = VDict [
+  let fit_method = match weights with Some _ -> VString "wls" | None -> VString "ols" in
+  let weight_fields =
+    match weights with
+    | Some ws -> [("weights", VVector (Array.map (fun w -> VFloat w) ws))]
+    | None -> []
+  in
+  let model_data_fields = [
     ("r_squared", VFloat result.r_squared);
     ("adj_r_squared", VFloat result.adj_r_squared);
     ("sigma", VFloat result.sigma);
@@ -70,8 +76,11 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
     )));
     ("vcov", VList (Array.to_list (Array.map (fun row ->
       (None, VVector (Array.map (fun x -> VFloat x) row))
-    ) result.vcov)));
+     ) result.vcov)));
   ] in
+  let model_data =
+    VDict (model_data_fields @ weight_fields @ [("fit_method", fit_method)])
+  in
 
   (* Create coefficients dictionary *)
   let coef_pairs = List.map2 (fun name value ->
@@ -97,8 +106,9 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
     ("adj_r_squared", VFloat result.adj_r_squared);
     ("sigma", VFloat result.sigma);
     ("deviance", VFloat result.deviance);
-    ("nobs", VInt result.nobs);
-    ("model_type", VString "lm");
+     ("nobs", VInt result.nobs);
+     ("fit_method", fit_method);
+     ("model_type", VString "lm");
     ("mining_function", VString "regression");
     ("_display_keys", VList [
       (None, VString "formula");
@@ -151,6 +161,41 @@ let float_array_of_numeric_column col_name = function
            (Printf.sprintf
               "Function `lm` column `%s` must be numeric or categorical without NA values."
               col_name))
+
+let float_array_of_weights label expected_len = function
+  | VVector arr ->
+      if Array.length arr <> expected_len then
+        Error
+          (Error.value_error
+             (Printf.sprintf
+                "Function `%s` expects `weight` to have the same length as the data."
+                label))
+      else
+        let result = Array.make expected_len 0.0 in
+        let rec loop i =
+          if i = expected_len then Ok result
+          else
+            match Math_utils.weight_value_of_value ~label arr.(i) with
+            | Ok w -> result.(i) <- w; loop (i + 1)
+            | Error e -> Error e
+        in
+        (match loop 0 with
+         | Error _ as err -> err
+         | Ok ws ->
+             if Array.for_all (fun w -> w = 0.0) ws then
+               Error
+                 (Error.value_error
+                    "Function `lm` expects `weight` to contain at least one positive value.")
+             else Ok ws)
+  | VList items ->
+      float_array_of_weights label expected_len
+        (VVector (Array.of_list (List.map snd items)))
+  | _ ->
+      Error
+        (Error.type_error
+           (Printf.sprintf
+              "Function `%s` expects `weight` to be a numeric List or Vector."
+              label))
 
 let unique_levels values =
   values
@@ -312,6 +357,7 @@ let predictor_terms_for_formula_term arrow_table term =
 --# @name lm
 --# @param data :: DataFrame The data to use.
 --# @param formula :: Formula The model formula (e.g., mpg ~ wt + hp).
+--# @param weight :: Vector[Float] | List[Float] = NA Optional non-negative observation weights for weighted least squares.
 --# @return :: Model A model object containing coefficients, residuals, and statistics.
 --# @example
 --#   model = lm(mtcars, mpg ~ wt + hp)
@@ -335,11 +381,12 @@ let register env =
         | Some v -> Some v
         | None -> (match positional with v :: _ -> Some v | [] -> None)
       in
-      let formula_val = match List.assoc_opt "formula" named with
-        | Some v -> Some v
-        | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_val <> Some v -> Some v | _ -> None))
-      in
-      match (data_val, formula_val) with
+       let formula_val = match List.assoc_opt "formula" named with
+         | Some v -> Some v
+         | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_val <> Some v -> Some v | _ -> None))
+       in
+       let weight_val = List.assoc_opt "weight" named in
+       match (data_val, formula_val) with
       | (None, _) -> Error.make_error ArityError "Function `lm` missing required argument 'data'."
       | (_, None) -> Error.make_error ArityError "Function `lm` missing required argument 'formula'."
       | (Some data_v, Some formula_v) ->
@@ -369,50 +416,58 @@ let register env =
                       | Some col ->
                           Error.make_error KeyError
                             (Printf.sprintf "Column `%s` not found in DataFrame." col)
-                      | None ->
-                          let nrows = Arrow_table.num_rows df.arrow_table in
-                          if nrows < 2 then
-                            Error.value_error "Function `lm` requires at least 2 observations."
-                          else
-                            (* Extract numeric columns *)
-                            (match Arrow_owl_bridge.numeric_column_to_owl df.arrow_table y_col with
-                             | None ->
-                                 Error.type_error
-                                   "Function `lm` requires numeric columns without NA values."
-                             | Some y_view ->
-                                 let xs_result = List.fold_left (fun acc term ->
-                                   match acc with
-                                   | Error e -> Error e
+                       | None ->
+                           let nrows = Arrow_table.num_rows df.arrow_table in
+                           if nrows < 2 then
+                             Error.value_error "Function `lm` requires at least 2 observations."
+                           else
+                             (match
+                                ( Arrow_owl_bridge.numeric_column_to_owl df.arrow_table y_col,
+                                  match weight_val with
+                                  | None -> Ok None
+                                  | Some v ->
+                                      (match float_array_of_weights "lm" nrows v with
+                                       | Ok ws -> Ok (Some ws)
+                                       | Error e -> Error e) )
+                              with
+                              | None, _ ->
+                                  Error.type_error
+                                    "Function `lm` requires numeric columns without NA values."
+                              | _, Error e -> e
+                              | Some y_view, Ok weights_opt ->
+                                  let xs_result = List.fold_left (fun acc term ->
+                                    match acc with
+                                    | Error e -> Error e
+                                    | Ok xs_terms ->
+                                        (match predictor_terms_for_formula_term df.arrow_table term with
+                                         | Error e -> Error e
+                                         | Ok predictor_terms -> Ok (List.rev_append predictor_terms xs_terms))
+                                  ) (Ok []) predictors in
+                                  let xs_result = Result.map List.rev xs_result in
+                                  (match xs_result with
+                                   | Error e -> e
                                    | Ok xs_terms ->
-                                       (match predictor_terms_for_formula_term df.arrow_table term with
-                                        | Error e -> Error e
-                                        | Ok predictor_terms -> Ok (List.rev_append predictor_terms xs_terms))
-                                 ) (Ok []) predictors in
-                                 let xs_result = Result.map List.rev xs_result in
-                                 (match xs_result with
-                                  | Error e -> e
-                                  | Ok xs_terms ->
-                                      if xs_terms = [] then
-                                        Error.value_error
-                                          "Function `lm` requires at least one varying predictor term after factor encoding."
-                                      else
-                                        (match Arrow_owl_bridge.detect_collinearity
-                                                 (List.map (fun term -> (term.name, term.values)) xs_terms) with
-                                         | Some detail ->
-                                             Error.value_error
-                                               (Printf.sprintf
-                                                  "Function `lm` detected collinearity: %s."
-                                                  detail)
-                                         | None ->
-                                             let xs_arrays = List.map (fun term -> term.values) xs_terms in
-                                             let predictor_names = List.map (fun term -> term.name) xs_terms in
-                                             let ys = y_view.arr in
-                                             (match Arrow_owl_bridge.linreg_multi xs_arrays ys predictor_names with
-                                              | None ->
-                                                  Error.value_error
-                                                    "Function `lm` detected collinearity: design matrix is singular."
-                                              | Some result ->
-                                                  build_model_value result formula_v data_v))))))
+                                       if xs_terms = [] then
+                                         Error.value_error
+                                           "Function `lm` requires at least one varying predictor term after factor encoding."
+                                       else
+                                         (match Arrow_owl_bridge.detect_collinearity
+                                                  (List.map (fun term -> (term.name, term.values)) xs_terms) with
+                                          | Some detail ->
+                                              Error.value_error
+                                                (Printf.sprintf
+                                                   "Function `lm` detected collinearity: %s."
+                                                   detail)
+                                          | None ->
+                                              let xs_arrays = List.map (fun term -> term.values) xs_terms in
+                                              let predictor_names = List.map (fun term -> term.name) xs_terms in
+                                              let ys = y_view.arr in
+                                              (match Arrow_owl_bridge.linreg_multi ?weights:weights_opt xs_arrays ys predictor_names with
+                                               | None ->
+                                                   Error.value_error
+                                                     "Function `lm` detected collinearity: design matrix is singular."
+                                               | Some result ->
+                                                   build_model_value ?weights:weights_opt result formula_v data_v))))))
               end
            | [] ->
                Error.value_error "Function `lm` left side of formula is empty."

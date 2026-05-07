@@ -8,6 +8,7 @@ open Ast
 --# @name kurtosis
 --# @param x :: Vector | List Numeric input.
 --# @param na_rm :: Bool = false Remove NA values first.
+--# @param weight :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Number | Vector Computed result (scalar or vectorized).
 --# @family stats
 --# @export
@@ -61,20 +62,38 @@ let vecf xs = VVector (Array.of_list (List.map (fun x -> VFloat x) xs))
 let register env =
   Env.add "kurtosis" (make_builtin_named ~name:"kurtosis" ~variadic:true 1 (fun named_args _ ->
     let na_rm = has_na_rm named_args in
-    match strip_na_rm named_args with
+    let weight_arg = List.assoc_opt (Some "weight") named_args in
+    let args =
+      named_args
+      |> List.filter (fun (name, _) -> name <> Some "na_rm" && name <> Some "weight")
+      |> List.map snd
+    in
+    match args with
     | [x] ->
-        (match numeric_values ~label:"kurtosis" ~na_rm x with
-         | Error e -> e
-         | Ok xs ->
-             let n = List.length xs in
-             if n < 4 then Error.value_error "Function `kurtosis` requires at least 4 values."
-             else
-               match mean xs with
-               | None -> Error.make_error RuntimeError "Function `kurtosis` internal error: mean returned None for non-empty list."
-               | Some m ->
-               let m2 = List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int n in
-               if m2 = 0.0 then VFloat (-3.0)
-               else
-                 let m4 = List.fold_left (fun a v -> let d = v -. m in a +. d *. d *. d *. d) 0.0 xs /. float_of_int n in
-                 VFloat (m4 /. (m2 *. m2) -. 3.0))
+        (match weight_arg with
+         | Some weight_v ->
+             (match Math_utils.extract_numeric_array_with_weights ~label:"kurtosis" ~na_rm x weight_v with
+              | Error e -> e
+              | Ok (xs, ws) ->
+                  if Array.length xs < 4 then Error.value_error "Function `kurtosis` requires at least 4 values."
+                  else
+                    (match (Math_utils.weighted_central_moment xs ws 2.0, Math_utils.weighted_central_moment xs ws 4.0) with
+                     | Some m2, Some _ when m2 = 0.0 -> VFloat (-3.0)
+                     | Some m2, Some m4 -> VFloat (m4 /. (m2 *. m2) -. 3.0)
+                     | _ -> Error.make_error RuntimeError "Function `kurtosis` internal error: weighted moments could not be computed."))
+         | None ->
+             (match numeric_values ~label:"kurtosis" ~na_rm x with
+              | Error e -> e
+              | Ok xs ->
+                  let n = List.length xs in
+                  if n < 4 then Error.value_error "Function `kurtosis` requires at least 4 values."
+                  else
+                    match mean xs with
+                    | None -> Error.make_error RuntimeError "Function `kurtosis` internal error: mean returned None for non-empty list."
+                    | Some m ->
+                    let m2 = List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int n in
+                    if m2 = 0.0 then VFloat (-3.0)
+                    else
+                      let m4 = List.fold_left (fun a v -> let d = v -. m in a +. d *. d *. d *. d) 0.0 xs /. float_of_int n in
+                      VFloat (m4 /. (m2 *. m2) -. 3.0)))
     | args -> Error.arity_error_named "kurtosis" 1 (List.length args))) env

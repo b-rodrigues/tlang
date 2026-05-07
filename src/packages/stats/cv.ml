@@ -8,6 +8,7 @@ open Ast
 --# @name cv
 --# @param x :: Vector | List Numeric input.
 --# @param na_rm :: Bool = false Remove NA values first.
+--# @param weight :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Number | Vector Computed result (scalar or vectorized).
 --# @family stats
 --# @export
@@ -61,19 +62,38 @@ let vecf xs = VVector (Array.of_list (List.map (fun x -> VFloat x) xs))
 let register env =
   Env.add "cv" (make_builtin_named ~name:"cv" ~variadic:true 1 (fun named_args _ ->
     let na_rm = has_na_rm named_args in
-    match strip_na_rm named_args with
+    let weight_arg = List.assoc_opt (Some "weight") named_args in
+    let args =
+      named_args
+      |> List.filter (fun (name, _) -> name <> Some "na_rm" && name <> Some "weight")
+      |> List.map snd
+    in
+    match args with
     | [x] ->
-        (match numeric_values ~label:"cv" ~na_rm x with
-         | Error e -> e
-         | Ok xs ->
-             let n = List.length xs in
-             if n < 2 then Error.value_error "Function `cv` requires at least 2 values."
-             else
-               match mean xs with
-               | None -> Error.value_error "Function `cv` received empty input after filtering."
-               | Some m ->
-               if m = 0.0 then Error.value_error "Function `cv` undefined when mean is zero."
-               else
-                 let s = Float.sqrt (List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int (n - 1)) in
-                 VFloat (s /. m))
+        (match weight_arg with
+         | Some weight_v ->
+             (match Math_utils.extract_numeric_array_with_weights ~label:"cv" ~na_rm x weight_v with
+              | Error e -> e
+              | Ok (xs, ws) ->
+                  if Array.length xs < 2 then Error.value_error "Function `cv` requires at least 2 values."
+                  else
+                    (match (Math_utils.weighted_mean_array xs ws, Math_utils.weighted_variance_population xs ws) with
+                     | Some m, Some v ->
+                         if m = 0.0 then Error.value_error "Function `cv` undefined when mean is zero."
+                         else VFloat ((Float.sqrt v) /. m)
+                     | _ -> Error.make_error RuntimeError "Function `cv` internal error: weighted moments could not be computed."))
+         | None ->
+             (match numeric_values ~label:"cv" ~na_rm x with
+              | Error e -> e
+              | Ok xs ->
+                  let n = List.length xs in
+                  if n < 2 then Error.value_error "Function `cv` requires at least 2 values."
+                  else
+                    match mean xs with
+                    | None -> Error.value_error "Function `cv` received empty input after filtering."
+                    | Some m ->
+                    if m = 0.0 then Error.value_error "Function `cv` undefined when mean is zero."
+                    else
+                      let s = Float.sqrt (List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int (n - 1)) in
+                      VFloat (s /. m)))
     | args -> Error.arity_error_named "cv" 1 (List.length args))) env

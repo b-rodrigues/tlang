@@ -9,6 +9,7 @@ open Ast
 --# @name mean
 --# @param x :: Vector[Float] | List[Float] Input numeric data. Must contain at least one value.
 --# @param na_rm :: Bool = false Remove NA values before computation.
+--# @param weight :: Vector[Float] | List[Float] = NA Optional non-negative observation weights.
 --# @return :: Float | NA The arithmetic mean, or NA if input contains NA and na_rm is false
 --# @example
 --#   mean([1, 2, 3])
@@ -31,7 +32,8 @@ let register env =
       (match Math_common.get_bool_flag "na_rm" false named_args with
       | Error e -> e
       | Ok na_rm ->
-      let args = Math_common.positional_args_without ["na_rm"] named_args in
+      let args = Math_common.positional_args_without ["na_rm"; "weight"] named_args in
+      let weight_arg = List.assoc_opt (Some "weight") named_args in
       let extract_nums label vals =
         let rec go acc = function
           | [] -> Ok (List.rev acc)
@@ -70,32 +72,50 @@ let register env =
         done;
         match !had_error with Some e -> Error e | None -> Ok result
       in
-      let first_arg = match args with a :: _ -> Some a | [] -> None in
-      match first_arg with
-      | Some (VList []) -> Error.value_error "Function `mean` called on empty List."
-      | Some (VList items) ->
-          (match extract_nums "mean" items with
-           | Error e -> e
-           | Ok [] -> VNA NAFloat
-           | Ok nums ->
-             let sum = List.fold_left ( +. ) 0.0 nums in
-             VFloat (sum /. float_of_int (List.length nums)))
-      | Some (VVector arr) when Array.length arr = 0 -> Error.value_error "Function `mean` called on empty Vector."
-      | Some (VVector arr) ->
-          if na_rm then
-            (match extract_nums_arr_na_rm "mean" arr with
-             | Error e -> e
-             | Ok nums when Array.length nums = 0 -> VNA NAFloat
-             | Ok nums ->
-               let sum = Array.fold_left ( +. ) 0.0 nums in
-               VFloat (sum /. float_of_int (Array.length nums)))
-          else
-            (match extract_nums_arr "mean" arr with
-             | Error e -> e
-             | Ok nums ->
-               let sum = Array.fold_left ( +. ) 0.0 nums in
-               VFloat (sum /. float_of_int (Array.length nums)))
-      | Some (VNA _) -> Error.na_value_error ~na_rm:true "mean"
+       let first_arg = match args with a :: _ -> Some a | [] -> None in
+       match first_arg with
+       | Some (VList []) -> Error.value_error "Function `mean` called on empty List."
+       | Some (VList items) ->
+           (match weight_arg with
+            | Some weight_v ->
+                (match Math_utils.extract_numeric_array_with_weights ~label:"mean" ~na_rm (VList items) weight_v with
+                 | Error e -> e
+                 | Ok (xs, ws) ->
+                     (match Math_utils.weighted_mean_array xs ws with
+                      | Some m -> VFloat m
+                      | None -> Error.value_error "Function `mean` expects `weight` to contain at least one positive value."))
+            | None ->
+                (match extract_nums "mean" items with
+                 | Error e -> e
+                 | Ok [] -> VNA NAFloat
+                 | Ok nums ->
+                   let sum = List.fold_left ( +. ) 0.0 nums in
+                   VFloat (sum /. float_of_int (List.length nums))))
+       | Some (VVector arr) when Array.length arr = 0 -> Error.value_error "Function `mean` called on empty Vector."
+       | Some (VVector arr) ->
+           (match weight_arg with
+            | Some weight_v ->
+                (match Math_utils.extract_numeric_array_with_weights ~label:"mean" ~na_rm (VVector arr) weight_v with
+                 | Error e -> e
+                 | Ok (xs, ws) ->
+                     (match Math_utils.weighted_mean_array xs ws with
+                      | Some m -> VFloat m
+                      | None -> Error.value_error "Function `mean` expects `weight` to contain at least one positive value."))
+            | None ->
+                if na_rm then
+                  (match extract_nums_arr_na_rm "mean" arr with
+                   | Error e -> e
+                   | Ok nums when Array.length nums = 0 -> VNA NAFloat
+                   | Ok nums ->
+                     let sum = Array.fold_left ( +. ) 0.0 nums in
+                     VFloat (sum /. float_of_int (Array.length nums)))
+                else
+                  (match extract_nums_arr "mean" arr with
+                   | Error e -> e
+                   | Ok nums ->
+                     let sum = Array.fold_left ( +. ) 0.0 nums in
+                     VFloat (sum /. float_of_int (Array.length nums))))
+       | Some (VNA _) -> Error.na_value_error ~na_rm:true "mean"
       | Some _ -> Error.type_error "Function `mean` expects a numeric List or Vector."
       | None -> Error.arity_error_named "mean" 1 (List.length args)
     )))

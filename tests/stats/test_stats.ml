@@ -9,6 +9,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "mean na_rm=true no NAs" "mean([1.0, 2.0, 3.0], na_rm = true)" "2.";
   test "mean na_rm=true all NAs" "mean([NA, NA, NA], na_rm = true)" "NA(Float)";
   test "mean na_rm=false with NA errors" "mean([1, NA, 3], na_rm = false)" {|Error(AggregationError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+  test "weighted mean" "mean([1, 2, 3, 4], weight = [1, 1, 2, 2])" "2.83333333333";
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: sum() with na_rm:\n";
@@ -27,6 +28,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "sd na_rm=true no NAs" "sd([2, 4, 4, 4, 5, 5, 7, 9], na_rm = true)" "2.1380899353";
   test "sd na_rm=true all NAs" "sd([NA, NA, NA], na_rm = true)" "NA(Float)";
   test "sd na_rm=false with NA errors" "sd([1, NA, 3], na_rm = false)" {|Error(AggregationError: "Function `sd` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+  test "weighted sd" "sd([1, 2, 3, 4], weight = [1, 1, 2, 2])" "1.0671873729";
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: quantile():\n";
@@ -40,6 +42,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "quantile na_rm=true no NAs" "quantile([1, 2, 3, 4, 5], 0.5, na_rm = true)" "3.";
   test "quantile na_rm=true all NAs" "quantile([NA, NA, NA], 0.5, na_rm = true)" "NA(Float)";
   test "quantile na_rm=false with NA errors" "quantile([1, NA, 3], 0.5, na_rm = false)" {|Error(AggregationError: "Function `quantile` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+  test "weighted quantile" "quantile([1, 2, 3, 4], 0.75, weight = [1, 1, 2, 2])" "3.75";
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: cor():\n";
@@ -79,21 +82,32 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "cor na_rm=false with NA errors"
     "cor([1, NA, 3], [4, 5, 6], na_rm = false)"
     {|Error(AggregationError: "Function `cor` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+  test "weighted cor" "cor([1, 2, 3], [2, 4, 9], weight = [1, 1, 4])" "0.982707629824";
   test "min na_rm=true skips NA" "min([NA, 3, 1], na_rm = true)" "1.";
   test "max na_rm=true skips NA" "max([NA, 3, 1], na_rm = true)" "3.";
 
   (try Sys.remove csv_p5_cor with _ -> ());
   Printf.printf "Phase 5 — Stats: extended stats():\n";
   test "median basic" "median([1, 2, 10])" "2.";
+  test "weighted median" "median([1, 2, 3, 4], weight = [1, 1, 2, 2])" "3.";
   test "var basic" "var([1, 2, 3, 4, 5])" "2.5";
+  test "weighted var" "var([1, 2, 3, 4], weight = [1, 1, 2, 2])" "1.13888888889";
   test "cov basic" "cov([1, 2, 3], [2, 4, 6])" "2.";
+  test "weighted cov" "cov([1, 2, 3], [2, 4, 9], weight = [1, 1, 4])" "2.16666666667";
   test "range basic" "range([3, 1, 9, 2])" "Vector[1., 9.]";
   test "iqr basic" "iqr([1, 2, 3, 4, 5])" "2.";
+  test "weighted iqr" "iqr([1, 2, 3, 4], weight = [1, 1, 2, 2])" "1.75";
   test "mad basic" "mad([1, 1, 2, 2, 4, 6, 9])" "1.4826";
   test "cv basic" "cv([1, 2, 3, 4])" "0.516397779494";
+  test "weighted cv" "cv([1, 2, 10], weight = [1, 1, 4])" "0.560556781079";
   test "fivenum basic" "fivenum([1, 2, 3, 4, 5])" "Vector[1., 2., 3., 4., 5.]";
+  test "weighted fivenum" "fivenum([1, 2, 3, 4], weight = [1, 1, 2, 2])" "Vector[1., 2., 3., 3.75, 4.]";
   test "trimmed mean" "trimmed_mean([1, 2, 100, 101], 0.25)" "51.";
+  test "weighted trimmed mean" "trimmed_mean([1, 2, 3, 100], 0.25, weight = [1, 1, 2, 2])" "2.66666666667";
   test "winsorize" "winsorize([1, 2, 3, 100], 0.25)" "Vector[1.75, 2., 3., 27.25]";
+  test "weighted winsorize" "winsorize([1, 2, 3, 100], 0.25, weight = [1, 1, 2, 2])" "Vector[2., 2., 3., 75.75]";
+  test "weighted skewness" "skewness([1, 2, 10], weight = [1, 1, 4])" "-0.723487417543";
+  test "weighted kurtosis" "kurtosis([1, 2, 10, 10], weight = [1, 1, 3, 3])" "-0.605680420647";
   test "huber loss scalar" "huber_loss(3, 1.5)" "3.375";
   test "huber loss vector" "huber_loss([1, 2, 3], 1.5)" "Vector[0.5, 1.875, 3.375]";
   test "scale" "scale([1, 2, 3])" "Vector[-1., 0., 1.]";
@@ -112,6 +126,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let env_lm = Packages.init_env () in
   let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p5_lm) env_lm in
   let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
+  let (_, env_lm) = eval_string_env {|weighted_df = dataframe([x: [1, 2, 3, 4], y: [1, 2, 2, 4]])|} env_lm in
+  let (_, env_lm) = eval_string_env {|weighted_model = lm(data = weighted_df, formula = y ~ x, weight = [1, 1, 2, 2])|} env_lm in
 
   (* lm() now returns a VDict with _tidy_df and _model_data *)
   let (v, _) = eval_string_env "type(model)" env_lm in
@@ -213,6 +229,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "deviance non-dict" "deviance(\"hello\")" {|Error(TypeError: "Function `deviance` expects a model (Dict).")|};
   test "deviance missing key" "deviance([a: 1])" {|Error(TypeError: "Function `deviance` could not find 'deviance' in model object.")|};
+  test "weighted lm fit method" "weighted_model.fit_method" {|\"wls\"|};
+  test "weighted lm intercept" "head(weighted_model._tidy_df.estimate)" "-0.19512195122";
+  test "weighted lm coefficients" "head(tail(weighted_model._tidy_df.estimate))" "0.951219512195";
 
   (* Test add_diagnostics() *)
   let (v, _) = eval_string_env "type(add_diagnostics(model, data = df))" env_lm in

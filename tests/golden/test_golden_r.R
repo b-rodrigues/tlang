@@ -212,6 +212,14 @@ test_that("COR: iris correlation", {
   compare_csvs("cor_iris_sepal_petal", tolerance = 1e-6)
 })
 
+test_that("WEIGHTED STATS: descriptive baselines", {
+  compare_csvs("weighted_stats_baselines", tolerance = 1e-6)
+})
+
+test_that("WEIGHTED STATS: weighted lm baselines", {
+  compare_csvs("weighted_lm_baselines", tolerance = 1e-6)
+})
+
 # ============================================================================
 # Test Suite 10: EDGE CASES
 # ============================================================================

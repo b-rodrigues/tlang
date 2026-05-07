@@ -158,6 +158,84 @@ mode_manual <- function(x) {
   ux[which.max(tabulate(match(x, ux)))]
 }
 
+weighted_quantile_midpoint <- function(x, w, p) {
+  keep <- w > 0
+  x <- x[keep]
+  w <- w[keep]
+  if (length(x) == 0) {
+    return(NA_real_)
+  }
+  ord <- order(x)
+  x <- x[ord]
+  w <- w[ord]
+  q_points <- (cumsum(w) - 0.5 * w) / sum(w)
+  if (length(x) == 1) {
+    return(x[[1]])
+  }
+  if (p <= q_points[[1]]) {
+    return(x[[1]])
+  }
+  if (p >= q_points[[length(q_points)]]) {
+    return(x[[length(x)]])
+  }
+  for (i in seq_len(length(x) - 1)) {
+    if (p <= q_points[[i + 1]]) {
+      left_q <- q_points[[i]]
+      right_q <- q_points[[i + 1]]
+      if (right_q <= left_q) {
+        return(x[[i + 1]])
+      }
+      frac <- (p - left_q) / (right_q - left_q)
+      return(x[[i]] + frac * (x[[i + 1]] - x[[i]]))
+    }
+  }
+  x[[length(x)]]
+}
+
+weighted_var_manual <- function(x, w) {
+  mu <- weighted.mean(x, w)
+  sum(w * (x - mu)^2) / sum(w)
+}
+
+weighted_cov_manual <- function(x, y, w) {
+  mx <- weighted.mean(x, w)
+  my <- weighted.mean(y, w)
+  sum(w * (x - mx) * (y - my)) / sum(w)
+}
+
+weighted_skewness_manual <- function(x, w) {
+  mu <- weighted.mean(x, w)
+  m2 <- sum(w * (x - mu)^2) / sum(w)
+  if (m2 == 0) {
+    return(0)
+  }
+  m3 <- sum(w * (x - mu)^3) / sum(w)
+  m3 / (m2^(1.5))
+}
+
+weighted_kurtosis_manual <- function(x, w) {
+  mu <- weighted.mean(x, w)
+  m2 <- sum(w * (x - mu)^2) / sum(w)
+  if (m2 == 0) {
+    return(-3)
+  }
+  m4 <- sum(w * (x - mu)^4) / sum(w)
+  (m4 / (m2^2)) - 3
+}
+
+weighted_trimmed_mean_manual <- function(x, w, trim) {
+  lo <- weighted_quantile_midpoint(x, w, trim)
+  hi <- weighted_quantile_midpoint(x, w, 1 - trim)
+  keep <- x >= lo & x <= hi & w > 0
+  weighted.mean(x[keep], w[keep])
+}
+
+weighted_winsorize_manual <- function(x, w, limits) {
+  lo <- weighted_quantile_midpoint(x, w, limits[[1]])
+  hi <- weighted_quantile_midpoint(x, w, 1 - limits[[2]])
+  pmin(pmax(x, lo), hi)
+}
+
 shape_mode_stats <- tibble(
   sepal_length_skewness = skewness_manual(iris$Sepal.Length),
   petal_length_kurtosis = kurtosis_manual(iris$Petal.Length),
@@ -167,6 +245,49 @@ shape_mode_stats <- tibble(
 )
 write_csv(shape_mode_stats, file.path(output_dir, "stats_shape_mode_baselines.csv"))
 message("✓ skewness(), kurtosis(), and mode() baselines")
+
+weighted_stats <- tibble(
+  weighted_mean = weighted.mean(c(1, 2, 3, 4), c(1, 1, 2, 2)),
+  weighted_sd = sqrt(weighted_var_manual(c(1, 2, 3, 4), c(1, 1, 2, 2))),
+  weighted_var = weighted_var_manual(c(1, 2, 3, 4), c(1, 1, 2, 2)),
+  weighted_median = weighted_quantile_midpoint(c(1, 2, 3, 4), c(1, 1, 2, 2), 0.5),
+  weighted_quantile_75 = weighted_quantile_midpoint(c(1, 2, 3, 4), c(1, 1, 2, 2), 0.75),
+  weighted_cov = weighted_cov_manual(c(1, 2, 3), c(2, 4, 9), c(1, 1, 4)),
+  weighted_cor = weighted_cov_manual(c(1, 2, 3), c(2, 4, 9), c(1, 1, 4)) /
+    sqrt(weighted_var_manual(c(1, 2, 3), c(1, 1, 4)) * weighted_var_manual(c(2, 4, 9), c(1, 1, 4))),
+  weighted_cv = sqrt(weighted_var_manual(c(1, 2, 10), c(1, 1, 4))) / weighted.mean(c(1, 2, 10), c(1, 1, 4)),
+  weighted_iqr = weighted_quantile_midpoint(c(1, 2, 3, 4), c(1, 1, 2, 2), 0.75) -
+    weighted_quantile_midpoint(c(1, 2, 3, 4), c(1, 1, 2, 2), 0.25),
+  weighted_fivenum_min = min(c(1, 2, 3, 4)),
+  weighted_fivenum_q1 = weighted_quantile_midpoint(c(1, 2, 3, 4), c(1, 1, 2, 2), 0.25),
+  weighted_fivenum_med = weighted_quantile_midpoint(c(1, 2, 3, 4), c(1, 1, 2, 2), 0.5),
+  weighted_fivenum_q3 = weighted_quantile_midpoint(c(1, 2, 3, 4), c(1, 1, 2, 2), 0.75),
+  weighted_fivenum_max = max(c(1, 2, 3, 4)),
+  weighted_trimmed_mean = weighted_trimmed_mean_manual(c(1, 2, 3, 100), c(1, 1, 2, 2), 0.25),
+  weighted_skewness = weighted_skewness_manual(c(1, 2, 10), c(1, 1, 4)),
+  weighted_kurtosis = weighted_kurtosis_manual(c(1, 2, 10, 10), c(1, 1, 3, 3)),
+  winsor_1 = weighted_winsorize_manual(c(1, 2, 3, 100), c(1, 1, 2, 2), c(0.25, 0.25))[[1]],
+  winsor_2 = weighted_winsorize_manual(c(1, 2, 3, 100), c(1, 1, 2, 2), c(0.25, 0.25))[[2]],
+  winsor_3 = weighted_winsorize_manual(c(1, 2, 3, 100), c(1, 1, 2, 2), c(0.25, 0.25))[[3]],
+  winsor_4 = weighted_winsorize_manual(c(1, 2, 3, 100), c(1, 1, 2, 2), c(0.25, 0.25))[[4]]
+)
+write_csv(weighted_stats, file.path(output_dir, "weighted_stats_baselines.csv"))
+message("✓ weighted descriptive statistics baselines")
+
+weighted_df <- tibble(
+  x = c(1, 2, 3, 4),
+  y = c(1, 2, 2, 4),
+  w = c(1, 1, 2, 2)
+)
+weighted_lm <- lm(y ~ x, data = weighted_df, weights = w)
+weighted_lm_stats <- tibble(
+  intercept = coef(weighted_lm)[1],
+  slope = coef(weighted_lm)[2],
+  r_squared = summary(weighted_lm)$r.squared,
+  sigma = summary(weighted_lm)$sigma
+)
+write_csv(weighted_lm_stats, file.path(output_dir, "weighted_lm_baselines.csv"))
+message("✓ weighted lm baselines")
 
 standardize_scale_iris <- tibble(
   Sepal.Length = iris$Sepal.Length,
