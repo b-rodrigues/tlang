@@ -37,6 +37,10 @@ The focus of this release was to improve language ergonomics for data guardrails
     - **Advanced Moments**: Added coverage for `skewness` and `kurtosis` (excess kurtosis) using population-moment calculations.
     - **Probabilistic Distributions**: Added golden tests for `pnorm` (standard normal approximation), `pt`, `pf`, and `pchisq` CDFs.
     - **Statistical Operations**: Verified `winsorize`, `huber_loss`, `normalize`, and Pearson `cor` against R reference values.
+    - **Weighted Statistics Support**:
+        - Implemented the `weights` argument for `lm()` to support Weighted Least Squares (WLS) regression.
+        - Added support for weighted versions of `mean`, `sd`, `var`, `cov`, `cor`, `median`, `quantile`, `iqr`, `fivenum`, `trimmed_mean`, `skewness`, and `kurtosis`.
+        - Verified accuracy and diagnostic consistency across the statistical package.
     - **Data Transformations**: Added a golden test for `standardize` and `scale` using `iris$Sepal.Length`.
     - **Model Accessors**: Added regression tests for `coef`, `conf_int`, `sigma`, `nobs`, and `df_residual` for linear models.
 - **Cross-Platform Stability**:
