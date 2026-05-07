@@ -48,7 +48,7 @@ let inspect_file_target path =
   | exception Unix.Unix_error _ -> Missing
 
 type directory_target =
-  | DirectoryMissing
+  | Missing
   | NotDirectory
   | Directory
 
@@ -56,7 +56,7 @@ let inspect_directory_target path =
   match Unix.stat path with
   | { Unix.st_kind = Unix.S_DIR; _ } -> Directory
   | _ -> NotDirectory
-  | exception Unix.Unix_error _ -> DirectoryMissing
+  | exception Unix.Unix_error _ -> Missing
 
 let optional_arity_error function_name expected received =
   Error.make_error ArityError
@@ -174,7 +174,7 @@ let register env =
         let exists path message =
           match inspect_directory_target path with
           | Directory -> VBool true
-          | DirectoryMissing ->
+          | Missing ->
               assertion_failure ?message
                 (Printf.sprintf "Expected directory `%s` to exist." path)
           | NotDirectory ->
