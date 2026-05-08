@@ -342,6 +342,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let is_arrow_des  = is_fmt_in_des "arrow" in
   let is_csv_ser    = is_ser "csv" in
   let is_csv_des    = is_fmt_in_des "csv" in
+  let is_json_ser   = is_ser "json" in
+  let is_json_des   = is_fmt_in_des "json" in
   let is_pmml_ser   = is_ser "pmml" in
   let is_pmml_des   = is_fmt_in_des "pmml" in
   let is_onnx_ser   = is_ser "onnx" in
@@ -1054,7 +1056,7 @@ def py_read_onnx(path):
         )
 |} in
 
-  let json_injection   = make_injection ~enabled:true  ~r_code:t_json_r_code  ~py_code:t_json_py_code ~jl_code:t_json_jl_code in
+  let json_injection   = make_injection ~enabled:(is_json_ser || is_json_des)  ~r_code:t_json_r_code  ~py_code:t_json_py_code ~jl_code:t_json_jl_code in
   let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code ~jl_code:t_csv_jl_code in
   let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code ~jl_code:t_arrow_jl_code in
   let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code ~jl_code:"# Julia PMML support not yet implemented" in
