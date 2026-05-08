@@ -908,11 +908,62 @@ def py_read_pmml(path):
 |} in
 
   let t_pmml_jl_code = {|
-function jl_write_pmml(_, _)
-    error("Not implemented yet")
+import JavaCall
+using DataFrames, CSV
+
+# Wrapper for PMML models in Julia
+mutable struct JPMMLModel
+    path::String
 end
-function jl_read_pmml(_)
-    error("Not implemented yet")
+
+# predict() overload for JPMML models
+function predict(model::JPMMLModel, df::DataFrame)
+    if !JavaCall.isjvm_started()
+        jar_path = get(ENV, "T_JPMML_EVALUATOR_JAR", "")
+        if jar_path != "" && isfile(jar_path)
+            JavaCall.addClassPath(jar_path)
+        end
+        JavaCall.init()
+    end
+    
+    mktempdir() do tmpdir
+        in_path = joinpath(tmpdir, "in.csv")
+        out_path = joinpath(tmpdir, "out.csv")
+        CSV.write(in_path, df)
+        
+        # Call the JPMML evaluator via JavaCall
+        # We use the main method of the evaluator JAR.
+        # This avoid JVM startup overhead for each prediction call.
+        try
+            # Attempt to find the main class. 
+            # Note: JPMML-Evaluator example main class is typically org.jpmml.evaluator.example.Main
+            # or org.jpmml.evaluator.EvaluationExample.
+            MainClass = JavaCall.@jimport org.jpmml.evaluator.example.Main
+            JavaCall.jcall(MainClass, "main", Nothing, (Vector{JavaCall.JString},), ["--model", model.path, "--input", in_path, "--output", out_path])
+        catch e
+            try
+                # Fallback to alternative main class name
+                MainClassAlt = JavaCall.@jimport org.jpmml.evaluator.EvaluationExample
+                JavaCall.jcall(MainClassAlt, "main", Nothing, (Vector{JavaCall.JString},), ["--model", model.path, "--input", in_path, "--output", out_path])
+            catch e2
+                error("JPMML evaluation failed. Ensure T_JPMML_EVALUATOR_JAR is correctly set. Errors: $e, $e2")
+            end
+        end
+        
+        if !isfile(out_path)
+            error("JPMML evaluation failed: output file not created.")
+        end
+        
+        return CSV.read(out_path, DataFrame)
+    end
+end
+
+function jl_read_pmml(path)
+    return JPMMLModel(path)
+end
+
+function jl_write_pmml(model, path)
+    error("PMML export is not supported in Julia yet.")
 end
 |} in
 
@@ -1955,6 +2006,7 @@ EOF
     buildInputs = [ tBin %s ] ++ globalBuildInputs;
     T_JPMML_STATSMODELS_JAR = if (pkgs ? jpmml-statsmodels) then "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar" else "";
     T_JPMML_EVALUATOR_JAR = if (pkgs ? jpmml-evaluator) then "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar" else "";
+    JULIA_COPY_STACKS = "1";
     MPLCONFIGDIR = ".";
 %s
 %s
