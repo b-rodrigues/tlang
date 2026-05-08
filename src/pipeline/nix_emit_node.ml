@@ -908,7 +908,7 @@ def py_read_pmml(path):
 |} in
 
   let t_pmml_jl_code = {|
-import JavaCall
+using JavaCall
 
 # Wrapper for PMML models in Julia
 mutable struct JPMMLModel
