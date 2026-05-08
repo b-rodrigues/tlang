@@ -28,6 +28,47 @@ let indent_string s n =
          indent ^ stripped)
   |> String.concat "\n"
 
+let get_format = function
+  | Ast.VSerializer s -> Some s.s_format
+  | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
+  | Ast.VDict pairs -> 
+      (match List.assoc_opt "format" pairs with
+       | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
+       | _ -> None)
+  | _ -> None
+
+let get_polyglot_snippet ~lang ~kind v =
+  match v, lang, kind with
+  | Ast.VSerializer s, "R", "writer" -> s.s_r_writer
+  | Ast.VSerializer s, "R", "reader" -> s.s_r_reader
+  | Ast.VSerializer s, "Python", "writer" -> s.s_py_writer
+  | Ast.VSerializer s, "Python", "reader" -> s.s_py_reader
+  | Ast.VSerializer s, "Julia", "writer" -> s.s_julia_writer
+  | Ast.VSerializer s, "Julia", "reader" -> s.s_julia_reader
+  | Ast.VDict pairs, lang, kind ->
+      let key = (match lang, kind with
+        | "R", "writer" -> "r_writer" | "R", "reader" -> "r_reader"
+        | "Python", "writer" -> "py_writer" | "Python", "reader" -> "py_reader"
+        | "Julia", "writer" -> "julia_writer" | "Julia", "reader" -> "julia_reader"
+        | _ -> "unknown") in
+      (match List.assoc_opt key pairs with Some (VRawCode s) -> Some s | _ -> None)
+  | _ -> None
+
+let is_ser e f =
+  let eval_expr_safe e = Eval.eval_expr (ref Ast.Env.empty) e in
+  let ser_val = eval_expr_safe e in
+  match get_format ser_val with Some sf -> sf = f | None -> false
+
+let is_des e f =
+  let eval_expr_safe e = Eval.eval_expr (ref Ast.Env.empty) e in
+  let des_val = eval_expr_safe e in
+  match des_val with
+  | Ast.VDict pairs -> List.exists (fun (_, v) -> get_format v = Some f) pairs
+  | _ -> get_format des_val = Some f
+
+let is_pmml_ser e = is_ser e "pmml"
+let is_pmml_des e = is_des e "pmml"
+
 let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args =
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
@@ -72,34 +113,6 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let eval_expr_safe e = Eval.eval_expr (ref Ast.Env.empty) e in
   let ser_val = eval_expr_safe serializer in
   let des_val = eval_expr_safe deserializer in
-
-  let get_format = function
-    | Ast.VSerializer s -> Some s.s_format
-    | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
-    | Ast.VDict pairs -> 
-        (match List.assoc_opt "format" pairs with
-         | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
-         | _ -> None)
-    | _ -> None
-  in
-
-  let get_polyglot_snippet ~lang ~kind v =
-    match v, lang, kind with
-    | Ast.VSerializer s, "R", "writer" -> s.s_r_writer
-    | Ast.VSerializer s, "R", "reader" -> s.s_r_reader
-    | Ast.VSerializer s, "Python", "writer" -> s.s_py_writer
-    | Ast.VSerializer s, "Python", "reader" -> s.s_py_reader
-    | Ast.VSerializer s, "Julia", "writer" -> s.s_julia_writer
-    | Ast.VSerializer s, "Julia", "reader" -> s.s_julia_reader
-    | Ast.VDict pairs, lang, kind ->
-        let key = (match lang, kind with
-          | "R", "writer" -> "r_writer" | "R", "reader" -> "r_reader"
-          | "Python", "writer" -> "py_writer" | "Python", "reader" -> "py_reader"
-          | "Julia", "writer" -> "julia_writer" | "Julia", "reader" -> "julia_reader"
-          | _ -> "unknown") in
-        (match List.assoc_opt key pairs with Some (VRawCode s) -> Some s | _ -> None)
-    | _ -> None
-  in
 
   let ser_fmt = get_format ser_val in
   let is_ser f = match ser_fmt with Some sf -> sf = f | None -> false in
@@ -908,7 +921,7 @@ def py_read_pmml(path):
 |} in
 
   let t_pmml_jl_code = {|
-using JavaCall
+using JavaCall, CSV, DataFrames, StatsModels
 
 # Wrapper for PMML models in Julia
 mutable struct JPMMLModel
