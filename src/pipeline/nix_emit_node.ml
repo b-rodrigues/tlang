@@ -935,17 +935,12 @@ function predict(model::JPMMLModel, df::DataFrame)
         CSV.write(in_path, df)
         
         # Call the JPMML evaluator via JavaCall
-        try
-            MainClass = JavaCall.@jimport org.jpmml.evaluator.example.Main
-            JavaCall.jcall(MainClass, "main", Nothing, (Vector{JavaCall.JString},), ["--model", model.path, "--input", in_path, "--output", out_path])
-        catch e
             try
-                MainClassAlt = JavaCall.@jimport org.jpmml.evaluator.EvaluationExample
-                JavaCall.jcall(MainClassAlt, "main", Nothing, (Vector{JavaCall.JString},), ["--model", model.path, "--input", in_path, "--output", out_path])
+                MainClass = JavaCall.@jimport org.jpmml.evaluator.example.EvaluationExample
+                JavaCall.jcall(MainClass, "main", Nothing, (Vector{JavaCall.JString},), ["--model", model.path, "--input", in_path, "--output", out_path])
             catch e2
                 error("JPMML evaluation failed. Ensure T_JPMML_EVALUATOR_JAR is correctly set. Errors: $e, $e2")
             end
-        end
         
         if !isfile(out_path)
             error("JPMML evaluation failed: output file not created.")
