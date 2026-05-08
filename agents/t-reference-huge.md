@@ -12,7 +12,7 @@ This file is a concatenation of the entire T documentation for LLM context.
 
 Unlike traditional scripting languages, T is built to be a **specifications-ready engine**, making data analysis **explicit, inspectable, and pipeline-oriented**. This unique architecture ensures that humans and LLMs can collaborate on defining high-level intent while T handles the low-level orchestration and environmental consistency.
 
-**Status:** Version 0.52.0 "Sangoku", latest stabilization release.
+**Status:** Version 0.52.0 "Kaméhaméha", latest stabilization release.
 
 ---
 
@@ -10865,7 +10865,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.52.0 "Sangoku" using Nix <nix-version>
+Version 0.52.0 "Kaméhaméha" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
