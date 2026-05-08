@@ -4,6 +4,7 @@ T is primarily an orchestration engine and does not currently provide its own na
 
 - **R**: `ggplot2`
 - **Python**: `matplotlib`, `seaborn`, `plotly`, `altair`, `plotnine`
+- **Julia**: Support for Julia nodes is available, though visual metadata capture is currently optimized for R and Python.
 
 One of T's unique features is **Automated Visual Metadata Capture**. When you generate a plot in an R or Python node, T "sees" the plot object and automatically extracts its structural metadata during the build process.
 

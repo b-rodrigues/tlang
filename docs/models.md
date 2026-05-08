@@ -1,7 +1,7 @@
 # Statistical Models & Tidy Output
 
 > [!IMPORTANT]
-> **Native Support Note**: $T$ provides native implementations for Linear Models (`lm`) and PMML-imported **Decision Trees** and **Random Forests**. For other advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a polyglot approach where models are trained in R or Python nodes and exchanged through PMML or ONNX.
+> **Native Support Note**: $T$ provides native implementations for Linear Models (`lm`) and PMML-imported **Decision Trees** and **Random Forests**. For other advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a polyglot approach where models are trained in R, Python, or Julia nodes and exchanged through PMML or ONNX.
 
 $T$ treats models as first-class objects that can be summarized and evaluated regardless of which runtime created them.
 

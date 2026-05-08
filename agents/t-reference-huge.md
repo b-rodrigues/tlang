@@ -8,11 +8,11 @@ This file is a concatenation of the entire T documentation for LLM context.
 
 # T — The Orchestration Engine for Polyglot Data Science
 
-**T** is an experimental orchestration engine designed for declarative, reproducible pipelines. It provides a functional Domain-Specific Language (DSL) that coordinates R, Python, and Shell nodes—with Julia support planned—within a Nix-managed infrastructure.
+**T** is an experimental orchestration engine designed for declarative, reproducible pipelines. It provides a functional Domain-Specific Language (DSL) that coordinates R, Python, Julia, and Shell nodes within a Nix-managed infrastructure.
 
 Unlike traditional scripting languages, T is built to be a **specifications-ready engine**, making data analysis **explicit, inspectable, and pipeline-oriented**. This unique architecture ensures that humans and LLMs can collaborate on defining high-level intent while T handles the low-level orchestration and environmental consistency.
 
-**Status:** Version 0.51.4 "Sangoku", latest stabilization release.
+**Status:** Version 0.52.0 "Sangoku", latest stabilization release.
 
 ---
 
@@ -65,7 +65,7 @@ T is not designed to replace your existing tools; it is designed to **orchestrat
 
 ## Foreign Language Nodes & Deserialization
 
-When you define a node using `node()`, `rn()` (R), `pyn()` (Python), or `shn()` (Shell)—with Julia support planned—T treats the result as a first-class **Node** object. These objects transition through two main states:
+When you define a node using `node()`, `rn()` (R), `pyn()` (Python), `jl_node()` (Julia), or `shn()` (Shell), T treats the result as a first-class **Node** object. These objects transition through two main states:
 
 1.  **Unbuilt Node**: A specification of what to run (command, runtime, environment variables).
 2.  **Computed Node**: After `build_pipeline()`, the node points to a concrete, immutable artifact in the Nix store.
@@ -303,7 +303,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.51.4
+> **Version**: 0.52.0
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -5754,7 +5754,7 @@ The focus of this release was to improve language ergonomics for data guardrails
     - Updated the core evaluator to include function names in arity error messages for all builtins (e.g., `Function `length` expects...`).
     - Standardized arity error expectations across the entire test suite (1944/1944 tests passing).
 
-## [0.51.4] - 2026-04-30
+## [0.52.0] - 2026-04-30
 
 **Status**: Beta  
 
@@ -5850,7 +5850,7 @@ The focus of this release was to improve language ergonomics for data guardrails
 - **`t_make()` & `t_run()` Integration**: Added `failfast` parameter to the main pipeline orchestrator and script runner for granular control.
 - **Improved Serialization Restoration**: Fixed a critical bug where `VError` values were deserialized as Dictionaries. The system now correctly restores the native `Error` type across node boundaries, even when using modern JSON interchange.
 
-## [0.51.3] - 2026-04-12
+## [0.52.0] - 2026-04-12
 
 **Status**: Beta  
 
@@ -5919,7 +5919,7 @@ The focus of this release was to improve language ergonomics for data guardrails
 - **Grouped Mutate**: Fixed a regression where assigning constant scalars to grouped DataFrames would fail.
 - **Interaction Resolution**: Restored and verified interaction term (`:`) resolution in native linear model scoring.
 
-## Version 0.51.2
+## Version 0.52.0
 
 **Status**: Beta  
 **Release Date**: 2026-03-28
@@ -5967,7 +5967,7 @@ The focus of this release was to improve language ergonomics for data guardrails
 
 Version history and roadmap for the T programming language.
 
-## [0.51.1] - 2026-03-21
+## [0.52.0] - 2026-03-21
 
 **Status**: Beta
 **Release Date**: 21st of March 2026
@@ -5983,7 +5983,7 @@ Version history and roadmap for the T programming language.
 - **Quarto Integration**: Fixed `read_node` substitution in Quarto reports to prevent syntax errors in R/Python chunks.
 - **Testing**: Resolved failures in Quarto pipeline tests and improved CI reliability.
 
-## Version 0.51.0 — First Public Release
+## Version 0.52.0 — First Public Release
 
 **Status**: Alpha — Syntax and semantics frozen  
 **Release Date**: February 2026
@@ -5991,7 +5991,7 @@ Version history and roadmap for the T programming language.
 ### Package Manager (`t update`)
 
 - **Versioning sync**: `t update` now generates a `flake.nix` that points to this version by default.
-- **Improved defaults**: Projects without an explicit `min_version` now use 0.51.0.
+- **Improved defaults**: Projects without an explicit `min_version` now use 0.52.0.
 
 ### Language Core
 
@@ -8409,17 +8409,17 @@ committed.
 You can install the T language extension in two ways:
 
 #### Option A: Download the `.vsix` file (Recommended)
-1. Download the latest release: [`t-lang-0.51.0.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix) (or download from the repository assets).
+1. Download the latest release: [`t-lang-0.52.0.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.52.0.vsix) (or download from the repository assets).
 2. Install the extension using the command line:
    ```bash
-   code --install-extension /path/to/downloaded/t-lang-0.51.0.vsix
+   code --install-extension /path/to/downloaded/t-lang-0.52.0.vsix
    ```
    *Alternatively, in VS Code, go to the Extensions view, click the `...` menu, and select **Install from VSIX...***
 
 #### Option B: From a cloned T repository
 If you have already cloned the T repository locally:
 ```bash
-code --install-extension editors/vscode/t-lang-0.51.0.vsix
+code --install-extension editors/vscode/t-lang-0.52.0.vsix
 ```
 
 #### Launching the Editor
@@ -10414,7 +10414,7 @@ T isn't just another data analysis language; it's a **reproducibility-first** en
 - **LLM-First Developers**: T's functional, immutable, and pipeline-centric design is optimized for high-fidelity code generation by AI.
 
 ### Is T production-ready?
-T is currently in **Beta (v0.51.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R or Python nodes.
+T is currently in **Beta (v0.52.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R or Python nodes.
 
 ---
 
@@ -10865,7 +10865,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.51.1 "Sangoku" using Nix <nix-version>
+Version 0.52.0 "Sangoku" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -15187,7 +15187,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.51.4"
+min_version = "0.52.0"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -15235,7 +15235,7 @@ To upgrade your project to the latest version of T and set the project's nixpkgs
 ```bash
 $ t upgrade
 Checking for new T releases...
-Upgrading project to T 0.51.4 and nixpkgs date 2026-03-21 (today's UTC date)...
+Upgrading project to T 0.52.0 and nixpkgs date 2026-03-21 (today's UTC date)...
 Regenerating flake.nix and updating dependencies...
 Running nix flake update...
 ```
@@ -24843,7 +24843,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.51.4";
+    tlang.url = "github:b-rodrigues/tlang/v0.52.0";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -24964,7 +24964,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.51.4",
+    t_version: "0.52.0",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -25007,7 +25007,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.51.4";
+    tlang.url = "github:b-rodrigues/tlang/v0.52.0";
   };
   
   outputs = { self, nixpkgs, tlang }: {
