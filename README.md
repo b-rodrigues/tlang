@@ -14,7 +14,7 @@ The engine is built for seamless interoperability: you can manipulate objects de
 
 ### The Polyglot Orchestrator
 
-T's core strength is its **mandatory pipeline architecture**. It treats R scripts, Python models, and Shell commands as first-class nodes in a directed acyclic graph (DAG). T handles the "glue":
+T's core strength is its **mandatory pipeline architecture**. It treats R scripts, Python models, Julia scripts, and Shell commands as first-class nodes in a directed acyclic graph (DAG). T handles the "glue":
 - **Nix-Powered Sandboxing**: Each node runs in its own reproducible environment.
 - **High-performance Data Transfer**: Move DataFrames between R, Python, and T using Apache Arrow IPC via the Nix store.
 - **Native Model Evaluation**: Train models in R/Python and evaluate them natively in T via PMML (linear models, decision trees, random forests, and boosted trees like **XGBoost** and **LightGBM**).
@@ -200,13 +200,13 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 - **strcraft**: Modern string manipulation (`str_replace`, `str_detect`, `str_split`, etc. — inspired by `stringr`).
 - **lens**: Serializable, composable lenses for surgical updates to nested data and pipeline re-orchestration.
 - **Native Arrow I/O**: High-performance reading and writing of `CSV`, `Parquet`, and `Arrow` (IPC/Feather) formats.
-- **Polyglot & Metaprogramming**: First-class support for R, Python, and shell/CLI nodes, plus a robust metaprogramming layer (`expr`, `enquo`, `get`, `sym`).
+- **Polyglot & Metaprogramming**: First-class support for R, Python, Julia, and shell/CLI nodes, plus a robust metaprogramming layer (`expr`, `enquo`, `get`, `sym`).
 - **Pipeline Introspection**: High-level tools for auditing and querying complex execution graphs (`which_nodes`, `filter_node`, `errored_nodes`).
 - **Weighted Statistics**: Core descriptive statistics and `lm()` now support optional observation weights for weighted summaries and weighted least squares.
 
 What is currently missing:
 * **Native T Plotting**: While T provides first-class metadata capture and headless rendering for **R (ggplot2)** and **Python (matplotlib, plotnine, plotly, altair)** objects, it does not yet have its own native charting library, and will likely never have one.
-* **Complex Modeling**: While native `lm()` is available, specialized modeling should leverage R, Python, or future Julia nodes.
+* **Complex Modeling**: While native `lm()` is available, specialized modeling should leverage R, Python, or Julia nodes.
 * **Ecosystem Growth**: We are building out the infrastructure for user-contributed packages through `t publish`.
 
 You guessed it, I welcome contributions!

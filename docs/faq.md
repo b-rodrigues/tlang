@@ -15,14 +15,14 @@ T isn't just another data analysis language; it's a **reproducibility-first** en
 - **LLM-First Developers**: T's functional, immutable, and pipeline-centric design is optimized for high-fidelity code generation by AI.
 
 ### Is T production-ready?
-T is currently in **Beta (v0.51.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R or Python nodes.
+T is currently in **Beta (v0.52.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R, Python, or Julia nodes.
 
 ---
 
 ## The Technical Core
 
 ### How does the Polyglot Architecture work?
-T uses **Apache Arrow** as its core data exchange format. When you pass a DataFrame between a T node and an **R (`rn()`)**, **Python (`pyn()`)**, or **Shell (`shn()`)** node, T handles the interchange using highly efficient Arrow files. 
+T uses **Apache Arrow** as its core data exchange format. When you pass a DataFrame between a T node and an **R (`rn()`)**, **Python (`pyn()`)**, **Julia (`jl_node()`)**, or **Shell (`shn()`)** node, T handles the interchange using highly efficient Arrow files. 
 - **Hermeticity**: Because T runs every node in a hermetic Nix sandbox, data cannot be shared directly in memory.
 - **Serialization**: Dataframes are serialized to Arrow IPC files on disk. This is still significantly faster and more robust than traditional CSV/JSON interchange.
 - **Fidelity**: All level metadata for factors and nested list-columns is preserved through the serialization process.
@@ -127,7 +127,7 @@ T is an open-source project. You can contribute by:
 - Reporting bugs or suggesting features on [GitHub](https://github.com/b-rodrigues/tlang/issues).
 
 ### What's next on the roadmap?
-The developer (Bruno Rodrigues) works on T based on community interest and experimental whims. High-priority items include **Julia integration** and expanding the native Arrow compute engine.
+The developer (Bruno Rodrigues) works on T based on community interest and experimental whims. High-priority items include expanding the native Arrow compute engine and improving the LSP. Julia integration was a major milestone completed in v0.52.0.
 
 ---
 

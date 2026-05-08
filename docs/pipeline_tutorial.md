@@ -621,7 +621,7 @@ The columns returned are:
 | Column | Type | Description |
 |---|---|---|
 | `name` | String | Unique node identifier |
-| `runtime` | String | `"T"`, `"R"`, or `"Python"` |
+| `runtime` | String | `"T"`, `"R"`, `"Python"`, or `"Julia"` |
 | `serializer` | String | e.g. `"default"`, `"pmml"` |
 | `deserializer` | String | e.g. `"default"`, `"pmml"` |
 | `noop` | Bool | Whether the node is a no-op |
