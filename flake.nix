@@ -82,6 +82,12 @@
           ipykernel
         ]);
 
+        julia-with-packages = pkgs.julia-lts.withPackages [
+          "DataFrames"
+          "Tidier"
+          "CSV"
+        ];
+
         # Pin a specific version of OCaml for reproducibility.
         ocamlVersion = pkgs.ocaml-ng.ocamlPackages_5_4;
         runtimeTools = [ pkgs.bash pkgs.coreutils pkgs.findutils ];
@@ -360,7 +366,7 @@ chmod +x $out/bin/bisect-ppx-report
             pkgs.bash
             pkgs.coreutils
             pkgs.findutils
-            pkgs.julia-lts
+            julia-with-packages
 
             # 6. Local Project Binaries (Wrappers for development)
             (pkgs.writeShellScriptBin "t" ''

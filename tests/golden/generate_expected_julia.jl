@@ -3,11 +3,6 @@
 # Generate expected outputs using Tidier.jl
 # These are the "golden" results T should match for Julia parity
 
-using Pkg
-# Ensure dependencies are available (slow but necessary if not in environment)
-Pkg.activate(".")
-Pkg.add(["DataFrames", "Tidier", "CSV"])
-
 using DataFrames, Tidier, CSV
 
 data_dir = "tests/golden/data"
