@@ -1,0 +1,4 @@
+flake.nix
+flake.lock
+_pipeline
+pipeline-output
