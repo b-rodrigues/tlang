@@ -210,6 +210,7 @@ let scan_code_requirements ~node_name ~runtime raw_text =
         (try ignore (Str.search_forward re1 raw_text 0); true with Not_found ->
          try ignore (Str.search_forward re2 raw_text 0); true with Not_found -> false)
       in
+      let req = if has_pkg "JSON" then { req with julia_deps = add_list req.julia_deps [ "JSON" ] } else req in
       let req = if has_pkg "CSV" then { req with julia_deps = add_list req.julia_deps [ "CSV" ] } else req in
       let req = if has_pkg "DataFrames" then { req with julia_deps = add_list req.julia_deps [ "DataFrames" ] } else req in
       let req = if has_pkg "Arrow" then { req with julia_deps = add_list req.julia_deps [ "Arrow" ] } else req in
