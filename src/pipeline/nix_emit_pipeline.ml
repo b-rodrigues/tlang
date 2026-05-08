@@ -34,6 +34,11 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     |> List.map (fun n -> Printf.sprintf "      cp -r ${%s} $out/%s" n n)
     |> String.concat "\n"
   in
+  let has_julia = List.exists (fun (name, _) ->
+    let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+    runtime = "Julia"
+  ) p.p_exprs in
+  let julia_build_input = if has_julia then "\n                      ++ [ juliaPkg ]" else "" in
 
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
@@ -74,7 +79,7 @@ let
 
   juliaDeps = toml.julia-dependencies or {};
   juliaVersion = juliaDeps.version or "lts";
-  juliaPackageName = if juliaVersion == "lts" then "julia_lts" else "julia_" + (builtins.replaceStrings ["."] ["_"] juliaVersion);
+  juliaPackageName = if juliaVersion == "lts" then "julia-lts" else "julia_" + (builtins.replaceStrings ["."] ["_"] juliaVersion);
   juliaBase = pkgs.${juliaPackageName};
   juliaPackagesList = juliaDeps.packages or [];
   juliaPkg = if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
@@ -86,8 +91,7 @@ let
   latexCombined = if latexPkgs == [] then null 
                   else pkgs.texlive.combine (builtins.listToAttrs (builtins.map (name: { name = name; value = pkgs.texlive.${name}; }) (["scheme-small"] ++ latexPkgs)));
                   
-  globalBuildInputs = (builtins.map (p: pkgs.${p}) additionalTools)
-                      ++ [ juliaPkg ]
+  globalBuildInputs = (builtins.map (p: pkgs.${p}) additionalTools)%s
                       ++ (if latexCombined == null then [] else [ latexCombined ]);
 in
 rec {
@@ -101,4 +105,4 @@ rec {
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root julia_build_input nodes (String.concat " " node_names) final_copy

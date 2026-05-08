@@ -360,7 +360,7 @@ chmod +x $out/bin/bisect-ppx-report
             pkgs.bash
             pkgs.coreutils
             pkgs.findutils
-            pkgs.julia
+            pkgs.julia-lts
 
             # 6. Local Project Binaries (Wrappers for development)
             (pkgs.writeShellScriptBin "t" ''
