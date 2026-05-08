@@ -38,7 +38,16 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
     runtime = "Julia"
   ) p.p_exprs in
-  let julia_build_input = if has_julia then "\n                      ++ [ juliaPkg pkgs.gcc.cc.lib pkgs.avahi ]" else "" in
+  let has_pmml = List.exists (fun (name, _) ->
+    let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
+    let des = match List.assoc_opt name p.p_deserializers with Some d -> d | None -> Ast.mk_expr (Ast.Var "default") in
+    is_pmml_ser ser || is_pmml_des des
+  ) p.p_exprs in
+  let julia_build_input = if has_julia && has_pmml then "\n                      ++ [ juliaPkg pkgs.gcc.cc.lib pkgs.avahi ]" 
+                          else if has_julia then "\n                      ++ [ juliaPkg ]"
+                          else "" in
+
+  let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\"" in
 
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
@@ -81,7 +90,7 @@ let
   juliaVersion = juliaDeps.version or "lts";
   juliaPackageName = if juliaVersion == "lts" then "julia-lts" else "julia_" + (builtins.replaceStrings ["."] ["_"] juliaVersion);
   juliaBase = pkgs.${juliaPackageName};
-  juliaPackagesList = juliaDeps.packages or [];
+  juliaPackagesList = (juliaDeps.packages or []) ++ [ %s ];
   juliaPkg = if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
 
   # Additional Tools & LaTeX
@@ -105,4 +114,4 @@ rec {
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root julia_build_input nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root julia_packages_injection julia_build_input nodes (String.concat " " node_names) final_copy
