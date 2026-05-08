@@ -1577,8 +1577,12 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
              let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
              let has_self_ref = List.exists (fun v -> v = name) fv in
              if has_self_ref && not is_raw then
-               Error (Error.structural_error (Printf.sprintf
-                 "Self-referential node detected in command for node: `%s`." name))
+                let msg = if match un.un_command.node with Var v when v = name -> true | _ -> false then
+                  Printf.sprintf "Node `%s` not found. If this is intended to be a cross-pipeline dependency, use `chain` or ensure the node is defined before the pipeline block." name
+                else
+                  Printf.sprintf "Self-referential node detected in command for node: `%s`." name
+                in
+                Error (Error.structural_error msg)
              else
                let node_deps = List.filter (fun v ->
                  v <> name && (
