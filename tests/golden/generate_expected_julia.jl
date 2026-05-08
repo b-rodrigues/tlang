@@ -45,7 +45,7 @@ end
 
 # Test J.3: Tidier Group By + Summarize
 @chain simple_data begin
-    @mutate(age_group = age > 30 ? "old" : "young")
+    @mutate(age_group = if_else(age .> 30, "old", "young"))
     @group_by(age_group)
     @summarize(mean_score = mean(score), count = n())
     @arrange(age_group)
