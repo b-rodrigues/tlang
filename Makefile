@@ -1,7 +1,7 @@
 # Makefile for T Language Golden Tests
 # Phases 4-6 of Golden Testing Implementation
 
-.PHONY: golden golden-setup golden-data golden-expected golden-run golden-compare golden-clean golden-quick
+.PHONY: golden golden-setup golden-data golden-expected golden-expected-julia golden-run golden-compare golden-clean golden-quick
 
 # Main golden test target - runs all phases
 # Uses - prefix to continue on error for test execution steps
@@ -33,6 +33,8 @@ golden-expected:
 	@Rscript tests/golden/generate_expected_window.R
 	@Rscript tests/golden/generate_expected_ndarray.R
 	@Rscript tests/golden/generate_expected_chrono.R
+	@echo "=== Generating expected outputs from Julia ==="
+	@julia tests/golden/generate_expected_julia.jl
 	@echo "=== Generating expected outputs from scikit-learn ==="
 	@python3 tests/golden/generate_expected_sklearn.py
 	@python3 tests/golden/generate_onnx.py || echo "WARNING: tests/golden/generate_onnx.py failed; keeping existing ONNX golden artifacts"

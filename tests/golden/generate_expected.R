@@ -547,11 +547,5 @@ wald_df <- data.frame(
 )
 save_output(wald_df, "mtcars_wald_wt_hp", "wald_test(m2, terms=['wt', 'hp'])")
 
-# ============================================================================
-# Test Suite 26: JULIA integration
-# ============================================================================
-message("\n=== Test Suite 26: JULIA Tests ===")
-
-data.frame(x = c(1, 2, 3), y = c(10, 20, 30)) %>%
-  mutate(z = x * y) %>%
-  save_output("julia_simple", "Julia simple calc (R equivalent)")
+message("\n✅ All expected outputs generated!")
+message(sprintf("   Location: %s", normalizePath(output_dir)))

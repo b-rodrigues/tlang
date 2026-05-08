@@ -757,6 +757,22 @@ test_that("JULIA: simple calculation", {
   compare_csvs("julia_simple")
 })
 
+test_that("JULIA: Tidier @mutate parity", {
+  compare_csvs("julia_tidier_mutate")
+})
+
+test_that("JULIA: Tidier @filter parity", {
+  compare_csvs("julia_tidier_filter")
+})
+
+test_that("JULIA: Tidier @group_by parity", {
+  compare_csvs("julia_tidier_groupby")
+})
+
+test_that("JULIA: Tidier @arrange parity", {
+  compare_csvs("julia_tidier_arrange")
+})
+
 # ============================================================================
 # SUMMARY REPORT
 # ============================================================================
