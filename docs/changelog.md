@@ -16,6 +16,11 @@ The focus of this release was to introduce first-class Julia support.
 - **Dependency Management**:
     - Added `[julia-dependencies]` section to `tproject.toml` for managing Julia packages (`CSV`, `DataFrames`, etc.).
     - Integrated Julia versioning (`julia-dependencies.version`) into the Nix generator.
+- **PMML Support via `JavaCall`**:
+    - Implemented `jl_read_pmml()` for Julia nodes, enabling PMML model scoring.
+    - Uses `JavaCall.jl` to interface with the JPMML evaluator directly within the Julia process.
+    - Provides a `predict()` overload for `JPMMLModel` objects in Julia, matching the T-native experience.
+    - Automatically manages JVM initialization and JPMML JAR classpath injection in the Nix sandbox.
 
 ## [0.51.5] - 2026-05-08
 
