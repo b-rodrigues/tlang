@@ -1,6 +1,6 @@
 # T Language Overview
 
-> **Version**: 0.51.5
+> **Version**: 0.52.0
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -58,6 +58,7 @@ T supports the following value types:
 | `Vector`    | Column data              | Typed arrays (from DataFrames)      |
 | `DataFrame` | `read_csv("data.csv")`   | Tabular data (rows × columns)       |
 | `Pipeline`  | `pipeline { ... }`       | DAG-based execution graph           |
+| `jl_node`   | `jl_node(...)`           | Julia node wrapper                  |
 | `Function`  | `\(x) x + 1`            | First-class functions               |
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
@@ -781,7 +782,7 @@ is_error(result)  -- true
 
 ## Pipelines
 
-Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file.
+Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file. T supports R (`rn()`), Python (`pyn()`), Julia (`jl_node()`), Quarto (`qn()`), and Shell (`shn()`) nodes out of the box.
 
 Built-in serializer keywords include `"csv"`, `"arrow"`, `"pmml"`, and `"onnx"` (or `^csv`, `^arrow`, `^pmml`, `^onnx` when referencing the first-class serializer values directly).
 
