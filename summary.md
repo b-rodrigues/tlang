@@ -202,8 +202,10 @@ Pipelines are DAGs. Nodes can be declared in any order; dependencies are resolve
 - `node(...)` = fully configurable node constructor
 - `rn(...)` = R node wrapper
 - `pyn(...)` = Python node wrapper
+- `jl_node(...)` = Julia node wrapper
 - `qn(...)` = Quarto node wrapper
 - `shn(...)` = shell/Bash node wrapper
+- `node(..., runtime = Julia)` = explicit alternative for Julia nodes
 - `node(..., runtime = Quarto)` = explicit alternative when you need the fully configurable Quarto form
 
 For Bash-specific syntax, prefer `shn(..., shell = "bash", shell_args = ["-lc"])`.
@@ -214,6 +216,7 @@ Useful patterns:
 p = pipeline {
   model_r = rn(script = "train.R", serializer = "pmml")
   model_py = pyn(script = "train.py", serializer = "pmml")
+  model_jl = jl_node(script = "train.jl", serializer = ^csv)
   report = shn(script = "postprocess.sh")
   quarto_report = node(script = "analysis.qmd", runtime = Quarto)
 }

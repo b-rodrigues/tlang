@@ -89,10 +89,13 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | Ast.VSerializer s, "R", "reader" -> s.s_r_reader
     | Ast.VSerializer s, "Python", "writer" -> s.s_py_writer
     | Ast.VSerializer s, "Python", "reader" -> s.s_py_reader
+    | Ast.VSerializer s, "Julia", "writer" -> s.s_julia_writer
+    | Ast.VSerializer s, "Julia", "reader" -> s.s_julia_reader
     | Ast.VDict pairs, lang, kind ->
         let key = (match lang, kind with
           | "R", "writer" -> "r_writer" | "R", "reader" -> "r_reader"
           | "Python", "writer" -> "py_writer" | "Python", "reader" -> "py_reader"
+          | "Julia", "writer" -> "julia_writer" | "Julia", "reader" -> "julia_reader"
           | _ -> "unknown") in
         (match List.assoc_opt key pairs with Some (VRawCode s) -> Some s | _ -> None)
     | _ -> None
@@ -112,6 +115,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
         "R", "r-env"
     | "Python" -> 
         "py", "py-env"
+    | "Julia" ->
+        "jl", "juliaPkg"
     | "Quarto" ->
         "sh", "r-env py-env"
     | "sh" ->
@@ -343,11 +348,12 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let is_onnx_des   = is_fmt_in_des "onnx" in
 
   (* Helper: inject runtime-specific helper code into the node script. *)
-  let make_injection ~enabled ~r_code ~py_code =
+  let make_injection ~enabled ~r_code ~py_code ~jl_code =
     if enabled then
       match runtime with
       | "R"      -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" r_code
       | "Python" -> Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" py_code
+      | "Julia"  -> Printf.sprintf "      cat << 'EOF' >> node_script.jl\n%s\nEOF" jl_code
       | _        -> ""
     else ""
   in
@@ -361,6 +367,20 @@ r_read_json <- function(path) {
 }
 |} in
 
+  let t_json_jl_code = {|
+import JSON
+function jl_write_json(obj, path)
+    open(path, "w") do f
+        JSON.print(f, obj)
+    end
+end
+function jl_read_json(path)
+    open(path, "r") do f
+        JSON.parse(f)
+    end
+end
+|} in
+
   let t_csv_r_code = {|
 r_write_csv <- function(object, path) {
   if (inherits(object, "data.frame")) {
@@ -372,6 +392,16 @@ r_write_csv <- function(object, path) {
 r_read_csv <- function(path) {
   read.csv(path, stringsAsFactors = FALSE)
 }
+|} in
+
+  let t_csv_jl_code = {|
+using CSV, DataFrames
+function jl_write_csv(df, path)
+    CSV.write(path, df)
+end
+function jl_read_csv(path)
+    CSV.read(path, DataFrame)
+end
 |} in
 
   let t_csv_py_code = {|
@@ -469,6 +499,16 @@ r_write_arrow <- function(object, path) {
 r_read_arrow <- function(path) {
   arrow::read_ipc_file(path)
 }
+|} in
+
+  let t_arrow_jl_code = {|
+using Arrow, DataFrames
+function jl_write_arrow(df, path)
+    Arrow.write(path, df)
+end
+function jl_read_arrow(path)
+    Arrow.Table(path) |> DataFrame
+end
 |} in
 
   let t_arrow_py_code = {|
@@ -1014,11 +1054,11 @@ def py_read_onnx(path):
         )
 |} in
 
-  let json_injection   = make_injection ~enabled:true  ~r_code:t_json_r_code  ~py_code:t_json_py_code in
-  let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code in
-  let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code in
-  let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code in
-  let onnx_injection   = make_injection ~enabled:(is_onnx_ser  || is_onnx_des)  ~r_code:t_onnx_r_code  ~py_code:t_onnx_py_code in
+  let json_injection   = make_injection ~enabled:true  ~r_code:t_json_r_code  ~py_code:t_json_py_code ~jl_code:t_json_jl_code in
+  let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code ~jl_code:t_csv_jl_code in
+  let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code ~jl_code:t_arrow_jl_code in
+  let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code ~jl_code:"# Julia PMML support not yet implemented" in
+  let onnx_injection   = make_injection ~enabled:(is_onnx_ser  || is_onnx_des)  ~r_code:t_onnx_r_code  ~py_code:t_onnx_py_code ~jl_code:"# Julia ONNX support not yet implemented" in
   let pickle_injection =
     if runtime = "Python" then
       Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pickle_py_code
@@ -1334,6 +1374,7 @@ def py_save_viz_metadata(obj, path):
         let read_fns = match runtime with
           | "R" -> [ "json", "r_read_json"; "arrow", "r_read_arrow"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; ]
           | "Python" -> [ "json", "py_read_json"; "arrow", "py_read_arrow"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; ]
+          | "Julia" -> [ "json", "jl_read_json"; "arrow", "jl_read_arrow"; "pmml", "jl_read_pmml"; "onnx", "jl_read_onnx"; "csv", "jl_read_csv"; ]
           | _ -> [ "json", "t_read_json"; "arrow", "read_arrow"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; ]
         in
         let des_node_val = eval_expr_safe strategy_expr in
@@ -1344,7 +1385,7 @@ def py_save_viz_metadata(obj, path):
                | None -> List.assoc_opt fmt read_fns |> Option.value ~default:fmt)
           | None ->
             if strategy = "default" then
-              (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else "deserialize")
+              (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else if runtime = "Julia" then "deserialize" else "deserialize")
             else if strategy_is_string then
               (match List.assoc_opt strategy read_fns with Some fn -> fn | None -> strategy)
             else
@@ -1364,6 +1405,8 @@ def py_save_viz_metadata(obj, path):
       echo "    %s = py_read_json(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py
       echo "else:" >> node_script.py
       echo "    %s = %s(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
+        | "Julia" ->
+            Printf.sprintf {|      echo "%s = %s(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl|} dep_name des_fn dep_var
         | _ ->
             Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" dep_name des_fn dep_var ext
       in
@@ -1399,6 +1442,7 @@ def py_save_viz_metadata(obj, path):
     let write_fns = match runtime with
       | "R" -> [ "json", "r_write_json"; "arrow", "r_write_arrow"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; ]
       | "Python" -> [ "json", "py_write_json"; "arrow", "py_write_arrow"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; ]
+      | "Julia" -> [ "json", "jl_write_json"; "arrow", "jl_write_arrow"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; ]
       | _ -> [ "json", "t_write_json"; "arrow", "write_arrow"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; ]
     in
     match get_format ser_val with
@@ -1408,7 +1452,7 @@ def py_save_viz_metadata(obj, path):
          | None -> List.assoc_opt fmt write_fns |> Option.value ~default:fmt)
     | None ->
         if ser_s = "default" then
-          (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else "serialize")
+          (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else if runtime = "Julia" then "serialize" else "serialize")
         else if ser_expr_is_string then
           (match List.assoc_opt ser_s write_fns with Some fn -> fn | None -> ser_s)
         else
@@ -1435,6 +1479,11 @@ def py_save_viz_metadata(obj, path):
     %s(%s, %s)|} viz_call ser_call value_name artifact_path
     else
       Printf.sprintf {|    %s(%s, %s)|} ser_call value_name artifact_path
+  in
+
+  let julia_emit_artifact value_name =
+    let artifact_path = "joinpath(ENV[\"out\"], \"artifact\")" in
+    Printf.sprintf {|    %s(%s, %s)|} ser_call value_name artifact_path
   in
 
   let is_import_line line =
@@ -1621,6 +1670,15 @@ def py_save_viz_metadata(obj, path):
           Printf.sprintf {|      echo %s >> node_script.py
       echo %s >> node_script.py
 |} py_exec py_ser
+        else if runtime = "Julia" then
+          let jl_include = shell_single_quote (Printf.sprintf {|include("%s")|} script_path) in
+          let jl_ser = shell_single_quote (Printf.sprintf {|%s
+    open(joinpath(ENV["out"], "class"), "w") do f
+        write(f, string(typeof(%s)))
+    end|} (julia_emit_artifact name) name) in
+          Printf.sprintf {|      echo %s >> node_script.jl
+      echo %s >> node_script.jl
+|} jl_include jl_ser
         else
           let t_import = shell_single_quote (Printf.sprintf {|      import "%s"|} script_path) in
           Printf.sprintf {|      echo %s >> node_script.t
@@ -1749,6 +1807,24 @@ EOF
 EOF
       echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
       echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name (py_emit_artifact name) name
+    else if runtime = "Julia" then
+      Printf.sprintf {|      echo "try" >> node_script.jl
+      cat <<'EOF' >> node_script.jl
+      global %s = begin
+%s
+      end
+EOF
+      echo "catch e" >> node_script.jl
+      echo "    open(joinpath(ENV[\"out\"], \"artifact\"), \"w\") do f" >> node_script.jl
+      echo "        write(f, \"Error: \", string(e))" >> node_script.jl
+      echo "    end" >> node_script.jl
+      echo "    exit(0)" >> node_script.jl
+      echo "end" >> node_script.jl
+      cat <<'EOF' >> node_script.jl
+%s
+EOF
+      echo "open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, string(typeof(%s))); end" >> node_script.jl|}
+        name (indent_string expr_s 8) (julia_emit_artifact name) name
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
@@ -1790,6 +1866,7 @@ EOF
   let run_cmd = match runtime with
     | "R" -> "Rscript node_script.R"
     | "Python" -> "python node_script.py"
+    | "Julia" -> "julia node_script.jl"
     | "Quarto" ->
         let cli_block =
           if quarto_cli_args_block = "" then ""

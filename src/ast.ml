@@ -196,6 +196,8 @@ and serializer = {
   s_r_reader : string option;
   s_py_writer : string option;
   s_py_reader : string option;
+  s_julia_writer : string option;
+  s_julia_reader : string option;
 }
 
 and lens =

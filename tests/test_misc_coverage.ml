@@ -417,6 +417,8 @@ export let helper = 1
         s_r_reader = None;
         s_py_writer = None;
         s_py_reader = None;
+        s_julia_writer = None;
+        s_julia_reader = None;
       }
     in
     let raw_expr =

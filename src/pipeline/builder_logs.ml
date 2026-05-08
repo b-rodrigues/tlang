@@ -11,7 +11,16 @@ let get_all_logs () =
         Filename.check_suffix f ".json"
         && String.starts_with ~prefix:"build_log_" f)
     in
-    logs |> List.sort (fun a b -> compare b a)
+    let logs_with_mtime =
+      List.map (fun f ->
+        let path = Filename.concat pipeline_dir f in
+        let stats = Unix.stat path in
+        (f, stats.Unix.st_mtime)
+      ) logs
+    in
+    logs_with_mtime
+    |> List.sort (fun (_, t1) (_, t2) -> compare t2 t1)
+    |> List.map fst
 
 let get_logs () =
   if not (Sys.file_exists pipeline_dir) then []

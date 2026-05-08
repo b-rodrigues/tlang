@@ -91,6 +91,7 @@ type project_dependency_counts = {
   t_dependencies : int;
   r_dependencies : int;
   python_dependencies : int;
+  julia_dependencies : int;
   additional_tools : int;
   latex_packages : int;
 }
@@ -100,6 +101,7 @@ let project_dependency_counts cfg =
     t_dependencies = List.length cfg.proj_dependencies;
     r_dependencies = List.length cfg.proj_r_dependencies;
     python_dependencies = List.length cfg.proj_py_dependencies;
+    julia_dependencies = List.length cfg.proj_julia_dependencies;
     additional_tools = List.length cfg.proj_additional_tools;
     latex_packages = List.length cfg.proj_latex_packages;
   }
@@ -124,6 +126,11 @@ let project_dependency_count_segments counts =
       format_labeled_count
         counts.python_dependencies
         "Python"
+        "dependency"
+        "dependencies";
+      format_labeled_count
+        counts.julia_dependencies
+        "Julia"
         "dependency"
         "dependencies";
     ]
@@ -174,6 +181,11 @@ let format_no_t_project_dependencies_message config_name cfg =
         optional_labeled_count
           counts.python_dependencies
           "Python"
+          "dependency"
+          "dependencies";
+        optional_labeled_count
+          counts.julia_dependencies
+          "Julia"
           "dependency"
           "dependencies";
         optional_labeled_count
@@ -685,6 +697,8 @@ let update_flake_lock () =
                               ~r_deps:cfg.proj_r_dependencies
                               ~py_deps:cfg.proj_py_dependencies
                               ~py_version:cfg.proj_py_version
+                              ~jl_deps:cfg.proj_julia_dependencies
+                              ~jl_version:cfg.proj_julia_version
                               ~additional_tools:cfg.proj_additional_tools
                               ~latex_pkgs:cfg.proj_latex_packages
                               ~dir

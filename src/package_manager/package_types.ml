@@ -31,6 +31,8 @@ type project_config = {
   proj_r_dependencies : string list;
   proj_py_dependencies : string list;
   proj_py_version : string;
+  proj_julia_dependencies : string list;
+  proj_julia_version : string;
   proj_visualization_tool : string;
   proj_min_t_version : string;
   proj_nixpkgs_date : string;
@@ -88,6 +90,8 @@ let default_project_config name = {
   proj_r_dependencies = [];
   proj_py_dependencies = [];
   proj_py_version = "python314";
+  proj_julia_dependencies = [];
+  proj_julia_version = "lts";
   proj_visualization_tool = "";
   proj_min_t_version = Version.version;
   proj_nixpkgs_date = (let t = Unix.gmtime (Unix.gettimeofday ()) in 
