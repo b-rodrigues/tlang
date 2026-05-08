@@ -166,15 +166,12 @@ let generate_project_flake
     ) py_deps;
     Buffer.add_string buf "        ]);\n";
   end;
-  if jl_deps <> [] || jl_version <> "" then begin
+  if jl_deps <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # Julia environment\n";
-    let jl_attr = if jl_version = "lts" then "julia" else "julia_" ^ (String.map (function '.' -> '_' | c -> c) jl_version) in
-    let jl_pkgs_str = if jl_deps = [] then "" else " [ " ^ (String.concat " " (List.map (fun p -> "\"" ^ p ^ "\"") jl_deps)) ^ " ]" in
-    if jl_deps = [] then
-      Printf.bprintf buf "        juliaPkg = pkgs.%s;\n" jl_attr
-    else
-      Printf.bprintf buf "        juliaPkg = pkgs.%s.withPackages%s;\n" jl_attr jl_pkgs_str;
+    let jl_attr = if jl_version = "lts" then "julia-lts" else "julia_" ^ (String.map (function '.' -> '_' | c -> c) jl_version) in
+    let jl_pkgs_str = " [ " ^ (String.concat " " (List.map (fun p -> "\"" ^ p ^ "\"") jl_deps)) ^ " ]" in
+    Printf.bprintf buf "        juliaPkg = pkgs.%s.withPackages%s;\n" jl_attr jl_pkgs_str;
   end;
   if additional_tools <> [] then begin
     Buffer.add_string buf "\n";
@@ -198,7 +195,7 @@ let generate_project_flake
   Buffer.add_string buf "            t-lang.packages.${system}.default\n";
   if r_deps <> [] then Buffer.add_string buf "            r-env\n";
   if py_deps <> [] then Buffer.add_string buf "            py-env\n";
-  if jl_deps <> [] || jl_version <> "" then Buffer.add_string buf "            juliaPkg\n";
+  if jl_deps <> [] then Buffer.add_string buf "            juliaPkg\n";
   if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   let extra_pkgs = 
     (if additional_tools <> [] then " ++ additionalTools" else "") ^
