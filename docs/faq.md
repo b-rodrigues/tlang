@@ -133,3 +133,4 @@ The developer (Bruno Rodrigues) works on T based on community interest and exper
 
 > [!TIP]
 > **Need help?** Check out the [Getting Started](getting-started.md) guide or join the [GitHub Discussions](https://github.com/b-rodrigues/tlang/discussions).
+
