@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.51.5] - 2026-05-08
+
 The focus of this release was to improve language ergonomics for data guardrails, enhance package manager feedback, and increase test coverage across all packages.
 
 **Status**: Beta  
