@@ -38,7 +38,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
     runtime = "Julia"
   ) p.p_exprs in
-  let julia_build_input = if has_julia then "\n                      ++ [ juliaPkg ]" else "" in
+  let julia_build_input = if has_julia then "\n                      ++ [ juliaPkg pkgs.libssp pkgs.avahi ]" else "" in
 
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
