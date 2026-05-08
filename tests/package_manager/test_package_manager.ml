@@ -183,7 +183,7 @@ min_version = "0.51.0"
     match Toml_parser.parse_tproject_toml project_toml with
     | Ok cfg ->
         Update_manager.format_project_sync_message cfg
-        = "Syncing 0 T dependencies, 2 R dependencies and 1 Python dependency from tproject.toml → flake.nix...\n"
+        = "Syncing 0 T dependencies, 2 R dependencies, 1 Python dependency and 0 Julia dependencies from tproject.toml → flake.nix...\n"
     | Error _ -> false);
 
   test_pm "format no-T dependency message includes R and Python counts" (fun () ->
@@ -197,7 +197,7 @@ min_version = "0.51.0"
     match Toml_parser.parse_tproject_toml project_tools_toml with
     | Ok cfg ->
         Update_manager.format_project_sync_message cfg
-        = "Syncing 0 T dependencies, 0 R dependencies, 0 Python dependencies, 1 additional tool and 1 LaTeX package from tproject.toml → flake.nix...\n"
+        = "Syncing 0 T dependencies, 0 R dependencies, 0 Python dependencies, 0 Julia dependencies, 1 additional tool and 1 LaTeX package from tproject.toml → flake.nix...\n"
     | Error _ -> false);
 
   test_pm "format no-T dependency message includes tools-only project config" (fun () ->

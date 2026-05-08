@@ -2603,6 +2603,27 @@ The evaluated return value of the command.
 
 ---
 
+### `jl_node(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)`
+
+Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
+
+**Parameters:**
+
+- `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
+- `script` — Path to an external `.jl` file to execute as the node body.
+- `serializer` (optional) — Custom serializer function. Default: `^csv`.
+- `deserializer` (optional) — Custom deserializer function. Default: `^csv`.
+- `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
+- `functions` (optional) — Julia files to source before execution.
+- `include` (optional) — Additional files for the sandbox.
+- `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+
+**Returns:**
+
+The evaluated return value of the command.
+
+---
+
 ### `qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false)`
 
 Configure a Quarto pipeline node. A convenience wrapper around `node()` with `runtime = "Quarto"`. Use it to render `.qmd` files inside `pipeline { ... }` blocks.

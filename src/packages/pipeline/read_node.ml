@@ -89,24 +89,11 @@ let register env =
                      | Some diagnostics -> diagnostics
                      | None -> Ast.Utils.empty_node_diagnostics
                    in
-                  let warnings =
-                    VList
-                      (List.map
-                         (fun warning -> (None, Ast.Utils.node_warning_to_value warning))
-                         diagnostics.nd_warnings)
-                  in
-                  let error =
-                    match diagnostics.nd_error with
-                    | Some error -> Ast.Utils.node_error_to_value error
-                    | None -> VNA NAGeneric
-                  in
-                  VDict [
-                    ("name", VString name);
-                    ("value", value);
-                    ("warnings", warnings);
-                    ("error", error);
-                    ("diagnostics", Ast.Utils.node_diagnostics_to_value diagnostics);
-                  ]
+                  Ast.VNodeResult {
+                    v = value;
+                    node_name = name;
+                    diagnostics;
+                  }
               | None ->
                   Error.make_error KeyError
                     (Printf.sprintf "Node `%s` not found in Pipeline." name))

@@ -87,6 +87,8 @@ let generate_project_flake
     ?(r_deps : string list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
+    ?(jl_deps : string list = [])
+    ?(jl_version : string = "lts")
     ?(additional_tools : string list = [])
     ?(latex_pkgs : string list = [])
     ?(warn_invalid_pkg_names : bool = true)
@@ -164,6 +166,16 @@ let generate_project_flake
     ) py_deps;
     Buffer.add_string buf "        ]);\n";
   end;
+  if jl_deps <> [] || jl_version <> "" then begin
+    Buffer.add_string buf "\n";
+    Buffer.add_string buf "        # Julia environment\n";
+    let jl_attr = if jl_version = "lts" then "julia" else "julia_" ^ (String.map (function '.' -> '_' | c -> c) jl_version) in
+    let jl_pkgs_str = if jl_deps = [] then "" else " [ " ^ (String.concat " " (List.map (fun p -> "\"" ^ p ^ "\"") jl_deps)) ^ " ]" in
+    if jl_deps = [] then
+      Printf.bprintf buf "        juliaPkg = pkgs.%s;\n" jl_attr
+    else
+      Printf.bprintf buf "        juliaPkg = pkgs.%s.withPackages%s;\n" jl_attr jl_pkgs_str;
+  end;
   if additional_tools <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # Additional Tools\n";
@@ -186,6 +198,7 @@ let generate_project_flake
   Buffer.add_string buf "            t-lang.packages.${system}.default\n";
   if r_deps <> [] then Buffer.add_string buf "            r-env\n";
   if py_deps <> [] then Buffer.add_string buf "            py-env\n";
+  if jl_deps <> [] || jl_version <> "" then Buffer.add_string buf "            juliaPkg\n";
   if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   let extra_pkgs = 
     (if additional_tools <> [] then " ++ additionalTools" else "") ^
@@ -401,6 +414,8 @@ let install_flake
     ?(r_deps : string list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
+    ?(jl_deps : string list = [])
+    ?(jl_version : string = "lts")
     ?(additional_tools : string list = [])
     ?(latex_pkgs : string list = [])
     ~(dir : string)
@@ -409,7 +424,7 @@ let install_flake
   let flake_path = Filename.concat dir "flake.nix" in
   let content = match kind with
     | Project ->
-      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~additional_tools ~latex_pkgs ()
+      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
         ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ()

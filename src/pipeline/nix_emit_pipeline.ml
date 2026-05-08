@@ -72,6 +72,13 @@ let
   pyPackagesList = pyDeps.packages or [];
   py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList));
 
+  juliaDeps = toml.julia-dependencies or {};
+  juliaVersion = juliaDeps.version or "lts";
+  juliaPackageName = if juliaVersion == "lts" then "julia_lts" else "julia_" + (builtins.replaceStrings ["."] ["_"] juliaVersion);
+  juliaBase = pkgs.${juliaPackageName};
+  juliaPackagesList = juliaDeps.packages or [];
+  juliaPkg = if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
+
   # Additional Tools & LaTeX
   additionalTools = (toml.additional-tools or {}).packages or [];
   latexPkgs = (toml.latex or {}).packages or [];
@@ -80,6 +87,7 @@ let
                   else pkgs.texlive.combine (builtins.listToAttrs (builtins.map (name: { name = name; value = pkgs.texlive.${name}; }) (["scheme-small"] ++ latexPkgs)));
                   
   globalBuildInputs = (builtins.map (p: pkgs.${p}) additionalTools)
+                      ++ [ juliaPkg ]
                       ++ (if latexCombined == null then [] else [ latexCombined ]);
 in
 rec {
