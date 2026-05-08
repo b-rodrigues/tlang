@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.52.0] - 2026-05-xx
+## [0.52.0] - 2026-05-08
 
 The focus of this release was to introduce first-class Julia support.
 
@@ -20,7 +20,10 @@ The focus of this release was to introduce first-class Julia support.
     - Implemented `jl_read_pmml()` for Julia nodes, enabling PMML model scoring.
     - Uses `JavaCall.jl` to interface with the JPMML evaluator directly within the Julia process.
     - Provides a `predict()` overload for `JPMMLModel` objects in Julia, matching the T-native experience.
-    - Automatically manages JVM initialization and JPMML JAR classpath injection in the Nix sandbox.
+    - **JVM Initialization Fix**: Standardized on `JavaCall.isloaded()` for checking JVM status, resolving initialization errors in the Nix environment.
+    - **Robust Library Linkage**: Automatically injects `gcc.cc.lib` and `avahi` into Julia nodes and configures `LD_LIBRARY_PATH` to resolve `dlopen` issues for `libjvm.so` inside the Nix sandbox.
+- **PMML Export Support**:
+    - Implemented `jl_write_pmml()` for Julia nodes, allowing `StatsModels` (GLM.jl) models to be exported as PMML artifacts for use in other languages or T-native scoring.
 
 ## [0.51.5] - 2026-05-08
 
