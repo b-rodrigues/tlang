@@ -907,6 +907,15 @@ def py_read_pmml(path):
     return JPMMLModel(path)
 |} in
 
+  let t_pmml_jl_code = {|
+function jl_write_pmml(_, _)
+    error("Not implemented yet")
+end
+function jl_read_pmml(_)
+    error("Not implemented yet")
+end
+|} in
+
   let t_error_py_code = {|
 import json
 import os
@@ -1056,11 +1065,20 @@ def py_read_onnx(path):
         )
 |} in
 
+  let t_onnx_jl_code = {|
+function jl_write_onnx(_, _)
+    error("Not implemented yet")
+end
+function jl_read_onnx(_)
+    error("Not implemented yet")
+end
+|} in
+
   let json_injection   = make_injection ~enabled:(is_json_ser || is_json_des)  ~r_code:t_json_r_code  ~py_code:t_json_py_code ~jl_code:t_json_jl_code in
   let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code ~jl_code:t_csv_jl_code in
   let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code ~jl_code:t_arrow_jl_code in
-  let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code ~jl_code:"# Julia PMML support not yet implemented" in
-  let onnx_injection   = make_injection ~enabled:(is_onnx_ser  || is_onnx_des)  ~r_code:t_onnx_r_code  ~py_code:t_onnx_py_code ~jl_code:"# Julia ONNX support not yet implemented" in
+  let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code ~jl_code:t_pmml_jl_code in
+  let onnx_injection   = make_injection ~enabled:(is_onnx_ser  || is_onnx_des)  ~r_code:t_onnx_r_code  ~py_code:t_onnx_py_code ~jl_code:t_onnx_jl_code in
   let pickle_injection =
     if runtime = "Python" then
       Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pickle_py_code
