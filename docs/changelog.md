@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-05-xx
+
+The focus of this release was to introduce first-class Julia support.
+
+**Status**: Beta
+
+### First-Class Julia Support
+- **Julia Node Wrapper (`jl_node`)**:
+    - Introduced `jl_node()` for executing Julia code within T pipelines.
+    - Supports automatic Julia environment provisioning via `tproject.toml`.
+    - Default data interchange via `^csv` serialization.
+- **Dependency Management**:
+    - Added `[julia-dependencies]` section to `tproject.toml` for managing Julia packages (`CSV`, `DataFrames`, etc.).
+    - Integrated Julia versioning (`julia-dependencies.version`) into the Nix generator.
+
 ## [0.51.5] - 2026-05-08
 
 The focus of this release was to improve language ergonomics for data guardrails, enhance package manager feedback, and increase test coverage across all packages.

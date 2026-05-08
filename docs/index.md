@@ -1,10 +1,10 @@
 # T — The Orchestration Engine for Polyglot Data Science
 
-**T** is an experimental orchestration engine designed for declarative, reproducible pipelines. It provides a functional Domain-Specific Language (DSL) that coordinates R, Python, and Shell nodes—with Julia support planned—within a Nix-managed infrastructure.
+**T** is an experimental orchestration engine designed for declarative, reproducible pipelines. It provides a functional Domain-Specific Language (DSL) that coordinates R, Python, and Shell nodes—as well as Julia—within a Nix-managed infrastructure.
 
 Unlike traditional scripting languages, T is built to be a **specifications-ready engine**, making data analysis **explicit, inspectable, and pipeline-oriented**. This unique architecture ensures that humans and LLMs can collaborate on defining high-level intent while T handles the low-level orchestration and environmental consistency.
 
-**Status:** Version 0.51.5 "Sangoku", latest stabilization release.
+**Status:** Version 0.52.0 "Sangoku", latest stabilization release.
 
 ---
 
@@ -57,7 +57,7 @@ T is not designed to replace your existing tools; it is designed to **orchestrat
 
 ## Foreign Language Nodes & Deserialization
 
-When you define a node using `node()`, `rn()` (R), `pyn()` (Python), or `shn()` (Shell)—with Julia support planned—T treats the result as a first-class **Node** object. These objects transition through two main states:
+When you define a node using `node()`, `rn()` (R), `pyn()` (Python), `jl_node()` (Julia), or `shn()` (Shell)—T treats the result as a first-class **Node** object. These objects transition through two main states:
 
 1.  **Unbuilt Node**: A specification of what to run (command, runtime, environment variables).
 2.  **Computed Node**: After `build_pipeline()`, the node points to a concrete, immutable artifact in the Nix store.
