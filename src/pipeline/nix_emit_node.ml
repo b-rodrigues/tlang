@@ -909,11 +909,14 @@ def py_read_pmml(path):
 
   let t_pmml_jl_code = {|
 import JavaCall
-using DataFrames, CSV
 
 # Wrapper for PMML models in Julia
 mutable struct JPMMLModel
     path::String
+end
+
+function jl_read_pmml(path)
+    return JPMMLModel(path)
 end
 
 # predict() overload for JPMML models
@@ -932,17 +935,11 @@ function predict(model::JPMMLModel, df::DataFrame)
         CSV.write(in_path, df)
         
         # Call the JPMML evaluator via JavaCall
-        # We use the main method of the evaluator JAR.
-        # This avoid JVM startup overhead for each prediction call.
         try
-            # Attempt to find the main class. 
-            # Note: JPMML-Evaluator example main class is typically org.jpmml.evaluator.example.Main
-            # or org.jpmml.evaluator.EvaluationExample.
             MainClass = JavaCall.@jimport org.jpmml.evaluator.example.Main
             JavaCall.jcall(MainClass, "main", Nothing, (Vector{JavaCall.JString},), ["--model", model.path, "--input", in_path, "--output", out_path])
         catch e
             try
-                # Fallback to alternative main class name
                 MainClassAlt = JavaCall.@jimport org.jpmml.evaluator.EvaluationExample
                 JavaCall.jcall(MainClassAlt, "main", Nothing, (Vector{JavaCall.JString},), ["--model", model.path, "--input", in_path, "--output", out_path])
             catch e2
@@ -958,12 +955,77 @@ function predict(model::JPMMLModel, df::DataFrame)
     end
 end
 
-function jl_read_pmml(path)
-    return JPMMLModel(path)
-end
-
 function jl_write_pmml(model, path)
-    error("PMML export is not supported in Julia yet.")
+    # Check if it's a StatsModels regression model (e.g. from GLM.jl)
+    type_name = string(typeof(model))
+    if !contains(type_name, "TableRegressionModel")
+        error("PMML export in Julia currently only supports TableRegressionModel (from GLM.jl). Found: $type_name")
+    end
+    
+    try
+        # Access names and values via StatsModels API
+        f = StatsModels.formula(model)
+        target = string(f.lhs)
+        c_names = StatsModels.coefnames(model)
+        c_vals = StatsModels.coef(model)
+        
+        # Determine if it's classification (Binomial) or regression
+        is_classification = false
+        if hasproperty(model.model, :rr) && hasproperty(model.model.rr, :family)
+            fam = string(typeof(model.model.rr.family))
+            if contains(fam, "Binomial")
+                is_classification = true
+            end
+        end
+        
+        func_name = is_classification ? "classification" : "regression"
+        
+        # Build PMML XML string
+        pmml = """<?xml version="1.0" encoding="UTF-8"?>
+<PMML version="4.4" xmlns="http://www.dmg.org/PMML-4_4">
+  <Header copyright="T-Lang Julia Bridge">
+    <Application name="T-Lang" version="0.51"/>
+  </Header>
+  <DataDictionary>
+"""
+        for name in c_names
+            if name == "(Intercept)" continue end
+            pmml *= "    <DataField name=\"$name\" optype=\"continuous\" dataType=\"double\"/>\n"
+        end
+        pmml *= "    <DataField name=\"$target\" optype=\"continuous\" dataType=\"double\"/>\n"
+        pmml *= "  </DataDictionary>\n"
+        
+        pmml *= "  <RegressionModel functionName=\"$func_name\" modelName=\"JuliaGLM\" targetFieldName=\"$target\">\n"
+        pmml *= "    <MiningSchema>\n"
+        for name in c_names
+            if name == "(Intercept)" continue end
+            pmml *= "      <MiningField name=\"$name\" usageType=\"active\"/>\n"
+        end
+        pmml *= "      <MiningField name=\"$target\" usageType=\"target\"/>\n"
+        pmml *= "    </MiningSchema>\n"
+        
+        intercept = 0.0
+        if "(Intercept)" in c_names
+            idx = findfirst(x -> x == "(Intercept)", c_names)
+            intercept = c_vals[idx]
+        end
+        
+        pmml *= "    <RegressionTable intercept=\"$intercept\">\n"
+        for i in 1:length(c_names)
+            name = c_names[i]
+            val = c_vals[i]
+            if name == "(Intercept)" continue end
+            pmml *= "      <NumericPredictor name=\"$name\" coefficient=\"$val\"/>\n"
+        end
+        pmml *= "    </RegressionTable>\n"
+        pmml *= "  </RegressionModel>\n"
+        pmml *= "</PMML>"
+        
+        write(path, pmml)
+        return path
+    catch e
+        error("PMML export failed for Julia model: $e")
+    end
 end
 |} in
 
@@ -1933,11 +1995,17 @@ EOF
       echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s ser_call name name
   in
 
+  let runtime_base_packages =
+    match runtime with
+    | "Julia" -> "using DataFrames, CSV, StatsModels"
+    | _ -> ""
+  in
+
   (* Runtime specific build command *)
   let run_cmd = match runtime with
     | "R" -> "Rscript node_script.R"
     | "Python" -> "python node_script.py"
-    | "Julia" -> "julia node_script.jl"
+    | "Julia" -> "julia --compiled-modules=no node_script.jl"
     | "Quarto" ->
         let cli_block =
           if quarto_cli_args_block = "" then ""
@@ -2016,6 +2084,7 @@ EOF
       chmod -R u+w .
 %s
       cat << EOF > node_script.%s
+%s
 EOF
 %s
 %s
@@ -2035,4 +2104,4 @@ EOF
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
