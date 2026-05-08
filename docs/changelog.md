@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.52.0] - 2026-05-08
+## [0.52.0] - 2026-05-xx
 
 The focus of this release was to introduce first-class Julia support.
 
