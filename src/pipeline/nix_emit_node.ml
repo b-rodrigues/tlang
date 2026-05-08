@@ -921,7 +921,7 @@ end
 
 # predict() overload for JPMML models
 function predict(model::JPMMLModel, df::DataFrame)
-    if !JavaCall.isjvm_started()
+    if !JavaCall.isloaded()
         jar_path = get(ENV, "T_JPMML_EVALUATOR_JAR", "")
         if jar_path != "" && isfile(jar_path)
             JavaCall.addClassPath(jar_path)
