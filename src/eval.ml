@@ -1048,7 +1048,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
          | _ -> Error.make_error ArityError "enquos() expects no arguments or `...`")
 
     | Call { fn = { node = Var name; _ }; args }
-      when List.mem name ["node"; "py"; "pyn"; "rn"; "jl_node"; "qn"; "shn"] ->
+      when List.mem name ["node"; "py"; "pyn"; "rn"; "jl_node"; "jln"; "qn"; "shn"] ->
         let fn_name = name in
         let lookup_arg name default =
           match List.assoc_opt (Some name) args with
@@ -1237,7 +1237,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              let default_runtime = match name with
                | "py" | "pyn" -> "Python"
                | "rn" -> "R"
-              | "jl_node" -> "Julia"
+              | "jl_node" | "jln" -> "Julia"
                | "qn" -> "Quarto"
                | "shn" -> "sh"
                | _ -> "T"
@@ -1507,7 +1507,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_call = match node_expr.node with
-      | Call { fn = { node = Var ("node" | "py" | "pyn" | "rn" | "jl_node" | "qn" | "shn"); _ }; _ }
+      | Call { fn = { node = Var ("node" | "py" | "pyn" | "rn" | "jl_node" | "jln" | "qn" | "shn"); _ }; _ }
       | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
