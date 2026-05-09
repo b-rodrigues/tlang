@@ -71,7 +71,7 @@ let values_to_column (values : value array) : Arrow_table.column_data =
              factor_levels := levels;
              factor_ordered := ordered
          | existing when existing <> levels ->
-             (* Inconsistent level sets across factor values; fall back to string *)
+             (* Inconsistent level sets across to_factor values; fall back to string *)
              factor_inconsistent := true
          | _ ->
              has_factor := true;
