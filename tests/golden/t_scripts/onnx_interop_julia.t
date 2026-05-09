@@ -23,7 +23,6 @@ model
   -- 2. Predict in Julia using the model
   pred_jl = jln(
     command = <{
-      using ONNXRunTime
       # model_onx is an InferenceSession
       
       # Convert DataFrame to Float32 Matrix
@@ -43,7 +42,6 @@ model
   -- 3. Pass the model through a Julia node to test writing
   model_rewritten = jln(
     command = <{
-      using ONNX
       # Use ONNX.jl to load the model again
       model_proto = ONNX.load("tests/golden/data/iris_logreg.onnx")
       model_proto

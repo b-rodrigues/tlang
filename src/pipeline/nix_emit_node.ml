@@ -1188,10 +1188,10 @@ def py_read_onnx(path):
 
   let t_onnx_jl_code = {|
 import ONNXRunTime as ORT
+using ONNX
 
 function jl_write_onnx(path, model)
     try
-        import ONNX
         ONNX.write(path, model)
     catch e
         error("ONNX serialization failed in Julia: $(sprint(showerror, e))")
