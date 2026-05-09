@@ -16,14 +16,16 @@ The focus of this release was to introduce first-class Julia support.
 - **Dependency Management**:
     - Added `[julia-dependencies]` section to `tproject.toml` for managing Julia packages (`CSV`, `DataFrames`, etc.).
     - Integrated Julia versioning (`julia-dependencies.version`) into the Nix generator.
-- **PMML Support via `JavaCall`**:
-    - Implemented `jl_read_pmml()` for Julia nodes, enabling PMML model scoring.
-    - Uses `JavaCall.jl` to interface with the JPMML evaluator directly within the Julia process.
-    - Provides a `predict()` overload for `JPMMLModel` objects in Julia, matching the T-native experience.
-    - **JVM Initialization Fix**: Standardized on `JavaCall.isloaded()` for checking JVM status, resolving initialization errors in the Nix environment.
-    - **Robust Library Linkage**: Automatically injects `gcc.cc.lib` and `avahi` into Julia nodes and configures `LD_LIBRARY_PATH` to resolve `dlopen` issues for `libjvm.so` inside the Nix sandbox.
-- **PMML Export Support**:
-    - Implemented `jl_write_pmml()` for Julia nodes, allowing `StatsModels` (GLM.jl) models to be exported as PMML artifacts for use in other languages or T-native scoring.
+- **PMML Support**:
+    - Implemented `jl_read_pmml()` and `jl_write_pmml()` for Julia nodes, enabling PMML model scoring and export.
+    - Uses `JavaCall.jl` for scoring and provides a `predict()` overload for `JPMMLModel`.
+    - **Fixed Serializer Registration**: Correctly registered `jl_read_pmml` and `jl_write_pmml` in the built-in serializer registry, enabling `^pmml` to work in Julia nodes.
+- **ONNX Support**:
+    - Implemented `jl_read_onnx()` and `jl_write_onnx()` for Julia nodes.
+    - Uses `ONNXRunTime.jl` for high-performance inference and `ONNX.jl` for model export.
+    - **Dependency Discovery**: Automatically detects and adds `ONNXRunTime` and `ONNX` packages when used in Julia code.
+- **Robust Library Linkage**:
+    - Automatically injects `gcc.cc.lib` and `avahi` into Julia nodes and configures `LD_LIBRARY_PATH` to resolve `dlopen` issues for `libjvm.so` and `libonnxruntime.so` inside the Nix sandbox.
 
 ## [0.51.5] - 2026-05-08
 

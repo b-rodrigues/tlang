@@ -88,6 +88,7 @@
           "CSV"
           "JavaCall"
           "ONNXRunTime"
+          "ONNX"
         ];
 
         # Pin a specific version of OCaml for reproducibility.
