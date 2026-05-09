@@ -300,7 +300,7 @@ write_csv(standardize_scale_iris, file.path(output_dir, "stats_standardize_scale
 message("✓ standardize() and scale() parity")
 
 # ============================================================================
-# Test Suite 12: ADVANCED STATS (vcov, residuals, augment, anova)
+# Test Suite 12: ADVANCED STATS (vcov, residuals, add_diagnostics, anova)
 # ============================================================================
 message("\n=== ADVANCED STATS Tests ===")
 
@@ -324,12 +324,12 @@ write_csv(res_m1, file.path(output_dir, "lm_residuals_m1.csv"))
 message("✓ residuals (response & pearson)")
 
 # 12.3: augment
-# T's augment returns fitted, resid, std_resid
+# T's add_diagnostics returns fitted, resid, std_resid
 # R's augment includes more, we just need parity on the core ones
 aug_m1 = augment(m1) %>%
   select(actual = mpg, fitted = .fitted, resid = .resid)
 write_csv(aug_m1, file.path(output_dir, "lm_augment_m1.csv"))
-message("✓ augment core columns")
+message("✓ add_diagnostics core columns")
 
 # 12.4: anova
 av = anova(m1, m2)

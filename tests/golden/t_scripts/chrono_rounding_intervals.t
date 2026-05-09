@@ -1,5 +1,5 @@
 -- Test: chrono rounding, parsing, and interval logic against lubridate
-result = dataframe([
+result = to_dataframe([
   [
     label: "down",
     floor_month: format_date(floor_date(ymd("2024-01-15"), "month"), "%Y-%m-%d"),

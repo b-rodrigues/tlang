@@ -734,6 +734,18 @@ let interval_impl args _env =
        | Error err, _ | _, Error err -> err)
   | values -> Error.arity_error_named "interval" 2 (List.length values)
 
+(*
+--# Check if a date/datetime is within an interval
+--#
+--# Returns true if the given instant falls within the specified interval (inclusive).
+--#
+--# @name %within%
+--# @param x :: Date | Datetime | Vector The instant(s) to check.
+--# @param interval :: Interval The interval to check against.
+--# @return :: Bool | Vector[Bool] True if x is within the interval.
+--# @family chrono
+--# @export
+*)
 let within_impl args _env =
   let rec apply interval = function
     | VDate days ->
@@ -826,17 +838,6 @@ let within_impl args _env =
 --# Returns the day-of-month component from Date or Datetime values.
 --#
 --# @name day
---# @param x :: Date | Datetime | Vector The temporal value(s).
---# @return :: Int | Vector[Int] The day(s).
---# @family chrono
---# @export
-*)
-(*
---# Extract the day of month
---#
---# Alias for day() that returns the day-of-month component from Date or Datetime values.
---#
---# @name mday
 --# @param x :: Date | Datetime | Vector The temporal value(s).
 --# @return :: Int | Vector[Int] The day(s).
 --# @family chrono
@@ -1010,7 +1011,7 @@ let within_impl args _env =
 --#
 --# Converts strings, datetimes, and related temporal values to Date values.
 --#
---# @name as_date
+--# @name to_date
 --# @param x :: Any The value to convert.
 --# @param origin :: String (Optional) Origin date for numeric conversion (default "1970-01-01").
 --# @return :: Date | Vector[Date] The converted date(s).
@@ -1022,7 +1023,7 @@ let within_impl args _env =
 --#
 --# Converts strings, dates, and related temporal values to Datetime values.
 --#
---# @name as_datetime
+--# @name to_datetime
 --# @param x :: Any The value to convert.
 --# @param origin :: String (Optional) Origin date for numeric conversion (default "1970-01-01").
 --# @param tz :: String (Optional) Timezone label.
@@ -1308,7 +1309,6 @@ let register env =
          | [v] -> scalar_component "month" (month_value label) v
          | values -> Error.arity_error_named "month" 1 (List.length values)))) env in
   let env = Env.add "day" (scalar_date_component "day" (simple_component (fun (_, _, d) -> d))) env in
-  let env = Env.add "mday" (scalar_date_component "mday" (simple_component (fun (_, _, d) -> d))) env in
   let env =
     Env.add "yday"
       (scalar_date_component "yday" (fun value ->
@@ -1496,7 +1496,7 @@ let register env =
     | [VDatetime (micros, tz); VString fmt] -> VString (format_datetime_value micros tz fmt)
     | [_; _] -> Error.type_error "Function `format_datetime` expects (Date|Datetime, String)."
     | _ -> Error.arity_error_named "format_datetime" 2 (List.length args))) env in
-  let env = Env.add "as_date" (make_builtin_named ~name:"as_date" ~variadic:true 1 (fun named_args _env ->
+  let env = Env.add "to_date" (make_builtin_named ~name:"to_date" ~variadic:true 1 (fun named_args _env ->
     let origin =
       match string_named_arg "origin" None named_args with
       | Error err -> Error err
@@ -1504,7 +1504,7 @@ let register env =
       | Ok (Some origin) ->
           (match parse_shorthand_date `YMD origin with
            | Some (VDate days) -> Ok days
-           | _ -> Error (Error.value_error (Printf.sprintf "Function `as_date` could not parse origin %S." origin)))
+           | _ -> Error (Error.value_error (Printf.sprintf "Function `to_date` could not parse origin %S." origin)))
     in
     match origin with
     | Error err -> err
@@ -1512,13 +1512,13 @@ let register env =
         (match positional_args named_args with
          | [VDate d] -> VDate d
          | [VDatetime (micros, _)] -> VDate (Int64.to_int (floor_div_int64 micros micros_per_day))
-         | [VString s] -> (match parse_shorthand_date `YMD s with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `as_date` could not parse %S as a date." s))
+         | [VString s] -> (match parse_shorthand_date `YMD s with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `to_date` could not parse %S as a date." s))
          | [VInt n] -> VDate (origin_days + n)
          | [VFloat f] -> VDate (origin_days + int_of_float f)
          | [VNA _] -> (VNA NAGeneric)
-         | [_] -> Error.type_error "Function `as_date` expects a String, Date, Datetime, Int, or Float."
-         | values -> Error.arity_error_named "as_date" 1 (List.length values)))) env in
-  let env = Env.add "as_datetime" (make_builtin_named ~name:"as_datetime" ~variadic:true 1 (fun named_args _env ->
+         | [_] -> Error.type_error "Function `to_date` expects a String, Date, Datetime, Int, or Float."
+         | values -> Error.arity_error_named "to_date" 1 (List.length values)))) env in
+  let env = Env.add "to_datetime" (make_builtin_named ~name:"to_datetime" ~variadic:true 1 (fun named_args _env ->
     let origin =
       match string_named_arg "origin" None named_args with
       | Error err -> Error err
@@ -1526,7 +1526,7 @@ let register env =
       | Ok (Some origin) ->
           (match parse_shorthand_date `YMD origin with
            | Some (VDate days) -> Ok days
-           | _ -> Error (Error.value_error (Printf.sprintf "Function `as_datetime` could not parse origin %S." origin)))
+           | _ -> Error (Error.value_error (Printf.sprintf "Function `to_datetime` could not parse origin %S." origin)))
     in
     match origin, string_named_arg "tz" None named_args with
     | Error err, _ | _, Error err -> err
@@ -1537,7 +1537,7 @@ let register env =
          | [VString s] ->
              (match parse_shorthand_datetime `YMD 6 ?tz s with
               | Some v -> v
-              | None -> (match parse_custom_format `Datetime s "%Y-%m-%d %H:%M:%S" tz with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `as_datetime` could not parse %S as a datetime." s)))
+              | None -> (match parse_custom_format `Datetime s "%Y-%m-%d %H:%M:%S" tz with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `to_datetime` could not parse %S as a datetime." s)))
          | [VInt n] ->
              VDatetime (
                Int64.add
@@ -1551,8 +1551,8 @@ let register env =
                  (Int64.of_float (f *. 1_000_000.0)),
                tz)
          | [VNA _] -> (VNA NAGeneric)
-         | [_] -> Error.type_error "Function `as_datetime` expects a String, Date, Datetime, Int, or Float."
-         | values -> Error.arity_error_named "as_datetime" 1 (List.length values)))) env in
+         | [_] -> Error.type_error "Function `to_datetime` expects a String, Date, Datetime, Int, or Float."
+         | values -> Error.arity_error_named "to_datetime" 1 (List.length values)))) env in
   let env = add_predicate env "is_date" (function VDate _ -> true | _ -> false) in
   let env = add_predicate env "is_datetime" (function VDatetime _ -> true | _ -> false) in
   let env = add_predicate env "is_period" (function VPeriod _ -> true | _ -> false) in

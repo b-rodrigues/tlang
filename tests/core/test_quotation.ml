@@ -85,24 +85,24 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "dynamic name from string variable in list"
     "col = \"x\"\nexpr([!!col := 10])"
     "expr([x: 10])";
-  test "sym converts string to symbol"
-    "sym(\"age\")"
+  test "to_symbol converts string to symbol"
+    "to_symbol(\"age\")"
     "age";
-  test "sym preserves symbol input"
-    "sym($age)"
+  test "to_symbol preserves symbol input"
+    "to_symbol($age)"
     "$age";
-  test "sym supports string-driven quoting"
-    "col = \"age\"\nexpr(select(df, !!sym(col)))"
+  test "to_symbol supports string-driven quoting"
+    "col = \"age\"\nexpr(select(df, !!to_symbol(col)))"
     "expr(select(df, age))";
-  test "sym supports dynamic names"
-    "col = \"age\"\nexpr(f(!!sym(col) := 42))"
+  test "to_symbol supports dynamic names"
+    "col = \"age\"\nexpr(f(!!to_symbol(col) := 42))"
     "expr(f(age = 42))";
-  test "sym rejects empty names"
-    "sym(\"   \")"
-    {|Error(ValueError: "Function `sym` expects a non-empty String or Symbol.")|};
-  test "sym rejects non-string inputs"
-    "sym(99)"
-    {|Error(TypeError: "Function `sym` expects a String or Symbol.")|};
+  test "to_symbol rejects empty names"
+    "to_symbol(\"   \")"
+    {|Error(ValueError: "Function `to_symbol` expects a non-empty String or Symbol.")|};
+  test "to_symbol rejects non-string inputs"
+    "to_symbol(99)"
+    {|Error(TypeError: "Function `to_symbol` expects a String or Symbol.")|};
   test "dynamic name with non-string gives type error"
     "col = 99\nexpr(f(!!col := 1))"
     {|expr(f(Error(TypeError: "!! := requires a String or Symbol as the left-hand name, got Int")))|};

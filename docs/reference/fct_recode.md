@@ -1,6 +1,6 @@
 # fct_recode
 
-Rename factor levels
+Rename to_factor levels
 
-Recodes existing factor levels using named replacements.
+Recodes existing to_factor levels using named replacements.
 

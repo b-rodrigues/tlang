@@ -914,7 +914,7 @@ Nodes that produce large numbers of non-terminal warnings (like those from `filt
 ```t
 p = pipeline {
   -- High-noise node with suppressed warnings
-  filtered = dataframe([[x: 1], [x: NA], [x: 3]]) 
+  filtered = to_dataframe([[x: 1], [x: NA], [x: 3]]) 
     |> filter($x > 1) 
     |> suppress_warnings
 

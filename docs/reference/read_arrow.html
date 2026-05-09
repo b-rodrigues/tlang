@@ -34,19 +34,21 @@
 </nav>
 <div class="container">
 <h1 id="read_arrow">read_arrow</h1>
-<p>Read Arrow IPC file</p>
-<p>Reads a DataFrame from an Apache Arrow IPC (Feather v2) file.</p>
+<p>Read an Arrow IPC (Feather) file</p>
+<p>Loads a DataFrame from an Arrow IPC file (also known as Feather v2)
+on disk.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>path</strong> (<code>String</code>): The path to the Arrow
-file.</li>
+<li><strong>path</strong> (<code>String</code>): The file path to the
+Arrow IPC file.</li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>The loaded DataFrame.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>df = read_arrow(&quot;data.arrow&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="write_arrow.html">write_arrow</a></p>
+<p><a href="read_csv.html">read_csv</a>, <a
+href="write_arrow.html">write_arrow</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

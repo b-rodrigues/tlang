@@ -35,7 +35,11 @@
 <div class="container">
 <h1 id="node_lens">node_lens</h1>
 <p>Pipeline Node Lens</p>
-<p>Targets the cached result value of a specific node in a Pipeline.</p>
+<p>Targets the cached result value of a specific node in a Pipeline. In
+a Nix-managed sandbox, this lens also supports cross-node retrieval
+using the 1-argument <code>get(node_lens("name"))</code> syntax, which
+automatically locates and deserializes the sibling node’s artifact from
+the environment.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>node_name</strong> (<code>String</code>): The name of the

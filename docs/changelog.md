@@ -25,6 +25,29 @@ The focus of this release is the introduction of first-class Julia support, enab
     - Simplified data interchange between T, R, Python, and Julia.
     - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
     - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
+### API Standardization & Ergonomics
+- **Unified `to_` Naming Convention**:
+    - Renamed all type conversion and coercion functions to follow a consistent `to_` prefix:
+        - `as_date()` → `to_date()`
+        - `as_datetime()` → `to_datetime()`
+        - `as_factor()` / `factor()` → `to_factor()`
+        - `sym()` → `to_symbol()`
+        - `dataframe()` → `to_dataframe()`
+        - `str_string()` → `to_string()`
+    - Removed all legacy `as_*` and shorthand aliases (`fct()`, `fct_infreq()` → `to_factor(..., ordered=true)` etc.) to ensure a single, canonical API path.
+- **Renamed Statistical Diagnostics**:
+    - `augment()` renamed to `add_diagnostics()` for better clarity and consistency with the T-Lang philosophy of descriptive names.
+- **Refined Data Converters**:
+    - `to_string()` now provides a unified interface for string conversion across all T types, including proper level resolution for Factors and recursive formatting for Lists and Vectors.
+- **Improved Factor Creation**:
+    - Removed the `fct()` shorthand in favor of the standardized `to_factor()`.
+    - Simplified factor logic: `to_factor()` now consistently uses alphabetical sorting for derived levels, removing the previous "first-appearance" behavior to align with industry standards and internal consistency.
+- **Descriptive Statistical Utilities**:
+    - Renamed `augment()` to `add_diagnostics()` to better reflect its purpose of appending model-level diagnostics (residuals, hat values, etc.) to data frames.
+    - Updated the Golden test suite to maintain parity with R's `broom::augment` outputs.
+- **Codebase & Demo Synchronization**:
+    - Performed a repository-wide refactor of 65+ demo projects in `t_demos` to adopt the new standardized API.
+    - Updated Tree-Sitter syntax highlighting queries to support the new names and remove deprecated aliases.
 
 ## [0.51.5] - 2026-05-08
 
@@ -86,7 +109,7 @@ The focus of this release was to improve language ergonomics for data guardrails
     - Expanded test coverage for `core` package builtins, including `args`, `help`, `apropos`, and `write_text`.
     - **Introspection**: Added tests for the `args()` builtin on both builtins and lambdas, ensuring correct parameter name and type extraction.
     - **Core Unit Tests**: Expanded coverage for `identical` (deep equality), `sum` (edge cases), `seq` (auto-descending ranges), and `head`/`tail` (slicing boundaries).
-    - **Coverage Boost**: Significantly increased coverage for `ifelse`, `casewhen`, and `identical` (t_boolean.ml), `get` with all lens types (t_get.ml), and all specialized rendering paths in `pretty_print.ml`.
+    - **Coverage Boost**: Significantly increased coverage for `ifelse`, `case_when`, and `identical` (t_boolean.ml), `get` with all lens types (t_get.ml), and all specialized rendering paths in `pretty_print.ml`.
     - **Coverage Integration**: Added the new colcraft coverage tests to the test runner so these scenarios are exercised in regular test execution.
     - **Colcraft Coverage**: Expanded testing for `fill`, `replace_na`, `complete`, `relocate`, `count`, `slice`, `unnest`, `separate`, and `uncount`. Verified `downup` direction logic and regex error handling.
     - **Pretty Printing**: Verified nested collection and visual metadata (Altair) rendering in `pretty_print`.
@@ -125,8 +148,8 @@ The focus of this release was to improve language ergonomics for data guardrails
     - Introduced `$param` syntax in lambda and `function()` parameter lists.
     - Parameters prefixed with `$` automatically capture bare names (like column names) as **Symbols** rather than evaluating them.
     - Simplified the creation of data-wrangling wrappers, removing the need for `enquo()` in simple forwarding cases.
-- **Unified `get()` and New `sym()` Builtin**:
-    - Added the `sym()` core builtin for programmatic symbol creation.
+- **Unified `get()` and New `to_symbol()` Builtin**:
+    - Added the `to_symbol()` core builtin for programmatic symbol creation.
     - Unified the `get()` dispatcher across `core` and `lens` packages, ensuring a single, stable interface for variable lookup, collection indexing, and lens-based retrieval.
     - **Regression Safety**: Added regression tests to ensure core primitives remain stable when the `lens` package is loaded.
 
@@ -171,7 +194,7 @@ The focus of this release was to improve language ergonomics for data guardrails
     - **Unified `get()` Integration**: The `get()` builtin now natively supports `VLens` for data focus, providing a single, consistent interface for variable lookup, indexing, and lens-based retrieval.
 
 ### Core Evaluator, Emitter & Documentation Refinements
-- **Improved Docstring Coverage**: Added full T-style documentation (descriptions, parameters, examples) for `get()`, `sym()`, and related primitives.
+- **Improved Docstring Coverage**: Added full T-style documentation (descriptions, parameters, examples) for `get()`, `to_symbol()`, and related primitives.
 - **Integrated Documentation Tooling**: Verified `t_doc("parse")` and `t_doc("generate")` workflows for extracting and publishing reference pages for new core functions.
 - **Auto-Quoting Documentation**: Updated `docs/language_overview.md` and `docs/quotation.md` with comprehensive examples of the new `$param` auto-quoting feature.
 
@@ -248,7 +271,7 @@ The focus of this release was to improve language ergonomics for data guardrails
     - Enforced scalarity for `==` and `!=`. These now require explicit broadcasting (`.==`) for collections to prevent silent logic errors.
     - **`identical(a, b)`**: New core builtin for deep structural equality of complex objects.
 - **Enhanced Data Operations**:
-    - **`dataframe()` Constructor**: Added support for Dictionary-based construction and automatic scalar recycling.
+    - **`to_dataframe()` Constructor**: Added support for Dictionary-based construction and automatic scalar recycling.
     - **NSE Safety**: Implemented guarded NSE transformation to prevent unexpected lambda-wrapping of non-NSE builtins.
 - **String Column Extraction**: Enhanced `pull()` and column helpers to support `VString` arguments for extraction of special-character column names.
 
@@ -485,7 +508,7 @@ Version history and roadmap for the T programming language.
 - Dual-path operations (native + fallback)
 - `explain(df)` surfaces whether a DataFrame is still on the native Arrow path (`storage_backend`, `native_path_active`)
 - Supported structural rebuilds now try to stay Arrow-backed by rematerializing into a fresh native table
-- **Current limitation**: unsupported builder paths (for example NA-only, factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
+- **Current limitation**: unsupported builder paths (for example NA-only, to_factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
 
 ✅ **Reproducibility**:
 

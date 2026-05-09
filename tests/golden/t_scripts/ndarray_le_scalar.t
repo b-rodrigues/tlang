@@ -5,9 +5,9 @@ s = shape(result_arr)
 d = ndarray_data(result_arr)
 -- Boolean results converted to floats: 1.0 for true, 0.0 for false
 result = [
-  shape: s |> map(\(n) str_string(n)) |> str_join(","),
-  data: d |> map(\(n) str_string(n)) |> str_join(", ")
+  shape: s |> map(\(n) to_string(n)) |> str_join(","),
+  data: d |> map(\(n) to_string(n)) |> str_join(", ")
 ]
-df = dataframe([result])
+df = to_dataframe([result])
 write_csv(df, "tests/golden/t_outputs/ndarray_le_scalar.csv")
 print("✓ ndarray <= scalar complete")

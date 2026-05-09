@@ -13,7 +13,7 @@ Statistical summaries and models.
 | `lm(data, formula, weights = NA)` | Linear regression / weighted least squares model object |
 | `summary(model)` | Tidy coefficients table (like `broom::tidy`) |
 | `fit_stats(model)` | Goodness-of-fit statistics (like `broom::fit_stats`) |
-| `add_diagnostics(model, data)` | Augment data with diagnostics (like `broom::augment`) |
+| `add_diagnostics(model, data)` | Add Model Diagnostics (residuals, fitted values, etc.) |
 | `min(x)` | Minimum value |
 | `max(x)` | Maximum value |
 | `median(x, na_rm = false, weights = NA)` | Median value, optionally weighted |
@@ -57,7 +57,7 @@ model = lm(data = df, formula = y ~ x1 + x2)
 model                        -- prints: {formula, r_squared, adj_r_squared, sigma, nobs}
 summary(model)               -- coefficients table (term, estimate, std_error, statistic, p_value)
 fit_stats(model)             -- R², adj R², sigma, F-stat, AIC, BIC, etc.
-add_diagnostics(model, data = df)  -- original data + .fitted, .resid, .hat, .cooksd, etc.
+add_diagnostics(model, data = df)  -- original data + fitted, resid, hat, cooksd, etc.
 ```
 
 ## Status

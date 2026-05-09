@@ -64,9 +64,9 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
      | Some { Symbol_table.typ = Some Semantic_type.TFloat; _ } -> true
      | _ -> false);
 
-  (* Analyzer inference: dataframe() returns TDataFrame type *)
-  let df_scope, _ = analyze {|df = dataframe([[a: 1, b: 2]])|} in
-  test_message "dataframe() infers TDataFrame type"
+  (* Analyzer inference: to_dataframe() returns TDataFrame type *)
+  let df_scope, _ = analyze {|df = to_dataframe([[a: 1, b: 2]])|} in
+  test_message "to_dataframe() infers TDataFrame type"
     (match Symbol_table.lookup df_scope "df" with
      | Some { Symbol_table.typ = Some (Semantic_type.TDataFrame _); _ } -> true
      | _ -> false);

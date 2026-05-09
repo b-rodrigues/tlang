@@ -1,6 +1,6 @@
 # levels
 
-Get factor levels
+Get to_factor levels
 
-Returns the level labels stored on a factor vector.
+Returns the level labels stored on a to_factor vector.
 

@@ -1,4 +1,4 @@
-# dataframe
+# to_dataframe
 
 DataFrame creation and introspection.
 
@@ -6,7 +6,7 @@ DataFrame creation and introspection.
 
 | Function | Description |
 |----------|-------------|
-| `dataframe(data)` | Create a DataFrame from rows or columns |
+| `to_dataframe(data)` | Create a DataFrame from rows or columns |
 | `read_csv(path)` | Read CSV file |
 | `read_parquet(path)` | Read Parquet file |
 | `read_arrow(path)` | Read Arrow IPC file |

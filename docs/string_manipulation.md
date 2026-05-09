@@ -22,7 +22,7 @@ str_substring("hello", 1, 4) -- "ell"
 str_replace("banana", "a", "o") -- "bonono"
 str_trim("  hello  ")       -- "hello"
 str_join(["a", "b", "c"], "-") -- "a-b-c"
-str_string(42)               -- "42"
+to_string(42)               -- "42"
 str_split("a,b,c", ",")    -- ["a", "b", "c"]
 ```
 
@@ -40,7 +40,7 @@ The shorter string-focused helpers follow this naming convention:
 - `str_words()`
 - `str_sprintf()`
 - `str_join()`
-- `str_string()`
+- `to_string()`
 - `str_split()`
 
 The `strsplit()` name was normalized to `str_split()` to match the rest of the string API.
@@ -110,7 +110,7 @@ str_split("a,b,c", ",")
 ```t
 str_sprintf("Hello, %s!", "world")
 str_join(["red", "green", "blue"], ", ")
-str_string(3.14)
+to_string(3.14)
 ```
 
 ---
@@ -144,7 +144,7 @@ For per-function details, see the reference pages:
 - [`str_replace`](reference/replace.html)
 - [`str_sprintf`](reference/sprintf.html)
 - [`str_join`](reference/join.html)
-- [`str_string`](reference/string.html)
+- [`to_string`](reference/string.html)
 - [`str_split`](reference/strsplit.html)
 - [`contains`](reference/contains.html)
 - [`starts_with`](reference/starts_with.html)

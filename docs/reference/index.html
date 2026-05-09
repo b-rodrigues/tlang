@@ -103,16 +103,12 @@
 <td>Arrange Pipeline Nodes</td>
 </tr>
 <tr>
-<td><a href="as_date.html">as_date</a></td>
+<td><a href="to_date.html">to_date</a></td>
 <td>Convert values to Date</td>
 </tr>
 <tr>
-<td><a href="as_datetime.html">as_datetime</a></td>
+<td><a href="to_datetime.html">to_datetime</a></td>
 <td>Convert values to Datetime</td>
-</tr>
-<tr>
-<td><a href="as_factor.html">as_factor</a></td>
-<td>Coerce values to factors</td>
 </tr>
 <tr>
 <td><a href="asin.html">asin</a></td>
@@ -127,6 +123,22 @@
 <td>Assert Condition</td>
 </tr>
 <tr>
+<td><a href="assert_dir_exists.html">assert_dir_exists</a></td>
+<td>Assert Directory Exists</td>
+</tr>
+<tr>
+<td><a href="assert_file_exists.html">assert_file_exists</a></td>
+<td>Assert File Exists</td>
+</tr>
+<tr>
+<td><a href="assert_non_empty_file.html">assert_non_empty_file</a></td>
+<td>Assert File Is Non-Empty</td>
+</tr>
+<tr>
+<td><a href="assert_size_of_file.html">assert_size_of_file</a></td>
+<td>Assert File Size</td>
+</tr>
+<tr>
 <td><a href="atan.html">atan</a></td>
 <td>Inverse tangent</td>
 </tr>
@@ -139,7 +151,7 @@
 <td>Inverse hyperbolic tangent</td>
 </tr>
 <tr>
-<td><a href="augment.html">augment</a></td>
+<td><a href="add_diagnostics.html">add_diagnostics</a></td>
 <td>Augment Data with Model Calculations</td>
 </tr>
 <tr>
@@ -168,20 +180,12 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Vectorized Case-When</td>
 </tr>
 <tr>
-<td><a href="casewhen.html">casewhen</a></td>
-<td>Vectorized case-when</td>
-</tr>
-<tr>
 <td><a href="cat.html">cat</a></td>
 <td>Print values without escaping</td>
 </tr>
 <tr>
 <td><a href="cbind.html">cbind</a></td>
 <td>Column bind matrices</td>
-</tr>
-<tr>
-<td><a href="ceil.html">ceil</a></td>
-<td>Ceiling alias</td>
 </tr>
 <tr>
 <td><a href="ceiling.html">ceiling</a></td>
@@ -218,6 +222,11 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <tr>
 <td><a href="compare.html">compare</a></td>
 <td>Compare Models</td>
+</tr>
+<tr>
+<td><a
+href="compare_native_vs_pmml_scores.html">compare_native_vs_pmml_scores</a></td>
+<td>Compare native T scoring vs JPMML scoring</td>
 </tr>
 <tr>
 <td><a href="complete.html">complete</a></td>
@@ -296,7 +305,7 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Coefficient of variation</td>
 </tr>
 <tr>
-<td><a href="dataframe.html">dataframe</a></td>
+<td><a href="to_dataframe.html">to_dataframe</a></td>
 <td>Create a DataFrame</td>
 </tr>
 <tr>
@@ -314,6 +323,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <tr>
 <td><a href="deserialize.html">deserialize</a></td>
 <td>Deserialize Value</td>
+</tr>
+<tr>
+<td><a href="deviance.html">deviance</a></td>
+<td>Model Deviance</td>
 </tr>
 <tr>
 <td><a href="df_residual.html">df_residual</a></td>
@@ -365,10 +378,6 @@ evaluation)</td>
 <td>Get environment variable</td>
 </tr>
 <tr>
-<td><a href="env_var_lens.html">env_var_lens</a></td>
-<td>Pipeline Env Var Lens</td>
-</tr>
-<tr>
 <td><a href="error.html">error</a></td>
 <td>Raise Error</td>
 </tr>
@@ -383,6 +392,10 @@ evaluation)</td>
 <tr>
 <td><a href="error_message.html">error_message</a></td>
 <td>Get error message</td>
+</tr>
+<tr>
+<td><a href="errored_nodes.html">errored_nodes</a></td>
+<td>Get Errored Pipeline Nodes</td>
 </tr>
 <tr>
 <td><a href="eval.html">eval</a></td>
@@ -421,16 +434,12 @@ evaluation)</td>
 <td></td>
 </tr>
 <tr>
-<td><a href="factor.html">factor</a></td>
-<td>Create factor values</td>
-</tr>
-<tr>
-<td><a href="fct.html">fct</a></td>
-<td>Create factors in first-seen order</td>
+<td><a href="to_factor.html">to_factor</a></td>
+<td>Create to_factor values</td>
 </tr>
 <tr>
 <td><a href="fct_c.html">fct_c</a></td>
-<td>Concatenate factor vectors</td>
+<td>Concatenate to_factor vectors</td>
 </tr>
 <tr>
 <td><a href="fct_collapse.html">fct_collapse</a></td>
@@ -438,27 +447,27 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="fct_drop.html">fct_drop</a></td>
-<td>Drop unused factor levels</td>
+<td>Drop unused to_factor levels</td>
 </tr>
 <tr>
 <td><a href="fct_expand.html">fct_expand</a></td>
-<td>Add explicit factor levels</td>
+<td>Add explicit to_factor levels</td>
 </tr>
 <tr>
 <td><a href="fct_infreq.html">fct_infreq</a></td>
-<td>Order factor levels by frequency</td>
+<td>Order to_factor levels by frequency</td>
 </tr>
 <tr>
 <td><a href="fct_lump_min.html">fct_lump_min</a></td>
-<td>Lump factor levels below a minimum count</td>
+<td>Lump to_factor levels below a minimum count</td>
 </tr>
 <tr>
 <td><a href="fct_lump_n.html">fct_lump_n</a></td>
-<td>Keep the most frequent factor levels</td>
+<td>Keep the most frequent to_factor levels</td>
 </tr>
 <tr>
 <td><a href="fct_lump_prop.html">fct_lump_prop</a></td>
-<td>Lump factor levels below a minimum proportion</td>
+<td>Lump to_factor levels below a minimum proportion</td>
 </tr>
 <tr>
 <td><a href="fct_other.html">fct_other</a></td>
@@ -466,7 +475,7 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="fct_recode.html">fct_recode</a></td>
-<td>Rename factor levels</td>
+<td>Rename to_factor levels</td>
 </tr>
 <tr>
 <td><a href="fct_relevel.html">fct_relevel</a></td>
@@ -474,11 +483,11 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="fct_reorder.html">fct_reorder</a></td>
-<td>Order factor levels by another vector</td>
+<td>Order to_factor levels by another vector</td>
 </tr>
 <tr>
 <td><a href="fct_rev.html">fct_rev</a></td>
-<td>Reverse factor levels</td>
+<td>Reverse to_factor levels</td>
 </tr>
 <tr>
 <td><a href="file_exists.html">file_exists</a></td>
@@ -534,7 +543,7 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="get.html">get</a></td>
-<td>Get Value via Lens</td>
+<td>Unified Data Retrieval (get)</td>
 </tr>
 <tr>
 <td><a href="getwd.html">getwd</a></td>
@@ -567,6 +576,10 @@ evaluation)</td>
 <tr>
 <td><a href="huber_loss.html">huber_loss</a></td>
 <td>Huber loss</td>
+</tr>
+<tr>
+<td><a href="identical.html">identical</a></td>
+<td>Deep Equality Check</td>
 </tr>
 <tr>
 <td><a href="idx_lens.html">idx_lens</a></td>
@@ -634,7 +647,7 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="is_factor.html">is_factor</a></td>
-<td>Check for factor columns</td>
+<td>Check for to_factor columns</td>
 </tr>
 <tr>
 <td><a href="is_leap_year.html">is_leap_year</a></td>
@@ -659,6 +672,10 @@ evaluation)</td>
 <tr>
 <td><a href="isoyear.html">isoyear</a></td>
 <td>Extract the ISO week-based year</td>
+</tr>
+<tr>
+<td><a href="jln.html">jln</a></td>
+<td>Configure a Julia Pipeline Node</td>
 </tr>
 <tr>
 <td><a href="kron.html">kron</a></td>
@@ -694,7 +711,7 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="levels.html">levels</a></td>
-<td>Get factor levels</td>
+<td>Get to_factor levels</td>
 </tr>
 <tr>
 <td><a href="list_files.html">list_files</a></td>
@@ -743,10 +760,6 @@ evaluation)</td>
 <tr>
 <td><a href="max.html">max</a></td>
 <td>Maximum value</td>
-</tr>
-<tr>
-<td><a href="mday.html">mday</a></td>
-<td>Extract the day of month</td>
 </tr>
 <tr>
 <td><a href="mean.html">mean</a></td>
@@ -847,6 +860,10 @@ evaluation)</td>
 <tr>
 <td><a href="node_lens.html">node_lens</a></td>
 <td>Pipeline Node Lens</td>
+</tr>
+<tr>
+<td><a href="node_meta_lens.html">node_meta_lens</a></td>
+<td>Pipeline Metadata Lens</td>
 </tr>
 <tr>
 <td><a href="normalize.html">normalize</a></td>
@@ -1030,7 +1047,7 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="predict.html">predict</a></td>
-<td>Linear Model Prediction</td>
+<td>Model Prediction</td>
 </tr>
 <tr>
 <td><a href="pretty_print.html">pretty_print</a></td>
@@ -1083,7 +1100,7 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="read_arrow.html">read_arrow</a></td>
-<td>Read Arrow IPC file</td>
+<td>Read an Arrow IPC (Feather) file</td>
 </tr>
 <tr>
 <td><a href="read_csv.html">read_csv</a></td>
@@ -1104,6 +1121,10 @@ evaluation)</td>
 <tr>
 <td><a href="read_parquet.html">read_parquet</a></td>
 <td>Read Parquet file</td>
+</tr>
+<tr>
+<td><a href="read_pipeline.html">read_pipeline</a></td>
+<td>Read Pipeline Metadata</td>
 </tr>
 <tr>
 <td><a href="rebuild_node.html">rebuild_node</a></td>
@@ -1242,6 +1263,10 @@ evaluation)</td>
 <td>Configure a Shell Pipeline Node</td>
 </tr>
 <tr>
+<td><a href="show_plot.html">show_plot</a></td>
+<td>Render a plot node and open it locally</td>
+</tr>
+<tr>
 <td><a href="sigma.html">sigma</a></td>
 <td>Residual Standard Deviation</td>
 </tr>
@@ -1350,7 +1375,7 @@ evaluation)</td>
 <td>Format a string</td>
 </tr>
 <tr>
-<td><a href="str_string.html">str_string</a></td>
+<td><a href="to_string.html">to_string</a></td>
 <td>Convert to string</td>
 </tr>
 <tr>
@@ -1386,8 +1411,16 @@ evaluation)</td>
 <td>Model Summary</td>
 </tr>
 <tr>
+<td><a href="suppress_warnings.html">suppress_warnings</a></td>
+<td>Suppress Diagnostics for a Node</td>
+</tr>
+<tr>
 <td><a href="swap.html">swap</a></td>
 <td>Swap a Pipeline Node Implementation</td>
+</tr>
+<tr>
+<td><a href="to_symbol.html">to_symbol</a></td>
+<td>Convert a string to a Symbol</td>
 </tr>
 <tr>
 <td><a href="t_doc.html">t_doc</a></td>
@@ -1414,12 +1447,24 @@ evaluation)</td>
 <td>Run a T script</td>
 </tr>
 <tr>
+<td><a href="t_score_pmml.html">t_score_pmml</a></td>
+<td>Score a PMML model using JPMML</td>
+</tr>
+<tr>
 <td><a href="t_test.html">t_test</a></td>
 <td>Run tests</td>
 </tr>
 <tr>
 <td><a href="t_write_json.html">t_write_json</a></td>
 <td>Write Value to JSON</td>
+</tr>
+<tr>
+<td><a href="t_write_onnx.html">t_write_onnx</a></td>
+<td>Write an ONNX model file</td>
+</tr>
+<tr>
+<td><a href="t_write_pmml.html">t_write_pmml</a></td>
+<td>Write a PMML model file</td>
 </tr>
 <tr>
 <td><a href="tail.html">tail</a></td>
@@ -1448,10 +1493,6 @@ evaluation)</td>
 <tr>
 <td><a href="to_lower.html">to_lower</a></td>
 <td>Convert to lowercase</td>
-</tr>
-<tr>
-<td><a href="to_numeric.html">to_numeric</a></td>
-<td>Convert to Numeric</td>
 </tr>
 <tr>
 <td><a href="to_upper.html">to_upper</a></td>
@@ -1510,6 +1551,10 @@ evaluation)</td>
 <td>Combine multiple columns into one character column</td>
 </tr>
 <tr>
+<td><a href="unknown.html">unknown</a></td>
+<td>Print Failed Node Logs</td>
+</tr>
+<tr>
 <td><a href="unnest.html">unnest</a></td>
 <td>Expand nested columns</td>
 </tr>
@@ -1544,6 +1589,10 @@ evaluation)</td>
 <tr>
 <td><a href="where.html">where</a></td>
 <td>Select columns by predicate</td>
+</tr>
+<tr>
+<td><a href="which_nodes.html">which_nodes</a></td>
+<td>Filter Readable Pipeline Node Records</td>
 </tr>
 <tr>
 <td><a href="winsorize.html">winsorize</a></td>

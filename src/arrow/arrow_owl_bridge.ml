@@ -250,9 +250,9 @@ let solve_and_invert (a : float array array) (b : float array)
       (* Eliminate below *)
       let pivot = aug.(col).(col) in
       for row = col + 1 to p - 1 do
-        let factor = aug.(row).(col) /. pivot in
+        let to_factor = aug.(row).(col) /. pivot in
         for j = col to 2 * p do
-          aug.(row).(j) <- aug.(row).(j) -. factor *. aug.(col).(j)
+          aug.(row).(j) <- aug.(row).(j) -. to_factor *. aug.(col).(j)
         done
       done
     end
@@ -271,9 +271,9 @@ let solve_and_invert (a : float array array) (b : float array)
         aug.(col).(j) <- aug.(col).(j) /. pivot
       done;
       for row = 0 to col - 1 do
-        let factor = aug.(row).(col) in
+        let to_factor = aug.(row).(col) in
         for j = col to 2 * p do
-          aug.(row).(j) <- aug.(row).(j) -. factor *. aug.(col).(j)
+          aug.(row).(j) <- aug.(row).(j) -. to_factor *. aug.(col).(j)
         done
       done
     done;
@@ -351,7 +351,7 @@ let betai x a b =
       if Float.abs (del -. 1.0) < eps then converged := true;
       incr m
     done;
-    (* Front factor: x^a * (1-x)^b / (a * Beta(a,b)) *)
+    (* Front to_factor: x^a * (1-x)^b / (a * Beta(a,b)) *)
     let ln_front = aa *. log xx +. bb *. log (1.0 -. xx)
                    -. log aa
                    -. (log_gamma aa +. log_gamma bb -. log_gamma (aa +. bb)) in

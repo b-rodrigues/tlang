@@ -125,7 +125,7 @@ updated_clients = clients |> modify(
 Targets a column in a DataFrame, a key in a Dictionary, or a named field in a nested record. This is the primary building block for navigating hierarchical structures.
 
 ```t
-employees = dataframe([[name: "Alice", salary: 50000],
+employees = to_dataframe([[name: "Alice", salary: 50000],
                        [name: "Bob",   salary: 48000]])
 
 salary_l = col_lens("salary")
@@ -158,7 +158,7 @@ data2 = data |> set(target_id_l, 999)    -- [ids: [101, 102, 999]]
 Focuses on a specific row in a **DataFrame**. Compose with `col_lens` for cell-level access.
 
 ```t
-df  = dataframe([[x: 1, y: 10], [x: 2, y: 20]])
+df  = to_dataframe([[x: 1, y: 10], [x: 2, y: 20]])
 
 -- Update a single cell (row 0, column "y")
 cell_l = compose(row_lens(0), col_lens("y"))

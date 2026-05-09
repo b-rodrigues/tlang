@@ -98,10 +98,10 @@ occurrence stays unchanged, subsequent duplicates get <code>_2</code>,
 <hr />
 <h2 id="creating-dataframes">Creating DataFrames</h2>
 <p>You can create DataFrames manually from a list of rows using the
-<code>dataframe()</code> function. Each row can be a Dict or a named
+<code>to_dataframe()</code> function. Each row can be a Dict or a named
 List.</p>
 <pre class="t"><code>-- From a list of named Lists (idiomatic row constructor)
-df = dataframe([
+df = to_dataframe([
   [name: &quot;Alice&quot;, age: 30, score: 88.5],
   [name: &quot;Bob&quot;,   age: 25, score: 92.0]
 ])
@@ -313,21 +313,21 @@ df |&gt; complete($group, nesting($item_id, $item_name))</code></pre>
 Variables</h2>
 <p>Create categorical data with defined levels. Factors respect their
 level order when sorting, rather than alphabetical order.</p>
-<h3 id="factor-create-a-factor">factor() — Create a Factor</h3>
-<p>Creates a factor from a vector or column, optionally specifying
+<h3 id="to_factor-create-a-factor">to_factor() — Create a Factor</h3>
+<p>Creates a to_factor from a vector or column, optionally specifying
 levels.</p>
-<pre class="t"><code>-- Create a factor from a vector
-let f = factor([&quot;low&quot;, &quot;high&quot;, &quot;medium&quot;], levels = [&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;])
+<pre class="t"><code>-- Create a to_factor from a vector
+let f = to_factor([&quot;low&quot;, &quot;high&quot;, &quot;medium&quot;], levels = [&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;])
 
--- Create a factor column using mutate
-df |&gt; mutate($size_fct = factor($size, levels = [&quot;small&quot;, &quot;medium&quot;, &quot;large&quot;]))</code></pre>
-<h3 id="as_factor-coerce-to-factor">as_factor() — Coerce to Factor</h3>
-<p>Coerces a column to a factor (categorical) value, deriving levels
+-- Create a to_factor column using mutate
+df |&gt; mutate($size_fct = to_factor($size, levels = [&quot;small&quot;, &quot;medium&quot;, &quot;large&quot;]))</code></pre>
+<h3 id="to_factor-coerce-to-factor">to_factor() — Coerce to Factor</h3>
+<p>Coerces a column to a to_factor (categorical) value, deriving levels
 from the unique values present.</p>
-<pre class="t"><code>df |&gt; mutate($category = as_factor($category))</code></pre>
+<pre class="t"><code>df |&gt; mutate($category = to_factor($category))</code></pre>
 <h3 id="fct_infreq-reorder-levels-by-frequency">fct_infreq() — Reorder
 Levels by Frequency</h3>
-<p>Reorders factor levels in descending order of frequency.</p>
+<p>Reorders to_factor levels in descending order of frequency.</p>
 <pre class="t"><code>df |&gt; mutate($category = fct_infreq($category))</code></pre>
 <hr />
 <h2 id="grouped-mutate-group-wise-transformations">Grouped Mutate —
@@ -458,7 +458,7 @@ p.ranked  -- regions ranked by total sales</code></pre>
 <p>Use <code>explain()</code> to get structured metadata about any
 value:</p>
 <pre class="t"><code>e = explain(df)
-e.kind        -- &quot;dataframe&quot;
+e.kind        -- &quot;to_dataframe&quot;
 e.nrow        -- number of rows
 e.ncol        -- number of columns
 e.schema      -- column type information

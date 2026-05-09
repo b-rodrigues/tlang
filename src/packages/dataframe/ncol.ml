@@ -10,7 +10,7 @@ open Ast
 --# @return :: Int The number of columns.
 --# @example
 --#   ncol(mtcars)
---# @family dataframe
+--# @family to_dataframe
 --# @seealso nrow, colnames
 --# @export
 *)

@@ -10,6 +10,8 @@ Return min, Q1, median, Q3, max.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 

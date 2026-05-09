@@ -697,7 +697,8 @@ pipeline_to_frame(p)
 <tr>
 <td><code>runtime</code></td>
 <td>String</td>
-<td><code>"T"</code>, <code>"R"</code>, or <code>"Python"</code></td>
+<td><code>"T"</code>, <code>"R"</code>, <code>"Python"</code>, or
+<code>"Julia"</code></td>
 </tr>
 <tr>
 <td><code>serializer</code></td>
@@ -1013,7 +1014,7 @@ silences the console output for a node while maintaining the warning
 records for auditability.</p>
 <pre class="t"><code>p = pipeline {
   -- High-noise node with suppressed warnings
-  filtered = dataframe([[x: 1], [x: NA], [x: 3]]) 
+  filtered = to_dataframe([[x: 1], [x: NA], [x: 3]]) 
     |&gt; filter($x &gt; 1) 
     |&gt; suppress_warnings
 

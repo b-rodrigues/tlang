@@ -1,4 +1,4 @@
-(* src/packages/dataframe/t_write_arrow.ml *)
+(* src/packages/to_dataframe/t_write_arrow.ml *)
 open Ast
 
 let register env =
@@ -13,7 +13,7 @@ let register env =
   --# @return :: Null
   --# @example
   --#   write_arrow(df, "data.arrow")
-  --# @family dataframe
+  --# @family to_dataframe
   --# @seealso read_arrow
   --# @export
   *)

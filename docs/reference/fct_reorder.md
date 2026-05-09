@@ -1,6 +1,6 @@
 # fct_reorder
 
-Order factor levels by another vector
+Order to_factor levels by another vector
 
-Reorders factor levels using summary statistics computed from a companion numeric vector.
+Reorders to_factor levels using summary statistics computed from a companion numeric vector.
 

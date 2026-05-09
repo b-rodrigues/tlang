@@ -10,7 +10,7 @@ open Ast
 --# @return :: List[String] The column names.
 --# @example
 --#   colnames(mtcars)
---# @family dataframe
+--# @family to_dataframe
 --# @seealso ncol, nrow
 --# @export
 *)

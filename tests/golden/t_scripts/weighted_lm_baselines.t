@@ -1,12 +1,12 @@
 -- Test: weighted lm() against R baselines
-df = dataframe([
+df = to_dataframe([
   x: [1, 2, 3, 4],
   y: [1, 2, 2, 4]
 ])
 
 model = lm(data = df, formula = y ~ x, weights = [1, 1, 2, 2])
 
-result = dataframe([
+result = to_dataframe([
   intercept: head(model._tidy_df.estimate),
   slope: head(tail(model._tidy_df.estimate)),
   r_squared: model.r_squared,

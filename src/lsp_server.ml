@@ -241,9 +241,9 @@ module Server = struct
           match extract_word_at line_text character with
             | Some name -> (
                match Symbol_table.lookup doc.scope name with
-               | Some sym ->
+               | Some to_symbol ->
                   let type_str =
-                    match sym.typ with
+                    match to_symbol.typ with
                     | Some ty -> Semantic_type.to_string ty
                     | None -> "Unknown"
                   in
@@ -263,7 +263,7 @@ module Server = struct
                         Printf.sprintf "**%s**: `%s`\n\n%s" name signature entry.description_brief
                     | None -> 
                        let diag = if Tdoc_registry.get_all () = [] then "\n\n*(Documentation not loaded)*" else "" in
-                       Printf.sprintf "**%s**: `%s`%s" sym.name type_str diag
+                       Printf.sprintf "**%s**: `%s`%s" to_symbol.name type_str diag
                   in
                   let content = content ^ "\n\n*(LSP v0.5.3)*" in
                   let markup = MarkupContent.create ~kind:MarkupKind.Markdown ~value:content in

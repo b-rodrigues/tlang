@@ -42,8 +42,8 @@ for Linear Models (<code>lm</code>) and PMML-imported <strong>Decision
 Trees</strong> and <strong>Random Forests</strong>. For other advanced
 modeling (GLMs, Mixed Models, Machine Learning), <span
 class="math inline"><em>T</em></span> uses a polyglot approach where
-models are trained in R or Python nodes and exchanged through PMML or
-ONNX.</p>
+models are trained in R, Python, or Julia nodes and exchanged through
+PMML or ONNX.</p>
 </blockquote>
 <p><span class="math inline"><em>T</em></span> treats models as
 first-class objects that can be summarized and evaluated regardless of
@@ -140,15 +140,16 @@ id="comparemodel1-model2-..."><code>compare(model1, model2, ...)</code></h3>
 for side-by-side comparison.</p>
 <pre class="t"><code>comp = compare(m1, m2)
 -- Returns DataFrame with columns: estimate_1, std_error_1, ..., estimate_2, ...</code></pre>
-<h3 id="augmentdata-model"><code>augment(data, model)</code></h3>
-<p>Augments the original data with core model-based columns:
-<code>fitted</code>, <code>resid</code>, and <code>std_resid</code>.</p>
-<pre class="t"><code>aug = augment(mtcars, model)
--- Adds columns: fitted, resid, std_resid</code></pre>
 <h3
 id="add_diagnosticsdata-model"><code>add_diagnostics(data, model)</code></h3>
-<p>Similar to <code>augment</code>, but adds a more comprehensive set of
-diagnostic columns (leverage, influence, etc.).</p>
+<p>Augments the original data with core model-based columns:
+<code>fitted</code>, <code>resid</code>, and <code>std_resid</code>.</p>
+<pre class="t"><code>aug = add_diagnostics(mtcars, model)
+-- Adds columns: fitted, resid, std_resid</code></pre>
+<h3
+id="add_diagnosticsdata-model-1"><code>add_diagnostics(data, model)</code></h3>
+<p>Similar to <code>add_diagnostics</code>, but adds a more
+comprehensive set of diagnostic columns (leverage, influence, etc.).</p>
 <pre class="t"><code>diag = add_diagnostics(mtcars, model)
 -- Adds columns: fitted, resid, hat, sigma, cooksd, std_resid</code></pre>
 <h3
@@ -226,15 +227,17 @@ Runtime. It allows: 1. <strong>Python ML Export</strong>:
 <code>scikit-learn</code> models via <code>skl2onnx</code>. 2.
 <strong>Native T Loading</strong>: Reading models with
 <code>t_read_onnx(path)</code> and scoring them with
-<code>predict(data, model)</code>. 3. <strong>R/Python Runtime
-Loading</strong>: Reading models via the <code>onnx</code> R package or
-Python <code>onnxruntime</code>. 4. <strong>Broader Coverage</strong>:
-Neural-network and non-PMML model families that PMML cannot represent
-well.</p>
+<code>predict(data, model)</code>. 3. <strong>R/Python/Julia Runtime
+Loading</strong>: Reading models via the <code>onnx</code> R package,
+Python <code>onnxruntime</code>, or Julia <code>ONNXRunTime</code>. 4.
+<strong>Broader Coverage</strong>: Neural-network and non-PMML model
+families that PMML cannot represent well.</p>
 <p>Use <code>^pmml</code> when you want T’s hand-written classical-model
 evaluator. Use <code>^onnx</code> when you want a portable model
 artifact with native ONNX Runtime inference in T or cross-runtime
-execution in Python/R.</p>
+execution in Python, R, or Julia. Julia currently supports ONNX
+consumption through <code>ONNXRunTime</code> and returns an explicit
+error if you try to export ONNX directly from a Julia node.</p>
 <h3 id="cross-runtime-consistency">Cross-Runtime Consistency</h3>
 <p><span class="math inline"><em>T</em></span>’s statistical evaluator
 is verified against R’s reference implementation. Results match R’s
@@ -261,7 +264,7 @@ Package</h2>
 </tr>
 <tr>
 <td><code>broom::augment(fit, data)</code></td>
-<td><code>augment(df, model)</code></td>
+<td><code>add_diagnostics(df, model)</code></td>
 </tr>
 <tr>
 <td><code>stats::residuals(fit)</code></td>

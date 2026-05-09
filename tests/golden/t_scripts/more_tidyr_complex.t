@@ -15,7 +15,7 @@ print("Unnested ncol:")
 print(ncol(mt_un))
 
 print("--- separate_rows ---")
-df_sep = dataframe([
+df_sep = to_dataframe([
   [id: 1, tags: "a,b,c"],
   [id: 2, tags: "d,e"]
 ])
@@ -25,7 +25,7 @@ print(nrow(df_seped))
 print(df_seped)
 
 print("--- uncount ---")
-df_weights = dataframe([
+df_weights = to_dataframe([
   [x: "a", w: 3],
   [x: "b", w: 2]
 ])

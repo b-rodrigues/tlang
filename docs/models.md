@@ -101,16 +101,16 @@ comp = compare(m1, m2)
 -- Returns DataFrame with columns: estimate_1, std_error_1, ..., estimate_2, ...
 ```
 
-### `augment(data, model)`
+### `add_diagnostics(data, model)`
 Augments the original data with core model-based columns: `fitted`, `resid`, and `std_resid`.
 
 ```t
-aug = augment(mtcars, model)
+aug = add_diagnostics(mtcars, model)
 -- Adds columns: fitted, resid, std_resid
 ```
 
 ### `add_diagnostics(data, model)`
-Similar to `augment`, but adds a more comprehensive set of diagnostic columns (leverage, influence, etc.).
+Similar to `add_diagnostics`, but adds a more comprehensive set of diagnostic columns (leverage, influence, etc.).
 
 ```t
 diag = add_diagnostics(mtcars, model)
@@ -202,7 +202,7 @@ $T$'s statistical evaluator is verified against R's reference implementation. Re
 |-------------------|--------------|
 | `broom::tidy(fit)` | `summary(model)` |
 | `broom::glance(fit)` | `fit_stats(model)` |
-| `broom::augment(fit, data)` | `augment(df, model)` |
+| `broom::augment(fit, data)` | `add_diagnostics(df, model)` |
 | `stats::residuals(fit)` | `residuals(df, model)`|
 | `stats::coef(fit)` | `coef(model)` |
 | `stats::vcov(fit)` | `vcov(model)` |

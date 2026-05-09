@@ -19,7 +19,7 @@ To support factors while maintaining parity with Arrow's FFI and R's semantics:
 
 3.  **Functions for the Future**:
     *   `factor(x, levels, ordered)`: Manual creation.
-    *   `as_factor(x)`: Automatic creation based on unique values.
+    *   `to_factor(x)`: Automatic creation based on unique values.
     *   `fct_reorder(f, x, fun)`: Reordering levels based on another variable.
     *   `fct_infreq(f)`: Reordering levels by frequency.
 

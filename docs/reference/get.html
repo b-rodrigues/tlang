@@ -34,46 +34,63 @@
 </nav>
 <div class="container">
 <h1 id="get">get</h1>
-<p>Unified data retrieval for names, collections, pipelines, and
-lenses</p>
-<p><code>get()</code> is a polymorphic retrieval helper:</p>
-<ul>
-<li><code>get("x")</code> / <code>get(sym("x"))</code> looks up a
-variable in the current environment</li>
-<li><code>get(collection, index)</code> indexes a <code>List</code>,
-<code>Vector</code>, or <code>NDArray</code></li>
-<li><code>get(pipeline, "node")</code> retrieves a pipeline node
-result</li>
-<li><code>get(data, lens)</code> applies a lens focus to a value</li>
-<li><code>get(node_lens("name"))</code> retrieves a sandboxed
-sibling-node artifact via <code>T_NODE_&lt;name&gt;</code></li>
-</ul>
+<p>Unified Data Retrieval (get)</p>
+<p>Retrieves values from environments, collections, or pipelines using
+names, indices, or lenses. This is a polymorphic primitive that unifies
+several retrieval modes: 1. <strong>Variable Lookup</strong>:
+<code>get("var_name")</code> retrieves a variable from the environment.
+2. <strong>Collection Indexing</strong>:
+<code>get(collection, index)</code> retrieves an element (0-based). 3.
+<strong>Pipeline Access</strong>:
+<code>get(pipeline, "node_name")</code> retrieves a specific node
+result. 4. <strong>Lens Focus</strong>: <code>get(data, lens)</code>
+applies a Lens to focus on a subset of data. 5. <strong>Default Value
+(Fallback)</strong>: <code>get(value, default)</code> returns
+<code>value</code> unchanged when it is not NA/Error; returns
+<code>default</code> when <code>value</code> is NA or an Error. 6.
+<strong>Safe Retrieval</strong>:
+<code>get(target, selector, default)</code> performs the retrieval and
+returns <code>default</code> only when the result is NA (missing
+key/node or out-of-bounds index). Type errors in unsupported
+target/selector combinations propagate as errors. 7. <strong>Cross-Node
+Access (Sandbox)</strong>: <code>get(node_lens("name"))</code> retrieves
+a sibling node’s artifact.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>target</strong>
-(<code>String | Symbol | List | Vector | NDArray | Pipeline | Lens</code>):
-The value or name to retrieve from.</p></li>
-<li><p><strong>selector</strong>
-(<code>Int | String | Symbol | Lens</code>, optional): The index, node
-name, or lens to apply when a second argument is provided.</p></li>
+<li><p><strong>target</strong> (<code>Any</code>): The environment name,
+Collection, Pipeline, Data, or Value to check.</p></li>
+<li><p><strong>selector</strong> (<code>Any</code>): (Optional) The
+index, Node name, Lens, or Default value.</p></li>
+<li><p><strong>default</strong> (<code>Any</code>): (Optional) The
+default value if the retrieval fails.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The looked-up value, selected element, node result, or lens
-focus.</p>
+<p>The retrieved value or the default fallback.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>salary = 50000
-get(&quot;salary&quot;)                  -- 50000
-get(sym(&quot;salary&quot;))             -- 50000
+get(&quot;salary&quot;)                -- 50000 (Lookup)
 
-get([10, 20, 30], 1)           -- 20
+lst = [10, 20, 30]
+get(lst, 1)                  -- 20 (Indexing)
+
+-- Safe indexing with default:
+get(lst, 5, 0)               -- 0 (Index out of bounds fallback)
+
+-- Guardrail pattern (any non-NA/Error value is returned as-is):
+s = [min_age: NA]
+get(s.min_age, 0) &gt;= 0       -- true (NA falls back to 0)
+get(42, 0)                   -- 42 (non-NA/Error value returned unchanged)
 
 p = pipeline { a = 1 }
-get(p, &quot;a&quot;)                    -- 1
+get(p, &quot;a&quot;)                  -- 1 (Pipeline Access)
+get(p, &quot;missing&quot;, &quot;N/A&quot;)     -- &quot;N/A&quot; (Safe Pipeline Access)
 
 l = col_lens(&quot;mpg&quot;)
-get(mtcars, l)                 -- focused column
+get(mtcars, l)               -- Vector of &#39;mpg&#39; column (Lens)
 
-get(node_lens(&quot;model&quot;))        -- sandbox artifact lookup</code></pre>
+-- Sandbox access (within a Nix-built node):
+get(node_lens(&quot;node_a&quot;))      -- Deserializes T_NODE_node_a artifact
+</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

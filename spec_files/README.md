@@ -139,7 +139,7 @@ The following packages are automatically loaded at REPL startup:
 - `base`: error handling and NA support (e.g. `assert`, `is_na`, `is_error`, `error`)
 - `math`: numerical primitives (`sqrt`, `abs`, `log`, `exp`, `pow`)
 - `stats`: statistical functions (e.g. `mean`, `sd`, `quantile`, `cor`, `lm`)
-- `dataframe`: tabular I/O (`read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames`)
+- `to_dataframe`: tabular I/O (`read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames`)
 - `colcraft`: data manipulation verbs (`select`, `mutate`, `filter`, `arrange`, `group_by`, `summarize`) and window functions (`row_number`, `min_rank`, `dense_rank`, `cume_dist`, `percent_rank`, `ntile`, `lag`, `lead`, `cumsum`, `cummin`, `cummax`, `cummean`, `cumall`, `cumany`)
 - `pipeline`: DAG-based execution (`pipeline_nodes`, `pipeline_deps`, `pipeline_node`, `pipeline_run`)
 - `explain`: introspection and LLM tooling (`explain`, `explain_json`, `intent_fields`, `intent_get`)
@@ -205,7 +205,7 @@ For details on creating packages and projects, see [package-management.md](packa
 │       ├── base/        # assert, is_na, error, etc.
 │       ├── math/        # sqrt, abs, log, exp, pow
 │       ├── stats/       # mean, sd, quantile, cor, lm
-│       ├── dataframe/   # read_csv, write_csv, colnames, etc.
+│       ├── to_dataframe/   # read_csv, write_csv, colnames, etc.
 │       ├── colcraft/    # select, filter, mutate, arrange, group_by, summarize, window functions
 │       ├── pipeline/    # pipeline_nodes, pipeline_deps, etc.
 │       └── explain/     # explain, intent_fields, etc.

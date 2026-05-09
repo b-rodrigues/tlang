@@ -50,6 +50,19 @@ let t_read_onnx_builtin =
 let register env =
   Serialization_registry.update_native "onnx" ~reader:t_read_onnx_builtin ();
   let env = Env.add "t_read_onnx" t_read_onnx_builtin env in
+(*
+--# Write an ONNX model file
+--#
+--# Note: Currently this is a placeholder. T-native writing of ONNX models is not yet implemented.
+--# Use ^onnx within R or Python nodes to export models.
+--#
+--# @name t_write_onnx
+--# @param model :: Dict The ONNX model dictionary.
+--# @param path :: String The destination file path.
+--# @return :: Error Currently returns a RuntimeError.
+--# @family stats
+--# @export
+*)
   let env = Env.add "t_write_onnx"
     (make_builtin ~name:"t_write_onnx" 2 (fun _args _env ->
       Error.make_error RuntimeError "Serializer ^onnx does not have a T-native writer implementation yet. Use ^onnx within R or Python nodes to export models."

@@ -2,7 +2,7 @@
 open Ast
 
 (* Convert values to optional strings: NA values become None (and are preserved
-   as VNA in the output factor), non-string values are stringified.
+   as VNA in the output to_factor), non-string values are stringified.
    None entries are excluded from level derivation. *)
 let as_string_list_opt values =
   let rec aux acc = function
@@ -34,11 +34,11 @@ let level_index_of levels s =
     | _ :: t -> aux (i + 1) t
   in aux 0 levels
 
-let factor_generic ~fct_mode (args : (string option * value) list) _env =
+let to_factor_impl (args : (string option * value) list) _env =
   let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
   let named = List.filter_map (fun (k, v) -> match k with Some n -> Some (n, v) | None -> None) args in
   match positional with
-  | [] -> Error.make_error Ast.ArityError "factor expects at least 1 argument"
+  | [] -> Error.make_error Ast.ArityError "to_factor expects at least 1 argument"
   | x_val :: _ ->
       let items = match x_val with
         | VVector a -> Array.to_list a
@@ -50,14 +50,7 @@ let factor_generic ~fct_mode (args : (string option * value) list) _env =
       (* Only non-NA values contribute to level derivation *)
       let non_na_strings = List.filter_map Fun.id string_opts in
       let unique_levels = 
-        if fct_mode then
-          (* for fct(), levels follow first appearance *)
-          let rec first_appearance acc = function
-            | [] -> List.rev acc
-            | h :: t -> if List.mem h acc then first_appearance acc t else first_appearance (h :: acc) t
-          in first_appearance [] non_na_strings
-        else
-          List.sort_uniq String.compare non_na_strings
+        List.sort_uniq String.compare non_na_strings
       in
 
       let levels =
@@ -84,19 +77,20 @@ let factor_generic ~fct_mode (args : (string option * value) list) _env =
              | Some idx -> VFactor (idx, levels, ordered)
              | None -> VNA Ast.NAGeneric (* NA if value is not in levels *))
       ) in
-      VVector factor_arr
+      
+      match x_val with
+      | VVector _ | VList _ -> VVector factor_arr
+      | _ -> factor_arr.(0)
 
-let factor_impl = factor_generic ~fct_mode:false
-let fct_impl = factor_generic ~fct_mode:true
+let factor_impl = to_factor_impl
+
 let ordered_impl (args : (string option * value) list) _env =
-  (* same as factor but defaults ordered=true *)
+  (* same as to_factor but defaults ordered=true *)
   let named = List.filter_map (fun (k, v) -> match k with Some n -> Some (n, v) | None -> None) args in
   let has_ordered = List.mem_assoc "ordered" named in
   if has_ordered then factor_impl args _env
   else factor_impl ((Some "ordered", VBool true) :: args) _env
 
-let as_factor_impl args env =
-  factor_impl args env
 
 let fct_infreq_impl args _env =
   let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
@@ -138,7 +132,7 @@ let fct_infreq_impl args _env =
                    in
                    VFactor (new_idx, new_levels, ordered)
                | None ->
-                   (* Out-of-range factor index; treat as NA to avoid crashing *)
+                   (* Out-of-range to_factor index; treat as NA to avoid crashing *)
                    VNA Ast.NAGeneric)
           | _ -> v
         ) arr in
@@ -231,7 +225,7 @@ let fct_reorder_impl (args : (string option * value) list) _env =
              let n = Array.length f_arr in
              let desc = match List.assoc_opt ".desc" named with Some (VBool b) -> b | _ -> false in
              
-             (* Group .x values by factor levels *)
+             (* Group .x values by to_factor levels *)
              let level_data = Array.init (List.length levels) (fun _ -> []) in
              for i = 0 to n - 1 do
                match f_arr.(i) with
@@ -487,7 +481,7 @@ let fct_lump_min_impl (args : (string option * value) list) _env =
                 List.iteri (fun new_idx (old_idx, _) -> remapping.(old_idx) <- new_idx) kept_levels;
                 remap_factor_array arr levels ordered new_levels remapping
          | None -> VVector arr)
-  | _ -> Error.make_error Ast.ArityError "fct_lump_min expects a factor vector and minimum count"
+  | _ -> Error.make_error Ast.ArityError "fct_lump_min expects a to_factor vector and minimum count"
 
 let fct_lump_prop_impl (args : (string option * value) list) _env =
   let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
@@ -533,7 +527,7 @@ let fct_lump_prop_impl (args : (string option * value) list) _env =
                     List.iteri (fun new_idx (old_idx, _) -> remapping.(old_idx) <- new_idx) kept_levels;
                     remap_factor_array arr levels ordered new_levels remapping
               | None -> VVector arr))
-  | _ -> Error.make_error Ast.ArityError "fct_lump_prop expects a factor vector and proportion"
+  | _ -> Error.make_error Ast.ArityError "fct_lump_prop expects a to_factor vector and proportion"
 
 let fct_other_impl (args : (string option * value) list) _env =
   let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
@@ -574,7 +568,7 @@ let fct_other_impl (args : (string option * value) list) _env =
              remap_factor_array arr levels ordered new_levels remapping
        | None, _, _ -> VVector arr
        | _, Error err, _ | _, _, Error err -> err)
-  | _ -> Error.make_error Ast.ArityError "fct_other expects a factor vector"
+  | _ -> Error.make_error Ast.ArityError "fct_other expects a to_factor vector"
 
 let fct_drop_impl args _env =
   match args with
@@ -630,7 +624,7 @@ let fct_expand_impl (args : (string option * value) list) _env =
            let remapping = Array.init (List.length levels) Fun.id in
            remap_factor_array arr levels ordered new_levels remapping
        | None -> VVector arr)
-  | _ -> Error.make_error Ast.ArityError "fct_expand expects a factor vector and optional levels"
+  | _ -> Error.make_error Ast.ArityError "fct_expand expects a to_factor vector and optional levels"
 
 let fct_c_impl (args : (string option * value) list) _env =
   let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
@@ -649,7 +643,7 @@ let fct_c_impl (args : (string option * value) list) _env =
     ) values
   in
   match positional with
-  | [] -> Error.make_error Ast.ArityError "fct_c expects at least one factor vector"
+  | [] -> Error.make_error Ast.ArityError "fct_c expects at least one to_factor vector"
   | values ->
       let concatenated = List.concat_map extract_values values in
       let ordered =
@@ -691,108 +685,91 @@ let fct_c_impl (args : (string option * value) list) _env =
       VVector (Array.of_list factor_values)
 
 (*
---# Create factor values
+--# Create to_factor values
 --#
---# Converts values to factor-encoded vectors with derived or explicit levels.
+--# Converts values to to_factor-encoded vectors with derived or explicit levels.
 --#
---# @name factor
+--# @name to_factor
 --# @family colcraft
 --# @export
 *)
 (*
---# Coerce values to factors
+--# Order to_factor levels by frequency
 --#
---# Alias for factor() that converts values to factor-encoded vectors.
---#
---# @name as_factor
---# @family colcraft
---# @export
-*)
-(*
---# Order factor levels by frequency
---#
---# Reorders factor levels so that more frequent levels appear first.
+--# Reorders to_factor levels so that more frequent levels appear first.
 --#
 --# @name fct_infreq
 --# @family colcraft
 --# @export
 *)
 (*
---# Get factor levels
+--# Get to_factor levels
 --#
---# Returns the level labels stored on a factor vector.
+--# Returns the level labels stored on a to_factor vector.
 --#
 --# @name levels
 --# @family colcraft
 --# @export
 *)
 (*
---# Reverse factor levels
+--# Reverse to_factor levels
 --#
---# Reverses the order of the levels in a factor vector.
+--# Reverses the order of the levels in a to_factor vector.
 --#
 --# @name fct_rev
 --# @family colcraft
 --# @export
 *)
 (*
---# Rename factor levels
+--# Rename to_factor levels
 --#
---# Recodes existing factor levels using named replacements.
+--# Recodes existing to_factor levels using named replacements.
 --#
 --# @name fct_recode
 --# @family colcraft
 --# @export
 *)
 (*
---# Order factor levels by another vector
+--# Order to_factor levels by another vector
 --#
---# Reorders factor levels using summary statistics computed from a companion numeric vector.
+--# Reorders to_factor levels using summary statistics computed from a companion numeric vector.
 --#
 --# @name fct_reorder
 --# @family colcraft
 --# @export
 *)
 (*
---# Keep the most frequent factor levels
+--# Keep the most frequent to_factor levels
 --#
---# Collapses infrequent factor levels into an other bucket while keeping the most frequent levels.
+--# Collapses infrequent to_factor levels into an other bucket while keeping the most frequent levels.
 --#
 --# @name fct_lump_n
 --# @family colcraft
 --# @export
 *)
 (*
---# Lump factor levels below a minimum count
+--# Lump to_factor levels below a minimum count
 --#
---# Collapses factor levels whose counts fall below a minimum threshold.
+--# Collapses to_factor levels whose counts fall below a minimum threshold.
 --#
 --# @name fct_lump_min
 --# @family colcraft
 --# @export
 *)
 (*
---# Lump factor levels below a minimum proportion
+--# Lump to_factor levels below a minimum proportion
 --#
---# Collapses factor levels whose frequency falls below a proportion threshold.
+--# Collapses to_factor levels whose frequency falls below a proportion threshold.
 --#
 --# @name fct_lump_prop
 --# @family colcraft
 --# @export
 *)
-(*
---# Create factors in first-seen order
---#
---# Creates a factor whose levels follow the first appearance order of the input values.
---#
---# @name fct
---# @family colcraft
---# @export
-*)
+
 (*
 --# Move selected levels to the front
 --#
---# Explicitly reorders a factor by moving named levels ahead of the remaining levels.
+--# Explicitly reorders a to_factor by moving named levels ahead of the remaining levels.
 --#
 --# @name fct_relevel
 --# @family colcraft
@@ -801,7 +778,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 (*
 --# Collapse multiple levels
 --#
---# Merges several existing factor levels into new grouped levels.
+--# Merges several existing to_factor levels into new grouped levels.
 --#
 --# @name fct_collapse
 --# @family colcraft
@@ -810,34 +787,34 @@ let fct_c_impl (args : (string option * value) list) _env =
 (*
 --# Replace unlisted levels with Other
 --#
---# Keeps selected factor levels and maps the rest to an other bucket.
+--# Keeps selected to_factor levels and maps the rest to an other bucket.
 --#
 --# @name fct_other
 --# @family colcraft
 --# @export
 *)
 (*
---# Drop unused factor levels
+--# Drop unused to_factor levels
 --#
---# Removes levels that are not referenced by any value in the factor vector.
+--# Removes levels that are not referenced by any value in the to_factor vector.
 --#
 --# @name fct_drop
 --# @family colcraft
 --# @export
 *)
 (*
---# Add explicit factor levels
+--# Add explicit to_factor levels
 --#
---# Adds extra levels to a factor without changing existing assignments.
+--# Adds extra levels to a to_factor without changing existing assignments.
 --#
 --# @name fct_expand
 --# @family colcraft
 --# @export
 *)
 (*
---# Concatenate factor vectors
+--# Concatenate to_factor vectors
 --#
---# Combines multiple factor vectors while reconciling their levels.
+--# Combines multiple to_factor vectors while reconciling their levels.
 --#
 --# @name fct_c
 --# @family colcraft
@@ -846,15 +823,14 @@ let fct_c_impl (args : (string option * value) list) _env =
 (*
 --# Create ordered factors
 --#
---# Creates factor vectors marked as ordered for ordinal comparisons.
+--# Creates to_factor vectors marked as ordered for ordinal comparisons.
 --#
 --# @name ordered
 --# @family colcraft
 --# @export
 *)
 let register env =
-  let env = Env.add "factor" (make_builtin_named ~name:"factor" ~variadic:true 1 factor_impl) env in
-  let env = Env.add "as_factor" (make_builtin_named ~name:"as_factor" ~variadic:true 1 as_factor_impl) env in
+  let env = Env.add "to_factor" (make_builtin_named ~name:"to_factor" ~variadic:true 1 factor_impl) env in
   let env = Env.add "fct_infreq" (make_builtin_named ~name:"fct_infreq" ~variadic:true 1 fct_infreq_impl) env in
   let env = Env.add "levels" (make_builtin ~name:"levels" 1 levels_impl) env in
   let env = Env.add "fct_rev" (make_builtin ~name:"fct_rev" 1 fct_rev_impl) env in
@@ -863,7 +839,6 @@ let register env =
   let env = Env.add "fct_lump_n" (make_builtin_named ~name:"fct_lump_n" ~variadic:true 1 fct_lump_n_impl) env in
   let env = Env.add "fct_lump_min" (make_builtin_named ~name:"fct_lump_min" ~variadic:true 2 fct_lump_min_impl) env in
   let env = Env.add "fct_lump_prop" (make_builtin_named ~name:"fct_lump_prop" ~variadic:true 2 fct_lump_prop_impl) env in
-  let env = Env.add "fct" (make_builtin_named ~name:"fct" ~variadic:true 1 fct_impl) env in
   let env = Env.add "fct_relevel" (make_builtin_named ~name:"fct_relevel" ~variadic:true 1 fct_relevel_impl) env in
   let env = Env.add "fct_collapse" (make_builtin_named ~name:"fct_collapse" ~variadic:true 1 fct_collapse_impl) env in
   let env = Env.add "fct_other" (make_builtin_named ~name:"fct_other" ~variadic:true 1 fct_other_impl) env in

@@ -1,6 +1,6 @@
 # fct_c
 
-Concatenate factor vectors
+Concatenate to_factor vectors
 
-Combines multiple factor vectors while reconciling their levels.
+Combines multiple to_factor vectors while reconciling their levels.
 

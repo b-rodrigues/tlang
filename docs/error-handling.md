@@ -512,11 +512,11 @@ p = pipeline {
   -- 3. Precise branching: Choose the best action for each state
   final_result = node(command = 
     quality_status ?|> \(outcome) match(outcome) {
-      -- Full Case: Sufficient data and factor levels
+      -- Full Case: Sufficient data and to_factor levels
       [type: "high_quality", data: df] => 
         lm(df, $yield ~ $temp + $segment),
       
-      -- Fallback Case: Enough data, but not enough factor diversity
+      -- Fallback Case: Enough data, but not enough to_factor diversity
       -- We drop the 'segment' predictor to avoid model failure
       [type: "low_diversity", data: df] => 
         lm(df, $yield ~ $temp),
@@ -530,7 +530,7 @@ p = pipeline {
 ```
 
 **Why use this?**:
-*   **Adaptive Modeling**: Your pipeline automatically scales its complexity to match the quality of the incoming data, avoiding "singular matrix" or "one level factor" errors.
+*   **Adaptive Modeling**: Your pipeline automatically scales its complexity to match the quality of the incoming data, avoiding "singular matrix" or "one level to_factor" errors.
 *   **Operational Intelligence**: Instead of the whole pipeline failing due to a minor data shift (like one category disappearing from today's extract), the system gracefully degrades its service while still providing a result.
 *   **Auditability**: Every run clearly states which path was taken through the use of descriptive tags like `low_diversity` or `high_quality`.
 
@@ -581,7 +581,7 @@ mean([1, 2, NA, 4], na_rm = true)  -- 2.33...
 -- Error(TypeError: Cannot add String and Int)
 ```
 
-**Solution**: Use separate print statements or `str_string()` for manual conversion.
+**Solution**: Use separate print statements or `to_string()` for manual conversion.
 
 ```t
 print("Age: ")
@@ -684,7 +684,7 @@ process_data = \(df)
 
 ```t
 if (age < 0 or age > 150)
-  error("ValidationError", str_sprintf("Age must be between 0 and 150, got: %s", str_string(age)))
+  error("ValidationError", str_sprintf("Age must be between 0 and 150, got: %s", to_string(age)))
 ```
 
 **Bad**: Vague messages

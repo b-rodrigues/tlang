@@ -2,5 +2,5 @@
 
 Collapse multiple levels
 
-Merges several existing factor levels into new grouped levels.
+Merges several existing to_factor levels into new grouped levels.
 

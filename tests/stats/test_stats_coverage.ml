@@ -32,8 +32,8 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   print_newline ();
 
   Printf.printf "  Model comparison + diagnostics:\n";
-  test "compare returns dataframe for variadic models"
-    {|df = dataframe([
+  test "compare returns to_dataframe for variadic models"
+    {|df = to_dataframe([
         [x: 1, z: 2, y: 4],
         [x: 2, z: 1, y: 5],
         [x: 3, z: 0, y: 6],
@@ -44,7 +44,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
       type(compare(m1, m2))|}
     {|"DataFrame"|};
   test "compare supports list input"
-    {|df = dataframe([
+    {|df = to_dataframe([
         [x: 1, z: 2, y: 4],
         [x: 2, z: 1, y: 5],
         [x: 3, z: 0, y: 6],
@@ -58,7 +58,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|compare([name: "broken"])|}
     {|Error(TypeError: "Model broken has no tidy coefficient table.")|};
   test "score returns core regression metrics"
-    {|df = dataframe([
+    {|df = to_dataframe([
         [x: 1, z: 2, y: 4],
         [x: 2, z: 1, y: 5],
         [x: 3, z: 0, y: 6],
@@ -68,7 +68,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
       colnames(score(df, model))|}
     {|["rmse", "mae", "r2"]|};
   test "score includes log_loss for binomial-style models"
-    {|df = dataframe([
+    {|df = to_dataframe([
         [x: -2, y: 0],
         [x: -1, y: 0],
         [x: 1, y: 1],
@@ -78,7 +78,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
       colnames(score(df, model))|}
     {|["rmse", "mae", "r2", "log_loss"]|};
   test "residuals support pearson type"
-    {|df = dataframe([
+    {|df = to_dataframe([
         [x: 1, z: 2, y: 4],
         [x: 2, z: 1, y: 5],
         [x: 3, z: 0, y: 6],
@@ -87,22 +87,22 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
       model = lm(data = df, formula = y ~ x + z);
       nrow(residuals(df, model, type = "pearson"))|}
     "4";
-  test "augment adds standardized residuals"
-    {|df = dataframe([
+  test "add_diagnostics adds standardized residuals"
+    {|df = to_dataframe([
         [x: 1, z: 2, y: 4],
         [x: 2, z: 1, y: 5],
         [x: 3, z: 0, y: 6],
         [x: 4, z: 1, y: 9]
       ]);
       model = lm(data = df, formula = y ~ x + z);
-      colnames(augment(df, model))|}
+      colnames(add_diagnostics(df, model))|}
     {|["x", "z", "y", "fitted", "resid", "std_resid"]|};
   test "predict supports named data/model arguments"
-    {|df = dataframe([x: [1, 2, 3, 4]]);
+    {|df = to_dataframe([x: [1, 2, 3, 4]]);
       predict(data = df, model = [coefficients: [x: 2.0]])|}
     {|Vector[2., 4., 6., 8.]|};
   test "predict surfaces forest model shape errors"
-    {|df = dataframe([x: [1]]);
+    {|df = to_dataframe([x: [1]]);
       predict(df, [model_type: "random_forest"])|}
     {|Error(TypeError: "Function `predict` expects a forest model with a `forest` field.")|};
   test "sigma rejects dispersion-only models"
@@ -121,7 +121,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "deviance([deviance: 12.34])"
     "12.34";
   test "vcov falls back to diagonal matrix from std errors"
-    {|tidy = dataframe([
+    {|tidy = to_dataframe([
         [term: "a", std_error: 2],
         [term: "b", std_error: 3]
       ]);
@@ -130,11 +130,11 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   print_newline ();
 
   Printf.printf "  Scalar statistics edge cases:\n";
-  test "max handles dataframe vector columns"
-    {|df = dataframe([x: [1, 2, 3]]); max(df.x)|}
+  test "max handles to_dataframe vector columns"
+    {|df = to_dataframe([x: [1, 2, 3]]); max(df.x)|}
     "3.";
-  test "min handles dataframe vector columns"
-    {|df = dataframe([x: [1, 2, 3]]); min(df.x)|}
+  test "min handles to_dataframe vector columns"
+    {|df = to_dataframe([x: [1, 2, 3]]); min(df.x)|}
     "1.";
   test "cov rejects unequal lengths"
     "cov([1, 2], [1])"
@@ -182,10 +182,10 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "mean([1, 2, 3], weights = NA)"
     "2.";
   test "weighted lm rejects all-zero weights"
-    {|df = dataframe([x: [1, 2], y: [3, 4]]); lm(data = df, formula = y ~ x, weights = [0, 0])|}
+    {|df = to_dataframe([x: [1, 2], y: [3, 4]]); lm(data = df, formula = y ~ x, weights = [0, 0])|}
     {|Error(ValueError: "Function `lm` expects `weights` to contain at least one positive value.")|};
   test "lm treats NA weights as omitted"
-    {|df = dataframe([x: [1, 2, 3], y: [2, 3, 4]]); lm(data = df, formula = y ~ x, weights = NA).fit_method|}
+    {|df = to_dataframe([x: [1, 2, 3], y: [2, 3, 4]]); lm(data = df, formula = y ~ x, weights = NA).fit_method|}
     {|"ols"|};
   test "winsorize accepts two-sided limits"
     "length(winsorize([1, 2, 3, 4], [0.25, 0.0]))"
@@ -209,11 +209,11 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|t_read_pmml("/definitely/not/a/real/model.pmml")|}
     {|Error(FileError: "PMML Parse Error:.*")|};
   test "t_score_pmml requires a source-backed PMML model"
-    {|df = dataframe([x: [1]]);
+    {|df = to_dataframe([x: [1]]);
       t_score_pmml(df, [model_type: "random_forest"])|}
     {|Error(RuntimeError: "Function `predict` (PMML): model does not have an attached source PMML path. Native T PMML export is not yet implemented for JPMML-backed scoring.")|};
   test "compare_native_vs_pmml_scores requires PMML source metadata"
-    {|df = dataframe([x: [1]]);
+    {|df = to_dataframe([x: [1]]);
       compare_native_vs_pmml_scores(df, [model_type: "random_forest"])|}
     {|Error(ValueError: "compare_native_vs_pmml_scores: Model does not have a PMML source path.")|};
   print_newline ()

@@ -453,7 +453,7 @@ let register env =
                                    | Ok xs_terms ->
                                        if xs_terms = [] then
                                          Error.value_error
-                                           "Function `lm` requires at least one varying predictor term after factor encoding."
+                                           "Function `lm` requires at least one varying predictor term after to_factor encoding."
                                        else
                                          (match Arrow_owl_bridge.detect_collinearity
                                                   (List.map (fun term -> (term.name, term.values)) xs_terms) with

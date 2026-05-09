@@ -7,9 +7,9 @@ s = shape(result_arr)
 d = ndarray_data(result_arr)
 -- matmul result is [[19, 22], [43, 50]], add 100
 result = [
-  shape: s |> map(\(n) str_string(n)) |> str_join(","),
-  data: d |> map(\(n) str_string(n)) |> str_join(", ")
+  shape: s |> map(\(n) to_string(n)) |> str_join(","),
+  data: d |> map(\(n) to_string(n)) |> str_join(", ")
 ]
-df = dataframe([result])
+df = to_dataframe([result])
 write_csv(df, "tests/golden/t_outputs/matmul_then_add.csv")
 print("✓ matmul then add complete")

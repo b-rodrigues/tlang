@@ -759,28 +759,28 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "Phase 3 — Pipeline Diagnostics:\n";
   test "read_node(p, name) exposes warning list"
     {|p_diag = pipeline {
-  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; length(read_node(p_diag, "filtered").warnings)|}
     "1";
   test "downstream nodes inherit upstream warnings"
     {|p_diag = pipeline {
-  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_node(p_diag, "count").warnings |> map(\(w) w.source.kind)|}
     {|["Upstream"]|};
   test "downstream warning source points at origin node"
     {|p_diag = pipeline {
-  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_node(p_diag, "count").warnings |> map(\(w) w.source.node)|}
     {|["filtered"]|};
   test "read_pipeline summarizes warning origins only once"
     {|p_diag = pipeline {
-  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_pipeline(p_diag).diagnostics.summary|}
@@ -881,7 +881,7 @@ p_cross = pipeline {
           (Ast.Utils.value_to_string other));
 
   let (v_py_node, _) = eval_string_env
-    {|py(command = <{ x + 1 }>, env_vars = [API_KEY: "secret", RETRIES: 3])|}
+    {|pyn(command = <{ x + 1 }>, env_vars = [API_KEY: "secret", RETRIES: 3])|}
     (Packages.init_env ()) in
   let same_env_vars left right =
     let sort_vars vars = List.sort (fun (k1, _) (k2, _) -> String.compare k1 k2) vars in
@@ -906,9 +906,9 @@ p_cross = pipeline {
    | Ast.VNode un
       when un.un_runtime = "Python"
            && same_env_vars un.un_env_vars [("API_KEY", Ast.VString "secret"); ("RETRIES", Ast.VInt 3)] ->
-       incr pass_count; Printf.printf "  ✓ py() stores env_vars on the node\n"
+       incr pass_count; Printf.printf "  ✓ pyn() stores env_vars on the node\n"
    | other ->
-       incr fail_count; Printf.printf "  ✗ py() env_vars parsing failed: %s\n"
+       incr fail_count; Printf.printf "  ✗ pyn() env_vars parsing failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   test "node env_vars must be a dict"
@@ -978,7 +978,7 @@ p_cross = pipeline {
   let (v_py_pipeline, _) = eval_string_env
     {|pipeline {
   data = 1
-  step = py(command = <{ data + 1 }>, env_vars = [MODE: "fast"], deserializer = "json")
+  step = pyn(command = <{ data + 1 }>, env_vars = [MODE: "fast"], deserializer = "json")
 }|}
     (Packages.init_env ()) in
   (match v_py_pipeline with
@@ -990,12 +990,12 @@ p_cross = pipeline {
          | None -> false
        in
        if runtime_ok && env_ok then begin
-         incr pass_count; Printf.printf "  ✓ py() nodes are desugared with env_vars in pipelines\n"
+         incr pass_count; Printf.printf "  ✓ pyn() nodes are desugared with env_vars in pipelines\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ py() pipeline desugaring failed\n"
+         incr fail_count; Printf.printf "  ✗ pyn() pipeline desugaring failed\n"
        end
    | other ->
-       incr fail_count; Printf.printf "  ✗ py() pipeline should return VPipeline, got: %s\n"
+       incr fail_count; Printf.printf "  ✗ pyn() pipeline should return VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
 
   let (v_env_pipeline, _) = eval_string_env
@@ -1029,7 +1029,7 @@ p_cross = pipeline {
     {|pipeline {
   source = [answer: 42]
   report_r = rn(command = <{ source }>, serializer = "json", deserializer = "json")
-  report_py = py(command = <{ source }>, serializer = "arrow", deserializer = "arrow")
+  report_py = pyn(command = <{ source }>, serializer = "arrow", deserializer = "arrow")
 }|}
     (Packages.init_env ()) in
   (match v_serializer_pipeline with
@@ -1068,7 +1068,7 @@ p_cross = pipeline {
     library(ggplot2)
     ggplot(mtcars, aes(wt, mpg)) + geom_point() + labs(title = "Fuel economy")
   }>)
-  plot_py = py(command = <{
+  plot_py = pyn(command = <{
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     ax.plot([1, 2], [3, 4])

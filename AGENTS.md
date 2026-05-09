@@ -170,6 +170,37 @@ This applies equally to:
 
 **Never create aliases** for existing functions (e.g., do not add `read_pmml` if `t_read_pmml` already exists). Aliases are confusing and serve no purpose. Always use the canonical name.
 
+When you encounter an existing alias, you should:
+1.  **Identify the canonical name** (usually the one that is more consistent with T's naming conventions or R's tidyverse).
+2.  **Use `scripts/refactor_alias.sh <old_name> <new_name>`** to replace the alias across the entire codebase (including documentation).
+3.  **Delete the alias registration** in the OCaml source.
+4.  **Verify with `scripts/audit_aliases.sh`**.
+
+---
+
+## Refactoring and Code Health
+
+Maintaining a clean and unified codebase is a priority. Use the following tools and patterns to ensure system integrity:
+
+### 1. Unified Utility Modules
+When implementing new functions, check if similar logic already exists in utility modules:
+-   **`Math_utils.ml`**: Canonical source for numeric extraction (`extract_numeric_array`), statistical primitives (`mean_array`, `variance_array`), and weight handling.
+-   **`Math_common.ml`**: Shared constants and configuration flags.
+
+### 2. Audit Scripts
+The `scripts/` directory contains tools for automated health checks:
+-   **`scripts/audit_aliases.sh`**: Detects usage of known deprecated aliases.
+-   **`scripts/audit_docs.py`**: Verifies that every exported function has a corresponding `--#` docstring block.
+-   **`scripts/refactor_alias.sh`**: A utility to safely rename functions and update all references.
+
+### 3. Detecting Implicit Aliases in OCaml
+When performing an audit, look for these common OCaml patterns that create undocumented aliases:
+-   **Direct Assignment**: `let alias = original` (Look for this in package files).
+-   **Double Registration**: Calling `Env.add "alias" func` and `Env.add "original" func` in the same module.
+-   **Lookup Re-registration**: `Env.add "alias" (Env.find "original" env)`.
+
+If you find such patterns, unify them under a single canonical name unless there is a strong backward-compatibility reason to keep the alias (in which case, document it as such in the source).
+
 ### Error Handling
 
 Use the structured helpers from `src/error.ml`:

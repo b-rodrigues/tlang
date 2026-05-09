@@ -88,7 +88,7 @@ cannot work because `!!` is a parser-level operator, not a runtime function — 
 
 ---
 
-## Gap 1: `sym()` Helper for Programmatic Symbols
+## Gap 1: `to_symbol()` Helper for Programmatic Symbols
 
 The original discussion also touched on R's `get()` pattern:
 
@@ -104,29 +104,29 @@ x = [1, 2, 3]
 y = "x"
 
 get(y)
-get(sym(y))
+get(to_symbol(y))
 ```
 
 So the remaining ergonomic gap here is no longer "variable lookup by name". The real gap from the quasiquotation side was the string-to-symbol step needed for programmatic injection into quoted code:
 
 ```t
 y = "column_name"
-expr(select(df, !!sym(y)))
+expr(select(df, !!to_symbol(y)))
 ```
 
-T now exposes `sym()` in the `core` package. It converts a string to a runtime `Symbol`, or passes an existing `Symbol` through unchanged. Together, `get(name)` handles environment lookup while `sym(name)` handles programmatic quasiquotation and dynamic column-name injection.
+T now exposes `to_symbol()` in the `core` package. It converts a string to a runtime `Symbol`, or passes an existing `Symbol` through unchanged. Together, `get(name)` handles environment lookup while `to_symbol(name)` handles programmatic quasiquotation and dynamic column-name injection.
 
 ### Implemented addition
 
-`sym(string_or_symbol) -> Symbol` is now available in `core`:
+`to_symbol(string_or_symbol) -> Symbol` is now available in `core`:
 
 ```t
-sym("mpg")         -- mpg
-sym(y)             -- Symbol from the value of y
+to_symbol("mpg")         -- mpg
+to_symbol(y)             -- Symbol from the value of y
 
 -- Usage
 col_name = "salary"
-df |> select(!!sym(col_name))
+df |> select(!!to_symbol(col_name))
 ```
 
 This is a small, self-contained addition with no parser changes required. It helps with programmatic code generation and dynamic column naming, even though it does **not** by itself introduce auto-quoting for function parameters.
@@ -187,13 +187,13 @@ Current limit: auto-quoted parameters are intentionally restricted to column-sty
 | `enquo` / `enquos` | ✅ Implemented | Captures caller expressions |
 | `$col` NSE in colcraft verbs | ✅ Implemented | Already a Symbol at call time |
 | `eval(expr(...))` workaround | ✅ Works today | Verbose but correct |
-| `sym(string) -> Symbol` | ✅ Implemented | Available in `core`; supports string-driven quasiquotation |
+| `to_symbol(string) -> Symbol` | ✅ Implemented | Available in `core`; supports string-driven quasiquotation |
 | Auto-quoting parameter `$param` | ✅ Implemented | Best for column-style inputs; arbitrary expressions still use `enquo()` |
 
 ---
 
 ## Recommended Next Steps
 
-1. **Short term**: Continue tightening the metaprogramming documentation so it distinguishes clearly between `$param` (column-name shortcut), `enquo()` (capture what the caller wrote), and `sym()` (start from a computed string).
+1. **Short term**: Continue tightening the metaprogramming documentation so it distinguishes clearly between `$param` (column-name shortcut), `enquo()` (capture what the caller wrote), and `to_symbol()` (start from a computed string).
 
 2. **Future extension**: Decide whether auto-quoted parameters should eventually accept richer expression forms, or whether that territory should remain exclusive to `enquo()`/`quos()`.

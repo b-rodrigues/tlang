@@ -14,7 +14,7 @@ let is_sep_name = function Some "separator" -> true | _ -> false
 --# @return :: Null
 --# @example
 --#   write_csv(df, "output.csv")
---# @family dataframe
+--# @family to_dataframe
 --# @seealso read_csv
 --# @export
 *)
@@ -39,6 +39,6 @@ let register ~write_csv_fn env =
       | [_; VString _] -> Error.type_error "Function `write_csv` expects a DataFrame as first argument."
       | [VDataFrame _; _] -> Error.type_error "Function `write_csv` expects a String path as second argument."
       | [_; _] -> Error.type_error "Function `write_csv` expects (DataFrame, String)."
-      | _ -> Error.make_error ArityError "Function `write_csv` takes exactly 2 positional arguments (dataframe, path)."
+      | _ -> Error.make_error ArityError "Function `write_csv` takes exactly 2 positional arguments (to_dataframe, path)."
     ))
     env

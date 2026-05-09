@@ -8,6 +8,8 @@ Evaluates a T script file and imports its definitions into the current environme
 
 - **filename** (`String`): The path to the T file to execute.
 
+- **failfast** (`Bool`): Whether to fail on error (defaults to false).
+
 
 ## Returns
 

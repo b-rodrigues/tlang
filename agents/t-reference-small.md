@@ -26,7 +26,7 @@ This file is a distilled reference for the **T programming language**. It is int
 `mean(x, na_rm=false)`, `median(x)`, `sd(x)`, `var(x)`, `quantile(x, probs)`, `cor(x, y)`, `lm(data, formula)`, `predict(model, data)`, `abs(x)`, `sqrt(x)`, `log(x)`, `round(x, digits)`.
 
 ### `chrono` (Dates & Times)
-`ymd(s)`, `mdy(s)`, `today()`, `now()`, `year(x)`, `month(x)`, `day(x)`, `as_date(x)`, `format_date(x, format)`.
+`ymd(s)`, `mdy(s)`, `today()`, `now()`, `year(x)`, `month(x)`, `day(x)`, `to_date(x)`, `format_date(x, format)`.
 
 ### `strcraft` (Strings)
 `str_nchar(s)`, `str_substring(s, start, end)`, `str_replace(s, pat, repl)`, `to_lower(s)`, `to_upper(s)`, `str_join(xs, sep)`.

@@ -332,7 +332,7 @@ export let helper = 1
       ignore (Analyzer.infer_type scope (locless (ColumnRef "mpg")));
       let df_expr =
         locless (Call {
-          fn = locless (Var "dataframe");
+          fn = locless (Var "to_dataframe");
           args = [
             (None, locless (ListLit [
               (Some "a", locless (Value (VInt 1)));

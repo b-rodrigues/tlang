@@ -1,6 +1,6 @@
 # is_factor
 
-Check for factor columns
+Check for to_factor columns
 
-Predicate helper for factor columns or factor vectors.
+Predicate helper for to_factor columns or to_factor vectors.
 

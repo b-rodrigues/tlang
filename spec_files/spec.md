@@ -339,7 +339,7 @@ from operations.
 - **For `Model`**: The `kind` parameter selects output style:
     - `"tidy"`: Returns a DataFrame of model components (default).
     - `"glance"`: Single-row DataFrame of fit statistics.
-    - `"augment"`: Original data augmented with model statistics.
+    - `"add_diagnostics"`: Original data augmented with model statistics.
 
 ---
 
