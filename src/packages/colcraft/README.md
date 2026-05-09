@@ -18,8 +18,8 @@ DataFrame manipulation verbs, inspired by dplyr.
 | `left_join(x, y)` | Join DataFrames |
 | `pivot_longer(...)` | Reshape to long format |
 | `pivot_wider(...)` | Reshape to wide format |
-| `factor(x)` | Create factor vectors |
-| `fct_reorder(...)` | Reorder factor levels |
+| `to_factor(x)` | Create to_factor vectors |
+| `fct_reorder(...)` | Reorder to_factor levels |
 
 ## NSE (Non-Standard Evaluation)
 

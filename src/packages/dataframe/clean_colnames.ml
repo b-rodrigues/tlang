@@ -1,4 +1,4 @@
-(* src/packages/dataframe/clean_colnames.ml *)
+(* src/packages/to_dataframe/clean_colnames.ml *)
 (* Column name normalization pipeline.                                      *)
 (* Transforms raw CSV column names into safe, consistent identifiers.       *)
 (* Designed as a standalone, pure module — no dependency on CSV parsing.     *)
@@ -177,7 +177,7 @@ let clean_one (name : string) : string =
 --# @name clean_names
 --# @param names :: Vector[String] The column names to clean.
 --# @return :: Vector[String] The cleaned column names.
---# @family dataframe
+--# @family to_dataframe
 --# @private
 *)
 let clean_names (names : string list) : string list =

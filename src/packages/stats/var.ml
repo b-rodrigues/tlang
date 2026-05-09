@@ -14,37 +14,6 @@ open Ast
 --# @export
 *)
 
-let has_na_rm named_args =
-  List.exists (fun (name, v) -> name = Some "na_rm" && match v with VBool true -> true | _ -> false) named_args
-
-let strip_na_rm named_args =
-  List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd
-
-let numeric_values ~label ~na_rm v =
-  let vals =
-    match v with
-    | VVector arr -> Ok (Array.to_list arr)
-    | VList items -> Ok (List.map snd items)
-    | VNA _ -> Error (Error.na_value_error ~na_rm:true label)
-    | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects a numeric List or Vector." label))
-  in
-  match vals with
-  | Error e -> Error e
-  | Ok vals ->
-      let rec go acc = function
-        | [] -> Ok (List.rev acc)
-        | VInt n :: tl -> go (float_of_int n :: acc) tl
-        | VFloat f :: tl -> go (f :: acc) tl
-        | VNA _ :: tl when na_rm -> go acc tl
-        | VNA _ :: _ -> Error (Error.na_value_error ~na_rm:true label)
-        | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
-      in
-      go [] vals
-
-let mean xs =
-  let n = List.length xs in
-  if n = 0 then None else Some (List.fold_left ( +. ) 0.0 xs /. float_of_int n)
-
 let register env =
   Env.add "var" (make_builtin_named ~name:"var" ~variadic:true 1 (fun named_args _ ->
     match Math_common.get_bool_flag "na_rm" false named_args with
@@ -65,16 +34,14 @@ let register env =
                      | Some v -> VFloat v
                      | None -> Error.make_error RuntimeError "Function `var` internal error: weighted variance could not be computed."))
          | None ->
-             (match numeric_values ~label:"var" ~na_rm x with
+             (match Math_utils.extract_numeric_array ~label:"var" ~na_rm x with
               | Error e -> e
-              | Ok [] -> VNA NAFloat
+              | Ok [||] -> VNA NAFloat
               | Ok xs ->
-                  let n = List.length xs in
+                  let n = Array.length xs in
                   if n < 2 then Error.value_error "Function `var` requires at least 2 values."
                   else
-                    match mean xs with
-                    | None -> Error.make_error RuntimeError "Function `var` internal error: mean returned None for non-empty list."
-                    | Some m ->
-                    let ss = List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs in
-                    VFloat (ss /. float_of_int (n - 1))))
+                    (match Math_utils.variance_array xs with
+                     | Some v -> VFloat v
+                     | None -> VNA NAFloat)))
     | args -> Error.arity_error_named "var" 1 (List.length args))) env

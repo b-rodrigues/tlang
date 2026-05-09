@@ -223,10 +223,10 @@ let matrix_inverse args =
               done;
               for r = 0 to n - 1 do
                 if r <> !col then begin
-                  let factor = aug.(r).(!col) in
-                  if Float.abs factor > 0.0 then
+                  let to_factor = aug.(r).(!col) in
+                  if Float.abs to_factor > 0.0 then
                     for c = 0 to (2 * n) - 1 do
-                      aug.(r).(c) <- aug.(r).(c) -. factor *. aug.(!col).(c)
+                      aug.(r).(c) <- aug.(r).(c) -. to_factor *. aug.(!col).(c)
                     done
                 end
               done;

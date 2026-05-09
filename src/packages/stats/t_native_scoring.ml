@@ -728,7 +728,7 @@ let predict_linear_model df pairs =
         match resolve_term name with
         | None ->
             success := false;
-            error_msg := Printf.sprintf "Predictor `%s` not found in DataFrame for prediction and could not be resolved as a factor level." name
+            error_msg := Printf.sprintf "Predictor `%s` not found in DataFrame for prediction and could not be resolved as a to_factor level." name
         | Some eval_term ->
             for i = 0 to nrows - 1 do
               if not na_rows.(i) then

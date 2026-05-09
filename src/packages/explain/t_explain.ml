@@ -154,7 +154,7 @@ let register env =
         make_explain_dict
           ~display_keys:display_key_names
           ([
-             ("kind", VString "dataframe");
+             ("kind", VString "to_dataframe");
              ("nrow", VInt nrows);
              ("ncol", VInt (Arrow_table.num_columns df.arrow_table));
              ("storage_backend", VString storage_backend);

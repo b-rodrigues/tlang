@@ -10,7 +10,7 @@ open Ast
 --# @return :: DataFrame The loaded data.
 --# @example
 --#   df = read_parquet("data.parquet")
---# @family dataframe
+--# @family to_dataframe
 --# @seealso read_csv, read_arrow
 --# @export
 *)

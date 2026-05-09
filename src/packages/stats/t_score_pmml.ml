@@ -162,6 +162,32 @@ let t_compare_scores_pmml =
     | _ -> Error.arity_error_named "compare_native_vs_pmml_scores" 2 (List.length args))
 
 let register env =
+(*
+--# Score a PMML model using JPMML
+--#
+--# Evaluates a PMML model against a DataFrame using the JPMML-evaluator library.
+--# Requires a Java runtime and the JPMML-evaluator JAR to be available.
+--#
+--# @name t_score_pmml
+--# @param df :: DataFrame The data to score.
+--# @param model :: Dict The PMML model dictionary (loaded via `t_read_pmml`).
+--# @return :: Vector | DataFrame The model predictions.
+--# @family stats
+--# @export
+*)
   let env = Env.add "t_score_pmml" t_score_pmml env in
+(*
+--# Compare native T scoring vs JPMML scoring
+--#
+--# Validates the T-native implementation of model scoring (e.g. random forest)
+--# against the reference JPMML evaluator. Returns a summary of differences.
+--#
+--# @name compare_native_vs_pmml_scores
+--# @param df :: DataFrame The test data.
+--# @param model :: Dict The model dictionary with both native and PMML metadata.
+--# @return :: Dict A summary containing `n_diffs`, `match` (Bool), and `n_rows`.
+--# @family stats
+--# @export
+*)
   let env = Env.add "compare_native_vs_pmml_scores" t_compare_scores_pmml env in
   env

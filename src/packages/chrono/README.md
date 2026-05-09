@@ -13,7 +13,7 @@ Date and datetime parsing, extraction, formatting, and calendar arithmetic.
 | `parse_date(s, format)` | Parse a date with a custom `strptime`-style format |
 | `parse_datetime(s, format)` | Parse a datetime with a custom `strptime`-style format |
 | `today()` / `now()` | Return the current UTC date or datetime |
-| `year(x)` / `month(x)` / `day(x)` / `mday(x)` | Extract calendar components |
+| `year(x)` / `month(x)` / `day(x)` | Extract calendar components |
 | `yday(x)` / `wday(x)` / `week(x)` / `isoweek(x)` / `isoyear(x)` | Extract day/week-based components |
 | `quarter(x)` / `semester(x)` | Extract larger calendar partitions |
 | `hour(x)` / `minute(x)` / `second(x)` / `tz(x)` | Extract time-of-day and timezone information |
@@ -26,7 +26,7 @@ Date and datetime parsing, extraction, formatting, and calendar arithmetic.
 | `period_hours(p)` / `period_minutes(p)` / `period_seconds(p)` | Read time fields from a period |
 | `format_date(x, format)` | Format a date-like value as a string |
 | `format_datetime(x, format)` | Format a datetime-like value as a string |
-| `as_date(x)` / `as_datetime(x)` | Convert strings and numeric offsets to date-like values |
+| `to_date(x)` / `to_datetime(x)` | Convert strings and numeric offsets to date-like values |
 | `interval(start, end)` / `` `%within%`(x, interval) `` | Construct intervals and test whether a date-like value falls inside one |
 | `floor_date(x, unit)` / `ceiling_date(x, unit)` / `round_date(x, unit)` | Round date-like values to `second`, `minute`, `hour`, `day`, `month`, or `year` boundaries |
 | `with_tz(x, tz)` / `force_tz(x, tz)` | Current implementation treats timezones as labels only, so both update the attached timezone label without offset conversion |

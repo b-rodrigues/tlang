@@ -15,9 +15,9 @@ This work should be performed in the current branch (`julia-support-refactor`), 
 
 Before removing any code, ensure the current state is stable and well-understood.
 
-- [ ] **Establish Test Baseline**: Run the full test suite (`dune test` or equivalent) to ensure all tests are passing before making changes.
-- [ ] **Review Demos**: Verify that the pipelines in `t_demos` build successfully, as they act as our end-to-end integration tests.
-- [ ] **Generate Analysis**: Use `dune` warnings, `grep`, or OCaml dead code analysis tools to generate a list of unused functions, variables, and modules.
+- [x] **Establish Test Baseline**: Run the full test suite (`dune test` or equivalent) to ensure all tests are passing before making changes.
+- [x] **Review Demos**: Verify that the pipelines in `t_demos` build successfully, as they act as our end-to-end integration tests.
+- [x] **Generate Analysis**: Use `dune` warnings, `grep`, or OCaml dead code analysis tools to generate a list of unused functions, variables, and modules.
 
 ---
 
@@ -25,15 +25,30 @@ Before removing any code, ensure the current state is stable and well-understood
 
 Aliases create multiple ways to do the same thing, complicating the API and evaluation logic. The goal is to enforce one canonical name per operation.
 
-- [ ] **Identify Aliases**: Create a list of aliases currently in the language. Examples include old node constructor shorthands (like `jl_node` vs `jln`), duplicated built-ins, or overlapping standard library functions in `src/packages/core/packages.ml`.
-- [ ] **Search for Usages**: Use exact pattern matching to find all instances where the aliases are used in:
+- [x] **Identify Aliases**: Create a list of aliases currently in the language. Confirmed targets:
+    - `ceil` → `ceiling`
+    - `mday` → `day`
+    - `to_numeric` → `to_float`
+    - `as_factor` → `factor`
+    - `py` → `pyn`
+    - `jl_node` → `jln`
+    - `casewhen` → `case_when`
+- [x] **Search for Usages**: Use exact pattern matching to find all instances where the aliases are used in:
   - `src/` (Compiler and evaluator code)
   - `tests/` (Test scripts and assertions)
   - `docs/` (Documentation and examples)
   - `t_demos/` (Demo projects)
-- [ ] **Replace Usages**: Update all identified usages to use the canonical names.
-- [ ] **Remove Alias Definitions**: Delete the code that defines or registers the alias (e.g., in `packages.ml` or `eval.ml`).
-- [ ] **Verify Alias Removal**: Re-run the tests to ensure the compiler and evaluator still function correctly with only the canonical names.
+- [x] **Replace Usages**: Update all identified usages to use the canonical names.
+- [x] **Remove Alias Definitions**: Delete the code that defines or registers the alias (e.g., in `packages.ml` or `eval.ml`).
+- [x] **Continuous Verification**: After each alias removal, re-run `dune test` and the `t_demos` pipelines to catch any regressions.
+
+## Phase 6: Documentation Integrity
+
+Ensure that the refactored codebase remains user-friendly by verifying that all public-facing functions have associated documentation.
+
+- [x] **Audit Public Functions**: Scan `src/packages/` to ensure every exported function has a `--#` TDoc comment block.
+- [x] **Verify TDoc Metadata**: Check that `@name`, `@param`, and `@return` tags are present and accurate for each function.
+- [x] **Rebuild Reference Manual**: Run the documentation generator to ensure `docs/reference.md` is complete and contains no broken links or missing entries.
 
 ---
 
@@ -41,12 +56,24 @@ Aliases create multiple ways to do the same thing, complicating the API and eval
 
 Remove unused types, variables, functions, and modules to keep the codebase lean and maintainable.
 
-- [ ] **Remove Unused Variables & Bindings**: Look for variables that are declared but never used (OCaml usually warns about these).
-- [ ] **Remove Unreachable Code**: Delete logic branches, match cases, or helper functions that can no longer be reached (especially after alias removal).
-- [ ] **Clean Up Standard Packages**: Review `src/packages/core/packages.ml` and `src/packages/` for built-in functions or modules that are no longer referenced or exported.
-- [ ] **Remove Orphaned Documentation**: Delete documentation files or comments for features/functions that have been removed.
-- [ ] **Prune Dependencies**: Check `tproject.toml` and `flake.nix` files (both in T-Lang and `t_demos`) for dependencies that are no longer required by the language or demos.
-- [ ] **Verify Dead Code Removal**: Compile the project (`dune build`) to ensure no missing references were accidentally created. 
+- [x] **Remove Unused Variables & Bindings**: Look for variables that are declared but never used (OCaml usually warns about these).
+- [x] **Remove Unreachable Code**: Delete logic branches, match cases, or helper functions that can no longer be reached (especially after alias removal).
+- [x] **Clean Up Standard Packages**: Review `src/packages/core/packages.ml` and `src/packages/` for built-in functions or modules that are no longer referenced or exported.
+- [x] **Remove Orphaned Documentation**: Delete documentation files or comments for features/functions that have been removed.
+- [x] **Prune Dependencies**: Check `tproject.toml` and `flake.nix` files (both in T-Lang and `t_demos`) for dependencies that are no longer required by the language or demos.
+## Phase 6: Global API Standardization (to_ prefix)
+Objective: Standardize all conversion and constructor functions to use the `to_` prefix.
+
+- [ ] `dataframe` → `to_dataframe`
+- [ ] `factor` → `to_factor`
+- [ ] `as_date` → `to_date`
+- [ ] `as_datetime` → `to_datetime`
+- [ ] `str_string` → `to_string`
+- [ ] `sym` → `to_symbol`
+- [ ] `expr` → `expr`
+- [ ] `exprs` → `exprs`
+- [ ] Implement `to_bool` in `converters.ml`
+- [x] **Verify Dead Code Removal**: Compile the project (`dune build`) to ensure no missing references were accidentally created. 
 
 ---
 
