@@ -1,6 +1,5 @@
 p = pipeline {
   calc = node(command = <{ 
-    using DataFrames
     df = DataFrame(x = [1, 2, 3], y = [10, 20, 30])
     df[!, :z] = df.x .* df.y
     df
