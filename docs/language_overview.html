@@ -35,7 +35,7 @@
 <div class="container">
 <h1 id="t-language-overview">T Language Overview</h1>
 <blockquote>
-<p><strong>Version</strong>: 0.51.4</p>
+<p><strong>Version</strong>: 0.52.0</p>
 </blockquote>
 <p>T is a functional programming language designed for declarative,
 tabular data manipulation. It combines the pipeline-driven style of R’s
@@ -133,6 +133,11 @@ seq(1, 10, by = 2)    -- [1, 3, 5, 7, 9]</code></pre>
 <td><code>Pipeline</code></td>
 <td><code>pipeline { ... }</code></td>
 <td>DAG-based execution graph</td>
+</tr>
+<tr>
+<td><code>jln</code></td>
+<td><code>jln(...)</code></td>
+<td>Julia node wrapper</td>
 </tr>
 <tr>
 <td><code>Function</code></td>
@@ -429,7 +434,7 @@ p = my_pipeline
 status = match(pipeline_validate(p)) {
   [] =&gt; &quot;Pipeline is valid and ready to build.&quot;,
   [first_err, ..others] =&gt; 
-    str_join([&quot;Found &quot;, str_string(length(others) + 1), &quot; validation errors.&quot;])
+    str_join([&quot;Found &quot;, to_string(length(others) + 1), &quot; validation errors.&quot;])
 }</code></pre>
 <h3 id="integration-with-maybe-pipe-and-first-class-errors">Integration
 with Maybe-Pipe and First-Class Errors</h3>
@@ -512,7 +517,7 @@ retrieving data. It supports several modes of operation:</p>
 <h4 id="variable-lookup-r-style">1. Variable Lookup (R-style)</h4>
 <pre class="t"><code>salary = 50000
 get(&quot;salary&quot;)                -- 50000
-get(sym(&quot;salary&quot;))           -- 50000</code></pre>
+get(to_symbol(&quot;salary&quot;))           -- 50000</code></pre>
 <h4 id="collection-indexing-0-based">2. Collection Indexing
 (0-based)</h4>
 <pre class="t"><code>lst = [10, 20, 30]
@@ -866,7 +871,9 @@ resolution and provide the foundation for reproducible, polyglot
 workflows. You can see a complete, polyglot version of this example in
 the <a
 href="../examples/polyglot_pipeline.t"><code>examples/polyglot_pipeline.t</code></a>
-file.</p>
+file. T supports R (<code>rn()</code>), Python (<code>pyn()</code>),
+Julia (<code>jln()</code>), Quarto (<code>qn()</code>), and Shell
+(<code>shn()</code>) nodes out of the box.</p>
 <p>Built-in serializer keywords include <code>"csv"</code>,
 <code>"arrow"</code>, <code>"pmml"</code>, and <code>"onnx"</code> (or
 <code>^csv</code>, <code>^arrow</code>, <code>^pmml</code>,
@@ -1007,7 +1014,9 @@ pipeline_validate(p_full)</code></pre>
 </tr>
 <tr>
 <td><code>base</code></td>
-<td><code>assert</code>, <code>is_na</code>, <code>na</code>,
+<td><code>assert</code>, <code>assert_file_exists</code>,
+<code>assert_dir_exists</code>, <code>assert_size_of_file</code>,
+<code>assert_non_empty_file</code>, <code>is_na</code>, <code>na</code>,
 <code>na_int</code>, <code>na_float</code>, <code>na_bool</code>,
 <code>na_string</code>, <code>error</code>, <code>is_error</code>,
 <code>error_code</code>, <code>error_message</code>,
@@ -1024,7 +1033,7 @@ pipeline_validate(p_full)</code></pre>
 <code>cor</code>, <code>lm</code>, <code>predict</code></td>
 </tr>
 <tr>
-<td><code>dataframe</code></td>
+<td><code>to_dataframe</code></td>
 <td><code>read_csv</code>, <code>write_csv</code>,
 <code>colnames</code>, <code>nrow</code>, <code>ncol</code>,
 <code>clean_colnames</code></td>
@@ -1035,8 +1044,8 @@ pipeline_validate(p_full)</code></pre>
 <code>arrange</code>, <code>group_by</code>, <code>summarize</code>,
 <code>rename</code>, <code>relocate</code>, <code>distinct</code>,
 <code>count</code>, <code>slice</code>, <code>pivot_longer</code>,
-<code>pivot_wider</code>, joins, missing-value helpers, factor helpers,
-and window functions</td>
+<code>pivot_wider</code>, joins, missing-value helpers, to_factor
+helpers, and window functions</td>
 </tr>
 <tr>
 <td><code>pipeline</code></td>
@@ -1100,7 +1109,7 @@ functions:</p>
 <li><code>left_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame</code></li>
 <li><code>drop_na(df :: DataFrame, ...) :: DataFrame</code></li>
 <li><code>replace_na(df :: DataFrame, replace :: Dict) :: DataFrame</code></li>
-<li><code>factor(x :: Vector | List, levels = [], ordered = false) :: Vector</code></li>
+<li><code>to_factor(x :: Vector | List, levels = [], ordered = false) :: Vector</code></li>
 <li><code>row_number(x :: Vector) :: Vector</code></li>
 <li><code>lag(x :: Vector, n = 1) :: Vector</code></li>
 </ul>

@@ -35,9 +35,95 @@
 <div class="container">
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">[Unreleased]</h2>
-<p>The focus of this release was to improve language ergonomics for data
-guardrails and increase test coverage across all packages.</p>
+<h2 id="kaméhaméha---2026-05-xx">[0.52.0] “Kaméhaméha” - 2026-05-xx</h2>
+<p>The focus of this release is the introduction of first-class Julia
+support, enabling high-performance polyglot pipelines with seamless
+Julia integration.</p>
 <p><strong>Status</strong>: Beta</p>
+<h3 id="first-class-julia-support">First-Class Julia Support</h3>
+<ul>
+<li><strong>Julia Node Shorthand (<code>jln</code>)</strong>:
+<ul>
+<li>Introduced <code>jln()</code> (and its alias <code>jln()</code>) for
+executing Julia code directly within T pipelines.</li>
+<li>Julia nodes support full dependency management and automatic
+environment provisioning.</li>
+</ul></li>
+<li><strong>Integrated Dependency Management</strong>:
+<ul>
+<li>Projects can now declare Julia requirements in
+<code>tproject.toml</code> via the <code>[julia-dependencies]</code>
+section.</li>
+<li>Support for specific Julia versions and automatic Nix-based
+environment generation.</li>
+</ul></li>
+<li><strong>Native PMML Support</strong>:
+<ul>
+<li>Full support for PMML model scoring and export within Julia nodes
+using the <code>^pmml</code> serializer.</li>
+<li>High-performance in-memory scoring via <code>JavaCall.jl</code>
+integration.</li>
+</ul></li>
+<li><strong>Native ONNX Support</strong>:
+<ul>
+<li>Full support for ONNX model inference and export within Julia nodes
+using the <code>^onnx</code> serializer.</li>
+<li>Leverages <code>ONNXRunTime.jl</code> for industry-standard
+inference performance and <code>ONNX.jl</code> for model
+serialization.</li>
+</ul></li>
+<li><strong>Enhanced Polyglot Ergonomics</strong>:
+<ul>
+<li>Simplified data interchange between T, R, Python, and Julia.</li>
+<li>Improved automatic dependency discovery for Julia packages used
+within pipeline nodes.</li>
+<li>Robust system-level library resolution for complex Julia
+dependencies (like JVM and ONNX runtimes) within the Nix sandbox.</li>
+</ul></li>
+</ul>
+<h2 id="section">[0.51.5] - 2026-05-08</h2>
+<p>The focus of this release was to improve language ergonomics for data
+guardrails, enhance package manager feedback, and increase test coverage
+across all packages.</p>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="performance-arrow-ffi">Performance &amp; Arrow FFI</h3>
+<ul>
+<li><strong>Native Table Nesting &amp; Unnesting</strong>:
+<ul>
+<li>Implemented a zero-copy native Arrow FFI pipeline for
+<code>nest()</code> and <code>unnest()</code> operations to eliminate
+OCaml-side materialization bottlenecks.</li>
+<li>Optimized <code>GroupedTable</code> to use <code>gint64</code> row
+indices, enabling direct bulk transfer of group subsets to Arrow.</li>
+</ul></li>
+<li><strong>Native Vertical Concatenation</strong>:
+<ul>
+<li>Introduced high-performance native vertical concatenation for
+Arrow-backed tables, significantly reducing memory overhead when
+stacking large data chunks.</li>
+</ul></li>
+<li><strong>Native Horizontal Merging</strong>:
+<ul>
+<li>Added native support for merging columns between two tables directly
+in Arrow memory (<code>merge_horizontal</code>), enabling efficient
+expansion of key columns during unnesting.</li>
+</ul></li>
+</ul>
+<h3 id="package-management-user-feedback">Package Management &amp; User
+Feedback</h3>
+<ul>
+<li><strong>Improved Dependency Sync Messages</strong>:
+<ul>
+<li>Enhanced <code>t update</code> feedback to explicitly report counts
+for R, Python, Additional Tools, and LaTeX packages being synchronized
+to <code>flake.nix</code>.</li>
+<li>Introduced context-aware “No T dependencies” messages that
+accurately reflect when a project still defines other runtime
+requirements (R/Python/Tools).</li>
+<li>Verified message formatting logic with new unit tests for tools-only
+and polyglot project configurations.</li>
+</ul></li>
+</ul>
 <h3 id="language-ergonomics">Language Ergonomics</h3>
 <ul>
 <li><strong>Default Value Support in <code>get()</code></strong>:
@@ -79,6 +165,18 @@ population-moment calculations.</li>
 <li><strong>Statistical Operations</strong>: Verified
 <code>winsorize</code>, <code>huber_loss</code>, <code>normalize</code>,
 and Pearson <code>cor</code> against R reference values.</li>
+<li><strong>Weighted Statistics Support</strong>:
+<ul>
+<li>Implemented the <code>weights</code> argument for <code>lm()</code>
+to support Weighted Least Squares (WLS) regression.</li>
+<li>Added support for weighted versions of <code>mean</code>,
+<code>sd</code>, <code>var</code>, <code>cov</code>, <code>cor</code>,
+<code>median</code>, <code>quantile</code>, <code>iqr</code>,
+<code>fivenum</code>, <code>trimmed_mean</code>, <code>skewness</code>,
+and <code>kurtosis</code>.</li>
+<li>Verified accuracy and diagnostic consistency across the statistical
+package.</li>
+</ul></li>
 <li><strong>Data Transformations</strong>: Added a golden test for
 <code>standardize</code> and <code>scale</code> using
 <code>iris$Sepal.Length</code>.</li>
@@ -153,7 +251,7 @@ correct parameter name and type extraction.</li>
 <code>seq</code> (auto-descending ranges), and
 <code>head</code>/<code>tail</code> (slicing boundaries).</li>
 <li><strong>Coverage Boost</strong>: Significantly increased coverage
-for <code>ifelse</code>, <code>casewhen</code>, and
+for <code>ifelse</code>, <code>case_when</code>, and
 <code>identical</code> (t_boolean.ml), <code>get</code> with all lens
 types (t_get.ml), and all specialized rendering paths in
 <code>pretty_print.ml</code>.</li>
@@ -199,8 +297,20 @@ messages for all builtins (e.g.,
 <li>Standardized arity error expectations across the entire test suite
 (1944/1944 tests passing).</li>
 </ul></li>
+<li><strong>Developer Experience &amp; Coverage Tools</strong>:
+<ul>
+<li><strong>Nix-based Coverage</strong>: Introduced the
+<code>packages.t-coverage</code> Nix output for simplified code coverage
+collection.</li>
+<li><strong>Instrumentation Isolation</strong>: Fixed coverage baseline
+contamination by isolating documentation generation during the Nix build
+process.</li>
+<li><strong>Integrated Reporting</strong>: Bundled
+<code>bisect-ppx-report</code> within the coverage derivation to
+streamline local reporting workflows.</li>
+</ul></li>
 </ul>
-<h2 id="section">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-1">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -247,11 +357,11 @@ evaluating them.</li>
 <li>Simplified the creation of data-wrangling wrappers, removing the
 need for <code>enquo()</code> in simple forwarding cases.</li>
 </ul></li>
-<li><strong>Unified <code>get()</code> and New <code>sym()</code>
+<li><strong>Unified <code>get()</code> and New <code>to_symbol()</code>
 Builtin</strong>:
 <ul>
-<li>Added the <code>sym()</code> core builtin for programmatic symbol
-creation.</li>
+<li>Added the <code>to_symbol()</code> core builtin for programmatic
+symbol creation.</li>
 <li>Unified the <code>get()</code> dispatcher across <code>core</code>
 and <code>lens</code> packages, ensuring a single, stable interface for
 variable lookup, collection indexing, and lens-based retrieval.</li>
@@ -375,7 +485,8 @@ Evaluator, Emitter &amp; Documentation Refinements</h3>
 <ul>
 <li><strong>Improved Docstring Coverage</strong>: Added full T-style
 documentation (descriptions, parameters, examples) for
-<code>get()</code>, <code>sym()</code>, and related primitives.</li>
+<code>get()</code>, <code>to_symbol()</code>, and related
+primitives.</li>
 <li><strong>Integrated Documentation Tooling</strong>: Verified
 <code>t_doc("parse")</code> and <code>t_doc("generate")</code> workflows
 for extracting and publishing reference pages for new core
@@ -458,7 +569,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-1">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-2">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -573,8 +684,9 @@ deep structural equality of complex objects.</li>
 </ul></li>
 <li><strong>Enhanced Data Operations</strong>:
 <ul>
-<li><strong><code>dataframe()</code> Constructor</strong>: Added support
-for Dictionary-based construction and automatic scalar recycling.</li>
+<li><strong><code>to_dataframe()</code> Constructor</strong>: Added
+support for Dictionary-based construction and automatic scalar
+recycling.</li>
 <li><strong>NSE Safety</strong>: Implemented guarded NSE transformation
 to prevent unexpected lambda-wrapping of non-NSE builtins.</li>
 </ul></li>
@@ -754,7 +866,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-2">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-3">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>
@@ -960,7 +1072,7 @@ the native Arrow path (<code>storage_backend</code>,
 <li>Supported structural rebuilds now try to stay Arrow-backed by
 rematerializing into a fresh native table</li>
 <li><strong>Current limitation</strong>: unsupported builder paths (for
-example NA-only, factor, list, date, or datetime columns) still fall
+example NA-only, to_factor, list, date, or datetime columns) still fall
 back to pure OCaml/T storage</li>
 </ul>
 <p>✅ <strong>Reproducibility</strong>:</p>
