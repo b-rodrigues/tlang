@@ -1,13 +1,28 @@
 [project]
 name = "tlang"
-version = "0.52.0"
+description = ""
+
+[dependencies]
 
 [r-dependencies]
 packages = ["dplyr", "readr", "testthat"]
 
 [py-dependencies]
-packages = ["pandas", "numpy"]
+version = "python314"
+packages = ["pandas", "numpy", "onnxruntime", "pyarrow", "skl2onnx"]
 
 [julia-dependencies]
 version = "lts"
-packages = ["CSV", "DataFrames", "JSON"]
+packages = ["CSV", "DataFrames", "JSON", "Arrow", "ONNX", "ONNXRunTime"]
+
+[additional-tools]
+packages = []
+
+[latex]
+packages = []
+
+[t]
+min_version = "0.52.0"
+
+[nixpkgs]
+date = ""
