@@ -770,15 +770,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
   Printf.printf "Phase — to_array():\n";
   test "to_array with list of symbols"
-    "df_arr = dataframe([[a: 1, b: 2], [a: 3, b: 4]]); to_array(df_arr, [$a, $b]) |> type"
+    "df_arr = to_dataframe([[a: 1, b: 2], [a: 3, b: 4]]); to_array(df_arr, [$a, $b]) |> type"
     {|"NDArray"|};
   
   test "to_array with vector of symbols"
-    "df_arr = dataframe([[a: 1, b: 2], [a: 3, b: 4]]); to_array(df_arr, [$a]) |> type"
+    "df_arr = to_dataframe([[a: 1, b: 2], [a: 3, b: 4]]); to_array(df_arr, [$a]) |> type"
     {|"NDArray"|};
     
   test "to_array single column symbol"
-    "df_arr = dataframe([[a: 1, b: 2], [a: 3, b: 4]]); to_array(df_arr, $a) |> type"
+    "df_arr = to_dataframe([[a: 1, b: 2], [a: 3, b: 4]]); to_array(df_arr, $a) |> type"
     {|"NDArray"|};
 
   print_newline ();

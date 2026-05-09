@@ -126,7 +126,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let env_lm = Packages.init_env () in
   let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p5_lm) env_lm in
   let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
-  let (_, env_lm) = eval_string_env {|weighted_df = dataframe([x: [1, 2, 3, 4], y: [1, 2, 2, 4]])|} env_lm in
+  let (_, env_lm) = eval_string_env {|weighted_df = to_dataframe([x: [1, 2, 3, 4], y: [1, 2, 2, 4]])|} env_lm in
   let (_, env_lm) = eval_string_env {|weighted_model = lm(data = weighted_df, formula = y ~ x, weights = [1, 1, 2, 2])|} env_lm in
   
   let test_env name input expected =
@@ -252,32 +252,32 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test_env "weighted lm intercept" "head(weighted_model._tidy_df.estimate)" "-0.19512195122";
   test_env "weighted lm coefficients" "head(tail(weighted_model._tidy_df.estimate))" "0.951219512195";
 
-  (* Test add_diagnostics() *)
-  let (v, _) = eval_string_env "type(add_diagnostics(model, data = df))" env_lm in
+  (* Test augment() *)
+  let (v, _) = eval_string_env "type(augment(model, data = df))" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = {|"DataFrame"|} then begin
-    incr pass_count; Printf.printf "  ✓ add_diagnostics() returns a DataFrame\n"
+    incr pass_count; Printf.printf "  ✓ augment() returns a DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ add_diagnostics() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ augment() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "nrow(add_diagnostics(model, data = df))" env_lm in
+  let (v, _) = eval_string_env "nrow(augment(model, data = df))" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = "5" then begin
-    incr pass_count; Printf.printf "  ✓ add_diagnostics() preserves row count\n"
+    incr pass_count; Printf.printf "  ✓ augment() preserves row count\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ add_diagnostics() preserves row count\n    Expected: 5\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ augment() preserves row count\n    Expected: 5\n    Got: %s\n" result
   end;
 
-  (* Check add_diagnostics has diagnostic columns *)
-  let (v, _) = eval_string_env "colnames(add_diagnostics(model, data = df))" env_lm in
+  (* Check augment has diagnostic columns *)
+  let (v, _) = eval_string_env "colnames(augment(model, data = df))" env_lm in
   let result = Ast.Utils.value_to_string v in
   let has_fitted = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string "fitted") result 0 in true with Not_found -> false) in
   let has_resid = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string "resid") result 0 in true with Not_found -> false) in
   if has_fitted && has_resid then begin
-    incr pass_count; Printf.printf "  ✓ add_diagnostics() adds fitted and resid columns\n"
+    incr pass_count; Printf.printf "  ✓ augment() adds fitted and resid columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ add_diagnostics() adds fitted and resid columns\n    Got columns: %s\n" result
+    incr fail_count; Printf.printf "  ✗ augment() adds fitted and resid columns\n    Got columns: %s\n" result
   end;
 
   (* Formula type and printing tests *)
@@ -295,7 +295,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "lm missing column"
     (Printf.sprintf {|df = read_csv("%s"); lm(data = df, formula = y ~ z)|} csv_p5_lm)
     {|Error(KeyError: "Column `z` not found in DataFrame.")|};
-  test "lm non-dataframe"
+  test "lm non-to_dataframe"
     {|lm(data = 42, formula = y ~ x)|}
     {|Error(TypeError: "Function `lm` 'data' must be a DataFrame.")|};
   test "lm non-formula"
@@ -308,41 +308,41 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf {|df = read_csv("%s"); lm(data = df)|} csv_p5_lm)
     {|Error(ArityError: "Function `lm` missing required argument 'formula'.")|};
 
-  test "lm factor summary has intercept plus dummy terms"
-    {|df = dataframe([
+  test "lm to_factor summary has intercept plus dummy terms"
+    {|df = to_dataframe([
         [grp: "a", y: 10],
         [grp: "b", y: 20],
         [grp: "a", y: 11],
         [grp: "b", y: 21],
         [grp: "c", y: 30],
         [grp: "c", y: 29]
-      ]) |> mutate($grp = factor($grp, levels = ["a", "b", "c"]));
+      ]) |> mutate($grp = to_factor($grp, levels = ["a", "b", "c"]));
       model_factor = lm(data = df, formula = y ~ grp);
       summary(model_factor)._tidy_df.term|}
     {|Vector["(Intercept)", "grpb", "grpc"]|};
 
-  test "lm factor coefficient for level b"
-    {|df = dataframe([
+  test "lm to_factor coefficient for level b"
+    {|df = to_dataframe([
         [grp: "a", y: 10],
         [grp: "b", y: 20],
         [grp: "a", y: 11],
         [grp: "b", y: 21],
         [grp: "c", y: 30],
         [grp: "c", y: 29]
-      ]) |> mutate($grp = factor($grp, levels = ["a", "b", "c"]));
+      ]) |> mutate($grp = to_factor($grp, levels = ["a", "b", "c"]));
       model_factor = lm(data = df, formula = y ~ grp);
       model_factor.coefficients.grpb|}
     "10.";
 
-  test "predict native lm with factor terms"
-    {|df = dataframe([
+  test "predict native lm with to_factor terms"
+    {|df = to_dataframe([
         [grp: "a", y: 10],
         [grp: "b", y: 20],
         [grp: "a", y: 11],
         [grp: "b", y: 21],
         [grp: "c", y: 30],
         [grp: "c", y: 29]
-      ]) |> mutate($grp = factor($grp, levels = ["a", "b", "c"]));
+      ]) |> mutate($grp = to_factor($grp, levels = ["a", "b", "c"]));
       model_factor = lm(data = df, formula = y ~ grp);
       predict(df, model_factor)|}
     {|Vector\[10.5, 20.5, 10.5, 20.5, 29.5, 29.5\]|};

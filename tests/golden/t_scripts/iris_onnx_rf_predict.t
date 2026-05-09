@@ -11,7 +11,7 @@ preds = predict(X, model)
 
 -- map on VVector returns VVector of VList rows
 rows = preds |> map(\(p) [ pred: p ])
-result = dataframe(rows)
+result = to_dataframe(rows)
 
 write_csv(result, "tests/golden/t_outputs/iris_onnx_rf_predictions.csv")
 print("✓ iris ONNX random forest predictions complete")

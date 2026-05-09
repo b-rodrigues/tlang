@@ -4,7 +4,7 @@ df = read_csv("tests/golden/data/mtcars.csv")
 mpg = df.mpg
 hp = df.hp
 
-res = dataframe([
+res = to_dataframe([
   cv_mpg: cv(mpg),
   fivenum_min: get(fivenum(mpg), 0),
   fivenum_q1: get(fivenum(mpg), 1),

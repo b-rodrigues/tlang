@@ -1,5 +1,5 @@
 -- Test: distribution primitives
-result = dataframe([
+result = to_dataframe([
   [
     pnorm_1: pnorm(1.0),
     pnorm_196: pnorm(1.96),

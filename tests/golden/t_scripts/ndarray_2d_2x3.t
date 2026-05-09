@@ -4,9 +4,9 @@ s = shape(arr)
 d = ndarray_data(arr)
 -- Output: shape and flattened data (row-major order)
 result = [
-  shape: s |> map(\(n) str_string(n)) |> str_join(","),
-  data: d |> map(\(n) str_string(n)) |> str_join(", ")
+  shape: s |> map(\(n) to_string(n)) |> str_join(","),
+  data: d |> map(\(n) to_string(n)) |> str_join(", ")
 ]
-df = dataframe([result])
+df = to_dataframe([result])
 write_csv(df, "tests/golden/t_outputs/ndarray_2d_2x3.csv")
 print("✓ ndarray 2D (2x3) complete")

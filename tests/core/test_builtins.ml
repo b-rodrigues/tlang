@@ -47,9 +47,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   print_newline ();
 
   Printf.printf "Metaprogramming Builtins:\n";
-  test "sym from string" {|type(sym("mpg"))|} {|"Symbol"|};
+  test "to_symbol from string" {|type(to_symbol("mpg"))|} {|"Symbol"|};
   test "get variable by name" "x = 42; get(\"x\")" "42";
-  test "get variable by symbol" "x = 42; get(sym(\"x\"))" "42";
+  test "get variable by symbol" "x = 42; get(to_symbol(\"x\"))" "42";
   test "get indexing list" "get([10, 20], 0)" "10";
   test "get indexing list 2" "x = [10, 20]; get(x, 1)" "20";
   test "get nonexistent variable" {|is_error(get("nonexistent"))|} "true";

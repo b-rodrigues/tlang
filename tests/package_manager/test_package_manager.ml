@@ -322,7 +322,7 @@ min_version = "0.51.0"
     let env = Packages.init_env () in
     match fst (eval_string_env {|
       p = pipeline {
-        a = py(command = <{
+        a = pyn(command = <{
           import matplotlib.pyplot as plt
           fig, ax = plt.subplots()
           ax.plot([1, 2], [3, 4])
@@ -342,7 +342,7 @@ min_version = "0.51.0"
     let env = Packages.init_env () in
     match fst (eval_string_env {|
       p = pipeline {
-        a = py(command = <{
+        a = pyn(command = <{
           from plotnine import ggplot, aes, geom_point
         }>)
       }
