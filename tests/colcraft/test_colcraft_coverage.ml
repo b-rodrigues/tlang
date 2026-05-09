@@ -188,7 +188,7 @@ select(wide, where(is_logical)) |> ncol|}
     {|where(42)|}
     {|Error(TypeError: "Function `where` expects a builtin predicate function.")|};
   test "is_factor recognises to_factor vectors with NA values"
-    {|is_factor(fct(["a", NA, "b"]))|}
+    {|is_factor(to_factor(["a", NA, "b"]))|}
     "true";
   test "is_character recognises scalar strings"
     {|is_character("hello")|}

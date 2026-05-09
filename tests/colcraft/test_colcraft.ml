@@ -704,19 +704,19 @@ df |> filter($age > 25)
     {|wide = to_dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, any_of(["name", "missing"])) |> ncol|}
     "1";
   test "fct_lump_min groups infrequent levels"
-    {|levels(fct_lump_min(fct(["a", "a", "b", "c"]), 2))|}
+    {|levels(fct_lump_min(to_factor(["a", "a", "b", "c"]), 2))|}
     {|Vector["a", "Other"]|};
   test "fct_other keeps selected levels"
-    {|levels(fct_other(fct(["a", "b", "c"]), keep = ["a"]))|}
+    {|levels(fct_other(to_factor(["a", "b", "c"]), keep = ["a"]))|}
     {|Vector["a", "Other"]|};
   test "fct_drop removes unused levels"
     {|levels(fct_drop(to_factor(["a", "b"], levels = ["a", "b", "c"])))|}
     {|Vector["a", "b"]|};
   test "fct_expand adds levels"
-    {|levels(fct_expand(fct(["a"]), "b", "c"))|}
+    {|levels(fct_expand(to_factor(["a"]), "b", "c"))|}
     {|Vector["a", "b", "c"]|};
   test "fct_c unifies levels"
-    {|levels(fct_c(fct(["a"], levels = ["a", "b"]), fct(["c"])))|}
+    {|levels(fct_c(to_factor(["a"], levels = ["a", "b"]), to_factor(["c"])))|}
     {|Vector["a", "b", "c"]|};
 
   print_newline ();
