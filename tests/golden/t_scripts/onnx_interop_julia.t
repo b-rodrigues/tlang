@@ -8,9 +8,14 @@ p = pipeline {
   -- 1. Load an existing ONNX model (trained in Python)
   model_onx = pyn(
     command = <{
-import onnx
-onx = onnx.load("tests/golden/data/iris_logreg.onnx")
-onx
+from sklearn.linear_model import LogisticRegression
+import pandas as pd
+import numpy as np
+df = pd.read_csv("tests/golden/data/iris.csv")
+X = df.drop("Species", axis=1).values
+y = df["Species"].astype('category').cat.codes
+model = LogisticRegression(max_iter=1000).fit(X, y)
+model
     }>,
     serializer = ^onnx
   )
@@ -38,8 +43,8 @@ onx
   -- 3. Pass the model through a Julia node to test writing
   model_rewritten = jln(
     command = <{
-      import ONNX
-      # Use ONNX.jl to load the file again to get a ModelProto
+      using ONNX
+      # Use ONNX.jl to load the model again
       model_proto = ONNX.load("tests/golden/data/iris_logreg.onnx")
       model_proto
     }>,
