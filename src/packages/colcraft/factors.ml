@@ -77,7 +77,10 @@ let to_factor_impl (args : (string option * value) list) _env =
              | Some idx -> VFactor (idx, levels, ordered)
              | None -> VNA Ast.NAGeneric (* NA if value is not in levels *))
       ) in
-      VVector factor_arr
+      
+      match x_val with
+      | VVector _ | VList _ -> VVector factor_arr
+      | _ -> factor_arr.(0)
 
 let factor_impl = to_factor_impl
 
