@@ -1518,7 +1518,6 @@ let register env =
          | [VNA _] -> (VNA NAGeneric)
          | [_] -> Error.type_error "Function `to_date` expects a String, Date, Datetime, Int, or Float."
          | values -> Error.arity_error_named "to_date" 1 (List.length values)))) env in
-  let env = Env.add "as_date" (Env.find "to_date" env) env in
   let env = Env.add "to_datetime" (make_builtin_named ~name:"to_datetime" ~variadic:true 1 (fun named_args _env ->
     let origin =
       match string_named_arg "origin" None named_args with
@@ -1554,7 +1553,6 @@ let register env =
          | [VNA _] -> (VNA NAGeneric)
          | [_] -> Error.type_error "Function `to_datetime` expects a String, Date, Datetime, Int, or Float."
          | values -> Error.arity_error_named "to_datetime" 1 (List.length values)))) env in
-  let env = Env.add "as_datetime" (Env.find "to_datetime" env) env in
   let env = add_predicate env "is_date" (function VDate _ -> true | _ -> false) in
   let env = add_predicate env "is_datetime" (function VDatetime _ -> true | _ -> false) in
   let env = add_predicate env "is_period" (function VPeriod _ -> true | _ -> false) in
