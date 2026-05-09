@@ -87,7 +87,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
       model = lm(data = df, formula = y ~ x + z);
       nrow(residuals(df, model, type = "pearson"))|}
     "4";
-  test "augment adds standardized residuals"
+  test "add_diagnostics adds standardized residuals"
     {|df = to_dataframe([
         [x: 1, z: 2, y: 4],
         [x: 2, z: 1, y: 5],
@@ -95,7 +95,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
         [x: 4, z: 1, y: 9]
       ]);
       model = lm(data = df, formula = y ~ x + z);
-      colnames(augment(df, model))|}
+      colnames(add_diagnostics(df, model))|}
     {|["x", "z", "y", "fitted", "resid", "std_resid"]|};
   test "predict supports named data/model arguments"
     {|df = to_dataframe([x: [1, 2, 3, 4]]);

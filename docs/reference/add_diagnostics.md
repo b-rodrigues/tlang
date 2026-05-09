@@ -1,4 +1,4 @@
-# augment
+# add_diagnostics
 
 Add Model Diagnostics
 
@@ -6,7 +6,7 @@ augments the data with model diagnostic columns (residuals, fitted values, etc.)
 
 ## Parameters
 
-- **data** (`DataFrame`): (Optional) The data to augment.
+- **data** (`DataFrame`): (Optional) The data to add_diagnostics.
 
 - **model** (`Model`): The model object.
 
@@ -18,7 +18,7 @@ The data with added diagnostic columns.
 ## Examples
 
 ```t
-df = augment(mtcars, model)
+df = add_diagnostics(mtcars, model)
 ```
 
 ## See Also

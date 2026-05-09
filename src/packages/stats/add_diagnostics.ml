@@ -1,24 +1,24 @@
-(* src/packages/stats/augment.ml *)
+(* src/packages/stats/add_diagnostics.ml *)
 open Ast
 
-(** augment(data, model) — augments a dataset with model-based predictions and residuals. *)
+(** add_diagnostics(data, model) — adds model-based diagnostic columns to a dataset. *)
 (*
 --# Augment Data with Model Calculations
 --#
 --# Appends model predictions, residuals, and potentially diagnostic metrics to a dataset.
 --#
---# @name augment
---# @param data :: DataFrame The dataset to augment.
+--# @name add_diagnostics
+--# @param data :: DataFrame The dataset to add_diagnostics.
 --# @param model :: Model The model object.
 --# @return :: DataFrame The original DataFrame with appended `fitted`, `resid`, etc.
 --# @example
---#   aug = augment(mtcars, model)
+--#   df = add_diagnostics(mtcars, model)
 --# @family stats
 --# @export
 *)
 let register env =
-  Env.add "augment"
-    (make_builtin_named ~name:"augment" ~variadic:true 0 (fun args _env ->
+  Env.add "add_diagnostics"
+    (make_builtin_named ~name:"add_diagnostics" ~variadic:true 0 (fun args _env ->
       let named = List.filter_map (fun (n, v) -> match n with Some name -> Some (name, v) | None -> None) args in
       let positional = List.filter_map (fun (n, v) -> match n with None -> Some v | Some _ -> None) args in
       let data_v = match List.assoc_opt "data" named with
@@ -105,5 +105,5 @@ let register env =
              | VError e -> VError e
              | _ -> Error.type_error "Function `residuals` did not return a DataFrame."))
       | (Some (VError _ as e), _) | (_, Some (VError _ as e)) -> e
-      | _ -> Error.type_error "Function `augment` expects (DataFrame, Model)."
+      | _ -> Error.type_error "Function `add_diagnostics` expects (DataFrame, Model)."
     )) env

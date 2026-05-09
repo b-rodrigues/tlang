@@ -252,32 +252,32 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test_env "weighted lm intercept" "head(weighted_model._tidy_df.estimate)" "-0.19512195122";
   test_env "weighted lm coefficients" "head(tail(weighted_model._tidy_df.estimate))" "0.951219512195";
 
-  (* Test augment() *)
-  let (v, _) = eval_string_env "type(augment(model, data = df))" env_lm in
+  (* Test add_diagnostics() *)
+  let (v, _) = eval_string_env "type(add_diagnostics(model, data = df))" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = {|"DataFrame"|} then begin
-    incr pass_count; Printf.printf "  ✓ augment() returns a DataFrame\n"
+    incr pass_count; Printf.printf "  ✓ add_diagnostics() returns a DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ augment() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ add_diagnostics() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "nrow(augment(model, data = df))" env_lm in
+  let (v, _) = eval_string_env "nrow(add_diagnostics(model, data = df))" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = "5" then begin
-    incr pass_count; Printf.printf "  ✓ augment() preserves row count\n"
+    incr pass_count; Printf.printf "  ✓ add_diagnostics() preserves row count\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ augment() preserves row count\n    Expected: 5\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ add_diagnostics() preserves row count\n    Expected: 5\n    Got: %s\n" result
   end;
 
-  (* Check augment has diagnostic columns *)
-  let (v, _) = eval_string_env "colnames(augment(model, data = df))" env_lm in
+  (* Check add_diagnostics has diagnostic columns *)
+  let (v, _) = eval_string_env "colnames(add_diagnostics(model, data = df))" env_lm in
   let result = Ast.Utils.value_to_string v in
   let has_fitted = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string "fitted") result 0 in true with Not_found -> false) in
   let has_resid = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string "resid") result 0 in true with Not_found -> false) in
   if has_fitted && has_resid then begin
-    incr pass_count; Printf.printf "  ✓ augment() adds fitted and resid columns\n"
+    incr pass_count; Printf.printf "  ✓ add_diagnostics() adds fitted and resid columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ augment() adds fitted and resid columns\n    Got columns: %s\n" result
+    incr fail_count; Printf.printf "  ✗ add_diagnostics() adds fitted and resid columns\n    Got columns: %s\n" result
   end;
 
   (* Formula type and printing tests *)

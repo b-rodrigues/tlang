@@ -36,7 +36,7 @@ let build_model_value ?weights (result : Arrow_owl_bridge.lm_result)
     ("p_value", p_value_col);
   ] nrows in
   let tidy_df = VDataFrame { arrow_table = tidy_table; group_keys = [] } in
-  (* Model internals dict — used by fit_stats() and augment() *)
+  (* Model internals dict — used by fit_stats() and add_diagnostics() *)
   let n = result.nobs in
   let fit_method = match weights with Some _ -> VString "wls" | None -> VString "ols" in
   let weight_fields =
@@ -363,7 +363,7 @@ let predictor_terms_for_formula_term arrow_table term =
 --#   model = lm(mtcars, mpg ~ wt + hp)
 --#   summary(model)
 --# @family stats
---# @seealso summary, fit_stats, augment
+--# @seealso summary, fit_stats, add_diagnostics
 --# @export
 *)
 let register env =
