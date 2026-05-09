@@ -2,30 +2,29 @@
 
 ## [Unreleased]
 
-## [0.52.0] "Kaméhaméha" - 2026-05-xx
+## [0.52.0] "Kaméhaméha" - 2026-05-09
 
-The focus of this release was to introduce first-class Julia support.
+The focus of this release is the introduction of first-class Julia support, enabling high-performance polyglot pipelines with seamless Julia integration.
 
 **Status**: Beta
 
 ### First-Class Julia Support
-- **Julia Node Wrapper (`jl_node`)**:
-    - Introduced `jl_node()` for executing Julia code within T pipelines.
-    - Supports automatic Julia environment provisioning via `tproject.toml`.
-    - Default data interchange via `^csv` serialization.
-- **Dependency Management**:
-    - Added `[julia-dependencies]` section to `tproject.toml` for managing Julia packages (`CSV`, `DataFrames`, etc.).
-    - Integrated Julia versioning (`julia-dependencies.version`) into the Nix generator.
-- **PMML Support**:
-    - Implemented `jl_read_pmml()` and `jl_write_pmml()` for Julia nodes, enabling PMML model scoring and export.
-    - Uses `JavaCall.jl` for scoring and provides a `predict()` overload for `JPMMLModel`.
-    - **Fixed Serializer Registration**: Correctly registered `jl_read_pmml` and `jl_write_pmml` in the built-in serializer registry, enabling `^pmml` to work in Julia nodes.
-- **ONNX Support**:
-    - Implemented `jl_read_onnx()` and `jl_write_onnx()` for Julia nodes.
-    - Uses `ONNXRunTime.jl` for high-performance inference and `ONNX.jl` for model export.
-    - **Dependency Discovery**: Automatically detects and adds `ONNXRunTime` and `ONNX` packages when used in Julia code.
-- **Robust Library Linkage**:
-    - Automatically injects `gcc.cc.lib` and `avahi` into Julia nodes and configures `LD_LIBRARY_PATH` to resolve `dlopen` issues for `libjvm.so` and `libonnxruntime.so` inside the Nix sandbox.
+- **Julia Node Shorthand (`jln`)**:
+    - Introduced `jln()` (and its alias `jl_node()`) for executing Julia code directly within T pipelines.
+    - Julia nodes support full dependency management and automatic environment provisioning.
+- **Integrated Dependency Management**:
+    - Projects can now declare Julia requirements in `tproject.toml` via the `[julia-dependencies]` section.
+    - Support for specific Julia versions and automatic Nix-based environment generation.
+- **Native PMML Support**:
+    - Full support for PMML model scoring and export within Julia nodes using the `^pmml` serializer.
+    - High-performance in-memory scoring via `JavaCall.jl` integration.
+- **Native ONNX Support**:
+    - Full support for ONNX model inference and export within Julia nodes using the `^onnx` serializer.
+    - Leverages `ONNXRunTime.jl` for industry-standard inference performance and `ONNX.jl` for model serialization.
+- **Enhanced Polyglot Ergonomics**:
+    - Simplified data interchange between T, R, Python, and Julia.
+    - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
+    - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
 
 ## [0.51.5] - 2026-05-08
 
