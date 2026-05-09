@@ -25,7 +25,6 @@ The focus of this release is the introduction of first-class Julia support, enab
     - Simplified data interchange between T, R, Python, and Julia.
     - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
     - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
-
 ### API Standardization & Ergonomics
 - **Unified `to_` Naming Convention**:
     - Renamed all type conversion and coercion functions to follow a consistent `to_` prefix:
@@ -34,7 +33,12 @@ The focus of this release is the introduction of first-class Julia support, enab
         - `as_factor()` / `factor()` → `to_factor()`
         - `sym()` → `to_symbol()`
         - `dataframe()` → `to_dataframe()`
-    - Removed all legacy `as_*` and shorthand aliases from core packages to ensure a single, canonical API path.
+        - `str_string()` → `to_string()`
+    - Removed all legacy `as_*` and shorthand aliases (`fct()`, `fct_infreq()` → `to_factor(..., ordered=true)` etc.) to ensure a single, canonical API path.
+- **Renamed Statistical Diagnostics**:
+    - `augment()` renamed to `add_diagnostics()` for better clarity and consistency with the T-Lang philosophy of descriptive names.
+- **Refined Data Converters**:
+    - `to_string()` now provides a unified interface for string conversion across all T types, including proper level resolution for Factors and recursive formatting for Lists and Vectors.
 - **Improved Factor Creation**:
     - Removed the `fct()` shorthand in favor of the standardized `to_factor()`.
     - Simplified factor logic: `to_factor()` now consistently uses alphabetical sorting for derived levels, removing the previous "first-appearance" behavior to align with industry standards and internal consistency.
