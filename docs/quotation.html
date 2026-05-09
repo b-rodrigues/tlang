@@ -97,7 +97,7 @@ data.</li>
 </tr>
 </tbody>
 </table>
-<h3 id="exprexpression"><code>to_expr(expression)</code></h3>
+<h3 id="to_exprexpression"><code>to_expr(expression)</code></h3>
 <p>The <code>to_expr()</code> function captures the code as a naked
 <strong>Expression</strong> object. The current environment is
 <em>not</em> stored.</p>
@@ -113,9 +113,10 @@ expression runs in the captured environment, not the caller’s.</p>
 q = quo(1 + x)   -- captures x = 10 in the environment
 x = 99
 eval(q)           -- returns 11, not 100</code></pre>
-<h3 id="exprs..."><code>to_exprs(...)</code></h3>
-<p><code>to_exprs()</code> captures multiple expressions and returns them
-as a list of naked Expression objects. It supports named arguments.</p>
+<h3 id="to_exprs..."><code>to_exprs(...)</code></h3>
+<p><code>to_exprs()</code> captures multiple expressions and returns
+them as a list of naked Expression objects. It supports named
+arguments.</p>
 <pre class="t"><code>ee = to_exprs(x = 1 + 1, y = 2 + 2)
 -- Result: [x: to_expr(1 + 1), y: to_expr(2 + 2)]</code></pre>
 <h3 id="quos..."><code>quos(...)</code></h3>
@@ -349,7 +350,8 @@ Symbol at runtime.</td>
 <tr>
 <td style="text-align: left;"><code>!!x</code></td>
 <td style="text-align: left;">Evaluate <code>x</code> and inject into
-<code>to_expr()</code>/<code>quo()</code>; strips env from quosures.</td>
+<code>to_expr()</code>/<code>quo()</code>; strips env from
+quosures.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>!!!x</code></td>
