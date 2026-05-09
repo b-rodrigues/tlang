@@ -200,8 +200,19 @@ let register_bool env =
 let register_string env =
   Env.add "to_string"
     (make_builtin ~name:"to_string" 1 (fun args _env ->
+      let convert v = match v with
+        | VString s -> VString s
+        | VFactor (idx, levels, _) ->
+            (match List.nth_opt levels idx with
+             | Some s -> VString s
+             | None -> VNA NAString)
+        | VNA _ -> VNA NAString
+        | v -> VString (Utils.value_to_string v)
+      in
       match args with
-      | [v] -> VString (Utils.value_to_string v)
+      | [VVector arr] -> VVector (Array.map convert arr)
+      | [VList items] -> VList (List.map (fun (n, v) -> (n, convert v)) items)
+      | [v] -> convert v
       | _ -> Error.arity_error_named "to_string" 1 (List.length args)
     ))
     env
