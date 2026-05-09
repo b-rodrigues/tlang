@@ -1114,3 +1114,4 @@ Now that you have a solid grasp of T's syntax and core features, explore these t
 3. **[Data Manipulation Examples](data_manipulation_examples.md)** — See T's data verbs in action with worked examples.
 
 For more hands-on examples and complete project templates, visit the [**T Demos Repository**](https://github.com/b-rodrigues/t_demos).
+
