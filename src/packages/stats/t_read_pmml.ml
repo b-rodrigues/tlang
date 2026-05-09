@@ -38,10 +38,14 @@ let pmml_source_path = function
 (*
 --# Read a PMML model file
 --#
---# Loads a PMML file from disk and returns its parsed model representation.
+--# Loads a Predictive Model Markup Language (PMML) file from disk and returns 
+--# its parsed model representation. This model can be used with `predict()`.
 --#
 --# @name t_read_pmml
+--# @param path :: String The file path to the .pmml file.
+--# @return :: Dict The parsed model dictionary.
 --# @family stats
+--# @seealso t_write_pmml
 --# @export
 *)
 let t_read_pmml_builtin =
@@ -88,5 +92,20 @@ let t_write_pmml_builtin =
 let register env =
   Serialization_registry.update_native "pmml" ~writer:t_write_pmml_builtin ~reader:t_read_pmml_builtin ();
   let env = Env.add "t_read_pmml" t_read_pmml_builtin env in
+(*
+--# Write a PMML model file
+--#
+--# Writes a model dictionary back to a PMML file on disk. Currently, this 
+--# primarily supports pass-through copying of models that were originally 
+--# loaded from PMML.
+--#
+--# @name t_write_pmml
+--# @param model :: Dict The model dictionary.
+--# @param path :: String The destination file path.
+--# @return :: String The path to the written file.
+--# @family stats
+--# @seealso t_read_pmml
+--# @export
+*)
   let env = Env.add "t_write_pmml" t_write_pmml_builtin env in
   env

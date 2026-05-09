@@ -302,9 +302,9 @@ let where_impl args _env =
 --# @export
 *)
 (*
---# Check for factor columns
+--# Check for to_factor columns
 --#
---# Predicate helper for factor columns or factor vectors.
+--# Predicate helper for to_factor columns or to_factor vectors.
 --#
 --# @name is_factor
 --# @family colcraft

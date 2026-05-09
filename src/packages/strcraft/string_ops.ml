@@ -703,7 +703,7 @@ let join_impl args _env =
 let string_impl args _env =
   match args with
   | [v] -> VString (Ast.Utils.value_to_raw_string v)
-  | _ -> Error.type_error "Function `str_string` expects a single argument."
+  | _ -> Error.type_error "Function `to_string` expects a single argument."
 
 let strsplit_impl args _env =
   let do_split s sep =
@@ -968,7 +968,7 @@ let strsplit_impl args _env =
 --#   str_join(["a", "b", "c"])
 --#   -- Returns = "abc"
 --# @family string
---# @seealso str_string
+--# @seealso to_string
 --# @export
 *)
 
@@ -977,11 +977,11 @@ let strsplit_impl args _env =
 --#
 --# Converts any value to its string representation.
 --#
---# @name str_string
+--# @name to_string
 --# @param x :: Any The value to convert.
 --# @return :: String The string representation.
 --# @example
---#   str_string(123)
+--#   to_string(123)
 --#   -- Returns = "123"
 --# @family string
 --# @seealso str_join
@@ -1104,6 +1104,6 @@ let register env =
   let env = Env.add "str_count" (make_builtin ~name:"str_count" 2 str_count_impl) env in
   let env = Env.add "str_sprintf" (make_builtin ~name:"str_sprintf" ~variadic:true 1 sprintf_impl) env in
   let env = Env.add "str_join" (make_builtin ~name:"str_join" ~variadic:true 1 join_impl) env in
-  let env = Env.add "str_string" (make_builtin ~name:"str_string" 1 string_impl) env in
+  let env = Env.add "to_string" (make_builtin ~name:"to_string" 1 string_impl) env in
   let env = Env.add "str_split" (make_builtin ~name:"str_split" 2 strsplit_impl) env in
   env

@@ -16,7 +16,7 @@ Core utilities: printing, type inspection, data structures.
 | `map(list, fn)` | Apply a function to each element |
 | `sum(list)` | Sum numeric elements |
 | `ifelse(cond, t, f)` | Vectorized conditional |
-| `casewhen(...)` | Sequential multi-condition selection |
+| `case_when(...)` | Sequential multi-condition selection |
 | `get(obj, key)` | Unified data retrieval |
 | `run(cmd)` | Execute shell command |
 | `pretty_print(x)` | Pretty-print a value with formatting |

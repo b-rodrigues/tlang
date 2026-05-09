@@ -36,7 +36,7 @@ let build_model_value ?weights (result : Arrow_owl_bridge.lm_result)
     ("p_value", p_value_col);
   ] nrows in
   let tidy_df = VDataFrame { arrow_table = tidy_table; group_keys = [] } in
-  (* Model internals dict — used by fit_stats() and add_diagnostics() *)
+  (* Model internals dict — used by fit_stats() and augment() *)
   let n = result.nobs in
   let fit_method = match weights with Some _ -> VString "wls" | None -> VString "ols" in
   let weight_fields =
@@ -363,7 +363,7 @@ let predictor_terms_for_formula_term arrow_table term =
 --#   model = lm(mtcars, mpg ~ wt + hp)
 --#   summary(model)
 --# @family stats
---# @seealso summary, fit_stats, add_diagnostics
+--# @seealso summary, fit_stats, augment
 --# @export
 *)
 let register env =
@@ -453,7 +453,7 @@ let register env =
                                    | Ok xs_terms ->
                                        if xs_terms = [] then
                                          Error.value_error
-                                           "Function `lm` requires at least one varying predictor term after factor encoding."
+                                           "Function `lm` requires at least one varying predictor term after to_factor encoding."
                                        else
                                          (match Arrow_owl_bridge.detect_collinearity
                                                   (List.map (fun term -> (term.name, term.values)) xs_terms) with

@@ -265,7 +265,7 @@ let weighted_mean_array xs ws =
     done;
     Some (!s /. total_w)
 
-let sample_variance_array xs =
+let variance_array xs =
   match mean_array xs with
   | None -> None
   | Some m ->
@@ -404,8 +404,8 @@ let solve_and_invert a b =
       if !max_row <> col then (let tmp = aug.(col) in aug.(col) <- aug.(!max_row); aug.(!max_row) <- tmp);
       let pivot = aug.(col).(col) in
       for row = col + 1 to p - 1 do
-        let factor = aug.(row).(col) /. pivot in
-        for j = col to 2 * p do aug.(row).(j) <- aug.(row).(j) -. factor *. aug.(col).(j) done
+        let to_factor = aug.(row).(col) /. pivot in
+        for j = col to 2 * p do aug.(row).(j) <- aug.(row).(j) -. to_factor *. aug.(col).(j) done
       done
     end
   done;
@@ -417,8 +417,8 @@ let solve_and_invert a b =
       let pivot = aug.(col).(col) in
       for j = col to 2 * p do aug.(col).(j) <- aug.(col).(j) /. pivot done;
       for row = 0 to col - 1 do
-        let factor = aug.(row).(col) in
-        for j = col to 2 * p do aug.(row).(j) <- aug.(row).(j) -. factor *. aug.(col).(j) done
+        let to_factor = aug.(row).(col) in
+        for j = col to 2 * p do aug.(row).(j) <- aug.(row).(j) -. to_factor *. aug.(col).(j) done
       done
     done;
     let inv = Array.init p (fun i -> Array.init p (fun j -> aug.(i).(j + p))) in

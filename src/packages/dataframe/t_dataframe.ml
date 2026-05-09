@@ -6,27 +6,27 @@ let register env =
   --#
   --# Constructs a DataFrame from either a list of rows (Dicts) or a Dictionary of columns (Vectors/Lists).
   --#
-  --# @name dataframe
+  --# @name to_dataframe
   --# @param data :: List[Dict]|Dict The data rows or columns.
   --# @return :: DataFrame The created DataFrame.
   --# @example
   --#   # Row-wise construction:
-  --#   df = dataframe([
+  --#   df = to_dataframe([
   --#     {"a": 1, "b": 2},
   --#     {"a": 3, "b": 4}
   --#   ])
   --#
   --#   # Column-wise construction (supported for VDict):
-  --#   df2 = dataframe([a: [1, 3], b: [2, 4]])
+  --#   df2 = to_dataframe([a: [1, 3], b: [2, 4]])
   --#
   --#   # Scalar values are recycled to match other column lengths:
-  --#   df3 = dataframe([x: [1, 2, 3], constant: 0])
-  --# @family dataframe
+  --#   df3 = to_dataframe([x: [1, 2, 3], constant: 0])
+  --# @family to_dataframe
   --# @seealso read_csv
   --# @export
   *)
-  let env = Env.add "dataframe"
-    (make_builtin ~name:"dataframe" 1 (fun args _env ->
+  let env = Env.add "to_dataframe"
+    (make_builtin ~name:"to_dataframe" 1 (fun args _env ->
       match args with
       | [VDict d] ->
           (* Column-wise construction from a Dictionary: dataframe([x: [1,2], y: [3,4]]) *)
@@ -51,7 +51,7 @@ let register env =
               ) raw_columns in
               let arrow_table = Arrow_bridge.table_from_value_columns columns nrows in
               VDataFrame { arrow_table; group_keys = [] }
-          with Failure msg -> Error.value_error ("dataframe: " ^ msg))
+          with Failure msg -> Error.value_error ("to_dataframe: " ^ msg))
       | _ ->
         let rows = match args with
           | [VList l] -> l
@@ -59,7 +59,7 @@ let register env =
           | _ -> []
         in
         if rows = [] && args <> [VList []] && args <> [VVector [||]] then
-          Error.type_error "Function `dataframe` expects a single argument (List or Vector of rows, or a Dict of columns)."
+          Error.type_error "Function `to_dataframe` expects a single argument (List or Vector of rows, or a Dict of columns)."
         else
           (match rows with
              | [] -> VDataFrame { arrow_table = Arrow_table.empty; group_keys = [] }
@@ -113,7 +113,7 @@ let register env =
                     let arrow_table = Arrow_bridge.table_from_value_columns columns nrows in
                     VDataFrame { arrow_table; group_keys = [] }
                 
-                | _ -> Error.type_error (Printf.sprintf "Function `dataframe` expects a list of Dicts (rows). First row is: %s" (Ast.Utils.value_to_string first_row_val)))
+                | _ -> Error.type_error (Printf.sprintf "Function `to_dataframe` expects a list of Dicts (rows). First row is: %s" (Ast.Utils.value_to_string first_row_val)))
         )
     )) env in
   (*
@@ -127,7 +127,7 @@ let register env =
   --# @return :: Vector The column data.
   --# @example
   --#   pull(mtcars, "mpg")
-  --# @family dataframe
+  --# @family to_dataframe
   --# @seealso select
   --# @export
   *)
@@ -174,8 +174,8 @@ let register env =
   --# @example
   --#   mat = to_array(mtcars)
   --#   mat = to_array(mtcars, [$mpg, $wt])
-  --# @family dataframe
-  --# @seealso dataframe
+  --# @family to_dataframe
+  --# @seealso to_dataframe
   --# @export
   *)
   let env = Env.add "to_array"
@@ -250,4 +250,5 @@ let register env =
              
         | _ -> Error.type_error "to_array expects (DataFrame, [column_names])."
       )) env in
+  let env = Env.add "dataframe" (Env.find "to_dataframe" env) env in
   env
