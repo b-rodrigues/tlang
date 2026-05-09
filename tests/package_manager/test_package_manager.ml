@@ -252,8 +252,26 @@ min_version = "0.51.0"
     | Ast.VPipeline p ->
         let cfg = Package_types.default_project_config "onnx-julia-proj" in
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
-        analysis.missing_julia_deps = ["ONNXRunTime"]
-        && analysis.reasons = ["node `model` uses `onnx` with runtime `Julia`"]
+        analysis.missing_julia_deps = ["ONNX"; "ONNXRunTime"]
+        && analysis.reasons = [
+          "node `model` usage discovery";
+          "node `model` uses `onnx` with runtime `Julia`"
+        ]
+    | _ -> false);
+
+  test_pm "analyze missing Julia ONNX writer dependencies" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        model = node(command = <{ 1 }>, runtime = Julia, serializer = ^onnx)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "onnx-julia-writer-proj" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_julia_deps = ["ONNX"; "ONNXRunTime"]
+        && List.mem "node `model` uses `onnx` with runtime `Julia`" analysis.reasons
     | _ -> false);
 
   test_pm "analyze built-in serializer dependencies explicitly" (fun () ->

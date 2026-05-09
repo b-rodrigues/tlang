@@ -128,7 +128,7 @@ let add_feature_requirement ~node_name ~runtime ~feature =
   | "Python", "onnx" ->
       { req with py_deps = add_list req.py_deps [ "onnxruntime"; "skl2onnx" ] }
   | "Julia", "onnx" ->
-      { req with julia_deps = add_list req.julia_deps [ "ONNXRunTime" ] }
+      { req with julia_deps = add_list req.julia_deps [ "ONNXRunTime"; "ONNX" ] }
   | "Julia", "json" ->
       { req with julia_deps = add_list req.julia_deps [ "JSON" ] }
   | "Julia", "csv" ->
@@ -219,6 +219,7 @@ let scan_code_requirements ~node_name ~runtime raw_text =
       let req = if has_pkg "GLM" then { req with julia_deps = add_list req.julia_deps [ "GLM" ] } else req in
       let req = if has_pkg "Distributions" then { req with julia_deps = add_list req.julia_deps [ "Distributions" ] } else req in
       let req = if has_pkg "ONNXRunTime" then { req with julia_deps = add_list req.julia_deps [ "ONNXRunTime" ] } else req in
+      let req = if has_pkg "ONNX" then { req with julia_deps = add_list req.julia_deps [ "ONNX" ] } else req in
       req
   | _ -> empty_requirements
 

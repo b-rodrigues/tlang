@@ -261,7 +261,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
               "ORT.load_inference(path)";
               "jl_read_onnx";
               "jl_write_onnx";
-              "ONNX serialization is not currently supported for Julia models in T."
+              "import ONNX";
+              "ONNX.write(path, model)"
             ]
        then begin
          incr pass_count; Printf.printf "  ✓ Julia ONNX helper injection uses ONNXRunTime with explicit writer error\n"
