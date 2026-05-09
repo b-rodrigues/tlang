@@ -135,8 +135,8 @@ let strcraft_package = {
 let stats_package = {
   name = "stats";
   description = "Statistical summaries and models";
-  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "augment"; "min"; "max"; "coef"; "conf_int"; 
-               "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "augment"; "score"; "deviance";
+  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
+               "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "add_diagnostics"; "score"; "deviance";
                "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"; "compare_native_vs_pmml_scores"];
 }
 
@@ -903,7 +903,7 @@ let init_env () =
   let env = Vcov.register env in
   let env = Compare.register env in
   let env = Residuals.register env in
-  let env = Augment.register env in
+  let env = Add_diagnostics.register env in
   let env = Score.register env in
   let env = Anova.register env in
   let env = Basis.register env in
