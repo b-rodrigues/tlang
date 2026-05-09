@@ -35,10 +35,9 @@
 <div class="container">
 <h1 id="factors-and-fct_-helpers-in-t">Factors and <code>fct_*</code>
 Helpers in T</h1>
-<p>This guide explains how factors work in T, when to use
-<code>to_factor()</code> versus <code>fct()</code>, and how the
-<code>fct_*</code> family helps you reorder, relabel, and combine
-categorical data.</p>
+<p>This guide explains how factors work in T, how to use
+<code>to_factor()</code>, and how the <code>fct_*</code> family helps
+you reorder, relabel, and combine categorical data.</p>
 <hr />
 <h2 id="the-basic-idea">The Basic Idea</h2>
 <p>A to_factor is categorical data with an explicit list of levels.</p>
@@ -57,28 +56,19 @@ levels(sizes)
 </ul>
 <hr />
 <h2 id="creating-factors">Creating Factors</h2>
-<h3 id="to_factor-explicit-categorical-levels"><code>to_factor()</code>
-— explicit categorical levels</h3>
-<p>Use <code>to_factor()</code> when you want to control the level order
-yourself.</p>
+<h3 id="to_factor-explicit-or-derived-levels"><code>to_factor()</code> —
+explicit or derived levels</h3>
+<p>Use <code>to_factor()</code> to create categorical data. If you
+provide <code>levels</code>, it uses that exact order. If not, it
+derives unique levels from the data and sorts them alphabetically by
+default.</p>
 <pre class="t"><code>priority = to_factor(
   [&quot;medium&quot;, &quot;low&quot;, &quot;high&quot;, &quot;medium&quot;],
   levels = [&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;]
 )</code></pre>
-<p>If you do not provide <code>levels</code>, <code>to_factor()</code>
-derives them from the data.</p>
-<h3 id="fct-levels-follow-first-appearance"><code>fct()</code> — levels
-follow first appearance</h3>
-<p>Use <code>fct()</code> when you want levels to keep the order in
-which values first appear.</p>
-<pre class="t"><code>status = fct([&quot;new&quot;, &quot;in_progress&quot;, &quot;done&quot;, &quot;new&quot;])
+<pre class="t"><code>status = to_factor([&quot;new&quot;, &quot;in_progress&quot;, &quot;done&quot;, &quot;new&quot;])
 levels(status)
--- [&quot;new&quot;, &quot;in_progress&quot;, &quot;done&quot;]</code></pre>
-<h3 id="to_factor-coerce-existing-values"><code>to_factor()</code> —
-coerce existing values</h3>
-<p><code>to_factor()</code> is the convenient coercion form for turning
-an existing vector or column into to_factor data.</p>
-<pre class="t"><code>df |&gt; mutate($segment = to_factor($segment))</code></pre>
+-- [&quot;done&quot;, &quot;in_progress&quot;, &quot;new&quot;]</code></pre>
 <h3 id="ordered-ordered-factors"><code>ordered()</code> — ordered
 factors</h3>
 <p>Use <code>ordered()</code> when the order is meaningful and should be
@@ -132,8 +122,8 @@ and group the rest into an <code>Other</code> bucket by default.</p>
 <pre class="t"><code>fct_lump_n($species, n = 2)</code></pre>
 <h3 id="keep-levels-with-at-least-a-minimum-count">Keep levels with at
 least a minimum count</h3>
-<pre class="t"><code>fct_lump_min(fct([&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;c&quot;]), 2)
-levels(fct_lump_min(fct([&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;c&quot;]), 2))
+<pre class="t"><code>fct_lump_min(to_factor([&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;c&quot;]), 2)
+levels(fct_lump_min(to_factor([&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;c&quot;]), 2))
 -- [&quot;a&quot;, &quot;Other&quot;]</code></pre>
 <h3 id="keep-levels-above-a-minimum-proportion">Keep levels above a
 minimum proportion</h3>
@@ -144,7 +134,7 @@ minimum proportion</h3>
 <h2 id="other-useful-helpers">Other Useful Helpers</h2>
 <h3 id="keep-or-drop-selected-levels-with-fct_other">Keep or drop
 selected levels with <code>fct_other()</code></h3>
-<pre class="t"><code>levels(fct_other(fct([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]), keep = [&quot;a&quot;]))
+<pre class="t"><code>levels(fct_other(to_factor([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]), keep = [&quot;a&quot;]))
 -- [&quot;a&quot;, &quot;Other&quot;]</code></pre>
 <h3 id="remove-unused-levels-with-fct_drop">Remove unused levels with
 <code>fct_drop()</code></h3>
@@ -153,11 +143,11 @@ selected levels with <code>fct_other()</code></h3>
 <h3 id="add-levels-without-changing-existing-values-with-fct_expand">Add
 levels without changing existing values with
 <code>fct_expand()</code></h3>
-<pre class="t"><code>levels(fct_expand(fct([&quot;a&quot;]), &quot;b&quot;, &quot;c&quot;))
+<pre class="t"><code>levels(fct_expand(to_factor([&quot;a&quot;]), &quot;b&quot;, &quot;c&quot;))
 -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre>
 <h3 id="combine-factors-with-unified-levels-using-fct_c">Combine factors
 with unified levels using <code>fct_c()</code></h3>
-<pre class="t"><code>levels(fct_c(fct([&quot;a&quot;], levels = [&quot;a&quot;, &quot;b&quot;]), fct([&quot;c&quot;])))
+<pre class="t"><code>levels(fct_c(to_factor([&quot;a&quot;], levels = [&quot;a&quot;, &quot;b&quot;]), to_factor([&quot;c&quot;])))
 -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre>
 <hr />
 <h2 id="sorting-with-factors">Sorting with Factors</h2>
@@ -174,9 +164,8 @@ different.</p>
 <h2 id="choosing-the-right-helper">Choosing the Right Helper</h2>
 <p>Use:</p>
 <ul>
-<li><code>to_factor()</code> when you want explicit levels,</li>
-<li><code>fct()</code> when you want first-appearance order,</li>
-<li><code>to_factor()</code> when coercing an existing column,</li>
+<li><code>to_factor()</code> when you want explicit or derived
+levels,</li>
 <li><code>ordered()</code> when the to_factor should be marked as
 ordered,</li>
 <li><code>fct_*</code> helpers when changing levels after creation,</li>

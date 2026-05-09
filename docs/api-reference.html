@@ -1026,8 +1026,8 @@ id="predictdata-model-scoredata-model"><code>predict(data, model)</code>
 alias.</p>
 <hr />
 <h4
-id="augmentmodel-data-augmentmodel-data"><code>augment(model, data)</code>
-/ <code>augment(model, data)</code></h4>
+id="add_diagnosticsmodel-data-add_diagnosticsmodel-data"><code>add_diagnostics(model, data)</code>
+/ <code>add_diagnostics(model, data)</code></h4>
 <p>Augment data with per-observation diagnostics: <code>.fitted</code>,
 <code>.resid</code>, <code>.hat</code>, <code>.sigma</code>,
 <code>.cooksd</code>, and <code>.std.resid</code>.</p>
@@ -1395,10 +1395,9 @@ into one.</p>
 <hr />
 <h3 id="factor-manipulation">Factor Manipulation</h3>
 <h4
-id="to_factorx-levels-na-ordered-false-fctx-to_factorx"><code>to_factor(x, levels = NA, ordered = false)</code>
-/ <code>fct(x)</code> / <code>to_factor(x)</code></h4>
-<p>Create to_factor-encoded vectors. <code>fct</code> uses
-first-appearance levels by default.</p>
+id="to_factorx-levels-na-ordered-false"><code>to_factor(x, levels = NA, ordered = false)</code></h4>
+<p>Create to_factor-encoded vectors. Derives unique levels
+alphabetically if <code>levels</code> is not provided.</p>
 <hr />
 <h4 id="levelsf"><code>levels(f)</code></h4>
 <p>Get labels from a to_factor.</p>

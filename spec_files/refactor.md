@@ -29,7 +29,7 @@ Aliases create multiple ways to do the same thing, complicating the API and eval
     - `ceil` → `ceiling`
     - `mday` → `day`
     - `to_numeric` → `to_float`
-    - `as_factor` → `factor`
+    - `to_factor` → `factor`
     - `py` → `pyn`
     - `jl_node` → `jln`
     - `casewhen` → `case_when`
@@ -66,10 +66,10 @@ Objective: Standardize all conversion and constructor functions to use the `to_`
 
 - [ ] `dataframe` → `to_dataframe`
 - [ ] `factor` → `to_factor`
-- [ ] `as_date` → `to_date`
-- [ ] `as_datetime` → `to_datetime`
+- [ ] `to_date` → `to_date`
+- [ ] `to_datetime` → `to_datetime`
 - [ ] `str_string` → `to_string`
-- [ ] `sym` → `to_symbol`
+- [ ] `to_symbol` → `to_symbol`
 - [ ] `expr` → `expr`
 - [ ] `exprs` → `exprs`
 - [ ] Implement `to_bool` in `converters.ml`

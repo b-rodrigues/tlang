@@ -1359,7 +1359,7 @@ Perform vectorized prediction on new data. `score` is an alias.
 
 ---
 
-#### `augment(model, data)` / `augment(model, data)`
+#### `add_diagnostics(model, data)` / `add_diagnostics(model, data)`
 
 Augment data with per-observation diagnostics: `.fitted`, `.resid`, `.hat`, `.sigma`, `.cooksd`, and `.std.resid`.
 
@@ -1869,9 +1869,9 @@ Split a column into multiple columns, or combine multiple columns into one.
 
 ### Factor Manipulation
 
-#### `to_factor(x, levels = NA, ordered = false)` / `fct(x)` / `to_factor(x)`
+#### `to_factor(x, levels = NA, ordered = false)`
 
-Create to_factor-encoded vectors. `fct` uses first-appearance levels by default.
+Create to_factor-encoded vectors. Derives unique levels alphabetically if `levels` is not provided.
 
 ---
 
