@@ -186,10 +186,10 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 **ONNX** is the preferred interchange format when you want broad ML model coverage or faster native inference through ONNX Runtime. It allows:
 1. **Python ML Export**: `scikit-learn` models via `skl2onnx`.
 2. **Native T Loading**: Reading models with `t_read_onnx(path)` and scoring them with `predict(data, model)`.
-3. **R/Python Runtime Loading**: Reading models via the `onnx` R package or Python `onnxruntime`.
+3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 
-Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python/R.
+Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python, R, or Julia. Julia currently supports ONNX consumption through `ONNXRunTime` and returns an explicit error if you try to export ONNX directly from a Julia node.
 
 ### Cross-Runtime Consistency
 $T$'s statistical evaluator is verified against R's reference implementation. Results match R's `broom::tidy()` and `stats::predict()` exactly.

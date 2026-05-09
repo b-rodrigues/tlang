@@ -87,6 +87,7 @@
           "Tidier"
           "CSV"
           "JavaCall"
+          "ONNXRunTime"
         ];
 
         # Pin a specific version of OCaml for reproducibility.

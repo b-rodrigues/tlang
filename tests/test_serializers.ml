@@ -59,16 +59,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | _ ->
        incr fail_count; Printf.printf "  ✗ ^onnx resolution failed\n") ;
 
-  (* ONNX serializer has correct R/Python helpers *)
+  (* ONNX serializer has correct R/Python/Julia helpers *)
   let (v, _) = eval_string_env {| ^onnx |} (Packages.init_env ()) in
   (match v with
    | VSerializer s when s.s_r_writer = Some "r_write_onnx"
-                      && s.s_r_reader = Some "r_read_onnx"
-                      && s.s_py_writer = Some "py_write_onnx"
-                      && s.s_py_reader = Some "py_read_onnx" ->
-       incr pass_count; Printf.printf "  ✓ ^onnx has correct R/Python helper names\n"
-   | _ ->
-       incr fail_count; Printf.printf "  ✗ ^onnx R/Python helper names incorrect\n") ;
+                       && s.s_r_reader = Some "r_read_onnx"
+                       && s.s_py_writer = Some "py_write_onnx"
+                       && s.s_py_reader = Some "py_read_onnx"
+                       && s.s_julia_writer = Some "jl_write_onnx"
+                       && s.s_julia_reader = Some "jl_read_onnx" ->
+       incr pass_count; Printf.printf "  ✓ ^onnx has correct R/Python/Julia helper names\n"
+    | _ ->
+       incr fail_count; Printf.printf "  ✗ ^onnx R/Python/Julia helper names incorrect\n") ;
 
   (* ONNX placeholder writer throws descriptive error *)
   let (v, _) = eval_string_env {| (^onnx).writer("test.onnx", 1) |} (Packages.init_env ()) in
@@ -164,8 +166,27 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
        incr pass_count;
        Printf.printf "  ✓ Missing PMML dependencies fail statically with explicit pyarrow guidance\n"
    | other ->
+        incr fail_count;
+        Printf.printf "  ✗ Explicit dependency check failed for PMML pipeline. Got: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let env_julia_onnx = Packages.init_env () in
+  let (v, _) = eval_string_env {|
+    p = pipeline {
+       model = node(command = <{ 1 }>, runtime = Julia, deserializer = ^onnx)
+    }
+    populate_pipeline(p)
+  |} env_julia_onnx in
+  (match v with
+   | VError { code; message; _ }
+     when code = StructuralError
+       && contains_all message
+            [ "tproject.toml"; "ONNXRunTime" ] ->
+       incr pass_count;
+       Printf.printf "  ✓ Missing Julia ONNX dependencies fail statically with explicit ONNXRunTime guidance\n"
+   | other ->
        incr fail_count;
-       Printf.printf "  ✗ Explicit dependency check failed for PMML pipeline. Got: %s\n"
+       Printf.printf "  ✗ Explicit dependency check failed for Julia ONNX pipeline. Got: %s\n"
          (Ast.Utils.value_to_string other));
 
   (* 4c. Nix emission no longer injects serializer/quarto packages implicitly *)
@@ -222,6 +243,34 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | other ->
        incr fail_count;
        Printf.printf "  ✗ Failed to build PMML pipeline for reader emission test. Got: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let env_julia_emit = Packages.init_env () in
+  let (v, _) = eval_string_env {|
+    p = pipeline {
+       model = node(command = <{ 1 }>, runtime = Julia, deserializer = ^onnx)
+    }
+    p
+  |} env_julia_emit in
+  (match v with
+   | VPipeline p ->
+       let nix = Nix_emitter.emit_pipeline p in
+       if contains_all nix
+            [
+              "import ONNXRunTime as ORT";
+              "ORT.load_inference(path)";
+              "jl_read_onnx";
+              "jl_write_onnx";
+              "ONNX serialization is not currently supported for Julia models in T."
+            ]
+       then begin
+         incr pass_count; Printf.printf "  ✓ Julia ONNX helper injection uses ONNXRunTime with explicit writer error\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ Julia ONNX helper injection missing from emitted Nix\n"
+       end
+   | other ->
+       incr fail_count;
+       Printf.printf "  ✗ Failed to build Julia ONNX pipeline for emission test. Got: %s\n"
          (Ast.Utils.value_to_string other));
 
   (* 5. Robustness: Placeholder error *)

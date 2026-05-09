@@ -1187,11 +1187,18 @@ def py_read_onnx(path):
 |} in
 
   let t_onnx_jl_code = {|
+import ONNXRunTime as ORT
+
 function jl_write_onnx(_, _)
-    error("Not implemented yet")
+    error("ONNX serialization is not currently supported for Julia models in T. Export the model from Python or provide an existing .onnx artifact.")
 end
-function jl_read_onnx(_)
-    error("Not implemented yet")
+
+function jl_read_onnx(path)
+    try
+        ORT.load_inference(path)
+    catch e
+        error("ONNX deserialization failed in Julia: $(sprint(showerror, e))")
+    end
 end
 |} in
 
