@@ -72,7 +72,7 @@ data.</li>
 </thead>
 <tbody>
 <tr>
-<td><code>expr(x)</code></td>
+<td><code>to_expr(x)</code></td>
 <td><code>Expression</code></td>
 <td>None</td>
 <td>You only need the AST</td>
@@ -84,7 +84,7 @@ data.</li>
 <td>You need the AST + its lexical context</td>
 </tr>
 <tr>
-<td><code>exprs(...)</code></td>
+<td><code>to_exprs(...)</code></td>
 <td><code>List[Expression]</code></td>
 <td>None</td>
 <td>Multiple naked expressions</td>
@@ -97,13 +97,13 @@ data.</li>
 </tr>
 </tbody>
 </table>
-<h3 id="exprexpression"><code>expr(expression)</code></h3>
-<p>The <code>expr()</code> function captures the code as a naked
+<h3 id="exprexpression"><code>to_expr(expression)</code></h3>
+<p>The <code>to_expr()</code> function captures the code as a naked
 <strong>Expression</strong> object. The current environment is
 <em>not</em> stored.</p>
-<pre class="t"><code>e = expr(1 + 2)
+<pre class="t"><code>e = to_expr(1 + 2)
 print(e)
--- Output: expr(1 + 2)</code></pre>
+-- Output: to_expr(1 + 2)</code></pre>
 <h3 id="quoexpression"><code>quo(expression)</code></h3>
 <p>The <code>quo()</code> function captures the code as a
 <strong>Quosure</strong> — a pair of the expression and its lexical
@@ -113,11 +113,11 @@ expression runs in the captured environment, not the caller’s.</p>
 q = quo(1 + x)   -- captures x = 10 in the environment
 x = 99
 eval(q)           -- returns 11, not 100</code></pre>
-<h3 id="exprs..."><code>exprs(...)</code></h3>
-<p><code>exprs()</code> captures multiple expressions and returns them
+<h3 id="exprs..."><code>to_exprs(...)</code></h3>
+<p><code>to_exprs()</code> captures multiple expressions and returns them
 as a list of naked Expression objects. It supports named arguments.</p>
-<pre class="t"><code>ee = exprs(x = 1 + 1, y = 2 + 2)
--- Result: [x: expr(1 + 1), y: expr(2 + 2)]</code></pre>
+<pre class="t"><code>ee = to_exprs(x = 1 + 1, y = 2 + 2)
+-- Result: [x: to_expr(1 + 1), y: to_expr(2 + 2)]</code></pre>
 <h3 id="quos..."><code>quos(...)</code></h3>
 <p><code>quos()</code> captures multiple expressions as a list of
 Quosures, each paired with the current lexical environment.</p>
@@ -130,7 +130,7 @@ qs = quos(a = 1 + x, b = 2 * x)
 automatically treated as a <strong>Symbol</strong> when inside a quoting
 context. This is useful for building Domain Specific Languages
 (DSLs).</p>
-<pre class="t"><code>e = expr(select(df, age, height))
+<pre class="t"><code>e = to_expr(select(df, age, height))
 -- &#39;select&#39;, &#39;age&#39;, and &#39;height&#39; are captured as symbols.</code></pre>
 <h2 id="evaluating-code">Evaluating Code</h2>
 <h3 id="evalexpr_or_quosure"><code>eval(expr_or_quosure)</code></h3>
@@ -138,7 +138,7 @@ context. This is useful for building Domain Specific Languages
 - <strong>Expression</strong>: evaluated in the <em>current</em>
 environment. - <strong>Quosure</strong>: evaluated in its
 <em>captured</em> environment.</p>
-<pre class="t"><code>e = expr(10 + 20)
+<pre class="t"><code>e = to_expr(10 + 20)
 eval(e)          -- evaluates in current env → 30
 
 x = 5
@@ -169,13 +169,13 @@ operand immediately and injects the result into the surrounding quoted
 expression. When the operand is a Quosure, only the expression part is
 injected (the environment is stripped).</p>
 <pre class="t"><code>x = 10
-e = expr(1 + !!x)
+e = to_expr(1 + !!x)
 print(e) 
--- Output: expr(1 + 10)</code></pre>
+-- Output: to_expr(1 + 10)</code></pre>
 <pre class="t"><code>inner = quo(1.5 + 2.5)
-outer = expr(2 * !!inner)   -- !! strips env from quosure
+outer = to_expr(2 * !!inner)   -- !! strips env from quosure
 print(outer)
--- Output: expr(2 * (1.5 + 2.5))</code></pre>
+-- Output: to_expr(2 * (1.5 + 2.5))</code></pre>
 <h3 id="unquote-splice"><code>!!!</code> (Unquote-Splice)</h3>
 <p>The <code>!!!</code> (pronounced “triple-bang”) operator evaluates
 its operand and <strong>splices</strong> the elements into the
@@ -184,16 +184,16 @@ surrounding call or list. The operand must evaluate to a
 in the spliced list have their environments stripped.</p>
 <h4 id="splicing-into-arguments">Splicing into Arguments</h4>
 <pre class="t"><code>vals = [1, 2, 3]
-e = expr(sum(!!!vals))
+e = to_expr(sum(!!!vals))
 print(e)
--- Output: expr(sum(1, 2, 3))</code></pre>
+-- Output: to_expr(sum(1, 2, 3))</code></pre>
 <h4 id="splicing-with-names">Splicing with Names</h4>
 <p>If you splice a named List, the names are used as argument names in
 the resulting call.</p>
 <pre class="t"><code>my_args = [x: 10, y: 20]
-e = expr(f(!!!my_args, z: 30))
+e = to_expr(f(!!!my_args, z: 30))
 print(e)
--- Output: expr(f(x = 10, y = 20, z = 30))</code></pre>
+-- Output: to_expr(f(x = 10, y = 20, z = 30))</code></pre>
 <h3 id="name-value-dynamic-naming"><code>!!name := value</code> (Dynamic
 Naming)</h3>
 <p>The <code>!!name := value</code> syntax allows you to use a
@@ -201,9 +201,9 @@ dynamically computed string or symbol as the name of an argument or list
 element inside a quoting context. The left-hand side (<code>name</code>)
 must evaluate to a <code>String</code> or <code>Symbol</code>.</p>
 <pre class="t"><code>col = &quot;age&quot;
-e = expr(mutate(df, !!col := 42))
+e = to_expr(mutate(df, !!col := 42))
 print(e)
--- Output: expr(mutate(df, age = 42))</code></pre>
+-- Output: to_expr(mutate(df, age = 42))</code></pre>
 <p>If <code>!!name</code> does not evaluate to a <code>String</code> or
 <code>Symbol</code>, a <code>TypeError</code> is raised.</p>
 <h3
@@ -212,8 +212,8 @@ id="to_symbolstring_or_symbol"><code>to_symbol(string_or_symbol)</code></h3>
 <code>to_symbol()</code> to turn it into a runtime <code>Symbol</code>
 that can be injected with <code>!!</code>.</p>
 <pre class="t"><code>col_name = &quot;mpg&quot;
-expr(select(df, !!to_symbol(col_name)))
--- Output: expr(select(df, mpg))</code></pre>
+to_expr(select(df, !!to_symbol(col_name)))
+-- Output: to_expr(select(df, mpg))</code></pre>
 <p>This is most useful for programmatic code generation. Use
 <code>to_symbol()</code> to turn a string into a label that
 <code>!!</code> can inject as a symbol, or that <code>get()</code> can
@@ -229,7 +229,7 @@ for the named argument <code>param</code>, returning a Quosure. This is
 the quosure equivalent of <code>enquo()</code> in R’s rlang.</p>
 <pre class="t"><code>my_select = \(df: DataFrame, col: Any -&gt; DataFrame) {
   col_expr = enquo(col)           -- captures expr + caller&#39;s env
-  eval(expr(df |&gt; select(!!col_expr)))
+  eval(to_expr(df |&gt; select(!!col_expr)))
 }
 
 my_select(iris, $Sepal.Length)
@@ -249,7 +249,7 @@ function receives it as a symbol-like column reference.</p>
 df = to_dataframe([salary: [100, 200, 300]])
 my_mean(df, salary)</code></pre>
 <p>This removes the need for the common <code>enquo()</code> +
-<code>eval(expr(...))</code> wrapper when the function is simply
+<code>eval(to_expr(...))</code> wrapper when the function is simply
 forwarding a column-like argument into an NSE-aware data verb.</p>
 <p>Current behavior:</p>
 <ul>
@@ -271,7 +271,7 @@ variadic <code>...</code> parameter as a named list of Quosures, each
 paired with the caller’s environment.</p>
 <pre class="t"><code>my_summarize = \(df: DataFrame, ... -&gt; DataFrame) {
   cols = enquos(...)              -- list of quosures from the caller
-  eval(expr(df |&gt; summarize(!!!cols)))
+  eval(to_expr(df |&gt; summarize(!!!cols)))
 }
 
 my_summarize(iris,
@@ -286,18 +286,18 @@ call.</p>
 <p>You can use quasiquotation to dynamically build pipeline nodes or
 intents:</p>
 <pre class="t"><code>var_name = &quot;mpg&quot;
-my_intent = expr(intent {
+my_intent = to_expr(intent {
   target = !!var_name
   method = &quot;lm&quot;
 })
 
 print(my_intent)
--- Output: expr(intent { target = &quot;mpg&quot;; method = &quot;lm&quot; })</code></pre>
+-- Output: to_expr(intent { target = &quot;mpg&quot;; method = &quot;lm&quot; })</code></pre>
 <h3 id="prefix-call-syntax">Prefix-Call Syntax</h3>
 <p>T also supports a Lisp-style prefix call syntax which integrates
 seamlessly with quotation:</p>
-<pre class="t"><code>e = expr((add, 1, 2))
--- Equivalent to expr(add(1, 2))</code></pre>
+<pre class="t"><code>e = to_expr((add, 1, 2))
+-- Equivalent to to_expr(add(1, 2))</code></pre>
 <h2 id="summary-of-operators">Summary of Operators</h2>
 <table>
 <colgroup>
@@ -312,12 +312,12 @@ seamlessly with quotation:</p>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><code>expr(x)</code></td>
+<td style="text-align: left;"><code>to_expr(x)</code></td>
 <td style="text-align: left;">Capture <code>x</code> as a naked
 Expression (no environment).</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>exprs(...)</code></td>
+<td style="text-align: left;"><code>to_exprs(...)</code></td>
 <td style="text-align: left;">Capture multiple expressions as a List of
 naked Expressions.</td>
 </tr>
@@ -349,17 +349,17 @@ Symbol at runtime.</td>
 <tr>
 <td style="text-align: left;"><code>!!x</code></td>
 <td style="text-align: left;">Evaluate <code>x</code> and inject into
-<code>expr()</code>/<code>quo()</code>; strips env from quosures.</td>
+<code>to_expr()</code>/<code>quo()</code>; strips env from quosures.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>!!!x</code></td>
 <td style="text-align: left;">Evaluate <code>x</code> and splice
-elements into <code>expr()</code>/<code>quo()</code>.</td>
+elements into <code>to_expr()</code>/<code>quo()</code>.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>!!name := value</code></td>
 <td style="text-align: left;">Use a dynamic String/Symbol as an argument
-name inside <code>expr()</code>/<code>quo()</code>.</td>
+name inside <code>to_expr()</code>/<code>quo()</code>.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>enquo(param)</code></td>

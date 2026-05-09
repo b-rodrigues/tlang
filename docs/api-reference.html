@@ -239,9 +239,9 @@ through unchanged.</p>
 <p><code>Symbol</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>to_symbol(&quot;mpg&quot;)                           -- mpg
-expr(select(df, !!to_symbol(&quot;mpg&quot;)))       -- expr(select(df, mpg))
+to_expr(select(df, !!to_symbol(&quot;mpg&quot;)))       -- to_expr(select(df, mpg))
 name = &quot;result&quot;
-expr(f(!!to_symbol(name) := 42))           -- expr(f(result = 42))</code></pre>
+to_expr(f(!!to_symbol(name) := 42))           -- to_expr(f(result = 42))</code></pre>
 <hr />
 <h3 id="argsfn"><code>args(fn)</code></h3>
 <p>Returns a dictionary of parameter names and their expected types for
@@ -273,7 +273,7 @@ id="case_when...formulas-.default-na"><code>case_when(...formulas, .default = NA
 <p>Deep equality check. Works for collections and complex objects.</p>
 <hr />
 <h3 id="evalexpr-exprx-exprs..."><code>eval(expr)</code> /
-<code>expr(x)</code> / <code>exprs(...)</code></h3>
+<code>to_expr(x)</code> / <code>to_exprs(...)</code></h3>
 <h3 id="quox-quos...-enquop-enquos..."><code>quo(x)</code> /
 <code>quos(...)</code> / <code>enquo(p)</code> /
 <code>enquos(...)</code></h3>

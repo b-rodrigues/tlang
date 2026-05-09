@@ -12,6 +12,6 @@ A list of captured expressions.
 ## Examples
 
 ```t
-exprs(1 + 1, x = 2 * 2)
+to_exprs(1 + 1, x = 2 * 2)
 ```
 

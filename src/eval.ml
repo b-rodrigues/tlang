@@ -986,12 +986,12 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
     | Match { scrutinee; cases } ->
         eval_match env_ref scrutinee cases
 
-    | Call { fn = { node = Var "expr"; _ }; args } ->
+    | Call { fn = { node = Var "to_expr"; _ }; args } ->
         (match args with
          | [(_name, e)] -> VExpr (quote_expr env_ref e)
-         | _ -> make_error ArityError "expr() expects exactly 1 argument")
+         | _ -> make_error ArityError "to_expr() expects exactly 1 argument")
 
-    | Call { fn = { node = Var "exprs"; _ }; args } ->
+    | Call { fn = { node = Var "to_exprs"; _ }; args } ->
         VList (List.map (fun (name, e) -> (name, VExpr (quote_expr env_ref e))) args)
 
     (* quo/quos capture the expression WITH the current lexical environment (quosure) *)
@@ -2003,7 +2003,7 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
 
   | UnquoteSplice _ ->
       Ast.mk_expr ?loc (Value (make_error TypeError
-        "!!! can only be used inside a Call, List, or Dict literal within expr()"))
+        "!!! can only be used inside a Call, List, or Dict literal within to_expr()"))
 
   (* ── Compound forms that support !!! splicing and !! dynamic names ── *)
   | Call { fn; args } ->
@@ -2129,7 +2129,7 @@ and eval_dict_lit env_ref items =
         | VUnquoteSplice sv ->
             let units = match sv with
               | VDict d -> d
-              | VList items -> List.map (fun (n, v) -> (match n with Some name -> name | None -> "expr"), v) items
+              | VList items -> List.map (fun (n, v) -> (match n with Some name -> name | None -> "to_expr"), v) items
               | VVector vx -> Array.to_list vx |> List.mapi (fun i x -> (string_of_int i, x))
               | _ -> [(k, sv)]
             in

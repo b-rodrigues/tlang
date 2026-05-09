@@ -383,39 +383,39 @@ let register env =
 --# Captures the provided expression as an Expr object without evaluating it.
 --# Useful for metaprogramming, quotation, and custom evaluation.
 --#
---# @name expr
+--# @name to_expr
 --# @param x :: Any The expression to capture.
 --# @return :: Expr The captured expression object.
 --# @example
---#   e = expr(1 + 2)
+--#   e = to_expr(1 + 2)
 --#   eval(e)
 --# @family core
 --# @export
 *)
-  let env = Env.add "expr"
-    (make_builtin ~name:"expr" 1 (fun args _env ->
+  let env = Env.add "to_expr"
+    (make_builtin ~name:"to_expr" 1 (fun args _env ->
       (* Evaluator special form handles the actual capture. 
          This builtin is for reflection/environment presence. *)
       match args with
       | [VExpr _ as e] -> e
       | [v] -> VExpr (Ast.mk_expr (Value v))
-      | _ -> Error.arity_error_named "expr" 1 (List.length args)
+      | _ -> Error.arity_error_named "to_expr" 1 (List.length args)
     ))
     env in
 
 
 (*
 --#
---# @name exprs
+--# @name to_exprs
 --# @param ... :: Any One or more expressions to capture.
 --# @return :: List[Expr] A list of captured expressions.
 --# @example
---#   exprs(1 + 1, x = 2 * 2)
+--#   to_exprs(1 + 1, x = 2 * 2)
 --# @family core
 --# @export
 *)
-  let env = Env.add "exprs"
-    (make_builtin_named ~name:"exprs" ~variadic:true 0 (fun args _env ->
+  let env = Env.add "to_exprs"
+    (make_builtin_named ~name:"to_exprs" ~variadic:true 0 (fun args _env ->
       VList (List.map (fun (name, v) -> 
         match v with
         | VExpr _ -> (name, v)
@@ -495,7 +495,7 @@ let register env =
 --# @example
 --#   my_select = \(df: DataFrame, col: Any -> DataFrame) {
 --#     col_expr = enquo(col)
---#     eval(expr(df |> select(!!col_expr)))
+--#     eval(to_expr(df |> select(!!col_expr)))
 --#   }
 --#   my_select(iris, $Sepal.Length)
 --# @family core
@@ -521,7 +521,7 @@ let register env =
 --# @example
 --#   my_summarize = \(df: DataFrame, ... -> DataFrame) {
 --#     cols = enquos(...)
---#     eval(expr(df |> summarize(!!!cols)))
+--#     eval(to_expr(df |> summarize(!!!cols)))
 --#   }
 --#   my_summarize(iris, mean_sep = mean($Sepal.Length))
 --# @family core

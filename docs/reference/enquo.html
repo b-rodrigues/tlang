@@ -50,7 +50,7 @@ parameter whose expression to capture.</li>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>my_select = \(df = DataFrame, col = Any -&gt; DataFrame) {
 col_expr = enquo(col)
-eval(expr(df |&gt; select(!!col_expr)))
+eval(to_expr(df |&gt; select(!!col_expr)))
 }
 my_select(iris, $Sepal.Length)</code></pre>
 </div>

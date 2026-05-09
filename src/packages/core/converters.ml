@@ -29,6 +29,27 @@ let parse_numeric_string s =
 --# @family core
 --# @export
 *)
+let lift_unary_converter name convert args =
+  match args with
+  | [VVector arr] ->
+      let had_error = ref None in
+      let res = Array.map (fun v -> 
+        let converted = convert v in
+        (match converted with VError _ as e -> had_error := Some e | _ -> ());
+        converted
+      ) arr in
+      (match !had_error with Some e -> e | None -> VVector res)
+  | [VList items] ->
+      let had_error = ref None in
+      let res = List.map (fun (n, v) -> 
+        let converted = convert v in
+        (match converted with VError _ as e -> had_error := Some e | _ -> ());
+        (n, converted)
+      ) items in
+      (match !had_error with Some e -> e | None -> VList res)
+  | [v] -> convert v
+  | _ -> Error.arity_error_named name 1 (List.length args)
+
 let register_integer env =
   Env.add "to_integer"
     (make_builtin ~name:"to_integer" 1 (fun args _env ->
@@ -43,25 +64,7 @@ let register_integer env =
         | VNA _ -> (VNA NAGeneric)
         | _ -> Error.type_error (Printf.sprintf "Cannot coerce %s to integer" (Utils.type_name v))
       in
-      match args with
-      | [VVector arr] ->
-          let had_error = ref None in
-          let res = Array.map (fun v -> 
-            let converted = convert v in
-            (match converted with VError _ as e -> had_error := Some e | _ -> ());
-            converted
-          ) arr in
-          (match !had_error with Some e -> e | None -> VVector res)
-      | [VList items] ->
-          let had_error = ref None in
-          let res = List.map (fun (n, v) -> 
-            let converted = convert v in
-            (match converted with VError _ as e -> had_error := Some e | _ -> ());
-            (n, converted)
-          ) items in
-          (match !had_error with Some e -> e | None -> VList res)
-      | [v] -> convert v
-      | _ -> Error.arity_error_named "to_integer" 1 (List.length args)
+      lift_unary_converter "to_integer" convert args
     ))
     env
 
@@ -95,25 +98,7 @@ let register_float env =
         | VNA _ -> (VNA NAGeneric)
         | _ -> Error.type_error (Printf.sprintf "Cannot coerce %s to float" (Utils.type_name v))
       in
-      match args with
-      | [VVector arr] ->
-          let had_error = ref None in
-          let res = Array.map (fun v -> 
-            let converted = convert v in
-            (match converted with VError _ as e -> had_error := Some e | _ -> ());
-            converted
-          ) arr in
-          (match !had_error with Some e -> e | None -> VVector res)
-      | [VList items] ->
-          let had_error = ref None in
-          let res = List.map (fun (n, v) -> 
-            let converted = convert v in
-            (match converted with VError _ as e -> had_error := Some e | _ -> ());
-            (n, converted)
-          ) items in
-          (match !had_error with Some e -> e | None -> VList res)
-      | [v] -> convert v
-      | _ -> Error.arity_error_named "to_float" 1 (List.length args)
+      lift_unary_converter "to_float" convert args
     ))
     env
 
@@ -129,7 +114,7 @@ let register_float env =
 --# @return :: Symbol The resulting symbol.
 --# @example
 --#   to_symbol("mpg")
---#   expr(select(df, !!to_symbol("mpg")))
+--#   to_expr(select(df, !!to_symbol("mpg")))
 --# @family core
 --# @export
 *)
@@ -178,11 +163,7 @@ let register_bool env =
         | VNA _ -> (VNA NAGeneric)
         | _ -> Error.type_error (Printf.sprintf "Cannot coerce %s to boolean" (Utils.type_name v))
       in
-      match args with
-      | [VVector arr] -> VVector (Array.map convert arr)
-      | [VList items] -> VList (List.map (fun (n, v) -> (n, convert v)) items)
-      | [v] -> convert v
-      | _ -> Error.arity_error_named "to_bool" 1 (List.length args)
+      lift_unary_converter "to_bool" convert args
     ))
     env
 
@@ -209,11 +190,7 @@ let register_string env =
         | VNA _ -> VNA NAString
         | v -> VString (Utils.value_to_string v)
       in
-      match args with
-      | [VVector arr] -> VVector (Array.map convert arr)
-      | [VList items] -> VList (List.map (fun (n, v) -> (n, convert v)) items)
-      | [v] -> convert v
-      | _ -> Error.arity_error_named "to_string" 1 (List.length args)
+      lift_unary_converter "to_string" convert args
     ))
     env
 

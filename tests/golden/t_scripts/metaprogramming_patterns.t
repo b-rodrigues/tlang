@@ -6,7 +6,7 @@ iris = read_csv(path_join(data_dir, "iris.csv"))
 -- 1. Basic Enquo Pattern
 my_mutate = \(col: Any -> DataFrame) {
   col_enq = enquo(col)
-  e = expr(iris |> mutate(!!col_enq := !!col_enq + 10.0))
+  e = to_expr(iris |> mutate(!!col_enq := !!col_enq + 10.0))
   eval(e)
 }
 
@@ -16,7 +16,7 @@ write_csv(iris_mutated, path_join(output_dir, "metaprog_enquo_mutate.csv"))
 -- 2. Enquos Pattern
 my_summarize = \(... -> DataFrame) {
   cols = enquos(...)
-  e = expr(iris |> summarize(!!!cols))
+  e = to_expr(iris |> summarize(!!!cols))
   eval(e)
 }
 
@@ -28,7 +28,7 @@ write_csv(iris_summary, path_join(output_dir, "metaprog_enquos_summarize.csv"))
 build_expr = \(x: Any -> Any) quo(!!x + 5)
 res = build_expr(quo(10 + 10))
 
-res_df = eval(expr(iris
+res_df = eval(to_expr(iris
   |> summarize(val = !!res)
   |> head(1)))
 
