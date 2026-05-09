@@ -18,7 +18,7 @@ T's core strength is its **mandatory pipeline architecture**. It treats R script
 - **Nix-Powered Sandboxing**: Each node runs in its own reproducible environment.
 - **High-performance Data Transfer**: Move DataFrames between R, Python, and T using Apache Arrow IPC via the Nix store.
 - **Native Model Evaluation**: Train models in R/Python and evaluate them natively in T via PMML (linear models, decision trees, random forests, and boosted trees like **XGBoost** and **LightGBM**).
-- **Model Interchange & Orchestration**: Use `^onnx` for model portability across Python and R nodes with T-native metadata orchestration.
+- **Model Interchange & Orchestration**: Use `^onnx` for model portability across Python, R, and Julia nodes with T-native metadata orchestration.
 
 ```t
 -- A reproducible polyglot pipeline
@@ -291,4 +291,3 @@ T is licensed under the [European Union Public License v1.2](LICENSE).
 ---
 
 *Built with curiosity, designed for reproducibility.*
-

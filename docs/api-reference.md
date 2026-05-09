@@ -1386,6 +1386,7 @@ Perform a Wald test for a joint hypothesis on coefficients.
 #### `t_read_onnx(path)` / `t_read_pmml(path)`
 
 Import pre-trained models from ONNX or PMML formats for native scoring.
+Julia nodes can also consume `^onnx` artifacts through `ONNXRunTime.jl`; ONNX export from Julia remains explicitly unsupported.
 
 ---
 

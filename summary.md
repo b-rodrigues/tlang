@@ -227,6 +227,7 @@ p = pipeline {
 - **Arrow** is the preferred interchange for DataFrames.
 - Arrow IPC round-trips now preserve nested `nest()`/`unnest()` list-columns with factor and timezone-aware datetime fields, including empty/all-null nested schemas.
 - **PMML** is used for model interchange. Now supports native scoring in Julia nodes via `JavaCall` and JPMML.
+- **ONNX** artifacts can now be consumed in Julia nodes through `ONNXRunTime.jl`; Julia ONNX export remains explicitly unsupported.
 - **JSON** is available for simpler values.
 - Nodes run in Nix-managed sandboxes, so R/Python/shell/Quarto dependencies must be declared in the project/package metadata and synced via `t update`.
 
@@ -349,7 +350,7 @@ Purpose: descriptive statistics, scaling/normalization, linear models, diagnosti
 - Descriptive statistics: `mean(x, na_rm = false, weights = NA)`, `median(x, na_rm = false, weights = NA)`, `min(x, na_rm = false)`, `max(x, na_rm = false)`, `range(x, na_rm = false)`, `var(x, na_rm = false, weights = NA)`, `sd(x, na_rm = false, weights = NA)`, `iqr(x, na_rm = false, weights = NA)`, `mad(x, constant = 1.4826)`, `fivenum(x, na_rm = false, weights = NA)`, `quantile(x, probs, na_rm = false, weights = NA)`, `skewness(x, na_rm = false, weights = NA)`, `kurtosis(x, na_rm = false, weights = NA)`, `trimmed_mean(x, trim = 0.1, na_rm = false, weights = NA)`, `winsorize(x, limits = [0.05, 0.05], na_rm = false, weights = NA)`, `cv(x, na_rm = false, weights = NA)`, `normalize(x)`, `standardize(x)`, `scale(x)`, `huber_loss(actual, predicted, delta = 1.0)`
 - Relationship helpers and distributions: `cor(x, y, na_rm = false, weights = NA)`, `cov(x, y, na_rm = false, weights = NA)`, `pnorm(x, mean = 0, sd = 1)`, `pt(x, df)`, `pf(x, df1, df2)`, `pchisq(x, df)`
 - Modeling: `lm(data, formula, weights = NA)`, `predict(data, model)`, `summary(model)`, `fit_stats(model)`, `add_diagnostics(data, model)`, `coef(model)`, `conf_int(model)`, `nobs(model)`, `df_residual(model)`, `sigma(model)`, `dispersion(model)`, `vcov(model)`, `compare(model1, model2)`, `residuals(model)`, `augment(data, model)`, `score(data, model)`, `anova(model_or_models)`, `wald_test(model, hypothesis)`
-- PMML & ONNX: Native evaluation for Decision Trees, Random Forests, XGBoost, and LightGBM via `t_read_pmml()`. Native ONNX inference via `t_read_onnx()` and `^onnx` serialization. Now supports PMML scoring in Julia nodes via `JavaCall` and JPMML.
+- PMML & ONNX: Native evaluation for Decision Trees, Random Forests, XGBoost, and LightGBM via `t_read_pmml()`. Native ONNX inference via `t_read_onnx()` and `^onnx` serialization. Now supports PMML scoring in Julia nodes via `JavaCall` and JPMML, plus Julia ONNX loading through `ONNXRunTime.jl`.
 - Basis functions: `cut(x, breaks, ...)`, `poly(x, degree, ...)`
 
 ### `pipeline`

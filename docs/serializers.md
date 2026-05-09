@@ -29,9 +29,9 @@ If you don't specify a serializer, T uses the `^tlang` (internal binary) format 
 | `^tlang` | T-Native | T-to-T interchange | T only |
 | `^arrow` | Apache Arrow | Large DataFrames | T, R, Python, Julia |
 | `^pmml` | PMML | Predictive Models | T, R, Python |
-| `^onnx` | ONNX | ML Models | T, R, Python |
-| `^json` | JSON | Config, lists, dicts | T, R, Python |
-| `^csv` | CSV | Tabular data | T, R, Python |
+| `^onnx` | ONNX | ML Models | T, R, Python, Julia (read/inference) |
+| `^json` | JSON | Config, lists, dicts | T, R, Python, Julia |
+| `^csv` | CSV | Tabular data | T, R, Python, Julia |
 | `^text` | Plain Text | Logs, shell output | All |
 
 ## 3. The `serializer` Structure
@@ -127,5 +127,7 @@ When T processes a node with an `R` runtime and the above serializer:
 #### Registering Custom Formats
 
 If you use a custom format name (e.g., `format: "myformat"`), you should ensure that your R or Python scripts have the necessary libraries loaded to handle that format. You can do this by adding the libraries to your `tproject.toml` or using the `functions` / `includes` parameters in the node definition.
+
+For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl` via the built-in `jl_read_onnx()` helper. Julia ONNX export is not supported yet, so `jl_write_onnx()` fails explicitly instead of silently falling back to another format.
 
 For more information on how pipelines use these serializers, see the [Pipeline Tutorial](pipeline_tutorial.md). For a model-focused walkthrough of `^pmml`, see the [PMML Tutorial](pmml_tutorial.md).
