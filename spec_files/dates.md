@@ -504,16 +504,16 @@ fmt_dt(now())
 
 ```t
 -- String → Date / Datetime (lenient: tries common formats in order)
-as_date(x)      -- VDate  (accepts VString, VDatetime, VInt days-since-epoch)
-as_datetime(x)  -- VDatetime (accepts VString, VDate, VInt/VFloat epoch seconds)
+to_date(x)      -- VDate  (accepts VString, VDatetime, VInt days-since-epoch)
+to_datetime(x)  -- VDatetime (accepts VString, VDate, VInt/VFloat epoch seconds)
 
 -- Date ↔ Datetime
-as_date(dt)     -- drops time component; returns VDate
-as_datetime(d)  -- midnight UTC; returns VDatetime
+to_date(dt)     -- drops time component; returns VDate
+to_datetime(d)  -- midnight UTC; returns VDatetime
 
 -- Numeric ↔ Date
-as_date(n, origin = "1970-01-01")       -- n days since origin → VDate
-as_datetime(n, origin = "1970-01-01")   -- n seconds since origin → VDatetime
+to_date(n, origin = "1970-01-01")       -- n days since origin → VDate
+to_datetime(n, origin = "1970-01-01")   -- n seconds since origin → VDatetime
 
 -- Type predicates
 is_date(x)       -- Bool
@@ -698,7 +698,7 @@ src/packages/chrono/
 ├── round_date.ml     -- floor_date, ceiling_date, round_date
 ├── timezone.ml       -- with_tz, force_tz, olson_names
 ├── format_date.ml    -- format_date, format_datetime, stamp
-└── conversion.ml     -- as_date, as_datetime, is_date, is_datetime, …
+└── conversion.ml     -- to_date, to_datetime, is_date, is_datetime, …
 ```
 
 `chrono` is loaded automatically as part of the default package set (alongside
@@ -739,7 +739,7 @@ src/packages/chrono/
 ### Phase 4 — Rounding and Conversion Helpers
 
 - [ ] Implement `floor_date` / `ceiling_date` / `round_date` for all units
-- [ ] Implement `as_date` / `as_datetime` with all accepted input types
+- [ ] Implement `to_date` / `to_datetime` with all accepted input types
 - [ ] Implement type-predicate helpers (`is_date`, etc.)
 - [ ] Arithmetic between two dates/datetimes returning `VPeriod` / `VDuration`
 - [ ] Add `%within%` and `%--%` infix operators in the parser
