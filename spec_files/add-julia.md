@@ -4,7 +4,7 @@ This document describes the integration of Julia as a first-class runtime for T-
 
 ## 1. Overview
 
-Julia support allows users to execute Julia code within pipeline nodes, passing data back and forth using standard serializers (CSV, JSON, Arrow).
+Julia support allows users to execute Julia code within pipeline nodes, passing data back and forth using standard serializers and model interchange helpers (CSV, JSON, Arrow, PMML, ONNX).
 
 ### Node Constructor: `jl_node`
 
@@ -54,9 +54,8 @@ packages = ["DataFrames", "CSV", "Arrow", "JSON"]
 | CSV    | `^csv`        | `jl_write_csv(df, path)`, `jl_read_csv(path)` |
 | JSON   | `^json`       | `jl_write_json(obj, path)`, `jl_read_json(path)` |
 | Arrow  | `^arrow`      | `jl_write_arrow(df, path)`, `jl_read_arrow(path)` |
-
-> [!NOTE]
-> PMML and ONNX support for Julia is not yet implemented and may be considered in a subsequent step.
+| PMML   | `^pmml`       | `jl_write_pmml(model, path)`, `jl_read_pmml(path)` |
+| ONNX   | `^onnx`       | `jl_write_onnx(path, model)`, `jl_read_onnx(path)` |
 
 ## 4. Implementation Details
 
@@ -83,7 +82,6 @@ packages = ["DataFrames", "CSV", "Arrow", "JSON"]
 
 ## 5. Future Work & Next Steps
 
-- **Advanced Serialization**: Research and implement native PMML and ONNX support within Julia-to-T serialization. Currently, these formats are not natively supported in Julia nodes.
 - **Dependency Tracking**: Refine `pipeline_dependency_requirements.ml` to support automatic detection of missing Julia packages in `tproject.toml`, mirroring the logic used for R and Python.
 - **Internal Helper Registration**: Ensure `jl_node` (along with `node`, `pyn`, and `rn`) is formally registered in the standard package registry in `src/packages/core/packages.ml` for improved discoverability via `packages()` and `help()`.
 - **Error Diagnostics**: Enhance error reporting for Julia runtime errors by capturing and formatting Julia-native stack traces into T-Lang's structured error format.
