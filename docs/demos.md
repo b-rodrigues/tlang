@@ -36,7 +36,7 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 ### [Julia Interop](julia_interop_t.html)
 - **Repo**: `julia_interop_t`
 - **Description**: Demonstrates first-class support for Julia nodes and CSV data interchange.
-- **Key Features**: `jl_node()`, automatic Julia environment provisioning.
+- **Key Features**: `jln()`, automatic Julia environment provisioning.
 
 ### [Lenses & Dynamic Pipelines](lens.html)
 - **Repo**: `deep_data_lenses_t` / `dynamic_pipeline_operator_t`

@@ -22,7 +22,7 @@ T is currently in **Beta (v0.52.0)**. While it is an experimental project, it is
 ## The Technical Core
 
 ### How does the Polyglot Architecture work?
-T uses **Apache Arrow** as its core data exchange format. When you pass a DataFrame between a T node and an **R (`rn()`)**, **Python (`pyn()`)**, **Julia (`jl_node()`)**, or **Shell (`shn()`)** node, T handles the interchange using highly efficient Arrow files. 
+T uses **Apache Arrow** as its core data exchange format. When you pass a DataFrame between a T node and an **R (`rn()`)**, **Python (`pyn()`)**, **Julia (`jln()`)**, or **Shell (`shn()`)** node, T handles the interchange using highly efficient Arrow files. 
 - **Hermeticity**: Because T runs every node in a hermetic Nix sandbox, data cannot be shared directly in memory.
 - **Serialization**: Dataframes are serialized to Arrow IPC files on disk. This is still significantly faster and more robust than traditional CSV/JSON interchange.
 - **Fidelity**: All level metadata for factors and nested list-columns is preserved through the serialization process.

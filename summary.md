@@ -202,7 +202,7 @@ Pipelines are DAGs. Nodes can be declared in any order; dependencies are resolve
 - `node(...)` = fully configurable node constructor
 - `rn(...)` = R node wrapper
 - `pyn(...)` = Python node wrapper
-- `jl_node(...)` = Julia node wrapper
+- `jln(...)` = Julia node wrapper
 - `qn(...)` = Quarto node wrapper
 - `shn(...)` = shell/Bash node wrapper
 - `node(..., runtime = Julia)` = explicit alternative for Julia nodes
@@ -216,7 +216,7 @@ Useful patterns:
 p = pipeline {
   model_r = rn(script = "train.R", serializer = "pmml")
   model_py = pyn(script = "train.py", serializer = "pmml")
-  model_jl = jl_node(script = "train.jl", serializer = ^csv)
+  model_jl = jln(script = "train.jl", serializer = ^csv)
   report = shn(script = "postprocess.sh")
   quarto_report = node(script = "analysis.qmd", runtime = Quarto)
 }
@@ -357,7 +357,7 @@ Purpose: descriptive statistics, scaling/normalization, linear models, diagnosti
 
 Purpose: node construction, pipeline execution, graph inspection, graph rewriting, validation, artifact access, and composition.
 
-- Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `jl_node(command = ..., script = na(), serializer = ^csv, deserializer = ^csv, functions = [], include = [], noop = false)`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
+- Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `jln(command = ..., script = na(), serializer = ^csv, deserializer = ^csv, functions = [], include = [], noop = false)`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
 - Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `suppress_warnings(node)`
 - Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_summary(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_dot(p)`
 - Node-level transforms: `filter_node(p, predicate)`, `which_nodes(p, predicate)`, `errored_nodes(p)`,

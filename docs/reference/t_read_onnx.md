@@ -32,7 +32,7 @@ p = pipeline {
     serializer = ^onnx
   )
 
-  score = jl_node(
+  score = jln(
     command = <{
       session = model
       session
