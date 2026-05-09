@@ -10,7 +10,7 @@ The focus of this release is the introduction of first-class Julia support, enab
 
 ### First-Class Julia Support
 - **Julia Node Shorthand (`jln`)**:
-    - Introduced `jln()` (and its alias `jl_node()`) for executing Julia code directly within T pipelines.
+    - Introduced `jln()` (and its alias `jln()`) for executing Julia code directly within T pipelines.
     - Julia nodes support full dependency management and automatic environment provisioning.
 - **Integrated Dependency Management**:
     - Projects can now declare Julia requirements in `tproject.toml` via the `[julia-dependencies]` section.

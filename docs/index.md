@@ -57,7 +57,7 @@ T is not designed to replace your existing tools; it is designed to **orchestrat
 
 ## Foreign Language Nodes & Deserialization
 
-When you define a node using `node()`, `rn()` (R), `pyn()` (Python), `jl_node()` (Julia), or `shn()` (Shell)—T treats the result as a first-class **Node** object. These objects transition through two main states:
+When you define a node using `node()`, `rn()` (R), `pyn()` (Python), `jln()` (Julia), or `shn()` (Shell)—T treats the result as a first-class **Node** object. These objects transition through two main states:
 
 1.  **Unbuilt Node**: A specification of what to run (command, runtime, environment variables).
 2.  **Computed Node**: After `build_pipeline()`, the node points to a concrete, immutable artifact in the Nix store.
