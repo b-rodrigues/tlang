@@ -354,7 +354,7 @@ p = my_pipeline
 status = match(pipeline_validate(p)) {
   [] => "Pipeline is valid and ready to build.",
   [first_err, ..others] => 
-    str_join(["Found ", str_string(length(others) + 1), " validation errors."])
+    str_join(["Found ", to_string(length(others) + 1), " validation errors."])
 }
 ```
 
@@ -427,7 +427,7 @@ The `get()` function is the primary entry point for retrieving data. It supports
 ```t
 salary = 50000
 get("salary")                -- 50000
-get(sym("salary"))           -- 50000
+get(to_symbol("salary"))           -- 50000
 ```
 
 #### 2. Collection Indexing (0-based)
@@ -905,8 +905,8 @@ All packages are loaded automatically at startup:
 | `base`      | `assert`, `assert_file_exists`, `assert_dir_exists`, `assert_size_of_file`, `assert_non_empty_file`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`, `predict`        |
-| `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames` |
-| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `rename`, `relocate`, `distinct`, `count`, `slice`, `pivot_longer`, `pivot_wider`, joins, missing-value helpers, factor helpers, and window functions |
+| `to_dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames` |
+| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `rename`, `relocate`, `distinct`, `count`, `slice`, `pivot_longer`, `pivot_wider`, joins, missing-value helpers, to_factor helpers, and window functions |
 | `pipeline`  | node constructors, inspection helpers, validation helpers, DAG transformations, and composition tools |
 | `explain`   | `explain`, `intent_fields`, `intent_get`                |
 
@@ -961,7 +961,7 @@ These signatures provide a compact map of the most commonly used functions:
 - `left_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame`
 - `drop_na(df :: DataFrame, ...) :: DataFrame`
 - `replace_na(df :: DataFrame, replace :: Dict) :: DataFrame`
-- `factor(x :: Vector | List, levels = [], ordered = false) :: Vector`
+- `to_factor(x :: Vector | List, levels = [], ordered = false) :: Vector`
 - `row_number(x :: Vector) :: Vector`
 - `lag(x :: Vector, n = 1) :: Vector`
 

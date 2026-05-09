@@ -12,6 +12,8 @@ Computes the Pearson correlation coefficient between two vectors.
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 

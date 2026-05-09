@@ -187,7 +187,7 @@ type value =
   | VList of value list
   | VDict of (string, value) Hashtbl.t
   | VFunction of string list * expr * environment
-  | VDataFrame of dataframe
+  | VDataFrame of to_dataframe
   | VVector of vector
   | VNA of na_type
   | VError of error_info
@@ -284,7 +284,7 @@ T is **dynamically typed** with runtime type checking.
 | `List` | `VList of value list` | Heterogeneous lists |
 | `Dict` | `VDict of (string, value) Hashtbl.t` | Mutable hash table |
 | `Function` | `VFunction of params * body * env` | Closure |
-| `DataFrame` | `VDataFrame of dataframe` | Arrow table or fallback |
+| `DataFrame` | `VDataFrame of to_dataframe` | Arrow table or fallback |
 | `Vector` | `VVector of vector` | Typed array (Int/Float/Bool/String) |
 | `NA` | `VNA of na_type` | Typed missing value |
 | `Error` | `VError of error_info` | Error with code, message, context |
@@ -392,7 +392,7 @@ T leverages Nix to orchestrate computation across multiple runtimes. When a node
 For direct user-facing Arrow file workflows outside pipelines, T also exposes:
 
 - `read_arrow(path)` for Arrow IPC input
-- `write_arrow(dataframe, path)` for Arrow IPC output
+- `write_arrow(to_dataframe, path)` for Arrow IPC output
 
 That means Arrow is used both as an internal storage backend and as an interchange format at the language boundary.
 
@@ -508,7 +508,7 @@ src/packages/
 ├── core/          # Functional utilities
 ├── math/          # Mathematical functions
 ├── stats/         # Statistical functions
-├── dataframe/     # CSV I/O, DataFrame ops
+├── to_dataframe/     # CSV I/O, DataFrame ops
 ├── colcraft/      # Data verbs, window functions
 ├── pipeline/      # Pipeline introspection
 └── explain/       # Debugging tools

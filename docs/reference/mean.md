@@ -10,6 +10,8 @@ The mean is the sum of values divided by the count. This function handles NA val
 
 - **na_rm** (`Bool`): = false Remove NA values before computation.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 

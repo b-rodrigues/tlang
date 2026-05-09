@@ -76,11 +76,11 @@ Duplicate names after cleaning are disambiguated: the first occurrence stays unc
 
 ## Creating DataFrames
 
-You can create DataFrames manually from a list of rows using the `dataframe()` function. Each row can be a Dict or a named List.
+You can create DataFrames manually from a list of rows using the `to_dataframe()` function. Each row can be a Dict or a named List.
 
 ```t
 -- From a list of named Lists (idiomatic row constructor)
-df = dataframe([
+df = to_dataframe([
   [name: "Alice", age: 30, score: 88.5],
   [name: "Bob",   age: 25, score: 92.0]
 ])
@@ -408,29 +408,29 @@ df |> complete($group, nesting($item_id, $item_name))
 
 Create categorical data with defined levels. Factors respect their level order when sorting, rather than alphabetical order.
 
-### factor() — Create a Factor
+### to_factor() — Create a Factor
 
-Creates a factor from a vector or column, optionally specifying levels.
+Creates a to_factor from a vector or column, optionally specifying levels.
 
 ```t
--- Create a factor from a vector
-let f = factor(["low", "high", "medium"], levels = ["low", "medium", "high"])
+-- Create a to_factor from a vector
+let f = to_factor(["low", "high", "medium"], levels = ["low", "medium", "high"])
 
--- Create a factor column using mutate
-df |> mutate($size_fct = factor($size, levels = ["small", "medium", "large"]))
+-- Create a to_factor column using mutate
+df |> mutate($size_fct = to_factor($size, levels = ["small", "medium", "large"]))
 ```
 
-### as_factor() — Coerce to Factor
+### to_factor() — Coerce to Factor
 
-Coerces a column to a factor (categorical) value, deriving levels from the unique values present.
+Coerces a column to a to_factor (categorical) value, deriving levels from the unique values present.
 
 ```t
-df |> mutate($category = as_factor($category))
+df |> mutate($category = to_factor($category))
 ```
 
 ### fct_infreq() — Reorder Levels by Frequency
 
-Reorders factor levels in descending order of frequency.
+Reorders to_factor levels in descending order of frequency.
 
 ```t
 df |> mutate($category = fct_infreq($category))
@@ -618,7 +618,7 @@ Use `explain()` to get structured metadata about any value:
 
 ```t
 e = explain(df)
-e.kind        -- "dataframe"
+e.kind        -- "to_dataframe"
 e.nrow        -- number of rows
 e.ncol        -- number of columns
 e.schema      -- column type information

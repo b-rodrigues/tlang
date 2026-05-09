@@ -114,7 +114,7 @@ The `path` field is the "escape hatch"—it gives you the absolute path to the n
 ### User Guides
 - [API Reference](api-reference.html) — complete function reference by package
 - [Data Manipulation Examples](data_manipulation_examples.html) — practical examples with core data verbs
-- [Factors & Categorical Data](factors.html) — factor creation, level ordering, and `fct_*` helpers
+- [Factors & Categorical Data](factors.html) — to_factor creation, level ordering, and `fct_*` helpers
 - [String Manipulation](string_manipulation.html) — naming rules, examples, and exceptions for text helpers
 - [Pipeline Tutorial](pipeline_tutorial.html) — step-by-step guide to T's pipeline model
 - [Literate Programming with Quarto](literate-programming-quarto.html) — rendering reports from pipelines

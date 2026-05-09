@@ -120,7 +120,7 @@ tlang/
 │       ├── core/           # Functional utilities
 │       ├── math/           # Math functions
 │       ├── stats/          # Statistics
-│       ├── dataframe/      # DataFrame operations
+│       ├── to_dataframe/      # DataFrame operations
 │       ├── colcraft/       # Data verbs
 │       ├── pipeline/       # Pipeline introspection
 │       └── explain/        # Debugging tools
@@ -412,7 +412,7 @@ Fixes #42
 
 ### Process
 
-1. **Choose a package**: `base`, `core`, `math`, `stats`, `dataframe`, `colcraft`, `pipeline`, or `explain`
+1. **Choose a package**: `base`, `core`, `math`, `stats`, `to_dataframe`, `colcraft`, `pipeline`, or `explain`
 2. **Create function file**: `src/packages/<package>/<function_name>.ml` or `.t`
 3. **Implement function**:
    ```ocaml

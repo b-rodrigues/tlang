@@ -10,6 +10,8 @@ Compute fourth standardized moment minus 3.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 

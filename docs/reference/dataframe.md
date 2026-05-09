@@ -1,4 +1,4 @@
-# dataframe
+# to_dataframe
 
 Create a DataFrame
 
@@ -17,16 +17,16 @@ The created DataFrame.
 
 ```t
 # Row-wise construction:
-df = dataframe([
+df = to_dataframe([
 {"a": 1, "b": 2},
 {"a": 3, "b": 4}
 ])
 
 # Column-wise construction (supported for VDict):
-df2 = dataframe([a: [1, 3], b = [2, 4]])
+df2 = to_dataframe([a: [1, 3], b = [2, 4]])
 
 # Scalar values are recycled to match other column lengths:
-df3 = dataframe([x: [1, 2, 3], constant = 0])
+df3 = to_dataframe([x: [1, 2, 3], constant = 0])
 ```
 
 ## See Also

@@ -1,6 +1,6 @@
 # fct_expand
 
-Add explicit factor levels
+Add explicit to_factor levels
 
-Adds extra levels to a factor without changing existing assignments.
+Adds extra levels to a to_factor without changing existing assignments.
 

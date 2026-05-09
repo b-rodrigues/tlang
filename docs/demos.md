@@ -48,7 +48,7 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 ### [Dynamic Lookup & Symbols](metaprogramming.html)
 - **Repo**: `get_sym_demo_t`
 - **Description**: Showcases runtime variable lookup and symbol construction for dynamic orchestration.
-- **Key Features**: `get()`, `sym()`, dynamic node access.
+- **Key Features**: `get()`, `to_symbol()`, dynamic node access.
 
 ---
 

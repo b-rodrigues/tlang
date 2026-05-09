@@ -98,10 +98,10 @@ salary = [1000, 2000, 3000]
 var_name = "salary"
 
 get(var_name)       -- retrieves [1000, 2000, 3000]
-get(sym(var_name))  -- also works with Symbols
+get(to_symbol(var_name))  -- also works with Symbols
 ```
 
-Important: `get()` resolves names in the **calling environment**, not in a data-masking context. To retrieve a column dynamically inside a data verb, use quasiquotation with `!!sym(col)`.
+Important: `get()` resolves names in the **calling environment**, not in a data-masking context. To retrieve a column dynamically inside a data verb, use quasiquotation with `!!to_symbol(col)`.
 
 ## Quasiquotation
 
@@ -162,17 +162,17 @@ print(e)
 
 If `!!name` does not evaluate to a `String` or `Symbol`, a `TypeError` is raised.
 
-### `sym(string_or_symbol)`
+### `to_symbol(string_or_symbol)`
 
-When you have a column or argument name in a string variable, use `sym()` to turn it into a runtime `Symbol` that can be injected with `!!`.
+When you have a column or argument name in a string variable, use `to_symbol()` to turn it into a runtime `Symbol` that can be injected with `!!`.
 
 ```t
 col_name = "mpg"
-expr(select(df, !!sym(col_name)))
+expr(select(df, !!to_symbol(col_name)))
 -- Output: expr(select(df, mpg))
 ```
 
-This is most useful for programmatic code generation. Use `sym()` to turn a string into a label that `!!` can inject as a symbol, or that `get()` can use for variable lookup.
+This is most useful for programmatic code generation. Use `to_symbol()` to turn a string into a label that `!!` can inject as a symbol, or that `get()` can use for variable lookup.
 
 ## Non-Standard Evaluation (NSE)
 
@@ -203,7 +203,7 @@ my_mean = \(df, $col) {
   summarize(df, result = mean(!!col))
 }
 
-df = dataframe([salary: [100, 200, 300]])
+df = to_dataframe([salary: [100, 200, 300]])
 my_mean(df, salary)
 ```
 
@@ -273,7 +273,7 @@ e = expr((add, 1, 2))
 | `quos(...)` | Capture multiple expressions as a List of Quosures. |
 | `eval(e)` | Evaluate Expression `e` in the current env, or Quosure `e` in its captured env. |
 | `get(name)` | Dynamically retrieve a variable's value by String or Symbol name. |
-| `sym(s)` | Convert a String `s` into a Symbol at runtime. |
+| `to_symbol(s)` | Convert a String `s` into a Symbol at runtime. |
 | `!!x` | Evaluate `x` and inject into `expr()`/`quo()`; strips env from quosures. |
 | `!!!x` | Evaluate `x` and splice elements into `expr()`/`quo()`. |
 | `!!name := value` | Use a dynamic String/Symbol as an argument name inside `expr()`/`quo()`. |
@@ -308,5 +308,5 @@ df |> mutate(new = $score * 2)
 ## Best Practices
 
 1.  **Use `quo` by default**: When in doubt, use `quo` instead of `expr`. It ensures the code "remembers" its environment, preventing `NameError` when evaluated in different contexts.
-2.  **Quotation in Functions**: Use `$param` for the common "accept a column name" case. Use `enquo` when you need the caller's full expression, and use `sym()` when you are starting from a computed string.
+2.  **Quotation in Functions**: Use `$param` for the common "accept a column name" case. Use `enquo` when you need the caller's full expression, and use `to_symbol()` when you are starting from a computed string.
 3.  **Dynamic Naming**: Use `!!name := !!value` for maximum flexibility when writing generic data processing functions.

@@ -1,6 +1,6 @@
-# factor
+# to_factor
 
-Create factor values
+Create to_factor values
 
-Converts values to factor-encoded vectors with derived or explicit levels.
+Converts values to to_factor-encoded vectors with derived or explicit levels.
 

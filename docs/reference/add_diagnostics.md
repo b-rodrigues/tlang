@@ -1,4 +1,4 @@
-# add_diagnostics
+# augment
 
 Add Model Diagnostics
 
@@ -18,7 +18,7 @@ The data with added diagnostic columns.
 ## Examples
 
 ```t
-df = add_diagnostics(mtcars, model)
+df = augment(mtcars, model)
 ```
 
 ## See Also

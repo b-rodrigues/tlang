@@ -8,7 +8,7 @@ Expands a nested list-column (produced by nest() or similar) back into its const
 
 - **df** (`DataFrame`): The DataFrame containing a nested column.
 
-- **cols** (`Column`): Selection column to unnest (positional or 'cols=' arg).
+- **cols** (`Column`): Selection Column to unnest (positional or 'cols=' arg).
 
 
 ## Returns

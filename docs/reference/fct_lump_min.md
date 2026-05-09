@@ -1,6 +1,6 @@
 # fct_lump_min
 
-Lump factor levels below a minimum count
+Lump to_factor levels below a minimum count
 
-Collapses factor levels whose counts fall below a minimum threshold.
+Collapses to_factor levels whose counts fall below a minimum threshold.
 
