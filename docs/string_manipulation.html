@@ -53,7 +53,7 @@ str_substring(&quot;hello&quot;, 1, 4) -- &quot;ell&quot;
 str_replace(&quot;banana&quot;, &quot;a&quot;, &quot;o&quot;) -- &quot;bonono&quot;
 str_trim(&quot;  hello  &quot;)       -- &quot;hello&quot;
 str_join([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;], &quot;-&quot;) -- &quot;a-b-c&quot;
-str_string(42)               -- &quot;42&quot;
+to_string(42)               -- &quot;42&quot;
 str_split(&quot;a,b,c&quot;, &quot;,&quot;)    -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre>
 <hr />
 <h2 id="functions-that-use-str_">Functions That Use
@@ -68,7 +68,7 @@ str_split(&quot;a,b,c&quot;, &quot;,&quot;)    -- [&quot;a&quot;, &quot;b&quot;,
 <li><code>str_words()</code></li>
 <li><code>str_sprintf()</code></li>
 <li><code>str_join()</code></li>
-<li><code>str_string()</code></li>
+<li><code>to_string()</code></li>
 <li><code>str_split()</code></li>
 </ul>
 <p>The <code>strsplit()</code> name was normalized to
@@ -124,7 +124,7 @@ str_split(&quot;a,b,c&quot;, &quot;,&quot;)</code></pre>
 <h3 id="formatting-and-conversion">Formatting and conversion</h3>
 <pre class="t"><code>str_sprintf(&quot;Hello, %s!&quot;, &quot;world&quot;)
 str_join([&quot;red&quot;, &quot;green&quot;, &quot;blue&quot;], &quot;, &quot;)
-str_string(3.14)</code></pre>
+to_string(3.14)</code></pre>
 <hr />
 <h2 id="selection-helpers-vs-string-helpers">Selection Helpers vs String
 Helpers</h2>
@@ -149,7 +149,7 @@ href="reference/substring.html"><code>str_substring</code></a></li>
 <li><a href="reference/replace.html"><code>str_replace</code></a></li>
 <li><a href="reference/sprintf.html"><code>str_sprintf</code></a></li>
 <li><a href="reference/join.html"><code>str_join</code></a></li>
-<li><a href="reference/string.html"><code>str_string</code></a></li>
+<li><a href="reference/string.html"><code>to_string</code></a></li>
 <li><a href="reference/strsplit.html"><code>str_split</code></a></li>
 <li><a href="reference/contains.html"><code>contains</code></a></li>
 <li><a

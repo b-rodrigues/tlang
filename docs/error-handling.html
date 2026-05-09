@@ -142,7 +142,7 @@ actual argument count - Suggests correct usage</p>
 <h3 id="na-errors">6. NA Errors</h3>
 <p>Occur when NA values are encountered without explicit handling:</p>
 <pre class="t"><code>mean([1, NA, 3])
--- Error(AggregationError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")
+-- Error(AggregationError: &quot;Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.&quot;)
 
 1 + NA
 -- Error(NAPredicateError: Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.)</code></pre>
@@ -459,11 +459,11 @@ model, or a validation report based on the data’s characteristics.</p>
   -- 3. Precise branching: Choose the best action for each state
   final_result = node(command = 
     quality_status ?|&gt; \(outcome) match(outcome) {
-      -- Full Case: Sufficient data and factor levels
+      -- Full Case: Sufficient data and to_factor levels
       [type: &quot;high_quality&quot;, data: df] =&gt; 
         lm(df, $yield ~ $temp + $segment),
       
-      -- Fallback Case: Enough data, but not enough factor diversity
+      -- Fallback Case: Enough data, but not enough to_factor diversity
       -- We drop the &#39;segment&#39; predictor to avoid model failure
       [type: &quot;low_diversity&quot;, data: df] =&gt; 
         lm(df, $yield ~ $temp),
@@ -476,14 +476,14 @@ model, or a validation report based on the data’s characteristics.</p>
 }</code></pre>
 <p><strong>Why use this?</strong>: * <strong>Adaptive Modeling</strong>:
 Your pipeline automatically scales its complexity to match the quality
-of the incoming data, avoiding “singular matrix” or “one level factor”
-errors. * <strong>Operational Intelligence</strong>: Instead of the
-whole pipeline failing due to a minor data shift (like one category
-disappearing from today’s extract), the system gracefully degrades its
-service while still providing a result. * <strong>Auditability</strong>:
-Every run clearly states which path was taken through the use of
-descriptive tags like <code>low_diversity</code> or
-<code>high_quality</code>.</p>
+of the incoming data, avoiding “singular matrix” or “one level
+to_factor” errors. * <strong>Operational Intelligence</strong>: Instead
+of the whole pipeline failing due to a minor data shift (like one
+category disappearing from today’s extract), the system gracefully
+degrades its service while still providing a result. *
+<strong>Auditability</strong>: Every run clearly states which path was
+taken through the use of descriptive tags like
+<code>low_diversity</code> or <code>high_quality</code>.</p>
 <hr />
 <h2 id="comparing-error-handling-tools">Comparing Error Handling
 Tools</h2>
@@ -533,7 +533,7 @@ success and various error states.</p>
 <pre class="t"><code>&quot;Age: &quot; + 25
 -- Error(TypeError: Cannot add String and Int)</code></pre>
 <p><strong>Solution</strong>: Use separate print statements or
-<code>str_string()</code> for manual conversion.</p>
+<code>to_string()</code> for manual conversion.</p>
 <pre class="t"><code>print(&quot;Age: &quot;)
 print(25)
 
@@ -592,7 +592,7 @@ else
 Messages</h3>
 <p><strong>Good</strong>: Clear, actionable messages</p>
 <pre class="t"><code>if (age &lt; 0 or age &gt; 150)
-  error(&quot;ValidationError&quot;, str_sprintf(&quot;Age must be between 0 and 150, got: %s&quot;, str_string(age)))</code></pre>
+  error(&quot;ValidationError&quot;, str_sprintf(&quot;Age must be between 0 and 150, got: %s&quot;, to_string(age)))</code></pre>
 <p><strong>Bad</strong>: Vague messages</p>
 <pre class="t"><code>if (age &lt; 0 or age &gt; 150)
   error(&quot;Invalid age&quot;)</code></pre>

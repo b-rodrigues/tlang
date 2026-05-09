@@ -265,7 +265,7 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb4-1"><a href
 <span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>  | VList <span class="kw">of</span> value <span class="dt">list</span></span>
 <span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>  | VDict <span class="kw">of</span> (<span class="dt">string</span>, value) <span class="dt">Hashtbl</span>.t</span>
 <span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>  | VFunction <span class="kw">of</span> <span class="dt">string</span> <span class="dt">list</span> * expr * environment</span>
-<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  | VDataFrame <span class="kw">of</span> dataframe</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  | VDataFrame <span class="kw">of</span> to_dataframe</span>
 <span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>  | VVector <span class="kw">of</span> vector</span>
 <span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>  | VNA <span class="kw">of</span> na_type</span>
 <span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>  | VError <span class="kw">of</span> error_info</span>
@@ -373,7 +373,7 @@ checking.</p>
 </tr>
 <tr>
 <td><code>DataFrame</code></td>
-<td><code>VDataFrame of dataframe</code></td>
+<td><code>VDataFrame of to_dataframe</code></td>
 <td>Arrow table or fallback</td>
 </tr>
 <tr>
@@ -483,7 +483,8 @@ writing the node result using the specified serializer.</li>
 exposes:</p>
 <ul>
 <li><code>read_arrow(path)</code> for Arrow IPC input</li>
-<li><code>write_arrow(dataframe, path)</code> for Arrow IPC output</li>
+<li><code>write_arrow(to_dataframe, path)</code> for Arrow IPC
+output</li>
 </ul>
 <p>That means Arrow is used both as an internal storage backend and as
 an interchange format at the language boundary.</p>
@@ -596,7 +597,7 @@ into Arrow column - If fallback: Extracted OCaml list</p>
 ├── core/          # Functional utilities
 ├── math/          # Mathematical functions
 ├── stats/         # Statistical functions
-├── dataframe/     # CSV I/O, DataFrame ops
+├── to_dataframe/     # CSV I/O, DataFrame ops
 ├── colcraft/      # Data verbs, window functions
 ├── pipeline/      # Pipeline introspection
 └── explain/       # Debugging tools</code></pre>

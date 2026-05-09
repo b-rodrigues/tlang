@@ -38,15 +38,14 @@ Orchestration Engine for Polyglot Data Science</h1>
 <p><strong>T</strong> is an experimental orchestration engine designed
 for declarative, reproducible pipelines. It provides a functional
 Domain-Specific Language (DSL) that coordinates R, Python, and Shell
-nodes—with Julia support planned—within a Nix-managed
-infrastructure.</p>
+nodes—as well as Julia—within a Nix-managed infrastructure.</p>
 <p>Unlike traditional scripting languages, T is built to be a
 <strong>specifications-ready engine</strong>, making data analysis
 <strong>explicit, inspectable, and pipeline-oriented</strong>. This
 unique architecture ensures that humans and LLMs can collaborate on
 defining high-level intent while T handles the low-level orchestration
 and environmental consistency.</p>
-<p><strong>Status:</strong> Version 0.51.4 “Kaméhaméha”, latest
+<p><strong>Status:</strong> Version 0.52.0 “Kaméhaméha”, latest
 stabilization release.</p>
 <hr />
 <h2 id="the-polyglot-pipeline">The Polyglot Pipeline</h2>
@@ -109,8 +108,8 @@ future where humans and AI collaborate on complex data workflows.</li>
 <h2 id="foreign-language-nodes-deserialization">Foreign Language Nodes
 &amp; Deserialization</h2>
 <p>When you define a node using <code>node()</code>, <code>rn()</code>
-(R), <code>pyn()</code> (Python), or <code>shn()</code> (Shell)—with
-Julia support planned—T treats the result as a first-class
+(R), <code>pyn()</code> (Python), <code>jln()</code> (Julia), or
+<code>shn()</code> (Shell)—T treats the result as a first-class
 <strong>Node</strong> object. These objects transition through two main
 states:</p>
 <ol type="1">
@@ -211,8 +210,8 @@ Emacs, and VS Code</li>
 reference by package</li>
 <li><a href="data_manipulation_examples.html">Data Manipulation
 Examples</a> — practical examples with core data verbs</li>
-<li><a href="factors.html">Factors &amp; Categorical Data</a> — factor
-creation, level ordering, and <code>fct_*</code> helpers</li>
+<li><a href="factors.html">Factors &amp; Categorical Data</a> —
+to_factor creation, level ordering, and <code>fct_*</code> helpers</li>
 <li><a href="string_manipulation.html">String Manipulation</a> — naming
 rules, examples, and exceptions for text helpers</li>
 <li><a href="pipeline_tutorial.html">Pipeline Tutorial</a> —

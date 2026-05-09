@@ -56,7 +56,7 @@ assertions</li>
 functions</li>
 <li><a href="#stats-package">Stats Package</a> — Statistical
 functions</li>
-<li><a href="#dataframe-package">DataFrame Package</a> — CSV I/O and
+<li><a href="#to_dataframe-package">DataFrame Package</a> — CSV I/O and
 DataFrame operations</li>
 <li><a href="#colcraft-package">Colcraft Package</a> — Data manipulation
 verbs and window functions</li>
@@ -73,8 +73,8 @@ debugging tools</li>
 </ul>
 <hr />
 <p>For generated one-page documentation for every exported function,
-including newer Chrono, string, join, factor, and helper APIs, use the
-<a href="reference/index.html">Function Reference</a>.</p>
+including newer Chrono, string, join, to_factor, and helper APIs, use
+the <a href="reference/index.html">Function Reference</a>.</p>
 <hr />
 <h2 id="core-syntax-lists-dictionaries-and-blocks">Core Syntax: Lists,
 Dictionaries, and Blocks</h2>
@@ -203,9 +203,9 @@ to_integer(3.14)         -- 3
 to_integer(&quot;hello&quot;)      -- NA(Int)
 to_integer([&quot;1&quot;, &quot;2&quot;])   -- [1, 2]</code></pre>
 <hr />
-<h3 id="to_floatvalue-to_numericvalue"><code>to_float(value)</code> /
-<code>to_numeric(value)</code></h3>
-<p>Convert a value to a float robustly. <code>to_numeric</code> is an
+<h3 id="to_floatvalue-to_floatvalue"><code>to_float(value)</code> /
+<code>to_float(value)</code></h3>
+<p>Convert a value to a float robustly. <code>to_float</code> is an
 alias for <code>to_float</code>. Handles strings with spaces,
 percentages, commas, and recognizes ‘TRUE’/‘FALSE’. Also propagates
 vectorization over Collections.</p>
@@ -221,13 +221,13 @@ Vector)</li>
 <pre class="t"><code>to_float(&quot;3,14&quot;)         -- 3.14
 to_float(&quot;15%&quot;)          -- 15.0
 to_float(&quot; 1 200.5 &quot;)    -- 1200.5
-to_numeric(&quot;TRUE&quot;)       -- 1.0
-to_numeric(&quot;F&quot;)          -- 0.0
+to_float(&quot;TRUE&quot;)       -- 1.0
+to_float(&quot;F&quot;)          -- 0.0
 to_float(42)             -- 42.0
 to_float(&quot;hello&quot;)        -- NA(Float)
-to_numeric([&quot;1&quot;, &quot;2&quot;])   -- [1.0, 2.0]</code></pre>
+to_float([&quot;1&quot;, &quot;2&quot;])   -- [1.0, 2.0]</code></pre>
 <hr />
-<h3 id="symvalue"><code>sym(value)</code></h3>
+<h3 id="to_symbolvalue"><code>to_symbol(value)</code></h3>
 <p>Convert a string name into a <code>Symbol</code> so it can be
 injected into quoted code with <code>!!</code>. Existing symbols pass
 through unchanged.</p>
@@ -238,10 +238,10 @@ through unchanged.</p>
 <p><strong>Returns:</strong></p>
 <p><code>Symbol</code></p>
 <p><strong>Examples:</strong></p>
-<pre class="t"><code>sym(&quot;mpg&quot;)                           -- mpg
-expr(select(df, !!sym(&quot;mpg&quot;)))       -- expr(select(df, mpg))
+<pre class="t"><code>to_symbol(&quot;mpg&quot;)                           -- mpg
+expr(select(df, !!to_symbol(&quot;mpg&quot;)))       -- expr(select(df, mpg))
 name = &quot;result&quot;
-expr(f(!!sym(name) := 42))           -- expr(f(result = 42))</code></pre>
+expr(f(!!to_symbol(name) := 42))           -- expr(f(result = 42))</code></pre>
 <hr />
 <h3 id="argsfn"><code>args(fn)</code></h3>
 <p>Returns a dictionary of parameter names and their expected types for
@@ -265,7 +265,7 @@ id="ifelsecondition-true_val-false_val-missing-na-out_type-na"><code>ifelse(cond
 <p>Vectorized conditional selection.</p>
 <hr />
 <h3
-id="casewhen...formulas-.default-na"><code>casewhen(...formulas, .default = NA)</code></h3>
+id="case_when...formulas-.default-na"><code>case_when(...formulas, .default = NA)</code></h3>
 <p>Vectorized multi-condition switch. Uses
 <code>condition ~ value</code> formulas.</p>
 <hr />
@@ -654,6 +654,69 @@ id="assertcondition-assertcondition-message"><code>assert(condition)</code>
 assert(1 &gt; 2)                     -- Error(AssertionError)
 assert(false, &quot;Custom message&quot;)   -- Error(AssertionError: Custom message)</code></pre>
 <hr />
+<h3
+id="assert_file_existspath-assert_file_existspath-message"><code>assert_file_exists(path)</code>
+/ <code>assert_file_exists(path, message)</code></h3>
+<p>Assert that a regular file exists at <code>path</code>.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — File path</li>
+<li><code>message</code> (optional) — Custom assertion message</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>true</code> if the file exists</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert_file_exists(&quot;output.csv&quot;)
+assert_file_exists(&quot;report.html&quot;, &quot;report generation failed&quot;)</code></pre>
+<hr />
+<h3
+id="assert_dir_existspath-assert_dir_existspath-message"><code>assert_dir_exists(path)</code>
+/ <code>assert_dir_exists(path, message)</code></h3>
+<p>Assert that a directory exists at <code>path</code>.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Directory path</li>
+<li><code>message</code> (optional) — Custom assertion message</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>true</code> if the directory exists</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert_dir_exists(&quot;results&quot;)
+assert_dir_exists(&quot;artifacts&quot;, &quot;artifact directory was not created&quot;)</code></pre>
+<hr />
+<h3
+id="assert_size_of_filepath-size-assert_size_of_filepath-size-message"><code>assert_size_of_file(path, size)</code>
+/ <code>assert_size_of_file(path, size, message)</code></h3>
+<p>Assert that a regular file exists and has the expected size in
+bytes.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — File path</li>
+<li><code>size</code> — Expected size in bytes</li>
+<li><code>message</code> (optional) — Custom assertion message</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>true</code> if the file exists and matches the expected
+size</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert_size_of_file(&quot;output.csv&quot;, 128)
+assert_size_of_file(&quot;report.html&quot;, 0, &quot;report should be empty&quot;)</code></pre>
+<hr />
+<h3
+id="assert_non_empty_filepath-assert_non_empty_filepath-message"><code>assert_non_empty_file(path)</code>
+/ <code>assert_non_empty_file(path, message)</code></h3>
+<p>Assert that a regular file exists and contains at least one byte.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — File path</li>
+<li><code>message</code> (optional) — Custom assertion message</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>true</code> if the file exists and is non-empty</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert_non_empty_file(&quot;output.csv&quot;)
+assert_non_empty_file(&quot;plot.png&quot;, &quot;plot was not written&quot;)</code></pre>
+<hr />
 <h3 id="na"><code>NA</code></h3>
 <p>Untyped missing value constant.</p>
 <p><strong>Examples:</strong></p>
@@ -815,10 +878,10 @@ whose tangent is y/x.</p>
 <code>acosh(x)</code> / <code>atanh(x)</code></h3>
 <p>Hyperbolic and inverse hyperbolic functions.</p>
 <hr />
-<h3 id="floorx-ceilingx-ceilx"><code>floor(x)</code> /
-<code>ceiling(x)</code> / <code>ceil(x)</code></h3>
-<p>Rounding to integers. <code>ceiling</code> and <code>ceil</code> are
-aliases.</p>
+<h3 id="floorx-ceilingx-ceilingx"><code>floor(x)</code> /
+<code>ceiling(x)</code> / <code>ceiling(x)</code></h3>
+<p>Rounding to integers. <code>ceiling</code> and <code>ceiling</code>
+are aliases.</p>
 <hr />
 <h3
 id="roundx-digits-0-signifx-digits-6"><code>round(x, digits = 0)</code>
@@ -865,46 +928,53 @@ pow(2, -1)   -- 0.5</code></pre>
 missingness via an <code>na_rm</code> parameter.</p>
 <h3 id="descriptive-statistics">Descriptive Statistics</h3>
 <h4
-id="medianx-na_rm-false-meanx-na_rm-false"><code>median(x, na_rm = false)</code>
-/ <code>mean(x, na_rm = false)</code></h4>
+id="medianx-na_rm-false-weights-na-meanx-na_rm-false-weights-na"><code>median(x, na_rm = false, weights = NA)</code>
+/ <code>mean(x, na_rm = false, weights = NA)</code></h4>
 <h4
 id="minx-na_rm-false-maxx-na_rm-false-rangex-na_rm-false"><code>min(x, na_rm = false)</code>
 / <code>max(x, na_rm = false)</code> /
 <code>range(x, na_rm = false)</code></h4>
-<p>Basic descriptive statistics. <code>range</code> returns a List of
-[min, max].</p>
+<p>Basic descriptive statistics. <code>mean</code> and
+<code>median</code> also accept optional non-negative observation
+weights. <code>range</code> returns a List of [min, max].</p>
 <hr />
 <h4
-id="varx-na_rm-false-sdx-na_rm-false-cvx-na_rm-false"><code>var(x, na_rm = false)</code>
-/ <code>sd(x, na_rm = false)</code> /
-<code>cv(x, na_rm = false)</code></h4>
-<p>Variance, standard deviation, and coefficient of variation
-(sd/mean).</p>
+id="varx-na_rm-false-weights-na-sdx-na_rm-false-weights-na-cvx-na_rm-false-weights-na"><code>var(x, na_rm = false, weights = NA)</code>
+/ <code>sd(x, na_rm = false, weights = NA)</code> /
+<code>cv(x, na_rm = false, weights = NA)</code></h4>
+<p>Variance, standard deviation, and coefficient of variation (sd/mean).
+These also accept optional non-negative observation weights. The
+weighted <code>sd</code>/<code>var</code> path uses the weighted
+population denominator (<code>sum(weights)</code>), while the unweighted
+path uses sample formulas.</p>
 <hr />
 <h4
-id="iqrx-na_rm-false-madx-na_rm-false"><code>iqr(x, na_rm = false)</code>
+id="iqrx-na_rm-false-weights-na-madx-na_rm-false"><code>iqr(x, na_rm = false, weights = NA)</code>
 / <code>mad(x, na_rm = false)</code></h4>
-<p>Interquartile range and Median Absolute Deviation (scaled by
-1.4826).</p>
+<p>Interquartile range and Median Absolute Deviation (scaled by 1.4826).
+<code>iqr</code> accepts optional non-negative observation weights.</p>
 <hr />
 <h4
-id="fivenumx-na_rm-false"><code>fivenum(x, na_rm = false)</code></h4>
+id="fivenumx-na_rm-false-weights-na"><code>fivenum(x, na_rm = false, weights = NA)</code></h4>
 <p>Tukey’s five-number summary (min, lower-hinge, median, upper-hinge,
-max).</p>
+max), with optional non-negative observation weights.</p>
 <hr />
 <h4
-id="skewnessx-na_rm-false-kurtosisx-na_rm-false"><code>skewness(x, na_rm = false)</code>
-/ <code>kurtosis(x, na_rm = false)</code></h4>
-<p>Skewness and excess kurtosis.</p>
+id="skewnessx-na_rm-false-weights-na-kurtosisx-na_rm-false-weights-na"><code>skewness(x, na_rm = false, weights = NA)</code>
+/ <code>kurtosis(x, na_rm = false, weights = NA)</code></h4>
+<p>Skewness and excess kurtosis, with optional non-negative observation
+weights.</p>
 <hr />
 <h4
-id="trimmed_meanx-trim-0.1-na_rm-false"><code>trimmed_mean(x, trim = 0.1, na_rm = false)</code></h4>
+id="trimmed_meanx-trim-0.1-na_rm-false-weights-na"><code>trimmed_mean(x, trim = 0.1, na_rm = false, weights = NA)</code></h4>
 <p>Mean calculated after trimming a fraction of observations from each
-end.</p>
+end. Optional weights affect the trim cut points and the retained
+mean.</p>
 <hr />
 <h4
-id="quantilex-p-na_rm-false"><code>quantile(x, p, na_rm = false)</code></h4>
-<p>Compute quantile/percentile (p between 0 and 1).</p>
+id="quantilex-p-na_rm-false-weights-na"><code>quantile(x, p, na_rm = false, weights = NA)</code></h4>
+<p>Compute quantile/percentile (p between 0 and 1), with optional
+non-negative observation weights.</p>
 <hr />
 <h4 id="modex"><code>mode(x)</code></h4>
 <p>Return the most frequent value. Does not currently support
@@ -918,8 +988,11 @@ id="quantilex-p-na_rm-false"><code>quantile(x, p, na_rm = false)</code></h4>
 to [0, 1].</p>
 <hr />
 <h4
-id="winsorizex-probs-0.05-0.95-na_rm-false"><code>winsorize(x, probs = [0.05, 0.95], na_rm = false)</code></h4>
-<p>Replace extreme values with quantiles.</p>
+id="winsorizex-limits-0.05-0.05-na_rm-false-weights-na"><code>winsorize(x, limits = [0.05, 0.05], na_rm = false, weights = NA)</code></h4>
+<p>Clamp values using one limit or a two-element vector
+<code>[lower_tail_fraction, upper_tail_fraction]</code>, with each
+fraction in <code>[0, 0.5)</code>. Optional weights affect the cut
+points only; zero-weight observations remain in the output.</p>
 <hr />
 <h4
 id="huber_lossactual-predicted-delta-1.0"><code>huber_loss(actual, predicted, delta = 1.0)</code></h4>
@@ -933,9 +1006,11 @@ id="huber_lossactual-predicted-delta-1.0"><code>huber_loss(actual, predicted, de
 Chi-squared distributions.</p>
 <hr />
 <h3 id="modeling">Modeling</h3>
-<h4 id="lmdata-formula"><code>lm(data, formula)</code></h4>
-<p>Fit a linear regression model (OLS). The formula is a
-<code>Formula</code> value such as <code>mpg ~ wt + hp</code>.</p>
+<h4
+id="lmdata-formula-weights-na"><code>lm(data, formula, weights = NA)</code></h4>
+<p>Fit a linear regression model. Without weights this is OLS; with
+<code>weights</code> it performs weighted least squares. The formula is
+a <code>Formula</code> value such as <code>mpg ~ wt + hp</code>.</p>
 <hr />
 <h4 id="summarymodel-fit_statsmodel"><code>summary(model)</code> /
 <code>fit_stats(model)</code></h4>
@@ -951,7 +1026,7 @@ id="predictdata-model-scoredata-model"><code>predict(data, model)</code>
 alias.</p>
 <hr />
 <h4
-id="add_diagnosticsmodel-data-augmentmodel-data"><code>add_diagnostics(model, data)</code>
+id="augmentmodel-data-augmentmodel-data"><code>augment(model, data)</code>
 / <code>augment(model, data)</code></h4>
 <p>Augment data with per-observation diagnostics: <code>.fitted</code>,
 <code>.resid</code>, <code>.hat</code>, <code>.sigma</code>,
@@ -973,7 +1048,9 @@ id="coefmodel-residualsmodel-vcovmodel-df_residualmodel"><code>coef(model)</code
 <h4 id="t_read_onnxpath-t_read_pmmlpath"><code>t_read_onnx(path)</code>
 / <code>t_read_pmml(path)</code></h4>
 <p>Import pre-trained models from ONNX or PMML formats for native
-scoring.</p>
+scoring. Julia nodes can also consume <code>^onnx</code> artifacts
+through <code>ONNXRunTime.jl</code>; ONNX export from Julia remains
+explicitly unsupported.</p>
 <hr />
 <h3
 id="cutx-breaks-...-polyx-degree-..."><code>cut(x, breaks, ...)</code> /
@@ -983,7 +1060,7 @@ id="cutx-breaks-...-polyx-degree-..."><code>cut(x, breaks, ...)</code> /
 <hr />
 <h2 id="dataframe-package">DataFrame Package</h2>
 <p>CSV I/O and DataFrame introspection.</p>
-<h3 id="dataframedata"><code>dataframe(data)</code></h3>
+<h3 id="to_dataframedata"><code>to_dataframe(data)</code></h3>
 <p>Constructs a DataFrame from either a list of rows (Dictionaries) or a
 Dictionary of columns (Vectors/Lists).</p>
 <p><strong>Parameters:</strong></p>
@@ -995,10 +1072,10 @@ Dictionary (column-wise)</li>
 <p><code>DataFrame</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>-- Column-wise
-df = dataframe([x: [1, 2], y: [3, 4]])
+df = to_dataframe([x: [1, 2], y: [3, 4]])
 
 -- Row-wise
-df = dataframe([
+df = to_dataframe([
   [name: &quot;Alice&quot;, age: 30],
   [name: &quot;Bob&quot;, age: 25]
 ])</code></pre>
@@ -1025,79 +1102,81 @@ names (default: false)</li>
 <p>Read a Parquet file into a DataFrame.</p>
 <hr />
 <h3
-id="read_arrowpath-write_arrowdataframe-path"><code>read_arrow(path)</code>
-/ <code>write_arrow(dataframe, path)</code></h3>
+id="read_arrowpath-write_arrowto_dataframe-path"><code>read_arrow(path)</code>
+/ <code>write_arrow(to_dataframe, path)</code></h3>
 <p>Read or write Arrow IPC files.</p>
 <hr />
 <h3
-id="write_csvdataframe-path-separator"><code>write_csv(dataframe, path, separator = ",")</code></h3>
+id="write_csvto_dataframe-path-separator"><code>write_csv(to_dataframe, path, separator = ",")</code></h3>
 <p>Write a DataFrame to a CSV file.</p>
 <hr />
-<h3 id="nrowdataframe-ncoldataframe"><code>nrow(dataframe)</code> /
-<code>ncol(dataframe)</code></h3>
+<h3
+id="nrowto_dataframe-ncolto_dataframe"><code>nrow(to_dataframe)</code> /
+<code>ncol(to_dataframe)</code></h3>
 <p>Get number of rows or columns.</p>
 <hr />
-<h3 id="colnamesdataframe"><code>colnames(dataframe)</code></h3>
+<h3 id="colnamesto_dataframe"><code>colnames(to_dataframe)</code></h3>
 <p>Get column names as a List of strings.</p>
 <hr />
 <h3 id="clean_colnamesx"><code>clean_colnames(x)</code></h3>
 <p>Standardizes column names using a snake_case convention. Works on
 DataFrames or Lists of strings.</p>
 <hr />
-<h3 id="glimpsedataframe"><code>glimpse(dataframe)</code></h3>
+<h3 id="glimpseto_dataframe"><code>glimpse(to_dataframe)</code></h3>
 <p>Prints a summary of the DataFrame structure, including dimensions,
 column names, types, and first few values.</p>
 <hr />
-<h3 id="pulldataframe-column"><code>pull(dataframe, column)</code></h3>
+<h3
+id="pullto_dataframe-column"><code>pull(to_dataframe, column)</code></h3>
 <p>Extracts a single column as a Vector.</p>
 <hr />
 <h3
-id="to_arraydataframe-columns-na"><code>to_array(dataframe, columns = NA)</code></h3>
+id="to_arrayto_dataframe-columns-na"><code>to_array(to_dataframe, columns = NA)</code></h3>
 <p>Converts numeric columns of a DataFrame to a matrix (NDArray).</p>
 <hr />
-<h3 id="ncoldataframe"><code>ncol(dataframe)</code></h3>
+<h3 id="ncolto_dataframe"><code>ncol(to_dataframe)</code></h3>
 <p>Get number of columns.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>dataframe</code> — DataFrame</li>
+<li><code>to_dataframe</code> — DataFrame</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>Int</code> — Column count</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>ncol(df)  -- 5</code></pre>
 <hr />
-<h3 id="colnamesdataframe-1"><code>colnames(dataframe)</code></h3>
+<h3 id="colnamesto_dataframe-1"><code>colnames(to_dataframe)</code></h3>
 <p>Get column names.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>dataframe</code> — DataFrame</li>
+<li><code>to_dataframe</code> — DataFrame</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>List of Strings</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>colnames(df)  -- [&quot;name&quot;, &quot;age&quot;, &quot;dept&quot;, &quot;salary&quot;]</code></pre>
 <hr />
-<h3 id="glimpsedataframe-1"><code>glimpse(dataframe)</code></h3>
+<h3 id="glimpseto_dataframe-1"><code>glimpse(to_dataframe)</code></h3>
 <p>Get a compact overview of a DataFrame, showing column names, types,
 and example values. Similar to dplyr’s <code>glimpse()</code>.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>dataframe</code> — DataFrame</li>
+<li><code>to_dataframe</code> — DataFrame</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>Dict with <code>kind</code>, <code>nrow</code>, <code>ncol</code>,
 and <code>columns</code> (list of column summaries)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>glimpse(df)
--- {`kind`: &quot;dataframe&quot;, `nrow`: 100, `ncol`: 4, `columns`: [&quot;name &lt;String&gt; ...&quot;, &quot;age &lt;Int&gt; ...&quot;, ...]}</code></pre>
+-- {`kind`: &quot;to_dataframe&quot;, `nrow`: 100, `ncol`: 4, `columns`: [&quot;name &lt;String&gt; ...&quot;, &quot;age &lt;Int&gt; ...&quot;, ...]}</code></pre>
 <hr />
 <h3
-id="clean_colnamesdataframe-clean_colnamesnames"><code>clean_colnames(dataframe)</code>
+id="clean_colnamesto_dataframe-clean_colnamesnames"><code>clean_colnames(to_dataframe)</code>
 / <code>clean_colnames(names)</code></h3>
 <p>Normalize column names to safe identifiers.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>dataframe</code> — DataFrame, OR</li>
+<li><code>to_dataframe</code> — DataFrame, OR</li>
 <li><code>names</code> — List of Strings</li>
 </ul>
 <p><strong>Returns:</strong></p>
@@ -1122,11 +1201,11 @@ df2 = clean_colnames(df)  -- DataFrame with cleaned column names</code></pre>
 <p>Data manipulation verbs and window functions.</p>
 <h3 id="data-verbs">Data Verbs</h3>
 <h4
-id="selectdataframe-...columns"><code>select(dataframe, ...columns)</code></h4>
+id="selectto_dataframe-...columns"><code>select(to_dataframe, ...columns)</code></h4>
 <p>Select columns by name. Supports dollar-prefix NSE syntax.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>dataframe</code> — DataFrame</li>
+<li><code>to_dataframe</code> — DataFrame</li>
 <li><code>...columns</code> — Column references
 (<code>$name</code>)</li>
 </ul>
@@ -1137,12 +1216,12 @@ id="selectdataframe-...columns"><code>select(dataframe, ...columns)</code></h4>
 df |&gt; select($dept)</code></pre>
 <hr />
 <h4
-id="filterdataframe-predicate"><code>filter(dataframe, predicate)</code></h4>
+id="filterto_dataframe-predicate"><code>filter(to_dataframe, predicate)</code></h4>
 <p>Filter rows by condition. Supports NSE expressions with dollar-prefix
 column references.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>dataframe</code> — DataFrame</li>
+<li><code>to_dataframe</code> — DataFrame</li>
 <li><code>predicate</code> — NSE expression
 (<code>$age &gt; 25</code>)</li>
 </ul>
@@ -1154,15 +1233,15 @@ df |&gt; filter($dept == &quot;Engineering&quot;)
 df |&gt; filter($salary &gt; 50000 and $active == true)</code></pre>
 <hr />
 <h4
-id="mutatedataframe-col-expr-mutatedataframe-new_col-fn"><code>mutate(dataframe, $col = expr)</code>
-/ <code>mutate(dataframe, new_col, fn)</code></h4>
+id="mutateto_dataframe-col-expr-mutateto_dataframe-new_col-fn"><code>mutate(to_dataframe, $col = expr)</code>
+/ <code>mutate(to_dataframe, new_col, fn)</code></h4>
 <p>Add or transform a column. Supports <code>$col = expr</code>
 named-arg syntax with NSE.</p>
 <p><strong>Parameters (named-arg form):</strong> -
-<code>dataframe</code> — DataFrame - <code>$col = expr</code> — Column
-name from <code>$col</code>, value from NSE expression</p>
+<code>to_dataframe</code> — DataFrame - <code>$col = expr</code> —
+Column name from <code>$col</code>, value from NSE expression</p>
 <p><strong>Parameters (positional form):</strong> -
-<code>dataframe</code> — DataFrame - <code>new_col</code> — Column
+<code>to_dataframe</code> — DataFrame - <code>new_col</code> — Column
 reference (<code>$bonus</code>) - <code>fn</code> — Function taking row
 dict: <code>\(row) ...</code>, OR - <code>value</code> — Constant value
 for all rows</p>
@@ -1180,11 +1259,11 @@ df |&gt; mutate($bonus, \(row) row.salary * 0.1)
 df |&gt; group_by($dept) |&gt; mutate($dept_size, \(g) nrow(g))</code></pre>
 <hr />
 <h4
-id="arrangedataframe-column-direction-asc"><code>arrange(dataframe, column, direction = "asc")</code></h4>
+id="arrangeto_dataframe-column-direction-asc"><code>arrange(to_dataframe, column, direction = "asc")</code></h4>
 <p>Sort rows by column. Supports dollar-prefix NSE for column names.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>dataframe</code> — DataFrame</li>
+<li><code>to_dataframe</code> — DataFrame</li>
 <li><code>column</code> — Column reference (<code>$age</code>)</li>
 <li><code>direction</code> (optional) — “asc” or “desc” (default:
 “asc”)</li>
@@ -1196,12 +1275,12 @@ id="arrangedataframe-column-direction-asc"><code>arrange(dataframe, column, dire
 df |&gt; arrange($salary, &quot;desc&quot;)</code></pre>
 <hr />
 <h4
-id="group_bydataframe-...columns"><code>group_by(dataframe, ...columns)</code></h4>
+id="group_byto_dataframe-...columns"><code>group_by(to_dataframe, ...columns)</code></h4>
 <p>Group by one or more columns. Supports dollar-prefix NSE for column
 names.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>dataframe</code> — DataFrame</li>
+<li><code>to_dataframe</code> — DataFrame</li>
 <li><code>...columns</code> — Column references
 (<code>$dept</code>)</li>
 </ul>
@@ -1316,18 +1395,18 @@ into one.</p>
 <hr />
 <h3 id="factor-manipulation">Factor Manipulation</h3>
 <h4
-id="factorx-levels-na-ordered-false-fctx-as_factorx"><code>factor(x, levels = NA, ordered = false)</code>
-/ <code>fct(x)</code> / <code>as_factor(x)</code></h4>
-<p>Create factor-encoded vectors. <code>fct</code> uses first-appearance
-levels by default.</p>
+id="to_factorx-levels-na-ordered-false-fctx-to_factorx"><code>to_factor(x, levels = NA, ordered = false)</code>
+/ <code>fct(x)</code> / <code>to_factor(x)</code></h4>
+<p>Create to_factor-encoded vectors. <code>fct</code> uses
+first-appearance levels by default.</p>
 <hr />
 <h4 id="levelsf"><code>levels(f)</code></h4>
-<p>Get labels from a factor.</p>
+<p>Get labels from a to_factor.</p>
 <hr />
 <h4
 id="fct_recodef-...new-old-fct_relevelf-...levels-after-0"><code>fct_recode(f, ...new = old)</code>
 / <code>fct_relevel(f, ...levels, after = 0)</code></h4>
-<p>Rename or reorder factor levels.</p>
+<p>Rename or reorder to_factor levels.</p>
 <hr />
 <h4
 id="fct_lump_nf-n-other_level-other-fct_lump_min-fct_lump_prop"><code>fct_lump_n(f, n, other_level = "Other")</code>
@@ -1489,8 +1568,8 @@ cumsum([1, NA, 3])           -- Vector[1, NA, NA]</code></pre>
 <h2 id="chrono-package">Chrono Package</h2>
 <p>High-performance date and time manipulation, inspired by R’s
 <code>lubridate</code>.</p>
-<h3 id="as_datevalue-as_datetimevalue"><code>as_date(value)</code> /
-<code>as_datetime(value)</code></h3>
+<h3 id="to_datevalue-to_datetimevalue"><code>to_date(value)</code> /
+<code>to_datetime(value)</code></h3>
 <p>Convert values to Date or Datetime types.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
@@ -1500,8 +1579,8 @@ cumsum([1, NA, 3])           -- Vector[1, NA, NA]</code></pre>
 <p><code>Date</code> / <code>Datetime</code> /
 <code>Collection</code></p>
 <p><strong>Examples:</strong></p>
-<pre class="t"><code>as_date(&quot;2023-05-15&quot;)  -- 2023-05-15
-as_datetime(&quot;2023-05-15 14:00:00&quot;)</code></pre>
+<pre class="t"><code>to_date(&quot;2023-05-15&quot;)  -- 2023-05-15
+to_datetime(&quot;2023-05-15 14:00:00&quot;)</code></pre>
 <hr />
 <h3
 id="ymdstring-mdystring-dmystring-ydmstring"><code>ymd(string)</code> /
@@ -1543,9 +1622,9 @@ id="parse_datestring-format-parse_datetimestring-format-tz-utc"><code>parse_date
 <p><strong>Returns:</strong></p>
 <p><code>Date</code> / <code>Datetime</code></p>
 <hr />
-<h3 id="yearx-monthx-label-false-dayx-mdayx"><code>year(x)</code> /
+<h3 id="yearx-monthx-label-false-dayx-dayx"><code>year(x)</code> /
 <code>month(x, label = false)</code> / <code>day(x)</code> /
-<code>mday(x)</code></h3>
+<code>day(x)</code></h3>
 <h3
 id="ydayx-wdayx-label-false-week_start-7-weekx-isoweekx-isoyearx"><code>yday(x)</code>
 / <code>wday(x, label = false, week_start = 7)</code> /
@@ -1593,7 +1672,7 @@ etc.)</li>
 <p><strong>Returns:</strong></p>
 <p>Same as input type</p>
 <p><strong>Examples:</strong></p>
-<pre class="t"><code>floor_date(as_date(&quot;2023-05-15&quot;), &quot;month&quot;)  -- 2023-05-01</code></pre>
+<pre class="t"><code>floor_date(to_date(&quot;2023-05-15&quot;), &quot;month&quot;)  -- 2023-05-01</code></pre>
 <hr />
 <h3
 id="make_dateyear-month-day-make_datetimeyear-month-day-hour-min-sec-tz"><code>make_date(year, month, day)</code>
@@ -1889,6 +1968,33 @@ generate a stub. Default: <code>false</code>.</li>
 <p>The evaluated return value of the command.</p>
 <hr />
 <h3
+id="jlncommand-script-na-serializer-csv-deserializer-csv-env_vars-functions-include-noop-false"><code>jln(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+<p>Configure a Julia Pipeline Node. A convenience wrapper around
+<code>node()</code> with <code>runtime = "Julia"</code>. Used directly
+within a <code>pipeline { ... }</code> block to execute Julia code.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>command</code> — The expression to evaluate inside the Julia
+node (must be enclosed in <code>&lt;{ ... }&gt;</code> blocks).</li>
+<li><code>script</code> — Path to an external <code>.jl</code> file to
+execute as the node body.</li>
+<li><code>serializer</code> (optional) — Custom serializer function.
+Default: <code>^csv</code>.</li>
+<li><code>deserializer</code> (optional) — Custom deserializer function.
+Default: <code>^csv</code>.</li>
+<li><code>env_vars</code> (optional) — Dictionary of environment
+variables to pass into the Nix sandbox.</li>
+<li><code>functions</code> (optional) — Julia files to source before
+execution.</li>
+<li><code>include</code> (optional) — Additional files for the
+sandbox.</li>
+<li><code>noop</code> (optional) — Whether to skip execution and
+generate a stub. Default: <code>false</code>.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The evaluated return value of the command.</p>
+<hr />
+<h3
 id="qnscript-na-serializer-default-deserializer-default-env_vars-args-functions-include-noop-false"><code>qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false)</code></h3>
 <p>Configure a Quarto pipeline node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Quarto"</code>. Use it to
@@ -2111,7 +2217,7 @@ remains a normal <code>Dict</code>.</p>
 -- {`kind`: &quot;value&quot;, `type`: &quot;Int&quot;, `value`: 42}
 
 explain(df)
--- {`kind`: &quot;dataframe&quot;, `nrow`: 100, `ncol`: 5, `hint`: &quot;Use explain(df).schema, ...&quot;}
+-- {`kind`: &quot;to_dataframe&quot;, `nrow`: 100, `ncol`: 5, `hint`: &quot;Use explain(df).schema, ...&quot;}
 
 -- Access detailed fields:
 explain(df).schema        -- list of column name/type pairs

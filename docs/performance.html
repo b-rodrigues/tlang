@@ -65,7 +65,7 @@ present</li>
 to keep DataFrames on the <strong>native Arrow path</strong> after
 supported structural changes by rebuilding a native Arrow table when the
 resulting schema is Arrow-builder-compatible. Primitive,
-dictionary/factor, date, datetime/timestamp, NA-only, and several
+dictionary/to_factor, date, datetime/timestamp, NA-only, and several
 list-column shapes can now stay native; users should still inspect the
 active backend explicitly for more complex nested schemas.</p>
 </blockquote>
@@ -96,7 +96,7 @@ df2 = mutate(df, $ratio = $x / $y)
 explain(df2).storage_backend     -- often still &quot;native_arrow&quot; for supported schemas
 explain(df2).native_path_active  -- true when native backing was preserved
 
-df3 = dataframe([[missing: NA], [missing: NA]])
+df3 = to_dataframe([[missing: NA], [missing: NA]])
 explain(df3).storage_backend     -- &quot;native_arrow&quot; for NA-only schemas
 explain(df3).native_path_active  -- true</code></pre>
 <p>This is the quickest way to understand whether a pipeline is still on
