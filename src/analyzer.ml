@@ -68,7 +68,7 @@ let rec infer_type scope expr =
   | Call { fn = { node = Var "read_parquet"; _ }; args; _ } ->
       List.iter (fun (_, e) -> ignore (infer_type scope e)) args;
       TDataFrame []
-  | Call { fn = { node = Var "dataframe"; _ }; args; _ } ->
+  | Call { fn = { node = Var "to_dataframe"; _ }; args; _ } ->
       let rec find_list = function
         | [] -> []
         | (None, { node = ListLit items; _ }) :: _ -> items

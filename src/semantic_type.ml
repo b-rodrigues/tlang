@@ -23,7 +23,7 @@ let rec to_string = function
   | TFloat -> "float"
   | TDataFrame cols ->
       let col_names = List.map (fun c -> c.name) cols in
-      "dataframe[" ^ String.concat ", " col_names ^ "]"
+      "to_dataframe[" ^ String.concat ", " col_names ^ "]"
   | TGroupedDataFrame (cols, groups) ->
       let col_names = List.map (fun c -> c.name) cols in
       "grouped_dataframe[" ^ String.concat ", " col_names ^ " | groups: " ^ String.concat ", " groups ^ "]"
@@ -40,7 +40,7 @@ let from_string str =
   | "string" | "text" -> TString
   | "bool" | "boolean" | "logical" -> TBool
   | "float" | "double" | "number" | "numeric" -> TFloat
-  | "dataframe" | "table" -> TDataFrame []
+  | "to_dataframe" | "table" -> TDataFrame []
   | "any" | "value" | "all" | "mixed" | "..." -> TAny
   | _ ->
       if String.starts_with ~prefix:"vector" str then TAny

@@ -221,7 +221,7 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
   | VList items -> `List (List.map (fun (_, v) -> value_to_yojson v) items)
   | VDict pairs -> `Assoc (List.map (fun (k, v) -> (k, value_to_yojson v)) pairs)
   | VVector arr -> `List (Array.to_list arr |> List.map value_to_yojson)
-  | VSymbol _ as sym -> `String (Ast.Utils.value_to_string sym)
+  | VSymbol _ as to_symbol -> `String (Ast.Utils.value_to_string to_symbol)
   | VDataFrame _ ->
       invalid_arg "value_to_yojson: VDataFrame is not supported for JSON serialization"
   | VPipeline _ ->
