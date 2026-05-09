@@ -250,5 +250,4 @@ let register env =
              
         | _ -> Error.type_error "to_array expects (DataFrame, [column_names])."
       )) env in
-  let env = Env.add "dataframe" (Env.find "to_dataframe" env) env in
   env

@@ -134,7 +134,7 @@ let register_float env =
 --# @export
 *)
 let register_sym env =
-  let env = Env.add "to_symbol"
+  Env.add "to_symbol"
     (make_builtin ~name:"to_symbol" 1 (fun args _env ->
       match args with
       | [VString name] ->
@@ -147,9 +147,7 @@ let register_sym env =
       | [_] -> Error.type_error "Function `to_symbol` expects a String or Symbol."
       | _ -> Error.arity_error_named "to_symbol" 1 (List.length args)
     ))
-    env in
-  let env = Env.add "sym" (Env.find "to_symbol" env) env in
-  env
+    env
 
 
 (*
