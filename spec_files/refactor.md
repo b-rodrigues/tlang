@@ -50,7 +50,19 @@ Remove unused types, variables, functions, and modules to keep the codebase lean
 
 ---
 
-## Phase 4: Final Verification & Commit
+## Phase 4: Code Unification & Deduplication
+
+Identify and merge overlapping functionality to simplify maintenance and reduce complexity across the codebase.
+
+- [ ] **Identify Duplicate Logic**: Look for similar logic that has been copied and pasted in multiple places (e.g., pipeline resolution logic, error handling, string manipulation).
+- [ ] **Extract Helper Functions**: Pull duplicated code out into shared utility modules or helper functions.
+- [ ] **Unify Disparate Implementations**: If multiple functions achieve the same result slightly differently, rewrite them to use a single, unified implementation.
+- [ ] **Consolidate Constants**: Move duplicated string literals or configuration options into shared constant definitions.
+- [ ] **Verify Abstractions**: Run `dune build` and `dune test` to ensure the newly extracted helpers haven't introduced regressions or scope issues.
+
+---
+
+## Phase 5: Final Verification & Commit
 
 Ensure the refactored codebase remains functionally identical to the baseline from Phase 1.
 
