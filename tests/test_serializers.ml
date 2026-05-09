@@ -131,63 +131,82 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
        incr fail_count; Printf.printf "  ✗ Static coherence check failed on matching formats. Got: %s\n" 
          (Ast.Utils.value_to_string other));
 
-  (* 4b. Explicit dependency checks happen before pipeline emission/build *)
-  let env_onnx = Packages.init_env () in
-  let (v, _) = eval_string_env {|
-    p = pipeline {
-       model = node(command = <{ 1 }>, runtime = Python, serializer = ^onnx)
-    }
-    populate_pipeline(p)
-  |} env_onnx in
-  (match v with
-   | VError { code; message; _ }
-     when code = StructuralError
-       && contains_all message
-            [ "tproject.toml"; "onnxruntime"; "skl2onnx" ] ->
-       incr pass_count;
-       Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
-   | other ->
-       incr fail_count;
-       Printf.printf "  ✗ Explicit dependency check failed for ONNX pipeline. Got: %s\n"
-         (Ast.Utils.value_to_string other));
+  (* 4b. Explicit dependency checks happen before pipeline emission/build.
+     These must run from a temp dir that has NO tproject.toml so that
+     ensure_project_requirements cannot find the repo's tproject.toml
+     (which already declares all the packages) and return Ok () instead
+     of the expected StructuralError. *)
+  let with_empty_dir f =
+    let tmp = Filename.get_temp_dir_name () in
+    let dir = Printf.sprintf "%s/tlang-dep-check-%d" tmp (Unix.getpid ()) in
+    (try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+    let old_cwd = Sys.getcwd () in
+    Fun.protect
+      ~finally:(fun () ->
+        Sys.chdir old_cwd;
+        ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir))))
+      (fun () -> Sys.chdir dir; f ())
+  in
 
-  let env_pmml_deps = Packages.init_env () in
-  let (v, _) = eval_string_env {|
-    p = pipeline {
-       model = node(command = <{ 1 }>, runtime = Python, deserializer = ^pmml)
-    }
-    populate_pipeline(p)
-  |} env_pmml_deps in
-  (match v with
-   | VError { code; message; _ }
-     when code = StructuralError
-       && contains_all message
-            [ "tproject.toml"; "pyarrow"; "sklearn2pmml" ] ->
-       incr pass_count;
-       Printf.printf "  ✓ Missing PMML dependencies fail statically with explicit pyarrow guidance\n"
-   | other ->
+  (with_empty_dir (fun () ->
+    let env_onnx = Packages.init_env () in
+    let (v, _) = eval_string_env {|
+      p = pipeline {
+         model = node(command = <{ 1 }>, runtime = Python, serializer = ^onnx)
+      }
+      populate_pipeline(p)
+    |} env_onnx in
+    match v with
+    | VError { code; message; _ }
+      when code = StructuralError
+        && contains_all message
+             [ "tproject.toml"; "onnxruntime"; "skl2onnx" ] ->
+        incr pass_count;
+        Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
+    | other ->
         incr fail_count;
-        Printf.printf "  ✗ Explicit dependency check failed for PMML pipeline. Got: %s\n"
-          (Ast.Utils.value_to_string other));
+        Printf.printf "  ✗ Explicit dependency check failed for ONNX pipeline. Got: %s\n"
+          (Ast.Utils.value_to_string other)));
 
-  let env_julia_onnx = Packages.init_env () in
-  let (v, _) = eval_string_env {|
-    p = pipeline {
-       model = node(command = <{ 1 }>, runtime = Julia, deserializer = ^onnx)
-    }
-    populate_pipeline(p)
-  |} env_julia_onnx in
-  (match v with
-   | VError { code; message; _ }
-     when code = StructuralError
-       && contains_all message
-            [ "tproject.toml"; "ONNXRunTime" ] ->
-       incr pass_count;
-       Printf.printf "  ✓ Missing Julia ONNX dependencies fail statically with explicit ONNXRunTime guidance\n"
-   | other ->
-       incr fail_count;
-       Printf.printf "  ✗ Explicit dependency check failed for Julia ONNX pipeline. Got: %s\n"
-         (Ast.Utils.value_to_string other));
+  (with_empty_dir (fun () ->
+    let env_pmml_deps = Packages.init_env () in
+    let (v, _) = eval_string_env {|
+      p = pipeline {
+         model = node(command = <{ 1 }>, runtime = Python, deserializer = ^pmml)
+      }
+      populate_pipeline(p)
+    |} env_pmml_deps in
+    match v with
+    | VError { code; message; _ }
+      when code = StructuralError
+        && contains_all message
+             [ "tproject.toml"; "pyarrow"; "sklearn2pmml" ] ->
+        incr pass_count;
+        Printf.printf "  ✓ Missing PMML dependencies fail statically with explicit pyarrow guidance\n"
+    | other ->
+         incr fail_count;
+         Printf.printf "  ✗ Explicit dependency check failed for PMML pipeline. Got: %s\n"
+           (Ast.Utils.value_to_string other)));
+
+  (with_empty_dir (fun () ->
+    let env_julia_onnx = Packages.init_env () in
+    let (v, _) = eval_string_env {|
+      p = pipeline {
+         model = node(command = <{ 1 }>, runtime = Julia, deserializer = ^onnx)
+      }
+      populate_pipeline(p)
+    |} env_julia_onnx in
+    match v with
+    | VError { code; message; _ }
+      when code = StructuralError
+        && contains_all message
+             [ "tproject.toml"; "ONNXRunTime" ] ->
+        incr pass_count;
+        Printf.printf "  ✓ Missing Julia ONNX dependencies fail statically with explicit ONNXRunTime guidance\n"
+    | other ->
+        incr fail_count;
+        Printf.printf "  ✗ Explicit dependency check failed for Julia ONNX pipeline. Got: %s\n"
+          (Ast.Utils.value_to_string other)));
 
   (* 4c. Nix emission no longer injects serializer/quarto packages implicitly *)
   let env_emit = Packages.init_env () in
