@@ -63,7 +63,7 @@ T supports the following value types:
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
 | `Symbol`    | `$mpg`                   | Name reference (NSE, DataFrames)    |
-| `Expression`| `expr(1 + 2)`            | Captured code (for metaprogramming) |
+| `Expression`| `to_expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
 
 ### Variables and Assignment
@@ -1078,8 +1078,8 @@ T supports Lisp-style quotation and quasiquotation for code generation and DSL b
 
 ```t
 x = 10
-captured = expr(1 + !!x)
-print(captured)  -- expr(1 + 10)
+captured = to_expr(1 + !!x)
+print(captured)  -- to_expr(1 + 10)
 eval(captured)     -- 11
 ```
 

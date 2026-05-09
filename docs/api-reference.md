@@ -240,9 +240,9 @@ Convert a string name into a `Symbol` so it can be injected into quoted code wit
 **Examples:**
 ```t
 to_symbol("mpg")                           -- mpg
-expr(select(df, !!to_symbol("mpg")))       -- expr(select(df, mpg))
+to_expr(select(df, !!to_symbol("mpg")))       -- to_expr(select(df, mpg))
 name = "result"
-expr(f(!!to_symbol(name) := 42))           -- expr(f(result = 42))
+to_expr(f(!!to_symbol(name) := 42))           -- to_expr(f(result = 42))
 ```
 
 ---
@@ -291,7 +291,7 @@ Deep equality check. Works for collections and complex objects.
 
 ---
 
-### `eval(expr)` / `expr(x)` / `exprs(...)`
+### `eval(expr)` / `to_expr(x)` / `to_exprs(...)`
 ### `quo(x)` / `quos(...)` / `enquo(p)` / `enquos(...)`
 
 Metaprogramming and quotation utilities.

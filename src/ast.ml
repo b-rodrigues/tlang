@@ -859,7 +859,7 @@ module Utils = struct
           (String.concat " + " response)
           (String.concat " + " predictors)
     | VExpr e ->
-        Printf.sprintf "expr(%s)" (unparse_expr e)
+        Printf.sprintf "to_expr(%s)" (unparse_expr e)
     | VQuo { q_expr; _ } ->
         Printf.sprintf "quo(%s)" (unparse_expr q_expr)
     | VComputedNode cn ->
