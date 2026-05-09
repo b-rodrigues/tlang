@@ -469,7 +469,7 @@ let is_standard_package = function
   | "chrono"
   | "math"
   | "stats"
-  | "dataframe"
+  | "to_dataframe"
   | "colcraft"
   | "pipeline"
   | "explain" -> true
@@ -1048,7 +1048,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
          | _ -> Error.make_error ArityError "enquos() expects no arguments or `...`")
 
     | Call { fn = { node = Var name; _ }; args }
-      when List.mem name ["node"; "py"; "pyn"; "rn"; "jln"; "qn"; "shn"] ->
+      when List.mem name ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] ->
         let fn_name = name in
         let lookup_arg name default =
           match List.assoc_opt (Some name) args with
@@ -1235,7 +1235,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             Error.make_error TypeError (Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name)
           else
              let default_runtime = match name with
-               | "py" | "pyn" -> "Python"
+               | "pyn" -> "Python"
                | "rn" -> "R"
               | "jln" -> "Julia"
                | "qn" -> "Quarto"
@@ -1507,7 +1507,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_call = match node_expr.node with
-      | Call { fn = { node = Var ("node" | "py" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
+      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
       | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
@@ -2446,7 +2446,7 @@ and eval_call env_ref fn_val raw_args =
             | "rename" | "rename_node"
            | "pivot_longer" | "pivot_longer_node"
            | "pivot_wider" | "pivot_wider_node"
-           | "node" | "py" | "pyn" | "rn" | "jln" | "qn" | "shn" | "inspect") -> true
+           | "node" | "pyn" | "rn" | "jln" | "qn" | "shn" | "inspect") -> true
     | _ -> false
   in
 
