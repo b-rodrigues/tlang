@@ -26,6 +26,25 @@ The focus of this release is the introduction of first-class Julia support, enab
     - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
     - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
 
+### API Standardization & Ergonomics
+- **Unified `to_` Naming Convention**:
+    - Renamed all type conversion and coercion functions to follow a consistent `to_` prefix:
+        - `as_date()` → `to_date()`
+        - `as_datetime()` → `to_datetime()`
+        - `as_factor()` / `factor()` → `to_factor()`
+        - `sym()` → `to_symbol()`
+        - `dataframe()` → `to_dataframe()`
+    - Removed all legacy `as_*` and shorthand aliases from core packages to ensure a single, canonical API path.
+- **Improved Factor Creation**:
+    - Removed the `fct()` shorthand in favor of the standardized `to_factor()`.
+    - Simplified factor logic: `to_factor()` now consistently uses alphabetical sorting for derived levels, removing the previous "first-appearance" behavior to align with industry standards and internal consistency.
+- **Descriptive Statistical Utilities**:
+    - Renamed `augment()` to `add_diagnostics()` to better reflect its purpose of appending model-level diagnostics (residuals, hat values, etc.) to data frames.
+    - Updated the Golden test suite to maintain parity with R's `broom::augment` outputs.
+- **Codebase & Demo Synchronization**:
+    - Performed a repository-wide refactor of 65+ demo projects in `t_demos` to adopt the new standardized API.
+    - Updated Tree-Sitter syntax highlighting queries to support the new names and remove deprecated aliases.
+
 ## [0.51.5] - 2026-05-08
 
 The focus of this release was to improve language ergonomics for data guardrails, enhance package manager feedback, and increase test coverage across all packages.
