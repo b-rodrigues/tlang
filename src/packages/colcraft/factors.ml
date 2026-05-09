@@ -34,7 +34,7 @@ let level_index_of levels s =
     | _ :: t -> aux (i + 1) t
   in aux 0 levels
 
-let factor_generic ~fct_mode (args : (string option * value) list) _env =
+let to_factor_impl (args : (string option * value) list) _env =
   let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
   let named = List.filter_map (fun (k, v) -> match k with Some n -> Some (n, v) | None -> None) args in
   match positional with
@@ -50,14 +50,7 @@ let factor_generic ~fct_mode (args : (string option * value) list) _env =
       (* Only non-NA values contribute to level derivation *)
       let non_na_strings = List.filter_map Fun.id string_opts in
       let unique_levels = 
-        if fct_mode then
-          (* for fct(), levels follow first appearance *)
-          let rec first_appearance acc = function
-            | [] -> List.rev acc
-            | h :: t -> if List.mem h acc then first_appearance acc t else first_appearance (h :: acc) t
-          in first_appearance [] non_na_strings
-        else
-          List.sort_uniq String.compare non_na_strings
+        List.sort_uniq String.compare non_na_strings
       in
 
       let levels =
@@ -86,8 +79,8 @@ let factor_generic ~fct_mode (args : (string option * value) list) _env =
       ) in
       VVector factor_arr
 
-let factor_impl = factor_generic ~fct_mode:false
-let fct_impl = factor_generic ~fct_mode:true
+let factor_impl = to_factor_impl
+
 let ordered_impl (args : (string option * value) list) _env =
   (* same as to_factor but defaults ordered=true *)
   let named = List.filter_map (fun (k, v) -> match k with Some n -> Some (n, v) | None -> None) args in
@@ -769,15 +762,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 --# @family colcraft
 --# @export
 *)
-(*
---# Create factors in first-seen order
---#
---# Creates a to_factor whose levels follow the first appearance order of the input values.
---#
---# @name fct
---# @family colcraft
---# @export
-*)
+
 (*
 --# Move selected levels to the front
 --#
@@ -843,7 +828,6 @@ let fct_c_impl (args : (string option * value) list) _env =
 *)
 let register env =
   let env = Env.add "to_factor" (make_builtin_named ~name:"to_factor" ~variadic:true 1 factor_impl) env in
-  let env = Env.add "factor" (Env.find "to_factor" env) env in
   let env = Env.add "fct_infreq" (make_builtin_named ~name:"fct_infreq" ~variadic:true 1 fct_infreq_impl) env in
   let env = Env.add "levels" (make_builtin ~name:"levels" 1 levels_impl) env in
   let env = Env.add "fct_rev" (make_builtin ~name:"fct_rev" 1 fct_rev_impl) env in
@@ -852,7 +836,6 @@ let register env =
   let env = Env.add "fct_lump_n" (make_builtin_named ~name:"fct_lump_n" ~variadic:true 1 fct_lump_n_impl) env in
   let env = Env.add "fct_lump_min" (make_builtin_named ~name:"fct_lump_min" ~variadic:true 2 fct_lump_min_impl) env in
   let env = Env.add "fct_lump_prop" (make_builtin_named ~name:"fct_lump_prop" ~variadic:true 2 fct_lump_prop_impl) env in
-  let env = Env.add "fct" (make_builtin_named ~name:"fct" ~variadic:true 1 fct_impl) env in
   let env = Env.add "fct_relevel" (make_builtin_named ~name:"fct_relevel" ~variadic:true 1 fct_relevel_impl) env in
   let env = Env.add "fct_collapse" (make_builtin_named ~name:"fct_collapse" ~variadic:true 1 fct_collapse_impl) env in
   let env = Env.add "fct_other" (make_builtin_named ~name:"fct_other" ~variadic:true 1 fct_other_impl) env in
