@@ -6,7 +6,7 @@
 | [abs](abs.html) | Absolute value |
 | [acos](acos.html) | Inverse cosine |
 | [acosh](acosh.html) | Inverse hyperbolic cosine |
-| [augment](augment.html) | Add Model Diagnostics |
+| [add_diagnostics](add_diagnostics.html) | Add Model Diagnostics |
 | [all_of](all_of.html) | Select an explicit set of columns |
 | [am](am.html) | Check whether a time is before noon |
 | [anova](anova.html) | Analysis of Variance (ANOVA) |
@@ -28,7 +28,7 @@
 | [atan](atan.html) | Inverse tangent |
 | [atan2](atan2.html) | Two-argument arctangent |
 | [atanh](atanh.html) | Inverse hyperbolic tangent |
-| [augment](augment.html) | Augment Data with Model Calculations |
+| [add_diagnostics](add_diagnostics.html) | Augment Data with Model Calculations |
 | [bind_cols](bind_cols.html) | Combine DataFrames by columns |
 | [bind_rows](bind_rows.html) | Stack DataFrames by rows |
 | [body](body.html) | Get function body |
@@ -99,7 +99,6 @@
 | [expr](expr.html) | Capture an expression |
 | [exprs](exprs.html) |  |
 | [to_factor](to_factor.html) | Create to_factor values |
-| [fct](fct.html) | Create factors in first-seen order |
 | [fct_c](fct_c.html) | Concatenate to_factor vectors |
 | [fct_collapse](fct_collapse.html) | Collapse multiple levels |
 | [fct_drop](fct_drop.html) | Drop unused to_factor levels |

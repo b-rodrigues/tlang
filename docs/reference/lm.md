@@ -26,5 +26,5 @@ summary(model)
 
 ## See Also
 
-[augment](augment.html), [fit_stats](fit_stats.html), [summary](summary.html)
+[add_diagnostics](add_diagnostics.html), [fit_stats](fit_stats.html), [summary](summary.html)
 

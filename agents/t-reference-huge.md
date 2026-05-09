@@ -8,7 +8,7 @@ This file is a concatenation of the entire T documentation for LLM context.
 
 # T — The Orchestration Engine for Polyglot Data Science
 
-**T** is an experimental orchestration engine designed for declarative, reproducible pipelines. It provides a functional Domain-Specific Language (DSL) that coordinates R, Python, Julia, and Shell nodes within a Nix-managed infrastructure.
+**T** is an experimental orchestration engine designed for declarative, reproducible pipelines. It provides a functional Domain-Specific Language (DSL) that coordinates R, Python, and Shell nodes—as well as Julia—within a Nix-managed infrastructure.
 
 Unlike traditional scripting languages, T is built to be a **specifications-ready engine**, making data analysis **explicit, inspectable, and pipeline-oriented**. This unique architecture ensures that humans and LLMs can collaborate on defining high-level intent while T handles the low-level orchestration and environmental consistency.
 
@@ -65,7 +65,7 @@ T is not designed to replace your existing tools; it is designed to **orchestrat
 
 ## Foreign Language Nodes & Deserialization
 
-When you define a node using `node()`, `rn()` (R), `pyn()` (Python), `jl_node()` (Julia), or `shn()` (Shell), T treats the result as a first-class **Node** object. These objects transition through two main states:
+When you define a node using `node()`, `rn()` (R), `pyn()` (Python), `jln()` (Julia), or `shn()` (Shell)—T treats the result as a first-class **Node** object. These objects transition through two main states:
 
 1.  **Unbuilt Node**: A specification of what to run (command, runtime, environment variables).
 2.  **Computed Node**: After `build_pipeline()`, the node points to a concrete, immutable artifact in the Nix store.
@@ -122,7 +122,7 @@ The `path` field is the "escape hatch"—it gives you the absolute path to the n
 ### User Guides
 - [API Reference](api-reference.html) — complete function reference by package
 - [Data Manipulation Examples](data_manipulation_examples.html) — practical examples with core data verbs
-- [Factors & Categorical Data](factors.html) — factor creation, level ordering, and `fct_*` helpers
+- [Factors & Categorical Data](factors.html) — to_factor creation, level ordering, and `fct_*` helpers
 - [String Manipulation](string_manipulation.html) — naming rules, examples, and exceptions for text helpers
 - [Pipeline Tutorial](pipeline_tutorial.html) — step-by-step guide to T's pipeline model
 - [Literate Programming with Quarto](literate-programming-quarto.html) — rendering reports from pipelines
@@ -361,6 +361,7 @@ T supports the following value types:
 | `Vector`    | Column data              | Typed arrays (from DataFrames)      |
 | `DataFrame` | `read_csv("data.csv")`   | Tabular data (rows × columns)       |
 | `Pipeline`  | `pipeline { ... }`       | DAG-based execution graph           |
+| `jln`   | `jln(...)`           | Julia node wrapper                  |
 | `Function`  | `\(x) x + 1`            | First-class functions               |
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
@@ -656,7 +657,7 @@ p = my_pipeline
 status = match(pipeline_validate(p)) {
   [] => "Pipeline is valid and ready to build.",
   [first_err, ..others] => 
-    str_join(["Found ", str_string(length(others) + 1), " validation errors."])
+    str_join(["Found ", to_string(length(others) + 1), " validation errors."])
 }
 ```
 
@@ -729,7 +730,7 @@ The `get()` function is the primary entry point for retrieving data. It supports
 ```t
 salary = 50000
 get("salary")                -- 50000
-get(sym("salary"))           -- 50000
+get(to_symbol("salary"))           -- 50000
 ```
 
 #### 2. Collection Indexing (0-based)
@@ -1084,7 +1085,7 @@ is_error(result)  -- true
 
 ## Pipelines
 
-Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file.
+Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file. T supports R (`rn()`), Python (`pyn()`), Julia (`jln()`), Quarto (`qn()`), and Shell (`shn()`) nodes out of the box.
 
 Built-in serializer keywords include `"csv"`, `"arrow"`, `"pmml"`, and `"onnx"` (or `^csv`, `^arrow`, `^pmml`, `^onnx` when referencing the first-class serializer values directly).
 
@@ -1204,11 +1205,11 @@ All packages are loaded automatically at startup:
 | Package     | Functions                                               |
 |-------------|----------------------------------------------------------|
 | `core`      | `print`, `type`, `length`, `head`, `tail`, `map`, `filter`, `sum`, `seq`, `getwd`, `file_exists`, `dir_exists`, `read_file`, `list_files`, `env`, `path_join`, `path_basename`, `path_dirname`, `path_ext`, `path_stem`, `path_abs`, `rm` |
-| `base`      | `assert`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
+| `base`      | `assert`, `assert_file_exists`, `assert_dir_exists`, `assert_size_of_file`, `assert_non_empty_file`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`, `predict`        |
-| `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames` |
-| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `rename`, `relocate`, `distinct`, `count`, `slice`, `pivot_longer`, `pivot_wider`, joins, missing-value helpers, factor helpers, and window functions |
+| `to_dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames` |
+| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `rename`, `relocate`, `distinct`, `count`, `slice`, `pivot_longer`, `pivot_wider`, joins, missing-value helpers, to_factor helpers, and window functions |
 | `pipeline`  | node constructors, inspection helpers, validation helpers, DAG transformations, and composition tools |
 | `explain`   | `explain`, `intent_fields`, `intent_get`                |
 
@@ -1263,7 +1264,7 @@ These signatures provide a compact map of the most commonly used functions:
 - `left_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame`
 - `drop_na(df :: DataFrame, ...) :: DataFrame`
 - `replace_na(df :: DataFrame, replace :: Dict) :: DataFrame`
-- `factor(x :: Vector | List, levels = [], ordered = false) :: Vector`
+- `to_factor(x :: Vector | List, levels = [], ordered = false) :: Vector`
 - `row_number(x :: Vector) :: Vector`
 - `lag(x :: Vector, n = 1) :: Vector`
 
@@ -1418,6 +1419,7 @@ Now that you have a solid grasp of T's syntax and core features, explore these t
 For more hands-on examples and complete project templates, visit the [**T Demos Repository**](https://github.com/b-rodrigues/t_demos).
 
 
+
 # FILE: docs/api-reference.md
 
 # API Reference
@@ -1437,7 +1439,7 @@ Package-oriented guide to T's standard library.
 - [Base Package](#base-package) — Errors, NA, assertions
 - [Math Package](#math-package) — Mathematical functions
 - [Stats Package](#stats-package) — Statistical functions
-- [DataFrame Package](#dataframe-package) — CSV I/O and DataFrame operations
+- [DataFrame Package](#to_dataframe-package) — CSV I/O and DataFrame operations
 - [Colcraft Package](#colcraft-package) — Data manipulation verbs and window functions
 - [Chrono Package](#chrono-package) — High-performance date and time manipulation
 - [Strcraft Package](#strcraft-package) — Modern string manipulation
@@ -1447,7 +1449,7 @@ Package-oriented guide to T's standard library.
 
 ---
 
-For generated one-page documentation for every exported function, including newer Chrono, string, join, factor, and helper APIs, use the [Function Reference](reference/index.md).
+For generated one-page documentation for every exported function, including newer Chrono, string, join, to_factor, and helper APIs, use the [Function Reference](reference/index.md).
 
 ---
 
@@ -1619,9 +1621,9 @@ to_integer(["1", "2"])   -- [1, 2]
 
 ---
 
-### `to_float(value)` / `to_numeric(value)`
+### `to_float(value)` / `to_float(value)`
 
-Convert a value to a float robustly. `to_numeric` is an alias for `to_float`. Handles strings with spaces, percentages, commas, and recognizes 'TRUE'/'FALSE'. Also propagates vectorization over Collections.
+Convert a value to a float robustly. `to_float` is an alias for `to_float`. Handles strings with spaces, percentages, commas, and recognizes 'TRUE'/'FALSE'. Also propagates vectorization over Collections.
 
 **Parameters:**
 
@@ -1637,16 +1639,16 @@ Convert a value to a float robustly. `to_numeric` is an alias for `to_float`. Ha
 to_float("3,14")         -- 3.14
 to_float("15%")          -- 15.0
 to_float(" 1 200.5 ")    -- 1200.5
-to_numeric("TRUE")       -- 1.0
-to_numeric("F")          -- 0.0
+to_float("TRUE")       -- 1.0
+to_float("F")          -- 0.0
 to_float(42)             -- 42.0
 to_float("hello")        -- NA(Float)
-to_numeric(["1", "2"])   -- [1.0, 2.0]
+to_float(["1", "2"])   -- [1.0, 2.0]
 ```
 
 ---
 
-### `sym(value)`
+### `to_symbol(value)`
 
 Convert a string name into a `Symbol` so it can be injected into quoted code with `!!`. Existing symbols pass through unchanged.
 
@@ -1661,10 +1663,10 @@ Convert a string name into a `Symbol` so it can be injected into quoted code wit
 
 **Examples:**
 ```t
-sym("mpg")                           -- mpg
-expr(select(df, !!sym("mpg")))       -- expr(select(df, mpg))
+to_symbol("mpg")                           -- mpg
+expr(select(df, !!to_symbol("mpg")))       -- expr(select(df, mpg))
 name = "result"
-expr(f(!!sym(name) := 42))           -- expr(f(result = 42))
+expr(f(!!to_symbol(name) := 42))           -- expr(f(result = 42))
 ```
 
 ---
@@ -1701,7 +1703,7 @@ Vectorized conditional selection.
 
 ---
 
-### `casewhen(...formulas, .default = NA)`
+### `case_when(...formulas, .default = NA)`
 
 Vectorized multi-condition switch. Uses `condition ~ value` formulas.
 
@@ -2288,6 +2290,91 @@ assert(false, "Custom message")   -- Error(AssertionError: Custom message)
 
 ---
 
+### `assert_file_exists(path)` / `assert_file_exists(path, message)`
+
+Assert that a regular file exists at `path`.
+
+**Parameters:**
+
+- `path` — File path
+- `message` (optional) — Custom assertion message
+
+**Returns:**
+
+`true` if the file exists
+
+**Examples:**
+```t
+assert_file_exists("output.csv")
+assert_file_exists("report.html", "report generation failed")
+```
+
+---
+
+### `assert_dir_exists(path)` / `assert_dir_exists(path, message)`
+
+Assert that a directory exists at `path`.
+
+**Parameters:**
+
+- `path` — Directory path
+- `message` (optional) — Custom assertion message
+
+**Returns:**
+
+`true` if the directory exists
+
+**Examples:**
+```t
+assert_dir_exists("results")
+assert_dir_exists("artifacts", "artifact directory was not created")
+```
+
+---
+
+### `assert_size_of_file(path, size)` / `assert_size_of_file(path, size, message)`
+
+Assert that a regular file exists and has the expected size in bytes.
+
+**Parameters:**
+
+- `path` — File path
+- `size` — Expected size in bytes
+- `message` (optional) — Custom assertion message
+
+**Returns:**
+
+`true` if the file exists and matches the expected size
+
+**Examples:**
+```t
+assert_size_of_file("output.csv", 128)
+assert_size_of_file("report.html", 0, "report should be empty")
+```
+
+---
+
+### `assert_non_empty_file(path)` / `assert_non_empty_file(path, message)`
+
+Assert that a regular file exists and contains at least one byte.
+
+**Parameters:**
+
+- `path` — File path
+- `message` (optional) — Custom assertion message
+
+**Returns:**
+
+`true` if the file exists and is non-empty
+
+**Examples:**
+```t
+assert_non_empty_file("output.csv")
+assert_non_empty_file("plot.png", "plot was not written")
+```
+
+---
+
 ### `NA`
 
 Untyped missing value constant.
@@ -2535,9 +2622,9 @@ Hyperbolic and inverse hyperbolic functions.
 
 ---
 
-### `floor(x)` / `ceiling(x)` / `ceil(x)`
+### `floor(x)` / `ceiling(x)` / `ceiling(x)`
 
-Rounding to integers. `ceiling` and `ceil` are aliases.
+Rounding to integers. `ceiling` and `ceiling` are aliases.
 
 ---
 
@@ -2599,46 +2686,46 @@ Statistical functions for data analysis. Most functions handle missingness via a
 
 ### Descriptive Statistics
 
-#### `median(x, na_rm = false)` / `mean(x, na_rm = false)`
+#### `median(x, na_rm = false, weights = NA)` / `mean(x, na_rm = false, weights = NA)`
 #### `min(x, na_rm = false)` / `max(x, na_rm = false)` / `range(x, na_rm = false)`
 
-Basic descriptive statistics. `range` returns a List of [min, max].
+Basic descriptive statistics. `mean` and `median` also accept optional non-negative observation weights. `range` returns a List of [min, max].
 
 ---
 
-#### `var(x, na_rm = false)` / `sd(x, na_rm = false)` / `cv(x, na_rm = false)`
+#### `var(x, na_rm = false, weights = NA)` / `sd(x, na_rm = false, weights = NA)` / `cv(x, na_rm = false, weights = NA)`
 
-Variance, standard deviation, and coefficient of variation (sd/mean).
-
----
-
-#### `iqr(x, na_rm = false)` / `mad(x, na_rm = false)`
-
-Interquartile range and Median Absolute Deviation (scaled by 1.4826).
+Variance, standard deviation, and coefficient of variation (sd/mean). These also accept optional non-negative observation weights. The weighted `sd`/`var` path uses the weighted population denominator (`sum(weights)`), while the unweighted path uses sample formulas.
 
 ---
 
-#### `fivenum(x, na_rm = false)`
+#### `iqr(x, na_rm = false, weights = NA)` / `mad(x, na_rm = false)`
 
-Tukey's five-number summary (min, lower-hinge, median, upper-hinge, max).
-
----
-
-#### `skewness(x, na_rm = false)` / `kurtosis(x, na_rm = false)`
-
-Skewness and excess kurtosis.
+Interquartile range and Median Absolute Deviation (scaled by 1.4826). `iqr` accepts optional non-negative observation weights.
 
 ---
 
-#### `trimmed_mean(x, trim = 0.1, na_rm = false)`
+#### `fivenum(x, na_rm = false, weights = NA)`
 
-Mean calculated after trimming a fraction of observations from each end.
+Tukey's five-number summary (min, lower-hinge, median, upper-hinge, max), with optional non-negative observation weights.
 
 ---
 
-#### `quantile(x, p, na_rm = false)`
+#### `skewness(x, na_rm = false, weights = NA)` / `kurtosis(x, na_rm = false, weights = NA)`
 
-Compute quantile/percentile (p between 0 and 1).
+Skewness and excess kurtosis, with optional non-negative observation weights.
+
+---
+
+#### `trimmed_mean(x, trim = 0.1, na_rm = false, weights = NA)`
+
+Mean calculated after trimming a fraction of observations from each end. Optional weights affect the trim cut points and the retained mean.
+
+---
+
+#### `quantile(x, p, na_rm = false, weights = NA)`
+
+Compute quantile/percentile (p between 0 and 1), with optional non-negative observation weights.
 
 ---
 
@@ -2656,9 +2743,9 @@ Rescale or center numeric data. `scale` and `standardize` compute z-scores. `nor
 
 ---
 
-#### `winsorize(x, probs = [0.05, 0.95], na_rm = false)`
+#### `winsorize(x, limits = [0.05, 0.05], na_rm = false, weights = NA)`
 
-Replace extreme values with quantiles.
+Clamp values using one limit or a two-element vector `[lower_tail_fraction, upper_tail_fraction]`, with each fraction in `[0, 0.5)`. Optional weights affect the cut points only; zero-weight observations remain in the output.
 
 ---
 
@@ -2678,9 +2765,9 @@ Cumulative Distribution Functions for Normal, Student-t, F, and Chi-squared dist
 
 ### Modeling
 
-#### `lm(data, formula)`
+#### `lm(data, formula, weights = NA)`
 
-Fit a linear regression model (OLS). The formula is a `Formula` value such as `mpg ~ wt + hp`.
+Fit a linear regression model. Without weights this is OLS; with `weights` it performs weighted least squares. The formula is a `Formula` value such as `mpg ~ wt + hp`.
 
 ---
 
@@ -2696,7 +2783,7 @@ Perform vectorized prediction on new data. `score` is an alias.
 
 ---
 
-#### `add_diagnostics(model, data)` / `augment(model, data)`
+#### `add_diagnostics(model, data)` / `add_diagnostics(model, data)`
 
 Augment data with per-observation diagnostics: `.fitted`, `.resid`, `.hat`, `.sigma`, `.cooksd`, and `.std.resid`.
 
@@ -2723,6 +2810,7 @@ Perform a Wald test for a joint hypothesis on coefficients.
 #### `t_read_onnx(path)` / `t_read_pmml(path)`
 
 Import pre-trained models from ONNX or PMML formats for native scoring.
+Julia nodes can also consume `^onnx` artifacts through `ONNXRunTime.jl`; ONNX export from Julia remains explicitly unsupported.
 
 ---
 
@@ -2739,7 +2827,7 @@ Basis functions for modeling.
 
 CSV I/O and DataFrame introspection.
 
-### `dataframe(data)`
+### `to_dataframe(data)`
 
 Constructs a DataFrame from either a list of rows (Dictionaries) or a Dictionary of columns (Vectors/Lists).
 
@@ -2754,10 +2842,10 @@ Constructs a DataFrame from either a list of rows (Dictionaries) or a Dictionary
 **Examples:**
 ```t
 -- Column-wise
-df = dataframe([x: [1, 2], y: [3, 4]])
+df = to_dataframe([x: [1, 2], y: [3, 4]])
 
 -- Row-wise
-df = dataframe([
+df = to_dataframe([
   [name: "Alice", age: 30],
   [name: "Bob", age: 25]
 ])
@@ -2790,25 +2878,25 @@ Read a Parquet file into a DataFrame.
 
 ---
 
-### `read_arrow(path)` / `write_arrow(dataframe, path)`
+### `read_arrow(path)` / `write_arrow(to_dataframe, path)`
 
 Read or write Arrow IPC files.
 
 ---
 
-### `write_csv(dataframe, path, separator = ",")`
+### `write_csv(to_dataframe, path, separator = ",")`
 
 Write a DataFrame to a CSV file.
 
 ---
 
-### `nrow(dataframe)` / `ncol(dataframe)`
+### `nrow(to_dataframe)` / `ncol(to_dataframe)`
 
 Get number of rows or columns.
 
 ---
 
-### `colnames(dataframe)`
+### `colnames(to_dataframe)`
 
 Get column names as a List of strings.
 
@@ -2820,32 +2908,32 @@ Standardizes column names using a snake_case convention. Works on DataFrames or 
 
 ---
 
-### `glimpse(dataframe)`
+### `glimpse(to_dataframe)`
 
 Prints a summary of the DataFrame structure, including dimensions, column names, types, and first few values.
 
 ---
 
-### `pull(dataframe, column)`
+### `pull(to_dataframe, column)`
 
 Extracts a single column as a Vector.
 
 ---
 
-### `to_array(dataframe, columns = NA)`
+### `to_array(to_dataframe, columns = NA)`
 
 Converts numeric columns of a DataFrame to a matrix (NDArray).
 
 ---
 
-### `ncol(dataframe)`
+### `ncol(to_dataframe)`
 
 Get number of columns.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 
 **Returns:**
 
@@ -2858,14 +2946,14 @@ ncol(df)  -- 5
 
 ---
 
-### `colnames(dataframe)`
+### `colnames(to_dataframe)`
 
 Get column names.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 
 **Returns:**
 
@@ -2878,14 +2966,14 @@ colnames(df)  -- ["name", "age", "dept", "salary"]
 
 ---
 
-### `glimpse(dataframe)`
+### `glimpse(to_dataframe)`
 
 Get a compact overview of a DataFrame, showing column names, types, and example values. Similar to dplyr's `glimpse()`.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 
 **Returns:**
 
@@ -2894,19 +2982,19 @@ Dict with `kind`, `nrow`, `ncol`, and `columns` (list of column summaries)
 **Examples:**
 ```t
 glimpse(df)
--- {`kind`: "dataframe", `nrow`: 100, `ncol`: 4, `columns`: ["name <String> ...", "age <Int> ...", ...]}
+-- {`kind`: "to_dataframe", `nrow`: 100, `ncol`: 4, `columns`: ["name <String> ...", "age <Int> ...", ...]}
 ```
 
 ---
 
-### `clean_colnames(dataframe)` / `clean_colnames(names)`
+### `clean_colnames(to_dataframe)` / `clean_colnames(names)`
 
 Normalize column names to safe identifiers.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame, OR
+- `to_dataframe` — DataFrame, OR
 - `names` — List of Strings
 
 **Returns:**
@@ -2941,14 +3029,14 @@ Data manipulation verbs and window functions.
 
 ### Data Verbs
 
-#### `select(dataframe, ...columns)`
+#### `select(to_dataframe, ...columns)`
 
 Select columns by name. Supports dollar-prefix NSE syntax.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `...columns` — Column references (`$name`)
 
 **Returns:**
@@ -2963,14 +3051,14 @@ df |> select($dept)
 
 ---
 
-#### `filter(dataframe, predicate)`
+#### `filter(to_dataframe, predicate)`
 
 Filter rows by condition. Supports NSE expressions with dollar-prefix column references.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `predicate` — NSE expression (`$age > 25`)
 
 **Returns:**
@@ -2986,16 +3074,16 @@ df |> filter($salary > 50000 and $active == true)
 
 ---
 
-#### `mutate(dataframe, $col = expr)` / `mutate(dataframe, new_col, fn)`
+#### `mutate(to_dataframe, $col = expr)` / `mutate(to_dataframe, new_col, fn)`
 
 Add or transform a column. Supports `$col = expr` named-arg syntax with NSE.
 
 **Parameters (named-arg form):**
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `$col = expr` — Column name from `$col`, value from NSE expression
 
 **Parameters (positional form):**
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `new_col` — Column reference (`$bonus`)
 - `fn` — Function taking row dict: `\(row) ...`, OR
 - `value` — Constant value for all rows
@@ -3019,14 +3107,14 @@ df |> group_by($dept) |> mutate($dept_size, \(g) nrow(g))
 
 ---
 
-#### `arrange(dataframe, column, direction = "asc")`
+#### `arrange(to_dataframe, column, direction = "asc")`
 
 Sort rows by column. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `column` — Column reference (`$age`)
 - `direction` (optional) — "asc" or "desc" (default: "asc")
 
@@ -3042,14 +3130,14 @@ df |> arrange($salary, "desc")
 
 ---
 
-#### `group_by(dataframe, ...columns)`
+#### `group_by(to_dataframe, ...columns)`
 
 Group by one or more columns. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `...columns` — Column references (`$dept`)
 
 **Returns:**
@@ -3205,21 +3293,21 @@ Split a column into multiple columns, or combine multiple columns into one.
 
 ### Factor Manipulation
 
-#### `factor(x, levels = NA, ordered = false)` / `fct(x)` / `as_factor(x)`
+#### `to_factor(x, levels = NA, ordered = false)`
 
-Create factor-encoded vectors. `fct` uses first-appearance levels by default.
+Create to_factor-encoded vectors. Derives unique levels alphabetically if `levels` is not provided.
 
 ---
 
 #### `levels(f)`
 
-Get labels from a factor.
+Get labels from a to_factor.
 
 ---
 
 #### `fct_recode(f, ...new = old)` / `fct_relevel(f, ...levels, after = 0)`
 
-Rename or reorder factor levels.
+Rename or reorder to_factor levels.
 
 ---
 
@@ -3502,7 +3590,7 @@ cumany([false, true, false]) -- Vector[false, true, true]
 
 High-performance date and time manipulation, inspired by R's `lubridate`.
 
-### `as_date(value)` / `as_datetime(value)`
+### `to_date(value)` / `to_datetime(value)`
 
 Convert values to Date or Datetime types.
 
@@ -3516,8 +3604,8 @@ Convert values to Date or Datetime types.
 
 **Examples:**
 ```t
-as_date("2023-05-15")  -- 2023-05-15
-as_datetime("2023-05-15 14:00:00")
+to_date("2023-05-15")  -- 2023-05-15
+to_datetime("2023-05-15 14:00:00")
 ```
 
 ---
@@ -3570,7 +3658,7 @@ Get the current UTC date or datetime.
 
 ---
 
-### `year(x)` / `month(x, label = false)` / `day(x)` / `mday(x)`
+### `year(x)` / `month(x, label = false)` / `day(x)` / `day(x)`
 ### `yday(x)` / `wday(x, label = false, week_start = 7)` / `week(x)` / `isoweek(x)` / `isoyear(x)`
 ### `quarter(x)` / `semester(x)`
 
@@ -3623,7 +3711,7 @@ Same as input type
 
 **Examples:**
 ```t
-floor_date(as_date("2023-05-15"), "month")  -- 2023-05-01
+floor_date(to_date("2023-05-15"), "month")  -- 2023-05-01
 ```
 
 ---
@@ -3940,6 +4028,27 @@ The evaluated return value of the command.
 
 ---
 
+### `jln(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)`
+
+Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
+
+**Parameters:**
+
+- `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
+- `script` — Path to an external `.jl` file to execute as the node body.
+- `serializer` (optional) — Custom serializer function. Default: `^csv`.
+- `deserializer` (optional) — Custom deserializer function. Default: `^csv`.
+- `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
+- `functions` (optional) — Julia files to source before execution.
+- `include` (optional) — Additional files for the sandbox.
+- `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+
+**Returns:**
+
+The evaluated return value of the command.
+
+---
+
 ### `qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false)`
 
 Configure a Quarto pipeline node. A convenience wrapper around `node()` with `runtime = "Quarto"`. Use it to render `.qmd` files inside `pipeline { ... }` blocks.
@@ -4199,7 +4308,7 @@ explain(42)
 -- {`kind`: "value", `type`: "Int", `value`: 42}
 
 explain(df)
--- {`kind`: "dataframe", `nrow`: 100, `ncol`: 5, `hint`: "Use explain(df).schema, ..."}
+-- {`kind`: "to_dataframe", `nrow`: 100, `ncol`: 5, `hint`: "Use explain(df).schema, ..."}
 
 -- Access detailed fields:
 explain(df).schema        -- list of column name/type pairs
@@ -4566,7 +4675,7 @@ type value =
   | VList of value list
   | VDict of (string, value) Hashtbl.t
   | VFunction of string list * expr * environment
-  | VDataFrame of dataframe
+  | VDataFrame of to_dataframe
   | VVector of vector
   | VNA of na_type
   | VError of error_info
@@ -4663,7 +4772,7 @@ T is **dynamically typed** with runtime type checking.
 | `List` | `VList of value list` | Heterogeneous lists |
 | `Dict` | `VDict of (string, value) Hashtbl.t` | Mutable hash table |
 | `Function` | `VFunction of params * body * env` | Closure |
-| `DataFrame` | `VDataFrame of dataframe` | Arrow table or fallback |
+| `DataFrame` | `VDataFrame of to_dataframe` | Arrow table or fallback |
 | `Vector` | `VVector of vector` | Typed array (Int/Float/Bool/String) |
 | `NA` | `VNA of na_type` | Typed missing value |
 | `Error` | `VError of error_info` | Error with code, message, context |
@@ -4771,7 +4880,7 @@ T leverages Nix to orchestrate computation across multiple runtimes. When a node
 For direct user-facing Arrow file workflows outside pipelines, T also exposes:
 
 - `read_arrow(path)` for Arrow IPC input
-- `write_arrow(dataframe, path)` for Arrow IPC output
+- `write_arrow(to_dataframe, path)` for Arrow IPC output
 
 That means Arrow is used both as an internal storage backend and as an interchange format at the language boundary.
 
@@ -4887,7 +4996,7 @@ src/packages/
 ├── core/          # Functional utilities
 ├── math/          # Mathematical functions
 ├── stats/         # Statistical functions
-├── dataframe/     # CSV I/O, DataFrame ops
+├── to_dataframe/     # CSV I/O, DataFrame ops
 ├── colcraft/      # Data verbs, window functions
 ├── pipeline/      # Pipeline introspection
 └── explain/       # Debugging tools
@@ -5245,7 +5354,7 @@ The most important caveat is that the repository currently mixes **current-state
 There is also still an important CSV-path distinction to document clearly:
 
 - `src/arrow/arrow_io.ml` contains a native Arrow CSV reader,
-- and the public `read_csv` builtin in `src/packages/dataframe/t_read_csv.ml` now delegates to `Arrow_io.read_csv` when callers use the default CSV options.
+- and the public `read_csv` builtin in `src/packages/to_dataframe/t_read_csv.ml` now delegates to `Arrow_io.read_csv` when callers use the default CSV options.
 - non-default parsing behaviors such as custom separators, header skipping, line skipping, and column-name cleaning still use the OCaml parser path.
 - this is now a documented split between the fast native default path and the richer compatibility path, rather than an entirely missing integration.
 
@@ -5316,13 +5425,13 @@ Taken together, these files provide:
 
 Arrow also shows up outside `src/arrow/`:
 
-- `src/packages/dataframe/t_read_arrow.ml`
+- `src/packages/to_dataframe/t_read_arrow.ml`
   - exposes Arrow IPC reading to T as `read_arrow`.
-- `src/packages/dataframe/t_write_arrow.ml`
+- `src/packages/to_dataframe/t_write_arrow.ml`
   - exposes Arrow IPC writing to T as `write_arrow`.
-- `src/packages/dataframe/t_dataframe.ml`
-  - `dataframe`, `pull`, and `to_array` all interact with Arrow-backed tables and Arrow-derived column types.
-- `src/packages/dataframe/t_read_csv.ml`
+- `src/packages/to_dataframe/t_dataframe.ml`
+  - `to_dataframe`, `pull`, and `to_array` all interact with Arrow-backed tables and Arrow-derived column types.
+- `src/packages/to_dataframe/t_read_csv.ml`
   - creates Arrow-backed DataFrames and uses `Arrow_io.read_csv` for the default public CSV path, while routing non-default parsing options through the OCaml parser plus `Arrow_bridge`.
 - `src/pipeline/builder_read_node.ml` and `src/packages/pipeline/read_node.ml`
   - use Arrow IPC reading in pipeline flows.
@@ -5350,7 +5459,7 @@ Based on the code currently in the repository, the following are present:
 - scalar comparisons
 - group-by plus group aggregations (`sum`, `mean`, `count`)
 - Arrow IPC read/write
-- dictionary/factor columns
+- dictionary/to_factor columns
 - list columns with nested DataFrame reconstruction
 - date columns
 - NA-only columns
@@ -5366,7 +5475,7 @@ These features exist in the backend, but are not yet cleanly represented in user
 - Arrow IPC support is implemented, but under-documented.
 - Pipeline Arrow interop exists, but most of the narrative lives in `spec_files/` and tests rather than in `docs/`.
 - Native Arrow CSV reading exists in `src/arrow/arrow_io.ml`, and the public `read_csv()` builtin uses it for the default CSV path.
-- `docs/performance.md` still describes dictionary/factor, list, and date columns as unsupported for native rebuild even though the code now includes native dictionary, list, and date materialization paths.
+- `docs/performance.md` still describes dictionary/to_factor, list, and date columns as unsupported for native rebuild even though the code now includes native dictionary, list, and date materialization paths.
 
 ### Partially implemented or still limited
 
@@ -5394,7 +5503,7 @@ The code also shows some areas that are either incomplete or intentionally const
 - Clear support matrix for:
   - primitive columns,
   - date/datetime,
-  - dictionary/factor,
+  - dictionary/to_factor,
   - list/nested columns,
   - NA-only columns,
   - zero-copy views,
@@ -5456,7 +5565,7 @@ This file covers a lot of backend behavior already:
   - grouping and grouped aggregation
 - zero-copy view behavior
 - temporal parsing helpers for date/timestamp string parsing
-- dictionary/factor support, including ordered-factor round-trips
+- dictionary/to_factor support, including ordered-to_factor round-trips
 - list-column support, including:
   - native materialization
   - NA entries
@@ -5519,7 +5628,7 @@ The current tests are strong, but there are still some obvious gaps.
      - `write_arrow`
    - Round-trips now cover:
      - primitive tables,
-     - dictionary/factor tables,
+     - dictionary/to_factor tables,
      - list-column tables where supported,
      - NA-only columns.
    - The remaining useful additions are edge cases such as empty structures and future datetime/timestamp coverage.
@@ -5546,7 +5655,7 @@ The current tests are strong, but there are still some obvious gaps.
 5. **Deeply nested list-column tests**
    - The regression spec already calls out deeper list nesting as a useful target.
 
-6. **List-column containing dictionary/factor sub-fields**
+6. **List-column containing dictionary/to_factor sub-fields**
    - This is called out in `spec_files/arrow-regression-testing.md` and would exercise a high-risk interaction.
 
 7. **Multi-chunk Arrow array tests**
@@ -5630,7 +5739,7 @@ Arrow in this repository is no longer a speculative or early-stub feature. It is
 - Arrow IPC,
 - pipeline interchange,
 - zero-copy numeric access,
-- factor/list/date support,
+- to_factor/list/date support,
 - and meaningful regression coverage.
 
 What is missing is not “Arrow support” in general. What is missing is:
@@ -5700,9 +5809,50 @@ For datasets exceeding 2-3 GB:
 
 ## [Unreleased]
 
-The focus of this release was to improve language ergonomics for data guardrails and increase test coverage across all packages.
+## [0.52.0] "Kaméhaméha" - 2026-05-xx
+
+The focus of this release is the introduction of first-class Julia support, enabling high-performance polyglot pipelines with seamless Julia integration.
+
+**Status**: Beta
+
+### First-Class Julia Support
+- **Julia Node Shorthand (`jln`)**:
+    - Introduced `jln()` (and its alias `jln()`) for executing Julia code directly within T pipelines.
+    - Julia nodes support full dependency management and automatic environment provisioning.
+- **Integrated Dependency Management**:
+    - Projects can now declare Julia requirements in `tproject.toml` via the `[julia-dependencies]` section.
+    - Support for specific Julia versions and automatic Nix-based environment generation.
+- **Native PMML Support**:
+    - Full support for PMML model scoring and export within Julia nodes using the `^pmml` serializer.
+    - High-performance in-memory scoring via `JavaCall.jl` integration.
+- **Native ONNX Support**:
+    - Full support for ONNX model inference and export within Julia nodes using the `^onnx` serializer.
+    - Leverages `ONNXRunTime.jl` for industry-standard inference performance and `ONNX.jl` for model serialization.
+- **Enhanced Polyglot Ergonomics**:
+    - Simplified data interchange between T, R, Python, and Julia.
+    - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
+    - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
+
+## [0.51.5] - 2026-05-08
+
+The focus of this release was to improve language ergonomics for data guardrails, enhance package manager feedback, and increase test coverage across all packages.
 
 **Status**: Beta  
+
+### Performance & Arrow FFI
+- **Native Table Nesting & Unnesting**:
+    - Implemented a zero-copy native Arrow FFI pipeline for `nest()` and `unnest()` operations to eliminate OCaml-side materialization bottlenecks.
+    - Optimized `GroupedTable` to use `gint64` row indices, enabling direct bulk transfer of group subsets to Arrow.
+- **Native Vertical Concatenation**:
+    - Introduced high-performance native vertical concatenation for Arrow-backed tables, significantly reducing memory overhead when stacking large data chunks.
+- **Native Horizontal Merging**:
+    - Added native support for merging columns between two tables directly in Arrow memory (`merge_horizontal`), enabling efficient expansion of key columns during unnesting.
+
+### Package Management & User Feedback
+- **Improved Dependency Sync Messages**:
+    - Enhanced `t update` feedback to explicitly report counts for R, Python, Additional Tools, and LaTeX packages being synchronized to `flake.nix`.
+    - Introduced context-aware "No T dependencies" messages that accurately reflect when a project still defines other runtime requirements (R/Python/Tools).
+    - Verified message formatting logic with new unit tests for tools-only and polyglot project configurations.
 
 ### Language Ergonomics
 - **Default Value Support in `get()`**: Enhanced the `get()` primitive to support default value fallbacks. It now handles:
@@ -5720,6 +5870,10 @@ The focus of this release was to improve language ergonomics for data guardrails
     - **Advanced Moments**: Added coverage for `skewness` and `kurtosis` (excess kurtosis) using population-moment calculations.
     - **Probabilistic Distributions**: Added golden tests for `pnorm` (standard normal approximation), `pt`, `pf`, and `pchisq` CDFs.
     - **Statistical Operations**: Verified `winsorize`, `huber_loss`, `normalize`, and Pearson `cor` against R reference values.
+    - **Weighted Statistics Support**:
+        - Implemented the `weights` argument for `lm()` to support Weighted Least Squares (WLS) regression.
+        - Added support for weighted versions of `mean`, `sd`, `var`, `cov`, `cor`, `median`, `quantile`, `iqr`, `fivenum`, `trimmed_mean`, `skewness`, and `kurtosis`.
+        - Verified accuracy and diagnostic consistency across the statistical package.
     - **Data Transformations**: Added a golden test for `standardize` and `scale` using `iris$Sepal.Length`.
     - **Model Accessors**: Added regression tests for `coef`, `conf_int`, `sigma`, `nobs`, and `df_residual` for linear models.
 - **Cross-Platform Stability**:
@@ -5739,7 +5893,7 @@ The focus of this release was to improve language ergonomics for data guardrails
     - Expanded test coverage for `core` package builtins, including `args`, `help`, `apropos`, and `write_text`.
     - **Introspection**: Added tests for the `args()` builtin on both builtins and lambdas, ensuring correct parameter name and type extraction.
     - **Core Unit Tests**: Expanded coverage for `identical` (deep equality), `sum` (edge cases), `seq` (auto-descending ranges), and `head`/`tail` (slicing boundaries).
-    - **Coverage Boost**: Significantly increased coverage for `ifelse`, `casewhen`, and `identical` (t_boolean.ml), `get` with all lens types (t_get.ml), and all specialized rendering paths in `pretty_print.ml`.
+    - **Coverage Boost**: Significantly increased coverage for `ifelse`, `case_when`, and `identical` (t_boolean.ml), `get` with all lens types (t_get.ml), and all specialized rendering paths in `pretty_print.ml`.
     - **Coverage Integration**: Added the new colcraft coverage tests to the test runner so these scenarios are exercised in regular test execution.
     - **Colcraft Coverage**: Expanded testing for `fill`, `replace_na`, `complete`, `relocate`, `count`, `slice`, `unnest`, `separate`, and `uncount`. Verified `downup` direction logic and regex error handling.
     - **Pretty Printing**: Verified nested collection and visual metadata (Altair) rendering in `pretty_print`.
@@ -5753,8 +5907,12 @@ The focus of this release was to improve language ergonomics for data guardrails
 - **Enhanced Arity Error Reporting**:
     - Updated the core evaluator to include function names in arity error messages for all builtins (e.g., `Function `length` expects...`).
     - Standardized arity error expectations across the entire test suite (1944/1944 tests passing).
+- **Developer Experience & Coverage Tools**:
+    - **Nix-based Coverage**: Introduced the `packages.t-coverage` Nix output for simplified code coverage collection.
+    - **Instrumentation Isolation**: Fixed coverage baseline contamination by isolating documentation generation during the Nix build process.
+    - **Integrated Reporting**: Bundled `bisect-ppx-report` within the coverage derivation to streamline local reporting workflows.
 
-## [0.52.0] - 2026-04-30
+## [0.51.4] - 2026-04-30
 
 **Status**: Beta  
 
@@ -5774,8 +5932,8 @@ The focus of this release was to improve language ergonomics for data guardrails
     - Introduced `$param` syntax in lambda and `function()` parameter lists.
     - Parameters prefixed with `$` automatically capture bare names (like column names) as **Symbols** rather than evaluating them.
     - Simplified the creation of data-wrangling wrappers, removing the need for `enquo()` in simple forwarding cases.
-- **Unified `get()` and New `sym()` Builtin**:
-    - Added the `sym()` core builtin for programmatic symbol creation.
+- **Unified `get()` and New `to_symbol()` Builtin**:
+    - Added the `to_symbol()` core builtin for programmatic symbol creation.
     - Unified the `get()` dispatcher across `core` and `lens` packages, ensuring a single, stable interface for variable lookup, collection indexing, and lens-based retrieval.
     - **Regression Safety**: Added regression tests to ensure core primitives remain stable when the `lens` package is loaded.
 
@@ -5820,7 +5978,7 @@ The focus of this release was to improve language ergonomics for data guardrails
     - **Unified `get()` Integration**: The `get()` builtin now natively supports `VLens` for data focus, providing a single, consistent interface for variable lookup, indexing, and lens-based retrieval.
 
 ### Core Evaluator, Emitter & Documentation Refinements
-- **Improved Docstring Coverage**: Added full T-style documentation (descriptions, parameters, examples) for `get()`, `sym()`, and related primitives.
+- **Improved Docstring Coverage**: Added full T-style documentation (descriptions, parameters, examples) for `get()`, `to_symbol()`, and related primitives.
 - **Integrated Documentation Tooling**: Verified `t_doc("parse")` and `t_doc("generate")` workflows for extracting and publishing reference pages for new core functions.
 - **Auto-Quoting Documentation**: Updated `docs/language_overview.md` and `docs/quotation.md` with comprehensive examples of the new `$param` auto-quoting feature.
 
@@ -5850,7 +6008,7 @@ The focus of this release was to improve language ergonomics for data guardrails
 - **`t_make()` & `t_run()` Integration**: Added `failfast` parameter to the main pipeline orchestrator and script runner for granular control.
 - **Improved Serialization Restoration**: Fixed a critical bug where `VError` values were deserialized as Dictionaries. The system now correctly restores the native `Error` type across node boundaries, even when using modern JSON interchange.
 
-## [0.52.0] - 2026-04-12
+## [0.51.3] - 2026-04-12
 
 **Status**: Beta  
 
@@ -5897,7 +6055,7 @@ The focus of this release was to improve language ergonomics for data guardrails
     - Enforced scalarity for `==` and `!=`. These now require explicit broadcasting (`.==`) for collections to prevent silent logic errors.
     - **`identical(a, b)`**: New core builtin for deep structural equality of complex objects.
 - **Enhanced Data Operations**:
-    - **`dataframe()` Constructor**: Added support for Dictionary-based construction and automatic scalar recycling.
+    - **`to_dataframe()` Constructor**: Added support for Dictionary-based construction and automatic scalar recycling.
     - **NSE Safety**: Implemented guarded NSE transformation to prevent unexpected lambda-wrapping of non-NSE builtins.
 - **String Column Extraction**: Enhanced `pull()` and column helpers to support `VString` arguments for extraction of special-character column names.
 
@@ -5919,7 +6077,7 @@ The focus of this release was to improve language ergonomics for data guardrails
 - **Grouped Mutate**: Fixed a regression where assigning constant scalars to grouped DataFrames would fail.
 - **Interaction Resolution**: Restored and verified interaction term (`:`) resolution in native linear model scoring.
 
-## Version 0.52.0
+## Version 0.51.2
 
 **Status**: Beta  
 **Release Date**: 2026-03-28
@@ -5967,7 +6125,7 @@ The focus of this release was to improve language ergonomics for data guardrails
 
 Version history and roadmap for the T programming language.
 
-## [0.52.0] - 2026-03-21
+## [0.51.1] - 2026-03-21
 
 **Status**: Beta
 **Release Date**: 21st of March 2026
@@ -5983,7 +6141,7 @@ Version history and roadmap for the T programming language.
 - **Quarto Integration**: Fixed `read_node` substitution in Quarto reports to prevent syntax errors in R/Python chunks.
 - **Testing**: Resolved failures in Quarto pipeline tests and improved CI reliability.
 
-## Version 0.52.0 — First Public Release
+## Version 0.51.0 — First Public Release
 
 **Status**: Alpha — Syntax and semantics frozen  
 **Release Date**: February 2026
@@ -5991,7 +6149,7 @@ Version history and roadmap for the T programming language.
 ### Package Manager (`t update`)
 
 - **Versioning sync**: `t update` now generates a `flake.nix` that points to this version by default.
-- **Improved defaults**: Projects without an explicit `min_version` now use 0.52.0.
+- **Improved defaults**: Projects without an explicit `min_version` now use 0.51.0.
 
 ### Language Core
 
@@ -6134,7 +6292,7 @@ Version history and roadmap for the T programming language.
 - Dual-path operations (native + fallback)
 - `explain(df)` surfaces whether a DataFrame is still on the native Arrow path (`storage_backend`, `native_path_active`)
 - Supported structural rebuilds now try to stay Arrow-backed by rematerializing into a fresh native table
-- **Current limitation**: unsupported builder paths (for example NA-only, factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
+- **Current limitation**: unsupported builder paths (for example NA-only, to_factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
 
 ✅ **Reproducibility**:
 
@@ -6428,7 +6586,7 @@ tlang/
 │       ├── core/           # Functional utilities
 │       ├── math/           # Math functions
 │       ├── stats/          # Statistics
-│       ├── dataframe/      # DataFrame operations
+│       ├── to_dataframe/      # DataFrame operations
 │       ├── colcraft/       # Data verbs
 │       ├── pipeline/       # Pipeline introspection
 │       └── explain/        # Debugging tools
@@ -6720,7 +6878,7 @@ Fixes #42
 
 ### Process
 
-1. **Choose a package**: `base`, `core`, `math`, `stats`, `dataframe`, `colcraft`, `pipeline`, or `explain`
+1. **Choose a package**: `base`, `core`, `math`, `stats`, `to_dataframe`, `colcraft`, `pipeline`, or `explain`
 2. **Create function file**: `src/packages/<package>/<function_name>.ml` or `.t`
 3. **Implement function**:
    ```ocaml
@@ -6894,11 +7052,11 @@ Duplicate names after cleaning are disambiguated: the first occurrence stays unc
 
 ## Creating DataFrames
 
-You can create DataFrames manually from a list of rows using the `dataframe()` function. Each row can be a Dict or a named List.
+You can create DataFrames manually from a list of rows using the `to_dataframe()` function. Each row can be a Dict or a named List.
 
 ```t
 -- From a list of named Lists (idiomatic row constructor)
-df = dataframe([
+df = to_dataframe([
   [name: "Alice", age: 30, score: 88.5],
   [name: "Bob",   age: 25, score: 92.0]
 ])
@@ -7226,29 +7384,29 @@ df |> complete($group, nesting($item_id, $item_name))
 
 Create categorical data with defined levels. Factors respect their level order when sorting, rather than alphabetical order.
 
-### factor() — Create a Factor
+### to_factor() — Create a Factor
 
-Creates a factor from a vector or column, optionally specifying levels.
+Creates a to_factor from a vector or column, optionally specifying levels.
 
 ```t
--- Create a factor from a vector
-let f = factor(["low", "high", "medium"], levels = ["low", "medium", "high"])
+-- Create a to_factor from a vector
+let f = to_factor(["low", "high", "medium"], levels = ["low", "medium", "high"])
 
--- Create a factor column using mutate
-df |> mutate($size_fct = factor($size, levels = ["small", "medium", "large"]))
+-- Create a to_factor column using mutate
+df |> mutate($size_fct = to_factor($size, levels = ["small", "medium", "large"]))
 ```
 
-### as_factor() — Coerce to Factor
+### to_factor() — Coerce to Factor
 
-Coerces a column to a factor (categorical) value, deriving levels from the unique values present.
+Coerces a column to a to_factor (categorical) value, deriving levels from the unique values present.
 
 ```t
-df |> mutate($category = as_factor($category))
+df |> mutate($category = to_factor($category))
 ```
 
 ### fct_infreq() — Reorder Levels by Frequency
 
-Reorders factor levels in descending order of frequency.
+Reorders to_factor levels in descending order of frequency.
 
 ```t
 df |> mutate($category = fct_infreq($category))
@@ -7436,7 +7594,7 @@ Use `explain()` to get structured metadata about any value:
 
 ```t
 e = explain(df)
-e.kind        -- "dataframe"
+e.kind        -- "to_dataframe"
 e.nrow        -- number of rows
 e.ncol        -- number of columns
 e.schema      -- column type information
@@ -7555,6 +7713,11 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 - **Description**: Moving trained models between high-level languages and T's native scoring engine.
 - **Key Features**: `predict()` across language boundaries, standardized model storage.
 
+### [Julia Interop](julia_interop_t.html)
+- **Repo**: `julia_interop_t`
+- **Description**: Demonstrates first-class support for Julia nodes and CSV data interchange.
+- **Key Features**: `jln()`, automatic Julia environment provisioning.
+
 ### [Lenses & Dynamic Pipelines](lens.html)
 - **Repo**: `deep_data_lenses_t` / `dynamic_pipeline_operator_t`
 - **Description**: Demonstrates functional updates to immutable configurations and dynamic DAG generation.
@@ -7565,7 +7728,7 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 ### [Dynamic Lookup & Symbols](metaprogramming.html)
 - **Repo**: `get_sym_demo_t`
 - **Description**: Showcases runtime variable lookup and symbol construction for dynamic orchestration.
-- **Key Features**: `get()`, `sym()`, dynamic node access.
+- **Key Features**: `get()`, `to_symbol()`, dynamic node access.
 
 ---
 
@@ -7948,9 +8111,9 @@ let eval env expr =
 **In T code**:
 ```t
 x = 10
-print("DEBUG: x = " + str_string(x))
+print("DEBUG: x = " + to_string(x))
 result = x * 2
-print("DEBUG: result = " + str_string(result))
+print("DEBUG: result = " + to_string(result))
 ```
 
 ### Trace Execution
@@ -8085,7 +8248,7 @@ let test_median () =
 start = time()  -- If time() function exists
 -- ... computation ...
 end = time()
-print("Elapsed: " + str_string(end - start))
+print("Elapsed: " + to_string(end - start))
 ```
 
 **In OCaml**:
@@ -8409,17 +8572,17 @@ committed.
 You can install the T language extension in two ways:
 
 #### Option A: Download the `.vsix` file (Recommended)
-1. Download the latest release: [`t-lang-0.52.0.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.52.0.vsix) (or download from the repository assets).
+1. Download the latest release: [`t-lang-0.51.0.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix) (or download from the repository assets).
 2. Install the extension using the command line:
    ```bash
-   code --install-extension /path/to/downloaded/t-lang-0.52.0.vsix
+   code --install-extension /path/to/downloaded/t-lang-0.51.0.vsix
    ```
    *Alternatively, in VS Code, go to the Extensions view, click the `...` menu, and select **Install from VSIX...***
 
 #### Option B: From a cloned T repository
 If you have already cloned the T repository locally:
 ```bash
-code --install-extension editors/vscode/t-lang-0.52.0.vsix
+code --install-extension editors/vscode/t-lang-0.51.0.vsix
 ```
 
 #### Launching the Editor
@@ -9107,11 +9270,11 @@ p = pipeline {
   -- 3. Precise branching: Choose the best action for each state
   final_result = node(command = 
     quality_status ?|> \(outcome) match(outcome) {
-      -- Full Case: Sufficient data and factor levels
+      -- Full Case: Sufficient data and to_factor levels
       [type: "high_quality", data: df] => 
         lm(df, $yield ~ $temp + $segment),
       
-      -- Fallback Case: Enough data, but not enough factor diversity
+      -- Fallback Case: Enough data, but not enough to_factor diversity
       -- We drop the 'segment' predictor to avoid model failure
       [type: "low_diversity", data: df] => 
         lm(df, $yield ~ $temp),
@@ -9125,7 +9288,7 @@ p = pipeline {
 ```
 
 **Why use this?**:
-*   **Adaptive Modeling**: Your pipeline automatically scales its complexity to match the quality of the incoming data, avoiding "singular matrix" or "one level factor" errors.
+*   **Adaptive Modeling**: Your pipeline automatically scales its complexity to match the quality of the incoming data, avoiding "singular matrix" or "one level to_factor" errors.
 *   **Operational Intelligence**: Instead of the whole pipeline failing due to a minor data shift (like one category disappearing from today's extract), the system gracefully degrades its service while still providing a result.
 *   **Auditability**: Every run clearly states which path was taken through the use of descriptive tags like `low_diversity` or `high_quality`.
 
@@ -9176,7 +9339,7 @@ mean([1, 2, NA, 4], na_rm = true)  -- 2.33...
 -- Error(TypeError: Cannot add String and Int)
 ```
 
-**Solution**: Use separate print statements or `str_string()` for manual conversion.
+**Solution**: Use separate print statements or `to_string()` for manual conversion.
 
 ```t
 print("Age: ")
@@ -9279,7 +9442,7 @@ process_data = \(df)
 
 ```t
 if (age < 0 or age > 150)
-  error("ValidationError", str_sprintf("Age must be between 0 and 150, got: %s", str_string(age)))
+  error("ValidationError", str_sprintf("Age must be between 0 and 150, got: %s", to_string(age)))
 ```
 
 **Bad**: Vague messages
@@ -9455,16 +9618,16 @@ mean_age = mean(customers.age, na_rm = true)
 sd_age = sd(customers.age, na_rm = true)
 median_purchases = quantile(customers.purchases, 0.5, na_rm = true)
 
-print("Average age: " + str_string(mean_age))
-print("Age SD: " + str_string(sd_age))
-print("Median purchases: " + str_string(median_purchases))
+print("Average age: " + to_string(mean_age))
+print("Age SD: " + to_string(sd_age))
+print("Median purchases: " + to_string(median_purchases))
 
 -- Distribution analysis
 q25 = quantile(customers.purchases, 0.25, na_rm = true)
 q75 = quantile(customers.purchases, 0.75, na_rm = true)
 iqr = q75 - q25
 
-print("IQR: " + str_string(iqr))
+print("IQR: " + to_string(iqr))
 ```
 
 ### Simple Filtering and Selection
@@ -9483,9 +9646,9 @@ young = customers |> filter($age < 30)
 mature = customers |> filter($age >= 30 and $age < 50)
 senior = customers |> filter($age >= 50)
 
-print("Young customers: " + str_string(nrow(young)))
-print("Mature customers: " + str_string(nrow(mature)))
-print("Senior customers: " + str_string(nrow(senior)))
+print("Young customers: " + to_string(nrow(young)))
+print("Mature customers: " + to_string(nrow(mature)))
+print("Senior customers: " + to_string(nrow(senior)))
 ```
 
 ---
@@ -9502,8 +9665,8 @@ sales = read_csv("sales.csv")
 na_count_revenue = length(filter(sales.revenue, \(x) is_na(x)))
 na_count_cost = length(filter(sales.cost, \(x) is_na(x)))
 
-print("NA in revenue: " + str_string(na_count_revenue))
-print("NA in cost: " + str_string(na_count_cost))
+print("NA in revenue: " + to_string(na_count_revenue))
+print("NA in cost: " + to_string(na_count_cost))
 
 -- Remove rows with any NA
 clean = sales |> filter(
@@ -9569,8 +9732,8 @@ cleaned = df |> filter(
   $salary >= lower_bound and $salary <= upper_bound
 )
 
-print("Original rows: " + str_string(nrow(df)))
-print("After outlier removal: " + str_string(nrow(cleaned)))
+print("Original rows: " + to_string(nrow(df)))
+print("After outlier removal: " + to_string(nrow(cleaned)))
 ```
 
 ---
@@ -9590,14 +9753,14 @@ cor_gdp_unemployment = cor(
   na_rm = true
 )
 
-print("GDP vs Unemployment: r = " + str_string(cor_gdp_unemployment))
+print("GDP vs Unemployment: r = " + to_string(cor_gdp_unemployment))
 
 -- Multiple correlations
 cor_consumption_income = cor(economics.consumption, economics.income, na_rm = true)
 cor_savings_income = cor(economics.savings, economics.income, na_rm = true)
 
-print("Consumption vs Income: r = " + str_string(cor_consumption_income))
-print("Savings vs Income: r = " + str_string(cor_savings_income))
+print("Consumption vs Income: r = " + to_string(cor_consumption_income))
+print("Savings vs Income: r = " + to_string(cor_savings_income))
 ```
 
 ### Linear Regression
@@ -9612,16 +9775,16 @@ model = lm(
 )
 
 -- Inspect model
-print("Slope: " + str_string(model.slope))
-print("Intercept: " + str_string(model.intercept))
-print("R²: " + str_string(model.r_squared))
-print("N: " + str_string(model.n))
+print("Slope: " + to_string(model.slope))
+print("Intercept: " + to_string(model.intercept))
+print("R²: " + to_string(model.r_squared))
+print("N: " + to_string(model.n))
 
 -- Manual prediction
 predict = \(x) model.intercept + model.slope * x
 predicted_sales = predict(5000)
 
-print("Predicted sales for $5000 ad spend: " + str_string(predicted_sales))
+print("Predicted sales for $5000 ad spend: " + to_string(predicted_sales))
 ```
 
 ### Hypothesis Testing (Manual t-test example)
@@ -9641,9 +9804,9 @@ sd_b = sd(group_b, na_rm = true)
 pooled_sd = sqrt((sd_a * sd_a + sd_b * sd_b) / 2)
 cohens_d = (mean_a - mean_b) / pooled_sd
 
-print("Group A mean: " + str_string(mean_a))
-print("Group B mean: " + str_string(mean_b))
-print("Cohen's d: " + str_string(cohens_d))
+print("Group A mean: " + to_string(mean_a))
+print("Group B mean: " + to_string(mean_b))
+print("Cohen's d: " + to_string(cohens_d))
 ```
 
 ---
@@ -10132,7 +10295,7 @@ write_csv(dashboard_prep.top_products, "top_products.csv")
 write_csv(dashboard_prep.by_region, "regional_breakdown.csv")
 
 print("Dashboard data prepared successfully")
-print("Total revenue: " + str_string(dashboard_prep.summary.total_revenue))
+print("Total revenue: " + to_string(dashboard_prep.summary.total_revenue))
 ```
 
 ---
@@ -10153,18 +10316,18 @@ Now that you've seen T in action across various scenarios, explore the detailed 
 
 # Factors and `fct_*` Helpers in T
 
-This guide explains how factors work in T, when to use `factor()` versus `fct()`, and how the `fct_*` family helps you reorder, relabel, and combine categorical data.
+This guide explains how factors work in T, how to use `to_factor()`, and how the `fct_*` family helps you reorder, relabel, and combine categorical data.
 
 ---
 
 ## The Basic Idea
 
-A factor is categorical data with an explicit list of levels.
+A to_factor is categorical data with an explicit list of levels.
 
 That level list matters because operations such as `arrange()` use the level order instead of alphabetical order.
 
 ```t
-sizes = factor(["medium", "small", "large"], levels = ["small", "medium", "large"])
+sizes = to_factor(["medium", "small", "large"], levels = ["small", "medium", "large"])
 levels(sizes)
 -- ["small", "medium", "large"]
 ```
@@ -10180,40 +10343,27 @@ This makes factors useful for ordered categories such as:
 
 ## Creating Factors
 
-### `factor()` — explicit categorical levels
+### `to_factor()` — explicit or derived levels
 
-Use `factor()` when you want to control the level order yourself.
+Use `to_factor()` to create categorical data. If you provide `levels`, it uses that exact order. If not, it derives unique levels from the data and sorts them alphabetically by default.
 
 ```t
-priority = factor(
+priority = to_factor(
   ["medium", "low", "high", "medium"],
   levels = ["low", "medium", "high"]
 )
 ```
 
-If you do not provide `levels`, `factor()` derives them from the data.
-
-### `fct()` — levels follow first appearance
-
-Use `fct()` when you want levels to keep the order in which values first appear.
-
 ```t
-status = fct(["new", "in_progress", "done", "new"])
+status = to_factor(["new", "in_progress", "done", "new"])
 levels(status)
--- ["new", "in_progress", "done"]
-```
-
-### `as_factor()` — coerce existing values
-
-`as_factor()` is the convenient coercion form for turning an existing vector or column into factor data.
-
-```t
-df |> mutate($segment = as_factor($segment))
+-- ["done", "in_progress", "new"]
 ```
 
 ### `ordered()` — ordered factors
 
-Use `ordered()` when the order is meaningful and should be preserved as an ordered factor.
+
+Use `ordered()` when the order is meaningful and should be preserved as an ordered to_factor.
 
 ```t
 ratings = ordered(
@@ -10226,13 +10376,13 @@ ratings = ordered(
 
 ## Why the `fct_*` Prefix Exists
 
-The `fct_*` prefix is used for helpers that manipulate factor levels after creation.
+The `fct_*` prefix is used for helpers that manipulate to_factor levels after creation.
 
-These helpers are analogous to the factor tools popularized by `forcats` in R:
+These helpers are analogous to the to_factor tools popularized by `forcats` in R:
 
-- they keep the input as factor data,
-- they operate on levels or factor ordering,
-- and they make factor-specific intent obvious in a pipeline.
+- they keep the input as to_factor data,
+- they operate on levels or to_factor ordering,
+- and they make to_factor-specific intent obvious in a pipeline.
 
 Examples:
 
@@ -10305,8 +10455,8 @@ fct_lump_n($species, n = 2)
 ### Keep levels with at least a minimum count
 
 ```t
-fct_lump_min(fct(["a", "a", "b", "c"]), 2)
-levels(fct_lump_min(fct(["a", "a", "b", "c"]), 2))
+fct_lump_min(to_factor(["a", "a", "b", "c"]), 2)
+levels(fct_lump_min(to_factor(["a", "a", "b", "c"]), 2))
 -- ["a", "Other"]
 ```
 
@@ -10325,28 +10475,28 @@ You can also set a custom replacement label with `other_level = "Misc"`.
 ### Keep or drop selected levels with `fct_other()`
 
 ```t
-levels(fct_other(fct(["a", "b", "c"]), keep = ["a"]))
+levels(fct_other(to_factor(["a", "b", "c"]), keep = ["a"]))
 -- ["a", "Other"]
 ```
 
 ### Remove unused levels with `fct_drop()`
 
 ```t
-levels(fct_drop(factor(["a", "b"], levels = ["a", "b", "c"])))
+levels(fct_drop(to_factor(["a", "b"], levels = ["a", "b", "c"])))
 -- ["a", "b"]
 ```
 
 ### Add levels without changing existing values with `fct_expand()`
 
 ```t
-levels(fct_expand(fct(["a"]), "b", "c"))
+levels(fct_expand(to_factor(["a"]), "b", "c"))
 -- ["a", "b", "c"]
 ```
 
 ### Combine factors with unified levels using `fct_c()`
 
 ```t
-levels(fct_c(fct(["a"], levels = ["a", "b"]), fct(["c"])))
+levels(fct_c(to_factor(["a"], levels = ["a", "b"]), to_factor(["c"])))
 -- ["a", "b", "c"]
 ```
 
@@ -10354,13 +10504,13 @@ levels(fct_c(fct(["a"], levels = ["a", "b"]), fct(["c"])))
 
 ## Sorting with Factors
 
-A factor keeps its declared level order during sorting.
+A to_factor keeps its declared level order during sorting.
 
 ```t
 df = crossing(size = ["medium", "small", "large"], id = [1, 2])
 
 df
-  |> mutate($size_fct = factor($size, levels = ["small", "medium", "large"]))
+  |> mutate($size_fct = to_factor($size, levels = ["small", "medium", "large"]))
   |> arrange($size_fct)
 ```
 
@@ -10372,16 +10522,14 @@ This sorts rows by `small`, then `medium`, then `large`, even though alphabetica
 
 Use:
 
-- `factor()` when you want explicit levels,
-- `fct()` when you want first-appearance order,
-- `as_factor()` when coercing an existing column,
-- `ordered()` when the factor should be marked as ordered,
+- `to_factor()` when you want explicit or derived levels,
+- `ordered()` when the to_factor should be marked as ordered,
 - `fct_*` helpers when changing levels after creation,
 - `levels()` when you need to inspect the current level set.
 
 ---
 
-These factor helpers are currently implemented alongside the data-manipulation verbs in T's `colcraft` package, but the naming convention is the same idea you would expect from a dedicated factor-toolkit family: factor creation helpers plus `fct_*` level-manipulation helpers.
+These to_factor helpers are currently implemented alongside the data-manipulation verbs in T's `colcraft` package, but the naming convention is the same idea you would expect from a dedicated to_factor-toolkit family: to_factor creation helpers plus `fct_*` level-manipulation helpers.
 
 ---
 
@@ -10414,14 +10562,14 @@ T isn't just another data analysis language; it's a **reproducibility-first** en
 - **LLM-First Developers**: T's functional, immutable, and pipeline-centric design is optimized for high-fidelity code generation by AI.
 
 ### Is T production-ready?
-T is currently in **Beta (v0.52.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R or Python nodes.
+T is currently in **Beta (v0.52.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R, Python, or Julia nodes.
 
 ---
 
 ## The Technical Core
 
 ### How does the Polyglot Architecture work?
-T uses **Apache Arrow** as its core data exchange format. When you pass a DataFrame between a T node and an **R (`rn()`)**, **Python (`pyn()`)**, or **Shell (`shn()`)** node, T handles the interchange using highly efficient Arrow files. 
+T uses **Apache Arrow** as its core data exchange format. When you pass a DataFrame between a T node and an **R (`rn()`)**, **Python (`pyn()`)**, **Julia (`jln()`)**, or **Shell (`shn()`)** node, T handles the interchange using highly efficient Arrow files. 
 - **Hermeticity**: Because T runs every node in a hermetic Nix sandbox, data cannot be shared directly in memory.
 - **Serialization**: Dataframes are serialized to Arrow IPC files on disk. This is still significantly faster and more robust than traditional CSV/JSON interchange.
 - **Fidelity**: All level metadata for factors and nested list-columns is preserved through the serialization process.
@@ -10526,12 +10674,13 @@ T is an open-source project. You can contribute by:
 - Reporting bugs or suggesting features on [GitHub](https://github.com/b-rodrigues/tlang/issues).
 
 ### What's next on the roadmap?
-The developer (Bruno Rodrigues) works on T based on community interest and experimental whims. High-priority items include **Julia integration** and expanding the native Arrow compute engine.
+The developer (Bruno Rodrigues) works on T based on community interest and experimental whims. High-priority items include expanding the native Arrow compute engine and improving the LSP. Julia integration was a major milestone completed in v0.52.0.
 
 ---
 
 > [!TIP]
 > **Need help?** Check out the [Getting Started](getting-started.md) guide or join the [GitHub Discussions](https://github.com/b-rodrigues/tlang/discussions).
+
 
 
 # FILE: docs/formulas.md
@@ -11231,7 +11380,7 @@ updated_clients = clients |> modify(
 Targets a column in a DataFrame, a key in a Dictionary, or a named field in a nested record. This is the primary building block for navigating hierarchical structures.
 
 ```t
-employees = dataframe([[name: "Alice", salary: 50000],
+employees = to_dataframe([[name: "Alice", salary: 50000],
                        [name: "Bob",   salary: 48000]])
 
 salary_l = col_lens("salary")
@@ -11264,7 +11413,7 @@ data2 = data |> set(target_id_l, 999)    -- [ids: [101, 102, 999]]
 Focuses on a specific row in a **DataFrame**. Compose with `col_lens` for cell-level access.
 
 ```t
-df  = dataframe([[x: 1, y: 10], [x: 2, y: 20]])
+df  = to_dataframe([[x: 1, y: 10], [x: 2, y: 20]])
 
 -- Update a single cell (row 0, column "y")
 cell_l = compose(row_lens(0), col_lens("y"))
@@ -12153,7 +12302,7 @@ git show abc123:src/pipeline.t
 # Statistical Models & Tidy Output
 
 > [!IMPORTANT]
-> **Native Support Note**: $T$ provides native implementations for Linear Models (`lm`) and PMML-imported **Decision Trees** and **Random Forests**. For other advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a polyglot approach where models are trained in R or Python nodes and exchanged through PMML or ONNX.
+> **Native Support Note**: $T$ provides native implementations for Linear Models (`lm`) and PMML-imported **Decision Trees** and **Random Forests**. For other advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a polyglot approach where models are trained in R, Python, or Julia nodes and exchanged through PMML or ONNX.
 
 $T$ treats models as first-class objects that can be summarized and evaluated regardless of which runtime created them.
 
@@ -12253,16 +12402,16 @@ comp = compare(m1, m2)
 -- Returns DataFrame with columns: estimate_1, std_error_1, ..., estimate_2, ...
 ```
 
-### `augment(data, model)`
+### `add_diagnostics(data, model)`
 Augments the original data with core model-based columns: `fitted`, `resid`, and `std_resid`.
 
 ```t
-aug = augment(mtcars, model)
+aug = add_diagnostics(mtcars, model)
 -- Adds columns: fitted, resid, std_resid
 ```
 
 ### `add_diagnostics(data, model)`
-Similar to `augment`, but adds a more comprehensive set of diagnostic columns (leverage, influence, etc.).
+Similar to `add_diagnostics`, but adds a more comprehensive set of diagnostic columns (leverage, influence, etc.).
 
 ```t
 diag = add_diagnostics(mtcars, model)
@@ -12338,10 +12487,10 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 **ONNX** is the preferred interchange format when you want broad ML model coverage or faster native inference through ONNX Runtime. It allows:
 1. **Python ML Export**: `scikit-learn` models via `skl2onnx`.
 2. **Native T Loading**: Reading models with `t_read_onnx(path)` and scoring them with `predict(data, model)`.
-3. **R/Python Runtime Loading**: Reading models via the `onnx` R package or Python `onnxruntime`.
+3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 
-Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python/R.
+Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python, R, or Julia. Julia currently supports ONNX consumption through `ONNXRunTime` and returns an explicit error if you try to export ONNX directly from a Julia node.
 
 ### Cross-Runtime Consistency
 $T$'s statistical evaluator is verified against R's reference implementation. Results match R's `broom::tidy()` and `stats::predict()` exactly.
@@ -12354,7 +12503,7 @@ $T$'s statistical evaluator is verified against R's reference implementation. Re
 |-------------------|--------------|
 | `broom::tidy(fit)` | `summary(model)` |
 | `broom::glance(fit)` | `fit_stats(model)` |
-| `broom::augment(fit, data)` | `augment(df, model)` |
+| `broom::augment(fit, data)` | `add_diagnostics(df, model)` |
 | `stats::residuals(fit)` | `residuals(df, model)`|
 | `stats::coef(fit)` | `coef(model)` |
 | `stats::vcov(fit)` | `vcov(model)` |
@@ -12921,7 +13070,7 @@ T's DataFrame operations are backed by [Apache Arrow](https://arrow.apache.org/)
 - **Hash-based grouping**: `group_by()` operations use Arrow's hash-based grouping when a native handle is present
 
 > [!IMPORTANT]
-> **Current beta improvement**: T now tries to keep DataFrames on the **native Arrow path** after supported structural changes by rebuilding a native Arrow table when the resulting schema is Arrow-builder-compatible. Primitive, dictionary/factor, date, datetime/timestamp, NA-only, and several list-column shapes can now stay native; users should still inspect the active backend explicitly for more complex nested schemas.
+> **Current beta improvement**: T now tries to keep DataFrames on the **native Arrow path** after supported structural changes by rebuilding a native Arrow table when the resulting schema is Arrow-builder-compatible. Primitive, dictionary/to_factor, date, datetime/timestamp, NA-only, and several list-column shapes can now stay native; users should still inspect the active backend explicitly for more complex nested schemas.
 
 ### Dual-Path Architecture
 
@@ -12945,7 +13094,7 @@ df2 = mutate(df, $ratio = $x / $y)
 explain(df2).storage_backend     -- often still "native_arrow" for supported schemas
 explain(df2).native_path_active  -- true when native backing was preserved
 
-df3 = dataframe([[missing: NA], [missing: NA]])
+df3 = to_dataframe([[missing: NA], [missing: NA]])
 explain(df3).storage_backend     -- "native_arrow" for NA-only schemas
 explain(df3).native_path_active  -- true
 ```
@@ -13677,7 +13826,7 @@ The columns returned are:
 | Column | Type | Description |
 |---|---|---|
 | `name` | String | Unique node identifier |
-| `runtime` | String | `"T"`, `"R"`, or `"Python"` |
+| `runtime` | String | `"T"`, `"R"`, `"Python"`, or `"Julia"` |
 | `serializer` | String | e.g. `"default"`, `"pmml"` |
 | `deserializer` | String | e.g. `"default"`, `"pmml"` |
 | `noop` | Bool | Whether the node is a no-op |
@@ -13970,7 +14119,7 @@ Nodes that produce large numbers of non-terminal warnings (like those from `filt
 ```t
 p = pipeline {
   -- High-noise node with suppressed warnings
-  filtered = dataframe([[x: 1], [x: NA], [x: 3]]) 
+  filtered = to_dataframe([[x: 1], [x: NA], [x: 3]]) 
     |> filter($x > 1) 
     |> suppress_warnings
 
@@ -14606,6 +14755,7 @@ T is primarily an orchestration engine and does not currently provide its own na
 
 - **R**: `ggplot2`
 - **Python**: `matplotlib`, `seaborn`, `plotly`, `altair`, `plotnine`
+- **Julia**: Support for Julia nodes is available, though visual metadata capture is currently optimized for R and Python.
 
 One of T's unique features is **Automated Visual Metadata Capture**. When you generate a plot in an R or Python node, T "sees" the plot object and automatically extracts its structural metadata during the build process.
 
@@ -15235,7 +15385,7 @@ To upgrade your project to the latest version of T and set the project's nixpkgs
 ```bash
 $ t upgrade
 Checking for new T releases...
-Upgrading project to T 0.52.0 and nixpkgs date 2026-03-21 (today's UTC date)...
+Upgrading project to T 0.52.0 and nixpkgs date 2026-05-08 (today's UTC date)...
 Regenerating flake.nix and updating dependencies...
 Running nix flake update...
 ```
@@ -15473,10 +15623,10 @@ salary = [1000, 2000, 3000]
 var_name = "salary"
 
 get(var_name)       -- retrieves [1000, 2000, 3000]
-get(sym(var_name))  -- also works with Symbols
+get(to_symbol(var_name))  -- also works with Symbols
 ```
 
-Important: `get()` resolves names in the **calling environment**, not in a data-masking context. To retrieve a column dynamically inside a data verb, use quasiquotation with `!!sym(col)`.
+Important: `get()` resolves names in the **calling environment**, not in a data-masking context. To retrieve a column dynamically inside a data verb, use quasiquotation with `!!to_symbol(col)`.
 
 ## Quasiquotation
 
@@ -15537,17 +15687,17 @@ print(e)
 
 If `!!name` does not evaluate to a `String` or `Symbol`, a `TypeError` is raised.
 
-### `sym(string_or_symbol)`
+### `to_symbol(string_or_symbol)`
 
-When you have a column or argument name in a string variable, use `sym()` to turn it into a runtime `Symbol` that can be injected with `!!`.
+When you have a column or argument name in a string variable, use `to_symbol()` to turn it into a runtime `Symbol` that can be injected with `!!`.
 
 ```t
 col_name = "mpg"
-expr(select(df, !!sym(col_name)))
+expr(select(df, !!to_symbol(col_name)))
 -- Output: expr(select(df, mpg))
 ```
 
-This is most useful for programmatic code generation. Use `sym()` to turn a string into a label that `!!` can inject as a symbol, or that `get()` can use for variable lookup.
+This is most useful for programmatic code generation. Use `to_symbol()` to turn a string into a label that `!!` can inject as a symbol, or that `get()` can use for variable lookup.
 
 ## Non-Standard Evaluation (NSE)
 
@@ -15578,7 +15728,7 @@ my_mean = \(df, $col) {
   summarize(df, result = mean(!!col))
 }
 
-df = dataframe([salary: [100, 200, 300]])
+df = to_dataframe([salary: [100, 200, 300]])
 my_mean(df, salary)
 ```
 
@@ -15648,7 +15798,7 @@ e = expr((add, 1, 2))
 | `quos(...)` | Capture multiple expressions as a List of Quosures. |
 | `eval(e)` | Evaluate Expression `e` in the current env, or Quosure `e` in its captured env. |
 | `get(name)` | Dynamically retrieve a variable's value by String or Symbol name. |
-| `sym(s)` | Convert a String `s` into a Symbol at runtime. |
+| `to_symbol(s)` | Convert a String `s` into a Symbol at runtime. |
 | `!!x` | Evaluate `x` and inject into `expr()`/`quo()`; strips env from quosures. |
 | `!!!x` | Evaluate `x` and splice elements into `expr()`/`quo()`. |
 | `!!name := value` | Use a dynamic String/Symbol as an argument name inside `expr()`/`quo()`. |
@@ -15683,7 +15833,7 @@ df |> mutate(new = $score * 2)
 ## Best Practices
 
 1.  **Use `quo` by default**: When in doubt, use `quo` instead of `expr`. It ensures the code "remembers" its environment, preventing `NameError` when evaluated in different contexts.
-2.  **Quotation in Functions**: Use `$param` for the common "accept a column name" case. Use `enquo` when you need the caller's full expression, and use `sym()` when you are starting from a computed string.
+2.  **Quotation in Functions**: Use `$param` for the common "accept a column name" case. Use `enquo` when you need the caller's full expression, and use `to_symbol()` when you are starting from a computed string.
 3.  **Dynamic Naming**: Use `!!name := !!value` for maximum flexibility when writing generic data processing functions.
 
 
@@ -15763,7 +15913,7 @@ augments the data with model diagnostic columns (residuals, fitted values, etc.)
 
 ## Parameters
 
-- **data** (`DataFrame`): (Optional) The data to augment.
+- **data** (`DataFrame`): (Optional) The data to add_diagnostics.
 
 - **model** (`Model`): The model object.
 
@@ -15801,6 +15951,15 @@ Selection helper that returns the supplied column names and errors if names are 
 Check whether a time is before noon
 
 Returns true for Date values and for Datetime values whose hour is earlier than 12.
+
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Bool] True if before noon.
 
 
 
@@ -15980,36 +16139,6 @@ p |> arrange_node($depth, "desc")
 
 
 
-# FILE: docs/reference/as_date.md
-
-# as_date
-
-Convert values to Date
-
-Converts strings, datetimes, and related temporal values to Date values.
-
-
-
-# FILE: docs/reference/as_datetime.md
-
-# as_datetime
-
-Convert values to Datetime
-
-Converts strings, dates, and related temporal values to Datetime values.
-
-
-
-# FILE: docs/reference/as_factor.md
-
-# as_factor
-
-Coerce values to factors
-
-Alias for factor() that converts values to factor-encoded vectors.
-
-
-
 # FILE: docs/reference/asinh.md
 
 # asinh
@@ -16048,6 +16177,70 @@ Compute arcsine.
 
 
 
+# FILE: docs/reference/assert_dir_exists.md
+
+# assert_dir_exists
+
+Assert Directory Exists
+
+Checks that a directory exists at the given path.
+
+## Parameters
+
+- **path** (`String`): The directory path to check.
+
+- **message** (`String`): (Optional) Custom assertion message.
+
+
+## Returns
+
+True if the directory exists.
+
+## Examples
+
+```t
+assert_dir_exists("results")
+assert_dir_exists("artifacts", "artifact directory was not created")
+```
+
+## See Also
+
+[dir_exists](dir_exists.html), [assert](assert.html)
+
+
+
+# FILE: docs/reference/assert_file_exists.md
+
+# assert_file_exists
+
+Assert File Exists
+
+Checks that a regular file exists at the given path.
+
+## Parameters
+
+- **path** (`String`): The file path to check.
+
+- **message** (`String`): (Optional) Custom assertion message.
+
+
+## Returns
+
+True if the file exists.
+
+## Examples
+
+```t
+assert_file_exists("output.csv")
+assert_file_exists("report.html", "report generation failed")
+```
+
+## See Also
+
+[file_exists](file_exists.html), [assert](assert.html)
+
+
+
 # FILE: docs/reference/assert.md
 
 # assert
@@ -16077,6 +16270,72 @@ assert(x > 0, "x must be positive")
 ## See Also
 
 [is_error](is_error.html), [error](error.html)
+
+
+
+# FILE: docs/reference/assert_non_empty_file.md
+
+# assert_non_empty_file
+
+Assert File Is Non-Empty
+
+Checks that a regular file exists and contains at least one byte.
+
+## Parameters
+
+- **path** (`String`): The file path to check.
+
+- **message** (`String`): (Optional) Custom assertion message.
+
+
+## Returns
+
+True if the file exists and is non-empty.
+
+## Examples
+
+```t
+assert_non_empty_file("output.csv")
+assert_non_empty_file("plot.png", "plot was not written")
+```
+
+## See Also
+
+[assert_size_of_file](assert_size_of_file.html), [assert_file_exists](assert_file_exists.html)
+
+
+
+# FILE: docs/reference/assert_size_of_file.md
+
+# assert_size_of_file
+
+Assert File Size
+
+Checks that a regular file exists and has the expected size in bytes.
+
+## Parameters
+
+- **path** (`String`): The file path to check.
+
+- **size** (`Int`): The expected size in bytes.
+
+- **message** (`String`): (Optional) Custom assertion message.
+
+
+## Returns
+
+True if the file exists and has the expected size.
+
+## Examples
+
+```t
+assert_size_of_file("output.csv", 128)
+assert_size_of_file("report.html", 0, "report should be empty")
+```
+
+## See Also
+
+[assert_file_exists](assert_file_exists.html)
 
 
 
@@ -16136,33 +16395,6 @@ Compute arctangent.
 ## Returns
 
 | Vector Computed result (scalar or vectorized).
-
-
-
-# FILE: docs/reference/augment.md
-
-# augment
-
-Augment Data with Model Calculations
-
-Appends model predictions, residuals, and potentially diagnostic metrics to a dataset.
-
-## Parameters
-
-- **data** (`DataFrame`): The dataset to augment.
-
-- **model** (`Model`): The model object.
-
-
-## Returns
-
-The original DataFrame with appended `fitted`, `resid`, etc.
-
-## Examples
-
-```t
-aug = augment(mtcars, model)
-```
 
 
 
@@ -16277,37 +16509,6 @@ A vector of the resulting values.
 
 
 
-# FILE: docs/reference/casewhen.md
-
-# casewhen
-
-Vectorized case-when
-
-Evaluates a series of `condition ~ value` formulas sequentially. Returns the value corresponding to the first true condition for each element.
-
-## Parameters
-
-- **...** (`Formula`): One or more formulas of the form `condition ~ value`.
-
-- **.default** (`Any`): (Optional) Value to return if no condition matches. Defaults to NA.
-
-
-## Returns
-
-A vector of the matched values.
-
-## Examples
-
-```t
-casewhen(
-x > 0 ~ "Positive",
-x < 0 ~ "Negative",
-.default = "Zero"
-)
-```
-
-
-
 # FILE: docs/reference/cat.md
 
 # cat
@@ -16364,6 +16565,17 @@ Round dates up
 
 Rounds Date or Datetime values up to the requested unit boundary.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+- **unit** (`String`): The unit boundary ("second", "minute", "hour", "day", "month", "year").
+
+
+## Returns
+
+| Datetime | Vector The ceiled value(s).
+
 
 
 # FILE: docs/reference/ceiling.md
@@ -16373,25 +16585,6 @@ Rounds Date or Datetime values up to the requested unit boundary.
 Ceiling function
 
 Return smallest integer greater than or equal to input.
-
-## Parameters
-
-- **x** (`Number`): | Vector | NDArray Numeric input.
-
-
-## Returns
-
-| Vector Computed result (scalar or vectorized).
-
-
-
-# FILE: docs/reference/ceil.md
-
-# ceil
-
-Ceiling alias
-
-Alias for `ceiling`.
 
 ## Parameters
 
@@ -16476,25 +16669,6 @@ Standardizes column names using a snake_case convention. Removes special charact
 ## See Also
 
 [colnames](colnames.html)
-
-
-
-# FILE: docs/reference/clean_names.md
-
-# clean_names
-
-Clean Column Names
-
-Normalizes a list of strings to be safe, consistent column names. Converts symbols (like €) to text, strips diacritics, lowers the case, replaces non-alphanumeric characters with underscores, and resolves duplicates.
-
-## Parameters
-
-- **names** (`Vector[String]`): The column names to clean.
-
-
-## Returns
-
-The cleaned column names.
 
 
 
@@ -16599,6 +16773,27 @@ m1 = lm(mpg ~ wt, data = mtcars)
 m2 = lm(mpg ~ wt + hp, data = mtcars)
 compare(m1, m2)
 ```
+
+
+
+# FILE: docs/reference/compare_native_vs_pmml_scores.md
+
+# compare_native_vs_pmml_scores
+
+Compare native T scoring vs JPMML scoring
+
+Validates the T-native implementation of model scoring (e.g. random forest) against the reference JPMML evaluator. Returns a summary of differences.
+
+## Parameters
+
+- **df** (`DataFrame`): The test data.
+
+- **model** (`Dict`): The model dictionary with both native and PMML metadata.
+
+
+## Returns
+
+A summary containing `n_diffs`, `match` (Bool), and `n_rows`.
 
 
 
@@ -16724,6 +16919,8 @@ Computes the Pearson correlation coefficient between two vectors.
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 
@@ -16800,6 +16997,8 @@ Compute sample covariance of two numeric vectors.
 - **y** (`Vector`): | List Second numeric input.
 
 - **na_rm** (`Bool`): = false Pairwise remove NA values.
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -17083,6 +17282,8 @@ Compute sample sd divided by mean.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 
@@ -17092,7 +17293,7 @@ Compute sample sd divided by mean.
 
 # FILE: docs/reference/dataframe.md
 
-# dataframe
+# to_dataframe
 
 Create a DataFrame
 
@@ -17111,16 +17312,16 @@ The created DataFrame.
 
 ```t
 # Row-wise construction:
-df = dataframe([
+df = to_dataframe([
 {"a": 1, "b": 2},
 {"a": 3, "b": 4}
 ])
 
 # Column-wise construction (supported for VDict):
-df2 = dataframe([a: [1, 3], b = [2, 4]])
+df2 = to_dataframe([a: [1, 3], b = [2, 4]])
 
 # Scalar values are recycled to match other column lengths:
-df3 = dataframe([x: [1, 2, 3], constant = 0])
+df3 = to_dataframe([x: [1, 2, 3], constant = 0])
 ```
 
 ## See Also
@@ -17137,6 +17338,15 @@ Extract the day of month
 
 Returns the day-of-month component from Date or Datetime values.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Int] The day(s).
+
 
 
 # FILE: docs/reference/days_in_month.md
@@ -17146,6 +17356,17 @@ Returns the day-of-month component from Date or Datetime values.
 Get the number of days in a month
 
 Returns the number of days in the month described by a date, datetime, or explicit year/month pair.
+
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector | Int The date or year.
+
+- **month** (`Int`): (Optional) The month (if first arg was year).
+
+
+## Returns
+
+| Vector[Int] The number of days.
 
 
 
@@ -17179,25 +17400,6 @@ dense_rank([1, 2, 2, 4])
 
 
 
-# FILE: docs/reference/deserialize_from_file.md
-
-# deserialize_from_file
-
-Binary Deserialization
-
-Reads a serialized T value from a file. Verifies an integrity digest before unmarshalling to reject tampered or externally-supplied artifacts.  SECURITY NOTE: OCaml Marshal is not safe for fully untrusted input. The MD5 digest check detects accidental corruption only — MD5 is not cryptographically secure and provides no protection against intentional tampering. Only load .tobj files produced by your own T installation.
-
-## Parameters
-
-- **path** (`String`): Source file path.
-
-
-## Returns
-
-String] Value or error.
-
-
-
 # FILE: docs/reference/deserialize.md
 
 # deserialize
@@ -17218,6 +17420,32 @@ Deserializes a value from a `.tobj` file.
 ## See Also
 
 [serialize](serialize.html)
+
+
+
+# FILE: docs/reference/deviance.md
+
+# deviance
+
+Model Deviance
+
+Returns the deviance of a model.
+
+## Parameters
+
+- **model** (`Model`): The model object.
+
+
+## Returns
+
+The deviance.
+
+## Examples
+
+```t
+model = lm(mpg ~ wt, data = mtcars)
+dev = deviance(model)
+```
 
 
 
@@ -17508,27 +17736,6 @@ env("HOME")
 
 
 
-# FILE: docs/reference/env_var_lens.md
-
-# env_var_lens
-
-Pipeline Env Var Lens
-
-Targets a specific environment variable for a node in a Pipeline.
-
-## Parameters
-
-- **node_name** (`String`): The name of the node.
-
-- **var_name** (`String`): The name of the environment variable.
-
-
-## Returns
-
-A lens for the environment variable.
-
-
-
 # FILE: docs/reference/error_code.md
 
 # error_code
@@ -17567,6 +17774,35 @@ A dictionary of related context data.
 
 
 
+# FILE: docs/reference/errored_nodes.md
+
+# errored_nodes
+
+Get Errored Pipeline Nodes
+
+Returns the read-pipeline node records whose `diagnostics.error` field is not `NA`. This is a convenience wrapper around `which_nodes`.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to inspect.
+
+
+## Returns
+
+A list of node records with captured errors.
+
+## Examples
+
+```t
+errored_nodes(p)
+```
+
+## See Also
+
+[read_pipeline](read_pipeline.html), [which_nodes](which_nodes.html)
+
+
+
 # FILE: docs/reference/error.md
 
 # error
@@ -17577,9 +17813,9 @@ Raises a runtime error with a message and optional code.
 
 ## Parameters
 
-- **message** (`String`): The error message.
+- **message_or_code** (`String`): The error message (if 1 argument) or error code (if 2 arguments).
 
-- **code** (`String`): (Optional) Error code (e.g., "ValueError").
+- **message** (`String`): (Optional) The error message if a code was provided as the first argument.
 
 
 ## Returns
@@ -17706,15 +17942,7 @@ The JSON description.
 
 Explain Value
 
-Returns a dictionary describing the structure and content of a value.
-
-When the input is a pipeline node result (for example from `read_node(...)`),
-the returned dictionary separates node/container metadata from the explained
-payload via a `contents` field.
-
-In the REPL and in `t explain ...`, this dictionary is rendered with a
-tree-style CLI view for readability. Programmatically, it is still an ordinary
-`Dict`.
+Returns a dictionary describing the structure and content of a value. Node results from `read_node(...)` are wrapped with node metadata and expose the explained payload under `contents`.
 
 ## Parameters
 
@@ -17730,13 +17958,12 @@ A structured description of the value.
 ```t
 explain(mtcars)
 explain(1)
-node_info = explain(read_node("model"))
-node_info.contents
 ```
 
 ## See Also
 
 [str](str.html), [type](type.html)
+
 
 
 # FILE: docs/reference/exp.md
@@ -17818,23 +18045,13 @@ exprs(1 + 1, x = 2 * 2)
 
 
 
-# FILE: docs/reference/factor.md
-
-# factor
-
-Create factor values
-
-Converts values to factor-encoded vectors with derived or explicit levels.
-
-
-
 # FILE: docs/reference/fct_c.md
 
 # fct_c
 
-Concatenate factor vectors
+Concatenate to_factor vectors
 
-Combines multiple factor vectors while reconciling their levels.
+Combines multiple to_factor vectors while reconciling their levels.
 
 
 
@@ -17844,7 +18061,7 @@ Combines multiple factor vectors while reconciling their levels.
 
 Collapse multiple levels
 
-Merges several existing factor levels into new grouped levels.
+Merges several existing to_factor levels into new grouped levels.
 
 
 
@@ -17852,9 +18069,9 @@ Merges several existing factor levels into new grouped levels.
 
 # fct_drop
 
-Drop unused factor levels
+Drop unused to_factor levels
 
-Removes levels that are not referenced by any value in the factor vector.
+Removes levels that are not referenced by any value in the to_factor vector.
 
 
 
@@ -17862,9 +18079,9 @@ Removes levels that are not referenced by any value in the factor vector.
 
 # fct_expand
 
-Add explicit factor levels
+Add explicit to_factor levels
 
-Adds extra levels to a factor without changing existing assignments.
+Adds extra levels to a to_factor without changing existing assignments.
 
 
 
@@ -17872,9 +18089,9 @@ Adds extra levels to a factor without changing existing assignments.
 
 # fct_infreq
 
-Order factor levels by frequency
+Order to_factor levels by frequency
 
-Reorders factor levels so that more frequent levels appear first.
+Reorders to_factor levels so that more frequent levels appear first.
 
 
 
@@ -17882,9 +18099,9 @@ Reorders factor levels so that more frequent levels appear first.
 
 # fct_lump_min
 
-Lump factor levels below a minimum count
+Lump to_factor levels below a minimum count
 
-Collapses factor levels whose counts fall below a minimum threshold.
+Collapses to_factor levels whose counts fall below a minimum threshold.
 
 
 
@@ -17892,9 +18109,9 @@ Collapses factor levels whose counts fall below a minimum threshold.
 
 # fct_lump_n
 
-Keep the most frequent factor levels
+Keep the most frequent to_factor levels
 
-Collapses infrequent factor levels into an other bucket while keeping the most frequent levels.
+Collapses infrequent to_factor levels into an other bucket while keeping the most frequent levels.
 
 
 
@@ -17902,19 +18119,9 @@ Collapses infrequent factor levels into an other bucket while keeping the most f
 
 # fct_lump_prop
 
-Lump factor levels below a minimum proportion
+Lump to_factor levels below a minimum proportion
 
-Collapses factor levels whose frequency falls below a proportion threshold.
-
-
-
-# FILE: docs/reference/fct.md
-
-# fct
-
-Create factors in first-seen order
-
-Creates a factor whose levels follow the first appearance order of the input values.
+Collapses to_factor levels whose frequency falls below a proportion threshold.
 
 
 
@@ -17924,7 +18131,7 @@ Creates a factor whose levels follow the first appearance order of the input val
 
 Replace unlisted levels with Other
 
-Keeps selected factor levels and maps the rest to an other bucket.
+Keeps selected to_factor levels and maps the rest to an other bucket.
 
 
 
@@ -17932,9 +18139,9 @@ Keeps selected factor levels and maps the rest to an other bucket.
 
 # fct_recode
 
-Rename factor levels
+Rename to_factor levels
 
-Recodes existing factor levels using named replacements.
+Recodes existing to_factor levels using named replacements.
 
 
 
@@ -17944,7 +18151,7 @@ Recodes existing factor levels using named replacements.
 
 Move selected levels to the front
 
-Explicitly reorders a factor by moving named levels ahead of the remaining levels.
+Explicitly reorders a to_factor by moving named levels ahead of the remaining levels.
 
 
 
@@ -17952,9 +18159,9 @@ Explicitly reorders a factor by moving named levels ahead of the remaining level
 
 # fct_reorder
 
-Order factor levels by another vector
+Order to_factor levels by another vector
 
-Reorders factor levels using summary statistics computed from a companion numeric vector.
+Reorders to_factor levels using summary statistics computed from a companion numeric vector.
 
 
 
@@ -17962,9 +18169,9 @@ Reorders factor levels using summary statistics computed from a companion numeri
 
 # fct_rev
 
-Reverse factor levels
+Reverse to_factor levels
 
-Reverses the order of the levels in a factor vector.
+Reverses the order of the levels in a to_factor vector.
 
 
 
@@ -18078,7 +18285,7 @@ filter(mtcars, \(row) -> row.mpg > 20)
 
 Filter Pipeline Nodes
 
-Returns a new pipeline containing only the nodes for which the predicate returns `true`. Uses NSE (`$field`) to refer to node metadata fields.  No DAG validity check is performed. If a retained node depends on a node that was removed, that inconsistency surfaces only at `build_pipeline` or `pipeline_run`.  Supported metadata fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$depth`, `$command_type`.
+Returns a new pipeline containing only the nodes for which the predicate returns `true`. Uses NSE (`$field`) to refer to node metadata fields.  No DAG validity check is performed. If a retained node depends on a node that was removed, that inconsistency surfaces only at `build_pipeline` or `pipeline_run`.  Supported metadata fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$depth`, `$command_type`, `$diagnostics`.
 
 ## Parameters
 
@@ -18097,6 +18304,7 @@ A new pipeline with only the matching nodes.
 p |> filter_node($runtime == "python")
 p |> filter_node($noop == false)
 p |> filter_node($depth <= 2)
+p |> filter_node(!is_na($diagnostics.error))
 ```
 
 ## See Also
@@ -18151,6 +18359,8 @@ Return min, Q1, median, Q3, max.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 
@@ -18165,6 +18375,17 @@ Return min, Q1, median, Q3, max.
 Round dates down
 
 Rounds Date or Datetime values down to the requested unit boundary.
+
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+- **unit** (`String`): The unit boundary ("second", "minute", "hour", "day", "month", "year").
+
+
+## Returns
+
+| Datetime | Vector The floored value(s).
 
 
 
@@ -18195,6 +18416,17 @@ Retag a datetime with a timezone
 
 Reinterprets local clock components under a new timezone label.
 
+## Parameters
+
+- **x** (`Datetime`): | Vector The temporal value(s).
+
+- **tz** (`String`): The new timezone label.
+
+
+## Returns
+
+| Vector[Datetime] The relabeled datetime(s).
+
 
 
 # FILE: docs/reference/format_date.md
@@ -18205,6 +18437,17 @@ Format dates as strings
 
 Formats Date values with a user-supplied format string.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+- **format** (`String`): The strftime-style format string.
+
+
+## Returns
+
+| Vector[String] The formatted string(s).
+
 
 
 # FILE: docs/reference/format_datetime.md
@@ -18214,6 +18457,17 @@ Formats Date values with a user-supplied format string.
 Format datetimes as strings
 
 Formats Datetime values with a user-supplied format string.
+
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+- **format** (`String`): The strftime-style format string.
+
+
+## Returns
+
+| Vector[String] The formatted string(s).
 
 
 
@@ -18231,44 +18485,52 @@ Joins two DataFrames and keeps rows appearing in either input.
 
 # get
 
-Unified data retrieval for names, collections, pipelines, and lenses
+Unified Data Retrieval (get)
 
-`get()` is a polymorphic retrieval helper:
-
-- `get("x")` / `get(sym("x"))` looks up a variable in the current environment
-- `get(collection, index)` indexes a `List`, `Vector`, or `NDArray`
-- `get(pipeline, "node")` retrieves a pipeline node result
-- `get(data, lens)` applies a lens focus to a value
-- `get(node_lens("name"))` retrieves a sandboxed sibling-node artifact via `T_NODE_<name>`
+Retrieves values from environments, collections, or pipelines using names, indices, or lenses.  This is a polymorphic primitive that unifies several retrieval modes:  1. **Variable Lookup**: `get("var_name")` retrieves a variable from the environment. 2. **Collection Indexing**: `get(collection, index)` retrieves an element (0-based). 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result. 4. **Lens Focus**: `get(data, lens)` applies a Lens to focus on a subset of data. 5. **Default Value (Fallback)**: `get(value, default)` returns `value` unchanged when it is not NA/Error; returns `default` when `value` is NA or an Error. 6. **Safe Retrieval**: `get(target, selector, default)` performs the retrieval and returns `default` only when the result is NA (missing key/node or out-of-bounds index). Type errors in unsupported target/selector combinations propagate as errors. 7. **Cross-Node Access (Sandbox)**: `get(node_lens("name"))` retrieves a sibling node's artifact.
 
 ## Parameters
 
-- **target** (`String | Symbol | List | Vector | NDArray | Pipeline | Lens`): The value or name to retrieve from.
+- **target** (`Any`): The environment name, Collection, Pipeline, Data, or Value to check.
 
-- **selector** (`Int | String | Symbol | Lens`, optional): The index, node name, or lens to apply when a second argument is provided.
+- **selector** (`Any`): (Optional) The index, Node name, Lens, or Default value.
+
+- **default** (`Any`): (Optional) The default value if the retrieval fails.
 
 
 ## Returns
 
-The looked-up value, selected element, node result, or lens focus.
+The retrieved value or the default fallback.
 
 ## Examples
 
 ```t
 salary = 50000
-get("salary")                  -- 50000
-get(sym("salary"))             -- 50000
+get("salary")                -- 50000 (Lookup)
 
-get([10, 20, 30], 1)           -- 20
+lst = [10, 20, 30]
+get(lst, 1)                  -- 20 (Indexing)
+
+-- Safe indexing with default:
+get(lst, 5, 0)               -- 0 (Index out of bounds fallback)
+
+-- Guardrail pattern (any non-NA/Error value is returned as-is):
+s = [min_age: NA]
+get(s.min_age, 0) >= 0       -- true (NA falls back to 0)
+get(42, 0)                   -- 42 (non-NA/Error value returned unchanged)
 
 p = pipeline { a = 1 }
-get(p, "a")                    -- 1
+get(p, "a")                  -- 1 (Pipeline Access)
+get(p, "missing", "N/A")     -- "N/A" (Safe Pipeline Access)
 
 l = col_lens("mpg")
-get(mtcars, l)                 -- focused column
+get(mtcars, l)               -- Vector of 'mpg' column (Lens)
 
-get(node_lens("model"))        -- sandbox artifact lookup
+-- Sandbox access (within a Nix-built node):
+get(node_lens("node_a"))      -- Deserializes T_NODE_node_a artifact
+
 ```
+
 
 
 # FILE: docs/reference/getwd.md
@@ -18447,6 +18709,15 @@ Extract the hour
 
 Returns the hour component from Datetime values.
 
+## Parameters
+
+- **x** (`Datetime`): | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Int] The hour(s).
+
 
 
 # FILE: docs/reference/huber_loss.md
@@ -18563,26 +18834,27 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [args](args.html) | Get function arguments and their types |
 | [arrange](arrange.html) | Arrange rows |
 | [arrange_node](arrange_node.html) | Arrange Pipeline Nodes |
-| [as_date](as_date.html) | Convert values to Date |
-| [as_datetime](as_datetime.html) | Convert values to Datetime |
-| [as_factor](as_factor.html) | Coerce values to factors |
+| [to_date](to_date.html) | Convert values to Date |
+| [to_datetime](to_datetime.html) | Convert values to Datetime |
 | [asin](asin.html) | Inverse sine |
 | [asinh](asinh.html) | Inverse hyperbolic sine |
 | [assert](assert.html) | Assert Condition |
+| [assert_dir_exists](assert_dir_exists.html) | Assert Directory Exists |
+| [assert_file_exists](assert_file_exists.html) | Assert File Exists |
+| [assert_non_empty_file](assert_non_empty_file.html) | Assert File Is Non-Empty |
+| [assert_size_of_file](assert_size_of_file.html) | Assert File Size |
 | [atan](atan.html) | Inverse tangent |
 | [atan2](atan2.html) | Two-argument arctangent |
 | [atanh](atanh.html) | Inverse hyperbolic tangent |
-| [augment](augment.html) | Augment Data with Model Calculations |
+| [add_diagnostics](add_diagnostics.html) | Augment Data with Model Calculations |
 | [bind_cols](bind_cols.html) | Combine DataFrames by columns |
 | [bind_rows](bind_rows.html) | Stack DataFrames by rows |
 | [body](body.html) | Get function body |
 | [build_pipeline](build_pipeline.html) | Build Pipeline Artifacts |
 | [build_pipeline_internal](build_pipeline_internal.html) | Build Pipeline Internally |
 | [case_when](case_when.html) | Vectorized Case-When |
-| [casewhen](casewhen.html) | Vectorized case-when |
 | [cat](cat.html) | Print values without escaping |
 | [cbind](cbind.html) | Column bind matrices |
-| [ceil](ceil.html) | Ceiling alias |
 | [ceiling](ceiling.html) | Ceiling function |
 | [ceiling_date](ceiling_date.html) | Round dates up |
 | [chain](chain.html) | Chain Two Pipelines |
@@ -18592,6 +18864,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [col_lens](col_lens.html) | Create a Column Lens |
 | [colnames](colnames.html) | Get column names |
 | [compare](compare.html) | Compare Models |
+| [compare_native_vs_pmml_scores](compare_native_vs_pmml_scores.html) | Compare native T scoring vs JPMML scoring |
 | [complete](complete.html) | Complete a data frame |
 | [compose](compose.html) | Compose Lenses |
 | [conf_int](conf_int.html) | Confidence Intervals for Model Coefficients |
@@ -18611,11 +18884,12 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [cumsum](cumsum.html) | Cumulative Sum |
 | [cut](cut.html) | Discretize numeric vector |
 | [cv](cv.html) | Coefficient of variation |
-| [dataframe](dataframe.html) | Create a DataFrame |
+| [to_dataframe](to_dataframe.html) | Create a DataFrame |
 | [day](day.html) | Extract the day of month |
 | [days_in_month](days_in_month.html) | Get the number of days in a month |
 | [dense_rank](dense_rank.html) | Dense Rank |
 | [deserialize](deserialize.html) | Deserialize Value |
+| [deviance](deviance.html) | Model Deviance |
 | [df_residual](df_residual.html) | Residual Degrees of Freedom |
 | [diag](diag.html) | Create or extract diagonal |
 | [difference](difference.html) | Subtract one pipeline from another |
@@ -18628,11 +18902,11 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [enquo](enquo.html) | Capture a function argument's expression (non-standard evaluation) |
 | [enquos](enquos.html) | Capture variadic argument expressions (non-standard evaluation) |
 | [env](env.html) | Get environment variable |
-| [env_var_lens](env_var_lens.html) | Pipeline Env Var Lens |
 | [error](error.html) | Raise Error |
 | [error_code](error_code.html) | Get error code |
 | [error_context](error_context.html) | Get error context |
 | [error_message](error_message.html) | Get error message |
+| [errored_nodes](errored_nodes.html) | Get Errored Pipeline Nodes |
 | [eval](eval.html) | Evaluate a quoted expression or quosure |
 | [everything](everything.html) | Select every column |
 | [exit](exit.html) | Exit the interpreter |
@@ -18642,21 +18916,20 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [explain_json](explain_json.html) | Explain Value as JSON |
 | [expr](expr.html) | Capture an expression |
 | [exprs](exprs.html) |  |
-| [factor](factor.html) | Create factor values |
-| [fct](fct.html) | Create factors in first-seen order |
-| [fct_c](fct_c.html) | Concatenate factor vectors |
+| [to_factor](to_factor.html) | Create to_factor values |
+| [fct_c](fct_c.html) | Concatenate to_factor vectors |
 | [fct_collapse](fct_collapse.html) | Collapse multiple levels |
-| [fct_drop](fct_drop.html) | Drop unused factor levels |
-| [fct_expand](fct_expand.html) | Add explicit factor levels |
-| [fct_infreq](fct_infreq.html) | Order factor levels by frequency |
-| [fct_lump_min](fct_lump_min.html) | Lump factor levels below a minimum count |
-| [fct_lump_n](fct_lump_n.html) | Keep the most frequent factor levels |
-| [fct_lump_prop](fct_lump_prop.html) | Lump factor levels below a minimum proportion |
+| [fct_drop](fct_drop.html) | Drop unused to_factor levels |
+| [fct_expand](fct_expand.html) | Add explicit to_factor levels |
+| [fct_infreq](fct_infreq.html) | Order to_factor levels by frequency |
+| [fct_lump_min](fct_lump_min.html) | Lump to_factor levels below a minimum count |
+| [fct_lump_n](fct_lump_n.html) | Keep the most frequent to_factor levels |
+| [fct_lump_prop](fct_lump_prop.html) | Lump to_factor levels below a minimum proportion |
 | [fct_other](fct_other.html) | Replace unlisted levels with Other |
-| [fct_recode](fct_recode.html) | Rename factor levels |
+| [fct_recode](fct_recode.html) | Rename to_factor levels |
 | [fct_relevel](fct_relevel.html) | Move selected levels to the front |
-| [fct_reorder](fct_reorder.html) | Order factor levels by another vector |
-| [fct_rev](fct_rev.html) | Reverse factor levels |
+| [fct_reorder](fct_reorder.html) | Order to_factor levels by another vector |
+| [fct_rev](fct_rev.html) | Reverse to_factor levels |
 | [file_exists](file_exists.html) | Check if file exists |
 | [fill](fill.html) | Fill missing values |
 | [filter](filter.html) | Filter rows |
@@ -18670,7 +18943,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [format_date](format_date.html) | Format dates as strings |
 | [format_datetime](format_datetime.html) | Format datetimes as strings |
 | [full_join](full_join.html) | Join all rows from both tables |
-| [get](get.html) | Get Value via Lens |
+| [get](get.html) | Unified Data Retrieval (get) |
 | [getwd](getwd.html) | Get current working directory |
 | [glimpse](glimpse.html) | Glimpse DataFrame |
 | [greet](greet.html) | Greet someone |
@@ -18679,6 +18952,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [help](help.html) | Display documentation for a function |
 | [hour](hour.html) | Extract the hour |
 | [huber_loss](huber_loss.html) | Huber loss |
+| [identical](identical.html) | Deep Equality Check |
 | [idx_lens](idx_lens.html) | Index Lens |
 | [ifelse](ifelse.html) | Vectorized If-Else |
 | [index_of](index_of.html) | Find index of substring |
@@ -18695,13 +18969,14 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [is_character](is_character.html) | Check for character columns |
 | [is_empty](is_empty.html) | Check if string is empty |
 | [is_error](is_error.html) | Check if a value is an Error |
-| [is_factor](is_factor.html) | Check for factor columns |
+| [is_factor](is_factor.html) | Check for to_factor columns |
 | [is_leap_year](is_leap_year.html) | Check for leap years |
 | [is_logical](is_logical.html) | Check for logical columns |
 | [is_na](is_na.html) | Check for NA |
 | [is_numeric](is_numeric.html) | Check for numeric columns |
 | [isoweek](isoweek.html) | Extract the ISO week number |
 | [isoyear](isoyear.html) | Extract the ISO week-based year |
+| [jln](jln.html) | Configure a Julia Pipeline Node |
 | [kron](kron.html) | Kronecker product |
 | [kurtosis](kurtosis.html) | Excess kurtosis |
 | [lag](lag.html) | Lag values |
@@ -18710,7 +18985,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [left_join](left_join.html) | Join rows from the left table |
 | [length](length.html) | Get length |
 | [lens](lens.html) | Lens Library |
-| [levels](levels.html) | Get factor levels |
+| [levels](levels.html) | Get to_factor levels |
 | [list_files](list_files.html) | List files in directory |
 | [list_logs](list_logs.html) | List Pipeline Logs |
 | [lm](lm.html) | Linear Model |
@@ -18723,7 +18998,6 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [matches](matches.html) | Match columns by regex |
 | [matmul](matmul.html) | Matrix multiplication |
 | [max](max.html) | Maximum value |
-| [mday](mday.html) | Extract the day of month |
 | [mean](mean.html) | Compute arithmetic mean of numeric values |
 | [median](median.html) | Median |
 | [min](min.html) | Minimum value |
@@ -18749,6 +19023,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
 | [node_lens](node_lens.html) | Pipeline Node Lens |
+| [node_meta_lens](node_meta_lens.html) | Pipeline Metadata Lens |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
@@ -18794,7 +19069,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [poly](poly.html) | Polynomial basis expansion |
 | [populate_pipeline](populate_pipeline.html) | Populate Pipeline |
 | [pow](pow.html) | Power function |
-| [predict](predict.html) | Linear Model Prediction |
+| [predict](predict.html) | Model Prediction |
 | [pretty_print](pretty_print.html) | Pretty-print a value |
 | [print](print.html) | Print values to standard output |
 | [prune](prune.html) | Prune Pipeline Leaf Nodes |
@@ -18807,12 +19082,13 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [quo](quo.html) | Capture an expression with its lexical environment (quosure) |
 | [quos](quos.html) | Capture multiple expressions with their lexical environment (quosures) |
 | [range](range.html) | Range |
-| [read_arrow](read_arrow.html) | Read Arrow IPC file |
+| [read_arrow](read_arrow.html) | Read an Arrow IPC (Feather) file |
 | [read_csv](read_csv.html) | Read CSV file |
 | [read_file](read_file.html) | Read file contents |
 | [read_log](read_log.html) | Read Node Build Log |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
 | [read_parquet](read_parquet.html) | Read Parquet file |
+| [read_pipeline](read_pipeline.html) | Read Pipeline Metadata |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |
 | [relocate](relocate.html) | Move columns to a new position |
 | [rename](rename.html) | Rename DataFrame columns |
@@ -18847,6 +19123,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [set](set.html) | Set Focused Value |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
+| [show_plot](show_plot.html) | Render a plot node and open it locally |
 | [sigma](sigma.html) | Residual Standard Deviation |
 | [sign](sign.html) | Sign of number |
 | [signif](signif.html) | Significant-digit rounding |
@@ -18874,7 +19151,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [str_replace](str_replace.html) | Replace all occurrences |
 | [str_split](str_split.html) | Split a string on a delimiter |
 | [str_sprintf](str_sprintf.html) | Format a string |
-| [str_string](str_string.html) | Convert to string |
+| [to_string](to_string.html) | Convert to string |
 | [str_substring](str_substring.html) | Extract substring |
 | [str_trim](str_trim.html) | Trim whitespace |
 | [str_trunc](str_trunc.html) | Truncate strings for display |
@@ -18883,15 +19160,20 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [sum](sum.html) | Sum of numeric values |
 | [summarize](summarize.html) | Summarize data |
 | [summary](summary.html) | Model Summary |
+| [suppress_warnings](suppress_warnings.html) | Suppress Diagnostics for a Node |
 | [swap](swap.html) | Swap a Pipeline Node Implementation |
+| [to_symbol](to_symbol.html) | Convert a string to a Symbol |
 | [t_doc](t_doc.html) | Generate Documentation |
 | [t_make](t_make.html) | Build Pipeline Internally |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
 | [t_read_onnx](t_read_onnx.html) | Read an ONNX model file |
 | [t_read_pmml](t_read_pmml.html) | Read a PMML model file |
 | [t_run](t_run.html) | Run a T script |
+| [t_score_pmml](t_score_pmml.html) | Score a PMML model using JPMML |
 | [t_test](t_test.html) | Run tests |
 | [t_write_json](t_write_json.html) | Write Value to JSON |
+| [t_write_onnx](t_write_onnx.html) | Write an ONNX model file |
+| [t_write_pmml](t_write_pmml.html) | Write a PMML model file |
 | [tail](tail.html) | Get the last n rows/items |
 | [tan](tan.html) | Tangent |
 | [tanh](tanh.html) | Hyperbolic tangent |
@@ -18899,7 +19181,6 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [to_float](to_float.html) | Convert to Float |
 | [to_integer](to_integer.html) | Convert to Integer |
 | [to_lower](to_lower.html) | Convert to lowercase |
-| [to_numeric](to_numeric.html) | Convert to Numeric |
 | [to_upper](to_upper.html) | Convert to uppercase |
 | [today](today.html) | Get the current date |
 | [trace_nodes](trace_nodes.html) | Trace Pipeline Nodes |
@@ -18914,6 +19195,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
+| [unknown](unknown.html) | Print Failed Node Logs |
 | [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |
@@ -18923,6 +19205,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [wday](wday.html) | Extract or label the weekday |
 | [week](week.html) | Extract the week number |
 | [where](where.html) | Select columns by predicate |
+| [which_nodes](which_nodes.html) | Filter Readable Pipeline Node Records |
 | [winsorize](winsorize.html) | Winsorize values |
 | [with_tz](with_tz.html) | Convert a datetime to a new timezone |
 | [write_arrow](write_arrow.html) | Write Arrow IPC file |
@@ -19071,6 +19354,17 @@ Create an interval
 
 Builds an interval from two Date or Datetime endpoints.
 
+## Parameters
+
+- **start** (`Date`): | Datetime The start of the interval.
+
+- **end** (`Date`): | Datetime The end of the interval.
+
+
+## Returns
+
+The constructed interval.
+
 
 
 # FILE: docs/reference/inv.md
@@ -19140,6 +19434,8 @@ Compute Q3 - Q1 using quantiles.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 
@@ -19206,9 +19502,9 @@ is_error(error("Something went wrong"))
 
 # is_factor
 
-Check for factor columns
+Check for to_factor columns
 
-Predicate helper for factor columns or factor vectors.
+Predicate helper for to_factor columns or to_factor vectors.
 
 
 
@@ -19219,6 +19515,15 @@ Predicate helper for factor columns or factor vectors.
 Check for leap years
 
 Returns true when the supplied year or date falls in a leap year.
+
+## Parameters
+
+- **x** (`Int`): | Date | Datetime | Vector The year or temporal value(s).
+
+
+## Returns
+
+| Vector[Bool] True if it is a leap year.
 
 
 
@@ -19280,6 +19585,15 @@ Extract the ISO week number
 
 Returns the ISO week number for Date or Datetime values.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Int] The ISO week number(s).
+
 
 
 # FILE: docs/reference/isoyear.md
@@ -19290,75 +19604,49 @@ Extract the ISO week-based year
 
 Returns the ISO week-based year for Date or Datetime values.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
 
 
-# FILE: docs/reference/join.md
+## Returns
 
-# str_join
+| Vector[Int] The ISO year(s).
 
-Join strings with a separator
 
-Concatenates items of a List or Vector into a single string, separated by `sep`.
+
+# FILE: docs/reference/jln.md
+
+# jln
+
+Configure a Julia Pipeline Node
+
+A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
 
 ## Parameters
 
-- **items** (`List`): | Vector The items to join.
-- **sep** (`String`): [Optional] The separator string. Defaults to "".
+- **command** (`Any`): (Optional) The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks). Mutually exclusive with `script`.
 
-## Returns:
+- **script** (`String`): (Optional) Path to an external `.jl` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Julia` automatically.
 
-Returns: The joined string.
+- **serializer** (`String`): | Symbol (Optional) Custom serializer strategy. Built-in values include ^csv and ^json. Default = ^csv.
 
-## Examples
+- **deserializer** (`String`): | Symbol (Optional) Custom deserializer strategy. Built-in values include ^csv and ^json. Default = ^csv.
 
-```t
-str_join(["a", "b", "c"], "-")
--- Returns = "a-b-c"
-str_join(["a", "b", "c"])
--- Returns = "abc"
-```
+- **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
+
+- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+
+- **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
+
+
+## Returns
+
+The evaluated return value of the command.
 
 ## See Also
 
-[str_string](string.html)
-
-
-
-# FILE: docs/reference/json_escape.md
-
-# json_escape
-
-JSON String Escaper
-
-Escapes special characters for JSON compatibility.
-
-## Parameters
-
-- **s** (`String`): The string to escape.
-
-
-## Returns
-
-The escaped string.
-
-
-
-# FILE: docs/reference/json_unescape.md
-
-# json_unescape
-
-JSON String Unescaper
-
-Decodes escaped characters from a JSON string.
-
-## Parameters
-
-- **s** (`String`): The escaped string.
-
-
-## Returns
-
-The literal string.
+[pyn](pyn.html), [rn](rn.html), [node](node.html)
 
 
 
@@ -19400,6 +19688,8 @@ Compute fourth standardized moment minus 3.
 - **x** (`Vector`): | List Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -19528,7 +19818,7 @@ The number of elements.
 
 Lens Library
 
-Lenses provide a way to get and set values in nested structures. Supports column-based lenses for DataFrames and Dicts.
+Lenses provide a robust way to focus on, retrieve, and update nested data structures. Historically implemented as functional closures, Tlang lenses are now structured serializable objects (VLens), allowing them to be passed across Nix-isolated pipeline boundaries.  Retrieval should primarily be performed via the unified `get(data, lens)` primitive. Updates are performed via `over(data, lens, func)`.
 
 
 
@@ -19536,9 +19826,9 @@ Lenses provide a way to get and set values in nested structures. Supports column
 
 # levels
 
-Get factor levels
+Get to_factor levels
 
-Returns the level labels stored on a factor vector.
+Returns the level labels stored on a to_factor vector.
 
 
 
@@ -19596,6 +19886,8 @@ Fits a linear regression model using Ordinary Least Squares (OLS).
 - **data** (`DataFrame`): The data to use.
 
 - **formula** (`Formula`): The model formula (e.g., mpg ~ wt + hp).
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights for weighted least squares.
 
 
 ## Returns
@@ -19676,6 +19968,19 @@ Construct a Date value
 
 Builds a Date value from named year, month, and day components.
 
+## Parameters
+
+- **year** (`Int`): = 1970
+
+- **month** (`Int`): = 1
+
+- **day** (`Int`): = 1
+
+
+## Returns
+
+The constructed date.
+
 
 
 # FILE: docs/reference/make_datetime.md
@@ -19686,6 +19991,27 @@ Construct a Datetime value
 
 Builds a Datetime value from named date, time, and timezone components.
 
+## Parameters
+
+- **year** (`Int`): = 1970
+
+- **month** (`Int`): = 1
+
+- **day** (`Int`): = 1
+
+- **hour** (`Int`): = 0
+
+- **min** (`Int`): = 0
+
+- **sec** (`Int`): = 0
+
+- **tz** (`String`): = "UTC"
+
+
+## Returns
+
+The constructed datetime.
+
 
 
 # FILE: docs/reference/make_period.md
@@ -19695,6 +20021,25 @@ Builds a Datetime value from named date, time, and timezone components.
 Create a period value
 
 Builds a period from named year, month, day, hour, minute, and second components.
+
+## Parameters
+
+- **years** (`Int`): (Optional)
+
+- **months** (`Int`): (Optional)
+
+- **days** (`Int`): (Optional)
+
+- **hours** (`Int`): (Optional)
+
+- **minutes** (`Int`): (Optional)
+
+- **seconds** (`Int`): (Optional)
+
+
+## Returns
+
+The constructed period.
 
 
 
@@ -19793,16 +20138,6 @@ max([1, 2, 3])
 
 
 
-# FILE: docs/reference/mday.md
-
-# mday
-
-Extract the day of month
-
-Alias for day() that returns the day-of-month component from Date or Datetime values.
-
-
-
 # FILE: docs/reference/mean.md
 
 # mean
@@ -19816,6 +20151,8 @@ The mean is the sum of values divided by the count. This function handles NA val
 - **x** (`Vector[Float]`): | List[Float] Input numeric data. Must contain at least one value.
 
 - **na_rm** (`Bool`): = false Remove NA values before computation.
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -19852,6 +20189,8 @@ Compute median of numeric values.
 - **x** (`Vector`): | List Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -19930,6 +20269,15 @@ Extract the minute
 
 Returns the minute component from Datetime values.
 
+## Parameters
+
+- **x** (`Datetime`): | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Int] The minute(s).
+
 
 
 # FILE: docs/reference/mode.md
@@ -19979,6 +20327,17 @@ The final updated structure.
 Extract or label the month
 
 Returns the month number, or month labels when requested, from Date or Datetime values.
+
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+- **label** (`Bool`): = false If true, returns abbreviated month names.
+
+
+## Returns
+
+| String | Vector The month(s).
 
 
 
@@ -20134,24 +20493,6 @@ Represents a missing string value.
 ## See Also
 
 [na](na.html)
-
-
-
-# FILE: docs/reference/nchar.md
-
-# str_nchar
-
-Get character count
-
-Returns the number of characters in a string. Vectorized.
-
-## Parameters
-
-- **x** (`String`): | Vector[String] The input string(s).
-
-## Returns:
-
-Returns: | Vector[Int] The number of characters.
 
 
 
@@ -20370,7 +20711,7 @@ n = nobs(model)
 
 Pipeline Node Lens
 
-Targets the cached result value of a specific node in a Pipeline.
+Targets the cached result value of a specific node in a Pipeline. In a Nix-managed sandbox, this lens also supports cross-node retrieval using the 1-argument `get(node_lens("name"))` syntax, which automatically locates and deserializes the sibling node's artifact from the environment.
 
 ## Parameters
 
@@ -20418,6 +20759,27 @@ The evaluated return value of the command.
 
 
 
+# FILE: docs/reference/node_meta_lens.md
+
+# node_meta_lens
+
+Pipeline Metadata Lens
+
+Targets a specific metadata field of a pipeline node. Supported fields: "runtime", "serializer", "deserializer", "noop".
+
+## Parameters
+
+- **node_name** (`String`): The name of the node.
+
+- **field** (`String`): The metadata field name.
+
+
+## Returns
+
+A lens for the specified metadata field.
+
+
+
 # FILE: docs/reference/normalize.md
 
 # normalize
@@ -20444,6 +20806,15 @@ Min-max normalize values to [0, 1].
 Get the current datetime
 
 Returns the current datetime and accepts an optional timezone override.
+
+## Parameters
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+The current datetime.
 
 
 
@@ -20507,7 +20878,7 @@ Bucket indices (1 to n).
 
 Create ordered factors
 
-Creates factor vectors marked as ordered for ordinal comparisons.
+Creates to_factor vectors marked as ordered for ordinal comparisons.
 
 
 
@@ -20626,6 +20997,17 @@ Parse dates from strings
 
 Parses strings or string vectors into Date values using an explicit format string.
 
+## Parameters
+
+- **x** (`String`): | Vector[String] The string(s) to parse.
+
+- **format** (`String`): The strptime-style format string.
+
+
+## Returns
+
+| Vector[Date] The parsed date(s).
+
 
 
 # FILE: docs/reference/parse_datetime.md
@@ -20635,6 +21017,19 @@ Parses strings or string vectors into Date values using an explicit format strin
 Parse datetimes from strings
 
 Parses strings or string vectors into Datetime values using an explicit format string and optional timezone.
+
+## Parameters
+
+- **x** (`String`): | Vector[String] The string(s) to parse.
+
+- **format** (`String`): The strptime-style format string.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+| Vector[Datetime] The parsed datetime(s).
 
 
 
@@ -20816,6 +21211,17 @@ Chi-squared distribution CDF
 
 Returns cumulative probabilities from the chi-squared distribution.
 
+## Parameters
+
+- **q** (`Float`): The value at which to evaluate the CDF.
+
+- **df** (`Int`): Degrees of freedom.
+
+
+## Returns
+
+The cumulative probability.
+
 
 
 # FILE: docs/reference/percent_rank.md
@@ -20848,6 +21254,19 @@ The percent rank.
 F distribution CDF
 
 Returns cumulative probabilities from the F distribution.
+
+## Parameters
+
+- **q** (`Float`): The value at which to evaluate the CDF.
+
+- **df1** (`Int`): Degrees of freedom 1.
+
+- **df2** (`Int`): Degrees of freedom 2.
+
+
+## Returns
+
+The cumulative probability.
 
 
 
@@ -21357,6 +21776,15 @@ Check whether a time is after noon
 
 Returns true for Datetime values whose hour is 12 or later.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Bool] True if after noon.
+
 
 
 # FILE: docs/reference/pnorm.md
@@ -21366,6 +21794,15 @@ Returns true for Datetime values whose hour is 12 or later.
 Normal distribution CDF
 
 Returns cumulative probabilities from the standard normal distribution.
+
+## Parameters
+
+- **x** (`Float`): The value at which to evaluate the CDF.
+
+
+## Returns
+
+The cumulative probability.
 
 
 
@@ -21572,6 +22009,17 @@ Student t distribution CDF
 
 Returns cumulative probabilities from the Student t distribution.
 
+## Parameters
+
+- **x** (`Float`): The value at which to evaluate the CDF.
+
+- **df** (`Int`): Degrees of freedom.
+
+
+## Returns
+
+The cumulative probability.
+
 
 
 # FILE: docs/reference/pull.md
@@ -21652,17 +22100,17 @@ A convenience wrapper around `node()` with `runtime = "Quarto"`. Used directly w
 
 - **script** (`String`): (Optional) Path to an external `.qmd` file to render. Mutually exclusive with `command`.
 
-- **serializer** (`String | Function`): (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
 
-- **deserializer** (`String | Function`): (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
 
 - **env_vars** (`Dict`): (Optional) Environment variables to pass into the sandbox.
 
 - **args** (`Dict`): (Optional) Runtime/tool arguments. Use this to pass Quarto CLI arguments such as `subcommand`, `path`, `to`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 
-- **functions** (`String | List[String]`): (Optional) Files to source before execution.
+- **functions** (`String`): | List[String] (Optional) Files to source before execution.
 
-- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
+- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -21673,7 +22121,8 @@ The evaluated return value of the command.
 
 ## See Also
 
-[node](node.html), [rn](rn.html), [pyn](pyn.html), [shn](shn.html)
+[shn](shn.html), [pyn](pyn.html), [rn](rn.html), [node](node.html)
+
 
 
 # FILE: docs/reference/quantile.md
@@ -21691,6 +22140,8 @@ Computes the quantile of a distribution at a specified probability.
 - **probs** (`Float`): The probability (0 to 1).
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -21717,6 +22168,15 @@ quantile(x, 0.5)
 Extract the quarter
 
 Returns the quarter number for Date or Datetime values.
+
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Int] The quarter(s).
 
 
 
@@ -21800,13 +22260,13 @@ Return min and max as a length-2 vector.
 
 # read_arrow
 
-Read Arrow IPC file
+Read an Arrow IPC (Feather) file
 
-Reads a DataFrame from an Apache Arrow IPC (Feather v2) file.
+Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.
 
 ## Parameters
 
-- **path** (`String`): The path to the Arrow file.
+- **path** (`String`): The file path to the Arrow IPC file.
 
 
 ## Returns
@@ -21821,7 +22281,7 @@ df = read_arrow("data.arrow")
 
 ## See Also
 
-[write_arrow](write_arrow.html)
+[read_csv](read_csv.html), [write_arrow](write_arrow.html)
 
 
 
@@ -21986,25 +22446,6 @@ A dictionary with node metadata and diagnostics.
 
 
 
-# FILE: docs/reference/read_registry.md
-
-# read_registry
-
-Registry Maintenance (Reader)
-
-Parses a registry JSON file back into a list of name-path pairs.
-
-## Parameters
-
-- **path** (`String`): Source file.
-
-
-## Returns
-
-String)], String] Entries or error.
-
-
-
 # FILE: docs/reference/rebuild_node.md
 
 # rebuild_node
@@ -22101,26 +22542,6 @@ Replaces only the first occurrence of `old` with `new_` in `s`.
 ## Returns
 
 The modified string.
-
-
-
-# FILE: docs/reference/replace.md
-
-# str_replace
-
-Replace all occurrences
-
-Replaces all occurrences of `old` with `new_` in `s`.
-
-## Parameters
-
-- **s** (`String`): The input string.
-- **old** (`String`): The substring to replace.
-- **new_** (`String`): The replacement string.
-
-## Returns:
-
-Returns: The modified string.
 
 
 
@@ -22323,6 +22744,17 @@ Round dates to the nearest unit
 
 Rounds Date or Datetime values to the nearest requested unit boundary.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+- **unit** (`String`): The unit boundary ("second", "minute", "hour", "day", "month", "year").
+
+
+## Returns
+
+| Datetime | Vector The rounded value(s).
+
 
 
 # FILE: docs/reference/round.md
@@ -22518,13 +22950,15 @@ metrics = score(test_data, model)
 
 Standard Deviation
 
-Calculates the sample standard deviation of a numeric vector.
+Calculates the sample standard deviation of a numeric vector. With `weights`, uses the weighted population denominator (`sum(weights)`).
 
 ## Parameters
 
 - **x** (`Vector`): | List The numeric data.
 
 - **na_rm** (`Bool`): (Optional) logical. Should missing values be removed? Default is false.
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -22551,6 +22985,15 @@ sd([1, 2, 3, 4, 5])
 Extract the second
 
 Returns the second component from Datetime values.
+
+## Parameters
+
+- **x** (`Datetime`): | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Float] The second(s).
 
 
 
@@ -22624,6 +23067,15 @@ p |> select_node($name, $depth, $noop)
 Extract the semester
 
 Returns 1 for the first half of the year and 2 for the second half.
+
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Int] The semester(s).
 
 
 
@@ -22734,27 +23186,6 @@ Serializes a value to a `.tobj` file.
 ## See Also
 
 [deserialize](deserialize.html)
-
-
-
-# FILE: docs/reference/serialize_to_file.md
-
-# serialize_to_file
-
-Binary Serialization
-
-Serializes any T value to a file using OCaml's Marshal module. Includes a content digest for integrity verification on deserialization.
-
-## Parameters
-
-- **path** (`String`): Destination file path.
-
-- **value** (`Any`): The T value to serialize.
-
-
-## Returns
-
-String] Ok or error.
 
 
 
@@ -22990,6 +23421,8 @@ Compute third standardized moment.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 
@@ -23061,34 +23494,6 @@ The source code of the function.
 
 ```t
 source(print)
-```
-
-
-
-# FILE: docs/reference/sprintf.md
-
-# str_sprintf
-
-Format a string
-
-Formats a string using C-style format specifiers. Supports %s (string), %d (integer), %f (float), and %% (literal %).
-
-## Parameters
-
-- **fmt** (`String`): The format string.
-- **...** (`Any`): Values to substitute in the format string.
-
-## Returns:
-
-Returns: The formatted string.
-
-## Examples
-
-```t
-str_sprintf("Hello, %s!", "world")
--- Returns = "Hello, world!"
-str_sprintf("Value = %d", 42)
--- Returns: "Value = 42"
 ```
 
 
@@ -23240,35 +23645,6 @@ The formatted string.
 
 
 
-# FILE: docs/reference/string.md
-
-# str_string
-
-Convert to string
-
-Converts any value to its string representation.
-
-## Parameters
-
-- **x** (`Any`): The value to convert.
-
-## Returns:
-
-Returns: The string representation.
-
-## Examples
-
-```t
-str_string(123)
--- Returns = "123"
-```
-
-## See Also
-
-[str_join](join.html)
-
-
-
 # FILE: docs/reference/str_join.md
 
 # str_join
@@ -23299,7 +23675,7 @@ str_join(["a", "b", "c"])
 
 ## See Also
 
-[str_string](str_string.html)
+[to_string](to_string.html)
 
 
 
@@ -23430,37 +23806,6 @@ files = ?<{ls}>; str_split(files, "\n")
 
 
 
-# FILE: docs/reference/strsplit.md
-
-# str_split
-
-Split a string on a delimiter
-
-Splits a string into a list of substrings on each occurrence of `sep`. If `sep` is empty, splits into individual characters. Works transparently on ShellResult values (splits stdout).
-
-## Parameters
-
-- **x** (`String`): | ShellResult The string to split.
-- **sep** (`String`): The delimiter to split on.
-
-## Returns:
-
-Returns: A list of substrings.
-
-## Examples
-
-```t
-str_split("a,b,c", ",")
--- Returns = ["a", "b", "c"]
-files = ?<{ls}>; str_split(files, "\n")
-```
-
-## See Also
-
-[str_join](join.html)
-
-
-
 # FILE: docs/reference/str_sprintf.md
 
 # str_sprintf
@@ -23493,7 +23838,7 @@ str_sprintf("Value = %d", 42)
 
 # FILE: docs/reference/str_string.md
 
-# str_string
+# to_string
 
 Convert to string
 
@@ -23511,7 +23856,7 @@ The string representation.
 ## Examples
 
 ```t
-str_string(123)
+to_string(123)
 -- Returns = "123"
 ```
 
@@ -23624,26 +23969,6 @@ p |> subgraph("model_r")
 ## See Also
 
 [downstream_of](downstream_of.html), [upstream_of](upstream_of.html)
-
-
-
-# FILE: docs/reference/substring.md
-
-# str_substring
-
-Extract substring
-
-Returns the part of the string between `start` and `end` indices.
-
-## Parameters
-
-- **s** (`String`): The input string.
-- **start** (`Int`): The starting index (inclusive).
-- **end** (`Int`): The ending index (exclusive).
-
-## Returns:
-
-Returns: The extracted substring.
 
 
 
@@ -23794,7 +24119,7 @@ p |> swap("model_r", node(command = <{ lm(y ~ x, data) }>, runtime = R))
 
 # FILE: docs/reference/sym.md
 
-# sym
+# to_symbol
 
 Convert a string to a Symbol
 
@@ -23802,7 +24127,7 @@ Creates a Symbol from a string so it can be injected into quoted code with `!!`.
 
 ## Parameters
 
-- **x** (`String | Symbol`): The name to convert.
+- **x** (`String`): | Symbol The name to convert.
 
 
 ## Returns
@@ -23812,9 +24137,10 @@ The resulting symbol.
 ## Examples
 
 ```t
-sym("mpg")
-expr(select(df, !!sym("mpg")))
+to_symbol("mpg")
+expr(select(df, !!to_symbol("mpg")))
 ```
+
 
 
 # FILE: docs/reference/tail.md
@@ -23919,13 +24245,11 @@ Build Pipeline Internally
 
 Builds the `src/pipeline.t` pipeline entrypoint.
 
-`src/pipeline.t` must call `populate_pipeline(...)` or `build_pipeline(...)`.
-If it only calls `populate_pipeline(...)` without `build = true`, `t_make()`
-emits a warning and continues after populating the pipeline.
-
 ## Parameters
 
 - **filename** (`String`): (Optional) The pipeline build script path. Must be `src/pipeline.t`.
+
+
 
 
 # FILE: docs/reference/to_array.md
@@ -23956,7 +24280,51 @@ mat = to_array(mtcars, [$mpg, $wt])
 
 ## See Also
 
-[dataframe](dataframe.html)
+[to_dataframe](to_dataframe.html)
+
+
+
+# FILE: docs/reference/to_date.md
+
+# to_date
+
+Convert values to Date
+
+Converts strings, datetimes, and related temporal values to Date values.
+
+## Parameters
+
+- **x** (`Any`): The value to convert.
+
+- **origin** (`String`): (Optional) Origin date for numeric conversion (default "1970-01-01").
+
+
+## Returns
+
+| Vector[Date] The converted date(s).
+
+
+
+# FILE: docs/reference/to_datetime.md
+
+# to_datetime
+
+Convert values to Datetime
+
+Converts strings, dates, and related temporal values to Datetime values.
+
+## Parameters
+
+- **x** (`Any`): The value to convert.
+
+- **origin** (`String`): (Optional) Origin date for numeric conversion (default "1970-01-01").
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+| Vector[Datetime] The converted datetime(s).
 
 
 
@@ -23967,6 +24335,20 @@ mat = to_array(mtcars, [$mpg, $wt])
 Get the current date
 
 Returns the current local date as a Date value.
+
+## Returns
+
+The current date.
+
+
+
+# FILE: docs/reference/to_factor.md
+
+# to_factor
+
+Create to_factor values
+
+Converts values to to_factor-encoded vectors with derived or explicit levels.
 
 
 
@@ -24040,25 +24422,6 @@ Converts all characters in the string to lowercase.
 ## Returns
 
 The lowercase string.
-
-
-
-# FILE: docs/reference/to_numeric.md
-
-# to_numeric
-
-Convert to Numeric
-
-Alias for `to_float`. Coerces a value to a numeric (float) robustly.
-
-## Parameters
-
-- **x** (`Any`): The value to convert.
-
-
-## Returns
-
-| NA The converted float.
 
 
 
@@ -24175,7 +24538,20 @@ A model dictionary containing:
 
 Read a PMML model file
 
-Loads a PMML file from disk and returns its parsed model representation.
+Loads a Predictive Model Markup Language (PMML) file from disk and returns its parsed model representation. This model can be used with `predict()`.
+
+## Parameters
+
+- **path** (`String`): The file path to the .pmml file.
+
+
+## Returns
+
+The parsed model dictionary.
+
+## See Also
+
+[t_write_pmml](t_write_pmml.html)
 
 
 
@@ -24209,6 +24585,10 @@ Compute mean after trimming both tails by fraction.
 - **x** (`Vector`): | List Numeric input.
 
 - **trim** (`Float`): Trim proportion in [0, 0.5).
+
+- **na_rm** (`Bool`): = false Remove NA values first.
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -24265,6 +24645,8 @@ Evaluates a T script file and imports its definitions into the current environme
 
 - **filename** (`String`): The path to the T file to execute.
 
+- **failfast** (`Bool`): Whether to fail on error (defaults to false).
+
 
 ## Returns
 
@@ -24275,6 +24657,27 @@ Evaluates a T script file and imports its definitions into the current environme
 ```t
 t_run("src/my_script.t")
 ```
+
+
+
+# FILE: docs/reference/t_score_pmml.md
+
+# t_score_pmml
+
+Score a PMML model using JPMML
+
+Evaluates a PMML model against a DataFrame using the JPMML-evaluator library. Requires a Java runtime and the JPMML-evaluator JAR to be available.
+
+## Parameters
+
+- **df** (`DataFrame`): The data to score.
+
+- **model** (`Dict`): The PMML model dictionary (loaded via `t_read_pmml`).
+
+
+## Returns
+
+| DataFrame The model predictions.
 
 
 
@@ -24310,6 +24713,52 @@ Serializes a T value to a JSON file. This is used as the universal baseline for 
 ## Returns
 
 
+
+
+
+# FILE: docs/reference/t_write_onnx.md
+
+# t_write_onnx
+
+Write an ONNX model file
+
+Note: Currently this is a placeholder. T-native writing of ONNX models is not yet implemented. Use ^onnx within R or Python nodes to export models.
+
+## Parameters
+
+- **model** (`Dict`): The ONNX model dictionary.
+
+- **path** (`String`): The destination file path.
+
+
+## Returns
+
+Currently returns a RuntimeError.
+
+
+
+# FILE: docs/reference/t_write_pmml.md
+
+# t_write_pmml
+
+Write a PMML model file
+
+Writes a model dictionary back to a PMML file on disk. Currently, this primarily supports pass-through copying of models that were originally loaded from PMML.
+
+## Parameters
+
+- **model** (`Dict`): The model dictionary.
+
+- **path** (`String`): The destination file path.
+
+
+## Returns
+
+The path to the written file.
+
+## See Also
+
+[t_read_pmml](t_read_pmml.html)
 
 
 
@@ -24349,6 +24798,15 @@ type([1, 2])
 Extract the timezone label
 
 Returns the timezone string attached to a Datetime value.
+
+## Parameters
+
+- **x** (`Datetime`): | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[String] The timezone label(s).
 
 
 
@@ -24465,7 +24923,7 @@ Expands a nested list-column (produced by nest() or similar) back into its const
 
 - **df** (`DataFrame`): The DataFrame containing a nested column.
 
-- **cols** (`Column`): Selection column to unnest (positional or 'cols=' arg).
+- **cols** (`Column`): Selection Column to unnest (positional or 'cols=' arg).
 
 
 ## Returns
@@ -24532,6 +24990,8 @@ Compute sample variance.
 - **x** (`Vector`): | List Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -24603,6 +25063,19 @@ Extract or label the weekday
 
 Returns weekday numbers, or weekday labels when requested, from Date or Datetime values.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+- **label** (`Bool`): = false If true, returns abbreviated weekday names.
+
+- **week_start** (`Int`): = 7 Day the week starts on (1=Mon, 7=Sun).
+
+
+## Returns
+
+| String | Vector The weekday(s).
+
 
 
 # FILE: docs/reference/week.md
@@ -24613,6 +25086,15 @@ Extract the week number
 
 Returns the week number for Date or Datetime values.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Int] The week number(s).
+
 
 
 # FILE: docs/reference/where.md
@@ -24622,6 +25104,39 @@ Returns the week number for Date or Datetime values.
 Select columns by predicate
 
 Selection helper that keeps columns for which a predicate function returns true.
+
+
+
+# FILE: docs/reference/which_nodes.md
+
+# which_nodes
+
+Filter Readable Pipeline Node Records
+
+Returns the node records from `read_pipeline(p).nodes` that satisfy a predicate. Unlike `filter_node`, this is a read-only query helper: it does not return a new Pipeline. Predicates can be written either as explicit functions (for example `\(node) !is_na(node.diagnostics.error)`) or as concise expressions that refer directly to node-record fields such as `name`, `value`, and `diagnostics`.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to inspect.
+
+- **predicate** (`Function`): A predicate over read-pipeline node records.
+
+
+## Returns
+
+A list of node records from `read_pipeline(p).nodes`.
+
+## Examples
+
+```t
+which_nodes(p, !is_na(diagnostics.error))
+which_nodes(p, name == "model")
+which_nodes(p, \(node) node.name == "model")
+```
+
+## See Also
+
+[select_node](select_node.html), [filter_node](filter_node.html), [read_pipeline](read_pipeline.html)
 
 
 
@@ -24639,6 +25154,10 @@ Clamp tails to specified quantile limits.
 
 - **limits** (`Float`): | Vector[Float] One-sided or (lo, hi) limits in [0, 0.5).
 
+- **na_rm** (`Bool`): = false Remove NA values first.
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights used to determine the cut points.
+
 
 ## Returns
 
@@ -24654,6 +25173,17 @@ Test interval membership
 
 Returns true when a Date or Datetime value falls inside an interval.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s) to check.
+
+- **interval** (`Interval`): The interval to check against.
+
+
+## Returns
+
+| Vector[Bool] True if value is inside the interval.
+
 
 
 # FILE: docs/reference/with_tz.md
@@ -24663,6 +25193,17 @@ Returns true when a Date or Datetime value falls inside an interval.
 Convert a datetime to a new timezone
 
 Retains the instant in time while changing the displayed timezone label.
+
+## Parameters
+
+- **x** (`Datetime`): | Vector The temporal value(s).
+
+- **tz** (`String`): The new timezone label.
+
+
+## Returns
+
+| Vector[Datetime] The relabeled datetime(s).
 
 
 
@@ -24730,27 +25271,6 @@ write_csv(df, "output.csv")
 
 
 
-# FILE: docs/reference/write_registry.md
-
-# write_registry
-
-Registry Maintenance (Writer)
-
-Writes a flat JSON object mapping node names to artifact paths.
-
-## Parameters
-
-- **path** (`String`): Destination file.
-
-- **entries** (`List[(String,`): String)] Name-path pairs.
-
-
-## Returns
-
-String] Status.
-
-
-
 # FILE: docs/reference/write_text.md
 
 # write_text
@@ -24780,6 +25300,15 @@ Extract the day of year
 
 Returns the day-of-year component from Date or Datetime values.
 
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Int] The day(s) of the year.
+
 
 
 # FILE: docs/reference/year.md
@@ -24789,6 +25318,15 @@ Returns the day-of-year component from Date or Datetime values.
 Extract the year component
 
 Returns the calendar year from Date or Datetime values.
+
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s).
+
+
+## Returns
+
+| Vector[Int] The year(s).
 
 
 
@@ -25242,9 +25780,9 @@ If you don't specify a serializer, T uses the `^tlang` (internal binary) format 
 | `^tlang` | T-Native | T-to-T interchange | T only |
 | `^arrow` | Apache Arrow | Large DataFrames | T, R, Python, Julia |
 | `^pmml` | PMML | Predictive Models | T, R, Python |
-| `^onnx` | ONNX | ML Models | T, R, Python |
-| `^json` | JSON | Config, lists, dicts | T, R, Python |
-| `^csv` | CSV | Tabular data | T, R, Python |
+| `^onnx` | ONNX | ML Models | T, R, Python, Julia (read/inference) |
+| `^json` | JSON | Config, lists, dicts | T, R, Python, Julia |
+| `^csv` | CSV | Tabular data | T, R, Python, Julia |
 | `^text` | Plain Text | Logs, shell output | All |
 
 ## 3. The `serializer` Structure
@@ -25341,6 +25879,8 @@ When T processes a node with an `R` runtime and the above serializer:
 
 If you use a custom format name (e.g., `format: "myformat"`), you should ensure that your R or Python scripts have the necessary libraries loaded to handle that format. You can do this by adding the libraries to your `tproject.toml` or using the `functions` / `includes` parameters in the node definition.
 
+For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl` via the built-in `jl_read_onnx()` helper. Julia ONNX export is not supported yet, so `jl_write_onnx()` fails explicitly instead of silently falling back to another format.
+
 For more information on how pipelines use these serializers, see the [Pipeline Tutorial](pipeline_tutorial.md). For a model-focused walkthrough of `^pmml`, see the [PMML Tutorial](pmml_tutorial.md).
 
 
@@ -25370,7 +25910,7 @@ str_substring("hello", 1, 4) -- "ell"
 str_replace("banana", "a", "o") -- "bonono"
 str_trim("  hello  ")       -- "hello"
 str_join(["a", "b", "c"], "-") -- "a-b-c"
-str_string(42)               -- "42"
+to_string(42)               -- "42"
 str_split("a,b,c", ",")    -- ["a", "b", "c"]
 ```
 
@@ -25388,7 +25928,7 @@ The shorter string-focused helpers follow this naming convention:
 - `str_words()`
 - `str_sprintf()`
 - `str_join()`
-- `str_string()`
+- `to_string()`
 - `str_split()`
 
 The `strsplit()` name was normalized to `str_split()` to match the rest of the string API.
@@ -25458,7 +25998,7 @@ str_split("a,b,c", ",")
 ```t
 str_sprintf("Hello, %s!", "world")
 str_join(["red", "green", "blue"], ", ")
-str_string(3.14)
+to_string(3.14)
 ```
 
 ---
@@ -25492,7 +26032,7 @@ For per-function details, see the reference pages:
 - [`str_replace`](reference/replace.html)
 - [`str_sprintf`](reference/sprintf.html)
 - [`str_join`](reference/join.html)
-- [`str_string`](reference/string.html)
+- [`to_string`](reference/string.html)
 - [`str_split`](reference/strsplit.html)
 - [`contains`](reference/contains.html)
 - [`starts_with`](reference/starts_with.html)
@@ -25677,7 +26217,7 @@ Error(NameError: ...)
 -- Error: Cannot add String and Int
 
 -- Workaround: Convert manually or use string concatenation with print
--- Note: Alpha does not have a str_string() conversion function yet
+-- Note: Alpha does not have a to_string() conversion function yet
 -- Use print for output instead:
 print("Age: ")
 print(25)

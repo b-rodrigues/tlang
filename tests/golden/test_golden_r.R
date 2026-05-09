@@ -496,7 +496,7 @@ test_that("STRING: iris operations", {
 })
 
 # ============================================================================
-# Test Suite 20: ADVANCED STATS (vcov, residuals, augment, anova)
+# Test Suite 20: ADVANCED STATS (vcov, residuals, add_diagnostics, anova)
 # ============================================================================
 
 test_that("ADVANCED STATS: vcov matrix", {
@@ -507,7 +507,7 @@ test_that("ADVANCED STATS: residuals", {
   compare_csvs("lm_residuals_m1", tolerance = 1e-5)
 })
 
-test_that("ADVANCED STATS: augment", {
+test_that("ADVANCED STATS: add_diagnostics", {
   compare_csvs("lm_augment_m1", tolerance = 1e-5)
 })
 

@@ -140,15 +140,17 @@ id="comparemodel1-model2-..."><code>compare(model1, model2, ...)</code></h3>
 for side-by-side comparison.</p>
 <pre class="t"><code>comp = compare(m1, m2)
 -- Returns DataFrame with columns: estimate_1, std_error_1, ..., estimate_2, ...</code></pre>
-<h3 id="augmentdata-model"><code>augment(data, model)</code></h3>
+<h3
+id="add_diagnosticsdata-model"><code>add_diagnostics(data, model)</code></h3>
 <p>Augments the original data with core model-based columns:
 <code>fitted</code>, <code>resid</code>, and <code>std_resid</code>.</p>
-<pre class="t"><code>aug = augment(mtcars, model)
+<pre class="t"><code>aug = add_diagnostics(mtcars, model)
 -- Adds columns: fitted, resid, std_resid</code></pre>
-<h3 id="augmentdata-model-1"><code>augment(data, model)</code></h3>
-<p>Similar to <code>augment</code>, but adds a more comprehensive set of
-diagnostic columns (leverage, influence, etc.).</p>
-<pre class="t"><code>diag = augment(mtcars, model)
+<h3
+id="add_diagnosticsdata-model-1"><code>add_diagnostics(data, model)</code></h3>
+<p>Similar to <code>add_diagnostics</code>, but adds a more
+comprehensive set of diagnostic columns (leverage, influence, etc.).</p>
+<pre class="t"><code>diag = add_diagnostics(mtcars, model)
 -- Adds columns: fitted, resid, hat, sigma, cooksd, std_resid</code></pre>
 <h3
 id="residualsdata-model-type-response"><code>residuals(data, model, type = "response")</code></h3>
@@ -262,7 +264,7 @@ Package</h2>
 </tr>
 <tr>
 <td><code>broom::augment(fit, data)</code></td>
-<td><code>augment(df, model)</code></td>
+<td><code>add_diagnostics(df, model)</code></td>
 </tr>
 <tr>
 <td><code>stats::residuals(fit)</code></td>
