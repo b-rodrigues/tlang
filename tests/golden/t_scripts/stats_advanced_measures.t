@@ -2,7 +2,7 @@
 df = read_csv("tests/golden/data/mtcars.csv")
 mpg = df.mpg
 
-res = dataframe([
+res = to_dataframe([
   skew_mpg: skewness(mpg),
   kurt_mpg: kurtosis(mpg),
   sd_mpg: sd(mpg),

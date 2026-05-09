@@ -3,7 +3,7 @@ df = read_csv("tests/golden/data/mtcars.csv")
 mpg = df.mpg
 hp = df.hp
 
-res = dataframe([
+res = to_dataframe([
   pnorm_0: pnorm(0.0),
   pnorm_1: pnorm(1.0),
   pnorm_neg1: pnorm(-1.0),

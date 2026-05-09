@@ -8,6 +8,6 @@ preds = predict(X, model)
 
 -- Map vector values to a list of dicts (rows)
 rows = preds |> map(\(p) [ pred: p ])
-result = dataframe(rows)
+result = to_dataframe(rows)
 write_csv(result, "tests/golden/t_outputs/mtcars_onnx_reg_predictions.csv")
 print("✓ mtcars ONNX hp~wt predictions complete")

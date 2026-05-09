@@ -40,12 +40,12 @@ let run_tests _pass_count _fail_count _eval_string eval_string_env test =
     {|length([a: 1, b: 1 / 0])|}
     {|Error(DivisionByZero: "Division by zero.")|};
 
-  test "length() on dataframe raises error (ambiguous)"
-    {|df = dataframe([a: [1, 2, 3]]); length(df)|}
+  test "length() on to_dataframe raises error (ambiguous)"
+    {|df = to_dataframe([a: [1, 2, 3]]); length(df)|}
     {|Error(TypeError: "length does not work on DataFrames because it is ambiguous (rows vs columns). Use nrow() or ncol() instead.")|};
   
-  test "length() on empty dataframe raises error"
-    {|length(dataframe([a: []]))|}
+  test "length() on empty to_dataframe raises error"
+    {|length(to_dataframe([a: []]))|}
     {|Error(TypeError: "length does not work on DataFrames because it is ambiguous (rows vs columns). Use nrow() or ncol() instead.")|};
 
   print_newline ();

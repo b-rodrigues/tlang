@@ -60,7 +60,7 @@ t_write_json(build_log, "_pipeline/build_log_plot_metadata.json")
 g = read_node("ggplot_meta", which_log = "plot_metadata")
 m = read_node("matplotlib_meta", which_log = "plot_metadata")
 
-result = dataframe([
+result = to_dataframe([
   class: [g.class, m.class],
   backend: [g.backend, m.backend],
   title: [g.title, m.title],

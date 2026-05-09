@@ -141,7 +141,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     {|"lens"|};
   test "package_info lens functions"
     {|length(package_info("lens").functions)|}
-    "12";
+    "13";
   test "package_info non-string"
     "package_info(42)"
     {|Error(TypeError: "Function `package_info` expects a string argument.")|};
@@ -367,7 +367,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     "f = \\(a,\nb) a * b\nf(4, 5)"
     "20";
   test "node command pipeline with indented trailing newline"
-    "type(node(command = read_csv(\"data/mtcars.csv\", separator = \"|\") |>\n    mutate($cyl = factor($cyl), $am = factor($am)), serializer = ^csv))"
+    "type(node(command = read_csv(\"data/mtcars.csv\", separator = \"|\") |>\n    mutate($cyl = to_factor($cyl), $am = to_factor($am)), serializer = ^csv))"
     {|"Node"|};
   test "node command maybe-pipeline with tab-indented trailing newline"
     "type(node(command = data ?|>\n\ttransform(data), serializer = ^csv))"
@@ -386,15 +386,15 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "strcraft: str_substring available" "type(str_substring)" {|"BuiltinFunction"|};
   test "math: sqrt available" "type(sqrt)" {|"BuiltinFunction"|};
   test "base: assert available" "type(assert)" {|"BuiltinFunction"|};
-  test "dataframe: read_csv available" "type(read_csv)" {|"BuiltinFunction"|};
-  test "dataframe: read_parquet available" "type(read_parquet)" {|"BuiltinFunction"|};
+  test "to_dataframe: read_csv available" "type(read_csv)" {|"BuiltinFunction"|};
+  test "to_dataframe: read_parquet available" "type(read_parquet)" {|"BuiltinFunction"|};
   test "pipeline: pipeline_nodes available" "type(pipeline_nodes)" {|"BuiltinFunction"|};
   test "explain: explain available" "type(explain)" {|"BuiltinFunction"|};
   test "packages: packages available" "type(packages)" {|"BuiltinFunction"|};
   test "packages: package_info available" "type(package_info)" {|"BuiltinFunction"|};
   test "help: string argument returns NA" "help('mean')" "NA";
   test "help: builtin value returns NA" "help(mean)" "NA";
-  test "help: symbol returns NA" {|help(sym("mean"))|} "NA";
+  test "help: symbol returns NA" {|help(to_symbol("mean"))|} "NA";
   test "help: anonymous lambda returns NA" "help(\\(x) x)" "NA";
   test "help: invalid type returns error"
     "help(42)"

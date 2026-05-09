@@ -99,10 +99,10 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "expr(f(age = 42))";
   test "sym rejects empty names"
     "sym(\"   \")"
-    {|Error(ValueError: "Function `sym` expects a non-empty String or Symbol.")|};
+    {|Error(ValueError: "Function `to_symbol` expects a non-empty String or Symbol.")|};
   test "sym rejects non-string inputs"
     "sym(99)"
-    {|Error(TypeError: "Function `sym` expects a String or Symbol.")|};
+    {|Error(TypeError: "Function `to_symbol` expects a String or Symbol.")|};
   test "dynamic name with non-string gives type error"
     "col = 99\nexpr(f(!!col := 1))"
     {|expr(f(Error(TypeError: "!! := requires a String or Symbol as the left-hand name, got Int")))|};

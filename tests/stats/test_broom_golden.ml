@@ -1,5 +1,5 @@
 (* tests/stats/test_broom_golden.ml *)
-(* Golden tests comparing T lm()/fit_stats()/add_diagnostics() *)
+(* Golden tests comparing T lm()/fit_stats()/augment() *)
 (* against R's broom::tidy/fit_stats/augment reference values.     *)
 (* Reference values computed from R 4.x with broom package.    *)
 
@@ -166,10 +166,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
 
   print_newline ();
 
-  (* === AUGMENT (broom::augment via add_diagnostics()) === *)
-  Printf.printf "Golden — Broom: add_diagnostics() (broom::augment):\n";
+  (* === AUGMENT (broom::augment via augment()) === *)
+  Printf.printf "Golden — Broom: augment() (broom::augment):\n";
 
-  let (_, env_a) = eval_string_env "aug = add_diagnostics(model, data = df)" env in
+  let (_, env_a) = eval_string_env "aug = augment(model, data = df)" env in
 
   (* Check we have the right number of rows *)
   let (v, _) = eval_string_env "nrow(aug)" env_a in
