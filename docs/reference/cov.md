@@ -12,6 +12,8 @@ Compute sample covariance of two numeric vectors.
 
 - **na_rm** (`Bool`): = false Pairwise remove NA values.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 

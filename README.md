@@ -200,7 +200,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 - **strcraft**: Modern string manipulation (`str_replace`, `str_detect`, `str_split`, etc. — inspired by `stringr`).
 - **lens**: Serializable, composable lenses for surgical updates to nested data and pipeline re-orchestration.
 - **Native Arrow I/O**: High-performance reading and writing of `CSV`, `Parquet`, and `Arrow` (IPC/Feather) formats.
-- **Polyglot & Metaprogramming**: First-class support for R, Python, Julia, and shell/CLI nodes, plus a robust metaprogramming layer (`expr`, `enquo`, `get`, `sym`).
+- **Polyglot & Metaprogramming**: First-class support for R, Python, Julia, and shell/CLI nodes, plus a robust metaprogramming layer (`expr`, `enquo`, `get`, `to_symbol`).
 - **Pipeline Introspection**: High-level tools for auditing and querying complex execution graphs (`which_nodes`, `filter_node`, `errored_nodes`).
 - **Weighted Statistics**: Core descriptive statistics and `lm()` now support optional observation weights for weighted summaries and weighted least squares.
 
@@ -230,7 +230,7 @@ tlang/
 │       ├── core/       # Functional primitives
 │       ├── math/       # Mathematical functions
 │       ├── stats/      # Statistical functions
-│       ├── dataframe/  # CSV I/O, DataFrame ops
+│       ├── to_dataframe/  # CSV I/O, DataFrame ops
 │       ├── colcraft/   # Data verbs, window functions, factors
 │       ├── chrono/     # Date and time handling
 │       ├── strcraft/   # String manipulation

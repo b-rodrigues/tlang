@@ -28,7 +28,7 @@ The most important caveat is that the repository currently mixes **current-state
 There is also still an important CSV-path distinction to document clearly:
 
 - `src/arrow/arrow_io.ml` contains a native Arrow CSV reader,
-- and the public `read_csv` builtin in `src/packages/dataframe/t_read_csv.ml` now delegates to `Arrow_io.read_csv` when callers use the default CSV options.
+- and the public `read_csv` builtin in `src/packages/to_dataframe/t_read_csv.ml` now delegates to `Arrow_io.read_csv` when callers use the default CSV options.
 - non-default parsing behaviors such as custom separators, header skipping, line skipping, and column-name cleaning still use the OCaml parser path.
 - this is now a documented split between the fast native default path and the richer compatibility path, rather than an entirely missing integration.
 
@@ -99,13 +99,13 @@ Taken together, these files provide:
 
 Arrow also shows up outside `src/arrow/`:
 
-- `src/packages/dataframe/t_read_arrow.ml`
+- `src/packages/to_dataframe/t_read_arrow.ml`
   - exposes Arrow IPC reading to T as `read_arrow`.
-- `src/packages/dataframe/t_write_arrow.ml`
+- `src/packages/to_dataframe/t_write_arrow.ml`
   - exposes Arrow IPC writing to T as `write_arrow`.
-- `src/packages/dataframe/t_dataframe.ml`
-  - `dataframe`, `pull`, and `to_array` all interact with Arrow-backed tables and Arrow-derived column types.
-- `src/packages/dataframe/t_read_csv.ml`
+- `src/packages/to_dataframe/t_dataframe.ml`
+  - `to_dataframe`, `pull`, and `to_array` all interact with Arrow-backed tables and Arrow-derived column types.
+- `src/packages/to_dataframe/t_read_csv.ml`
   - creates Arrow-backed DataFrames and uses `Arrow_io.read_csv` for the default public CSV path, while routing non-default parsing options through the OCaml parser plus `Arrow_bridge`.
 - `src/pipeline/builder_read_node.ml` and `src/packages/pipeline/read_node.ml`
   - use Arrow IPC reading in pipeline flows.
@@ -133,7 +133,7 @@ Based on the code currently in the repository, the following are present:
 - scalar comparisons
 - group-by plus group aggregations (`sum`, `mean`, `count`)
 - Arrow IPC read/write
-- dictionary/factor columns
+- dictionary/to_factor columns
 - list columns with nested DataFrame reconstruction
 - date columns
 - NA-only columns
@@ -149,7 +149,7 @@ These features exist in the backend, but are not yet cleanly represented in user
 - Arrow IPC support is implemented, but under-documented.
 - Pipeline Arrow interop exists, but most of the narrative lives in `spec_files/` and tests rather than in `docs/`.
 - Native Arrow CSV reading exists in `src/arrow/arrow_io.ml`, and the public `read_csv()` builtin uses it for the default CSV path.
-- `docs/performance.md` still describes dictionary/factor, list, and date columns as unsupported for native rebuild even though the code now includes native dictionary, list, and date materialization paths.
+- `docs/performance.md` still describes dictionary/to_factor, list, and date columns as unsupported for native rebuild even though the code now includes native dictionary, list, and date materialization paths.
 
 ### Partially implemented or still limited
 
@@ -177,7 +177,7 @@ The code also shows some areas that are either incomplete or intentionally const
 - Clear support matrix for:
   - primitive columns,
   - date/datetime,
-  - dictionary/factor,
+  - dictionary/to_factor,
   - list/nested columns,
   - NA-only columns,
   - zero-copy views,
@@ -239,7 +239,7 @@ This file covers a lot of backend behavior already:
   - grouping and grouped aggregation
 - zero-copy view behavior
 - temporal parsing helpers for date/timestamp string parsing
-- dictionary/factor support, including ordered-factor round-trips
+- dictionary/to_factor support, including ordered-to_factor round-trips
 - list-column support, including:
   - native materialization
   - NA entries
@@ -302,7 +302,7 @@ The current tests are strong, but there are still some obvious gaps.
      - `write_arrow`
    - Round-trips now cover:
      - primitive tables,
-     - dictionary/factor tables,
+     - dictionary/to_factor tables,
      - list-column tables where supported,
      - NA-only columns.
    - The remaining useful additions are edge cases such as empty structures and future datetime/timestamp coverage.
@@ -329,7 +329,7 @@ The current tests are strong, but there are still some obvious gaps.
 5. **Deeply nested list-column tests**
    - The regression spec already calls out deeper list nesting as a useful target.
 
-6. **List-column containing dictionary/factor sub-fields**
+6. **List-column containing dictionary/to_factor sub-fields**
    - This is called out in `spec_files/arrow-regression-testing.md` and would exercise a high-risk interaction.
 
 7. **Multi-chunk Arrow array tests**
@@ -413,7 +413,7 @@ Arrow in this repository is no longer a speculative or early-stub feature. It is
 - Arrow IPC,
 - pipeline interchange,
 - zero-copy numeric access,
-- factor/list/date support,
+- to_factor/list/date support,
 - and meaningful regression coverage.
 
 What is missing is not “Arrow support” in general. What is missing is:

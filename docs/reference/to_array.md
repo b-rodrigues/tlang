@@ -24,5 +24,5 @@ mat = to_array(mtcars, [$mpg, $wt])
 
 ## See Also
 
-[dataframe](dataframe.html)
+[to_dataframe](to_dataframe.html)
 

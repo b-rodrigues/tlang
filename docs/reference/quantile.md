@@ -12,6 +12,8 @@ Computes the quantile of a distribution at a specified probability.
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+
 
 ## Returns
 

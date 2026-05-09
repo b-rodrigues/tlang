@@ -1,6 +1,6 @@
 # fct_rev
 
-Reverse factor levels
+Reverse to_factor levels
 
-Reverses the order of the levels in a factor vector.
+Reverses the order of the levels in a to_factor vector.
 

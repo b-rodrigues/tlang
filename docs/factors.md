@@ -1,17 +1,17 @@
 # Factors and `fct_*` Helpers in T
 
-This guide explains how factors work in T, when to use `factor()` versus `fct()`, and how the `fct_*` family helps you reorder, relabel, and combine categorical data.
+This guide explains how factors work in T, when to use `to_factor()` versus `fct()`, and how the `fct_*` family helps you reorder, relabel, and combine categorical data.
 
 ---
 
 ## The Basic Idea
 
-A factor is categorical data with an explicit list of levels.
+A to_factor is categorical data with an explicit list of levels.
 
 That level list matters because operations such as `arrange()` use the level order instead of alphabetical order.
 
 ```t
-sizes = factor(["medium", "small", "large"], levels = ["small", "medium", "large"])
+sizes = to_factor(["medium", "small", "large"], levels = ["small", "medium", "large"])
 levels(sizes)
 -- ["small", "medium", "large"]
 ```
@@ -27,18 +27,18 @@ This makes factors useful for ordered categories such as:
 
 ## Creating Factors
 
-### `factor()` — explicit categorical levels
+### `to_factor()` — explicit categorical levels
 
-Use `factor()` when you want to control the level order yourself.
+Use `to_factor()` when you want to control the level order yourself.
 
 ```t
-priority = factor(
+priority = to_factor(
   ["medium", "low", "high", "medium"],
   levels = ["low", "medium", "high"]
 )
 ```
 
-If you do not provide `levels`, `factor()` derives them from the data.
+If you do not provide `levels`, `to_factor()` derives them from the data.
 
 ### `fct()` — levels follow first appearance
 
@@ -50,17 +50,17 @@ levels(status)
 -- ["new", "in_progress", "done"]
 ```
 
-### `as_factor()` — coerce existing values
+### `to_factor()` — coerce existing values
 
-`as_factor()` is the convenient coercion form for turning an existing vector or column into factor data.
+`to_factor()` is the convenient coercion form for turning an existing vector or column into to_factor data.
 
 ```t
-df |> mutate($segment = as_factor($segment))
+df |> mutate($segment = to_factor($segment))
 ```
 
 ### `ordered()` — ordered factors
 
-Use `ordered()` when the order is meaningful and should be preserved as an ordered factor.
+Use `ordered()` when the order is meaningful and should be preserved as an ordered to_factor.
 
 ```t
 ratings = ordered(
@@ -73,13 +73,13 @@ ratings = ordered(
 
 ## Why the `fct_*` Prefix Exists
 
-The `fct_*` prefix is used for helpers that manipulate factor levels after creation.
+The `fct_*` prefix is used for helpers that manipulate to_factor levels after creation.
 
-These helpers are analogous to the factor tools popularized by `forcats` in R:
+These helpers are analogous to the to_factor tools popularized by `forcats` in R:
 
-- they keep the input as factor data,
-- they operate on levels or factor ordering,
-- and they make factor-specific intent obvious in a pipeline.
+- they keep the input as to_factor data,
+- they operate on levels or to_factor ordering,
+- and they make to_factor-specific intent obvious in a pipeline.
 
 Examples:
 
@@ -179,7 +179,7 @@ levels(fct_other(fct(["a", "b", "c"]), keep = ["a"]))
 ### Remove unused levels with `fct_drop()`
 
 ```t
-levels(fct_drop(factor(["a", "b"], levels = ["a", "b", "c"])))
+levels(fct_drop(to_factor(["a", "b"], levels = ["a", "b", "c"])))
 -- ["a", "b"]
 ```
 
@@ -201,13 +201,13 @@ levels(fct_c(fct(["a"], levels = ["a", "b"]), fct(["c"])))
 
 ## Sorting with Factors
 
-A factor keeps its declared level order during sorting.
+A to_factor keeps its declared level order during sorting.
 
 ```t
 df = crossing(size = ["medium", "small", "large"], id = [1, 2])
 
 df
-  |> mutate($size_fct = factor($size, levels = ["small", "medium", "large"]))
+  |> mutate($size_fct = to_factor($size, levels = ["small", "medium", "large"]))
   |> arrange($size_fct)
 ```
 
@@ -219,16 +219,16 @@ This sorts rows by `small`, then `medium`, then `large`, even though alphabetica
 
 Use:
 
-- `factor()` when you want explicit levels,
+- `to_factor()` when you want explicit levels,
 - `fct()` when you want first-appearance order,
-- `as_factor()` when coercing an existing column,
-- `ordered()` when the factor should be marked as ordered,
+- `to_factor()` when coercing an existing column,
+- `ordered()` when the to_factor should be marked as ordered,
 - `fct_*` helpers when changing levels after creation,
 - `levels()` when you need to inspect the current level set.
 
 ---
 
-These factor helpers are currently implemented alongside the data-manipulation verbs in T's `colcraft` package, but the naming convention is the same idea you would expect from a dedicated factor-toolkit family: factor creation helpers plus `fct_*` level-manipulation helpers.
+These to_factor helpers are currently implemented alongside the data-manipulation verbs in T's `colcraft` package, but the naming convention is the same idea you would expect from a dedicated to_factor-toolkit family: to_factor creation helpers plus `fct_*` level-manipulation helpers.
 
 ---
 

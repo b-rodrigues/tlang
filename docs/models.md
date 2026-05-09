@@ -109,11 +109,11 @@ aug = augment(mtcars, model)
 -- Adds columns: fitted, resid, std_resid
 ```
 
-### `add_diagnostics(data, model)`
+### `augment(data, model)`
 Similar to `augment`, but adds a more comprehensive set of diagnostic columns (leverage, influence, etc.).
 
 ```t
-diag = add_diagnostics(mtcars, model)
+diag = augment(mtcars, model)
 -- Adds columns: fitted, resid, hat, sigma, cooksd, std_resid
 ```
 

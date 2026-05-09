@@ -15,7 +15,7 @@ Package-oriented guide to T's standard library.
 - [Base Package](#base-package) — Errors, NA, assertions
 - [Math Package](#math-package) — Mathematical functions
 - [Stats Package](#stats-package) — Statistical functions
-- [DataFrame Package](#dataframe-package) — CSV I/O and DataFrame operations
+- [DataFrame Package](#to_dataframe-package) — CSV I/O and DataFrame operations
 - [Colcraft Package](#colcraft-package) — Data manipulation verbs and window functions
 - [Chrono Package](#chrono-package) — High-performance date and time manipulation
 - [Strcraft Package](#strcraft-package) — Modern string manipulation
@@ -25,7 +25,7 @@ Package-oriented guide to T's standard library.
 
 ---
 
-For generated one-page documentation for every exported function, including newer Chrono, string, join, factor, and helper APIs, use the [Function Reference](reference/index.md).
+For generated one-page documentation for every exported function, including newer Chrono, string, join, to_factor, and helper APIs, use the [Function Reference](reference/index.md).
 
 ---
 
@@ -197,9 +197,9 @@ to_integer(["1", "2"])   -- [1, 2]
 
 ---
 
-### `to_float(value)` / `to_numeric(value)`
+### `to_float(value)` / `to_float(value)`
 
-Convert a value to a float robustly. `to_numeric` is an alias for `to_float`. Handles strings with spaces, percentages, commas, and recognizes 'TRUE'/'FALSE'. Also propagates vectorization over Collections.
+Convert a value to a float robustly. `to_float` is an alias for `to_float`. Handles strings with spaces, percentages, commas, and recognizes 'TRUE'/'FALSE'. Also propagates vectorization over Collections.
 
 **Parameters:**
 
@@ -215,16 +215,16 @@ Convert a value to a float robustly. `to_numeric` is an alias for `to_float`. Ha
 to_float("3,14")         -- 3.14
 to_float("15%")          -- 15.0
 to_float(" 1 200.5 ")    -- 1200.5
-to_numeric("TRUE")       -- 1.0
-to_numeric("F")          -- 0.0
+to_float("TRUE")       -- 1.0
+to_float("F")          -- 0.0
 to_float(42)             -- 42.0
 to_float("hello")        -- NA(Float)
-to_numeric(["1", "2"])   -- [1.0, 2.0]
+to_float(["1", "2"])   -- [1.0, 2.0]
 ```
 
 ---
 
-### `sym(value)`
+### `to_symbol(value)`
 
 Convert a string name into a `Symbol` so it can be injected into quoted code with `!!`. Existing symbols pass through unchanged.
 
@@ -239,10 +239,10 @@ Convert a string name into a `Symbol` so it can be injected into quoted code wit
 
 **Examples:**
 ```t
-sym("mpg")                           -- mpg
-expr(select(df, !!sym("mpg")))       -- expr(select(df, mpg))
+to_symbol("mpg")                           -- mpg
+expr(select(df, !!to_symbol("mpg")))       -- expr(select(df, mpg))
 name = "result"
-expr(f(!!sym(name) := 42))           -- expr(f(result = 42))
+expr(f(!!to_symbol(name) := 42))           -- expr(f(result = 42))
 ```
 
 ---
@@ -279,7 +279,7 @@ Vectorized conditional selection.
 
 ---
 
-### `casewhen(...formulas, .default = NA)`
+### `case_when(...formulas, .default = NA)`
 
 Vectorized multi-condition switch. Uses `condition ~ value` formulas.
 
@@ -1198,9 +1198,9 @@ Hyperbolic and inverse hyperbolic functions.
 
 ---
 
-### `floor(x)` / `ceiling(x)` / `ceil(x)`
+### `floor(x)` / `ceiling(x)` / `ceiling(x)`
 
-Rounding to integers. `ceiling` and `ceil` are aliases.
+Rounding to integers. `ceiling` and `ceiling` are aliases.
 
 ---
 
@@ -1359,7 +1359,7 @@ Perform vectorized prediction on new data. `score` is an alias.
 
 ---
 
-#### `add_diagnostics(model, data)` / `augment(model, data)`
+#### `augment(model, data)` / `augment(model, data)`
 
 Augment data with per-observation diagnostics: `.fitted`, `.resid`, `.hat`, `.sigma`, `.cooksd`, and `.std.resid`.
 
@@ -1403,7 +1403,7 @@ Basis functions for modeling.
 
 CSV I/O and DataFrame introspection.
 
-### `dataframe(data)`
+### `to_dataframe(data)`
 
 Constructs a DataFrame from either a list of rows (Dictionaries) or a Dictionary of columns (Vectors/Lists).
 
@@ -1418,10 +1418,10 @@ Constructs a DataFrame from either a list of rows (Dictionaries) or a Dictionary
 **Examples:**
 ```t
 -- Column-wise
-df = dataframe([x: [1, 2], y: [3, 4]])
+df = to_dataframe([x: [1, 2], y: [3, 4]])
 
 -- Row-wise
-df = dataframe([
+df = to_dataframe([
   [name: "Alice", age: 30],
   [name: "Bob", age: 25]
 ])
@@ -1454,25 +1454,25 @@ Read a Parquet file into a DataFrame.
 
 ---
 
-### `read_arrow(path)` / `write_arrow(dataframe, path)`
+### `read_arrow(path)` / `write_arrow(to_dataframe, path)`
 
 Read or write Arrow IPC files.
 
 ---
 
-### `write_csv(dataframe, path, separator = ",")`
+### `write_csv(to_dataframe, path, separator = ",")`
 
 Write a DataFrame to a CSV file.
 
 ---
 
-### `nrow(dataframe)` / `ncol(dataframe)`
+### `nrow(to_dataframe)` / `ncol(to_dataframe)`
 
 Get number of rows or columns.
 
 ---
 
-### `colnames(dataframe)`
+### `colnames(to_dataframe)`
 
 Get column names as a List of strings.
 
@@ -1484,32 +1484,32 @@ Standardizes column names using a snake_case convention. Works on DataFrames or 
 
 ---
 
-### `glimpse(dataframe)`
+### `glimpse(to_dataframe)`
 
 Prints a summary of the DataFrame structure, including dimensions, column names, types, and first few values.
 
 ---
 
-### `pull(dataframe, column)`
+### `pull(to_dataframe, column)`
 
 Extracts a single column as a Vector.
 
 ---
 
-### `to_array(dataframe, columns = NA)`
+### `to_array(to_dataframe, columns = NA)`
 
 Converts numeric columns of a DataFrame to a matrix (NDArray).
 
 ---
 
-### `ncol(dataframe)`
+### `ncol(to_dataframe)`
 
 Get number of columns.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 
 **Returns:**
 
@@ -1522,14 +1522,14 @@ ncol(df)  -- 5
 
 ---
 
-### `colnames(dataframe)`
+### `colnames(to_dataframe)`
 
 Get column names.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 
 **Returns:**
 
@@ -1542,14 +1542,14 @@ colnames(df)  -- ["name", "age", "dept", "salary"]
 
 ---
 
-### `glimpse(dataframe)`
+### `glimpse(to_dataframe)`
 
 Get a compact overview of a DataFrame, showing column names, types, and example values. Similar to dplyr's `glimpse()`.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 
 **Returns:**
 
@@ -1558,19 +1558,19 @@ Dict with `kind`, `nrow`, `ncol`, and `columns` (list of column summaries)
 **Examples:**
 ```t
 glimpse(df)
--- {`kind`: "dataframe", `nrow`: 100, `ncol`: 4, `columns`: ["name <String> ...", "age <Int> ...", ...]}
+-- {`kind`: "to_dataframe", `nrow`: 100, `ncol`: 4, `columns`: ["name <String> ...", "age <Int> ...", ...]}
 ```
 
 ---
 
-### `clean_colnames(dataframe)` / `clean_colnames(names)`
+### `clean_colnames(to_dataframe)` / `clean_colnames(names)`
 
 Normalize column names to safe identifiers.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame, OR
+- `to_dataframe` — DataFrame, OR
 - `names` — List of Strings
 
 **Returns:**
@@ -1605,14 +1605,14 @@ Data manipulation verbs and window functions.
 
 ### Data Verbs
 
-#### `select(dataframe, ...columns)`
+#### `select(to_dataframe, ...columns)`
 
 Select columns by name. Supports dollar-prefix NSE syntax.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `...columns` — Column references (`$name`)
 
 **Returns:**
@@ -1627,14 +1627,14 @@ df |> select($dept)
 
 ---
 
-#### `filter(dataframe, predicate)`
+#### `filter(to_dataframe, predicate)`
 
 Filter rows by condition. Supports NSE expressions with dollar-prefix column references.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `predicate` — NSE expression (`$age > 25`)
 
 **Returns:**
@@ -1650,16 +1650,16 @@ df |> filter($salary > 50000 and $active == true)
 
 ---
 
-#### `mutate(dataframe, $col = expr)` / `mutate(dataframe, new_col, fn)`
+#### `mutate(to_dataframe, $col = expr)` / `mutate(to_dataframe, new_col, fn)`
 
 Add or transform a column. Supports `$col = expr` named-arg syntax with NSE.
 
 **Parameters (named-arg form):**
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `$col = expr` — Column name from `$col`, value from NSE expression
 
 **Parameters (positional form):**
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `new_col` — Column reference (`$bonus`)
 - `fn` — Function taking row dict: `\(row) ...`, OR
 - `value` — Constant value for all rows
@@ -1683,14 +1683,14 @@ df |> group_by($dept) |> mutate($dept_size, \(g) nrow(g))
 
 ---
 
-#### `arrange(dataframe, column, direction = "asc")`
+#### `arrange(to_dataframe, column, direction = "asc")`
 
 Sort rows by column. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `column` — Column reference (`$age`)
 - `direction` (optional) — "asc" or "desc" (default: "asc")
 
@@ -1706,14 +1706,14 @@ df |> arrange($salary, "desc")
 
 ---
 
-#### `group_by(dataframe, ...columns)`
+#### `group_by(to_dataframe, ...columns)`
 
 Group by one or more columns. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
 
 
-- `dataframe` — DataFrame
+- `to_dataframe` — DataFrame
 - `...columns` — Column references (`$dept`)
 
 **Returns:**
@@ -1869,21 +1869,21 @@ Split a column into multiple columns, or combine multiple columns into one.
 
 ### Factor Manipulation
 
-#### `factor(x, levels = NA, ordered = false)` / `fct(x)` / `as_factor(x)`
+#### `to_factor(x, levels = NA, ordered = false)` / `fct(x)` / `to_factor(x)`
 
-Create factor-encoded vectors. `fct` uses first-appearance levels by default.
+Create to_factor-encoded vectors. `fct` uses first-appearance levels by default.
 
 ---
 
 #### `levels(f)`
 
-Get labels from a factor.
+Get labels from a to_factor.
 
 ---
 
 #### `fct_recode(f, ...new = old)` / `fct_relevel(f, ...levels, after = 0)`
 
-Rename or reorder factor levels.
+Rename or reorder to_factor levels.
 
 ---
 
@@ -2166,7 +2166,7 @@ cumany([false, true, false]) -- Vector[false, true, true]
 
 High-performance date and time manipulation, inspired by R's `lubridate`.
 
-### `as_date(value)` / `as_datetime(value)`
+### `to_date(value)` / `to_datetime(value)`
 
 Convert values to Date or Datetime types.
 
@@ -2180,8 +2180,8 @@ Convert values to Date or Datetime types.
 
 **Examples:**
 ```t
-as_date("2023-05-15")  -- 2023-05-15
-as_datetime("2023-05-15 14:00:00")
+to_date("2023-05-15")  -- 2023-05-15
+to_datetime("2023-05-15 14:00:00")
 ```
 
 ---
@@ -2234,7 +2234,7 @@ Get the current UTC date or datetime.
 
 ---
 
-### `year(x)` / `month(x, label = false)` / `day(x)` / `mday(x)`
+### `year(x)` / `month(x, label = false)` / `day(x)` / `day(x)`
 ### `yday(x)` / `wday(x, label = false, week_start = 7)` / `week(x)` / `isoweek(x)` / `isoyear(x)`
 ### `quarter(x)` / `semester(x)`
 
@@ -2287,7 +2287,7 @@ Same as input type
 
 **Examples:**
 ```t
-floor_date(as_date("2023-05-15"), "month")  -- 2023-05-01
+floor_date(to_date("2023-05-15"), "month")  -- 2023-05-01
 ```
 
 ---
@@ -2884,7 +2884,7 @@ explain(42)
 -- {`kind`: "value", `type`: "Int", `value`: 42}
 
 explain(df)
--- {`kind`: "dataframe", `nrow`: 100, `ncol`: 5, `hint`: "Use explain(df).schema, ..."}
+-- {`kind`: "to_dataframe", `nrow`: 100, `ncol`: 5, `hint`: "Use explain(df).schema, ..."}
 
 -- Access detailed fields:
 explain(df).schema        -- list of column name/type pairs

@@ -2,5 +2,5 @@
 
 Replace unlisted levels with Other
 
-Keeps selected factor levels and maps the rest to an other bucket.
+Keeps selected to_factor levels and maps the rest to an other bucket.
 

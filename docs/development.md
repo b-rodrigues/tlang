@@ -341,9 +341,9 @@ let eval env expr =
 **In T code**:
 ```t
 x = 10
-print("DEBUG: x = " + str_string(x))
+print("DEBUG: x = " + to_string(x))
 result = x * 2
-print("DEBUG: result = " + str_string(result))
+print("DEBUG: result = " + to_string(result))
 ```
 
 ### Trace Execution
@@ -478,7 +478,7 @@ let test_median () =
 start = time()  -- If time() function exists
 -- ... computation ...
 end = time()
-print("Elapsed: " + str_string(end - start))
+print("Elapsed: " + to_string(end - start))
 ```
 
 **In OCaml**:
