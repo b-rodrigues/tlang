@@ -8,7 +8,9 @@
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
 [![OCaml](https://img.shields.io/badge/OCaml-5.x-EC6813.svg?logo=ocaml&logoColor=white)](https://ocaml.org)
 
-**T** is an experimental **orchestration engine** designed for **reproducible, polyglot data science**. As a functional, immutable DSL (domain-specific language), T coordinates R, Python, and Shell scripts into **Pipelines** that are managed as first-class objects. By leveraging **Nix** as its underlying build system, T ensures ironclad reproducibility and automated dependency management across your entire workflow.
+**T** is an experimental, reproducibility-first DSL for polyglot data science. It provides a functional, immutable language for constructing composable micropipelines—first-class, introspectable computation graphs that coordinate R, Python, and Shell execution within a unified system. Pipelines in T are not configuration artifacts but executable program structures with explicit dataflow, typed nodes, and content-addressed outputs.
+
+Built on Nix, T integrates declarative environment management and deterministic builds at the language level, enabling reproducible execution across machines without external orchestration layers. The result is a system where workflow structure, dependency resolution, and provenance tracking are intrinsic properties of the language rather than concerns delegated to external tools.
 
 The engine is built for seamless interoperability: you can manipulate objects defined in foreign-language nodes directly from within the T environment. Data conversion is handled transparently for common types, and T offers the flexibility to define custom serializers for complex interchanges—allowing you to leverage the strengths of each language without ever leaving the T runtime.
 
