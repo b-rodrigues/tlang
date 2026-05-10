@@ -478,9 +478,11 @@ let register env =
            | _ ->
                Error.value_error
                  "Function `lm` only supports single response variable.")
-        | (VDataFrame _, _) ->
-            Error.type_error "Function `lm` 'formula' must be a Formula (use ~ operator)."
-        | (_, _) ->
-            Error.type_error "Function `lm` 'data' must be a DataFrame."
+        | (VDataFrame _, v) ->
+            Error.type_error ~arg_index:2
+              (Printf.sprintf "Function `lm` 'formula' must be a Formula (use ~ operator), got %s instead." (Utils.type_name v))
+        | (v, _) ->
+            Error.type_error ~arg_index:1
+              (Printf.sprintf "Function `lm` 'data' must be a DataFrame, got %s instead." (Utils.type_name v))
     ))
     env
