@@ -2019,7 +2019,7 @@ EOF
 
   let runtime_base_packages =
     match runtime with
-    | "Julia" -> "using DataFrames, CSV, StatsModels"
+    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON"
     | _ -> ""
   in
 
