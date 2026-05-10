@@ -366,7 +366,7 @@ T supports the following value types:
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
 | `Symbol`    | `$mpg`                   | Name reference (NSE, DataFrames)    |
-| `Expression`| `expr(1 + 2)`            | Captured code (for metaprogramming) |
+| `Expression`| `to_expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
 
 ### Variables and Assignment
@@ -1381,8 +1381,8 @@ T supports Lisp-style quotation and quasiquotation for code generation and DSL b
 
 ```t
 x = 10
-captured = expr(1 + !!x)
-print(captured)  -- expr(1 + 10)
+captured = to_expr(1 + !!x)
+print(captured)  -- to_expr(1 + 10)
 eval(captured)     -- 11
 ```
 
@@ -1664,9 +1664,9 @@ Convert a string name into a `Symbol` so it can be injected into quoted code wit
 **Examples:**
 ```t
 to_symbol("mpg")                           -- mpg
-expr(select(df, !!to_symbol("mpg")))       -- expr(select(df, mpg))
+to_expr(select(df, !!to_symbol("mpg")))       -- to_expr(select(df, mpg))
 name = "result"
-expr(f(!!to_symbol(name) := 42))           -- expr(f(result = 42))
+to_expr(f(!!to_symbol(name) := 42))           -- to_expr(f(result = 42))
 ```
 
 ---
@@ -1715,7 +1715,7 @@ Deep equality check. Works for collections and complex objects.
 
 ---
 
-### `eval(expr)` / `expr(x)` / `exprs(...)`
+### `eval(expr)` / `to_expr(x)` / `to_exprs(...)`
 ### `quo(x)` / `quos(...)` / `enquo(p)` / `enquos(...)`
 
 Metaprogramming and quotation utilities.
@@ -5832,6 +5832,29 @@ The focus of this release is the introduction of first-class Julia support, enab
     - Simplified data interchange between T, R, Python, and Julia.
     - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
     - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
+### API Standardization & Ergonomics
+- **Unified `to_` Naming Convention**:
+    - Renamed all type conversion and coercion functions to follow a consistent `to_` prefix:
+        - `as_date()` → `to_date()`
+        - `as_datetime()` → `to_datetime()`
+        - `as_factor()` / `factor()` → `to_factor()`
+        - `sym()` → `to_symbol()`
+        - `dataframe()` → `to_dataframe()`
+        - `str_string()` → `to_string()`
+    - Removed all legacy `as_*` and shorthand aliases (`fct()`, `fct_infreq()` → `to_factor(..., ordered=true)` etc.) to ensure a single, canonical API path.
+- **Renamed Statistical Diagnostics**:
+    - `augment()` renamed to `add_diagnostics()` for better clarity and consistency with the T-Lang philosophy of descriptive names.
+- **Refined Data Converters**:
+    - `to_string()` now provides a unified interface for string conversion across all T types, including proper level resolution for Factors and recursive formatting for Lists and Vectors.
+- **Improved Factor Creation**:
+    - Removed the `fct()` shorthand in favor of the standardized `to_factor()`.
+    - Simplified factor logic: `to_factor()` now consistently uses alphabetical sorting for derived levels, removing the previous "first-appearance" behavior to align with industry standards and internal consistency.
+- **Descriptive Statistical Utilities**:
+    - Renamed `augment()` to `add_diagnostics()` to better reflect its purpose of appending model-level diagnostics (residuals, hat values, etc.) to data frames.
+    - Updated the Golden test suite to maintain parity with R's `broom::augment` outputs.
+- **Codebase & Demo Synchronization**:
+    - Performed a repository-wide refactor of 65+ demo projects in `t_demos` to adopt the new standardized API.
+    - Updated Tree-Sitter syntax highlighting queries to support the new names and remove deprecated aliases.
 
 ## [0.51.5] - 2026-05-08
 
@@ -15541,19 +15564,19 @@ T has two families of quotation functions, matching R's `rlang`:
 
 | Function | Result | Environment | Use when… |
 |----------|--------|-------------|-----------|
-| `expr(x)` | `Expression` | None | You only need the AST |
+| `to_expr(x)` | `Expression` | None | You only need the AST |
 | `quo(x)` | `Quosure` | Captured at call site | You need the AST + its lexical context |
-| `exprs(...)` | `List[Expression]` | None | Multiple naked expressions |
+| `to_exprs(...)` | `List[Expression]` | None | Multiple naked expressions |
 | `quos(...)` | `List[Quosure]` | Captured at call site | Multiple expressions with lexical context |
 
-### `expr(expression)`
+### `to_expr(expression)`
 
-The `expr()` function captures the code as a naked **Expression** object. The current environment is *not* stored.
+The `to_expr()` function captures the code as a naked **Expression** object. The current environment is *not* stored.
 
 ```t
-e = expr(1 + 2)
+e = to_expr(1 + 2)
 print(e)
--- Output: expr(1 + 2)
+-- Output: to_expr(1 + 2)
 ```
 
 ### `quo(expression)`
@@ -15567,13 +15590,13 @@ x = 99
 eval(q)           -- returns 11, not 100
 ```
 
-### `exprs(...)`
+### `to_exprs(...)`
 
-`exprs()` captures multiple expressions and returns them as a list of naked Expression objects. It supports named arguments.
+`to_exprs()` captures multiple expressions and returns them as a list of naked Expression objects. It supports named arguments.
 
 ```t
-ee = exprs(x = 1 + 1, y = 2 + 2)
--- Result: [x: expr(1 + 1), y: expr(2 + 2)]
+ee = to_exprs(x = 1 + 1, y = 2 + 2)
+-- Result: [x: to_expr(1 + 1), y: to_expr(2 + 2)]
 ```
 
 ### `quos(...)`
@@ -15592,7 +15615,7 @@ qs = quos(a = 1 + x, b = 2 * x)
 In T, if you use a word that isn't defined as a variable, it is automatically treated as a **Symbol** when inside a quoting context. This is useful for building Domain Specific Languages (DSLs).
 
 ```t
-e = expr(select(df, age, height))
+e = to_expr(select(df, age, height))
 -- 'select', 'age', and 'height' are captured as symbols.
 ```
 
@@ -15605,7 +15628,7 @@ The `eval()` function evaluates an Expression or Quosure:
 - **Quosure**: evaluated in its *captured* environment.
 
 ```t
-e = expr(10 + 20)
+e = to_expr(10 + 20)
 eval(e)          -- evaluates in current env → 30
 
 x = 5
@@ -15638,16 +15661,16 @@ The `!!` (pronounced "bang-bang") operator evaluates its operand immediately and
 
 ```t
 x = 10
-e = expr(1 + !!x)
+e = to_expr(1 + !!x)
 print(e) 
--- Output: expr(1 + 10)
+-- Output: to_expr(1 + 10)
 ```
 
 ```t
 inner = quo(1.5 + 2.5)
-outer = expr(2 * !!inner)   -- !! strips env from quosure
+outer = to_expr(2 * !!inner)   -- !! strips env from quosure
 print(outer)
--- Output: expr(2 * (1.5 + 2.5))
+-- Output: to_expr(2 * (1.5 + 2.5))
 ```
 
 ### `!!!` (Unquote-Splice)
@@ -15658,9 +15681,9 @@ The `!!!` (pronounced "triple-bang") operator evaluates its operand and **splice
 
 ```t
 vals = [1, 2, 3]
-e = expr(sum(!!!vals))
+e = to_expr(sum(!!!vals))
 print(e)
--- Output: expr(sum(1, 2, 3))
+-- Output: to_expr(sum(1, 2, 3))
 ```
 
 #### Splicing with Names
@@ -15669,9 +15692,9 @@ If you splice a named List, the names are used as argument names in the resultin
 
 ```t
 my_args = [x: 10, y: 20]
-e = expr(f(!!!my_args, z: 30))
+e = to_expr(f(!!!my_args, z: 30))
 print(e)
--- Output: expr(f(x = 10, y = 20, z = 30))
+-- Output: to_expr(f(x = 10, y = 20, z = 30))
 ```
 
 ### `!!name := value` (Dynamic Naming)
@@ -15680,9 +15703,9 @@ The `!!name := value` syntax allows you to use a dynamically computed string or 
 
 ```t
 col = "age"
-e = expr(mutate(df, !!col := 42))
+e = to_expr(mutate(df, !!col := 42))
 print(e)
--- Output: expr(mutate(df, age = 42))
+-- Output: to_expr(mutate(df, age = 42))
 ```
 
 If `!!name` does not evaluate to a `String` or `Symbol`, a `TypeError` is raised.
@@ -15693,8 +15716,8 @@ When you have a column or argument name in a string variable, use `to_symbol()` 
 
 ```t
 col_name = "mpg"
-expr(select(df, !!to_symbol(col_name)))
--- Output: expr(select(df, mpg))
+to_expr(select(df, !!to_symbol(col_name)))
+-- Output: to_expr(select(df, mpg))
 ```
 
 This is most useful for programmatic code generation. Use `to_symbol()` to turn a string into a label that `!!` can inject as a symbol, or that `get()` can use for variable lookup.
@@ -15710,7 +15733,7 @@ For writing functions that accept unevaluated expressions from the caller — si
 ```t
 my_select = \(df: DataFrame, col: Any -> DataFrame) {
   col_expr = enquo(col)           -- captures expr + caller's env
-  eval(expr(df |> select(!!col_expr)))
+  eval(to_expr(df |> select(!!col_expr)))
 }
 
 my_select(iris, $Sepal.Length)
@@ -15732,7 +15755,7 @@ df = to_dataframe([salary: [100, 200, 300]])
 my_mean(df, salary)
 ```
 
-This removes the need for the common `enquo()` + `eval(expr(...))` wrapper when the function is simply forwarding a column-like argument into an NSE-aware data verb.
+This removes the need for the common `enquo()` + `eval(to_expr(...))` wrapper when the function is simply forwarding a column-like argument into an NSE-aware data verb.
 
 Current behavior:
 
@@ -15751,7 +15774,7 @@ Use `enquo()` when you need to preserve the caller's full expression rather than
 ```t
 my_summarize = \(df: DataFrame, ... -> DataFrame) {
   cols = enquos(...)              -- list of quosures from the caller
-  eval(expr(df |> summarize(!!!cols)))
+  eval(to_expr(df |> summarize(!!!cols)))
 }
 
 my_summarize(iris,
@@ -15770,13 +15793,13 @@ You can use quasiquotation to dynamically build pipeline nodes or intents:
 
 ```t
 var_name = "mpg"
-my_intent = expr(intent {
+my_intent = to_expr(intent {
   target = !!var_name
   method = "lm"
 })
 
 print(my_intent)
--- Output: expr(intent { target = "mpg"; method = "lm" })
+-- Output: to_expr(intent { target = "mpg"; method = "lm" })
 ```
 
 ### Prefix-Call Syntax
@@ -15784,24 +15807,24 @@ print(my_intent)
 T also supports a Lisp-style prefix call syntax which integrates seamlessly with quotation:
 
 ```t
-e = expr((add, 1, 2))
--- Equivalent to expr(add(1, 2))
+e = to_expr((add, 1, 2))
+-- Equivalent to to_expr(add(1, 2))
 ```
 
 ## Summary of Operators
 
 | Operator/Function | Purpose |
 | :--- | :--- |
-| `expr(x)` | Capture `x` as a naked Expression (no environment). |
-| `exprs(...)` | Capture multiple expressions as a List of naked Expressions. |
+| `to_expr(x)` | Capture `x` as a naked Expression (no environment). |
+| `to_exprs(...)` | Capture multiple expressions as a List of naked Expressions. |
 | `quo(x)` | Capture `x` as a Quosure (expression + lexical environment). |
 | `quos(...)` | Capture multiple expressions as a List of Quosures. |
 | `eval(e)` | Evaluate Expression `e` in the current env, or Quosure `e` in its captured env. |
 | `get(name)` | Dynamically retrieve a variable's value by String or Symbol name. |
 | `to_symbol(s)` | Convert a String `s` into a Symbol at runtime. |
-| `!!x` | Evaluate `x` and inject into `expr()`/`quo()`; strips env from quosures. |
-| `!!!x` | Evaluate `x` and splice elements into `expr()`/`quo()`. |
-| `!!name := value` | Use a dynamic String/Symbol as an argument name inside `expr()`/`quo()`. |
+| `!!x` | Evaluate `x` and inject into `to_expr()`/`quo()`; strips env from quosures. |
+| `!!!x` | Evaluate `x` and splice elements into `to_expr()`/`quo()`. |
+| `!!name := value` | Use a dynamic String/Symbol as an argument name inside `to_expr()`/`quo()`. |
 | `enquo(param)` | Inside a function: capture caller's expression for `param` as a Quosure. |
 | `enquos(...)` | Inside a function: capture all variadic expressions as a List of Quosures. |
 
@@ -17675,7 +17698,7 @@ The captured expression object.
 ```t
 my_select = \(df = DataFrame, col = Any -> DataFrame) {
 col_expr = enquo(col)
-eval(expr(df |> select(!!col_expr)))
+eval(to_expr(df |> select(!!col_expr)))
 }
 my_select(iris, $Sepal.Length)
 ```
@@ -17704,7 +17727,7 @@ A list of captured expressions, preserving argument names.
 ```t
 my_summarize = \(df = DataFrame, ... -> DataFrame) {
 cols = enquos(...)
-eval(expr(df |> summarize(!!!cols)))
+eval(to_expr(df |> summarize(!!!cols)))
 }
 my_summarize(iris, mean_sep = mean($Sepal.Length))
 ```
@@ -17995,53 +18018,6 @@ exp(1)
 ## See Also
 
 [pow](pow.html), [log](log.html)
-
-
-
-# FILE: docs/reference/expr.md
-
-# expr
-
-Capture an expression
-
-Captures the provided expression as an Expr object without evaluating it. Useful for metaprogramming, quotation, and custom evaluation.
-
-## Parameters
-
-- **x** (`Any`): The expression to capture.
-
-
-## Returns
-
-The captured expression object.
-
-## Examples
-
-```t
-e = expr(1 + 2)
-eval(e)
-```
-
-
-
-# FILE: docs/reference/exprs.md
-
-# exprs
-
-## Parameters
-
-- **...** (`Any`): One or more expressions to capture.
-
-
-## Returns
-
-A list of captured expressions.
-
-## Examples
-
-```t
-exprs(1 + 1, x = 2 * 2)
-```
 
 
 
@@ -24138,7 +24114,7 @@ The resulting symbol.
 
 ```t
 to_symbol("mpg")
-expr(select(df, !!to_symbol("mpg")))
+to_expr(select(df, !!to_symbol("mpg")))
 ```
 
 
@@ -24339,6 +24315,53 @@ Returns the current local date as a Date value.
 ## Returns
 
 The current date.
+
+
+
+# FILE: docs/reference/to_expr.md
+
+# expr
+
+Capture an expression
+
+Captures the provided expression as an Expr object without evaluating it. Useful for metaprogramming, quotation, and custom evaluation.
+
+## Parameters
+
+- **x** (`Any`): The expression to capture.
+
+
+## Returns
+
+The captured expression object.
+
+## Examples
+
+```t
+e = to_expr(1 + 2)
+eval(e)
+```
+
+
+
+# FILE: docs/reference/to_exprs.md
+
+# exprs
+
+## Parameters
+
+- **...** (`Any`): One or more expressions to capture.
+
+
+## Returns
+
+A list of captured expressions.
+
+## Examples
+
+```t
+to_exprs(1 + 1, x = 2 * 2)
+```
 
 
 
