@@ -155,7 +155,7 @@ let scan_code_requirements ~node_name ~runtime raw_text =
   let req = with_reason empty_requirements reason in
   match runtime with
   | "R" ->
-      let req = { req with r_deps = add_list req.r_deps [ "jsonlite" ] } in
+      let req = req in
       let has_pkg pkg =
         let re1 = Str.regexp (Printf.sprintf "library([\"']?%s[\"']?)" pkg) in
         let re2 = Str.regexp (Printf.sprintf "require([\"']?%s[\"']?)" pkg) in
@@ -256,10 +256,16 @@ let required_for_pipeline (p : Ast.pipeline_result) =
             merge_requirements acc (scan_code_requirements ~node_name ~runtime raw_text)
         | _ -> acc
       in
-      if runtime = "Quarto" then
-        merge_requirements acc (add_quarto_requirement ~node_name)
-      else
-        acc)
+      let acc =
+        if runtime = "Quarto" then
+          merge_requirements acc (add_quarto_requirement ~node_name)
+        else if runtime = "R" then
+          merge_requirements acc { empty_requirements with r_deps = add_list String_set.empty [ "jsonlite" ] }
+        else if runtime = "Julia" then
+          merge_requirements acc { empty_requirements with julia_deps = add_list String_set.empty [ "JSON" ] }
+        else acc
+      in
+      acc)
     empty_requirements
     p.p_exprs
 

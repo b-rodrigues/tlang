@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - enquos</title>
+  <title>T Function Reference - to_expr</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,25 +33,20 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="enquos">enquos</h1>
-<p>Capture variadic argument expressions (non-standard evaluation)</p>
-<p>Must be called inside a function body. Captures the unevaluated
-expressions passed through the variadic <code>...</code> parameter as a
-named List of Expr values. Call with <code>...</code> or with no
-arguments.</p>
+<h1 id="expr">expr</h1>
+<p>Capture an expression</p>
+<p>Captures the provided expression as an Expr object without evaluating
+it. Useful for metaprogramming, quotation, and custom evaluation.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>…</strong> (<code>Any</code>): The variadic parameter to
+<li><strong>x</strong> (<code>Any</code>): The expression to
 capture.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A list of captured expressions, preserving argument names.</p>
+<p>The captured expression object.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>my_summarize = \(df = DataFrame, ... -&gt; DataFrame) {
-cols = enquos(...)
-eval(to_expr(df |&gt; summarize(!!!cols)))
-}
-my_summarize(iris, mean_sep = mean($Sepal.Length))</code></pre>
+<pre class="t"><code>e = to_expr(1 + 2)
+eval(e)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

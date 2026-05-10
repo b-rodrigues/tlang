@@ -22,8 +22,9 @@ let read_arrow_builtin =
         (match Arrow_io.read_ipc path with
         | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
         | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
-    | [VNA _] -> Error.type_error "Function `read_arrow` expects a String path, got NA."
-    | [_] -> Error.type_error "Function `read_arrow` expects a String path."
+    | [v] ->
+        Error.type_error ~arg_index:1
+          (Printf.sprintf "Function `read_arrow` expects a String path, got %s instead." (Utils.type_name v))
     | _ -> Error.arity_error_named "read_arrow" 1 (List.length args)
   )
 

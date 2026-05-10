@@ -25,6 +25,18 @@ The focus of this release is the introduction of first-class Julia support, enab
     - Simplified data interchange between T, R, Python, and Julia.
     - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
     - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
+- **Julia JSON Interchange**: Added support for the `JSON` package in Julia nodes, enabling seamless JSON-based data exchange for Julia-based pipeline steps.
+
+### Strict Serialization & Pipeline Stability
+- **Symbol-Mandated Serialization**: 
+    - Mandated the use of `^` symbols for node serializers and deserializers (e.g., `serializer = ^arrow`). 
+    - String literals are now strictly disallowed in these fields and will trigger a descriptive `TypeError` during evaluation, eliminating a common source of pipeline configuration drift.
+- **Opaque Error Elimination**:
+    - Enhanced `write_arrow` to surface detailed `VError` traces instead of failing silently.
+    - Pipeline nodes now report the actual root cause (including tracebacks) from upstream failures, making debugging polyglot pipelines significantly faster.
+- **Standard Package Registry**:
+    - Registered `dataframe` as a core standard package, ensuring stable resolution during Nix builds and preventing "package not found" errors in isolated environments.
+- **R Factor Stability**: Fixed a regression in R nodes where the standardized `to_factor` was being incorrectly emitted; now correctly uses the standard R `factor()` for native R-node interoperability.
 ### API Standardization & Ergonomics
 - **Unified `to_` Naming Convention**:
     - Renamed all type conversion and coercion functions to follow a consistent `to_` prefix:

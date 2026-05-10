@@ -78,7 +78,62 @@ serialization.</li>
 <li>Improved automatic dependency discovery for Julia packages used
 within pipeline nodes.</li>
 <li>Robust system-level library resolution for complex Julia
-dependencies (like JVM and ONNX runtimes) within the Nix sandbox.</li>
+dependencies (like JVM and ONNX runtimes) within the Nix sandbox. ###
+API Standardization &amp; Ergonomics</li>
+</ul></li>
+<li><strong>Unified <code>to_</code> Naming Convention</strong>:
+<ul>
+<li>Renamed all type conversion and coercion functions to follow a
+consistent <code>to_</code> prefix:
+<ul>
+<li><code>as_date()</code> → <code>to_date()</code></li>
+<li><code>as_datetime()</code> → <code>to_datetime()</code></li>
+<li><code>as_factor()</code> / <code>factor()</code> →
+<code>to_factor()</code></li>
+<li><code>sym()</code> → <code>to_symbol()</code></li>
+<li><code>dataframe()</code> → <code>to_dataframe()</code></li>
+<li><code>str_string()</code> → <code>to_string()</code></li>
+</ul></li>
+<li>Removed all legacy <code>as_*</code> and shorthand aliases
+(<code>fct()</code>, <code>fct_infreq()</code> →
+<code>to_factor(..., ordered=true)</code> etc.) to ensure a single,
+canonical API path.</li>
+</ul></li>
+<li><strong>Renamed Statistical Diagnostics</strong>:
+<ul>
+<li><code>augment()</code> renamed to <code>add_diagnostics()</code> for
+better clarity and consistency with the T-Lang philosophy of descriptive
+names.</li>
+</ul></li>
+<li><strong>Refined Data Converters</strong>:
+<ul>
+<li><code>to_string()</code> now provides a unified interface for string
+conversion across all T types, including proper level resolution for
+Factors and recursive formatting for Lists and Vectors.</li>
+</ul></li>
+<li><strong>Improved Factor Creation</strong>:
+<ul>
+<li>Removed the <code>fct()</code> shorthand in favor of the
+standardized <code>to_factor()</code>.</li>
+<li>Simplified factor logic: <code>to_factor()</code> now consistently
+uses alphabetical sorting for derived levels, removing the previous
+“first-appearance” behavior to align with industry standards and
+internal consistency.</li>
+</ul></li>
+<li><strong>Descriptive Statistical Utilities</strong>:
+<ul>
+<li>Renamed <code>augment()</code> to <code>add_diagnostics()</code> to
+better reflect its purpose of appending model-level diagnostics
+(residuals, hat values, etc.) to data frames.</li>
+<li>Updated the Golden test suite to maintain parity with R’s
+<code>broom::augment</code> outputs.</li>
+</ul></li>
+<li><strong>Codebase &amp; Demo Synchronization</strong>:
+<ul>
+<li>Performed a repository-wide refactor of 65+ demo projects in
+<code>t_demos</code> to adopt the new standardized API.</li>
+<li>Updated Tree-Sitter syntax highlighting queries to support the new
+names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
 <h2 id="section">[0.51.5] - 2026-05-08</h2>

@@ -18,7 +18,7 @@ The captured expression object.
 ```t
 my_select = \(df = DataFrame, col = Any -> DataFrame) {
 col_expr = enquo(col)
-eval(expr(df |> select(!!col_expr)))
+eval(to_expr(df |> select(!!col_expr)))
 }
 my_select(iris, $Sepal.Length)
 ```

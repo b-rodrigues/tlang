@@ -24,9 +24,21 @@ let register env =
           (match Arrow_io.write_ipc df.arrow_table path with
           | Ok () -> (VNA NAGeneric)
           | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
-      | [_; VString _] -> Error.type_error "Function `write_arrow` expects a DataFrame as first argument."
-      | [VDataFrame _; _] -> Error.type_error "Function `write_arrow` expects a String path as second argument."
-      | [_; _] -> Error.type_error "Function `write_arrow` expects (DataFrame, String)."
+      | [v; VString _] ->
+          let type_name = Utils.type_name v in
+          let detail = match v with 
+            | VError e -> Printf.sprintf " (Error: %s)" e.message
+            | _ -> ""
+          in
+          Error.type_error ~arg_index:1
+            (Printf.sprintf "Function `write_arrow` expects a DataFrame as first argument, got %s instead%s." type_name detail)
+      | [VDataFrame _; v] ->
+          Error.type_error ~arg_index:2
+            (Printf.sprintf "Function `write_arrow` expects a String path as second argument, got %s instead." (Utils.type_name v))
+      | [v1; v2] ->
+          Error.type_error
+            (Printf.sprintf "Function `write_arrow` expects (DataFrame, String), got (%s, %s) instead."
+              (Utils.type_name v1) (Utils.type_name v2))
       | _ -> Error.arity_error_named "write_arrow" 2 (List.length args)
     ))
     env

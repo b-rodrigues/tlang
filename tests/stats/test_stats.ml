@@ -294,13 +294,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* lm() error handling tests *)
   test "lm missing column"
     (Printf.sprintf {|df = read_csv("%s"); lm(data = df, formula = y ~ z)|} csv_p5_lm)
-    {|Error(KeyError: "Column `z` not found in DataFrame.")|};
+    {|Error(KeyError: ".*Column `z` not found in DataFrame.")|};
   test "lm non-to_dataframe"
     {|lm(data = 42, formula = y ~ x)|}
-    {|Error(TypeError: "Function `lm` 'data' must be a DataFrame.")|};
+    {|Error(TypeError: ".*Function `lm` 'data' must be a DataFrame, got Int instead.")|};
   test "lm non-formula"
     (Printf.sprintf {|df = read_csv("%s"); lm(data = df, formula = 42)|} csv_p5_lm)
-    {|Error(TypeError: "Function `lm` 'formula' must be a Formula (use ~ operator).")|};
+    {|Error(TypeError: ".*Function `lm` 'formula' must be a Formula (use ~ operator), got Int instead.")|};
   test "lm missing data arg"
     {|lm(formula = y ~ x)|}
     {|Error(ArityError: "Function `lm` missing required argument 'data'.")|};

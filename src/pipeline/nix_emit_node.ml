@@ -28,12 +28,14 @@ let indent_string s n =
          indent ^ stripped)
   |> String.concat "\n"
 
+let strip_hat s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s
+
 let get_format = function
   | Ast.VSerializer s -> Some s.s_format
-  | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
+  | Ast.VString s | Ast.VSymbol s -> Some (strip_hat s |> String.lowercase_ascii)
   | Ast.VDict pairs -> 
       (match List.assoc_opt "format" pairs with
-       | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
+       | Some (VString s) | Some (VSymbol s) -> Some (strip_hat s |> String.lowercase_ascii)
        | _ -> None)
   | _ -> None
 
@@ -441,6 +443,8 @@ def py_read_json(path):
     with open(path) as f:
         return json.load(f)
 |} in
+
+
 
   let t_pickle_py_code = {|
 import os
@@ -1207,7 +1211,7 @@ function jl_read_onnx(path)
 end
 |} in
 
-  let json_injection   = make_injection ~enabled:(is_json_ser || is_json_des)  ~r_code:t_json_r_code  ~py_code:t_json_py_code ~jl_code:t_json_jl_code in
+  let json_injection   = make_injection ~enabled:(is_json_ser || is_json_des || deps <> [])  ~r_code:t_json_r_code  ~py_code:t_json_py_code ~jl_code:t_json_jl_code in
   let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code ~jl_code:t_csv_jl_code in
   let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code ~jl_code:t_arrow_jl_code in
   let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code ~jl_code:t_pmml_jl_code in
@@ -1521,7 +1525,6 @@ def py_save_viz_metadata(obj, path):
           | _ -> deserializer
 
         in
-        let strategy_is_string = match strategy_expr.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
         let read_fns = match runtime with
@@ -1539,8 +1542,6 @@ def py_save_viz_metadata(obj, path):
           | None ->
             if strategy = "default" then
               (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else if runtime = "Julia" then "deserialize" else "deserialize")
-            else if strategy_is_string then
-              (match List.assoc_opt strategy read_fns with Some fn -> fn | None -> strategy)
             else
               strategy
         in
@@ -1588,7 +1589,6 @@ def py_save_viz_metadata(obj, path):
   in
 
   let expr_s = Nix_unparse.unparse_expr expr in
-  let ser_expr_is_string = match serializer.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
   let ser_s = Nix_unparse.expr_to_string serializer in
   let uses_default_serializer = ser_s = "default" in
   let ser_call =
@@ -1606,8 +1606,6 @@ def py_save_viz_metadata(obj, path):
     | None ->
         if ser_s = "default" then
           (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else if runtime = "Julia" then "serialize" else "serialize")
-        else if ser_expr_is_string then
-          (match List.assoc_opt ser_s write_fns with Some fn -> fn | None -> ser_s)
         else
           ser_s
   in
@@ -2017,7 +2015,7 @@ EOF
 
   let runtime_base_packages =
     match runtime with
-    | "Julia" -> "using DataFrames, CSV, StatsModels"
+    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON"
     | _ -> ""
   in
 

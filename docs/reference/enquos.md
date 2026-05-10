@@ -18,7 +18,7 @@ A list of captured expressions, preserving argument names.
 ```t
 my_summarize = \(df = DataFrame, ... -> DataFrame) {
 cols = enquos(...)
-eval(expr(df |> summarize(!!!cols)))
+eval(to_expr(df |> summarize(!!!cols)))
 }
 my_summarize(iris, mean_sep = mean($Sepal.Length))
 ```

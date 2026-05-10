@@ -17,6 +17,6 @@ The resulting symbol.
 
 ```t
 to_symbol("mpg")
-expr(select(df, !!to_symbol("mpg")))
+to_expr(select(df, !!to_symbol("mpg")))
 ```
 

@@ -1,4 +1,4 @@
-# expr
+# to_expr
 
 Capture an expression
 
@@ -16,7 +16,7 @@ The captured expression object.
 ## Examples
 
 ```t
-e = expr(1 + 2)
+e = to_expr(1 + 2)
 eval(e)
 ```
 
