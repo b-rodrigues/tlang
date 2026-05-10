@@ -98,7 +98,7 @@ let add_feature_requirement ~node_name ~runtime ~feature =
   let req = with_reason empty_requirements reason in
   match runtime, feature with
   | "R", "json" ->
-      { req with r_deps = add_list req.r_deps [ "jsonlite" ] }
+      empty_requirements
   | "Python", "json" ->
       empty_requirements
   | "R", "csv" ->
@@ -155,7 +155,7 @@ let scan_code_requirements ~node_name ~runtime raw_text =
   let req = with_reason empty_requirements reason in
   match runtime with
   | "R" ->
-      let req = { req with r_deps = add_list req.r_deps [ "jsonlite" ] } in
+      let req = req in
       let has_pkg pkg =
         let re1 = Str.regexp (Printf.sprintf "library([\"']?%s[\"']?)" pkg) in
         let re2 = Str.regexp (Printf.sprintf "require([\"']?%s[\"']?)" pkg) in

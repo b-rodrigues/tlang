@@ -442,6 +442,30 @@ def py_read_json(path):
         return json.load(f)
 |} in
 
+  let t_core_r_code = {|
+to_factor <- function(x, levels = NULL, ordered = FALSE) {
+  factor(x, levels = levels, ordered = ordered)
+}
+to_integer <- function(x) as.integer(x)
+to_float <- function(x) as.numeric(x)
+to_string <- function(x) as.character(x)
+|} in
+
+  let t_core_py_code = {|
+def to_factor(x, levels=None, ordered=False):
+    import pandas as pd
+    return pd.Categorical(x, categories=levels, ordered=ordered)
+def to_integer(x):
+    import pandas as pd
+    return pd.Series(x).astype(int)
+def to_float(x):
+    import pandas as pd
+    return pd.Series(x).astype(float)
+def to_string(x):
+    import pandas as pd
+    return pd.Series(x).astype(str)
+|} in
+
   let t_pickle_py_code = {|
 import os
 import pickle
@@ -1207,7 +1231,8 @@ function jl_read_onnx(path)
 end
 |} in
 
-  let json_injection   = make_injection ~enabled:(is_json_ser || is_json_des)  ~r_code:t_json_r_code  ~py_code:t_json_py_code ~jl_code:t_json_jl_code in
+  let json_injection   = make_injection ~enabled:(is_json_ser || is_json_des || deps <> [])  ~r_code:t_json_r_code  ~py_code:t_json_py_code ~jl_code:t_json_jl_code in
+  let core_injection   = make_injection ~enabled:true  ~r_code:t_core_r_code  ~py_code:t_core_py_code ~jl_code:"" in
   let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code ~jl_code:t_csv_jl_code in
   let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code ~jl_code:t_arrow_jl_code in
   let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code ~jl_code:t_pmml_jl_code in
@@ -1217,6 +1242,8 @@ end
       Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pickle_py_code
     else ""
   in
+
+  let injections = [ core_injection; json_injection; csv_injection; arrow_injection; pmml_injection; onnx_injection; pickle_injection ] in
 
   let error_injection =
     match runtime with
@@ -2116,13 +2143,8 @@ EOF
 %s
 %s
 %s
-%s
-%s
-%s
-%s
-%s
       mkdir -p $out
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection (String.concat "\n" injections) imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
