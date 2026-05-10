@@ -68,11 +68,11 @@ type serializer = {
 
 ### Custom Serializers
 
-You can create a custom serializer by defining a record that matches the required interface:
+You can create a custom serializer by defining a record that matches the required interface. Note that the `format` field should use a **Symbol** (starting with `^`) to remain consistent with T's symbol-based serialization mandate.
 
 ```t
 my_log_serializer = {
-  format: "log",
+  format: ^log,
   writer: \(path, val) {
     -- custom logic to write log
     Ok(NA)
@@ -83,9 +83,11 @@ my_log_serializer = {
   }
 }
 
--- Usage
+-- Usage: Pass the variable name (no ^ hat on the variable itself!)
 node(command = ..., serializer = my_log_serializer)
 ```
+
+For a complete example of a cross-language custom serializer (YAML), see the [Custom Polyglot Serializer Demo](https://github.com/b-rodrigues/t_demos/blob/master/custom_polyglot_serializer_t/src/pipeline.t) in the `t_demos` repository.
 
 ## 4. Static Coherence Checks
 
@@ -122,7 +124,7 @@ You can define these by adding `r_writer`, `r_reader`, `py_writer`, or `py_reade
 
 ```t
 my_custom_ser = [
-  format: "custom",
+  format: ^custom,
   
   -- T implementation
   writer: \(path, val) { Ok(NA) },
