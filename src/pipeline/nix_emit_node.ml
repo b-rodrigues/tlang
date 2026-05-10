@@ -28,12 +28,14 @@ let indent_string s n =
          indent ^ stripped)
   |> String.concat "\n"
 
+let strip_hat s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s
+
 let get_format = function
   | Ast.VSerializer s -> Some s.s_format
-  | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
+  | Ast.VString s | Ast.VSymbol s -> Some (strip_hat s |> String.lowercase_ascii)
   | Ast.VDict pairs -> 
       (match List.assoc_opt "format" pairs with
-       | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
+       | Some (VString s) | Some (VSymbol s) -> Some (strip_hat s |> String.lowercase_ascii)
        | _ -> None)
   | _ -> None
 
