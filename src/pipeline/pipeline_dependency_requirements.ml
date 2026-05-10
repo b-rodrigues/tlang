@@ -98,7 +98,7 @@ let add_feature_requirement ~node_name ~runtime ~feature =
   let req = with_reason empty_requirements reason in
   match runtime, feature with
   | "R", "json" ->
-      empty_requirements
+      { req with r_deps = add_list req.r_deps [ "jsonlite" ] }
   | "Python", "json" ->
       empty_requirements
   | "R", "csv" ->
@@ -256,10 +256,14 @@ let required_for_pipeline (p : Ast.pipeline_result) =
             merge_requirements acc (scan_code_requirements ~node_name ~runtime raw_text)
         | _ -> acc
       in
-      if runtime = "Quarto" then
-        merge_requirements acc (add_quarto_requirement ~node_name)
-      else
-        acc)
+      let acc =
+        if runtime = "Quarto" then
+          merge_requirements acc (add_quarto_requirement ~node_name)
+        else if runtime = "R" then
+          merge_requirements acc { empty_requirements with r_deps = add_list String_set.empty [ "jsonlite" ] }
+        else acc
+      in
+      acc)
     empty_requirements
     p.p_exprs
 

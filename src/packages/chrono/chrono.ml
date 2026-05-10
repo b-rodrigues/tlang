@@ -1484,6 +1484,39 @@ let register env =
       ("period_seconds", (fun p -> p.p_seconds));
     ]
   in
+  let to_date_scalar origin_days value =
+    match value with
+    | VDate d -> VDate d
+    | VDatetime (micros, _) -> VDate (Int64.to_int (floor_div_int64 micros micros_per_day))
+    | VString s -> (match parse_shorthand_date `YMD s with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `to_date` could not parse %S as a date." s))
+    | VInt n -> VDate (origin_days + n)
+    | VFloat f -> VDate (origin_days + int_of_float f)
+    | VNA _ -> (VNA NAGeneric)
+    | _ -> Error.type_error "Function `to_date` expects a String, Date, Datetime, Int, or Float."
+  in
+  let to_datetime_scalar origin_days tz value =
+    match value with
+    | VDate days -> VDatetime (Int64.mul (Int64.of_int days) micros_per_day, tz)
+    | VDatetime (micros, tz0) -> VDatetime (micros, (match tz with Some _ -> tz | None -> tz0))
+    | VString s ->
+        (match parse_shorthand_datetime `YMD 6 ?tz s with
+         | Some v -> v
+         | None -> (match parse_custom_format `Datetime s "%Y-%m-%d %H:%M:%S" tz with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `to_datetime` could not parse %S as a datetime." s)))
+    | VInt n ->
+        VDatetime (
+          Int64.add
+            (Int64.mul (Int64.of_int origin_days) micros_per_day)
+            (Int64.mul (Int64.of_int n) micros_per_second),
+          tz)
+    | VFloat f ->
+        VDatetime (
+          Int64.add
+            (Int64.mul (Int64.of_int origin_days) micros_per_day)
+            (Int64.of_float (f *. 1_000_000.0)),
+          tz)
+    | VNA _ -> (VNA NAGeneric)
+    | _ -> Error.type_error "Function `to_datetime` expects a String, Date, Datetime, Int, or Float."
+  in
   let env = Env.add "format_date" (make_builtin ~name:"format_date" 2 (fun args _env ->
     match args with
     | [VDate days; VString fmt] -> VString (format_datetime_value (Int64.mul (Int64.of_int days) micros_per_day) None fmt)
@@ -1510,13 +1543,9 @@ let register env =
     | Error err -> err
     | Ok origin_days ->
         (match positional_args named_args with
-         | [VDate d] -> VDate d
-         | [VDatetime (micros, _)] -> VDate (Int64.to_int (floor_div_int64 micros micros_per_day))
-         | [VString s] -> (match parse_shorthand_date `YMD s with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `to_date` could not parse %S as a date." s))
-         | [VInt n] -> VDate (origin_days + n)
-         | [VFloat f] -> VDate (origin_days + int_of_float f)
-         | [VNA _] -> (VNA NAGeneric)
-         | [_] -> Error.type_error "Function `to_date` expects a String, Date, Datetime, Int, or Float."
+         | [VVector arr] -> VVector (Array.map (to_date_scalar origin_days) arr)
+         | [VList items] -> VVector (Array.map (to_date_scalar origin_days) (Array.of_list (List.map snd items)))
+         | [v] -> to_date_scalar origin_days v
          | values -> Error.arity_error_named "to_date" 1 (List.length values)))) env in
   let env = Env.add "to_datetime" (make_builtin_named ~name:"to_datetime" ~variadic:true 1 (fun named_args _env ->
     let origin =
@@ -1532,26 +1561,9 @@ let register env =
     | Error err, _ | _, Error err -> err
     | Ok origin_days, Ok tz ->
         (match positional_args named_args with
-         | [VDate days] -> VDatetime (Int64.mul (Int64.of_int days) micros_per_day, tz)
-         | [VDatetime (micros, tz0)] -> VDatetime (micros, (match tz with Some _ -> tz | None -> tz0))
-         | [VString s] ->
-             (match parse_shorthand_datetime `YMD 6 ?tz s with
-              | Some v -> v
-              | None -> (match parse_custom_format `Datetime s "%Y-%m-%d %H:%M:%S" tz with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `to_datetime` could not parse %S as a datetime." s)))
-         | [VInt n] ->
-             VDatetime (
-               Int64.add
-                 (Int64.mul (Int64.of_int origin_days) micros_per_day)
-                 (Int64.mul (Int64.of_int n) micros_per_second),
-               tz)
-         | [VFloat f] ->
-             VDatetime (
-               Int64.add
-                 (Int64.mul (Int64.of_int origin_days) micros_per_day)
-                 (Int64.of_float (f *. 1_000_000.0)),
-               tz)
-         | [VNA _] -> (VNA NAGeneric)
-         | [_] -> Error.type_error "Function `to_datetime` expects a String, Date, Datetime, Int, or Float."
+         | [VVector arr] -> VVector (Array.map (to_datetime_scalar origin_days tz) arr)
+         | [VList items] -> VVector (Array.map (to_datetime_scalar origin_days tz) (Array.of_list (List.map snd items)))
+         | [v] -> to_datetime_scalar origin_days tz v
          | values -> Error.arity_error_named "to_datetime" 1 (List.length values)))) env in
   let env = add_predicate env "is_date" (function VDate _ -> true | _ -> false) in
   let env = add_predicate env "is_datetime" (function VDatetime _ -> true | _ -> false) in
