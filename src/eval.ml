@@ -2535,9 +2535,9 @@ and eval_call env_ref fn_val raw_args =
             match autoquote_capture_expr e with
             | Ok (captured_expr, captured_value) ->
                 autoquote_captured_exprs := (param_index, captured_expr) :: !autoquote_captured_exprs;
-                acc @ [(name, captured_value)]
+                acc @ [(name, (None, captured_value))]
             | Error err ->
-                acc @ [(name, err)]
+                acc @ [(name, (None, err))]
           in
           process_args_spliced next_acc (param_index + 1) rest
         else
@@ -2550,21 +2550,57 @@ and eval_call env_ref fn_val raw_args =
           | _ -> eval_expr env_ref e
         in
         match v with
-        | VUnquote inner -> process_args_spliced (acc @ [(name, inner)]) (param_index + 1) rest
+        | VUnquote inner -> 
+            let source = match e.node with Var s -> Some s | ColumnRef s -> Some ("$" ^ s) | _ -> None in
+            process_args_spliced (acc @ [(name, (source, inner))]) (param_index + 1) rest
         | VUnquoteSplice sv ->
             let units = match sv with
-              | VList items -> items
-              | VVector vx -> Array.to_list vx |> List.map (fun x -> (None, x))
-              | VDict d -> List.map (fun (k, v) -> (Some k, v)) d
-              | _ -> [(name, sv)]
+              | VList items -> items |> List.map (fun (n, v) -> (n, (None, v)))
+              | VVector vx -> Array.to_list vx |> List.map (fun x -> (None, (None, x)))
+              | VDict d -> List.map (fun (k, v) -> (Some k, (None, v))) d
+              | _ -> [(name, (None, sv))]
             in
             process_args_spliced (acc @ units) (param_index + List.length units) rest
         | VDynamicArg (n, v) ->
-            process_args_spliced (acc @ [(Some n, v)]) (param_index + 1) rest
-        | _ -> process_args_spliced (acc @ [(name, v)]) (param_index + 1) rest
+            process_args_spliced (acc @ [(Some n, (None, v))]) (param_index + 1) rest
+        | _ -> 
+            let source = match e.node with Var s -> Some s | ColumnRef s -> Some ("$" ^ s) | _ -> None in
+            process_args_spliced (acc @ [(name, (source, v))]) (param_index + 1) rest
   in
 
-  let named_args = process_args_spliced [] 0 raw_args in
+  let named_args_enriched = process_args_spliced [] 0 raw_args in
+  let named_args = List.map (fun (n, (_, v)) -> (n, v)) named_args_enriched in
+
+  let enrich_type_error err enriched_args =
+    match err with
+    | VError info when info.code = TypeError ->
+        let arg_idx = 
+          match List.assoc_opt "arg_index" info.context with
+          | Some (VString s) -> (try Some (int_of_string s) with _ -> None)
+          | _ -> None
+        in
+        (match arg_idx with
+         | Some idx when idx > 0 && idx <= List.length enriched_args ->
+             let (_, source, v) = 
+               let (n, (src, val_)) = List.nth enriched_args (idx - 1) in
+               (n, src, val_)
+             in
+             let source_name =
+               match source with
+               | Some s -> Some s
+               | None -> (match Utils.unwrap_value v with VNodeResult { node_name; _ } -> Some node_name | _ -> None)
+             in
+             let base_msg = 
+               if String.length info.message > 0 && info.message.[String.length info.message - 1] = '.' 
+               then String.sub info.message 0 (String.length info.message - 1)
+               else info.message
+             in
+             (match source_name with
+              | Some name -> VError { info with message = base_msg ^ " (" ^ name ^ ")" }
+              | None -> VError info)
+         | _ -> VError info)
+    | _ -> err
+  in
 
   (* Apply a user lambda, including the autoquote-specific `__aq_<name>` bindings
      used to re-expand `!!param` inside NSE-aware builtins. *)
@@ -2643,7 +2679,8 @@ and eval_call env_ref fn_val raw_args =
         | Some name -> Error.arity_error_named name b_arity arg_count
         | None -> Error.arity_error b_arity arg_count
       else
-        b_func named_args env_ref
+        let res = b_func named_args env_ref in
+        enrich_type_error res named_args_enriched
 
   | VLambda { params; autoquote_params; param_types; return_type; variadic; body; env = Some closure_env; _ } ->
       apply_lambda closure_env params autoquote_params param_types return_type variadic body

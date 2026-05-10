@@ -102,7 +102,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(KeyError: "Column `z` not found in DataFrame.")|};
   test "lm via bridge: non-to_dataframe"
     {|lm(data = 42, formula = y ~ x)|}
-    {|Error(TypeError: "Function `lm` 'data' must be a DataFrame.")|};
+    {|Error(TypeError: ".*Function `lm` 'data' must be a DataFrame, got Int instead.")|};
   test "cor via bridge: NA value"
     "cor(NA, [1, 2, 3])"
     {|Error(AggregationError: "Function `cor` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
