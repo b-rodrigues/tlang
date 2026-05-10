@@ -261,6 +261,8 @@ let required_for_pipeline (p : Ast.pipeline_result) =
           merge_requirements acc (add_quarto_requirement ~node_name)
         else if runtime = "R" then
           merge_requirements acc { empty_requirements with r_deps = add_list String_set.empty [ "jsonlite" ] }
+        else if runtime = "Julia" then
+          merge_requirements acc { empty_requirements with julia_deps = add_list String_set.empty [ "JSON" ] }
         else acc
       in
       acc)
