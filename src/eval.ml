@@ -469,6 +469,7 @@ let is_standard_package = function
   | "chrono"
   | "math"
   | "stats"
+  | "dataframe"
   | "to_dataframe"
   | "colcraft"
   | "pipeline"

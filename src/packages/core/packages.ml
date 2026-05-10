@@ -92,7 +92,8 @@ let package_families = function
   | "strcraft" -> ["strcraft"; "string"]
   | "stats" -> ["stats"; "descriptive-statistics"]
   | "base" -> ["base"; "json"; "serialization"]
-  | "math" | "colcraft" | "to_dataframe" | "pipeline" | "explain" | "chrono" | "lens" as pkg -> [pkg]
+  | "to_dataframe" | "dataframe" -> ["dataframe"; "to_dataframe"]
+  | "math" | "colcraft" | "pipeline" | "explain" | "chrono" | "lens" as pkg -> [pkg]
   | _ -> []
 
 let dedup_sort_strings xs =
