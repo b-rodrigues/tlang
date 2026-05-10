@@ -1523,7 +1523,6 @@ def py_save_viz_metadata(obj, path):
           | _ -> deserializer
 
         in
-        let strategy_is_string = match strategy_expr.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
         let read_fns = match runtime with
@@ -1541,8 +1540,6 @@ def py_save_viz_metadata(obj, path):
           | None ->
             if strategy = "default" then
               (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else if runtime = "Julia" then "deserialize" else "deserialize")
-            else if strategy_is_string then
-              (match List.assoc_opt strategy read_fns with Some fn -> fn | None -> strategy)
             else
               strategy
         in
@@ -1590,7 +1587,6 @@ def py_save_viz_metadata(obj, path):
   in
 
   let expr_s = Nix_unparse.unparse_expr expr in
-  let ser_expr_is_string = match serializer.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
   let ser_s = Nix_unparse.expr_to_string serializer in
   let uses_default_serializer = ser_s = "default" in
   let ser_call =
@@ -1608,8 +1604,6 @@ def py_save_viz_metadata(obj, path):
     | None ->
         if ser_s = "default" then
           (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else if runtime = "Julia" then "serialize" else "serialize")
-        else if ser_expr_is_string then
-          (match List.assoc_opt ser_s write_fns with Some fn -> fn | None -> ser_s)
         else
           ser_s
   in
