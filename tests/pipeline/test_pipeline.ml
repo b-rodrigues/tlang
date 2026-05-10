@@ -734,19 +734,19 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       test "read_node(pipeline, name) prefers matching build-log values for unresolved nodes"
         {|p_match = pipeline {
   good_val = 20
-  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
+  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = ^json, deserializer = ^json)
 }; read_node(p_match, "recovered_with_match").value.status|}
         {|"ok"|};
       test "read_pipeline prefers matching build-log values for unresolved nodes"
         {|p_match = pipeline {
   good_val = 20
-  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
+  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = ^json, deserializer = ^json)
 }; read_pipeline(p_match).nodes |> filter(\(node) node.name == "recovered_with_match") |> map(\(node) node.value.status)|}
         {|["ok"]|};
       test "filter_node returns merged build-log values for kept unresolved nodes"
         {|p_match = pipeline {
   good_val = 20
-  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
+  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = ^json, deserializer = ^json)
 }; read_pipeline(filter_node(p_match, is_na($diagnostics.error))).nodes |> filter(\(node) node.name == "recovered_with_match") |> map(\(node) node.value.status)|}
         {|["ok"]|};
 
@@ -978,7 +978,7 @@ p_cross = pipeline {
   let (v_py_pipeline, _) = eval_string_env
     {|pipeline {
   data = 1
-  step = pyn(command = <{ data + 1 }>, env_vars = [MODE: "fast"], deserializer = "json")
+  step = pyn(command = <{ data + 1 }>, env_vars = [MODE: "fast"], deserializer = ^json)
 }|}
     (Packages.init_env ()) in
   (match v_py_pipeline with
@@ -1000,7 +1000,7 @@ p_cross = pipeline {
 
   let (v_env_pipeline, _) = eval_string_env
     {|pipeline {
-  model = rn(command = <{ 1 + 1 }>, env_vars = [MODEL_MODE: "train", RETRIES: 2], deserializer = "json")
+  model = rn(command = <{ 1 + 1 }>, env_vars = [MODEL_MODE: "train", RETRIES: 2], deserializer = ^json)
 }|}
     (Packages.init_env ()) in
   (match v_env_pipeline with
@@ -1028,8 +1028,8 @@ p_cross = pipeline {
   let (v_serializer_pipeline, _) = eval_string_env
     {|pipeline {
   source = [answer: 42]
-  report_r = rn(command = <{ source }>, serializer = "json", deserializer = "json")
-  report_py = pyn(command = <{ source }>, serializer = "arrow", deserializer = "arrow")
+  report_r = rn(command = <{ source }>, serializer = ^json, deserializer = ^json)
+  report_py = pyn(command = <{ source }>, serializer = ^arrow, deserializer = ^arrow)
 }|}
     (Packages.init_env ()) in
   (match v_serializer_pipeline with
@@ -1309,7 +1309,7 @@ p_cross = pipeline {
   (* Test: T node whose sibling R node is <unbuilt> is itself correctly deferred *)
   let (v_t_deferred, _) = eval_string_env
     {|p = pipeline {
-  r_step = node(command = <{ 1 + 2 }>, runtime = R, deserializer = "json")
+  r_step = node(command = <{ 1 + 2 }>, runtime = R, deserializer = ^json)
   t_step = r_step * 2
 }
 p.t_step|}
@@ -1338,7 +1338,7 @@ p.t_step|}
   (* Test: rerun_pipeline correctly keeps a T node deferred when its sibling is <unbuilt> *)
   let (v_rerun_base, _) = eval_string_env
     {|pipeline {
-  r_step = node(command = <{ 1 + 2 }>, runtime = R, deserializer = "json")
+  r_step = node(command = <{ 1 + 2 }>, runtime = R, deserializer = ^json)
   t_step = r_step * 2
 }|}
     (Packages.init_env ()) in

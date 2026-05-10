@@ -252,7 +252,7 @@ min_version = "0.51.0"
     | Ast.VPipeline p ->
         let cfg = Package_types.default_project_config "onnx-julia-proj" in
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
-        analysis.missing_julia_deps = ["ONNX"; "ONNXRunTime"]
+        analysis.missing_julia_deps = ["JSON"; "ONNX"; "ONNXRunTime"]
         && analysis.reasons = [
           "node `model` usage discovery";
           "node `model` uses `onnx` with runtime `Julia`"
@@ -270,7 +270,7 @@ min_version = "0.51.0"
     | Ast.VPipeline p ->
         let cfg = Package_types.default_project_config "onnx-julia-writer-proj" in
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
-        analysis.missing_julia_deps = ["ONNX"; "ONNXRunTime"]
+        analysis.missing_julia_deps = ["JSON"; "ONNX"; "ONNXRunTime"]
         && List.mem "node `model` uses `onnx` with runtime `Julia`" analysis.reasons
     | _ -> false);
 
