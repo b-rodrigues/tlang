@@ -1069,11 +1069,22 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
            IMPORTANT: only evaluate when the user actually supplied the arg —
            the default sentinels (varexpr "text", varexpr "default") are NOT
            string literals but variable-name look-ups that would fail in env. *)
+        let rec validate_no_strings arg_name = function
+          | VString s ->
+              Some (Error.type_error (Printf.sprintf "String literals are not allowed for `%s` (got \"%s\"). Please use a symbol (e.g., ^%s)." arg_name s s))
+          | VList items -> 
+              List.fold_left (fun acc (_, v) -> match acc with Some _ -> acc | None -> validate_no_strings arg_name v) None items
+          | VDict items -> 
+              List.fold_left (fun acc (_, v) -> match acc with Some _ -> acc | None -> validate_no_strings arg_name v) None items
+          | _ -> None
+        in
         let lookup_serializer_arg name default =
           match List.assoc_opt (Some name) args with
           | Some e ->
             let v = eval_expr env_ref e in
-            Ast.mk_expr (Ast.Value v)
+            (match validate_no_strings name v with
+             | Some err -> Ast.mk_expr (Ast.Value err)
+             | None -> Ast.mk_expr (Ast.Value v))
           | None -> default
         in
         let lookup_env_vars () =
