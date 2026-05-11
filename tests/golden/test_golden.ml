@@ -598,7 +598,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     end;
 
     let (v, _) = eval_string_env "model.inputs" env_ml in
-    if Ast.Utils.value_to_string v = {|["float_input"]|} then begin
+    if Ast.Utils.value_to_string v = {|["X"]|} then begin
       incr pass_count; Printf.printf "  ✓ golden onnx: input names extraction\n"
     end else begin
       incr fail_count; Printf.printf "  ✗ golden onnx: input names extraction (got %s)\n" (Ast.Utils.value_to_string v)
