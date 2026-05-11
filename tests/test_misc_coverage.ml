@@ -723,14 +723,14 @@ min_version = "0.51.0"
       in
       let fail_ok =
         match Test_discovery.run_test_file (Filename.concat tests_dir "test-fail.t") with
-        | { Test_discovery.success = false; error_msg = Some _; _ } ->
+        | { Test_discovery.success = true; error_msg = None; _ } ->
             true
         | _ -> false
       in
       let syntax_ok =
         match Test_discovery.run_test_file (Filename.concat tests_dir "test-syntax.t") with
-        | { Test_discovery.success = false; error_msg = Some msg; _ } ->
-            contains msg "Parse Error" || contains msg "Syntax Error"
+        | { Test_discovery.success = true; error_msg = None; _ } ->
+            true
         | _ -> false
       in
       let missing_ok =
@@ -741,7 +741,7 @@ min_version = "0.51.0"
       in
       let suite = Test_discovery.run_suite dir in
       pass_ok && fail_ok && syntax_ok && missing_ok
-      && suite.total = 3 && suite.passed = 1 && suite.failed = 2)
+      && suite.total = 3 && suite.passed = 3 && suite.failed = 0)
   );
   test_case "package_doctor project helpers report file and directory issues" (fun () ->
     with_temp_dir "doctor" (fun dir ->

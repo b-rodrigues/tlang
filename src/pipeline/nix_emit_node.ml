@@ -385,7 +385,7 @@ r_read_json <- function(path) {
 |} in
 
   let t_json_jl_code = {|
-import JSON
+using JSON
 function jl_write_json(obj, path)
     open(path, "w") do f
         JSON.print(f, obj)
@@ -1185,6 +1185,10 @@ function jl_write_warnings(warnings_list, path)
         end
     end
 end
+
+function jl_serialize(obj, path)
+    Serialization.serialize(path, obj)
+end
 |} in
 
   let t_onnx_r_code = {|
@@ -1270,7 +1274,7 @@ def py_read_onnx(path):
 import ONNXRunTime as ORT
 using ONNX
 
-function jl_write_onnx(path, model)
+function jl_write_onnx(model, path)
     try
         ONNX.write(path, model)
     catch e
@@ -1682,7 +1686,7 @@ def py_save_viz_metadata(obj, path):
          | None -> List.assoc_opt fmt write_fns |> Option.value ~default:fmt)
     | None ->
         if ser_s = "default" then
-          (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else if runtime = "Julia" then "serialize" else "serialize")
+          (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else if runtime = "Julia" then "jl_serialize" else "serialize")
         else
           ser_s
   in
@@ -2103,7 +2107,7 @@ EOF
   let runtime_base_packages =
     match runtime with
     (* Logging is required for TCaptureLogger so emitted Julia nodes can capture and persist warnings. *)
-    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging"
+    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging, Serialization"
     | _ -> ""
   in
 
