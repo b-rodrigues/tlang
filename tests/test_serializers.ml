@@ -273,25 +273,30 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   |} env_julia_emit in
   (match v with
    | VPipeline p ->
-       let nix = Nix_emitter.emit_pipeline p in
-       if contains_all nix
-            [
-              "import ONNXRunTime as ORT";
-              "ORT.load_inference(path)";
-              "jl_read_onnx";
-              "jl_write_onnx";
-              "import ONNX";
-              "ONNX.write(path, model)"
-            ]
-       then begin
-         incr pass_count; Printf.printf "  ✓ Julia ONNX helper injection uses ONNXRunTime with explicit writer error\n"
-       end else begin
-         incr fail_count; Printf.printf "  ✗ Julia ONNX helper injection missing from emitted Nix\n"
-       end
-   | other ->
-       incr fail_count;
-       Printf.printf "  ✗ Failed to build Julia ONNX pipeline for emission test. Got: %s\n"
-         (Ast.Utils.value_to_string other));
+        let nix = Nix_emitter.emit_pipeline p in
+        if contains_all nix
+             [
+               "import ONNXRunTime as ORT";
+               "ORT.load_inference(path)";
+               "jl_read_onnx";
+               "jl_write_onnx";
+               "import ONNX";
+               "ONNX.write(path, model)";
+               "mutable struct TCaptureLogger <: AbstractLogger";
+               "jl_write_error(e, joinpath(ENV[\"out\"], \"artifact\"))";
+               "jl_write_warnings(captured_logger.warnings, joinpath(ENV[\"out\"], \"warnings\"))";
+               "write(f, \"VError\")";
+               "with_logger(captured_logger) do"
+             ]
+        then begin
+          incr pass_count; Printf.printf "  ✓ Julia helper injection captures structured errors and warnings\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ Julia helper injection missing from emitted Nix\n"
+        end
+    | other ->
+        incr fail_count;
+        Printf.printf "  ✗ Failed to build Julia diagnostics pipeline for emission test. Got: %s\n"
+          (Ast.Utils.value_to_string other));
 
   (* 5. Robustness: Placeholder error *)
   let (v, _) = eval_string_env {| (^csv).writer("test.csv", 1) |} (Packages.init_env ()) in

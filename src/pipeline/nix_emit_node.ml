@@ -1111,6 +1111,82 @@ r_write_warnings <- function(warns, path) {
 }
 |} in
 
+  let t_error_jl_code = {|
+mutable struct TCaptureLogger <: AbstractLogger
+    warnings::Vector{String}
+end
+
+TCaptureLogger() = TCaptureLogger(String[])
+
+Logging.min_enabled_level(::TCaptureLogger) = Logging.Warn
+Logging.shouldlog(::TCaptureLogger, level, _module, group, id) = level >= Logging.Warn
+Logging.catch_exceptions(::TCaptureLogger) = false
+
+function Logging.handle_message(logger::TCaptureLogger, level, message, _module, group, id, file, line; kwargs...)
+    if level >= Logging.Warn
+        push!(logger.warnings, string(message))
+    end
+end
+
+function jl_error_message(err)
+    try
+        sprint(showerror, err)
+    catch _
+        string(err)
+    end
+end
+
+function jl_error_traceback(err)
+    try
+        sprint(io -> showerror(io, err, catch_backtrace()))
+    catch _
+        jl_error_message(err)
+    end
+end
+
+function jl_write_error(msg, path)
+    err_info =
+        if msg isa AbstractDict && get(msg, "type", nothing) == "VError"
+            msg
+        elseif msg isa AbstractDict && get(msg, :type, nothing) == "VError"
+            msg
+        else
+            traceback_text = jl_error_traceback(msg)
+            Dict(
+                "type" => "VError",
+                "code" => "RuntimeError",
+                "message" => jl_error_message(msg),
+                "na_count" => 0,
+                "context" => Dict(
+                    "runtime_traceback" => traceback_text,
+                    "node_status" => "errored"
+                ),
+                "location" => nothing
+            )
+        end
+    open(path, "w") do f
+        JSON.print(f, err_info)
+    end
+    open(joinpath(dirname(path), "class"), "w") do f
+        write(f, "VError")
+    end
+end
+
+function jl_is_error(obj)
+    (obj isa AbstractDict && get(obj, "type", nothing) == "VError") ||
+    (obj isa AbstractDict && get(obj, :type, nothing) == "VError")
+end
+
+function jl_write_warnings(warnings_list, path)
+    cleaned = [string(w) for w in warnings_list if !isempty(strip(string(w)))]
+    if !isempty(cleaned)
+        open(path, "w") do f
+            JSON.print(f, cleaned)
+        end
+    end
+end
+|} in
+
   let t_onnx_r_code = {|
 r_write_onnx <- function(object, path) {
   # The 'onnx' R package provides Protobuf bindings but no direct model-to-onnx conversion for arbitrary R models (like lm, xgbtree).
@@ -1226,6 +1302,7 @@ end
     match runtime with
     | "R"      -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_error_r_code
     | "Python" -> Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_error_py_code
+    | "Julia"  -> Printf.sprintf "      cat << 'EOF' >> node_script.jl\n%s\nEOF" t_error_jl_code
     | _        -> ""
   in
 
@@ -1959,23 +2036,29 @@ EOF
       echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
       echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name (py_emit_artifact name) name
     else if runtime = "Julia" then
-      Printf.sprintf {|      echo "try" >> node_script.jl
+      Printf.sprintf {|      echo "captured_logger = TCaptureLogger()" >> node_script.jl
+      echo "try" >> node_script.jl
+      echo "    global %s = with_logger(captured_logger) do" >> node_script.jl
+      echo "        begin" >> node_script.jl
       cat <<'EOF' >> node_script.jl
-      global %s = begin
 %s
-      end
 EOF
-      echo "catch e" >> node_script.jl
-      echo "    open(joinpath(ENV[\"out\"], \"artifact\"), \"w\") do f" >> node_script.jl
-      echo "        write(f, \"Error: \", string(e))" >> node_script.jl
+      echo "        end" >> node_script.jl
       echo "    end" >> node_script.jl
+      echo "catch e" >> node_script.jl
+      echo "    jl_write_error(e, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl
       echo "    exit(0)" >> node_script.jl
       echo "end" >> node_script.jl
+      echo "if jl_is_error(%s)" >> node_script.jl
+      echo "    jl_write_error(%s, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl
+      echo "else" >> node_script.jl
       cat <<'EOF' >> node_script.jl
 %s
 EOF
-      echo "open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, string(typeof(%s))); end" >> node_script.jl|}
-        name (indent_string expr_s 8) (julia_emit_artifact name) name
+      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, string(typeof(%s))); end" >> node_script.jl
+      echo "    jl_write_warnings(captured_logger.warnings, joinpath(ENV[\"out\"], \"warnings\"))" >> node_script.jl
+      echo "end" >> node_script.jl|}
+        name (indent_string expr_s 12) name name (julia_emit_artifact name) name
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
@@ -2015,7 +2098,7 @@ EOF
 
   let runtime_base_packages =
     match runtime with
-    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON"
+    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging"
     | _ -> ""
   in
 
