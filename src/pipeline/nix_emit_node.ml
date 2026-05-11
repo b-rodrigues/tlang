@@ -2102,6 +2102,7 @@ EOF
 
   let runtime_base_packages =
     match runtime with
+    (* Logging powers TCaptureLogger so Julia nodes can persist captured warnings. *)
     | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging"
     | _ -> ""
   in
