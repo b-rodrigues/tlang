@@ -106,56 +106,23 @@ let run_test_file (file : string) : test_result =
     in
     let (errors, _) = run_stmts env [] program in
     let duration = Unix.gettimeofday () -. start in
-    let base_name = Filename.basename file |> Filename.remove_extension in
-    let expects_fail =
-      String.length base_name >= 9 && String.sub base_name 0 9 = "test-fail" ||
-      String.length base_name >= 11 && String.sub base_name 0 11 = "test-syntax" ||
-      String.length base_name >= 10 && String.sub base_name 0 10 = "test-error" ||
-      String.length base_name >= 5 && String.sub base_name (String.length base_name - 5) 5 = "_fail" ||
-      String.length base_name >= 7 && String.sub base_name (String.length base_name - 7) 7 = "_syntax" ||
-      String.length base_name >= 6 && String.sub base_name (String.length base_name - 6) 6 = "_error"
-    in
-    if expects_fail then
-      if errors = [] then
-        { file; success = false;
-          error_msg = Some "Expected test to fail, but it passed.";
-          duration }
-      else
-        { file; success = true; error_msg = None; duration }
+    if errors = [] then
+      { file; success = true; error_msg = None; duration }
     else
-      if errors = [] then
-        { file; success = true; error_msg = None; duration }
-      else
-        { file; success = false;
-          error_msg = Some (String.concat "\n  " errors);
-          duration }
+      { file; success = false;
+        error_msg = Some (String.concat "\n  " errors);
+        duration }
   with
   | Lexer.SyntaxError msg ->
     let duration = Unix.gettimeofday () -. start in
-    let base_name = Filename.basename file |> Filename.remove_extension in
-    let expects_fail =
-      String.length base_name >= 11 && String.sub base_name 0 11 = "test-syntax" ||
-      String.length base_name >= 7 && String.sub base_name (String.length base_name - 7) 7 = "_syntax"
-    in
-    if expects_fail then
-      { file; success = true; error_msg = None; duration }
-    else
-      { file; success = false;
-        error_msg = Some (Printf.sprintf "Syntax Error: %s" msg);
-        duration }
+    { file; success = false;
+      error_msg = Some (Printf.sprintf "Syntax Error: %s" msg);
+      duration }
   | Parser.Error ->
     let duration = Unix.gettimeofday () -. start in
-    let base_name = Filename.basename file |> Filename.remove_extension in
-    let expects_fail =
-      String.length base_name >= 11 && String.sub base_name 0 11 = "test-syntax" ||
-      String.length base_name >= 7 && String.sub base_name (String.length base_name - 7) 7 = "_syntax"
-    in
-    if expects_fail then
-      { file; success = true; error_msg = None; duration }
-    else
-      { file; success = false;
-        error_msg = Some "Parse Error";
-        duration }
+    { file; success = false;
+      error_msg = Some "Parse Error";
+      duration }
   | Sys_error msg ->
     let duration = Unix.gettimeofday () -. start in
     { file; success = false;
@@ -166,7 +133,6 @@ let run_test_file (file : string) : test_result =
     { file; success = false;
       error_msg = Some (Printf.sprintf "Unexpected: %s" (Printexc.to_string exn));
       duration }
-
 
 (** Format a duration as a human-readable string *)
 let format_duration d =
