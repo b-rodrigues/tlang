@@ -2036,29 +2036,33 @@ EOF
       echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
       echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name (py_emit_artifact name) name
     else if runtime = "Julia" then
-      Printf.sprintf {|      echo "captured_logger = TCaptureLogger()" >> node_script.jl
-      echo "try" >> node_script.jl
-      echo "    global %s = with_logger(captured_logger) do" >> node_script.jl
-      echo "        begin" >> node_script.jl
-      cat <<'EOF' >> node_script.jl
-%s
-EOF
-      echo "        end" >> node_script.jl
-      echo "    end" >> node_script.jl
-      echo "catch e" >> node_script.jl
-      echo "    jl_write_error(e, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl
-      echo "    exit(0)" >> node_script.jl
-      echo "end" >> node_script.jl
-      echo "if jl_is_error(%s)" >> node_script.jl
-      echo "    jl_write_error(%s, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl
-      echo "else" >> node_script.jl
-      cat <<'EOF' >> node_script.jl
-%s
-EOF
-      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, string(typeof(%s))); end" >> node_script.jl
-      echo "    jl_write_warnings(captured_logger.warnings, joinpath(ENV[\"out\"], \"warnings\"))" >> node_script.jl
-      echo "end" >> node_script.jl|}
-        name (indent_string expr_s 12) name name (julia_emit_artifact name) name
+      let emitted_expr = indent_string expr_s 12 in
+      let emitted_artifact = julia_emit_artifact name in
+      String.concat "\n"
+        [
+          {|      echo "captured_logger = TCaptureLogger()" >> node_script.jl|};
+          {|      echo "try" >> node_script.jl|};
+          Printf.sprintf {|      echo "    global %s = with_logger(captured_logger) do" >> node_script.jl|} name;
+          {|      echo "        begin" >> node_script.jl|};
+          {|      cat <<'EOF' >> node_script.jl|};
+          emitted_expr;
+          {|EOF|};
+          {|      echo "        end" >> node_script.jl|};
+          {|      echo "    end" >> node_script.jl|};
+          {|      echo "catch e" >> node_script.jl|};
+          {|      echo "    jl_write_error(e, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl|};
+          {|      echo "    exit(0)" >> node_script.jl|};
+          {|      echo "end" >> node_script.jl|};
+          Printf.sprintf {|      echo "if jl_is_error(%s)" >> node_script.jl|} name;
+          Printf.sprintf {|      echo "    jl_write_error(%s, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl|} name;
+          {|      echo "else" >> node_script.jl|};
+          {|      cat <<'EOF' >> node_script.jl|};
+          emitted_artifact;
+          {|EOF|};
+          Printf.sprintf {|      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, string(typeof(%s))); end" >> node_script.jl|} name;
+          {|      echo "    jl_write_warnings(captured_logger.warnings, joinpath(ENV[\"out\"], \"warnings\"))" >> node_script.jl|};
+          {|      echo "end" >> node_script.jl|};
+        ]
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
