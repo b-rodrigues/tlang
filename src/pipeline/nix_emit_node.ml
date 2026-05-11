@@ -1724,6 +1724,8 @@ def py_save_viz_metadata(obj, path):
       String.starts_with ~prefix:"import " l || String.starts_with ~prefix:"from " l
     else if runtime = "R" then
       String.starts_with ~prefix:"library(" l || String.starts_with ~prefix:"require(" l
+    else if runtime = "Julia" then
+      String.starts_with ~prefix:"using " l || String.starts_with ~prefix:"import " l
     else false
   in
 
@@ -1811,8 +1813,7 @@ def py_save_viz_metadata(obj, path):
       let lines = String.split_on_char '\n' expr_s in
       let is_comment_line line =
         let l = String.trim line in
-        if runtime = "Python" then String.starts_with ~prefix:"#" l
-        else if runtime = "R" then String.starts_with ~prefix:"#" l
+        if runtime = "Python" || runtime = "R" || runtime = "Julia" then String.starts_with ~prefix:"#" l
         else false
       in
       let non_imports = List.filter (fun l -> not (is_import_line l) && not (is_comment_line l)) lines in
@@ -2040,7 +2041,7 @@ EOF
       echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
       echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name (py_emit_artifact name) name
     else if runtime = "Julia" then
-      let emitted_expr = indent_string expr_s 12 in
+      let emitted_expr = indent_string expr_s_no_imports 12 in
       let emitted_artifact = julia_emit_artifact name in
       String.concat "\n"
         [
