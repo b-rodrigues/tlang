@@ -78,3 +78,4 @@ let read_node_log node_name =
              Error.make_error ValueError (Printf.sprintf "Node `%s` not found in last build attempt and instantiation failed: %s" node_name msg))
       else
         Error.make_error FileError (Printf.sprintf "Node `%s` not found in last build attempt and `%s` is missing. Run `build_pipeline` first." node_name pipeline_nix_path)
+
