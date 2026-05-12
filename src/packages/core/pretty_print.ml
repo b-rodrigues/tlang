@@ -141,11 +141,16 @@ let rec render_tree_entry prefix is_last (label, value) =
       [prefix ^ branch ^ label ^ ": " ^ Utils.value_to_string value]
 
 and render_tree_children prefix entries =
+  let append_lines_rev acc lines =
+    List.fold_left (fun acc line -> line :: acc) acc lines
+  in
   let rec aux acc = function
-    | [] -> acc
-    | [entry] -> acc @ render_tree_entry prefix true entry
+    | [] -> List.rev acc
+    | [entry] ->
+        let acc = append_lines_rev acc (render_tree_entry prefix true entry) in
+        List.rev acc
     | entry :: rest ->
-        let acc = acc @ render_tree_entry prefix false entry in
+        let acc = append_lines_rev acc (render_tree_entry prefix false entry) in
         aux acc rest
   in
   aux [] entries
