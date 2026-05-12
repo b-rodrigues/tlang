@@ -279,7 +279,7 @@ let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
   match Sys.getenv_opt env_name with
-  | Some path when which_log = None ->
+  | Some path when which_log = None && path <> "" ->
       let artifact_path = Filename.concat path "artifact" in
       let class_path = Filename.concat path "class" in
       if Sys.file_exists artifact_path && Sys.file_exists class_path then
