@@ -84,63 +84,6 @@ let pretty_print_error { code; message; context; location; na_count = _ } =
   end;
   Buffer.contents buf
 
-(** Pretty-print a pipeline *)
-let pretty_print_pipeline { p_nodes; p_deps; p_runtimes; _ } =
-  let buf = Buffer.create 256 in
-  Buffer.add_string buf (Printf.sprintf "Pipeline (%d nodes):\n" (List.length p_nodes));
-  List.iter (fun (name, v) ->
-    let deps = match List.assoc_opt name p_deps with
-      | Some d when d <> [] -> Printf.sprintf " [depends: %s]" (String.concat ", " d)
-      | _ -> ""
-    in
-    let runtime = match List.assoc_opt name p_runtimes with
-      | Some r when r <> "T" -> Printf.sprintf " [%s]" r
-      | _ -> ""
-    in
-    let val_str = match v with
-      | VDataFrame { arrow_table; _ } ->
-          Printf.sprintf "DataFrame(%d rows x %d cols)"
-            (Arrow_table.num_rows arrow_table) (Arrow_table.num_columns arrow_table)
-      | _ -> Utils.value_to_string v
-    in
-    Buffer.add_string buf (Printf.sprintf "  %s = %s%s%s\n" name val_str runtime deps)
-  ) p_nodes;
-  Buffer.contents buf
-
-(** Pretty-print a model summary *)
-let pretty_print_summary pairs =
-  let model_class = match List.assoc_opt "model_class" pairs with Some (VString s) -> s | _ -> "lm" in
-  let summary_type = match List.assoc_opt "summary_type" pairs with Some (VString s) -> s | _ -> "coefficients" in
-  let is_glm = model_class = "glm" in
-  let family = match List.assoc_opt "family" pairs with Some (VString s) -> s | Some v -> Utils.value_to_string v | None -> "Gaussian" in
-  let link = match List.assoc_opt "link" pairs with Some (VString s) -> s | Some v -> Utils.value_to_string v | None -> "identity" in
-  let buf = Buffer.create 256 in
-  if is_glm then begin
-    Buffer.add_string buf (Printf.sprintf "Family:   %s\n" family);
-    Buffer.add_string buf (Printf.sprintf "Link:     %s\n\n" link)
-  end;
-  Buffer.add_string buf (if summary_type = "fit_stats" then "Model metrics:\n" else "Coefficients:\n");
-  (match List.assoc_opt "_tidy_df" pairs with
-  | Some (VDataFrame df) ->
-      if summary_type = "fit_stats" then
-        Buffer.add_string buf (pretty_print_dataframe df)
-      else
-        let headers = [
-          ("term", "");
-          ("estimate", "Estimate");
-          ("std_error", "Std. Error");
-          ("statistic", if is_glm then "z value" else "t value");
-          ("p_value", if is_glm then "Pr(>|z|)" else "Pr(>|t|)")
-        ] in
-        Buffer.add_string buf (pretty_print_dataframe ~headers df)
-  | _ -> Buffer.add_string buf "No coefficient data available.\n");
-  Buffer.contents buf
-
-let is_visual_metadata_class = function
-  | VString "ggplot" | VString "matplotlib" | VString "plotnine" | VString "seaborn" | VString "plotly" | VString "altair" -> true
-  | VString "tidierplots" | VString "plotsjl" | VString "makie" -> true
-  | _ -> false
-
 let display_keys_from_pairs pairs =
   List.fold_left (fun acc (k, v) ->
     match k, v with
@@ -206,11 +149,71 @@ let pretty_print_tree pairs =
     | Some (VString s) ->
         let child_pairs = List.filter (fun (k, _) -> k <> "kind") visible_pairs in
         (s, child_pairs)
-    | _ -> ("dict", visible_pairs)
+    | _ ->
+        match List.assoc_opt "class" visible_pairs with
+        | Some (VString s) ->
+            let child_pairs = List.filter (fun (k, _) -> k <> "class") visible_pairs in
+            (s, child_pairs)
+        | _ -> ("dict", visible_pairs)
   in
   match children with
   | [] -> title
   | _ -> String.concat "\n" (title :: render_tree_children "" children)
+
+(** Pretty-print a pipeline *)
+let pretty_print_pipeline { p_nodes; p_deps; p_runtimes; _ } =
+  let title = Printf.sprintf "Pipeline (%d nodes)" (List.length p_nodes) in
+  let nodes_with_metadata = List.map (fun (name, v) ->
+    let deps = match List.assoc_opt name p_deps with
+      | Some d when d <> [] -> Printf.sprintf " [depends: %s]" (String.concat ", " d)
+      | _ -> ""
+    in
+    let runtime = match List.assoc_opt name p_runtimes with
+      | Some r when r <> "T" -> Printf.sprintf " [%s]" r
+      | _ -> ""
+    in
+    let label = name ^ runtime ^ deps in
+    (label, v)
+  ) p_nodes in
+  match nodes_with_metadata with
+  | [] -> title ^ "\n"
+  | _ -> String.concat "\n" (title :: render_tree_children "" nodes_with_metadata) ^ "\n"
+
+(** Pretty-print a model summary *)
+let pretty_print_summary pairs =
+  let model_class = match List.assoc_opt "model_class" pairs with Some (VString s) -> s | _ -> "lm" in
+  let summary_type = match List.assoc_opt "summary_type" pairs with Some (VString s) -> s | _ -> "coefficients" in
+  let is_glm = model_class = "glm" in
+  let family = match List.assoc_opt "family" pairs with Some (VString s) -> s | Some v -> Utils.value_to_string v | None -> "Gaussian" in
+  let link = match List.assoc_opt "link" pairs with Some (VString s) -> s | Some v -> Utils.value_to_string v | None -> "identity" in
+  let buf = Buffer.create 256 in
+  if is_glm then begin
+    Buffer.add_string buf (Printf.sprintf "Family:   %s\n" family);
+    Buffer.add_string buf (Printf.sprintf "Link:     %s\n\n" link)
+  end;
+  Buffer.add_string buf (if summary_type = "fit_stats" then "Model metrics:\n" else "Coefficients:\n");
+  (match List.assoc_opt "_tidy_df" pairs with
+  | Some (VDataFrame df) ->
+      if summary_type = "fit_stats" then
+        Buffer.add_string buf (pretty_print_dataframe df)
+      else
+        let headers = [
+          ("term", "");
+          ("estimate", "Estimate");
+          ("std_error", "Std. Error");
+          ("statistic", if is_glm then "z value" else "t value");
+          ("p_value", if is_glm then "Pr(>|z|)" else "Pr(>|t|)")
+        ] in
+        Buffer.add_string buf (pretty_print_dataframe ~headers df)
+  | _ -> Buffer.add_string buf "No coefficient data available.\n");
+  Buffer.contents buf
+
+let is_visual_metadata_class = function
+  | VString "ggplot" | VString "matplotlib" | VString "plotnine" | VString "seaborn" | VString "plotly" | VString "altair" -> true
+  | VString "tidierplots" | VString "plotsjl" | VString "makie" -> true
+  | _ -> false
+
+
 
 (** Internal helper for recursive pretty formatting with indentation *)
 let rec pretty_format ?(max_depth=5) ?(indent="") v =
@@ -237,42 +240,7 @@ let rec pretty_format ?(max_depth=5) ?(indent="") v =
     | other -> Utils.value_to_string other
 
 and pretty_print_visual_metadata pairs =
-  let visible_pairs =
-    pairs
-    |> List.filter (fun (k, _) -> k <> "_display_keys")
-  in
-  let class_name =
-    match List.assoc_opt "class" visible_pairs with
-    | Some (VString s) -> s
-    | _ -> "plot"
-  in
-  let body_pairs =
-    visible_pairs
-    |> List.filter (fun (k, _) -> k <> "class")
-  in
-  if body_pairs = [] then
-    Printf.sprintf "%s {}\n" class_name
-  else
-    let display_keys =
-      match display_keys_from_pairs pairs with
-      | Some keys ->
-          let body_key_set =
-            List.fold_left (fun acc (k, _) -> String_set.add k acc) String_set.empty body_pairs
-          in
-          List.filter (fun key -> String_set.mem key body_key_set) keys
-      | None -> List.map fst body_pairs
-    in
-    let display_key_set =
-      List.fold_left (fun acc key -> String_set.add key acc) String_set.empty display_keys
-    in
-    let filtered_body_pairs =
-      List.filter (fun (k, _) -> String_set.mem k display_key_set) body_pairs
-    in
-    let body =
-      pretty_format
-        (VDict (filtered_body_pairs @ [("_display_keys", VList (List.map (fun k -> (None, VString k)) display_keys))]))
-    in
-    Printf.sprintf "%s %s\n" class_name body
+  pretty_print_tree pairs ^ "\n"
 
 (** Pretty-print any value for REPL display *)
 let pretty_print_value v =
@@ -300,10 +268,17 @@ let pretty_print_value v =
       else if is_explain_tree then
         pretty_print_tree pairs ^ "\n"
       else if has_kind || is_large || has_nested then
-        pretty_format v ^ "\n"
+        pretty_print_tree pairs ^ "\n"
       else
         Utils.value_to_string v ^ "\n"
-  | VList _ -> pretty_format v ^ "\n"
+  | VList items ->
+      let is_large = List.length items > 5 in
+      let has_nested = List.exists (fun (_, v) -> match v with VDict _ | VList _ | VVector _ -> true | _ -> false) items in
+      if is_large || has_nested then
+        let indexed_items = List.mapi (fun i (_, v) -> (Printf.sprintf "[%d]" i, v)) items in
+        String.concat "\n" ("list" :: render_tree_children "" indexed_items) ^ "\n"
+      else
+        pretty_format v ^ "\n"
   | VNA _ -> ""
   | other -> Utils.value_to_string other ^ "\n"
 
