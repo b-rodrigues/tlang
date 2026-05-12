@@ -980,6 +980,9 @@ function jl_write_pmml(model, path)
         target = string(f.lhs)
         c_names = StatsModels.coefnames(model)
         c_vals = StatsModels.coef(model)
+        # Prefer the generic extractor first, then fall back to GLM-specific access.
+        # If neither path yields one standard error per coefficient, export NaNs and
+        # omit the PMML stdError attributes instead of silently fabricating values.
         function safe_std_errors(model, n_coefs)
             try
                 vals = collect(stderror(model))
