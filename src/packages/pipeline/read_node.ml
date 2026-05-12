@@ -62,6 +62,7 @@ let register env =
     in
     let is_visual_metadata_class = function
       | "ggplot" | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" -> true
+      | "tidierplots" | "plotsjl" | "makie" -> true
       | _ -> false
     in
     let uses_builtin_fallback_reader cn =

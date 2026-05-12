@@ -355,6 +355,26 @@ min_version = "0.51.0"
         && analysis.reasons = ["node `a` usage discovery"]
     | _ -> false);
 
+  test_pm "Julia plot discovery adds plotting packages" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = node(runtime = Julia, command = <{
+          using TidierPlots
+          import Plots
+          using Makie
+          import CairoMakie
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "plot-discovery-jl" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_julia_deps = ["CairoMakie"; "JSON"; "Makie"; "Plots"; "TidierPlots"]
+        && analysis.reasons = ["node `a` usage discovery"]
+    | _ -> false);
+
   test_pm "auto-add pipeline dependencies via env var" (fun () ->
     Random.self_init ();
     let base_dir =

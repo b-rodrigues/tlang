@@ -93,6 +93,7 @@ let add_node_name_context name context =
 
 let is_visual_metadata_class = function
   | "ggplot" | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" -> true
+  | "tidierplots" | "plotsjl" | "makie" -> true
   | _ -> false
 
 let read_standard_node_value cn =
