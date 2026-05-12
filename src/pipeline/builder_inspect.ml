@@ -45,22 +45,27 @@ let inspect_pipeline ?which_log () =
 
 let read_node_log node_name =
   let drv_path_file = Filename.concat pipeline_dir "last_build_drvs.json" in
-  let json_opt = 
-    if Sys.file_exists drv_path_file then
-      try 
+  let lookup_result =
+    if not (Sys.file_exists drv_path_file) then
+      `Missing
+    else
+      try
         let json = Yojson.Safe.from_file drv_path_file in
         let open Yojson.Safe.Util in
-        json |> member node_name |> to_string_option
-      with _ -> None
-    else None
+        `Found (json |> member node_name |> to_string_option)
+      with exn ->
+        `ParseError (Printexc.to_string exn)
   in
-  match json_opt with
-  | Some drv ->
+  match lookup_result with
+  | `ParseError msg ->
+      Error.make_error FileError
+        (Printf.sprintf "Failed to parse `%s`: %s" drv_path_file msg)
+  | `Found (Some drv) ->
       let argv = [| "nix"; "log"; drv |] in
       (match run_command_argv_capture argv with
        | Ok output -> VString output
        | Error msg -> Error.make_error ShellError (Printf.sprintf "Failed to fetch nix log: %s" msg))
-  | None ->
+  | `Found None | `Missing ->
       (* Fallback: try to instantiate the derivation path from pipeline.nix *)
       if Sys.file_exists pipeline_nix_path then
         let argv = [| "nix-instantiate"; "--impure"; pipeline_nix_path; "-A"; node_name |] in

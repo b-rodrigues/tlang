@@ -188,7 +188,10 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                 let json = Yojson.Safe.from_file path in
                 let open Yojson.Safe.Util in
                 match json with
-                | `Assoc pairs -> List.map (fun (k, v) -> (k, to_string v)) pairs
+                | `Assoc pairs ->
+                    List.filter_map (fun (k, v) ->
+                      if List.mem k node_names then Some (k, to_string v) else None
+                    ) pairs
                 | _ -> []
               with _ -> []
             else []
