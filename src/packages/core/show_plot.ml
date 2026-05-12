@@ -359,6 +359,7 @@ try
 catch exc
     error("show_plot requires `CairoMakie` in [julia-dependencies].packages.")
 end
+# CairoMakie is the explicit headless backend for reproducible Makie rendering.
 CairoMakie.activate!()
 CairoMakie.save(output_path, _tlang_makie_render_target(plot_obj))
 |}
