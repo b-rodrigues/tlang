@@ -254,11 +254,12 @@ and pretty_print_visual_metadata pairs =
   pretty_print_tree ~object_mode:true pairs ^ "\n"
 
 (** Pretty-print any value for REPL display *)
-let pretty_print_value v =
+let rec pretty_print_value v =
   match v with
   | VDataFrame df -> pretty_print_dataframe df
   | VError err -> pretty_print_error err
   | VPipeline p -> pretty_print_pipeline p
+  | VNodeResult { v; _ } -> pretty_print_value v
   | VDict pairs ->
       let is_summary = List.mem_assoc "class" pairs && List.assoc "class" pairs = VString "summary" in
       let is_visual_metadata =
