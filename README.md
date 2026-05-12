@@ -205,7 +205,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 - **Weighted Statistics**: Core descriptive statistics and `lm()` now support optional observation weights for weighted summaries and weighted least squares.
 
 What is currently missing:
-* **Native T Plotting**: While T provides first-class metadata capture and headless rendering for **R (ggplot2)** and **Python (matplotlib, plotnine, plotly, altair)** objects, it does not yet have its own native charting library, and will likely never have one.
+* **Native T Plotting**: While T provides first-class metadata capture and headless rendering for **R (ggplot2)**, **Python (matplotlib, plotnine, plotly, altair)**, and **Julia (TidierPlots.jl, Plots.jl, Makie via CairoMakie)** objects, it does not yet have its own native charting library, and will likely never have one.
 * **Complex Modeling**: While native `lm()` is available, specialized modeling should leverage R, Python, or Julia nodes.
 * **Ecosystem Growth**: We are building out the infrastructure for user-contributed packages through `t publish`.
 

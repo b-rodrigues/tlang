@@ -1074,6 +1074,10 @@ p_cross = pipeline {
     ax.plot([1, 2], [3, 4])
     fig
   }>)
+  plot_jl = node(runtime = Julia, command = <{
+    using Plots
+    plot([1, 2], [3, 4], title = "Fuel economy")
+  }>)
 }|}
     (Packages.init_env ()) in
   (match v_plot_pipeline with
@@ -1093,11 +1097,19 @@ p_cross = pipeline {
           contains_substring nix "py_visual_class(plot_py)" &&
           contains_substring nix "py_save_viz_metadata(plot_py, os.path.join(os.environ['out'], 'viz'))"
         in
-       if has_r_plot_helpers && has_py_plot_helpers then begin
-         incr pass_count; Printf.printf "  ✓ pipeline emits plot metadata helpers for R and Python nodes\n"
-       end else begin
-         incr fail_count; Printf.printf "  ✗ plot metadata helper emission failed\n"
-       end
+        let has_jl_plot_helpers =
+          contains_substring nix "function jl_extract_plot_metadata(obj)" &&
+          contains_substring nix "\"class\" => \"tidierplots\"" &&
+          contains_substring nix "\"class\" => \"plotsjl\"" &&
+          contains_substring nix "\"class\" => \"makie\"" &&
+          contains_substring nix "jl_visual_class(plot_jl)" &&
+          contains_substring nix "jl_save_viz_metadata(plot_jl, joinpath(ENV[\"out\"], \"viz\"))"
+        in
+        if has_r_plot_helpers && has_py_plot_helpers && has_jl_plot_helpers then begin
+         incr pass_count; Printf.printf "  ✓ pipeline emits plot metadata helpers for R, Python, and Julia nodes\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ plot metadata helper emission failed\n"
+        end
    | other ->
        incr fail_count; Printf.printf "  ✗ plot metadata pipeline should return VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
@@ -1146,11 +1158,57 @@ p_cross = pipeline {
   in
   (match restored with
    | Ast.VNodeResult { v = Ast.VDict pairs; _ }
-     when List.assoc_opt "class" pairs = Some (Ast.VString "ggplot")
-          && List.assoc_opt "title" pairs = Some (Ast.VString "Fuel economy") ->
+      when List.assoc_opt "class" pairs = Some (Ast.VString "ggplot")
+           && List.assoc_opt "title" pairs = Some (Ast.VString "Fuel economy") ->
        incr pass_count; Printf.printf "  ✓ read_node reads ggplot plot metadata artifacts from default serializer output\n"
    | other ->
        incr fail_count; Printf.printf "  ✗ ggplot plot metadata artifact reading failed: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let julia_plot_node_dir = Filename.concat temp_plot_dir "julia-plot-node" in
+  (try Unix.mkdir julia_plot_node_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let julia_plot_viz = Filename.concat julia_plot_node_dir "viz" in
+  let julia_plot_artifact = Filename.concat julia_plot_node_dir "artifact" in
+  let julia_plot_class = Filename.concat julia_plot_node_dir "class" in
+  let julia_plot_value =
+    Ast.VDict [
+      ("class", Ast.VString "makie");
+      ("backend", Ast.VString "Julia");
+      ("title", Ast.VString "Makie figure");
+      ("labels", Ast.VDict [("x", Ast.VString "wt"); ("y", Ast.VString "mpg")]);
+      ("layers", Ast.VList [(None, Ast.VString "Axis"); (None, Ast.VString "Lines")]);
+      ("_display_keys", Ast.VList [
+        (None, Ast.VString "class");
+        (None, Ast.VString "backend");
+        (None, Ast.VString "title");
+        (None, Ast.VString "labels");
+        (None, Ast.VString "layers");
+      ]);
+    ]
+  in
+  ignore (Serialization.write_json julia_plot_viz julia_plot_value);
+  let oc_julia_art = open_out julia_plot_artifact in output_string oc_julia_art "dummy-artifact"; close_out oc_julia_art;
+  let oc_julia_class = open_out julia_plot_class in
+  output_string oc_julia_class "makie\n";
+  close_out oc_julia_class;
+  let original_julia_plot_env = Sys.getenv_opt "T_NODE_julia_plot_meta" in
+  let restored_julia =
+    Fun.protect
+      ~finally:(fun () ->
+        match original_julia_plot_env with
+        | Some value -> Unix.putenv "T_NODE_julia_plot_meta" value
+        | None -> Unix.putenv "T_NODE_julia_plot_meta" "")
+      (fun () ->
+        Unix.putenv "T_NODE_julia_plot_meta" julia_plot_node_dir;
+        Builder.read_node "julia_plot_meta")
+  in
+  (match restored_julia with
+   | Ast.VNodeResult { v = Ast.VDict pairs; _ }
+     when List.assoc_opt "class" pairs = Some (Ast.VString "makie")
+          && List.assoc_opt "backend" pairs = Some (Ast.VString "Julia") ->
+       incr pass_count; Printf.printf "  ✓ read_node reads Julia plot metadata artifacts from default serializer output\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ Julia plot metadata artifact reading failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   let quarto_script = "test_quarto_report.qmd" in

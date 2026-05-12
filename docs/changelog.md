@@ -26,6 +26,10 @@ The focus of this release is the introduction of first-class Julia support, enab
     - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
     - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
 - **Julia JSON Interchange**: Added support for the `JSON` package in Julia nodes, enabling seamless JSON-based data exchange for Julia-based pipeline steps.
+- **Julia Plotting Enhancements**: 
+    - `show_plot()` now supports Julia plots via `TidierPlots.jl`, `Plots.jl`, and `Makie.jl`.
+    - **CairoMakie Requirement**: For `Makie.jl` objects, `CairoMakie` is the mandatory backend for reproducible headless rendering within the Nix sandbox. Ensuring `CairoMakie` is in `[julia-dependencies].packages` is required for successful visual inspection of Makie nodes.
+    - Fixed permissions issues in the Julia Nix sandbox by ensuring a writable `HOME` directory is available during builds.
 
 ### Strict Serialization & Pipeline Stability
 - **Symbol-Mandated Serialization**: 
@@ -192,11 +196,11 @@ The focus of this release was to improve language ergonomics for data guardrails
     - **Python Support**: Full metadata extraction and inspection support for `matplotlib` figures, `plotnine` (ggplot-style), `seaborn` grids, `plotly` figures, and `altair` charts.
 - **Enhanced `show_plot()` Builtin**:
     - Introduced `show_plot()` to render and open pipeline plot artifacts locally.
-    - Supports automatic rendering of R (`ggplot2`) and Python (Matplotlib, Seaborn, Plotly, Altair, Plotnine) plots within the Nix sandbox.
+    - Supports automatic rendering of R (`ggplot2`), Python (Matplotlib, Seaborn, Plotly, Altair, Plotnine), and Julia (`TidierPlots.jl`, `Plots.jl`, `Makie.jl` via `CairoMakie`) plots within the Nix sandbox.
     - Implemented headless rendering for interactive libraries: Plotly (via `kaleido`) and Altair (via `vl-convert`).
     - **Dependency Automation**: `tlang` now automatically suggests or injects `cloudpickle` when plotting libraries are detected in Python nodes to ensure reliable serialization of complex objects containing lambdas.
 - **Transparent `read_node()` for Plots**:
-    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, or `altair`.
+    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, `altair`, `tidierplots`, `plotsjl`, or `makie`.
     - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
 
 ### Serializable Lens Architecture

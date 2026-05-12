@@ -339,7 +339,7 @@ Cross-platform path manipulation.
 
 ### `show_plot(plot)`
 
-Display a plot object (depends on the environment's plot viewer).
+Display a built or unbuilt R/Python/Julia plot node (depends on the environment's plot viewer).
 
 ---
 

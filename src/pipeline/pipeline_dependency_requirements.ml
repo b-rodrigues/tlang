@@ -214,13 +214,17 @@ let scan_code_requirements ~node_name ~runtime raw_text =
       in
       let req = if has_pkg "JSON" then { req with julia_deps = add_list req.julia_deps [ "JSON" ] } else req in
       let req = if has_pkg "CSV" then { req with julia_deps = add_list req.julia_deps [ "CSV" ] } else req in
-      let req = if has_pkg "DataFrames" then { req with julia_deps = add_list req.julia_deps [ "DataFrames" ] } else req in
-      let req = if has_pkg "Arrow" then { req with julia_deps = add_list req.julia_deps [ "Arrow" ] } else req in
-      let req = if has_pkg "GLM" then { req with julia_deps = add_list req.julia_deps [ "GLM" ] } else req in
-      let req = if has_pkg "Distributions" then { req with julia_deps = add_list req.julia_deps [ "Distributions" ] } else req in
-      let req = if has_pkg "ONNXRunTime" then { req with julia_deps = add_list req.julia_deps [ "ONNXRunTime" ] } else req in
-      let req = if has_pkg "ONNX" then { req with julia_deps = add_list req.julia_deps [ "ONNX" ] } else req in
-      req
+       let req = if has_pkg "DataFrames" then { req with julia_deps = add_list req.julia_deps [ "DataFrames" ] } else req in
+       let req = if has_pkg "Arrow" then { req with julia_deps = add_list req.julia_deps [ "Arrow" ] } else req in
+       let req = if has_pkg "GLM" then { req with julia_deps = add_list req.julia_deps [ "GLM" ] } else req in
+       let req = if has_pkg "Distributions" then { req with julia_deps = add_list req.julia_deps [ "Distributions" ] } else req in
+       let req = if has_pkg "TidierPlots" then { req with julia_deps = add_list req.julia_deps [ "TidierPlots" ] } else req in
+       let req = if has_pkg "Plots" then { req with julia_deps = add_list req.julia_deps [ "Plots" ] } else req in
+       let req = if has_pkg "Makie" then { req with julia_deps = add_list req.julia_deps [ "Makie" ] } else req in
+       let req = if has_pkg "CairoMakie" then { req with julia_deps = add_list req.julia_deps [ "CairoMakie" ] } else req in
+       let req = if has_pkg "ONNXRunTime" then { req with julia_deps = add_list req.julia_deps [ "ONNXRunTime" ] } else req in
+       let req = if has_pkg "ONNX" then { req with julia_deps = add_list req.julia_deps [ "ONNX" ] } else req in
+       req
   | _ -> empty_requirements
 
 let required_for_pipeline (p : Ast.pipeline_result) =

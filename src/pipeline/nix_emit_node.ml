@@ -1601,10 +1601,341 @@ def py_save_viz_metadata(obj, path):
             json.dump(metadata, f)
 |} in
 
+  let visualization_jl_code = {|
+import JSON
+
+function jl_non_empty_string(value)
+    try
+        !isempty(strip(string(value)))
+    catch
+        false
+    end
+end
+
+function jl_string_or_nothing(value)
+    value === nothing && return nothing
+    raw =
+        try
+            if applicable(getindex, value)
+                value[]
+            else
+                value
+            end
+        catch
+            value
+        end
+    try
+        text = strip(string(raw))
+        isempty(text) ? nothing : text
+    catch
+        nothing
+    end
+end
+
+function jl_compact_dict(entries)
+    out = Dict{String, Any}()
+    for (key, value) in entries
+        if value === nothing
+            continue
+        elseif value isa AbstractString && isempty(strip(value))
+            continue
+        elseif value isa AbstractVector && isempty(value)
+            continue
+        elseif value isa AbstractDict && isempty(value)
+            continue
+        end
+        out[string(key)] = value
+    end
+    out
+end
+
+function jl_lookup(container, key)
+    container === nothing && return nothing
+    candidates =
+        if key isa Symbol
+            Any[key, String(key)]
+        elseif key isa AbstractString
+            Any[key, Symbol(key)]
+        else
+            Any[key]
+        end
+    for candidate in candidates
+        if container isa AbstractDict
+            if haskey(container, candidate)
+                return container[candidate]
+            end
+        elseif container isa NamedTuple
+            if candidate isa Symbol && candidate in keys(container)
+                return getproperty(container, candidate)
+            end
+        else
+            if candidate isa Symbol && hasproperty(container, candidate)
+                return getproperty(container, candidate)
+            end
+        end
+    end
+    nothing
+end
+
+function jl_type_parts(obj)
+    T = typeof(obj)
+    (string(parentmodule(T)), string(nameof(T)))
+end
+
+function jl_module_matches(module_name, expected)
+    module_name == expected || endswith(module_name, "." * expected)
+end
+
+function jl_first_string(container, keys)
+    for key in keys
+        value = jl_string_or_nothing(jl_lookup(container, key))
+        if value !== nothing
+            return value
+        end
+    end
+    nothing
+end
+
+function jl_mapping_to_dict(mapping)
+    mapping === nothing && return Dict{String, Any}()
+    out = Dict{String, Any}()
+    if mapping isa AbstractDict
+        for (key, value) in mapping
+            cleaned = jl_string_or_nothing(value)
+            if cleaned !== nothing
+                out[string(key)] = cleaned
+            end
+        end
+        return out
+    end
+    keys_list =
+        try
+            collect(propertynames(mapping))
+        catch
+            Any[]
+        end
+    for key in keys_list
+        cleaned = jl_string_or_nothing(jl_lookup(mapping, key))
+        if cleaned !== nothing
+            out[string(key)] = cleaned
+        end
+    end
+    out
+end
+
+function jl_labels_from_container(container)
+    labels = Dict{String, Any}()
+    for key in ["title", "subtitle", "caption", "x", "y", "xlabel", "ylabel", "color", "colour", "fill"]
+        value = jl_string_or_nothing(jl_lookup(container, key))
+        if value !== nothing
+            normalized =
+                key == "xlabel" ? "x" :
+                key == "ylabel" ? "y" :
+                key == "colour" ? "color" :
+                key
+            labels[normalized] = value
+        end
+    end
+    labels
+end
+
+function jl_dedup_strings(items)
+    seen = Set{String}()
+    out = String[]
+    for item in items
+        value = jl_string_or_nothing(item)
+        if value !== nothing && !(value in seen)
+            push!(seen, value)
+            push!(out, value)
+        end
+    end
+    out
+end
+
+function jl_tidierplots_layers(obj)
+    layers = jl_lookup(obj, :layers)
+    if !(layers isa AbstractVector)
+        return String[]
+    end
+    jl_dedup_strings([
+        begin
+            geom = jl_lookup(layer, :geom)
+            name = geom === nothing ? string(nameof(typeof(layer))) : string(nameof(typeof(geom)))
+            replace(name, "Geom" => "")
+        end
+        for layer in layers
+    ])
+end
+
+function jl_plots_primary_subplot(obj)
+    subplots = jl_lookup(obj, :subplots)
+    if subplots isa AbstractVector && !isempty(subplots)
+        return first(subplots)
+    end
+    nothing
+end
+
+function jl_plots_layers(obj, subplot)
+    series_sources = Any[]
+    for container in (obj, subplot)
+        series = jl_lookup(container, :series_list)
+        if series isa AbstractVector
+            append!(series_sources, series)
+        end
+    end
+    if isempty(series_sources)
+        return String[]
+    end
+    jl_dedup_strings([
+        begin
+            attrs = jl_lookup(series, :plotattributes)
+            seriestype = jl_string_or_nothing(jl_lookup(attrs, :seriestype))
+            if seriestype === nothing
+                seriestype = jl_string_or_nothing(jl_lookup(series, :seriestype))
+            end
+            seriestype === nothing ? string(nameof(typeof(series))) : seriestype
+        end
+        for series in series_sources
+    ])
+end
+
+function jl_makie_figure(obj)
+    module_name, type_name = jl_type_parts(obj)
+    if jl_module_matches(module_name, "Makie") || jl_module_matches(module_name, "CairoMakie")
+        if type_name == "Figure"
+            return obj
+        elseif startswith(type_name, "FigureAxisPlot")
+            fig = jl_lookup(obj, :figure)
+            if fig !== nothing
+                return fig
+            end
+        end
+    end
+    fig = jl_lookup(obj, :figure)
+    if fig === nothing
+        return nothing
+    end
+    fig_module, fig_type = jl_type_parts(fig)
+    if (jl_module_matches(fig_module, "Makie") || jl_module_matches(fig_module, "CairoMakie")) && fig_type == "Figure"
+        return fig
+    end
+    nothing
+end
+
+function jl_makie_primary_axis(fig)
+    content = jl_lookup(fig, :content)
+    if !(content isa AbstractVector)
+        return nothing
+    end
+    for item in content
+        item_type = string(nameof(typeof(item)))
+        if occursin("Axis", item_type)
+            return item
+        end
+    end
+    nothing
+end
+
+function jl_extract_plot_metadata(obj)
+    module_name, type_name = jl_type_parts(obj)
+
+    if jl_module_matches(module_name, "TidierPlots") && (type_name == "GGPlot" || type_name == "GGPlotGrid")
+        labels = jl_labels_from_container(jl_lookup(obj, :labels))
+        title = get(labels, "title", nothing)
+        return Dict(
+            "class" => "tidierplots",
+            "backend" => "Julia",
+            "title" => title,
+            "mapping" => jl_mapping_to_dict(jl_lookup(obj, :mapping)),
+            "labels" => labels,
+            "layers" => jl_tidierplots_layers(obj),
+            "_display_keys" => ["class", "backend", "title", "mapping", "labels", "layers"],
+        )
+    end
+
+    if jl_module_matches(module_name, "Plots") && type_name == "Plot"
+        plot_attrs = jl_lookup(obj, :plotattributes)
+        subplot = jl_plots_primary_subplot(obj)
+        attrs = jl_lookup(subplot, :attr)
+        subplot_attrs =
+            if attrs === nothing
+                jl_lookup(subplot, :plotattributes)
+            else
+                attrs
+            end
+        direct_title = jl_first_string(plot_attrs, [:title, "title", :plot_title, "plot_title"])
+        title =
+            if direct_title === nothing
+                jl_first_string(subplot_attrs, [:title, "title", :plot_title, "plot_title"])
+            else
+                direct_title
+            end
+        labels = jl_compact_dict([
+            "title" => title,
+            "x" => jl_first_string(subplot_attrs, [:xlabel, "xlabel", :xguide, "xguide", :guide, "guide"]),
+            "y" => jl_first_string(subplot_attrs, [:ylabel, "ylabel", :yguide, "yguide"]),
+        ])
+        return Dict(
+            "class" => "plotsjl",
+            "backend" => "Julia",
+            "title" => title,
+            "labels" => labels,
+            "layers" => jl_plots_layers(obj, subplot),
+            "_display_keys" => ["class", "backend", "title", "labels", "layers"],
+        )
+    end
+
+    figure = jl_makie_figure(obj)
+    if figure !== nothing
+        axis = jl_makie_primary_axis(figure)
+        title = jl_first_string(axis, [:title, "title"])
+        labels = jl_compact_dict([
+            "title" => title,
+            "x" => jl_first_string(axis, [:xlabel, "xlabel"]),
+            "y" => jl_first_string(axis, [:ylabel, "ylabel"]),
+        ])
+        content = jl_lookup(figure, :content)
+        layers =
+            if content isa AbstractVector
+                jl_dedup_strings([string(nameof(typeof(item))) for item in content])
+            else
+                String[]
+            end
+        return Dict(
+            "class" => "makie",
+            "backend" => "Julia",
+            "title" => title,
+            "labels" => labels,
+            "layers" => layers,
+            "_display_keys" => ["class", "backend", "title", "labels", "layers"],
+        )
+    end
+
+    nothing
+end
+
+function jl_visual_class(obj)
+    metadata = jl_extract_plot_metadata(obj)
+    metadata === nothing ? string(typeof(obj)) : metadata["class"]
+end
+
+function jl_save_viz_metadata(obj, path)
+    metadata = jl_extract_plot_metadata(obj)
+    if metadata === nothing
+        return false
+    end
+    open(path, "w") do f
+        JSON.print(f, metadata)
+    end
+    true
+end
+|} in
+
   let visualization_injection =
     match runtime with
     | "R" -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" visualization_r_code
     | "Python" -> Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" visualization_py_code
+    | "Julia" -> Printf.sprintf "      cat << 'EOF' >> node_script.jl\n%s\nEOF" visualization_jl_code
     | _ -> ""
   in
 
@@ -1742,8 +2073,23 @@ def py_save_viz_metadata(obj, path):
   in
 
   let julia_emit_artifact value_name =
+    let viz_call = Printf.sprintf "jl_save_viz_metadata(%s, joinpath(ENV[\"out\"], \"viz\"))" value_name in
     let artifact_path = "joinpath(ENV[\"out\"], \"artifact\")" in
-    Printf.sprintf {|    %s(%s, %s)|} ser_call value_name artifact_path
+    let serialize_call =
+      Printf.sprintf "    %s(%s, %s)" ser_call value_name artifact_path
+    in
+    if uses_default_serializer then
+      Printf.sprintf {|    %s
+%s|} viz_call serialize_call
+    else
+      serialize_call
+  in
+
+  let julia_class_expr value_name =
+    if uses_default_serializer then
+      Printf.sprintf "jl_visual_class(%s)" value_name
+    else
+      Printf.sprintf "string(typeof(%s))" value_name
   in
 
   let is_import_line line =
@@ -1935,8 +2281,8 @@ def py_save_viz_metadata(obj, path):
           let jl_include = shell_single_quote (Printf.sprintf {|include("%s")|} script_path) in
           let jl_ser = shell_single_quote (Printf.sprintf {|%s
     open(joinpath(ENV["out"], "class"), "w") do f
-        write(f, string(typeof(%s)))
-    end|} (julia_emit_artifact name) name) in
+        write(f, %s)
+    end|} (julia_emit_artifact name) (julia_class_expr name)) in
           Printf.sprintf {|      echo %s >> node_script.jl
       echo %s >> node_script.jl
 |} jl_include jl_ser
@@ -2092,7 +2438,7 @@ EOF
           {|      cat <<'EOF' >> node_script.jl|};
           emitted_artifact;
           {|EOF|};
-          Printf.sprintf {|      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, string(typeof(%s))); end" >> node_script.jl|} name;
+          Printf.sprintf {|      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, %s); end" >> node_script.jl|} (julia_class_expr name);
           {|      echo "    jl_write_warnings(captured_logger.warnings, joinpath(ENV[\"out\"], \"warnings\"))" >> node_script.jl|};
           {|      echo "end" >> node_script.jl|};
         ]
@@ -2215,6 +2561,7 @@ EOF
     T_JPMML_EVALUATOR_JAR = if (pkgs ? jpmml-evaluator) then "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar" else "";
     JULIA_COPY_STACKS = "1";
     MPLCONFIGDIR = ".";
+    HOME = ".";
     LD_LIBRARY_PATH = "${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib";
 %s
 %s
@@ -2245,4 +2592,3 @@ EOF
     '';
   };
  |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
-

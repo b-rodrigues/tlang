@@ -1,12 +1,12 @@
 # Plotting and Visual Inspection
 
-T is primarily an orchestration engine and does not currently provide its own native low-level plotting library. Instead, T's `show_plot()` function supports a wide range of visualization libraries across R and Python:
+T is primarily an orchestration engine and does not currently provide its own native low-level plotting library. Instead, T's `show_plot()` function supports a wide range of visualization libraries across R, Python, and Julia:
 
 - **R**: `ggplot2`
 - **Python**: `matplotlib`, `seaborn`, `plotly`, `altair`, `plotnine`
-- **Julia**: Support for Julia nodes is available, though visual metadata capture is currently optimized for R and Python.
+- **Julia**: `TidierPlots.jl`, `Plots.jl`, and `Makie.jl` / `CairoMakie`
 
-One of T's unique features is **Automated Visual Metadata Capture**. When you generate a plot in an R or Python node, T "sees" the plot object and automatically extracts its structural metadata during the build process.
+One of T's unique features is **Automated Visual Metadata Capture**. When you generate a plot in an R, Python, or Julia node, T "sees" the plot object and automatically extracts its structural metadata during the build process.
 
 ---
 
@@ -45,7 +45,18 @@ p = pipeline {
     }
 ```
 
-In both cases, T recognizes that the node result is a visualization.
+In each case, T recognizes that the node result is a visualization.
+
+### Example: Julia plotting nodes
+
+```t
+p = pipeline {
+  p_plotsjl = jln(command = <{
+    using Plots
+    plot([1, 2, 3], [3, 4, 5], title = "Fuel Economy")
+  }>)
+}
+```
 
 ---
 
@@ -57,11 +68,11 @@ When you build a pipeline containing these nodes, T creates two artifacts for ea
 
 T automatically extracts:
 - **Title**: The main title of the plot.
-- **Backend**: The runtime used to produce the plot (`"R"` or `"Python"`).
-- **Class**: The plot library or object type (e.g., `"ggplot"`, `"matplotlib"`, `"seaborn"`, `"plotly"`, `"altair"`).
+- **Backend**: The runtime used to produce the plot (`"R"`, `"Python"`, or `"Julia"`).
+- **Class**: The stable plot class tag (for example `"ggplot"`, `"plotnine"`, `"tidierplots"`, `"plotsjl"`, or `"makie"`).
 - **Labels**: Axis labels and legends.
 - **Layers**: The types of geometries present (e.g., "point", "line").
-- **Mappings**: In `ggplot2`, the aesthetic mappings (x, y, color, etc.).
+- **Mappings**: For grammar-of-graphics style backends such as `ggplot2`, `plotnine`, and `TidierPlots.jl`.
 
 ---
 
@@ -100,7 +111,7 @@ For example, a `ggplot` node read through `read_node()` displays as a structured
 - `labels`
 - `layers`
 
-This makes plotting nodes inspectable even when the underlying artifact is binary (`.rds` or Python pickle).
+This makes plotting nodes inspectable even when the underlying artifact is binary (`.rds`, Python pickle, or Julia serialization output).
 
 ---
 
@@ -146,7 +157,7 @@ with open(read_node("p_matplotlib"), "rb") as f:
 fig
 ```</code></pre>
 
-This dual behavior ensures that you can use T for programmatic inspection and R/Python for high-fidelity visual rendering, all while maintaining strict Nix-based reproducibility.
+This dual behavior ensures that you can use T for programmatic inspection and R/Python/Julia for high-fidelity visual rendering, all while maintaining strict Nix-based reproducibility.
 
 ---
 
@@ -157,6 +168,7 @@ This dual behavior ensures that you can use T for programmatic inspection and R/
 It accepts:
 
 - an unbuilt `rn()` / `pyn()` node
+- an unbuilt `jln()` node
 - a built `ComputedNode`
 - a `read_node()` result that still points back to a built plot node
 
@@ -195,10 +207,13 @@ show_plot(p)
 - **Python / Plotly** requires `plotly`, `kaleido` (for static image export), and `cloudpickle` in `[py-dependencies].packages`.
 - **Python / Altair** requires `altair`, `vl-convert-python` (preferred), and `cloudpickle` in `[py-dependencies].packages`.
 - **Python / Plotnine** requires `plotnine`, `pandas`, and `cloudpickle` in `[py-dependencies].packages`.
+- **Julia / TidierPlots** requires `TidierPlots` in `[julia-dependencies].packages`.
+- **Julia / Plots.jl** requires `Plots` and any backend package you explicitly use in `[julia-dependencies].packages`.
+- **Julia / Makie** rendering is standardized on `CairoMakie` for headless reproducibility; **`CairoMakie` is mandatory** in `[julia-dependencies].packages` to use `show_plot()` with Makie objects. T automatically activates the CairoMakie backend during the render process.
 
 ### Automated Dependency Detection
 
-When you use these libraries in a `pyn()` node, T's static analyzer will automatically detect the imports and prompt you to add the required rendering dependencies to your `tproject.toml` if they are missing.
+When you use these libraries in a `pyn()` or Julia plotting node, T's static analyzer will automatically detect the imports and prompt you to add the required rendering dependencies to your `tproject.toml` if they are missing.
 
 | Detected Import | Automatically Suggested Packages |
 | :--- | :--- |
@@ -207,6 +222,10 @@ When you use these libraries in a `pyn()` node, T's static analyzer will automat
 | `import plotnine` | `plotnine`, `pandas`, `cloudpickle` |
 | `import plotly` | `plotly`, `kaleido`, `cloudpickle` |
 | `import altair` | `altair`, `vl-convert-python`, `cloudpickle` |
+| `using TidierPlots` / `import TidierPlots` | `TidierPlots` |
+| `using Plots` / `import Plots` | `Plots` |
+| `using Makie` / `import Makie` | `Makie` |
+| `using CairoMakie` / `import CairoMakie` | `CairoMakie` |
 
 Example project configuration:
 
@@ -217,6 +236,10 @@ packages = ["ggplot2"]
 [py-dependencies]
 version = "python314"
 packages = ["matplotlib", "plotnine", "seaborn", "plotly", "kaleido"]
+
+[julia-dependencies]
+version = "lts"
+packages = ["TidierPlots", "Plots", "Makie", "CairoMakie"]
 
 [visualization-tool]
 command = "xdg-open"

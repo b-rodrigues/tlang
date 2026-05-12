@@ -274,6 +274,19 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   in
   test_message "pretty_print plotnine metadata keeps plot class and runtime backend"
     (contains plotnine_pretty "plotnine {" && contains plotnine_pretty "\"Python\"");
+  let tidierplots_pretty =
+    Pretty_print.pretty_print_value
+      (Ast.VDict [
+        ("class", Ast.VString "tidierplots");
+        ("backend", Ast.VString "Julia");
+        ("title", Ast.VString "Sales by month");
+        ("mapping", Ast.VDict [("x", Ast.VString "month"); ("y", Ast.VString "sales")]);
+        ("labels", Ast.VDict [("x", Ast.VString "month"); ("y", Ast.VString "sales")]);
+        ("layers", Ast.VList [(None, Ast.VString "Bar")]);
+      ])
+  in
+  test_message "pretty_print Julia visual metadata uses specialized class heading"
+    (contains tidierplots_pretty "tidierplots {" && contains tidierplots_pretty "\"Julia\"");
   let altair_class_only_output =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -341,15 +354,63 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test_message "show_plot seaborn renderer uses deserialize and savefig"
     (match seaborn_render with
      | Ok (script, script_name, runtime) ->
-         script_name = "render_plot.py"
-         && runtime = "Python"
-         && contains script "deserialize"
-         && contains script "seaborn"
-         && contains script "savefig"
-     | Error _ -> false);
+          script_name = "render_plot.py"
+          && runtime = "Python"
+          && contains script "deserialize"
+          && contains script "seaborn"
+          && contains script "savefig"
+      | Error _ -> false);
+  let tidierplots_render =
+    Show_plot.render_script_for_class "tidierplots" "/tmp/plot.jls"
+  in
+  test_message "show_plot Julia tidierplots renderer uses ggsave"
+     (match tidierplots_render with
+      | Ok (script, script_name, runtime) ->
+          script_name = "render_plot.jl"
+          && runtime = "Julia"
+          && contains script "Serialization.deserialize"
+          && contains script "TidierPlots.ggsave"
+          && contains script "show_plot requires `TidierPlots`"
+          && contains script "Julia plot class `tidierplots`"
+      | Error _ -> false);
+  let plotsjl_render =
+    Show_plot.render_script_for_class "plotsjl" "/tmp/plot.jls"
+  in
+  test_message "show_plot Julia plotsjl renderer uses savefig"
+     (match plotsjl_render with
+      | Ok (script, script_name, runtime) ->
+          script_name = "render_plot.jl"
+          && runtime = "Julia"
+          && contains script "Plots.savefig"
+          && contains script "show_plot requires `Plots`"
+          && contains script "Julia plot class `plotsjl`"
+      | Error _ -> false);
+  let makie_render =
+    Show_plot.render_script_for_class "makie" "/tmp/plot.jls"
+  in
+  test_message "show_plot Julia makie renderer requires CairoMakie"
+     (match makie_render with
+      | Ok (script, script_name, runtime) ->
+          script_name = "render_plot.jl"
+          && runtime = "Julia"
+          && contains script "CairoMakie.activate!"
+          && contains script "CairoMakie.save"
+          && contains script "show_plot requires `CairoMakie`"
+          && contains script "Julia plot class `makie`"
+      | Error _ -> false);
   test_message "show_plot rejects unsupported plot classes"
     (match Show_plot.render_script_for_class "vega" "/tmp/plot.json" with
-     | Error msg -> contains msg "vega" && contains msg "ggplot" && contains msg "matplotlib" && contains msg "plotnine" && contains msg "seaborn" && contains msg "plotly" && contains msg "altair"
+     | Error msg ->
+         contains msg "vega"
+         && contains msg "ggplot"
+         && contains msg "matplotlib"
+         && contains msg "plotnine"
+         && contains msg "seaborn"
+         && contains msg "plotly"
+         && contains msg "altair"
+         && contains msg "tidierplots"
+         && contains msg "plotsjl"
+         && contains msg "makie"
      | Ok _ -> false);
   print_newline ();
 
