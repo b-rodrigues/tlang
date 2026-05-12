@@ -1755,13 +1755,22 @@ end
 function jl_tidierplots_layers(obj)
     layers = jl_lookup(obj, :layers)
     if !(layers isa AbstractVector)
+        plots = jl_lookup(obj, :plots)
+        if plots isa AbstractVector
+            return ["GGPlotGrid (" * string(length(plots)) * " plots)"]
+        end
         return String[]
     end
     jl_dedup_strings([
         begin
             geom = jl_lookup(layer, :geom)
+            if geom === nothing
+                geom = jl_lookup(layer, :type)
+            end
             name = geom === nothing ? string(nameof(typeof(layer))) : string(nameof(typeof(geom)))
-            replace(name, "Geom" => "")
+            name = replace(name, "Geom" => "")
+            name = replace(name, "Layer" => "")
+            name
         end
         for layer in layers
     ])
@@ -1840,13 +1849,20 @@ function jl_extract_plot_metadata(obj)
     module_name, type_name = jl_type_parts(obj)
 
     if jl_module_matches(module_name, "TidierPlots") && (type_name == "GGPlot" || type_name == "GGPlotGrid")
-        labels = jl_labels_from_container(jl_lookup(obj, :labels))
+        labels = jl_labels_from_container(jl_lookup(obj, :labs))
+        if isempty(labels)
+            labels = jl_labels_from_container(jl_lookup(obj, :labels))
+        end
+        mapping = jl_mapping_to_dict(jl_lookup(obj, :mapping))
+        if isempty(mapping)
+            mapping = jl_mapping_to_dict(jl_lookup(obj, :aes))
+        end
         title = get(labels, "title", nothing)
         return Dict(
             "class" => "tidierplots",
             "backend" => "Julia",
             "title" => title,
-            "mapping" => jl_mapping_to_dict(jl_lookup(obj, :mapping)),
+            "mapping" => mapping,
             "labels" => labels,
             "layers" => jl_tidierplots_layers(obj),
             "_display_keys" => ["class", "backend", "title", "mapping", "labels", "layers"],
