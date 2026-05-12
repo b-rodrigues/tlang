@@ -1403,10 +1403,11 @@ p.t_step|}
              in
              (match end_pos with
               | None -> true
-              | Some ep ->
+              | Some ep when ep > bp && ep <= String.length nix ->
                   let inner = String.sub nix bp (ep - bp) in
                   not (contains_substring inner "using LinearAlgebra") &&
-                  not (contains_substring inner "import Statistics"))
+                  not (contains_substring inner "import Statistics")
+              | _ -> true)
        in
        if imports_hoisted_before_begin && imports_absent_from_body then begin
          incr pass_count; Printf.printf "  ✓ Julia raw-code using/import are hoisted outside begin...end block\n"
