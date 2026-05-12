@@ -311,18 +311,18 @@ let cmd_run ?(unsafe=false) ?failfast mode filename env =
   let (result, _env) = run_file ?failfast mode filename env in
   match result with
   | Ast.VError _ ->
-      Printf.eprintf "%s\n" (Pretty_print.pretty_print_value result); exit 1
+      Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
   | Ast.(VNA NAGeneric) -> ()
-  | v -> print_endline (Pretty_print.pretty_print_value v)
+  | v -> print_string (Pretty_print.pretty_print_value v)
 
 let cmd_run_expr ?failfast mode expr env =
   Packages.ensure_docs_loaded ();
   let (result, _) = parse_and_eval ?failfast mode env expr in
   match result with
   | Ast.VError _ ->
-      Printf.eprintf "%s\n" (Pretty_print.pretty_print_value result); exit 1
+      Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
   | Ast.(VNA NAGeneric) -> ()
-  | v -> print_endline (Pretty_print.pretty_print_value v)
+  | v -> print_string (Pretty_print.pretty_print_value v)
 
 let cmd_init_package args =
   match Scaffold.parse_init_flags args with

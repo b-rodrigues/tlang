@@ -1672,10 +1672,7 @@ function jl_lookup(container, key)
             # Try getproperty first
             try
                 if candidate isa Symbol && hasproperty(container, candidate)
-                    val = getproperty(container, candidate)
-                    if val !== nothing
-                        return val
-                    end
+                    return getproperty(container, candidate)
                 end
             catch
             end
