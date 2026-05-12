@@ -322,26 +322,19 @@ else:
     rendered_plot_dpi
 
 let render_script_for_julia class_name _artifact_path =
+  let imports =
+    match class_name with
+    | "tidierplots" -> "import TidierPlots"
+    | "plotsjl" -> "import Plots"
+    | "makie" -> "import CairoMakie"
+    | _ -> ""
+  in
   let render_body =
     match class_name with
     | "tidierplots" ->
-        {|
-try
-    import TidierPlots
-catch exc
-    error("show_plot requires `TidierPlots` in [julia-dependencies].packages.")
-end
-TidierPlots.ggsave(output_path, plot_obj)
-|}
+        {|TidierPlots.ggsave(output_path, plot_obj)|}
     | "plotsjl" ->
-        {|
-try
-    import Plots
-catch exc
-    error("show_plot requires `Plots` in [julia-dependencies].packages.")
-end
-Plots.savefig(plot_obj, output_path)
-|}
+        {|Plots.savefig(plot_obj, output_path)|}
     | "makie" ->
         {|
 function _tlang_makie_render_target(obj)
@@ -354,11 +347,6 @@ function _tlang_makie_render_target(obj)
     obj
 end
 
-try
-    import CairoMakie
-catch exc
-    error("show_plot requires `CairoMakie` in [julia-dependencies].packages.")
-end
 # CairoMakie is the explicit headless backend for reproducible Makie rendering.
 CairoMakie.activate!()
 CairoMakie.save(output_path, _tlang_makie_render_target(plot_obj))
@@ -369,12 +357,18 @@ CairoMakie.save(output_path, _tlang_makie_render_target(plot_obj))
   Printf.sprintf
     {|
 import Serialization
+try
+    %s
+catch exc
+    error("show_plot requires the relevant plotting package in [julia-dependencies].packages.")
+end
 
 artifact_path = ENV["ARTIFACT_PATH"]
 output_path = joinpath(ENV["out"], %S)
 plot_obj = Serialization.deserialize(artifact_path)
 %s
 |}
+    imports
     rendered_plot_filename
     render_body
 
@@ -417,6 +411,7 @@ pkgs.stdenv.mkDerivation {
   dontUnpack = true;
   buildInputs = [ %s ];
   MPLCONFIGDIR = ".";
+  HOME = ".";
   ARTIFACT_PATH = "${artifact}";
   buildCommand = ''
     mkdir -p "$out"

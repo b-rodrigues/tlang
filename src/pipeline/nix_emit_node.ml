@@ -2561,6 +2561,7 @@ EOF
     T_JPMML_EVALUATOR_JAR = if (pkgs ? jpmml-evaluator) then "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar" else "";
     JULIA_COPY_STACKS = "1";
     MPLCONFIGDIR = ".";
+    HOME = ".";
     LD_LIBRARY_PATH = "${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib";
 %s
 %s
