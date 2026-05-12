@@ -10,8 +10,8 @@ This file is a comprehensive reference for the **T programming language**. It co
 - **Functions**: `add = \(a, b) a + b`.
 - **Pipes**:
   - `x |> f(...)`: Passes `x` as the first argument. Stops on `Error`.
-  - `x ?|> f(...)`: Forwards errors; used for recovery/inspection.
-- **NSE (Non-Standard Evaluation)**: Use `$col` for column references in data verbs (e.g., `filter($age > 18)`).
+  - `x ?|> f(...)`: Forwards errors; use it when downstream code needs to inspect or recover from an `Error`, not for normal data pipelines.
+- **NSE (Non-Standard Evaluation)**: Use `$col` for column references in data verbs (e.g., `df |> filter($age > 18)`).
 - **Blocks**: `[1, 2]` (List), `[k: v]` (Dict), `{ ... }` (Code block).
 - **Control**: `ifelse(cond, yes, no)`, `case_when(...)`, `match(x) { ... }`.
 - **Imports**: `import pkg`, `import pkg[name1, name2]`, `import pkg[alias = original]`.
@@ -30,7 +30,7 @@ This file is a comprehensive reference for the **T programming language**. It co
 `dataframe(...)`, `read_csv(path, ...)`, `read_parquet(path)`, `read_arrow(path)`, `write_csv(df, path)`, `write_arrow(df, path)`, `colnames(df)`, `nrow(df)`, `ncol(df)`, `glimpse(df)`, `pull(df, col)`, `to_array(df, cols)`, `clean_colnames(df)`.
 
 ### `colcraft` (Tabular Verbs)
-`select(df, ...)`, `filter(df, expr)`, `mutate(df, ...)`, `arrange(df, ..., direction)`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ...)`, `distinct(df, ...)`, `count(df, ...)`, `slice(df, indices)`, `slice_min(df, ...)`, `slice_max(df, ...)`, `pivot_longer(df, ...)`, `pivot_wider(df, ...)`, `complete(df, ...)`, `expand(df, ...)`, `nest(df, ...)`, `unnest(df, col)`, `separate(df, ...)`, `unite(df, ...)`, `left_join(x, y, by)`, `inner_join(x, y, by)`, `full_join(x, y, by)`, `semi_join(x, y, by)`, `anti_join(x, y, by)`, `bind_rows(...)`, `bind_cols(...)`.
+`select(df, ...)`, `filter(df, expr)`, `mutate(df, ...)`, `arrange(df, ..., direction)`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ...)`, `distinct(df, ...)`, `count(df, ...)`, `slice(df, indices)`, `slice_min(df, ...)`, `slice_max(df, ...)`, `pivot_longer(df, ...)`, `pivot_wider(df, ...)`, `complete(df, ...)`, `expand(df, ...)`, `nest(df, ...)`, `unnest(df, col)`, `separate(df, ...)`, `unite(df, ...)`, `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `fill(df, ..., .direction = "down")`, `left_join(x, y, by)`, `inner_join(x, y, by)`, `full_join(x, y, by)`, `semi_join(x, y, by)`, `anti_join(x, y, by)`, `bind_rows(...)`, `bind_cols(...)`.
 - **Selection Helpers**: `starts_with()`, `ends_with()`, `contains()`, `everything()`, `where()`, `matches()`, `all_of()`, `any_of()`.
 - **Factors**: `factor(x, levels)`, `as_factor(x)`, `fct_reorder()`, `fct_relevel()`, `fct_lump_n()`.
 
@@ -44,14 +44,36 @@ This file is a comprehensive reference for the **T programming language**. It co
 `mean(x, na_rm)`, `median(x)`, `min(x)`, `max(x)`, `range(x)`, `var(x)`, `sd(x)`, `quantile(x, probs)`, `cor(x, y)`, `cov(x, y)`, `pnorm(x, mean, sd)`, `lm(data, formula)`, `predict(model, data)`, `summary(model)`, `fit_stats(model)`, `coef(model)`, `residuals(model)`, `augment(data, model)`, `t_read_pmml(path)`, `t_read_onnx(path)`.
 
 ### `pipeline` (Execution & DAG)
-`node(...)`, `rn(...)`, `pyn(...)`, `shn(...)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name)`, `pipeline_copy(p, node, to)`, `inspect_pipeline(p)`, `trace_nodes(p)`, `pipeline_summary(p)`, `pipeline_nodes(p)`, `pipeline_deps(p)`, `filter_node(p, pred)`, `mutate_node(p, ...)`, `union(p1, p2)`, `patch(p1, p2)`.
+`node(...)`, `rn(...)`, `pyn(...)`, `shn(...)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name)`, `pipeline_copy(p, node, to)`, `inspect_pipeline(p)`, `trace_nodes(p)`, `pipeline_summary(p)`, `pipeline_nodes(p)`, `pipeline_deps(p)`, `filter_node(p, pred)`, `mutate_node(p, ...)`, `suppress_warnings(node)`, `union(p1, p2)`, `patch(p1, p2)`.
 
 ### `strcraft` (Strings)
 `str_nchar(s)`, `str_substring(s, start, end)`, `str_replace(s, pat, repl)`, `to_lower(s)`, `to_upper(s)`, `str_trim(s)`, `str_join(xs, sep)`, `str_split(s, sep)`, `str_detect(s, pat)`, `str_extract(s, pat)`.
 
 ---
 
-## 3. Key Principles
+## 3. Practical Patterns
+
+### Minimal pipeline + debugging flow
+
+```t
+p = pipeline {
+  raw = node(command = read_csv("data.csv"), runtime = T)
+  clean = raw |> filter($amount > 0) |> drop_na($amount)
+}
+
+build_pipeline(p)
+node_info = explain(read_node("clean"))
+node_info.diagnostics
+```
+
+- Use `build_pipeline(p)` to materialize reproducible node artifacts.
+- Use `pipeline_run(p)` to re-run an already defined pipeline.
+- Use `explain(read_node("name"))` when debugging node outputs; diagnostics live alongside explained `contents`.
+- Use `suppress_warnings(node)` when a node is intentionally noisy but should stay auditable.
+
+---
+
+## 4. Key Principles
 
 1. **Data-First**: Always `function(data, ...)`.
 2. **No Null**: Use `NA` for missingness and `VError` for failures.

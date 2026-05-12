@@ -11,7 +11,7 @@ This file is a distilled reference for the **T programming language**. It is int
 - **Pipes**:
   - `x |> f(...)`: Passes `x` as the first argument. Stops on `Error`.
   - `x ?|> f(...)`: Forwards errors; used for recovery/inspection.
-- **NSE (Non-Standard Evaluation)**: Use `$col` for column references in data verbs.
+- **NSE (Non-Standard Evaluation)**: Use `$col` for column references in data verbs (e.g., `df |> filter($age > 18)`).
 - **Blocks**: `[1, 2]` (List), `[k: v]` (Dict), `{ ... }` (Code block).
 - **Control**: `ifelse(cond, yes, no)`, `case_when(...)`, `match(x) { ... }`.
 
@@ -23,7 +23,7 @@ This file is a distilled reference for the **T programming language**. It is int
 `select(df, ...)`, `filter(df, expr)`, `mutate(df, ...)`, `arrange(df, ...)`, `group_by(df, ...)`, `summarize(df, ...)`, `count(df, ...)`, `left_join(x, y, by)`, `inner_join(x, y, by)`.
 
 ### `stats` & `math` (Analysis)
-`mean(x, na_rm=false)`, `median(x)`, `sd(x)`, `var(x)`, `quantile(x, probs)`, `cor(x, y)`, `lm(data, formula)`, `predict(model, data)`, `abs(x)`, `sqrt(x)`, `log(x)`, `round(x, digits)`.
+`mean(x, na_rm=false)`, `median(x)`, `sd(x)`, `lm(data, formula)`, `predict(model, data)`, `abs(x)`, `sqrt(x)`, `log(x)`, `round(x, digits)`.
 
 ### `chrono` (Dates & Times)
 `ymd(s)`, `mdy(s)`, `today()`, `now()`, `year(x)`, `month(x)`, `day(x)`, `as_date(x)`, `format_date(x, format)`.
@@ -38,15 +38,26 @@ This file is a distilled reference for the **T programming language**. It is int
 
 ## 3. Pipelines & Interoperability
 
+- **Minimal pipeline skeleton**:
+  ```t
+  p = pipeline {
+    data = node(command = read_csv("data.csv") |> filter($amount > 0), runtime = T)
+  }
+  build_pipeline(p)
+  ```
 - **Node Creation**: 
   - `node(command = ..., runtime = T)`
   - `rn(script = ..., serializer = "arrow")` (R node)
   - `pyn(script = ..., serializer = "arrow")` (Python node)
   - `shn(command = ...)` (Shell node)
+- **Execution**:
+  - `build_pipeline(p)`: materialize node artifacts.
+  - `pipeline_run(p)`: re-run an existing pipeline.
 - **Artifacts**:
   - `read_node("name")`: Access output of an upstream node.
+  - `explain(read_node("name"))`: Inspect node diagnostics and explained contents.
   - `pipeline_copy(p, node="name", to="path")`: Export artifacts.
-- **Sandboxing**: Every node runs in a isolated Nix environment declared in the project manifest.
+- **Sandboxing**: Every node runs in an isolated Nix environment declared in the project manifest.
 
 ---
 
