@@ -980,6 +980,18 @@ function jl_write_pmml(model, path)
         target = string(f.lhs)
         c_names = StatsModels.coefnames(model)
         c_vals = StatsModels.coef(model)
+        std_errs = let vals =
+            try
+                collect(stderror(model))
+            catch
+                try
+                    collect(GLM.stderror(model))
+                catch
+                    fill(NaN, length(c_vals))
+                end
+            end
+            length(vals) == length(c_vals) ? vals : fill(NaN, length(c_vals))
+        end
         
         # Determine if it's classification (Binomial) or regression
         is_classification = false
@@ -1017,17 +1029,25 @@ function jl_write_pmml(model, path)
         pmml *= "    </MiningSchema>\n"
         
         intercept = 0.0
+        intercept_std_error = NaN
         if "(Intercept)" in c_names
             idx = findfirst(x -> x == "(Intercept)", c_names)
             intercept = c_vals[idx]
+            intercept_std_error = std_errs[idx]
         end
         
-        pmml *= "    <RegressionTable intercept=\"$intercept\">\n"
+        if isnan(intercept_std_error)
+            pmml *= "    <RegressionTable intercept=\"$intercept\">\n"
+        else
+            pmml *= "    <RegressionTable intercept=\"$intercept\" stdError=\"$intercept_std_error\">\n"
+        end
         for i in 1:length(c_names)
             name = c_names[i]
             val = c_vals[i]
             if name == "(Intercept)" continue end
-            pmml *= "      <NumericPredictor name=\"$name\" coefficient=\"$val\"/>\n"
+            std_err = std_errs[i]
+            stderr_attr = isnan(std_err) ? "" : " stdError=\"$std_err\""
+            pmml *= "      <NumericPredictor name=\"$name\" coefficient=\"$val\"$stderr_attr/>\n"
         end
         pmml *= "    </RegressionTable>\n"
         pmml *= "  </RegressionModel>\n"

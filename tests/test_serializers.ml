@@ -273,9 +273,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   |} env_julia_emit in
   (match v with
    | VPipeline p ->
-        let nix = Nix_emitter.emit_pipeline p in
-        let expected = [
-               "import ONNXRunTime as ORT";
+         let nix = Nix_emitter.emit_pipeline p in
+         let expected = [
+                "import ONNXRunTime as ORT";
                "ORT.load_inference(path)";
                "jl_read_onnx";
                "jl_write_onnx";
@@ -297,6 +297,32 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
         incr fail_count;
         Printf.printf "  ✗ Failed to build Julia diagnostics pipeline for emission test. Got: %s\n"
           (Ast.Utils.value_to_string other));
+
+  let env_julia_pmml_emit = Packages.init_env () in
+  let (v, _) = eval_string_env {|
+    p = pipeline {
+       model = node(command = <{ 1 }>, runtime = Julia, serializer = ^pmml)
+    }
+    p
+  |} env_julia_pmml_emit in
+  (match v with
+   | VPipeline p ->
+        let nix = Nix_emitter.emit_pipeline p in
+        if contains_all nix
+             [
+               "collect(stderror(model))";
+               "stdError=\"$intercept_std_error\"";
+               "stdError=\"$std_err\"";
+             ]
+        then begin
+          incr pass_count; Printf.printf "  ✓ Julia PMML writer emits coefficient standard errors\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ Julia PMML writer did not emit coefficient standard errors\n"
+        end
+   | other ->
+       incr fail_count;
+       Printf.printf "  ✗ Failed to build Julia PMML pipeline for emission test. Got: %s\n"
+         (Ast.Utils.value_to_string other));
 
   (* 5. Robustness: Placeholder error *)
   let (v, _) = eval_string_env {| (^csv).writer("test.csv", 1) |} (Packages.init_env ()) in
