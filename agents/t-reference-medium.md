@@ -44,7 +44,7 @@ This file is a comprehensive reference for the **T programming language**. It co
 `mean(x, na_rm)`, `median(x)`, `min(x)`, `max(x)`, `range(x)`, `var(x)`, `sd(x)`, `quantile(x, probs)`, `cor(x, y)`, `cov(x, y)`, `pnorm(x, mean, sd)`, `lm(data, formula)`, `predict(model, data)`, `summary(model)`, `fit_stats(model)`, `coef(model)`, `residuals(model)`, `augment(data, model)`, `t_read_pmml(path)`, `t_read_onnx(path)`.
 
 ### `pipeline` (Execution & DAG)
-`node(...)`, `rn(...)`, `pyn(...)`, `shn(...)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name)`, `explain(read_node(name))`, `pipeline_copy(p, node, to)`, `inspect_pipeline(p)`, `trace_nodes(p)`, `pipeline_summary(p)`, `pipeline_nodes(p)`, `pipeline_deps(p)`, `filter_node(p, pred)`, `mutate_node(p, ...)`, `suppress_warnings(node)`, `union(p1, p2)`, `patch(p1, p2)`.
+`node(...)`, `rn(...)`, `pyn(...)`, `shn(...)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name)`, `pipeline_copy(p, node, to)`, `inspect_pipeline(p)`, `trace_nodes(p)`, `pipeline_summary(p)`, `pipeline_nodes(p)`, `pipeline_deps(p)`, `filter_node(p, pred)`, `mutate_node(p, ...)`, `suppress_warnings(node)`, `union(p1, p2)`, `patch(p1, p2)`.
 
 ### `strcraft` (Strings)
 `str_nchar(s)`, `str_substring(s, start, end)`, `str_replace(s, pat, repl)`, `to_lower(s)`, `to_upper(s)`, `str_trim(s)`, `str_join(xs, sep)`, `str_split(s, sep)`, `str_detect(s, pat)`, `str_extract(s, pat)`.
