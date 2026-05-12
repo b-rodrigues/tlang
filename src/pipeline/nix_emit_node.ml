@@ -980,18 +980,28 @@ function jl_write_pmml(model, path)
         target = string(f.lhs)
         c_names = StatsModels.coefnames(model)
         c_vals = StatsModels.coef(model)
-        std_errs = let vals =
+        function safe_std_errors(model, n_coefs)
             try
-                collect(stderror(model))
-            catch
+                vals = collect(stderror(model))
+                if length(vals) == n_coefs
+                    return vals
+                end
+                @warn "Julia PMML export got mismatched standard errors; omitting stdError attributes." coefficient_count=n_coefs std_error_count=length(vals)
+            catch err
                 try
-                    collect(GLM.stderror(model))
-                catch
-                    fill(NaN, length(c_vals))
+                    vals = collect(GLM.stderror(model))
+                    if length(vals) == n_coefs
+                        return vals
+                    end
+                    @warn "Julia PMML export got mismatched GLM standard errors; omitting stdError attributes." coefficient_count=n_coefs std_error_count=length(vals)
+                catch glm_err
+                    @warn "Julia PMML export could not extract coefficient standard errors; omitting stdError attributes." primary_error=string(err) fallback_error=string(glm_err)
                 end
             end
-            length(vals) == length(c_vals) ? vals : fill(NaN, length(c_vals))
+            return fill(NaN, n_coefs)
         end
+        std_errs = safe_std_errors(model, length(c_vals))
+        std_error_attr(value) = isnan(value) ? "" : " stdError=\"$value\""
         
         # Determine if it's classification (Binomial) or regression
         is_classification = false
@@ -1036,18 +1046,13 @@ function jl_write_pmml(model, path)
             intercept_std_error = std_errs[idx]
         end
         
-        if isnan(intercept_std_error)
-            pmml *= "    <RegressionTable intercept=\"$intercept\">\n"
-        else
-            pmml *= "    <RegressionTable intercept=\"$intercept\" stdError=\"$intercept_std_error\">\n"
-        end
+        pmml *= "    <RegressionTable intercept=\"$intercept\"$(std_error_attr(intercept_std_error))>\n"
         for i in 1:length(c_names)
             name = c_names[i]
             val = c_vals[i]
             if name == "(Intercept)" continue end
             std_err = std_errs[i]
-            stderr_attr = isnan(std_err) ? "" : " stdError=\"$std_err\""
-            pmml *= "      <NumericPredictor name=\"$name\" coefficient=\"$val\"$stderr_attr/>\n"
+            pmml *= "      <NumericPredictor name=\"$name\" coefficient=\"$val\"$(std_error_attr(std_err))/>\n"
         end
         pmml *= "    </RegressionTable>\n"
         pmml *= "  </RegressionModel>\n"

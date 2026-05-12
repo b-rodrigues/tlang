@@ -311,8 +311,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
         if contains_all nix
              [
                "collect(stderror(model))";
-               "stdError=\"$intercept_std_error\"";
-               "stdError=\"$std_err\"";
+               "std_error_attr(value) = isnan(value) ? \"\" : \" stdError=\\\"$value\\\"\"";
+               "RegressionTable intercept=\"$intercept\"$(std_error_attr(intercept_std_error))";
+               "NumericPredictor name=\"$name\" coefficient=\"$val\"$(std_error_attr(std_err))";
              ]
         then begin
           incr pass_count; Printf.printf "  ✓ Julia PMML writer emits coefficient standard errors\n"
