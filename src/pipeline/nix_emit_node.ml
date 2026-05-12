@@ -1602,6 +1602,8 @@ def py_save_viz_metadata(obj, path):
 |} in
 
   let visualization_jl_code = {|
+import JSON
+
 function jl_non_empty_string(value)
     try
         !isempty(strip(string(value)))
@@ -1854,14 +1856,20 @@ function jl_extract_plot_metadata(obj)
     if jl_module_matches(module_name, "Plots") && type_name == "Plot"
         plot_attrs = jl_lookup(obj, :plotattributes)
         subplot = jl_plots_primary_subplot(obj)
+        attrs = jl_lookup(subplot, :attr)
         subplot_attrs =
-            let attrs = jl_lookup(subplot, :attr) in
-            attrs === nothing ? jl_lookup(subplot, :plotattributes) : attrs
-        end
+            if attrs === nothing
+                jl_lookup(subplot, :plotattributes)
+            else
+                attrs
+            end
+        direct_title = jl_first_string(plot_attrs, [:title, "title", :plot_title, "plot_title"])
         title =
-            let direct = jl_first_string(plot_attrs, [:title, "title", :plot_title, "plot_title"]) in
-            direct === nothing ? jl_first_string(subplot_attrs, [:title, "title", :plot_title, "plot_title"]) : direct
-        end
+            if direct_title === nothing
+                jl_first_string(subplot_attrs, [:title, "title", :plot_title, "plot_title"])
+            else
+                direct_title
+            end
         labels = jl_compact_dict([
             "title" => title,
             "x" => jl_first_string(subplot_attrs, [:xlabel, "xlabel", :xguide, "xguide", :guide, "guide"]),
