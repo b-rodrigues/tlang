@@ -329,19 +329,19 @@ let render_script_for_julia class_name _artifact_path =
     | "makie" -> "import CairoMakie"
     | _ -> ""
   in
-  let required_package =
-    match class_name with
-    | "tidierplots" -> "TidierPlots"
-    | "plotsjl" -> "Plots"
-    | "makie" -> "CairoMakie"
-    | _ -> "unknown package"
-  in
   let import_error_prefix =
     match class_name with
-    | "tidierplots" | "plotsjl" | "makie" ->
+    | "tidierplots" ->
         Printf.sprintf
-          "show_plot requires `%s` for Julia plot class `%s` in [julia-dependencies].packages: "
-          required_package
+          "show_plot requires `TidierPlots` for Julia plot class `%s` in [julia-dependencies].packages in tproject.toml: "
+          class_name
+    | "plotsjl" ->
+        Printf.sprintf
+          "show_plot requires `Plots` for Julia plot class `%s` in [julia-dependencies].packages in tproject.toml: "
+          class_name
+    | "makie" ->
+        Printf.sprintf
+          "show_plot requires `CairoMakie` for Julia plot class `%s` in [julia-dependencies].packages in tproject.toml: "
           class_name
     | _ ->
         Printf.sprintf "show_plot: unsupported Julia plot class `%s`: " class_name
