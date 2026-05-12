@@ -334,17 +334,17 @@ let render_script_for_julia class_name _artifact_path =
     | "tidierplots" -> "TidierPlots"
     | "plotsjl" -> "Plots"
     | "makie" -> "CairoMakie"
-    | _ -> class_name
+    | _ -> "unknown package"
   in
   let import_error_prefix =
     match class_name with
     | "tidierplots" | "plotsjl" | "makie" ->
         Printf.sprintf
-          "show_plot requires `%s` for Julia plot class `%s` in [julia-dependencies].packages. Error: "
+          "show_plot requires `%s` for Julia plot class `%s` in [julia-dependencies].packages: "
           required_package
           class_name
     | _ ->
-        Printf.sprintf "show_plot: unsupported Julia plot class `%s`. Error: " class_name
+        Printf.sprintf "show_plot: unsupported Julia plot class `%s`: " class_name
   in
   let render_body =
     match class_name with
