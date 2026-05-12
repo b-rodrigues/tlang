@@ -214,9 +214,10 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
         ("items", Ast.VList [(None, Ast.VInt 1); (None, Ast.VInt 2)]);
       ])
   in
-  test_message "pretty_print nested dict expands multi-line formatting"
-    (contains nested_dict_output "\n  `details`: {\n" &&
-     contains nested_dict_output "`items`: [1, 2]");
+  test_message "pretty_print nested dict expands tree formatting"
+    (contains nested_dict_output "dict\n" &&
+     contains nested_dict_output "├── details\n" &&
+     contains nested_dict_output "└── items");
   let ggplot_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -237,7 +238,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
       ])
   in
   test_message "pretty_print ggplot metadata uses specialized class heading"
-    (contains ggplot_pretty "ggplot {" && contains ggplot_pretty "`mapping`");
+    (contains ggplot_pretty "ggplot\n" && contains ggplot_pretty "├── mapping");
   let ggplot_trimmed_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -256,11 +257,11 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
       ])
   in
   test_message "pretty_print ggplot metadata honors provided display keys"
-    (contains ggplot_trimmed_pretty "ggplot {" &&
-     contains ggplot_trimmed_pretty "`title`" &&
-     contains ggplot_trimmed_pretty "`layers`" &&
-     not (contains ggplot_trimmed_pretty "`mapping`") &&
-     not (contains ggplot_trimmed_pretty "`extra`"));
+    (contains ggplot_trimmed_pretty "ggplot\n" &&
+     contains ggplot_trimmed_pretty "├── title" &&
+     contains ggplot_trimmed_pretty "└── layers" &&
+     not (contains ggplot_trimmed_pretty "mapping") &&
+     not (contains ggplot_trimmed_pretty "extra"));
   let plotnine_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -273,7 +274,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
       ])
   in
   test_message "pretty_print plotnine metadata keeps plot class and runtime backend"
-    (contains plotnine_pretty "plotnine {" && contains plotnine_pretty "\"Python\"");
+    (contains plotnine_pretty "plotnine\n" && contains plotnine_pretty "\"Python\"");
   let tidierplots_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -286,15 +287,15 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
       ])
   in
   test_message "pretty_print Julia visual metadata uses specialized class heading"
-    (contains tidierplots_pretty "tidierplots {" && contains tidierplots_pretty "\"Julia\"");
+    (contains tidierplots_pretty "tidierplots\n" && contains tidierplots_pretty "\"Julia\"");
   let altair_class_only_output =
     Pretty_print.pretty_print_value
       (Ast.VDict [
         ("class", Ast.VString "altair");
       ])
   in
-  test_message "pretty_print empty visual metadata renders empty object"
-    (altair_class_only_output = "altair {}\n");
+  test_message "pretty_print empty visual metadata renders title only"
+    (altair_class_only_output = "altair\n");
   let explain_tree_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
