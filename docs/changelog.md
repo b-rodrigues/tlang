@@ -26,6 +26,10 @@ The focus of this release is the introduction of first-class Julia support, enab
     - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
     - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
 - **Julia JSON Interchange**: Added support for the `JSON` package in Julia nodes, enabling seamless JSON-based data exchange for Julia-based pipeline steps.
+- **Julia Plotting Enhancements**: 
+    - `show_plot()` now supports Julia plots via `TidierPlots.jl`, `Plots.jl`, and `Makie.jl`.
+    - **CairoMakie Requirement**: For `Makie.jl` objects, `CairoMakie` is the mandatory backend for reproducible headless rendering within the Nix sandbox. Ensuring `CairoMakie` is in `[julia-dependencies].packages` is required for successful visual inspection of Makie nodes.
+    - Fixed permissions issues in the Julia Nix sandbox by ensuring a writable `HOME` directory is available during builds.
 
 ### Strict Serialization & Pipeline Stability
 - **Symbol-Mandated Serialization**: 
