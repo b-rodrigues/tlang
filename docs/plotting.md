@@ -209,7 +209,7 @@ show_plot(p)
 - **Python / Plotnine** requires `plotnine`, `pandas`, and `cloudpickle` in `[py-dependencies].packages`.
 - **Julia / TidierPlots** requires `TidierPlots` in `[julia-dependencies].packages`.
 - **Julia / Plots.jl** requires `Plots` and any backend package you explicitly use in `[julia-dependencies].packages`.
-- **Julia / Makie** rendering is standardized on `CairoMakie`; use `Makie` plus `CairoMakie` in `[julia-dependencies].packages`.
+- **Julia / Makie** rendering is standardized on `CairoMakie` for headless reproducibility; **`CairoMakie` is mandatory** in `[julia-dependencies].packages` to use `show_plot()` with Makie objects. T automatically activates the CairoMakie backend during the render process.
 
 ### Automated Dependency Detection
 
