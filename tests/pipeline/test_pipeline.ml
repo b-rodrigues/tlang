@@ -1197,7 +1197,7 @@ p_cross = pipeline {
       ~finally:(fun () ->
         match original_julia_plot_env with
         | Some value -> Unix.putenv "T_NODE_julia_plot_meta" value
-        | None -> Unix.putenv "T_NODE_julia_plot_meta" "")
+        | None -> Unix.unsetenv "T_NODE_julia_plot_meta")
       (fun () ->
         Unix.putenv "T_NODE_julia_plot_meta" julia_plot_node_dir;
         Builder.read_node "julia_plot_meta")
