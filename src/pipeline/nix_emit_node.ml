@@ -2077,6 +2077,13 @@ end
       serialize_call
   in
 
+  let julia_class_expr value_name =
+    if uses_default_serializer then
+      Printf.sprintf "jl_visual_class(%s)" value_name
+    else
+      Printf.sprintf "string(typeof(%s))" value_name
+  in
+
   let is_import_line line =
     let l = String.trim line in
     if runtime = "Python" then
@@ -2266,8 +2273,8 @@ end
           let jl_include = shell_single_quote (Printf.sprintf {|include("%s")|} script_path) in
           let jl_ser = shell_single_quote (Printf.sprintf {|%s
     open(joinpath(ENV["out"], "class"), "w") do f
-        write(f, jl_visual_class(%s))
-    end|} (julia_emit_artifact name) name) in
+        write(f, %s)
+    end|} (julia_emit_artifact name) (julia_class_expr name)) in
           Printf.sprintf {|      echo %s >> node_script.jl
       echo %s >> node_script.jl
 |} jl_include jl_ser
@@ -2423,7 +2430,7 @@ EOF
           {|      cat <<'EOF' >> node_script.jl|};
           emitted_artifact;
           {|EOF|};
-          Printf.sprintf {|      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, jl_visual_class(%s)); end" >> node_script.jl|} name;
+          Printf.sprintf {|      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, %s); end" >> node_script.jl|} (julia_class_expr name);
           {|      echo "    jl_write_warnings(captured_logger.warnings, joinpath(ENV[\"out\"], \"warnings\"))" >> node_script.jl|};
           {|      echo "end" >> node_script.jl|};
         ]
