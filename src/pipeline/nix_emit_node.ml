@@ -980,6 +980,31 @@ function jl_write_pmml(model, path)
         target = string(f.lhs)
         c_names = StatsModels.coefnames(model)
         c_vals = StatsModels.coef(model)
+        # Prefer the generic extractor first, then fall back to GLM-specific access.
+        # If neither path yields one standard error per coefficient, export NaNs and
+        # omit the PMML stdError attributes instead of silently fabricating values.
+        function safe_std_errors(model, n_coefs)
+            try
+                vals = collect(stderror(model))
+                if length(vals) == n_coefs
+                    return vals
+                end
+                @warn "Julia PMML export got mismatched standard errors from `stderror(model)`; omitting stdError attributes." coefficient_count=n_coefs std_error_count=length(vals)
+            catch err
+                try
+                    vals = collect(GLM.stderror(model))
+                    if length(vals) == n_coefs
+                        return vals
+                    end
+                    @warn "Julia PMML export got mismatched standard errors from `GLM.stderror(model)`; omitting stdError attributes." coefficient_count=n_coefs std_error_count=length(vals)
+                catch glm_err
+                    @warn "Julia PMML export could not extract coefficient standard errors from `stderror(model)` or `GLM.stderror(model)`; omitting stdError attributes." primary_error=string(err) fallback_error=string(glm_err)
+                end
+            end
+            return fill(NaN, n_coefs)
+        end
+        std_errs = safe_std_errors(model, length(c_vals))
+        format_std_error_attr(value) = isnan(value) ? "" : " stdError=\"$value\""
         
         # Determine if it's classification (Binomial) or regression
         is_classification = false
@@ -1017,17 +1042,20 @@ function jl_write_pmml(model, path)
         pmml *= "    </MiningSchema>\n"
         
         intercept = 0.0
+        intercept_std_error = NaN
         if "(Intercept)" in c_names
             idx = findfirst(x -> x == "(Intercept)", c_names)
             intercept = c_vals[idx]
+            intercept_std_error = std_errs[idx]
         end
         
-        pmml *= "    <RegressionTable intercept=\"$intercept\">\n"
+        pmml *= "    <RegressionTable intercept=\"$intercept\"$(format_std_error_attr(intercept_std_error))>\n"
         for i in 1:length(c_names)
             name = c_names[i]
             val = c_vals[i]
             if name == "(Intercept)" continue end
-            pmml *= "      <NumericPredictor name=\"$name\" coefficient=\"$val\"/>\n"
+            std_err = std_errs[i]
+            pmml *= "      <NumericPredictor name=\"$name\" coefficient=\"$val\"$(format_std_error_attr(std_err))/>\n"
         end
         pmml *= "    </RegressionTable>\n"
         pmml *= "  </RegressionModel>\n"
@@ -2217,3 +2245,4 @@ EOF
     '';
   };
  |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+
