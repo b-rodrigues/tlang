@@ -2065,10 +2065,10 @@ end
   in
 
   let julia_emit_artifact value_name =
-    let viz_call = Printf.sprintf "    jl_save_viz_metadata(%s, joinpath(ENV[\"out\"], \"viz\"))" value_name in
+    let viz_call = Printf.sprintf "jl_save_viz_metadata(%s, joinpath(ENV[\"out\"], \"viz\"))" value_name in
     let artifact_path = "joinpath(ENV[\"out\"], \"artifact\")" in
     if uses_default_serializer then
-      Printf.sprintf {|%s
+      Printf.sprintf {|    %s
     %s(%s, %s)|} viz_call ser_call value_name artifact_path
     else
       Printf.sprintf {|    %s(%s, %s)|} ser_call value_name artifact_path
@@ -2416,13 +2416,13 @@ EOF
           {|      echo "end" >> node_script.jl|};
           Printf.sprintf {|      echo "if jl_is_error(%s)" >> node_script.jl|} name;
           Printf.sprintf {|      echo "    jl_write_error(%s, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl|} name;
-           {|      echo "else" >> node_script.jl|};
-           {|      cat <<'EOF' >> node_script.jl|};
-           emitted_artifact;
-           {|EOF|};
-           Printf.sprintf {|      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, jl_visual_class(%s)); end" >> node_script.jl|} name;
-           {|      echo "    jl_write_warnings(captured_logger.warnings, joinpath(ENV[\"out\"], \"warnings\"))" >> node_script.jl|};
-           {|      echo "end" >> node_script.jl|};
+          {|      echo "else" >> node_script.jl|};
+          {|      cat <<'EOF' >> node_script.jl|};
+          emitted_artifact;
+          {|EOF|};
+          Printf.sprintf {|      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, jl_visual_class(%s)); end" >> node_script.jl|} name;
+          {|      echo "    jl_write_warnings(captured_logger.warnings, joinpath(ENV[\"out\"], \"warnings\"))" >> node_script.jl|};
+          {|      echo "end" >> node_script.jl|};
         ]
     else if runtime = "sh" then
       (match expr.Ast.node with
