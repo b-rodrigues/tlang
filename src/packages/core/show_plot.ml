@@ -329,21 +329,21 @@ let render_script_for_julia class_name _artifact_path =
     | "makie" -> "import CairoMakie"
     | _ -> ""
   in
-  let import_error_prefix =
+  let required_package =
     match class_name with
-    | "tidierplots" ->
+    | "tidierplots" -> Some "TidierPlots"
+    | "plotsjl" -> Some "Plots"
+    | "makie" -> Some "CairoMakie"
+    | _ -> None
+  in
+  let import_error_prefix =
+    match required_package with
+    | Some package_name ->
         Printf.sprintf
-          "show_plot requires `TidierPlots` for Julia plot class `%s` in [julia-dependencies].packages in tproject.toml: "
+          "show_plot requires `%s` for Julia plot class `%s` in [julia-dependencies].packages in tproject.toml: "
+          package_name
           class_name
-    | "plotsjl" ->
-        Printf.sprintf
-          "show_plot requires `Plots` for Julia plot class `%s` in [julia-dependencies].packages in tproject.toml: "
-          class_name
-    | "makie" ->
-        Printf.sprintf
-          "show_plot requires `CairoMakie` for Julia plot class `%s` in [julia-dependencies].packages in tproject.toml: "
-          class_name
-    | _ ->
+    | None ->
         Printf.sprintf "show_plot: unsupported Julia plot class `%s`: " class_name
   in
   let render_body =
@@ -377,6 +377,7 @@ import Serialization
 try
     %s
 catch exc
+    # Inject the OCaml-computed, package-specific error prefix before the Julia exception text.
     error(string(%S, sprint(showerror, exc)))
 end
 
