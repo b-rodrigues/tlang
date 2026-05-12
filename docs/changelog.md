@@ -192,11 +192,11 @@ The focus of this release was to improve language ergonomics for data guardrails
     - **Python Support**: Full metadata extraction and inspection support for `matplotlib` figures, `plotnine` (ggplot-style), `seaborn` grids, `plotly` figures, and `altair` charts.
 - **Enhanced `show_plot()` Builtin**:
     - Introduced `show_plot()` to render and open pipeline plot artifacts locally.
-    - Supports automatic rendering of R (`ggplot2`) and Python (Matplotlib, Seaborn, Plotly, Altair, Plotnine) plots within the Nix sandbox.
+    - Supports automatic rendering of R (`ggplot2`), Python (Matplotlib, Seaborn, Plotly, Altair, Plotnine), and Julia (`TidierPlots.jl`, `Plots.jl`, `Makie.jl` via `CairoMakie`) plots within the Nix sandbox.
     - Implemented headless rendering for interactive libraries: Plotly (via `kaleido`) and Altair (via `vl-convert`).
     - **Dependency Automation**: `tlang` now automatically suggests or injects `cloudpickle` when plotting libraries are detected in Python nodes to ensure reliable serialization of complex objects containing lambdas.
 - **Transparent `read_node()` for Plots**:
-    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, or `altair`.
+    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, `altair`, `tidierplots`, `plotsjl`, or `makie`.
     - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
 
 ### Serializable Lens Architecture

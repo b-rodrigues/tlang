@@ -138,6 +138,7 @@ let pretty_print_summary pairs =
 
 let is_visual_metadata_class = function
   | VString "ggplot" | VString "matplotlib" | VString "plotnine" | VString "seaborn" | VString "plotly" | VString "altair" -> true
+  | VString "tidierplots" | VString "plotsjl" | VString "makie" -> true
   | _ -> false
 
 let display_keys_from_pairs pairs =

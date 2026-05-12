@@ -3,7 +3,7 @@ open Ast
 (*
 --# Render a plot node and open it locally
 --#
---# Builds or reuses an R/Python plot artifact, renders it into `_pipeline/`,
+--# Builds or reuses an R/Python/Julia plot artifact, renders it into `_pipeline/`,
 --# and opens the rendered image with the command configured in
 --# `tproject.toml` under `[visualization-tool]`.
 --#
@@ -17,6 +17,7 @@ open Ast
 
 let supported_plot_class = function
   | "ggplot" | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" -> true
+  | "tidierplots" | "plotsjl" | "makie" -> true
   | _ -> false
 
 let rendered_plot_filename = "plot.png"
@@ -32,6 +33,7 @@ type viewer_tool = {
 let runtime_of_plot_class = function
   | "ggplot" -> Some "R"
   | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" -> Some "Python"
+  | "tidierplots" | "plotsjl" | "makie" -> Some "Julia"
   | _ -> None
 
 let is_blank s =
@@ -319,13 +321,70 @@ else:
     rendered_plot_dpi
     rendered_plot_dpi
 
+let render_script_for_julia class_name _artifact_path =
+  let render_body =
+    match class_name with
+    | "tidierplots" ->
+        {|
+try
+    import TidierPlots
+catch exc
+    error("show_plot requires `TidierPlots` in [julia-dependencies].packages.")
+end
+TidierPlots.ggsave(output_path, plot_obj)
+|}
+    | "plotsjl" ->
+        {|
+try
+    import Plots
+catch exc
+    error("show_plot requires `Plots` in [julia-dependencies].packages.")
+end
+Plots.savefig(plot_obj, output_path)
+|}
+    | "makie" ->
+        {|
+function _tlang_makie_render_target(obj)
+    if hasproperty(obj, :figure)
+        fig = getproperty(obj, :figure)
+        if fig !== nothing
+            return fig
+        end
+    end
+    obj
+end
+
+try
+    import CairoMakie
+catch exc
+    error("show_plot requires `CairoMakie` in [julia-dependencies].packages.")
+end
+CairoMakie.activate!()
+CairoMakie.save(output_path, _tlang_makie_render_target(plot_obj))
+|}
+    | _ ->
+        ""
+  in
+  Printf.sprintf
+    {|
+import Serialization
+
+artifact_path = ENV["ARTIFACT_PATH"]
+output_path = joinpath(ENV["out"], %S)
+plot_obj = Serialization.deserialize(artifact_path)
+%s
+|}
+    rendered_plot_filename
+    render_body
+
 let render_script_for_class class_name artifact_path =
   match runtime_of_plot_class class_name with
   | Some "R" -> Ok (render_script_for_r artifact_path, "render_plot.R", "R")
   | Some "Python" -> Ok (render_script_for_python artifact_path, "render_plot.py", "Python")
+  | Some "Julia" -> Ok (render_script_for_julia class_name artifact_path, "render_plot.jl", "Julia")
   | _ ->
       Error
-        (Printf.sprintf "show_plot: unsupported plot class `%s`. Expected ggplot, matplotlib, plotnine, seaborn, plotly, or altair." class_name)
+        (Printf.sprintf "show_plot: unsupported plot class `%s`. Expected ggplot, matplotlib, plotnine, seaborn, plotly, altair, tidierplots, plotsjl, or makie." class_name)
 
 let render_nix_expression ~project_root ~runtime ~script_name ~script_content ~artifact_path =
   let tproject_path = Filename.concat project_root "tproject.toml" in
@@ -344,6 +403,12 @@ let
   pyVersion = pyDeps.version or "python3";
   pyPackagesList = pyDeps.packages or [];
   py-env = pkgs.${pyVersion}.withPackages (ps: builtins.map (p: ps.${p}) pyPackagesList);
+  juliaDeps = toml.julia-dependencies or {};
+  juliaVersion = juliaDeps.version or "lts";
+  juliaPackageName = if juliaVersion == "lts" then "julia-lts" else "julia_" + (builtins.replaceStrings ["."] ["_"] juliaVersion);
+  juliaBase = pkgs.${juliaPackageName};
+  juliaPackagesList = juliaDeps.packages or [];
+  juliaPkg = if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
   artifact = builtins.path { name = "plot-artifact"; path = %S; };
 in
 pkgs.stdenv.mkDerivation {
@@ -366,10 +431,10 @@ EOF
     tproject_path
     tproject_path
     artifact_path
-    (if runtime = "R" then "r-env" else "py-env")
+    (if runtime = "R" then "r-env" else if runtime = "Python" then "py-env" else "juliaPkg")
     script_name
     script_content
-    (if runtime = "R" then "Rscript" else "python")
+    (if runtime = "R" then "Rscript" else if runtime = "Python" then "python" else "julia --compiled-modules=no")
     script_name
 
 let computed_node_from_registry node_name =
@@ -400,7 +465,7 @@ let computed_node_from_registry node_name =
       match Builder_logs.get_logs () with
       | [] ->
           Error
-            (Printf.sprintf "show_plot: no build logs found for node `%s`. Build the pipeline first or pass an unbuilt rn()/pyn() node." node_name)
+            (Printf.sprintf "show_plot: no build logs found for node `%s`. Build the pipeline first or pass an unbuilt R/Python/Julia plot node." node_name)
       | latest_log :: _ ->
           (match Builder_logs.read_log (Filename.concat Builder_utils.pipeline_dir latest_log) with
            | Error msg ->
@@ -448,16 +513,16 @@ let resolve_plot_node input_value =
   in
   match input_value with
   | VNode un ->
-      if un.un_runtime <> "R" && un.un_runtime <> "Python" then
+      if un.un_runtime <> "R" && un.un_runtime <> "Python" && un.un_runtime <> "Julia" then
         Error
-          "show_plot: only rn()/pyn() nodes are supported. Pass an R/Python plot node or a built plot node."
+          "show_plot: only unbuilt R/Python/Julia plot nodes are supported. Pass an R/Python/Julia plot node or a built plot node."
       else
         build_ephemeral_plot_node temp_name un
   | VComputedNode cn when cn.cn_path <> "<unbuilt>" && supported_plot_class cn.cn_class ->
       Ok cn
   | VComputedNode _ ->
       Error
-        "show_plot: expected a built plot node, an rn()/pyn() node, or a `read_node()` result for a built plot."
+        "show_plot: expected a built plot node, an unbuilt R/Python/Julia plot node, or a `read_node()` result for a built plot."
   | VNodeResult { v = VComputedNode cn; _ } when cn.cn_path <> "<unbuilt>" && supported_plot_class cn.cn_class ->
       Ok cn
   | VNodeResult { node_name; _ } ->
