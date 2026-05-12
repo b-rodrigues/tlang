@@ -260,8 +260,8 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     (contains ggplot_trimmed_pretty "ggplot\n" &&
      contains ggplot_trimmed_pretty "├── title" &&
      contains ggplot_trimmed_pretty "└── layers" &&
-     not (contains ggplot_trimmed_pretty "mapping") &&
-     not (contains ggplot_trimmed_pretty "extra"));
+     not (contains ggplot_trimmed_pretty "── mapping") &&
+     not (contains ggplot_trimmed_pretty "── extra"));
   let plotnine_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [

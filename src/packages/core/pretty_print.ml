@@ -108,12 +108,20 @@ let list_items_are_simple items =
        | _ -> true
      ) items
 
+let list_item_tree_label index = function
+  | Some name when name <> "" -> name
+  | _ -> Printf.sprintf "[%d]" index
+
 (* Mutual recursion: entries recurse into children, and child rendering feeds
    back into entry rendering for each sibling in tree order. *)
 let rec render_tree_entry prefix is_last (label, value) =
   let branch = if is_last then "└── " else "├── " in
   let child_prefix = prefix ^ if is_last then "    " else "│   " in
   match value with
+  | VDataFrame { arrow_table; _ } ->
+      let rows = Arrow_table.num_rows arrow_table in
+      let cols = Arrow_table.num_columns arrow_table in
+      [prefix ^ branch ^ label ^ ": " ^ Printf.sprintf "DataFrame(%d rows x %d cols)" rows cols]
   | VDict pairs ->
       let visible_pairs = visible_pairs_from_dict pairs in
       if visible_pairs = [] then
@@ -126,7 +134,7 @@ let rec render_tree_entry prefix is_last (label, value) =
       [prefix ^ branch ^ label ^ ": " ^ Utils.value_to_string value]
   | VList items ->
       let indexed_items =
-        List.mapi (fun index (_, item) -> (Printf.sprintf "[%d]" index, item)) items
+        List.mapi (fun index (item_label, item) -> (list_item_tree_label index item_label, item)) items
       in
       (prefix ^ branch ^ label) :: render_tree_children child_prefix indexed_items
   | _ ->
@@ -142,19 +150,22 @@ and render_tree_children prefix entries =
   in
   aux [] entries
 
-let pretty_print_tree pairs =
+let pretty_print_tree ?(object_mode=false) pairs =
   let visible_pairs = visible_pairs_from_dict pairs in
+  let can_use_class_as_title =
+    object_mode || Option.is_some (display_keys_from_pairs pairs)
+  in
   let title, children =
     match List.assoc_opt "kind" visible_pairs with
     | Some (VString s) ->
         let child_pairs = List.filter (fun (k, _) -> k <> "kind") visible_pairs in
         (s, child_pairs)
     | _ ->
-        match List.assoc_opt "class" visible_pairs with
-        | Some (VString s) ->
+        match List.assoc_opt "class" visible_pairs, can_use_class_as_title with
+        | Some (VString s), true ->
             let child_pairs = List.filter (fun (k, _) -> k <> "class") visible_pairs in
             (s, child_pairs)
-        | _ -> ("dict", visible_pairs)
+        | _, _ -> ("dict", visible_pairs)
   in
   match children with
   | [] -> title
@@ -240,7 +251,7 @@ let rec pretty_format ?(max_depth=5) ?(indent="") v =
     | other -> Utils.value_to_string other
 
 and pretty_print_visual_metadata pairs =
-  pretty_print_tree pairs ^ "\n"
+  pretty_print_tree ~object_mode:true pairs ^ "\n"
 
 (** Pretty-print any value for REPL display *)
 let pretty_print_value v =
@@ -275,7 +286,7 @@ let pretty_print_value v =
       let is_large = List.length items > 5 in
       let has_nested = List.exists (fun (_, v) -> match v with VDict _ | VList _ | VVector _ -> true | _ -> false) items in
       if is_large || has_nested then
-        let indexed_items = List.mapi (fun i (_, v) -> (Printf.sprintf "[%d]" i, v)) items in
+        let indexed_items = List.mapi (fun i (label, v) -> (list_item_tree_label i label, v)) items in
         String.concat "\n" ("list" :: render_tree_children "" indexed_items) ^ "\n"
       else
         pretty_format v ^ "\n"
