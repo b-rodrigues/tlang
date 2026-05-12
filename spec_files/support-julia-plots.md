@@ -263,7 +263,7 @@ Minimum auto-detection:
 - `TidierPlots`
 - `Plots`
 
-### Backend note for `Plots.jl`
+#### Backend note for `Plots.jl`
 
 `Plots.jl` relies on a plotting backend. T should not silently guess one.
 
@@ -271,7 +271,9 @@ So:
 
 - detect `Plots`
 - document that users must declare any backend package they rely on
-- optionally add backend-specific detection later if the Julia source explicitly contains backend function calls such as `gr()`, `pythonplot()`, or `plotlyjs()`; this should be implemented as code-text detection of those call patterns, not import detection
+- optionally add backend-specific detection later when the Julia source explicitly contains backend function calls
+  - examples: `gr()`, `pythonplot()`, `plotlyjs()`
+  - implement this as code-text detection of those call patterns, not import detection
 
 This follows the codebase rule against silent magic.
 
