@@ -334,7 +334,17 @@ let render_script_for_julia class_name _artifact_path =
     | "tidierplots" -> "TidierPlots"
     | "plotsjl" -> "Plots"
     | "makie" -> "CairoMakie"
-    | _ -> "the relevant Julia plotting package"
+    | _ -> class_name
+  in
+  let import_error_prefix =
+    match class_name with
+    | "tidierplots" | "plotsjl" | "makie" ->
+        Printf.sprintf
+          "show_plot requires `%s` for Julia plot class `%s` in [julia-dependencies].packages. Error: "
+          required_package
+          class_name
+    | _ ->
+        Printf.sprintf "show_plot: unsupported Julia plot class `%s`. Error: " class_name
   in
   let render_body =
     match class_name with
@@ -367,7 +377,7 @@ import Serialization
 try
     %s
 catch exc
-    error("show_plot requires `%s` for Julia plot class `%s` in [julia-dependencies].packages. Error: " * sprint(showerror, exc))
+    error(string(%S, sprint(showerror, exc)))
 end
 
 artifact_path = ENV["ARTIFACT_PATH"]
@@ -376,8 +386,7 @@ plot_obj = Serialization.deserialize(artifact_path)
 %s
 |}
     imports
-    required_package
-    class_name
+    import_error_prefix
     rendered_plot_filename
     render_body
 
