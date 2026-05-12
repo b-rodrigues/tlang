@@ -2067,11 +2067,14 @@ end
   let julia_emit_artifact value_name =
     let viz_call = Printf.sprintf "jl_save_viz_metadata(%s, joinpath(ENV[\"out\"], \"viz\"))" value_name in
     let artifact_path = "joinpath(ENV[\"out\"], \"artifact\")" in
+    let serialize_call =
+      Printf.sprintf "    %s(%s, %s)" ser_call value_name artifact_path
+    in
     if uses_default_serializer then
       Printf.sprintf {|    %s
-    %s(%s, %s)|} viz_call ser_call value_name artifact_path
+%s|} viz_call serialize_call
     else
-      Printf.sprintf {|    %s(%s, %s)|} ser_call value_name artifact_path
+      serialize_call
   in
 
   let is_import_line line =
