@@ -1361,4 +1361,61 @@ p.t_step|}
       incr fail_count; Printf.printf "  ✗ initial pipeline for rerun test failed: %s\n"
         (Ast.Utils.value_to_string other));
 
+  (* Regression test: Julia raw-code nodes with `using`/`import` must hoist those
+     statements to the top of the script, outside the try/begin...end block.
+     This catches the original "using not at top level" Julia failure mode. *)
+  let (v_julia_imports, _) = eval_string_env
+    {|pipeline {
+  compute = jln(command = <{
+    using LinearAlgebra
+    import Statistics
+    result = norm([1.0, 2.0, 3.0])
+    result
+  }>)
+}|}
+    (Packages.init_env ()) in
+  (match v_julia_imports with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       (* Import lines must appear before the begin block in the emitted script.
+          The hoisted_imports section is emitted before assign_script_lines in the
+          template, so `using`/`import` lines must precede `echo "        begin"`. *)
+       let find_pos pat =
+         try Some (Str.search_forward (Str.regexp_string pat) nix 0)
+         with Not_found -> None
+       in
+       let using_pos = find_pos "using LinearAlgebra" in
+       let import_pos = find_pos "import Statistics" in
+       let begin_pos = find_pos {|echo "        begin"|} in
+       let imports_hoisted_before_begin =
+         match using_pos, import_pos, begin_pos with
+         | Some u, Some i, Some b -> u < b && i < b
+         | _ -> false
+       in
+       (* Confirm that neither import line appears inside the begin...end body block *)
+       let imports_absent_from_body =
+         match begin_pos with
+         | None -> true
+         | Some bp ->
+             let end_pos =
+               try Some (Str.search_forward (Str.regexp_string {|echo "        end"|}) nix bp)
+               with Not_found -> None
+             in
+             (match end_pos with
+              | None -> true
+              | Some ep ->
+                  let inner = String.sub nix bp (ep - bp) in
+                  not (contains_substring inner "using LinearAlgebra") &&
+                  not (contains_substring inner "import Statistics"))
+       in
+       if imports_hoisted_before_begin && imports_absent_from_body then begin
+         incr pass_count; Printf.printf "  ✓ Julia raw-code using/import are hoisted outside begin...end block\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ Julia raw-code import hoisting failed (hoisted_before_begin=%b absent_from_body=%b)\n"
+           imports_hoisted_before_begin imports_absent_from_body
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ Julia import hoisting pipeline should return VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
   print_newline ()
