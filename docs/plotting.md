@@ -51,7 +51,7 @@ In each case, T recognizes that the node result is a visualization.
 
 ```t
 p = pipeline {
-  p_plotsjl = node(runtime = Julia, command = <{
+  p_plotsjl = jln(command = <{
     using Plots
     plot([1, 2, 3], [3, 4, 5], title = "Fuel Economy")
   }>)
@@ -168,7 +168,7 @@ This dual behavior ensures that you can use T for programmatic inspection and R/
 It accepts:
 
 - an unbuilt `rn()` / `pyn()` node
-- an unbuilt `node(runtime = Julia, ...)` / `jl_node(...)` node
+- an unbuilt `jln()` node
 - a built `ComputedNode`
 - a `read_node()` result that still points back to a built plot node
 

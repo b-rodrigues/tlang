@@ -364,24 +364,40 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     Show_plot.render_script_for_class "tidierplots" "/tmp/plot.jls"
   in
   test_message "show_plot Julia tidierplots renderer uses ggsave"
-    (match tidierplots_render with
-     | Ok (script, script_name, runtime) ->
-         script_name = "render_plot.jl"
-         && runtime = "Julia"
-         && contains script "Serialization.deserialize"
-         && contains script "TidierPlots.ggsave"
-     | Error _ -> false);
+     (match tidierplots_render with
+      | Ok (script, script_name, runtime) ->
+          script_name = "render_plot.jl"
+          && runtime = "Julia"
+          && contains script "Serialization.deserialize"
+          && contains script "TidierPlots.ggsave"
+          && contains script "show_plot requires `TidierPlots`"
+          && contains script "Julia plot class `tidierplots`"
+      | Error _ -> false);
+  let plotsjl_render =
+    Show_plot.render_script_for_class "plotsjl" "/tmp/plot.jls"
+  in
+  test_message "show_plot Julia plotsjl renderer uses savefig"
+     (match plotsjl_render with
+      | Ok (script, script_name, runtime) ->
+          script_name = "render_plot.jl"
+          && runtime = "Julia"
+          && contains script "Plots.savefig"
+          && contains script "show_plot requires `Plots`"
+          && contains script "Julia plot class `plotsjl`"
+      | Error _ -> false);
   let makie_render =
     Show_plot.render_script_for_class "makie" "/tmp/plot.jls"
   in
   test_message "show_plot Julia makie renderer requires CairoMakie"
-    (match makie_render with
-     | Ok (script, script_name, runtime) ->
-         script_name = "render_plot.jl"
-         && runtime = "Julia"
-         && contains script "CairoMakie.activate!"
-         && contains script "CairoMakie.save"
-     | Error _ -> false);
+     (match makie_render with
+      | Ok (script, script_name, runtime) ->
+          script_name = "render_plot.jl"
+          && runtime = "Julia"
+          && contains script "CairoMakie.activate!"
+          && contains script "CairoMakie.save"
+          && contains script "show_plot requires `CairoMakie`"
+          && contains script "Julia plot class `makie`"
+      | Error _ -> false);
   test_message "show_plot rejects unsupported plot classes"
     (match Show_plot.render_script_for_class "vega" "/tmp/plot.json" with
      | Error msg ->

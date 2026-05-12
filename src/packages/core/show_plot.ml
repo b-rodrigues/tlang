@@ -329,6 +329,13 @@ let render_script_for_julia class_name _artifact_path =
     | "makie" -> "import CairoMakie"
     | _ -> ""
   in
+  let required_package =
+    match class_name with
+    | "tidierplots" -> "TidierPlots"
+    | "plotsjl" -> "Plots"
+    | "makie" -> "CairoMakie"
+    | _ -> "the relevant Julia plotting package"
+  in
   let render_body =
     match class_name with
     | "tidierplots" ->
@@ -360,7 +367,7 @@ import Serialization
 try
     %s
 catch exc
-    error("show_plot requires the relevant plotting package in [julia-dependencies].packages.")
+    error("show_plot requires `%s` for Julia plot class `%s` in [julia-dependencies].packages. Error: " * sprint(showerror, exc))
 end
 
 artifact_path = ENV["ARTIFACT_PATH"]
@@ -369,6 +376,8 @@ plot_obj = Serialization.deserialize(artifact_path)
 %s
 |}
     imports
+    required_package
+    class_name
     rendered_plot_filename
     render_body
 
