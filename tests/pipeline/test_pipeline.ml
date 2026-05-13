@@ -1437,7 +1437,7 @@ p.t_step|}
        let nix = Nix_emit_pipeline.emit_pipeline p in
        (* Import lines must appear before the begin block in the emitted script.
           The hoisted_imports section is emitted before assign_script_lines in the
-          template, so `using`/`import` lines must precede `echo "        begin"`. *)
+          template, so `using`/`import` lines must precede `echo "    local __tlang_node_thunk = () -> begin"`. *)
        let find_pos pat =
          try Some (Str.search_forward (Str.regexp_string pat) nix 0)
          with Not_found -> None
