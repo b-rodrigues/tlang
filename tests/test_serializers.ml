@@ -1,6 +1,45 @@
 (* tests/test_serializers.ml *)
 open Ast
 
+let capture_stderr f =
+  let stderr_fd = Unix.descr_of_out_channel stderr in
+  let saved_stderr = Unix.dup stderr_fd in
+  let read_fd, write_fd = Unix.pipe () in
+  let restored = ref false in
+  let close_noerr fd =
+    try Unix.close fd with
+    | Unix.Unix_error _ -> ()
+  in
+  let restore () =
+    if not !restored then begin
+      restored := true;
+      flush stderr;
+      Unix.dup2 saved_stderr stderr_fd;
+      close_noerr saved_stderr
+    end
+  in
+  Fun.protect
+    ~finally:(fun () ->
+      restore ();
+      close_noerr read_fd;
+      close_noerr write_fd)
+    (fun () ->
+      Unix.dup2 write_fd stderr_fd;
+      close_noerr write_fd;
+      let result = f () in
+      restore ();
+      let buffer = Buffer.create 128 in
+      let chunk = Bytes.create 256 in
+      let rec drain () =
+        match Unix.read read_fd chunk 0 (Bytes.length chunk) with
+        | 0 -> ()
+        | n ->
+            Buffer.add_subbytes buffer chunk 0 n;
+            drain ()
+      in
+      drain ();
+      (result, Buffer.contents buffer))
+
 let run_tests pass_count fail_count _eval_string eval_string_env _test =
   Printf.printf "First-Class Serializers:\n";
 
@@ -147,6 +186,26 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
         ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir))))
       (fun () -> Sys.chdir dir; f ())
   in
+
+  (with_empty_dir (fun () ->
+    let env_onnx_builtin = Packages.init_env () in
+    let ((v, _), warnings) =
+      capture_stderr (fun () ->
+        eval_string_env {|
+          p = pipeline {
+             model = node(command = <{ 1 }>, serializer = ^onnx)
+          }
+          populate_pipeline(p)
+        |} env_onnx_builtin)
+    in
+    match v with
+    | VString _ when not (contains warnings "custom or unknown strategy") ->
+        incr pass_count;
+        Printf.printf "  ✓ Built-in ^onnx serializer does not emit custom strategy warning\n"
+    | other ->
+        incr fail_count;
+        Printf.printf "  ✗ Built-in ^onnx serializer warning handling failed. Got: %s; warnings: %S\n"
+          (Ast.Utils.value_to_string other) warnings));
 
   (with_empty_dir (fun () ->
     let env_onnx = Packages.init_env () in
