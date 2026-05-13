@@ -1437,14 +1437,14 @@ p.t_step|}
        let nix = Nix_emit_pipeline.emit_pipeline p in
        (* Import lines must appear before the begin block in the emitted script.
           The hoisted_imports section is emitted before assign_script_lines in the
-          template, so `using`/`import` lines must precede `echo "        begin"`. *)
+          template, so `using`/`import` lines must precede `echo "    local __tlang_node_thunk = () -> begin"`. *)
        let find_pos pat =
          try Some (Str.search_forward (Str.regexp_string pat) nix 0)
          with Not_found -> None
        in
        let using_pos = find_pos "using LinearAlgebra" in
        let import_pos = find_pos "import Statistics" in
-       let begin_pos = find_pos {|echo "        begin"|} in
+       let begin_pos = find_pos {|echo "    local __tlang_node_thunk = () -> begin"|} in
        let imports_hoisted_before_begin =
          match using_pos, import_pos, begin_pos with
          | Some u, Some i, Some b -> u < b && i < b
@@ -1456,7 +1456,7 @@ p.t_step|}
          | None -> true
          | Some bp ->
              let end_pos =
-               try Some (Str.search_forward (Str.regexp_string {|echo "        end"|}) nix bp)
+               try Some (Str.search_forward (Str.regexp_string {|echo "    end"|}) nix bp)
                with Not_found -> None
              in
              (match end_pos with
@@ -1478,3 +1478,4 @@ p.t_step|}
          (Ast.Utils.value_to_string other));
 
   print_newline ()
+
