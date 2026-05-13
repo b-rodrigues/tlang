@@ -89,6 +89,7 @@
           "JavaCall"
           "ONNXRunTime"
           "ONNX"
+          "StatsModels"
         ];
 
         # Pin a specific version of OCaml for reproducibility.
