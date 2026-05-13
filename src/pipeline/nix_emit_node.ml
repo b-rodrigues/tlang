@@ -1669,8 +1669,19 @@ function jl_lookup(container, key)
                 return getproperty(container, candidate)
             end
         else
-            if candidate isa Symbol && hasproperty(container, candidate)
-                return getproperty(container, candidate)
+            # Try getproperty first
+            try
+                if candidate isa Symbol && hasproperty(container, candidate)
+                    return getproperty(container, candidate)
+                end
+            catch
+            end
+            # Fallback to getfield for structs
+            try
+                if candidate isa Symbol && candidate in fieldnames(typeof(container))
+                    return getfield(container, candidate)
+                end
+            catch
             end
         end
     end
@@ -1753,15 +1764,39 @@ function jl_dedup_strings(items)
 end
 
 function jl_tidierplots_layers(obj)
-    layers = jl_lookup(obj, :layers)
+    layers = jl_lookup(obj, :geoms)
+    if layers === nothing; layers = jl_lookup(obj, :layers); end
     if !(layers isa AbstractVector)
+        plots = jl_lookup(obj, :plots)
+        if plots isa AbstractVector
+            return ["GGPlotGrid (" * string(length(plots)) * " plots)"]
+        end
+        inner = jl_lookup(obj, :plot)
+        if inner !== nothing && inner !== obj
+            return jl_tidierplots_layers(inner)
+        end
         return String[]
     end
     jl_dedup_strings([
         begin
+            # Try various fields for the geom name
             geom = jl_lookup(layer, :geom)
-            name = geom === nothing ? string(nameof(typeof(layer))) : string(nameof(typeof(geom)))
-            replace(name, "Geom" => "")
+            if geom === nothing; geom = jl_lookup(layer, :type); end
+            if geom === nothing; geom = jl_lookup(layer, :geom_type); end
+            if geom === nothing; geom = jl_lookup(layer, :layer_type); end
+            
+            name =
+                if geom !== nothing
+                    string(nameof(typeof(geom)))
+                else
+                    # Fallback to the layer object's own type
+                    string(nameof(typeof(layer)))
+                end
+            
+            # Clean up common suffixes
+            name = replace(name, "Geom" => "")
+            name = replace(name, "Layer" => "")
+            name
         end
         for layer in layers
     ])
@@ -1839,16 +1874,61 @@ end
 function jl_extract_plot_metadata(obj)
     module_name, type_name = jl_type_parts(obj)
 
-    if jl_module_matches(module_name, "TidierPlots") && (type_name == "GGPlot" || type_name == "GGPlotGrid")
-        labels = jl_labels_from_container(jl_lookup(obj, :labels))
+    if jl_module_matches(module_name, "TidierPlots") && (type_name == "GGPlot" || type_name == "GGPlotGrid" || type_name == "Layer")
+        labs_obj = jl_lookup(obj, :axis_options)
+        if labs_obj !== nothing
+            # axis_options usually has an 'opt' field which is the Dict
+            inner_opt = jl_lookup(labs_obj, :opt)
+            if inner_opt !== nothing; labs_obj = inner_opt; end
+        end
+        if labs_obj === nothing; labs_obj = jl_lookup(obj, :labs); end
+        if labs_obj === nothing; labs_obj = jl_lookup(obj, :labels); end
+        
+        mapping_obj = jl_lookup(obj, :default_aes)
+        if mapping_obj !== nothing
+            # default_aes usually has an 'aes' field which is the Dict
+            inner_aes = jl_lookup(mapping_obj, :aes)
+            if inner_aes !== nothing; mapping_obj = inner_aes; end
+        end
+        if mapping_obj === nothing; mapping_obj = jl_lookup(obj, :mapping); end
+        if mapping_obj === nothing; mapping_obj = jl_lookup(obj, :aes); end
+        
+        labels = jl_labels_from_container(labs_obj)
+        mapping = jl_mapping_to_dict(mapping_obj)
+        layers = jl_tidierplots_layers(obj)
+        
+        # Fallback for mapping from first layer if default is empty
+        if isempty(mapping)
+             layers_list = jl_lookup(obj, :geoms)
+             if layers_list === nothing; layers_list = jl_lookup(obj, :layers); end
+             if layers_list isa AbstractVector && !isempty(layers_list)
+                 first_layer = first(layers_list)
+                 # Layer also has an 'aes' field which might be an Aes object
+                 l_mapping_obj = jl_lookup(first_layer, :aes)
+                 if l_mapping_obj !== nothing
+                     l_inner_aes = jl_lookup(l_mapping_obj, :aes)
+                     if l_inner_aes !== nothing; l_mapping_obj = l_inner_aes; end
+                 end
+                 if l_mapping_obj === nothing; l_mapping_obj = jl_lookup(first_layer, :mapping); end
+                 mapping = jl_mapping_to_dict(l_mapping_obj)
+             end
+        end
+
+        if isempty(labels) && isempty(mapping)
+             inner = jl_lookup(obj, :plot)
+             if inner !== nothing && inner !== obj
+                 return jl_extract_plot_metadata(inner)
+             end
+        end
+
         title = get(labels, "title", nothing)
         return Dict(
             "class" => "tidierplots",
             "backend" => "Julia",
             "title" => title,
-            "mapping" => jl_mapping_to_dict(jl_lookup(obj, :mapping)),
+            "mapping" => mapping,
             "labels" => labels,
-            "layers" => jl_tidierplots_layers(obj),
+            "layers" => layers,
             "_display_keys" => ["class", "backend", "title", "mapping", "labels", "layers"],
         )
     end

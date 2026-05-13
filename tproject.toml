@@ -13,7 +13,7 @@ packages = ["pandas", "numpy", "onnxruntime", "pyarrow", "skl2onnx"]
 
 [julia-dependencies]
 version = "lts"
-packages = ["CSV", "DataFrames", "JSON", "Arrow", "ONNX", "ONNXRunTime"]
+packages = ["CSV", "DataFrames", "JSON", "Arrow", "ONNX", "ONNXRunTime", "CairoMakie", "Plots", "TidierPlots"]
 
 [additional-tools]
 packages = []

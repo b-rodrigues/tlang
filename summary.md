@@ -374,7 +374,7 @@ Purpose: value introspection and intent-block inspection.
 
 - Introspection: `explain(x)`, `explain_json(x)`
 - Node introspection: `explain(read_node(...))` separates node metadata (`node_name`, `diagnostics`) from explained payload via `contents`
-- CLI presentation: `explain(...)` is rendered as a tree in the REPL and `t explain ...` while remaining a normal `Dict`
+- CLI presentation: `explain(...)` returns regular `Dict` values, and `pretty_print()` (including default REPL/CLI display) renders large or nested `Dict`, `List`, and `Pipeline` outputs as trees for readability.
 - Intent helpers: `intent_fields(intent)`, `intent_get(intent, field)`
 
 ### `strcraft`
