@@ -2571,7 +2571,7 @@ EOF
   let run_cmd = match runtime with
     | "R" -> "Rscript node_script.R"
     | "Python" -> "python node_script.py"
-    | "Julia" -> "julia --compiled-modules=no node_script.jl"
+    | "Julia" -> "julia node_script.jl"
     | "Quarto" ->
         let cli_block =
           if quarto_cli_args_block = "" then ""
