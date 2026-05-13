@@ -2501,12 +2501,13 @@ EOF
         [
           {|      echo "captured_logger = TCaptureLogger()" >> node_script.jl|};
           {|      echo "try" >> node_script.jl|};
-          Printf.sprintf {|      echo "    global %s = with_logger(captured_logger) do" >> node_script.jl|} name;
-          {|      echo "        begin" >> node_script.jl|};
+          {|      echo "    local __tlang_node_thunk = () -> begin" >> node_script.jl|};
           {|      cat <<'EOF' >> node_script.jl|};
           emitted_expr;
           {|EOF|};
-          {|      echo "        end" >> node_script.jl|};
+          {|      echo "    end" >> node_script.jl|};
+          Printf.sprintf {|      echo "    global %s = with_logger(captured_logger) do" >> node_script.jl|} name;
+          {|      echo "        Base.invokelatest(__tlang_node_thunk)" >> node_script.jl|};
           {|      echo "    end" >> node_script.jl|};
           {|      echo "catch e" >> node_script.jl|};
           {|      echo "    jl_write_error(e, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl|};

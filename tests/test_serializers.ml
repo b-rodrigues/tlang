@@ -344,7 +344,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
                "jl_write_error(e, joinpath(ENV[\\\"out\\\"], \\\"artifact\\\"))";
                "jl_write_warnings(captured_logger.warnings, joinpath(ENV[\\\"out\\\"], \\\"warnings\\\"))";
                "write(f, \"VError\")";
-               "with_logger(captured_logger) do"
+               "with_logger(captured_logger) do";
+               "Base.invokelatest(__tlang_node_thunk)"
              ] in
         let missing = List.filter (fun s -> not (contains nix s)) expected in
         if missing = [] then begin
