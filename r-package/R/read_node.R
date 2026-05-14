@@ -133,7 +133,7 @@ resolve_artifact_path <- function(path, pipeline_dir) {
 #'   log filename. Defaults to the latest available build log.
 #' @param pipeline_dir Path to the pipeline build directory. Defaults to
 #'   `"_pipeline"`.
-#' @param deserializer Function used to deserialize the artifact path. Defaults
+#' @param deserializer Function used to deserialize the artifact file. Defaults
 #'   to [base::readRDS()].
 #'
 #' @return The deserialized node artifact.

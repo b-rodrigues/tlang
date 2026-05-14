@@ -28,8 +28,8 @@ The deserialized node artifact.
 Reads the latest build log, or a matching historical one, from the
 \code{_pipeline/} directory, locates the requested node, and deserializes its
 artifact. When \code{which_log} is \code{NULL}, the helper picks the first
-reverse-alphabetically sorted \code{build_log_*.json} file, which corresponds
-to the most recent timestamped build log.
+reverse-alphabetically sorted \code{build_log_*.json} file, which matches T's
+timestamped log naming and therefore resolves to the most recent build.
 }
 \examples{
 \dontrun{
