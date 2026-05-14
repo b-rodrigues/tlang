@@ -174,7 +174,8 @@
               cp -r editors/quarto/tlang/_extensions/tlang $out/share/tlang/quarto/
                cp -r r-package $out/share/tlang/
                cp -r py-package $out/share/tlang/
-               cp -r jl-package $out/share/tlang/
+               mkdir -p $out/share/tlang/julia
+               cp -r jl-package $out/share/tlang/julia/tlang
               makeWrapper $out/bin/.t-unwrapped $out/bin/t \
                 --prefix PATH : "${runtimePath}" \
                 --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \

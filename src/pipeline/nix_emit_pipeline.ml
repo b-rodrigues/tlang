@@ -94,6 +94,7 @@ let
     version = "0.0.0.9000";
     src = "${tBin}/share/tlang/py-package";
     format = "pyproject";
+    nativeBuildInputs = [ ps.setuptools ];
     doCheck = false;
   };
   py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList) ++ [ (tlangPy ps) ]);
@@ -105,7 +106,7 @@ let
   juliaPackagesList = (juliaDeps.packages or []) ++ [ %s ];
   juliaPkg = if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
 
-  tlangJl = "${tBin}/share/tlang/jl-package";
+  tlangJl = "${tBin}/share/tlang/julia";
 
   # Additional Tools & LaTeX
   additionalTools = (toml.additional-tools or {}).packages or [];
