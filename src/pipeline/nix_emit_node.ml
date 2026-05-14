@@ -2573,15 +2573,18 @@ EOF
     | "Python" -> "python node_script.py"
     | "Julia" -> "julia node_script.jl"
     | "Quarto" ->
-        let cli_block =
-          if quarto_cli_args_block = "" then ""
-          else quarto_cli_args_block ^ "\n"
-        in
+        let args = if quarto_cli_args_block = "" then "" else quarto_cli_args_block ^ "\n" in
         Printf.sprintf {|
       rm -rf .quarto-output
       export HOME=$TMPDIR
       export QUARTO_R=${r-env}/bin/R
       export QUARTO_PYTHON=${py-env}/bin/python
+      
+      # Provision the tlang extension
+      mkdir -p _extensions/tlang
+      cp -r ${tBin}/share/tlang/quarto/tlang/* _extensions/tlang/
+      export TLANG_BIN=${tBin}/bin/t
+
       cli_args=()
 %s      quarto "''${cli_args[@]}"
       if [ -d .quarto-output ]; then
@@ -2594,7 +2597,7 @@ EOF
         ls -R
         exit 1
       fi
-      echo "QuartoOutput" > $out/class|} cli_block (match script with Some s -> s | None -> ".") (match script with Some s -> s | None -> ".")
+      echo "QuartoOutput" > $out/class|} args (match script with Some s -> s | None -> ".") (match script with Some s -> s | None -> ".")
     | "sh" ->
         let shell_cmd = match shell with Some s -> s | None -> "sh" in
         let launcher =
