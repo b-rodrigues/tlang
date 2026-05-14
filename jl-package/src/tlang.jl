@@ -46,7 +46,7 @@ end
 
 function _find_node_entry(nodes::Vector{Any}, name::String, log_file::String)
     for entry in nodes
-        if entry isa Dict && get(entry, "node", nothing) == name
+        if entry isa AbstractDict && get(entry, "node", nothing) == name
             return entry
         end
     end

@@ -248,11 +248,44 @@ chmod +x $out/bin/bisect-ppx-report
 
         # Bisect-instrumented build for coverage collection
         t-lang-coverage = mkTLang { withCoverage = true; };
+
+        # Companion R package
+        tlang-r = pkgs.rPackages.buildRPackage {
+          name = "tlang";
+          src = ./r-package;
+          propagatedBuildInputs = with pkgs.rPackages; [ jsonlite ];
+        };
+
+        # Companion Python package
+        tlang-python = pkgs.python314.pkgs.buildPythonPackage {
+          pname = "tlang";
+          version = "0.1.0";
+          src = ./py-package;
+          format = "pyproject";
+          nativeBuildInputs = [ pkgs.python314.pkgs.setuptools ];
+          propagatedBuildInputs = [ pkgs.python314.pkgs.pandas ];
+        };
+        # Companion Julia path
+        tlang-julia-path = pkgs.stdenv.mkDerivation {
+          name = "tlang-julia-path";
+          src = ./jl-package;
+          installPhase = ''
+            mkdir -p $out/tlang
+            cp -r . $out/tlang/
+          '';
+        };
       in
       {
         # The default package - allows `nix build` and `nix run`
-        packages.default = t-lang;
-        packages.t-coverage = t-lang-coverage;
+        packages = {
+          default = t-lang;
+          t-lang = t-lang;
+          t-lang-coverage = t-lang-coverage;
+          t-coverage = t-lang-coverage;
+          tlang-r = tlang-r;
+          tlang-python = tlang-python;
+          tlang-julia-path = tlang-julia-path;
+        };
         legacyPackages = pkgs;
 
         # Make it runnable with `nix run`
