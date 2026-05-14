@@ -240,6 +240,8 @@ p = pipeline {
 
 - **Project** = analysis workspace, data, scripts, pipelines, pinned environment.
 - **Package** = reusable library, exports functions, ships tests and docs.
+- **`r-package/`** = companion R package that mirrors built-pipeline `read_node()` and defaults to `readRDS()` with an overrideable deserializer.
+- **`py-package/`** = companion Python package that mirrors built-pipeline `read_node()` and defaults to pickle-based deserialization with an overrideable deserializer.
 
 Typical project files:
 - `tproject.toml`

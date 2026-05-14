@@ -165,7 +165,7 @@ If you have a sequence of commands you've tested in the REPL, you can easily wra
 T encourages a "node-at-a-time" development cycle:
 1. **Add Node-by-Node**: Add a new `node()` definition to your pipeline in `src/pipeline.t`.
 2. **Execute**: Run your script (e.g., via `t run src/pipeline.t`) to build the derivations.
-3. **Load & Inspect**: Load the node's output to inspect it via `read_node("node_name")` in the REPL to verify results.
+3. **Load & Inspect**: Load the node's output to inspect it via `read_node("node_name")` in the REPL to verify results. For workflows outside T, the companion packages in `r-package/` and `py-package/` provide R and Python `read_node()` helpers that read built artifacts from `_pipeline/`, defaulting to `readRDS()` in R and pickle-based deserialization in Python.
 4. **Run**: Once verified, run the entire pipeline and proceed to the next step.
 
 ```t
