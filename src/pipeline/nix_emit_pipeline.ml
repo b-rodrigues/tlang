@@ -91,7 +91,7 @@ let
   pyPackagesList = pyDeps.packages or [];
   tlangPy = ps: ps.buildPythonPackage {
     pname = "tlang";
-    version = "0.1.0";
+    version = "0.0.0.9000";
     src = "${tBin}/share/tlang/py-package";
     format = "pyproject";
     doCheck = false;
@@ -105,7 +105,7 @@ let
   juliaPackagesList = (juliaDeps.packages or []) ++ [ %s ];
   juliaPkg = if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
 
-  tlangJl = "${tBin}/share/tlang/jl-package/src";
+  tlangJl = "${tBin}/share/tlang/jl-package";
 
   # Additional Tools & LaTeX
   additionalTools = (toml.additional-tools or {}).packages or [];

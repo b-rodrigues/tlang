@@ -29,7 +29,12 @@ function _select_build_log(logs::Vector{String}, which_log::Union{String, Nothin
         return logs[1]
     end
     
-    pattern = Regex(which_log)
+    pattern =
+        try
+            Regex(which_log)
+        catch e
+            error("Invalid `which_log` regex pattern \"$which_log\": $e")
+        end
     matches = filter(l -> occursin(pattern, l), logs)
     
     if isempty(matches)

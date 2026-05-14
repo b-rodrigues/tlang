@@ -17,7 +17,7 @@ By default, `read_node()` uses Python object deserialization with `pickle`,
 falling back to `dill` and `cloudpickle` when available:
 
 ```python
-from tlang_read_node import read_node
+from tlang import read_node
 
 model = read_node("model")
 ```
@@ -26,7 +26,7 @@ Pass a custom deserializer when a node uses another artifact format:
 
 ```python
 import pyarrow.ipc as ipc
-from tlang_read_node import read_node
+from tlang import read_node
 
 table = read_node("features", deserializer=lambda path: ipc.open_file(path).read_all())
 ```
