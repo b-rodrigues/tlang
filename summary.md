@@ -229,7 +229,8 @@ p = pipeline {
 - **PMML** is used for model interchange. Now supports native scoring in Julia nodes via `JavaCall` and JPMML.
 - **ONNX** artifacts can now be consumed in Julia nodes through `ONNXRunTime.jl`; Julia ONNX export remains explicitly unsupported.
 - **JSON** is available for simpler values.
-- Plot-producing R, Python, and Julia nodes can expose structured `viz` metadata through `read_node()` / `pretty_print()`, and `show_plot()` can render `ggplot2`, Python plotting backends, `TidierPlots.jl`, `Plots.jl`, and `Makie.jl` artifacts (using `CairoMakie` for headless Makie rendering).
+- Plot-producing R, Python, and Julia nodes can expose structured `viz` metadata through `read_node()` / `pretty_print()`, and `show_plot()` can render `ggplot2`, Python plotting backends, `TidierPlots.jl`, `Plots.jl`, and `CairoMakie` artifacts.
+- **Companion Packages (`tlang`)**: Light-weight helper packages (named `tlang` in R, Python, and Julia) are **automatically provisioned and loaded** in every polyglot node. They provide the `read_node()` function for seamless data consumption between languages.
 - Nodes run in Nix-managed sandboxes, so R/Python/shell/Quarto dependencies must be declared in the project/package metadata and synced via `t update`.
 
 ### Quarto specifics
@@ -245,8 +246,9 @@ p = pipeline {
 
 - **Project** = analysis workspace, data, scripts, pipelines, pinned environment.
 - **Package** = reusable library, exports functions, ships tests and docs.
-- **`r-package/`** = companion R package that mirrors built-pipeline `read_node()` and defaults to `readRDS()` with an overrideable deserializer.
-- **`py-package/`** = companion Python package that mirrors built-pipeline `read_node()` and defaults to pickle-based deserialization with an overrideable deserializer.
+- **`r-package/`** = companion R package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to `readRDS()` with an overrideable deserializer.
+- **`py-package/`** = companion Python package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to pickle-based deserialization.
+- **`jl-package/`** = companion Julia package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to `Serialization.deserialize`.
 
 Typical project files:
 - `tproject.toml`
