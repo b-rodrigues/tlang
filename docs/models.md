@@ -19,7 +19,7 @@ model = lm(data = mtcars, formula = mpg ~ wt + hp)
 ```
 
 ### Advanced Modeling (Polyglot)
-To fit models beyond simple OLS, use `R` or `Python` nodes within a $T$ pipeline. These nodes can serialize model artifacts through PMML or ONNX depending on the scoring path you want.
+To fit models beyond simple OLS, use `R`, `Python`, or `Julia` nodes within a $T$ pipeline. These nodes can serialize model artifacts through PMML or ONNX depending on the scoring path you want.
 
 #### Example: Logistic Regression in R
 ```t
@@ -50,6 +50,26 @@ p = pipeline {
 }
 build_pipeline(p)
 model = read_node("model_node")
+```
+
+#### Example: Neural Network in Julia (Flux)
+Julia nodes are particularly powerful for deep learning. $T$ handles Julia's "World Age" issues automatically, allowing you to train complex Flux models and export them as ONNX artifacts.
+
+```t
+p = pipeline {
+    model_node = jln(
+        command = <{
+            using Flux, ONNX
+            model = Chain(Dense(2, 10, relu), Dense(10, 1, sigmoid))
+            # ... training logic ...
+            model
+        }>,
+        serializer = ^onnx
+    )
+}
+build_pipeline(p)
+model = read_node("model_node")
+predict(new_data, model) -- Native ONNX scoring in T
 ```
 
 ---
@@ -189,7 +209,10 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 
-Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python, R, or Julia. Julia currently supports ONNX consumption through `ONNXRunTime` and returns an explicit error if you try to export ONNX directly from a Julia node.
+Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python, R, or Julia. $T$ ensures that ONNX models trained in Python (Scikit-Learn) or Julia (Flux) produce consistent results when evaluated natively in $T$.
+
+> [!NOTE]
+> **Julia World Age**: When using Julia libraries that generate code at runtime (like Flux or Zygote), $T$ automatically wraps execution in `Base.invokelatest` to prevent "World Age" errors. This makes Julia nodes as robust as Python or R nodes for complex modeling tasks.
 
 ### Cross-Runtime Consistency
 $T$'s statistical evaluator is verified against R's reference implementation. Results match R's `broom::tidy()` and `stats::predict()` exactly.
