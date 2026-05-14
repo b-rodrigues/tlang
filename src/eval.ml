@@ -1493,6 +1493,31 @@ and topo_sort (nodes : (string * 'a) list) (deps : (string * string list) list) 
   | Error name -> Error name
   | Ok () -> Ok (List.rev !order)
 
+and read_foreign_source_text (un : Ast.unbuilt_node) =
+  match un.un_script with
+  | None ->
+      (match un.un_command.node with
+       | RawCode { raw_text; _ } -> raw_text
+       | _ -> "")
+  | Some path ->
+      (try
+         let ic = open_in path in
+         Fun.protect
+           ~finally:(fun () -> close_in_noerr ic)
+           (fun () -> really_input_string ic (in_channel_length ic))
+       with Sys_error _ ->
+         "")
+
+and foreign_read_node_deps (un : Ast.unbuilt_node) =
+  if un.un_runtime = "R"
+     || un.un_runtime = "Python"
+     || un.un_runtime = "Julia"
+     || un.un_runtime = "Quarto"
+  then
+    Ast.extract_read_node_dependencies (read_foreign_source_text un)
+  else
+    []
+
 (** Evaluate a pipeline definition *)
 and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : value =
   let default_un expr = {
@@ -1584,11 +1609,12 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                    name (String.concat ", " (List.map (fun d -> "`" ^ d ^ "`") unknown))))
                else
                  compute_deps ((name, explicit) :: acc) rest
-         | None ->
-             let fv = free_vars un.un_command in
-             let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
-             let has_self_ref = List.exists (fun v -> v = name) fv in
-             if has_self_ref && not is_raw then
+          | None ->
+              let fv = free_vars un.un_command in
+              let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
+              let helper_deps = foreign_read_node_deps un in
+              let has_self_ref = List.exists (fun v -> v = name) fv in
+              if has_self_ref && not is_raw then
                 let msg = if match un.un_command.node with Var v when v = name -> true | _ -> false then
                   Printf.sprintf "Node `%s` not found. If this is intended to be a cross-pipeline dependency, use `chain` or ensure the node is defined before the pipeline block." name
                 else
@@ -1596,18 +1622,25 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                 in
                 Error (Error.structural_error msg)
              else
-               let node_deps = List.filter (fun v ->
-                 v <> name && (
-                   (* Always: sibling node in the same pipeline *)
-                   List.mem v node_names ||
+                let node_deps = List.filter (fun v ->
+                  v <> name && (
+                    (* Always: sibling node in the same pipeline *)
+                    List.mem v node_names ||
                    (* T expressions only: unresolved names are cross-pipeline deps (chain).
                       For RawCode (R/Python), we can't distinguish foreign identifiers from
                       intended cross-pipeline refs, so we conservatively exclude them. *)
-                   (not is_raw && not (Env.mem v !env_ref))
-                 )
-               ) fv in
-               compute_deps ((name, node_deps) :: acc) rest)
-  in
+                    (not is_raw && not (Env.mem v !env_ref))
+                  )
+                ) fv in
+                let helper_node_deps =
+                  helper_deps
+                  |> List.filter (fun dep -> dep <> name && List.mem dep node_names)
+                in
+                let all_node_deps =
+                  List.sort_uniq String.compare (node_deps @ helper_node_deps)
+                in
+                compute_deps ((name, all_node_deps) :: acc) rest)
+   in
   match compute_deps [] desugared_nodes with
   | Error e -> e
   | Ok deps ->
@@ -1638,6 +1671,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
   let validation_errors = List.filter_map (fun (name, un) ->
     let my_runtime = un.un_runtime in
     let my_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
+    let helper_deps = foreign_read_node_deps un in
     let offenders = List.filter (fun dname ->
       match List.assoc_opt dname runtime_mapping with
       | Some dep_runtime -> 
@@ -1645,6 +1679,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
           my_runtime <> "Quarto" && 
           my_runtime <> "sh" &&
           my_runtime <> "T" &&
+          not (List.mem dname helper_deps) &&
           (match un.un_deserializer.node with Var "default" -> true | _ -> false)
       | None -> false (* External dependency — we don't know its runtime yet *)
     ) my_deps in

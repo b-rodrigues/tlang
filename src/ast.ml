@@ -364,24 +364,27 @@ let stmt_loc (s : stmt) = s.loc
 (** Global hook for resolving node names to values (e.g. from build logs) *)
 let node_resolver : (string -> value option) ref = ref (fun _ -> None)
 
+let strip_foreign_code_comments text =
+  let lines = String.split_on_char '\n' text in
+  lines
+  |> List.filter_map (fun line ->
+      let trimmed = String.trim line in
+      if String.starts_with ~prefix:"--" trimmed then
+        None
+      else if String.starts_with ~prefix:"#" trimmed
+              && not (String.starts_with ~prefix:"#!" trimmed)
+      then
+        None
+      else
+        Some line)
+  |> String.concat "\n"
+
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
     Scans for [a-zA-Z_][a-zA-Z0-9_]* patterns and returns unique results.
     Strips lines starting with # or -- to avoid false positives from comments. *)
 let extract_identifiers text =
-  let lines = String.split_on_char '\n' text in
-  let filtered_lines =
-    lines
-    |> List.filter_map (fun line ->
-        let trimmed = String.trim line in
-        if String.starts_with ~prefix:"--" trimmed then
-          None
-        else if String.starts_with ~prefix:"#" trimmed && not (String.starts_with ~prefix:"#!" trimmed) then
-          None
-        else
-          Some line)
-  in
-  let filtered_text = String.concat "\n" filtered_lines in
+  let filtered_text = strip_foreign_code_comments text in
   let re = Str.regexp {|[a-zA-Z_][a-zA-Z0-9_]*|} in
   let rec find acc pos =
     match (try Some (Str.search_forward re filtered_text pos) with Not_found -> None) with
@@ -393,6 +396,23 @@ let extract_identifiers text =
   in
   let inferred = find [] 0 in
   let all_set = List.fold_left (fun acc d -> String_set.add d acc) String_set.empty inferred in
+  String_set.elements all_set
+
+let extract_read_node_dependencies text =
+  let filtered_text = strip_foreign_code_comments text in
+  let re = Str.regexp {|read_node[[:space:]]*([[:space:]]*['"]\([^'"]+\)['"]|} in
+  let rec find acc pos =
+    match (try Some (Str.search_forward re filtered_text pos) with Not_found -> None) with
+    | None -> List.rev acc
+    | Some _ ->
+        let node_name = Str.matched_group 1 filtered_text in
+        let next_pos = Str.match_end () in
+        find (node_name :: acc) next_pos
+  in
+  let inferred = find [] 0 in
+  let all_set =
+    List.fold_left (fun acc dep -> String_set.add dep acc) String_set.empty inferred
+  in
   String_set.elements all_set
 
 (** Convenience type alias *)

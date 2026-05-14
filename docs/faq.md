@@ -111,7 +111,7 @@ T is built with **robustness** in mind. If a node fails (e.g., an R script crash
 - **Fail-Safe Loading**: The `read_node()` function will never crash your session. Even if an artifact is missing or corrupted, you get a clean error value you can handle with `?|>`.
 - **High-Fidelity Representation**: T works hard to provide native representations of list, dict, and DataFrame objects from other languages.
 - **Generic Fallbacks**: If a node produces a complex object that T doesn't natively understand (like a custom private class in Python), it is safely wrapped as a `HostObject`. You can still pass this object as a reference to other nodes of the same language, keeping your polyglot workflow intact.
-- **Native Escape Hatch**: If you need to manipulate a complex object that cannot be serialized, you can always read the node's artifact directly using the native interpreter's own libraries (e.g., by calling `read_node()` inside a Python or R script).
+- **Native Escape Hatch**: If you need to manipulate a complex object that cannot be serialized, R/Python/Julia runtime nodes expose a native `read_node()` helper. It can return the artifact path directly (`path = TRUE` / `path=True` / `path=true`) or use a runtime-specific/custom deserializer.
 
 ### Can I write Literate Programming reports?
 Absolutely. T integrates with **Quarto** through a native extension. You can write `.qmd` files where code chunks are written in **pure T**, allowing you to summarize data and generate professional reports without ever needing R or Python. For advanced charting or low-level file processing, you can mix T chunks with R, Python, or **Shell** (using the `shn()` function) in the same document.
@@ -133,4 +133,3 @@ The developer (Bruno Rodrigues) works on T based on community interest and exper
 
 > [!TIP]
 > **Need help?** Check out the [Getting Started](getting-started.md) guide or join the [GitHub Discussions](https://github.com/b-rodrigues/tlang/discussions).
-

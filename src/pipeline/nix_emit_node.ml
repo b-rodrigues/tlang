@@ -102,6 +102,30 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     if sanitized = "" then "_" else sanitized
   in
   let dep_env_var_name dep = "T_NODE_" ^ sanitize_env_var_suffix dep in
+  let read_source_text () =
+    match script with
+    | Some path ->
+        (try
+           let ic = open_in path in
+           Fun.protect
+             ~finally:(fun () -> close_in_noerr ic)
+             (fun () -> really_input_string ic (in_channel_length ic))
+         with Sys_error _ ->
+           "")
+    | None ->
+        (match expr.Ast.node with
+         | RawCode { raw_text; _ } -> raw_text
+         | _ -> "")
+  in
+  let helper_read_node_deps =
+    Ast.extract_read_node_dependencies (read_source_text ())
+  in
+  let raw_identifier_deps =
+    match script, expr.Ast.node with
+    | Some _, _ -> Ast.extract_identifiers (read_source_text ())
+    | None, RawCode { raw_identifiers; _ } -> raw_identifiers
+    | _ -> []
+  in
 
 
 
@@ -509,6 +533,79 @@ def deserialize(path):
     # Final chance (if cloudpickle import failed but we didn't return)
     with open(path, "rb") as f:
         return pickle.load(f)
+|} in
+
+  let t_runtime_read_node_r_code = {|
+t_node_env_name <- function(name) {
+  paste0("T_NODE_", gsub("[^A-Za-z0-9_]", "_", name))
+}
+
+read_node <- function(name, unserialize = NULL, path = FALSE) {
+  if (!is.character(name) || length(name) != 1 || is.na(name) || !nzchar(name)) {
+    stop("read_node: `name` must be a non-empty string.")
+  }
+  node_dir <- Sys.getenv(t_node_env_name(name), unset = "")
+  if (!nzchar(node_dir)) {
+    stop(sprintf("read_node: node `%s` is not available in this runtime context.", name))
+  }
+  artifact_path <- file.path(node_dir, "artifact")
+  if (!file.exists(artifact_path)) {
+    stop(sprintf("read_node: artifact for node `%s` was not found at `%s`.", name, artifact_path))
+  }
+  if (isTRUE(path)) {
+    return(artifact_path)
+  }
+  reader <- if (is.null(unserialize)) readRDS else unserialize
+  reader(artifact_path)
+}
+|} in
+
+  let t_runtime_read_node_py_code = {|
+def _t_node_env_name(name):
+    sanitized = "".join(ch if (ch.isalnum() or ch == "_") else "_" for ch in str(name))
+    return "T_NODE_" + (sanitized if sanitized else "_")
+
+def read_node(name, unserialize=None, path=False):
+    if not isinstance(name, str) or not name:
+        raise ValueError("read_node: `name` must be a non-empty string.")
+    node_dir = os.environ.get(_t_node_env_name(name), "")
+    if not node_dir:
+        raise ValueError(f"read_node: node `{name}` is not available in this runtime context.")
+    artifact_path = os.path.join(node_dir, "artifact")
+    if not os.path.exists(artifact_path):
+        raise FileNotFoundError(
+            f"read_node: artifact for node `{name}` was not found at `{artifact_path}`."
+        )
+    if path:
+        return artifact_path
+    reader = unserialize or deserialize
+    return reader(artifact_path)
+|} in
+
+  let t_runtime_read_node_jl_code = {|
+function jl_node_env_name(name)
+    sanitized = replace(String(name), r"[^A-Za-z0-9_]" => "_")
+    return "T_NODE_" * (isempty(sanitized) ? "_" : sanitized)
+end
+
+function read_node(name; unserialize=nothing, path::Bool=false)
+    if !(name isa AbstractString) || isempty(name)
+        error("read_node: `name` must be a non-empty string.")
+    end
+    node_dir = get(ENV, jl_node_env_name(name), "")
+    if isempty(node_dir)
+        error("read_node: node `$(name)` is not available in this runtime context.")
+    end
+    artifact_path = joinpath(node_dir, "artifact")
+    if !isfile(artifact_path)
+        error("read_node: artifact for node `$(name)` was not found at `$(artifact_path)`.")
+    end
+    if path
+        return artifact_path
+    end
+    reader = isnothing(unserialize) ? Serialization.deserialize : unserialize
+    reader(artifact_path)
+end
 |} in
 
   let t_arrow_r_code = {|
@@ -1330,6 +1427,17 @@ end
     else ""
   in
 
+  let runtime_read_node_injection =
+    if runtime = "R" || runtime = "Python" || runtime = "Julia" then
+      make_injection
+        ~enabled:true
+        ~r_code:t_runtime_read_node_r_code
+        ~py_code:t_runtime_read_node_py_code
+        ~jl_code:t_runtime_read_node_jl_code
+    else
+      ""
+  in
+
   let error_injection =
     match runtime with
     | "R"      -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_error_r_code
@@ -2024,6 +2132,12 @@ end
     if runtime = "Quarto" || runtime = "sh" then
       ""
     else
+      let auto_bound_deps =
+        deps
+        |> List.filter (fun dep ->
+            not (List.mem dep helper_read_node_deps)
+            || List.mem dep raw_identifier_deps)
+      in
       let get_des_call dep_name =
         let rec lookup_in_list target = function
           | [] -> None
@@ -2065,26 +2179,38 @@ end
             else
               strategy
         in
-        
         let dep_var = dep_env_var_name dep_name in
+        let uses_default_reader = strategy = "default" in
         match runtime with
         | "R" ->
             Printf.sprintf {|      echo "if (file.exists(file.path(\"$%s\", \"class\")) && readLines(file.path(\"$%s\", \"class\"), 1) == \"VError\") {" >> node_script.R
-      echo "  %s <- r_read_json(file.path(\"$%s\", \"artifact\"))" >> node_script.R
+      echo "  %s <- r_read_json(read_node(\"%s\", path = TRUE))" >> node_script.R
       echo "} else {" >> node_script.R
-      echo "  %s <- %s(file.path(\"$%s\", \"artifact\"))" >> node_script.R
-      echo "}" >> node_script.R|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
+      echo "  %s <- %s" >> node_script.R
+      echo "}" >> node_script.R|}
+              dep_var dep_var dep_name
+              (if uses_default_reader
+               then Printf.sprintf "read_node(\"%s\")" dep_name
+               else Printf.sprintf "read_node(\"%s\", unserialize = %s)" dep_name des_fn)
         | "Python" ->
             Printf.sprintf {|      echo "if os.path.exists(os.path.join(\"$%s\", \"class\")) and open(os.path.join(\"$%s\", \"class\")).read().strip() == \"VError\":" >> node_script.py
-      echo "    %s = py_read_json(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py
+      echo "    %s = py_read_json(read_node(\"%s\", path=True))" >> node_script.py
       echo "else:" >> node_script.py
-      echo "    %s = %s(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
+      echo "    %s = %s" >> node_script.py|}
+              dep_var dep_var dep_name
+              (if uses_default_reader
+               then Printf.sprintf "read_node(%S)" dep_name
+               else Printf.sprintf "read_node(%S, unserialize=%s)" dep_name des_fn)
         | "Julia" ->
-            Printf.sprintf {|      echo "%s = %s(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl|} dep_name des_fn dep_var
+            Printf.sprintf {|      echo "%s = %s" >> node_script.jl|}
+              dep_name
+              (if uses_default_reader
+               then Printf.sprintf "read_node(%S)" dep_name
+               else Printf.sprintf "read_node(%S; unserialize=%s)" dep_name des_fn)
         | _ ->
             Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" dep_name des_fn dep_var ext
       in
-      deps
+      auto_bound_deps
       |> List.map get_des_call
       |> String.concat "\n"
   in
@@ -2668,8 +2794,9 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection runtime_read_node_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd

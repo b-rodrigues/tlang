@@ -230,6 +230,7 @@ p = pipeline {
 - **ONNX** artifacts can now be consumed in Julia nodes through `ONNXRunTime.jl`; Julia ONNX export remains explicitly unsupported.
 - **JSON** is available for simpler values.
 - Plot-producing R, Python, and Julia nodes can expose structured `viz` metadata through `read_node()` / `pretty_print()`, and `show_plot()` can render `ggplot2`, Python plotting backends, `TidierPlots.jl`, `Plots.jl`, and `Makie.jl` artifacts (using `CairoMakie` for headless Makie rendering).
+- R, Python, and Julia runtime nodes now expose a native `read_node(...)` helper inside generated scripts, with optional custom deserializers and `path = true` / `path=true` access to the raw artifact path.
 - Nodes run in Nix-managed sandboxes, so R/Python/shell/Quarto dependencies must be declared in the project/package metadata and synced via `t update`.
 
 ### Quarto specifics

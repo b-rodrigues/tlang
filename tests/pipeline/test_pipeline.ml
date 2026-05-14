@@ -1030,37 +1030,94 @@ p_cross = pipeline {
   source = [answer: 42]
   report_r = rn(command = <{ source }>, serializer = ^json, deserializer = ^json)
   report_py = pyn(command = <{ source }>, serializer = ^arrow, deserializer = ^arrow)
+  report_jl = jln(command = <{ source }>, serializer = ^json, deserializer = ^json)
 }|}
     (Packages.init_env ()) in
   (match v_serializer_pipeline with
    | Ast.VPipeline p ->
         let nix = Nix_emit_pipeline.emit_pipeline p in
-        let has_r_json_helpers =
-         contains_substring nix "r_write_json <- function" &&
-         contains_substring nix "r_read_json <- function" &&
-         contains_substring nix "source <- r_read_json(" &&
-         contains_substring nix "r_write_json(report_r,"
-       in
-        let has_py_arrow_helpers =
-          contains_substring nix "def py_write_arrow(df, path):" &&
-          contains_substring nix "def py_read_arrow(path):" &&
-          contains_substring nix "source = py_read_arrow(" &&
-          contains_substring nix "py_write_arrow(report_py,"
+         let has_r_json_helpers =
+          contains_substring nix "r_write_json <- function" &&
+          contains_substring nix "r_read_json <- function" &&
+          contains_substring nix "read_node <- function(name, unserialize = NULL, path = FALSE)" &&
+          contains_substring nix "source <- read_node(\"source\", unserialize = r_read_json)" &&
+          contains_substring nix "r_write_json(report_r,"
         in
-        let omits_old_runtime_prefixed_helpers =
-          (not (contains_substring nix "t_read_json(")) &&
-          (not (contains_substring nix "t_write_json(")) &&
-          (not (contains_substring nix "t_read_arrow(")) &&
-          (not (contains_substring nix "t_write_arrow("))
-        in
-        if has_r_json_helpers && has_py_arrow_helpers && omits_old_runtime_prefixed_helpers then begin
-          incr pass_count; Printf.printf "  ✓ pipeline emits r_/py_ runtime serializer helper names\n"
-        end else begin
-          incr fail_count; Printf.printf "  ✗ runtime serializer helper naming emission failed\n"
-        end
+         let has_py_arrow_helpers =
+           contains_substring nix "def py_write_arrow(df, path):" &&
+           contains_substring nix "def py_read_arrow(path):" &&
+           contains_substring nix "def read_node(name, unserialize=None, path=False):" &&
+           contains_substring nix "source = read_node(\"source\", unserialize=py_read_arrow)" &&
+           contains_substring nix "py_write_arrow(report_py,"
+         in
+         let has_jl_json_helpers =
+           contains_substring nix "function jl_write_json(obj, path)" &&
+           contains_substring nix "function jl_read_json(path)" &&
+           contains_substring nix "function read_node(name; unserialize=nothing, path::Bool=false)" &&
+           contains_substring nix "source = read_node(\"source\"; unserialize=jl_read_json)" &&
+           contains_substring nix "jl_write_json(report_jl,"
+         in
+         let omits_old_runtime_prefixed_helpers =
+           (not (contains_substring nix "t_read_json(")) &&
+           (not (contains_substring nix "t_write_json(")) &&
+           (not (contains_substring nix "t_read_arrow(")) &&
+           (not (contains_substring nix "t_write_arrow("))
+         in
+         if has_r_json_helpers && has_py_arrow_helpers && has_jl_json_helpers && omits_old_runtime_prefixed_helpers then begin
+          incr pass_count; Printf.printf "  ✓ pipeline emits R/Python/Julia runtime serializer and read_node helpers\n"
+         end else begin
+          incr fail_count; Printf.printf "  ✗ runtime serializer/read_node helper emission failed\n"
+         end
     | other ->
         incr fail_count; Printf.printf "  ✗ serializer naming pipeline should return VPipeline, got: %s\n"
           (Ast.Utils.value_to_string other));
+
+  let helper_dep_name = "upstream_for_runtime_read_node" in
+  let (v_runtime_read_node_pipeline, _) = eval_string_env
+    (Printf.sprintf {|
+pipeline {
+  %s = pyn(command = <{ {"answer": 42} }>, serializer = ^json)
+  report_r = rn(command = <{
+    path <- read_node("%s", path = TRUE)
+    value <- read_node("%s", unserialize = r_read_json)
+    value$answer
+  }>)
+  report_py = pyn(command = <{
+    path = read_node("%s", path=True)
+    value = read_node("%s", unserialize=py_read_json)
+    value["answer"]
+  }>)
+  report_jl = jln(command = <{
+    path = read_node("%s"; path=true)
+    value = read_node("%s"; unserialize=jl_read_json)
+    value["answer"]
+  }>)
+}|} helper_dep_name helper_dep_name helper_dep_name helper_dep_name helper_dep_name helper_dep_name helper_dep_name)
+    (Packages.init_env ()) in
+  (match v_runtime_read_node_pipeline with
+   | Ast.VPipeline p ->
+       let deps_ok =
+         List.assoc_opt "report_r" p.p_deps = Some [helper_dep_name]
+         && List.assoc_opt "report_py" p.p_deps = Some [helper_dep_name]
+         && List.assoc_opt "report_jl" p.p_deps = Some [helper_dep_name]
+       in
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let env_binding_ok =
+         contains_substring nix (Printf.sprintf "T_NODE_%s = %s;" helper_dep_name helper_dep_name)
+       in
+       let avoids_auto_binding =
+         not (contains_substring nix (Printf.sprintf "%s <- read_node(\"%s\"" helper_dep_name helper_dep_name))
+         && not (contains_substring nix (Printf.sprintf "%s = read_node(\"%s\"" helper_dep_name helper_dep_name))
+         && not (contains_substring nix (Printf.sprintf "%s = read_node(\"%s\";" helper_dep_name helper_dep_name))
+       in
+       if deps_ok && env_binding_ok && avoids_auto_binding then begin
+         incr pass_count; Printf.printf "  ✓ runtime read_node calls add deps without forced auto-binding\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ runtime read_node dependency handling failed\n"
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ runtime read_node pipeline should return VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
 
   let (v_plot_pipeline, _) = eval_string_env
     {|pipeline {
@@ -1478,4 +1535,3 @@ p.t_step|}
          (Ast.Utils.value_to_string other));
 
   print_newline ()
-
