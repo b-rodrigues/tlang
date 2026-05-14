@@ -423,6 +423,13 @@ version = "python314"
 # packages = ["pandas", "numpy"]
 packages = []
 
+[julia-dependencies]
+# Julia packages this project depends on
+version = "lts"
+# Example:
+# packages = ["DataFrames", "CSV"]
+packages = []
+
 [visualization-tool]
 # Optional plot opener used by `show_plot()`
 # Example: command = "xdg-open"

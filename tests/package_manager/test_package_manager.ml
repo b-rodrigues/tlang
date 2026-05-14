@@ -138,6 +138,10 @@ packages = ["dplyr", "tidyr"]
 version = "python310"
 packages = ["pandas"]
 
+[julia-dependencies]
+version = "1.11"
+packages = ["DataFrames"]
+
 [visualization-tool]
 command = "xdg-open"
 
@@ -159,6 +163,10 @@ packages = []
 version = "python314"
 packages = []
 
+[julia-dependencies]
+version = "lts"
+packages = []
+
 [additional-tools]
 packages = ["quarto"]
 
@@ -177,6 +185,8 @@ min_version = "0.51.0"
                 && cfg.proj_py_version = "python310"
                 && cfg.proj_visualization_tool = "xdg-open"
                 && cfg.proj_py_dependencies = ["pandas"]
+                && cfg.proj_julia_version = "1.11"
+                && cfg.proj_julia_dependencies = ["DataFrames"]
     | Error _ -> false);
 
   test_pm "format project sync message reports T, R, and Python counts" (fun () ->
@@ -216,13 +226,22 @@ min_version = "0.51.0"
 
   test_pm "serialize and re-parse project config" (fun () ->
     let cfg0 = Package_types.default_project_config "roundtrip-proj" in
-    let cfg = { cfg0 with proj_r_dependencies = ["foo"]; proj_py_dependencies = ["bar"]; proj_visualization_tool = "imv" } in
+    let cfg = {
+      cfg0 with
+      proj_r_dependencies = ["foo"];
+      proj_py_dependencies = ["bar"];
+      proj_julia_dependencies = ["DataFrames"];
+      proj_julia_version = "1.11";
+      proj_visualization_tool = "imv"
+    } in
     let toml_str = Toml_parser.serialize_tproject_toml cfg in
     match Toml_parser.parse_tproject_toml toml_str with
     | Ok cfg2 -> cfg2.proj_name = "roundtrip-proj" 
                  && cfg2.proj_r_dependencies = ["foo"]
                  && cfg2.proj_visualization_tool = "imv"
                  && cfg2.proj_py_dependencies = ["bar"]
+                 && cfg2.proj_julia_version = "1.11"
+                 && cfg2.proj_julia_dependencies = ["DataFrames"]
     | Error _ -> false);
 
   test_pm "analyze missing ONNX pipeline dependencies" (fun () ->
@@ -970,6 +989,16 @@ min_version = "0.51.0"
         && Sys.is_directory (Filename.concat dir "data")
         && Sys.is_directory (Filename.concat dir "outputs")
         && Sys.is_directory (Filename.concat dir "tests")
+        && (match Toml_parser.parse_tproject_toml
+                    (let ic = open_in (Filename.concat dir "tproject.toml") in
+                     let content = really_input_string ic (in_channel_length ic) in
+                     close_in ic;
+                     content)
+            with
+            | Ok cfg ->
+                cfg.proj_julia_version = "lts"
+                && cfg.proj_julia_dependencies = []
+            | Error _ -> false)
       | Error _ -> false
     in
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));

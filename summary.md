@@ -400,7 +400,7 @@ Disambiguation rule of thumb for LLMs:
 
 These are part of the broader user-facing tooling story and are worth knowing even when they do not map 1:1 to `src/packages/<pkg>/` files:
 
-- Scaffolding and dependency management: `scaffold_project(...)`, `scaffold_package(...)`, `update_flake_lock(...)`
+- Scaffolding and dependency management: `scaffold_project(...)`, `scaffold_package(...)`, `update_flake_lock(...)` — scaffolded projects include default R, Python, and Julia dependency sections in `tproject.toml`
 - Quality tooling: `run_doctor(...)`
 - Test/doc wrappers: `t_test(...)`, `t_doc(...)`, `t_run(...)`
 

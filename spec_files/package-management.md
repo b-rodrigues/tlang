@@ -421,6 +421,11 @@ dplyr = "*"
 ggplot2 = "*"
 readr = "*"
 
+[julia-dependencies]
+# Julia packages available in project environments
+version = "lts"
+packages = ["DataFrames", "CSV", "Arrow"]
+
 [targets]
 # Optional: Define project targets (inspired by R's {targets})
 # This section is reserved for future pipeline/DAG specification
