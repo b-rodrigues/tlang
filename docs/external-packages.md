@@ -6,6 +6,8 @@ To facilitate the consumption of T-Lang build artifacts from within other langua
 
 These packages are **automatically installed and loaded** in every R, Python, and Julia node in a T pipeline. You do not need to install them manually. The `read_node()` function and its dependencies are ready to use immediately.
 
+For project development shells, `t update` also wires the matching companion package into `flake.nix` whenever you declare dependencies in `[r-dependencies]`, `[py-dependencies]`, or `[julia-dependencies]`, so the helper is available from `nix develop` as well.
+
 ## Key Features
 
 - **`read_node(name)`**: Automatically locates the latest build log in the `_pipeline/` directory, finds the requested node, and deserializes its artifact.

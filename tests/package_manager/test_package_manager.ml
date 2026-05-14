@@ -1167,6 +1167,29 @@ min_version = "0.51.0"
     has "valid-pkg" && has "valid_pkg2"
     && not (has "$(evil)") && not (has "bad pkg"));
 
+  test_pm "generate project flake exposes runtime companion packages in dev shell" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"polyglot" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.51.0" ~deps:[]
+      ~r_deps:["dplyr"]
+      ~py_deps:["pandas"]
+      ~py_version:"python314"
+      ~jl_deps:["DataFrames"]
+      ~jl_version:"lts"
+      () in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "tlangShare = \"${t-lang.packages.${system}.default}/share/tlang\";"
+    && has "tlangCompanionVersion = \"0.0.0.9000\";"
+    && has "tlang-r-package = pkgs.rPackages.buildRPackage"
+    && has "src = \"${tlangShare}/r-package\";"
+    && has "] ++ [ tlang-r-package ];"
+    && has "pythonPkgSet = pkgs.python314.pkgs;"
+    && has "tlang-py-package = pythonPkgSet.buildPythonPackage"
+    && has "src = \"${tlangShare}/py-package\";"
+    && has "tlang-py-package"
+    && has "export JULIA_LOAD_PATH=\"${tlangShare}/julia/tlang:''${JULIA_LOAD_PATH:-}\"");
+
   print_newline ();
 
   (* ===================================================== *)

@@ -3,6 +3,8 @@
 
 open Package_types
 
+let companion_package_version = "0.1.0"
+
 (** Convert a git URL like "https://github.com/user/repo" to a flake input
     like "github:user/repo/tag".
     Supports github.com and gitlab.com URLs. *)
@@ -214,7 +216,8 @@ let generate_project_flake
     ) deps;
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
-  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n"; Printf.bprintf buf "            echo \"==================================================\"\n";
+  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
+  Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Project: %s\"\n" project_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Buffer.add_string buf "            echo \"\"\n";
@@ -263,7 +266,7 @@ let generate_project_flake
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "      }\n";
-  Buffer.add_string buf "    );\n";
+    Buffer.add_string buf "    );\n";
   Buffer.add_string buf "}\n";
   Buffer.contents buf
 
@@ -372,9 +375,10 @@ let generate_package_flake
     ) deps;
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
-  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n"; Printf.bprintf buf "            echo \"==================================================\"\n";
+  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
+  Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Package: %s\"\n" package_name;
-  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n"; Printf.bprintf buf "            echo \"==================================================\"\n";
+  Printf.bprintf buf "            echo \"==================================================\"\n";
   Buffer.add_string buf "            echo \"\"\n";
   Buffer.add_string buf "            echo \"Available commands:\"\n";
   Buffer.add_string buf "            echo \"  t repl              - Start T REPL\"\n";
