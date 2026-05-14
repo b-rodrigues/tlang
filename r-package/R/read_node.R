@@ -12,8 +12,9 @@ list_build_logs <- function(pipeline_dir) {
   )
   logs <- sort(logs, decreasing = TRUE)
 
-  # Mirror T's latest-log selection and ignore repository fixture logs whenever
-  # regular build logs are also present.
+  # Keep this fixture list in sync with src/pipeline/builder_logs.ml so the R
+  # helper mirrors T's latest-log selection when repository fixture logs are
+  # present alongside real build logs.
   fixture_logs <- c("build_log_ocaml_mock.json", "build_log_legacy_version.json")
   if (length(logs) > 1L && any(!logs %in% fixture_logs)) {
     logs <- logs[!logs %in% fixture_logs]
@@ -107,8 +108,8 @@ resolve_artifact_path <- function(path, pipeline_dir) {
     stop("Node entry does not contain a valid artifact path.", call. = FALSE)
   }
 
-  # Match Unix absolute paths (`/path/...`) and Windows absolute paths
-  # (`C:/path/...` or `C:\\path\\...`).
+  # Match Unix absolute paths (`/path/...`) and standard Windows drive-letter
+  # absolute paths (`C:/path/...` or `C:\\path\\...`).
   if (grepl("^(/|[A-Za-z]:[/\\\\])", path)) {
     return(path)
   }

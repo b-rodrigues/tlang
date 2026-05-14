@@ -18,7 +18,7 @@ read_node(
   \item{pipeline_dir}{Path to the pipeline build directory. Defaults to
   \code{"_pipeline"}.}
 
-  \item{deserializer}{Function used to deserialize the artifact path. Defaults
+  \item{deserializer}{Function used to deserialize the artifact file. Defaults
   to \code{readRDS}.}
 }
 \value{
