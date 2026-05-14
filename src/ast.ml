@@ -400,7 +400,7 @@ let extract_identifiers text =
 
 let extract_read_node_dependencies text =
   let filtered_text = strip_foreign_code_comments text in
-  let re = Str.regexp {|read_node[[:space:]]*([[:space:]]*['"]\([^'"]+\)['"]|} in
+  let re = Str.regexp {|read_node[ \t\r\n]*([ \t\r\n]*['"]\([^'"]+\)['"]|} in
   let rec find acc pos =
     match (try Some (Str.search_forward re filtered_text pos) with Not_found -> None) with
     | None -> List.rev acc
