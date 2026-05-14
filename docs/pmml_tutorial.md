@@ -1,11 +1,11 @@
 # PMML Tutorial
 
-> A practical guide to moving classical models between R, Python, and T with `^pmml`
+> A practical guide to moving classical models between R, Python, Julia, and T with `^pmml`
 
 PMML is T's interchange format for many classical statistical and tree-based models.
 It is useful when you want to:
 
-- train a model in **R** or **Python**
+- train a model in **R**, **Python**, or **Julia**
 - persist it as a stable artifact
 - load it back into **T**
 - score it natively with `predict(data, model)`
@@ -42,7 +42,8 @@ or consumed.
 |---|---|
 | R writes PMML | `r2pmml`, `XML`, `jsonlite`, `jre` |
 | Python writes PMML | `sklearn2pmml` or `jpmml-statsmodels`, plus `jre` |
-| Python reads PMML | JPMML evaluator via wrapper |
+| Julia writes PMML | `JavaCall.jl`, `JPMML-Evaluator`, plus `jre` |
+| Python/Julia reads PMML | JPMML evaluator via bridge/wrapper |
 | T reads and scores PMML | built-in `t_read_pmml()` + native evaluator |
 
 When PMML is used inside pipelines, these dependencies should be declared explicitly in
@@ -169,7 +170,33 @@ p = pipeline {
 }
 ```
 
-As with R, the boundary is explicit:
+---
+
+## 7. Training in Julia and Consuming in T
+
+Julia nodes can export PMML models using the `JPMML-Evaluator` bridge. This is useful for high-performance training of GLMs or ensembles that need to be scored in T.
+
+```t
+p = pipeline {
+  model_jl = jln(
+    command = <{
+      using GLM, DataFrames
+      data = read_csv("data.csv")
+      # Fit model and convert to PMML via JPMML bridge
+      model = glm(@formula(y ~ x1 + x2), data, Normal(), IdentityLink())
+      model
+    }>,
+    serializer = ^pmml
+  )
+
+  scored = node(
+    command = predict(read_csv("data.csv"), model_jl),
+    deserializer = ^pmml
+  )
+}
+```
+
+As with R and Python, the boundary is explicit:
 
 - Python exports PMML
 - T deserializes the PMML artifact
@@ -180,7 +207,7 @@ rather than silently switching to a different interchange story.
 
 ---
 
-## 7. Loading PMML Directly from Disk
+## 8. Loading PMML Directly from Disk
 
 You can also bypass pipelines and load an existing PMML file manually:
 
@@ -197,7 +224,7 @@ This is useful when:
 
 ---
 
-## 8. Writing PMML from T with `t_write_pmml()`
+## 9. Writing PMML from T with `t_write_pmml()`
 
 T now provides an initial native `t_write_pmml()` path, but it is intentionally narrow.
 
@@ -231,7 +258,7 @@ writer for unsupported cases.
 
 ---
 
-## 9. Recommended Workflow Pattern
+## 10. Recommended Workflow Pattern
 
 For now, the safest PMML workflow is:
 
@@ -248,7 +275,7 @@ In other words:
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 ### `read_node()` returns an error about missing PMML dependencies
 
@@ -271,7 +298,7 @@ The model coefficients are often not the problem; preprocessing fidelity usually
 
 ---
 
-## 11. Next Steps
+## 12. Next Steps
 
 Now that you have a PMML workflow in place, continue with:
 
