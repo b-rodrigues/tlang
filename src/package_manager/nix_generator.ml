@@ -3,6 +3,9 @@
 
 open Package_types
 
+(* Keep this in sync with the metadata in py-package/pyproject.toml and
+   r-package/DESCRIPTION. The companion packages are currently versioned as
+   development helpers rather than alongside the main T release number. *)
 let companion_package_version = "0.0.0.9000"
 
 (** Convert a git URL like "https://github.com/user/repo" to a flake input
@@ -280,6 +283,8 @@ let generate_project_flake
     Buffer.add_string buf "            export T_JPMML_STATSMODELS_JAR=\"${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar\"\n";
   end;
   if jl_deps <> [] then begin
+    (* The doubled single quote escapes `${...}` correctly inside an indented
+       Nix string while preserving fallback expansion for empty load paths. *)
     Buffer.add_string buf "            export JULIA_LOAD_PATH=\"${tlangShare}/julia/tlang:''${JULIA_LOAD_PATH:-}\"\n";
   end;
   Buffer.add_string buf "          '';\n";
