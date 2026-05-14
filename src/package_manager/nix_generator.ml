@@ -136,6 +136,8 @@ let generate_project_flake
   Buffer.add_string buf "    flake-utils.lib.eachDefaultSystem (system:\n";
   Buffer.add_string buf "      let\n";
   Buffer.add_string buf "        pkgs = nixpkgs.legacyPackages.${system};\n";
+  Buffer.add_string buf "        tlangShare = \"${t-lang.packages.${system}.default}/share/tlang\";\n";
+  Buffer.add_string buf "        tlangCompanionVersion = \"0.0.0.9000\";\n";
   if deps <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # T package dependencies (from tproject.toml)\n";
@@ -151,7 +153,8 @@ let generate_project_flake
     Buffer.add_string buf "        # R environment\n";
     Buffer.add_string buf "        tlang-r-package = pkgs.rPackages.buildRPackage {\n";
     Buffer.add_string buf "          name = \"tlang\";\n";
-    Buffer.add_string buf "          src = \"${t-lang.packages.${system}.default}/share/tlang/r-package\";\n";
+    Buffer.add_string buf "          version = tlangCompanionVersion;\n";
+    Buffer.add_string buf "          src = \"${tlangShare}/r-package\";\n";
     Buffer.add_string buf "          propagatedBuildInputs = with pkgs.rPackages; [ jsonlite ];\n";
     Buffer.add_string buf "        };\n";
     Buffer.add_string buf "        r-env = pkgs.rWrapper.override {\n";
@@ -170,8 +173,8 @@ let generate_project_flake
     Buffer.add_string buf "          let\n";
     Buffer.add_string buf "            tlang-py-package = pythonPkgSet.buildPythonPackage {\n";
     Buffer.add_string buf "              pname = \"tlang\";\n";
-    Buffer.add_string buf "              version = \"0.0.0.9000\";\n";
-    Buffer.add_string buf "              src = \"${t-lang.packages.${system}.default}/share/tlang/py-package\";\n";
+    Buffer.add_string buf "              version = tlangCompanionVersion;\n";
+    Buffer.add_string buf "              src = \"${tlangShare}/py-package\";\n";
     Buffer.add_string buf "              pyproject = true;\n";
     Buffer.add_string buf "              nativeBuildInputs = [ pythonPkgSet.setuptools ];\n";
     Buffer.add_string buf "            };\n";
@@ -275,7 +278,7 @@ let generate_project_flake
     Buffer.add_string buf "            export T_JPMML_STATSMODELS_JAR=\"${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar\"\n";
   end;
   if jl_deps <> [] then begin
-    Buffer.add_string buf "            export JULIA_LOAD_PATH=\"${t-lang.packages.${system}.default}/share/tlang/julia/tlang:''${JULIA_LOAD_PATH:-}\"\n";
+    Buffer.add_string buf "            export JULIA_LOAD_PATH=\"${tlangShare}/julia/tlang:''${JULIA_LOAD_PATH:-}\"\n";
   end;
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
