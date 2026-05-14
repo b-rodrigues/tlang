@@ -166,9 +166,7 @@ let generate_project_flake
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # Python environment\n";
     Printf.bprintf buf "        pythonPkgSet = pkgs.%s.pkgs;\n" py_version;
-    Buffer.add_string buf "        py-env = pkgs.";
-    Buffer.add_string buf py_version;
-    Buffer.add_string buf ".withPackages (python-pkgs:\n";
+    Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs:\n" py_version;
     Buffer.add_string buf "          let\n";
     Buffer.add_string buf "            tlang-py-package = pythonPkgSet.buildPythonPackage {\n";
     Buffer.add_string buf "              pname = \"tlang\";\n";
