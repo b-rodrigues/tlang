@@ -137,14 +137,17 @@ resolve_artifact_path <- function(path, pipeline_dir) {
 #'   `"_pipeline"`.
 #' @param deserializer Function used to deserialize the artifact file. Defaults
 #'   to `readRDS()`.
+#' @param return_path Logical. If `TRUE`, returns the path to the artifact
+#'   instead of deserializing it. Defaults to `FALSE`.
 #'
-#' @return The deserialized node artifact.
+#' @return The deserialized node artifact, or the path to it if `return_path` is `TRUE`.
 #' @export
 read_node <- function(
     name,
     which_log = NULL,
     pipeline_dir = "_pipeline",
-    deserializer = readRDS) {
+    deserializer = readRDS,
+    return_path = FALSE) {
   validate_scalar_string(name, "name")
   validate_scalar_string(pipeline_dir, "pipeline_dir")
 
@@ -165,6 +168,10 @@ read_node <- function(
   build_log <- read_build_log(log_path)
   node_entry <- find_node_entry(build_log$nodes, name, log_file)
   artifact_path <- resolve_artifact_path(node_entry$path, pipeline_dir)
+
+  if (isTRUE(return_path)) {
+    return(artifact_path)
+  }
 
   tryCatch(
     deserializer(artifact_path),
