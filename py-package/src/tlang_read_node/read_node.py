@@ -22,13 +22,22 @@ def _pipeline_path(pipeline_dir: str | Path) -> Path:
     return path
 
 
+def _should_filter_fixture_logs(pipeline_dir: Path) -> bool:
+    repo_root = pipeline_dir.parent
+    return (repo_root / "src" / "pipeline" / "builder_logs.ml").is_file()
+
+
 def _list_build_logs(pipeline_dir: Path) -> list[str]:
     logs = sorted(
         [path.name for path in pipeline_dir.glob("build_log_*.json")],
         reverse=True,
     )
 
-    if len(logs) > 1 and any(log not in FIXTURE_LOGS for log in logs):
+    if (
+        _should_filter_fixture_logs(pipeline_dir)
+        and len(logs) > 1
+        and any(log not in FIXTURE_LOGS for log in logs)
+    ):
         logs = [log for log in logs if log not in FIXTURE_LOGS]
 
     return logs
@@ -97,36 +106,37 @@ def _resolve_artifact_path(path_value: Any, pipeline_dir: Path) -> Path:
 
 def deserialize(path: str | Path) -> Any:
     artifact_path = Path(path)
-    loaders: list[Callable[[Any], Any]] = [pickle.load]
+    loaders: list[tuple[str, Callable[[Any], Any]]] = [("pickle", pickle.load)]
 
     try:
         import dill  # type: ignore
     except ImportError:
         pass
     else:
-        loaders.append(dill.load)
+        loaders.append(("dill", dill.load))
 
     try:
         import cloudpickle  # type: ignore
     except ImportError:
         pass
     else:
-        loaders.append(cloudpickle.load)
+        loaders.append(("cloudpickle", cloudpickle.load))
 
-    last_error: Exception | None = None
-    for loader in loaders:
+    errors: list[str] = []
+    for loader_name, loader in loaders:
         try:
             with artifact_path.open("rb") as handle:
                 return loader(handle)
         except Exception as err:  # noqa: BLE001
-            last_error = err
+            errors.append(f"{loader_name}: {type(err).__name__}: {err}")
 
-    if last_error is None:
+    if not errors:
         raise RuntimeError(f"Failed to deserialize `{artifact_path}`.")
 
     raise RuntimeError(
-        f"Failed to deserialize `{artifact_path}`: {last_error}"
-    ) from last_error
+        f"Failed to deserialize `{artifact_path}`. Attempted loaders: "
+        + "; ".join(errors)
+    )
 
 
 def read_node(

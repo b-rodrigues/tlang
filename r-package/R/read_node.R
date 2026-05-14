@@ -12,11 +12,12 @@ list_build_logs <- function(pipeline_dir) {
   )
   logs <- sort(logs, decreasing = TRUE)
 
-  # Keep this fixture list in sync with src/pipeline/builder_logs.ml so the R
-  # helper mirrors T's latest-log selection when repository fixture logs are
-  # present alongside real build logs.
+  repo_builder_logs <- file.path(dirname(pipeline_dir), "src", "pipeline", "builder_logs.ml")
+
+  # Mirror T's fixture-log filtering only when reading from a repository
+  # checkout, where these internal fixture logs can live beside real build logs.
   fixture_logs <- c("build_log_ocaml_mock.json", "build_log_legacy_version.json")
-  if (length(logs) > 1L && any(!logs %in% fixture_logs)) {
+  if (file.exists(repo_builder_logs) && length(logs) > 1L && any(!logs %in% fixture_logs)) {
     logs <- logs[!logs %in% fixture_logs]
   }
 

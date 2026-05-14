@@ -28,7 +28,7 @@ Pass a custom deserializer when a node uses another artifact format:
 import pyarrow.ipc as ipc
 from tlang_read_node import read_node
 
-table = read_node("features", deserializer=ipc.open_file)
+table = read_node("features", deserializer=lambda path: ipc.open_file(path).read_all())
 ```
 
 You can also target a specific historical build log:
