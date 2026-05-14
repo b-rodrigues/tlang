@@ -135,7 +135,7 @@ resolve_artifact_path <- function(path, pipeline_dir) {
 #' @param pipeline_dir Path to the pipeline build directory. Defaults to
 #'   `"_pipeline"`.
 #' @param deserializer Function used to deserialize the artifact file. Defaults
-#'   to [base::readRDS()].
+#'   to `readRDS()`.
 #'
 #' @return The deserialized node artifact.
 #' @export
