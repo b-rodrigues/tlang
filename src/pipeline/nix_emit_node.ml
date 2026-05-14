@@ -2133,6 +2133,9 @@ end
       ""
     else
       let auto_bound_deps =
+        (* Skip synthetic auto-binding for deps that are only accessed through
+           runtime-level read_node("...") helper calls; keep auto-binding when
+           the same dep is also referenced as a bare identifier in the script. *)
         deps
         |> List.filter (fun dep ->
             not (List.mem dep helper_read_node_deps)

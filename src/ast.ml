@@ -405,9 +405,13 @@ let extract_read_node_dependencies text =
     match (try Some (Str.search_forward re filtered_text pos) with Not_found -> None) with
     | None -> List.rev acc
     | Some _ ->
-        let node_name = Str.matched_group 1 filtered_text in
         let next_pos = Str.match_end () in
-        find (node_name :: acc) next_pos
+        let acc =
+          match (try Some (Str.matched_group 1 filtered_text) with Not_found -> None) with
+          | Some node_name -> node_name :: acc
+          | None -> acc
+        in
+        find acc next_pos
   in
   let inferred = find [] 0 in
   let all_set =
