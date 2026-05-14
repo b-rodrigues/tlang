@@ -2563,7 +2563,9 @@ EOF
   let runtime_base_packages =
     match runtime with
     (* Logging is required for TCaptureLogger so emitted Julia nodes can capture and persist warnings. *)
-    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging, Serialization"
+    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging, Serialization, tlang"
+    | "R" -> "library(tlang)"
+    | "Python" -> "import tlang"
     | _ -> ""
   in
 
@@ -2645,6 +2647,7 @@ EOF
     T_JPMML_EVALUATOR_JAR = if (pkgs ? jpmml-evaluator) then "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar" else "";
     JULIA_COPY_STACKS = "1";
     MPLCONFIGDIR = ".";
+    JULIA_LOAD_PATH = "${tlangJl}:\$JULIA_LOAD_PATH";
     HOME = ".";
     LD_LIBRARY_PATH = "${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib";
 %s
