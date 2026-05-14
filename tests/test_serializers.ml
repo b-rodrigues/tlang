@@ -56,6 +56,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   let has_no_implicit_serializer_pkgs s =
     omits_all s
       [
+        "pkgs.rPackages.jsonlite";
         "pkgs.rPackages.arrow";
         "pkgs.rPackages.r2pmml";
         "pkgs.rPackages.XML";

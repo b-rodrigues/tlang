@@ -98,7 +98,7 @@ let add_feature_requirement ~node_name ~runtime ~feature =
   let req = with_reason empty_requirements reason in
   match runtime, feature with
   | "R", "json" ->
-      empty_requirements
+      { req with r_deps = add_list req.r_deps [ "jsonlite" ] }
   | "Python", "json" ->
       empty_requirements
   | "R", "csv" ->
@@ -130,7 +130,7 @@ let add_feature_requirement ~node_name ~runtime ~feature =
   | "Julia", "onnx" ->
       { req with julia_deps = add_list req.julia_deps [ "ONNXRunTime"; "ONNX" ] }
   | "Julia", "json" ->
-      empty_requirements
+      { req with julia_deps = add_list req.julia_deps [ "JSON" ] }
   | "Julia", "csv" ->
       { req with julia_deps = add_list req.julia_deps [ "CSV"; "DataFrames" ] }
   | "Julia", "arrow" ->
@@ -166,7 +166,7 @@ let scan_code_requirements ~node_name ~runtime raw_text =
       in
       if has_pkg "ggplot2" then
         { req with r_deps = add_list req.r_deps [ "ggplot2" ] }
-      else empty_requirements
+      else req
   | "Python" ->
       let has_pkg pkg =
         let re1 = Str.regexp (Printf.sprintf "import %s" pkg) in
@@ -224,7 +224,7 @@ let scan_code_requirements ~node_name ~runtime raw_text =
        let req = if has_pkg "CairoMakie" then { req with julia_deps = add_list req.julia_deps [ "CairoMakie" ] } else req in
        let req = if has_pkg "ONNXRunTime" then { req with julia_deps = add_list req.julia_deps [ "ONNXRunTime" ] } else req in
        let req = if has_pkg "ONNX" then { req with julia_deps = add_list req.julia_deps [ "ONNX" ] } else req in
-       if String_set.is_empty req.julia_deps then empty_requirements else req
+       req
   | _ -> empty_requirements
 
 let required_for_pipeline (p : Ast.pipeline_result) =
@@ -263,6 +263,10 @@ let required_for_pipeline (p : Ast.pipeline_result) =
       let acc =
         if runtime = "Quarto" then
           merge_requirements acc (add_quarto_requirement ~node_name)
+        else if runtime = "R" then
+          merge_requirements acc { empty_requirements with r_deps = add_list String_set.empty [ "jsonlite" ] }
+        else if runtime = "Julia" then
+          merge_requirements acc { empty_requirements with julia_deps = add_list String_set.empty [ "JSON" ] }
         else acc
       in
       acc)
