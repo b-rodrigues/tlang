@@ -1179,16 +1179,9 @@ min_version = "0.51.0"
       () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
-    has "tlangShare = \"${t-lang.packages.${system}.default}/share/tlang\";"
-    && has "tlangCompanionVersion = \"0.0.0.9000\";"
-    && has "tlang-r-package = pkgs.rPackages.buildRPackage"
-    && has "src = \"${tlangShare}/r-package\";"
-    && has "] ++ [ tlang-r-package ];"
-    && has "pythonPkgSet = pkgs.python314.pkgs;"
-    && has "tlang-py-package = pythonPkgSet.buildPythonPackage"
-    && has "src = \"${tlangShare}/py-package\";"
-    && has "tlang-py-package"
-    && has "export JULIA_LOAD_PATH=\"${tlangShare}/julia/tlang:''${JULIA_LOAD_PATH:-}\"");
+    has "t-lang.packages.${system}.tlang-r"
+    && has "t-lang.packages.${system}.tlang-python"
+    && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"");
 
   print_newline ();
 
