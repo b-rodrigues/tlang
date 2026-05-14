@@ -4,7 +4,7 @@ import json
 import pickle
 import re
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, BinaryIO, Callable
 
 
 FIXTURE_LOGS = {"build_log_ocaml_mock.json", "build_log_legacy_version.json"}
@@ -106,7 +106,7 @@ def _resolve_artifact_path(path_value: Any, pipeline_dir: Path) -> Path:
 
 def deserialize(path: str | Path) -> Any:
     artifact_path = Path(path)
-    loaders: list[tuple[str, Callable[[Any], Any]]] = [("pickle", pickle.load)]
+    loaders: list[tuple[str, Callable[[BinaryIO], Any]]] = [("pickle", pickle.load)]
 
     try:
         import dill  # type: ignore
@@ -129,9 +129,6 @@ def deserialize(path: str | Path) -> Any:
                 return loader(handle)
         except Exception as err:  # noqa: BLE001
             errors.append(f"{loader_name}: {type(err).__name__}: {err}")
-
-    if not errors:
-        raise RuntimeError(f"Failed to deserialize `{artifact_path}`.")
 
     raise RuntimeError(
         f"Failed to deserialize `{artifact_path}`. Attempted loaders: "
