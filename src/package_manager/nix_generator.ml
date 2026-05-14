@@ -3,6 +3,8 @@
 
 open Package_types
 
+let companion_package_version = "0.0.0.9000"
+
 (** Convert a git URL like "https://github.com/user/repo" to a flake input
     like "github:user/repo/tag".
     Supports github.com and gitlab.com URLs. *)
@@ -137,7 +139,7 @@ let generate_project_flake
   Buffer.add_string buf "      let\n";
   Buffer.add_string buf "        pkgs = nixpkgs.legacyPackages.${system};\n";
   Buffer.add_string buf "        tlangShare = \"${t-lang.packages.${system}.default}/share/tlang\";\n";
-  Buffer.add_string buf "        tlangCompanionVersion = \"0.0.0.9000\";\n";
+  Printf.bprintf buf "        tlangCompanionVersion = \"%s\";\n" companion_package_version;
   if deps <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # T package dependencies (from tproject.toml)\n";
