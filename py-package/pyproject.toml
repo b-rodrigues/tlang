@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tlang-read-node"
+name = "tlang"
 version = "0.0.0.9000"
 description = "Read materialized nodes from built T pipelines"
 readme = "README.md"
