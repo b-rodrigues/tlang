@@ -27,7 +27,9 @@ The deserialized node artifact.
 \description{
 Reads the latest build log, or a matching historical one, from the
 \code{_pipeline/} directory, locates the requested node, and deserializes its
-artifact.
+artifact. When \code{which_log} is \code{NULL}, the helper picks the first
+reverse-alphabetically sorted \code{build_log_*.json} file, which corresponds
+to the most recent timestamped build log.
 }
 \examples{
 \dontrun{

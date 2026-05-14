@@ -107,6 +107,8 @@ resolve_artifact_path <- function(path, pipeline_dir) {
     stop("Node entry does not contain a valid artifact path.", call. = FALSE)
   }
 
+  # Match Unix absolute paths (`/path/...`) and Windows absolute paths
+  # (`C:/path/...` or `C:\\path\\...`).
   if (grepl("^(/|[A-Za-z]:[/\\\\])", path)) {
     return(path)
   }
@@ -122,7 +124,9 @@ resolve_artifact_path <- function(path, pipeline_dir) {
 #'
 #' Reads the latest build log (or a matching historical one) from the
 #' `_pipeline/` directory, locates the requested node, and deserializes the
-#' node artifact.
+#' node artifact. When `which_log` is `NULL`, the helper picks the first
+#' reverse-alphabetically sorted `build_log_*.json` file, which matches T's
+#' timestamped log naming and therefore resolves to the most recent build.
 #'
 #' @param name Name of the node to read.
 #' @param which_log Optional regular expression used to select a specific build
