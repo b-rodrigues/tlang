@@ -252,11 +252,8 @@ min_version = "0.51.0"
     | Ast.VPipeline p ->
         let cfg = Package_types.default_project_config "onnx-julia-proj" in
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
-        analysis.missing_julia_deps = ["JSON"; "ONNX"; "ONNXRunTime"]
-        && analysis.reasons = [
-          "node `model` usage discovery";
-          "node `model` uses `onnx` with runtime `Julia`"
-        ]
+        analysis.missing_julia_deps = ["ONNX"; "ONNXRunTime"]
+        && analysis.reasons = ["node `model` uses `onnx` with runtime `Julia`"]
     | _ -> false);
 
   test_pm "analyze missing Julia ONNX writer dependencies" (fun () ->
@@ -270,13 +267,13 @@ min_version = "0.51.0"
     | Ast.VPipeline p ->
         let cfg = Package_types.default_project_config "onnx-julia-writer-proj" in
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
-        analysis.missing_julia_deps = ["JSON"; "ONNX"; "ONNXRunTime"]
+        analysis.missing_julia_deps = ["ONNX"; "ONNXRunTime"]
         && List.mem "node `model` uses `onnx` with runtime `Julia`" analysis.reasons
     | _ -> false);
 
   test_pm "analyze built-in serializer dependencies explicitly" (fun () ->
     let expected_r =
-      [ "arrow"; "jsonlite"; "knitr"; "rmarkdown" ]
+      [ "arrow"; "knitr"; "rmarkdown" ]
     in
     let expected_py =
       [ "ipykernel"; "nbclient"; "nbformat"; "numpy"; "pandas"; "pyarrow"; "pyyaml"; "scikit-learn"; "scipy"; "sklearn2pmml"; "statsmodels" ]
@@ -314,8 +311,8 @@ min_version = "0.51.0"
     | Ast.VPipeline p ->
         let cfg = Package_types.default_project_config "plot-discovery-r" in
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
-        analysis.missing_r_deps = ["jsonlite"]
-        && analysis.reasons = ["node `a` usage discovery"]
+        analysis.missing_r_deps = []
+        && analysis.reasons = []
     | _ -> false);
 
   test_pm "matplotlib discovery does not force pandas" (fun () ->
@@ -371,7 +368,7 @@ min_version = "0.51.0"
     | Ast.VPipeline p ->
         let cfg = Package_types.default_project_config "plot-discovery-jl" in
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
-        analysis.missing_julia_deps = ["CairoMakie"; "JSON"; "Makie"; "Plots"; "TidierPlots"]
+        analysis.missing_julia_deps = ["CairoMakie"; "Makie"; "Plots"; "TidierPlots"]
         && analysis.reasons = ["node `a` usage discovery"]
     | _ -> false);
 
