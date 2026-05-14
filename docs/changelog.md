@@ -25,6 +25,10 @@ The focus of this release is the introduction of first-class Julia support, enab
     - Simplified data interchange between T, R, Python, and Julia.
     - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
     - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
+- **World Age Resilience**:
+    - Implemented a robust fix for Julia's "World Age" issues (e.g., `MethodError: method is too new`).
+    - The Julia node emitter now wraps script execution in a high-level thunk and executes it via `Base.invokelatest`.
+    - This ensures that code generated at runtime (common in libraries like `Flux.jl` or `Zygote.jl`) remains accessible within the same execution cycle, even in restricted environments like the Nix build sandbox.
 - **Julia JSON Interchange**: Added support for the `JSON` package in Julia nodes, enabling seamless JSON-based data exchange for Julia-based pipeline steps.
 - **Julia Plotting Enhancements**: 
     - `show_plot()` now supports Julia plots via `TidierPlots.jl`, `Plots.jl`, and `Makie.jl`.
