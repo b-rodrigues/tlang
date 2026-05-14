@@ -1,0 +1,14 @@
+Package: tlang
+Title: Read Materialized Nodes from Built T Pipelines
+Version: 0.0.0.9000
+Authors@R:
+    person("T", "Contributors", email = "noreply@example.com", role = c("aut", "cre"))
+Description: Read node artifacts from built T pipelines by consulting the
+    timestamped build logs stored in the '_pipeline/' directory.
+License: EUPL-1.2
+Encoding: UTF-8
+Imports:
+    jsonlite
+Depends:
+    R (>= 4.1.0)
+NeedsCompilation: no
