@@ -12,9 +12,11 @@ list_build_logs <- function(pipeline_dir) {
   )
   logs <- sort(logs, decreasing = TRUE)
 
-  mocked_logs <- c("build_log_ocaml_mock.json", "build_log_legacy_version.json")
-  if (length(logs) > 1L && any(!logs %in% mocked_logs)) {
-    logs <- logs[!logs %in% mocked_logs]
+  # Mirror T's latest-log selection and ignore repository fixture logs whenever
+  # regular build logs are also present.
+  fixture_logs <- c("build_log_ocaml_mock.json", "build_log_legacy_version.json")
+  if (length(logs) > 1L && any(!logs %in% fixture_logs)) {
+    logs <- logs[!logs %in% fixture_logs]
   }
 
   logs
@@ -119,7 +121,7 @@ resolve_artifact_path <- function(path, pipeline_dir) {
 #' Read a node artifact from a built T pipeline
 #'
 #' Reads the latest build log (or a matching historical one) from the
-#' `'_pipeline/'` directory, locates the requested node, and deserializes the
+#' `_pipeline/` directory, locates the requested node, and deserializes the
 #' node artifact.
 #'
 #' @param name Name of the node to read.
