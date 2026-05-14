@@ -149,21 +149,39 @@ let generate_project_flake
   if r_deps <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # R environment\n";
+    Buffer.add_string buf "        tlang-r-package = pkgs.rPackages.buildRPackage {\n";
+    Buffer.add_string buf "          name = \"tlang\";\n";
+    Buffer.add_string buf "          src = \"${t-lang.packages.${system}.default}/share/tlang/r-package\";\n";
+    Buffer.add_string buf "          propagatedBuildInputs = with pkgs.rPackages; [ jsonlite ];\n";
+    Buffer.add_string buf "        };\n";
     Buffer.add_string buf "        r-env = pkgs.rWrapper.override {\n";
     Buffer.add_string buf "          packages = with pkgs.rPackages; [\n";
     List.iter (fun dep ->
       Printf.bprintf buf "            %s\n" dep
     ) r_deps;
-    Buffer.add_string buf "          ];\n";
+    Buffer.add_string buf "          ] ++ [ tlang-r-package ];\n";
     Buffer.add_string buf "        };\n"
   end;
   if py_deps <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # Python environment\n";
-    Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
+    Printf.bprintf buf "        pythonPkgSet = pkgs.%s.pkgs;\n" py_version;
+    Buffer.add_string buf "        py-env = pkgs.";
+    Buffer.add_string buf py_version;
+    Buffer.add_string buf ".withPackages (python-pkgs:\n";
+    Buffer.add_string buf "          let\n";
+    Buffer.add_string buf "            tlang-py-package = pythonPkgSet.buildPythonPackage {\n";
+    Buffer.add_string buf "              pname = \"tlang\";\n";
+    Buffer.add_string buf "              version = \"0.0.0.9000\";\n";
+    Buffer.add_string buf "              src = \"${t-lang.packages.${system}.default}/share/tlang/py-package\";\n";
+    Buffer.add_string buf "              pyproject = true;\n";
+    Buffer.add_string buf "              nativeBuildInputs = [ pythonPkgSet.setuptools ];\n";
+    Buffer.add_string buf "            };\n";
+    Buffer.add_string buf "          in with python-pkgs; [\n";
     List.iter (fun dep ->
       Printf.bprintf buf "          %s\n" dep
     ) py_deps;
+    Buffer.add_string buf "          tlang-py-package\n";
     Buffer.add_string buf "        ]);\n";
   end;
   if jl_deps <> [] then begin
@@ -257,6 +275,9 @@ let generate_project_flake
   end;
   if List.mem "jpmml-statsmodels" additional_tools then begin
     Buffer.add_string buf "            export T_JPMML_STATSMODELS_JAR=\"${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar\"\n";
+  end;
+  if jl_deps <> [] then begin
+    Buffer.add_string buf "            export JULIA_LOAD_PATH=\"${t-lang.packages.${system}.default}/share/tlang/julia/tlang:''${JULIA_LOAD_PATH:-}\"\n";
   end;
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
