@@ -45,7 +45,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
                           else if has_julia then "\n                      ++ [ juliaPkg ]"
                           else "" in
 
-  let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\"" in
+  let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\"" in
 
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
@@ -84,7 +84,7 @@ let
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
   pyVersion = pyDeps.version or "python3";
   pyPackagesList = pyDeps.packages or [];
-  py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList) ++ [ tlangPkgSet.tlang-python ]);
+  py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList));
 
   juliaDeps = toml.julia-dependencies or {};
   juliaVersion = juliaDeps.version or "lts";
@@ -109,7 +109,7 @@ rec {
 %s
   pipeline_output = stdenv.mkDerivation {
     name = "pipeline_output";
-    buildInputs = [ tBin %s ] ++ globalBuildInputs;
+    buildInputs = [ tBin %s tlangPkgSet.tlang-julia-path ] ++ globalBuildInputs;
     buildCommand = ''
       mkdir -p $out
 %s
