@@ -33,6 +33,7 @@ EOF
 }
 
 MONTHS="2023-01,2023-02,2023-03"
+SEED_DIR="$SCRIPT_DIR/seeds"
 RAW_DIR="$SCRIPT_DIR/data/raw"
 PARQUET_DIR="$SCRIPT_DIR/data/nyc_taxi_parquet"
 MATERIALIZED_CSV="$SCRIPT_DIR/data/nyc_taxi_materialized.csv"
@@ -174,13 +175,27 @@ PY
 
 for month in "${MONTH_LIST[@]}"; do
   [[ -n "$month" ]] || continue
-  url="$(resolve_tlc_dataset_url "$month")"
-  raw_input="$RAW_DIR/$(basename "$url")"
 
-  echo "=== Processing ${month} ==="
-  echo "Downloading ${url}"
+  seed_file="$SEED_DIR/yellow_tripdata_${month}.csv.xz"
 
-  python - "$url" "$raw_input" <<'PY'
+  if [[ -f "$seed_file" ]]; then
+    echo "=== Processing ${month} (using local seed) ==="
+    raw_input="$RAW_DIR/yellow_tripdata_${month}.csv"
+    mkdir -p "$(dirname "$raw_input")"
+    if [[ ! -f "$raw_input" ]]; then
+      echo "Decompressing ${seed_file} -> ${raw_input}"
+      xz -dc "$seed_file" > "$raw_input"
+    else
+      echo "Reusing existing decompressed seed: ${raw_input}"
+    fi
+  else
+    url="$(resolve_tlc_dataset_url "$month")"
+    raw_input="$RAW_DIR/$(basename "$url")"
+
+    echo "=== Processing ${month} ==="
+    echo "Downloading ${url}"
+
+    python - "$url" "$raw_input" <<'PY'
 import pathlib
 import sys
 import urllib.request
@@ -192,6 +207,7 @@ if not output.exists():
 else:
     print(f"Reusing existing download: {output}")
 PY
+  fi
 
   echo "Converting ${raw_input} -> ${PARQUET_DIR}"
   if [[ "$WRITE_MATERIALIZED" -eq 1 ]]; then
