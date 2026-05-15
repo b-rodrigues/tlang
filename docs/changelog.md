@@ -38,6 +38,9 @@ The focus of this release is the introduction of first-class Julia support, enab
 ### External Helper Packages (R, Python, Julia)
 - **New `read_node` Helpers**: Introduced lightweight packages for R, Python, and Julia (all named `tlang`) to simplify consumption of T-Lang build artifacts from external runtimes.
 - **Programmatic DAG Inspection**: Added `pipeline_nodes()` to all companion packages. It returns the pipeline DAG as an idiomatic data structure (e.g., `data.frame` in R, `dict` in Python/Julia), enabling easy programmatic traversal of node relationships.
+- **Refactored Pipeline Diagnostic Output**:
+    - Removed the redundant `path:` field from the default `ComputedNode` REPL printer.
+    - Eliminated confusing `path: <unbuilt>` status messages in the REPL; users should now use `read_node(..., return_path=true)` or `inspect_pipeline()` for explicit artifact path resolution.
 - **Support for `return_path`**: Added `return_path` argument to `read_node()` in all languages. When set to true, the helper returns the absolute path to the artifact in the Nix store/project directory instead of deserializing it, allowing for custom loading logic or direct file inspection.
 - **Automated Log Resolution**: These helpers now automatically resolve the most recent `build_log_*.json` in the `_pipeline/` directory, providing a stable way to access node results during development and reporting (e.g., in Quarto).
 ### Strict Serialization & Pipeline Stability
