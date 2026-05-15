@@ -1182,7 +1182,7 @@ min_version = "0.51.0"
     has "r-env = pkgs.rWrapper.override {"
     && has "t-lang.packages.${system}.tlang-r"
     && has "py-env = pkgs.python314.withPackages"
-    && has "t-lang.packages.${system}.tlang-python"
+    && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
     && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"");
 
   print_newline ();
