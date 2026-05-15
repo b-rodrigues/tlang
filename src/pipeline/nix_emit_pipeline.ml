@@ -45,6 +45,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
                           else if has_julia then "\n                      ++ [ juliaPkg ]"
                           else "" in
 
+  let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\"" in
 
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
@@ -74,7 +75,11 @@ let
   toml = if builtins.pathExists %s/tproject.toml then builtins.fromTOML (builtins.readFile %s/tproject.toml) else {};
   
   rPackagesList = (toml.r-dependencies or {}).packages or [];
-  tlangR = (flake.inputs.t-lang or flake).packages.${system}.tlang-r;
+  tlangR = pkgs.rPackages.buildRPackage {
+    name = "tlang";
+    src = "${tBin}/share/tlang/r-package";
+    propagatedBuildInputs = [ pkgs.rPackages.jsonlite ];
+  };
   r-env = pkgs.rWrapper.override {
     packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ [ tlangR ];
   };
@@ -82,17 +87,24 @@ let
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
   pyVersion = pyDeps.version or "python3";
   pyPackagesList = pyDeps.packages or [];
-  tlangPy = (flake.inputs.t-lang or flake).packages.${system}.tlang-python;
-  py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList) ++ [ tlangPy ]);
+  tlangPy = ps: ps.buildPythonPackage {
+    pname = "tlang";
+    version = "0.0.0.9000";
+    src = "${tBin}/share/tlang/py-package";
+    format = "pyproject";
+    nativeBuildInputs = [ ps.setuptools ];
+    doCheck = false;
+  };
+  py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList) ++ [ (tlangPy ps) ]);
 
   juliaDeps = toml.julia-dependencies or {};
   juliaVersion = juliaDeps.version or "lts";
   juliaPackageName = if juliaVersion == "lts" then "julia-lts" else "julia_" + (builtins.replaceStrings ["."] ["_"] juliaVersion);
   juliaBase = pkgs.${juliaPackageName};
-  juliaPackagesList = juliaDeps.packages or [];
-  juliaPkg = if juliaPackagesList == [] then juliaBase else juliaBase.withPackages (builtins.map (p: pkgs.juliaPackages.${p}) juliaPackagesList);
+  juliaPackagesList = (juliaDeps.packages or []) ++ [ %s ];
+  juliaPkg = if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
 
-  tlangJl = (flake.inputs.t-lang or flake).packages.${system}.tlang-julia-path;
+  tlangJl = "${tBin}/share/tlang/julia";
 
   # Additional Tools & LaTeX
   additionalTools = (toml.additional-tools or {}).packages or [];
@@ -115,4 +127,4 @@ rec {
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root julia_build_input nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root julia_packages_injection julia_build_input nodes (String.concat " " node_names) final_copy
