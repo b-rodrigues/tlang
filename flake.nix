@@ -457,8 +457,8 @@ chmod +x $out/bin/bisect-ppx-report
             export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
 
             # Make local companion language packages importable in nix develop
-            export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src${PYTHONPATH:+:$PYTHONPATH}"
-            export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:${JULIA_LOAD_PATH:-@}"
+            export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src''${PYTHONPATH:+:$PYTHONPATH}"
+            export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@}"
 
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"
