@@ -35,3 +35,13 @@ You can also target a specific historical build log:
 ```r
 older_model <- read_node("model", which_log = "20260221")
 ```
+
+
+## Inspect pipeline DAG
+
+Get the nodes and their dependencies as a data frame:
+
+```r
+nodes <- pipeline_nodes()
+print(nodes)
+```

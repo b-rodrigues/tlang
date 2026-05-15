@@ -34,6 +34,11 @@ The focus of this release is the introduction of first-class Julia support, enab
     - `show_plot()` now supports Julia plots via `TidierPlots.jl`, `Plots.jl`, and `Makie.jl`.
     - **CairoMakie Requirement**: For `Makie.jl` objects, `CairoMakie` is the mandatory backend for reproducible headless rendering within the Nix sandbox. Ensuring `CairoMakie` is in `[julia-dependencies].packages` is required for successful visual inspection of Makie nodes.
 
+
+### External Helper Packages (R, Python, Julia)
+- **New `read_node` Helpers**: Introduced lightweight packages for R, Python, and Julia (all named `tlang`) to simplify consumption of T-Lang build artifacts from external runtimes.
+- **Support for `return_path`**: Added `return_path` argument to `read_node()` in all languages. When set to true, the helper returns the absolute path to the artifact in the Nix store/project directory instead of deserializing it, allowing for custom loading logic or direct file inspection.
+- **Automated Log Resolution**: These helpers now automatically resolve the most recent `build_log_*.json` in the `_pipeline/` directory, providing a stable way to access node results during development and reporting (e.g., in Quarto).
 ### Strict Serialization & Pipeline Stability
 - **Symbol-Mandated Serialization**: 
     - Mandated the use of `^` symbols for node serializers and deserializers (e.g., `serializer = ^arrow`). 

@@ -141,6 +141,7 @@ def read_node(
     which_log: str | None = None,
     pipeline_dir: str | Path = "_pipeline",
     deserializer: Callable[[str | Path], Any] = deserialize,
+    return_path: bool = False,
 ) -> Any:
     """Read a node artifact from a built T pipeline.
 
@@ -163,6 +164,9 @@ def read_node(
     build_log = _read_build_log(pipeline_path / log_file)
     node_entry = _find_node_entry(build_log.get("nodes"), name, log_file)
     artifact_path = _resolve_artifact_path(node_entry.get("path"), pipeline_path)
+
+    if return_path:
+        return str(artifact_path)
 
     try:
         return deserializer(artifact_path)

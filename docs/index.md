@@ -97,6 +97,8 @@ You can use `explain()` to look inside a built node:
 
 The `path` field is the "escape hatch"—it gives you the absolute path to the node's output in the Nix store. You can use this to start an external interpreter and inspect the file directly, or pass it to a custom loader like `read_parquet(model_node.path)`.
 
+For a more streamlined experience, you can use our **[External Helper Packages](external-packages.html)** for R, Python, and Julia, which automate log resolution and deserialization from within those environments.
+
 ---
 
 ## Documentation: The Theoretical Foundation
@@ -125,6 +127,7 @@ The `path` field is the "escape hatch"—it gives you the absolute path to the n
 - [Error Handling Guide](error-handling.html) — error patterns and recovery strategies
 - [Comprehensive Examples](examples.html) — real-world analysis patterns
 - [T Pipeline Demos](demos.html) — interactive reports for T demo projects
+- [External Helper Packages](external-packages.html) — reading T artifacts from R, Python, and Julia
 
 ### Advanced Topics
 - [Reproducibility Guide](reproducibility.html) — Nix integration and reproducible workflows

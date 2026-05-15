@@ -90,6 +90,7 @@
           "ONNXRunTime"
           "ONNX"
           "StatsModels"
+          "JSON"
         ];
 
         # Pin a specific version of OCaml for reproducibility.
@@ -172,6 +173,10 @@
               cp _build/default/src/version.ml $out/share/tlang/src/
               mkdir -p $out/share/tlang/quarto
               cp -r editors/quarto/tlang/_extensions/tlang $out/share/tlang/quarto/
+               cp -r r-package $out/share/tlang/
+               cp -r py-package $out/share/tlang/
+               mkdir -p $out/share/tlang/julia
+               cp -r jl-package $out/share/tlang/julia/tlang
               makeWrapper $out/bin/.t-unwrapped $out/bin/t \
                 --prefix PATH : "${runtimePath}" \
                 --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
@@ -244,11 +249,44 @@ chmod +x $out/bin/bisect-ppx-report
 
         # Bisect-instrumented build for coverage collection
         t-lang-coverage = mkTLang { withCoverage = true; };
+
+        # Companion R package
+        tlang-r = pkgs.rPackages.buildRPackage {
+          name = "tlang";
+          src = ./r-package;
+          propagatedBuildInputs = with pkgs.rPackages; [ jsonlite ];
+        };
+
+        # Companion Python package
+        tlang-python = pkgs.python314.pkgs.buildPythonPackage {
+          pname = "tlang";
+          version = "0.1.0";
+          src = ./py-package;
+          format = "pyproject";
+          nativeBuildInputs = [ pkgs.python314.pkgs.setuptools ];
+          propagatedBuildInputs = [ pkgs.python314.pkgs.pandas ];
+        };
+        # Companion Julia path
+        tlang-julia-path = pkgs.stdenv.mkDerivation {
+          name = "tlang-julia-path";
+          src = ./jl-package;
+          installPhase = ''
+            mkdir -p $out/tlang
+            cp -r . $out/tlang/
+          '';
+        };
       in
       {
         # The default package - allows `nix build` and `nix run`
-        packages.default = t-lang;
-        packages.t-coverage = t-lang-coverage;
+        packages = {
+          default = t-lang;
+          t-lang = t-lang;
+          t-lang-coverage = t-lang-coverage;
+          t-coverage = t-lang-coverage;
+          tlang-r = tlang-r;
+          tlang-python = tlang-python;
+          tlang-julia-path = tlang-julia-path;
+        };
         legacyPackages = pkgs;
 
         # Make it runnable with `nix run`
@@ -359,6 +397,7 @@ chmod +x $out/bin/bisect-ppx-report
             # 5. R and Python environments for testing
             R-with-packages
             python-with-packages
+            tlang-python
             pkgs.actionlint
             pkgs.shellcheck
             pkgs.jpmml-statsmodels
@@ -371,6 +410,7 @@ chmod +x $out/bin/bisect-ppx-report
             pkgs.coreutils
             pkgs.findutils
             julia-with-packages
+            tlang-julia-path
 
             # 6. Local Project Binaries (Wrappers for development)
             (pkgs.writeShellScriptBin "t" ''
@@ -415,6 +455,10 @@ chmod +x $out/bin/bisect-ppx-report
 
             export T_JPMML_EVALUATOR_JAR="${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
             export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
+
+            # Make local companion language packages importable in nix develop
+            export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src''${PYTHONPATH:+:$PYTHONPATH}"
+            export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@}"
 
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"

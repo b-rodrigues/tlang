@@ -2564,6 +2564,8 @@ EOF
     match runtime with
     (* Logging is required for TCaptureLogger so emitted Julia nodes can capture and persist warnings. *)
     | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging, Serialization"
+    | "R" -> ""
+    | "Python" -> ""
     | _ -> ""
   in
 
@@ -2647,6 +2649,8 @@ EOF
     MPLCONFIGDIR = ".";
     HOME = ".";
     LD_LIBRARY_PATH = "${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib";
+    PYTHONPATH = "${tBin}/share/tlang/py-package/src";
+    JULIA_LOAD_PATH = ":${tlangJl}";
 %s
 %s
 %s
