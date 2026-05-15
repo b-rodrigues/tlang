@@ -230,7 +230,7 @@ p = pipeline {
 - **ONNX** artifacts can now be consumed in Julia nodes through `ONNXRunTime.jl`; Julia ONNX export remains explicitly unsupported.
 - **JSON** is available for simpler values.
 - Plot-producing R, Python, and Julia nodes can expose structured `viz` metadata through `read_node()` / `pretty_print()`, and `show_plot()` can render `ggplot2`, Python plotting backends, `TidierPlots.jl`, `Plots.jl`, and `CairoMakie` artifacts.
-- **Companion Packages (`tlang`)**: Light-weight helper packages (named `tlang` in R, Python, and Julia) are **automatically provisioned and loaded** in every polyglot node. They provide the `read_node()` function for seamless data consumption between languages.
+- **Companion Packages (`tlang`)**: Light-weight helper packages (named `tlang` in R, Python, and Julia) are made available for all T project. They provide the `read_node()` function for seamless data consumption between languages.
 - Nodes run in Nix-managed sandboxes, so R/Python/shell/Quarto dependencies must be declared in the project/package metadata and synced via `t update`.
 
 ### Quarto specifics
