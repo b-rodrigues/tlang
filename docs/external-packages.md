@@ -11,6 +11,7 @@ For project development shells, `t update` also wires the matching companion pac
 ## Key Features
 
 - **`read_node(name)`**: Automatically locates the latest build log in the `_pipeline/` directory, finds the requested node, and deserializes its artifact.
+- **`pipeline_nodes()`**: Returns the pipeline DAG (nodes and their dependencies) as an idiomatic data structure (data frame in R, dictionary in Python/Julia).
 - **Support for historical logs**: Use the `which_log` argument to select a specific build log using a regular expression.
 - **Custom Deserializers**: Pass a custom function to handle specific artifact formats.
 - **`return_path` support**: If you only need the absolute path to the artifact (e.g., to pass to a specialized loader), set `return_path = true`.
@@ -32,6 +33,9 @@ df <- read_node("my_data")
 
 # Get only the path to the artifact
 path <- read_node("my_model", return_path = TRUE)
+
+# Inspect the pipeline DAG (returns a data.frame)
+nodes <- pipeline_nodes()
 ```
 
 ---
@@ -51,6 +55,9 @@ df = tlang.read_node("my_data")
 
 # Get only the path to the artifact
 path = tlang.read_node("my_model", return_path=True)
+
+# Inspect the pipeline DAG (returns a dict)
+nodes = tlang.pipeline_nodes()
 ```
 
 ---
@@ -70,6 +77,9 @@ df = read_node("my_data")
 
 # Get only the path to the artifact
 path = read_node("my_model", return_path=true)
+
+# Inspect the pipeline DAG (returns a Dict)
+nodes = pipeline_nodes()
 ```
 
 ---

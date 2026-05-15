@@ -40,10 +40,11 @@ older_model = read_node("model", which_log="20260221")
 
 ## Inspect pipeline DAG
 
-Render `_pipeline/dag.json` as a tree:
+Get the nodes and their dependencies as a dictionary:
 
 ```python
-from tlang import pipeline_nodes
+import tlang
 
-print(pipeline_nodes())
+nodes = tlang.pipeline_nodes()
+print(nodes)
 ```

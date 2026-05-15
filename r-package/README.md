@@ -39,8 +39,9 @@ older_model <- read_node("model", which_log = "20260221")
 
 ## Inspect pipeline DAG
 
-Render `_pipeline/dag.json` as a tree:
+Get the nodes and their dependencies as a data frame:
 
 ```r
-cat(pipeline_nodes(), sep = "\n")
+nodes <- pipeline_nodes()
+print(nodes)
 ```
