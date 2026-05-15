@@ -35,11 +35,11 @@ validate_node_entry <- function(entry, index, dag_file) {
 }
 
 render_node_tree <- function(node, children_map, prefix = "", is_last = TRUE, seen = character(0), depth = 0L) {
-  connector <- if (depth == 0L) "" else if (is_last) "└─ " else "├─ "
+  connector <- if (depth == 0L) "" else if (is_last) "\\- " else "|- "
   line <- paste0(prefix, connector, node)
 
   if (node %in% seen) {
-    return(c(line, paste0(prefix, if (is_last) "   " else "│  ", "↺ cycle detected")))
+    return(c(line, paste0(prefix, if (is_last) "   " else "|  ", "(cycle detected)")))
   }
 
   children <- children_map[[node]]
@@ -47,7 +47,7 @@ render_node_tree <- function(node, children_map, prefix = "", is_last = TRUE, se
     return(line)
   }
 
-  next_prefix <- paste0(prefix, if (is_last) "   " else "│  ")
+  next_prefix <- paste0(prefix, if (is_last) "   " else "|  ")
   rendered_children <- unlist(
     lapply(seq_along(children), function(i) {
       render_node_tree(children[[i]], children_map, next_prefix, i == length(children), c(seen, node), depth + 1L)

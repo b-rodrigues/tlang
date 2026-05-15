@@ -29,18 +29,18 @@ def _validate_entry(entry: Any, index: int, dag_path: Path) -> tuple[str, list[s
 
 
 def _render_tree(node: str, children_map: dict[str, list[str]], prefix: str = "", is_last: bool = True, seen: tuple[str, ...] = (), depth: int = 0) -> list[str]:
-    connector = "" if depth == 0 else ("└─ " if is_last else "├─ ")
+    connector = "" if depth == 0 else ("\\- " if is_last else "|- ")
     line = f"{prefix}{connector}{node}"
 
     if node in seen:
-        cycle_prefix = f"{prefix}{'   ' if is_last else '│  '}"
-        return [line, f"{cycle_prefix}↺ cycle detected"]
+        cycle_prefix = f"{prefix}{'   ' if is_last else '|  '}"
+        return [line, f"{cycle_prefix}(cycle detected)"]
 
     children = children_map.get(node, [])
     if not children:
         return [line]
 
-    next_prefix = f"{prefix}{'   ' if is_last else '│  '}"
+    next_prefix = f"{prefix}{'   ' if is_last else '|  '}"
     lines = [line]
     for idx, child in enumerate(children):
         lines.extend(_render_tree(child, children_map, next_prefix, idx == len(children) - 1, (*seen, node), depth + 1))

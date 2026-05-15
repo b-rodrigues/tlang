@@ -85,12 +85,12 @@ function _validate_node_entry(entry::Any, index::Int, dag_path::String)
 end
 
 function _render_node_tree(node::String, children_map::Dict{String, Vector{String}}; prefix::String="", is_last::Bool=true, seen::Vector{String}=String[], depth::Int=0)
-    connector = depth == 0 ? "" : (is_last ? "└─ " : "├─ ")
+    connector = depth == 0 ? "" : (is_last ? "\\- " : "|- ")
     line = string(prefix, connector, node)
 
     if node in seen
-        cycle_prefix = string(prefix, is_last ? "   " : "│  ")
-        return [line, string(cycle_prefix, "↺ cycle detected")]
+        cycle_prefix = string(prefix, is_last ? "   " : "|  ")
+        return [line, string(cycle_prefix, "(cycle detected)")]
     end
 
     children = get(children_map, node, String[])
@@ -98,7 +98,7 @@ function _render_node_tree(node::String, children_map::Dict{String, Vector{Strin
         return [line]
     end
 
-    next_prefix = string(prefix, is_last ? "   " : "│  ")
+    next_prefix = string(prefix, is_last ? "   " : "|  ")
     lines = String[line]
     for (idx, child) in enumerate(children)
         append!(lines, _render_node_tree(child, children_map; prefix=next_prefix, is_last=(idx == length(children)), seen=vcat(seen, [node]), depth=depth+1))
@@ -122,7 +122,12 @@ function pipeline_nodes(; pipeline_dir::String="_pipeline", dag_file::String="da
         error("DAG file `$dag_path` does not exist.")
     end
 
-    dag = JSON.parsefile(dag_path)
+    dag = try
+        JSON.parsefile(dag_path)
+    catch e
+        error("Failed to read DAG file `$dag_path`: $e")
+    end
+
     if !(dag isa Vector)
         error("DAG file `$dag_path` must decode to an array.")
     end
@@ -174,6 +179,7 @@ function pipeline_nodes(; pipeline_dir::String="_pipeline", dag_file::String="da
 
     return join(lines, "\n")
 end
+
 function _resolve_artifact_path(path_val::String, pipeline_dir::String)
     if isabspath(path_val)
         return path_val
