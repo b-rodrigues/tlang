@@ -36,3 +36,14 @@ You can also target a specific historical build log:
 ```python
 older_model = read_node("model", which_log="20260221")
 ```
+
+
+## Inspect pipeline DAG
+
+Render `_pipeline/dag.json` as a tree:
+
+```python
+from tlang import pipeline_nodes
+
+print(pipeline_nodes())
+```

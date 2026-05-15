@@ -204,7 +204,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
               (Printf.sprintf "\"%s\": \"%s\"" (Serialization.json_escape k) (Serialization.json_escape v)) :: acc
             ) drv_map [] in
           
-          let drv_json = "{\n  " ^ (String.concat ",\n  " drv_entries) ^ "\n}" in
+          let drv_json = "{\n  " ^ (String.concat ",\n  " drv_entries) ^ "\n}\n" in
           ignore (write_file (Filename.concat pipeline_dir "last_build_drvs.json") drv_json)
         );
 
@@ -297,7 +297,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                   ("hash", "\"" ^ hash ^ "\"");
                   ("out_path", "\"" ^ out_path ^ "\"");
                   ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
-                ] in
+                ] ^ "\n" in
                 (match write_file log_path log_json with
                 | Error msg -> Error ("Failed to write build log: " ^ msg)
                 | Ok () ->
