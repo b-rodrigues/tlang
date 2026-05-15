@@ -2563,9 +2563,9 @@ EOF
   let runtime_base_packages =
     match runtime with
     (* Logging is required for TCaptureLogger so emitted Julia nodes can capture and persist warnings. *)
-    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging, Serialization, tlang"
-    | "R" -> "library(tlang)"
-    | "Python" -> "import tlang"
+    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging, Serialization"
+    | "R" -> ""
+    | "Python" -> ""
     | _ -> ""
   in
 
