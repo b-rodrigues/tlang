@@ -165,7 +165,6 @@ let generate_project_flake
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Python environment\n";
   Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
-  Buffer.add_string buf "          t-lang.packages.${system}.tlang-python\n";
   List.iter (fun dep ->
     Printf.bprintf buf "          %s\n" dep
   ) py_deps;
@@ -216,7 +215,7 @@ let generate_project_flake
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
-  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}/tlang:''${JULIA_LOAD_PATH:-}\"\n";
+  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Project: %s\"\n" project_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";
@@ -357,7 +356,6 @@ let generate_package_flake
   Buffer.add_string buf "        devShells.default = pkgs.mkShell {\n";
   Buffer.add_string buf "          buildInputs = [\n";
   Buffer.add_string buf "            t-lang.packages.${system}.default\n";
-  Buffer.add_string buf "            t-lang.packages.${system}.tlang-python\n";
   Buffer.add_string buf "            t-lang.packages.${system}.tlang-julia-path\n";
   Buffer.add_string buf (Printf.sprintf "            (pkgs.%s.withPackages [ %s ])\n"
     "julia-lts" (String.concat " " (List.map (fun p -> "\"" ^ p ^ "\"") jl_deps)));
@@ -381,7 +379,7 @@ let generate_package_flake
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
-  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}/tlang:''${JULIA_LOAD_PATH:-}\"\n";
+  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Package: %s\"\n" package_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";
