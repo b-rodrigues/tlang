@@ -15,7 +15,9 @@ def _validate_entry(entry: Any, index: int, dag_path: Path) -> tuple[str, list[s
         raise ValueError(f"Entry {index} in `{dag_path}` must be an object.")
 
     node_name = entry.get("node_name")
-    depends = entry.get("depends", [])
+    depends = entry.get("depends")
+    if depends is None:
+        depends = []
 
     if not isinstance(node_name, str) or not node_name.strip():
         raise ValueError(f"Entry {index} in `{dag_path}` has an invalid `node_name`.")

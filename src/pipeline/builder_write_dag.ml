@@ -12,5 +12,5 @@ let write_dag (p : Ast.pipeline_result) =
       Serialization.json_dict entries
     ) p.p_exprs
   in
-  let dag_json = "[\n" ^ (String.concat ",\n" nodes_json) ^ "\n]" in
+  let dag_json = "[\n" ^ (String.concat ",\n" nodes_json) ^ "\n]\n" in
   write_file dag_path dag_json

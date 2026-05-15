@@ -16,6 +16,10 @@ validate_node_entry <- function(entry, index, dag_file) {
     )
   }
 
+  if (is.list(depends)) {
+    depends <- unlist(depends)
+  }
+  
   if (is.null(depends)) {
     depends <- character(0)
   }

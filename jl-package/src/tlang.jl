@@ -61,6 +61,9 @@ function _validate_node_entry(entry::Any, index::Int, dag_path::String)
 
     node_name = get(entry, "node_name", nothing)
     depends = get(entry, "depends", String[])
+    if isnothing(depends)
+        depends = String[]
+    end
 
     if !(node_name isa String) || isempty(strip(node_name))
         error("Entry $index in `$dag_path` has an invalid `node_name`.")
