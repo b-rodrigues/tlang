@@ -84,33 +84,12 @@ function _validate_node_entry(entry::Any, index::Int, dag_path::String)
     return node_name, unique(sort(dep_names))
 end
 
-function _render_node_tree(node::String, children_map::Dict{String, Vector{String}}; prefix::String="", is_last::Bool=true, seen::Vector{String}=String[], depth::Int=0)
-    connector = depth == 0 ? "" : (is_last ? "\\- " : "|- ")
-    line = string(prefix, connector, node)
-
-    if node in seen
-        cycle_prefix = string(prefix, is_last ? "   " : "|  ")
-        return [line, string(cycle_prefix, "(cycle detected)")]
-    end
-
-    children = get(children_map, node, String[])
-    if isempty(children)
-        return [line]
-    end
-
-    next_prefix = string(prefix, is_last ? "   " : "|  ")
-    lines = String[line]
-    for (idx, child) in enumerate(children)
-        append!(lines, _render_node_tree(child, children_map; prefix=next_prefix, is_last=(idx == length(children)), seen=vcat(seen, [node]), depth=depth+1))
-    end
-
-    return lines
-end
-
 """
     pipeline_nodes(; pipeline_dir="_pipeline", dag_file="dag.json")
 
-List pipeline nodes from `_pipeline/dag.json` in a tree-like view.
+Get pipeline nodes and their dependencies from `_pipeline/dag.json`.
+
+Returns a `Dict` mapping node names to their lists of dependencies.
 """
 function pipeline_nodes(; pipeline_dir::String="_pipeline", dag_file::String="dag.json")
     if !isdir(pipeline_dir)
@@ -152,32 +131,7 @@ function pipeline_nodes(; pipeline_dir::String="_pipeline", dag_file::String="da
         error("DAG file `$dag_path` references unknown dependencies: $(join(sort(unknown_deps), ", "))")
     end
 
-    children_map = Dict(name => String[] for name in node_names)
-    incoming_count = Dict(name => 0 for name in node_names)
-
-    for (name, deps) in normalized
-        for parent in deps
-            push!(children_map[parent], name)
-            incoming_count[name] += 1
-        end
-    end
-
-    for (key, children) in children_map
-        sort!(children)
-        children_map[key] = children
-    end
-
-    roots = sort([name for (name, count) in incoming_count if count == 0])
-    if isempty(roots)
-        roots = sort(node_names)
-    end
-
-    lines = String[]
-    for (idx, root) in enumerate(roots)
-        append!(lines, _render_node_tree(root, children_map; prefix="", is_last=(idx == length(roots))))
-    end
-
-    return join(lines, "\n")
+    return Dict(normalized)
 end
 
 function _resolve_artifact_path(path_val::String, pipeline_dir::String)

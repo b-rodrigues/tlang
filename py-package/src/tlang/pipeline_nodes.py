@@ -28,27 +28,11 @@ def _validate_entry(entry: Any, index: int, dag_path: Path) -> tuple[str, list[s
     return node_name, sorted(set(depends))
 
 
-def _render_tree(node: str, children_map: dict[str, list[str]], prefix: str = "", is_last: bool = True, seen: tuple[str, ...] = (), depth: int = 0) -> list[str]:
-    connector = "" if depth == 0 else ("\\- " if is_last else "|- ")
-    line = f"{prefix}{connector}{node}"
+def pipeline_nodes(pipeline_dir: str | Path = "_pipeline", dag_file: str = "dag.json") -> dict[str, list[str]]:
+    """Get pipeline nodes and their dependencies from ``_pipeline/dag.json``.
 
-    if node in seen:
-        cycle_prefix = f"{prefix}{'   ' if is_last else '|  '}"
-        return [line, f"{cycle_prefix}(cycle detected)"]
-
-    children = children_map.get(node, [])
-    if not children:
-        return [line]
-
-    next_prefix = f"{prefix}{'   ' if is_last else '|  '}"
-    lines = [line]
-    for idx, child in enumerate(children):
-        lines.extend(_render_tree(child, children_map, next_prefix, idx == len(children) - 1, (*seen, node), depth + 1))
-    return lines
-
-
-def pipeline_nodes(pipeline_dir: str | Path = "_pipeline", dag_file: str = "dag.json") -> str:
-    """List pipeline nodes from ``_pipeline/dag.json`` in a tree-like view."""
+    Returns a dictionary mapping node names to their lists of dependencies.
+    """
     pipeline_path = Path(pipeline_dir)
     _validate_non_empty_string(str(pipeline_path), "pipeline_dir")
     _validate_non_empty_string(dag_file, "dag_file")
@@ -87,21 +71,4 @@ def pipeline_nodes(pipeline_dir: str | Path = "_pipeline", dag_file: str = "dag.
             f"DAG file `{dag_path}` references unknown dependencies: {', '.join(unknown_deps)}"
         )
 
-    children_map: dict[str, list[str]] = {name: [] for name in node_names}
-    incoming_count: dict[str, int] = {name: 0 for name in node_names}
-
-    for name, deps in normalized:
-        for parent in deps:
-            children_map[parent].append(name)
-            incoming_count[name] += 1
-
-    for key in children_map:
-        children_map[key] = sorted(children_map[key])
-
-    roots = sorted([name for name, count in incoming_count.items() if count == 0]) or sorted(node_names)
-
-    lines: list[str] = []
-    for idx, root in enumerate(roots):
-        lines.extend(_render_tree(root, children_map, "", idx == len(roots) - 1))
-
-    return "\n".join(lines)
+    return dict(normalized)
