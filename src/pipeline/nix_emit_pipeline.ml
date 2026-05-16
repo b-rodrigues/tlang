@@ -45,7 +45,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
                           else if has_julia then "\n                      ++ [ juliaPkg ]"
                           else "" in
 
-  let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\"" in
+  let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\"" in
 
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
