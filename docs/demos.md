@@ -1,6 +1,6 @@
 # T Pipeline Demos
 
-This page lists real-world T projects that demonstrate the power of polyglot, reproducible orchestration. Most of these demos are available in the [tstats-project/t_demos](https://github.com/tstats-project/t_demos) repository.
+This page lists real-world T projects that demonstrate the power of polyglot, reproducible orchestration. Most of these demos are available in the [b-rodrigues/t_demos](https://github.com/b-rodrigues/t_demos) repository.
 
 ## Visualization & Reporting
 
