@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   (* === Formula Edge Cases === *)
   let starts_with s prefix =
     String.length s >= String.length prefix &&

@@ -29,7 +29,7 @@ let capture_stderr f =
     Unix.close read_fd;
     raise exn
 
-let run_tests pass_count fail_count failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   Printf.printf "NA Edge Cases — Strict Flag Validation:\n";
   test "abs(na_ignore = 1)" "abs(4, na_ignore = 1)" {|Error(TypeError: "Flag `na_ignore` must be Bool, but received Int.")|};
   test "mean(na_rm = \"yes\")" {|mean([1, NA], na_rm = "yes")|} {|Error(TypeError: "Flag `na_rm` must be Bool, but received String.")|};

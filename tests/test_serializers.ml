@@ -167,9 +167,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
    | VString _ -> 
        incr pass_count; Printf.printf "  ✓ Static coherence check accepts matching formats\n"
    | other -> 
-       incr fail_count; failures := (Printf.sprintf "  ✗ Static coherence check failed on matching formats. Got: %s\n" 
-) :: !failures; Printf.printf "  ✗ Static coherence check failed on matching formats. Got: %s\n" 
-         (Ast.Utils.value_to_string other));
+       incr fail_count;
+        let msg = Printf.sprintf "  ✗ Static coherence check failed on matching formats. Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
 
   (* 4b. Explicit dependency checks happen before pipeline emission/build.
      These must run from a temp dir that has NO tproject.toml so that
@@ -352,7 +353,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
         if missing = [] then begin
           incr pass_count; Printf.printf "  ✓ Julia helper injection captures structured errors and warnings\n"
         end else begin
-          incr fail_count; failures := (Printf.sprintf "  ✗ Julia helper injection missing from emitted Nix. Missing strings: %s\n" (String.concat ", " missing) :: !failures; Printf.printf "  ✗ Julia helper injection missing from emitted Nix. Missing strings: %s\n" (String.concat ", " missing)
+          incr fail_count;
+          let msg = Printf.sprintf "  ✗ Julia helper injection missing from emitted Nix. Missing strings: %s\n" (String.concat ", " missing) in
+          failures := msg :: !failures;
+          Printf.printf "%s" msg
         end
     | other ->
         incr fail_count;

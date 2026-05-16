@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count failures _eval_string eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env test =
   let temp_dir = Filename.get_temp_dir_name () in
   (* Use an existing directory as a write target so file creation reliably fails. *)
   let invalid_write_path = temp_dir in

@@ -1,7 +1,7 @@
 (* tests/test_pipeline_ops.ml *)
 (* Unit tests for Phase 1 and Phase 2 pipeline operations *)
 
-let run_tests pass_count fail_count failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
 
   Printf.printf "Phase 1 — pipeline_to_frame:\n";
 

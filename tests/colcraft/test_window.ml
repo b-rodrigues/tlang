@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count failures _eval_string _eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Window Functions — Ranking:\n";
 
   (* row_number: ties broken by position *)

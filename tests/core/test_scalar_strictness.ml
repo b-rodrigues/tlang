@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count failures _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Strict Scalar Operator Tests:\n";
 
   (* --- Scalar vs Collection Strictness NEGATIVE TESTS --- *)
