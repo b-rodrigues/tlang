@@ -1217,7 +1217,7 @@ function jl_write_warnings(warnings_list, path)
 end
 
 function jl_serialize(obj, path)
-    unsupported_types = (Task, Channel, Base.IO, Base.AbstractLock)
+    unsupported_types = Union{Task, Channel, Base.IO, Base.AbstractLock}
     if obj isa unsupported_types
         error(
             "T-Lang Julia serialization error: object of type $(typeof(obj)) is not cross-process serializable. " *
