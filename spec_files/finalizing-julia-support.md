@@ -27,7 +27,7 @@ Julia runtime injection now includes `jl_serialize(obj, path)` in `nix_emit_node
 - **Remaining gap:** model-family coverage and interoperability hardening (e.g., validate end-to-end support expectations for non-GLM models such as `DecisionTree.jl` and `Flux.jl`).
 
 ### 3. Runtime Diagnostics (`t doctor`)
-**Status:** Still a gap.
+**Status:** ~~Still a gap~~.
 
 `t doctor` exists, but `package_doctor.ml` does not yet perform Julia-specific runtime diagnostics.
 - **Goal**: Add checks to `package_doctor.ml` to verify:
@@ -50,6 +50,6 @@ There is already Julia-related coverage in the pipeline and CLI test suites (inc
 - **Goal:** optionally add a dedicated Julia integration test file if clearer ownership/isolation is desired in CI.
 
 ## Updated Implementation Priority
-1. **Diagnostics (`t doctor`)**: still missing Julia-specific checks and is the clearest operational gap.
+~~1. **Diagnostics (`t doctor`)**: still missing Julia-specific checks and is the clearest operational gap.~~
 2. **Serialization hardening**: `jl_serialize` exists but is still thin and should be made more robust/documented.
 3. **Interoperability hardening for PMML/ONNX**: core helpers exist; prioritize broader model-family validation and tests.
