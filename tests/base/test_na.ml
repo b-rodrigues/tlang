@@ -1,6 +1,6 @@
 open Ast
 
-let run_tests pass_count fail_count _eval_string _eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string _eval_string_env test =
   let check name ok got =
     if ok then begin
       incr pass_count;

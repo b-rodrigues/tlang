@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count failures _eval_string _eval_string_env test =
   Printf.printf "Converters:\n";
   (* to_integer *)
   test "to_integer bool true" "to_integer(true)" "1";

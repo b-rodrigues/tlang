@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count failures _eval_string _eval_string_env test =
   Printf.printf "Colcraft Coverage Regression Tests:\n";
 
   test "fill up fills string values from below"

@@ -47,7 +47,7 @@ let check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env
       test_name expected tolerance result
   end
 
-let run_tests pass_count fail_count _eval_string eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env _test =
 
   Printf.printf "Golden — Broom: Multi-predictor lm() tidy (y ~ x1 + x2):\n";
 

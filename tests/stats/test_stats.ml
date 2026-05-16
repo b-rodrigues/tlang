@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   Printf.printf "Phase 5 — Stats: mean():\n";
   test "mean of int list" "mean([1, 2, 3, 4, 5])" "3.";
   test "mean of float list" "mean([1.0, 2.0, 3.0])" "2.";
@@ -59,7 +59,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = "1." then begin
     incr pass_count; Printf.printf "  ✓ perfect positive correlation\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ perfect positive correlation\n    Expected: 1.\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ perfect positive correlation\n    Expected: 1.\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   let (v, _) = eval_string_env "cor(cdf.x, cdf.z)" env_cor in
@@ -67,7 +70,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = "-1." then begin
     incr pass_count; Printf.printf "  ✓ perfect negative correlation\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ perfect negative correlation\n    Expected: -1.\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ perfect negative correlation\n    Expected: -1.\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   test "cor non-numeric"
@@ -144,7 +150,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     if match_found then (
       incr pass_count; Printf.printf "  ✓ %s\n" name
     ) else (
-      incr fail_count; Printf.printf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result
+      incr fail_count;
+      let msg = Printf.sprintf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
     )
   in
 
@@ -154,7 +163,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = {|"Dict"|} then begin
     incr pass_count; Printf.printf "  ✓ lm() returns a Dict (model object)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() returns a Dict (model object)\n    Expected: \"Dict\"\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ lm() returns a Dict (model object)\n    Expected: \"Dict\"\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Model object has accessible formula *)
@@ -163,7 +175,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = "y ~ x" then begin
     incr pass_count; Printf.printf "  ✓ model.formula shows formula\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ model.formula shows formula\n    Expected: y ~ x\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ model.formula shows formula\n    Expected: y ~ x\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Model object has R² *)
@@ -172,7 +187,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = "1." then begin
     incr pass_count; Printf.printf "  ✓ model.r_squared = 1.0 (perfect fit)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ model.r_squared = 1.0 (perfect fit)\n    Expected: 1.\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ model.r_squared = 1.0 (perfect fit)\n    Expected: 1.\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Model object has nobs *)
@@ -181,7 +199,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = "5" then begin
     incr pass_count; Printf.printf "  ✓ model.nobs = 5\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ model.nobs = 5\n    Expected: 5\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ model.nobs = 5\n    Expected: 5\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* summary(model) returns a tidy Dict *)
@@ -190,7 +211,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = {|"Dict"|} then begin
     incr pass_count; Printf.printf "  ✓ summary(model) returns a Dict\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ summary(model) returns a Dict\n    Expected: \"Dict\"\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ summary(model) returns a Dict\n    Expected: \"Dict\"\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* summary() has correct columns *)
@@ -199,7 +223,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = {|["term", "estimate", "std_error", "statistic", "p_value"]|} then begin
     incr pass_count; Printf.printf "  ✓ summary() tidy DataFrame has correct columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ summary() tidy DataFrame has correct columns\n    Expected: [\"term\", \"estimate\", \"std_error\", \"statistic\", \"p_value\"]\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ summary() tidy DataFrame has correct columns\n    Expected: [\"term\", \"estimate\", \"std_error\", \"statistic\", \"p_value\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* summary() has 2 rows (intercept + x) *)
@@ -208,7 +235,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = "2" then begin
     incr pass_count; Printf.printf "  ✓ summary() has 2 rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ summary() has 2 rows\n    Expected: 2\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ summary() has 2 rows\n    Expected: 2\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Test fit_stats() *)
@@ -217,7 +247,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = {|"DataFrame"|} then begin
     incr pass_count; Printf.printf "  ✓ fit_stats() returns a DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ fit_stats() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ fit_stats() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   let (v, _) = eval_string_env "nrow(fit_stats(model))" env_lm in
@@ -225,7 +258,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = "1" then begin
     incr pass_count; Printf.printf "  ✓ fit_stats() returns 1 row\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ fit_stats() returns 1 row\n    Expected: 1\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ fit_stats() returns 1 row\n    Expected: 1\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
   
   (* Test deviance() *)
@@ -235,7 +271,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = "0." then begin
     incr pass_count; Printf.printf "  ✓ model.deviance = 0.0\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ model.deviance = 0.0\n    Expected: 0.\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ model.deviance = 0.0\n    Expected: 0.\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   let (v, _) = eval_string_env "deviance(model)" env_lm in
@@ -243,7 +282,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = "0." then begin
     incr pass_count; Printf.printf "  ✓ deviance(model) = 0.0\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ deviance(model) = 0.0\n    Expected: 0.\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ deviance(model) = 0.0\n    Expected: 0.\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   test "deviance non-dict" "deviance(\"hello\")" {|Error(TypeError: "Function `deviance` expects a model (Dict).")|};
@@ -258,7 +300,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = {|"DataFrame"|} then begin
     incr pass_count; Printf.printf "  ✓ add_diagnostics() returns a DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ add_diagnostics() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ add_diagnostics() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   let (v, _) = eval_string_env "nrow(add_diagnostics(model, data = df))" env_lm in
@@ -266,7 +311,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if result = "5" then begin
     incr pass_count; Printf.printf "  ✓ add_diagnostics() preserves row count\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ add_diagnostics() preserves row count\n    Expected: 5\n    Got: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ add_diagnostics() preserves row count\n    Expected: 5\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Check add_diagnostics has diagnostic columns *)
@@ -277,7 +325,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if has_fitted && has_resid then begin
     incr pass_count; Printf.printf "  ✓ add_diagnostics() adds fitted and resid columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ add_diagnostics() adds fitted and resid columns\n    Got columns: %s\n" result
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ add_diagnostics() adds fitted and resid columns\n    Got columns: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Formula type and printing tests *)

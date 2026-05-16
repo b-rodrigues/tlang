@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   Printf.printf "Phase 6 — Intent Blocks:\n";
   test "intent block creation"
     {|intent { description: "Load data", assumes: "File exists" }|}

@@ -29,7 +29,7 @@ let capture_stderr f =
     Unix.close read_fd;
     raise exn
 
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   (* Create test CSV for Phase 4 tests *)
   let csv_p4 = "test_phase4.csv" in
   let oc6 = open_out csv_p4 in

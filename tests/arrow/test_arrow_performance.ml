@@ -43,7 +43,7 @@ let with_temp_csv rows f =
     ~finally:(fun () -> try Sys.remove path with Sys_error _ -> ())
     (fun () -> f path)
 
-let run_tests pass_count fail_count _eval_string _eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string _eval_string_env _test =
   Printf.printf "Arrow Performance — Native Backend Smoke:\n";
 
   with_temp_csv 10000 (fun path ->

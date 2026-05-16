@@ -3,7 +3,7 @@
 
 open Scaffold
 
-let run_tests pass_count fail_count _eval_string _eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string _eval_string_env _test =
   Printf.printf "Package Manager — Agent Onboarding:\n";
 
   let test_pm name check =

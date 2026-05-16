@@ -1,7 +1,7 @@
 (* tests/package_manager/test_package_manager.ml *)
 (* Tests for the package management scaffolding system *)
 
-let run_tests pass_count fail_count _eval_string eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env _test =
   (* --- Helper for package_manager-specific tests --- *)
   let test_pm name check =
     if check () then begin

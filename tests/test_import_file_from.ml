@@ -1,7 +1,7 @@
 (* tests/test_import_file_from.ml *)
 (* Unit tests for the ImportFileFrom feature: import "file.t"[name] *)
 
-let run_tests pass_count fail_count _eval_string eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env _test =
 
   Printf.printf "ImportFileFrom — Basic selective import:\n";
 

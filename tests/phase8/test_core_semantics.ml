@@ -2,7 +2,7 @@
 (* Phase 8: Additional unit tests for core semantics *)
 (* Validates edge cases and invariants across the language *)
 
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count failures _eval_string _eval_string_env test =
   Printf.printf "Phase 8 — Core Semantics: Expression evaluation:\n";
 
   (* Nested arithmetic *)

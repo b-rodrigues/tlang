@@ -7,7 +7,7 @@
 (* - Column data extraction                                             *)
 (* - CSV reading with native fallback                                   *)
 
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   Printf.printf "Arrow Integration — FFI Infrastructure:\n";
 
   (* Test 1: Arrow FFI availability flag *)

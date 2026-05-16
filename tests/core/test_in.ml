@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count failures _eval_string _eval_string_env test =
   Printf.printf "In Operator:\n";
 
   test "scalar in list" "1 in [1, 2, 3]" "true";

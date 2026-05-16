@@ -1,7 +1,7 @@
 (* tests/arrow/test_owl_bridge.ml *)
 (* Tests for the Arrow-Owl bridge module *)
 
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   Printf.printf "Arrow-Owl Bridge — numeric_column_to_owl:\n";
 
   (* Create test CSV for bridge tests *)

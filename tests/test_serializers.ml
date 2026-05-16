@@ -40,7 +40,7 @@ let capture_stderr f =
       drain ();
       (result, Buffer.contents buffer))
 
-let run_tests pass_count fail_count _eval_string eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env _test =
   Printf.printf "First-Class Serializers:\n";
 
   let contains s sub = 
@@ -81,14 +81,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | VSerializer s when s.s_format = "csv" ->
        incr pass_count; Printf.printf "  ✓ ^csv resolves to serializer record\n"
    | _ ->
-       incr fail_count; Printf.printf "  ✗ ^csv resolution failed\n") ;
+       incr fail_count; failures := "  ✗ ^csv resolution failed\n" :: !failures; Printf.printf "  ✗ ^csv resolution failed\n") ;
 
   let (v, _) = eval_string_env {| ^arrow |} (Packages.init_env ()) in
   (match v with
    | VSerializer s when s.s_format = "arrow" ->
        incr pass_count; Printf.printf "  ✓ ^arrow resolves to serializer record\n"
    | _ ->
-       incr fail_count; Printf.printf "  ✗ ^arrow resolution failed\n") ;
+       incr fail_count; failures := "  ✗ ^arrow resolution failed\n" :: !failures; Printf.printf "  ✗ ^arrow resolution failed\n") ;
 
   (* ONNX serializer resolution *)
   let (v, _) = eval_string_env {| ^onnx |} (Packages.init_env ()) in
@@ -96,7 +96,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | VSerializer s when s.s_format = "onnx" ->
        incr pass_count; Printf.printf "  ✓ ^onnx resolves to serializer record\n"
    | _ ->
-       incr fail_count; Printf.printf "  ✗ ^onnx resolution failed\n") ;
+       incr fail_count; failures := "  ✗ ^onnx resolution failed\n" :: !failures; Printf.printf "  ✗ ^onnx resolution failed\n") ;
 
   (* ONNX serializer has correct R/Python/Julia helpers *)
   let (v, _) = eval_string_env {| ^onnx |} (Packages.init_env ()) in
@@ -109,7 +109,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
                        && s.s_julia_reader = Some "jl_read_onnx" ->
        incr pass_count; Printf.printf "  ✓ ^onnx has correct R/Python/Julia helper names\n"
     | _ ->
-       incr fail_count; Printf.printf "  ✗ ^onnx R/Python/Julia helper names incorrect\n") ;
+       incr fail_count; failures := "  ✗ ^onnx R/Python/Julia helper names incorrect\n" :: !failures; Printf.printf "  ✗ ^onnx R/Python/Julia helper names incorrect\n") ;
 
   (* ONNX placeholder writer throws descriptive error *)
   let (v, _) = eval_string_env {| (^onnx).writer("test.onnx", 1) |} (Packages.init_env ()) in
@@ -117,7 +117,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | VError { message; _ } when contains message "does not have a T-native implementation yet" ->
        incr pass_count; Printf.printf "  ✓ ^onnx placeholder writer throws descriptive error\n"
    | _ ->
-       incr fail_count; Printf.printf "  ✗ ^onnx placeholder writer failed to throw error\n") ;
+       incr fail_count; failures := "  ✗ ^onnx placeholder writer failed to throw error\n" :: !failures; Printf.printf "  ✗ ^onnx placeholder writer failed to throw error\n") ;
 
   (* 2. Custom Serializers *)
   let env = Packages.init_env () in
@@ -134,7 +134,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   if Ast.Utils.value_to_string v = {|"Dict"|} then begin
     incr pass_count; Printf.printf "  ✓ Custom serializer with foreign snippets (mock)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Custom serializer mock failed\n"
+    incr fail_count; failures := "  ✗ Custom serializer mock failed\n" :: !failures; Printf.printf "  ✗ Custom serializer mock failed\n"
   end;
 
   (* 3. Static Coherence Checks - Mismatch *)
@@ -167,7 +167,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | VString _ -> 
        incr pass_count; Printf.printf "  ✓ Static coherence check accepts matching formats\n"
    | other -> 
-       incr fail_count; Printf.printf "  ✗ Static coherence check failed on matching formats. Got: %s\n" 
+       incr fail_count; failures := (Printf.sprintf "  ✗ Static coherence check failed on matching formats. Got: %s\n" 
+) :: !failures; Printf.printf "  ✗ Static coherence check failed on matching formats. Got: %s\n" 
          (Ast.Utils.value_to_string other));
 
   (* 4b. Explicit dependency checks happen before pipeline emission/build.
@@ -287,7 +288,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
        then begin
          incr pass_count; Printf.printf "  ✓ Pipeline Nix emission keeps built-in serializer dependencies explicit\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Pipeline Nix emission still injects serializer dependencies implicitly\n"
+         incr fail_count; failures := "  ✗ Pipeline Nix emission still injects serializer dependencies implicitly\n" :: !failures; Printf.printf "  ✗ Pipeline Nix emission still injects serializer dependencies implicitly\n"
        end
    | other ->
        incr fail_count;
@@ -316,7 +317,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
        then begin
          incr pass_count; Printf.printf "  ✓ Python PMML reader uses JPMML-backed implementation\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Python PMML reader failed to use JPMML-backed implementation\n"
+         incr fail_count; failures := "  ✗ Python PMML reader failed to use JPMML-backed implementation\n" :: !failures; Printf.printf "  ✗ Python PMML reader failed to use JPMML-backed implementation\n"
        end
    | other ->
        incr fail_count;
@@ -351,7 +352,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
         if missing = [] then begin
           incr pass_count; Printf.printf "  ✓ Julia helper injection captures structured errors and warnings\n"
         end else begin
-          incr fail_count; Printf.printf "  ✗ Julia helper injection missing from emitted Nix. Missing strings: %s\n" (String.concat ", " missing)
+          incr fail_count; failures := (Printf.sprintf "  ✗ Julia helper injection missing from emitted Nix. Missing strings: %s\n" (String.concat ", " missing) :: !failures; Printf.printf "  ✗ Julia helper injection missing from emitted Nix. Missing strings: %s\n" (String.concat ", " missing)
         end
     | other ->
         incr fail_count;
@@ -378,7 +379,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
         then begin
           incr pass_count; Printf.printf "  ✓ Julia PMML writer emits coefficient standard errors\n"
         end else begin
-          incr fail_count; Printf.printf "  ✗ Julia PMML writer did not emit coefficient standard errors\n"
+          incr fail_count; failures := "  ✗ Julia PMML writer did not emit coefficient standard errors\n" :: !failures; Printf.printf "  ✗ Julia PMML writer did not emit coefficient standard errors\n"
         end
    | other ->
        incr fail_count;
@@ -391,7 +392,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | VError { message; _ } when contains message "does not have a T-native implementation yet" ->
        incr pass_count; Printf.printf "  ✓ Placeholder writer throws descriptive error\n"
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Placeholder writer failed to throw error\n") ;
+       incr fail_count; failures := "  ✗ Placeholder writer failed to throw error\n" :: !failures; Printf.printf "  ✗ Placeholder writer failed to throw error\n") ;
 
   (* 6. Invalid Identifiers *)
   let (v, _) = eval_string_env {| ^non_existent |} (Packages.init_env ()) in
@@ -399,7 +400,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | VSymbol "^non_existent" ->
        incr pass_count; Printf.printf "  ✓ Invalid identifier resolves to symbol\n"
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Invalid identifier failed\n") ;
+       incr fail_count; failures := "  ✗ Invalid identifier failed\n" :: !failures; Printf.printf "  ✗ Invalid identifier failed\n") ;
 
   (* 7. Rejection of plain strings in polyglot snippets *)
   let (v, _) = eval_string_env {| 
@@ -411,8 +412,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
         | Some (VString _) -> 
             incr pass_count; Printf.printf "  ✓ Dict accurately stores VString for snippets (awaiting emitter rejection)\n"
         | _ -> 
-            incr fail_count; Printf.printf "  ✗ Dict failed to store VString for sniperts\n")
+            incr fail_count; failures := "  ✗ Dict failed to store VString for sniperts\n" :: !failures; Printf.printf "  ✗ Dict failed to store VString for sniperts\n")
    | _ -> 
-       incr fail_count; Printf.printf "  ✗ Snippet rejection test setup failed\n");
+       incr fail_count; failures := "  ✗ Snippet rejection test setup failed\n" :: !failures; Printf.printf "  ✗ Snippet rejection test setup failed\n");
 
   print_newline ()

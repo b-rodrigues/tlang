@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count failures _eval_string _eval_string_env test =
   Printf.printf "Pipe Operator:\n";
   test "pipe to function" "double = \\(x) x * 2; 5 |> double" "10";
   test "pipe with args" "add = \\(a, b) a + b; 5 |> add(3)" "8";
