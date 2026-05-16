@@ -863,8 +863,8 @@ module Utils = struct
     | VQuo { q_expr; _ } ->
         Printf.sprintf "quo(%s)" (unparse_expr q_expr)
     | VComputedNode cn ->
-        Printf.sprintf "computed_node<%s>\nserializer: %s\nclass: %s\npath: %s"
-          cn.cn_runtime cn.cn_serializer cn.cn_class cn.cn_path
+        Printf.sprintf "computed_node<%s>\nserializer: %s\nclass: %s"
+          cn.cn_runtime cn.cn_serializer cn.cn_class
     | VSerializer s ->
         Printf.sprintf "serializer<^%s>" s.s_format
     | VNode un ->
