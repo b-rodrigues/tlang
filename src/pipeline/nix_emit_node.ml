@@ -1156,6 +1156,8 @@ function Logging.handle_message(logger::TCaptureLogger, level, message, _module,
     end
 end
 
+using JLD2
+
 function jl_error_message(err)
     try
         sprint(showerror, err)
@@ -1215,7 +1217,31 @@ function jl_write_warnings(warnings_list, path)
 end
 
 function jl_serialize(obj, path)
-    Serialization.serialize(path, obj)
+    unsupported_types = (Task, Channel, Base.IO, Base.AbstractLock)
+    if obj isa unsupported_types
+        error(
+            "T-Lang Julia serialization error: object of type $(typeof(obj)) is not cross-process serializable. " *
+            "Return a structured representation (Array/Dict/DataFrame) or use a runtime-specific writer."
+        )
+    end
+
+    if obj isa Function && !(obj isa Type)
+        error(
+            "T-Lang Julia serialization error: closures/functions are not portable across process boundaries. " *
+            "Return serializable data instead of executable objects."
+        )
+    end
+
+    try
+        JLD2.jldsave(path; object = obj)
+        return path
+    catch err
+        err_msg = jl_error_message(err)
+        error(
+            "T-Lang Julia serialization error: failed to serialize object of type $(typeof(obj)) " *
+            "to JLD2 at $(path). Underlying error: $(err_msg)"
+        )
+    end
 end
 |} in
 
@@ -2563,7 +2589,7 @@ EOF
   let runtime_base_packages =
     match runtime with
     (* Logging is required for TCaptureLogger so emitted Julia nodes can capture and persist warnings. *)
-    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging, Serialization"
+    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, JLD2, Logging, Serialization"
     | "R" -> ""
     | "Python" -> ""
     | _ -> ""
