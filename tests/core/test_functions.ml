@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Functions:\n";
   test "lambda definition and call" "f = \\(x) x + 1; f(5)" "6";
   test "function keyword" "f = function(x) x * 2; f(3)" "6";

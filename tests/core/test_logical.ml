@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Logical:\n";
   test "and true" "true && true" "true";
   test "and false" "true && false" "false";

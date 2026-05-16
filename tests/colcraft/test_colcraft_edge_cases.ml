@@ -1,5 +1,5 @@
 
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   let strip_location s =
     let re = Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\] " in
     Str.global_replace re "" s

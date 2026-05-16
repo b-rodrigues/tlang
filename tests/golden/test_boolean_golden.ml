@@ -1,7 +1,7 @@
 (* tests/golden/test_boolean_golden.ml *)
 (* Phase 8: Golden tests for Boolean operations *)
 
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Phase 8 — Golden: Boolean Operations (ifelse / case_when):\n";
 
   (* ===================================================================== *)

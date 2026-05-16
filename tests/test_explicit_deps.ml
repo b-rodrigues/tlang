@@ -1,7 +1,7 @@
 (* tests/test_explicit_deps.ml *)
 (* Unit tests for explicit deps argument in nodes *)
 
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   ignore test;
 
   Printf.printf "Pipeline — explicit deps:\n";

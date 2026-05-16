@@ -1,20 +1,24 @@
 open Ast
 
-let run_tests pass_count fail_count _eval_string _eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string _eval_string_env _test =
   let record name ok =
     if ok then begin
       incr pass_count;
       Printf.printf "  ✓ %s\n" name
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s\n" name
+      let msg = Printf.sprintf "  ✗ %s" name in
+      failures := msg :: !failures;
+      Printf.printf "%s\n" msg
     end
   in
   let test_case name f =
     try record name (f ())
     with exn ->
       incr fail_count;
-      Printf.printf "  ✗ %s\n    %s\n" name (Printexc.to_string exn)
+      let msg = Printf.sprintf "  ✗ %s\n    %s" name (Printexc.to_string exn) in
+      failures := msg :: !failures;
+      Printf.printf "%s\n" msg
   in
   let rec remove_path path =
     if Sys.file_exists path then

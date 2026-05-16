@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Chrono:\n";
   test "ymd parses date" {|ymd("2024-01-15")|} "Date(2024-01-15)";
   test "ymd_hms parses datetime" {|ymd_hms("2024-01-15 09:30:00")|} "Datetime(2024-01-15T09:30:00Z[UTC])";

@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _eval_string _eval_string_env _test =
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env _test =
   let test_message name predicate =
     if predicate then begin
       incr pass_count;

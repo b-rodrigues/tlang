@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _eval_string _eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env test =
   (* This test module uses the shared test-runner signature even though it
      only needs the generic `test` helper and local counter refs. *)
   let contains text substring =

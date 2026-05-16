@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   Printf.printf "Phase 3 — Shell Runtime (runtime = sh):\n";
   let contains_substring s sub =
     let re = Str.regexp_string sub in
