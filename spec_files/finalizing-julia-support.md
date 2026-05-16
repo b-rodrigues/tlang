@@ -11,13 +11,13 @@ This document outlines the remaining gaps and required implementations to bring 
 ## Remaining Gaps (Revalidated)
 
 ### 1. Robust Native Serialization
-**Status:** Partially implemented.
+**Status:** Implemented.
 
-Julia runtime injection now includes `jl_serialize(obj, path)` in `nix_emit_node.ml`, and it is wired into serialization dispatch for Julia nodes.
+Julia runtime injection now includes a hardened `jl_serialize(obj, path)` implementation in `nix_emit_node.ml`.
 
-- **Still open:** `jl_serialize` currently delegates directly to `Serialization.serialize(path, obj)`.
-- **Potential risk:** complex objects and models may still hit world-age/method-cache issues across process boundaries.
-- **Next step:** harden `jl_serialize` with a more robust model-safe strategy (or explicitly document unsupported object classes).
+- **Hardening:** Switched from `Serialization.serialize` to `JLD2.jldsave` as the default fallback for non-data types to ensure cross-process stability.
+- **Safety:** Implemented explicit type guards to fail loudly when attempting to serialize fundamentally un-portable types (closures, tasks, IO streams).
+- **Provisioning:** `JLD2` is now included in the default `juliaPkg` set and base `using` statements for all Julia nodes.
 
 ### 2. PMML & ONNX Export Support
 **Status:** Largely implemented in `nix_emit_node.ml`.
@@ -138,12 +138,14 @@ This avoids the deserializing node having to sniff the format, which is fragile.
 
 ---
 
-### For the spec's "explicitly document unsupported object classes" branch
+### Implementation Summary: JLD2 Hardening (May 2026)
 
-If you want the lighter path first, the minimum viable hardening is:
+The serialization hardening strategy outlined above has been implemented in `src/pipeline/nix_emit_node.ml` and `src/pipeline/nix_emit_pipeline.ml`:
 
-1. Keep `Serialization.serialize` as the implementation
-2. Add a **type guard** that raises a descriptive error for known-bad types
-3. Add a note in the node diagnostic output (ties into your `t doctor` work) that warns when a Julia node's return type is not in an approved serializable set
-
-That at least shifts the failure from a cryptic deserialization crash to a clear pipeline-time error with actionable guidance.
+1.  **Mandatory Provisioning**: `JLD2` was added to the `julia_packages_injection` in `nix_emit_pipeline.ml`. This ensures the Nix sandbox always contains `JLD2` for any pipeline with Julia nodes.
+2.  **Base Imports**: Every Julia node now includes `using JLD2` in its header, added via `runtime_base_packages` in `nix_emit_node.ml`.
+3.  **Hardened `jl_serialize`**:
+    - **Tiered Dispatch**: The implementation now prefers `JLD2.jldsave` for general objects.
+    - **Validation**: Added checks for `Task`, `Channel`, `Base.IO`, and `Base.AbstractLock`, throwing a descriptive `T-Lang Julia serialization error` if encountered.
+    - **Closure Protection**: Explicitly forbids serializing non-Type `Function` objects to prevent world-age and environment-capture crashes.
+4.  **Verification**: Golden tests (including `julia_simple.t`) now successfully use this hardened path for cross-node data interchange within the Nix sandbox.
