@@ -786,6 +786,34 @@ min_version = "0.51.0"
       in
       missing_file_ok && wrong_dir_ok && empty_dir_ok && project_ok && nix_ok)
   );
+  test_case "package_doctor julia diagnostics helpers handle env and missing binary" (fun () ->
+    let original_load_path = Sys.getenv_opt "JULIA_LOAD_PATH" in
+    Unix.putenv "JULIA_LOAD_PATH" "";
+    let empty_load_path_warns =
+      match Package_doctor.check_julia_load_path () with
+      | Some { Package_doctor.level = Package_doctor.Warning; _ } -> true
+      | _ -> false
+    in
+    let missing_or_present_binary_ok =
+      match Package_doctor.check_julia_binary () with
+      | None -> true
+      | Some { Package_doctor.level = Package_doctor.Warning; _ } -> true
+      | _ -> false
+    in
+    let version_check_ok =
+      match Package_doctor.check_julia_version () with
+      | None -> true
+      | Some _ -> true
+    in
+    let package_check_ok =
+      let issues = Package_doctor.check_julia_packages () in
+      List.for_all (fun i -> i.Package_doctor.level = Package_doctor.Warning) issues
+    in
+    (match original_load_path with
+    | Some v -> Unix.putenv "JULIA_LOAD_PATH" v
+    | None -> Unix.putenv "JULIA_LOAD_PATH" "");
+    empty_load_path_warns && missing_or_present_binary_ok && version_check_ok && package_check_ok)
+  );
   print_newline ();
 
   Printf.printf "Coverage — Pipeline helpers:\n";
