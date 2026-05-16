@@ -1215,7 +1215,33 @@ function jl_write_warnings(warnings_list, path)
 end
 
 function jl_serialize(obj, path)
-    Serialization.serialize(path, obj)
+    unsupported_types = (Task, Channel, Base.IO, Base.AbstractLock)
+    if obj isa unsupported_types
+        error(
+            "T-Lang Julia serialization error: object of type $(typeof(obj)) is not cross-process serializable. " *
+            "Return a structured representation (Array/Dict/DataFrame) or use a runtime-specific writer."
+        )
+    end
+
+    lower_type = lowercase(string(typeof(obj)))
+    if occursin("function", lower_type) || occursin("closure", lower_type)
+        error(
+            "T-Lang Julia serialization error: closures/functions are not portable across process boundaries. " *
+            "Return serializable data instead of executable objects."
+        )
+    end
+
+    try
+        @eval using JLD2
+        JLD2.jldsave(path; object = obj)
+        return path
+    catch err
+        err_msg = jl_error_message(err)
+        error(
+            "T-Lang Julia serialization error: failed to serialize object of type $(typeof(obj)) " *
+            "to JLD2 at $(path). Underlying error: $(err_msg)"
+        )
+    end
 end
 |} in
 
