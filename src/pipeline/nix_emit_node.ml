@@ -1156,6 +1156,8 @@ function Logging.handle_message(logger::TCaptureLogger, level, message, _module,
     end
 end
 
+using JLD2
+
 function jl_error_message(err)
     try
         sprint(showerror, err)
@@ -1223,8 +1225,7 @@ function jl_serialize(obj, path)
         )
     end
 
-    lower_type = lowercase(string(typeof(obj)))
-    if occursin("function", lower_type) || occursin("closure", lower_type)
+    if obj isa Function && !(obj isa Type)
         error(
             "T-Lang Julia serialization error: closures/functions are not portable across process boundaries. " *
             "Return serializable data instead of executable objects."
@@ -1232,7 +1233,6 @@ function jl_serialize(obj, path)
     end
 
     try
-        @eval using JLD2
         JLD2.jldsave(path; object = obj)
         return path
     catch err
