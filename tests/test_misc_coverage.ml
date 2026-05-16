@@ -809,10 +809,11 @@ min_version = "0.51.0"
       let issues = Package_doctor.check_julia_packages () in
       List.for_all (fun i -> i.Package_doctor.level = Package_doctor.Warning) issues
     in
-    (match original_load_path with
+    begin match original_load_path with
     | Some v -> Unix.putenv "JULIA_LOAD_PATH" v
-    | None -> Unix.putenv "JULIA_LOAD_PATH" "");
-    empty_load_path_warns && missing_or_present_binary_ok && version_check_ok && package_check_ok)
+    | None -> Unix.putenv "JULIA_LOAD_PATH" ""
+    end;
+    empty_load_path_warns && missing_or_present_binary_ok && version_check_ok && package_check_ok
   );
   print_newline ();
 
