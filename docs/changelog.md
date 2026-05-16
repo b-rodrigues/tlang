@@ -40,8 +40,8 @@ The focus of this release is the introduction of first-class Julia support, enab
 - **Programmatic DAG Inspection**: Added `pipeline_nodes()` to all companion packages. It returns the pipeline DAG as an idiomatic data structure (e.g., `data.frame` in R, `dict` in Python/Julia), enabling easy programmatic traversal of node relationships.
 - **Refactored Pipeline Diagnostic Output**:
     - Removed the redundant `path:` field from the default `ComputedNode` REPL printer.
-    - The default REPL printer no longer displays `path: <unbuilt>` / `path:` status lines for `ComputedNode`s; users who need explicit artifact paths can obtain them via `read_node(..., return_path=true)` or `inspect_pipeline()`.
-- **Support for `return_path`**: Added `return_path` argument to `read_node()` in all languages. When set to true, the helper returns the absolute path to the artifact in the Nix store/project directory instead of deserializing it, allowing for custom loading logic or direct file inspection.
+    - The default REPL printer no longer displays `path: <unbuilt>` / `path:` status lines for `ComputedNode`s; users who need explicit artifact paths in the T runtime can obtain them via `inspect_node(node).path` or `inspect_pipeline()`.
+- **Support for `return_path` in Companion Packages**: Added `return_path` argument to `read_node()` in the R, Python, and Julia companion packages. When set to true, these helpers return the absolute path to the artifact in the Nix store/project directory instead of deserializing it, allowing for custom loading logic or direct file inspection.
 - **Automated Log Resolution**: These helpers now automatically resolve the most recent `build_log_*.json` in the `_pipeline/` directory, providing a stable way to access node results during development and reporting (e.g., in Quarto).
 ### Strict Serialization & Pipeline Stability
 - **Symbol-Mandated Serialization**: 
