@@ -53,3 +53,97 @@ There is already Julia-related coverage in the pipeline and CLI test suites (inc
 ~~1. **Diagnostics (`t doctor`)**: still missing Julia-specific checks and is the clearest operational gap.~~
 2. **Serialization hardening**: `jl_serialize` exists but is still thin and should be made more robust/documented.
 3. **Interoperability hardening for PMML/ONNX**: core helpers exist; prioritize broader model-family validation and tests.
+
+## Details on serialization hardening
+
+## Serialization Hardening for `jl_serialize` in T-Lang
+
+The core risk named in the spec is real and well-known in Julia: `Serialization.serialize` is **process-local** by design. It serializes Julia's internal object graph, including compiled method references, module identity, and type cache state. When you deserialize in another process (or even the same process after recompilation), you can hit:
+
+- **World-age violations** — a deserialized closure or method reference may point to a compiled specialization that no longer exists in the new process's world.
+- **Method cache misses** — deserialized objects carrying type parameters may fail dispatch because the method table was rebuilt.
+- **Module identity mismatches** — if the package versions differ even slightly between the serializing and deserializing process, type identity checks fail silently or loudly.
+
+These are not edge cases for T-Lang: they're almost guaranteed to appear with any non-trivial fitted model (GLM, MLJ wrappers, Flux chains).
+
+---
+
+### Hardening strategy by object class
+
+The right answer is a **tiered dispatch** inside `jl_serialize`, not a single universal fallback:
+
+#### Tier 1 — Structured formats for known model families
+
+For objects that have a well-defined external representation, skip `Serialization` entirely and use it:
+
+| Model family | Recommended format |
+|---|---|
+| GLM.jl fitted models | PMML via your existing `t_pmml_jl_code` |
+| Flux.jl chains | `Flux.state` → JLD2 (safe, version-stable) |
+| MLJ models | MLJ's own `MLJ.save` / `MLJ.machine` serialization |
+| DecisionTree.jl | JSON of tree structure or PMML if supported |
+| Pure data (`DataFrame`, arrays) | Arrow (already wired) |
+
+This means `jl_serialize` becomes a **dispatch table** keyed on type, not a passthrough.
+
+#### Tier 2 — JLD2 as the general fallback
+
+For objects not covered by Tier 1, `JLD2.jldsave` is significantly safer than `Serialization.serialize` across process boundaries because it:
+- Serializes to HDF5-based format with type annotations
+- Does not embed compiled method specializations
+- Survives version bumps better (though not perfectly)
+
+```julia
+using JLD2
+
+function jl_serialize(obj, path::String)
+    if _is_glm_model(obj)
+        _serialize_pmml(obj, path)          # your existing PMML path
+    elseif _is_flux_model(obj)
+        JLD2.jldsave(path * ".jld2"; model = Flux.state(obj))
+    else
+        JLD2.jldsave(path * ".jld2"; object = obj)
+    end
+end
+```
+
+#### Tier 3 — Explicit unsupported list with hard errors
+
+For types that are fundamentally un-portable (closures capturing foreign state, anonymous types, task handles), fail **loudly at serialization time**, not at deserialization time in another node. This is critical for T-Lang's reproducibility contract — a silent corrupt artifact is far worse than a clear pipeline failure.
+
+```julia
+const UNSERIALIZABLE_TYPES = [Task, Channel, Base.IOStream]
+
+function jl_serialize(obj, path::String)
+    for T in UNSERIALIZABLE_TYPES
+        obj isa T && error("T-Lang: $(typeof(obj)) is not cross-process serializable. \
+                            Return a structured representation from this node instead.")
+    end
+    # ... dispatch to tier 1/2
+end
+```
+
+---
+
+### What to emit from `nix_emit_node.ml`
+
+The OCaml side should probably track which serialization tier was used, so the downstream deserializer knows what to expect. You could encode this in the `T_NODE_<name>` environment variables or in a sidecar metadata file (`.tmeta`). Something like:
+
+```
+T_NODE_mymodel_FORMAT=jld2
+T_NODE_mymodel_PATH=/path/to/mymodel.jld2
+```
+
+This avoids the deserializing node having to sniff the format, which is fragile.
+
+---
+
+### For the spec's "explicitly document unsupported object classes" branch
+
+If you want the lighter path first, the minimum viable hardening is:
+
+1. Keep `Serialization.serialize` as the implementation
+2. Add a **type guard** that raises a descriptive error for known-bad types
+3. Add a note in the node diagnostic output (ties into your `t doctor` work) that warns when a Julia node's return type is not in an approved serializable set
+
+That at least shifts the failure from a cryptic deserialization crash to a clear pipeline-time error with actionable guidance.
