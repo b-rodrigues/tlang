@@ -735,6 +735,7 @@ let interactive_init ?(placeholder="my_package") default_name =
   let license = prompt_string "License [EUPL-1.2, GPL-3.0-or-later, MIT] (visit https://spdx.org/licenses/ for all licenses)" "EUPL-1.2" in
   let nixpkgs_date = prompt_string "Nixpkgs date (rstats-on-nix branch)" Version.nixpkgs_date in
   let agent_context = prompt_string "Agent Context Level [small, medium, full, huge]" "medium" in
+  let pipeline_template = prompt_string "Pipeline Template [minimal, full]" "minimal" in
   Printf.printf "\n";
   {
     target_name = name;
@@ -745,7 +746,51 @@ let interactive_init ?(placeholder="my_package") default_name =
     force = false;
     interactive = true;
     agent_context = agent_context;
+    pipeline_template = pipeline_template;
   }
+
+(** Copies or downloads the archetypical pipeline template if complete, or writes the default minimal pipeline *)
+let write_project_pipeline dir (opts : scaffold_options) sub =
+  let dest_path = Filename.concat dir "src/pipeline.t" in
+  if opts.pipeline_template = "full" then begin
+    let agents_dir =
+      match Sys.getenv_opt "TLANG_AGENTS_DIR" with
+      | Some d -> d
+      | None ->
+          let exe_dir = Filename.dirname Sys.executable_name in
+          let share_dir = Filename.concat (Filename.dirname exe_dir) "share/tlang/agents" in
+          let dev_repo_agents = "/home/brodrigues/Documents/repos/tlang/agents" in
+          if Sys.file_exists dev_repo_agents && Sys.is_directory dev_repo_agents then dev_repo_agents
+          else if Sys.file_exists "agents" && Sys.is_directory "agents" then "agents"
+          else if Sys.file_exists share_dir && Sys.is_directory share_dir then share_dir
+          else "agents"
+    in
+    let src_path = Filename.concat agents_dir "archetypical_pipeline.t" in
+    if Sys.file_exists src_path then begin
+      try
+        let ic = open_in src_path in
+        let content = really_input_string ic (in_channel_length ic) in
+        close_in ic;
+        let oc = open_out dest_path in
+        output_string oc content;
+        close_out oc;
+        true
+      with _ -> false
+    end else begin
+      (* Fallback: Try downloading from GitHub *)
+      let url = "https://raw.githubusercontent.com/b-rodrigues/tlang/master/agents/archetypical_pipeline.t" in
+      let cmd = Printf.sprintf "curl -s -f -L -o %S %S" dest_path url in
+      if Sys.command cmd = 0 then true
+      else begin
+        Printf.eprintf "Warning: Could not fetch complete template. Falling back to minimal template.\n";
+        write_file dest_path (sub project_pipeline_example);
+        false
+      end
+    end
+  end else begin
+    write_file dest_path (sub project_pipeline_example);
+    true
+  end
 
 (*
 --# Scaffold a new T project
@@ -792,7 +837,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       write_file (Filename.concat dir "README.md") (sub project_readme);
       let _ = write_license_file dir opts.license in
       write_file (Filename.concat dir ".gitignore") project_gitignore;
-      write_file (Filename.concat dir "src/pipeline.t") (sub project_pipeline_example);
+      let _ = write_project_pipeline dir opts sub in
       (* Agent files *)
       let _ = copy_agent_files dir false opts.agent_context in
       (* Git init *)
@@ -830,6 +875,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
   let no_git = ref false in
   let force = ref false in
   let agent_context = ref "medium" in
+  let pipeline_template = ref "minimal" in
   let show_help = ref false in
   let error = ref None in
   let rec parse = function
@@ -840,6 +886,10 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
     | "--no-git" :: rest -> no_git := true; parse rest
     | "--force" :: rest -> force := true; parse rest
     | "--context" :: v :: rest -> agent_context := v; parse rest
+    | "--pipeline-template" :: v :: rest
+    | "--template" :: v :: rest ->
+        if v = "minimal" || v = "full" then (pipeline_template := v; parse rest)
+        else (error := Some "Invalid template. Supported: minimal, full"; parse rest)
     | "--interactive" :: rest -> parse rest (* Handled in repl.ml mainly, but we can flag it *)
     | "--help" :: _ -> show_help := true
     | arg :: rest ->
@@ -862,6 +912,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
            \  --no-git           Skip git init\n\
            \  --force            Overwrite existing directory\n\
            \  --context <level>  Agent context level (small, medium, full, huge; default: medium)\n\
+           \  --pipeline-template <name>  Pipeline template: minimal, full (default: minimal)\n\
            \  --help             Show this help\n\
            \  --interactive      Prompt for options")
   else match !error with
@@ -878,6 +929,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
         force = !force;
         interactive = List.mem "--interactive" args;
         agent_context = !agent_context;
+        pipeline_template = !pipeline_template;
       }
     | None ->
         if List.mem "--interactive" args then
@@ -890,6 +942,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
             force = !force;
             interactive = true;
             agent_context = !agent_context;
+            pipeline_template = !pipeline_template;
           }
         else
           Error "Missing name. Usage: t init --package|--project <name>"
