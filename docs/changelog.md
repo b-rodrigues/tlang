@@ -13,7 +13,7 @@ The focus of this release is the introduction of first-class Julia support, enab
     - Introduced `jln()` (and its alias `jln()`) for executing Julia code directly within T pipelines.
     - Julia nodes support full dependency management and automatic environment provisioning.
 - **Integrated Dependency Management**:
-    - Projects can now declare Julia requirements in `tproject.toml` via the `[julia-dependencies]` section.
+    - Projects can now declare Julia requirements in `tproject.toml` via the `[jl-dependencies]` section.
     - Support for specific Julia versions and automatic Nix-based environment generation.
 - **Native PMML Support**:
     - Full support for PMML model scoring and export within Julia nodes using the `^pmml` serializer.
@@ -32,7 +32,7 @@ The focus of this release is the introduction of first-class Julia support, enab
 - **Julia JSON Interchange**: Added support for the `JSON` package in Julia nodes, enabling seamless JSON-based data exchange for Julia-based pipeline steps.
 - **Julia Plotting Enhancements**: 
     - `show_plot()` now supports Julia plots via `TidierPlots.jl`, `Plots.jl`, and `Makie.jl`.
-    - **CairoMakie Requirement**: For `Makie.jl` objects, `CairoMakie` is the mandatory backend for reproducible headless rendering within the Nix sandbox. Ensuring `CairoMakie` is in `[julia-dependencies].packages` is required for successful visual inspection of Makie nodes.
+    - **CairoMakie Requirement**: For `Makie.jl` objects, `CairoMakie` is the mandatory backend for reproducible headless rendering within the Nix sandbox. Ensuring `CairoMakie` is in `[jl-dependencies].packages` is required for successful visual inspection of Makie nodes.
 
 
 ### External Helper Packages (R, Python, Julia)

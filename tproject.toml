@@ -11,7 +11,7 @@ packages = ["dplyr", "readr", "testthat"]
 version = "python314"
 packages = ["pandas", "numpy", "onnxruntime", "pyarrow", "skl2onnx"]
 
-[julia-dependencies]
+[jl-dependencies]
 version = "lts"
 packages = ["CSV", "DataFrames", "JSON", "Arrow", "ONNX", "ONNXRunTime", "CairoMakie", "Plots", "TidierPlots"]
 

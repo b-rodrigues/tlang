@@ -1,16 +1,36 @@
 # T — The Orchestration Engine for Polyglot Data Science
 
-**T** is an experimental orchestration engine designed for declarative, reproducible pipelines. It provides a functional Domain-Specific Language (DSL) that coordinates R, Python, and Shell nodes—as well as Julia—within a Nix-managed infrastructure.
+T is a reproducibility-first domain-specific language (DSL) for polyglot data
+science. It provides a functional, immutable language for constructing
+composable *micropipelines*: first-class, introspectable computation graphs
+that coordinate R, Python, Julia, Quarto, and Shell execution within a unified
+system. Pipelines in T are not configuration artifacts but executable program
+structures with explicit dataflow, typed nodes, and content-addressed outputs.
+Artifacts are automatically serialized and exchanged across language boundaries,
+allowing polyglot workflows to compose without manual I/O glue code.
 
-Unlike traditional scripting languages, T is built to be a **specifications-ready engine**, making data analysis **explicit, inspectable, and pipeline-oriented**. This unique architecture ensures that humans and LLMs can collaborate on defining high-level intent while T handles the low-level orchestration and environmental consistency.
+Built on Nix, T integrates declarative environment management and deterministic
+builds at the language level, enabling reproducible execution across machines
+and operating systems. Workflow structure, dependency resolution, environment
+specification, and provenance tracking are intrinsic properties of the language
+rather than concerns delegated to external tooling. As a result, T is designed
+so that reproducible workflows are the default: reproducibility of your projects
+is not an afterthought anymore.
 
-**Status:** Version 0.52.0 "Kaméhaméha", latest stabilization release.
+T also includes a growing collection of data manipulation verbs inspired by the
+R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
+lubridate. This makes it possible to perform exploratory data analysis directly
+from the T REPL before promoting computations into reproducible pipelines.
+
+**Status:** Version 0.52.0 "Kaméhaméha".
 
 ---
 
 ## The Polyglot Pipeline
 
-T's core strength is its **mandatory pipeline architecture**. To execute code in T, you typically define it as a series of nodes in a directed acyclic graph (DAG). T handles the "glue":
+T's core strength is its **mandatory pipeline architecture**. To execute code in
+T, you typically define it as a series of nodes in a directed acyclic graph
+(DAG). T handles the "glue":
 
 ```t
 -- A reproducible polyglot pipeline
@@ -20,14 +40,14 @@ p = pipeline {
     command = read_csv("examples/sample_data.csv") |> filter($age > 25),
     serializer = "csv"
   )
-  
+
   -- 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
     command = <{ lm(score ~ age, data = data) }>,
     serializer = "pmml",
     deserializer = "csv"
   )
-  
+
   -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
   predictions = node(
     command = data |> mutate($pred = predict(data, model_r)),
@@ -44,27 +64,53 @@ p = pipeline {
 build_pipeline(p)
 ```
 
-## What is T?
+Pipelines are not mandatory in the T REPL. This is a deliberate design choice
+intended to support exploratory data analysis and rapid experimentation before
+computations are promoted into reproducible pipelines. Users can also launch
+R, Python, or Julia REPLs directly from within a T project, inheriting the
+same pinned environments and project dependencies. This allows exploratory
+work to take place in familiar ecosystems while remaining integrated with T's
+reproducibility model.
 
-T is not designed to replace your existing tools; it is designed to **orchestrate** them. It addresses the "dependency drift" and "works on my machine" syndrome by making **Nix mandatory**.
+---
 
-- **Orchestration, Not Invention**: Use R for its statistics, Python for its machine learning, and T to ensure they always talk to each other correctly via high-performance formats like Apache Arrow.
-- **Strictly Functional & Immutable**: T eliminates side effects and mutable state. If `a = 1 / 0`, then `a` is an `Error` value, not an exception. Logic is auditable and predictable.
-- **Mandatory Reproducibility**: Every node in a T pipeline runs in its own sandboxed Nix environment. T automatically detects dependencies and ensures that if a node's inputs haven't changed, its results are pulled from the cache.
-- **AI-Native Design**: Through features like `intent` blocks and structured metadata, T is built for a future where humans and AI collaborate on complex data workflows.
+## T in relation to the big three data science languages
+
+T is not designed to replace your existing tools; it is designed to
+**orchestrate** them. It addresses the "dependency drift" and "works on my
+machine" syndrome by making **Nix mandatory**.
+
+- **Orchestration, Not Invention**: Use R for its statistics, Python for its
+  machine learning, and T to ensure they always talk to each other correctly via
+  high-performance formats like Apache Arrow.
+- **Strictly Functional & Immutable**: T eliminates side effects and mutable
+  state. If `a = 1 / 0`, then `a` is an `Error` value, not an exception. Logic
+  is auditable and predictable.
+- **Mandatory Reproducibility**: Every node in a T pipeline runs in its own
+  sandboxed Nix environment. T automatically detects dependencies and ensures
+  that if a node's inputs haven't changed, its results are pulled from the
+  cache.
+- **AI-Native Design**: Through features like `intent` blocks and structured
+  metadata, T is built for a future where humans and AI collaborate on complex
+  data workflows.
 
 ---
 
 ## Foreign Language Nodes & Deserialization
 
-When you define a node using `node()`, `rn()` (R), `pyn()` (Python), `jln()` (Julia), or `shn()` (Shell)—T treats the result as a first-class **Node** object. These objects transition through two main states:
+When you define a node using `node()`, `rn()` (R), `pyn()` (Python), `jln()`
+(Julia), or `shn()` (Shell), T treats the result as a first-class **Node**
+object. These objects transition through two main states:
 
 1.  **Unbuilt Node**: A specification of what to run (command, runtime, environment variables).
-2.  **Computed Node**: After `build_pipeline()`, the node points to a concrete, immutable artifact in the Nix store.
+2.  **Computed Node**: After `build_pipeline()`, the node points to a concrete,
+    immutable artifact in the Nix store.
 
-### Automatic Deserialization
+### Automatic (De)serialization
 
-When you call `read_node("node_name")` in the REPL, T looks at the node's **serializer** and attempts to automatically load the data back into the T environment:
+When you call `read_node("node_name")` in the REPL, T looks at the node's
+**serializer** and attempts to automatically load the data back into the T
+environment:
 
 | Serializer | Resulting T Type | Backend |
 | :--- | :--- | :--- |
@@ -76,7 +122,10 @@ When you call `read_node("node_name")` in the REPL, T looks at the node's **seri
 
 ### Looking into the "Entrails"
 
-If a node's serializer is not supported for automatic deserialization, `read_node()` returns the **Computed Node object** itself. This object contains all the metadata necessary to load the artifact manually or inspect its provenance.
+If a node's serializer is not supported for automatic deserialization,
+`read_node()` returns the **Computed Node object** itself. This object contains
+all the metadata necessary to load the artifact manually or inspect its
+provenance.
 
 You can use `explain()` to look inside a built node:
 
@@ -95,9 +144,14 @@ You can use `explain()` to look inside a built node:
 }
 ```
 
-The `path` field is the "escape hatch"—it gives you the absolute path to the node's output in the Nix store. You can use this to start an external interpreter and inspect the file directly, or pass it to a custom loader like `read_parquet(model_node.path)`.
+The `path` field is the "escape hatch": it gives you the absolute path to the
+node's output in the Nix store. You can use this to start an external
+interpreter and inspect the file directly, or pass it to a custom loader like
+`read_parquet(model_node.path)`.
 
-For a more streamlined experience, you can use our **[External Helper Packages](external-packages.html)** for R, Python, and Julia, which automate log resolution and deserialization from within those environments.
+For a more streamlined experience, you can use our **[External Helper
+Packages](external-packages.html)** for R, Python, and Julia, which automate log
+resolution and deserialization from within those environments.
 
 ---
 

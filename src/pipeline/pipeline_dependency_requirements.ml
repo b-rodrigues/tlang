@@ -322,7 +322,7 @@ let format_analysis analysis =
     [
       ("[r-dependencies]", analysis.missing_r_deps);
       ("[py-dependencies]", analysis.missing_py_deps);
-      ("[julia-dependencies]", analysis.missing_julia_deps);
+      ("[jl-dependencies]", analysis.missing_julia_deps);
       ("[additional-tools]", analysis.missing_additional_tools);
       ("[latex]", analysis.missing_latex_pkgs);
     ]

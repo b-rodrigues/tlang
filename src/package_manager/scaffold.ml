@@ -440,14 +440,22 @@ packages = []
 
 [py-dependencies]
 # Python packages this project depends on
-version = "python314"
+# version = "python314"
 # Example:
 # packages = ["pandas", "numpy"]
 packages = []
 
+[jl-dependencies]
+# Julia packages this project depends on
+# version = "lts"
+# Example:
+# packages = ["DataFrames", "CSV"]
+packages = []
+
 [visualization-tool]
 # Optional plot opener used by `show_plot()`
-# Example: command = "xdg-open"
+# Example:
+# command = "xdg-open"
 command = ""
 
 [additional-tools]
