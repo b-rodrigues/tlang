@@ -40,6 +40,10 @@ let read_file path =
     Ok content
   with Sys_error msg -> Error msg
 
+(** Parse remote tag references from `git ls-remote --tags` output.
+    
+    @param output The raw standard output from the git command.
+    @return A list of parsed tag name strings. *)
 let parse_remote_tag_refs output =
   let prefix = "refs/tags/" in
   let prefix_len = String.length prefix in
@@ -58,6 +62,10 @@ let parse_remote_tag_refs output =
        []
   |> List.rev
 
+(** Identify the latest semantic version tag from a list of version tag strings.
+    
+    @param tags The input list of version tag strings.
+    @return [Some latest_tag] or [None] if no valid semver tags found. *)
 let latest_semver_tag tags =
   let versioned_tags =
     List.fold_left
@@ -96,6 +104,10 @@ type project_dependency_counts = {
   latex_packages : int;
 }
 
+(** Count the dependencies and tools configured in a project config.
+    
+    @param cfg The project configuration.
+    @return A [project_dependency_counts] structure containing the counted values. *)
 let project_dependency_counts cfg =
   {
     t_dependencies = List.length cfg.proj_dependencies;
@@ -106,18 +118,42 @@ let project_dependency_counts cfg =
     latex_packages = List.length cfg.proj_latex_packages;
   }
 
+(** Pluralize a word based on a count.
+    
+    @param count The count of items.
+    @param singular The singular form of the word.
+    @param plural The plural form of the word.
+    @return The singular or plural word string. *)
 let pluralize count singular plural =
   if count = 1 then singular else plural
 
+(** Format a count with a custom label and correctly pluralized suffix.
+    
+    @param count The numeric count.
+    @param label The label (e.g. "T", "R", "Python").
+    @param singular The singular word.
+    @param plural The plural word.
+    @return Formatted string like "2 T dependencies". *)
 let format_labeled_count count label singular plural =
   Printf.sprintf "%d %s %s" count label (pluralize count singular plural)
 
+(** Format a count if it's greater than zero, otherwise return None.
+    
+    @param count The numeric count.
+    @param label The label.
+    @param singular The singular word.
+    @param plural The plural word.
+    @return [Some formatted_string] or [None]. *)
 let optional_labeled_count count label singular plural =
   if count > 0 then
     Some (format_labeled_count count label singular plural)
   else
     None
 
+(** Retrieve list of formatted segments describing the project's various dependencies.
+    
+    @param counts The project dependency counts.
+    @return A list of descriptive segments. *)
 let project_dependency_count_segments counts =
   let base_segments =
     [
@@ -153,6 +189,10 @@ let project_dependency_count_segments counts =
   in
   base_segments @ extra_segments
 
+(** Format a list of segments into a grammatically correct comma-separated list with "and".
+    
+    @param segments The list of text segments to combine.
+    @return Grammatically joined string. *)
 let format_count_segments segments =
   match segments with
   | [] -> ""
@@ -163,14 +203,23 @@ let format_count_segments segments =
       (match reversed with
       | last :: rest_rev ->
           String.concat ", " (List.rev rest_rev) ^ " and " ^ last
-      | [] -> "")
+          | [] -> "")
 
+(** Format a sync message describing the files and dependencies being synced.
+    
+    @param cfg The project configuration.
+    @return Sync log message. *)
 let format_project_sync_message cfg =
   let counts = project_dependency_counts cfg in
   Printf.sprintf
     "Syncing %s from tproject.toml → flake.nix...\n"
     (format_count_segments (project_dependency_count_segments counts))
 
+(** Format a descriptive warning message when no T dependencies are declared.
+    
+    @param config_name The configuration filename.
+    @param cfg The project configuration.
+    @return Warning message. *)
 let format_no_t_project_dependencies_message config_name cfg =
   let counts = project_dependency_counts cfg in
   let non_t_segments =
@@ -208,6 +257,10 @@ let format_no_t_project_dependencies_message config_name cfg =
       config_name
       (format_count_segments non_t_segments)
 
+(** Load dependency metadata from the current working directory's TOML configuration.
+    Looks for tproject.toml first, then fallbacks to DESCRIPTION.toml.
+    
+    @return [Ok loaded_dependency_source] or [Error message]. *)
 let load_current_dependency_source () =
   let dir = Sys.getcwd () in
   let tproject_path = Filename.concat dir "tproject.toml" in
@@ -229,6 +282,10 @@ let load_current_dependency_source () =
   else
     Error "No tproject.toml or DESCRIPTION.toml found in the current directory."
 
+(** Validate if a Git repository URL/path is safe to execute (no hidden flags or control chars).
+    
+    @param url The git URL/path string.
+    @return [true] if safe, [false] otherwise. *)
 let is_safe_git_location url =
   let len = String.length url in
   let rec check i =
@@ -241,6 +298,10 @@ let is_safe_git_location url =
   in
   len > 0 && url.[0] <> '-' && check 0
 
+(** Run git ls-remote to query available tags for a given remote repository.
+    
+    @param url Safe repository URL/path.
+    @return [Ok output] or [Error message]. *)
 let run_git_ls_remote_tags url =
   if not (is_safe_git_location url) then
     Error "invalid repository location"
@@ -311,6 +372,11 @@ let run_git_ls_remote_tags url =
       | Unix.WSIGNALED _ | Unix.WSTOPPED _ -> Error "git ls-remote terminated unexpectedly"
     with _ -> Error "git ls-remote invocation failed"
 
+(** Format a user-friendly warning message for various git ls-remote tag check failures.
+    
+    @param dep_name The dependency name.
+    @param reason The underlying failure reason.
+    @return Warning message string. *)
 let remote_tag_warning_message dep_name reason =
   match reason with
   | "invalid repository location" ->
@@ -326,6 +392,10 @@ let remote_tag_warning_message dep_name reason =
         "Warning: Failed to check remote tags for `%s`. Verify git is available and try again.\n%!"
         dep_name
 
+(** Query the remote repository for a dependency to see if a newer version tag is available.
+    
+    @param dep The dependency structure to check.
+    @return [Some remote_tag_update] if a newer version is found, otherwise [None]. *)
 let check_dependency_remote_tag dep =
   match Scaffold.parse_semver dep.tag with
   | None -> None
@@ -348,6 +418,9 @@ let check_dependency_remote_tag dep =
                     }
               | _ -> None)
 
+(** Scan all declared dependencies in the current project/package configuration for updates.
+    
+    @return [Ok list_of_updates] or [Error message]. *)
 let check_remote_tags () =
   match load_current_dependency_source () with
   | Error msg -> Error msg
@@ -395,6 +468,9 @@ let check_remote_tags () =
         flush stdout;
         Ok updates
 
+(** Validate git environment preconditions before attempting to perform dependency updates.
+    
+    @return [Ok ()] if environment is ready, [Error message] otherwise. *)
 let validate_update_prerequisites () =
   let in_ci =
     match Sys.getenv_opt "CI" with
@@ -444,6 +520,10 @@ let normalize_json_value value =
   else
     trimmed
 
+(** Finalize the current lock node parsing state, moving it to the parsed nodes list.
+    
+    @param state Current parser state.
+    @return Updated parser state. *)
 let finalize_current_node state =
   match state.current_node with
   | None -> state
@@ -528,9 +608,19 @@ let parse_flake_lock_nodes content =
   let final_state = finalize_current_node final_state in
   List.rev final_state.nodes
 
+(** Find a parsed flake lock node snapshot by its input name.
+    
+    @param name Input/dependency name.
+    @param nodes List of parsed lock nodes.
+    @return [Some node] if found, otherwise [None]. *)
 let find_flake_lock_node name nodes =
   List.find_opt (fun node -> node.name = name) nodes
 
+(** Look up a field's value in a list of key-value fields.
+    
+    @param fields List of fields.
+    @param key The field key.
+    @return [Some value] if found, otherwise [None]. *)
 let field_value fields key = List.assoc_opt key fields
 
 (** Collect unique projected string values from multiple lists while preserving
@@ -553,6 +643,11 @@ let collect_unique_ordered_by project lists =
   in
   List.rev reversed
 
+(** Compare the content of a flake.lock file before and after updating, and generate a human-readable list of changes.
+    
+    @param before_content Optional string content of flake.lock before updating.
+    @param after_content Optional string content of flake.lock after updating.
+    @return A list of strings describing identified changes. *)
 let summarize_flake_lock_changes before_content after_content =
   match before_content, after_content with
   | None, None -> []
@@ -617,6 +712,10 @@ let summarize_flake_lock_changes before_content after_content =
       if lines = [] then [ "  - flake.lock changed." ] else lines
   | Some _, None -> [ "  - flake.lock was removed." ]
 
+(** Print a report of the differences/changes detected in flake.lock.
+    
+    @param before_content Optional string content before updates.
+    @param after_content Optional string content after updates. *)
 let report_flake_lock_changes before_content after_content =
   let summary_lines = summarize_flake_lock_changes before_content after_content in
   if summary_lines = [] then

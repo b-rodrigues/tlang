@@ -5,6 +5,8 @@ open Package_types
 
 let companion_package_version = "0.1.0"
 
+(** Ensure that the "JSON" dependency is present in the list of Julia dependencies.
+    T-Lang's polyglot interop uses JSON serialization for data exchange with Julia. *)
 let ensure_julia_json_dep deps =
   if List.mem "JSON" deps then deps else "JSON" :: deps
 

@@ -6,11 +6,51 @@ from typing import Any
 
 
 def _validate_non_empty_string(value: str, arg: str) -> None:
+    """Validate that a value is a non-empty, stripped string.
+
+    Parameters
+    ----------
+    value : str
+        The value to check.
+    arg : str
+        The name of the argument being checked (used in error messages).
+
+    Raises
+    ------
+    ValueError
+        If `value` is not a string, or if it consists solely of whitespace.
+    """
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"`{arg}` must be a non-empty string.")
 
 
 def _validate_entry(entry: Any, index: int, dag_path: Path) -> tuple[str, list[str]]:
+    """Validate a single DAG entry dictionary from the JSON structure.
+
+    Extracts the node name and its dependency list, ensuring all entries are valid.
+
+    Parameters
+    ----------
+    entry : Any
+        The individual entry object from the DAG file, expected to be a dictionary.
+    index : int
+        The 1-based index of this entry in the DAG file (used in error messages).
+    dag_path : Path
+        The Path to the DAG file being parsed (used in error messages).
+
+    Returns
+    -------
+    tuple[str, list[str]]
+        A tuple containing:
+        - The validated node name (as a non-empty string).
+        - A sorted, duplicate-free list of dependency node names (as strings).
+
+    Raises
+    ------
+    ValueError
+        If the entry is not a dictionary, if `node_name` is missing or invalid,
+        or if `depends` is not a list of non-empty strings.
+    """
     if not isinstance(entry, dict):
         raise ValueError(f"Entry {index} in `{dag_path}` must be an object.")
 
@@ -29,9 +69,34 @@ def _validate_entry(entry: Any, index: int, dag_path: Path) -> tuple[str, list[s
 
 
 def pipeline_nodes(pipeline_dir: str | Path = "_pipeline", dag_file: str = "dag.json") -> dict[str, list[str]]:
-    """Get pipeline nodes and their dependencies from ``_pipeline/dag.json``.
+    """Get pipeline nodes and their dependencies from the DAG configuration.
 
-    Returns a dictionary mapping node names to their lists of dependencies.
+    Reads and validates the DAG definition from a JSON file (typically `_pipeline/dag.json`)
+    and returns a mapping of node names to their lists of dependencies.
+
+    Parameters
+    ----------
+    pipeline_dir : str | Path, optional
+        The path to the pipeline directory where the DAG file is located.
+        Defaults to "_pipeline".
+    dag_file : str, optional
+        The filename of the DAG configuration. Defaults to "dag.json".
+
+    Returns
+    -------
+    dict[str, list[str]]
+        A dictionary mapping each node name (str) to the list of node names
+        it depends on (list of str), sorted alphabetically.
+
+    Raises
+    ------
+    ValueError
+        If `pipeline_dir` or `dag_file` is invalid/empty, if the JSON structure is
+        malformed, contains duplicate node names, or references unknown dependencies.
+    FileNotFoundError
+        If the pipeline directory or the DAG file does not exist.
+    OSError
+        If the DAG file exists but cannot be read due to an I/O error.
     """
     pipeline_path = Path(pipeline_dir)
     _validate_non_empty_string(str(pipeline_path), "pipeline_dir")

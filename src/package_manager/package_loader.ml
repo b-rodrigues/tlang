@@ -5,6 +5,10 @@
 
 module String_set = Set.Make (String)
 
+(** Filter a list of strings to retain only unique entries while preserving original order.
+    
+    @param names The input list of strings.
+    @return The deduplicated list of strings. *)
 let ordered_unique_strings names =
   let (_seen, rev_names) =
     List.fold_left (fun (seen, acc) name ->

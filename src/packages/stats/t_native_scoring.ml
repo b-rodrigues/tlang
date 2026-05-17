@@ -1,6 +1,10 @@
 (* src/packages/stats/t_native_scoring.ml *)
 open Ast
 
+(** Extract a list of strings representing ONNX feature names from a T-Lang list value.
+    
+    @param value The T-Lang VList value to check.
+    @return [Ok list] or [Error type_error]. *)
 let onnx_string_list_of_value value =
   match value with
   | VList items ->
@@ -14,6 +18,11 @@ let onnx_string_list_of_value value =
   | _ ->
       Error (Error.type_error "Function `predict` expects ONNX model `features` to be a list of strings.")
 
+(** Extract column names requested by the ONNX model from dictionary settings or fallback parameters.
+    
+    @param pairs The key-value association list.
+    @param numeric_cols The default numeric column names of the DataFrame.
+    @return [Ok list] containing selected feature column names, or [Error error_value]. *)
 let onnx_feature_columns pairs numeric_cols =
   match List.assoc_opt "features" pairs with
   | Some feature_value -> onnx_string_list_of_value feature_value
@@ -65,27 +74,50 @@ type row_value =
   | RowString of string
   | RowMissing
 
+(** Unpack a T-Lang list value into a flat OCaml list of values.
+    
+    @param value The collection value (VList).
+    @return A flat list of T-Lang values. *)
 let value_list = function
   | VList items -> List.map (fun (_, v) -> v) items
   | _ -> []
 
+(** Extract a mandatory string field from a key-value dictionary list.
+    
+    @param name The field key.
+    @param pairs The dictionary association list.
+    @return [Ok string] or [Error msg]. *)
 let get_string_field name pairs =
   match List.assoc_opt name pairs with
   | Some (VString s) -> Ok s
   | Some _ -> Error (Printf.sprintf "Expected `%s` to be a String in tree model." name)
   | None -> Error (Printf.sprintf "Missing `%s` in tree model." name)
 
+(** Safely extract an optional string field from a key-value dictionary list.
+    
+    @param name The field key.
+    @param pairs The dictionary association list.
+    @return [Some string] if found, [None] otherwise. *)
 let get_optional_string_field name pairs =
   match List.assoc_opt name pairs with
   | Some (VString s) -> Some s
   | _ -> None
 
+(** Extract a mandatory nested dictionary field from an association list.
+    
+    @param name The field key.
+    @param pairs The association list.
+    @return [Ok dict] or [Error msg]. *)
 let get_dict_field name pairs =
   match List.assoc_opt name pairs with
   | Some (VDict d) -> Ok d
   | Some _ -> Error (Printf.sprintf "Expected `%s` to be a Dict in tree model." name)
   | None -> Error (Printf.sprintf "Missing `%s` in tree model." name)
 
+(** Parse a tree node predicate from a dictionary value.
+    
+    @param v The T-Lang dictionary value.
+    @return [Ok tree_predicate] or [Error msg]. *)
 let rec predicate_of_value v =
   match v with
   | VDict pairs ->
@@ -132,6 +164,10 @@ let rec predicate_of_value v =
        | Ok other -> Error (Printf.sprintf "Unknown predicate type `%s`." other))
   | _ -> Error "Expected predicate to be a Dict."
 
+(** Parse a tree node recursively from a dictionary value.
+    
+    @param v The T-Lang dictionary value.
+    @return [Ok tree_node] or [Error msg]. *)
 let rec node_of_value v =
   match v with
   | VDict pairs ->
@@ -161,6 +197,10 @@ let rec node_of_value v =
        | _, None -> Error "Missing `children` in tree node.")
   | _ -> Error "Expected tree node to be a Dict."
 
+(** Parse a complete single decision tree model from a dictionary value.
+    
+    @param v The T-Lang dictionary value.
+    @return [Ok tree_model] or [Error msg]. *)
 let tree_of_value v =
   match v with
   | VDict pairs ->
@@ -172,6 +212,10 @@ let tree_of_value v =
        | Error msg, _ | _, Error msg -> Error msg)
   | _ -> Error "Expected tree model to be a Dict."
 
+(** Parse a random forest model containing a list of decision trees.
+    
+    @param v The T-Lang dictionary value.
+    @return [Ok forest_model] or [Error msg]. *)
 let forest_of_value v =
   match v with
   | VDict pairs ->
@@ -194,6 +238,10 @@ let forest_of_value v =
        | Error msg, _ | _, Error msg -> Error msg)
   | _ -> Error "Expected forest model to be a Dict."
 
+(** Parse a gradient boosted tree model ensemble (XGBoost / LightGBM) from a dictionary value.
+    
+    @param v The T-Lang dictionary value.
+    @return [Ok boosted_ensemble] or [Error msg]. *)
 let boosted_model_of_value v =
   match v with
   | VDict pairs ->
@@ -230,6 +278,14 @@ let boosted_model_of_value v =
        | Error msg -> Error msg)
   | _ -> Error "Expected boosted ensemble model to be a Dict."
 
+(** Create a row-lookup evaluator function for a DataFrame column field.
+    
+    Determines Arrow column data types and returns an accessor function mapping row indices
+    to scored row values.
+    
+    @param df The target DataFrame.
+    @param field The column name.
+    @return [Ok row_evaluator] or [Error msg]. *)
 let resolve_field_eval df field =
   match Arrow_table.column_type df.arrow_table field with
   | Some (Arrow_table.ArrowFloat64 | Arrow_table.ArrowInt64) ->
@@ -244,6 +300,10 @@ let resolve_field_eval df field =
   | None -> Error (Printf.sprintf "Field `%s` not found in DataFrame." field)
   | _ -> Error (Printf.sprintf "Field `%s` has unsupported type for native scoring." field)
 
+(** Recursively extract all column names referenced in a tree node predicate hierarchy.
+    
+    @param node The root decision tree node.
+    @return A list of referenced column field names. *)
 let rec node_fields node =
   let here =
     match node.predicate with
@@ -260,6 +320,7 @@ let rec node_fields node =
   in
   here @ List.concat (List.map node_fields node.children)
 
+(** Deduplicate a list of field names. *)
 let unique_fields fields =
   let rec loop acc = function
     | [] -> List.rev acc
@@ -267,6 +328,12 @@ let unique_fields fields =
   in
   loop [] fields
 
+(** Evaluate a decision predicate against a specific row.
+    
+    @param evals The map of evaluator accessor functions.
+    @param pred The target predicate structure.
+    @param row_idx The index of the row to evaluate.
+    @return [Some true] if matching, [Some false] if not matching, or [None] on missing/NA row values. *)
 let rec eval_predicate evals pred row_idx =
   match pred with
   | PredTrue -> Some true
@@ -329,6 +396,12 @@ let rec eval_predicate evals pred row_idx =
            | [] -> None)
       | _ -> None
 
+(** Recursively traverse a decision tree to find the matching leaf node score for a row.
+    
+    @param evals Evaluator map.
+    @param node The current node.
+    @param row_idx DataFrame row index.
+    @return [Some score] if matching leaf is reached, [None] otherwise. *)
 let rec eval_tree evals node row_idx =
   match node.children with
   | [] -> node.score
@@ -347,6 +420,11 @@ let rec eval_tree evals node row_idx =
        | Some s -> Some s
        | None -> node.score)
 
+(** Score a complete DataFrame using a single decision tree model.
+    
+    @param df The input DataFrame.
+    @param model The tree model dictionary.
+    @return A T-Lang vector value containing predictions. *)
 let predict_tree_model df model =
   match model with
   | VDict pairs ->
@@ -389,6 +467,13 @@ let predict_tree_model df model =
        | None -> Error.type_error "Function `predict` expects a tree model with a `tree` field.")
   | _ -> Error.type_error "Function `predict` expects a tree model Dict."
 
+(** Score a complete DataFrame using a Random Forest model.
+    
+    Aggregates leaf node scores across all individual forest trees.
+    
+    @param df The input DataFrame.
+    @param model The forest model dictionary.
+    @return A T-Lang vector value containing aggregated predictions. *)
 let predict_forest_model df model =
   match model with
   | VDict pairs ->
@@ -463,6 +548,11 @@ let predict_forest_model df model =
        | None -> Error.type_error "Function `predict` expects a forest model with a `forest` field.")
   | _ -> Error.type_error "Function `predict` expects a forest model Dict."
 
+(** Convert raw numeric prediction scores to a matching target class label.
+    
+    @param classes The class label list.
+    @param scores The raw classification output scores list.
+    @return A VInt, VFloat, VString or NA value. *)
 let score_to_class classes scores =
   let class_val idx =
     match List.nth_opt classes idx with
@@ -494,6 +584,11 @@ let score_to_class classes scores =
         let max_idx = loop 0 s 1 rest in
         class_val max_idx
 
+(** Score a complete DataFrame using a gradient boosted ensemble model (XGBoost / LightGBM).
+    
+    @param df The input DataFrame.
+    @param model The boosted model dictionary.
+    @return A T-Lang vector value containing predictions. *)
 let predict_boosted_model df model =
   match model with
   | VDict pairs ->
@@ -556,6 +651,13 @@ let predict_boosted_model df model =
        | None -> Error.type_error "Function `predict` expects a boosted model (xgboost/lightgbm) with `boosted_model`.")
   | _ -> Error.type_error "Function `predict` expects a boosted model Dict."
 
+(** Score a DataFrame using a sandboxed ONNX deep learning model.
+    
+    Invokes C++ FFI bindings to feed row tensors through the active session.
+    
+    @param df The input DataFrame.
+    @param model The ONNX model dictionary (containing path, expected feature columns).
+    @return A T-Lang vector value containing computed target predictions. *)
 let predict_onnx_model df model =
   match model with
    | VDict pairs ->
@@ -628,6 +730,14 @@ let predict_onnx_model df model =
         | _ -> Error.type_error "Function `predict` expects an ONNX model with a `path` field.")
    | _ -> Error.type_error "Function `predict` expects an ONNX model Dict."
 
+(** Score a DataFrame using a generalized linear regression model (GLM / OLS).
+    
+    Extracts variable coefficients and intercept terms, performs dynamic categorical to_factor
+    dummy encoding on target columns, and applies link functions (e.g. logit, probit, log, sqrt).
+    
+    @param df The input DataFrame.
+    @param pairs The linear model key-value association list.
+    @return A T-Lang vector value containing regression predictions. *)
 let predict_linear_model df pairs =
   (* Extract coefficients and intercept *)
   let coeffs = match List.assoc_opt "coefficients" pairs with

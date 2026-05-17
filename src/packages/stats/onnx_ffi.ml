@@ -10,8 +10,15 @@ external session_output_names : session -> string array = "caml_onnx_session_out
 external session_metadata : session -> (string * string) list = "caml_onnx_session_metadata"
 
 (* Global registry for session handles, indexed by path *)
+(** Global registry for session handles, indexed by path. *)
 let registry = Hashtbl.create 8
 
+(** Get or create a persistent ONNX session handle for a model path.
+    
+    Caches the session inside the global registry map to prevent duplicate model loads.
+    
+    @param path The path to the ONNX model file.
+    @return An active ONNX session handle. *)
 let get_session path =
   match Hashtbl.find_opt registry path with
   | Some session -> session
@@ -20,8 +27,12 @@ let get_session path =
       Hashtbl.add registry path session;
       session
 
+(** Close and remove an ONNX session handle from the cache registry.
+    
+    @param path The path of the session to close/remove. *)
 let close_session path =
   Hashtbl.remove registry path
 
+(** Clear all cached ONNX session handles from the registry. *)
 let clear_cache () =
   Hashtbl.clear registry

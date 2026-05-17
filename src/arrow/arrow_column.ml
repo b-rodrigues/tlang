@@ -18,28 +18,40 @@ type numeric_view =
   | IntView of (int64, int64_elt, c_layout) Array1.t
 
 (** Get a column view from an Arrow table.
-    For native-backed tables, this extracts column data via FFI. *)
+    
+    @param table The input Arrow table.
+    @param name The name of the column to extract.
+    @return [Some view] if found, otherwise [None]. *)
 let get_column (table : Arrow_table.t) (name : string) : column_view option =
   match Arrow_table.get_column table name with
   | Some data -> Some { backing = table; column_name = name; data }
   | None -> None
 
-(** Get the Arrow type of a column view *)
+(** Retrieve the Arrow data type of a column view.
+    
+    @param view The column view.
+    @return The associated Arrow data type representation. *)
 let column_type (view : column_view) : Arrow_table.arrow_type =
   Arrow_table.column_type_of view.data
 
-(** Get the length of a column view *)
+(** Retrieve the total row length of a column view.
+    
+    @param view The column view.
+    @return The integer length. *)
 let column_length (view : column_view) : int =
   Arrow_table.column_length view.data
 
-(** Get the raw column data from a view *)
+(** Retrieve the raw internal column data variant structure.
+    
+    @param view The column view.
+    @return The internal [column_data] structure. *)
 let column_data (view : column_view) : Arrow_table.column_data =
   view.data
 
-(** Create a zero-copy Bigarray view over an Arrow column's buffer.
-    Only works for numeric columns (Float64, Int64) backed by a native
-    Arrow table. Returns None for non-numeric types or pure OCaml tables.
-    The returned Bigarray shares memory with the Arrow buffer — no copy. *)
+(** Create a zero-copy Bigarray view over an Arrow column's binary buffer.
+    
+    @param col The column view.
+    @return [Some numeric_view] if successful and supported, otherwise [None]. *)
 let zero_copy_view (col : column_view) : numeric_view option =
   match col.backing.native_handle with
   | Some handle when not handle.Arrow_table.freed ->
@@ -66,10 +78,11 @@ let zero_copy_view (col : column_view) : numeric_view option =
      | _ -> None)
   | _ -> None
 
-(** Access a single element from a column view without copying.
-    Returns the T value at the given index, or (VNA NAGeneric) if out of bounds.
-    For numeric columns backed by a zero-copy view, reads directly from
-    the Arrow buffer. Otherwise, falls back to column_data indexing. *)
+(** Access a single element from a column view.
+    
+    @param view The column view.
+    @param idx The index of the row to access.
+    @return The extracted T-Lang [value], or [VNA NAGeneric] if out of bounds. *)
 let get_value_at (view : column_view) (idx : int) : Ast.value =
   let len = column_length view in
   if idx < 0 || idx >= len then Ast.(VNA NAGeneric)
@@ -93,9 +106,12 @@ let get_value_at (view : column_view) (idx : int) : Ast.value =
     | Arrow_table.ListColumn a ->
       (match a.(idx) with Some t -> Ast.VDataFrame { arrow_table = t; group_keys = [] } | None -> Ast.VNA Ast.NAGeneric)
 
-(** Get a slice (sub-view) of a column view.
-    Returns a new column_view covering [start, start+length) of the original.
-    The backing table reference is shared to prevent GC collection. *)
+(** Create a slice (sub-view) of a column view.
+    
+    @param view The source column view.
+    @param start The starting row index of the slice.
+    @param len The length of the slice.
+    @return A new [column_view] sub-slice. *)
 let get_slice (view : column_view) (start : int) (len : int) : column_view =
   let total = column_length view in
   let actual_start = max 0 (min start total) in
@@ -122,7 +138,9 @@ let get_slice (view : column_view) (start : int) (len : int) : column_view =
   in
   { backing = view.backing; column_name = view.column_name; data = slice_data }
 
-(** Convert a column view to a T value list (fallback for non-vectorizable ops).
-    Always works regardless of backing storage. *)
+(** Convert a column view to a list of T-Lang runtime values.
+    
+    @param view The column view.
+    @return A list of T-Lang [value] elements. *)
 let column_view_to_list (view : column_view) : Ast.value list =
   Array.to_list (Arrow_bridge.column_to_values view.data)

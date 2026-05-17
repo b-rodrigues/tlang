@@ -1,3 +1,17 @@
+#' Validate a single DAG entry from the JSON structure
+#'
+#' Validates that the entry is a list/object, extracts the node name and
+#' its list of dependencies, checking that they are non-empty strings.
+#'
+#' @param entry A list representing a single node's configuration from the DAG JSON.
+#' @param index Integer. The 1-based index of this entry in the DAG file (used in error messages).
+#' @param dag_file Character. The path to the DAG file being parsed (used in error messages).
+#'
+#' @return A list containing:
+#'   \item{node_name}{The validated, non-empty character string node name.}
+#'   \item{depends}{A sorted, unique character vector of dependency node names.}
+#'
+#' @keywords internal
 validate_node_entry <- function(entry, index, dag_file) {
   if (!is.list(entry)) {
     stop(
@@ -46,6 +60,18 @@ validate_node_entry <- function(entry, index, dag_file) {
 #'
 #' @return A data frame with two columns: `node` (character) and `depends`
 #'   (list of character vectors).
+#'
+#' @details
+#' The function reads the JSON file, parses its array of node definitions,
+#' validates that all dependencies refer to existing nodes defined within the same
+#' DAG file, and that no duplicate node names exist.
+#'
+#' @examples
+#' \init{
+#'   # Assuming a pipeline has been constructed in "_pipeline"
+#'   nodes <- pipeline_nodes()
+#' }
+#'
 #' @export
 pipeline_nodes <- function(pipeline_dir = "_pipeline", dag_file = "dag.json") {
   validate_scalar_string(pipeline_dir, "pipeline_dir")

@@ -3,6 +3,10 @@
 
 open Tdoc_types
 
+(** Percent-encode a function name to create a safe, valid Markdown link URL.
+    
+    @param name The string to encode.
+    @return The percent-encoded string. *)
 let percent_encode_for_link (name : string) : string =
   let buf = Buffer.create (String.length name) in
   String.iter (fun c ->
@@ -18,6 +22,10 @@ let percent_encode_for_link (name : string) : string =
   ) name;
   Buffer.contents buf
 
+(** Normalize named argument syntax in code examples (e.g. from OCaml to T-Lang syntax).
+    
+    @param line The line of code to normalize.
+    @return The normalized string. *)
 let normalize_named_argument_syntax (line : string) : string =
   let len = String.length line in
   let buf = Buffer.create len in
@@ -62,6 +70,10 @@ let normalize_named_argument_syntax (line : string) : string =
   loop 0;
   Buffer.contents buf
 
+(** Generate a complete Markdown documentation page for a function or symbol.
+    
+    @param entry The doc_entry record.
+    @return The generated Markdown string. *)
 let generate_function_doc entry =
   let buf = Buffer.create 1024 in
   Printf.bprintf buf "# %s\n\n" entry.name;
@@ -106,6 +118,10 @@ let generate_function_doc entry =
   
   Buffer.contents buf
 
+(** Generate a Markdown index page (reference table) for a list of documentation entries.
+    
+    @param entries The list of doc_entry records.
+    @return The generated Markdown string. *)
 let generate_index entries =
   let buf = Buffer.create 1024 in
   Printf.bprintf buf "# Function Reference\n\n";

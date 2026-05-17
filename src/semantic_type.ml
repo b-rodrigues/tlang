@@ -16,6 +16,10 @@ and t =
   | TAny
   | TUnknown
 
+(** Convert a semantic type to its string representation.
+
+    @param t The semantic type to convert.
+    @return A string representation of the semantic type (e.g. "int", "grouped_dataframe[...]"). *)
 let rec to_string = function
   | TInt -> "int"
   | TString -> "string"
@@ -33,6 +37,10 @@ let rec to_string = function
   | TAny -> "any"
   | TUnknown -> "unknown"
  
+(** Parse a semantic type from its string representation.
+
+    @param str The string representation of the type to parse.
+    @return The corresponding semantic type [t], defaulting to [TAny] or [TUnknown] on mismatch. *)
 let from_string str =
   let str = String.lowercase_ascii (String.trim str) in
   match str with
