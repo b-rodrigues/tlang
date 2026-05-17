@@ -72,6 +72,7 @@ let parse_tproject_toml (content : string) : (project_config, string) result =
         proj_nixpkgs_date = get_string_opt toml ["nixpkgs"; "date"] ~default:"";
         proj_additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
         proj_latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
+        proj_license = get_string_opt toml ["license"; "name"] ~default:"";
       }
   with
   | Otoml.Parse_error (_, msg) -> Error (Printf.sprintf "TOML parse error: %s" msg)
@@ -142,5 +143,9 @@ let serialize_tproject_toml (cfg : project_config) : string =
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_latex_packages));
   Buffer.add_string buf "[t]\n";
   Printf.bprintf buf "min_version = %S\n\n" cfg.proj_min_t_version;
-  Printf.bprintf buf "[nixpkgs]\ndate = %S\n" cfg.proj_nixpkgs_date;
+  Printf.bprintf buf "[nixpkgs]\ndate = %S\n\n" cfg.proj_nixpkgs_date;
+  if cfg.proj_license <> "" then begin
+    Buffer.add_string buf "[license]\n";
+    Printf.bprintf buf "name = %S\n" cfg.proj_license
+  end;
   Buffer.contents buf

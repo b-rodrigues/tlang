@@ -942,6 +942,7 @@ min_version = "0.51.0"
         && Sys.file_exists (Filename.concat dir "DESCRIPTION.toml")
         && Sys.file_exists (Filename.concat dir "flake.nix")
         && Sys.file_exists (Filename.concat dir "README.md")
+        && Sys.file_exists (Filename.concat dir "LICENSE")
         && Sys.file_exists (Filename.concat dir "src/main.t")
         && Sys.is_directory (Filename.concat dir "tests")
         && Sys.is_directory (Filename.concat dir "examples")
@@ -963,13 +964,26 @@ min_version = "0.51.0"
     Sys.chdir old_cwd;
     let ok = match result with
       | Ok () ->
+        let toml_path = Filename.concat dir "tproject.toml" in
+        let parsed =
+          if Sys.file_exists toml_path then
+            let ic = open_in toml_path in
+            let content = really_input_string ic (in_channel_length ic) in
+            close_in ic;
+            match Toml_parser.parse_tproject_toml content with
+            | Ok cfg -> cfg.proj_license = "EUPL-1.2"
+            | Error _ -> false
+          else false
+        in
         Sys.file_exists dir
-        && Sys.file_exists (Filename.concat dir "tproject.toml")
+        && Sys.file_exists toml_path
         && Sys.file_exists (Filename.concat dir "flake.nix")
+        && Sys.file_exists (Filename.concat dir "LICENSE")
         && Sys.file_exists (Filename.concat dir "src/pipeline.t")
         && Sys.is_directory (Filename.concat dir "data")
         && Sys.is_directory (Filename.concat dir "outputs")
         && Sys.is_directory (Filename.concat dir "tests")
+        && parsed
       | Error _ -> false
     in
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));

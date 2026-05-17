@@ -53,7 +53,9 @@ let copy_agent_files dir is_package context =
     | None ->
         let exe_dir = Filename.dirname Sys.executable_name in
         let share_dir = Filename.concat (Filename.dirname exe_dir) "share/tlang/agents" in
-        if Sys.file_exists "agents" && Sys.is_directory "agents" then "agents"
+        let dev_repo_agents = "/home/brodrigues/Documents/repos/tlang/agents" in
+        if Sys.file_exists dev_repo_agents && Sys.is_directory dev_repo_agents then dev_repo_agents
+        else if Sys.file_exists "agents" && Sys.is_directory "agents" then "agents"
         else if Sys.file_exists share_dir && Sys.is_directory share_dir then share_dir
         else "agents" (* Fallback to local *)
   in
@@ -67,15 +69,23 @@ let copy_agent_files dir is_package context =
   in
   let cp src dest =
     let src_path = Filename.concat agents_dir src in
+    let dest_path = Filename.concat dir dest in
     if Sys.file_exists src_path then begin
-      let ic = open_in src_path in
-      let content = really_input_string ic (in_channel_length ic) in
-      close_in ic;
-      let oc = open_out (Filename.concat dir dest) in
-      output_string oc content;
-      close_out oc;
-      true
-    end else false
+      try
+        let ic = open_in src_path in
+        let content = really_input_string ic (in_channel_length ic) in
+        close_in ic;
+        let oc = open_out dest_path in
+        output_string oc content;
+        close_out oc;
+        true
+      with _ -> false
+    end else begin
+      (* Fallback: Try downloading from GitHub *)
+      let url = Printf.sprintf "https://raw.githubusercontent.com/b-rodrigues/tlang/master/agents/%s" src in
+      let cmd = Printf.sprintf "curl -s -f -L -o %S %S" dest_path url in
+      Sys.command cmd = 0
+    end
   in
   let agents_ok = cp agents_template "AGENTS.md" in
   let ref_ok = cp ref_template "T-LANGUAGE-REFERENCE.md" in
@@ -87,8 +97,7 @@ let copy_agent_files dir is_package context =
     close_out out;
     true
   end else begin
-    if not (Sys.file_exists agents_dir) then
-      Printf.eprintf "Warning: agents directory not found at '%s'. Skipping AGENTS.md creation.\n" agents_dir;
+    Printf.eprintf "Warning: Could not create AGENTS.md or T-LANGUAGE-REFERENCE.md (both local copy and GitHub download failed).\n";
     false
   end
 
@@ -473,6 +482,10 @@ packages = []
 [t]
 # Minimum T language version required
 min_version = "{{tlang_version}}"
+
+[license]
+# Project license acronym
+name = "{{license}}"
 |}
 
 (* project_flake_nix is generated dynamically by Nix_generator.generate_project_flake
@@ -604,6 +617,19 @@ let resolve_tlang_tag () =
       resolved_tlang_tag_cache := Some tag;
       tag
 
+let write_license_file dir license =
+  let dest_path = Filename.concat dir "LICENSE" in
+  (* Try to fetch from SPDX License List repo on GitHub *)
+  let url = Printf.sprintf "https://raw.githubusercontent.com/spdx/license-list-data/main/text/%s.txt" license in
+  let cmd = Printf.sprintf "curl -s -f -L -o %S %S" dest_path url in
+  if Sys.command cmd = 0 then
+    true
+  else begin
+    (* Fallback if curl/download fails *)
+    write_file dest_path (Printf.sprintf "Licensed under %s\n\nSee https://spdx.org/licenses/%s.html for full text.\n" license license);
+    false
+  end
+
 (*
 --# Scaffold a new T package
 --#
@@ -645,7 +671,7 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
       write_file (Filename.concat dir "flake.nix") (sub package_flake_nix);
       write_file (Filename.concat dir "README.md") (sub package_readme);
       write_file (Filename.concat dir "CHANGELOG.md") (sub package_changelog);
-      write_file (Filename.concat dir "LICENSE") (Printf.sprintf "Licensed under %s\n\nSee https://spdx.org/licenses/%s.html for full text.\n" opts.license opts.license);
+      let _ = write_license_file dir opts.license in
       write_file (Filename.concat dir ".gitignore") package_gitignore;
       write_file (Filename.concat dir "src/main.t") (sub package_src_example);
       write_file (Filename.concat dir (Printf.sprintf "tests/test-%s.t" opts.target_name)) (sub package_test_example);
@@ -763,6 +789,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         ~deps:[] () in
       write_file (Filename.concat dir "flake.nix") flake_content;
       write_file (Filename.concat dir "README.md") (sub project_readme);
+      let _ = write_license_file dir opts.license in
       write_file (Filename.concat dir ".gitignore") project_gitignore;
       write_file (Filename.concat dir "src/pipeline.t") (sub project_pipeline_example);
       (* Agent files *)
@@ -775,6 +802,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       Printf.printf "  ├── tproject.toml\n";
       Printf.printf "  ├── flake.nix\n";
       Printf.printf "  ├── README.md\n";
+      Printf.printf "  ├── LICENSE\n";
       Printf.printf "  ├── .gitignore\n";
       Printf.printf "  ├── src/\n";
       Printf.printf "  │   └── pipeline.t\n";

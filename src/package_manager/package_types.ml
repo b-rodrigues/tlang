@@ -38,6 +38,7 @@ type project_config = {
   proj_nixpkgs_date : string;
   proj_additional_tools : string list;
   proj_latex_packages : string list;
+  proj_license : string;
 }
 
 (** CLI options for scaffolding commands *)
@@ -98,6 +99,7 @@ let default_project_config name = {
     Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday);
   proj_additional_tools = [];
   proj_latex_packages = [];
+  proj_license = "EUPL-1.2";
 }
 
 (** Validate a package/project name: lowercase, alphanumeric, hyphens only *)

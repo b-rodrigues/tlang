@@ -1,24 +1,31 @@
 # Getting Started with T
 
-Welcome to T! This guide will help you install T, create your first project, and understand the basic layout of a T workspace.
+Welcome to T! This guide will help you install T, create your first project, and
+understand the basic layout of a T workspace.
 
 ## Prerequisites
 
-T requires the **Nix package manager** with flakes enabled. Nix ensures that your T environment is perfectly reproducible across Linux and macOS.
+T requires the **Nix package manager** with flakes enabled. Nix ensures that
+your T environment is perfectly reproducible across Linux and macOS.
 
-We strongly recommend installing Nix using the [Determinate Systems Nix Installer](https://install.determinate.systems/nix). For detailed, platform-specific steps, please see our:
+We strongly recommend installing Nix using the [Determinate Systems Nix
+Installer](https://install.determinate.systems/nix). For detailed,
+platform-specific steps, please see our:
 
 👉 **[Nix Installation Guide](nix-installation.md)**
 
 ## Running T
 
-As a user, you don't need to clone the repository or build the compiler from source! You can run the T shell directly from GitHub using Nix:
+As a user, you don't need to clone the repository or build the compiler from
+source! You can run the T shell directly from GitHub using Nix:
 
 ```bash
 nix shell github:b-rodrigues/tlang
 ```
 
-This command will download the T executable, fetch all required dependencies, and drop you into a temporary shell where the `t` command is available, for as long as you stay in that shell.
+This command will download the T executable, fetch all required dependencies,
+and drop you into a temporary shell where the `t` command is available, for as
+long as you stay in that shell.
 
 ## Starting a New Workspace
 
@@ -28,13 +35,17 @@ T provides a built-in scaffolding tool to initialize your workspaces. There are 
 
 ### Creating a Project
 
-To start a new data analysis project, navigate to your desired folder and run (while in the temporary shell you dropped in before):
+To start a new data analysis project, navigate to your desired folder and run
+(while in the temporary shell you dropped in before):
 
 ```bash
 t init --project my_analysis
 ```
 
-The scaffolding tool will generate a reproducible workspace with the following layout:
+If you omit the project name (`my_analysis` in the above example), the
+scaffolding tool will ask you some questions (your name, the license of the
+project, the size of the context file for LLM agents) and then will generate a
+reproducible workspace with the following layout:
 
 ```text
 my_analysis/
@@ -52,7 +63,8 @@ my_analysis/
 
 ### AI Agent Onboarding
 
-T is designed to be highly compatible with AI-assisted development. When you run `t init`, the tool will prompt you for an **Agent Context Level**:
+T is designed to be highly compatible with AI-assisted development. When you run
+`t init`, the tool will prompt you for an **Agent Context Level**:
 
 - **small**: Core syntax and top 20 functions.
 - **medium**: (Default) Exhaustive standard library index.
@@ -60,10 +72,12 @@ T is designed to be highly compatible with AI-assisted development. When you run
 - **huge**: Concatenated documentation of the entire T ecosystem.
 
 This selection generates two files in your project root:
-1. **`AGENTS.md`**: A project-specific guide that tells LLMs how to work within your project's architecture.
+1. **`AGENTS.md`**: A project-specific guide that tells LLMs how to work within
+   your project's architecture.
 2. **`T-LANGUAGE-REFERENCE.md`**: A technical reference file for the AI to read.
 
-By providing these files, you ensure that any AI agent you use has immediate access to the exact technical context it needs.
+By providing these files, you ensure that any AI agent you use has immediate
+access to the exact technical context it needs.
 
 ### Creating a Package
 
