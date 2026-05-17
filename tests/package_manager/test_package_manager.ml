@@ -989,7 +989,7 @@ min_version = "0.51.0"
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
     ok);
 
-  test_pm "scaffold_project with --pipeline-template full creates directory tree" (fun () ->
+  test_pm "scaffold_project with full pipeline template option creates directory tree" (fun () ->
     let dir = temp_dir () in
     let opts = { (Package_types.default_options dir) with
                  target_name = Filename.basename dir;
