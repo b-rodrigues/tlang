@@ -67,7 +67,7 @@ validate_node_entry <- function(entry, index, dag_file) {
 #' DAG file, and that no duplicate node names exist.
 #'
 #' @examples
-#' \init{
+#' \dontrun{
 #'   # Assuming a pipeline has been constructed in "_pipeline"
 #'   nodes <- pipeline_nodes()
 #' }

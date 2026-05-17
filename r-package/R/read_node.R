@@ -211,7 +211,7 @@ resolve_artifact_path <- function(path, pipeline_dir) {
 #' the `deserializer` function to deserialize the R object.
 #'
 #' @examples
-#' \init{
+#' \dontrun{
 #'   # Assuming node "clean_data" was built successfully
 #'   df <- read_node("clean_data")
 #' }
