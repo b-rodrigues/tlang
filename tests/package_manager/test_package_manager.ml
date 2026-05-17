@@ -971,7 +971,7 @@ min_version = "0.51.0"
             let content = really_input_string ic (in_channel_length ic) in
             close_in ic;
             match Toml_parser.parse_tproject_toml content with
-            | Ok cfg -> cfg.proj_license = "EUPL-1.2"
+            | Ok cfg -> cfg.proj_license = "EUPL-1.2" && List.mem "Your Name <email@example.com>" cfg.proj_authors
             | Error _ -> false
           else false
         in

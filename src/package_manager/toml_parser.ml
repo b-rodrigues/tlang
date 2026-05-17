@@ -73,6 +73,7 @@ let parse_tproject_toml (content : string) : (project_config, string) result =
         proj_additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
         proj_latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
         proj_license = get_string_opt toml ["license"; "name"] ~default:"";
+        proj_authors = get_string_list_opt toml ["project"; "authors"] ~default:[];
       }
   with
   | Otoml.Parse_error (_, msg) -> Error (Printf.sprintf "TOML parse error: %s" msg)
@@ -113,6 +114,8 @@ let serialize_tproject_toml (cfg : project_config) : string =
   Buffer.add_string buf "[project]\n";
   Printf.bprintf buf "name = %S\n" cfg.proj_name;
   Printf.bprintf buf "description = %S\n" cfg.proj_description;
+  Printf.bprintf buf "authors = [%s]\n"
+    (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_authors));
   Buffer.add_char buf '\n';
   Buffer.add_string buf "[dependencies]\n";
   List.iter (fun dep ->

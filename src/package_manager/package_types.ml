@@ -39,6 +39,7 @@ type project_config = {
   proj_additional_tools : string list;
   proj_latex_packages : string list;
   proj_license : string;
+  proj_authors : string list;
 }
 
 (** CLI options for scaffolding commands *)
@@ -100,6 +101,7 @@ let default_project_config name = {
   proj_additional_tools = [];
   proj_latex_packages = [];
   proj_license = "EUPL-1.2";
+  proj_authors = ["Your Name <email@example.com>"];
 }
 
 (** Validate a package/project name: lowercase, alphanumeric, hyphens only *)

@@ -434,6 +434,7 @@ assert(result == "Hello, world!")
 let project_tproject_toml = {|[project]
 name = "{{name}}"
 description = "A T data analysis project"
+authors = ["{{author}}"]
 
 [dependencies]
 # T packages this project depends on
