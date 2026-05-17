@@ -43,9 +43,24 @@ t init --project my_analysis
 ```
 
 If you omit the project name (`my_analysis` in the above example), the
-scaffolding tool will ask you some questions (your name, the license of the
-project, the size of the context file for LLM agents) and then will generate a
-reproducible workspace with the following layout:
+scaffolding tool will prompt you interactively with some questions (your name, the license of the
+project, the Nixpkgs date, the size of the context file for LLM agents, and the pipeline template preference) and then will generate a reproducible workspace.
+
+> [!TIP]
+> **Scaffolding Recommendations:**
+> - **Use the `full` Template**: For your very first T project, we highly recommend selecting the `full` pipeline template. Having the self-contained cheatsheet directly in `src/pipeline.t` makes it much faster to learn T's syntax and polyglot features.
+> - **Stick to the Default Nixpkgs Date**: We strongly recommend using the default Nixpkgs date provided by the prompt. You should only specify a different or more recent date if it is absolutely necessary for your packages and if you are already familiar with how Nix manages environments.
+
+#### Pipeline Templates
+
+When initializing a project, T supports two pipeline templates:
+
+- **`minimal`**: (Default) Generates a simple, barebones pipeline inside `src/pipeline.t` so you can start writing code from scratch immediately.
+- **`full`**: Generates a rich, comprehensive archetypical pipeline cheatsheet inside `src/pipeline.t`. This acts as a complete guide that demonstrates polyglot node integration (Python, R, Julia, Shell, Quarto), data serialization/deserialization, environment variables, exit handling, and metadata retrieval functions (e.g., `read_node`, `read_pipeline`, `pipeline_to_frame`, `pipeline_copy`).
+
+#### Workspace Layout
+
+The generated project has the following directory structure:
 
 ```text
 my_analysis/
@@ -55,7 +70,7 @@ my_analysis/
 ├── AGENTS.md           # Onboarding guide for AI Agents
 ├── T-LANGUAGE-REFERENCE.md # Tiered language reference for LLMs (git-ignored)
 ├── src/
-│   └── pipeline.t      # Your main analysis script
+│   └── pipeline.t      # Your main analysis script (minimal or full template)
 ├── data/               # Place your raw data files here
 ├── outputs/            # Output directory for results
 └── tests/              # Unit tests for your analysis
