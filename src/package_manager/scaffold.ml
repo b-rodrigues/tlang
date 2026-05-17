@@ -886,10 +886,6 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
     | "--no-git" :: rest -> no_git := true; parse rest
     | "--force" :: rest -> force := true; parse rest
     | "--context" :: v :: rest -> agent_context := v; parse rest
-    | "--pipeline-template" :: v :: rest
-    | "--template" :: v :: rest ->
-        if v = "minimal" || v = "full" then (pipeline_template := v; parse rest)
-        else (error := Some "Invalid template. Supported: minimal, full"; parse rest)
     | "--interactive" :: rest -> parse rest (* Handled in repl.ml mainly, but we can flag it *)
     | "--help" :: _ -> show_help := true
     | arg :: rest ->
@@ -912,7 +908,6 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
            \  --no-git           Skip git init\n\
            \  --force            Overwrite existing directory\n\
            \  --context <level>  Agent context level (small, medium, full, huge; default: medium)\n\
-           \  --pipeline-template <name>  Pipeline template: minimal, full (default: minimal)\n\
            \  --help             Show this help\n\
            \  --interactive      Prompt for options")
   else match !error with
