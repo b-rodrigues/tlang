@@ -9,6 +9,10 @@ type issue = {
   suggestion : string option;
 }
 
+(** Check if a file exists, returning an issue if it doesn't.
+    
+    @param path The file path to verify.
+    @param description Brief description of the file. *)
 let check_file_exists path description =
   if not (Sys.file_exists path) then
     Some {
@@ -18,6 +22,10 @@ let check_file_exists path description =
     }
   else None
 
+(** Check if a directory exists, returning an issue if it doesn't or if it is a file.
+    
+    @param path The directory path to verify.
+    @param description Brief description of the directory. *)
 let check_directory_exists path description =
   if Sys.file_exists path && not (Sys.is_directory path) then
     Some {
@@ -33,6 +41,11 @@ let check_directory_exists path description =
     }
   else None
 
+(** Check if any files in a directory match a suffix pattern.
+    
+    @param dir The directory path to scan.
+    @param pattern Suffix string to match.
+    @param description Brief description of the expected files. *)
 let check_files_in_dir dir pattern description =
   if Sys.file_exists dir && Sys.is_directory dir then
     let entries = Sys.readdir dir in
@@ -50,6 +63,10 @@ let check_files_in_dir dir pattern description =
     else None
   else None
 
+(** Validate package structure and recommend typical file components.
+    
+    @param dir The root directory of the package.
+    @return A list of identified issues. *)
 let validate_package_structure dir =
   let issues = ref [] in
   let add_issue = function
@@ -88,6 +105,10 @@ let validate_package_structure dir =
 
   List.rev !issues
 
+(** Validate project directory structure.
+    
+    @param dir The root directory of the project.
+    @return A list of identified issues. *)
 let validate_project_structure dir =
   let issues = ref [] in
   let add_issue = function
@@ -103,6 +124,9 @@ let validate_project_structure dir =
 
   List.rev !issues
 
+(** Check if Nix is installed on the system.
+    
+    @return [Some issue] if missing, [None] otherwise. *)
 let check_nix_installation () =
   let code = Sys.command "command -v nix >/dev/null 2>&1" in
   if code <> 0 then
@@ -113,6 +137,9 @@ let check_nix_installation () =
     }
   else None
 
+(** Check if Julia binary is installed on the system.
+    
+    @return [Some issue] if missing, [None] otherwise. *)
 let check_julia_binary () =
   let code = Sys.command "command -v julia >/dev/null 2>&1" in
   if code <> 0 then
@@ -123,6 +150,9 @@ let check_julia_binary () =
     }
   else None
 
+(** Check if the installed Julia version satisfies T-Lang requirements (>= 1.6).
+    
+    @return [Some issue] if version is out of range or unparseable, otherwise [None]. *)
 let check_julia_version () =
   if Sys.command "command -v julia >/dev/null 2>&1" <> 0 then None
   else
@@ -165,6 +195,9 @@ let check_julia_version () =
           suggestion = Some "Run `julia --version` manually";
         }
 
+(** Verify if the JULIA_LOAD_PATH environment variable is configured correctly.
+    
+    @return [Some issue] if unconfigured, otherwise [None]. *)
 let check_julia_load_path () =
   match Sys.getenv_opt "JULIA_LOAD_PATH" with
   | None ->
@@ -181,6 +214,9 @@ let check_julia_load_path () =
       }
   | Some _ -> None
 
+(** Scan for required Julia packages (JSON, DataFrames, CSV, Arrow) in the environment.
+    
+    @return List of issues for missing packages. *)
 let check_julia_packages () =
   if Sys.command "command -v julia >/dev/null 2>&1" <> 0 then []
   else

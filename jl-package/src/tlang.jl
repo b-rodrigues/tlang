@@ -7,6 +7,19 @@ export read_node, pipeline_nodes
 
 const FIXTURE_LOGS = ["build_log_ocaml_mock.json", "build_log_legacy_version.json"]
 
+"""
+    _list_build_logs(pipeline_dir::String)
+
+List build log JSON files in the pipeline directory, sorted reverse-alphabetically.
+
+Filters out internal fixture logs when running within the repository checkout.
+
+# Arguments
+- `pipeline_dir::String`: The path to the pipeline directory containing the build logs.
+
+# Returns
+- `Vector{String}`: A sorted list of build log filenames.
+"""
 function _list_build_logs(pipeline_dir::String)
     logs = filter(f -> startswith(f, "build_log_") && endswith(f, ".json"), readdir(pipeline_dir))
     sort!(logs, rev=true)
@@ -21,6 +34,23 @@ function _list_build_logs(pipeline_dir::String)
     return logs
 end
 
+"""
+    _select_build_log(logs::Vector{String}, which_log::Union{String, Nothing}, pipeline_dir::String)
+
+Select a build log file from the list based on the provided regex pattern or defaults to the latest.
+
+# Arguments
+- `logs::Vector{String}`: A list of available build log filenames.
+- `which_log::Union{String, Nothing}`: An optional regex pattern string to select a log.
+  If `nothing`, the latest (first in the sorted list) log file is selected.
+- `pipeline_dir::String`: The path to the pipeline directory (used in error reporting).
+
+# Returns
+- `String`: The selected build log filename.
+
+# Throws
+- `ErrorException`: If no build logs are found, or if `which_log` regex is invalid, or if no logs match the pattern.
+"""
 function _select_build_log(logs::Vector{String}, which_log::Union{String, Nothing}, pipeline_dir::String)
     if isnothing(which_log)
         if isempty(logs)
@@ -44,6 +74,22 @@ function _select_build_log(logs::Vector{String}, which_log::Union{String, Nothin
     return matches[1]
 end
 
+"""
+    _find_node_entry(nodes::Vector{Any}, name::String, log_file::String)
+
+Locate the build log entry for a specific node name.
+
+# Arguments
+- `nodes::Vector{Any}`: The `nodes` array/list parsed from the build log JSON.
+- `name::String`: The name of the node to find.
+- `log_file::String`: The name of the build log file (used in error reporting).
+
+# Returns
+- `AbstractDict`: The dictionary containing the node configuration and metadata.
+
+# Throws
+- `ErrorException`: If the node name cannot be found in the nodes list.
+"""
 function _find_node_entry(nodes::Vector{Any}, name::String, log_file::String)
     for entry in nodes
         if entry isa AbstractDict && get(entry, "node", nothing) == name
@@ -53,7 +99,22 @@ function _find_node_entry(nodes::Vector{Any}, name::String, log_file::String)
     error("Node `$name` not found in build log `$log_file`.")
 end
 
+"""
+    _validate_node_entry(entry::Any, index::Int, dag_path::String)
 
+Validate a single entry from the DAG configuration.
+
+# Arguments
+- `entry::Any`: The raw entry object, expected to be a dictionary.
+- `index::Int`: The 1-based index of the entry in the DAG file (used in error reporting).
+- `dag_path::String`: The path to the DAG file (used in error reporting).
+
+# Returns
+- `Tuple{String, Vector{String}}`: A tuple containing the node name and its sorted, unique dependencies.
+
+# Throws
+- `ErrorException`: If the entry is not a dictionary, if `node_name` is invalid, or if `depends` is invalid.
+"""
 function _validate_node_entry(entry::Any, index::Int, dag_path::String)
     if !(entry isa AbstractDict)
         error("Entry $index in `$dag_path` must be an object.")
@@ -85,11 +146,24 @@ function _validate_node_entry(entry::Any, index::Int, dag_path::String)
 end
 
 """
-    pipeline_nodes(; pipeline_dir="_pipeline", dag_file="dag.json")
+    pipeline_nodes(; pipeline_dir::String="_pipeline", dag_file::String="dag.json")
 
-Get pipeline nodes and their dependencies from `_pipeline/dag.json`.
+Get pipeline nodes and their dependencies from the DAG configuration.
 
-Returns a `Dict` mapping node names to their lists of dependencies.
+Reads and validates the DAG definition from a JSON file (typically `_pipeline/dag.json`)
+and returns a dictionary mapping node names to their lists of dependencies.
+
+# Keywords
+- `pipeline_dir::String`: The path to the pipeline directory where the DAG file is located.
+  Defaults to `"_pipeline"`.
+- `dag_file::String`: The filename of the DAG configuration. Defaults to `"dag.json"`.
+
+# Returns
+- `Dict{String, Vector{String}}`: A dictionary mapping node names to their sorted, unique dependencies.
+
+# Throws
+- `ErrorException`: If the pipeline directory or DAG file does not exist, if the JSON structure is malformed,
+  contains duplicate node names, or references unknown dependencies.
 """
 function pipeline_nodes(; pipeline_dir::String="_pipeline", dag_file::String="dag.json")
     if !isdir(pipeline_dir)
@@ -134,6 +208,18 @@ function pipeline_nodes(; pipeline_dir::String="_pipeline", dag_file::String="da
     return Dict(normalized)
 end
 
+"""
+    _resolve_artifact_path(path_val::String, pipeline_dir::String)
+
+Resolve an artifact path from a build log to an absolute file system path.
+
+# Arguments
+- `path_val::String`: The relative or absolute path value to resolve.
+- `pipeline_dir::String`: The path to the pipeline directory.
+
+# Returns
+- `String`: The resolved absolute path to the artifact.
+"""
 function _resolve_artifact_path(path_val::String, pipeline_dir::String)
     if isabspath(path_val)
         return path_val
@@ -143,11 +229,34 @@ function _resolve_artifact_path(path_val::String, pipeline_dir::String)
 end
 
 """
-    read_node(name::String; which_log=nothing, pipeline_dir="_pipeline", deserializer=Serialization.deserialize, return_path=false)
+    read_node(name::String; which_log::Union{String, Nothing} = nothing, pipeline_dir::String = "_pipeline", deserializer::Function = Serialization.deserialize, return_path::Bool = false)
 
 Read a node artifact from a built T pipeline.
+
 Locates the requested node in the build log and deserializes its artifact.
-If `return_path` is true, the path to the artifact is returned instead of the deserialized object.
+When `which_log` is `nothing`, the helper picks the first reverse-alphabetically
+sorted `build_log_*.json` file, which matches T's timestamped log naming and
+therefore resolves to the most recent build.
+
+# Arguments
+- `name::String`: The name of the node to retrieve.
+
+# Keywords
+- `which_log::Union{String, Nothing}`: An optional regex pattern used to select a specific build log file by name.
+  If `nothing`, the most recent build log is used.
+- `pipeline_dir::String`: The path to the pipeline directory. Defaults to `"_pipeline"`.
+- `deserializer::Function`: A function to deserialize the node artifact from disk.
+  Defaults to `Serialization.deserialize`.
+- `return_path::Bool`: If `true`, return the absolute path to the artifact file instead of deserializing it.
+  Defaults to `false`.
+
+# Returns
+- `Any`: The deserialized node artifact, or a string representing the absolute path to the
+  artifact file if `return_path` is `true`.
+
+# Throws
+- `ErrorException`: If the pipeline directory, build log, or matching log cannot be found, if the node
+  cannot be found, or if deserialization fails.
 """
 function read_node(
     name::String;

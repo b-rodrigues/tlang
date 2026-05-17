@@ -14,6 +14,15 @@ type analysis_result = {
 
 let csv_cache = Hashtbl.create 10
 
+(** Infer the semantic type of an AST expression.
+    
+    Traverses the expression structure recursively, utilizing the provided symbol
+    scope to lookup variable types, resolve function calls, parse CSV column headers,
+    and process complex nodes (lambdas, list literals, blocks, matches).
+    
+    @param scope The symbol table scope.
+    @param expr The AST expression to check.
+    @return The inferred semantic type. *)
 let rec infer_type scope expr =
   match expr.node with
   | Value v -> 
@@ -135,6 +144,11 @@ let rec infer_type scope expr =
       TUnknown
   | _ -> TUnknown
 
+(** Add a source code definition location to the definition map.
+    
+    @param definitions The definition map reference to update.
+    @param name The name of the defined symbol.
+    @param loc The source location of the definition. *)
 and add_definition definitions name = function
   | Some loc ->
       definitions :=
@@ -143,6 +157,14 @@ and add_definition definitions name = function
           !definitions
   | _ -> ()
 
+(** Analyze a statement semantically.
+    
+    Infers the types of assigned expressions, populates the symbol table scope,
+    and records the locations of symbol definitions.
+    
+    @param scope The symbol table scope.
+    @param definitions The definition map reference to update.
+    @param stmt The statement to analyze. *)
 and analyze_stmt scope definitions stmt =
   match stmt.node with
   | Assignment { name; expr; _ } ->
@@ -173,6 +195,14 @@ and analyze_stmt scope definitions stmt =
   | Expression e -> ignore (infer_type scope e)
   | _ -> ()
 
+(** Perform complete semantic analysis on a parsed T program.
+    
+    Builds the symbol table scope, infers all variable types, and maps all defined
+    symbols to their original source code locations.
+    
+    @param program The parsed program (list of statements) to analyze.
+    @param scope The symbol table scope to populate.
+    @return An [analysis_result] containing all resolved symbol definitions. *)
 let analyze program scope =
   let definitions = ref Definition_map.empty in
   List.iter (analyze_stmt scope definitions) program;

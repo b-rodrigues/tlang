@@ -2,11 +2,19 @@ open Ast
 
 type mode = Repl | Strict
 
+(** Parse a strictness mode from its string representation.
+    
+    @param str The string to parse.
+    @return [Some Repl] for "repl", [Some Strict] for "strict", or [None] otherwise. *)
 let mode_of_string = function
   | "repl" -> Some Repl
   | "strict" -> Some Strict
   | _ -> None
 
+(** Recursively check if a type structure contains a type variable.
+    
+    @param t The type structure to check.
+    @return [true] if a type variable is found, otherwise [false]. *)
 let rec contains_type_var = function
   | TVar _ -> true
   | TList (Some t) -> contains_type_var t
@@ -15,6 +23,10 @@ let rec contains_type_var = function
   | TDataFrame (Some schema) -> contains_type_var schema
   | _ -> false
 
+(** Recursively collect all type variable names used inside a type structure.
+    
+    @param t The type structure to scan.
+    @return A list of type variable names. *)
 let rec collect_type_vars = function
   | TVar name -> [name]
   | TList (Some t) -> collect_type_vars t
@@ -23,9 +35,23 @@ let rec collect_type_vars = function
   | TDataFrame (Some schema) -> collect_type_vars schema
   | _ -> []
 
+(** Helper to construct a type error info record.
+    
+    @param location Optional source location of the error.
+    @param message Description of the type mismatch.
+    @return A type error info record. *)
 let make_type_error ?location message =
   { code = Ast.TypeError; message; context = []; location; na_count = 0 }
 
+(** Validate that a lambda expression complies with Strict Mode.
+    
+    In Strict Mode, all parameters and return types must be fully annotated,
+    and any generic type variables must be declared in the function's type parameter list.
+    
+    @param location Optional source location for the error.
+    @param name The name of the function being assigned.
+    @param l The lambda declaration to validate.
+    @return [Ok ()] if valid, or [Error error_info] describing the strictness violation. *)
 let validate_lambda ?location name (l : lambda) =
   let all_params_annotated = List.for_all Option.is_some l.param_types in
   if not all_params_annotated then
@@ -51,6 +77,14 @@ let validate_lambda ?location name (l : lambda) =
       else
         Ok ()
 
+(** Validate an entire parsed program against strictness rules.
+    
+    In Strict Mode, all top-level lambda functions are fully checked. In Repl Mode,
+    all checks are skipped.
+    
+    @param mode The strictness mode (Repl or Strict).
+    @param program The list of parsed statements.
+    @return [Ok ()] if all top-level functions are valid, or [Error error_info] on the first error. *)
 let validate_program ~(mode : mode) (program : program) =
   match mode with
   | Repl -> Ok ()

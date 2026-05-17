@@ -3,16 +3,29 @@
 
 open Tdoc_types
 
+(** Check if a string starts with a given prefix.
+    
+    @param s The main string.
+    @param prefix The prefix to check for.
+    @return [true] if it starts with the prefix, otherwise [false]. *)
 let starts_with s prefix =
   String.length s >= String.length prefix &&
   String.sub s 0 (String.length prefix) = prefix
 
+(** Strip a prefix from a string if it is present.
+    
+    @param s The main string.
+    @param prefix The prefix to strip.
+    @return The string without the prefix, or the original string if the prefix was not found. *)
 let strip_prefix s prefix =
   if starts_with s prefix then
     String.sub s (String.length prefix) (String.length s - String.length prefix)
   else s
 
-(* Extract --# comments from a file *)
+(** Extract all comment/code lines from a source file.
+    
+    @param filename The path to the source file.
+    @return A list of all lines in the file. *)
 let extract_comments filename =
   let lines = ref [] in
   let chan = open_in filename in
@@ -25,8 +38,12 @@ let extract_comments filename =
     close_in chan;
     List.rev !lines
 
-(* Parse a block of comment lines into a doc_entry *)
-(* This is a simplified state-machine parser *)
+(** Parse a raw list of `--#` T-Doc comment lines into a structured documentation entry.
+    
+    @param lines The list of comment line contents.
+    @param filename The source file path.
+    @param line_num The start line number.
+    @return A populated [doc_entry] record. *)
 let parse_block lines filename line_num =
   let name_override = ref None in
   let brief = ref "" in
@@ -135,6 +152,11 @@ let parse_block lines filename line_num =
 --# @family tdoc
 --# @export
 *)
+
+(** Scan a source file and extract all T-Doc documentation blocks (lines starting with `--#`).
+    
+    @param filename The path to the source file to parse.
+    @return A list of parsed documentation entries. *)
 let parse_file filename =
   let lines = extract_comments filename in
   let blocks = ref [] in

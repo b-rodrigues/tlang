@@ -140,6 +140,10 @@ let pearson_cor (xs : float array) (ys : float array) : float option =
     if !sum_xx = 0.0 || !sum_yy = 0.0 then None
     else Some (!sum_xy /. Float.sqrt (!sum_xx *. !sum_yy))
 
+(** Check if a float array has zero variance (i.e. all elements are identical within tolerance).
+    
+    @param xs The float array.
+    @return [true] if it has zero variance, otherwise [false]. *)
 let array_has_zero_variance (xs : float array) : bool =
   let n = Array.length xs in
   n = 0
@@ -152,6 +156,10 @@ let array_has_zero_variance (xs : float array) : bool =
 (* Treat correlations within floating-point epsilon of ±1 as perfect collinearity. *)
 let collinearity_threshold = 1e-10
 
+(** Scan predictor lists to detect collinearity or zero-variance predictor columns.
+    
+    @param predictors List of (name, value_array) pairs.
+    @return [Some error_msg] detailing collinearity, or [None] if predictors are linearly independent. *)
 let detect_collinearity (predictors : (string * float array) list) : string option =
   match List.find_opt (fun (_, xs) -> array_has_zero_variance xs) predictors with
   | Some (name, _) ->
