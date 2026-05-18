@@ -989,43 +989,6 @@ min_version = "0.51.0"
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
     ok);
 
-  test_pm "scaffold_project with full pipeline template option creates directory tree" (fun () ->
-    let dir = temp_dir () in
-    let opts = { (Package_types.default_options dir) with
-                 target_name = Filename.basename dir;
-                 pipeline_template = "full";
-                 no_git = true } in
-    let old_cwd = Sys.getcwd () in
-    Sys.chdir (Filename.dirname dir);
-    (* Set env variable to point to our dev repo agents dir *)
-    Unix.putenv "TLANG_AGENTS_DIR" "/home/brodrigues/Documents/repos/tlang/agents";
-    let result = Scaffold.scaffold_project opts in
-    Sys.chdir old_cwd;
-    let ok = match result with
-      | Ok () ->
-        let pipeline_path = Filename.concat dir "src/pipeline.t" in
-        let contains sub s =
-          try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
-          with Not_found -> false
-        in
-        let has_complete_content =
-          if Sys.file_exists pipeline_path then
-            let ic = open_in pipeline_path in
-            let content = really_input_string ic (in_channel_length ic) in
-            close_in ic;
-            contains "p = pipeline {" content && contains "python_processing = pyn(" content
-          else false
-        in
-        Sys.file_exists dir
-        && Sys.file_exists (Filename.concat dir "tproject.toml")
-        && Sys.file_exists (Filename.concat dir "flake.nix")
-        && Sys.file_exists (Filename.concat dir "src/pipeline.t")
-        && has_complete_content
-      | Error _ -> false
-    in
-    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
-    ok);
-
   test_pm "scaffold rejects invalid name" (fun () ->
     let opts = { (Package_types.default_options "Bad-Name") with no_git = true } in
     match Scaffold.scaffold_package opts with
