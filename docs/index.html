@@ -35,18 +35,29 @@
 <div class="container">
 <h1 id="t-the-orchestration-engine-for-polyglot-data-science">T — The
 Orchestration Engine for Polyglot Data Science</h1>
-<p><strong>T</strong> is an experimental orchestration engine designed
-for declarative, reproducible pipelines. It provides a functional
-Domain-Specific Language (DSL) that coordinates R, Python, and Shell
-nodes—as well as Julia—within a Nix-managed infrastructure.</p>
-<p>Unlike traditional scripting languages, T is built to be a
-<strong>specifications-ready engine</strong>, making data analysis
-<strong>explicit, inspectable, and pipeline-oriented</strong>. This
-unique architecture ensures that humans and LLMs can collaborate on
-defining high-level intent while T handles the low-level orchestration
-and environmental consistency.</p>
-<p><strong>Status:</strong> Version 0.52.0 “Kaméhaméha”, latest
-stabilization release.</p>
+<p>T is a reproducibility-first domain-specific language (DSL) for
+polyglot data science. It provides a functional, immutable language for
+constructing composable <em>micropipelines</em>: first-class,
+introspectable computation graphs that coordinate R, Python, Julia,
+Quarto, and Shell execution within a unified system. Pipelines in T are
+not configuration artifacts but executable program structures with
+explicit dataflow, typed nodes, and content-addressed outputs. Artifacts
+are automatically serialized and exchanged across language boundaries,
+allowing polyglot workflows to compose without manual I/O glue code.</p>
+<p>Built on Nix, T integrates declarative environment management and
+deterministic builds at the language level, enabling reproducible
+execution across machines and operating systems. Workflow structure,
+dependency resolution, environment specification, and provenance
+tracking are intrinsic properties of the language rather than concerns
+delegated to external tooling. As a result, T is designed so that
+reproducible workflows are the default: reproducibility of your projects
+is not an afterthought anymore.</p>
+<p>T also includes a growing collection of data manipulation verbs
+inspired by the R tidyverse ecosystem, particularly packages such as
+dplyr, stringr, and lubridate. This makes it possible to perform
+exploratory data analysis directly from the T REPL before promoting
+computations into reproducible pipelines.</p>
+<p><strong>Status:</strong> Version 0.52.0 “Kaméhaméha”.</p>
 <hr />
 <h2 id="the-polyglot-pipeline">The Polyglot Pipeline</h2>
 <p>T’s core strength is its <strong>mandatory pipeline
@@ -60,14 +71,14 @@ p = pipeline {
     command = read_csv(&quot;examples/sample_data.csv&quot;) |&gt; filter($age &gt; 25),
     serializer = &quot;csv&quot;
   )
-  
+
   -- 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
     command = &lt;{ lm(score ~ age, data = data) }&gt;,
     serializer = &quot;pmml&quot;,
     deserializer = &quot;csv&quot;
   )
-  
+
   -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
   predictions = node(
     command = data |&gt; mutate($pred = predict(data, model_r)),
@@ -82,7 +93,17 @@ p = pipeline {
 
 -- Build the pipeline into reproducible Nix artifacts
 build_pipeline(p)</code></pre>
-<h2 id="what-is-t">What is T?</h2>
+<p>Pipelines are not mandatory in the T REPL. This is a deliberate
+design choice intended to support exploratory data analysis and rapid
+experimentation before computations are promoted into reproducible
+pipelines. Users can also launch R, Python, or Julia REPLs directly from
+within a T project, inheriting the same pinned environments and project
+dependencies. This allows exploratory work to take place in familiar
+ecosystems while remaining integrated with T’s reproducibility
+model.</p>
+<hr />
+<h2 id="t-in-relation-to-the-big-three-data-science-languages">T in
+relation to the big three data science languages</h2>
 <p>T is not designed to replace your existing tools; it is designed to
 <strong>orchestrate</strong> them. It addresses the “dependency drift”
 and “works on my machine” syndrome by making <strong>Nix
@@ -109,7 +130,7 @@ future where humans and AI collaborate on complex data workflows.</li>
 &amp; Deserialization</h2>
 <p>When you define a node using <code>node()</code>, <code>rn()</code>
 (R), <code>pyn()</code> (Python), <code>jln()</code> (Julia), or
-<code>shn()</code> (Shell)—T treats the result as a first-class
+<code>shn()</code> (Shell), T treats the result as a first-class
 <strong>Node</strong> object. These objects transition through two main
 states:</p>
 <ol type="1">
@@ -118,7 +139,7 @@ states:</p>
 <li><strong>Computed Node</strong>: After <code>build_pipeline()</code>,
 the node points to a concrete, immutable artifact in the Nix store.</li>
 </ol>
-<h3 id="automatic-deserialization">Automatic Deserialization</h3>
+<h3 id="automatic-deserialization">Automatic (De)serialization</h3>
 <p>When you call <code>read_node("node_name")</code> in the REPL, T
 looks at the node’s <strong>serializer</strong> and attempts to
 automatically load the data back into the T environment:</p>
@@ -177,10 +198,14 @@ necessary to load the artifact manually or inspect its provenance.</p>
   `class`: &quot;lm&quot;,
   `dependencies`: [&quot;data&quot;]
 }</code></pre>
-<p>The <code>path</code> field is the “escape hatch”—it gives you the
+<p>The <code>path</code> field is the “escape hatch”: it gives you the
 absolute path to the node’s output in the Nix store. You can use this to
 start an external interpreter and inspect the file directly, or pass it
 to a custom loader like <code>read_parquet(model_node.path)</code>.</p>
+<p>For a more streamlined experience, you can use our <strong><a
+href="external-packages.html">External Helper Packages</a></strong> for
+R, Python, and Julia, which automate log resolution and deserialization
+from within those environments.</p>
 <hr />
 <h2 id="documentation-the-theoretical-foundation">Documentation: The
 Theoretical Foundation</h2>
@@ -232,6 +257,8 @@ patterns and recovery strategies</li>
 analysis patterns</li>
 <li><a href="demos.html">T Pipeline Demos</a> — interactive reports for
 T demo projects</li>
+<li><a href="external-packages.html">External Helper Packages</a> —
+reading T artifacts from R, Python, and Julia</li>
 </ul>
 <h3 id="advanced-topics">Advanced Topics</h3>
 <ul>

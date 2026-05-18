@@ -8,17 +8,37 @@ This file is a concatenation of the entire T documentation for LLM context.
 
 # T — The Orchestration Engine for Polyglot Data Science
 
-**T** is an experimental orchestration engine designed for declarative, reproducible pipelines. It provides a functional Domain-Specific Language (DSL) that coordinates R, Python, and Shell nodes—as well as Julia—within a Nix-managed infrastructure.
+T is a reproducibility-first domain-specific language (DSL) for polyglot data
+science. It provides a functional, immutable language for constructing
+composable *micropipelines*: first-class, introspectable computation graphs
+that coordinate R, Python, Julia, Quarto, and Shell execution within a unified
+system. Pipelines in T are not configuration artifacts but executable program
+structures with explicit dataflow, typed nodes, and content-addressed outputs.
+Artifacts are automatically serialized and exchanged across language boundaries,
+allowing polyglot workflows to compose without manual I/O glue code.
 
-Unlike traditional scripting languages, T is built to be a **specifications-ready engine**, making data analysis **explicit, inspectable, and pipeline-oriented**. This unique architecture ensures that humans and LLMs can collaborate on defining high-level intent while T handles the low-level orchestration and environmental consistency.
+Built on Nix, T integrates declarative environment management and deterministic
+builds at the language level, enabling reproducible execution across machines
+and operating systems. Workflow structure, dependency resolution, environment
+specification, and provenance tracking are intrinsic properties of the language
+rather than concerns delegated to external tooling. As a result, T is designed
+so that reproducible workflows are the default: reproducibility of your projects
+is not an afterthought anymore.
 
-**Status:** Version 0.52.0 "Kaméhaméha", latest stabilization release.
+T also includes a growing collection of data manipulation verbs inspired by the
+R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
+lubridate. This makes it possible to perform exploratory data analysis directly
+from the T REPL before promoting computations into reproducible pipelines.
+
+**Status:** Version 0.52.0 "Kaméhaméha".
 
 ---
 
 ## The Polyglot Pipeline
 
-T's core strength is its **mandatory pipeline architecture**. To execute code in T, you typically define it as a series of nodes in a directed acyclic graph (DAG). T handles the "glue":
+T's core strength is its **mandatory pipeline architecture**. To execute code in
+T, you typically define it as a series of nodes in a directed acyclic graph
+(DAG). T handles the "glue":
 
 ```t
 -- A reproducible polyglot pipeline
@@ -28,14 +48,14 @@ p = pipeline {
     command = read_csv("examples/sample_data.csv") |> filter($age > 25),
     serializer = "csv"
   )
-  
+
   -- 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
     command = <{ lm(score ~ age, data = data) }>,
     serializer = "pmml",
     deserializer = "csv"
   )
-  
+
   -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
   predictions = node(
     command = data |> mutate($pred = predict(data, model_r)),
@@ -52,27 +72,53 @@ p = pipeline {
 build_pipeline(p)
 ```
 
-## What is T?
+Pipelines are not mandatory in the T REPL. This is a deliberate design choice
+intended to support exploratory data analysis and rapid experimentation before
+computations are promoted into reproducible pipelines. Users can also launch
+R, Python, or Julia REPLs directly from within a T project, inheriting the
+same pinned environments and project dependencies. This allows exploratory
+work to take place in familiar ecosystems while remaining integrated with T's
+reproducibility model.
 
-T is not designed to replace your existing tools; it is designed to **orchestrate** them. It addresses the "dependency drift" and "works on my machine" syndrome by making **Nix mandatory**.
+---
 
-- **Orchestration, Not Invention**: Use R for its statistics, Python for its machine learning, and T to ensure they always talk to each other correctly via high-performance formats like Apache Arrow.
-- **Strictly Functional & Immutable**: T eliminates side effects and mutable state. If `a = 1 / 0`, then `a` is an `Error` value, not an exception. Logic is auditable and predictable.
-- **Mandatory Reproducibility**: Every node in a T pipeline runs in its own sandboxed Nix environment. T automatically detects dependencies and ensures that if a node's inputs haven't changed, its results are pulled from the cache.
-- **AI-Native Design**: Through features like `intent` blocks and structured metadata, T is built for a future where humans and AI collaborate on complex data workflows.
+## T in relation to the big three data science languages
+
+T is not designed to replace your existing tools; it is designed to
+**orchestrate** them. It addresses the "dependency drift" and "works on my
+machine" syndrome by making **Nix mandatory**.
+
+- **Orchestration, Not Invention**: Use R for its statistics, Python for its
+  machine learning, and T to ensure they always talk to each other correctly via
+  high-performance formats like Apache Arrow.
+- **Strictly Functional & Immutable**: T eliminates side effects and mutable
+  state. If `a = 1 / 0`, then `a` is an `Error` value, not an exception. Logic
+  is auditable and predictable.
+- **Mandatory Reproducibility**: Every node in a T pipeline runs in its own
+  sandboxed Nix environment. T automatically detects dependencies and ensures
+  that if a node's inputs haven't changed, its results are pulled from the
+  cache.
+- **AI-Native Design**: Through features like `intent` blocks and structured
+  metadata, T is built for a future where humans and AI collaborate on complex
+  data workflows.
 
 ---
 
 ## Foreign Language Nodes & Deserialization
 
-When you define a node using `node()`, `rn()` (R), `pyn()` (Python), `jln()` (Julia), or `shn()` (Shell)—T treats the result as a first-class **Node** object. These objects transition through two main states:
+When you define a node using `node()`, `rn()` (R), `pyn()` (Python), `jln()`
+(Julia), or `shn()` (Shell), T treats the result as a first-class **Node**
+object. These objects transition through two main states:
 
 1.  **Unbuilt Node**: A specification of what to run (command, runtime, environment variables).
-2.  **Computed Node**: After `build_pipeline()`, the node points to a concrete, immutable artifact in the Nix store.
+2.  **Computed Node**: After `build_pipeline()`, the node points to a concrete,
+    immutable artifact in the Nix store.
 
-### Automatic Deserialization
+### Automatic (De)serialization
 
-When you call `read_node("node_name")` in the REPL, T looks at the node's **serializer** and attempts to automatically load the data back into the T environment:
+When you call `read_node("node_name")` in the REPL, T looks at the node's
+**serializer** and attempts to automatically load the data back into the T
+environment:
 
 | Serializer | Resulting T Type | Backend |
 | :--- | :--- | :--- |
@@ -84,7 +130,10 @@ When you call `read_node("node_name")` in the REPL, T looks at the node's **seri
 
 ### Looking into the "Entrails"
 
-If a node's serializer is not supported for automatic deserialization, `read_node()` returns the **Computed Node object** itself. This object contains all the metadata necessary to load the artifact manually or inspect its provenance.
+If a node's serializer is not supported for automatic deserialization,
+`read_node()` returns the **Computed Node object** itself. This object contains
+all the metadata necessary to load the artifact manually or inspect its
+provenance.
 
 You can use `explain()` to look inside a built node:
 
@@ -103,7 +152,14 @@ You can use `explain()` to look inside a built node:
 }
 ```
 
-The `path` field is the "escape hatch"—it gives you the absolute path to the node's output in the Nix store. You can use this to start an external interpreter and inspect the file directly, or pass it to a custom loader like `read_parquet(model_node.path)`.
+The `path` field is the "escape hatch": it gives you the absolute path to the
+node's output in the Nix store. You can use this to start an external
+interpreter and inspect the file directly, or pass it to a custom loader like
+`read_parquet(model_node.path)`.
+
+For a more streamlined experience, you can use our **[External Helper
+Packages](external-packages.html)** for R, Python, and Julia, which automate log
+resolution and deserialization from within those environments.
 
 ---
 
@@ -133,6 +189,7 @@ The `path` field is the "escape hatch"—it gives you the absolute path to the n
 - [Error Handling Guide](error-handling.html) — error patterns and recovery strategies
 - [Comprehensive Examples](examples.html) — real-world analysis patterns
 - [T Pipeline Demos](demos.html) — interactive reports for T demo projects
+- [External Helper Packages](external-packages.html) — reading T artifacts from R, Python, and Julia
 
 ### Advanced Topics
 - [Reproducibility Guide](reproducibility.html) — Nix integration and reproducible workflows
@@ -161,41 +218,79 @@ The `path` field is the "escape hatch"—it gives you the absolute path to the n
 
 # Getting Started with T
 
-Welcome to T! This guide will help you install T, create your first project, and understand the basic layout of a T workspace.
+Welcome to T! This guide will help you install T, create your first project, and
+understand the basic layout of a T workspace.
 
 ## Prerequisites
 
-T requires the **Nix package manager** with flakes enabled. Nix ensures that your T environment is perfectly reproducible across Linux and macOS.
+T requires the **Nix package manager** with flakes enabled. Nix ensures that
+your T environment is perfectly reproducible across Linux and macOS.
 
-We strongly recommend installing Nix using the [Determinate Systems Nix Installer](https://install.determinate.systems/nix). For detailed, platform-specific steps, please see our:
+We strongly recommend installing Nix using the [Determinate Systems Nix
+Installer](https://install.determinate.systems/nix). For detailed,
+platform-specific steps, please see our:
 
 👉 **[Nix Installation Guide](nix-installation.md)**
 
 ## Running T
 
-As a user, you don't need to clone the repository or build the compiler from source! You can run the T shell directly from GitHub using Nix:
+As a user, you don't need to clone the repository or build the compiler from
+source! You can run the T shell directly from GitHub using Nix:
 
 ```bash
 nix shell github:b-rodrigues/tlang
 ```
 
-This command will download the T executable, fetch all required dependencies, and drop you into a temporary shell where the `t` command is available, for as long as you stay in that shell.
+This command will download the T executable, fetch all required dependencies,
+and drop you into a temporary shell where the `t` command is available, for as
+long as you stay in that shell.
 
 ## Starting a New Workspace
 
-T provides a built-in scaffolding tool to initialize your workspaces. There are two types of workspaces in T:
+T provides a built-in scaffolding tool to initialize your workspaces. There are
+two types of workspaces in T:
 - **Projects**: Designed for data analysis, scripts, and reproducible pipelines.
 - **Packages**: Designed for creating reusable functions and libraries to share with others.
 
 ### Creating a Project
 
-To start a new data analysis project, navigate to your desired folder and run (while in the temporary shell you dropped in before):
+To start a new data analysis project, navigate to your desired folder and run
+(while in the temporary shell you dropped in before):
 
 ```bash
 t init --project my_analysis
 ```
 
-The scaffolding tool will generate a reproducible workspace with the following layout:
+If you omit the project name (`my_analysis` in the above example), the
+scaffolding tool will prompt you interactively with some questions (your name,
+the license of the project, the Nixpkgs date, the size of the context file for
+LLM agents, and the pipeline template preference) and then will generate a
+reproducible workspace.
+
+For your very first T project, we highly recommend selecting the `full` pipeline
+template. Having the self-contained cheatsheet directly in `src/pipeline.t`
+makes it much faster to learn T's syntax and polyglot features. Also, stick to
+the default Nixpkgs date: We strongly recommend using the default Nixpkgs date
+provided by the prompt. You should only specify a different or more recent date
+if it is absolutely necessary for your packages and if you are already familiar
+with how Nix manages environments.
+
+#### Pipeline Templates
+
+When initializing a project, T supports two pipeline templates:
+
+- **`minimal`**: (Default) Generates a simple, barebones pipeline inside
+  `src/pipeline.t` so you can start writing code from scratch immediately.
+- **`full`**: Generates a rich, comprehensive archetypical pipeline cheatsheet
+  inside `src/pipeline.t`. This acts as a complete guide that demonstrates
+  polyglot node integration (Python, R, Julia, Shell, Quarto), data
+  serialization/deserialization, environment variables, exit handling, and
+  metadata retrieval functions (e.g., `read_node`, `read_pipeline`,
+  `pipeline_to_frame`, `pipeline_copy`).
+
+#### Workspace Layout
+
+The generated project has the following directory structure:
 
 ```text
 my_analysis/
@@ -205,7 +300,7 @@ my_analysis/
 ├── AGENTS.md           # Onboarding guide for AI Agents
 ├── T-LANGUAGE-REFERENCE.md # Tiered language reference for LLMs (git-ignored)
 ├── src/
-│   └── pipeline.t      # Your main analysis script
+│   └── pipeline.t      # Your main analysis script (minimal or full template)
 ├── data/               # Place your raw data files here
 ├── outputs/            # Output directory for results
 └── tests/              # Unit tests for your analysis
@@ -213,7 +308,8 @@ my_analysis/
 
 ### AI Agent Onboarding
 
-T is designed to be highly compatible with AI-assisted development. When you run `t init`, the tool will prompt you for an **Agent Context Level**:
+T is designed to be highly compatible with AI-assisted development. When you run
+`t init`, the tool will prompt you for an **Agent Context Level**:
 
 - **small**: Core syntax and top 20 functions.
 - **medium**: (Default) Exhaustive standard library index.
@@ -221,10 +317,12 @@ T is designed to be highly compatible with AI-assisted development. When you run
 - **huge**: Concatenated documentation of the entire T ecosystem.
 
 This selection generates two files in your project root:
-1. **`AGENTS.md`**: A project-specific guide that tells LLMs how to work within your project's architecture.
+1. **`AGENTS.md`**: A project-specific guide that tells LLMs how to work within
+   your project's architecture.
 2. **`T-LANGUAGE-REFERENCE.md`**: A technical reference file for the AI to read.
 
-By providing these files, you ensure that any AI agent you use has immediate access to the exact technical context it needs.
+By providing these files, you ensure that any AI agent you use has immediate
+access to the exact technical context it needs.
 
 ### Creating a Package
 
@@ -253,11 +351,13 @@ my_package/
 
 ## Running Your Code
 
-Now that you’ve bootstrapped your project or package, you can leave the temporary Nix shell using `exit`.
-Move into the project’s directory (if not there already), and type `nix develop` to drop into the development environment of the project.
-You may be prompted to make the `flake.nix` discoverable, you can copy and paste the suggested command or
-simply run `git add .` to stage the whole project. Try `nix develop` again to drop into the development
-environment. You should see the following:
+Now that you’ve bootstrapped your project or package, you can leave the
+temporary Nix shell using `exit`. Move into the project’s directory (if not
+there already), and type `nix develop` to drop into the development environment
+of the project. You may be prompted to make the `flake.nix` discoverable, you
+can copy and paste the suggested command or simply run `git add .` to stage the
+whole project. Try `nix develop` again to drop into the development environment.
+You should see the following:
 
 ```bash
 ==================================================
@@ -275,7 +375,8 @@ To add dependencies:
 
 ```
 
-Inside your project or package directory, you can start the interactive REPL to explore your data:
+Inside your project or package directory, you can start the interactive REPL to
+explore your data:
 
 ```bash
 t repl
@@ -1763,7 +1864,7 @@ Cross-platform path manipulation.
 
 ### `show_plot(plot)`
 
-Display a plot object (depends on the environment's plot viewer).
+Display a built or unbuilt R/Python/Julia plot node (depends on the environment's plot viewer).
 
 ---
 
@@ -5832,6 +5933,33 @@ The focus of this release is the introduction of first-class Julia support, enab
     - Simplified data interchange between T, R, Python, and Julia.
     - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
     - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
+- **World Age Resilience**:
+    - Implemented a robust fix for Julia's "World Age" issues (e.g., `MethodError: method is too new`).
+    - The Julia node emitter now wraps script execution in a high-level thunk and executes it via `Base.invokelatest`.
+    - This ensures that code generated at runtime (common in libraries like `Flux.jl` or `Zygote.jl`) remains accessible within the same execution cycle, even in restricted environments like the Nix build sandbox.
+- **Julia JSON Interchange**: Added support for the `JSON` package in Julia nodes, enabling seamless JSON-based data exchange for Julia-based pipeline steps.
+- **Julia Plotting Enhancements**: 
+    - `show_plot()` now supports Julia plots via `TidierPlots.jl`, `Plots.jl`, and `Makie.jl`.
+    - **CairoMakie Requirement**: For `Makie.jl` objects, `CairoMakie` is the mandatory backend for reproducible headless rendering within the Nix sandbox. Ensuring `CairoMakie` is in `[jl-dependencies].packages` is required for successful visual inspection of Makie nodes.
+
+### External Helper Packages (R, Python, Julia)
+- **New `read_node` Helpers**: Introduced lightweight packages for R, Python, and Julia (all named `tlang`) to simplify consumption of T-Lang build artifacts from external runtimes.
+- **Programmatic DAG Inspection**: Added `pipeline_nodes()` to all companion packages. It returns the pipeline DAG as an idiomatic data structure (e.g., `data.frame` in R, `dict` in Python/Julia), enabling easy programmatic traversal of node relationships.
+- **Refactored Pipeline Diagnostic Output**:
+    - Removed the redundant `path:` field from the default `ComputedNode` REPL printer.
+    - The default REPL printer no longer displays `path: <unbuilt>` / `path:` status lines for `ComputedNode`s; users who need explicit artifact paths in the T runtime can obtain them via `inspect_node(node).path` or `inspect_pipeline()`.
+- **Support for `return_path` in Companion Packages**: Added `return_path` argument to `read_node()` in the R, Python, and Julia companion packages. When set to true, these helpers return the absolute path to the artifact in the Nix store/project directory instead of deserializing it, allowing for custom loading logic or direct file inspection.
+- **Automated Log Resolution**: These helpers now automatically resolve the most recent `build_log_*.json` in the `_pipeline/` directory, providing a stable way to access node results during development and reporting (e.g., in Quarto).
+### Strict Serialization & Pipeline Stability
+- **Symbol-Mandated Serialization**: 
+    - Mandated the use of `^` symbols for node serializers and deserializers (e.g., `serializer = ^arrow`). 
+    - String literals are now strictly disallowed in these fields and will trigger a descriptive `TypeError` during evaluation, eliminating a common source of pipeline configuration drift.
+- **Opaque Error Elimination**:
+    - Enhanced `write_arrow` to surface detailed `VError` traces instead of failing silently.
+    - Pipeline nodes now report the actual root cause (including tracebacks) from upstream failures, making debugging polyglot pipelines significantly faster.
+- **Standard Package Registry**:
+    - Registered `dataframe` as a core standard package, ensuring stable resolution during Nix builds and preventing "package not found" errors in isolated environments.
+- **R Factor Stability**: Fixed a regression in R nodes where the standardized `to_factor` was being incorrectly emitted; now correctly uses the standard R `factor()` for native R-node interoperability.
 ### API Standardization & Ergonomics
 - **Unified `to_` Naming Convention**:
     - Renamed all type conversion and coercion functions to follow a consistent `to_` prefix:
@@ -5987,11 +6115,11 @@ The focus of this release was to improve language ergonomics for data guardrails
     - **Python Support**: Full metadata extraction and inspection support for `matplotlib` figures, `plotnine` (ggplot-style), `seaborn` grids, `plotly` figures, and `altair` charts.
 - **Enhanced `show_plot()` Builtin**:
     - Introduced `show_plot()` to render and open pipeline plot artifacts locally.
-    - Supports automatic rendering of R (`ggplot2`) and Python (Matplotlib, Seaborn, Plotly, Altair, Plotnine) plots within the Nix sandbox.
+    - Supports automatic rendering of R (`ggplot2`), Python (Matplotlib, Seaborn, Plotly, Altair, Plotnine), and Julia (`TidierPlots.jl`, `Plots.jl`, `Makie.jl` via `CairoMakie`) plots within the Nix sandbox.
     - Implemented headless rendering for interactive libraries: Plotly (via `kaleido`) and Altair (via `vl-convert`).
     - **Dependency Automation**: `tlang` now automatically suggests or injects `cloudpickle` when plotting libraries are detected in Python nodes to ensure reliable serialization of complex objects containing lambdas.
 - **Transparent `read_node()` for Plots**:
-    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, or `altair`.
+    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, `altair`, `tidierplots`, `plotsjl`, or `makie`.
     - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
 
 ### Serializable Lens Architecture
@@ -7703,7 +7831,7 @@ Now that you've mastered the core data manipulation verbs, explore specialized d
 
 # T Pipeline Demos
 
-This page lists real-world T projects that demonstrate the power of polyglot, reproducible orchestration. Most of these demos are available in the [tstats-project/t_demos](https://github.com/tstats-project/t_demos) repository.
+This page lists real-world T projects that demonstrate the power of polyglot, reproducible orchestration. Most of these demos are available in the [b-rodrigues/t_demos](https://github.com/b-rodrigues/t_demos) repository.
 
 ## Visualization & Reporting
 
@@ -10335,6 +10463,105 @@ Now that you've seen T in action across various scenarios, explore the detailed 
 4. **[Package Development](package_development.md)** — Learn how to share your own T code.
 
 
+# FILE: docs/external-packages.md
+
+# External Helper Packages (R, Python, Julia)
+
+To facilitate the consumption of T-Lang build artifacts from within other languages, we provide lightweight helper packages for **R**, **Python**, and **Julia**. All these packages are named **`tlang`** in their respective ecosystems. These packages allow you to easily locate and read built nodes from a T pipeline without manually parsing build logs or resolving Nix store paths.
+
+## Automatic Availability
+
+These packages are **automatically installed and loaded** in every R, Python, and Julia node in a T pipeline. You do not need to install them manually. The `read_node()` function and its dependencies are ready to use immediately.
+
+For project development shells, `t update` also wires the matching companion package into `flake.nix` whenever you declare dependencies in `[r-dependencies]`, `[py-dependencies]`, or `[jl-dependencies]`, so the helper is available from `nix develop` as well.
+
+## Key Features
+
+- **`read_node(name)`**: Automatically locates the latest build log in the `_pipeline/` directory, finds the requested node, and deserializes its artifact.
+- **`pipeline_nodes()`**: Returns the pipeline DAG (nodes and their dependencies) as an idiomatic data structure (data frame in R, dictionary in Python/Julia).
+- **Support for historical logs**: Use the `which_log` argument to select a specific build log using a regular expression.
+- **Custom Deserializers**: Pass a custom function to handle specific artifact formats.
+- **`return_path` support**: If you only need the absolute path to the artifact (e.g., to pass to a specialized loader), set `return_path = true`.
+
+---
+
+## R: `tlang`
+
+The R package is automatically loaded in all R nodes.
+
+### Usage
+
+```r
+# read_node is available by default
+# library(tlang) is called automatically
+
+# Read the latest 'my_data' node
+df <- read_node("my_data")
+
+# Get only the path to the artifact
+path <- read_node("my_model", return_path = TRUE)
+
+# Inspect the pipeline DAG (returns a data.frame)
+nodes <- pipeline_nodes()
+```
+
+---
+
+## Python: `tlang`
+
+The Python package is automatically imported in all Python nodes.
+
+### Usage
+
+```python
+# read_node is available by default
+# import tlang is called automatically
+
+# Read the latest 'my_data' node
+df = tlang.read_node("my_data")
+
+# Get only the path to the artifact
+path = tlang.read_node("my_model", return_path=True)
+
+# Inspect the pipeline DAG (returns a dict)
+nodes = tlang.pipeline_nodes()
+```
+
+---
+
+## Julia: `tlang`
+
+The Julia package is automatically loaded with `using tlang` in all Julia nodes.
+
+### Usage
+
+```julia
+# read_node is available by default
+# using tlang is called automatically
+
+# Read the latest 'my_data' node
+df = read_node("my_data")
+
+# Get only the path to the artifact
+path = read_node("my_model", return_path=true)
+
+# Inspect the pipeline DAG (returns a Dict)
+nodes = pipeline_nodes()
+```
+
+---
+
+## How it Works
+
+When you run `build_pipeline()`, T-Lang generates a timestamped build log (e.g., `_pipeline/build_log_20260514_160236.json`). These helper packages:
+
+1.  Scan the `_pipeline/` directory for `build_log_*.json` files.
+2.  Sort them reverse-alphabetically to find the most recent one.
+3.  Parse the JSON to find the entry for the requested node.
+4.  Resolve the `path` (which might be relative to the project root or an absolute Nix store path).
+5.  Call the appropriate deserializer (`readRDS` for R, `pickle.load` for Python, `Serialization.deserialize` for Julia).
+
+
 # FILE: docs/factors.md
 
 # Factors and `fct_*` Helpers in T
@@ -11059,7 +11286,7 @@ T>
 > type(42)
 "Int"
 
-> exit
+> exit()
 ```
 
 If all commands work, installation is successful! 🎉
@@ -12343,7 +12570,7 @@ model = lm(data = mtcars, formula = mpg ~ wt + hp)
 ```
 
 ### Advanced Modeling (Polyglot)
-To fit models beyond simple OLS, use `R` or `Python` nodes within a $T$ pipeline. These nodes can serialize model artifacts through PMML or ONNX depending on the scoring path you want.
+To fit models beyond simple OLS, use `R`, `Python`, or `Julia` nodes within a $T$ pipeline. These nodes can serialize model artifacts through PMML or ONNX depending on the scoring path you want.
 
 #### Example: Logistic Regression in R
 ```t
@@ -12374,6 +12601,26 @@ p = pipeline {
 }
 build_pipeline(p)
 model = read_node("model_node")
+```
+
+#### Example: Neural Network in Julia (Flux)
+Julia nodes are particularly powerful for deep learning. $T$ handles Julia's "World Age" issues automatically, allowing you to train complex Flux models and export them as ONNX artifacts.
+
+```t
+p = pipeline {
+    model_node = jln(
+        command = <{
+            using Flux, ONNX
+            model = Chain(Dense(2, 10, relu), Dense(10, 1, sigmoid))
+            # ... training logic ...
+            model
+        }>,
+        serializer = ^onnx
+    )
+}
+build_pipeline(p)
+model = read_node("model_node")
+predict(new_data, model) -- Native ONNX scoring in T
 ```
 
 ---
@@ -12513,7 +12760,10 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 
-Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python, R, or Julia. Julia currently supports ONNX consumption through `ONNXRunTime` and returns an explicit error if you try to export ONNX directly from a Julia node.
+Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python, R, or Julia. $T$ ensures that ONNX models trained in Python (Scikit-Learn) or Julia (Flux) produce consistent results when evaluated natively in $T$.
+
+> [!NOTE]
+> **Julia World Age**: When using Julia libraries that generate code at runtime (like Flux or Zygote), $T$ automatically wraps execution in `Base.invokelatest` to prevent "World Age" errors. This makes Julia nodes as robust as Python or R nodes for complex modeling tasks.
 
 ### Cross-Runtime Consistency
 $T$'s statistical evaluator is verified against R's reference implementation. Results match R's `broom::tidy()` and `stats::predict()` exactly.
@@ -13284,7 +13534,7 @@ p = pipeline {
 
 Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, and `shn()` as shortcuts for Python, R, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
 
-When an R node returns a `ggplot2` object, or a Python node returns a `matplotlib` / `plotnine` plot object, T now preserves lightweight plot metadata for REPL inspection. Reading or printing those artifacts shows a structured summary with the plot class (`ggplot`, `matplotlib`, or `plotnine`), runtime backend (`R` or `Python`), title, aesthetic mappings, labels, and layer information instead of a raw runtime-specific object dump.
+When an R node returns a `ggplot2` object, a Python node returns a `matplotlib` / `plotnine` plot object, or a Julia node returns a `TidierPlots.jl`, `Plots.jl`, or `Makie.jl` figure object, T preserves lightweight plot metadata for REPL inspection. Reading or printing those artifacts shows a structured summary with the plot class (`ggplot`, `matplotlib`, `plotnine`, `tidierplots`, `plotsjl`, or `makie`), runtime backend (`R`, `Python`, or `Julia`), title, labels, mappings when available, and layer information instead of a raw runtime-specific object dump.
 
 ### Using the `script` Argument
 
@@ -14774,13 +15024,13 @@ e |> is_error() -- Returns Error("stop") (short-circuited, function never runs!)
 
 # Plotting and Visual Inspection
 
-T is primarily an orchestration engine and does not currently provide its own native low-level plotting library. Instead, T's `show_plot()` function supports a wide range of visualization libraries across R and Python:
+T is primarily an orchestration engine and does not currently provide its own native low-level plotting library. Instead, T's `show_plot()` function supports a wide range of visualization libraries across R, Python, and Julia:
 
 - **R**: `ggplot2`
 - **Python**: `matplotlib`, `seaborn`, `plotly`, `altair`, `plotnine`
-- **Julia**: Support for Julia nodes is available, though visual metadata capture is currently optimized for R and Python.
+- **Julia**: `TidierPlots.jl`, `Plots.jl`, and `Makie.jl` / `CairoMakie`
 
-One of T's unique features is **Automated Visual Metadata Capture**. When you generate a plot in an R or Python node, T "sees" the plot object and automatically extracts its structural metadata during the build process.
+One of T's unique features is **Automated Visual Metadata Capture**. When you generate a plot in an R, Python, or Julia node, T "sees" the plot object and automatically extracts its structural metadata during the build process.
 
 ---
 
@@ -14819,7 +15069,18 @@ p = pipeline {
     }
 ```
 
-In both cases, T recognizes that the node result is a visualization.
+In each case, T recognizes that the node result is a visualization.
+
+### Example: Julia plotting nodes
+
+```t
+p = pipeline {
+  p_plotsjl = jln(command = <{
+    using Plots
+    plot([1, 2, 3], [3, 4, 5], title = "Fuel Economy")
+  }>)
+}
+```
 
 ---
 
@@ -14831,11 +15092,11 @@ When you build a pipeline containing these nodes, T creates two artifacts for ea
 
 T automatically extracts:
 - **Title**: The main title of the plot.
-- **Backend**: The runtime used to produce the plot (`"R"` or `"Python"`).
-- **Class**: The plot library or object type (e.g., `"ggplot"`, `"matplotlib"`, `"seaborn"`, `"plotly"`, `"altair"`).
+- **Backend**: The runtime used to produce the plot (`"R"`, `"Python"`, or `"Julia"`).
+- **Class**: The stable plot class tag (for example `"ggplot"`, `"plotnine"`, `"tidierplots"`, `"plotsjl"`, or `"makie"`).
 - **Labels**: Axis labels and legends.
 - **Layers**: The types of geometries present (e.g., "point", "line").
-- **Mappings**: In `ggplot2`, the aesthetic mappings (x, y, color, etc.).
+- **Mappings**: For grammar-of-graphics style backends such as `ggplot2`, `plotnine`, and `TidierPlots.jl`.
 
 ---
 
@@ -14874,7 +15135,7 @@ For example, a `ggplot` node read through `read_node()` displays as a structured
 - `labels`
 - `layers`
 
-This makes plotting nodes inspectable even when the underlying artifact is binary (`.rds` or Python pickle).
+This makes plotting nodes inspectable even when the underlying artifact is binary (`.rds`, Python pickle, or Julia serialization output).
 
 ---
 
@@ -14920,7 +15181,7 @@ with open(read_node("p_matplotlib"), "rb") as f:
 fig
 ```</code></pre>
 
-This dual behavior ensures that you can use T for programmatic inspection and R/Python for high-fidelity visual rendering, all while maintaining strict Nix-based reproducibility.
+This dual behavior ensures that you can use T for programmatic inspection and R/Python/Julia for high-fidelity visual rendering, all while maintaining strict Nix-based reproducibility.
 
 ---
 
@@ -14931,6 +15192,7 @@ This dual behavior ensures that you can use T for programmatic inspection and R/
 It accepts:
 
 - an unbuilt `rn()` / `pyn()` node
+- an unbuilt `jln()` node
 - a built `ComputedNode`
 - a `read_node()` result that still points back to a built plot node
 
@@ -14969,10 +15231,13 @@ show_plot(p)
 - **Python / Plotly** requires `plotly`, `kaleido` (for static image export), and `cloudpickle` in `[py-dependencies].packages`.
 - **Python / Altair** requires `altair`, `vl-convert-python` (preferred), and `cloudpickle` in `[py-dependencies].packages`.
 - **Python / Plotnine** requires `plotnine`, `pandas`, and `cloudpickle` in `[py-dependencies].packages`.
+- **Julia / TidierPlots** requires `TidierPlots` in `[jl-dependencies].packages`.
+- **Julia / Plots.jl** requires `Plots` and any backend package you explicitly use in `[jl-dependencies].packages`.
+- **Julia / Makie** rendering is standardized on `CairoMakie` for headless reproducibility; **`CairoMakie` is mandatory** in `[jl-dependencies].packages` to use `show_plot()` with Makie objects. T automatically activates the CairoMakie backend during the render process.
 
 ### Automated Dependency Detection
 
-When you use these libraries in a `pyn()` node, T's static analyzer will automatically detect the imports and prompt you to add the required rendering dependencies to your `tproject.toml` if they are missing.
+When you use these libraries in a `pyn()` or Julia plotting node, T's static analyzer will automatically detect the imports and prompt you to add the required rendering dependencies to your `tproject.toml` if they are missing.
 
 | Detected Import | Automatically Suggested Packages |
 | :--- | :--- |
@@ -14981,6 +15246,10 @@ When you use these libraries in a `pyn()` node, T's static analyzer will automat
 | `import plotnine` | `plotnine`, `pandas`, `cloudpickle` |
 | `import plotly` | `plotly`, `kaleido`, `cloudpickle` |
 | `import altair` | `altair`, `vl-convert-python`, `cloudpickle` |
+| `using TidierPlots` / `import TidierPlots` | `TidierPlots` |
+| `using Plots` / `import Plots` | `Plots` |
+| `using Makie` / `import Makie` | `Makie` |
+| `using CairoMakie` / `import CairoMakie` | `CairoMakie` |
 
 Example project configuration:
 
@@ -14991,6 +15260,10 @@ packages = ["ggplot2"]
 [py-dependencies]
 version = "python314"
 packages = ["matplotlib", "plotnine", "seaborn", "plotly", "kaleido"]
+
+[jl-dependencies]
+version = "lts"
+packages = ["TidierPlots", "Plots", "Makie", "CairoMakie"]
 
 [visualization-tool]
 command = "xdg-open"
@@ -15012,12 +15285,12 @@ See the [T Pipeline Demos](demos.html) for real-world examples of pipelines gene
 
 # PMML Tutorial
 
-> A practical guide to moving classical models between R, Python, and T with `^pmml`
+> A practical guide to moving classical models between R, Python, Julia, and T with `^pmml`
 
 PMML is T's interchange format for many classical statistical and tree-based models.
 It is useful when you want to:
 
-- train a model in **R** or **Python**
+- train a model in **R**, **Python**, or **Julia**
 - persist it as a stable artifact
 - load it back into **T**
 - score it natively with `predict(data, model)`
@@ -15054,7 +15327,8 @@ or consumed.
 |---|---|
 | R writes PMML | `r2pmml`, `XML`, `jsonlite`, `jre` |
 | Python writes PMML | `sklearn2pmml` or `jpmml-statsmodels`, plus `jre` |
-| Python reads PMML | JPMML evaluator via wrapper |
+| Julia writes PMML | `JavaCall.jl`, `JPMML-Evaluator`, plus `jre` |
+| Python/Julia reads PMML | JPMML evaluator via bridge/wrapper |
 | T reads and scores PMML | built-in `t_read_pmml()` + native evaluator |
 
 When PMML is used inside pipelines, these dependencies should be declared explicitly in
@@ -15181,7 +15455,33 @@ p = pipeline {
 }
 ```
 
-As with R, the boundary is explicit:
+---
+
+## 7. Training in Julia and Consuming in T
+
+Julia nodes can export PMML models using the `JPMML-Evaluator` bridge. This is useful for high-performance training of GLMs or ensembles that need to be scored in T.
+
+```t
+p = pipeline {
+  model_jl = jln(
+    command = <{
+      using GLM, DataFrames
+      data = read_csv("data.csv")
+      # Fit model and convert to PMML via JPMML bridge
+      model = glm(@formula(y ~ x1 + x2), data, Normal(), IdentityLink())
+      model
+    }>,
+    serializer = ^pmml
+  )
+
+  scored = node(
+    command = predict(read_csv("data.csv"), model_jl),
+    deserializer = ^pmml
+  )
+}
+```
+
+As with R and Python, the boundary is explicit:
 
 - Python exports PMML
 - T deserializes the PMML artifact
@@ -15192,7 +15492,7 @@ rather than silently switching to a different interchange story.
 
 ---
 
-## 7. Loading PMML Directly from Disk
+## 8. Loading PMML Directly from Disk
 
 You can also bypass pipelines and load an existing PMML file manually:
 
@@ -15209,7 +15509,7 @@ This is useful when:
 
 ---
 
-## 8. Writing PMML from T with `t_write_pmml()`
+## 9. Writing PMML from T with `t_write_pmml()`
 
 T now provides an initial native `t_write_pmml()` path, but it is intentionally narrow.
 
@@ -15243,7 +15543,7 @@ writer for unsupported cases.
 
 ---
 
-## 9. Recommended Workflow Pattern
+## 10. Recommended Workflow Pattern
 
 For now, the safest PMML workflow is:
 
@@ -15260,7 +15560,7 @@ In other words:
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 ### `read_node()` returns an error about missing PMML dependencies
 
@@ -15283,7 +15583,7 @@ The model coefficients are often not the problem; preprocessing fidelity usually
 
 ---
 
-## 11. Next Steps
+## 12. Next Steps
 
 Now that you have a PMML workflow in place, continue with:
 
@@ -15395,7 +15695,7 @@ Syncing 2 dependency(ies) from tproject.toml → flake.nix...
 Running nix flake update...
 ```
 
-This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes (T, R, or Python) during execution. Then re-enter the shell:
+This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes during execution. When you declare runtime dependencies, the matching `tlang` companion package is also exposed in the project shell (`library(tlang)` for R, `import tlang` for Python, and `using tlang` for Julia). Then re-enter the shell:
 
 ```bash
 $ nix develop
@@ -23258,7 +23558,7 @@ The evaluated return value of the command.
 
 Render a plot node and open it locally
 
-Builds or reuses an R/Python plot artifact, renders it into `_pipeline/`, and opens the rendered image with the command configured in `tproject.toml` under `[visualization-tool]`.
+Builds or reuses an R/Python/Julia plot artifact, renders it into `_pipeline/`, and opens the rendered image with the command configured in `tproject.toml` under `[visualization-tool]`.
 
 ## Parameters
 
@@ -23272,7 +23572,6 @@ The local rendered image path.
 ## See Also
 
 [build_pipeline](build_pipeline.html), [read_node](read_node.html)
-
 
 
 # FILE: docs/reference/sigma.md
@@ -24320,7 +24619,7 @@ The current date.
 
 # FILE: docs/reference/to_expr.md
 
-# expr
+# to_expr
 
 Capture an expression
 
@@ -24346,7 +24645,7 @@ eval(e)
 
 # FILE: docs/reference/to_exprs.md
 
-# exprs
+# to_exprs
 
 ## Parameters
 
@@ -25793,6 +26092,26 @@ p = pipeline {
 }
 ```
 
+### Symbols vs. Variables
+
+T distinguishes between **built-in symbols** and **custom serializer variables**:
+
+- **Symbols (`^arrow`, `^json`, etc.)**: Use the `^` prefix for T's built-in serializers. These are registered symbols that the pipeline emitter understands natively across all supported runtimes.
+- **Variables (`my_serializer`)**: If you have defined a custom serializer in a variable (e.g., a dictionary imported from another file), pass the variable name **without** the `^` prefix. This allows the evaluator to pass the actual serializer definition to the node.
+
+```t
+-- Built-in symbol (uses T's internal logic)
+node(..., serializer = ^arrow)
+
+-- Custom variable (passes the dictionary value)
+import "src/my_ser.t" [my_ser]
+node(..., serializer = my_ser)
+```
+
+> [!IMPORTANT]
+> **String literals (e.g., `serializer = "arrow"`) are strictly disallowed.** You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal will result in a `TypeError`.
+
+
 ### Implicit Serialization
 If you don't specify a serializer, T uses the `^tlang` (internal binary) format for T-to-T communication. For other runtimes, T attempts to infer a sensible default based on the data type or the specific wrapper used (e.g., `shn()` defaults to `^text`).
 
@@ -25822,11 +26141,11 @@ type serializer = {
 
 ### Custom Serializers
 
-You can create a custom serializer by defining a record that matches the required interface:
+You can create a custom serializer by defining a record that matches the required interface. Note that the `format` field should use a **Symbol** (starting with `^`) to remain consistent with T's symbol-based serialization mandate.
 
 ```t
 my_log_serializer = {
-  format: "log",
+  format: ^log,
   writer: \(path, val) {
     -- custom logic to write log
     Ok(NA)
@@ -25837,9 +26156,11 @@ my_log_serializer = {
   }
 }
 
--- Usage
+-- Usage: Pass the variable name (no ^ hat on the variable itself!)
 node(command = ..., serializer = my_log_serializer)
 ```
+
+For a complete example of a cross-language custom serializer (YAML), see the [Custom Polyglot Serializer Demo](https://github.com/b-rodrigues/t_demos/blob/master/custom_polyglot_serializer_t/src/pipeline.t) in the `t_demos` repository.
 
 ## 4. Static Coherence Checks
 
@@ -25876,7 +26197,7 @@ You can define these by adding `r_writer`, `r_reader`, `py_writer`, or `py_reade
 
 ```t
 my_custom_ser = [
-  format: "custom",
+  format: ^custom,
   
   -- T implementation
   writer: \(path, val) { Ok(NA) },

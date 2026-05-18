@@ -34,8 +34,8 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="unreleased">[Unreleased]</h2>
-<h2 id="kaméhaméha---2026-05-xx">[0.52.0] “Kaméhaméha” - 2026-05-xx</h2>
+<h2 id="unreleased">[0.52.1] Unreleased</h2>
+<h2 id="kaméhaméha---2026-05-18">[0.52.0] “Kaméhaméha” - 2026-05-18</h2>
 <p>The focus of this release is the introduction of first-class Julia
 support, enabling high-performance polyglot pipelines with seamless
 Julia integration.</p>
@@ -44,8 +44,8 @@ Julia integration.</p>
 <ul>
 <li><strong>Julia Node Shorthand (<code>jln</code>)</strong>:
 <ul>
-<li>Introduced <code>jln()</code> (and its alias <code>jln()</code>) for
-executing Julia code directly within T pipelines.</li>
+<li>Introduced <code>jln()</code> for executing Julia code directly
+within T pipelines.</li>
 <li>Julia nodes support full dependency management and automatic
 environment provisioning.</li>
 </ul></li>
@@ -78,9 +78,94 @@ serialization.</li>
 <li>Improved automatic dependency discovery for Julia packages used
 within pipeline nodes.</li>
 <li>Robust system-level library resolution for complex Julia
-dependencies (like JVM and ONNX runtimes) within the Nix sandbox. ###
-API Standardization &amp; Ergonomics</li>
+dependencies (like JVM and ONNX runtimes) within the Nix sandbox.</li>
 </ul></li>
+<li><strong>World Age Resilience</strong>:
+<ul>
+<li>Implemented a robust fix for Julia’s “World Age” issues (e.g.,
+<code>MethodError: method is too new</code>).</li>
+<li>The Julia node emitter now wraps script execution in a high-level
+thunk and executes it via <code>Base.invokelatest</code>.</li>
+<li>This ensures that code generated at runtime (common in libraries
+like <code>Flux.jl</code> or <code>Zygote.jl</code>) remains accessible
+within the same execution cycle, even in restricted environments like
+the Nix build sandbox.</li>
+</ul></li>
+<li><strong>Julia JSON Interchange</strong>: Added support for the
+<code>JSON</code> package in Julia nodes, enabling seamless JSON-based
+data exchange for Julia-based pipeline steps.</li>
+<li><strong>Julia Plotting Enhancements</strong>:
+<ul>
+<li><code>show_plot()</code> now supports Julia plots via
+<code>TidierPlots.jl</code>, <code>Plots.jl</code>, and
+<code>Makie.jl</code>.</li>
+<li><strong>CairoMakie Requirement</strong>: For <code>Makie.jl</code>
+objects, <code>CairoMakie</code> is the mandatory backend for
+reproducible headless rendering within the Nix sandbox. Ensuring
+<code>CairoMakie</code> is in <code>[jl-dependencies].packages</code> is
+required for successful visual inspection of Makie nodes.</li>
+</ul></li>
+</ul>
+<h3 id="external-helper-packages-r-python-julia">External Helper
+Packages (R, Python, Julia)</h3>
+<ul>
+<li><strong>New <code>read_node</code> Helpers</strong>: Introduced
+lightweight packages for R, Python, and Julia (all named
+<code>tlang</code>) to simplify consumption of T-Lang build artifacts
+from external runtimes.</li>
+<li><strong>Programmatic DAG Inspection</strong>: Added
+<code>pipeline_nodes()</code> to all companion packages. It returns the
+pipeline DAG as an idiomatic data structure (e.g.,
+<code>data.frame</code> in R, <code>dict</code> in Python/Julia),
+enabling easy programmatic traversal of node relationships.</li>
+<li><strong>Refactored Pipeline Diagnostic Output</strong>:
+<ul>
+<li>Removed the redundant <code>path:</code> field from the default
+<code>ComputedNode</code> REPL printer.</li>
+<li>The default REPL printer no longer displays
+<code>path: &lt;unbuilt&gt;</code> / <code>path:</code> status lines for
+<code>ComputedNode</code>s; users who need explicit artifact paths in
+the T runtime can obtain them via <code>inspect_node(node).path</code>
+or <code>inspect_pipeline()</code>.</li>
+</ul></li>
+<li><strong>Support for <code>return_path</code> in Companion
+Packages</strong>: Added <code>return_path</code> argument to
+<code>read_node()</code> in the R, Python, and Julia companion packages.
+When set to true, these helpers return the absolute path to the artifact
+in the Nix store/project directory instead of deserializing it, allowing
+for custom loading logic or direct file inspection.</li>
+<li><strong>Automated Log Resolution</strong>: These helpers now
+automatically resolve the most recent <code>build_log_*.json</code> in
+the <code>_pipeline/</code> directory, providing a stable way to access
+node results during development and reporting (e.g., in Quarto). ###
+Strict Serialization &amp; Pipeline Stability</li>
+<li><strong>Symbol-Mandated Serialization</strong>:
+<ul>
+<li>Mandated the use of <code>^</code> symbols for node serializers and
+deserializers (e.g., <code>serializer = ^arrow</code>).</li>
+<li>String literals are now strictly disallowed in these fields and will
+trigger a descriptive <code>TypeError</code> during evaluation,
+eliminating a common source of pipeline configuration drift.</li>
+</ul></li>
+<li><strong>Opaque Error Elimination</strong>:
+<ul>
+<li>Enhanced <code>write_arrow</code> to surface detailed
+<code>VError</code> traces instead of failing silently.</li>
+<li>Pipeline nodes now report the actual root cause (including
+tracebacks) from upstream failures, making debugging polyglot pipelines
+significantly faster.</li>
+</ul></li>
+<li><strong>Standard Package Registry</strong>:
+<ul>
+<li>Registered <code>dataframe</code> as a core standard package,
+ensuring stable resolution during Nix builds and preventing “package not
+found” errors in isolated environments.</li>
+</ul></li>
+<li><strong>R Factor Stability</strong>: Fixed a regression in R nodes
+where the standardized <code>to_factor</code> was being incorrectly
+emitted; now correctly uses the standard R <code>factor()</code> for
+native R-node interoperability. ### API Standardization &amp;
+Ergonomics</li>
 <li><strong>Unified <code>to_</code> Naming Convention</strong>:
 <ul>
 <li>Renamed all type conversion and coercion functions to follow a
@@ -498,8 +583,10 @@ inspection support for <code>matplotlib</code> figures,
 <ul>
 <li>Introduced <code>show_plot()</code> to render and open pipeline plot
 artifacts locally.</li>
-<li>Supports automatic rendering of R (<code>ggplot2</code>) and Python
-(Matplotlib, Seaborn, Plotly, Altair, Plotnine) plots within the Nix
+<li>Supports automatic rendering of R (<code>ggplot2</code>), Python
+(Matplotlib, Seaborn, Plotly, Altair, Plotnine), and Julia
+(<code>TidierPlots.jl</code>, <code>Plots.jl</code>,
+<code>Makie.jl</code> via <code>CairoMakie</code>) plots within the Nix
 sandbox.</li>
 <li>Implemented headless rendering for interactive libraries: Plotly
 (via <code>kaleido</code>) and Altair (via
@@ -513,7 +600,9 @@ of complex objects containing lambdas.</li>
 <ul>
 <li><code>read_node()</code> now recognizes nodes of class
 <code>ggplot</code>, <code>matplotlib</code>, <code>plotnine</code>,
-<code>seaborn</code>, <code>plotly</code>, or <code>altair</code>.</li>
+<code>seaborn</code>, <code>plotly</code>, <code>altair</code>,
+<code>tidierplots</code>, <code>plotsjl</code>, or
+<code>makie</code>.</li>
 <li>Instead of returning an opaque binary artifact, it returns a
 structured JSON-backed dictionary of the plot’s metadata, enabling
 programmatic verification of visualizations in T scripts.</li>

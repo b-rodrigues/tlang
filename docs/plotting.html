@@ -103,18 +103,19 @@ Inspection</h1>
 <p>T is primarily an orchestration engine and does not currently provide
 its own native low-level plotting library. Instead, T’s
 <code>show_plot()</code> function supports a wide range of visualization
-libraries across R and Python:</p>
+libraries across R, Python, and Julia:</p>
 <ul>
 <li><strong>R</strong>: <code>ggplot2</code></li>
 <li><strong>Python</strong>: <code>matplotlib</code>,
 <code>seaborn</code>, <code>plotly</code>, <code>altair</code>,
 <code>plotnine</code></li>
-<li><strong>Julia</strong>: Support for Julia nodes is available, though
-visual metadata capture is currently optimized for R and Python.</li>
+<li><strong>Julia</strong>: <code>TidierPlots.jl</code>,
+<code>Plots.jl</code>, and <code>Makie.jl</code> /
+<code>CairoMakie</code></li>
 </ul>
 <p>One of T’s unique features is <strong>Automated Visual Metadata
-Capture</strong>. When you generate a plot in an R or Python node, T
-“sees” the plot object and automatically extracts its structural
+Capture</strong>. When you generate a plot in an R, Python, or Julia
+node, T “sees” the plot object and automatically extracts its structural
 metadata during the build process.</p>
 <hr />
 <h2 id="plotting-in-polyglot-pipelines">Plotting in Polyglot
@@ -144,8 +145,15 @@ foreign-language node.</p>
         }&gt;
       )
     }</code></pre>
-<p>In both cases, T recognizes that the node result is a
+<p>In each case, T recognizes that the node result is a
 visualization.</p>
+<h3 id="example-julia-plotting-nodes">Example: Julia plotting nodes</h3>
+<pre class="t"><code>p = pipeline {
+  p_plotsjl = jln(command = &lt;{
+    using Plots
+    plot([1, 2, 3], [3, 4, 5], title = &quot;Fuel Economy&quot;)
+  }&gt;)
+}</code></pre>
 <hr />
 <h2 id="visual-metadata-capture">Visual Metadata Capture</h2>
 <p>When you build a pipeline containing these nodes, T creates two
@@ -156,14 +164,15 @@ Artifact</strong>: The serialized plot object (e.g., an RDS file for
 contents.</p>
 <p>T automatically extracts: - <strong>Title</strong>: The main title of
 the plot. - <strong>Backend</strong>: The runtime used to produce the
-plot (<code>"R"</code> or <code>"Python"</code>). -
-<strong>Class</strong>: The plot library or object type (e.g.,
-<code>"ggplot"</code>, <code>"matplotlib"</code>,
-<code>"seaborn"</code>, <code>"plotly"</code>, <code>"altair"</code>). -
-<strong>Labels</strong>: Axis labels and legends. -
-<strong>Layers</strong>: The types of geometries present (e.g., “point”,
-“line”). - <strong>Mappings</strong>: In <code>ggplot2</code>, the
-aesthetic mappings (x, y, color, etc.).</p>
+plot (<code>"R"</code>, <code>"Python"</code>, or <code>"Julia"</code>).
+- <strong>Class</strong>: The stable plot class tag (for example
+<code>"ggplot"</code>, <code>"plotnine"</code>,
+<code>"tidierplots"</code>, <code>"plotsjl"</code>, or
+<code>"makie"</code>). - <strong>Labels</strong>: Axis labels and
+legends. - <strong>Layers</strong>: The types of geometries present
+(e.g., “point”, “line”). - <strong>Mappings</strong>: For
+grammar-of-graphics style backends such as <code>ggplot2</code>,
+<code>plotnine</code>, and <code>TidierPlots.jl</code>.</p>
 <hr />
 <h2 id="inspecting-plots-with-read_node">Inspecting Plots with
 <code>read_node()</code></h2>
@@ -201,7 +210,8 @@ such as:</p>
 <li><code>layers</code></li>
 </ul>
 <p>This makes plotting nodes inspectable even when the underlying
-artifact is binary (<code>.rds</code> or Python pickle).</p>
+artifact is binary (<code>.rds</code>, Python pickle, or Julia
+serialization output).</p>
 <hr />
 <h2 id="plotting-in-literate-programming">Plotting in Literate
 Programming</h2>
@@ -250,8 +260,8 @@ with open(read_node("p_matplotlib"), "rb") as f:
 fig
 ```</code></pre>
 <p>This dual behavior ensures that you can use T for programmatic
-inspection and R/Python for high-fidelity visual rendering, all while
-maintaining strict Nix-based reproducibility.</p>
+inspection and R/Python/Julia for high-fidelity visual rendering, all
+while maintaining strict Nix-based reproducibility.</p>
 <hr />
 <h2 id="opening-plots-with-show_plot">Opening Plots with
 <code>show_plot()</code></h2>
@@ -261,6 +271,7 @@ opens the image locally.</p>
 <p>It accepts:</p>
 <ul>
 <li>an unbuilt <code>rn()</code> / <code>pyn()</code> node</li>
+<li>an unbuilt <code>jln()</code> node</li>
 <li>a built <code>ComputedNode</code></li>
 <li>a <code>read_node()</code> result that still points back to a built
 plot node</li>
@@ -269,9 +280,9 @@ plot node</li>
 <code>_pipeline/</code>.</p>
 <p>Add an opener in <code>tproject.toml</code> if you want to override
 the default viewer:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode toml"><code class="sourceCode toml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[visualization-tool]</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="dt">command</span> <span class="op">=</span> <span class="st">&quot;xdg-open&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[visualization-tool]</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="dt">command</span> <span class="op">=</span> <span class="st">&quot;xdg-open&quot;</span></span></code></pre></div>
 <p>The value must be a single executable name or an absolute path to an
 executable. When no custom tool is configured, T falls back to:</p>
 <ol type="1">
@@ -309,13 +320,25 @@ in <code>[py-dependencies].packages</code>.</li>
 <li><strong>Python / Plotnine</strong> requires <code>plotnine</code>,
 <code>pandas</code>, and <code>cloudpickle</code> in
 <code>[py-dependencies].packages</code>.</li>
+<li><strong>Julia / TidierPlots</strong> requires
+<code>TidierPlots</code> in
+<code>[jl-dependencies].packages</code>.</li>
+<li><strong>Julia / Plots.jl</strong> requires <code>Plots</code> and
+any backend package you explicitly use in
+<code>[jl-dependencies].packages</code>.</li>
+<li><strong>Julia / Makie</strong> rendering is standardized on
+<code>CairoMakie</code> for headless reproducibility;
+<strong><code>CairoMakie</code> is mandatory</strong> in
+<code>[jl-dependencies].packages</code> to use <code>show_plot()</code>
+with Makie objects. T automatically activates the CairoMakie backend
+during the render process.</li>
 </ul>
 <h3 id="automated-dependency-detection">Automated Dependency
 Detection</h3>
-<p>When you use these libraries in a <code>pyn()</code> node, T’s static
-analyzer will automatically detect the imports and prompt you to add the
-required rendering dependencies to your <code>tproject.toml</code> if
-they are missing.</p>
+<p>When you use these libraries in a <code>pyn()</code> or Julia
+plotting node, T’s static analyzer will automatically detect the imports
+and prompt you to add the required rendering dependencies to your
+<code>tproject.toml</code> if they are missing.</p>
 <table>
 <thead>
 <tr>
@@ -349,19 +372,43 @@ they are missing.</p>
 <td style="text-align: left;"><code>altair</code>,
 <code>vl-convert-python</code>, <code>cloudpickle</code></td>
 </tr>
+<tr>
+<td style="text-align: left;"><code>using TidierPlots</code> /
+<code>import TidierPlots</code></td>
+<td style="text-align: left;"><code>TidierPlots</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>using Plots</code> /
+<code>import Plots</code></td>
+<td style="text-align: left;"><code>Plots</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>using Makie</code> /
+<code>import Makie</code></td>
+<td style="text-align: left;"><code>Makie</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>using CairoMakie</code> /
+<code>import CairoMakie</code></td>
+<td style="text-align: left;"><code>CairoMakie</code></td>
+</tr>
 </tbody>
 </table>
 <p>Example project configuration:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode toml"><code class="sourceCode toml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;ggplot2&quot;</span><span class="op">]</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">[py-dependencies]</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;python314&quot;</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;matplotlib&quot;</span><span class="op">,</span> <span class="st">&quot;plotnine&quot;</span><span class="op">,</span> <span class="st">&quot;seaborn&quot;</span><span class="op">,</span> <span class="st">&quot;plotly&quot;</span><span class="op">,</span> <span class="st">&quot;kaleido&quot;</span><span class="op">]</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">[visualization-tool]</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="dt">command</span> <span class="op">=</span> <span class="st">&quot;xdg-open&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;ggplot2&quot;</span><span class="op">]</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">[py-dependencies]</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;python314&quot;</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;matplotlib&quot;</span><span class="op">,</span> <span class="st">&quot;plotnine&quot;</span><span class="op">,</span> <span class="st">&quot;seaborn&quot;</span><span class="op">,</span> <span class="st">&quot;plotly&quot;</span><span class="op">,</span> <span class="st">&quot;kaleido&quot;</span><span class="op">]</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="kw">[jl-dependencies]</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;lts&quot;</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;TidierPlots&quot;</span><span class="op">,</span> <span class="st">&quot;Plots&quot;</span><span class="op">,</span> <span class="st">&quot;Makie&quot;</span><span class="op">,</span> <span class="st">&quot;CairoMakie&quot;</span><span class="op">]</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="kw">[visualization-tool]</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="dt">command</span> <span class="op">=</span> <span class="st">&quot;xdg-open&quot;</span></span></code></pre></div>
 <h3 id="files-written-to-_pipeline">Files Written to
 <code>_pipeline/</code></h3>
 <p>When you call <code>show_plot()</code>, T creates local helper files

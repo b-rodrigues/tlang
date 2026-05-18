@@ -1,8 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [0.52.1] [Unreleased]
 
-## [0.52.0] "Kaméhaméha" - 2026-05-xx
+## [0.52.0] "Kaméhaméha" - 2026-05-18
 
 The focus of this release is the introduction of first-class Julia support, enabling high-performance polyglot pipelines with seamless Julia integration.
 

@@ -50,6 +50,33 @@ specify them when defining pipeline nodes:</p>
   -- Use the JSON serializer for a simple dictionary
   config = node(command = { &quot;debug&quot;: true, &quot;retries&quot;: 5 }, serializer = ^json)
 }</code></pre>
+<h3 id="symbols-vs.-variables">Symbols vs. Variables</h3>
+<p>T distinguishes between <strong>built-in symbols</strong> and
+<strong>custom serializer variables</strong>:</p>
+<ul>
+<li><strong>Symbols (<code>^arrow</code>, <code>^json</code>,
+etc.)</strong>: Use the <code>^</code> prefix for T’s built-in
+serializers. These are registered symbols that the pipeline emitter
+understands natively across all supported runtimes.</li>
+<li><strong>Variables (<code>my_serializer</code>)</strong>: If you have
+defined a custom serializer in a variable (e.g., a dictionary imported
+from another file), pass the variable name <strong>without</strong> the
+<code>^</code> prefix. This allows the evaluator to pass the actual
+serializer definition to the node.</li>
+</ul>
+<pre class="t"><code>-- Built-in symbol (uses T&#39;s internal logic)
+node(..., serializer = ^arrow)
+
+-- Custom variable (passes the dictionary value)
+import &quot;src/my_ser.t&quot; [my_ser]
+node(..., serializer = my_ser)</code></pre>
+<blockquote>
+<p>[!IMPORTANT] <strong>String literals (e.g.,
+<code>serializer = "arrow"</code>) are strictly disallowed.</strong> You
+must use either a symbol with the <code>^</code> prefix for built-ins or
+a variable name for custom serializers. Using a string literal will
+result in a <code>TypeError</code>.</p>
+</blockquote>
 <h3 id="implicit-serialization">Implicit Serialization</h3>
 <p>If you don’t specify a serializer, T uses the <code>^tlang</code>
 (internal binary) format for T-to-T communication. For other runtimes, T
@@ -122,9 +149,11 @@ properties or even define your own.</p>
 }</code></pre>
 <h3 id="custom-serializers">Custom Serializers</h3>
 <p>You can create a custom serializer by defining a record that matches
-the required interface:</p>
+the required interface. Note that the <code>format</code> field should
+use a <strong>Symbol</strong> (starting with <code>^</code>) to remain
+consistent with T’s symbol-based serialization mandate.</p>
 <pre class="t"><code>my_log_serializer = {
-  format: &quot;log&quot;,
+  format: ^log,
   writer: \(path, val) {
     -- custom logic to write log
     Ok(NA)
@@ -135,8 +164,12 @@ the required interface:</p>
   }
 }
 
--- Usage
+-- Usage: Pass the variable name (no ^ hat on the variable itself!)
 node(command = ..., serializer = my_log_serializer)</code></pre>
+<p>For a complete example of a cross-language custom serializer (YAML),
+see the <a
+href="https://github.com/b-rodrigues/t_demos/blob/master/custom_polyglot_serializer_t/src/pipeline.t">Custom
+Polyglot Serializer Demo</a> in the <code>t_demos</code> repository.</p>
 <h2 id="static-coherence-checks">4. Static Coherence Checks</h2>
 <p>One of the most powerful features of T’s serializer system is the
 <strong>static coherence check</strong>. When you build a pipeline, T
@@ -177,7 +210,7 @@ keys to your serializer dictionary. You can use standard strings or
 <strong>foreign code blocks</strong> <code>&lt;{ ... }&gt;</code> for
 better readability:</p>
 <pre class="t"><code>my_custom_ser = [
-  format: &quot;custom&quot;,
+  format: ^custom,
   
   -- T implementation
   writer: \(path, val) { Ok(NA) },

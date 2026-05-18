@@ -60,8 +60,8 @@ model = lm(mtcars, mpg ~ wt + hp)
 -- Named args also supported
 model = lm(data = mtcars, formula = mpg ~ wt + hp)</code></pre>
 <h3 id="advanced-modeling-polyglot">Advanced Modeling (Polyglot)</h3>
-<p>To fit models beyond simple OLS, use <code>R</code> or
-<code>Python</code> nodes within a <span
+<p>To fit models beyond simple OLS, use <code>R</code>,
+<code>Python</code>, or <code>Julia</code> nodes within a <span
 class="math inline"><em>T</em></span> pipeline. These nodes can
 serialize model artifacts through PMML or ONNX depending on the scoring
 path you want.</p>
@@ -92,6 +92,26 @@ Logistic Regression in Python via ONNX</h4>
 }
 build_pipeline(p)
 model = read_node(&quot;model_node&quot;)</code></pre>
+<h4 id="example-neural-network-in-julia-flux">Example: Neural Network in
+Julia (Flux)</h4>
+<p>Julia nodes are particularly powerful for deep learning. <span
+class="math inline"><em>T</em></span> handles Julia’s “World Age” issues
+automatically, allowing you to train complex Flux models and export them
+as ONNX artifacts.</p>
+<pre class="t"><code>p = pipeline {
+    model_node = jln(
+        command = &lt;{
+            using Flux, ONNX
+            model = Chain(Dense(2, 10, relu), Dense(10, 1, sigmoid))
+            # ... training logic ...
+            model
+        }&gt;,
+        serializer = ^onnx
+    )
+}
+build_pipeline(p)
+model = read_node(&quot;model_node&quot;)
+predict(new_data, model) -- Native ONNX scoring in T</code></pre>
 <hr />
 <h2 id="model-inspection-diagnostics">Model Inspection &amp;
 Diagnostics</h2>
@@ -235,9 +255,18 @@ families that PMML cannot represent well.</p>
 <p>Use <code>^pmml</code> when you want T’s hand-written classical-model
 evaluator. Use <code>^onnx</code> when you want a portable model
 artifact with native ONNX Runtime inference in T or cross-runtime
-execution in Python, R, or Julia. Julia currently supports ONNX
-consumption through <code>ONNXRunTime</code> and returns an explicit
-error if you try to export ONNX directly from a Julia node.</p>
+execution in Python, R, or Julia. <span
+class="math inline"><em>T</em></span> ensures that ONNX models trained
+in Python (Scikit-Learn) or Julia (Flux) produce consistent results when
+evaluated natively in <span class="math inline"><em>T</em></span>.</p>
+<blockquote>
+<p>[!NOTE] <strong>Julia World Age</strong>: When using Julia libraries
+that generate code at runtime (like Flux or Zygote), <span
+class="math inline"><em>T</em></span> automatically wraps execution in
+<code>Base.invokelatest</code> to prevent “World Age” errors. This makes
+Julia nodes as robust as Python or R nodes for complex modeling
+tasks.</p>
+</blockquote>
 <h3 id="cross-runtime-consistency">Cross-Runtime Consistency</h3>
 <p><span class="math inline"><em>T</em></span>’s statistical evaluator
 is verified against R’s reference implementation. Results match R’s
