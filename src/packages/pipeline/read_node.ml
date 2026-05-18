@@ -194,6 +194,14 @@ let register env =
   let inspect_fn named_args _env =
     match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
+        let cn =
+          if cn.cn_path = "<unbuilt>" || cn.cn_path = "" || cn.cn_class = "Unknown"
+          then
+            match Builder.latest_logged_computed_node cn.cn_name with
+            | Some logged_cn -> logged_cn
+            | None -> cn
+          else cn
+        in
         VDict [
           ("name", VString cn.cn_name);
           ("runtime", VString cn.cn_runtime);

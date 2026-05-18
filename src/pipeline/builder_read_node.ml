@@ -276,6 +276,55 @@ let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
   | None ->
       p.p_nodes
 
+let latest_logged_computed_node ?which_log (name : string) =
+  let logs = candidate_logs ?which_log () in
+  let read_entries log_file =
+    match read_log (Filename.concat pipeline_dir log_file) with
+    | Ok entries -> Some entries
+    | Error _ -> None
+  in
+  match which_log with
+  | None ->
+      (match logs with
+       | [] -> None
+       | newest :: rest ->
+           let rec find_in_logs = function
+             | [] -> None
+             | log_file :: tail ->
+                 (match read_entries log_file with
+                  | Some entries ->
+                      (match List.assoc_opt name entries with
+                       | Some cn -> Some cn
+                       | None -> find_in_logs tail)
+                  | None -> find_in_logs tail)
+           in
+           find_in_logs (newest :: rest))
+  | Some pattern ->
+      let matching_logs =
+        try
+          let re = Str.regexp pattern in
+          List.filter
+            (fun log ->
+              try
+                let _ = Str.search_forward re log 0 in
+                true
+              with Not_found -> false)
+            logs
+        with Failure _ ->
+          []
+      in
+      let rec find_in_logs = function
+        | [] -> None
+        | log_file :: tail ->
+            (match read_entries log_file with
+             | Some entries ->
+                 (match List.assoc_opt name entries with
+                  | Some cn -> Some cn
+                  | None -> find_in_logs tail)
+             | None -> find_in_logs tail)
+      in
+      find_in_logs matching_logs
+
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
   match Sys.getenv_opt env_name with
