@@ -137,6 +137,20 @@ let rec render_tree_entry prefix is_last (label, value) =
         List.mapi (fun index (item_label, item) -> (list_item_tree_label index item_label, item)) items
       in
       (prefix ^ branch ^ label) :: render_tree_children child_prefix indexed_items
+  | VComputedNode cn ->
+      let cn = !Ast.computed_node_resolver cn in
+      let lines =
+        let path_str = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then "" else "\npath: " ^ cn.cn_path in
+        Printf.sprintf "computed_node<%s>%s\nserializer: %s\nclass: %s"
+          cn.cn_runtime path_str cn.cn_serializer cn.cn_class
+      in
+      let split_lines = String.split_on_char '\n' lines in
+      (match split_lines with
+       | [] -> []
+       | first :: rest ->
+           let first_line = prefix ^ branch ^ label ^ ": " ^ first in
+           let rest_lines = List.map (fun line -> child_prefix ^ line) rest in
+           first_line :: rest_lines)
   | _ ->
       [prefix ^ branch ^ label ^ ": " ^ Utils.value_to_string value]
 
@@ -261,6 +275,11 @@ and pretty_print_visual_metadata pairs =
 (** Pretty-print any value for REPL display *)
 let rec pretty_print_value v =
   match v with
+  | VComputedNode cn ->
+      let cn = !Ast.computed_node_resolver cn in
+      let path_str = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then "" else "\npath: " ^ cn.cn_path in
+      Printf.sprintf "computed_node<%s>%s\nserializer: %s\nclass: %s\n"
+        cn.cn_runtime path_str cn.cn_serializer cn.cn_class
   | VDataFrame df -> pretty_print_dataframe df
   | VError err -> pretty_print_error err
   | VPipeline p -> pretty_print_pipeline p

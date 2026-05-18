@@ -2233,7 +2233,7 @@ and eval_dot_access_val _env_ref target_val field =
       (match field with
       | "path" ->
           (match !Ast.node_resolver s with
-           | Some (VComputedNode cn) -> VString cn.cn_path
+           | Some (VComputedNode cn) -> VString (!Ast.computed_node_resolver cn).cn_path
            | Some (VNode _) -> VString "<unbuilt>"
            | _ -> Error.make_error KeyError (Printf.sprintf "Symbol `%s` has no field `path` (and no built node with this name was found)." s))
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Symbol has no field `%s`" field))
@@ -2255,9 +2255,11 @@ and eval_dot_access_val _env_ref target_val field =
          else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
   | VPipeline { p_nodes; _ } ->
       (match List.assoc_opt field p_nodes with
+       | Some (VComputedNode cn) -> VComputedNode (!Ast.computed_node_resolver cn)
        | Some v -> v
        | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
   | VComputedNode cn ->
+      let cn = !Ast.computed_node_resolver cn in
       (match field with
       | "name" -> VString cn.cn_name
       | "runtime" -> VString cn.cn_runtime
