@@ -1156,7 +1156,7 @@ function Logging.handle_message(logger::TCaptureLogger, level, message, _module,
     end
 end
 
-using JLD2
+using Serialization
 
 function jl_error_message(err)
     try
@@ -1217,29 +1217,19 @@ function jl_write_warnings(warnings_list, path)
 end
 
 function jl_serialize(obj, path)
-    unsupported_types = Union{Task, Channel, Base.IO, Base.AbstractLock}
-    if obj isa unsupported_types
-        error(
-            "T-Lang Julia serialization error: object of type $(typeof(obj)) is not cross-process serializable. " *
-            "Return a structured representation (Array/Dict/DataFrame) or use a runtime-specific writer."
-        )
-    end
-
-    if obj isa Function && !(obj isa Type)
-        error(
-            "T-Lang Julia serialization error: closures/functions are not portable across process boundaries. " *
-            "Return serializable data instead of executable objects."
-        )
-    end
-
+    # T-Lang default Julia serialization uses the standard library Serialization package.
+    # Note on Julia-version coupling: native Serialization is process-to-process and not stable
+    # across major/minor Julia versions. However, in our sandboxed/pinned Nix architecture,
+    # any update to the Julia version in the flake changes the Nix store path, which naturally
+    # invalidates and rebuilds the cache anyway.
     try
-        JLD2.jldsave(path; object = obj)
+        Serialization.serialize(path, obj)
         return path
     catch err
         err_msg = jl_error_message(err)
         error(
             "T-Lang Julia serialization error: failed to serialize object of type $(typeof(obj)) " *
-            "to JLD2 at $(path). Underlying error: $(err_msg)"
+            "using native Serialization at $(path). Underlying error: $(err_msg)"
         )
     end
 end
@@ -2589,7 +2579,7 @@ EOF
   let runtime_base_packages =
     match runtime with
     (* Logging is required for TCaptureLogger so emitted Julia nodes can capture and persist warnings. *)
-    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, JLD2, Logging, Serialization"
+    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging, Serialization"
     | "R" -> ""
     | "Python" -> ""
     | _ -> ""
