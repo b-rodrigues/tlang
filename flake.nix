@@ -168,6 +168,8 @@
               cp _build/default/src/lsp_server.exe $out/bin/.t-lsp-unwrapped
               mkdir -p $out/share/tlang
               cp -r src $out/share/tlang/
+              mkdir -p $out/share/tlang/agents
+              cp -r agents/* $out/share/tlang/agents/
               # Copy generated source files so coverage reports can find them
               cp _build/default/src/nixpkgs_date.ml $out/share/tlang/src/
               cp _build/default/src/version.ml $out/share/tlang/src/
@@ -182,6 +184,7 @@
                 --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
                 --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
                 --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json" \
+                --set TLANG_AGENTS_DIR "$out/share/tlang/agents" \
                 --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar" \
                 --set T_JPMML_EVALUATOR_JAR "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
 
@@ -415,6 +418,7 @@ chmod +x $out/bin/bisect-ppx-report
             # 6. Local Project Binaries (Wrappers for development)
             (pkgs.writeShellScriptBin "t" ''
               repo_root="''${TLANG_REPO_ROOT:-$PWD}"
+              export TLANG_AGENTS_DIR="''${TLANG_AGENTS_DIR:-$repo_root/agents}"
               if [[ -f "$repo_root/_build/default/src/repl.exe" ]]; then
                 exec "$repo_root/_build/default/src/repl.exe" "$@"
               elif [[ -L "$repo_root/result" && -f "$repo_root/result/bin/t" ]]; then
@@ -455,6 +459,7 @@ chmod +x $out/bin/bisect-ppx-report
 
             export T_JPMML_EVALUATOR_JAR="${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
             export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
+            export TLANG_AGENTS_DIR="$TLANG_REPO_ROOT/agents"
 
             # Make local companion language packages importable in nix develop
             export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src''${PYTHONPATH:+:$PYTHONPATH}"
