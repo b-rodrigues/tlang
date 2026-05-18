@@ -364,6 +364,9 @@ let stmt_loc (s : stmt) = s.loc
 (** Global hook for resolving node names to values (e.g. from build logs) *)
 let node_resolver : (string -> value option) ref = ref (fun _ -> None)
 
+(** Global hook for resolving computed node metadata from build logs *)
+let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn -> cn)
+
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
     Scans for [a-zA-Z_][a-zA-Z0-9_]* patterns and returns unique results.
