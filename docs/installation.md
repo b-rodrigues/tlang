@@ -143,7 +143,7 @@ T>
 > type(42)
 "Int"
 
-> exit
+> exit()
 ```
 
 If all commands work, installation is successful! 🎉
