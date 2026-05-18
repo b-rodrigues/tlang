@@ -149,13 +149,16 @@ enforces cross-runtime safety: if a node with a non-<code>T</code>
 runtime depends on a <code>T</code> node, or vice versa, you should
 specify an explicit
 <code>serializer</code>/<code>deserializer</code>.</p>
-<p>When an R node returns a <code>ggplot2</code> object, or a Python
-node returns a <code>matplotlib</code> / <code>plotnine</code> plot
-object, T now preserves lightweight plot metadata for REPL inspection.
-Reading or printing those artifacts shows a structured summary with the
-plot class (<code>ggplot</code>, <code>matplotlib</code>, or
-<code>plotnine</code>), runtime backend (<code>R</code> or
-<code>Python</code>), title, aesthetic mappings, labels, and layer
+<p>When an R node returns a <code>ggplot2</code> object, a Python node
+returns a <code>matplotlib</code> / <code>plotnine</code> plot object,
+or a Julia node returns a <code>TidierPlots.jl</code>,
+<code>Plots.jl</code>, or <code>Makie.jl</code> figure object, T
+preserves lightweight plot metadata for REPL inspection. Reading or
+printing those artifacts shows a structured summary with the plot class
+(<code>ggplot</code>, <code>matplotlib</code>, <code>plotnine</code>,
+<code>tidierplots</code>, <code>plotsjl</code>, or <code>makie</code>),
+runtime backend (<code>R</code>, <code>Python</code>, or
+<code>Julia</code>), title, labels, mappings when available, and layer
 information instead of a raw runtime-specific object dump.</p>
 <h3 id="using-the-script-argument">Using the <code>script</code>
 Argument</h3>

@@ -202,8 +202,11 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="
 <p>This regenerates <code>flake.nix</code> so new dependencies and tools
 appear as proper flake inputs with locked versions. The tools will be
 available directly in your shell and automatically provided to any
-pipeline nodes (T, R, or Python) during execution. Then re-enter the
-shell:</p>
+pipeline nodes during execution. When you declare runtime dependencies,
+the matching <code>tlang</code> companion package is also exposed in the
+project shell (<code>library(tlang)</code> for R,
+<code>import tlang</code> for Python, and <code>using tlang</code> for
+Julia). Then re-enter the shell:</p>
 <div class="sourceCode" id="cb7"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span></code></pre></div>
 <h3 id="upgrading-t-and-nixpkgs">3.2 Upgrading T and Nixpkgs</h3>

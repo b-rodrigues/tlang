@@ -35,13 +35,14 @@
 <div class="container">
 <h1 id="pmml-tutorial">PMML Tutorial</h1>
 <blockquote>
-<p>A practical guide to moving classical models between R, Python, and T
-with <code>^pmml</code></p>
+<p>A practical guide to moving classical models between R, Python,
+Julia, and T with <code>^pmml</code></p>
 </blockquote>
 <p>PMML is T’s interchange format for many classical statistical and
 tree-based models. It is useful when you want to:</p>
 <ul>
-<li>train a model in <strong>R</strong> or <strong>Python</strong></li>
+<li>train a model in <strong>R</strong>, <strong>Python</strong>, or
+<strong>Julia</strong></li>
 <li>persist it as a stable artifact</li>
 <li>load it back into <strong>T</strong></li>
 <li>score it natively with <code>predict(data, model)</code></li>
@@ -93,8 +94,13 @@ the model is produced or consumed.</p>
 <code>jre</code></td>
 </tr>
 <tr>
-<td>Python reads PMML</td>
-<td>JPMML evaluator via wrapper</td>
+<td>Julia writes PMML</td>
+<td><code>JavaCall.jl</code>, <code>JPMML-Evaluator</code>, plus
+<code>jre</code></td>
+</tr>
+<tr>
+<td>Python/Julia reads PMML</td>
+<td>JPMML evaluator via bridge/wrapper</td>
 </tr>
 <tr>
 <td>T reads and scores PMML</td>
@@ -199,7 +205,30 @@ Consuming in T</h2>
     deserializer = ^pmml
   )
 }</code></pre>
-<p>As with R, the boundary is explicit:</p>
+<hr />
+<h2 id="training-in-julia-and-consuming-in-t">7. Training in Julia and
+Consuming in T</h2>
+<p>Julia nodes can export PMML models using the
+<code>JPMML-Evaluator</code> bridge. This is useful for high-performance
+training of GLMs or ensembles that need to be scored in T.</p>
+<pre class="t"><code>p = pipeline {
+  model_jl = jln(
+    command = &lt;{
+      using GLM, DataFrames
+      data = read_csv(&quot;data.csv&quot;)
+      # Fit model and convert to PMML via JPMML bridge
+      model = glm(@formula(y ~ x1 + x2), data, Normal(), IdentityLink())
+      model
+    }&gt;,
+    serializer = ^pmml
+  )
+
+  scored = node(
+    command = predict(read_csv(&quot;data.csv&quot;), model_jl),
+    deserializer = ^pmml
+  )
+}</code></pre>
+<p>As with R and Python, the boundary is explicit:</p>
 <ul>
 <li>Python exports PMML</li>
 <li>T deserializes the PMML artifact</li>
@@ -210,7 +239,7 @@ supported</li>
 should fail explicitly rather than silently switching to a different
 interchange story.</p>
 <hr />
-<h2 id="loading-pmml-directly-from-disk">7. Loading PMML Directly from
+<h2 id="loading-pmml-directly-from-disk">8. Loading PMML Directly from
 Disk</h2>
 <p>You can also bypass pipelines and load an existing PMML file
 manually:</p>
@@ -223,7 +252,7 @@ summary(model)</code></pre>
 <li>you want to compare several artifacts in the REPL</li>
 </ul>
 <hr />
-<h2 id="writing-pmml-from-t-with-t_write_pmml">8. Writing PMML from T
+<h2 id="writing-pmml-from-t-with-t_write_pmml">9. Writing PMML from T
 with <code>t_write_pmml()</code></h2>
 <p>T now provides an initial native <code>t_write_pmml()</code> path,
 but it is intentionally narrow.</p>
@@ -252,7 +281,7 @@ source artifact.</p>
 <p>That is deliberate: T currently exposes a safe pass-through path, not
 a pretend PMML writer for unsupported cases.</p>
 <hr />
-<h2 id="recommended-workflow-pattern">9. Recommended Workflow
+<h2 id="recommended-workflow-pattern">10. Recommended Workflow
 Pattern</h2>
 <p>For now, the safest PMML workflow is:</p>
 <ol type="1">
@@ -270,7 +299,7 @@ PMML artifacts</li>
 tool</strong>, not as a general exporter</li>
 </ul>
 <hr />
-<h2 id="troubleshooting">10. Troubleshooting</h2>
+<h2 id="troubleshooting">11. Troubleshooting</h2>
 <h3
 id="read_node-returns-an-error-about-missing-pmml-dependencies"><code>read_node()</code>
 returns an error about missing PMML dependencies</h3>
@@ -293,7 +322,7 @@ from the source runtime</h3>
 representable in PMML. The model coefficients are often not the problem;
 preprocessing fidelity usually is.</p>
 <hr />
-<h2 id="next-steps">11. Next Steps</h2>
+<h2 id="next-steps">12. Next Steps</h2>
 <p>Now that you have a PMML workflow in place, continue with:</p>
 <ol type="1">
 <li><strong><a href="models.html">Statistical Models</a></strong> —
