@@ -28,6 +28,34 @@ let write_file path content =
   output_string ch content;
   close_out ch
 
+let discover_agents_dir () =
+  let is_existing_dir p = Sys.file_exists p && Sys.is_directory p in
+  match Sys.getenv_opt "TLANG_AGENTS_DIR" with
+  | Some d when is_existing_dir d -> Some d
+  | _ ->
+      let exe_dir = Filename.dirname Sys.executable_name in
+      let share_dir = Filename.concat (Filename.dirname exe_dir) "share/tlang/agents" in
+      if is_existing_dir "agents" then Some "agents"
+      else if is_existing_dir share_dir then Some share_dir
+      else None
+
+let copy_text_file src_path dest_path =
+  try
+    let ic = open_in src_path in
+    Fun.protect
+      ~finally:(fun () -> close_in_noerr ic)
+      (fun () ->
+         let content = really_input_string ic (in_channel_length ic) in
+         let oc = open_out dest_path in
+         Fun.protect
+           ~finally:(fun () -> close_out_noerr oc)
+           (fun () -> output_string oc content));
+    true
+  with exn ->
+    Printf.eprintf "Warning: Could not copy '%s' to '%s': %s\n"
+      src_path dest_path (Printexc.to_string exn);
+    false
+
 (** Initialize a git repository in the specified directory.
     
     @param dir The target directory path. *)
@@ -44,21 +72,7 @@ let git_init dir =
     @param context The context level ("small", "medium", "full", "huge").
     @return [true] if successful, [false] otherwise. *)
 let copy_agent_files dir is_package context =
-  (* Locate agents directory.
-     In a development environment, it's in the repo root.
-     In a Nix installation, it might be in a share directory. *)
-  let agents_dir =
-    match Sys.getenv_opt "TLANG_AGENTS_DIR" with
-    | Some d -> d
-    | None ->
-        let exe_dir = Filename.dirname Sys.executable_name in
-        let share_dir = Filename.concat (Filename.dirname exe_dir) "share/tlang/agents" in
-        let dev_repo_agents = "/home/brodrigues/Documents/repos/tlang/agents" in
-        if Sys.file_exists dev_repo_agents && Sys.is_directory dev_repo_agents then dev_repo_agents
-        else if Sys.file_exists "agents" && Sys.is_directory "agents" then "agents"
-        else if Sys.file_exists share_dir && Sys.is_directory share_dir then share_dir
-        else "agents" (* Fallback to local *)
-  in
+  let agents_dir_opt = discover_agents_dir () in
   let agents_template = if is_package then "agents-package.md" else "agents-project.md" in
   let ref_template =
     match String.lowercase_ascii context with
@@ -68,24 +82,16 @@ let copy_agent_files dir is_package context =
     | _ -> "t-reference-medium.md"
   in
   let cp src dest =
-    let src_path = Filename.concat agents_dir src in
-    let dest_path = Filename.concat dir dest in
-    if Sys.file_exists src_path then begin
-      try
-        let ic = open_in src_path in
-        let content = really_input_string ic (in_channel_length ic) in
-        close_in ic;
-        let oc = open_out dest_path in
-        output_string oc content;
-        close_out oc;
-        true
-      with _ -> false
-    end else begin
-      (* Fallback: Try downloading from GitHub *)
-      let url = Printf.sprintf "https://raw.githubusercontent.com/b-rodrigues/tlang/master/agents/%s" src in
-      let cmd = Printf.sprintf "curl -s -f -L -o %S %S" dest_path url in
-      Sys.command cmd = 0
-    end
+    match agents_dir_opt with
+    | None -> false
+    | Some agents_dir ->
+        let src_path = Filename.concat agents_dir src in
+        let dest_path = Filename.concat dir dest in
+        if Sys.file_exists src_path then copy_text_file src_path dest_path
+        else begin
+          Printf.eprintf "Warning: Agent template not found: %s\n" src_path;
+          false
+        end
   in
   let agents_ok = cp agents_template "AGENTS.md" in
   let ref_ok = cp ref_template "T-LANGUAGE-REFERENCE.md" in
@@ -97,7 +103,7 @@ let copy_agent_files dir is_package context =
     close_out out;
     true
   end else begin
-    Printf.eprintf "Warning: Could not create AGENTS.md or T-LANGUAGE-REFERENCE.md (both local copy and GitHub download failed).\n";
+    Printf.eprintf "Warning: Could not create AGENTS.md or T-LANGUAGE-REFERENCE.md from installed/local templates.\n";
     false
   end
 
@@ -753,40 +759,20 @@ let interactive_init ?(placeholder="my_package") default_name =
 let write_project_pipeline dir (opts : scaffold_options) sub =
   let dest_path = Filename.concat dir "src/pipeline.t" in
   if opts.pipeline_template = "full" then begin
-    let agents_dir =
-      match Sys.getenv_opt "TLANG_AGENTS_DIR" with
-      | Some d -> d
-      | None ->
-          let exe_dir = Filename.dirname Sys.executable_name in
-          let share_dir = Filename.concat (Filename.dirname exe_dir) "share/tlang/agents" in
-          let dev_repo_agents = "/home/brodrigues/Documents/repos/tlang/agents" in
-          if Sys.file_exists dev_repo_agents && Sys.is_directory dev_repo_agents then dev_repo_agents
-          else if Sys.file_exists "agents" && Sys.is_directory "agents" then "agents"
-          else if Sys.file_exists share_dir && Sys.is_directory share_dir then share_dir
-          else "agents"
-    in
-    let src_path = Filename.concat agents_dir "archetypical_pipeline.t" in
-    if Sys.file_exists src_path then begin
-      try
-        let ic = open_in src_path in
-        let content = really_input_string ic (in_channel_length ic) in
-        close_in ic;
-        let oc = open_out dest_path in
-        output_string oc content;
-        close_out oc;
-        true
-      with _ -> false
-    end else begin
-      (* Fallback: Try downloading from GitHub *)
-      let url = "https://raw.githubusercontent.com/b-rodrigues/tlang/master/agents/archetypical_pipeline.t" in
-      let cmd = Printf.sprintf "curl -s -f -L -o %S %S" dest_path url in
-      if Sys.command cmd = 0 then true
-      else begin
-        Printf.eprintf "Warning: Could not fetch complete template. Falling back to minimal template.\n";
+    match discover_agents_dir () with
+    | Some agents_dir ->
+        let src_path = Filename.concat agents_dir "archetypical_pipeline.t" in
+        if Sys.file_exists src_path then
+          copy_text_file src_path dest_path
+        else begin
+          Printf.eprintf "Warning: Full pipeline template not found at %s. Falling back to minimal template.\n" src_path;
+          write_file dest_path (sub project_pipeline_example);
+          false
+        end
+    | None ->
+        Printf.eprintf "Warning: Could not find agents directory. Falling back to minimal template.\n";
         write_file dest_path (sub project_pipeline_example);
         false
-      end
-    end
   end else begin
     write_file dest_path (sub project_pipeline_example);
     true
