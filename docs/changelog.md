@@ -34,7 +34,6 @@ The focus of this release is the introduction of first-class Julia support, enab
     - `show_plot()` now supports Julia plots via `TidierPlots.jl`, `Plots.jl`, and `Makie.jl`.
     - **CairoMakie Requirement**: For `Makie.jl` objects, `CairoMakie` is the mandatory backend for reproducible headless rendering within the Nix sandbox. Ensuring `CairoMakie` is in `[jl-dependencies].packages` is required for successful visual inspection of Makie nodes.
 
-
 ### External Helper Packages (R, Python, Julia)
 - **New `read_node` Helpers**: Introduced lightweight packages for R, Python, and Julia (all named `tlang`) to simplify consumption of T-Lang build artifacts from external runtimes.
 - **Programmatic DAG Inspection**: Added `pipeline_nodes()` to all companion packages. It returns the pipeline DAG as an idiomatic data structure (e.g., `data.frame` in R, `dict` in Python/Julia), enabling easy programmatic traversal of node relationships.
