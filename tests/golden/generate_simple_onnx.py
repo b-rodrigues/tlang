@@ -45,7 +45,11 @@ def main():
         [output_y_reg], 
         initializer=[w_reg_init, b_reg_init]
     )
-    onx_reg = helper.make_model(graph_reg, producer_name="t-golden-gen")
+    onx_reg = helper.make_model(
+        graph_reg, 
+        producer_name="t-golden-gen",
+        opset_imports=[helper.make_opsetid("", 18)]
+    )
     
     onnx_reg_path = os.path.join(data_dir, "mtcars_hp_reg.onnx")
     with open(onnx_reg_path, "wb") as f:
@@ -78,7 +82,7 @@ def main():
     
     model_clf = LogisticRegression(solver='lbfgs', max_iter=1000).fit(X_clf, y_clf)
     options = {id(model_clf): {'zipmap': False}}
-    onx_clf = to_onnx(model_clf, X_clf[:1], options=options)
+    onx_clf = to_onnx(model_clf, X_clf[:1], options=options, target_opset=18)
     
     # Prune probabilities output
     if len(onx_clf.graph.output) > 1:
@@ -97,7 +101,7 @@ def main():
 
     # 3. Random Forest Model: Species ~ . (iris) using skl2onnx
     model_rf = RandomForestClassifier(n_estimators=10, random_state=42).fit(X_clf, y_clf)
-    onx_rf = to_onnx(model_rf, X_clf[:1], options={id(model_rf): {'zipmap': False}})
+    onx_rf = to_onnx(model_rf, X_clf[:1], options={id(model_rf): {'zipmap': False}}, target_opset=18)
     
     # Prune probabilities output
     if len(onx_rf.graph.output) > 1:

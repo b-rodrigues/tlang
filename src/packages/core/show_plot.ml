@@ -340,7 +340,7 @@ let render_script_for_julia class_name _artifact_path =
     match required_package with
     | Some package_name ->
         Printf.sprintf
-          "show_plot requires `%s` for Julia plot class `%s` in [julia-dependencies].packages in tproject.toml: "
+          "show_plot requires `%s` for Julia plot class `%s` in [jl-dependencies].packages in tproject.toml: "
           package_name
           class_name
     | None ->
@@ -417,7 +417,7 @@ let
   pyVersion = pyDeps.version or "python3";
   pyPackagesList = pyDeps.packages or [];
   py-env = pkgs.${pyVersion}.withPackages (ps: builtins.map (p: ps.${p}) pyPackagesList);
-  juliaDeps = toml.julia-dependencies or {};
+  juliaDeps = toml.jl-dependencies or {};
   juliaVersion = juliaDeps.version or "lts";
   juliaPackageName = if juliaVersion == "lts" then "julia-lts" else "julia_" + (builtins.replaceStrings ["."] ["_"] juliaVersion);
   juliaBase = pkgs.${juliaPackageName};

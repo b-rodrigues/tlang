@@ -29,12 +29,12 @@ p = pipeline {
 
 Julia dependencies and versions are managed via `tproject.toml`.
 
-### `[julia-dependencies]` Section
+### `[jl-dependencies]` Section
 
 Users can specify the Julia version and required packages:
 
 ```toml
-[julia-dependencies]
+[jl-dependencies]
 version = "1.11"
 packages = ["DataFrames", "CSV", "Arrow", "JSON"]
 ```
@@ -66,12 +66,12 @@ packages = ["DataFrames", "CSV", "Arrow", "JSON"]
   - Added `Julia` to `known_symbols`.
   - Fixed `DotAccess` for `VNodeResult` to expose the `.value` field.
 - **`src/pipeline/nix_emit_pipeline.ml`**:
-  - Added logic to parse `julia-dependencies` and inject `juliaPkg` into the Nix build environment.
+  - Added logic to parse `jl-dependencies` and inject `juliaPkg` into the Nix build environment.
 - **`src/pipeline/nix_emit_node.ml`**:
   - Implemented helper injection for `jl_write_csv`, `jl_read_csv`, etc.
   - Added Julia to the runtime pattern matches.
 - **`src/package_manager/toml_parser.ml`**:
-  - Added support for parsing and serializing the `[julia-dependencies]` section.
+  - Added support for parsing and serializing the `[jl-dependencies]` section.
 - **`editors/tree-sitter-t/queries/highlights.scm`**:
   - Added `jl_node` to builtin function highlights.
 

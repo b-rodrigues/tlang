@@ -207,9 +207,9 @@ show_plot(p)
 - **Python / Plotly** requires `plotly`, `kaleido` (for static image export), and `cloudpickle` in `[py-dependencies].packages`.
 - **Python / Altair** requires `altair`, `vl-convert-python` (preferred), and `cloudpickle` in `[py-dependencies].packages`.
 - **Python / Plotnine** requires `plotnine`, `pandas`, and `cloudpickle` in `[py-dependencies].packages`.
-- **Julia / TidierPlots** requires `TidierPlots` in `[julia-dependencies].packages`.
-- **Julia / Plots.jl** requires `Plots` and any backend package you explicitly use in `[julia-dependencies].packages`.
-- **Julia / Makie** rendering is standardized on `CairoMakie` for headless reproducibility; **`CairoMakie` is mandatory** in `[julia-dependencies].packages` to use `show_plot()` with Makie objects. T automatically activates the CairoMakie backend during the render process.
+- **Julia / TidierPlots** requires `TidierPlots` in `[jl-dependencies].packages`.
+- **Julia / Plots.jl** requires `Plots` and any backend package you explicitly use in `[jl-dependencies].packages`.
+- **Julia / Makie** rendering is standardized on `CairoMakie` for headless reproducibility; **`CairoMakie` is mandatory** in `[jl-dependencies].packages` to use `show_plot()` with Makie objects. T automatically activates the CairoMakie backend during the render process.
 
 ### Automated Dependency Detection
 
@@ -237,7 +237,7 @@ packages = ["ggplot2"]
 version = "python314"
 packages = ["matplotlib", "plotnine", "seaborn", "plotly", "kaleido"]
 
-[julia-dependencies]
+[jl-dependencies]
 version = "lts"
 packages = ["TidierPlots", "Plots", "Makie", "CairoMakie"]
 

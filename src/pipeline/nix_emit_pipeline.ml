@@ -86,7 +86,7 @@ let
   pyPackagesList = pyDeps.packages or [];
   py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList));
 
-  juliaDeps = toml.julia-dependencies or {};
+  juliaDeps = toml.jl-dependencies or {};
   juliaVersion = juliaDeps.version or "lts";
   juliaPackageName = if juliaVersion == "lts" then "julia-lts" else "julia_" + (builtins.replaceStrings ["."] ["_"] juliaVersion);
   juliaBase = pkgs.${juliaPackageName};

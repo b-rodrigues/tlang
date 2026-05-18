@@ -293,7 +293,7 @@ The rendered output should remain a PNG written under `_pipeline/`, matching cur
 - `using CairoMakie`
 - `import CairoMakie`
 
-and suggest the matching entries in `[julia-dependencies].packages`.
+and suggest the matching entries in `[jl-dependencies].packages`.
 
 Minimum auto-detection:
 

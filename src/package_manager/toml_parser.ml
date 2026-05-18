@@ -65,13 +65,15 @@ let parse_tproject_toml (content : string) : (project_config, string) result =
         proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
         proj_py_dependencies = get_string_list_opt toml ["py-dependencies"; "packages"] ~default:[];
         proj_py_version = get_string_opt toml ["py-dependencies"; "version"] ~default:"python314";
-        proj_julia_dependencies = get_string_list_opt toml ["julia-dependencies"; "packages"] ~default:[];
-        proj_julia_version = get_string_opt toml ["julia-dependencies"; "version"] ~default:"lts";
+        proj_julia_dependencies = get_string_list_opt toml ["jl-dependencies"; "packages"] ~default:[];
+        proj_julia_version = get_string_opt toml ["jl-dependencies"; "version"] ~default:"lts";
         proj_visualization_tool = get_string_opt toml ["visualization-tool"; "command"] ~default:"";
         proj_min_t_version = get_string_opt toml ["t"; "min_version"] ~default:Version.version;
         proj_nixpkgs_date = get_string_opt toml ["nixpkgs"; "date"] ~default:"";
         proj_additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
         proj_latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
+        proj_license = get_string_opt toml ["license"; "name"] ~default:"";
+        proj_authors = get_string_list_opt toml ["project"; "authors"] ~default:[];
       }
   with
   | Otoml.Parse_error (_, msg) -> Error (Printf.sprintf "TOML parse error: %s" msg)
@@ -112,6 +114,8 @@ let serialize_tproject_toml (cfg : project_config) : string =
   Buffer.add_string buf "[project]\n";
   Printf.bprintf buf "name = %S\n" cfg.proj_name;
   Printf.bprintf buf "description = %S\n" cfg.proj_description;
+  Printf.bprintf buf "authors = [%s]\n"
+    (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_authors));
   Buffer.add_char buf '\n';
   Buffer.add_string buf "[dependencies]\n";
   List.iter (fun dep ->
@@ -126,7 +130,7 @@ let serialize_tproject_toml (cfg : project_config) : string =
   Printf.bprintf buf "version = %S\n" cfg.proj_py_version;
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_py_dependencies));
-  Buffer.add_string buf "[julia-dependencies]\n";
+  Buffer.add_string buf "[jl-dependencies]\n";
   Printf.bprintf buf "version = %S\n" cfg.proj_julia_version;
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_julia_dependencies));
@@ -142,5 +146,9 @@ let serialize_tproject_toml (cfg : project_config) : string =
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_latex_packages));
   Buffer.add_string buf "[t]\n";
   Printf.bprintf buf "min_version = %S\n\n" cfg.proj_min_t_version;
-  Printf.bprintf buf "[nixpkgs]\ndate = %S\n" cfg.proj_nixpkgs_date;
+  Printf.bprintf buf "[nixpkgs]\ndate = %S\n\n" cfg.proj_nixpkgs_date;
+  if cfg.proj_license <> "" then begin
+    Buffer.add_string buf "[license]\n";
+    Printf.bprintf buf "name = %S\n" cfg.proj_license
+  end;
   Buffer.contents buf
