@@ -198,7 +198,16 @@ let register env =
           if cn.cn_path = "<unbuilt>" || cn.cn_path = "" || cn.cn_class = "Unknown"
           then
             match Builder.latest_logged_computed_node cn.cn_name with
-            | Some logged_cn -> logged_cn
+            | Some logged_cn ->
+                let cn_path =
+                  if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
+                  then logged_cn.cn_path
+                  else cn.cn_path
+                in
+                let cn_class =
+                  if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class
+                in
+                { cn with cn_path; cn_class }
             | None -> cn
           else cn
         in
