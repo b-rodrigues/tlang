@@ -23,18 +23,32 @@ type scope = {
   dataframe_symbols : StringSet.t ref;
 }
 
+(** Create a fresh, empty semantic analysis scope.
+    
+    @return A new [scope] record with empty symbols, columns, and dataframes maps. *)
 let create_scope () = {
   symbols = ref NameMap.empty;
   observed_columns = ref StringSet.empty;
   dataframe_symbols = ref StringSet.empty;
 }
 
+(** Create a shallow copy of a semantic analysis scope.
+    
+    @param scope The scope to duplicate.
+    @return A new duplicated [scope] pointing to copies of the original maps. *)
 let copy_scope scope = {
   symbols = ref !(scope.symbols);
   observed_columns = ref !(scope.observed_columns);
   dataframe_symbols = ref !(scope.dataframe_symbols);
 }
 
+(** Add a symbol to the current scope.
+    
+    If the symbol is a DataFrame or GroupedDataFrame, it will also be tracked
+    in the dataframe symbols list.
+    
+    @param scope The target scope.
+    @param symbol The symbol to add. *)
 let add scope symbol =
   scope.symbols := NameMap.add symbol.name symbol !(scope.symbols);
   match symbol.typ with
@@ -46,29 +60,60 @@ let add scope symbol =
       if StringSet.mem symbol.name !(scope.dataframe_symbols) then
         scope.dataframe_symbols := StringSet.remove symbol.name !(scope.dataframe_symbols)
 
+(** Track a column name referenced within the scope.
+    
+    @param scope The scope to record in.
+    @param name The column name to register. *)
 let add_observed_column scope name =
   let name = String.trim name in
   if name <> "" then
     scope.observed_columns := StringSet.add name !(scope.observed_columns)
 
+(** Retrieve the list of column names observed within the scope.
+    
+    @param scope The scope to read.
+    @return A string list of column names. *)
 let get_observed_columns scope = StringSet.elements !(scope.observed_columns)
 
+(** Get all symbols in the scope that are of DataFrame types.
+    
+    @param scope The scope to search.
+    @return A list of symbols corresponding to active dataframes. *)
 let get_dataframes scope =
   StringSet.elements !(scope.dataframe_symbols)
   |> List.filter_map (fun name -> NameMap.find_opt name !(scope.symbols))
 
+(** Lookup a symbol by its name.
+    
+    @param scope The scope to search.
+    @param name The name of the symbol.
+    @return [Some symbol] if defined, otherwise [None]. *)
 let lookup scope name =
   NameMap.find_opt name !(scope.symbols)
 
+(** Retrieve all symbols defined in the current scope.
+    
+    @param scope The scope to read.
+    @return A list of all symbols in the scope. *)
 let all scope =
   NameMap.bindings !(scope.symbols) |> List.map snd
 
+(** Filter symbols in the scope that start with a given prefix.
+    
+    Used primarily for autocompletion.
+    
+    @param scope The scope to query.
+    @param prefix The prefix string to match against.
+    @return A list of symbols starting with [prefix]. *)
 let filter_symbols scope prefix =
   NameMap.to_seq_from prefix !(scope.symbols)
   |> Seq.take_while (fun (name, _) -> String.starts_with ~prefix name)
   |> Seq.map snd
   |> List.of_seq
 
+(** Pre-populate a scope with T-Lang keywords.
+    
+    @param scope The scope to register keywords in. *)
 let register_keywords scope =
   let keywords = [
     "if"; "else"; "import"; "function"; "pipeline"; "intent"; 
@@ -80,6 +125,12 @@ let register_keywords scope =
 
 let builtin_typ_cache = Hashtbl.create 100
 
+(** Infer the semantic type of a runtime AST value.
+    
+    Utilizes caching for builtins to optimize repeated queries.
+    
+    @param v The AST value.
+    @return [Some semantic_type] representing the value's type structure, or [None]. *)
 let value_to_semantic_type v =
   match v with
   | Ast.VInt _ -> Some Semantic_type.TInt
@@ -131,6 +182,10 @@ let value_to_semantic_type v =
           Some res)
   | _ -> Some Semantic_type.TUnknown
 
+(** Populates the scope symbols by extracting names and values from an evaluation environment.
+    
+    @param scope The target scope to populate.
+    @param env The evaluation environment. *)
 let populate_from_env scope env =
   let (new_symbols, new_dfs) = Ast.Env.fold (fun name value (acc_s, acc_d) ->
     let kind = match value with

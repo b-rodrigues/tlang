@@ -1,6 +1,6 @@
 # T Language Overview
 
-> **Version**: 0.51.5
+> **Version**: 0.52.0
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -58,11 +58,12 @@ T supports the following value types:
 | `Vector`    | Column data              | Typed arrays (from DataFrames)      |
 | `DataFrame` | `read_csv("data.csv")`   | Tabular data (rows × columns)       |
 | `Pipeline`  | `pipeline { ... }`       | DAG-based execution graph           |
+| `jln`   | `jln(...)`           | Julia node wrapper                  |
 | `Function`  | `\(x) x + 1`            | First-class functions               |
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
 | `Symbol`    | `$mpg`                   | Name reference (NSE, DataFrames)    |
-| `Expression`| `expr(1 + 2)`            | Captured code (for metaprogramming) |
+| `Expression`| `to_expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
 
 ### Variables and Assignment
@@ -353,7 +354,7 @@ p = my_pipeline
 status = match(pipeline_validate(p)) {
   [] => "Pipeline is valid and ready to build.",
   [first_err, ..others] => 
-    str_join(["Found ", str_string(length(others) + 1), " validation errors."])
+    str_join(["Found ", to_string(length(others) + 1), " validation errors."])
 }
 ```
 
@@ -426,7 +427,7 @@ The `get()` function is the primary entry point for retrieving data. It supports
 ```t
 salary = 50000
 get("salary")                -- 50000
-get(sym("salary"))           -- 50000
+get(to_symbol("salary"))           -- 50000
 ```
 
 #### 2. Collection Indexing (0-based)
@@ -781,7 +782,7 @@ is_error(result)  -- true
 
 ## Pipelines
 
-Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file.
+Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file. T supports R (`rn()`), Python (`pyn()`), Julia (`jln()`), Quarto (`qn()`), and Shell (`shn()`) nodes out of the box.
 
 Built-in serializer keywords include `"csv"`, `"arrow"`, `"pmml"`, and `"onnx"` (or `^csv`, `^arrow`, `^pmml`, `^onnx` when referencing the first-class serializer values directly).
 
@@ -904,8 +905,8 @@ All packages are loaded automatically at startup:
 | `base`      | `assert`, `assert_file_exists`, `assert_dir_exists`, `assert_size_of_file`, `assert_non_empty_file`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`, `predict`        |
-| `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames` |
-| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `rename`, `relocate`, `distinct`, `count`, `slice`, `pivot_longer`, `pivot_wider`, joins, missing-value helpers, factor helpers, and window functions |
+| `to_dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames` |
+| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `rename`, `relocate`, `distinct`, `count`, `slice`, `pivot_longer`, `pivot_wider`, joins, missing-value helpers, to_factor helpers, and window functions |
 | `pipeline`  | node constructors, inspection helpers, validation helpers, DAG transformations, and composition tools |
 | `explain`   | `explain`, `intent_fields`, `intent_get`                |
 
@@ -960,7 +961,7 @@ These signatures provide a compact map of the most commonly used functions:
 - `left_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame`
 - `drop_na(df :: DataFrame, ...) :: DataFrame`
 - `replace_na(df :: DataFrame, replace :: Dict) :: DataFrame`
-- `factor(x :: Vector | List, levels = [], ordered = false) :: Vector`
+- `to_factor(x :: Vector | List, levels = [], ordered = false) :: Vector`
 - `row_number(x :: Vector) :: Vector`
 - `lag(x :: Vector, n = 1) :: Vector`
 
@@ -1077,8 +1078,8 @@ T supports Lisp-style quotation and quasiquotation for code generation and DSL b
 
 ```t
 x = 10
-captured = expr(1 + !!x)
-print(captured)  -- expr(1 + 10)
+captured = to_expr(1 + !!x)
+print(captured)  -- to_expr(1 + 10)
 eval(captured)     -- 11
 ```
 
@@ -1113,3 +1114,4 @@ Now that you have a solid grasp of T's syntax and core features, explore these t
 3. **[Data Manipulation Examples](data_manipulation_examples.md)** — See T's data verbs in action with worked examples.
 
 For more hands-on examples and complete project templates, visit the [**T Demos Repository**](https://github.com/b-rodrigues/t_demos).
+

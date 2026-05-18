@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   (* === Error Recovery Edge Cases === *)
 
   Printf.printf "Error Recovery — Deep pipe error propagation:\n";

@@ -14,7 +14,7 @@ let is_sep_name = function Some "separator" -> true | _ -> false
 --# @return :: Null
 --# @example
 --#   write_csv(df, "output.csv")
---# @family dataframe
+--# @family to_dataframe
 --# @seealso read_csv
 --# @export
 *)
@@ -36,9 +36,16 @@ let register ~write_csv_fn env =
           (match write_csv_fn ~sep df.arrow_table path with
           | Ok () -> (VNA NAGeneric)
           | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
-      | [_; VString _] -> Error.type_error "Function `write_csv` expects a DataFrame as first argument."
-      | [VDataFrame _; _] -> Error.type_error "Function `write_csv` expects a String path as second argument."
-      | [_; _] -> Error.type_error "Function `write_csv` expects (DataFrame, String)."
-      | _ -> Error.make_error ArityError "Function `write_csv` takes exactly 2 positional arguments (dataframe, path)."
+      | [v; VString _] ->
+          Error.type_error ~arg_index:1
+            (Printf.sprintf "Function `write_csv` expects a DataFrame as first argument, got %s instead." (Utils.type_name v))
+      | [VDataFrame _; v] ->
+          Error.type_error ~arg_index:2
+            (Printf.sprintf "Function `write_csv` expects a String path as second argument, got %s instead." (Utils.type_name v))
+      | [v1; v2] ->
+          Error.type_error
+            (Printf.sprintf "Function `write_csv` expects (DataFrame, String), got (%s, %s) instead."
+              (Utils.type_name v1) (Utils.type_name v2))
+      | _ -> Error.arity_error_named "write_csv" 2 (List.length args)
     ))
     env

@@ -180,12 +180,33 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
     match run_command_stream_argv argv callback with
     | Ok status ->
         (* Save drv_paths for later tool use (e.g. read_log) *)
-        let drv_entries = Hashtbl.fold (fun k v acc -> 
-            (Printf.sprintf "\"%s\": \"%s\"" (Serialization.json_escape k) (Serialization.json_escape v)) :: acc
-          ) drv_paths [] in
-        
-        let drv_json = "{\n  " ^ (String.concat ",\n  " drv_entries) ^ "\n}" in
-        ignore (write_file (Filename.concat pipeline_dir "last_build_drvs.json") drv_json);
+        if Hashtbl.length drv_paths > 0 then (
+          let existing_drvs =
+            let path = Filename.concat pipeline_dir "last_build_drvs.json" in
+            if Sys.file_exists path then
+              try
+                let json = Yojson.Safe.from_file path in
+                let open Yojson.Safe.Util in
+                match json with
+                | `Assoc pairs ->
+                    List.filter_map (fun (k, v) ->
+                      if List.mem k node_names then Some (k, to_string v) else None
+                    ) pairs
+                | _ -> []
+              with _ -> []
+            else []
+          in
+          let drv_map = Hashtbl.create (List.length node_names + List.length existing_drvs) in
+          List.iter (fun (k, v) -> Hashtbl.add drv_map k v) existing_drvs;
+          Hashtbl.iter (fun k v -> Hashtbl.replace drv_map k v) drv_paths;
+
+          let drv_entries = Hashtbl.fold (fun k v acc -> 
+              (Printf.sprintf "\"%s\": \"%s\"" (Serialization.json_escape k) (Serialization.json_escape v)) :: acc
+            ) drv_map [] in
+          
+          let drv_json = "{\n  " ^ (String.concat ",\n  " drv_entries) ^ "\n}\n" in
+          ignore (write_file (Filename.concat pipeline_dir "last_build_drvs.json") drv_json)
+        );
 
         let output = String.trim (Buffer.contents captured_output) in
         (match status with
@@ -276,7 +297,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                   ("hash", "\"" ^ hash ^ "\"");
                   ("out_path", "\"" ^ out_path ^ "\"");
                   ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
-                ] in
+                ] ^ "\n" in
                 (match write_file log_path log_json with
                 | Error msg -> Error ("Failed to write build log: " ^ msg)
                 | Ok () ->

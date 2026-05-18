@@ -29,15 +29,16 @@ for script in "$SCRIPT_DIR"/*.t; do
   test_name=$(basename "$script" .t)
   echo -n "Running: $test_name ... "
   
-  # Run the script and capture output
-  output=$("${T_REPL_CMD[@]}" run --unsafe "$script" 2>&1 || true)
+  # Run the script and capture output and exit status
+  output=$("${T_REPL_CMD[@]}" run --unsafe --failfast "$script" 2>&1)
+  status=$?
   
   # Check if test was skipped (contains "not yet implemented")
   if echo "$output" | grep -q "not yet implemented"; then
     echo "⚠ SKIPPED (not implemented)"
     ((skipped++))
-  # Check if test succeeded (contains checkmark)
-  elif echo "$output" | grep -q "✓"; then
+  # Check if test succeeded (exit code 0)
+  elif [ $status -eq 0 ]; then
     echo "✓ PASSED"
     ((passed++))
   else

@@ -1,9 +1,27 @@
+#' Validate that a value is a scalar, non-empty, and non-NA character string
+#'
+#' @param x The value to check.
+#' @param arg Character. The argument name to use in the error message.
+#'
+#' @return None. Throws an error if the validation fails.
+#'
+#' @keywords internal
 validate_scalar_string <- function(x, arg) {
   if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(x)) {
     stop(sprintf("`%s` must be a non-empty string.", arg), call. = FALSE)
   }
 }
 
+#' List build logs in the pipeline directory, sorted reverse-alphabetically
+#'
+#' Searches the specified pipeline directory for build log JSON files, sorts them,
+#' and filters out fixture logs if this is executed within the project repository checkout.
+#'
+#' @param pipeline_dir Character. The path to the pipeline directory.
+#'
+#' @return A sorted character vector of build log filenames.
+#'
+#' @keywords internal
 list_build_logs <- function(pipeline_dir) {
   logs <- list.files(
     pipeline_dir,
@@ -24,6 +42,18 @@ list_build_logs <- function(pipeline_dir) {
   logs
 }
 
+#' Select a build log from a list of logs
+#'
+#' Selects the latest log file if `which_log` is `NULL`, or selects the first
+#' log file matching the regular expression `which_log`.
+#'
+#' @param logs Character vector of available build log filenames.
+#' @param which_log Character or NULL. A regular expression pattern to select a build log.
+#' @param pipeline_dir Character. The path to the pipeline directory (used in error messages).
+#'
+#' @return Character. The selected build log filename.
+#'
+#' @keywords internal
 select_build_log <- function(logs, which_log, pipeline_dir) {
   if (is.null(which_log)) {
     if (length(logs) == 0L) {
@@ -68,6 +98,15 @@ select_build_log <- function(logs, which_log, pipeline_dir) {
   matches[[1L]]
 }
 
+#' Read and parse a JSON build log
+#'
+#' Parses a single build log JSON file into an R list structure.
+#'
+#' @param log_path Character. The path to the build log file.
+#'
+#' @return A list containing the parsed JSON contents.
+#'
+#' @keywords internal
 read_build_log <- function(log_path) {
   tryCatch(
     jsonlite::fromJSON(log_path, simplifyVector = FALSE),
@@ -84,6 +123,18 @@ read_build_log <- function(log_path) {
   )
 }
 
+#' Find a node's entry in a build log's nodes array
+#'
+#' Iterates through the list of nodes from a build log and returns the entry
+#' matching the specified name.
+#'
+#' @param nodes A list of node entries from the build log.
+#' @param name Character. The name of the node to find.
+#' @param log_file Character. The filename of the log (used in error messages).
+#'
+#' @return A list representing the matched node entry.
+#'
+#' @keywords internal
 find_node_entry <- function(nodes, name, log_file) {
   if (!is.list(nodes)) {
     stop(
@@ -104,6 +155,17 @@ find_node_entry <- function(nodes, name, log_file) {
   )
 }
 
+#' Resolve an artifact path to an absolute path
+#'
+#' Converts a relative artifact path from the build log into an absolute path,
+#' supporting both Unix and Windows absolute path styles.
+#'
+#' @param path Character. The raw artifact path.
+#' @param pipeline_dir Character. The path to the pipeline directory.
+#'
+#' @return Character. The resolved absolute path.
+#'
+#' @keywords internal
 resolve_artifact_path <- function(path, pipeline_dir) {
   if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
     stop("Node entry does not contain a valid artifact path.", call. = FALSE)
@@ -137,14 +199,30 @@ resolve_artifact_path <- function(path, pipeline_dir) {
 #'   `"_pipeline"`.
 #' @param deserializer Function used to deserialize the artifact file. Defaults
 #'   to `readRDS()`.
+#' @param return_path Logical. If `TRUE`, returns the path to the artifact
+#'   instead of deserializing it. Defaults to `FALSE`.
 #'
-#' @return The deserialized node artifact.
+#' @return The deserialized node artifact, or the path to it if `return_path` is `TRUE`.
+#'
+#' @details
+#' The function locates the pipeline folder and reads the selected build log. If
+#' `return_path` is set to `TRUE`, it returns the absolute system path to the
+#' serialized artifact instead of deserializing the object. Otherwise, it utilizes
+#' the `deserializer` function to deserialize the R object.
+#'
+#' @examples
+#' \dontrun{
+#'   # Assuming node "clean_data" was built successfully
+#'   df <- read_node("clean_data")
+#' }
+#'
 #' @export
 read_node <- function(
     name,
     which_log = NULL,
     pipeline_dir = "_pipeline",
-    deserializer = readRDS) {
+    deserializer = readRDS,
+    return_path = FALSE) {
   validate_scalar_string(name, "name")
   validate_scalar_string(pipeline_dir, "pipeline_dir")
 
@@ -165,6 +243,10 @@ read_node <- function(
   build_log <- read_build_log(log_path)
   node_entry <- find_node_entry(build_log$nodes, name, log_file)
   artifact_path <- resolve_artifact_path(node_entry$path, pipeline_dir)
+
+  if (isTRUE(return_path)) {
+    return(artifact_path)
+  }
 
   tryCatch(
     deserializer(artifact_path),

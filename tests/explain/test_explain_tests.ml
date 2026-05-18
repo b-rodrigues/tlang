@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   Printf.printf "Phase 6 — Intent Blocks:\n";
   test "intent block creation"
     {|intent { description: "Load data", assumes: "File exists" }|}
@@ -94,10 +94,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env_p6) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p6) env_p6 in
   let (v, _) = eval_string_env "e = explain(df); e.kind" env_p6 in
   let result = Ast.Utils.value_to_string v in
-  if result = {|"dataframe"|} then begin
+  if result = {|"to_dataframe"|} then begin
     incr pass_count; Printf.printf "  ✓ explain DataFrame kind\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame kind\n    Expected: \"dataframe\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ explain DataFrame kind\n    Expected: \"to_dataframe\"\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "e = explain(df); e.nrow" env_p6 in
@@ -209,7 +209,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* A DataFrame whose only column is NA in every row can now stay on the
      native Arrow path via the NAColumn builder path. *)
-  let (v, _) = eval_string_env "df_na_only = dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.storage_backend" env_p6 in
+  let (v, _) = eval_string_env "df_na_only = to_dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.storage_backend" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = {|"native_arrow"|} then begin
     incr pass_count; Printf.printf "  ✓ explain NA-only DataFrame storage_backend\n"
@@ -217,7 +217,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ explain NA-only DataFrame storage_backend\n    Expected: \"native_arrow\"\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "df_na_only = dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.native_path_active" env_p6 in
+  let (v, _) = eval_string_env "df_na_only = to_dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.native_path_active" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = "true" then begin
     incr pass_count; Printf.printf "  ✓ explain NA-only DataFrame native_path_active\n"

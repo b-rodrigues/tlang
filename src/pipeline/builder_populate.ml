@@ -3,6 +3,9 @@ open Builder_utils
 open Builder_write_dag
 open Builder_internal
 
+let builtin_pipeline_strategies =
+  [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx" ]
+
 let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
   let eval_string_list lst =
     lst
@@ -35,7 +38,7 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
       let funcs = match List.assoc_opt name p.p_functions with Some f -> eval_string_list f | None -> [] in
       let rec check_serializer_type expr =
         match expr.Ast.node with
-        | Ast.Value (Ast.VString s) when List.mem (String.lowercase_ascii s) ["pmml"; "arrow"; "json"; "csv"; "default"; "serialize"] ->
+        | Ast.Value (Ast.VString s) when List.mem (String.lowercase_ascii s) (builtin_pipeline_strategies @ ["serialize"]) ->
             Printf.eprintf "Warning: Node `%s` uses a string literal for a built-in serializer (\"%s\").\nPlease use a symbol instead, e.g.: serializer = ^%s\n%!" 
               name s (if s = "serialize" then "default" else s)
         | Ast.ListLit items -> List.iter (fun (_, e) -> check_serializer_type e) items
@@ -48,9 +51,9 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
         match expr.Ast.node with
         | Ast.Value (Ast.VSymbol s) -> 
             let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in
-            not (List.mem s ["pmml"; "arrow"; "json"; "csv"; "default"])
+            not (List.mem s builtin_pipeline_strategies)
         | Ast.Value (Ast.VSerializer s) ->
-            not (List.mem s.s_format ["pmml"; "arrow"; "json"; "csv"; "default"])
+            not (List.mem s.s_format builtin_pipeline_strategies)
         | Ast.Value (Ast.VString _) -> true
         | Ast.Var _ -> false
         | Ast.DotAccess _ | Ast.RawCode _ -> false
@@ -61,7 +64,7 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
       let is_custom_ser = requires_functions ser in
       let is_custom_des = requires_functions des in
       if (is_custom_ser || is_custom_des) && funcs = [] then
-        Printf.eprintf "Warning: Node `%s` uses a custom or unknown strategy (not 'default', 'arrow', 'pmml', etc.) but has no supporting `functions` specified.\nIf this is a built-in strategy, check the spelling (e.g., ^arrow).\nIf it is a custom function, ensure it is available in the runtime environment.\n%!" name
+        Printf.eprintf "Warning: Node `%s` uses a custom or unknown strategy (not 'default', 'csv', 'json', 'arrow', 'pmml', 'onnx', etc.) but has no supporting `functions` specified.\nIf this is a built-in strategy, check the spelling (e.g., ^arrow or ^onnx).\nIf it is a custom function, ensure it is available in the runtime environment.\n%!" name
     ) p.p_exprs
   in
 

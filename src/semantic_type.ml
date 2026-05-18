@@ -16,6 +16,10 @@ and t =
   | TAny
   | TUnknown
 
+(** Convert a semantic type to its string representation.
+
+    @param t The semantic type to convert.
+    @return A string representation of the semantic type (e.g. "int", "grouped_dataframe[...]"). *)
 let rec to_string = function
   | TInt -> "int"
   | TString -> "string"
@@ -23,7 +27,7 @@ let rec to_string = function
   | TFloat -> "float"
   | TDataFrame cols ->
       let col_names = List.map (fun c -> c.name) cols in
-      "dataframe[" ^ String.concat ", " col_names ^ "]"
+      "to_dataframe[" ^ String.concat ", " col_names ^ "]"
   | TGroupedDataFrame (cols, groups) ->
       let col_names = List.map (fun c -> c.name) cols in
       "grouped_dataframe[" ^ String.concat ", " col_names ^ " | groups: " ^ String.concat ", " groups ^ "]"
@@ -33,6 +37,10 @@ let rec to_string = function
   | TAny -> "any"
   | TUnknown -> "unknown"
  
+(** Parse a semantic type from its string representation.
+
+    @param str The string representation of the type to parse.
+    @return The corresponding semantic type [t], defaulting to [TAny] or [TUnknown] on mismatch. *)
 let from_string str =
   let str = String.lowercase_ascii (String.trim str) in
   match str with
@@ -40,7 +48,7 @@ let from_string str =
   | "string" | "text" -> TString
   | "bool" | "boolean" | "logical" -> TBool
   | "float" | "double" | "number" | "numeric" -> TFloat
-  | "dataframe" | "table" -> TDataFrame []
+  | "to_dataframe" | "table" -> TDataFrame []
   | "any" | "value" | "all" | "mixed" | "..." -> TAny
   | _ ->
       if String.starts_with ~prefix:"vector" str then TAny

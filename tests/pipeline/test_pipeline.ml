@@ -1,5 +1,5 @@
 
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   let strip_location s =
     let re = Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\] " in
     Str.global_replace re "" s
@@ -734,19 +734,19 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       test "read_node(pipeline, name) prefers matching build-log values for unresolved nodes"
         {|p_match = pipeline {
   good_val = 20
-  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
+  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = ^json, deserializer = ^json)
 }; read_node(p_match, "recovered_with_match").value.status|}
         {|"ok"|};
       test "read_pipeline prefers matching build-log values for unresolved nodes"
         {|p_match = pipeline {
   good_val = 20
-  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
+  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = ^json, deserializer = ^json)
 }; read_pipeline(p_match).nodes |> filter(\(node) node.name == "recovered_with_match") |> map(\(node) node.value.status)|}
         {|["ok"]|};
       test "filter_node returns merged build-log values for kept unresolved nodes"
         {|p_match = pipeline {
   good_val = 20
-  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
+  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = ^json, deserializer = ^json)
 }; read_pipeline(filter_node(p_match, is_na($diagnostics.error))).nodes |> filter(\(node) node.name == "recovered_with_match") |> map(\(node) node.value.status)|}
         {|["ok"]|};
 
@@ -759,28 +759,28 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "Phase 3 — Pipeline Diagnostics:\n";
   test "read_node(p, name) exposes warning list"
     {|p_diag = pipeline {
-  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; length(read_node(p_diag, "filtered").warnings)|}
     "1";
   test "downstream nodes inherit upstream warnings"
     {|p_diag = pipeline {
-  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_node(p_diag, "count").warnings |> map(\(w) w.source.kind)|}
     {|["Upstream"]|};
   test "downstream warning source points at origin node"
     {|p_diag = pipeline {
-  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_node(p_diag, "count").warnings |> map(\(w) w.source.node)|}
     {|["filtered"]|};
   test "read_pipeline summarizes warning origins only once"
     {|p_diag = pipeline {
-  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_pipeline(p_diag).diagnostics.summary|}
@@ -881,7 +881,7 @@ p_cross = pipeline {
           (Ast.Utils.value_to_string other));
 
   let (v_py_node, _) = eval_string_env
-    {|py(command = <{ x + 1 }>, env_vars = [API_KEY: "secret", RETRIES: 3])|}
+    {|pyn(command = <{ x + 1 }>, env_vars = [API_KEY: "secret", RETRIES: 3])|}
     (Packages.init_env ()) in
   let same_env_vars left right =
     let sort_vars vars = List.sort (fun (k1, _) (k2, _) -> String.compare k1 k2) vars in
@@ -906,9 +906,9 @@ p_cross = pipeline {
    | Ast.VNode un
       when un.un_runtime = "Python"
            && same_env_vars un.un_env_vars [("API_KEY", Ast.VString "secret"); ("RETRIES", Ast.VInt 3)] ->
-       incr pass_count; Printf.printf "  ✓ py() stores env_vars on the node\n"
+       incr pass_count; Printf.printf "  ✓ pyn() stores env_vars on the node\n"
    | other ->
-       incr fail_count; Printf.printf "  ✗ py() env_vars parsing failed: %s\n"
+       incr fail_count; Printf.printf "  ✗ pyn() env_vars parsing failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   test "node env_vars must be a dict"
@@ -978,7 +978,7 @@ p_cross = pipeline {
   let (v_py_pipeline, _) = eval_string_env
     {|pipeline {
   data = 1
-  step = py(command = <{ data + 1 }>, env_vars = [MODE: "fast"], deserializer = "json")
+  step = pyn(command = <{ data + 1 }>, env_vars = [MODE: "fast"], deserializer = ^json)
 }|}
     (Packages.init_env ()) in
   (match v_py_pipeline with
@@ -990,17 +990,17 @@ p_cross = pipeline {
          | None -> false
        in
        if runtime_ok && env_ok then begin
-         incr pass_count; Printf.printf "  ✓ py() nodes are desugared with env_vars in pipelines\n"
+         incr pass_count; Printf.printf "  ✓ pyn() nodes are desugared with env_vars in pipelines\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ py() pipeline desugaring failed\n"
+         incr fail_count; Printf.printf "  ✗ pyn() pipeline desugaring failed\n"
        end
    | other ->
-       incr fail_count; Printf.printf "  ✗ py() pipeline should return VPipeline, got: %s\n"
+       incr fail_count; Printf.printf "  ✗ pyn() pipeline should return VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
 
   let (v_env_pipeline, _) = eval_string_env
     {|pipeline {
-  model = rn(command = <{ 1 + 1 }>, env_vars = [MODEL_MODE: "train", RETRIES: 2], deserializer = "json")
+  model = rn(command = <{ 1 + 1 }>, env_vars = [MODEL_MODE: "train", RETRIES: 2], deserializer = ^json)
 }|}
     (Packages.init_env ()) in
   (match v_env_pipeline with
@@ -1028,8 +1028,8 @@ p_cross = pipeline {
   let (v_serializer_pipeline, _) = eval_string_env
     {|pipeline {
   source = [answer: 42]
-  report_r = rn(command = <{ source }>, serializer = "json", deserializer = "json")
-  report_py = py(command = <{ source }>, serializer = "arrow", deserializer = "arrow")
+  report_r = rn(command = <{ source }>, serializer = ^json, deserializer = ^json)
+  report_py = pyn(command = <{ source }>, serializer = ^arrow, deserializer = ^arrow)
 }|}
     (Packages.init_env ()) in
   (match v_serializer_pipeline with
@@ -1068,11 +1068,15 @@ p_cross = pipeline {
     library(ggplot2)
     ggplot(mtcars, aes(wt, mpg)) + geom_point() + labs(title = "Fuel economy")
   }>)
-  plot_py = py(command = <{
+  plot_py = pyn(command = <{
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     ax.plot([1, 2], [3, 4])
     fig
+  }>)
+  plot_jl = node(runtime = Julia, command = <{
+    using Plots
+    plot([1, 2], [3, 4], title = "Fuel economy")
   }>)
 }|}
     (Packages.init_env ()) in
@@ -1093,11 +1097,19 @@ p_cross = pipeline {
           contains_substring nix "py_visual_class(plot_py)" &&
           contains_substring nix "py_save_viz_metadata(plot_py, os.path.join(os.environ['out'], 'viz'))"
         in
-       if has_r_plot_helpers && has_py_plot_helpers then begin
-         incr pass_count; Printf.printf "  ✓ pipeline emits plot metadata helpers for R and Python nodes\n"
-       end else begin
-         incr fail_count; Printf.printf "  ✗ plot metadata helper emission failed\n"
-       end
+        let has_jl_plot_helpers =
+          contains_substring nix "function jl_extract_plot_metadata(obj)" &&
+          contains_substring nix "\"class\" => \"tidierplots\"" &&
+          contains_substring nix "\"class\" => \"plotsjl\"" &&
+          contains_substring nix "\"class\" => \"makie\"" &&
+          contains_substring nix "jl_visual_class(plot_jl)" &&
+          contains_substring nix "jl_save_viz_metadata(plot_jl, joinpath(ENV[\"out\"], \"viz\"))"
+        in
+        if has_r_plot_helpers && has_py_plot_helpers && has_jl_plot_helpers then begin
+         incr pass_count; Printf.printf "  ✓ pipeline emits plot metadata helpers for R, Python, and Julia nodes\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ plot metadata helper emission failed\n"
+        end
    | other ->
        incr fail_count; Printf.printf "  ✗ plot metadata pipeline should return VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
@@ -1146,11 +1158,57 @@ p_cross = pipeline {
   in
   (match restored with
    | Ast.VNodeResult { v = Ast.VDict pairs; _ }
-     when List.assoc_opt "class" pairs = Some (Ast.VString "ggplot")
-          && List.assoc_opt "title" pairs = Some (Ast.VString "Fuel economy") ->
+      when List.assoc_opt "class" pairs = Some (Ast.VString "ggplot")
+           && List.assoc_opt "title" pairs = Some (Ast.VString "Fuel economy") ->
        incr pass_count; Printf.printf "  ✓ read_node reads ggplot plot metadata artifacts from default serializer output\n"
    | other ->
        incr fail_count; Printf.printf "  ✗ ggplot plot metadata artifact reading failed: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let julia_plot_node_dir = Filename.concat temp_plot_dir "julia-plot-node" in
+  (try Unix.mkdir julia_plot_node_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let julia_plot_viz = Filename.concat julia_plot_node_dir "viz" in
+  let julia_plot_artifact = Filename.concat julia_plot_node_dir "artifact" in
+  let julia_plot_class = Filename.concat julia_plot_node_dir "class" in
+  let julia_plot_value =
+    Ast.VDict [
+      ("class", Ast.VString "makie");
+      ("backend", Ast.VString "Julia");
+      ("title", Ast.VString "Makie figure");
+      ("labels", Ast.VDict [("x", Ast.VString "wt"); ("y", Ast.VString "mpg")]);
+      ("layers", Ast.VList [(None, Ast.VString "Axis"); (None, Ast.VString "Lines")]);
+      ("_display_keys", Ast.VList [
+        (None, Ast.VString "class");
+        (None, Ast.VString "backend");
+        (None, Ast.VString "title");
+        (None, Ast.VString "labels");
+        (None, Ast.VString "layers");
+      ]);
+    ]
+  in
+  ignore (Serialization.write_json julia_plot_viz julia_plot_value);
+  let oc_julia_art = open_out julia_plot_artifact in output_string oc_julia_art "dummy-artifact"; close_out oc_julia_art;
+  let oc_julia_class = open_out julia_plot_class in
+  output_string oc_julia_class "makie\n";
+  close_out oc_julia_class;
+  let original_julia_plot_env = Sys.getenv_opt "T_NODE_julia_plot_meta" in
+  let restored_julia =
+    Fun.protect
+      ~finally:(fun () ->
+        match original_julia_plot_env with
+        | Some value -> Unix.putenv "T_NODE_julia_plot_meta" value
+        | None -> Unix.putenv "T_NODE_julia_plot_meta" "")
+      (fun () ->
+        Unix.putenv "T_NODE_julia_plot_meta" julia_plot_node_dir;
+        Builder.read_node "julia_plot_meta")
+  in
+  (match restored_julia with
+   | Ast.VNodeResult { v = Ast.VDict pairs; _ }
+     when List.assoc_opt "class" pairs = Some (Ast.VString "makie")
+          && List.assoc_opt "backend" pairs = Some (Ast.VString "Julia") ->
+       incr pass_count; Printf.printf "  ✓ read_node reads Julia plot metadata artifacts from default serializer output\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ Julia plot metadata artifact reading failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   let quarto_script = "test_quarto_report.qmd" in
@@ -1309,7 +1367,7 @@ p_cross = pipeline {
   (* Test: T node whose sibling R node is <unbuilt> is itself correctly deferred *)
   let (v_t_deferred, _) = eval_string_env
     {|p = pipeline {
-  r_step = node(command = <{ 1 + 2 }>, runtime = R, deserializer = "json")
+  r_step = node(command = <{ 1 + 2 }>, runtime = R, deserializer = ^json)
   t_step = r_step * 2
 }
 p.t_step|}
@@ -1338,7 +1396,7 @@ p.t_step|}
   (* Test: rerun_pipeline correctly keeps a T node deferred when its sibling is <unbuilt> *)
   let (v_rerun_base, _) = eval_string_env
     {|pipeline {
-  r_step = node(command = <{ 1 + 2 }>, runtime = R, deserializer = "json")
+  r_step = node(command = <{ 1 + 2 }>, runtime = R, deserializer = ^json)
   t_step = r_step * 2
 }|}
     (Packages.init_env ()) in
@@ -1361,4 +1419,63 @@ p.t_step|}
       incr fail_count; Printf.printf "  ✗ initial pipeline for rerun test failed: %s\n"
         (Ast.Utils.value_to_string other));
 
+  (* Regression test: Julia raw-code nodes with `using`/`import` must hoist those
+     statements to the top of the script, outside the try/begin...end block.
+     This catches the original "using not at top level" Julia failure mode. *)
+  let (v_julia_imports, _) = eval_string_env
+    {|pipeline {
+  compute = jln(command = <{
+    using LinearAlgebra
+    import Statistics
+    result = norm([1.0, 2.0, 3.0])
+    result
+  }>)
+}|}
+    (Packages.init_env ()) in
+  (match v_julia_imports with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       (* Import lines must appear before the begin block in the emitted script.
+          The hoisted_imports section is emitted before assign_script_lines in the
+          template, so `using`/`import` lines must precede `echo "    local __tlang_node_thunk = () -> begin"`. *)
+       let find_pos pat =
+         try Some (Str.search_forward (Str.regexp_string pat) nix 0)
+         with Not_found -> None
+       in
+       let using_pos = find_pos "using LinearAlgebra" in
+       let import_pos = find_pos "import Statistics" in
+       let begin_pos = find_pos {|echo "    local __tlang_node_thunk = () -> begin"|} in
+       let imports_hoisted_before_begin =
+         match using_pos, import_pos, begin_pos with
+         | Some u, Some i, Some b -> u < b && i < b
+         | _ -> false
+       in
+       (* Confirm that neither import line appears inside the begin...end body block *)
+       let imports_absent_from_body =
+         match begin_pos with
+         | None -> true
+         | Some bp ->
+             let end_pos =
+               try Some (Str.search_forward (Str.regexp_string {|echo "    end"|}) nix bp)
+               with Not_found -> None
+             in
+             (match end_pos with
+              | None -> true
+              | Some ep when ep > bp && ep <= String.length nix ->
+                  let inner = String.sub nix bp (ep - bp) in
+                  not (contains_substring inner "using LinearAlgebra") &&
+                  not (contains_substring inner "import Statistics")
+              | _ -> true)
+       in
+       if imports_hoisted_before_begin && imports_absent_from_body then begin
+         incr pass_count; Printf.printf "  ✓ Julia raw-code using/import are hoisted outside begin...end block\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ Julia raw-code import hoisting failed (hoisted_before_begin=%b absent_from_body=%b)\n"
+           imports_hoisted_before_begin imports_absent_from_body
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ Julia import hoisting pipeline should return VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
   print_newline ()
+

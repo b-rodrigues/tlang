@@ -13,7 +13,7 @@ Pure numerical primitives.
 | `pow(base, exp)` | Exponentiation |
 | `round(x, digits = 0)` | Round to decimal digits |
 | `floor(x)` | Floor function |
-| `ceiling(x)` / `ceil(x)` | Ceiling function |
+| `ceiling(x)` | Ceiling function |
 | `trunc(x)` | Truncate fractional part |
 | `sign(x)` | Sign of value (-1, 0, 1) |
 | `signif(x, digits)` | Significant-figure rounding |

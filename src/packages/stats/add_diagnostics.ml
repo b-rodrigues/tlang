@@ -1,90 +1,109 @@
+(* src/packages/stats/add_diagnostics.ml *)
 open Ast
 
-(** add_diagnostics(model, data = df) — adds diagnostic columns to the data.
-    Equivalent to broom::augment(). Adds columns prefixed with '.' *)
+(** add_diagnostics(data, model) — adds model-based diagnostic columns to a dataset. *)
 (*
---# Add Model Diagnostics
+--# Augment Data with Model Calculations
 --#
---# augments the data with model diagnostic columns (residuals, fitted values, etc.).
+--# Appends model predictions, residuals, and potentially diagnostic metrics to a dataset.
 --#
 --# @name add_diagnostics
---# @param data :: DataFrame (Optional) The data to augment.
+--# @param data :: DataFrame The dataset to add_diagnostics.
 --# @param model :: Model The model object.
---# @return :: DataFrame The data with added diagnostic columns.
+--# @return :: DataFrame The original DataFrame with appended `fitted`, `resid`, etc.
 --# @example
 --#   df = add_diagnostics(mtcars, model)
 --# @family stats
---# @seealso lm
 --# @export
 *)
 let register env =
   Env.add "add_diagnostics"
     (make_builtin_named ~name:"add_diagnostics" ~variadic:true 0 (fun args _env ->
-      let named = List.filter_map (fun (n, v) ->
-        match n with Some name -> Some (name, v) | None -> None
-      ) args in
-      let positional = List.filter_map (fun (n, v) ->
-        match n with None -> Some v | Some _ -> None
-      ) args in
-      (* First positional or named "data" *)
-      let data_val = match List.assoc_opt "data" named with
+      let named = List.filter_map (fun (n, v) -> match n with Some name -> Some (name, v) | None -> None) args in
+      let positional = List.filter_map (fun (n, v) -> match n with None -> Some v | Some _ -> None) args in
+      let data_v = match List.assoc_opt "data" named with
         | Some v -> Some v
         | None -> (match positional with v :: _ -> Some v | [] -> None)
       in
-      (* Second positional or named "model" *)
-      let model_val = match List.assoc_opt "model" named with
-        | Some (VDict _) as v -> v
-        | _ -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_val <> Some v -> Some v | _ -> None))
+      let model_v = match List.assoc_opt "model" named with
+        | Some v -> Some v
+        | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_v <> Some v -> Some v | _ -> None))
       in
-      match model_val with
-      | None -> Error.make_error ArityError "Function `add_diagnostics` missing required argument 'model'."
-      | Some (VDict pairs) ->
-        (match List.assoc_opt "_model_data" pairs with
-         | Some (VDict model) ->
-           (* Get the data DataFrame *)
-           let df = match data_val with
-             | Some (VDataFrame df) -> Some df
-             | None ->
-               (match List.assoc_opt "_original_data" pairs with
-                | Some (VDataFrame df) -> Some df
-                | _ -> None)
-             | _ -> None
-           in
-           (match df with
-            | None -> Error.type_error "Function `add_diagnostics` requires a DataFrame for 'data'."
-            | Some data_df ->
-              let nrows = Arrow_table.num_rows data_df.arrow_table in
-              (* Extract diagnostic arrays from model_data *)
-              let extract_float_array key =
-                match List.assoc_opt key model with
-                | Some (VVector arr) ->
+      match (data_v, model_v) with
+      | (Some (VDataFrame df), Some (VDict model)) ->
+        
+        (* Priority 1: If it's a native T-Lang LM with pre-computed diagnostics in _model_data *)
+        (match List.assoc_opt "_model_data" model with
+         | Some (VDict m_data) ->
+            let nrows = Arrow_table.num_rows df.arrow_table in
+            let extract_float_array key =
+              match List.assoc_opt key m_data with
+              | Some (VVector arr) ->
                   Array.map (fun v -> match v with VFloat f -> Some f | _ -> None) arr
-                | _ -> Array.make nrows None
-              in
-              let fitted_arr = extract_float_array "fitted_values" in
-              let resid_arr = extract_float_array "residuals" in
-              let hat_arr = extract_float_array "hat_values" in
-              let cooksd_arr = extract_float_array "cooks_distance" in
-              let std_resid_arr = extract_float_array "std_residuals" in
-              let sigma_arr = extract_float_array "leave_one_out_sigma" in
-              (* Add columns to the DataFrame *)
-              let table = data_df.arrow_table in
-              let table = Arrow_table.add_column table "fitted"
-                (Arrow_table.FloatColumn fitted_arr) in
-              let table = Arrow_table.add_column table "resid"
-                (Arrow_table.FloatColumn resid_arr) in
-              let table = Arrow_table.add_column table "hat"
-                (Arrow_table.FloatColumn hat_arr) in
-              let table = Arrow_table.add_column table "sigma"
-                (Arrow_table.FloatColumn sigma_arr) in
-              let table = Arrow_table.add_column table "cooksd"
-                (Arrow_table.FloatColumn cooksd_arr) in
-              let table = Arrow_table.add_column table "std_resid"
-                (Arrow_table.FloatColumn std_resid_arr) in
-              VDataFrame { arrow_table = table; group_keys = data_df.group_keys })
+              | _ -> Array.make nrows None
+            in
+            
+            let fitted_arr = extract_float_array "fitted_values" in
+            let resid_arr = extract_float_array "residuals" in
+            let hat_arr = extract_float_array "hat_values" in
+            let cooksd_arr = extract_float_array "cooks_distance" in
+            let std_resid_arr = extract_float_array "std_residuals" in
+            let sigma_arr = extract_float_array "leave_one_out_sigma" in
+            
+            let table = df.arrow_table in
+            let table = Arrow_table.add_column table "fitted" (Arrow_table.FloatColumn fitted_arr) in
+            let table = Arrow_table.add_column table "resid" (Arrow_table.FloatColumn resid_arr) in
+            let table = Arrow_table.add_column table "hat" (Arrow_table.FloatColumn hat_arr) in
+            let table = Arrow_table.add_column table "sigma" (Arrow_table.FloatColumn sigma_arr) in
+            let table = Arrow_table.add_column table "cooksd" (Arrow_table.FloatColumn cooksd_arr) in
+            let table = Arrow_table.add_column table "std_resid" (Arrow_table.FloatColumn std_resid_arr) in
+            VDataFrame { arrow_table = table; group_keys = df.group_keys }
+
          | _ ->
-           Error.type_error "Function `add_diagnostics` expects a model returned by `lm`.")
-      | Some _ ->
-        Error.type_error "Function `add_diagnostics` expects a model returned by `lm`."
-    ))
-    env
+            (* Priority 2: Generic fallback using residuals() and predict() *)
+            let residuals_fn = match Env.find_opt "residuals" _env with
+              | Some (VBuiltin b) -> b.b_func
+              | _ -> fun _ _ -> Error.type_error "Internal error: `residuals` not found."
+            in
+            let res_v = residuals_fn [(None, VDataFrame df); (None, VDict model)] (ref _env) in
+            
+            (match res_v with
+             | VDataFrame res_df ->
+                let fitted = Arrow_table.get_column res_df.arrow_table "fitted" in
+                let resid  = Arrow_table.get_column res_df.arrow_table "resid" in
+                
+                let sigma = match List.assoc_opt "_model_data" model with
+                  | Some (VDict d) -> (match List.assoc_opt "sigma" d with Some (VFloat f) -> f | _ -> 1.0)
+                  | _ -> 1.0
+                in
+                
+                let std_resid = match resid with
+                  | Some (Arrow_table.FloatColumn data) ->
+                      let n = Array.length data in
+                      let r = Array.init n (fun i -> match data.(i) with Some e -> Some (e /. sigma) | None -> None) in
+                      Some (Arrow_table.FloatColumn r)
+                  | _ -> None
+                in
+                
+                let new_cols = [
+                  ("fitted", match fitted with Some c -> c | None -> Arrow_table.NAColumn 0);
+                  ("resid",  match resid with Some c -> c | None -> Arrow_table.NAColumn 0);
+                ] in
+                let new_cols = match std_resid with
+                  | Some c -> new_cols @ [("std_resid", c)]
+                  | None -> new_cols
+                in
+                
+                let orig_names = Arrow_table.column_names df.arrow_table in
+                let combined_cols = List.map (fun name ->
+                  (name, match Arrow_table.get_column df.arrow_table name with Some c -> c | None -> Arrow_table.NAColumn 0)
+                ) orig_names in
+                
+                let final_table = Arrow_table.create (combined_cols @ new_cols) (Arrow_table.num_rows df.arrow_table) in
+                VDataFrame { arrow_table = final_table; group_keys = df.group_keys }
+                
+             | VError e -> VError e
+             | _ -> Error.type_error "Function `residuals` did not return a DataFrame."))
+      | (Some (VError _ as e), _) | (_, Some (VError _ as e)) -> e
+      | _ -> Error.type_error "Function `add_diagnostics` expects (DataFrame, Model)."
+    )) env

@@ -33,7 +33,7 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="dataframe">dataframe</h1>
+<h1 id="to_dataframe">to_dataframe</h1>
 <p>Create a DataFrame</p>
 <p>Constructs a DataFrame from either a list of rows (Dicts) or a
 Dictionary of columns (Vectors/Lists).</p>
@@ -46,16 +46,16 @@ or columns.</li>
 <p>The created DataFrame.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code># Row-wise construction:
-df = dataframe([
+df = to_dataframe([
 {&quot;a&quot;: 1, &quot;b&quot;: 2},
 {&quot;a&quot;: 3, &quot;b&quot;: 4}
 ])
 
 # Column-wise construction (supported for VDict):
-df2 = dataframe([a: [1, 3], b = [2, 4]])
+df2 = to_dataframe([a: [1, 3], b = [2, 4]])
 
 # Scalar values are recycled to match other column lengths:
-df3 = dataframe([x: [1, 2, 3], constant = 0])</code></pre>
+df3 = to_dataframe([x: [1, 2, 3], constant = 0])</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="read_csv.html">read_csv</a></p>
 </div>

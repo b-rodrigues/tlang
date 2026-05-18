@@ -6,6 +6,7 @@ module String_set = Set.Make (String)
 type requirements = {
   r_deps : String_set.t;
   py_deps : String_set.t;
+  julia_deps : String_set.t;
   additional_tools : String_set.t;
   latex_pkgs : String_set.t;
   reasons : String_set.t;
@@ -14,6 +15,7 @@ type requirements = {
 type analysis = {
   missing_r_deps : string list;
   missing_py_deps : string list;
+  missing_julia_deps : string list;
   missing_additional_tools : string list;
   missing_latex_pkgs : string list;
   reasons : string list;
@@ -22,6 +24,7 @@ type analysis = {
 let empty_requirements = {
   r_deps = String_set.empty;
   py_deps = String_set.empty;
+  julia_deps = String_set.empty;
   additional_tools = String_set.empty;
   latex_pkgs = String_set.empty;
   reasons = String_set.empty;
@@ -36,6 +39,7 @@ let with_reason (req: requirements) reason =
 let merge_requirements a b = {
   r_deps = String_set.union a.r_deps b.r_deps;
   py_deps = String_set.union a.py_deps b.py_deps;
+  julia_deps = String_set.union a.julia_deps b.julia_deps;
   additional_tools = String_set.union a.additional_tools b.additional_tools;
   latex_pkgs = String_set.union a.latex_pkgs b.latex_pkgs;
   reasons = String_set.union a.reasons b.reasons;
@@ -123,6 +127,14 @@ let add_feature_requirement ~node_name ~runtime ~feature =
       { req with r_deps = add_list req.r_deps [ "onnx" ] }
   | "Python", "onnx" ->
       { req with py_deps = add_list req.py_deps [ "onnxruntime"; "skl2onnx" ] }
+  | "Julia", "onnx" ->
+      { req with julia_deps = add_list req.julia_deps [ "ONNXRunTime"; "ONNX" ] }
+  | "Julia", "json" ->
+      { req with julia_deps = add_list req.julia_deps [ "JSON" ] }
+  | "Julia", "csv" ->
+      { req with julia_deps = add_list req.julia_deps [ "CSV"; "DataFrames" ] }
+  | "Julia", "arrow" ->
+      { req with julia_deps = add_list req.julia_deps [ "Arrow"; "DataFrames" ] }
   | _ ->
       empty_requirements
 
@@ -143,7 +155,7 @@ let scan_code_requirements ~node_name ~runtime raw_text =
   let req = with_reason empty_requirements reason in
   match runtime with
   | "R" ->
-      let req = { req with r_deps = add_list req.r_deps [ "jsonlite" ] } in
+      let req = req in
       let has_pkg pkg =
         let re1 = Str.regexp (Printf.sprintf "library([\"']?%s[\"']?)" pkg) in
         let re2 = Str.regexp (Printf.sprintf "require([\"']?%s[\"']?)" pkg) in
@@ -193,6 +205,26 @@ let scan_code_requirements ~node_name ~runtime raw_text =
           req
       in
       if String_set.is_empty req.py_deps then empty_requirements else req
+  | "Julia" ->
+      let has_pkg pkg =
+        let re1 = Str.regexp (Printf.sprintf "using %s" pkg) in
+        let re2 = Str.regexp (Printf.sprintf "import %s" pkg) in
+        (try ignore (Str.search_forward re1 raw_text 0); true with Not_found ->
+         try ignore (Str.search_forward re2 raw_text 0); true with Not_found -> false)
+      in
+      let req = if has_pkg "JSON" then { req with julia_deps = add_list req.julia_deps [ "JSON" ] } else req in
+      let req = if has_pkg "CSV" then { req with julia_deps = add_list req.julia_deps [ "CSV" ] } else req in
+       let req = if has_pkg "DataFrames" then { req with julia_deps = add_list req.julia_deps [ "DataFrames" ] } else req in
+       let req = if has_pkg "Arrow" then { req with julia_deps = add_list req.julia_deps [ "Arrow" ] } else req in
+       let req = if has_pkg "GLM" then { req with julia_deps = add_list req.julia_deps [ "GLM" ] } else req in
+       let req = if has_pkg "Distributions" then { req with julia_deps = add_list req.julia_deps [ "Distributions" ] } else req in
+       let req = if has_pkg "TidierPlots" then { req with julia_deps = add_list req.julia_deps [ "TidierPlots" ] } else req in
+       let req = if has_pkg "Plots" then { req with julia_deps = add_list req.julia_deps [ "Plots" ] } else req in
+       let req = if has_pkg "Makie" then { req with julia_deps = add_list req.julia_deps [ "Makie" ] } else req in
+       let req = if has_pkg "CairoMakie" then { req with julia_deps = add_list req.julia_deps [ "CairoMakie" ] } else req in
+       let req = if has_pkg "ONNXRunTime" then { req with julia_deps = add_list req.julia_deps [ "ONNXRunTime" ] } else req in
+       let req = if has_pkg "ONNX" then { req with julia_deps = add_list req.julia_deps [ "ONNX" ] } else req in
+       req
   | _ -> empty_requirements
 
 let required_for_pipeline (p : Ast.pipeline_result) =
@@ -228,10 +260,16 @@ let required_for_pipeline (p : Ast.pipeline_result) =
             merge_requirements acc (scan_code_requirements ~node_name ~runtime raw_text)
         | _ -> acc
       in
-      if runtime = "Quarto" then
-        merge_requirements acc (add_quarto_requirement ~node_name)
-      else
-        acc)
+      let acc =
+        if runtime = "Quarto" then
+          merge_requirements acc (add_quarto_requirement ~node_name)
+        else if runtime = "R" then
+          merge_requirements acc { empty_requirements with r_deps = add_list String_set.empty [ "jsonlite" ] }
+        else if runtime = "Julia" then
+          merge_requirements acc { empty_requirements with julia_deps = add_list String_set.empty [ "JSON" ] }
+        else acc
+      in
+      acc)
     empty_requirements
     p.p_exprs
 
@@ -244,6 +282,7 @@ let analyze_missing_requirements (p : Ast.pipeline_result) (cfg : project_config
   {
     missing_r_deps = missing_from required.r_deps cfg.proj_r_dependencies;
     missing_py_deps = missing_from required.py_deps cfg.proj_py_dependencies;
+    missing_julia_deps = missing_from required.julia_deps cfg.proj_julia_dependencies;
     missing_additional_tools =
       missing_from required.additional_tools cfg.proj_additional_tools;
     missing_latex_pkgs = missing_from required.latex_pkgs cfg.proj_latex_packages;
@@ -253,6 +292,7 @@ let analyze_missing_requirements (p : Ast.pipeline_result) (cfg : project_config
 let analysis_is_empty analysis =
   analysis.missing_r_deps = []
   && analysis.missing_py_deps = []
+  && analysis.missing_julia_deps = []
   && analysis.missing_additional_tools = []
   && analysis.missing_latex_pkgs = []
 
@@ -266,6 +306,7 @@ let update_config_with_missing_requirements (cfg : project_config) analysis =
     cfg with
     proj_r_dependencies = append_missing cfg.proj_r_dependencies analysis.missing_r_deps;
     proj_py_dependencies = append_missing cfg.proj_py_dependencies analysis.missing_py_deps;
+    proj_julia_dependencies = append_missing cfg.proj_julia_dependencies analysis.missing_julia_deps;
     proj_additional_tools =
       append_missing cfg.proj_additional_tools analysis.missing_additional_tools;
     proj_latex_packages =
@@ -281,6 +322,7 @@ let format_analysis analysis =
     [
       ("[r-dependencies]", analysis.missing_r_deps);
       ("[py-dependencies]", analysis.missing_py_deps);
+      ("[jl-dependencies]", analysis.missing_julia_deps);
       ("[additional-tools]", analysis.missing_additional_tools);
       ("[latex]", analysis.missing_latex_pkgs);
     ]
@@ -369,6 +411,7 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
   let has_any_requirements =
     not (String_set.is_empty required.r_deps)
     || not (String_set.is_empty required.py_deps)
+    || not (String_set.is_empty required.julia_deps)
     || not (String_set.is_empty required.additional_tools)
     || not (String_set.is_empty required.latex_pkgs)
   in
@@ -382,6 +425,7 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
         {
           missing_r_deps = String_set.elements required.r_deps;
           missing_py_deps = String_set.elements required.py_deps;
+          missing_julia_deps = String_set.elements required.julia_deps;
           missing_additional_tools = String_set.elements required.additional_tools;
           missing_latex_pkgs = String_set.elements required.latex_pkgs;
           reasons = String_set.elements required.reasons;

@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Chrono:\n";
   test "ymd parses date" {|ymd("2024-01-15")|} "Date(2024-01-15)";
   test "ymd_hms parses datetime" {|ymd_hms("2024-01-15 09:30:00")|} "Datetime(2024-01-15T09:30:00Z[UTC])";
@@ -23,7 +23,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "am returns true for morning" {|am(ymd_hms("2024-01-15 09:30:00"))|} "true";
   test "pm returns true for afternoon" {|pm(ymd_hms("2024-01-15 13:30:00"))|} "true";
   test "vectorized year works on pulled dates"
-    {|df = dataframe([[s: "2024-01-01"], [s: "2025-02-03"]]); year(ymd(pull(df, $s)))|}
+    {|df = to_dataframe([[s: "2024-01-01"], [s: "2025-02-03"]]); year(ymd(pull(df, $s)))|}
     "Vector[2024, 2025]";
   test "today returns date type" {|type(today())|} {|"Date"|};
   test "now returns datetime type" {|type(now())|} {|"Datetime"|};

@@ -453,7 +453,7 @@ let register env =
                                    | Ok xs_terms ->
                                        if xs_terms = [] then
                                          Error.value_error
-                                           "Function `lm` requires at least one varying predictor term after factor encoding."
+                                           "Function `lm` requires at least one varying predictor term after to_factor encoding."
                                        else
                                          (match Arrow_owl_bridge.detect_collinearity
                                                   (List.map (fun term -> (term.name, term.values)) xs_terms) with
@@ -478,9 +478,11 @@ let register env =
            | _ ->
                Error.value_error
                  "Function `lm` only supports single response variable.")
-        | (VDataFrame _, _) ->
-            Error.type_error "Function `lm` 'formula' must be a Formula (use ~ operator)."
-        | (_, _) ->
-            Error.type_error "Function `lm` 'data' must be a DataFrame."
+        | (VDataFrame _, v) ->
+            Error.type_error ~arg_index:2
+              (Printf.sprintf "Function `lm` 'formula' must be a Formula (use ~ operator), got %s instead." (Utils.type_name v))
+        | (v, _) ->
+            Error.type_error ~arg_index:1
+              (Printf.sprintf "Function `lm` 'data' must be a DataFrame, got %s instead." (Utils.type_name v))
     ))
     env

@@ -4,7 +4,10 @@
 
 open Ast
 
-(** Convert an Arrow column to a T value array *)
+(** Convert an Arrow column data structure to an array of T-Lang runtime values.
+    
+    @param col The Arrow column data.
+    @return An array of T-Lang [value] elements. *)
 let column_to_values (col : Arrow_table.column_data) : value array =
   match col with
   | Arrow_table.IntColumn a ->
@@ -26,7 +29,11 @@ let column_to_values (col : Arrow_table.column_data) : value array =
   | Arrow_table.ListColumn a ->
       Array.map (function Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric)) a
 
-(** Extract a single value from an Arrow column at a given row index *)
+(** Extract a single value from an Arrow column at the specified row index.
+    
+    @param col The Arrow column data.
+    @param row The 0-indexed row number.
+    @return The extracted T-Lang [value]. *)
 let value_at (col : Arrow_table.column_data) (row : int) : value =
   match col with
   | Arrow_table.IntColumn a -> (match a.(row) with Some i -> VInt i | None -> VNA NAInt)
@@ -40,6 +47,14 @@ let value_at (col : Arrow_table.column_data) (row : int) : value =
       (match a.(row) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
   | Arrow_table.ListColumn a ->
       (match a.(row) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric))
+
+(** Convert an array of T-Lang values into an Arrow column_data structure.
+    
+    Dynamically infers the target column type (Int, Float, Bool, String, Datetime, Date, Factor,
+    or DataFrame List) based on non-NA value elements.
+    
+    @param values The T-Lang value array.
+    @return The constructed Arrow column data structure. *)
 let values_to_column (values : value array) : Arrow_table.column_data =
   (* Infer column type from non-NA values *)
   let has_int = ref false in
@@ -71,7 +86,7 @@ let values_to_column (values : value array) : Arrow_table.column_data =
              factor_levels := levels;
              factor_ordered := ordered
          | existing when existing <> levels ->
-             (* Inconsistent level sets across factor values; fall back to string *)
+             (* Inconsistent level sets across to_factor values; fall back to string *)
              factor_inconsistent := true
          | _ ->
              has_factor := true;
@@ -146,8 +161,11 @@ let values_to_column (values : value array) : Arrow_table.column_data =
   else
     Arrow_table.NAColumn (Array.length values)
 
-(** Extract a row from an Arrow table as a T Dict (list of name-value pairs).
-    For native-backed tables, extracts column data via FFI as needed. *)
+(** Extract a specific row from an Arrow table as an associative dictionary of field names to values.
+    
+    @param table The input Arrow table.
+    @param row_idx The index of the row to extract.
+    @return A list of name-value tuples representing the row elements. *)
 let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list =
   let get_col_data name =
     match Arrow_table.get_column table name with
@@ -178,15 +196,21 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
     (name, v)
   ) table.schema
 
-(** Create an Arrow table from T value columns *)
+(** Create an Arrow table from T-Lang value column structures.
+    
+    @param columns List of column name to value array pairs.
+    @param nrows Total row count of the table.
+    @return The constructed and materialized Arrow table. *)
 let table_from_value_columns (columns : (string * value array) list) (nrows : int) : Arrow_table.t =
   let arrow_columns = List.map (fun (name, values) ->
     (name, values_to_column values)
   ) columns in
   Arrow_table.create arrow_columns nrows |> Arrow_table.materialize
 
-(** Convert an Arrow table back to T value columns.
-    For native-backed tables, extracts column data via FFI as needed. *)
+(** Convert an Arrow table structure back to T-Lang value column arrays.
+    
+    @param table The input Arrow table.
+    @return List of column name to T-Lang value array pairs. *)
 let table_to_value_columns (table : Arrow_table.t) : (string * value array) list =
   List.map (fun (name, _) ->
     let col = match Arrow_table.get_column table name with
@@ -196,8 +220,10 @@ let table_to_value_columns (table : Arrow_table.t) : (string * value array) list
     (name, column_to_values col)
   ) table.schema
 
-(** Recursively prepare a T value for serialization across process boundaries.
-    Ensures any DataFrames are materialized and native pointers are cleared. *)
+(** Recursively prepare a T-Lang value for safe serialization across process boundaries.
+    
+    @param v The input value.
+    @return The cleansed value with native memory pointers resolved and prepared. *)
 let rec prepare_value_for_serialization (v : value) : value =
   match v with
   | VDataFrame df ->

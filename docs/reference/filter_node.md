@@ -2,7 +2,7 @@
 
 Filter Pipeline Nodes
 
-Returns a new pipeline containing only the nodes for which the predicate returns `true`. Uses NSE (`$field`) to refer to node metadata fields.  No DAG validity check is performed. If a retained node depends on a node that was removed, that inconsistency surfaces only at `build_pipeline` or `pipeline_run`.  Supported metadata fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$depth`, `$command_type`.
+Returns a new pipeline containing only the nodes for which the predicate returns `true`. Uses NSE (`$field`) to refer to node metadata fields.  No DAG validity check is performed. If a retained node depends on a node that was removed, that inconsistency surfaces only at `build_pipeline` or `pipeline_run`.  Supported metadata fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$depth`, `$command_type`, `$diagnostics`.
 
 ## Parameters
 
@@ -21,6 +21,7 @@ A new pipeline with only the matching nodes.
 p |> filter_node($runtime == "python")
 p |> filter_node($noop == false)
 p |> filter_node($depth <= 2)
+p |> filter_node(!is_na($diagnostics.error))
 ```
 
 ## See Also

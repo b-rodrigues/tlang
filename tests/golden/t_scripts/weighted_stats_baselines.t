@@ -1,5 +1,5 @@
 -- Test: weighted descriptive statistics against R baselines
-result = dataframe([
+result = to_dataframe([
   weighted_mean: mean([1, 2, 3, 4], weights = [1, 1, 2, 2]),
   weighted_sd: sd([1, 2, 3, 4], weights = [1, 1, 2, 2]),
   weighted_var: var([1, 2, 3, 4], weights = [1, 1, 2, 2]),

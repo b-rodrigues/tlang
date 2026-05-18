@@ -496,7 +496,7 @@ test_that("STRING: iris operations", {
 })
 
 # ============================================================================
-# Test Suite 20: ADVANCED STATS (vcov, residuals, augment, anova)
+# Test Suite 20: ADVANCED STATS (vcov, residuals, add_diagnostics, anova)
 # ============================================================================
 
 test_that("ADVANCED STATS: vcov matrix", {
@@ -507,7 +507,7 @@ test_that("ADVANCED STATS: residuals", {
   compare_csvs("lm_residuals_m1", tolerance = 1e-5)
 })
 
-test_that("ADVANCED STATS: augment", {
+test_that("ADVANCED STATS: add_diagnostics", {
   compare_csvs("lm_augment_m1", tolerance = 1e-5)
 })
 
@@ -747,6 +747,30 @@ test_that("METAPROG: quos", {
 
 test_that("METAPROG: dynamic name", {
   compare_csvs("metaprog_dyn_name")
+})
+
+# ============================================================================
+# Test Suite 26: JULIA
+# ============================================================================
+
+test_that("JULIA: simple calculation", {
+  compare_csvs("julia_simple")
+})
+
+test_that("JULIA: Tidier @mutate parity", {
+  compare_csvs("julia_tidier_mutate")
+})
+
+test_that("JULIA: Tidier @filter parity", {
+  compare_csvs("julia_tidier_filter")
+})
+
+test_that("JULIA: Tidier @group_by parity", {
+  compare_csvs("julia_tidier_groupby")
+})
+
+test_that("JULIA: Tidier @arrange parity", {
+  compare_csvs("julia_tidier_arrange")
 })
 
 # ============================================================================

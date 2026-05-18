@@ -244,7 +244,7 @@ let identical args _env =
 --# @family core
 --# @export
 *)
-let casewhen eval_func args env =
+let case_when eval_func args env =
   (* 1. Parse Arguments: Separate formulas and options (.default) *)
   let rec parse_args formulas default_val inputs =
     match inputs with
@@ -264,7 +264,7 @@ let casewhen eval_func args env =
   let (formulas, default_val) = parse_args [] ((VNA NAGeneric)) args in
   
   match formulas with
-  | [] -> VVector [||] (* Empty casewhen *)
+  | [] -> VVector [||] (* Empty case_when *)
   | _ ->
      (* 2. Evaluate Formulas in the Environment *)
      (* We need to evaluate LHS (cond) and RHS (value) for each formula.

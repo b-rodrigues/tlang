@@ -26,5 +26,5 @@ str_join(["a", "b", "c"])
 
 ## See Also
 
-[str_string](str_string.html)
+[to_string](to_string.html)
 

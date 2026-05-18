@@ -202,8 +202,10 @@ Pipelines are DAGs. Nodes can be declared in any order; dependencies are resolve
 - `node(...)` = fully configurable node constructor
 - `rn(...)` = R node wrapper
 - `pyn(...)` = Python node wrapper
+- `jln(...)` = Julia node wrapper
 - `qn(...)` = Quarto node wrapper
 - `shn(...)` = shell/Bash node wrapper
+- `node(..., runtime = Julia)` = explicit alternative for Julia nodes
 - `node(..., runtime = Quarto)` = explicit alternative when you need the fully configurable Quarto form
 
 For Bash-specific syntax, prefer `shn(..., shell = "bash", shell_args = ["-lc"])`.
@@ -214,6 +216,7 @@ Useful patterns:
 p = pipeline {
   model_r = rn(script = "train.R", serializer = "pmml")
   model_py = pyn(script = "train.py", serializer = "pmml")
+  model_jl = jln(script = "train.jl", serializer = ^csv)
   report = shn(script = "postprocess.sh")
   quarto_report = node(script = "analysis.qmd", runtime = Quarto)
 }
@@ -223,8 +226,11 @@ p = pipeline {
 
 - **Arrow** is the preferred interchange for DataFrames.
 - Arrow IPC round-trips now preserve nested `nest()`/`unnest()` list-columns with factor and timezone-aware datetime fields, including empty/all-null nested schemas.
-- **PMML** is used for model interchange.
+- **PMML** is used for model interchange. Now supports native scoring in Julia nodes via `JavaCall` and JPMML.
+- **ONNX** artifacts can now be consumed in Julia nodes through `ONNXRunTime.jl`; Julia ONNX export remains explicitly unsupported.
 - **JSON** is available for simpler values.
+- Plot-producing R, Python, and Julia nodes can expose structured `viz` metadata through `read_node()` / `pretty_print()`, and `show_plot()` can render `ggplot2`, Python plotting backends, `TidierPlots.jl`, `Plots.jl`, and `CairoMakie` artifacts.
+- **Companion Packages (`tlang`)**: Light-weight helper packages (named `tlang` in R, Python, and Julia) are made available for all T project. They provide the `read_node()` function for seamless data consumption between languages.
 - Nodes run in Nix-managed sandboxes, so R/Python/shell/Quarto dependencies must be declared in the project/package metadata and synced via `t update`.
 
 ### Quarto specifics
@@ -240,8 +246,9 @@ p = pipeline {
 
 - **Project** = analysis workspace, data, scripts, pipelines, pinned environment.
 - **Package** = reusable library, exports functions, ships tests and docs.
-- **`r-package/`** = companion R package that mirrors built-pipeline `read_node()` and defaults to `readRDS()` with an overrideable deserializer.
-- **`py-package/`** = companion Python package that mirrors built-pipeline `read_node()` and defaults to pickle-based deserialization with an overrideable deserializer.
+- **`r-package/`** = companion R package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to `readRDS()` with an overrideable deserializer.
+- **`py-package/`** = companion Python package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to pickle-based deserialization.
+- **`jl-package/`** = companion Julia package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to `Serialization.deserialize`.
 
 Typical project files:
 - `tproject.toml`
@@ -288,7 +295,7 @@ Purpose: printing, introspection, collections, metaprogramming, filesystem/path 
 - Printing and output: `print(...)`, `cat(..., sep = " ")`, `pretty_print(x)`, `write_text(text, path)`
 - Type and function introspection: `type(x)`, `args(fn)`, `help(name)`, `apropos(query)`, `packages()`, `package_info(name)`, `body(fn)`, `source(fn)`, `is_error(x)`
 - Collections and basic control: `length(x)`, `head(x, n = 6)`, `tail(x, n = 6)`, `get(target, [selector], [default])`, `map(xs, fn)`, `sum(xs, na_rm = false)`, `seq(end)`, `seq(start, end, by = 1)`, `ifelse(cond, yes, no)`, `case_when(...)`, `casewhen(...)`
-- Metaprogramming: `expr(code)`, `exprs(...)`, `quo(code)`, `quos(...)`, `eval(expr_or_quo)`, `enquo(param)`, `enquos(...)`, `sym(name)`, `get(name)`, auto-quoted parameters like `\(df, $col)`
+- Metaprogramming: `expr(code)`, `exprs(...)`, `quo(code)`, `quos(...)`, `eval(expr_or_quo)`, `enquo(param)`, `enquos(...)`, `to_symbol(name)`, `get(name)`, auto-quoted parameters like `\(df, $col)`
 - Converters: `to_integer(x)`, `to_float(x)`, `to_numeric(x)`
 - Execution and shell/file helpers: `run(command, ...)`, `exit(code = 0)`, `getwd()`, `file_exists(path)`, `dir_exists(path)`, `read_file(path)`, `list_files(path = ".")`, `env(name)`
 - Path helpers: `path_join(...)`, `path_basename(path)`, `path_dirname(path)`, `path_ext(path)`, `path_stem(path)`, `path_abs(path)`
@@ -314,7 +321,7 @@ Purpose: dplyr/tidyr-style tabular verbs, joins, missing-value helpers, factors,
 - Missing-value handling: `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `fill(df, ..., .direction = "down")`
 - Joins and binding: `left_join(x, y, by)`, `inner_join(x, y, by)`, `full_join(x, y, by)`, `semi_join(x, y, by)`, `anti_join(x, y, by)`, `bind_rows(...)`, `bind_cols(...)`
 - Selection helpers used inside `select()`: `starts_with(prefix)`, `ends_with(suffix)`, `contains(pattern)`, `everything()`, `where(predicate)`, `matches(regex)`, `all_of(names)`, `any_of(names)`, `is_numeric(x)`, `is_character(x)`, `is_logical(x)`, `is_factor(x)`
-- Factor helpers: `factor(x, levels = [], ordered = false)`, `as_factor(x)`, `fct(x, levels = [], ordered = false)`, `ordered(x, levels)`, `levels(x)`, `fct_infreq(x)`, `fct_reorder(f, x, .desc = false)`, `fct_relevel(f, ..., after = 0)`, `fct_rev(x)`, `fct_recode(x, new = old, ...)`, `fct_collapse(x, new_level = [old1, old2], ...)`, `fct_lump_n(x, n = 10, other_level = "Other")`, `fct_lump_min(x, min, other_level = "Other")`, `fct_lump_prop(x, prop, other_level = "Other")`, `fct_other(x, keep = [], drop = [], other_level = "Other")`, `fct_drop(x)`, `fct_expand(x, ...)`, `fct_c(...)`
+- Factor helpers: `factor(x, levels = [], ordered = false)`, `to_factor(x)`, `to_factor(x, levels = [], ordered = false)`, `ordered(x, levels)`, `levels(x)`, `fct_infreq(x)`, `fct_reorder(f, x, .desc = false)`, `fct_relevel(f, ..., after = 0)`, `fct_rev(x)`, `fct_recode(x, new = old, ...)`, `fct_collapse(x, new_level = [old1, old2], ...)`, `fct_lump_n(x, n = 10, other_level = "Other")`, `fct_lump_min(x, min, other_level = "Other")`, `fct_lump_prop(x, prop, other_level = "Other")`, `fct_other(x, keep = [], drop = [], other_level = "Other")`, `fct_drop(x)`, `fct_expand(x, ...)`, `fct_c(...)`
 
 ### `chrono`
 
@@ -325,7 +332,7 @@ Purpose: parsing, constructing, formatting, extracting, and reasoning about date
 - Extractors: `year(x)`, `month(x, label = false)`, `day(x)`, `mday(x)`, `yday(x)`, `wday(x, label = false)`, `week(x)`, `isoweek(x)`, `isoyear(x)`, `quarter(x)`, `semester(x)`, `hour(x)`, `minute(x)`, `second(x)`, `tz(x)`, `am(x)`, `pm(x)`
 - Period and duration constructors: `years(n)`, `months(n)`, `weeks(n)`, `days(n)`, `hours(n)`, `minutes(n)`, `seconds(n)`, `milliseconds(n)`, `microseconds(n)`, `nanoseconds(n)`
 - Period accessors: `period_years(p)`, `period_months(p)`, `period_days(p)`, `period_hours(p)`, `period_minutes(p)`, `period_seconds(p)`
-- Coercion and formatting: `as_date(x)`, `as_datetime(x)`, `format_date(x, format = na())`, `format_datetime(x, format = na())`
+- Coercion and formatting: `to_date(x)`, `to_datetime(x)`, `format_date(x, format = na())`, `format_datetime(x, format = na())`
 - Rounding and timezone labeling: `floor_date(x, unit)`, `ceiling_date(x, unit)`, `round_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`
 - Rounding and timezone labeling: `floor_date(x, unit)`, `ceiling_date(x, unit)`, `round_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`
 
@@ -347,15 +354,15 @@ Purpose: descriptive statistics, scaling/normalization, linear models, diagnosti
 - Aggregation helpers: `n()`, `n_distinct(x)`
 - Descriptive statistics: `mean(x, na_rm = false, weights = NA)`, `median(x, na_rm = false, weights = NA)`, `min(x, na_rm = false)`, `max(x, na_rm = false)`, `range(x, na_rm = false)`, `var(x, na_rm = false, weights = NA)`, `sd(x, na_rm = false, weights = NA)`, `iqr(x, na_rm = false, weights = NA)`, `mad(x, constant = 1.4826)`, `fivenum(x, na_rm = false, weights = NA)`, `quantile(x, probs, na_rm = false, weights = NA)`, `skewness(x, na_rm = false, weights = NA)`, `kurtosis(x, na_rm = false, weights = NA)`, `trimmed_mean(x, trim = 0.1, na_rm = false, weights = NA)`, `winsorize(x, limits = [0.05, 0.05], na_rm = false, weights = NA)`, `cv(x, na_rm = false, weights = NA)`, `normalize(x)`, `standardize(x)`, `scale(x)`, `huber_loss(actual, predicted, delta = 1.0)`
 - Relationship helpers and distributions: `cor(x, y, na_rm = false, weights = NA)`, `cov(x, y, na_rm = false, weights = NA)`, `pnorm(x, mean = 0, sd = 1)`, `pt(x, df)`, `pf(x, df1, df2)`, `pchisq(x, df)`
-- Modeling: `lm(data, formula, weights = NA)`, `predict(data, model)`, `summary(model)`, `fit_stats(model)`, `add_diagnostics(data, model)`, `coef(model)`, `conf_int(model)`, `nobs(model)`, `df_residual(model)`, `sigma(model)`, `dispersion(model)`, `vcov(model)`, `compare(model1, model2)`, `residuals(model)`, `augment(data, model)`, `score(data, model)`, `anova(model_or_models)`, `wald_test(model, hypothesis)`
-- PMML & ONNX: Native evaluation for Decision Trees, Random Forests, XGBoost, and LightGBM via `t_read_pmml()`. Native ONNX inference via `t_read_onnx()` and `^onnx` serialization.
+- Modeling: `lm(data, formula, weights = NA)`, `predict(data, model)`, `summary(model)`, `fit_stats(model)`, `add_diagnostics(data, model)`, `coef(model)`, `conf_int(model)`, `nobs(model)`, `df_residual(model)`, `sigma(model)`, `dispersion(model)`, `vcov(model)`, `compare(model1, model2)`, `residuals(model)`, `add_diagnostics(data, model)`, `score(data, model)`, `anova(model_or_models)`, `wald_test(model, hypothesis)`
+- PMML & ONNX: Native evaluation for Decision Trees, Random Forests, XGBoost, and LightGBM via `t_read_pmml()`. Native ONNX inference via `t_read_onnx()` and `^onnx` serialization. Now supports PMML scoring in Julia nodes via `JavaCall` and JPMML, plus Julia ONNX loading through `ONNXRunTime.jl`.
 - Basis functions: `cut(x, breaks, ...)`, `poly(x, degree, ...)`
 
 ### `pipeline`
 
 Purpose: node construction, pipeline execution, graph inspection, graph rewriting, validation, artifact access, and composition.
 
-- Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
+- Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `jln(command = ..., script = na(), serializer = ^csv, deserializer = ^csv, functions = [], include = [], noop = false)`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
 - Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `suppress_warnings(node)`
 - Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_summary(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_dot(p)`
 - Node-level transforms: `filter_node(p, predicate)`, `which_nodes(p, predicate)`, `errored_nodes(p)`,
@@ -371,7 +378,7 @@ Purpose: value introspection and intent-block inspection.
 
 - Introspection: `explain(x)`, `explain_json(x)`
 - Node introspection: `explain(read_node(...))` separates node metadata (`node_name`, `diagnostics`) from explained payload via `contents`
-- CLI presentation: `explain(...)` is rendered as a tree in the REPL and `t explain ...` while remaining a normal `Dict`
+- CLI presentation: `explain(...)` returns regular `Dict` values, and `pretty_print()` (including default REPL/CLI display) renders large or nested `Dict`, `List`, and `Pipeline` outputs as trees for readability.
 - Intent helpers: `intent_fields(intent)`, `intent_get(intent, field)`
 
 ### `strcraft`

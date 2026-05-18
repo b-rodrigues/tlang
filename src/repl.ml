@@ -311,18 +311,18 @@ let cmd_run ?(unsafe=false) ?failfast mode filename env =
   let (result, _env) = run_file ?failfast mode filename env in
   match result with
   | Ast.VError _ ->
-      Printf.eprintf "%s\n" (Ast.Utils.value_to_string result); exit 1
+      Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
   | Ast.(VNA NAGeneric) -> ()
-  | v -> print_endline (Ast.Utils.value_to_string v)
+  | v -> print_string (Pretty_print.pretty_print_value v)
 
 let cmd_run_expr ?failfast mode expr env =
   Packages.ensure_docs_loaded ();
   let (result, _) = parse_and_eval ?failfast mode env expr in
   match result with
   | Ast.VError _ ->
-      Printf.eprintf "%s\n" (Ast.Utils.value_to_string result); exit 1
+      Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
   | Ast.(VNA NAGeneric) -> ()
-  | v -> print_endline (Ast.Utils.value_to_string v)
+  | v -> print_string (Pretty_print.pretty_print_value v)
 
 let cmd_init_package args =
   match Scaffold.parse_init_flags args with
@@ -486,7 +486,7 @@ let cmd_repl ?failfast mode env =
   | Some nix_version ->
       Printf.printf "T, a reproducibility-first orchestration engine for polyglot\n";
       Printf.printf "data science and statistical analysis.\n";
-      Printf.printf "Version %s \"%s\" using Nix %s\n" version "Sangoku" nix_version;
+      Printf.printf "Version %s \"%s\" using Nix %s\n" version "Kaméhaméha" nix_version;
       Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
       Printf.printf "This software is in beta and is entirely LLM-generated — caveat emptor.\n";
       Printf.printf "Website: https://tstats-project.org\n";

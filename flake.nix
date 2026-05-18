@@ -27,7 +27,7 @@
         # Use the Nix packages for the specified system
         pkgs = (import (builtins.fetchTarball {
           url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
-          sha256 = "sha256:1swwshrqn4aq8fcg99n3nphahcc3zjj47ll11jm085lplb9s712n";
+          sha256 = "sha256:00y818x5l3dan9d29w690l9z25v2x13g4c81zqbzxhnvfry913mn";
         }) { inherit system; }).extend (self: super: {
           lightgbm = super.lightgbm.overrideAttrs (old: {
             cudaSupport = false;
@@ -81,6 +81,17 @@
           nbformat
           ipykernel
         ]);
+
+        julia-with-packages = pkgs.julia-lts.withPackages [
+          "DataFrames"
+          "Tidier"
+          "CSV"
+          "JavaCall"
+          "ONNXRunTime"
+          "ONNX"
+          "StatsModels"
+          "JSON"
+        ];
 
         # Pin a specific version of OCaml for reproducibility.
         ocamlVersion = pkgs.ocaml-ng.ocamlPackages_5_4;
@@ -157,16 +168,23 @@
               cp _build/default/src/lsp_server.exe $out/bin/.t-lsp-unwrapped
               mkdir -p $out/share/tlang
               cp -r src $out/share/tlang/
+              mkdir -p $out/share/tlang/agents
+              cp -r agents/* $out/share/tlang/agents/
               # Copy generated source files so coverage reports can find them
               cp _build/default/src/nixpkgs_date.ml $out/share/tlang/src/
               cp _build/default/src/version.ml $out/share/tlang/src/
               mkdir -p $out/share/tlang/quarto
               cp -r editors/quarto/tlang/_extensions/tlang $out/share/tlang/quarto/
+               cp -r r-package $out/share/tlang/
+               cp -r py-package $out/share/tlang/
+               mkdir -p $out/share/tlang/julia
+               cp -r jl-package $out/share/tlang/julia/tlang
               makeWrapper $out/bin/.t-unwrapped $out/bin/t \
                 --prefix PATH : "${runtimePath}" \
                 --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
                 --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
                 --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json" \
+                --set TLANG_AGENTS_DIR "$out/share/tlang/agents" \
                 --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar" \
                 --set T_JPMML_EVALUATOR_JAR "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
 
@@ -234,11 +252,44 @@ chmod +x $out/bin/bisect-ppx-report
 
         # Bisect-instrumented build for coverage collection
         t-lang-coverage = mkTLang { withCoverage = true; };
+
+        # Companion R package
+        tlang-r = pkgs.rPackages.buildRPackage {
+          name = "tlang";
+          src = ./r-package;
+          propagatedBuildInputs = with pkgs.rPackages; [ jsonlite ];
+        };
+
+        # Companion Python package
+        tlang-python = pkgs.python314.pkgs.buildPythonPackage {
+          pname = "tlang";
+          version = "0.1.0";
+          src = ./py-package;
+          format = "pyproject";
+          nativeBuildInputs = [ pkgs.python314.pkgs.setuptools ];
+          propagatedBuildInputs = [ pkgs.python314.pkgs.pandas ];
+        };
+        # Companion Julia path
+        tlang-julia-path = pkgs.stdenv.mkDerivation {
+          name = "tlang-julia-path";
+          src = ./jl-package;
+          installPhase = ''
+            mkdir -p $out/tlang
+            cp -r . $out/tlang/
+          '';
+        };
       in
       {
         # The default package - allows `nix build` and `nix run`
-        packages.default = t-lang;
-        packages.t-coverage = t-lang-coverage;
+        packages = {
+          default = t-lang;
+          t-lang = t-lang;
+          t-lang-coverage = t-lang-coverage;
+          t-coverage = t-lang-coverage;
+          tlang-r = tlang-r;
+          tlang-python = tlang-python;
+          tlang-julia-path = tlang-julia-path;
+        };
         legacyPackages = pkgs;
 
         # Make it runnable with `nix run`
@@ -349,6 +400,7 @@ chmod +x $out/bin/bisect-ppx-report
             # 5. R and Python environments for testing
             R-with-packages
             python-with-packages
+            tlang-python
             pkgs.actionlint
             pkgs.shellcheck
             pkgs.jpmml-statsmodels
@@ -360,10 +412,13 @@ chmod +x $out/bin/bisect-ppx-report
             pkgs.bash
             pkgs.coreutils
             pkgs.findutils
+            julia-with-packages
+            tlang-julia-path
 
             # 6. Local Project Binaries (Wrappers for development)
             (pkgs.writeShellScriptBin "t" ''
               repo_root="''${TLANG_REPO_ROOT:-$PWD}"
+              export TLANG_AGENTS_DIR="''${TLANG_AGENTS_DIR:-$repo_root/agents}"
               if [[ -f "$repo_root/_build/default/src/repl.exe" ]]; then
                 exec "$repo_root/_build/default/src/repl.exe" "$@"
               elif [[ -L "$repo_root/result" && -f "$repo_root/result/bin/t" ]]; then
@@ -404,6 +459,11 @@ chmod +x $out/bin/bisect-ppx-report
 
             export T_JPMML_EVALUATOR_JAR="${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
             export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
+            export TLANG_AGENTS_DIR="$TLANG_REPO_ROOT/agents"
+
+            # Make local companion language packages importable in nix develop
+            export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src''${PYTHONPATH:+:$PYTHONPATH}"
+            export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@}"
 
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"

@@ -4,9 +4,9 @@ arr_reshaped = reshape(arr, [2, 6])
 s = shape(arr_reshaped)
 d = ndarray_data(arr_reshaped)
 result = [
-  shape: s |> map(\(n) str_string(n)) |> str_join(","),
-  data: d |> map(\(n) str_string(n)) |> str_join(", ")
+  shape: s |> map(\(n) to_string(n)) |> str_join(","),
+  data: d |> map(\(n) to_string(n)) |> str_join(", ")
 ]
-df = dataframe([result])
+df = to_dataframe([result])
 write_csv(df, "tests/golden/t_outputs/ndarray_reshape_2x6.csv")
 print("✓ ndarray reshape 2x6 complete")

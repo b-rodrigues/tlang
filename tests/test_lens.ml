@@ -1,5 +1,5 @@
 
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Lenses:\n";
 
   (* 1. Basic col_lens on Dict *)
@@ -29,11 +29,11 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   (* 2. col_lens on DataFrame *)
   test "col_lens over on DataFrame"
-    {|df = dataframe([[x: 1, y: 3], [x: 2, y: 4]]); l = col_lens("x"); df2 = over(df, l, \(v) v .* 10); df2.x|}
+    {|df = to_dataframe([[x: 1, y: 3], [x: 2, y: 4]]); l = col_lens("x"); df2 = over(df, l, \(v) v .* 10); df2.x|}
     "Vector[10, 20]";
 
   test "col_lens set adds and recycles DataFrame column"
-    {|df = dataframe([[x: 1], [x: 2], [x: 3]]); seed_values = pull(dataframe([[seed: 10], [seed: 20]]), $seed); l = col_lens("y"); df2 = set(df, l, seed_values); df2.y|}
+    {|df = to_dataframe([[x: 1], [x: 2], [x: 3]]); seed_values = pull(to_dataframe([[seed: 10], [seed: 20]]), $seed); l = col_lens("y"); df2 = set(df, l, seed_values); df2.y|}
     "Vector[10, 20, 10]";
 
   test "col_lens set applies element-wise over lists"
@@ -55,7 +55,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|{`a`: 11, `b`: 20}|};
 
   test "modify on DataFrame"
-    {|df = dataframe([[x: 1, y: 3], [x: 2, y: 4]]); lx = col_lens("x"); ly = col_lens("y"); df2 = modify(df, lx, \(v) v .+ 1, ly, \(v) v .* 2); [df2.x, df2.y]|}
+    {|df = to_dataframe([[x: 1, y: 3], [x: 2, y: 4]]); lx = col_lens("x"); ly = col_lens("y"); df2 = modify(df, lx, \(v) v .+ 1, ly, \(v) v .* 2); [df2.x, df2.y]|}
     "[Vector[2, 3], Vector[6, 8]]";
 
   (* 5. Pipeline Lenses *)
@@ -97,7 +97,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "[10, 99, 30]";
 
   test "idx_lens on Vector (manual call)"
-    {|v = select(dataframe([[a: 1, b: 2], [a: 3, b: 4]]), $a); l = idx_lens(0); set(v, l, 5)|}
+    {|v = select(to_dataframe([[a: 1, b: 2], [a: 3, b: 4]]), $a); l = idx_lens(0); set(v, l, 5)|}
     "Vector[5, 3]";
 
   test "idx_lens get out of bounds"
@@ -105,11 +105,11 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|Error(IndexError: "Index 5 is out of bounds for List of length 3.")|};
 
   test "row_lens on DataFrame"
-    {|df = dataframe([[x: 1, y: 3], [x: 2, y: 4]]); l = row_lens(0); set(df, l, [x: 10, y: 20]).x|}
+    {|df = to_dataframe([[x: 1, y: 3], [x: 2, y: 4]]); l = row_lens(0); set(df, l, [x: 10, y: 20]).x|}
     "Vector[10, 2]";
 
   test "row_lens set adds missing columns and fills unspecified values with NA"
-    {|df = dataframe([[x: 1, y: 3], [x: 2, y: 4]]); df2 = set(df, row_lens(0), [x: 10, z: 99]); updated_row = get(df2, row_lens(0)); [updated_row.x, updated_row.y, updated_row.z]|}
+    {|df = to_dataframe([[x: 1, y: 3], [x: 2, y: 4]]); df2 = set(df, row_lens(0), [x: 10, z: 99]); updated_row = get(df2, row_lens(0)); [updated_row.x, updated_row.y, updated_row.z]|}
     "[10, NA, 99]";
 
   test "filter_lens on List"
@@ -117,7 +117,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "[1, 2, 0, 0]";
 
   test "filter_lens on DataFrame"
-    {|df = dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); l = filter_lens(\(r) r.x > 1); set(df, l, [x: 0, y: 0]).y|}
+    {|df = to_dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); l = filter_lens(\(r) r.x > 1); set(df, l, [x: 0, y: 0]).y|}
     "Vector[10, 0, 0]";
 
   test "filter_lens get on Pipeline metadata"
@@ -125,11 +125,11 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "1";
 
   test "filter_lens set with Vector replacement"
-    {|df = dataframe([a: [1, 2, 3, 4]]); v = pull(df, "a"); replacement_values = pull(dataframe([a: [20, 30]]), "a"); set(v, filter_lens(\(x) x > 2), replacement_values)|}
+    {|df = to_dataframe([a: [1, 2, 3, 4]]); v = pull(df, "a"); replacement_values = pull(to_dataframe([a: [20, 30]]), "a"); set(v, filter_lens(\(x) x > 2), replacement_values)|}
     "Vector[1, 2, 20, 30]";
 
   test "filter_lens set with DataFrame replacement"
-    {|df = dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); replacement_rows = dataframe([[x: 20, y: 200], [x: 30, y: 300]]); df2 = set(df, filter_lens(\(r) r.x > 1), replacement_rows); df2.y|}
+    {|df = to_dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); replacement_rows = to_dataframe([[x: 20, y: 200], [x: 30, y: 300]]); df2 = set(df, filter_lens(\(r) r.x > 1), replacement_rows); df2.y|}
     "Vector[10, 200, 300]";
 
   test "filter_lens set on Pipeline"
@@ -142,7 +142,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "[1, 2, 30, 40]";
 
   test "compose(filter_lens, col_lens) on DataFrame"
-    {|df = dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); lf = filter_lens(\(r) r.x > 1); ly = col_lens("y"); l = compose(lf, ly); df2 = over(df, l, \(v) v .* 2); df2.y|}
+    {|df = to_dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); lf = filter_lens(\(r) r.x > 1); ly = col_lens("y"); l = compose(lf, ly); df2 = over(df, l, \(v) v .* 2); df2.y|}
     "Vector[10, 40, 60]";
 
   test "filter_lens predicate must return Bool"
@@ -158,11 +158,11 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|Error(TypeError: "filter_lens set on List: replacement has 1 elements but 2 were matched")|};
 
   test "filter_lens vector replacement length mismatch"
-    {|df = dataframe([a: [1, 2, 3, 4]]); v = pull(df, "a"); repl = pull(dataframe([a: [10]]), "a"); set(v, filter_lens(\(x) x > 2), repl)|}
+    {|df = to_dataframe([a: [1, 2, 3, 4]]); v = pull(df, "a"); repl = pull(to_dataframe([a: [10]]), "a"); set(v, filter_lens(\(x) x > 2), repl)|}
     {|Error(TypeError: "filter_lens set on Vector: replacement has 1 elements but 2 were matched")|};
 
-  test "filter_lens dataframe replacement length mismatch"
-    {|df = dataframe([[x: 1], [x: 2], [x: 3]]); repl = dataframe([[x: 10]]); set(df, filter_lens(\(r) r.x > 1), repl)|}
+  test "filter_lens to_dataframe replacement length mismatch"
+    {|df = to_dataframe([[x: 1], [x: 2], [x: 3]]); repl = to_dataframe([[x: 10]]); set(df, filter_lens(\(r) r.x > 1), repl)|}
     {|Error(TypeError: "filter_lens set on DataFrame: replacement has 1 rows but 2 were matched")|};
 
   test "filter_lens rejects non-collections"
@@ -187,15 +187,15 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   test "package_info lens functions"
     {|length(package_info("lens").functions)|}
-    "12";
+    "13";
 
-  (* 8. Regression Tests (Avoid core get/sym overrides/missing) *)
+  (* 8. Regression Tests (Avoid core get/to_symbol overrides/missing) *)
   test "regression: core get(string) lookup"
     {|my_var = 100; get("my_var")|}
     "100";
 
-  test "regression: core sym(string)"
-    {|type(sym("hello"))|}
+  test "regression: core to_symbol(string)"
+    {|type(to_symbol("hello"))|}
     {|"Symbol"|};
 
   test "regression: get(list, index) fallback"
@@ -244,7 +244,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   (* 13. Deeply nested col_lens recursive mapping *)
   test "col_lens recursive mapping on nested list of vectors"
-    {|df = dataframe([x: [1, 2], y: [10, 20]]); df_list = [df, df]; l = compose(idx_lens(1), col_lens("x")); get(df_list, l)|}
+    {|df = to_dataframe([x: [1, 2], y: [10, 20]]); df_list = [df, df]; l = compose(idx_lens(1), col_lens("x")); get(df_list, l)|}
     "Vector[1, 2]";
 
   test "col_lens over recursive mapping on list of dicts"
@@ -273,7 +273,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "20";
 
   test "get(vector, oob_index, default) returns default"
-    {|v = pull(dataframe([x: [1, 2, 3]]), "x"); get(v, 99, -1)|}
+    {|v = pull(to_dataframe([x: [1, 2, 3]]), "x"); get(v, 99, -1)|}
     "-1";
 
   test "get(ndarray, valid_index, default) returns the element"

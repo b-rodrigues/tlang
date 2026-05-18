@@ -36,8 +36,8 @@ let test name input expected =
 let () =
   Printf.printf "\n=== Arrow Native Validation ===\n\n";
 
-  Test_arrow_integration.run_tests pass_count fail_count eval_string eval_string_env test;
-  Test_arrow_performance.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_arrow_integration.run_tests pass_count fail_count (ref []) eval_string eval_string_env test;
+  Test_arrow_performance.run_tests pass_count fail_count (ref []) eval_string eval_string_env test;
 
   let total = !pass_count + !fail_count in
   Printf.printf "=== Results: %d/%d passed ===\n" !pass_count total;

@@ -1,4 +1,4 @@
-# str_string
+# to_string
 
 Convert to string
 
@@ -16,7 +16,7 @@ The string representation.
 ## Examples
 
 ```t
-str_string(123)
+to_string(123)
 -- Returns = "123"
 ```
 

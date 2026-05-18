@@ -5,6 +5,9 @@ open Package_types
 
 (* --- Utility Helpers --- *)
 
+(** Recursively create directories (like mkdir -p).
+    
+    @param path The target directory path. *)
 let create_dir path =
   if not (Sys.file_exists path) then
     let rec mkdir_p dir =
@@ -16,31 +19,60 @@ let create_dir path =
     in
     mkdir_p path
 
+(** Write text content to a file, overwriting it if it already exists.
+    
+    @param path The destination file path.
+    @param content The text content to write. *)
 let write_file path content =
   let ch = open_out path in
   output_string ch content;
   close_out ch
 
+let discover_agents_dir () =
+  let is_existing_dir p = Sys.file_exists p && Sys.is_directory p in
+  match Sys.getenv_opt "TLANG_AGENTS_DIR" with
+  | Some d when is_existing_dir d -> Some d
+  | _ ->
+      let exe_dir = Filename.dirname Sys.executable_name in
+      let share_dir = Filename.concat (Filename.dirname exe_dir) "share/tlang/agents" in
+      if is_existing_dir "agents" then Some "agents"
+      else if is_existing_dir share_dir then Some share_dir
+      else None
+
+let copy_text_file src_path dest_path =
+  try
+    let ic = open_in src_path in
+    Fun.protect
+      ~finally:(fun () -> close_in_noerr ic)
+      (fun () ->
+         let content = really_input_string ic (in_channel_length ic) in
+         let oc = open_out dest_path in
+         Fun.protect
+           ~finally:(fun () -> close_out_noerr oc)
+           (fun () -> output_string oc content));
+    true
+  with exn ->
+    Printf.eprintf "Warning: Could not copy '%s' to '%s': %s\n"
+      src_path dest_path (Printexc.to_string exn);
+    false
+
+(** Initialize a git repository in the specified directory.
+    
+    @param dir The target directory path. *)
 let git_init dir =
   let cmd = Printf.sprintf "git init %s" (Filename.quote dir) in
   let code = Sys.command cmd in
   if code <> 0 then
     Printf.eprintf "Warning: git init failed (exit code %d)\n" code
 
+(** Copy AI agent MD files (AGENTS.md and T-LANGUAGE-REFERENCE.md) to the target directory.
+    
+    @param dir The destination directory.
+    @param is_package [true] for package setups, [false] for projects.
+    @param context The context level ("small", "medium", "full", "huge").
+    @return [true] if successful, [false] otherwise. *)
 let copy_agent_files dir is_package context =
-  (* Locate agents directory.
-     In a development environment, it's in the repo root.
-     In a Nix installation, it might be in a share directory. *)
-  let agents_dir =
-    match Sys.getenv_opt "TLANG_AGENTS_DIR" with
-    | Some d -> d
-    | None ->
-        let exe_dir = Filename.dirname Sys.executable_name in
-        let share_dir = Filename.concat (Filename.dirname exe_dir) "share/tlang/agents" in
-        if Sys.file_exists "agents" && Sys.is_directory "agents" then "agents"
-        else if Sys.file_exists share_dir && Sys.is_directory share_dir then share_dir
-        else "agents" (* Fallback to local *)
-  in
+  let agents_dir_opt = discover_agents_dir () in
   let agents_template = if is_package then "agents-package.md" else "agents-project.md" in
   let ref_template =
     match String.lowercase_ascii context with
@@ -50,16 +82,16 @@ let copy_agent_files dir is_package context =
     | _ -> "t-reference-medium.md"
   in
   let cp src dest =
-    let src_path = Filename.concat agents_dir src in
-    if Sys.file_exists src_path then begin
-      let ic = open_in src_path in
-      let content = really_input_string ic (in_channel_length ic) in
-      close_in ic;
-      let oc = open_out (Filename.concat dir dest) in
-      output_string oc content;
-      close_out oc;
-      true
-    end else false
+    match agents_dir_opt with
+    | None -> false
+    | Some agents_dir ->
+        let src_path = Filename.concat agents_dir src in
+        let dest_path = Filename.concat dir dest in
+        if Sys.file_exists src_path then copy_text_file src_path dest_path
+        else begin
+          Printf.eprintf "Warning: Agent template not found: %s\n" src_path;
+          false
+        end
   in
   let agents_ok = cp agents_template "AGENTS.md" in
   let ref_ok = cp ref_template "T-LANGUAGE-REFERENCE.md" in
@@ -71,23 +103,22 @@ let copy_agent_files dir is_package context =
     close_out out;
     true
   end else begin
-    if not (Sys.file_exists agents_dir) then
-      Printf.eprintf "Warning: agents directory not found at '%s'. Skipping AGENTS.md creation.\n" agents_dir;
+    Printf.eprintf "Warning: Could not create AGENTS.md or T-LANGUAGE-REFERENCE.md from installed/local templates.\n";
     false
   end
 
 let default_tlang_tag = "v" ^ Version.version
 
-(* Strip the "v" prefix from a tag to get a plain version number. *)
+(** Strip the "v" prefix from a tag to get a plain version number. *)
 let strip_v_prefix tag =
   if String.starts_with ~prefix:"v" tag then
     String.sub tag 1 (String.length tag - 1)
   else
     tag
 
-(* Validate and sanitize a tag string to ensure it only contains safe characters.
-   This prevents potential code injection when the tag is used in templates.
-   Only allows alphanumeric characters, dots, hyphens, and the "v" prefix. *)
+(** Validate and sanitize a tag string to ensure it only contains safe characters.
+    This prevents potential code injection when the tag is used in templates.
+    Only allows alphanumeric characters, dots, hyphens, and the "v" prefix. *)
 let sanitize_tag tag =
   let is_safe_char c =
     (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -100,11 +131,11 @@ let sanitize_tag tag =
   in
   if check 0 then tag else default_tlang_tag
 
-(* Parse a semantic version tag.
-   This parser handles basic semver tags (vX.Y.Z or X.Y.Z) but does NOT handle
-   pre-release versions (e.g., "v1.0.0-alpha") or build metadata (e.g., "v1.0.0+build123").
-   Tags with hyphens or plus signs will be silently ignored.
-   See https://semver.org/spec/v2.0.0.html for the full semver specification. *)
+(** Parse a semantic version tag.
+    This parser handles basic semver tags (vX.Y.Z or X.Y.Z) but does NOT handle
+    pre-release versions (e.g., "v1.0.0-alpha") or build metadata (e.g., "v1.0.0+build123").
+    Tags with hyphens or plus signs will be silently ignored.
+    See https://semver.org/spec/v2.0.0.html for the full semver specification. *)
 let parse_semver tag =
   let without_v =
     if String.starts_with ~prefix:"v" tag then String.sub tag 1 (String.length tag - 1)
@@ -126,6 +157,9 @@ let parse_semver tag =
       end
   | _ -> None
 
+(** Compare two parsed semantic version triples.
+    
+    @return Negative if a < b, zero if a = b, positive if a > b. *)
 let compare_semver (a_ma, a_mi, a_pa) (b_ma, b_mi, b_pa) =
   match compare a_ma b_ma with
   | 0 ->
@@ -135,6 +169,9 @@ let compare_semver (a_ma, a_mi, a_pa) (b_ma, b_mi, b_pa) =
       end
   | c -> c
 
+(** Retrieve the latest tag from the remote T-Lang GitHub repository.
+    
+    @return The latest version tag string, or [default_tlang_tag] on failure. *)
 let latest_tlang_tag () =
   let cmd = "git ls-remote --tags https://github.com/b-rodrigues/tlang.git" in
   let ic = Unix.open_process_in cmd in
@@ -403,6 +440,7 @@ assert(result == "Hello, world!")
 let project_tproject_toml = {|[project]
 name = "{{name}}"
 description = "A T data analysis project"
+authors = ["{{author}}"]
 
 [dependencies]
 # T packages this project depends on
@@ -418,14 +456,22 @@ packages = []
 
 [py-dependencies]
 # Python packages this project depends on
-version = "python314"
+# version = "python314"
 # Example:
 # packages = ["pandas", "numpy"]
 packages = []
 
+[jl-dependencies]
+# Julia packages this project depends on
+# version = "lts"
+# Example:
+# packages = ["DataFrames", "CSV"]
+packages = []
+
 [visualization-tool]
 # Optional plot opener used by `show_plot()`
-# Example: command = "xdg-open"
+# Example:
+# command = "xdg-open"
 command = ""
 
 [additional-tools]
@@ -443,6 +489,10 @@ packages = []
 [t]
 # Minimum T language version required
 min_version = "{{tlang_version}}"
+
+[license]
+# Project license acronym
+name = "{{license}}"
 |}
 
 (* project_flake_nix is generated dynamically by Nix_generator.generate_project_flake
@@ -559,6 +609,9 @@ print("Hello from {{name}} pipeline!")
    repeated network calls to latest_tlang_tag on every scaffold operation. *)
 let resolved_tlang_tag_cache : string option ref = ref None
 
+(** Resolve the T language tag to use for scaffolding (caching result).
+    
+    @return The version tag to target in generated Nix files. *)
 let resolve_tlang_tag () =
   match !resolved_tlang_tag_cache with
   | Some tag -> tag
@@ -570,6 +623,19 @@ let resolve_tlang_tag () =
       let tag = sanitize_tag default_tlang_tag in
       resolved_tlang_tag_cache := Some tag;
       tag
+
+let write_license_file dir license =
+  let dest_path = Filename.concat dir "LICENSE" in
+  (* Try to fetch from SPDX License List repo on GitHub *)
+  let url = Printf.sprintf "https://raw.githubusercontent.com/spdx/license-list-data/main/text/%s.txt" license in
+  let cmd = Printf.sprintf "curl -s -f -L -o %S %S" dest_path url in
+  if Sys.command cmd = 0 then
+    true
+  else begin
+    (* Fallback if curl/download fails *)
+    write_file dest_path (Printf.sprintf "Licensed under %s\n\nSee https://spdx.org/licenses/%s.html for full text.\n" license license);
+    false
+  end
 
 (*
 --# Scaffold a new T package
@@ -612,7 +678,7 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
       write_file (Filename.concat dir "flake.nix") (sub package_flake_nix);
       write_file (Filename.concat dir "README.md") (sub package_readme);
       write_file (Filename.concat dir "CHANGELOG.md") (sub package_changelog);
-      write_file (Filename.concat dir "LICENSE") (Printf.sprintf "Licensed under %s\n\nSee https://spdx.org/licenses/%s.html for full text.\n" opts.license opts.license);
+      let _ = write_license_file dir opts.license in
       write_file (Filename.concat dir ".gitignore") package_gitignore;
       write_file (Filename.concat dir "src/main.t") (sub package_src_example);
       write_file (Filename.concat dir (Printf.sprintf "tests/test-%s.t" opts.target_name)) (sub package_test_example);
@@ -652,12 +718,22 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
 (* Interactive Prompts                                              *)
 (* ================================================================ *)
 
+(** Prompt the user in the CLI for a string value with a default fallback.
+    
+    @param label The label to show the user.
+    @param default The default value if the user enters nothing.
+    @return The entered string or the default. *)
 let prompt_string label default =
   Printf.printf "%s [%s]: " label default;
   flush stdout;
   let line = try read_line () with End_of_file -> "" in
   if String.trim line = "" then default else String.trim line
 
+(** Prompt for and build a scaffold_options structure interactively.
+    
+    @param placeholder Optional placeholder package/project name.
+    @param default_name Default name to start with.
+    @return The configured [scaffold_options]. *)
 let interactive_init ?(placeholder="my_package") default_name =
   Printf.printf "\nInitializing new T package/project...\n";
   let name = if default_name = "" then prompt_string "Name" placeholder else default_name in
@@ -665,6 +741,7 @@ let interactive_init ?(placeholder="my_package") default_name =
   let license = prompt_string "License [EUPL-1.2, GPL-3.0-or-later, MIT] (visit https://spdx.org/licenses/ for all licenses)" "EUPL-1.2" in
   let nixpkgs_date = prompt_string "Nixpkgs date (rstats-on-nix branch)" Version.nixpkgs_date in
   let agent_context = prompt_string "Agent Context Level [small, medium, full, huge]" "medium" in
+  let pipeline_template = prompt_string "Pipeline Template [minimal, full]" "minimal" in
   Printf.printf "\n";
   {
     target_name = name;
@@ -675,7 +752,31 @@ let interactive_init ?(placeholder="my_package") default_name =
     force = false;
     interactive = true;
     agent_context = agent_context;
+    pipeline_template = pipeline_template;
   }
+
+(** Copies or downloads the archetypical pipeline template if complete, or writes the default minimal pipeline *)
+let write_project_pipeline dir (opts : scaffold_options) sub =
+  let dest_path = Filename.concat dir "src/pipeline.t" in
+  if opts.pipeline_template = "full" then begin
+    match discover_agents_dir () with
+    | Some agents_dir ->
+        let src_path = Filename.concat agents_dir "archetypical_pipeline.t" in
+        if Sys.file_exists src_path then
+          copy_text_file src_path dest_path
+        else begin
+          Printf.eprintf "Warning: Full pipeline template not found at %s. Falling back to minimal template.\n" src_path;
+          write_file dest_path (sub project_pipeline_example);
+          false
+        end
+    | None ->
+        Printf.eprintf "Warning: Could not find agents directory. Falling back to minimal template.\n";
+        write_file dest_path (sub project_pipeline_example);
+        false
+  end else begin
+    write_file dest_path (sub project_pipeline_example);
+    true
+  end
 
 (*
 --# Scaffold a new T project
@@ -720,8 +821,9 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         ~deps:[] () in
       write_file (Filename.concat dir "flake.nix") flake_content;
       write_file (Filename.concat dir "README.md") (sub project_readme);
+      let _ = write_license_file dir opts.license in
       write_file (Filename.concat dir ".gitignore") project_gitignore;
-      write_file (Filename.concat dir "src/pipeline.t") (sub project_pipeline_example);
+      let _ = write_project_pipeline dir opts sub in
       (* Agent files *)
       let _ = copy_agent_files dir false opts.agent_context in
       (* Git init *)
@@ -732,6 +834,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       Printf.printf "  ├── tproject.toml\n";
       Printf.printf "  ├── flake.nix\n";
       Printf.printf "  ├── README.md\n";
+      Printf.printf "  ├── LICENSE\n";
       Printf.printf "  ├── .gitignore\n";
       Printf.printf "  ├── src/\n";
       Printf.printf "  │   └── pipeline.t\n";
@@ -758,6 +861,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
   let no_git = ref false in
   let force = ref false in
   let agent_context = ref "medium" in
+  let pipeline_template = ref "minimal" in
   let show_help = ref false in
   let error = ref None in
   let rec parse = function
@@ -806,6 +910,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
         force = !force;
         interactive = List.mem "--interactive" args;
         agent_context = !agent_context;
+        pipeline_template = !pipeline_template;
       }
     | None ->
         if List.mem "--interactive" args then
@@ -818,6 +923,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
             force = !force;
             interactive = true;
             agent_context = !agent_context;
+            pipeline_template = !pipeline_template;
           }
         else
           Error "Missing name. Usage: t init --package|--project <name>"

@@ -43,12 +43,12 @@
 <li><p><strong>script</strong> (<code>String</code>): (Optional) Path to
 an external <code>.qmd</code> file to render. Mutually exclusive with
 <code>command</code>.</p></li>
-<li><p><strong>serializer</strong> (<code>String | Function</code>):
+<li><p><strong>serializer</strong> (<code>String</code>): | Function
 (Optional) Custom serializer strategy. Built-in values include
 “default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
 unquoted function name. Custom functions can also be used. Default =
 “default”.</p></li>
-<li><p><strong>deserializer</strong> (<code>String | Function</code>):
+<li><p><strong>deserializer</strong> (<code>String</code>): | Function
 (Optional) Custom deserializer strategy. Built-in values include
 “default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
 unquoted function name. Custom functions can also be used. Default =
@@ -61,9 +61,9 @@ Runtime/tool arguments. Use this to pass Quarto CLI arguments such as
 additional options. <code>output_dir</code> is reserved and managed
 automatically so the rendered result is stored as the node
 artifact.</p></li>
-<li><p><strong>functions</strong> (<code>String | List[String]</code>):
+<li><p><strong>functions</strong> (<code>String</code>): | List[String]
 (Optional) Files to source before execution.</p></li>
-<li><p><strong>include</strong> (<code>String | List[String]</code>):
+<li><p><strong>include</strong> (<code>String</code>): | List[String]
 (Optional) Additional files for the sandbox.</p></li>
 <li><p><strong>noop</strong> (<code>Bool</code>): (Optional) Whether to
 skip execution and generate a stub. Default = false.</p></li>
@@ -71,8 +71,8 @@ skip execution and generate a stub. Default = false.</p></li>
 <h2 id="returns">Returns</h2>
 <p>The evaluated return value of the command.</p>
 <h2 id="see-also">See Also</h2>
-<p><a href="node.html">node</a>, <a href="rn.html">rn</a>, <a
-href="pyn.html">pyn</a>, <a href="shn.html">shn</a></p>
+<p><a href="shn.html">shn</a>, <a href="pyn.html">pyn</a>, <a
+href="rn.html">rn</a>, <a href="node.html">node</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

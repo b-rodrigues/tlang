@@ -92,7 +92,8 @@ let package_families = function
   | "strcraft" -> ["strcraft"; "string"]
   | "stats" -> ["stats"; "descriptive-statistics"]
   | "base" -> ["base"; "json"; "serialization"]
-  | "math" | "colcraft" | "dataframe" | "pipeline" | "explain" | "chrono" | "lens" as pkg -> [pkg]
+  | "to_dataframe" | "dataframe" -> ["dataframe"; "to_dataframe"]
+  | "math" | "colcraft" | "pipeline" | "explain" | "chrono" | "lens" as pkg -> [pkg]
   | _ -> []
 
 let dedup_sort_strings xs =
@@ -119,8 +120,8 @@ let core_package = {
   name = "core";
   description = "Core utilities: printing, type inspection, data structures";
   functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get"; "rm";
-               "ifelse"; "identical"; "case_when"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "show_plot"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
-               "sym"; "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
+               "ifelse"; "identical"; "case_when"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "show_plot"; "to_integer"; "to_float"; "to_string"; "to_bool"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
+               "to_symbol"; "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
 }
 
 let strcraft_package = {
@@ -128,15 +129,15 @@ let strcraft_package = {
   description = "String inspection, transformation, and formatting";
   functions = ["str_nchar"; "is_empty"; "str_substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with";
                "str_replace"; "replace_first"; "to_lower"; "to_upper"; "str_trim"; "trim_start"; "trim_end"; "str_lines"; "str_words"; "str_repeat";
-               "str_format"; "str_extract"; "str_extract_all"; "str_detect"; "str_pad"; "str_trunc"; "str_flatten"; "str_count";
-               "str_sprintf"; "str_join"; "str_string"; "str_split"];
+               "str_format"; "str_extract"; "str_extract_all"; "str_detect"; "str_pad"; "str_trunc"; "str_flatten";
+               "str_count"; "str_sprintf"; "str_join"; "str_split"];
 }
 
 let stats_package = {
   name = "stats";
   description = "Statistical summaries and models";
   functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
-               "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "augment"; "score";
+               "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "add_diagnostics"; "score"; "deviance";
                "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"; "compare_native_vs_pmml_scores"];
 }
 
@@ -147,7 +148,7 @@ let colcraft_package = {
                "n"; "n_distinct";
                "ntile"; "dense_rank"; "row_number"; "min_rank"; "cume_dist"; "percent_rank";
                "lag"; "lead"; "cumany"; "cumall"; "cummax"; "cummin"; "cummean"; "cumsum";
-               "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"; "factor"; "as_factor"; "fct"; "fct_infreq"; "fct_reorder"; "fct_relevel"; "fct_rev"; "fct_recode"; "fct_collapse"; "fct_lump_n"; "fct_lump_min"; "fct_lump_prop"; "fct_other"; "fct_drop"; "fct_expand"; "fct_c"; "levels"; "ordered";
+               "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"; "to_factor"; "fct"; "fct_infreq"; "fct_reorder"; "fct_relevel"; "fct_rev"; "fct_recode"; "fct_collapse"; "fct_lump_n"; "fct_lump_min"; "fct_lump_prop"; "fct_other"; "fct_drop"; "fct_expand"; "fct_c"; "levels"; "ordered";
                "rename"; "relocate"; "starts_with"; "ends_with"; "contains"; "everything"; "where"; "matches"; "all_of"; "any_of"; "is_numeric"; "is_character"; "is_logical"; "is_factor"; "distinct"; "slice"; "slice_max"; "slice_min"; "count";
                "left_join"; "inner_join"; "full_join"; "semi_join"; "anti_join"; "bind_rows"; "bind_cols";
                "nest"; "unnest"; "separate_rows"; "uncount"];
@@ -156,7 +157,7 @@ let colcraft_package = {
 let math_package = {
   name = "math";
   description = "Pure numerical primitives";
-  functions = ["sqrt"; "abs"; "log"; "exp"; "pow"; "ndarray"; "shape"; "reshape"; "matmul"; "diag"; "inv"; "kron"; "transpose"; "cbind"; "iota"];
+  functions = ["sqrt"; "abs"; "log"; "exp"; "pow"; "ndarray"; "shape"; "reshape"; "matmul"; "diag"; "inv"; "kron"; "transpose"; "cbind"; "iota"; "floor"; "ceiling"; "trunc"; "round"; "sign"; "signif"];
 }
 
 let base_package = {
@@ -172,11 +173,11 @@ let chrono_package = {
     "ymd"; "mdy"; "dmy"; "ydm";
     "ymd_h"; "ymd_hm"; "ymd_hms"; "mdy_hms"; "dmy_hms";
     "parse_date"; "parse_datetime"; "today"; "now";
-    "year"; "month"; "day"; "mday"; "yday"; "wday"; "week"; "isoweek"; "isoyear"; "quarter"; "semester";
+    "year"; "month"; "day"; "yday"; "wday"; "week"; "isoweek"; "isoyear"; "quarter"; "semester";
     "hour"; "minute"; "second"; "tz";
     "years"; "months"; "weeks"; "days"; "hours"; "minutes"; "seconds"; "milliseconds"; "microseconds"; "nanoseconds";
     "make_period"; "period_years"; "period_months"; "period_days"; "period_hours"; "period_minutes"; "period_seconds";
-    "format_date"; "format_datetime"; "as_date"; "as_datetime"; "interval";
+    "format_date"; "format_datetime"; "to_date"; "to_datetime"; "interval";
     "is_date"; "is_datetime"; "is_period"; "is_duration"; "is_interval";
     "floor_date"; "ceiling_date"; "round_date"; "with_tz"; "force_tz"; "%within%"; "is_leap_year"; "days_in_month";
   ];
@@ -185,7 +186,7 @@ let chrono_package = {
 let dataframe_package = {
   name = "dataframe";
   description = "DataFrame creation and introspection";
-  functions = ["dataframe"; "read_csv"; "read_parquet"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_arrow"; "write_arrow"];
+  functions = ["to_dataframe"; "read_csv"; "read_parquet"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_arrow"; "write_arrow"];
 }
 
 let pipeline_package = {
@@ -340,12 +341,12 @@ let register env =
 --# Evaluates a series of `condition ~ value` formulas sequentially.
 --# Returns the value corresponding to the first true condition for each element.
 --#
---# @name casewhen
+--# @name case_when
 --# @param ... :: Formula One or more formulas of the form `condition ~ value`.
 --# @param .default :: Any (Optional) Value to return if no condition matches. Defaults to NA.
 --# @return :: Vector[Any] A vector of the matched values.
 --# @example
---#   casewhen(
+--#   case_when(
 --#     x > 0 ~ "Positive",
 --#     x < 0 ~ "Negative",
 --#     .default = "Zero"
@@ -353,7 +354,7 @@ let register env =
 --# @family boolean
 --# @export
 *)
-  let env = Env.add "casewhen" (make_builtin_named ~name:"casewhen" ~variadic:true 0 (T_boolean.casewhen Eval.eval_expr_immutable)) env in
+  let env = Env.add "case_when" (make_builtin_named ~name:"case_when" ~variadic:true 0 (T_boolean.case_when Eval.eval_expr_immutable)) env in
 
 (*
 --# Evaluate a quoted expression or quosure
@@ -383,47 +384,47 @@ let register env =
 --# Captures the provided expression as an Expr object without evaluating it.
 --# Useful for metaprogramming, quotation, and custom evaluation.
 --#
---# @name expr
+--# @name to_expr
 --# @param x :: Any The expression to capture.
 --# @return :: Expr The captured expression object.
 --# @example
---#   e = expr(1 + 2)
+--#   e = to_expr(1 + 2)
 --#   eval(e)
 --# @family core
 --# @export
 *)
-  let env = Env.add "expr"
-    (make_builtin ~name:"expr" 1 (fun args _env ->
+  let env = Env.add "to_expr"
+    (make_builtin ~name:"to_expr" 1 (fun args _env ->
       (* Evaluator special form handles the actual capture. 
          This builtin is for reflection/environment presence. *)
       match args with
       | [VExpr _ as e] -> e
       | [v] -> VExpr (Ast.mk_expr (Value v))
-      | _ -> Error.arity_error_named "expr" 1 (List.length args)
+      | _ -> Error.arity_error_named "to_expr" 1 (List.length args)
     ))
-    env
-  in
+    env in
+
 
 (*
 --#
---# @name exprs
+--# @name to_exprs
 --# @param ... :: Any One or more expressions to capture.
 --# @return :: List[Expr] A list of captured expressions.
 --# @example
---#   exprs(1 + 1, x = 2 * 2)
+--#   to_exprs(1 + 1, x = 2 * 2)
 --# @family core
 --# @export
 *)
-  let env = Env.add "exprs"
-    (make_builtin_named ~name:"exprs" ~variadic:true 0 (fun args _env ->
+  let env = Env.add "to_exprs"
+    (make_builtin_named ~name:"to_exprs" ~variadic:true 0 (fun args _env ->
       VList (List.map (fun (name, v) -> 
         match v with
         | VExpr _ -> (name, v)
         | _ -> (name, VExpr (Ast.mk_expr (Value v)))
       ) args)
     ))
-    env
-  in
+    env in
+
 
 (*
 --# Capture an expression with its lexical environment (quosure)
@@ -495,7 +496,7 @@ let register env =
 --# @example
 --#   my_select = \(df: DataFrame, col: Any -> DataFrame) {
 --#     col_expr = enquo(col)
---#     eval(expr(df |> select(!!col_expr)))
+--#     eval(to_expr(df |> select(!!col_expr)))
 --#   }
 --#   my_select(iris, $Sepal.Length)
 --# @family core
@@ -521,7 +522,7 @@ let register env =
 --# @example
 --#   my_summarize = \(df: DataFrame, ... -> DataFrame) {
 --#     cols = enquos(...)
---#     eval(expr(df |> summarize(!!!cols)))
+--#     eval(to_expr(df |> summarize(!!!cols)))
 --#   }
 --#   my_summarize(iris, mean_sep = mean($Sepal.Length))
 --# @family core
@@ -743,7 +744,7 @@ let init_env () =
 --# @name clean_colnames
 --# @param x :: DataFrame | List[String] The object with names to clean.
 --# @return :: DataFrame | List[String] The object with cleaned names.
---# @family dataframe
+--# @family to_dataframe
 --# @seealso colnames
 --# @export
 *)
@@ -844,7 +845,6 @@ let init_env () =
   let env = Round.register env in
   let env = Floor.register env in
   let env = Ceiling.register env in
-  let env = Ceil.register env in
   let env = Trunc.register env in
   let env = Sign.register env in
   let env = Signif.register env in
@@ -874,7 +874,6 @@ let init_env () =
   let env = T_score_pmml.register env in
   let env = T_read_onnx.register env in
   let env = Fit_stats.register env in
-  let env = Add_diagnostics.register env in
   let env = Summary.register env in
   let env = Min.register env in
   let env = Max.register env in
@@ -905,7 +904,7 @@ let init_env () =
   let env = Vcov.register env in
   let env = Compare.register env in
   let env = Residuals.register env in
-  let env = Augment.register env in
+  let env = Add_diagnostics.register env in
   let env = Score.register env in
   let env = Anova.register env in
   let env = Basis.register env in

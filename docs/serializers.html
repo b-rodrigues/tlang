@@ -89,19 +89,19 @@ specific wrapper used (e.g., <code>shn()</code> defaults to
 <td><code>^onnx</code></td>
 <td>ONNX</td>
 <td>ML Models</td>
-<td>T, R, Python</td>
+<td>T, R, Python, Julia (read/inference)</td>
 </tr>
 <tr>
 <td><code>^json</code></td>
 <td>JSON</td>
 <td>Config, lists, dicts</td>
-<td>T, R, Python</td>
+<td>T, R, Python, Julia</td>
 </tr>
 <tr>
 <td><code>^csv</code></td>
 <td>CSV</td>
 <td>Tabular data</td>
-<td>T, R, Python</td>
+<td>T, R, Python, Julia</td>
 </tr>
 <tr>
 <td><code>^text</code></td>
@@ -203,6 +203,11 @@ Python scripts have the necessary libraries loaded to handle that
 format. You can do this by adding the libraries to your
 <code>tproject.toml</code> or using the <code>functions</code> /
 <code>includes</code> parameters in the node definition.</p>
+<p>For ONNX specifically, Julia nodes read model artifacts through
+<code>ONNXRunTime.jl</code> via the built-in <code>jl_read_onnx()</code>
+helper. Julia ONNX export is not supported yet, so
+<code>jl_write_onnx()</code> fails explicitly instead of silently
+falling back to another format.</p>
 <p>For more information on how pipelines use these serializers, see the
 <a href="pipeline_tutorial.html">Pipeline Tutorial</a>. For a
 model-focused walkthrough of <code>^pmml</code>, see the <a

@@ -6,9 +6,9 @@ Composable functional lenses for nested data structures.
 
 | Function | Description |
 |----------|-------------|
-| `col_lens(name)` | Focus on a dict key or dataframe column |
+| `col_lens(name)` | Focus on a dict key or to_dataframe column |
 | `idx_lens(i)` | Focus on a list/vector index |
-| `row_lens(i)` | Focus on a dataframe row |
+| `row_lens(i)` | Focus on a to_dataframe row |
 | `filter_lens(p)` | Focus on elements matching a predicate |
 | `node_lens(name)` | Focus on a pipeline node's result |
 | `compose(...)` | Combine multiple lenses |
@@ -20,7 +20,7 @@ Composable functional lenses for nested data structures.
 ## Examples
 
 ```t
-df = dataframe([a: [1, 2], b: [3, 4]])
+df = to_dataframe([a: [1, 2], b: [3, 4]])
 
 -- Extract column
 get(df, col_lens("a"))       -- [1, 2]

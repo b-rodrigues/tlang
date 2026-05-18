@@ -1,5 +1,5 @@
 
-let run_tests pass_count fail_count eval_string _eval_string_env test =
+let run_tests pass_count fail_count _failures eval_string _eval_string_env test =
   Printf.printf "Phase 1 — Structured Errors:\n";
   test "error() constructor" {|error("something went wrong")|} {|Error(GenericError: "something went wrong")|};
   test "error() with code" {|error("TypeError", "expected Int")|} {|Error(TypeError: "expected Int")|};

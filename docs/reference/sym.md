@@ -1,4 +1,4 @@
-# sym
+# to_symbol
 
 Convert a string to a Symbol
 
@@ -6,7 +6,7 @@ Creates a Symbol from a string so it can be injected into quoted code with `!!`.
 
 ## Parameters
 
-- **x** (`String | Symbol`): The name to convert.
+- **x** (`String`): | Symbol The name to convert.
 
 
 ## Returns
@@ -16,6 +16,7 @@ The resulting symbol.
 ## Examples
 
 ```t
-sym("mpg")
-expr(select(df, !!sym("mpg")))
+to_symbol("mpg")
+to_expr(select(df, !!to_symbol("mpg")))
 ```
+

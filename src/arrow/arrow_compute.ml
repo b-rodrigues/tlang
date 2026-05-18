@@ -284,21 +284,49 @@ let column_binary_op_to_table (t : Arrow_table.t) (col1 : string) (col2 : string
        | Some col_data -> Some (add_computed_column t result_name col_data)
        | None -> None)
 
+(** Add two columns element-wise and append the result column to the table.
+    
+    @param t The input table.
+    @param col1 The first column name.
+    @param col2 The second column name.
+    @param result_name The name of the appended result column.
+    @return [Some new_table] or [None] on failure. *)
 let add_columns_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
     (result_name : string) : Arrow_table.t option =
   column_binary_op_to_table t col1 col2 result_name
     Arrow_ffi.arrow_compute_add_columns add_columns
 
+(** Multiply two columns element-wise and append the result column to the table.
+    
+    @param t The input table.
+    @param col1 The first column name.
+    @param col2 The second column name.
+    @param result_name The name of the appended result column.
+    @return [Some new_table] or [None] on failure. *)
 let multiply_columns_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
     (result_name : string) : Arrow_table.t option =
   column_binary_op_to_table t col1 col2 result_name
     Arrow_ffi.arrow_compute_multiply_columns multiply_columns
 
+(** Subtract two columns element-wise and append the result column to the table.
+    
+    @param t The input table.
+    @param col1 The first column name.
+    @param col2 The second column name.
+    @param result_name The name of the appended result column.
+    @return [Some new_table] or [None] on failure. *)
 let subtract_columns_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
     (result_name : string) : Arrow_table.t option =
   column_binary_op_to_table t col1 col2 result_name
     Arrow_ffi.arrow_compute_subtract_columns subtract_columns
 
+(** Divide two columns element-wise and append the result column to the table.
+    
+    @param t The input table.
+    @param col1 The first column name.
+    @param col2 The second column name.
+    @param result_name The name of the appended result column.
+    @return [Some new_table] or [None] on failure. *)
 let divide_columns_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
     (result_name : string) : Arrow_table.t option =
   column_binary_op_to_table t col1 col2 result_name

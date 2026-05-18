@@ -35,8 +35,13 @@
 <div class="container">
 <h1 id="lens">lens</h1>
 <p>Lens Library</p>
-<p>Lenses provide a way to get and set values in nested structures.
-Supports column-based lenses for DataFrames and Dicts.</p>
+<p>Lenses provide a robust way to focus on, retrieve, and update nested
+data structures. Historically implemented as functional closures, Tlang
+lenses are now structured serializable objects (VLens), allowing them to
+be passed across Nix-isolated pipeline boundaries. Retrieval should
+primarily be performed via the unified <code>get(data, lens)</code>
+primitive. Updates are performed via
+<code>over(data, lens, func)</code>.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

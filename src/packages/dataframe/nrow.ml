@@ -10,7 +10,7 @@ open Ast
 --# @return :: Int The number of rows/elements.
 --# @example
 --#   nrow(mtcars)
---# @family dataframe
+--# @family to_dataframe
 --# @seealso ncol, length
 --# @export
 *)

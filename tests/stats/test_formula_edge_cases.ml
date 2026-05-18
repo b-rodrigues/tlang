@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   (* === Formula Edge Cases === *)
   let starts_with s prefix =
     String.length s >= String.length prefix &&
@@ -161,12 +161,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   Printf.printf "Formula Edge Cases — lm() error handling:\n";
 
-  test "lm non-dataframe"
+  test "lm non-to_dataframe"
     {|lm(data = 42, formula = y ~ x)|}
-    {|Error(TypeError: "Function `lm` 'data' must be a DataFrame.")|};
+    {|Error(TypeError: ".*Function `lm` 'data' must be a DataFrame, got Int instead.")|};
   test "lm non-formula"
     {|lm(data = 42, formula = 42)|}
-    {|Error(TypeError: "Function `lm` 'data' must be a DataFrame.")|};
+    {|Error(TypeError: ".*Function `lm` 'data' must be a DataFrame, got Int instead.")|};
   test "lm missing data"
     {|lm(formula = y ~ x)|}
     {|Error(ArityError: "Function `lm` missing required argument 'data'.")|};

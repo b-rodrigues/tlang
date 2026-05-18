@@ -8,7 +8,7 @@
    test: string -> string -> string -> unit
 *)
 
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Phase 7 — Core: String Operations:\n";
   
   Printf.printf "  Inspection:\n";

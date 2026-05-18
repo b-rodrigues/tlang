@@ -14,7 +14,7 @@ T's DataFrame operations are backed by [Apache Arrow](https://arrow.apache.org/)
 - **Hash-based grouping**: `group_by()` operations use Arrow's hash-based grouping when a native handle is present
 
 > [!IMPORTANT]
-> **Current beta improvement**: T now tries to keep DataFrames on the **native Arrow path** after supported structural changes by rebuilding a native Arrow table when the resulting schema is Arrow-builder-compatible. Primitive, dictionary/factor, date, datetime/timestamp, NA-only, and several list-column shapes can now stay native; users should still inspect the active backend explicitly for more complex nested schemas.
+> **Current beta improvement**: T now tries to keep DataFrames on the **native Arrow path** after supported structural changes by rebuilding a native Arrow table when the resulting schema is Arrow-builder-compatible. Primitive, dictionary/to_factor, date, datetime/timestamp, NA-only, and several list-column shapes can now stay native; users should still inspect the active backend explicitly for more complex nested schemas.
 
 ### Dual-Path Architecture
 
@@ -38,7 +38,7 @@ df2 = mutate(df, $ratio = $x / $y)
 explain(df2).storage_backend     -- often still "native_arrow" for supported schemas
 explain(df2).native_path_active  -- true when native backing was preserved
 
-df3 = dataframe([[missing: NA], [missing: NA]])
+df3 = to_dataframe([[missing: NA], [missing: NA]])
 explain(df3).storage_backend     -- "native_arrow" for NA-only schemas
 explain(df3).native_path_active  -- true
 ```

@@ -1,6 +1,6 @@
 # fct_drop
 
-Drop unused factor levels
+Drop unused to_factor levels
 
-Removes levels that are not referenced by any value in the factor vector.
+Removes levels that are not referenced by any value in the to_factor vector.
 

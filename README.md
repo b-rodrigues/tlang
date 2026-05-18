@@ -2,7 +2,7 @@
 
 [![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.51.5%20%22Sangoku%22-blue.svg)](https://tstats-project.org/changelog.html)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.52.0%20%22Kam%C3%A9ham%C3%A9ha%22-blue.svg)](https://tstats-project.org/changelog.html)
 [![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
@@ -16,11 +16,11 @@ The engine is built for seamless interoperability: you can manipulate objects de
 
 ### The Polyglot Orchestrator
 
-T's core strength is its **mandatory pipeline architecture**. It treats R scripts, Python models, and Shell commands as first-class nodes in a directed acyclic graph (DAG). T handles the "glue":
+T's core strength is its **mandatory pipeline architecture**. It treats R scripts, Python models, Julia scripts, and Shell commands as first-class nodes in a directed acyclic graph (DAG). T handles the "glue":
 - **Nix-Powered Sandboxing**: Each node runs in its own reproducible environment.
 - **High-performance Data Transfer**: Move DataFrames between R, Python, and T using Apache Arrow IPC via the Nix store.
 - **Native Model Evaluation**: Train models in R/Python and evaluate them natively in T via PMML (linear models, decision trees, random forests, and boosted trees like **XGBoost** and **LightGBM**).
-- **Model Interchange & Orchestration**: Use `^onnx` for model portability across Python and R nodes with T-native metadata orchestration.
+- **Model Interchange & Orchestration**: Use `^onnx` for model portability across Python, R, and Julia nodes with T-native metadata orchestration.
 
 ```t
 -- A reproducible polyglot pipeline
@@ -195,20 +195,20 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 
 ## Status & Missing Features
 
-**Alpha 0.51.5 "Sangoku"** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
+**Alpha 0.52.0 "Kaméhaméha"** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
 
 - **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`, and more — heavily inspired by `dplyr`, `tidyr`, and `forcats`).
 - **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc. — inspired by `lubridate`).
 - **strcraft**: Modern string manipulation (`str_replace`, `str_detect`, `str_split`, etc. — inspired by `stringr`).
 - **lens**: Serializable, composable lenses for surgical updates to nested data and pipeline re-orchestration.
 - **Native Arrow I/O**: High-performance reading and writing of `CSV`, `Parquet`, and `Arrow` (IPC/Feather) formats.
-- **Polyglot & Metaprogramming**: First-class support for R, Python, and shell/CLI nodes, plus a robust metaprogramming layer (`expr`, `enquo`, `get`, `sym`).
+- **Polyglot & Metaprogramming**: First-class support for R, Python, Julia, and shell/CLI nodes, plus a robust metaprogramming layer (`expr`, `enquo`, `get`, `to_symbol`).
 - **Pipeline Introspection**: High-level tools for auditing and querying complex execution graphs (`which_nodes`, `filter_node`, `errored_nodes`).
 - **Weighted Statistics**: Core descriptive statistics and `lm()` now support optional observation weights for weighted summaries and weighted least squares.
 
 What is currently missing:
-* **Native T Plotting**: While T provides first-class metadata capture and headless rendering for **R (ggplot2)** and **Python (matplotlib, plotnine, plotly, altair)** objects, it does not yet have its own native charting library, and will likely never have one.
-* **Complex Modeling**: While native `lm()` is available, specialized modeling should leverage R, Python, or future Julia nodes.
+* **Native T Plotting**: While T provides first-class metadata capture and headless rendering for **R (ggplot2)**, **Python (matplotlib, plotnine, plotly, altair)**, and **Julia (TidierPlots.jl, Plots.jl, Makie via CairoMakie)** objects, it does not yet have its own native charting library, and will likely never have one.
+* **Complex Modeling**: While native `lm()` is available, specialized modeling should leverage R, Python, or Julia nodes.
 * **Ecosystem Growth**: We are building out the infrastructure for user-contributed packages through `t publish`.
 
 You guessed it, I welcome contributions!
@@ -232,7 +232,7 @@ tlang/
 │       ├── core/       # Functional primitives
 │       ├── math/       # Mathematical functions
 │       ├── stats/      # Statistical functions
-│       ├── dataframe/  # CSV I/O, DataFrame ops
+│       ├── to_dataframe/  # CSV I/O, DataFrame ops
 │       ├── colcraft/   # Data verbs, window functions, factors
 │       ├── chrono/     # Date and time handling
 │       ├── strcraft/   # String manipulation

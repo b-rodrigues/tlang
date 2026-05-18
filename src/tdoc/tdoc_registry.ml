@@ -5,15 +5,28 @@ open Tdoc_types
 
 let registry : (string, doc_entry) Hashtbl.t = Hashtbl.create 100
 
+(** Register a documentation entry in the in-memory registry.
+    
+    @param entry The doc_entry to add or update. *)
 let register entry =
   Hashtbl.replace registry entry.name entry
 
+(** Search the registry for a documentation entry by its function or symbol name.
+    
+    @param name The name of the symbol to find.
+    @return [Some doc_entry] if found, otherwise [None]. *)
 let lookup name =
   Hashtbl.find_opt registry name
 
+(** Retrieve all registered documentation entries from the registry.
+    
+    @return A list of all registered doc_entry records. *)
 let get_all () =
   Hashtbl.fold (fun _ v acc -> v :: acc) registry []
 
+(** Save all currently registered documentation entries to a JSON file.
+    
+    @param filename The destination file path. *)
 let to_json_file filename =
   let entries = get_all () in
   let json = "{\"docs\": [" ^ (String.concat ", " (List.map doc_entry_to_json entries)) ^ "]}" in
@@ -24,6 +37,10 @@ let to_json_file filename =
 (* Simple JSON parser (very limited) would go here for loading *)
 (* For now, we only implement saving as loading is for the generation phase *)
 
+(** Normalize a source file path to be correctly resolvable from the project workspace root.
+    
+    @param path The raw path to normalize.
+    @return The normalized path. *)
 let normalize_path path =
   if Sys.file_exists path then path
   else
@@ -38,6 +55,9 @@ let normalize_path path =
     | Some rel -> if Sys.file_exists rel then rel else path
     | None -> path
 
+(** Load documentation entries from a JSON file into the global registry.
+    
+    @param filename The source file path of the JSON documentation file. *)
 let load_from_json filename =
   try
     let ch = open_in filename in

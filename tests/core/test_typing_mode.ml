@@ -2,7 +2,7 @@ let parse_program input =
   let lexbuf = Lexing.from_string input in
   Parser.program Lexer.token lexbuf
 
-let run_tests pass_count fail_count _eval_string _eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Typing mode and typed lambda syntax:\n";
 
   (* Test typed lambda with explicit return type - body must be in braces *)

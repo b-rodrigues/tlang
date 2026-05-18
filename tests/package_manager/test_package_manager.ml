@@ -1,7 +1,7 @@
 (* tests/package_manager/test_package_manager.ml *)
 (* Tests for the package management scaffolding system *)
 
-let run_tests pass_count fail_count _eval_string eval_string_env _test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env _test =
   (* --- Helper for package_manager-specific tests --- *)
   let test_pm name check =
     if check () then begin
@@ -183,7 +183,7 @@ min_version = "0.51.0"
     match Toml_parser.parse_tproject_toml project_toml with
     | Ok cfg ->
         Update_manager.format_project_sync_message cfg
-        = "Syncing 0 T dependencies, 2 R dependencies and 1 Python dependency from tproject.toml → flake.nix...\n"
+        = "Syncing 0 T dependencies, 2 R dependencies, 1 Python dependency and 0 Julia dependencies from tproject.toml → flake.nix...\n"
     | Error _ -> false);
 
   test_pm "format no-T dependency message includes R and Python counts" (fun () ->
@@ -197,7 +197,7 @@ min_version = "0.51.0"
     match Toml_parser.parse_tproject_toml project_tools_toml with
     | Ok cfg ->
         Update_manager.format_project_sync_message cfg
-        = "Syncing 0 T dependencies, 0 R dependencies, 0 Python dependencies, 1 additional tool and 1 LaTeX package from tproject.toml → flake.nix...\n"
+        = "Syncing 0 T dependencies, 0 R dependencies, 0 Python dependencies, 0 Julia dependencies, 1 additional tool and 1 LaTeX package from tproject.toml → flake.nix...\n"
     | Error _ -> false);
 
   test_pm "format no-T dependency message includes tools-only project config" (fun () ->
@@ -239,6 +239,39 @@ min_version = "0.51.0"
         analysis.missing_py_deps = ["onnxruntime"; "skl2onnx"]
         && analysis.missing_additional_tools = []
         && analysis.reasons = ["node `model` uses `onnx` with runtime `Python`"]
+    | _ -> false);
+
+  test_pm "analyze missing Julia ONNX pipeline dependencies" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        model = node(command = <{ 1 }>, runtime = Julia, deserializer = ^onnx)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "onnx-julia-proj" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_julia_deps = ["JSON"; "ONNX"; "ONNXRunTime"]
+        && analysis.reasons = [
+          "node `model` usage discovery";
+          "node `model` uses `onnx` with runtime `Julia`"
+        ]
+    | _ -> false);
+
+  test_pm "analyze missing Julia ONNX writer dependencies" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        model = node(command = <{ 1 }>, runtime = Julia, serializer = ^onnx)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "onnx-julia-writer-proj" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_julia_deps = ["JSON"; "ONNX"; "ONNXRunTime"]
+        && List.mem "node `model` uses `onnx` with runtime `Julia`" analysis.reasons
     | _ -> false);
 
   test_pm "analyze built-in serializer dependencies explicitly" (fun () ->
@@ -289,7 +322,7 @@ min_version = "0.51.0"
     let env = Packages.init_env () in
     match fst (eval_string_env {|
       p = pipeline {
-        a = py(command = <{
+        a = pyn(command = <{
           import matplotlib.pyplot as plt
           fig, ax = plt.subplots()
           ax.plot([1, 2], [3, 4])
@@ -309,7 +342,7 @@ min_version = "0.51.0"
     let env = Packages.init_env () in
     match fst (eval_string_env {|
       p = pipeline {
-        a = py(command = <{
+        a = pyn(command = <{
           from plotnine import ggplot, aes, geom_point
         }>)
       }
@@ -319,6 +352,26 @@ min_version = "0.51.0"
         let cfg = Package_types.default_project_config "plotnine-discovery-py" in
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
         analysis.missing_py_deps = ["cloudpickle"; "pandas"; "plotnine"]
+        && analysis.reasons = ["node `a` usage discovery"]
+    | _ -> false);
+
+  test_pm "Julia plot discovery adds plotting packages" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = node(runtime = Julia, command = <{
+          using TidierPlots
+          import Plots
+          using Makie
+          import CairoMakie
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "plot-discovery-jl" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_julia_deps = ["CairoMakie"; "JSON"; "Makie"; "Plots"; "TidierPlots"]
         && analysis.reasons = ["node `a` usage discovery"]
     | _ -> false);
 
@@ -889,6 +942,7 @@ min_version = "0.51.0"
         && Sys.file_exists (Filename.concat dir "DESCRIPTION.toml")
         && Sys.file_exists (Filename.concat dir "flake.nix")
         && Sys.file_exists (Filename.concat dir "README.md")
+        && Sys.file_exists (Filename.concat dir "LICENSE")
         && Sys.file_exists (Filename.concat dir "src/main.t")
         && Sys.is_directory (Filename.concat dir "tests")
         && Sys.is_directory (Filename.concat dir "examples")
@@ -910,13 +964,26 @@ min_version = "0.51.0"
     Sys.chdir old_cwd;
     let ok = match result with
       | Ok () ->
+        let toml_path = Filename.concat dir "tproject.toml" in
+        let parsed =
+          if Sys.file_exists toml_path then
+            let ic = open_in toml_path in
+            let content = really_input_string ic (in_channel_length ic) in
+            close_in ic;
+            match Toml_parser.parse_tproject_toml content with
+            | Ok cfg -> cfg.proj_license = "EUPL-1.2" && List.mem "Your Name <email@example.com>" cfg.proj_authors
+            | Error _ -> false
+          else false
+        in
         Sys.file_exists dir
-        && Sys.file_exists (Filename.concat dir "tproject.toml")
+        && Sys.file_exists toml_path
         && Sys.file_exists (Filename.concat dir "flake.nix")
+        && Sys.file_exists (Filename.concat dir "LICENSE")
         && Sys.file_exists (Filename.concat dir "src/pipeline.t")
         && Sys.is_directory (Filename.concat dir "data")
         && Sys.is_directory (Filename.concat dir "outputs")
         && Sys.is_directory (Filename.concat dir "tests")
+        && parsed
       | Error _ -> false
     in
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
@@ -1113,6 +1180,24 @@ min_version = "0.51.0"
                 with Not_found -> false in
     has "valid-pkg" && has "valid_pkg2"
     && not (has "$(evil)") && not (has "bad pkg"));
+
+  test_pm "generate project flake exposes runtime companion packages in dev shell" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"polyglot" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.51.0" ~deps:[]
+      ~r_deps:["dplyr"]
+      ~py_deps:["pandas"]
+      ~py_version:"python314"
+      ~jl_deps:["DataFrames"]
+      ~jl_version:"lts"
+      () in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "r-env = pkgs.rWrapper.override {"
+    && has "t-lang.packages.${system}.tlang-r"
+    && has "py-env = pkgs.python314.withPackages"
+    && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
+    && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"");
 
   print_newline ();
 

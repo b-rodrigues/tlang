@@ -3,6 +3,13 @@
 
 open Package_types
 
+let companion_package_version = "0.1.0"
+
+(** Ensure that the "JSON" dependency is present in the list of Julia dependencies.
+    T-Lang's polyglot interop uses JSON serialization for data exchange with Julia. *)
+let ensure_julia_json_dep deps =
+  if List.mem "JSON" deps then deps else "JSON" :: deps
+
 (** Convert a git URL like "https://github.com/user/repo" to a flake input
     like "github:user/repo/tag".
     Supports github.com and gitlab.com URLs. *)
@@ -87,11 +94,14 @@ let generate_project_flake
     ?(r_deps : string list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
+    ?(jl_deps : string list = [])
+    ?(jl_version : string = "lts")
     ?(additional_tools : string list = [])
     ?(latex_pkgs : string list = [])
     ?(warn_invalid_pkg_names : bool = true)
     () : string =
   let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
+  let jl_deps = ensure_julia_json_dep jl_deps in
   let has_quarto = List.mem "quarto" additional_tools in
   let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
@@ -144,26 +154,28 @@ let generate_project_flake
     ) deps;
     Buffer.add_string buf "        ];\n"
   end;
-  if r_deps <> [] then begin
-    Buffer.add_string buf "\n";
-    Buffer.add_string buf "        # R environment\n";
-    Buffer.add_string buf "        r-env = pkgs.rWrapper.override {\n";
-    Buffer.add_string buf "          packages = with pkgs.rPackages; [\n";
-    List.iter (fun dep ->
-      Printf.bprintf buf "            %s\n" dep
-    ) r_deps;
-    Buffer.add_string buf "          ];\n";
-    Buffer.add_string buf "        };\n"
-  end;
-  if py_deps <> [] then begin
-    Buffer.add_string buf "\n";
-    Buffer.add_string buf "        # Python environment\n";
-    Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
-    List.iter (fun dep ->
-      Printf.bprintf buf "          %s\n" dep
-    ) py_deps;
-    Buffer.add_string buf "        ]);\n";
-  end;
+  Buffer.add_string buf "\n";
+  Buffer.add_string buf "        # R environment\n";
+  Buffer.add_string buf "        r-env = pkgs.rWrapper.override {\n";
+  Buffer.add_string buf "          packages = with pkgs.rPackages; [\n";
+  Buffer.add_string buf "            t-lang.packages.${system}.tlang-r\n";
+  List.iter (fun dep ->
+    Printf.bprintf buf "            %s\n" dep
+  ) r_deps;
+  Buffer.add_string buf "          ];\n";
+  Buffer.add_string buf "        };\n";
+  Buffer.add_string buf "\n";
+  Buffer.add_string buf "        # Python environment\n";
+  Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
+  List.iter (fun dep ->
+    Printf.bprintf buf "          %s\n" dep
+  ) py_deps;
+  Buffer.add_string buf "        ]);\n";
+  Buffer.add_string buf "\n";
+  Buffer.add_string buf "        # Julia environment\n";
+  let jl_attr = if jl_version = "lts" then "julia-lts" else "julia_" ^ (String.map (function '.' -> '_' | c -> c) jl_version) in
+  let jl_pkgs_str = " [ " ^ (String.concat " " (List.map (fun p -> "\"" ^ p ^ "\"") jl_deps)) ^ " ]" in
+  Printf.bprintf buf "        juliaPkg = pkgs.%s.withPackages%s;\n" jl_attr jl_pkgs_str;
   if additional_tools <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # Additional Tools\n";
@@ -184,8 +196,10 @@ let generate_project_flake
   Buffer.add_string buf "        devShells.default = pkgs.mkShell {\n";
   Buffer.add_string buf "          buildInputs = [\n";
   Buffer.add_string buf "            t-lang.packages.${system}.default\n";
-  if r_deps <> [] then Buffer.add_string buf "            r-env\n";
-  if py_deps <> [] then Buffer.add_string buf "            py-env\n";
+            Buffer.add_string buf "            r-env\n";
+            Buffer.add_string buf "            py-env\n";
+            Buffer.add_string buf "            juliaPkg\n";
+            Buffer.add_string buf "            t-lang.packages.${system}.tlang-julia-path\n";
   if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   let extra_pkgs = 
     (if additional_tools <> [] then " ++ additionalTools" else "") ^
@@ -202,6 +216,8 @@ let generate_project_flake
     ) deps;
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
+  Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
+  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Project: %s\"\n" project_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";
@@ -251,7 +267,7 @@ let generate_project_flake
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "      }\n";
-  Buffer.add_string buf "    );\n";
+    Buffer.add_string buf "    );\n";
   Buffer.add_string buf "}\n";
   Buffer.contents buf
 
@@ -267,6 +283,7 @@ let generate_package_flake
     ?(warn_invalid_pkg_names : bool = true)
     () : string =
   let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
+  let jl_deps = ensure_julia_json_dep [] in
   let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
@@ -341,6 +358,9 @@ let generate_package_flake
   Buffer.add_string buf "        devShells.default = pkgs.mkShell {\n";
   Buffer.add_string buf "          buildInputs = [\n";
   Buffer.add_string buf "            t-lang.packages.${system}.default\n";
+  Buffer.add_string buf "            t-lang.packages.${system}.tlang-julia-path\n";
+  Buffer.add_string buf (Printf.sprintf "            (pkgs.%s.withPackages [ %s ])\n"
+    "julia-lts" (String.concat " " (List.map (fun p -> "\"" ^ p ^ "\"") jl_deps)));
   if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   List.iter (fun dep ->
     Printf.bprintf buf "            %s.packages.${system}.default\n"
@@ -360,6 +380,8 @@ let generate_package_flake
     ) deps;
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
+  Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
+  Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Package: %s\"\n" package_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";
@@ -401,6 +423,8 @@ let install_flake
     ?(r_deps : string list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
+    ?(jl_deps : string list = [])
+    ?(jl_version : string = "lts")
     ?(additional_tools : string list = [])
     ?(latex_pkgs : string list = [])
     ~(dir : string)
@@ -409,7 +433,7 @@ let install_flake
   let flake_path = Filename.concat dir "flake.nix" in
   let content = match kind with
     | Project ->
-      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~additional_tools ~latex_pkgs ()
+      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
         ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ()

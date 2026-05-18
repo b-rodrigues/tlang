@@ -14,6 +14,11 @@ type mode_parse = {
   failfast : bool;
 }
 
+(** Validate that a file system path exists and matches the expected kind.
+    
+    @param kind The expected kind (File or Directory).
+    @param path The path string to validate.
+    @return [Ok ()] if the path is valid and matches the kind, or [Error message] explaining the issue. *)
 let validate_path ~kind path =
   let kind_name = function
     | File -> "File"
@@ -35,6 +40,10 @@ let validate_path ~kind path =
   with
   | Sys_error msg -> Error msg
 
+(** Parse and extract strictness mode, failfast flags, and regular arguments from a CLI list.
+    
+    @param args The CLI argument list.
+    @return [Ok mode_parse] containing filtered args and parsed flags, or [Error message] on invalid flags. *)
 let parse_mode_args (args : string list) : (mode_parse, string) result =
   let rec extract acc mode seen failfast = function
     | [] ->
@@ -59,6 +68,13 @@ let parse_mode_args (args : string list) : (mode_parse, string) result =
   in
   extract [] Typecheck.Repl false false args
 
+(** Validate that CLI flags are used only in command contexts where they are supported.
+    
+    @param mode_flag Whether [--mode] was provided.
+    @param unsafe_flag Whether [--unsafe] was provided.
+    @param failfast_flag Whether [--failfast] was provided.
+    @param args The entire CLI arguments list.
+    @return [Ok ()] if all flag constraints are met, or [Error message] otherwise. *)
 let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string list) : (unit, string) result =
   let commands = ["run"; "repl"; "test"; "explain"; "init"; "doc"; "doctor"; "docs"; "update"; "publish"; "--help"; "-h"; "--version"; "-v"] in
   let command =
@@ -100,6 +116,11 @@ let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string lis
   else
     Ok ()
 
+(** Parse arguments for the T-Lang test runner.
+    
+    @param cwd The current working directory to fallback on.
+    @param args The list of arguments to parse.
+    @return [Ok test_options] if successfully parsed, or [Error message] on unexpected arguments. *)
 let parse_test_args ~cwd (args : string list) : (test_options, string) result =
   let verbose = ref false in
   let target_dir = ref None in

@@ -196,6 +196,8 @@ and serializer = {
   s_r_reader : string option;
   s_py_writer : string option;
   s_py_reader : string option;
+  s_julia_writer : string option;
+  s_julia_reader : string option;
 }
 
 and lens =
@@ -361,6 +363,9 @@ let stmt_loc (s : stmt) = s.loc
 
 (** Global hook for resolving node names to values (e.g. from build logs) *)
 let node_resolver : (string -> value option) ref = ref (fun _ -> None)
+
+(** Global hook for resolving computed node metadata from build logs *)
+let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn -> cn)
 
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
@@ -857,12 +862,12 @@ module Utils = struct
           (String.concat " + " response)
           (String.concat " + " predictors)
     | VExpr e ->
-        Printf.sprintf "expr(%s)" (unparse_expr e)
+        Printf.sprintf "to_expr(%s)" (unparse_expr e)
     | VQuo { q_expr; _ } ->
         Printf.sprintf "quo(%s)" (unparse_expr q_expr)
     | VComputedNode cn ->
-        Printf.sprintf "computed_node<%s>\nserializer: %s\nclass: %s\npath: %s"
-          cn.cn_runtime cn.cn_serializer cn.cn_class cn.cn_path
+        Printf.sprintf "computed_node<%s>\nserializer: %s\nclass: %s"
+          cn.cn_runtime cn.cn_serializer cn.cn_class
     | VSerializer s ->
         Printf.sprintf "serializer<^%s>" s.s_format
     | VNode un ->

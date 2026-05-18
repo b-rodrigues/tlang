@@ -8,9 +8,9 @@ result_arr = matmul(temp, c)
 s = shape(result_arr)
 d = ndarray_data(result_arr)
 result = [
-  shape: s |> map(\(n) str_string(n)) |> str_join(","),
-  data: d |> map(\(n) str_string(n)) |> str_join(", ")
+  shape: s |> map(\(n) to_string(n)) |> str_join(","),
+  data: d |> map(\(n) to_string(n)) |> str_join(", ")
 ]
-df = dataframe([result])
+df = to_dataframe([result])
 write_csv(df, "tests/golden/t_outputs/matmul_chain.csv")
 print("✓ matmul chain complete")

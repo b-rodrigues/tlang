@@ -2,7 +2,7 @@
 (* Phase 8: Golden tests for pipelines *)
 (* These tests verify complete pipeline outputs against expected baselines *)
 
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   Printf.printf "Phase 8 — Golden: Pipeline Baseline Outputs:\n";
 
   (* Golden test 1: Simple arithmetic pipeline *)
@@ -598,7 +598,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     end;
 
     let (v, _) = eval_string_env "model.inputs" env_ml in
-    if Ast.Utils.value_to_string v = {|["float_input"]|} then begin
+    if Ast.Utils.value_to_string v = {|["X"]|} then begin
       incr pass_count; Printf.printf "  ✓ golden onnx: input names extraction\n"
     end else begin
       incr fail_count; Printf.printf "  ✗ golden onnx: input names extraction (got %s)\n" (Ast.Utils.value_to_string v)

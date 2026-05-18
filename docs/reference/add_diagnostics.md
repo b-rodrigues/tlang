@@ -6,7 +6,7 @@ augments the data with model diagnostic columns (residuals, fitted values, etc.)
 
 ## Parameters
 
-- **data** (`DataFrame`): (Optional) The data to augment.
+- **data** (`DataFrame`): (Optional) The data to add_diagnostics.
 
 - **model** (`Model`): The model object.
 

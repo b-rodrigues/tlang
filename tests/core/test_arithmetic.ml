@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Arithmetic:\n";
   test "integer addition" "1 + 2" "3";
   test "integer subtraction" "10 - 3" "7";

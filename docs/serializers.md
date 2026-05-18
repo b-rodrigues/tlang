@@ -19,6 +19,26 @@ p = pipeline {
 }
 ```
 
+### Symbols vs. Variables
+
+T distinguishes between **built-in symbols** and **custom serializer variables**:
+
+- **Symbols (`^arrow`, `^json`, etc.)**: Use the `^` prefix for T's built-in serializers. These are registered symbols that the pipeline emitter understands natively across all supported runtimes.
+- **Variables (`my_serializer`)**: If you have defined a custom serializer in a variable (e.g., a dictionary imported from another file), pass the variable name **without** the `^` prefix. This allows the evaluator to pass the actual serializer definition to the node.
+
+```t
+-- Built-in symbol (uses T's internal logic)
+node(..., serializer = ^arrow)
+
+-- Custom variable (passes the dictionary value)
+import "src/my_ser.t" [my_ser]
+node(..., serializer = my_ser)
+```
+
+> [!IMPORTANT]
+> **String literals (e.g., `serializer = "arrow"`) are strictly disallowed.** You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal will result in a `TypeError`.
+
+
 ### Implicit Serialization
 If you don't specify a serializer, T uses the `^tlang` (internal binary) format for T-to-T communication. For other runtimes, T attempts to infer a sensible default based on the data type or the specific wrapper used (e.g., `shn()` defaults to `^text`).
 
@@ -29,9 +49,9 @@ If you don't specify a serializer, T uses the `^tlang` (internal binary) format 
 | `^tlang` | T-Native | T-to-T interchange | T only |
 | `^arrow` | Apache Arrow | Large DataFrames | T, R, Python, Julia |
 | `^pmml` | PMML | Predictive Models | T, R, Python |
-| `^onnx` | ONNX | ML Models | T, R, Python |
-| `^json` | JSON | Config, lists, dicts | T, R, Python |
-| `^csv` | CSV | Tabular data | T, R, Python |
+| `^onnx` | ONNX | ML Models | T, R, Python, Julia (read/inference) |
+| `^json` | JSON | Config, lists, dicts | T, R, Python, Julia |
+| `^csv` | CSV | Tabular data | T, R, Python, Julia |
 | `^text` | Plain Text | Logs, shell output | All |
 
 ## 3. The `serializer` Structure
@@ -48,11 +68,11 @@ type serializer = {
 
 ### Custom Serializers
 
-You can create a custom serializer by defining a record that matches the required interface:
+You can create a custom serializer by defining a record that matches the required interface. Note that the `format` field should use a **Symbol** (starting with `^`) to remain consistent with T's symbol-based serialization mandate.
 
 ```t
 my_log_serializer = {
-  format: "log",
+  format: ^log,
   writer: \(path, val) {
     -- custom logic to write log
     Ok(NA)
@@ -63,9 +83,11 @@ my_log_serializer = {
   }
 }
 
--- Usage
+-- Usage: Pass the variable name (no ^ hat on the variable itself!)
 node(command = ..., serializer = my_log_serializer)
 ```
+
+For a complete example of a cross-language custom serializer (YAML), see the [Custom Polyglot Serializer Demo](https://github.com/b-rodrigues/t_demos/blob/master/custom_polyglot_serializer_t/src/pipeline.t) in the `t_demos` repository.
 
 ## 4. Static Coherence Checks
 
@@ -102,7 +124,7 @@ You can define these by adding `r_writer`, `r_reader`, `py_writer`, or `py_reade
 
 ```t
 my_custom_ser = [
-  format: "custom",
+  format: ^custom,
   
   -- T implementation
   writer: \(path, val) { Ok(NA) },
@@ -127,5 +149,7 @@ When T processes a node with an `R` runtime and the above serializer:
 #### Registering Custom Formats
 
 If you use a custom format name (e.g., `format: "myformat"`), you should ensure that your R or Python scripts have the necessary libraries loaded to handle that format. You can do this by adding the libraries to your `tproject.toml` or using the `functions` / `includes` parameters in the node definition.
+
+For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl` via the built-in `jl_read_onnx()` helper. Julia ONNX export is not supported yet, so `jl_write_onnx()` fails explicitly instead of silently falling back to another format.
 
 For more information on how pipelines use these serializers, see the [Pipeline Tutorial](pipeline_tutorial.md). For a model-focused walkthrough of `^pmml`, see the [PMML Tutorial](pmml_tutorial.md).

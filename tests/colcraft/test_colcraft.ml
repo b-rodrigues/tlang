@@ -29,7 +29,7 @@ let capture_stderr f =
     Unix.close read_fd;
     raise exn
 
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   (* Create test CSV for Phase 4 tests *)
   let csv_p4 = "test_phase4.csv" in
   let oc6 = open_out csv_p4 in
@@ -62,7 +62,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "select non-column arg"
     (Printf.sprintf {|df = read_csv("%s"); select(df, 42)|} csv_p4)
     {|Error(TypeError: "Function `select` expects $column syntax.")|};
-  test "select non-dataframe"
+  test "select non-to_dataframe"
     {|select(42, $name)|}
     {|Error(TypeError: "Function `select` expects a DataFrame as first argument.")|};
   test "select with pipe"
@@ -87,11 +87,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ filter by $dept == eng via pipe\n    Expected: 3\n    Got: %s\n" result
   end;
 
-  test "filter non-dataframe"
+  test "filter non-to_dataframe"
     {|filter(42, \(x) true)|}
     {|Error(TypeError: "Function `filter` expects a DataFrame as first argument.")|};
   test "filter excludes rows where predicate sees NA"
-    {|df_na_filter = dataframe([[x: 1], [x: NA], [x: 3]]); filter(df_na_filter, $x > 1) |> nrow|}
+    {|df_na_filter = to_dataframe([[x: 1], [x: NA], [x: 3]]); filter(df_na_filter, $x > 1) |> nrow|}
     "1";
   let assert_filter_warning label code expected_result warning_pattern =
     let show_warnings_before = !Eval.show_warnings in
@@ -120,17 +120,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   in
   assert_filter_warning
     "filter vectorized path warns when NA rows are excluded"
-    {|df_na_warn = dataframe([[x: 1], [x: NA], [x: 3]]); filter(df_na_warn, $x > 1) |> nrow|}
+    {|df_na_warn = to_dataframe([[x: 1], [x: NA], [x: 3]]); filter(df_na_warn, $x > 1) |> nrow|}
     "1"
     "Warning: filter() excluded 1 row because the predicate evaluated to NA";
   assert_filter_warning
     "filter && with left-side NA warns correctly"
-    {|df_na_and = dataframe([[x: 1, y: 1], [x: NA, y: 0], [x: NA, y: 1], [x: 2, y: 1]]); filter(df_na_and, $x > 0 && $y > 0) |> nrow|}
+    {|df_na_and = to_dataframe([[x: 1, y: 1], [x: NA, y: 0], [x: NA, y: 1], [x: 2, y: 1]]); filter(df_na_and, $x > 0 && $y > 0) |> nrow|}
     "2"
     "Warning: filter() excluded 2 rows because the predicate evaluated to NA at rows 2, 3";
   assert_filter_warning
     "filter || respects short-circuit NA propagation"
-    {|df_na_or = dataframe([[x: NA, y: 1], [x: 0, y: 1], [x: 0, y: NA], [x: 1, y: 0], [x: 2, y: NA]]); filter(df_na_or, $x > 0 || $y > 0) |> nrow|}
+    {|df_na_or = to_dataframe([[x: NA, y: 1], [x: 0, y: 1], [x: 0, y: NA], [x: 1, y: 0], [x: 2, y: NA]]); filter(df_na_or, $x > 0 || $y > 0) |> nrow|}
     "3"
     "Warning: filter() excluded 2 rows because the predicate evaluated to NA at rows 1, 3";
   print_newline ();
@@ -163,7 +163,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ mutate vectorizes nested arithmetic in one expression\n    Expected: Vector[318.333333333, 349.2, 263.142857143, 314.285714286, 285.9375]\n    Got: %s\n" result
   end;
 
-  test "mutate non-dataframe"
+  test "mutate non-to_dataframe"
     {|mutate(42, $x = 1)|}
     {|Error(TypeError: "Function `mutate` expects a DataFrame as first argument.")|};
   test "mutate zero args"
@@ -230,10 +230,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ ungroup removes grouping\n    Expected: DataFrame(5 rows x 4 cols: [name, age, score, dept])\n    Got: %s\n" result
   end;
 
-  test "ungroup on ungrouped dataframe"
+  test "ungroup on ungrouped to_dataframe"
     (Printf.sprintf {|df = read_csv("%s"); ungroup(df)|} csv_p4)
     "DataFrame(5 rows x 4 cols: [name, age, score, dept])";
-  test "ungroup non-dataframe"
+  test "ungroup non-to_dataframe"
     {|ungroup(42)|}
     {|Error(TypeError: "Function `ungroup` expects a DataFrame as first argument.")|};
   print_newline ();
@@ -304,7 +304,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|n(1, 2)|}
     {|Error(ArityError: "Function `n` expects 0 arguments but received 2.")|};
 
-  test "summarize non-dataframe"
+  test "summarize non-to_dataframe"
     {|summarize(42, $x = 1)|}
     {|Error(TypeError: "Function `summarize` expects a DataFrame as first argument.")|};
   print_newline ();
@@ -511,7 +511,7 @@ df |> filter($age > 25)
 
   let env_complete = Packages.init_env () in
   let (_, env_complete) = eval_string_env
-    {|df_dates = dataframe([
+    {|df_dates = to_dataframe([
   [group: "a", d: ymd("2024-01-01"), value: 1],
   [group: "a", d: ymd("2024-01-02"), value: 2],
   [group: "b", d: ymd("2024-01-01"), value: 3]
@@ -544,7 +544,7 @@ df |> filter($age > 25)
   end;
 
   let (_, env_complete) = eval_string_env
-    {|df_datetimes = dataframe([
+    {|df_datetimes = to_dataframe([
   [group: "a", ts: ymd_hms("2024-01-01 09:00:00"), value: 1],
   [group: "a", ts: ymd_hms("2024-01-01 10:00:00"), value: 3],
   [group: "b", ts: ymd_hms("2024-01-01 09:00:00"), value: 2]
@@ -582,7 +582,7 @@ df |> filter($age > 25)
 
   let env_dates = Packages.init_env () in
   let (_, env_dates) = eval_string_env
-    {|df_wider = dataframe([
+    {|df_wider = to_dataframe([
   [d: ymd("2024-01-01"), name: "x", score: 1],
   [d: ymd("2024-01-01"), name: "y", score: 2],
   [d: ymd("2024-01-02"), name: "x", score: 3],
@@ -599,7 +599,7 @@ df |> filter($age > 25)
   end;
 
   let (_, env_dates) = eval_string_env
-    {|df_longer = dataframe([
+    {|df_longer = to_dataframe([
   [ts: ymd_hms("2024-01-01 09:00:00"), a: 1, b: 2],
   [ts: ymd_hms("2024-01-01 10:00:00"), a: 3, b: 4]
 ])|}
@@ -614,7 +614,7 @@ df |> filter($age > 25)
   end;
 
   let (_, env_dates) = eval_string_env
-    {|df_fill = dataframe([
+    {|df_fill = to_dataframe([
   [d: ymd("2024-01-01")],
   [d: NA],
   [d: ymd("2024-01-03")]
@@ -629,7 +629,7 @@ df |> filter($age > 25)
   end;
 
   let (_, env_dates) = eval_string_env
-    {|df_replace = dataframe([
+    {|df_replace = to_dataframe([
   [d: ymd("2024-01-01"), ts: ymd_hms("2024-01-01 09:00:00")],
   [d: NA, ts: NA]
 ])|}
@@ -656,67 +656,67 @@ df |> filter($age > 25)
   Printf.printf "Phase 4 — joins, binders, and extended selectors:\n";
 
   test "left_join keeps left rows"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); left_join(left, right, by = $id) |> nrow|}
+    {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); left_join(left, right, by = $id) |> nrow|}
     "2";
   test "left_join fills unmatched with NA"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); left_join(left, right, by = $id).y|}
+    {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); left_join(left, right, by = $id).y|}
     {|Vector[NA(String), "two"]|};
   test "inner_join keeps matches only"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); inner_join(left, right, by = $id) |> nrow|}
+    {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); inner_join(left, right, by = $id) |> nrow|}
     "1";
   test "full_join includes unmatched right rows"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); full_join(left, right, by = $id).id|}
+    {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); full_join(left, right, by = $id).id|}
     "Vector[1, 2, 3]";
   test "semi_join filters left rows by match"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = $id).x|}
+    {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = $id).x|}
     {|Vector["b"]|};
   test "semi_join keeps only left columns"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = $id) |> ncol|}
+    {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = $id) |> ncol|}
     "2";
   test "anti_join filters left rows without match"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = $id).x|}
+    {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = $id).x|}
     {|Vector["a"]|};
   test "anti_join keeps only left columns"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = $id) |> ncol|}
+    {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = $id) |> ncol|}
     "2";
   test "bind_rows unions columns"
-    {|bind_rows(dataframe([[id: 1, x: "a"]]), dataframe([[id: 2, y: "b"]])) |> ncol|}
+    {|bind_rows(to_dataframe([[id: 1, x: "a"]]), to_dataframe([[id: 2, y: "b"]])) |> ncol|}
     "3";
   test "bind_rows fills missing columns"
-    {|bind_rows(dataframe([[id: 1, x: "a"]]), dataframe([[id: 2, y: "b"]])).y|}
+    {|bind_rows(to_dataframe([[id: 1, x: "a"]]), to_dataframe([[id: 2, y: "b"]])).y|}
     {|Vector[NA(String), "b"]|};
   test "bind_cols combines columns"
-    {|bind_cols(dataframe([[id: 1], [id: 2]]), dataframe([[value: "a"], [value: "b"]])).value|}
+    {|bind_cols(to_dataframe([[id: 1], [id: 2]]), to_dataframe([[value: "a"], [value: "b"]])).value|}
     {|Vector["a", "b"]|};
   test "unite na_rm removes missing values"
-    {|unite(dataframe([[x: "a", y: NA], [x: NA, y: "b"]]), "xy", $x, $y, na_rm = true).xy|}
+    {|unite(to_dataframe([[x: "a", y: NA], [x: NA, y: "b"]]), "xy", $x, $y, na_rm = true).xy|}
     {|Vector["a", "b"]|};
   test "select where numeric columns"
-    {|wide = dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, where(is_numeric)) |> ncol|}
+    {|wide = to_dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, where(is_numeric)) |> ncol|}
     "2";
   test "select matches regex"
-    {|wide = dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, matches("^s")) |> ncol|}
+    {|wide = to_dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, matches("^s")) |> ncol|}
     "1";
   test "select all_of names"
-    {|wide = dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, all_of(["name", "score"])) |> ncol|}
+    {|wide = to_dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, all_of(["name", "score"])) |> ncol|}
     "2";
   test "select any_of ignores missing names"
-    {|wide = dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, any_of(["name", "missing"])) |> ncol|}
+    {|wide = to_dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, any_of(["name", "missing"])) |> ncol|}
     "1";
   test "fct_lump_min groups infrequent levels"
-    {|levels(fct_lump_min(fct(["a", "a", "b", "c"]), 2))|}
+    {|levels(fct_lump_min(to_factor(["a", "a", "b", "c"]), 2))|}
     {|Vector["a", "Other"]|};
   test "fct_other keeps selected levels"
-    {|levels(fct_other(fct(["a", "b", "c"]), keep = ["a"]))|}
+    {|levels(fct_other(to_factor(["a", "b", "c"]), keep = ["a"]))|}
     {|Vector["a", "Other"]|};
   test "fct_drop removes unused levels"
-    {|levels(fct_drop(factor(["a", "b"], levels = ["a", "b", "c"])))|}
+    {|levels(fct_drop(to_factor(["a", "b"], levels = ["a", "b", "c"])))|}
     {|Vector["a", "b"]|};
   test "fct_expand adds levels"
-    {|levels(fct_expand(fct(["a"]), "b", "c"))|}
+    {|levels(fct_expand(to_factor(["a"]), "b", "c"))|}
     {|Vector["a", "b", "c"]|};
   test "fct_c unifies levels"
-    {|levels(fct_c(fct(["a"], levels = ["a", "b"]), fct(["c"])))|}
+    {|levels(fct_c(to_factor(["a"], levels = ["a", "b"]), to_factor(["c"])))|}
     {|Vector["a", "b", "c"]|};
 
   print_newline ();

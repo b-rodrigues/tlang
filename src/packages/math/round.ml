@@ -19,8 +19,8 @@ let register env =
     | Error e -> e
     | Ok na_ignore ->
         let args = Math_common.positional_args_without [ "digits"; "na_ignore" ] named_args in
-        let factor = Float.pow 10.0 (float_of_int digits) in
-        let rf x = Float.round (x *. factor) /. factor in
+        let to_factor = Float.pow 10.0 (float_of_int digits) in
+        let rf x = Float.round (x *. to_factor) /. to_factor in
         Math_common.map_numeric_unary ~fname:"round" ~na_ignore rf args
   in
   Env.add "round"

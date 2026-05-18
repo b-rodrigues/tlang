@@ -16,26 +16,27 @@
 | [args](args.html) | Get function arguments and their types |
 | [arrange](arrange.html) | Arrange rows |
 | [arrange_node](arrange_node.html) | Arrange Pipeline Nodes |
-| [as_date](as_date.html) | Convert values to Date |
-| [as_datetime](as_datetime.html) | Convert values to Datetime |
-| [as_factor](as_factor.html) | Coerce values to factors |
+| [to_date](to_date.html) | Convert values to Date |
+| [to_datetime](to_datetime.html) | Convert values to Datetime |
 | [asin](asin.html) | Inverse sine |
 | [asinh](asinh.html) | Inverse hyperbolic sine |
 | [assert](assert.html) | Assert Condition |
+| [assert_dir_exists](assert_dir_exists.html) | Assert Directory Exists |
+| [assert_file_exists](assert_file_exists.html) | Assert File Exists |
+| [assert_non_empty_file](assert_non_empty_file.html) | Assert File Is Non-Empty |
+| [assert_size_of_file](assert_size_of_file.html) | Assert File Size |
 | [atan](atan.html) | Inverse tangent |
 | [atan2](atan2.html) | Two-argument arctangent |
 | [atanh](atanh.html) | Inverse hyperbolic tangent |
-| [augment](augment.html) | Augment Data with Model Calculations |
+| [add_diagnostics](add_diagnostics.html) | Augment Data with Model Calculations |
 | [bind_cols](bind_cols.html) | Combine DataFrames by columns |
 | [bind_rows](bind_rows.html) | Stack DataFrames by rows |
 | [body](body.html) | Get function body |
 | [build_pipeline](build_pipeline.html) | Build Pipeline Artifacts |
 | [build_pipeline_internal](build_pipeline_internal.html) | Build Pipeline Internally |
 | [case_when](case_when.html) | Vectorized Case-When |
-| [casewhen](casewhen.html) | Vectorized case-when |
 | [cat](cat.html) | Print values without escaping |
 | [cbind](cbind.html) | Column bind matrices |
-| [ceil](ceil.html) | Ceiling alias |
 | [ceiling](ceiling.html) | Ceiling function |
 | [ceiling_date](ceiling_date.html) | Round dates up |
 | [chain](chain.html) | Chain Two Pipelines |
@@ -45,6 +46,7 @@
 | [col_lens](col_lens.html) | Create a Column Lens |
 | [colnames](colnames.html) | Get column names |
 | [compare](compare.html) | Compare Models |
+| [compare_native_vs_pmml_scores](compare_native_vs_pmml_scores.html) | Compare native T scoring vs JPMML scoring |
 | [complete](complete.html) | Complete a data frame |
 | [compose](compose.html) | Compose Lenses |
 | [conf_int](conf_int.html) | Confidence Intervals for Model Coefficients |
@@ -64,11 +66,12 @@
 | [cumsum](cumsum.html) | Cumulative Sum |
 | [cut](cut.html) | Discretize numeric vector |
 | [cv](cv.html) | Coefficient of variation |
-| [dataframe](dataframe.html) | Create a DataFrame |
+| [to_dataframe](to_dataframe.html) | Create a DataFrame |
 | [day](day.html) | Extract the day of month |
 | [days_in_month](days_in_month.html) | Get the number of days in a month |
 | [dense_rank](dense_rank.html) | Dense Rank |
 | [deserialize](deserialize.html) | Deserialize Value |
+| [deviance](deviance.html) | Model Deviance |
 | [df_residual](df_residual.html) | Residual Degrees of Freedom |
 | [diag](diag.html) | Create or extract diagonal |
 | [difference](difference.html) | Subtract one pipeline from another |
@@ -81,11 +84,11 @@
 | [enquo](enquo.html) | Capture a function argument's expression (non-standard evaluation) |
 | [enquos](enquos.html) | Capture variadic argument expressions (non-standard evaluation) |
 | [env](env.html) | Get environment variable |
-| [env_var_lens](env_var_lens.html) | Pipeline Env Var Lens |
 | [error](error.html) | Raise Error |
 | [error_code](error_code.html) | Get error code |
 | [error_context](error_context.html) | Get error context |
 | [error_message](error_message.html) | Get error message |
+| [errored_nodes](errored_nodes.html) | Get Errored Pipeline Nodes |
 | [eval](eval.html) | Evaluate a quoted expression or quosure |
 | [everything](everything.html) | Select every column |
 | [exit](exit.html) | Exit the interpreter |
@@ -95,21 +98,20 @@
 | [explain_json](explain_json.html) | Explain Value as JSON |
 | [expr](expr.html) | Capture an expression |
 | [exprs](exprs.html) |  |
-| [factor](factor.html) | Create factor values |
-| [fct](fct.html) | Create factors in first-seen order |
-| [fct_c](fct_c.html) | Concatenate factor vectors |
+| [to_factor](to_factor.html) | Create to_factor values |
+| [fct_c](fct_c.html) | Concatenate to_factor vectors |
 | [fct_collapse](fct_collapse.html) | Collapse multiple levels |
-| [fct_drop](fct_drop.html) | Drop unused factor levels |
-| [fct_expand](fct_expand.html) | Add explicit factor levels |
-| [fct_infreq](fct_infreq.html) | Order factor levels by frequency |
-| [fct_lump_min](fct_lump_min.html) | Lump factor levels below a minimum count |
-| [fct_lump_n](fct_lump_n.html) | Keep the most frequent factor levels |
-| [fct_lump_prop](fct_lump_prop.html) | Lump factor levels below a minimum proportion |
+| [fct_drop](fct_drop.html) | Drop unused to_factor levels |
+| [fct_expand](fct_expand.html) | Add explicit to_factor levels |
+| [fct_infreq](fct_infreq.html) | Order to_factor levels by frequency |
+| [fct_lump_min](fct_lump_min.html) | Lump to_factor levels below a minimum count |
+| [fct_lump_n](fct_lump_n.html) | Keep the most frequent to_factor levels |
+| [fct_lump_prop](fct_lump_prop.html) | Lump to_factor levels below a minimum proportion |
 | [fct_other](fct_other.html) | Replace unlisted levels with Other |
-| [fct_recode](fct_recode.html) | Rename factor levels |
+| [fct_recode](fct_recode.html) | Rename to_factor levels |
 | [fct_relevel](fct_relevel.html) | Move selected levels to the front |
-| [fct_reorder](fct_reorder.html) | Order factor levels by another vector |
-| [fct_rev](fct_rev.html) | Reverse factor levels |
+| [fct_reorder](fct_reorder.html) | Order to_factor levels by another vector |
+| [fct_rev](fct_rev.html) | Reverse to_factor levels |
 | [file_exists](file_exists.html) | Check if file exists |
 | [fill](fill.html) | Fill missing values |
 | [filter](filter.html) | Filter rows |
@@ -123,7 +125,7 @@
 | [format_date](format_date.html) | Format dates as strings |
 | [format_datetime](format_datetime.html) | Format datetimes as strings |
 | [full_join](full_join.html) | Join all rows from both tables |
-| [get](get.html) | Get Value via Lens |
+| [get](get.html) | Unified Data Retrieval (get) |
 | [getwd](getwd.html) | Get current working directory |
 | [glimpse](glimpse.html) | Glimpse DataFrame |
 | [greet](greet.html) | Greet someone |
@@ -132,6 +134,7 @@
 | [help](help.html) | Display documentation for a function |
 | [hour](hour.html) | Extract the hour |
 | [huber_loss](huber_loss.html) | Huber loss |
+| [identical](identical.html) | Deep Equality Check |
 | [idx_lens](idx_lens.html) | Index Lens |
 | [ifelse](ifelse.html) | Vectorized If-Else |
 | [index_of](index_of.html) | Find index of substring |
@@ -148,13 +151,14 @@
 | [is_character](is_character.html) | Check for character columns |
 | [is_empty](is_empty.html) | Check if string is empty |
 | [is_error](is_error.html) | Check if a value is an Error |
-| [is_factor](is_factor.html) | Check for factor columns |
+| [is_factor](is_factor.html) | Check for to_factor columns |
 | [is_leap_year](is_leap_year.html) | Check for leap years |
 | [is_logical](is_logical.html) | Check for logical columns |
 | [is_na](is_na.html) | Check for NA |
 | [is_numeric](is_numeric.html) | Check for numeric columns |
 | [isoweek](isoweek.html) | Extract the ISO week number |
 | [isoyear](isoyear.html) | Extract the ISO week-based year |
+| [jln](jln.html) | Configure a Julia Pipeline Node |
 | [kron](kron.html) | Kronecker product |
 | [kurtosis](kurtosis.html) | Excess kurtosis |
 | [lag](lag.html) | Lag values |
@@ -163,7 +167,7 @@
 | [left_join](left_join.html) | Join rows from the left table |
 | [length](length.html) | Get length |
 | [lens](lens.html) | Lens Library |
-| [levels](levels.html) | Get factor levels |
+| [levels](levels.html) | Get to_factor levels |
 | [list_files](list_files.html) | List files in directory |
 | [list_logs](list_logs.html) | List Pipeline Logs |
 | [lm](lm.html) | Linear Model |
@@ -176,7 +180,6 @@
 | [matches](matches.html) | Match columns by regex |
 | [matmul](matmul.html) | Matrix multiplication |
 | [max](max.html) | Maximum value |
-| [mday](mday.html) | Extract the day of month |
 | [mean](mean.html) | Compute arithmetic mean of numeric values |
 | [median](median.html) | Median |
 | [min](min.html) | Minimum value |
@@ -202,6 +205,7 @@
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
 | [node_lens](node_lens.html) | Pipeline Node Lens |
+| [node_meta_lens](node_meta_lens.html) | Pipeline Metadata Lens |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
@@ -247,7 +251,7 @@
 | [poly](poly.html) | Polynomial basis expansion |
 | [populate_pipeline](populate_pipeline.html) | Populate Pipeline |
 | [pow](pow.html) | Power function |
-| [predict](predict.html) | Linear Model Prediction |
+| [predict](predict.html) | Model Prediction |
 | [pretty_print](pretty_print.html) | Pretty-print a value |
 | [print](print.html) | Print values to standard output |
 | [prune](prune.html) | Prune Pipeline Leaf Nodes |
@@ -260,12 +264,13 @@
 | [quo](quo.html) | Capture an expression with its lexical environment (quosure) |
 | [quos](quos.html) | Capture multiple expressions with their lexical environment (quosures) |
 | [range](range.html) | Range |
-| [read_arrow](read_arrow.html) | Read Arrow IPC file |
+| [read_arrow](read_arrow.html) | Read an Arrow IPC (Feather) file |
 | [read_csv](read_csv.html) | Read CSV file |
 | [read_file](read_file.html) | Read file contents |
 | [read_log](read_log.html) | Read Node Build Log |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
 | [read_parquet](read_parquet.html) | Read Parquet file |
+| [read_pipeline](read_pipeline.html) | Read Pipeline Metadata |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |
 | [relocate](relocate.html) | Move columns to a new position |
 | [rename](rename.html) | Rename DataFrame columns |
@@ -300,6 +305,7 @@
 | [set](set.html) | Set Focused Value |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
+| [show_plot](show_plot.html) | Render a plot node and open it locally |
 | [sigma](sigma.html) | Residual Standard Deviation |
 | [sign](sign.html) | Sign of number |
 | [signif](signif.html) | Significant-digit rounding |
@@ -327,7 +333,7 @@
 | [str_replace](str_replace.html) | Replace all occurrences |
 | [str_split](str_split.html) | Split a string on a delimiter |
 | [str_sprintf](str_sprintf.html) | Format a string |
-| [str_string](str_string.html) | Convert to string |
+| [to_string](to_string.html) | Convert to string |
 | [str_substring](str_substring.html) | Extract substring |
 | [str_trim](str_trim.html) | Trim whitespace |
 | [str_trunc](str_trunc.html) | Truncate strings for display |
@@ -336,15 +342,20 @@
 | [sum](sum.html) | Sum of numeric values |
 | [summarize](summarize.html) | Summarize data |
 | [summary](summary.html) | Model Summary |
+| [suppress_warnings](suppress_warnings.html) | Suppress Diagnostics for a Node |
 | [swap](swap.html) | Swap a Pipeline Node Implementation |
+| [to_symbol](to_symbol.html) | Convert a string to a Symbol |
 | [t_doc](t_doc.html) | Generate Documentation |
 | [t_make](t_make.html) | Build Pipeline Internally |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
 | [t_read_onnx](t_read_onnx.html) | Read an ONNX model file |
 | [t_read_pmml](t_read_pmml.html) | Read a PMML model file |
 | [t_run](t_run.html) | Run a T script |
+| [t_score_pmml](t_score_pmml.html) | Score a PMML model using JPMML |
 | [t_test](t_test.html) | Run tests |
 | [t_write_json](t_write_json.html) | Write Value to JSON |
+| [t_write_onnx](t_write_onnx.html) | Write an ONNX model file |
+| [t_write_pmml](t_write_pmml.html) | Write a PMML model file |
 | [tail](tail.html) | Get the last n rows/items |
 | [tan](tan.html) | Tangent |
 | [tanh](tanh.html) | Hyperbolic tangent |
@@ -352,7 +363,6 @@
 | [to_float](to_float.html) | Convert to Float |
 | [to_integer](to_integer.html) | Convert to Integer |
 | [to_lower](to_lower.html) | Convert to lowercase |
-| [to_numeric](to_numeric.html) | Convert to Numeric |
 | [to_upper](to_upper.html) | Convert to uppercase |
 | [today](today.html) | Get the current date |
 | [trace_nodes](trace_nodes.html) | Trace Pipeline Nodes |
@@ -367,6 +377,7 @@
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
+| [unknown](unknown.html) | Print Failed Node Logs |
 | [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |
@@ -376,6 +387,7 @@
 | [wday](wday.html) | Extract or label the weekday |
 | [week](week.html) | Extract the week number |
 | [where](where.html) | Select columns by predicate |
+| [which_nodes](which_nodes.html) | Filter Readable Pipeline Node Records |
 | [winsorize](winsorize.html) | Winsorize values |
 | [with_tz](with_tz.html) | Convert a datetime to a new timezone |
 | [write_arrow](write_arrow.html) | Write Arrow IPC file |

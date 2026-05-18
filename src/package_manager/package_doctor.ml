@@ -9,6 +9,10 @@ type issue = {
   suggestion : string option;
 }
 
+(** Check if a file exists, returning an issue if it doesn't.
+    
+    @param path The file path to verify.
+    @param description Brief description of the file. *)
 let check_file_exists path description =
   if not (Sys.file_exists path) then
     Some {
@@ -18,6 +22,10 @@ let check_file_exists path description =
     }
   else None
 
+(** Check if a directory exists, returning an issue if it doesn't or if it is a file.
+    
+    @param path The directory path to verify.
+    @param description Brief description of the directory. *)
 let check_directory_exists path description =
   if Sys.file_exists path && not (Sys.is_directory path) then
     Some {
@@ -33,6 +41,11 @@ let check_directory_exists path description =
     }
   else None
 
+(** Check if any files in a directory match a suffix pattern.
+    
+    @param dir The directory path to scan.
+    @param pattern Suffix string to match.
+    @param description Brief description of the expected files. *)
 let check_files_in_dir dir pattern description =
   if Sys.file_exists dir && Sys.is_directory dir then
     let entries = Sys.readdir dir in
@@ -50,6 +63,10 @@ let check_files_in_dir dir pattern description =
     else None
   else None
 
+(** Validate package structure and recommend typical file components.
+    
+    @param dir The root directory of the package.
+    @return A list of identified issues. *)
 let validate_package_structure dir =
   let issues = ref [] in
   let add_issue = function
@@ -88,6 +105,10 @@ let validate_package_structure dir =
 
   List.rev !issues
 
+(** Validate project directory structure.
+    
+    @param dir The root directory of the project.
+    @return A list of identified issues. *)
 let validate_project_structure dir =
   let issues = ref [] in
   let add_issue = function
@@ -103,6 +124,9 @@ let validate_project_structure dir =
 
   List.rev !issues
 
+(** Check if Nix is installed on the system.
+    
+    @return [Some issue] if missing, [None] otherwise. *)
 let check_nix_installation () =
   let code = Sys.command "command -v nix >/dev/null 2>&1" in
   if code <> 0 then
@@ -112,6 +136,105 @@ let check_nix_installation () =
       suggestion = Some "Install Nix: https://nixos.org/download.html";
     }
   else None
+
+(** Check if Julia binary is installed on the system.
+    
+    @return [Some issue] if missing, [None] otherwise. *)
+let check_julia_binary () =
+  let code = Sys.command "command -v julia >/dev/null 2>&1" in
+  if code <> 0 then
+    Some {
+      level = Warning;
+      message = "Julia binary is not installed or not in PATH";
+      suggestion = Some "Install Julia and ensure `julia` is available on PATH";
+    }
+  else None
+
+(** Check if the installed Julia version satisfies T-Lang requirements (>= 1.6).
+    
+    @return [Some issue] if version is out of range or unparseable, otherwise [None]. *)
+let check_julia_version () =
+  if Sys.command "command -v julia >/dev/null 2>&1" <> 0 then None
+  else
+    let ic = Unix.open_process_in "julia --version 2>/dev/null" in
+    let line = try input_line ic with End_of_file -> "" in
+    let status = Unix.close_process_in ic in
+    let parse_major_minor version =
+      try
+        match String.split_on_char '.' version with
+        | major :: minor :: _ -> Some (int_of_string major, int_of_string minor)
+        | _ -> None
+      with _ -> None
+    in
+    match status with
+    | Unix.WEXITED 0 ->
+        let version =
+          match String.split_on_char ' ' line with
+          | _prefix :: v :: _ -> v
+          | _ -> ""
+        in
+        begin match parse_major_minor version with
+        | Some (major, minor) when major > 1 || (major = 1 && minor >= 6) -> None
+        | Some _ ->
+            Some {
+              level = Warning;
+              message = Printf.sprintf "Julia version %s may be too old; expected Julia >= 1.6" version;
+              suggestion = Some "Upgrade Julia to version 1.6 or newer";
+            }
+        | None ->
+            Some {
+              level = Suggestion;
+              message = Printf.sprintf "Could not parse Julia version output: %s" line;
+              suggestion = Some "Run `julia --version` and verify it reports a version >= 1.6";
+            }
+        end
+    | _ ->
+        Some {
+          level = Suggestion;
+          message = "Could not determine Julia version";
+          suggestion = Some "Run `julia --version` manually";
+        }
+
+(** Verify if the JULIA_LOAD_PATH environment variable is configured correctly.
+    
+    @return [Some issue] if unconfigured, otherwise [None]. *)
+let check_julia_load_path () =
+  match Sys.getenv_opt "JULIA_LOAD_PATH" with
+  | None ->
+      Some {
+        level = Suggestion;
+        message = "JULIA_LOAD_PATH is not set";
+        suggestion = Some "Set JULIA_LOAD_PATH so Julia can discover required companion packages";
+      }
+  | Some load_path when String.trim load_path = "" ->
+      Some {
+        level = Warning;
+        message = "JULIA_LOAD_PATH is empty";
+        suggestion = Some "Set JULIA_LOAD_PATH to include Julia project/package paths";
+      }
+  | Some _ -> None
+
+(** Scan for required Julia packages (JSON, DataFrames, CSV, Arrow) in the environment.
+    
+    @return List of issues for missing packages. *)
+let check_julia_packages () =
+  if Sys.command "command -v julia >/dev/null 2>&1" <> 0 then []
+  else
+    let required_packages = [ "JSON"; "DataFrames"; "CSV"; "Arrow" ] in
+    List.filter_map (fun pkg ->
+      let cmd =
+        Printf.sprintf
+          "julia -e 'import Pkg; has = any(d->d.name==\"%s\", values(Pkg.dependencies())); exit(has ? 0 : 1)' >/dev/null 2>&1"
+          pkg
+      in
+      if Sys.command cmd = 0 then None
+      else
+        Some {
+          level = Warning;
+          message = Printf.sprintf "Missing Julia package `%s`" pkg;
+          suggestion = Some (Printf.sprintf "Install it with Julia Pkg: `julia -e \"import Pkg; Pkg.add(\\\"%s\\\")\"`" pkg);
+        }
+    ) required_packages
 
 (*
 --# Run Package/Project Doctor
@@ -159,6 +282,12 @@ let run_doctor () =
          [{ level = Warning; message = msg; suggestion = Some "Run `t docs` to debug or create docs/index.md" }]
   in
   let issues = doc_issues @ issues in
+  let julia_issues =
+    let base_checks = [ check_julia_binary (); check_julia_version (); check_julia_load_path () ] in
+    let base_issues = List.filter_map (fun x -> x) base_checks in
+    base_issues @ check_julia_packages ()
+  in
+  let issues = issues @ julia_issues in
 
   if issues = [] then
     Printf.printf "\n✓ Everything looks good!\n"

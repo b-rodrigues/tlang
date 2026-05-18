@@ -93,6 +93,7 @@ let add_node_name_context name context =
 
 let is_visual_metadata_class = function
   | "ggplot" | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" -> true
+  | "tidierplots" | "plotsjl" | "makie" -> true
   | _ -> false
 
 let read_standard_node_value cn =
@@ -275,10 +276,52 @@ let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
   | None ->
       p.p_nodes
 
+(** Scans candidate build logs and returns the most recent [ComputedNode]
+    entry whose name equals [name]. [log_name_pattern], when provided, is a
+    regex matched against log filenames; when omitted, all candidate logs are
+    searched in most-recent-first order. *)
+let latest_logged_computed_node ?log_name_pattern (name : string) =
+  let logs = candidate_logs ?which_log:log_name_pattern () in
+  let read_entries log_file =
+    match read_log (Filename.concat pipeline_dir log_file) with
+    | Ok entries -> Some entries
+    | Error _ -> None
+  in
+  let rec find_in_logs = function
+    | [] -> None
+    | log_file :: tail ->
+        (match read_entries log_file with
+         | Some entries ->
+             (match List.assoc_opt name entries with
+              | Some cn -> Some cn
+              | None -> find_in_logs tail)
+         | None -> find_in_logs tail)
+  in
+  match log_name_pattern with
+  | None -> find_in_logs logs
+  | Some pattern ->
+      let matching_logs =
+        try
+          let re = Str.regexp pattern in
+          List.filter
+            (fun log ->
+              try
+                let _ = Str.search_forward re log 0 in
+                true
+              with Not_found -> false)
+            logs
+        with Failure msg ->
+          Printf.eprintf
+            "Warning: latest_logged_computed_node: invalid log_name_pattern regex: %s\n%!"
+            msg;
+          []
+      in
+      find_in_logs matching_logs
+
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
   match Sys.getenv_opt env_name with
-  | Some path when which_log = None ->
+  | Some path when which_log = None && path <> "" ->
       let artifact_path = Filename.concat path "artifact" in
       let class_path = Filename.concat path "class" in
       if Sys.file_exists artifact_path && Sys.file_exists class_path then

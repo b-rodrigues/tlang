@@ -36,11 +36,6 @@
 <h1 id="t_make">t_make</h1>
 <p>Build Pipeline Internally</p>
 <p>Builds the <code>src/pipeline.t</code> pipeline entrypoint.</p>
-<p><code>src/pipeline.t</code> must call
-<code>populate_pipeline(...)</code> or <code>build_pipeline(...)</code>.
-If it only calls <code>populate_pipeline(...)</code> without
-<code>build = true</code>, <code>t_make()</code> emits a warning and
-continues after populating the pipeline.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>filename</strong> (<code>String</code>): (Optional) The

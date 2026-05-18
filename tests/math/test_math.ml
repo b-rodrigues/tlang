@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   Printf.printf "Phase 5 — Math: sqrt():\n";
   test "sqrt of integer" "sqrt(4)" "2.";
   test "sqrt of float" "sqrt(2.0)" "1.41421356237";
@@ -89,14 +89,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "round digits" "round(3.14159, digits = 2)" "3.14";
   test "floor" "floor(3.9)" "3.";
   test "ceiling" "ceiling(3.1)" "4.";
-  test "ceil alias" "ceil(3.1)" "4.";
+  test "ceiling function" "ceiling(3.1)" "4.";
   test "trunc" "trunc(0.0 - 3.9)" "-3.";
   test "sign" "sign(0.0 - 5)" "-1.";
   test "signif" "signif(1234.567, 3)" "1230.";
   test "sin" "sin(0)" "0.";
   test "cos" "cos(0)" "1.";
   test "atan2" "atan2(1, 1)" "0.785398163397";
-  test "atan2 vectorized" {|angles = dataframe([[y: 0], [y: 1], [y: 0 - 1]]); atan2(angles.y, 1)|} "Vector[0., 0.785398163397, -0.785398163397]";
+  test "atan2 vectorized" {|angles = to_dataframe([[y: 0], [y: 1], [y: 0 - 1]]); atan2(angles.y, 1)|} "Vector[0., 0.785398163397, -0.785398163397]";
   test "atan2 vectorized x NA"
     "atan2([1, 2], NA)"
     {|Error(TypeError: "Function `atan2` encountered NA value. Handle missingness explicitly.")|};

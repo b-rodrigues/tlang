@@ -10,7 +10,7 @@ open Ast
 --# @return :: Null
 --# @example
 --#   glimpse(mtcars)
---# @family dataframe
+--# @family to_dataframe
 --# @seealso colnames, str
 --# @export
 *)

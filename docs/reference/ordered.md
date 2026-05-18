@@ -2,5 +2,5 @@
 
 Create ordered factors
 
-Creates factor vectors marked as ordered for ordinal comparisons.
+Creates to_factor vectors marked as ordered for ordinal comparisons.
 

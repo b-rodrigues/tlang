@@ -29,6 +29,27 @@ let parse_numeric_string s =
 --# @family core
 --# @export
 *)
+let lift_unary_converter name convert args =
+  match args with
+  | [VVector arr] ->
+      let had_error = ref None in
+      let res = Array.map (fun v -> 
+        let converted = convert v in
+        (match converted with VError _ as e -> had_error := Some e | _ -> ());
+        converted
+      ) arr in
+      (match !had_error with Some e -> e | None -> VVector res)
+  | [VList items] ->
+      let had_error = ref None in
+      let res = List.map (fun (n, v) -> 
+        let converted = convert v in
+        (match converted with VError _ as e -> had_error := Some e | _ -> ());
+        (n, converted)
+      ) items in
+      (match !had_error with Some e -> e | None -> VList res)
+  | [v] -> convert v
+  | _ -> Error.arity_error_named name 1 (List.length args)
+
 let register_integer env =
   Env.add "to_integer"
     (make_builtin ~name:"to_integer" 1 (fun args _env ->
@@ -43,25 +64,7 @@ let register_integer env =
         | VNA _ -> (VNA NAGeneric)
         | _ -> Error.type_error (Printf.sprintf "Cannot coerce %s to integer" (Utils.type_name v))
       in
-      match args with
-      | [VVector arr] ->
-          let had_error = ref None in
-          let res = Array.map (fun v -> 
-            let converted = convert v in
-            (match converted with VError _ as e -> had_error := Some e | _ -> ());
-            converted
-          ) arr in
-          (match !had_error with Some e -> e | None -> VVector res)
-      | [VList items] ->
-          let had_error = ref None in
-          let res = List.map (fun (n, v) -> 
-            let converted = convert v in
-            (match converted with VError _ as e -> had_error := Some e | _ -> ());
-            (n, converted)
-          ) items in
-          (match !had_error with Some e -> e | None -> VList res)
-      | [v] -> convert v
-      | _ -> Error.arity_error_named "to_integer" 1 (List.length args)
+      lift_unary_converter "to_integer" convert args
     ))
     env
 
@@ -95,74 +98,10 @@ let register_float env =
         | VNA _ -> (VNA NAGeneric)
         | _ -> Error.type_error (Printf.sprintf "Cannot coerce %s to float" (Utils.type_name v))
       in
-      match args with
-      | [VVector arr] ->
-          let had_error = ref None in
-          let res = Array.map (fun v -> 
-            let converted = convert v in
-            (match converted with VError _ as e -> had_error := Some e | _ -> ());
-            converted
-          ) arr in
-          (match !had_error with Some e -> e | None -> VVector res)
-      | [VList items] ->
-          let had_error = ref None in
-          let res = List.map (fun (n, v) -> 
-            let converted = convert v in
-            (match converted with VError _ as e -> had_error := Some e | _ -> ());
-            (n, converted)
-          ) items in
-          (match !had_error with Some e -> e | None -> VList res)
-      | [v] -> convert v
-      | _ -> Error.arity_error_named "to_float" 1 (List.length args)
+      lift_unary_converter "to_float" convert args
     ))
     env
 
-(*
---# Convert to Numeric
---#
---# Alias for `to_float`. Coerces a value to a numeric (float) robustly.
---#
---# @name to_numeric
---# @param x :: Any The value to convert.
---# @return :: Float | NA The converted float.
---# @family core
---# @export
-*)
-let register_numeric env =
-  Env.add "to_numeric"
-    (make_builtin ~name:"to_numeric" 1 (fun args _env ->
-      let convert v = match v with
-        | VFloat f -> VFloat f
-        | VInt i -> VFloat (float_of_int i)
-        | VBool b -> VFloat (if b then 1.0 else 0.0)
-        | VString s ->
-            (match parse_numeric_string s with
-             | Some f -> VFloat f
-             | None -> (VNA NAGeneric))
-        | VNA _ -> (VNA NAGeneric)
-        | _ -> Error.type_error (Printf.sprintf "Cannot coerce %s to numeric" (Utils.type_name v))
-      in
-      match args with
-      | [VVector arr] ->
-          let had_error = ref None in
-          let res = Array.map (fun v -> 
-            let converted = convert v in
-            (match converted with VError _ as e -> had_error := Some e | _ -> ());
-            converted
-          ) arr in
-          (match !had_error with Some e -> e | None -> VVector res)
-      | [VList items] ->
-          let had_error = ref None in
-          let res = List.map (fun (n, v) -> 
-            let converted = convert v in
-            (match converted with VError _ as e -> had_error := Some e | _ -> ());
-            (n, converted)
-          ) items in
-          (match !had_error with Some e -> e | None -> VList res)
-      | [v] -> convert v
-      | _ -> Error.arity_error_named "to_numeric" 1 (List.length args)
-    ))
-    env
 
 (*
 --# Convert a string to a Symbol
@@ -170,30 +109,90 @@ let register_numeric env =
 --# Creates a Symbol from a string so it can be injected into quoted code with
 --# `!!`. Existing Symbol values pass through unchanged.
 --#
---# @name sym
+--# @name to_symbol
 --# @param x :: String | Symbol The name to convert.
 --# @return :: Symbol The resulting symbol.
 --# @example
---#   sym("mpg")
---#   expr(select(df, !!sym("mpg")))
+--#   to_symbol("mpg")
+--#   to_expr(select(df, !!to_symbol("mpg")))
 --# @family core
 --# @export
 *)
 let register_sym env =
-  Env.add "sym"
-    (make_builtin ~name:"sym" 1 (fun args _env ->
+  Env.add "to_symbol"
+    (make_builtin ~name:"to_symbol" 1 (fun args _env ->
       match args with
       | [VString name] ->
           let trimmed = String.trim name in
           if trimmed = "" then
-            Error.value_error "Function `sym` expects a non-empty String or Symbol."
+            Error.value_error "Function `to_symbol` expects a non-empty String or Symbol."
           else
             VSymbol trimmed
       | [VSymbol name] -> VSymbol name
-      | [_] -> Error.type_error "Function `sym` expects a String or Symbol."
-      | _ -> Error.arity_error_named "sym" 1 (List.length args)
+      | [_] -> Error.type_error "Function `to_symbol` expects a String or Symbol."
+      | _ -> Error.arity_error_named "to_symbol" 1 (List.length args)
+    ))
+    env
+
+
+(*
+--# Convert to Boolean
+--#
+--# Coerces a value to a boolean. Recognizes 'TRUE'/'FALSE', 'T'/'F',
+--# non-zero numbers as true, and zero as false.
+--#
+--# @name to_bool
+--# @param x :: Any The value to convert.
+--# @return :: Bool | NA The converted boolean.
+--# @family core
+--# @export
+*)
+let register_bool env =
+  Env.add "to_bool"
+    (make_builtin ~name:"to_bool" 1 (fun args _env ->
+      let convert v = match v with
+        | VBool b -> VBool b
+        | VInt i -> VBool (i <> 0)
+        | VFloat f -> VBool (f <> 0.0)
+        | VString s ->
+            let upper = String.uppercase_ascii (String.trim s) in
+            (match upper with
+             | "TRUE" | "T" | "YES" | "Y" | "1" -> VBool true
+             | "FALSE" | "F" | "NO" | "N" | "0" -> VBool false
+             | _ -> (VNA NAGeneric))
+        | VNA _ -> (VNA NAGeneric)
+        | _ -> Error.type_error (Printf.sprintf "Cannot coerce %s to boolean" (Utils.type_name v))
+      in
+      lift_unary_converter "to_bool" convert args
+    ))
+    env
+
+(*
+--# Convert to String
+--#
+--# Returns a string representation of the value.
+--#
+--# @name to_string
+--# @param x :: Any The value to convert.
+--# @return :: String The string representation.
+--# @family core
+--# @export
+*)
+let register_string env =
+  Env.add "to_string"
+    (make_builtin ~name:"to_string" 1 (fun args _env ->
+      let convert v = match v with
+        | VString s -> VString s
+        | VFactor (idx, levels, _) ->
+            (match List.nth_opt levels idx with
+             | Some s -> VString s
+             | None -> VNA NAString)
+        | VNA _ -> VNA NAString
+        | v -> VString (Utils.value_to_string v)
+      in
+      lift_unary_converter "to_string" convert args
     ))
     env
 
 let register env =
-  env |> register_integer |> register_float |> register_numeric |> register_sym
+  env |> register_integer |> register_float |> register_sym |> register_bool |> register_string

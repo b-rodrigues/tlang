@@ -470,6 +470,7 @@ let is_standard_package = function
   | "math"
   | "stats"
   | "dataframe"
+  | "to_dataframe"
   | "colcraft"
   | "pipeline"
   | "explain" -> true
@@ -986,12 +987,12 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
     | Match { scrutinee; cases } ->
         eval_match env_ref scrutinee cases
 
-    | Call { fn = { node = Var "expr"; _ }; args } ->
+    | Call { fn = { node = Var "to_expr"; _ }; args } ->
         (match args with
          | [(_name, e)] -> VExpr (quote_expr env_ref e)
-         | _ -> make_error ArityError "expr() expects exactly 1 argument")
+         | _ -> make_error ArityError "to_expr() expects exactly 1 argument")
 
-    | Call { fn = { node = Var "exprs"; _ }; args } ->
+    | Call { fn = { node = Var "to_exprs"; _ }; args } ->
         VList (List.map (fun (name, e) -> (name, VExpr (quote_expr env_ref e))) args)
 
     (* quo/quos capture the expression WITH the current lexical environment (quosure) *)
@@ -1048,7 +1049,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
          | _ -> Error.make_error ArityError "enquos() expects no arguments or `...`")
 
     | Call { fn = { node = Var name; _ }; args }
-      when List.mem name ["node"; "py"; "pyn"; "rn"; "qn"; "shn"] ->
+      when List.mem name ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] ->
         let fn_name = name in
         let lookup_arg name default =
           match List.assoc_opt (Some name) args with
@@ -1068,11 +1069,22 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
            IMPORTANT: only evaluate when the user actually supplied the arg —
            the default sentinels (varexpr "text", varexpr "default") are NOT
            string literals but variable-name look-ups that would fail in env. *)
+        let rec validate_no_strings arg_name = function
+          | VString s ->
+              Some (Error.type_error (Printf.sprintf "String literals are not allowed for `%s` (got \"%s\"). Please use a symbol (e.g., ^%s)." arg_name s s))
+          | VList items -> 
+              List.fold_left (fun acc (_, v) -> match acc with Some _ -> acc | None -> validate_no_strings arg_name v) None items
+          | VDict items -> 
+              List.fold_left (fun acc (_, v) -> match acc with Some _ -> acc | None -> validate_no_strings arg_name v) None items
+          | _ -> None
+        in
         let lookup_serializer_arg name default =
           match List.assoc_opt (Some name) args with
           | Some e ->
             let v = eval_expr env_ref e in
-            Ast.mk_expr (Ast.Value v)
+            (match validate_no_strings name v with
+             | Some err -> Ast.mk_expr (Ast.Value err)
+             | None -> Ast.mk_expr (Ast.Value v))
           | None -> default
         in
         let lookup_env_vars () =
@@ -1235,8 +1247,9 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             Error.make_error TypeError (Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name)
           else
              let default_runtime = match name with
-               | "py" | "pyn" -> "Python"
+               | "pyn" -> "Python"
                | "rn" -> "R"
+              | "jln" -> "Julia"
                | "qn" -> "Quarto"
                | "shn" -> "sh"
                | _ -> "T"
@@ -1506,7 +1519,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_call = match node_expr.node with
-      | Call { fn = { node = Var ("node" | "py" | "pyn" | "rn" | "qn" | "shn"); _ }; _ }
+      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
       | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
@@ -1576,8 +1589,12 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
              let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
              let has_self_ref = List.exists (fun v -> v = name) fv in
              if has_self_ref && not is_raw then
-               Error (Error.structural_error (Printf.sprintf
-                 "Self-referential node detected in command for node: `%s`." name))
+                let msg = if match un.un_command.node with Var v when v = name -> true | _ -> false then
+                  Printf.sprintf "Node `%s` not found. If this is intended to be a cross-pipeline dependency, use `chain` or ensure the node is defined before the pipeline block." name
+                else
+                  Printf.sprintf "Self-referential node detected in command for node: `%s`." name
+                in
+                Error (Error.structural_error msg)
              else
                let node_deps = List.filter (fun v ->
                  v <> name && (
@@ -1998,7 +2015,7 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
 
   | UnquoteSplice _ ->
       Ast.mk_expr ?loc (Value (make_error TypeError
-        "!!! can only be used inside a Call, List, or Dict literal within expr()"))
+        "!!! can only be used inside a Call, List, or Dict literal within to_expr()"))
 
   (* ── Compound forms that support !!! splicing and !! dynamic names ── *)
   | Call { fn; args } ->
@@ -2124,7 +2141,7 @@ and eval_dict_lit env_ref items =
         | VUnquoteSplice sv ->
             let units = match sv with
               | VDict d -> d
-              | VList items -> List.map (fun (n, v) -> (match n with Some name -> name | None -> "expr"), v) items
+              | VList items -> List.map (fun (n, v) -> (match n with Some name -> name | None -> "to_expr"), v) items
               | VVector vx -> Array.to_list vx |> List.mapi (fun i x -> (string_of_int i, x))
               | _ -> [(k, sv)]
             in
@@ -2149,6 +2166,7 @@ and eval_dot_access env_ref target_expr field =
           (match Utils.node_diagnostics_to_value diagnostics with
            | VDict p -> (match List.assoc_opt "error" p with Some v -> v | None -> VNA NAGeneric)
            | _ -> VNA NAGeneric)
+      | "value" -> Utils.unwrap_value target_val
       | _ -> eval_dot_access_val env_ref (Utils.unwrap_value target_val) field)
   | _ -> eval_dot_access_val env_ref target_val field
 
@@ -2215,7 +2233,7 @@ and eval_dot_access_val _env_ref target_val field =
       (match field with
       | "path" ->
           (match !Ast.node_resolver s with
-           | Some (VComputedNode cn) -> VString cn.cn_path
+           | Some (VComputedNode cn) -> VString (!Ast.computed_node_resolver cn).cn_path
            | Some (VNode _) -> VString "<unbuilt>"
            | _ -> Error.make_error KeyError (Printf.sprintf "Symbol `%s` has no field `path` (and no built node with this name was found)." s))
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Symbol has no field `%s`" field))
@@ -2237,9 +2255,11 @@ and eval_dot_access_val _env_ref target_val field =
          else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
   | VPipeline { p_nodes; _ } ->
       (match List.assoc_opt field p_nodes with
+       | Some (VComputedNode cn) -> VComputedNode (!Ast.computed_node_resolver cn)
        | Some v -> v
        | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
   | VComputedNode cn ->
+      let cn = !Ast.computed_node_resolver cn in
       (match field with
       | "name" -> VString cn.cn_name
       | "runtime" -> VString cn.cn_runtime
@@ -2440,7 +2460,7 @@ and eval_call env_ref fn_val raw_args =
             | "rename" | "rename_node"
            | "pivot_longer" | "pivot_longer_node"
            | "pivot_wider" | "pivot_wider_node"
-           | "node" | "py" | "pyn" | "rn" | "qn" | "shn" | "inspect") -> true
+           | "node" | "pyn" | "rn" | "jln" | "qn" | "shn" | "inspect") -> true
     | _ -> false
   in
 
@@ -2529,9 +2549,9 @@ and eval_call env_ref fn_val raw_args =
             match autoquote_capture_expr e with
             | Ok (captured_expr, captured_value) ->
                 autoquote_captured_exprs := (param_index, captured_expr) :: !autoquote_captured_exprs;
-                acc @ [(name, captured_value)]
+                acc @ [(name, (None, captured_value))]
             | Error err ->
-                acc @ [(name, err)]
+                acc @ [(name, (None, err))]
           in
           process_args_spliced next_acc (param_index + 1) rest
         else
@@ -2544,21 +2564,57 @@ and eval_call env_ref fn_val raw_args =
           | _ -> eval_expr env_ref e
         in
         match v with
-        | VUnquote inner -> process_args_spliced (acc @ [(name, inner)]) (param_index + 1) rest
+        | VUnquote inner -> 
+            let source = match e.node with Var s -> Some s | ColumnRef s -> Some ("$" ^ s) | _ -> None in
+            process_args_spliced (acc @ [(name, (source, inner))]) (param_index + 1) rest
         | VUnquoteSplice sv ->
             let units = match sv with
-              | VList items -> items
-              | VVector vx -> Array.to_list vx |> List.map (fun x -> (None, x))
-              | VDict d -> List.map (fun (k, v) -> (Some k, v)) d
-              | _ -> [(name, sv)]
+              | VList items -> items |> List.map (fun (n, v) -> (n, (None, v)))
+              | VVector vx -> Array.to_list vx |> List.map (fun x -> (None, (None, x)))
+              | VDict d -> List.map (fun (k, v) -> (Some k, (None, v))) d
+              | _ -> [(name, (None, sv))]
             in
             process_args_spliced (acc @ units) (param_index + List.length units) rest
         | VDynamicArg (n, v) ->
-            process_args_spliced (acc @ [(Some n, v)]) (param_index + 1) rest
-        | _ -> process_args_spliced (acc @ [(name, v)]) (param_index + 1) rest
+            process_args_spliced (acc @ [(Some n, (None, v))]) (param_index + 1) rest
+        | _ -> 
+            let source = match e.node with Var s -> Some s | ColumnRef s -> Some ("$" ^ s) | _ -> None in
+            process_args_spliced (acc @ [(name, (source, v))]) (param_index + 1) rest
   in
 
-  let named_args = process_args_spliced [] 0 raw_args in
+  let named_args_enriched = process_args_spliced [] 0 raw_args in
+  let named_args = List.map (fun (n, (_, v)) -> (n, v)) named_args_enriched in
+
+  let enrich_type_error err enriched_args =
+    match err with
+    | VError info when info.code = TypeError ->
+        let arg_idx = 
+          match List.assoc_opt "arg_index" info.context with
+          | Some (VString s) -> (try Some (int_of_string s) with _ -> None)
+          | _ -> None
+        in
+        (match arg_idx with
+         | Some idx when idx > 0 && idx <= List.length enriched_args ->
+             let (_, source, v) = 
+               let (n, (src, val_)) = List.nth enriched_args (idx - 1) in
+               (n, src, val_)
+             in
+             let source_name =
+               match source with
+               | Some s -> Some s
+               | None -> (match Utils.unwrap_value v with VNodeResult { node_name; _ } -> Some node_name | _ -> None)
+             in
+             let base_msg = 
+               if String.length info.message > 0 && info.message.[String.length info.message - 1] = '.' 
+               then String.sub info.message 0 (String.length info.message - 1)
+               else info.message
+             in
+             (match source_name with
+              | Some name -> VError { info with message = base_msg ^ " (" ^ name ^ ")" }
+              | None -> VError info)
+         | _ -> VError info)
+    | _ -> err
+  in
 
   (* Apply a user lambda, including the autoquote-specific `__aq_<name>` bindings
      used to re-expand `!!param` inside NSE-aware builtins. *)
@@ -2637,7 +2693,8 @@ and eval_call env_ref fn_val raw_args =
         | Some name -> Error.arity_error_named name b_arity arg_count
         | None -> Error.arity_error b_arity arg_count
       else
-        b_func named_args env_ref
+        let res = b_func named_args env_ref in
+        enrich_type_error res named_args_enriched
 
   | VLambda { params; autoquote_params; param_types; return_type; variadic; body; env = Some closure_env; _ } ->
       apply_lambda closure_env params autoquote_params param_types return_type variadic body

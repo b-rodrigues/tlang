@@ -546,3 +546,6 @@ wald_df <- data.frame(
   test_type = "F"
 )
 save_output(wald_df, "mtcars_wald_wt_hp", "wald_test(m2, terms=['wt', 'hp'])")
+
+message("\n✅ All expected outputs generated!")
+message(sprintf("   Location: %s", normalizePath(output_dir)))

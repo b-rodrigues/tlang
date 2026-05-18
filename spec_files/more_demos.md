@@ -63,7 +63,7 @@ This document outlines a roadmap for new demonstration projects in the `t_demos/
 - `quo()`, `enquo()`
 - `eval()`
 - `expr()`
-- `as_string()` / `sym()` converters
+- `as_string()` / `to_symbol()` converters
 
 **Demo Scenario:**
 - Create a custom function `my_summarizer = \(df, col) { ... }` that uses `enquo(col)` to capture a column reference and `eval()` it inside a `summarize` block.

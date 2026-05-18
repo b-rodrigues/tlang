@@ -4,6 +4,11 @@ open Ast
 
 (** Shared helpers for descriptive statistics. *)
 
+(** Unpack a List or Vector value into a flat array of values.
+    
+    @param label The function label for error reports.
+    @param v The collection value (VVector or VList).
+    @return [Ok Array] or [Error error_value]. *)
 let collection_values ~label = function
   | VVector arr -> Ok arr
   | VList items -> Ok (Array.of_list (List.map snd items))
@@ -15,36 +20,42 @@ let collection_values ~label = function
               "Function `%s` expects a numeric List or Vector."
               label))
 
+(** Construct type error for invalid weight collection format. *)
 let numeric_weight_error label =
   Error.type_error
     (Printf.sprintf
        "Function `%s` expects `weights` to be a numeric List or Vector."
        label)
 
+(** Construct value error for invalid weight scalar value. *)
 let invalid_weight_value_error label =
   Error.value_error
     (Printf.sprintf
        "Function `%s` expects non-negative finite weights."
        label)
 
+(** Construct value error for zero-sum weight vectors. *)
 let invalid_weight_total_error label =
   Error.value_error
     (Printf.sprintf
        "Function `%s` expects `weights` to contain at least one positive value."
        label)
 
+(** Construct value error for mismatched weights and data vector dimensions. *)
 let invalid_weight_length_error label =
   Error.value_error
     (Printf.sprintf
        "Function `%s` expects `weights` to have the same length as the data."
        label)
 
+(** Construct value error for mismatched weights and paired vectors dimensions. *)
 let invalid_weight_pair_length_error label =
   Error.value_error
     (Printf.sprintf
        "Function `%s` expects `weights` to have the same length as both inputs."
        label)
 
+(** Safe coercion of value to float scalar. *)
 let numeric_value_of_value ~label = function
   | VInt n -> Ok (float_of_int n)
   | VFloat f when Float.is_finite f -> Ok f
@@ -58,6 +69,7 @@ let numeric_value_of_value ~label = function
         (Error.type_error
            (Printf.sprintf "Function `%s` requires numeric values." label))
 
+(** Safe coercion of value to a non-negative weight float. *)
 let weight_value_of_value ~label = function
   | VInt n when n >= 0 -> Ok (float_of_int n)
   | VFloat f when Float.is_finite f && f >= 0.0 -> Ok f
@@ -65,6 +77,7 @@ let weight_value_of_value ~label = function
   | VNA _ -> Error (Error.na_value_error ~na_rm:true label)
   | _ -> Error (numeric_weight_error label)
 
+(** Filter down matching values and weights to keep only positive weights. *)
 let filter_positive_weights xs ws =
   let kept = ref [] in
   for i = 0 to Array.length xs - 1 do
@@ -76,6 +89,14 @@ let filter_positive_weights xs ws =
   let ws' = Array.of_list (List.map snd kept) in
   (xs', ws')
 
+(** Extract a clean float array from a collection value.
+    
+    Supports NA removal if na_rm is true.
+    
+    @param label Context function name.
+    @param na_rm Enable missing values removal.
+    @param v Collection value.
+    @return [Ok float_array] or [Error error_value]. *)
 let extract_numeric_array ~label ~na_rm v =
   match collection_values ~label v with
   | Error _ as err -> err
@@ -109,6 +130,7 @@ let extract_numeric_array ~label ~na_rm v =
       | Some e -> Error e
       | None -> Ok (Array.of_list (List.rev !acc))
 
+(** Internal extractor for numeric array paired with corresponding weight vectors. *)
 let extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights ~allow_empty x weight_v =
   match (collection_values ~label x, collection_values ~label weight_v) with
   | Error _ as err, _ -> err
@@ -151,15 +173,19 @@ let extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights
               else if Array.exists (fun w -> w > 0.0) ws then Ok (xs, ws)
               else Error (invalid_weight_total_error label))
 
+(** Extract paired numeric values and positive weights, dropping zero weights. *)
 let extract_numeric_array_with_weights ~label ~na_rm x weight_v =
   extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights:true ~allow_empty:false x weight_v
 
+(** Extract paired numeric values and weights, preserving zero weights. *)
 let extract_numeric_array_with_weights_preserve_zeros ~label ~na_rm x weight_v =
   extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights:false ~allow_empty:false x weight_v
 
+(** Extract paired numeric values and weights, preserving zeros and allowing empty outputs. *)
 let extract_numeric_array_with_weights_preserve_zeros_allow_empty ~label ~na_rm x weight_v =
   extract_numeric_array_with_weights_internal ~label ~na_rm ~drop_zero_weights:false ~allow_empty:true x weight_v
 
+(** Extract paired coordinate vectors from two collections. *)
 let extract_paired_numeric_arrays ~label ~na_rm x y =
   match (collection_values ~label x, collection_values ~label y) with
   | Error _ as err, _ -> err
@@ -185,9 +211,9 @@ let extract_paired_numeric_arrays ~label ~na_rm x y =
                 xs := xv :: !xs;
                 ys := yv :: !ys
             | (Error _, _) | (_, Error _) when na_rm &&
-                                           (match xs_raw.(i), ys_raw.(i) with
-                                            | VNA _, _ | _, VNA _ -> true
-                                            | _ -> false) -> ()
+                                            (match xs_raw.(i), ys_raw.(i) with
+                                             | VNA _, _ | _, VNA _ -> true
+                                             | _ -> false) -> ()
             | Error e, _ | _, Error e -> had_error := Some e
         done;
         (match !had_error with
@@ -196,6 +222,7 @@ let extract_paired_numeric_arrays ~label ~na_rm x y =
              Ok
                (Array.of_list (List.rev !xs), Array.of_list (List.rev !ys)))
 
+(** Extract paired coordinate vectors alongside observation weights. *)
 let extract_paired_numeric_arrays_with_weights ~label ~na_rm x y weight_v =
   match
     ( collection_values ~label x,
@@ -235,8 +262,8 @@ let extract_paired_numeric_arrays_with_weights ~label ~na_rm x y weight_v =
               when na_rm
                    &&
                    (match (xs_raw.(i), ys_raw.(i), ws_raw.(i)) with
-                    | VNA _, _, _ | _, VNA _, _ | _, _, VNA _ -> true
-                    | _ -> false) -> ()
+                     | VNA _, _, _ | _, VNA _, _ | _, _, VNA _ -> true
+                     | _ -> false) -> ()
             | Error e, _, _ | _, Error e, _ | _, _, Error e ->
                 had_error := Some e
         done;
@@ -249,12 +276,15 @@ let extract_paired_numeric_arrays_with_weights ~label ~na_rm x y weight_v =
              if Array.length ws = 0 then Error (invalid_weight_total_error label)
              else Ok (xs, ys, ws))
 
+(** Sum all float values in an array. *)
 let sum_array arr = Array.fold_left ( +. ) 0.0 arr
 
+(** Compute the arithmetic mean of a float array. *)
 let mean_array arr =
   let n = Array.length arr in
   if n = 0 then None else Some (sum_array arr /. float_of_int n)
 
+(** Compute the weighted mean of a float array given positive weights. *)
 let weighted_mean_array xs ws =
   let total_w = sum_array ws in
   if total_w <= 0.0 then None
@@ -265,7 +295,8 @@ let weighted_mean_array xs ws =
     done;
     Some (!s /. total_w)
 
-let sample_variance_array xs =
+(** Compute the sample variance of a float array. *)
+let variance_array xs =
   match mean_array xs with
   | None -> None
   | Some m ->
@@ -279,6 +310,7 @@ let sample_variance_array xs =
         done;
         Some (!ss /. float_of_int (n - 1))
 
+(** Compute the population weighted variance of a float array given weights. *)
 let weighted_variance_population xs ws =
   match weighted_mean_array xs ws with
   | None -> None
@@ -291,6 +323,7 @@ let weighted_variance_population xs ws =
       done;
       Some (!ss /. total_w)
 
+(** Compute the sample covariance between two float arrays. *)
 let sample_covariance_array xs ys =
   match (mean_array xs, mean_array ys) with
   | Some mx, Some my ->
@@ -304,6 +337,7 @@ let sample_covariance_array xs ys =
         Some (!s /. float_of_int (n - 1))
   | _ -> None
 
+(** Compute the weighted population covariance between two float arrays given weights. *)
 let weighted_covariance_population xs ys ws =
   match (weighted_mean_array xs ws, weighted_mean_array ys ws) with
   | Some mx, Some my ->
@@ -315,6 +349,7 @@ let weighted_covariance_population xs ys ws =
       Some (!s /. total_w)
   | _ -> None
 
+(** Compute the weighted central moment of a float array of a specified order. *)
 let weighted_central_moment xs ws order =
   match weighted_mean_array xs ws with
   | None -> None
@@ -326,6 +361,7 @@ let weighted_central_moment xs ws order =
       done;
       Some (!s /. total_w)
 
+(** Compute a quantile from a float array using linear interpolation. *)
 let quantile_array xs p =
   let n = Array.length xs in
   if n = 0 then None
@@ -338,6 +374,7 @@ let quantile_array xs p =
     let frac = h -. float_of_int lo in
     Some (sorted.(lo) +. frac *. (sorted.(hi) -. sorted.(lo)))
 
+(** Compute a weighted quantile using type 7 equivalent linear interpolation of sorted pairs. *)
 let weighted_quantile_array xs ws p =
   let (xs, ws) = filter_positive_weights xs ws in
   let n = Array.length xs in
@@ -404,8 +441,8 @@ let solve_and_invert a b =
       if !max_row <> col then (let tmp = aug.(col) in aug.(col) <- aug.(!max_row); aug.(!max_row) <- tmp);
       let pivot = aug.(col).(col) in
       for row = col + 1 to p - 1 do
-        let factor = aug.(row).(col) /. pivot in
-        for j = col to 2 * p do aug.(row).(j) <- aug.(row).(j) -. factor *. aug.(col).(j) done
+        let to_factor = aug.(row).(col) /. pivot in
+        for j = col to 2 * p do aug.(row).(j) <- aug.(row).(j) -. to_factor *. aug.(col).(j) done
       done
     end
   done;
@@ -417,8 +454,8 @@ let solve_and_invert a b =
       let pivot = aug.(col).(col) in
       for j = col to 2 * p do aug.(col).(j) <- aug.(col).(j) /. pivot done;
       for row = 0 to col - 1 do
-        let factor = aug.(row).(col) in
-        for j = col to 2 * p do aug.(row).(j) <- aug.(row).(j) -. factor *. aug.(col).(j) done
+        let to_factor = aug.(row).(col) in
+        for j = col to 2 * p do aug.(row).(j) <- aug.(row).(j) -. to_factor *. aug.(col).(j) done
       done
     done;
     let inv = Array.init p (fun i -> Array.init p (fun j -> aug.(i).(j + p))) in

@@ -16,19 +16,19 @@ T has two families of quotation functions, matching R's `rlang`:
 
 | Function | Result | Environment | Use when… |
 |----------|--------|-------------|-----------|
-| `expr(x)` | `Expression` | None | You only need the AST |
+| `to_expr(x)` | `Expression` | None | You only need the AST |
 | `quo(x)` | `Quosure` | Captured at call site | You need the AST + its lexical context |
-| `exprs(...)` | `List[Expression]` | None | Multiple naked expressions |
+| `to_exprs(...)` | `List[Expression]` | None | Multiple naked expressions |
 | `quos(...)` | `List[Quosure]` | Captured at call site | Multiple expressions with lexical context |
 
-### `expr(expression)`
+### `to_expr(expression)`
 
-The `expr()` function captures the code as a naked **Expression** object. The current environment is *not* stored.
+The `to_expr()` function captures the code as a naked **Expression** object. The current environment is *not* stored.
 
 ```t
-e = expr(1 + 2)
+e = to_expr(1 + 2)
 print(e)
--- Output: expr(1 + 2)
+-- Output: to_expr(1 + 2)
 ```
 
 ### `quo(expression)`
@@ -42,13 +42,13 @@ x = 99
 eval(q)           -- returns 11, not 100
 ```
 
-### `exprs(...)`
+### `to_exprs(...)`
 
-`exprs()` captures multiple expressions and returns them as a list of naked Expression objects. It supports named arguments.
+`to_exprs()` captures multiple expressions and returns them as a list of naked Expression objects. It supports named arguments.
 
 ```t
-ee = exprs(x = 1 + 1, y = 2 + 2)
--- Result: [x: expr(1 + 1), y: expr(2 + 2)]
+ee = to_exprs(x = 1 + 1, y = 2 + 2)
+-- Result: [x: to_expr(1 + 1), y: to_expr(2 + 2)]
 ```
 
 ### `quos(...)`
@@ -67,7 +67,7 @@ qs = quos(a = 1 + x, b = 2 * x)
 In T, if you use a word that isn't defined as a variable, it is automatically treated as a **Symbol** when inside a quoting context. This is useful for building Domain Specific Languages (DSLs).
 
 ```t
-e = expr(select(df, age, height))
+e = to_expr(select(df, age, height))
 -- 'select', 'age', and 'height' are captured as symbols.
 ```
 
@@ -80,7 +80,7 @@ The `eval()` function evaluates an Expression or Quosure:
 - **Quosure**: evaluated in its *captured* environment.
 
 ```t
-e = expr(10 + 20)
+e = to_expr(10 + 20)
 eval(e)          -- evaluates in current env → 30
 
 x = 5
@@ -98,10 +98,10 @@ salary = [1000, 2000, 3000]
 var_name = "salary"
 
 get(var_name)       -- retrieves [1000, 2000, 3000]
-get(sym(var_name))  -- also works with Symbols
+get(to_symbol(var_name))  -- also works with Symbols
 ```
 
-Important: `get()` resolves names in the **calling environment**, not in a data-masking context. To retrieve a column dynamically inside a data verb, use quasiquotation with `!!sym(col)`.
+Important: `get()` resolves names in the **calling environment**, not in a data-masking context. To retrieve a column dynamically inside a data verb, use quasiquotation with `!!to_symbol(col)`.
 
 ## Quasiquotation
 
@@ -113,16 +113,16 @@ The `!!` (pronounced "bang-bang") operator evaluates its operand immediately and
 
 ```t
 x = 10
-e = expr(1 + !!x)
+e = to_expr(1 + !!x)
 print(e) 
--- Output: expr(1 + 10)
+-- Output: to_expr(1 + 10)
 ```
 
 ```t
 inner = quo(1.5 + 2.5)
-outer = expr(2 * !!inner)   -- !! strips env from quosure
+outer = to_expr(2 * !!inner)   -- !! strips env from quosure
 print(outer)
--- Output: expr(2 * (1.5 + 2.5))
+-- Output: to_expr(2 * (1.5 + 2.5))
 ```
 
 ### `!!!` (Unquote-Splice)
@@ -133,9 +133,9 @@ The `!!!` (pronounced "triple-bang") operator evaluates its operand and **splice
 
 ```t
 vals = [1, 2, 3]
-e = expr(sum(!!!vals))
+e = to_expr(sum(!!!vals))
 print(e)
--- Output: expr(sum(1, 2, 3))
+-- Output: to_expr(sum(1, 2, 3))
 ```
 
 #### Splicing with Names
@@ -144,9 +144,9 @@ If you splice a named List, the names are used as argument names in the resultin
 
 ```t
 my_args = [x: 10, y: 20]
-e = expr(f(!!!my_args, z: 30))
+e = to_expr(f(!!!my_args, z: 30))
 print(e)
--- Output: expr(f(x = 10, y = 20, z = 30))
+-- Output: to_expr(f(x = 10, y = 20, z = 30))
 ```
 
 ### `!!name := value` (Dynamic Naming)
@@ -155,24 +155,24 @@ The `!!name := value` syntax allows you to use a dynamically computed string or 
 
 ```t
 col = "age"
-e = expr(mutate(df, !!col := 42))
+e = to_expr(mutate(df, !!col := 42))
 print(e)
--- Output: expr(mutate(df, age = 42))
+-- Output: to_expr(mutate(df, age = 42))
 ```
 
 If `!!name` does not evaluate to a `String` or `Symbol`, a `TypeError` is raised.
 
-### `sym(string_or_symbol)`
+### `to_symbol(string_or_symbol)`
 
-When you have a column or argument name in a string variable, use `sym()` to turn it into a runtime `Symbol` that can be injected with `!!`.
+When you have a column or argument name in a string variable, use `to_symbol()` to turn it into a runtime `Symbol` that can be injected with `!!`.
 
 ```t
 col_name = "mpg"
-expr(select(df, !!sym(col_name)))
--- Output: expr(select(df, mpg))
+to_expr(select(df, !!to_symbol(col_name)))
+-- Output: to_expr(select(df, mpg))
 ```
 
-This is most useful for programmatic code generation. Use `sym()` to turn a string into a label that `!!` can inject as a symbol, or that `get()` can use for variable lookup.
+This is most useful for programmatic code generation. Use `to_symbol()` to turn a string into a label that `!!` can inject as a symbol, or that `get()` can use for variable lookup.
 
 ## Non-Standard Evaluation (NSE)
 
@@ -185,7 +185,7 @@ For writing functions that accept unevaluated expressions from the caller — si
 ```t
 my_select = \(df: DataFrame, col: Any -> DataFrame) {
   col_expr = enquo(col)           -- captures expr + caller's env
-  eval(expr(df |> select(!!col_expr)))
+  eval(to_expr(df |> select(!!col_expr)))
 }
 
 my_select(iris, $Sepal.Length)
@@ -203,11 +203,11 @@ my_mean = \(df, $col) {
   summarize(df, result = mean(!!col))
 }
 
-df = dataframe([salary: [100, 200, 300]])
+df = to_dataframe([salary: [100, 200, 300]])
 my_mean(df, salary)
 ```
 
-This removes the need for the common `enquo()` + `eval(expr(...))` wrapper when the function is simply forwarding a column-like argument into an NSE-aware data verb.
+This removes the need for the common `enquo()` + `eval(to_expr(...))` wrapper when the function is simply forwarding a column-like argument into an NSE-aware data verb.
 
 Current behavior:
 
@@ -226,7 +226,7 @@ Use `enquo()` when you need to preserve the caller's full expression rather than
 ```t
 my_summarize = \(df: DataFrame, ... -> DataFrame) {
   cols = enquos(...)              -- list of quosures from the caller
-  eval(expr(df |> summarize(!!!cols)))
+  eval(to_expr(df |> summarize(!!!cols)))
 }
 
 my_summarize(iris,
@@ -245,13 +245,13 @@ You can use quasiquotation to dynamically build pipeline nodes or intents:
 
 ```t
 var_name = "mpg"
-my_intent = expr(intent {
+my_intent = to_expr(intent {
   target = !!var_name
   method = "lm"
 })
 
 print(my_intent)
--- Output: expr(intent { target = "mpg"; method = "lm" })
+-- Output: to_expr(intent { target = "mpg"; method = "lm" })
 ```
 
 ### Prefix-Call Syntax
@@ -259,24 +259,24 @@ print(my_intent)
 T also supports a Lisp-style prefix call syntax which integrates seamlessly with quotation:
 
 ```t
-e = expr((add, 1, 2))
--- Equivalent to expr(add(1, 2))
+e = to_expr((add, 1, 2))
+-- Equivalent to to_expr(add(1, 2))
 ```
 
 ## Summary of Operators
 
 | Operator/Function | Purpose |
 | :--- | :--- |
-| `expr(x)` | Capture `x` as a naked Expression (no environment). |
-| `exprs(...)` | Capture multiple expressions as a List of naked Expressions. |
+| `to_expr(x)` | Capture `x` as a naked Expression (no environment). |
+| `to_exprs(...)` | Capture multiple expressions as a List of naked Expressions. |
 | `quo(x)` | Capture `x` as a Quosure (expression + lexical environment). |
 | `quos(...)` | Capture multiple expressions as a List of Quosures. |
 | `eval(e)` | Evaluate Expression `e` in the current env, or Quosure `e` in its captured env. |
 | `get(name)` | Dynamically retrieve a variable's value by String or Symbol name. |
-| `sym(s)` | Convert a String `s` into a Symbol at runtime. |
-| `!!x` | Evaluate `x` and inject into `expr()`/`quo()`; strips env from quosures. |
-| `!!!x` | Evaluate `x` and splice elements into `expr()`/`quo()`. |
-| `!!name := value` | Use a dynamic String/Symbol as an argument name inside `expr()`/`quo()`. |
+| `to_symbol(s)` | Convert a String `s` into a Symbol at runtime. |
+| `!!x` | Evaluate `x` and inject into `to_expr()`/`quo()`; strips env from quosures. |
+| `!!!x` | Evaluate `x` and splice elements into `to_expr()`/`quo()`. |
+| `!!name := value` | Use a dynamic String/Symbol as an argument name inside `to_expr()`/`quo()`. |
 | `enquo(param)` | Inside a function: capture caller's expression for `param` as a Quosure. |
 | `enquos(...)` | Inside a function: capture all variadic expressions as a List of Quosures. |
 
@@ -308,5 +308,5 @@ df |> mutate(new = $score * 2)
 ## Best Practices
 
 1.  **Use `quo` by default**: When in doubt, use `quo` instead of `expr`. It ensures the code "remembers" its environment, preventing `NameError` when evaluated in different contexts.
-2.  **Quotation in Functions**: Use `$param` for the common "accept a column name" case. Use `enquo` when you need the caller's full expression, and use `sym()` when you are starting from a computed string.
+2.  **Quotation in Functions**: Use `$param` for the common "accept a column name" case. Use `enquo` when you need the caller's full expression, and use `to_symbol()` when you are starting from a computed string.
 3.  **Dynamic Naming**: Use `!!name := !!value` for maximum flexibility when writing generic data processing functions.

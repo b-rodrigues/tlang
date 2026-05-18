@@ -11,7 +11,7 @@ write_csv(ci_99, "tests/golden/t_outputs/lm_conf_int99_mpg_hp_wt.csv")
 coefs = coef(model)
 write_csv(coefs, "tests/golden/t_outputs/lm_coef_mpg_hp_wt.csv")
 
-accessors = dataframe([
+accessors = to_dataframe([
   [
     sigma: sigma(model),
     nobs: nobs(model),

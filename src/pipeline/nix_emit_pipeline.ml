@@ -9,8 +9,6 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   ) p.p_imports in
   let node_names = List.map fst p.p_exprs in
 
-
-
   let nodes =
     p.p_exprs
     |> List.map (fun (name, expr) ->
@@ -34,6 +32,20 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     |> List.map (fun n -> Printf.sprintf "      cp -r ${%s} $out/%s" n n)
     |> String.concat "\n"
   in
+  let has_julia = List.exists (fun (name, _) ->
+    let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+    runtime = "Julia"
+  ) p.p_exprs in
+  let has_pmml = List.exists (fun (name, _) ->
+    let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
+    let des = match List.assoc_opt name p.p_deserializers with Some d -> d | None -> Ast.mk_expr (Ast.Var "default") in
+    is_pmml_ser ser || is_pmml_des des
+  ) p.p_exprs in
+  let julia_build_input = if has_julia && has_pmml then "\n                      ++ [ juliaPkg pkgs.gcc.cc.lib pkgs.avahi ]" 
+                          else if has_julia then "\n                      ++ [ juliaPkg ]"
+                          else "" in
+
+  let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\"" in
 
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
@@ -62,15 +74,26 @@ let
 
   toml = if builtins.pathExists %s/tproject.toml then builtins.fromTOML (builtins.readFile %s/tproject.toml) else {};
   
+  tlangPkgSet = (flake.inputs.t-lang or flake).packages.${system};
+  
   rPackagesList = (toml.r-dependencies or {}).packages or [];
   r-env = pkgs.rWrapper.override {
-    packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList);
+    packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ [ tlangPkgSet.tlang-r ];
   };
 
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
   pyVersion = pyDeps.version or "python3";
   pyPackagesList = pyDeps.packages or [];
   py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList));
+
+  juliaDeps = toml.jl-dependencies or {};
+  juliaVersion = juliaDeps.version or "lts";
+  juliaPackageName = if juliaVersion == "lts" then "julia-lts" else "julia_" + (builtins.replaceStrings ["."] ["_"] juliaVersion);
+  juliaBase = pkgs.${juliaPackageName};
+  juliaPackagesList = (juliaDeps.packages or []) ++ [ %s ];
+  juliaPkg = if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
+
+  tlangJl = tlangPkgSet.tlang-julia-path;
 
   # Additional Tools & LaTeX
   additionalTools = (toml.additional-tools or {}).packages or [];
@@ -79,18 +102,18 @@ let
   latexCombined = if latexPkgs == [] then null 
                   else pkgs.texlive.combine (builtins.listToAttrs (builtins.map (name: { name = name; value = pkgs.texlive.${name}; }) (["scheme-small"] ++ latexPkgs)));
                   
-  globalBuildInputs = (builtins.map (p: pkgs.${p}) additionalTools)
+  globalBuildInputs = (builtins.map (p: pkgs.${p}) additionalTools)%s
                       ++ (if latexCombined == null then [] else [ latexCombined ]);
 in
 rec {
 %s
   pipeline_output = stdenv.mkDerivation {
     name = "pipeline_output";
-    buildInputs = [ tBin %s ] ++ globalBuildInputs;
+    buildInputs = [ tBin %s tlangPkgSet.tlang-julia-path ] ++ globalBuildInputs;
     buildCommand = ''
       mkdir -p $out
 %s
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root julia_packages_injection julia_build_input nodes (String.concat " " node_names) final_copy

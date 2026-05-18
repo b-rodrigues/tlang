@@ -62,6 +62,7 @@ let register env =
     in
     let is_visual_metadata_class = function
       | "ggplot" | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" -> true
+      | "tidierplots" | "plotsjl" | "makie" -> true
       | _ -> false
     in
     let uses_builtin_fallback_reader cn =
@@ -89,24 +90,11 @@ let register env =
                      | Some diagnostics -> diagnostics
                      | None -> Ast.Utils.empty_node_diagnostics
                    in
-                  let warnings =
-                    VList
-                      (List.map
-                         (fun warning -> (None, Ast.Utils.node_warning_to_value warning))
-                         diagnostics.nd_warnings)
-                  in
-                  let error =
-                    match diagnostics.nd_error with
-                    | Some error -> Ast.Utils.node_error_to_value error
-                    | None -> VNA NAGeneric
-                  in
-                  VDict [
-                    ("name", VString name);
-                    ("value", value);
-                    ("warnings", warnings);
-                    ("error", error);
-                    ("diagnostics", Ast.Utils.node_diagnostics_to_value diagnostics);
-                  ]
+                  Ast.VNodeResult {
+                    v = value;
+                    node_name = name;
+                    diagnostics;
+                  }
               | None ->
                   Error.make_error KeyError
                     (Printf.sprintf "Node `%s` not found in Pipeline." name))
@@ -206,6 +194,23 @@ let register env =
   let inspect_fn named_args _env =
     match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
+        let cn =
+          if cn.cn_path = "<unbuilt>" || cn.cn_path = "" || cn.cn_class = "Unknown"
+          then
+            match Builder.latest_logged_computed_node cn.cn_name with
+            | Some logged_cn ->
+                let cn_path =
+                  if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
+                  then logged_cn.cn_path
+                  else cn.cn_path
+                in
+                let cn_class =
+                  if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class
+                in
+                { cn with cn_path; cn_class }
+            | None -> cn
+          else cn
+        in
         VDict [
           ("name", VString cn.cn_name);
           ("runtime", VString cn.cn_runtime);
@@ -249,7 +254,23 @@ let register env =
     Ast.node_resolver := (fun name ->
       match Builder.read_node name with
       | VError _ -> None
-      | v -> Some v)
+      | v -> Some v);
+    Ast.computed_node_resolver := (fun cn ->
+      if cn.cn_path = "<unbuilt>" || cn.cn_path = "" || cn.cn_class = "Unknown"
+      then
+        match Builder.latest_logged_computed_node cn.cn_name with
+        | Some logged_cn ->
+            let cn_path =
+              if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
+              then logged_cn.cn_path
+              else cn.cn_path
+            in
+            let cn_class =
+              if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class
+            in
+            { cn with cn_path; cn_class }
+        | None -> cn
+      else cn)
   in
 
 (*

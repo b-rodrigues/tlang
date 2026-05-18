@@ -1,7 +1,7 @@
 -- Test: skewness(), kurtosis(), and mode() baselines
 iris = read_csv("tests/golden/data/iris.csv")
 
-result = dataframe([
+result = to_dataframe([
   [
     sepal_length_skewness: skewness(pull(iris, $`Sepal.Length`)),
     petal_length_kurtosis: kurtosis(pull(iris, $`Petal.Length`)),

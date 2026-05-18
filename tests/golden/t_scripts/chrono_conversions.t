@@ -1,12 +1,12 @@
 -- Test: chrono parsing, conversions, and extraction against lubridate
-result = dataframe([
+result = to_dataframe([
   [
     label: "leap_boundary",
     us_fmt: format_date(mdy("02/29/2024"), "%Y-%m-%d"),
     eu_fmt: format_date(dmy("31/12/2020"), "%Y-%m-%d"),
     dt_fmt: format_datetime(ymd_hms("2024-02-29 23:59:30"), "%Y-%m-%d %H:%M:%S"),
-    origin_date_fmt: format_date(as_date(1, origin = "2024-02-28"), "%Y-%m-%d"),
-    origin_dt_fmt: format_datetime(as_datetime(86461, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M:%S"),
+    origin_date_fmt: format_date(to_date(1, origin = "2024-02-28"), "%Y-%m-%d"),
+    origin_dt_fmt: format_datetime(to_datetime(86461, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M:%S"),
     made_date_fmt: format_date(make_date(year = 2024, month = 2, day = 29), "%Y-%m-%d"),
     iso_week: isoweek(dmy("31/12/2020")),
     iso_year: isoyear(dmy("31/12/2020")),
@@ -25,8 +25,8 @@ result = dataframe([
     us_fmt: format_date(mdy("01/01/2021"), "%Y-%m-%d"),
     eu_fmt: format_date(dmy("01/01/2021"), "%Y-%m-%d"),
     dt_fmt: format_datetime(ymd_hms("2021-01-01 00:00:29"), "%Y-%m-%d %H:%M:%S"),
-    origin_date_fmt: format_date(as_date(31, origin = "2024-02-28"), "%Y-%m-%d"),
-    origin_dt_fmt: format_datetime(as_datetime(0, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M:%S"),
+    origin_date_fmt: format_date(to_date(31, origin = "2024-02-28"), "%Y-%m-%d"),
+    origin_dt_fmt: format_datetime(to_datetime(0, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M:%S"),
     made_date_fmt: format_date(make_date(year = 2021, month = 1, day = 1), "%Y-%m-%d"),
     iso_week: isoweek(dmy("01/01/2021")),
     iso_year: isoyear(dmy("01/01/2021")),

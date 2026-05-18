@@ -1,6 +1,6 @@
 (* tests/stats/test_broom_golden.ml *)
 (* Golden tests comparing T lm()/fit_stats()/add_diagnostics() *)
-(* against R's broom::tidy/fit_stats/augment reference values.     *)
+(* against R's broom::tidy/fit_stats/add_diagnostics reference values.     *)
 (* Reference values computed from R 4.x with broom package.    *)
 
 (** Helper: check if a float string is within tolerance of expected *)
@@ -47,7 +47,7 @@ let check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env
       test_name expected tolerance result
   end
 
-let run_tests pass_count fail_count _eval_string eval_string_env _test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env _test =
 
   Printf.printf "Golden — Broom: Multi-predictor lm() tidy (y ~ x1 + x2):\n";
 
@@ -175,10 +175,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   let (v, _) = eval_string_env "nrow(aug)" env_a in
   let result = Ast.Utils.value_to_string v in
   if result = "10" then begin
-    incr pass_count; Printf.printf "  ✓ augment: 10 rows\n"
+    incr pass_count; Printf.printf "  ✓ add_diagnostics: 10 rows\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ augment: 10 rows\n    Got: %s\n" result
+    Printf.printf "  ✗ add_diagnostics: 10 rows\n    Got: %s\n" result
   end;
 
   (* Check columns exist using colnames *)
@@ -186,10 +186,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   let result = Ast.Utils.value_to_string v in
   let has_col name = try let _ = Str.search_forward (Str.regexp_string name) result 0 in true with Not_found -> false in
   if has_col "fitted" && has_col "resid" && has_col "hat" && has_col "sigma" && has_col "cooksd" && has_col "std_resid" then begin
-    incr pass_count; Printf.printf "  ✓ augment: has all diagnostic columns\n"
+    incr pass_count; Printf.printf "  ✓ add_diagnostics: has all diagnostic columns\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ augment: has all diagnostic columns\n    Got: %s\n" result
+    Printf.printf "  ✗ add_diagnostics: has all diagnostic columns\n    Got: %s\n" result
   end;
 
   (* Reference values from broom::augment(fit, data = df):
@@ -209,35 +209,35 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   (* Now extract using colnames-based access — the select()ed df has one column *)
   (* Actually, we can extract the model_data directly for diagnostics *)
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.fitted_values" 0 10.5548 0.01 "augment: row 1 .fitted ≈ 10.555";
+    "model._model_data.fitted_values" 0 10.5548 0.01 "add_diagnostics: row 1 .fitted ≈ 10.555";
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.fitted_values" 4 19.6847 0.01 "augment: row 5 .fitted ≈ 19.685";
+    "model._model_data.fitted_values" 4 19.6847 0.01 "add_diagnostics: row 5 .fitted ≈ 19.685";
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.fitted_values" 8 20.4208 0.01 "augment: row 9 .fitted ≈ 20.421";
+    "model._model_data.fitted_values" 8 20.4208 0.01 "add_diagnostics: row 9 .fitted ≈ 20.421";
 
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.residuals" 0 (-0.2548) 0.01 "augment: row 1 .resid ≈ -0.255";
+    "model._model_data.residuals" 0 (-0.2548) 0.01 "add_diagnostics: row 1 .resid ≈ -0.255";
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.residuals" 4 (-0.8847) 0.01 "augment: row 5 .resid ≈ -0.885";
+    "model._model_data.residuals" 4 (-0.8847) 0.01 "add_diagnostics: row 5 .resid ≈ -0.885";
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.residuals" 8 2.1792 0.01 "augment: row 9 .resid ≈ 2.179";
+    "model._model_data.residuals" 8 2.1792 0.01 "add_diagnostics: row 9 .resid ≈ 2.179";
 
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.hat_values" 0 0.4770 0.01 "augment: row 1 .hat ≈ 0.477";
+    "model._model_data.hat_values" 0 0.4770 0.01 "add_diagnostics: row 1 .hat ≈ 0.477";
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.hat_values" 4 0.2603 0.01 "augment: row 5 .hat ≈ 0.260";
+    "model._model_data.hat_values" 4 0.2603 0.01 "add_diagnostics: row 5 .hat ≈ 0.260";
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.hat_values" 8 0.2143 0.01 "augment: row 9 .hat ≈ 0.214";
+    "model._model_data.hat_values" 8 0.2143 0.01 "add_diagnostics: row 9 .hat ≈ 0.214";
 
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.cooks_distance" 0 0.0342 0.01 "augment: row 1 .cooksd ≈ 0.034";
+    "model._model_data.cooks_distance" 0 0.0342 0.01 "add_diagnostics: row 1 .cooksd ≈ 0.034";
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.cooks_distance" 8 0.4978 0.05 "augment: row 9 .cooksd ≈ 0.498";
+    "model._model_data.cooks_distance" 8 0.4978 0.05 "add_diagnostics: row 9 .cooksd ≈ 0.498";
 
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.std_residuals" 0 (-0.3353) 0.01 "augment: row 1 .std_resid ≈ -0.335";
+    "model._model_data.std_residuals" 0 (-0.3353) 0.01 "add_diagnostics: row 1 .std_resid ≈ -0.335";
   check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
-    "model._model_data.std_residuals" 8 2.3399 0.05 "augment: row 9 .std_resid ≈ 2.340";
+    "model._model_data.std_residuals" 8 2.3399 0.05 "add_diagnostics: row 9 .std_resid ≈ 2.340";
 
   (* Suppress unused variable warnings *)
   let _ = env_a in

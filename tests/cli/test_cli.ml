@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _eval_string _eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env test =
   (* This test module uses the shared test-runner signature even though it
      only needs the generic `test` helper and local counter refs. *)
   let contains text substring =
@@ -141,7 +141,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     {|"lens"|};
   test "package_info lens functions"
     {|length(package_info("lens").functions)|}
-    "12";
+    "13";
   test "package_info non-string"
     "package_info(42)"
     {|Error(TypeError: "Function `package_info` expects a string argument.")|};
@@ -214,9 +214,10 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
         ("items", Ast.VList [(None, Ast.VInt 1); (None, Ast.VInt 2)]);
       ])
   in
-  test_message "pretty_print nested dict expands multi-line formatting"
-    (contains nested_dict_output "\n  `details`: {\n" &&
-     contains nested_dict_output "`items`: [1, 2]");
+  test_message "pretty_print nested dict expands tree formatting"
+    (contains nested_dict_output "dict\n" &&
+     contains nested_dict_output "├── details\n" &&
+     contains nested_dict_output "└── items");
   let ggplot_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -237,7 +238,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
       ])
   in
   test_message "pretty_print ggplot metadata uses specialized class heading"
-    (contains ggplot_pretty "ggplot {" && contains ggplot_pretty "`mapping`");
+    (contains ggplot_pretty "ggplot\n" && contains ggplot_pretty "── mapping");
   let ggplot_trimmed_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -256,11 +257,11 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
       ])
   in
   test_message "pretty_print ggplot metadata honors provided display keys"
-    (contains ggplot_trimmed_pretty "ggplot {" &&
-     contains ggplot_trimmed_pretty "`title`" &&
-     contains ggplot_trimmed_pretty "`layers`" &&
-     not (contains ggplot_trimmed_pretty "`mapping`") &&
-     not (contains ggplot_trimmed_pretty "`extra`"));
+    (contains ggplot_trimmed_pretty "ggplot\n" &&
+     contains ggplot_trimmed_pretty "── title" &&
+     contains ggplot_trimmed_pretty "── layers" &&
+     not (contains ggplot_trimmed_pretty "── mapping") &&
+     not (contains ggplot_trimmed_pretty "── extra"));
   let plotnine_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -273,15 +274,28 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
       ])
   in
   test_message "pretty_print plotnine metadata keeps plot class and runtime backend"
-    (contains plotnine_pretty "plotnine {" && contains plotnine_pretty "\"Python\"");
+    (contains plotnine_pretty "plotnine\n" && contains plotnine_pretty "\"Python\"");
+  let tidierplots_pretty =
+    Pretty_print.pretty_print_value
+      (Ast.VDict [
+        ("class", Ast.VString "tidierplots");
+        ("backend", Ast.VString "Julia");
+        ("title", Ast.VString "Sales by month");
+        ("mapping", Ast.VDict [("x", Ast.VString "month"); ("y", Ast.VString "sales")]);
+        ("labels", Ast.VDict [("x", Ast.VString "month"); ("y", Ast.VString "sales")]);
+        ("layers", Ast.VList [(None, Ast.VString "Bar")]);
+      ])
+  in
+  test_message "pretty_print Julia visual metadata uses specialized class heading"
+    (contains tidierplots_pretty "tidierplots\n" && contains tidierplots_pretty "\"Julia\"");
   let altair_class_only_output =
     Pretty_print.pretty_print_value
       (Ast.VDict [
         ("class", Ast.VString "altair");
       ])
   in
-  test_message "pretty_print empty visual metadata renders empty object"
-    (altair_class_only_output = "altair {}\n");
+  test_message "pretty_print empty visual metadata renders title only"
+    (altair_class_only_output = "altair\n");
   let explain_tree_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -341,15 +355,63 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test_message "show_plot seaborn renderer uses deserialize and savefig"
     (match seaborn_render with
      | Ok (script, script_name, runtime) ->
-         script_name = "render_plot.py"
-         && runtime = "Python"
-         && contains script "deserialize"
-         && contains script "seaborn"
-         && contains script "savefig"
-     | Error _ -> false);
+          script_name = "render_plot.py"
+          && runtime = "Python"
+          && contains script "deserialize"
+          && contains script "seaborn"
+          && contains script "savefig"
+      | Error _ -> false);
+  let tidierplots_render =
+    Show_plot.render_script_for_class "tidierplots" "/tmp/plot.jls"
+  in
+  test_message "show_plot Julia tidierplots renderer uses ggsave"
+     (match tidierplots_render with
+      | Ok (script, script_name, runtime) ->
+          script_name = "render_plot.jl"
+          && runtime = "Julia"
+          && contains script "Serialization.deserialize"
+          && contains script "TidierPlots.ggsave"
+          && contains script "show_plot requires `TidierPlots`"
+          && contains script "Julia plot class `tidierplots`"
+      | Error _ -> false);
+  let plotsjl_render =
+    Show_plot.render_script_for_class "plotsjl" "/tmp/plot.jls"
+  in
+  test_message "show_plot Julia plotsjl renderer uses savefig"
+     (match plotsjl_render with
+      | Ok (script, script_name, runtime) ->
+          script_name = "render_plot.jl"
+          && runtime = "Julia"
+          && contains script "Plots.savefig"
+          && contains script "show_plot requires `Plots`"
+          && contains script "Julia plot class `plotsjl`"
+      | Error _ -> false);
+  let makie_render =
+    Show_plot.render_script_for_class "makie" "/tmp/plot.jls"
+  in
+  test_message "show_plot Julia makie renderer requires CairoMakie"
+     (match makie_render with
+      | Ok (script, script_name, runtime) ->
+          script_name = "render_plot.jl"
+          && runtime = "Julia"
+          && contains script "CairoMakie.activate!"
+          && contains script "CairoMakie.save"
+          && contains script "show_plot requires `CairoMakie`"
+          && contains script "Julia plot class `makie`"
+      | Error _ -> false);
   test_message "show_plot rejects unsupported plot classes"
     (match Show_plot.render_script_for_class "vega" "/tmp/plot.json" with
-     | Error msg -> contains msg "vega" && contains msg "ggplot" && contains msg "matplotlib" && contains msg "plotnine" && contains msg "seaborn" && contains msg "plotly" && contains msg "altair"
+     | Error msg ->
+         contains msg "vega"
+         && contains msg "ggplot"
+         && contains msg "matplotlib"
+         && contains msg "plotnine"
+         && contains msg "seaborn"
+         && contains msg "plotly"
+         && contains msg "altair"
+         && contains msg "tidierplots"
+         && contains msg "plotsjl"
+         && contains msg "makie"
      | Ok _ -> false);
   print_newline ();
 
@@ -367,7 +429,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     "f = \\(a,\nb) a * b\nf(4, 5)"
     "20";
   test "node command pipeline with indented trailing newline"
-    "type(node(command = read_csv(\"data/mtcars.csv\", separator = \"|\") |>\n    mutate($cyl = factor($cyl), $am = factor($am)), serializer = ^csv))"
+    "type(node(command = read_csv(\"data/mtcars.csv\", separator = \"|\") |>\n    mutate($cyl = to_factor($cyl), $am = to_factor($am)), serializer = ^csv))"
     {|"Node"|};
   test "node command maybe-pipeline with tab-indented trailing newline"
     "type(node(command = data ?|>\n\ttransform(data), serializer = ^csv))"
@@ -386,15 +448,15 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "strcraft: str_substring available" "type(str_substring)" {|"BuiltinFunction"|};
   test "math: sqrt available" "type(sqrt)" {|"BuiltinFunction"|};
   test "base: assert available" "type(assert)" {|"BuiltinFunction"|};
-  test "dataframe: read_csv available" "type(read_csv)" {|"BuiltinFunction"|};
-  test "dataframe: read_parquet available" "type(read_parquet)" {|"BuiltinFunction"|};
+  test "to_dataframe: read_csv available" "type(read_csv)" {|"BuiltinFunction"|};
+  test "to_dataframe: read_parquet available" "type(read_parquet)" {|"BuiltinFunction"|};
   test "pipeline: pipeline_nodes available" "type(pipeline_nodes)" {|"BuiltinFunction"|};
   test "explain: explain available" "type(explain)" {|"BuiltinFunction"|};
   test "packages: packages available" "type(packages)" {|"BuiltinFunction"|};
   test "packages: package_info available" "type(package_info)" {|"BuiltinFunction"|};
   test "help: string argument returns NA" "help('mean')" "NA";
   test "help: builtin value returns NA" "help(mean)" "NA";
-  test "help: symbol returns NA" {|help(sym("mean"))|} "NA";
+  test "help: symbol returns NA" {|help(to_symbol("mean"))|} "NA";
   test "help: anonymous lambda returns NA" "help(\\(x) x)" "NA";
   test "help: invalid type returns error"
     "help(42)"

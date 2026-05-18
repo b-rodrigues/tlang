@@ -32,16 +32,16 @@ This file is a comprehensive reference for the **T programming language**. It co
 ### `colcraft` (Tabular Verbs)
 `select(df, ...)`, `filter(df, expr)`, `mutate(df, ...)`, `arrange(df, ..., direction)`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ...)`, `distinct(df, ...)`, `count(df, ...)`, `slice(df, indices)`, `slice_min(df, ...)`, `slice_max(df, ...)`, `pivot_longer(df, ...)`, `pivot_wider(df, ...)`, `complete(df, ...)`, `expand(df, ...)`, `nest(df, ...)`, `unnest(df, col)`, `separate(df, ...)`, `unite(df, ...)`, `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `fill(df, ..., .direction = "down")`, `left_join(x, y, by)`, `inner_join(x, y, by)`, `full_join(x, y, by)`, `semi_join(x, y, by)`, `anti_join(x, y, by)`, `bind_rows(...)`, `bind_cols(...)`.
 - **Selection Helpers**: `starts_with()`, `ends_with()`, `contains()`, `everything()`, `where()`, `matches()`, `all_of()`, `any_of()`.
-- **Factors**: `factor(x, levels)`, `as_factor(x)`, `fct_reorder()`, `fct_relevel()`, `fct_lump_n()`.
+- **Factors**: `factor(x, levels)`, `to_factor(x)`, `fct_reorder()`, `fct_relevel()`, `fct_lump_n()`.
 
 ### `chrono` (Dates & Times)
-`ymd(x)`, `mdy(x)`, `dmy(x)`, `ymd_hms(x)`, `today()`, `now()`, `make_date()`, `make_datetime()`, `year(x)`, `month(x)`, `day(x)`, `wday(x)`, `week(x)`, `quarter(x)`, `tz(x)`, `as_date(x)`, `as_datetime(x)`, `format_date(x)`, `floor_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`.
+`ymd(x)`, `mdy(x)`, `dmy(x)`, `ymd_hms(x)`, `today()`, `now()`, `make_date()`, `make_datetime()`, `year(x)`, `month(x)`, `day(x)`, `wday(x)`, `week(x)`, `quarter(x)`, `tz(x)`, `to_date(x)`, `to_datetime(x)`, `format_date(x)`, `floor_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`.
 
 ### `math` (Scalar & Arrays)
 `abs(x)`, `sqrt(x)`, `log(x)`, `exp(x)`, `pow(b, e)`, `floor(x)`, `ceiling(x)`, `round(x, digits)`, `sin(x)`, `cos(x)`, `tan(x)`, `ndarray(data, shape)`, `matmul(a, b)`, `inv(x)`, `transpose(x)`.
 
 ### `stats` (Statistics & Models)
-`mean(x, na_rm)`, `median(x)`, `min(x)`, `max(x)`, `range(x)`, `var(x)`, `sd(x)`, `quantile(x, probs)`, `cor(x, y)`, `cov(x, y)`, `pnorm(x, mean, sd)`, `lm(data, formula)`, `predict(model, data)`, `summary(model)`, `fit_stats(model)`, `coef(model)`, `residuals(model)`, `augment(data, model)`, `t_read_pmml(path)`, `t_read_onnx(path)`.
+`mean(x, na_rm)`, `median(x)`, `min(x)`, `max(x)`, `range(x)`, `var(x)`, `sd(x)`, `quantile(x, probs)`, `cor(x, y)`, `cov(x, y)`, `pnorm(x, mean, sd)`, `lm(data, formula)`, `predict(model, data)`, `summary(model)`, `fit_stats(model)`, `coef(model)`, `residuals(model)`, `add_diagnostics(data, model)`, `t_read_pmml(path)`, `t_read_onnx(path)`.
 
 ### `pipeline` (Execution & DAG)
 `node(...)`, `rn(...)`, `pyn(...)`, `shn(...)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name)`, `pipeline_copy(p, node, to)`, `inspect_pipeline(p)`, `trace_nodes(p)`, `pipeline_summary(p)`, `pipeline_nodes(p)`, `pipeline_deps(p)`, `filter_node(p, pred)`, `mutate_node(p, ...)`, `suppress_warnings(node)`, `union(p1, p2)`, `patch(p1, p2)`.

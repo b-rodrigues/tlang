@@ -84,11 +84,20 @@ let infer_column_type (values : string list) : Arrow_table.arrow_type =
         if all_bool then Arrow_table.ArrowBoolean
         else Arrow_table.ArrowString
 
+(** Parse a string value into a Date (days since epoch).
+    
+    @param s The string value to parse.
+    @return [Some days] if successfully parsed, [None] otherwise. *)
 let parse_date_value (s : string) : int option =
   match Chrono.parse_custom_format `Date (String.trim s) "%Y-%m-%d" None with
   | Some (Ast.VDate days) -> Some days
   | _ -> None
 
+(** Parse a string value into a Datetime (microseconds since epoch) supporting multiple ISO/SQL formats.
+    
+    @param s The string value to parse.
+    @param tz Optional timezone string.
+    @return [Some microseconds] if successfully parsed, [None] otherwise. *)
 let parse_datetime_value (s : string) (tz : string option) : int64 option =
   let trimmed = String.trim s in
   let rec try_formats = function
@@ -193,14 +202,28 @@ let read_csv_native (path : string) : (Arrow_table.t, string) result =
 (* Public API                                                            *)
 (* ===================================================================== *)
 
+(** Check if a string starts with a given prefix.
+    
+    @param prefix The prefix to check.
+    @param s The string to search.
+    @return [true] if [s] starts with [prefix], otherwise [false]. *)
 let starts_with prefix s =
   let len_p = String.length prefix in
   let len_s = String.length s in
   len_s >= len_p && String.sub s 0 len_p = prefix
 
+(** Check if a path represents a remote HTTP/HTTPS URL.
+    
+    @param path The path string to verify.
+    @return [true] if it is a URL, otherwise [false]. *)
 let is_url path =
   starts_with "http://" path || starts_with "https://" path
 
+(** Download a remote URL to a temporary local file.
+    
+    @param suffix The temporary file suffix extension (defaults to ".csv").
+    @param url The remote URL to fetch.
+    @return [Ok local_path] if successful, [Error msg] otherwise. *)
 let download_url ?(suffix=".csv") (url : string) : (string, string) result =
   let temp_file = Filename.temp_file "tlang_" suffix in
   let cmd = Printf.sprintf "curl -s -L --fail --max-time 120 --max-filesize 536870912 -o %s %s" (Filename.quote temp_file) (Filename.quote url) in

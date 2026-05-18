@@ -31,11 +31,15 @@ type project_config = {
   proj_r_dependencies : string list;
   proj_py_dependencies : string list;
   proj_py_version : string;
+  proj_julia_dependencies : string list;
+  proj_julia_version : string;
   proj_visualization_tool : string;
   proj_min_t_version : string;
   proj_nixpkgs_date : string;
   proj_additional_tools : string list;
   proj_latex_packages : string list;
+  proj_license : string;
+  proj_authors : string list;
 }
 
 (** CLI options for scaffolding commands *)
@@ -48,6 +52,7 @@ type scaffold_options = {
   force : bool;
   interactive : bool;
   agent_context : string;
+  pipeline_template : string;
 }
 
 (** Default scaffold options *)
@@ -63,6 +68,7 @@ let default_options name =
     force = false;
     interactive = false;
     agent_context = "medium";
+    pipeline_template = "minimal";
   }
 
 (** Default package config *)
@@ -88,12 +94,16 @@ let default_project_config name = {
   proj_r_dependencies = [];
   proj_py_dependencies = [];
   proj_py_version = "python314";
+  proj_julia_dependencies = [];
+  proj_julia_version = "lts";
   proj_visualization_tool = "";
   proj_min_t_version = Version.version;
   proj_nixpkgs_date = (let t = Unix.gmtime (Unix.gettimeofday ()) in 
     Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday);
   proj_additional_tools = [];
   proj_latex_packages = [];
+  proj_license = "EUPL-1.2";
+  proj_authors = ["Your Name <email@example.com>"];
 }
 
 (** Validate a package/project name: lowercase, alphanumeric, hyphens only *)

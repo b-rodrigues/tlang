@@ -1,17 +1,17 @@
 # Factors and `fct_*` Helpers in T
 
-This guide explains how factors work in T, when to use `factor()` versus `fct()`, and how the `fct_*` family helps you reorder, relabel, and combine categorical data.
+This guide explains how factors work in T, how to use `to_factor()`, and how the `fct_*` family helps you reorder, relabel, and combine categorical data.
 
 ---
 
 ## The Basic Idea
 
-A factor is categorical data with an explicit list of levels.
+A to_factor is categorical data with an explicit list of levels.
 
 That level list matters because operations such as `arrange()` use the level order instead of alphabetical order.
 
 ```t
-sizes = factor(["medium", "small", "large"], levels = ["small", "medium", "large"])
+sizes = to_factor(["medium", "small", "large"], levels = ["small", "medium", "large"])
 levels(sizes)
 -- ["small", "medium", "large"]
 ```
@@ -27,40 +27,27 @@ This makes factors useful for ordered categories such as:
 
 ## Creating Factors
 
-### `factor()` — explicit categorical levels
+### `to_factor()` — explicit or derived levels
 
-Use `factor()` when you want to control the level order yourself.
+Use `to_factor()` to create categorical data. If you provide `levels`, it uses that exact order. If not, it derives unique levels from the data and sorts them alphabetically by default.
 
 ```t
-priority = factor(
+priority = to_factor(
   ["medium", "low", "high", "medium"],
   levels = ["low", "medium", "high"]
 )
 ```
 
-If you do not provide `levels`, `factor()` derives them from the data.
-
-### `fct()` — levels follow first appearance
-
-Use `fct()` when you want levels to keep the order in which values first appear.
-
 ```t
-status = fct(["new", "in_progress", "done", "new"])
+status = to_factor(["new", "in_progress", "done", "new"])
 levels(status)
--- ["new", "in_progress", "done"]
-```
-
-### `as_factor()` — coerce existing values
-
-`as_factor()` is the convenient coercion form for turning an existing vector or column into factor data.
-
-```t
-df |> mutate($segment = as_factor($segment))
+-- ["done", "in_progress", "new"]
 ```
 
 ### `ordered()` — ordered factors
 
-Use `ordered()` when the order is meaningful and should be preserved as an ordered factor.
+
+Use `ordered()` when the order is meaningful and should be preserved as an ordered to_factor.
 
 ```t
 ratings = ordered(
@@ -73,13 +60,13 @@ ratings = ordered(
 
 ## Why the `fct_*` Prefix Exists
 
-The `fct_*` prefix is used for helpers that manipulate factor levels after creation.
+The `fct_*` prefix is used for helpers that manipulate to_factor levels after creation.
 
-These helpers are analogous to the factor tools popularized by `forcats` in R:
+These helpers are analogous to the to_factor tools popularized by `forcats` in R:
 
-- they keep the input as factor data,
-- they operate on levels or factor ordering,
-- and they make factor-specific intent obvious in a pipeline.
+- they keep the input as to_factor data,
+- they operate on levels or to_factor ordering,
+- and they make to_factor-specific intent obvious in a pipeline.
 
 Examples:
 
@@ -152,8 +139,8 @@ fct_lump_n($species, n = 2)
 ### Keep levels with at least a minimum count
 
 ```t
-fct_lump_min(fct(["a", "a", "b", "c"]), 2)
-levels(fct_lump_min(fct(["a", "a", "b", "c"]), 2))
+fct_lump_min(to_factor(["a", "a", "b", "c"]), 2)
+levels(fct_lump_min(to_factor(["a", "a", "b", "c"]), 2))
 -- ["a", "Other"]
 ```
 
@@ -172,28 +159,28 @@ You can also set a custom replacement label with `other_level = "Misc"`.
 ### Keep or drop selected levels with `fct_other()`
 
 ```t
-levels(fct_other(fct(["a", "b", "c"]), keep = ["a"]))
+levels(fct_other(to_factor(["a", "b", "c"]), keep = ["a"]))
 -- ["a", "Other"]
 ```
 
 ### Remove unused levels with `fct_drop()`
 
 ```t
-levels(fct_drop(factor(["a", "b"], levels = ["a", "b", "c"])))
+levels(fct_drop(to_factor(["a", "b"], levels = ["a", "b", "c"])))
 -- ["a", "b"]
 ```
 
 ### Add levels without changing existing values with `fct_expand()`
 
 ```t
-levels(fct_expand(fct(["a"]), "b", "c"))
+levels(fct_expand(to_factor(["a"]), "b", "c"))
 -- ["a", "b", "c"]
 ```
 
 ### Combine factors with unified levels using `fct_c()`
 
 ```t
-levels(fct_c(fct(["a"], levels = ["a", "b"]), fct(["c"])))
+levels(fct_c(to_factor(["a"], levels = ["a", "b"]), to_factor(["c"])))
 -- ["a", "b", "c"]
 ```
 
@@ -201,13 +188,13 @@ levels(fct_c(fct(["a"], levels = ["a", "b"]), fct(["c"])))
 
 ## Sorting with Factors
 
-A factor keeps its declared level order during sorting.
+A to_factor keeps its declared level order during sorting.
 
 ```t
 df = crossing(size = ["medium", "small", "large"], id = [1, 2])
 
 df
-  |> mutate($size_fct = factor($size, levels = ["small", "medium", "large"]))
+  |> mutate($size_fct = to_factor($size, levels = ["small", "medium", "large"]))
   |> arrange($size_fct)
 ```
 
@@ -219,16 +206,14 @@ This sorts rows by `small`, then `medium`, then `large`, even though alphabetica
 
 Use:
 
-- `factor()` when you want explicit levels,
-- `fct()` when you want first-appearance order,
-- `as_factor()` when coercing an existing column,
-- `ordered()` when the factor should be marked as ordered,
+- `to_factor()` when you want explicit or derived levels,
+- `ordered()` when the to_factor should be marked as ordered,
 - `fct_*` helpers when changing levels after creation,
 - `levels()` when you need to inspect the current level set.
 
 ---
 
-These factor helpers are currently implemented alongside the data-manipulation verbs in T's `colcraft` package, but the naming convention is the same idea you would expect from a dedicated factor-toolkit family: factor creation helpers plus `fct_*` level-manipulation helpers.
+These to_factor helpers are currently implemented alongside the data-manipulation verbs in T's `colcraft` package, but the naming convention is the same idea you would expect from a dedicated to_factor-toolkit family: to_factor creation helpers plus `fct_*` level-manipulation helpers.
 
 ---
 

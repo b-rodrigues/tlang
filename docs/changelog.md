@@ -2,6 +2,80 @@
 
 ## [Unreleased]
 
+## [0.52.0] "Kaméhaméha" - 2026-05-xx
+
+The focus of this release is the introduction of first-class Julia support, enabling high-performance polyglot pipelines with seamless Julia integration.
+
+**Status**: Beta
+
+### First-Class Julia Support
+- **Julia Node Shorthand (`jln`)**:
+    - Introduced `jln()` for executing Julia code directly within T pipelines.
+    - Julia nodes support full dependency management and automatic environment provisioning.
+- **Integrated Dependency Management**:
+    - Projects can now declare Julia requirements in `tproject.toml` via the `[jl-dependencies]` section.
+    - Support for specific Julia versions and automatic Nix-based environment generation.
+- **Native PMML Support**:
+    - Full support for PMML model scoring and export within Julia nodes using the `^pmml` serializer.
+    - High-performance in-memory scoring via `JavaCall.jl` integration.
+- **Native ONNX Support**:
+    - Full support for ONNX model inference and export within Julia nodes using the `^onnx` serializer.
+    - Leverages `ONNXRunTime.jl` for industry-standard inference performance and `ONNX.jl` for model serialization.
+- **Enhanced Polyglot Ergonomics**:
+    - Simplified data interchange between T, R, Python, and Julia.
+    - Improved automatic dependency discovery for Julia packages used within pipeline nodes.
+    - Robust system-level library resolution for complex Julia dependencies (like JVM and ONNX runtimes) within the Nix sandbox.
+- **World Age Resilience**:
+    - Implemented a robust fix for Julia's "World Age" issues (e.g., `MethodError: method is too new`).
+    - The Julia node emitter now wraps script execution in a high-level thunk and executes it via `Base.invokelatest`.
+    - This ensures that code generated at runtime (common in libraries like `Flux.jl` or `Zygote.jl`) remains accessible within the same execution cycle, even in restricted environments like the Nix build sandbox.
+- **Julia JSON Interchange**: Added support for the `JSON` package in Julia nodes, enabling seamless JSON-based data exchange for Julia-based pipeline steps.
+- **Julia Plotting Enhancements**: 
+    - `show_plot()` now supports Julia plots via `TidierPlots.jl`, `Plots.jl`, and `Makie.jl`.
+    - **CairoMakie Requirement**: For `Makie.jl` objects, `CairoMakie` is the mandatory backend for reproducible headless rendering within the Nix sandbox. Ensuring `CairoMakie` is in `[jl-dependencies].packages` is required for successful visual inspection of Makie nodes.
+
+### External Helper Packages (R, Python, Julia)
+- **New `read_node` Helpers**: Introduced lightweight packages for R, Python, and Julia (all named `tlang`) to simplify consumption of T-Lang build artifacts from external runtimes.
+- **Programmatic DAG Inspection**: Added `pipeline_nodes()` to all companion packages. It returns the pipeline DAG as an idiomatic data structure (e.g., `data.frame` in R, `dict` in Python/Julia), enabling easy programmatic traversal of node relationships.
+- **Refactored Pipeline Diagnostic Output**:
+    - Removed the redundant `path:` field from the default `ComputedNode` REPL printer.
+    - The default REPL printer no longer displays `path: <unbuilt>` / `path:` status lines for `ComputedNode`s; users who need explicit artifact paths in the T runtime can obtain them via `inspect_node(node).path` or `inspect_pipeline()`.
+- **Support for `return_path` in Companion Packages**: Added `return_path` argument to `read_node()` in the R, Python, and Julia companion packages. When set to true, these helpers return the absolute path to the artifact in the Nix store/project directory instead of deserializing it, allowing for custom loading logic or direct file inspection.
+- **Automated Log Resolution**: These helpers now automatically resolve the most recent `build_log_*.json` in the `_pipeline/` directory, providing a stable way to access node results during development and reporting (e.g., in Quarto).
+### Strict Serialization & Pipeline Stability
+- **Symbol-Mandated Serialization**: 
+    - Mandated the use of `^` symbols for node serializers and deserializers (e.g., `serializer = ^arrow`). 
+    - String literals are now strictly disallowed in these fields and will trigger a descriptive `TypeError` during evaluation, eliminating a common source of pipeline configuration drift.
+- **Opaque Error Elimination**:
+    - Enhanced `write_arrow` to surface detailed `VError` traces instead of failing silently.
+    - Pipeline nodes now report the actual root cause (including tracebacks) from upstream failures, making debugging polyglot pipelines significantly faster.
+- **Standard Package Registry**:
+    - Registered `dataframe` as a core standard package, ensuring stable resolution during Nix builds and preventing "package not found" errors in isolated environments.
+- **R Factor Stability**: Fixed a regression in R nodes where the standardized `to_factor` was being incorrectly emitted; now correctly uses the standard R `factor()` for native R-node interoperability.
+### API Standardization & Ergonomics
+- **Unified `to_` Naming Convention**:
+    - Renamed all type conversion and coercion functions to follow a consistent `to_` prefix:
+        - `as_date()` → `to_date()`
+        - `as_datetime()` → `to_datetime()`
+        - `as_factor()` / `factor()` → `to_factor()`
+        - `sym()` → `to_symbol()`
+        - `dataframe()` → `to_dataframe()`
+        - `str_string()` → `to_string()`
+    - Removed all legacy `as_*` and shorthand aliases (`fct()`, `fct_infreq()` → `to_factor(..., ordered=true)` etc.) to ensure a single, canonical API path.
+- **Renamed Statistical Diagnostics**:
+    - `augment()` renamed to `add_diagnostics()` for better clarity and consistency with the T-Lang philosophy of descriptive names.
+- **Refined Data Converters**:
+    - `to_string()` now provides a unified interface for string conversion across all T types, including proper level resolution for Factors and recursive formatting for Lists and Vectors.
+- **Improved Factor Creation**:
+    - Removed the `fct()` shorthand in favor of the standardized `to_factor()`.
+    - Simplified factor logic: `to_factor()` now consistently uses alphabetical sorting for derived levels, removing the previous "first-appearance" behavior to align with industry standards and internal consistency.
+- **Descriptive Statistical Utilities**:
+    - Renamed `augment()` to `add_diagnostics()` to better reflect its purpose of appending model-level diagnostics (residuals, hat values, etc.) to data frames.
+    - Updated the Golden test suite to maintain parity with R's `broom::augment` outputs.
+- **Codebase & Demo Synchronization**:
+    - Performed a repository-wide refactor of 65+ demo projects in `t_demos` to adopt the new standardized API.
+    - Updated Tree-Sitter syntax highlighting queries to support the new names and remove deprecated aliases.
+
 ## [0.51.5] - 2026-05-08
 
 The focus of this release was to improve language ergonomics for data guardrails, enhance package manager feedback, and increase test coverage across all packages.
@@ -62,7 +136,7 @@ The focus of this release was to improve language ergonomics for data guardrails
     - Expanded test coverage for `core` package builtins, including `args`, `help`, `apropos`, and `write_text`.
     - **Introspection**: Added tests for the `args()` builtin on both builtins and lambdas, ensuring correct parameter name and type extraction.
     - **Core Unit Tests**: Expanded coverage for `identical` (deep equality), `sum` (edge cases), `seq` (auto-descending ranges), and `head`/`tail` (slicing boundaries).
-    - **Coverage Boost**: Significantly increased coverage for `ifelse`, `casewhen`, and `identical` (t_boolean.ml), `get` with all lens types (t_get.ml), and all specialized rendering paths in `pretty_print.ml`.
+    - **Coverage Boost**: Significantly increased coverage for `ifelse`, `case_when`, and `identical` (t_boolean.ml), `get` with all lens types (t_get.ml), and all specialized rendering paths in `pretty_print.ml`.
     - **Coverage Integration**: Added the new colcraft coverage tests to the test runner so these scenarios are exercised in regular test execution.
     - **Colcraft Coverage**: Expanded testing for `fill`, `replace_na`, `complete`, `relocate`, `count`, `slice`, `unnest`, `separate`, and `uncount`. Verified `downup` direction logic and regex error handling.
     - **Pretty Printing**: Verified nested collection and visual metadata (Altair) rendering in `pretty_print`.
@@ -101,8 +175,8 @@ The focus of this release was to improve language ergonomics for data guardrails
     - Introduced `$param` syntax in lambda and `function()` parameter lists.
     - Parameters prefixed with `$` automatically capture bare names (like column names) as **Symbols** rather than evaluating them.
     - Simplified the creation of data-wrangling wrappers, removing the need for `enquo()` in simple forwarding cases.
-- **Unified `get()` and New `sym()` Builtin**:
-    - Added the `sym()` core builtin for programmatic symbol creation.
+- **Unified `get()` and New `to_symbol()` Builtin**:
+    - Added the `to_symbol()` core builtin for programmatic symbol creation.
     - Unified the `get()` dispatcher across `core` and `lens` packages, ensuring a single, stable interface for variable lookup, collection indexing, and lens-based retrieval.
     - **Regression Safety**: Added regression tests to ensure core primitives remain stable when the `lens` package is loaded.
 
@@ -133,11 +207,11 @@ The focus of this release was to improve language ergonomics for data guardrails
     - **Python Support**: Full metadata extraction and inspection support for `matplotlib` figures, `plotnine` (ggplot-style), `seaborn` grids, `plotly` figures, and `altair` charts.
 - **Enhanced `show_plot()` Builtin**:
     - Introduced `show_plot()` to render and open pipeline plot artifacts locally.
-    - Supports automatic rendering of R (`ggplot2`) and Python (Matplotlib, Seaborn, Plotly, Altair, Plotnine) plots within the Nix sandbox.
+    - Supports automatic rendering of R (`ggplot2`), Python (Matplotlib, Seaborn, Plotly, Altair, Plotnine), and Julia (`TidierPlots.jl`, `Plots.jl`, `Makie.jl` via `CairoMakie`) plots within the Nix sandbox.
     - Implemented headless rendering for interactive libraries: Plotly (via `kaleido`) and Altair (via `vl-convert`).
     - **Dependency Automation**: `tlang` now automatically suggests or injects `cloudpickle` when plotting libraries are detected in Python nodes to ensure reliable serialization of complex objects containing lambdas.
 - **Transparent `read_node()` for Plots**:
-    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, or `altair`.
+    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, `altair`, `tidierplots`, `plotsjl`, or `makie`.
     - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
 
 ### Serializable Lens Architecture
@@ -147,7 +221,7 @@ The focus of this release was to improve language ergonomics for data guardrails
     - **Unified `get()` Integration**: The `get()` builtin now natively supports `VLens` for data focus, providing a single, consistent interface for variable lookup, indexing, and lens-based retrieval.
 
 ### Core Evaluator, Emitter & Documentation Refinements
-- **Improved Docstring Coverage**: Added full T-style documentation (descriptions, parameters, examples) for `get()`, `sym()`, and related primitives.
+- **Improved Docstring Coverage**: Added full T-style documentation (descriptions, parameters, examples) for `get()`, `to_symbol()`, and related primitives.
 - **Integrated Documentation Tooling**: Verified `t_doc("parse")` and `t_doc("generate")` workflows for extracting and publishing reference pages for new core functions.
 - **Auto-Quoting Documentation**: Updated `docs/language_overview.md` and `docs/quotation.md` with comprehensive examples of the new `$param` auto-quoting feature.
 
@@ -224,7 +298,7 @@ The focus of this release was to improve language ergonomics for data guardrails
     - Enforced scalarity for `==` and `!=`. These now require explicit broadcasting (`.==`) for collections to prevent silent logic errors.
     - **`identical(a, b)`**: New core builtin for deep structural equality of complex objects.
 - **Enhanced Data Operations**:
-    - **`dataframe()` Constructor**: Added support for Dictionary-based construction and automatic scalar recycling.
+    - **`to_dataframe()` Constructor**: Added support for Dictionary-based construction and automatic scalar recycling.
     - **NSE Safety**: Implemented guarded NSE transformation to prevent unexpected lambda-wrapping of non-NSE builtins.
 - **String Column Extraction**: Enhanced `pull()` and column helpers to support `VString` arguments for extraction of special-character column names.
 
@@ -461,7 +535,7 @@ Version history and roadmap for the T programming language.
 - Dual-path operations (native + fallback)
 - `explain(df)` surfaces whether a DataFrame is still on the native Arrow path (`storage_backend`, `native_path_active`)
 - Supported structural rebuilds now try to stay Arrow-backed by rematerializing into a fresh native table
-- **Current limitation**: unsupported builder paths (for example NA-only, factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
+- **Current limitation**: unsupported builder paths (for example NA-only, to_factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
 
 ✅ **Reproducibility**:
 

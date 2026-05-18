@@ -43,7 +43,7 @@ surfaces only at <code>build_pipeline</code> or
 <code>pipeline_run</code>. Supported metadata fields:
 <code>$name</code>, <code>$runtime</code>, <code>$serializer</code>,
 <code>$deserializer</code>, <code>$noop</code>, <code>$depth</code>,
-<code>$command_type</code>.</p>
+<code>$command_type</code>, <code>$diagnostics</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
@@ -56,7 +56,8 @@ function returning Bool for each node.</p></li>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>p |&gt; filter_node($runtime == &quot;python&quot;)
 p |&gt; filter_node($noop == false)
-p |&gt; filter_node($depth &lt;= 2)</code></pre>
+p |&gt; filter_node($depth &lt;= 2)
+p |&gt; filter_node(!is_na($diagnostics.error))</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="rename_node.html">rename_node</a>, <a
 href="select_node.html">select_node</a>, <a

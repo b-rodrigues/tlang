@@ -49,7 +49,7 @@ capture.</li>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>my_summarize = \(df = DataFrame, ... -&gt; DataFrame) {
 cols = enquos(...)
-eval(expr(df |&gt; summarize(!!!cols)))
+eval(to_expr(df |&gt; summarize(!!!cols)))
 }
 my_summarize(iris, mean_sep = mean($Sepal.Length))</code></pre>
 </div>

@@ -1,20 +1,24 @@
 open Ast
 
-let run_tests pass_count fail_count _eval_string _eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string _eval_string_env _test =
   let record name ok =
     if ok then begin
       incr pass_count;
       Printf.printf "  ✓ %s\n" name
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s\n" name
+      let msg = Printf.sprintf "  ✗ %s" name in
+      failures := msg :: !failures;
+      Printf.printf "%s\n" msg
     end
   in
   let test_case name f =
     try record name (f ())
     with exn ->
       incr fail_count;
-      Printf.printf "  ✗ %s\n    %s\n" name (Printexc.to_string exn)
+      let msg = Printf.sprintf "  ✗ %s\n    %s" name (Printexc.to_string exn) in
+      failures := msg :: !failures;
+      Printf.printf "%s\n" msg
   in
   let rec remove_path path =
     if Sys.file_exists path then
@@ -332,7 +336,7 @@ export let helper = 1
       ignore (Analyzer.infer_type scope (locless (ColumnRef "mpg")));
       let df_expr =
         locless (Call {
-          fn = locless (Var "dataframe");
+          fn = locless (Var "to_dataframe");
           args = [
             (None, locless (ListLit [
               (Some "a", locless (Value (VInt 1)));
@@ -417,6 +421,8 @@ export let helper = 1
         s_r_reader = None;
         s_py_writer = None;
         s_py_reader = None;
+        s_julia_writer = None;
+        s_julia_reader = None;
       }
     in
     let raw_expr =
@@ -779,6 +785,35 @@ min_version = "0.51.0"
         | None -> true
       in
       missing_file_ok && wrong_dir_ok && empty_dir_ok && project_ok && nix_ok)
+  );
+  test_case "package_doctor julia diagnostics helpers handle env and missing binary" (fun () ->
+    let original_load_path = Sys.getenv_opt "JULIA_LOAD_PATH" in
+    Unix.putenv "JULIA_LOAD_PATH" "";
+    let empty_load_path_warns =
+      match Package_doctor.check_julia_load_path () with
+      | Some { Package_doctor.level = Package_doctor.Warning; _ } -> true
+      | _ -> false
+    in
+    let missing_or_present_binary_ok =
+      match Package_doctor.check_julia_binary () with
+      | None -> true
+      | Some { Package_doctor.level = Package_doctor.Warning; _ } -> true
+      | _ -> false
+    in
+    let version_check_ok =
+      match Package_doctor.check_julia_version () with
+      | None -> true
+      | Some _ -> true
+    in
+    let package_check_ok =
+      let issues = Package_doctor.check_julia_packages () in
+      List.for_all (fun i -> i.Package_doctor.level = Package_doctor.Warning) issues
+    in
+    begin match original_load_path with
+    | Some v -> Unix.putenv "JULIA_LOAD_PATH" v
+    | None -> Unix.putenv "JULIA_LOAD_PATH" ""
+    end;
+    empty_load_path_warns && missing_or_present_binary_ok && version_check_ok && package_check_ok
   );
   print_newline ();
 

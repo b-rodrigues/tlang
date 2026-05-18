@@ -28,6 +28,49 @@ let indent_string s n =
          indent ^ stripped)
   |> String.concat "\n"
 
+let strip_hat s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s
+
+let get_format = function
+  | Ast.VSerializer s -> Some s.s_format
+  | Ast.VString s | Ast.VSymbol s -> Some (strip_hat s |> String.lowercase_ascii)
+  | Ast.VDict pairs -> 
+      (match List.assoc_opt "format" pairs with
+       | Some (VString s) | Some (VSymbol s) -> Some (strip_hat s |> String.lowercase_ascii)
+       | _ -> None)
+  | _ -> None
+
+let get_polyglot_snippet ~lang ~kind v =
+  match v, lang, kind with
+  | Ast.VSerializer s, "R", "writer" -> s.s_r_writer
+  | Ast.VSerializer s, "R", "reader" -> s.s_r_reader
+  | Ast.VSerializer s, "Python", "writer" -> s.s_py_writer
+  | Ast.VSerializer s, "Python", "reader" -> s.s_py_reader
+  | Ast.VSerializer s, "Julia", "writer" -> s.s_julia_writer
+  | Ast.VSerializer s, "Julia", "reader" -> s.s_julia_reader
+  | Ast.VDict pairs, lang, kind ->
+      let key = (match lang, kind with
+        | "R", "writer" -> "r_writer" | "R", "reader" -> "r_reader"
+        | "Python", "writer" -> "py_writer" | "Python", "reader" -> "py_reader"
+        | "Julia", "writer" -> "julia_writer" | "Julia", "reader" -> "julia_reader"
+        | _ -> "unknown") in
+      (match List.assoc_opt key pairs with Some (VRawCode s) -> Some s | _ -> None)
+  | _ -> None
+
+let is_ser e f =
+  let eval_expr_safe e = Eval.eval_expr (ref Ast.Env.empty) e in
+  let ser_val = eval_expr_safe e in
+  match get_format ser_val with Some sf -> sf = f | None -> false
+
+let is_des e f =
+  let eval_expr_safe e = Eval.eval_expr (ref Ast.Env.empty) e in
+  let des_val = eval_expr_safe e in
+  match des_val with
+  | Ast.VDict pairs -> List.exists (fun (_, v) -> get_format v = Some f) pairs
+  | _ -> get_format des_val = Some f
+
+let is_pmml_ser e = is_ser e "pmml"
+let is_pmml_des e = is_des e "pmml"
+
 let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args =
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
@@ -73,31 +116,6 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let ser_val = eval_expr_safe serializer in
   let des_val = eval_expr_safe deserializer in
 
-  let get_format = function
-    | Ast.VSerializer s -> Some s.s_format
-    | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
-    | Ast.VDict pairs -> 
-        (match List.assoc_opt "format" pairs with
-         | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
-         | _ -> None)
-    | _ -> None
-  in
-
-  let get_polyglot_snippet ~lang ~kind v =
-    match v, lang, kind with
-    | Ast.VSerializer s, "R", "writer" -> s.s_r_writer
-    | Ast.VSerializer s, "R", "reader" -> s.s_r_reader
-    | Ast.VSerializer s, "Python", "writer" -> s.s_py_writer
-    | Ast.VSerializer s, "Python", "reader" -> s.s_py_reader
-    | Ast.VDict pairs, lang, kind ->
-        let key = (match lang, kind with
-          | "R", "writer" -> "r_writer" | "R", "reader" -> "r_reader"
-          | "Python", "writer" -> "py_writer" | "Python", "reader" -> "py_reader"
-          | _ -> "unknown") in
-        (match List.assoc_opt key pairs with Some (VRawCode s) -> Some s | _ -> None)
-    | _ -> None
-  in
-
   let ser_fmt = get_format ser_val in
   let is_ser f = match ser_fmt with Some sf -> sf = f | None -> false in
   
@@ -112,6 +130,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
         "R", "r-env"
     | "Python" -> 
         "py", "py-env"
+    | "Julia" ->
+        "jl", "juliaPkg"
     | "Quarto" ->
         "sh", "r-env py-env"
     | "sh" ->
@@ -337,17 +357,20 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let is_arrow_des  = is_fmt_in_des "arrow" in
   let is_csv_ser    = is_ser "csv" in
   let is_csv_des    = is_fmt_in_des "csv" in
+  let is_json_ser   = is_ser "json" in
+  let is_json_des   = is_fmt_in_des "json" in
   let is_pmml_ser   = is_ser "pmml" in
   let is_pmml_des   = is_fmt_in_des "pmml" in
   let is_onnx_ser   = is_ser "onnx" in
   let is_onnx_des   = is_fmt_in_des "onnx" in
 
   (* Helper: inject runtime-specific helper code into the node script. *)
-  let make_injection ~enabled ~r_code ~py_code =
+  let make_injection ~enabled ~r_code ~py_code ~jl_code =
     if enabled then
       match runtime with
       | "R"      -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" r_code
       | "Python" -> Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" py_code
+      | "Julia"  -> Printf.sprintf "      cat << 'EOF' >> node_script.jl\n%s\nEOF" jl_code
       | _        -> ""
     else ""
   in
@@ -361,6 +384,20 @@ r_read_json <- function(path) {
 }
 |} in
 
+  let t_json_jl_code = {|
+using JSON
+function jl_write_json(obj, path)
+    open(path, "w") do f
+        JSON.print(f, obj)
+    end
+end
+function jl_read_json(path)
+    open(path, "r") do f
+        JSON.parse(f)
+    end
+end
+|} in
+
   let t_csv_r_code = {|
 r_write_csv <- function(object, path) {
   if (inherits(object, "data.frame")) {
@@ -372,6 +409,16 @@ r_write_csv <- function(object, path) {
 r_read_csv <- function(path) {
   read.csv(path, stringsAsFactors = FALSE)
 }
+|} in
+
+  let t_csv_jl_code = {|
+using CSV, DataFrames
+function jl_write_csv(df, path)
+    CSV.write(path, df)
+end
+function jl_read_csv(path)
+    CSV.read(path, DataFrame)
+end
 |} in
 
   let t_csv_py_code = {|
@@ -396,6 +443,8 @@ def py_read_json(path):
     with open(path) as f:
         return json.load(f)
 |} in
+
+
 
   let t_pickle_py_code = {|
 import os
@@ -469,6 +518,16 @@ r_write_arrow <- function(object, path) {
 r_read_arrow <- function(path) {
   arrow::read_ipc_file(path)
 }
+|} in
+
+  let t_arrow_jl_code = {|
+using Arrow, DataFrames
+function jl_write_arrow(df, path)
+    Arrow.write(path, df)
+end
+function jl_read_arrow(path)
+    Arrow.Table(path) |> DataFrame
+end
 |} in
 
   let t_arrow_py_code = {|
@@ -865,6 +924,151 @@ def py_read_pmml(path):
     return JPMMLModel(path)
 |} in
 
+  let t_pmml_jl_code = {|
+using JavaCall, CSV, DataFrames, StatsModels
+
+# Wrapper for PMML models in Julia
+mutable struct JPMMLModel
+    path::String
+end
+
+function jl_read_pmml(path)
+    return JPMMLModel(path)
+end
+
+# predict() overload for JPMML models
+function predict(model::JPMMLModel, df::DataFrame)
+    if !JavaCall.isloaded()
+        jar_path = get(ENV, "T_JPMML_EVALUATOR_JAR", "")
+        if jar_path != "" && isfile(jar_path)
+            JavaCall.addClassPath(jar_path)
+        end
+        JavaCall.init()
+    end
+    
+    mktempdir() do tmpdir
+        in_path = joinpath(tmpdir, "in.csv")
+        out_path = joinpath(tmpdir, "out.csv")
+        CSV.write(in_path, df)
+        
+        # Call the JPMML evaluator via JavaCall
+            try
+                MainClass = JavaCall.@jimport org.jpmml.evaluator.example.EvaluationExample
+                JavaCall.jcall(MainClass, "main", Nothing, (Vector{JavaCall.JString},), ["--model", model.path, "--input", in_path, "--output", out_path])
+            catch e2
+                error("JPMML evaluation failed. Ensure T_JPMML_EVALUATOR_JAR is correctly set. Errors: $e, $e2")
+            end
+        
+        if !isfile(out_path)
+            error("JPMML evaluation failed: output file not created.")
+        end
+        
+        return CSV.read(out_path, DataFrame)
+    end
+end
+
+function jl_write_pmml(model, path)
+    # Check if it's a StatsModels regression model (e.g. from GLM.jl)
+    type_name = string(typeof(model))
+    if !contains(type_name, "TableRegressionModel")
+        error("PMML export in Julia currently only supports TableRegressionModel (from GLM.jl). Found: $type_name")
+    end
+    
+    try
+        # Access names and values via StatsModels API
+        f = StatsModels.formula(model)
+        target = string(f.lhs)
+        c_names = StatsModels.coefnames(model)
+        c_vals = StatsModels.coef(model)
+        # Prefer the generic extractor first, then fall back to GLM-specific access.
+        # If neither path yields one standard error per coefficient, export NaNs and
+        # omit the PMML stdError attributes instead of silently fabricating values.
+        function safe_std_errors(model, n_coefs)
+            try
+                vals = collect(stderror(model))
+                if length(vals) == n_coefs
+                    return vals
+                end
+                @warn "Julia PMML export got mismatched standard errors from `stderror(model)`; omitting stdError attributes." coefficient_count=n_coefs std_error_count=length(vals)
+            catch err
+                try
+                    vals = collect(GLM.stderror(model))
+                    if length(vals) == n_coefs
+                        return vals
+                    end
+                    @warn "Julia PMML export got mismatched standard errors from `GLM.stderror(model)`; omitting stdError attributes." coefficient_count=n_coefs std_error_count=length(vals)
+                catch glm_err
+                    @warn "Julia PMML export could not extract coefficient standard errors from `stderror(model)` or `GLM.stderror(model)`; omitting stdError attributes." primary_error=string(err) fallback_error=string(glm_err)
+                end
+            end
+            return fill(NaN, n_coefs)
+        end
+        std_errs = safe_std_errors(model, length(c_vals))
+        format_std_error_attr(value) = isnan(value) ? "" : " stdError=\"$value\""
+        
+        # Determine if it's classification (Binomial) or regression
+        is_classification = false
+        if hasproperty(model.model, :rr) && hasproperty(model.model.rr, :family)
+            fam = string(typeof(model.model.rr.family))
+            if contains(fam, "Binomial")
+                is_classification = true
+            end
+        end
+        
+        func_name = is_classification ? "classification" : "regression"
+        
+        # Build PMML XML string
+        pmml = """<?xml version="1.0" encoding="UTF-8"?>
+<PMML version="4.4" xmlns="http://www.dmg.org/PMML-4_4">
+  <Header copyright="T-Lang Julia Bridge">
+    <Application name="T-Lang" version="0.51"/>
+  </Header>
+  <DataDictionary>
+"""
+        for name in c_names
+            if name == "(Intercept)" continue end
+            pmml *= "    <DataField name=\"$name\" optype=\"continuous\" dataType=\"double\"/>\n"
+        end
+        pmml *= "    <DataField name=\"$target\" optype=\"continuous\" dataType=\"double\"/>\n"
+        pmml *= "  </DataDictionary>\n"
+        
+        pmml *= "  <RegressionModel functionName=\"$func_name\" modelName=\"JuliaGLM\" targetFieldName=\"$target\">\n"
+        pmml *= "    <MiningSchema>\n"
+        for name in c_names
+            if name == "(Intercept)" continue end
+            pmml *= "      <MiningField name=\"$name\" usageType=\"active\"/>\n"
+        end
+        pmml *= "      <MiningField name=\"$target\" usageType=\"target\"/>\n"
+        pmml *= "    </MiningSchema>\n"
+        
+        intercept = 0.0
+        intercept_std_error = NaN
+        if "(Intercept)" in c_names
+            idx = findfirst(x -> x == "(Intercept)", c_names)
+            intercept = c_vals[idx]
+            intercept_std_error = std_errs[idx]
+        end
+        
+        pmml *= "    <RegressionTable intercept=\"$intercept\"$(format_std_error_attr(intercept_std_error))>\n"
+        for i in 1:length(c_names)
+            name = c_names[i]
+            val = c_vals[i]
+            if name == "(Intercept)" continue end
+            std_err = std_errs[i]
+            pmml *= "      <NumericPredictor name=\"$name\" coefficient=\"$val\"$(format_std_error_attr(std_err))/>\n"
+        end
+        pmml *= "    </RegressionTable>\n"
+        pmml *= "  </RegressionModel>\n"
+        pmml *= "</PMML>"
+        
+        write(path, pmml)
+        return path
+    catch e
+        error("PMML export failed for Julia model: $e")
+    end
+end
+|} in
+
   let t_error_py_code = {|
 import json
 import os
@@ -933,6 +1137,102 @@ r_write_warnings <- function(warns, path) {
     jsonlite::write_json(as.character(warns), path, auto_unbox = TRUE)
   }
 }
+|} in
+
+  let t_error_jl_code = {|
+mutable struct TCaptureLogger <: AbstractLogger
+    warnings::Vector{String}
+end
+
+TCaptureLogger() = TCaptureLogger(String[])
+
+Logging.min_enabled_level(::TCaptureLogger) = Logging.Warn
+Logging.shouldlog(::TCaptureLogger, level, _module, group, id) = level >= Logging.Warn
+Logging.catch_exceptions(::TCaptureLogger) = false
+
+function Logging.handle_message(logger::TCaptureLogger, level, message, _module, group, id, file, line; kwargs...)
+    if level >= Logging.Warn
+        push!(logger.warnings, string(message))
+    end
+end
+
+using Serialization
+
+function jl_error_message(err)
+    try
+        sprint(showerror, err)
+    catch _
+        string(err)
+    end
+end
+
+function jl_error_traceback(err)
+    try
+        sprint(io -> showerror(io, err, catch_backtrace()))
+    catch _
+        jl_error_message(err)
+    end
+end
+
+function jl_write_error(msg, path)
+    err_info =
+        if msg isa AbstractDict && get(msg, "type", nothing) == "VError"
+            msg
+        elseif msg isa AbstractDict && get(msg, :type, nothing) == "VError"
+            msg
+        else
+            traceback_text = jl_error_traceback(msg)
+            Dict(
+                "type" => "VError",
+                "code" => "RuntimeError",
+                "message" => jl_error_message(msg),
+                "na_count" => 0,
+                "context" => Dict(
+                    "runtime_traceback" => traceback_text,
+                    "node_status" => "errored"
+                ),
+                "location" => nothing
+            )
+        end
+    open(path, "w") do f
+        JSON.print(f, err_info)
+    end
+    open(joinpath(dirname(path), "class"), "w") do f
+        write(f, "VError")
+    end
+end
+
+function jl_is_error(obj)
+    (obj isa AbstractDict && get(obj, "type", nothing) == "VError") ||
+    (obj isa AbstractDict && get(obj, :type, nothing) == "VError")
+end
+
+function jl_write_warnings(warnings_list, path)
+    cleaned = [string(w) for w in warnings_list if !isempty(strip(string(w)))]
+    if !isempty(cleaned)
+        open(path, "w") do f
+            JSON.print(f, cleaned)
+        end
+    end
+end
+
+function jl_serialize(obj, path)
+    # T-Lang default Julia serialization uses the standard library Serialization package.
+    # Note on Julia-version coupling: native Serialization is process-to-process and not stable
+    # across major/minor Julia versions. However, in our sandboxed/pinned Nix architecture,
+    # any update to the Julia version in the flake changes the Nix store path, which naturally
+    # invalidates and rebuilds the cache anyway.
+    try
+        Serialization.serialize(path, obj)
+        return path
+    catch err
+        err_msg = jl_error_message(err)
+        error(
+            "T-Lang Julia serialization error: failed to serialize object of type $(typeof(obj)) " *
+            "using native Serialization at $(path). Underlying error: $(err_msg)"
+        )
+    end
+end
 |} in
 
   let t_onnx_r_code = {|
@@ -1014,11 +1314,32 @@ def py_read_onnx(path):
         )
 |} in
 
-  let json_injection   = make_injection ~enabled:true  ~r_code:t_json_r_code  ~py_code:t_json_py_code in
-  let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code in
-  let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code in
-  let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code in
-  let onnx_injection   = make_injection ~enabled:(is_onnx_ser  || is_onnx_des)  ~r_code:t_onnx_r_code  ~py_code:t_onnx_py_code in
+  let t_onnx_jl_code = {|
+import ONNXRunTime as ORT
+using ONNX
+
+function jl_write_onnx(model, path)
+    try
+        ONNX.write(path, model)
+    catch e
+        error("ONNX serialization failed in Julia: $(sprint(showerror, e))")
+    end
+end
+
+function jl_read_onnx(path)
+    try
+        return ORT.load_inference(path)
+    catch e
+        error("ONNX deserialization failed in Julia: $(sprint(showerror, e))")
+    end
+end
+|} in
+
+  let json_injection   = make_injection ~enabled:(is_json_ser || is_json_des || deps <> [])  ~r_code:t_json_r_code  ~py_code:t_json_py_code ~jl_code:t_json_jl_code in
+  let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code ~jl_code:t_csv_jl_code in
+  let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code ~jl_code:t_arrow_jl_code in
+  let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code ~jl_code:t_pmml_jl_code in
+  let onnx_injection   = make_injection ~enabled:(is_onnx_ser  || is_onnx_des)  ~r_code:t_onnx_r_code  ~py_code:t_onnx_py_code ~jl_code:t_onnx_jl_code in
   let pickle_injection =
     if runtime = "Python" then
       Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pickle_py_code
@@ -1029,6 +1350,7 @@ def py_read_onnx(path):
     match runtime with
     | "R"      -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_error_r_code
     | "Python" -> Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_error_py_code
+    | "Julia"  -> Printf.sprintf "      cat << 'EOF' >> node_script.jl\n%s\nEOF" t_error_jl_code
     | _        -> ""
   in
 
@@ -1295,10 +1617,421 @@ def py_save_viz_metadata(obj, path):
             json.dump(metadata, f)
 |} in
 
+  let visualization_jl_code = {|
+import JSON
+
+function jl_non_empty_string(value)
+    try
+        !isempty(strip(string(value)))
+    catch
+        false
+    end
+end
+
+function jl_string_or_nothing(value)
+    value === nothing && return nothing
+    raw =
+        try
+            if applicable(getindex, value)
+                value[]
+            else
+                value
+            end
+        catch
+            value
+        end
+    try
+        text = strip(string(raw))
+        isempty(text) ? nothing : text
+    catch
+        nothing
+    end
+end
+
+function jl_compact_dict(entries)
+    out = Dict{String, Any}()
+    for (key, value) in entries
+        if value === nothing
+            continue
+        elseif value isa AbstractString && isempty(strip(value))
+            continue
+        elseif value isa AbstractVector && isempty(value)
+            continue
+        elseif value isa AbstractDict && isempty(value)
+            continue
+        end
+        out[string(key)] = value
+    end
+    out
+end
+
+function jl_lookup(container, key)
+    container === nothing && return nothing
+    candidates =
+        if key isa Symbol
+            Any[key, String(key)]
+        elseif key isa AbstractString
+            Any[key, Symbol(key)]
+        else
+            Any[key]
+        end
+    for candidate in candidates
+        if container isa AbstractDict
+            if haskey(container, candidate)
+                return container[candidate]
+            end
+        elseif container isa NamedTuple
+            if candidate isa Symbol && candidate in keys(container)
+                return getproperty(container, candidate)
+            end
+        else
+            # Try getproperty first
+            try
+                if candidate isa Symbol && hasproperty(container, candidate)
+                    return getproperty(container, candidate)
+                end
+            catch
+            end
+            # Fallback to getfield for structs
+            try
+                if candidate isa Symbol && candidate in fieldnames(typeof(container))
+                    return getfield(container, candidate)
+                end
+            catch
+            end
+        end
+    end
+    nothing
+end
+
+function jl_type_parts(obj)
+    T = typeof(obj)
+    (string(parentmodule(T)), string(nameof(T)))
+end
+
+function jl_module_matches(module_name, expected)
+    module_name == expected || endswith(module_name, "." * expected)
+end
+
+function jl_first_string(container, keys)
+    for key in keys
+        value = jl_string_or_nothing(jl_lookup(container, key))
+        if value !== nothing
+            return value
+        end
+    end
+    nothing
+end
+
+function jl_mapping_to_dict(mapping)
+    mapping === nothing && return Dict{String, Any}()
+    out = Dict{String, Any}()
+    if mapping isa AbstractDict
+        for (key, value) in mapping
+            cleaned = jl_string_or_nothing(value)
+            if cleaned !== nothing
+                out[string(key)] = cleaned
+            end
+        end
+        return out
+    end
+    keys_list =
+        try
+            collect(propertynames(mapping))
+        catch
+            Any[]
+        end
+    for key in keys_list
+        cleaned = jl_string_or_nothing(jl_lookup(mapping, key))
+        if cleaned !== nothing
+            out[string(key)] = cleaned
+        end
+    end
+    out
+end
+
+function jl_labels_from_container(container)
+    labels = Dict{String, Any}()
+    for key in ["title", "subtitle", "caption", "x", "y", "xlabel", "ylabel", "color", "colour", "fill"]
+        value = jl_string_or_nothing(jl_lookup(container, key))
+        if value !== nothing
+            normalized =
+                key == "xlabel" ? "x" :
+                key == "ylabel" ? "y" :
+                key == "colour" ? "color" :
+                key
+            labels[normalized] = value
+        end
+    end
+    labels
+end
+
+function jl_dedup_strings(items)
+    seen = Set{String}()
+    out = String[]
+    for item in items
+        value = jl_string_or_nothing(item)
+        if value !== nothing && !(value in seen)
+            push!(seen, value)
+            push!(out, value)
+        end
+    end
+    out
+end
+
+function jl_tidierplots_layers(obj)
+    layers = jl_lookup(obj, :geoms)
+    if layers === nothing; layers = jl_lookup(obj, :layers); end
+    if !(layers isa AbstractVector)
+        plots = jl_lookup(obj, :plots)
+        if plots isa AbstractVector
+            return ["GGPlotGrid (" * string(length(plots)) * " plots)"]
+        end
+        inner = jl_lookup(obj, :plot)
+        if inner !== nothing && inner !== obj
+            return jl_tidierplots_layers(inner)
+        end
+        return String[]
+    end
+    jl_dedup_strings([
+        begin
+            # Try various fields for the geom name
+            geom = jl_lookup(layer, :geom)
+            if geom === nothing; geom = jl_lookup(layer, :type); end
+            if geom === nothing; geom = jl_lookup(layer, :geom_type); end
+            if geom === nothing; geom = jl_lookup(layer, :layer_type); end
+            
+            name =
+                if geom !== nothing
+                    string(nameof(typeof(geom)))
+                else
+                    # Fallback to the layer object's own type
+                    string(nameof(typeof(layer)))
+                end
+            
+            # Clean up common suffixes
+            name = replace(name, "Geom" => "")
+            name = replace(name, "Layer" => "")
+            name
+        end
+        for layer in layers
+    ])
+end
+
+function jl_plots_primary_subplot(obj)
+    subplots = jl_lookup(obj, :subplots)
+    if subplots isa AbstractVector && !isempty(subplots)
+        return first(subplots)
+    end
+    nothing
+end
+
+function jl_plots_layers(obj, subplot)
+    series_sources = Any[]
+    for container in (obj, subplot)
+        series = jl_lookup(container, :series_list)
+        if series isa AbstractVector
+            append!(series_sources, series)
+        end
+    end
+    if isempty(series_sources)
+        return String[]
+    end
+    jl_dedup_strings([
+        begin
+            attrs = jl_lookup(series, :plotattributes)
+            seriestype = jl_string_or_nothing(jl_lookup(attrs, :seriestype))
+            if seriestype === nothing
+                seriestype = jl_string_or_nothing(jl_lookup(series, :seriestype))
+            end
+            seriestype === nothing ? string(nameof(typeof(series))) : seriestype
+        end
+        for series in series_sources
+    ])
+end
+
+function jl_makie_figure(obj)
+    module_name, type_name = jl_type_parts(obj)
+    if jl_module_matches(module_name, "Makie") || jl_module_matches(module_name, "CairoMakie")
+        if type_name == "Figure"
+            return obj
+        elseif startswith(type_name, "FigureAxisPlot")
+            fig = jl_lookup(obj, :figure)
+            if fig !== nothing
+                return fig
+            end
+        end
+    end
+    fig = jl_lookup(obj, :figure)
+    if fig === nothing
+        return nothing
+    end
+    fig_module, fig_type = jl_type_parts(fig)
+    if (jl_module_matches(fig_module, "Makie") || jl_module_matches(fig_module, "CairoMakie")) && fig_type == "Figure"
+        return fig
+    end
+    nothing
+end
+
+function jl_makie_primary_axis(fig)
+    content = jl_lookup(fig, :content)
+    if !(content isa AbstractVector)
+        return nothing
+    end
+    for item in content
+        item_type = string(nameof(typeof(item)))
+        if occursin("Axis", item_type)
+            return item
+        end
+    end
+    nothing
+end
+
+function jl_extract_plot_metadata(obj)
+    module_name, type_name = jl_type_parts(obj)
+
+    if jl_module_matches(module_name, "TidierPlots") && (type_name == "GGPlot" || type_name == "GGPlotGrid" || type_name == "Layer")
+        labs_obj = jl_lookup(obj, :axis_options)
+        if labs_obj !== nothing
+            # axis_options usually has an 'opt' field which is the Dict
+            inner_opt = jl_lookup(labs_obj, :opt)
+            if inner_opt !== nothing; labs_obj = inner_opt; end
+        end
+        if labs_obj === nothing; labs_obj = jl_lookup(obj, :labs); end
+        if labs_obj === nothing; labs_obj = jl_lookup(obj, :labels); end
+        
+        mapping_obj = jl_lookup(obj, :default_aes)
+        if mapping_obj !== nothing
+            # default_aes usually has an 'aes' field which is the Dict
+            inner_aes = jl_lookup(mapping_obj, :aes)
+            if inner_aes !== nothing; mapping_obj = inner_aes; end
+        end
+        if mapping_obj === nothing; mapping_obj = jl_lookup(obj, :mapping); end
+        if mapping_obj === nothing; mapping_obj = jl_lookup(obj, :aes); end
+        
+        labels = jl_labels_from_container(labs_obj)
+        mapping = jl_mapping_to_dict(mapping_obj)
+        layers = jl_tidierplots_layers(obj)
+        
+        # Fallback for mapping from first layer if default is empty
+        if isempty(mapping)
+             layers_list = jl_lookup(obj, :geoms)
+             if layers_list === nothing; layers_list = jl_lookup(obj, :layers); end
+             if layers_list isa AbstractVector && !isempty(layers_list)
+                 first_layer = first(layers_list)
+                 # Layer also has an 'aes' field which might be an Aes object
+                 l_mapping_obj = jl_lookup(first_layer, :aes)
+                 if l_mapping_obj !== nothing
+                     l_inner_aes = jl_lookup(l_mapping_obj, :aes)
+                     if l_inner_aes !== nothing; l_mapping_obj = l_inner_aes; end
+                 end
+                 if l_mapping_obj === nothing; l_mapping_obj = jl_lookup(first_layer, :mapping); end
+                 mapping = jl_mapping_to_dict(l_mapping_obj)
+             end
+        end
+
+        if isempty(labels) && isempty(mapping)
+             inner = jl_lookup(obj, :plot)
+             if inner !== nothing && inner !== obj
+                 return jl_extract_plot_metadata(inner)
+             end
+        end
+
+        title = get(labels, "title", nothing)
+        return Dict(
+            "class" => "tidierplots",
+            "backend" => "Julia",
+            "title" => title,
+            "mapping" => mapping,
+            "labels" => labels,
+            "layers" => layers,
+            "_display_keys" => ["class", "backend", "title", "mapping", "labels", "layers"],
+        )
+    end
+
+    if jl_module_matches(module_name, "Plots") && type_name == "Plot"
+        plot_attrs = jl_lookup(obj, :plotattributes)
+        subplot = jl_plots_primary_subplot(obj)
+        attrs = jl_lookup(subplot, :attr)
+        subplot_attrs =
+            if attrs === nothing
+                jl_lookup(subplot, :plotattributes)
+            else
+                attrs
+            end
+        direct_title = jl_first_string(plot_attrs, [:title, "title", :plot_title, "plot_title"])
+        title =
+            if direct_title === nothing
+                jl_first_string(subplot_attrs, [:title, "title", :plot_title, "plot_title"])
+            else
+                direct_title
+            end
+        labels = jl_compact_dict([
+            "title" => title,
+            "x" => jl_first_string(subplot_attrs, [:xlabel, "xlabel", :xguide, "xguide", :guide, "guide"]),
+            "y" => jl_first_string(subplot_attrs, [:ylabel, "ylabel", :yguide, "yguide"]),
+        ])
+        return Dict(
+            "class" => "plotsjl",
+            "backend" => "Julia",
+            "title" => title,
+            "labels" => labels,
+            "layers" => jl_plots_layers(obj, subplot),
+            "_display_keys" => ["class", "backend", "title", "labels", "layers"],
+        )
+    end
+
+    figure = jl_makie_figure(obj)
+    if figure !== nothing
+        axis = jl_makie_primary_axis(figure)
+        title = jl_first_string(axis, [:title, "title"])
+        labels = jl_compact_dict([
+            "title" => title,
+            "x" => jl_first_string(axis, [:xlabel, "xlabel"]),
+            "y" => jl_first_string(axis, [:ylabel, "ylabel"]),
+        ])
+        content = jl_lookup(figure, :content)
+        layers =
+            if content isa AbstractVector
+                jl_dedup_strings([string(nameof(typeof(item))) for item in content])
+            else
+                String[]
+            end
+        return Dict(
+            "class" => "makie",
+            "backend" => "Julia",
+            "title" => title,
+            "labels" => labels,
+            "layers" => layers,
+            "_display_keys" => ["class", "backend", "title", "labels", "layers"],
+        )
+    end
+
+    nothing
+end
+
+function jl_visual_class(obj)
+    metadata = jl_extract_plot_metadata(obj)
+    metadata === nothing ? string(typeof(obj)) : metadata["class"]
+end
+
+function jl_save_viz_metadata(obj, path)
+    metadata = jl_extract_plot_metadata(obj)
+    if metadata === nothing
+        return false
+    end
+    open(path, "w") do f
+        JSON.print(f, metadata)
+    end
+    true
+end
+|} in
+
   let visualization_injection =
     match runtime with
     | "R" -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" visualization_r_code
     | "Python" -> Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" visualization_py_code
+    | "Julia" -> Printf.sprintf "      cat << 'EOF' >> node_script.jl\n%s\nEOF" visualization_jl_code
     | _ -> ""
   in
 
@@ -1328,12 +2061,12 @@ def py_save_viz_metadata(obj, path):
           | _ -> deserializer
 
         in
-        let strategy_is_string = match strategy_expr.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
         let read_fns = match runtime with
           | "R" -> [ "json", "r_read_json"; "arrow", "r_read_arrow"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; ]
           | "Python" -> [ "json", "py_read_json"; "arrow", "py_read_arrow"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; ]
+          | "Julia" -> [ "json", "jl_read_json"; "arrow", "jl_read_arrow"; "pmml", "jl_read_pmml"; "onnx", "jl_read_onnx"; "csv", "jl_read_csv"; ]
           | _ -> [ "json", "t_read_json"; "arrow", "read_arrow"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; ]
         in
         let des_node_val = eval_expr_safe strategy_expr in
@@ -1344,9 +2077,7 @@ def py_save_viz_metadata(obj, path):
                | None -> List.assoc_opt fmt read_fns |> Option.value ~default:fmt)
           | None ->
             if strategy = "default" then
-              (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else "deserialize")
-            else if strategy_is_string then
-              (match List.assoc_opt strategy read_fns with Some fn -> fn | None -> strategy)
+              (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else if runtime = "Julia" then "deserialize" else "deserialize")
             else
               strategy
         in
@@ -1364,6 +2095,8 @@ def py_save_viz_metadata(obj, path):
       echo "    %s = py_read_json(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py
       echo "else:" >> node_script.py
       echo "    %s = %s(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
+        | "Julia" ->
+            Printf.sprintf {|      echo "%s = %s(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl|} dep_name des_fn dep_var
         | _ ->
             Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" dep_name des_fn dep_var ext
       in
@@ -1392,13 +2125,13 @@ def py_save_viz_metadata(obj, path):
   in
 
   let expr_s = Nix_unparse.unparse_expr expr in
-  let ser_expr_is_string = match serializer.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
   let ser_s = Nix_unparse.expr_to_string serializer in
   let uses_default_serializer = ser_s = "default" in
   let ser_call =
     let write_fns = match runtime with
       | "R" -> [ "json", "r_write_json"; "arrow", "r_write_arrow"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; ]
       | "Python" -> [ "json", "py_write_json"; "arrow", "py_write_arrow"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; ]
+      | "Julia" -> [ "json", "jl_write_json"; "arrow", "jl_write_arrow"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; ]
       | _ -> [ "json", "t_write_json"; "arrow", "write_arrow"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; ]
     in
     match get_format ser_val with
@@ -1408,9 +2141,7 @@ def py_save_viz_metadata(obj, path):
          | None -> List.assoc_opt fmt write_fns |> Option.value ~default:fmt)
     | None ->
         if ser_s = "default" then
-          (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else "serialize")
-        else if ser_expr_is_string then
-          (match List.assoc_opt ser_s write_fns with Some fn -> fn | None -> ser_s)
+          (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else if runtime = "Julia" then "jl_serialize" else "serialize")
         else
           ser_s
   in
@@ -1437,12 +2168,34 @@ def py_save_viz_metadata(obj, path):
       Printf.sprintf {|    %s(%s, %s)|} ser_call value_name artifact_path
   in
 
+  let julia_emit_artifact value_name =
+    let viz_call = Printf.sprintf "jl_save_viz_metadata(%s, joinpath(ENV[\"out\"], \"viz\"))" value_name in
+    let artifact_path = "joinpath(ENV[\"out\"], \"artifact\")" in
+    let serialize_call =
+      Printf.sprintf "    %s(%s, %s)" ser_call value_name artifact_path
+    in
+    if uses_default_serializer then
+      Printf.sprintf {|    %s
+%s|} viz_call serialize_call
+    else
+      serialize_call
+  in
+
+  let julia_class_expr value_name =
+    if uses_default_serializer then
+      Printf.sprintf "jl_visual_class(%s)" value_name
+    else
+      Printf.sprintf "string(typeof(%s))" value_name
+  in
+
   let is_import_line line =
     let l = String.trim line in
     if runtime = "Python" then
       String.starts_with ~prefix:"import " l || String.starts_with ~prefix:"from " l
     else if runtime = "R" then
       String.starts_with ~prefix:"library(" l || String.starts_with ~prefix:"require(" l
+    else if runtime = "Julia" then
+      String.starts_with ~prefix:"using " l || String.starts_with ~prefix:"import " l
     else false
   in
 
@@ -1530,8 +2283,7 @@ def py_save_viz_metadata(obj, path):
       let lines = String.split_on_char '\n' expr_s in
       let is_comment_line line =
         let l = String.trim line in
-        if runtime = "Python" then String.starts_with ~prefix:"#" l
-        else if runtime = "R" then String.starts_with ~prefix:"#" l
+        if runtime = "Python" || runtime = "R" || runtime = "Julia" then String.starts_with ~prefix:"#" l
         else false
       in
       let non_imports = List.filter (fun l -> not (is_import_line l) && not (is_comment_line l)) lines in
@@ -1621,6 +2373,15 @@ def py_save_viz_metadata(obj, path):
           Printf.sprintf {|      echo %s >> node_script.py
       echo %s >> node_script.py
 |} py_exec py_ser
+        else if runtime = "Julia" then
+          let jl_include = shell_single_quote (Printf.sprintf {|include("%s")|} script_path) in
+          let jl_ser = shell_single_quote (Printf.sprintf {|%s
+    open(joinpath(ENV["out"], "class"), "w") do f
+        write(f, %s)
+    end|} (julia_emit_artifact name) (julia_class_expr name)) in
+          Printf.sprintf {|      echo %s >> node_script.jl
+      echo %s >> node_script.jl
+|} jl_include jl_ser
         else
           let t_import = shell_single_quote (Printf.sprintf {|      import "%s"|} script_path) in
           Printf.sprintf {|      echo %s >> node_script.t
@@ -1749,6 +2510,35 @@ EOF
 EOF
       echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
       echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name (py_emit_artifact name) name
+    else if runtime = "Julia" then
+      let emitted_expr = indent_string expr_s_no_imports 12 in
+      let emitted_artifact = julia_emit_artifact name in
+      String.concat "\n"
+        [
+          {|      echo "captured_logger = TCaptureLogger()" >> node_script.jl|};
+          {|      echo "try" >> node_script.jl|};
+          {|      echo "    local __tlang_node_thunk = () -> begin" >> node_script.jl|};
+          {|      cat <<'EOF' >> node_script.jl|};
+          emitted_expr;
+          {|EOF|};
+          {|      echo "    end" >> node_script.jl|};
+          Printf.sprintf {|      echo "    global %s = with_logger(captured_logger) do" >> node_script.jl|} name;
+          {|      echo "        Base.invokelatest(__tlang_node_thunk)" >> node_script.jl|};
+          {|      echo "    end" >> node_script.jl|};
+          {|      echo "catch e" >> node_script.jl|};
+          {|      echo "    jl_write_error(e, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl|};
+          {|      echo "    exit(0)" >> node_script.jl|};
+          {|      echo "end" >> node_script.jl|};
+          Printf.sprintf {|      echo "if jl_is_error(%s)" >> node_script.jl|} name;
+          Printf.sprintf {|      echo "    jl_write_error(%s, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl|} name;
+          {|      echo "else" >> node_script.jl|};
+          {|      cat <<'EOF' >> node_script.jl|};
+          emitted_artifact;
+          {|EOF|};
+          Printf.sprintf {|      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, %s); end" >> node_script.jl|} (julia_class_expr name);
+          {|      echo "    jl_write_warnings(captured_logger.warnings, joinpath(ENV[\"out\"], \"warnings\"))" >> node_script.jl|};
+          {|      echo "end" >> node_script.jl|};
+        ]
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
@@ -1786,20 +2576,33 @@ EOF
       echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s ser_call name name
   in
 
+  let runtime_base_packages =
+    match runtime with
+    (* Logging is required for TCaptureLogger so emitted Julia nodes can capture and persist warnings. *)
+    | "Julia" -> "using DataFrames, CSV, StatsModels, JSON, Logging, Serialization"
+    | "R" -> ""
+    | "Python" -> ""
+    | _ -> ""
+  in
+
   (* Runtime specific build command *)
   let run_cmd = match runtime with
     | "R" -> "Rscript node_script.R"
     | "Python" -> "python node_script.py"
+    | "Julia" -> "julia node_script.jl"
     | "Quarto" ->
-        let cli_block =
-          if quarto_cli_args_block = "" then ""
-          else quarto_cli_args_block ^ "\n"
-        in
+        let args = if quarto_cli_args_block = "" then "" else quarto_cli_args_block ^ "\n" in
         Printf.sprintf {|
       rm -rf .quarto-output
       export HOME=$TMPDIR
       export QUARTO_R=${r-env}/bin/R
       export QUARTO_PYTHON=${py-env}/bin/python
+      
+      # Provision the tlang extension
+      mkdir -p _extensions/tlang
+      cp -r ${tBin}/share/tlang/quarto/tlang/* _extensions/tlang/
+      export TLANG_BIN=${tBin}/bin/t
+
       cli_args=()
 %s      quarto "''${cli_args[@]}"
       if [ -d .quarto-output ]; then
@@ -1812,7 +2615,7 @@ EOF
         ls -R
         exit 1
       fi
-      echo "QuartoOutput" > $out/class|} cli_block (match script with Some s -> s | None -> ".") (match script with Some s -> s | None -> ".")
+      echo "QuartoOutput" > $out/class|} args (match script with Some s -> s | None -> ".") (match script with Some s -> s | None -> ".")
     | "sh" ->
         let shell_cmd = match shell with Some s -> s | None -> "sh" in
         let launcher =
@@ -1858,7 +2661,12 @@ EOF
     buildInputs = [ tBin %s ] ++ globalBuildInputs;
     T_JPMML_STATSMODELS_JAR = if (pkgs ? jpmml-statsmodels) then "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar" else "";
     T_JPMML_EVALUATOR_JAR = if (pkgs ? jpmml-evaluator) then "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar" else "";
+    JULIA_COPY_STACKS = "1";
     MPLCONFIGDIR = ".";
+    HOME = ".";
+    LD_LIBRARY_PATH = "${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib";
+    PYTHONPATH = "${tBin}/share/tlang/py-package/src";
+    JULIA_LOAD_PATH = ":${tlangJl}";
 %s
 %s
 %s
@@ -1867,6 +2675,7 @@ EOF
       chmod -R u+w .
 %s
       cat << EOF > node_script.%s
+%s
 EOF
 %s
 %s
@@ -1886,4 +2695,4 @@ EOF
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd

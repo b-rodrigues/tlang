@@ -1,12 +1,12 @@
 # read_arrow
 
-Read Arrow IPC file
+Read an Arrow IPC (Feather) file
 
-Reads a DataFrame from an Apache Arrow IPC (Feather v2) file.
+Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.
 
 ## Parameters
 
-- **path** (`String`): The path to the Arrow file.
+- **path** (`String`): The file path to the Arrow IPC file.
 
 
 ## Returns
@@ -21,5 +21,5 @@ df = read_arrow("data.arrow")
 
 ## See Also
 
-[write_arrow](write_arrow.html)
+[read_csv](read_csv.html), [write_arrow](write_arrow.html)
 

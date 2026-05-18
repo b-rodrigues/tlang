@@ -7,7 +7,7 @@
 (* - Column data extraction                                             *)
 (* - CSV reading with native fallback                                   *)
 
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   Printf.printf "Arrow Integration — FFI Infrastructure:\n";
 
   (* Test 1: Arrow FFI availability flag *)
@@ -1321,14 +1321,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test: Factor operations via T language on native-backed DataFrame *)
   test "Factor in mutate with native path"
-    {|df = dataframe([[name: "Alice", dept: "HR"], [name: "Bob", dept: "IT"], [name: "Charlie", dept: "HR"]]); mutate(df, $dept_f = factor($dept)) |> ncol|}
+    {|df = to_dataframe([[name: "Alice", dept: "HR"], [name: "Bob", dept: "IT"], [name: "Charlie", dept: "HR"]]); mutate(df, $dept_f = to_factor($dept)) |> ncol|}
     "3";
 
   test "Factor levels extraction"
-    {|v = factor(["a", "b", "a", "c"]); levels(v)|}
+    {|v = to_factor(["a", "b", "a", "c"]); levels(v)|}
     {|Vector["a", "b", "c"]|};
 
-  (* Test: Ordered factor round-trip through bridge *)
+  (* Test: Ordered to_factor round-trip through bridge *)
   let ordered_input = [| Ast.VFactor (1, ["low"; "med"; "high"], true);
                          Ast.(VNA Ast.NAGeneric);
                          Ast.VFactor (0, ["low"; "med"; "high"], true) |] in
@@ -1336,14 +1336,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
    | Arrow_table.DictionaryColumn (idx, levels, ordered) ->
        if idx.(0) = Some 1 && idx.(1) = None && idx.(2) = Some 0
           && levels = ["low"; "med"; "high"] && ordered then begin
-         incr pass_count; Printf.printf "  ✓ Ordered factor bridge round-trip preserves ordered flag\n"
+         incr pass_count; Printf.printf "  ✓ Ordered to_factor bridge round-trip preserves ordered flag\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Ordered factor bridge round-trip data mismatch\n"
+         incr fail_count; Printf.printf "  ✗ Ordered to_factor bridge round-trip data mismatch\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Ordered factor bridge round-trip returned wrong type\n");
+       incr fail_count; Printf.printf "  ✗ Ordered to_factor bridge round-trip returned wrong type\n");
 
-  (* Test: Ordered factor native materialization round-trip *)
+  (* Test: Ordered to_factor native materialization round-trip *)
   let ordered_col = Arrow_table.DictionaryColumn (
     [| Some 1; None; Some 0 |],
     ["low"; "med"; "high"],
@@ -1355,15 +1355,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      | Some (Arrow_table.DictionaryColumn (idx, levels, ordered)) ->
          if idx.(0) = Some 1 && idx.(1) = None && idx.(2) = Some 0
             && levels = ["low"; "med"; "high"] && ordered then begin
-           incr pass_count; Printf.printf "  ✓ Ordered factor native round-trip preserves ordered=true\n"
+           incr pass_count; Printf.printf "  ✓ Ordered to_factor native round-trip preserves ordered=true\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ Ordered factor native round-trip data mismatch (ordered=%b)\n" ordered
+           incr fail_count; Printf.printf "  ✗ Ordered to_factor native round-trip data mismatch (ordered=%b)\n" ordered
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ Ordered factor native round-trip returned wrong type\n")
+         incr fail_count; Printf.printf "  ✗ Ordered to_factor native round-trip returned wrong type\n")
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-      "Ordered factor native round-trip preserves ordered=true"
+      "Ordered to_factor native round-trip preserves ordered=true"
   end;
 
   print_newline ();
@@ -1529,15 +1529,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test: nest/unnest via T language round-trip *)
   test "Nest creates DataFrame"
-    {|df = dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); nrow(nested)|}
+    {|df = to_dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); nrow(nested)|}
     "2";
 
   test "Unnest restores structure"
-    {|df = dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); unnest(nested, $data) |> nrow|}
+    {|df = to_dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); unnest(nested, $data) |> nrow|}
     "3";
 
   test "Nest-unnest round-trip preserves data"
-    {|df = dataframe([[g: "a", x: 1], [g: "a", x: 2], [g: "b", x: 3]]); nested = nest(df, $x); flat = unnest(nested, $data); select(flat, $g, $x) |> nrow|}
+    {|df = to_dataframe([[g: "a", x: 1], [g: "a", x: 2], [g: "b", x: 3]]); nested = nest(df, $x); flat = unnest(nested, $data); select(flat, $g, $x) |> nrow|}
     "3";
 
   (* Test: ListColumn with float and boolean sub-fields *)
@@ -1799,11 +1799,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test: T-level slice on nested data avoids regression in native list reconstruction *)
   test "Slice nested ListColumn DataFrame"
-    {|df = dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); sliced = slice(nested, [0]); nrow(sliced)|}
+    {|df = to_dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); sliced = slice(nested, [0]); nrow(sliced)|}
     "1";
 
   test "Slice nested ListColumn preserves nested rows"
-    {|df = dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); sliced = slice(nested, [0]); unnest(sliced, $data) |> nrow|}
+    {|df = to_dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); sliced = slice(nested, [0]); unnest(sliced, $data) |> nrow|}
     "2";
 
   print_newline ();
@@ -2075,7 +2075,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     let (_, env_ipc) =
       eval_string_env
         (Printf.sprintf
-           {|df_ipc = dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); write_arrow(df_ipc, "%s")|}
+           {|df_ipc = to_dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); write_arrow(df_ipc, "%s")|}
            ipc_path)
         env_ipc
     in
@@ -2095,14 +2095,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       incr fail_count; Printf.printf "  ✗ read_arrow schema mismatch: %s\n" colnames_result
     end;
 
-    test "write_arrow/read_arrow preserves nested factor levels after unnest"
+    test "write_arrow/read_arrow preserves nested to_factor levels after unnest"
       (Printf.sprintf
-         {|df_nested = dataframe([
+         {|df_nested = to_dataframe([
              [g: "a", color: "red", ts: with_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")],
              [g: "a", color: "blue", ts: with_tz(ymd_hms("2024-01-15 10:45:00"), "Europe/Paris")],
              [g: "b", color: "red", ts: with_tz(ymd_hms("2024-01-16 08:00:00"), "Europe/Paris")]
            ]);
-           df_nested := mutate(df_nested, $color = factor($color));
+           df_nested := mutate(df_nested, $color = to_factor($color));
            nested = group_by(df_nested, $g) |> nest();
            write_arrow(nested, "%s");
            flat = read_arrow("%s") |> unnest($data);
@@ -2112,12 +2112,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
     test "write_arrow/read_arrow preserves nested timestamp timezones after unnest"
       (Printf.sprintf
-         {|df_nested = dataframe([
+         {|df_nested = to_dataframe([
              [g: "a", color: "red", ts: with_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")],
              [g: "a", color: "blue", ts: with_tz(ymd_hms("2024-01-15 10:45:00"), "Europe/Paris")],
              [g: "b", color: "red", ts: with_tz(ymd_hms("2024-01-16 08:00:00"), "Europe/Paris")]
            ]);
-           df_nested := mutate(df_nested, $color = factor($color));
+           df_nested := mutate(df_nested, $color = to_factor($color));
            nested = group_by(df_nested, $g) |> nest();
            write_arrow(nested, "%s");
            flat = read_arrow("%s") |> unnest($data);
@@ -2142,7 +2142,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "write_arrow/read_arrow round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-      "write_arrow/read_arrow preserves nested factor levels after unnest";
+      "write_arrow/read_arrow preserves nested to_factor levels after unnest";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "write_arrow/read_arrow preserves nested timestamp timezones after unnest"
   end;

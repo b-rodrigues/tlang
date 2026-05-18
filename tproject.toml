@@ -1,0 +1,28 @@
+[project]
+name = "tlang"
+description = ""
+
+[dependencies]
+
+[r-dependencies]
+packages = ["dplyr", "readr", "testthat"]
+
+[py-dependencies]
+version = "python314"
+packages = ["pandas", "numpy", "onnxruntime", "pyarrow", "skl2onnx"]
+
+[jl-dependencies]
+version = "lts"
+packages = ["CSV", "DataFrames", "JSON", "Arrow", "ONNX", "ONNXRunTime", "CairoMakie", "Plots", "TidierPlots"]
+
+[additional-tools]
+packages = []
+
+[latex]
+packages = []
+
+[t]
+min_version = "0.52.0"
+
+[nixpkgs]
+date = ""

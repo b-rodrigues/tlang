@@ -72,7 +72,7 @@ clearly:</p>
 <li><code>src/arrow/arrow_io.ml</code> contains a native Arrow CSV
 reader,</li>
 <li>and the public <code>read_csv</code> builtin in
-<code>src/packages/dataframe/t_read_csv.ml</code> now delegates to
+<code>src/packages/to_dataframe/t_read_csv.ml</code> now delegates to
 <code>Arrow_io.read_csv</code> when callers use the default CSV
 options.</li>
 <li>non-default parsing behaviors such as custom separators, header
@@ -167,21 +167,21 @@ arithmetic, math, aggregation, comparisons, and grouping,</li>
 integration entry points</h4>
 <p>Arrow also shows up outside <code>src/arrow/</code>:</p>
 <ul>
-<li><code>src/packages/dataframe/t_read_arrow.ml</code>
+<li><code>src/packages/to_dataframe/t_read_arrow.ml</code>
 <ul>
 <li>exposes Arrow IPC reading to T as <code>read_arrow</code>.</li>
 </ul></li>
-<li><code>src/packages/dataframe/t_write_arrow.ml</code>
+<li><code>src/packages/to_dataframe/t_write_arrow.ml</code>
 <ul>
 <li>exposes Arrow IPC writing to T as <code>write_arrow</code>.</li>
 </ul></li>
-<li><code>src/packages/dataframe/t_dataframe.ml</code>
+<li><code>src/packages/to_dataframe/t_dataframe.ml</code>
 <ul>
-<li><code>dataframe</code>, <code>pull</code>, and <code>to_array</code>
-all interact with Arrow-backed tables and Arrow-derived column
-types.</li>
+<li><code>to_dataframe</code>, <code>pull</code>, and
+<code>to_array</code> all interact with Arrow-backed tables and
+Arrow-derived column types.</li>
 </ul></li>
-<li><code>src/packages/dataframe/t_read_csv.ml</code>
+<li><code>src/packages/to_dataframe/t_read_csv.ml</code>
 <ul>
 <li>creates Arrow-backed DataFrames and uses
 <code>Arrow_io.read_csv</code> for the default public CSV path, while
@@ -227,7 +227,7 @@ present:</p>
 <li>group-by plus group aggregations (<code>sum</code>,
 <code>mean</code>, <code>count</code>)</li>
 <li>Arrow IPC read/write</li>
-<li>dictionary/factor columns</li>
+<li>dictionary/to_factor columns</li>
 <li>list columns with nested DataFrame reconstruction</li>
 <li>date columns</li>
 <li>NA-only columns</li>
@@ -249,10 +249,10 @@ represented in user-facing docs or entry points:</p>
 <li>Native Arrow CSV reading exists in
 <code>src/arrow/arrow_io.ml</code>, and the public
 <code>read_csv()</code> builtin uses it for the default CSV path.</li>
-<li><code>docs/performance.md</code> still describes dictionary/factor,
-list, and date columns as unsupported for native rebuild even though the
-code now includes native dictionary, list, and date materialization
-paths.</li>
+<li><code>docs/performance.md</code> still describes
+dictionary/to_factor, list, and date columns as unsupported for native
+rebuild even though the code now includes native dictionary, list, and
+date materialization paths.</li>
 </ul>
 <h3 id="partially-implemented-or-still-limited">Partially implemented or
 still limited</h3>
@@ -298,7 +298,7 @@ workflow</li>
 <ul>
 <li>primitive columns,</li>
 <li>date/datetime,</li>
-<li>dictionary/factor,</li>
+<li>dictionary/to_factor,</li>
 <li>list/nested columns,</li>
 <li>NA-only columns,</li>
 <li>zero-copy views,</li>
@@ -381,7 +381,8 @@ id="testsarrowtest_arrow_integration.ml"><code>tests/arrow/test_arrow_integratio
 </ul></li>
 <li>zero-copy view behavior</li>
 <li>temporal parsing helpers for date/timestamp string parsing</li>
-<li>dictionary/factor support, including ordered-factor round-trips</li>
+<li>dictionary/to_factor support, including ordered-to_factor
+round-trips</li>
 <li>list-column support, including:
 <ul>
 <li>native materialization</li>
@@ -457,7 +458,7 @@ add</h3>
 <li>Round-trips now cover:
 <ul>
 <li>primitive tables,</li>
-<li>dictionary/factor tables,</li>
+<li>dictionary/to_factor tables,</li>
 <li>list-column tables where supported,</li>
 <li>NA-only columns.</li>
 </ul></li>
@@ -506,7 +507,8 @@ additions</h3>
 <li>The regression spec already calls out deeper list nesting as a
 useful target.</li>
 </ul></li>
-<li><strong>List-column containing dictionary/factor sub-fields</strong>
+<li><strong>List-column containing dictionary/to_factor
+sub-fields</strong>
 <ul>
 <li>This is called out in
 <code>spec_files/arrow-regression-testing.md</code> and would exercise a
@@ -638,7 +640,7 @@ feature. It is a real backend with:</p>
 <li>Arrow IPC,</li>
 <li>pipeline interchange,</li>
 <li>zero-copy numeric access,</li>
-<li>factor/list/date support,</li>
+<li>to_factor/list/date support,</li>
 <li>and meaningful regression coverage.</li>
 </ul>
 <p>What is missing is not “Arrow support” in general. What is missing

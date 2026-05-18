@@ -12,7 +12,7 @@ preds = predict(X, model)
 
 -- map on VVector returns rows built from Dict values
 rows = preds |> map(\(p) [ pred: p ])
-result = dataframe(rows)
+result = to_dataframe(rows)
 
 write_csv(result, "tests/golden/t_outputs/iris_onnx_dt_predictions.csv")
 print("✓ iris ONNX decision tree predictions complete")

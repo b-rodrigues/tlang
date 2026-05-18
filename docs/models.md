@@ -1,7 +1,7 @@
 # Statistical Models & Tidy Output
 
 > [!IMPORTANT]
-> **Native Support Note**: $T$ provides native implementations for Linear Models (`lm`) and PMML-imported **Decision Trees** and **Random Forests**. For other advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a polyglot approach where models are trained in R or Python nodes and exchanged through PMML or ONNX.
+> **Native Support Note**: $T$ provides native implementations for Linear Models (`lm`) and PMML-imported **Decision Trees** and **Random Forests**. For other advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a polyglot approach where models are trained in R, Python, or Julia nodes and exchanged through PMML or ONNX.
 
 $T$ treats models as first-class objects that can be summarized and evaluated regardless of which runtime created them.
 
@@ -19,7 +19,7 @@ model = lm(data = mtcars, formula = mpg ~ wt + hp)
 ```
 
 ### Advanced Modeling (Polyglot)
-To fit models beyond simple OLS, use `R` or `Python` nodes within a $T$ pipeline. These nodes can serialize model artifacts through PMML or ONNX depending on the scoring path you want.
+To fit models beyond simple OLS, use `R`, `Python`, or `Julia` nodes within a $T$ pipeline. These nodes can serialize model artifacts through PMML or ONNX depending on the scoring path you want.
 
 #### Example: Logistic Regression in R
 ```t
@@ -50,6 +50,26 @@ p = pipeline {
 }
 build_pipeline(p)
 model = read_node("model_node")
+```
+
+#### Example: Neural Network in Julia (Flux)
+Julia nodes are particularly powerful for deep learning. $T$ handles Julia's "World Age" issues automatically, allowing you to train complex Flux models and export them as ONNX artifacts.
+
+```t
+p = pipeline {
+    model_node = jln(
+        command = <{
+            using Flux, ONNX
+            model = Chain(Dense(2, 10, relu), Dense(10, 1, sigmoid))
+            # ... training logic ...
+            model
+        }>,
+        serializer = ^onnx
+    )
+}
+build_pipeline(p)
+model = read_node("model_node")
+predict(new_data, model) -- Native ONNX scoring in T
 ```
 
 ---
@@ -101,16 +121,16 @@ comp = compare(m1, m2)
 -- Returns DataFrame with columns: estimate_1, std_error_1, ..., estimate_2, ...
 ```
 
-### `augment(data, model)`
+### `add_diagnostics(data, model)`
 Augments the original data with core model-based columns: `fitted`, `resid`, and `std_resid`.
 
 ```t
-aug = augment(mtcars, model)
+aug = add_diagnostics(mtcars, model)
 -- Adds columns: fitted, resid, std_resid
 ```
 
 ### `add_diagnostics(data, model)`
-Similar to `augment`, but adds a more comprehensive set of diagnostic columns (leverage, influence, etc.).
+Similar to `add_diagnostics`, but adds a more comprehensive set of diagnostic columns (leverage, influence, etc.).
 
 ```t
 diag = add_diagnostics(mtcars, model)
@@ -186,10 +206,13 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 **ONNX** is the preferred interchange format when you want broad ML model coverage or faster native inference through ONNX Runtime. It allows:
 1. **Python ML Export**: `scikit-learn` models via `skl2onnx`.
 2. **Native T Loading**: Reading models with `t_read_onnx(path)` and scoring them with `predict(data, model)`.
-3. **R/Python Runtime Loading**: Reading models via the `onnx` R package or Python `onnxruntime`.
+3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 
-Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python/R.
+Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python, R, or Julia. $T$ ensures that ONNX models trained in Python (Scikit-Learn) or Julia (Flux) produce consistent results when evaluated natively in $T$.
+
+> [!NOTE]
+> **Julia World Age**: When using Julia libraries that generate code at runtime (like Flux or Zygote), $T$ automatically wraps execution in `Base.invokelatest` to prevent "World Age" errors. This makes Julia nodes as robust as Python or R nodes for complex modeling tasks.
 
 ### Cross-Runtime Consistency
 $T$'s statistical evaluator is verified against R's reference implementation. Results match R's `broom::tidy()` and `stats::predict()` exactly.
@@ -202,7 +225,7 @@ $T$'s statistical evaluator is verified against R's reference implementation. Re
 |-------------------|--------------|
 | `broom::tidy(fit)` | `summary(model)` |
 | `broom::glance(fit)` | `fit_stats(model)` |
-| `broom::augment(fit, data)` | `augment(df, model)` |
+| `broom::augment(fit, data)` | `add_diagnostics(df, model)` |
 | `stats::residuals(fit)` | `residuals(df, model)`|
 | `stats::coef(fit)` | `coef(model)` |
 | `stats::vcov(fit)` | `vcov(model)` |

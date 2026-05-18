@@ -9,7 +9,7 @@ mt_relocated = relocate(mt, $gear, $carb, .before = $mpg)
 print(head(colnames(mt_relocated), 4))
 
 print("--- distinct ---")
-df_dup = dataframe([
+df_dup = to_dataframe([
   [a: 1, b: 1],
   [a: 1, b: 1],
   [a: 2, b: 2]

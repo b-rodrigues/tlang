@@ -33,6 +33,11 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 - **Description**: Moving trained models between high-level languages and T's native scoring engine.
 - **Key Features**: `predict()` across language boundaries, standardized model storage.
 
+### [Julia Interop](julia_interop_t.html)
+- **Repo**: `julia_interop_t`
+- **Description**: Demonstrates first-class support for Julia nodes and CSV data interchange.
+- **Key Features**: `jln()`, automatic Julia environment provisioning.
+
 ### [Lenses & Dynamic Pipelines](lens.html)
 - **Repo**: `deep_data_lenses_t` / `dynamic_pipeline_operator_t`
 - **Description**: Demonstrates functional updates to immutable configurations and dynamic DAG generation.
@@ -43,7 +48,7 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 ### [Dynamic Lookup & Symbols](metaprogramming.html)
 - **Repo**: `get_sym_demo_t`
 - **Description**: Showcases runtime variable lookup and symbol construction for dynamic orchestration.
-- **Key Features**: `get()`, `sym()`, dynamic node access.
+- **Key Features**: `get()`, `to_symbol()`, dynamic node access.
 
 ---
 

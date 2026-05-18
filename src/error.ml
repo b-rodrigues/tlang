@@ -26,8 +26,9 @@ let shell_error ?location msg =
 let missing_artifact_error ?location msg =
   make_error ?location MissingArtifactError msg
 
-let type_error ?location msg =
-  make_error ?location TypeError msg
+let type_error ?location ?(arg_index=0) msg =
+  let context = if arg_index > 0 then [("arg_index", VString (string_of_int arg_index))] else [] in
+  make_error ?location ~context TypeError msg
 
 let aggregation_error ?location msg =
   make_error ?location AggregationError msg

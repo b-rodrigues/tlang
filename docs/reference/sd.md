@@ -2,13 +2,15 @@
 
 Standard Deviation
 
-Calculates the sample standard deviation of a numeric vector.
+Calculates the sample standard deviation of a numeric vector. With `weights`, uses the weighted population denominator (`sum(weights)`).
 
 ## Parameters
 
 - **x** (`Vector`): | List The numeric data.
 
 - **na_rm** (`Bool`): (Optional) logical. Should missing values be removed? Default is false.
+
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
 
 
 ## Returns
