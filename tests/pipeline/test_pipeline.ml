@@ -1515,7 +1515,7 @@ p.t_step|}
       p = pipeline {
         a = 1
       }
-      collect_errors(p) == []
+      length(collect_errors(p)) == 0
       |} (Packages.init_env ())
     in
     if v_errors = Ast.VBool true then begin
