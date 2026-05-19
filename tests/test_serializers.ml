@@ -341,7 +341,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
                "jl_read_onnx";
                "jl_write_onnx";
                "using ONNX";
-               "ONNX.write(path, model)";
+               "ONNX.save(path, model)";
                "mutable struct TCaptureLogger <: AbstractLogger";
                "jl_write_error(e, joinpath(ENV[\\\"out\\\"], \\\"artifact\\\"))";
                "jl_write_warnings(captured_logger.warnings, joinpath(ENV[\\\"out\\\"], \\\"warnings\\\"))";
