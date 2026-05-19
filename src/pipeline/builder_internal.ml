@@ -98,6 +98,8 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
 
     let drv_paths = Hashtbl.create (List.length node_names) in
     let node_has_warnings = Hashtbl.create (List.length node_names) in
+    let node_start_times = Hashtbl.create (List.length node_names) in
+    let node_durations = Hashtbl.create (List.length node_names) in
     let callback line =
       Buffer.add_string captured_output line;
       Buffer.add_char captured_output '\n';
@@ -110,6 +112,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
         (* Building a derivation *)
         match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name -> 
+            Hashtbl.replace node_start_times name (Unix.gettimeofday ());
             let drv_path = 
               try
                 let start_idx = contains_substring_idx line "/nix/store/" in
@@ -139,6 +142,12 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                Hashtbl.find statuses name <> "SoftFailed" &&
                Hashtbl.find statuses name <> "Errored" then (
               (* We'll refine this to SoftFailed later if artifact class is VError *)
+              let duration =
+                match Hashtbl.find_opt node_start_times name with
+                | Some t -> Unix.gettimeofday () -. t
+                | None -> 0.0
+              in
+              Hashtbl.replace node_durations name duration;
               Hashtbl.replace statuses name "Completed";
               Printf.printf "  ✓ %s built\n%!" name
             )
@@ -151,6 +160,12 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
           match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
           | Some name ->
               if Hashtbl.find statuses name <> "Errored" then (
+                let duration =
+                  match Hashtbl.find_opt node_start_times name with
+                  | Some t -> Unix.gettimeofday () -. t
+                  | None -> 0.0
+                in
+                Hashtbl.replace node_durations name duration;
                 Hashtbl.replace statuses name "Errored";
                 let drv_path = 
                   match Hashtbl.find_opt drv_paths name with
@@ -177,6 +192,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
       )
     in
     
+    let total_start_time = Unix.gettimeofday () in
     match run_command_stream_argv argv callback with
     | Ok status ->
         (* Save drv_paths for later tool use (e.g. read_log) *)
@@ -265,6 +281,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                   Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
                     total_built (List.length node_names);
                 
+                let total_duration = Unix.gettimeofday () -. total_start_time in
                 let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
                 let log_path = Filename.concat pipeline_dir log_name in
                 let log_entries =
@@ -280,6 +297,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                     let status = Hashtbl.find statuses name in
                     let success = if status = "SoftFailed" then "false" else "true" in
                     let has_warns = if Hashtbl.find_opt node_has_warnings name = Some true then "true" else "false" in
+                    let node_dur = match Hashtbl.find_opt node_durations name with Some d -> d | None -> 0.0 in
                     Serialization.json_dict [
                       ("node", "\"" ^ Serialization.json_escape name ^ "\"");
                       ("path", "\"" ^ Serialization.json_escape artifact_path ^ "\"");
@@ -288,7 +306,8 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                       ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");
                       ("dependencies", Serialization.json_list deps);
                       ("success", success);
-                      ("warnings", has_warns)
+                      ("warnings", has_warns);
+                      ("duration", Printf.sprintf "%.4f" node_dur)
                     ]
                   ) p.p_exprs
                 in
@@ -296,6 +315,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                   ("timestamp", "\"" ^ timestamp ^ "\"");
                   ("hash", "\"" ^ hash ^ "\"");
                   ("out_path", "\"" ^ out_path ^ "\"");
+                  ("duration", Printf.sprintf "%.4f" total_duration);
                   ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
                 ] ^ "\n" in
                 (match write_file log_path log_json with

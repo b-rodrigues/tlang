@@ -280,6 +280,11 @@ let rec pretty_print_value v =
       let path_str = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then "" else "\npath: " ^ cn.cn_path in
       Printf.sprintf "computed_node<%s>%s\nserializer: %s\nclass: %s\n"
         cn.cn_runtime path_str cn.cn_serializer cn.cn_class
+  | VBuildLog bl ->
+      let total = List.length bl.bl_nodes in
+      let failed = List.length bl.bl_failed_nodes in
+      Printf.sprintf "Build Log: %d nodes [%d succeeded, %d failed] (duration: %.2fs)\n"
+        total (total - failed) failed bl.bl_duration
   | VDataFrame df -> pretty_print_dataframe df
   | VError err -> pretty_print_error err
   | VPipeline p -> pretty_print_pipeline p

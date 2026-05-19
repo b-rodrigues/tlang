@@ -52,7 +52,13 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
              (match rerun_pipeline ?strict:(Some true) ~verbose:false env p with
               | VPipeline p_resolved ->
                   (match Builder.populate_pipeline ~build:true ?verbose p_resolved with
-                   | Ok out_path -> VString out_path
+                   | Ok _out_path ->
+                       (match Builder.get_logs () with
+                        | log_file :: _ ->
+                            let log_path = Filename.concat Builder.pipeline_dir log_file in
+                            Builder.parse_json_log_to_vbuildlog log_path
+                        | [] ->
+                            Error.make_error StructuralError "No build log was found after build completed.")
                    | Error msg -> Error.make_error StructuralError msg)
               | VError _ as err -> err
               | other ->

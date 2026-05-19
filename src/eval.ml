@@ -2258,6 +2258,12 @@ and eval_dot_access_val _env_ref target_val field =
        | Some (VComputedNode cn) -> VComputedNode (!Ast.computed_node_resolver cn)
        | Some v -> v
        | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
+  | VBuildLog bl ->
+      (match field with
+       | "nodes" -> VList (List.map (fun x -> (None, x)) bl.bl_nodes)
+       | "duration" -> VFloat bl.bl_duration
+       | "failed_nodes" -> VList (List.map (fun s -> (None, VString s)) bl.bl_failed_nodes)
+       | _ -> Error.make_error KeyError (Printf.sprintf "BuildLog has no field `%s`." field))
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
       (match field with

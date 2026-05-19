@@ -210,8 +210,15 @@ and lens =
   | CompositeLens of lens * lens
   | FilterLens of value
 
+and build_log = {
+  bl_nodes : value list;
+  bl_duration : float;
+  bl_failed_nodes : string list;
+}
+
 (** Runtime values *)
 and value =
+  | VBuildLog of build_log
   (* Scalar Types *)
   | VInt of int
   | VFloat of float
@@ -617,6 +624,7 @@ module Utils = struct
     | TExpr -> "Expression"
 
   let rec type_name = function
+    | VBuildLog _ -> "BuildLog"
     | VInt _ -> "Int" | VFloat _ -> "Float"
     | VBool _ -> "Bool" | VString _ -> "String" | VRawCode _ -> "Code"
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
@@ -730,6 +738,11 @@ module Utils = struct
         "import \"" ^ filename ^ "\" [" ^ String.concat ", " (List.map (fun is -> is.import_name) names) ^ "]"
 
   and value_to_string = function
+    | VBuildLog bl ->
+        let total = List.length bl.bl_nodes in
+        let failed = List.length bl.bl_failed_nodes in
+        Printf.sprintf "Build Log: %d nodes [%d succeeded, %d failed] (duration: %.2fs)"
+          total (total - failed) failed bl.bl_duration
     | VInt n -> string_of_int n
     | VFloat f -> string_of_float f
     | VBool b -> string_of_bool b
@@ -1010,6 +1023,7 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VInt _, TFloat -> true
 
   | VComputedNode _, TComputedNode -> true
+  | VBuildLog _, TCustom "BuildLog" -> true
   | VExpr _, TExpr -> true
   | VQuo _, TExpr -> true
 

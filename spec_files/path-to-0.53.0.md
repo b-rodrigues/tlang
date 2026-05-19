@@ -9,15 +9,15 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 **Objective**: Make pipeline outcomes queryable as first-class T values and harden existing runtimes.
 
 ### Structured Build Logs as First-Class Values
-- [ ] **`build_log(p)` → `VBuildLog`**: Expose the underlying Nix build results as a T record. Today, these are JSON files; making them first-class values allows programmatic inspection of build health.
+- [x] **`build_log(p)` → `VBuildLog`**: Expose the underlying Nix build results as a T record. Today, these are JSON files; making them first-class values allows programmatic inspection of build health.
   ```t
   log = build_pipeline(p)
   log.nodes             -- List of node records (name, status, duration)
   log.duration          -- Total wall-clock time
   log.failed_nodes      -- Names of nodes that produced VError
   ```
-- [ ] **`build_log_to_frame(log)`**: Tabulate build results (one row per node) for analysis using `colcraft` verbs.
-- [ ] **`collect_errors(p)`**: Gather all `VError` artifacts from a built pipeline into a `List`.
+- [x] **`build_log_to_frame(log)`**: Tabulate build results (one row per node) for analysis using `colcraft` verbs.
+- [x] **`collect_errors(p)`**: Gather all `VError` artifacts from a built pipeline into a `List`.
 
 ### Error Composition Primitives
 - [ ] **`error_summary(errors)`**: Convert a list of errors into a DataFrame (`node`, `code`, `message`, `runtime`).

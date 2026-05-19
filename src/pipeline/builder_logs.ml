@@ -83,3 +83,51 @@ let list_logs () =
   ] in
   let arrow_table = Arrow_table.create columns nrows in
   Ast.VDataFrame { arrow_table; group_keys = [] }
+
+let parse_json_log_to_vbuildlog path =
+  try
+    let json = Yojson.Safe.from_file path in
+    let open Yojson.Safe.Util in
+    let duration =
+      match json |> member "duration" with
+      | `Float f -> f
+      | `Int i -> float_of_int i
+      | `String s -> (try float_of_string s with _ -> 0.0)
+      | _ -> 0.0
+    in
+    let nodes_list = json |> member "nodes" |> to_list in
+    let parse_node node_json =
+      let name = node_json |> member "node" |> to_string in
+      let success =
+        match node_json |> member "success" with
+        | `Bool b -> b
+        | `String s -> s = "true"
+        | _ -> true
+      in
+      let status =
+        if success then "Completed" else "SoftFailed"
+      in
+      let node_duration =
+        match node_json |> member "duration" with
+        | `Float f -> f
+        | `Int i -> float_of_int i
+        | `String s -> (try float_of_string s with _ -> 0.0)
+        | _ -> 0.0
+      in
+      let record_fields = [
+        ("name", Ast.VString name);
+        ("status", Ast.VString status);
+        ("duration", Ast.VFloat node_duration);
+      ] in
+      (Ast.VDict record_fields, name, success)
+    in
+    let parsed_nodes = List.map parse_node nodes_list in
+    let bl_nodes = List.map (fun (v, _, _) -> v) parsed_nodes in
+    let bl_failed_nodes =
+      parsed_nodes
+      |> List.filter (fun (_, _, success) -> not success)
+      |> List.map (fun (_, name, _) -> name)
+    in
+    Ast.VBuildLog { bl_nodes; bl_duration = duration; bl_failed_nodes }
+  with _exn ->
+    Ast.VBuildLog { bl_nodes = []; bl_duration = 0.0; bl_failed_nodes = [] }
