@@ -2,7 +2,7 @@
 
 All notable changes to the T programming language are documented here.
 
-## [0.52.1] — 2026-05
+## [0.52.1] — 2026-05-xx
 
 ### Julia ONNX Serialization Support
 - Added `^onnx` serializer support for Julia nodes to write traced computational graphs to standard ONNX models.

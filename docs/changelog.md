@@ -1,6 +1,22 @@
 # Changelog
 
-## [0.52.1] [Unreleased]
+## [0.52.1] - 2026-05-xx
+
+This release finalizes end-to-end Julia ONNX serialization support and fixes pipeline compiler strategy dictionary parsing issues.
+
+**Status**: Beta
+
+### Julia ONNX Serialization Support
+- **Dynamic Tape Workarounds**: Implemented dynamic handlers for `:Cast` (pass-through `identity`) and `:Reshape` (handling inferred `-1` shapes mapping to Julia `Colon()`) operators.
+- **World Age Resilience**: Wrapped deserialized model loading in `Base.invokelatest` to resolve world age lexical method updates in isolated Nix builds.
+- **Dynamic Package Support**: Integrated the `Umlaut` dependency into `[jl-dependencies]` and corrected column-major tracing dimension layouts.
+
+### Compiler Strategy Dictionaries
+- **Type-Safe Serialization Registry**: Fixed OCaml type-mismatch bugs in OCaml `nix_emit_node.ml` (`get_format`) and `builder_populate.ml` (`extract_format`) to correctly parse `VSerializer` values inside pipeline deserialization mapping dictionaries (e.g., `deserializer = [ julia_model: ^onnx ]`).
+
+### End-to-End Stress Testing & CI
+- **Polyglot Parity Scoring**: Added the `onnx_julia_stress_t` end-to-end stress test to verify prediction parity (achieving 12 decimal places of precision) between Julia-serialized ONNX scoring and exact Python MLP scikit-learn mathematics.
+- **Automated Workflows**: Created premium automated GitHub Actions CI workflow to run the stress test on pull request and dispatch events.
 
 ## [0.52.0] "Kaméhaméha" - 2026-05-18
 

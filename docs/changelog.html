@@ -34,7 +34,47 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="unreleased">[0.52.1] Unreleased</h2>
+<h2 id="xx">[0.52.1] - 2026-05-xx</h2>
+<p>This release finalizes end-to-end Julia ONNX serialization support
+and fixes pipeline compiler strategy dictionary parsing issues.</p>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="julia-onnx-serialization-support">Julia ONNX Serialization
+Support</h3>
+<ul>
+<li><strong>Dynamic Tape Workarounds</strong>: Implemented dynamic
+handlers for <code>:Cast</code> (pass-through <code>identity</code>) and
+<code>:Reshape</code> (handling inferred <code>-1</code> shapes mapping
+to Julia <code>Colon()</code>) operators.</li>
+<li><strong>World Age Resilience</strong>: Wrapped deserialized model
+loading in <code>Base.invokelatest</code> to resolve world age lexical
+method updates in isolated Nix builds.</li>
+<li><strong>Dynamic Package Support</strong>: Integrated the
+<code>Umlaut</code> dependency into <code>[jl-dependencies]</code> and
+corrected column-major tracing dimension layouts.</li>
+</ul>
+<h3 id="compiler-strategy-dictionaries">Compiler Strategy
+Dictionaries</h3>
+<ul>
+<li><strong>Type-Safe Serialization Registry</strong>: Fixed OCaml
+type-mismatch bugs in OCaml <code>nix_emit_node.ml</code>
+(<code>get_format</code>) and <code>builder_populate.ml</code>
+(<code>extract_format</code>) to correctly parse
+<code>VSerializer</code> values inside pipeline deserialization mapping
+dictionaries (e.g.,
+<code>deserializer = [ julia_model: ^onnx ]</code>).</li>
+</ul>
+<h3 id="end-to-end-stress-testing-ci">End-to-End Stress Testing &amp;
+CI</h3>
+<ul>
+<li><strong>Polyglot Parity Scoring</strong>: Added the
+<code>onnx_julia_stress_t</code> end-to-end stress test to verify
+prediction parity (achieving 12 decimal places of precision) between
+Julia-serialized ONNX scoring and exact Python MLP scikit-learn
+mathematics.</li>
+<li><strong>Automated Workflows</strong>: Created premium automated
+GitHub Actions CI workflow to run the stress test on pull request and
+dispatch events.</li>
+</ul>
 <h2 id="kaméhaméha---2026-05-18">[0.52.0] “Kaméhaméha” - 2026-05-18</h2>
 <p>The focus of this release is the introduction of first-class Julia
 support, enabling high-performance polyglot pipelines with seamless
