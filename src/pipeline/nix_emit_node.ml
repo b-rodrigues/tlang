@@ -36,8 +36,10 @@ let get_format = function
   | Ast.VDict pairs -> 
       (match List.assoc_opt "format" pairs with
        | Some (VString s) | Some (VSymbol s) -> Some (strip_hat s |> String.lowercase_ascii)
+       | Some (VSerializer s) -> Some s.s_format
        | _ -> None)
   | _ -> None
+
 
 let get_polyglot_snippet ~lang ~kind v =
   match v, lang, kind with

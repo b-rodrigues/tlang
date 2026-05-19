@@ -108,8 +108,10 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
       | Ast.VDict pairs ->
           (match List.assoc_opt "format" pairs with
            | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
+           | Some (VSerializer s) -> Some s.s_format
            | _ -> None)
       | _ -> None
+
     in
     List.find_map (fun (name, _) ->
       let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
