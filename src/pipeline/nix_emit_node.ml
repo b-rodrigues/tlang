@@ -1319,16 +1319,14 @@ import ONNXRunTime as ORT
 using ONNX
 
 function jl_write_onnx(model, path)
-    # Validate that model is a compatible ONNX graph/tape representation.
-    type_str = string(typeof(model))
-    if !contains(type_str, "Tape") && !contains(type_str, "Graph") && !contains(type_str, "ModelProto")
-        error("T-Lang Julia ONNX export error: $(typeof(model)) is not compatible with ONNX.jl. Only Umlaut.Tape, ONNX.Graph, or ONNXLowLevel.ModelProto objects are supported for direct ONNX writing in Julia. For other model types, consider exporting from Python or saving a structured representation.")
-    end
-
     try
         ONNX.save(path, model)
     catch e
-        error("ONNX serialization failed in Julia: $(sprint(showerror, e))")
+        if e isa MethodError
+            error("T-Lang Julia ONNX export error: $(typeof(model)) is not compatible with ONNX.jl. Only ONNX.jl-supported graph/tape objects can be written directly in Julia.")
+        else
+            error("ONNX serialization failed in Julia: $(sprint(showerror, e))")
+        end
     end
 end
 

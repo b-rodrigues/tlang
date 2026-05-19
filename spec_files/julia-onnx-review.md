@@ -16,7 +16,7 @@ The repository wires Julia ONNX support in several places:
 - `src/serialization_registry.ml` registers both `jl_write_onnx` and `jl_read_onnx` for the `onnx` serializer.
 - `src/pipeline/nix_emit_node.ml` injects:
   - `jl_read_onnx(path) = ORT.load_inference(path)`
-  - `jl_write_onnx(model, path) = ONNX.write(path, model)`
+  - `jl_write_onnx(model, path) = ONNX.save(path, model)`
 - `src/pipeline/pipeline_dependency_requirements.ml` requires both `ONNXRunTime` and `ONNX` for Julia `^onnx`.
 
 That means the pipeline emitter is prepared for both operations, but that does **not** by itself prove that Julia can export arbitrary trained models to ONNX.
@@ -25,7 +25,7 @@ That means the pipeline emitter is prepared for both operations, but that does *
 
 Current tests only validate the plumbing, not end-to-end Julia ONNX export:
 
-- `tests/test_serializers.ml` checks that the emitted Julia script contains `ORT.load_inference(path)` and `ONNX.write(path, model)`.
+- `tests/test_serializers.ml` checks that the emitted Julia script contains `ORT.load_inference(path)` and `ONNX.save(path, model)`.
 - `tests/package_manager/test_package_manager.ml` checks dependency analysis for Julia `^onnx`.
 
 I did **not** find an end-to-end Julia test that:
@@ -121,7 +121,7 @@ Start by making the supported write target explicit instead of claiming broad Ju
 
 Once the contract is narrow, harden `jl_write_onnx()` around that contract.
 
-- Add explicit type checks in the Julia helper before calling `ONNX.write(...)`.
+- Add explicit type checks in the Julia helper before calling `ONNX.save(...)`.
 - Improve the error message to say which Julia object types are accepted.
 - Keep the current “no silent magic” rule: do not fall back to JLD2, JSON, or another format when ONNX export is requested.
 
