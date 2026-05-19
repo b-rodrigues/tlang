@@ -84,16 +84,19 @@ let build_log_to_frame_fn args _env =
 let collect_errors_fn args _env =
   match args with
   | [VPipeline p] ->
-      let node_names = List.map fst p.p_nodes in
-      let errors = List.filter_map (fun name ->
-        try
-          match Builder_read_node.read_node name with
-          | VNodeResult { v = VError _ as err; _ } -> Some (None, err)
-          | VError _ as err -> Some (None, err)
-          | _ -> None
-        with _ -> None
-      ) node_names in
-      VList errors
+      (match find_latest_matching_log_path p with
+       | None -> VList []
+       | Some _ ->
+           let node_names = List.map fst p.p_nodes in
+           let errors = List.filter_map (fun name ->
+             try
+               match Builder_read_node.read_node name with
+               | VNodeResult { v = VError _ as err; _ } -> Some (None, err)
+               | VError _ as err -> Some (None, err)
+               | _ -> None
+             with _ -> None
+           ) node_names in
+           VList errors)
   | [_] -> Error.type_error "Function `collect_errors` expects a Pipeline."
   | _ -> Error.arity_error_named "collect_errors" 1 (List.length args)
 

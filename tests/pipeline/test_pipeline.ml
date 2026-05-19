@@ -1510,13 +1510,19 @@ p.t_step|}
     end else begin
       incr fail_count; Printf.printf "  ✗ build_log_to_frame validation failed\n"
     end;
-    let (v_errors, _) = eval_string_env
-      {|
-      p = pipeline {
-        a = 1
-      }
-      length(collect_errors(p)) == 0
-      |} (Packages.init_env ())
+    let v_errors =
+      with_temp_pipeline_project
+        "pipeline { a = 1 }\n"
+        (fun _dir _pipeline_path ->
+          let (res, _) = eval_string_env
+            {|
+            p = pipeline {
+              a = 1
+            }
+            length(collect_errors(p)) == 0
+            |} (Packages.init_env ())
+          in
+          res)
     in
     if v_errors = Ast.VBool true then begin
       incr pass_count; Printf.printf "  ✓ collect_errors returns empty list for unbuilt/clean pipeline\n"
