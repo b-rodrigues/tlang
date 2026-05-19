@@ -1483,8 +1483,8 @@ p.t_step|}
       p = pipeline {
         a = 1
       }
-      # We cannot build the pipeline purely inside the tests without side effects,
-      # but we can test that error conditions are handled cleanly when there's no log.
+      -- We cannot build the pipeline purely inside the tests without side effects,
+      -- but we can test that error conditions are handled cleanly when there's no log.
       error_code(build_log(p)) == "FileError"
       |} (Packages.init_env ())
     in
