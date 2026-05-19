@@ -26,6 +26,7 @@ Julia runtime injection now includes a hardened `jl_serialize(obj, path)` implem
 - `t_onnx_jl_code` currently injects both `jl_read_onnx()` and `jl_write_onnx()`, but the write path calls `ONNX.write(path, model)` directly.
 - `jl_read_onnx()` aligns with `ONNXRunTime.jl`'s documented inference workflow and is the strongest part of the integration.
 - `jl_write_onnx()` should not be treated as a general Julia model exporter yet: upstream `ONNX.jl` documents graph-level save/load support, not broad automatic export for common Julia ML model families.
+- **Next step:** implement Julia ONNX writing as a phased rollout, starting with a narrow, explicitly typed writer contract before any broader model-family claims.
 - **See also:** `spec_files/julia-onnx-review.md`.
 
 ### 3. Runtime Diagnostics (`t doctor`)

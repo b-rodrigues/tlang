@@ -101,6 +101,93 @@ Until then, the safest product statement is:
 
 > Julia can load and run ONNX artifacts, but general Julia-to-ONNX export is not yet a supported workflow.
 
+## Phased plan to implement Julia ONNX writing
+
+### Phase 1 — Narrow the contract
+
+Start by making the supported write target explicit instead of claiming broad Julia model export.
+
+- Define the first supported Julia-side input type for `jl_write_onnx()`.
+- Prefer a **graph-level contract** first, such as ONNX.jl-compatible graph/tape objects, because that is closest to what upstream ONNX.jl documents today.
+- Update the user-facing contract so unsupported Julia model families fail explicitly instead of appearing to be supported.
+
+**Exit criteria:**
+
+- `jl_write_onnx()` has a documented accepted input type.
+- Unsupported Julia objects raise a clear runtime error.
+- Docs stop implying generic Julia model export.
+
+### Phase 2 — Harden the runtime helper
+
+Once the contract is narrow, harden `jl_write_onnx()` around that contract.
+
+- Add explicit type checks in the Julia helper before calling `ONNX.write(...)`.
+- Improve the error message to say which Julia object types are accepted.
+- Keep the current “no silent magic” rule: do not fall back to JLD2, JSON, or another format when ONNX export is requested.
+
+**Exit criteria:**
+
+- The write helper rejects unsupported objects deterministically.
+- Failure messages tell the user how to make the object exportable.
+- Dependency checks remain explicit for `ONNX` and any additional Julia packages required by the supported writer path.
+
+### Phase 3 — Add one end-to-end supported export path
+
+After the helper is hardened, add exactly one supported end-to-end export workflow.
+
+- Pick one concrete Julia source model family or graph representation.
+- Document the exact construction/conversion path inside a Julia node.
+- Verify that the emitted `.onnx` artifact can be:
+  1. written in a Julia node,
+  2. read back by `jl_read_onnx()` or `t_read_onnx()`,
+  3. and used for successful inference.
+
+The safest initial target is likely an ONNX.jl-native graph representation, not `Flux.jl`, `MLJ.jl`, `GLM.jl`, or `DecisionTree.jl`.
+
+**Exit criteria:**
+
+- One Julia ONNX writer flow works end to end.
+- A dedicated test proves write → read → predict.
+- T-Lang documentation names that supported flow precisely.
+
+### Phase 4 — Expand model-family coverage deliberately
+
+Only after one narrow path works should T-Lang broaden support.
+
+- Evaluate additional Julia model families one by one.
+- For each family, define whether support is:
+  - native via ONNX.jl,
+  - supported through a conversion layer,
+  - or explicitly unsupported.
+- Avoid umbrella claims like “Julia ONNX export is supported” until the supported families are enumerated.
+
+Candidate families to assess separately:
+
+- `Flux.jl`
+- `MLJ.jl`
+- `GLM.jl`
+- `DecisionTree.jl`
+
+**Exit criteria:**
+
+- Each claimed model family has a defined export contract.
+- Each family has its own tests and documentation.
+- Unsupported families still fail clearly.
+
+### Phase 5 — Promote from experimental to supported
+
+Only when multiple families are verified should the project upgrade the public claim.
+
+- Update `docs/changelog.md`, `docs/serializers.md`, `docs/api-reference.md`, and `summary.md` together.
+- Remove “experimental” wording only when coverage and tests justify it.
+- Add CI coverage for Julia ONNX writing so regressions are caught automatically.
+
+**Exit criteria:**
+
+- Public docs are consistent.
+- CI covers Julia ONNX write support.
+- The supported Julia ONNX export surface is precise, tested, and reproducible.
+
 ## Evidence reviewed
 
 ### In-repo
