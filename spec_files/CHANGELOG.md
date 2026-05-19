@@ -2,6 +2,21 @@
 
 All notable changes to the T programming language are documented here.
 
+## [0.52.1] — 2026-05
+
+### Julia ONNX Serialization Support
+- Added `^onnx` serializer support for Julia nodes to write traced computational graphs to standard ONNX models.
+- Implemented robust runtime tape extensions inside the sandboxed Julia environment for `:Cast` (pass-through `identity`) and `:Reshape` (handling inferred `-1` shapes mapping to Julia `Colon()`) operators.
+- Wrapped deserialized model loading in `Base.invokelatest` to resolve world age lexical method updates.
+- Added package support for `Umlaut` and resolved column-major dimension layouts.
+
+### Compiler Strategy Dictionaries
+- Fixed OCaml type-mismatch bugs in OCaml `nix_emit_node.ml` (`get_format`) and `builder_populate.ml` (`extract_format`) to correctly parse `VSerializer` values inside pipeline deserialization mapping dictionaries (e.g. `deserializer = [ julia_model: ^onnx ]`).
+
+### End-to-End Stress Testing & CI
+- Added `onnx_julia_stress_t` end-to-end stress test to verify prediction parity (achieving 12 decimal places of precision) between Julia-serialized ONNX scoring and exact Python MLP scikit-learn mathematics.
+- Created premium automated GitHub Actions CI workflow to run the stress test on pull request and dispatch events.
+
 ## [Alpha 0.1] — 2026-02
 
 ### Actionable Error Messages
