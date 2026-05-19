@@ -103,7 +103,7 @@ let list_logs () =
   let arrow_table = Arrow_table.create columns nrows in
   Ast.VDataFrame { arrow_table; group_keys = [] }
 
-let parse_json_log_to_vbuildlog path =
+let parse_json_log_to_vbuildlog log_path =
   let open Yojson.Safe.Util in
   let parse_float_or_default = function
     | `Float f -> f
@@ -118,10 +118,10 @@ let parse_json_log_to_vbuildlog path =
     | _ -> default
   in
   try
-    if not (Sys.file_exists path) then
-      Error.make_error FileError (Printf.sprintf "Build log `%s` does not exist." path)
+    if not (Sys.file_exists log_path) then
+      Error.make_error FileError (Printf.sprintf "Build log `%s` does not exist." log_path)
     else
-      let json = Yojson.Safe.from_file path in
+      let json = Yojson.Safe.from_file log_path in
       let duration = parse_float_or_default (json |> member "duration") in
       let out_path =
         match json |> member "out_path" with
@@ -169,13 +169,13 @@ let parse_json_log_to_vbuildlog path =
       Ast.VBuildLog { bl_nodes; bl_duration = duration; bl_failed_nodes; bl_out_path = out_path }
   with
   | Sys_error msg ->
-      Error.make_error FileError (Printf.sprintf "Failed to read build log `%s`: %s" path msg)
+      Error.make_error FileError (Printf.sprintf "Failed to read build log `%s`: %s" log_path msg)
   | Yojson.Json_error msg ->
-      Error.make_error ValueError (Printf.sprintf "Malformed JSON in build log `%s`: %s" path msg)
+      Error.make_error ValueError (Printf.sprintf "Malformed JSON in build log `%s`: %s" log_path msg)
   | Yojson.Safe.Util.Type_error (msg, _) ->
-      Error.make_error StructuralError (Printf.sprintf "Invalid build log structure in `%s`: %s" path msg)
+      Error.make_error StructuralError (Printf.sprintf "Invalid build log structure in `%s`: %s" log_path msg)
   | Failure msg ->
-      Error.make_error StructuralError (Printf.sprintf "Invalid build log `%s`: %s" path msg)
+      Error.make_error StructuralError (Printf.sprintf "Invalid build log `%s`: %s" log_path msg)
   | exn ->
       Error.make_error RuntimeError
-        (Printf.sprintf "Unexpected error while parsing build log `%s`: %s" path (Printexc.to_string exn))
+        (Printf.sprintf "Unexpected error while parsing build log `%s`: %s" log_path (Printexc.to_string exn))
