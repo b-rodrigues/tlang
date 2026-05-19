@@ -295,7 +295,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                     let serializer = Nix_unparse.expr_to_string serializer_expr in
                     let deps = match List.assoc_opt name p.p_deps with Some d -> d| None -> [] in
                     let status = Hashtbl.find statuses name in
-                    let success = if status = "SoftFailed" then "false" else "true" in
+                    let success = if status = "Completed" then "true" else "false" in
                     let has_warns = if Hashtbl.find_opt node_has_warnings name = Some true then "true" else "false" in
                     let node_dur = match Hashtbl.find_opt node_durations name with Some d -> d | None -> 0.0 in
                     Serialization.json_dict [
@@ -305,6 +305,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                       ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
                       ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");
                       ("dependencies", Serialization.json_list deps);
+                      ("status", "\"" ^ Serialization.json_escape status ^ "\"");
                       ("success", success);
                       ("warnings", has_warns);
                       ("duration", Printf.sprintf "%.4f" node_dur)

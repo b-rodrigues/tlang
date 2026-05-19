@@ -14,6 +14,7 @@ let find_latest_matching_log_path (p : Ast.pipeline_result) =
 --# Retrieve Build Log for Pipeline
 --#
 --# Returns the `BuildLog` of the latest Nix build for the given pipeline.
+--# Includes node-level status records, total duration, failed node names, and `out_path`.
 --#
 --# @name build_log
 --# @param p :: Pipeline The pipeline to retrieve logs for.

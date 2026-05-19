@@ -2472,7 +2472,7 @@ Constructs a Pipeline from a Dictionary of named nodes or a List of node records
 
 ### `build_pipeline(p, verbose = 0)` / `populate_pipeline(p, build = true)`
 
-Materialize a pipeline to Nix artifacts. `build_pipeline` is the primary entry point for full Nix builds. `populate_pipeline` can be used to generate the Nix expression without building (with `build = false`).
+Materialize a pipeline to Nix artifacts. `build_pipeline` is the primary entry point for full Nix builds and returns a `BuildLog` value (`nodes`, `duration`, `failed_nodes`, `out_path`). `populate_pipeline` can be used to generate the Nix expression without building (with `build = false`).
 
 ---
 
@@ -2811,6 +2811,14 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 
 
 - `pipeline` — Pipeline object
+
+**Returns:**
+
+`BuildLog` with fields:
+- `nodes` — per-node status/duration records
+- `duration` — total build duration in seconds
+- `failed_nodes` — list of failed/errored node names
+- `out_path` — Nix output path for the build (migration path for previous string-return behavior)
 
 ---
 

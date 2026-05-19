@@ -6,6 +6,7 @@
 
 ### Structured Build Logs as First-Class Values
 - Expose the underlying Nix build results as a T record. Today, these are JSON files; making them first-class values allows programmatic inspection of build health.
+- `build_pipeline(p)` now returns a `BuildLog` value instead of a raw output-path string. Use `build_pipeline(p).out_path` when you need the previous path value.
 - Added `build_log(p)` to retrieve the `VBuildLog` record for a pipeline. Contains nodes, total duration, and a list of failed nodes.
 - Added `build_log_to_frame(log)` to tabulate build results (one row per node) for analysis using `colcraft` verbs.
 - Added `collect_errors(p)` to gather all `VError` artifacts from a built pipeline into a `List`.

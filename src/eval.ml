@@ -2263,6 +2263,10 @@ and eval_dot_access_val _env_ref target_val field =
        | "nodes" -> VList (List.map (fun x -> (None, x)) bl.bl_nodes)
        | "duration" -> VFloat bl.bl_duration
        | "failed_nodes" -> VList (List.map (fun s -> (None, VString s)) bl.bl_failed_nodes)
+       | "out_path" ->
+           (match bl.bl_out_path with
+            | Some p -> VString p
+            | None -> VNA NAString)
        | _ -> Error.make_error KeyError (Printf.sprintf "BuildLog has no field `%s`." field))
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in

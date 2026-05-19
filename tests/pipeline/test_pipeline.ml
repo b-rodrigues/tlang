@@ -1478,15 +1478,21 @@ p.t_step|}
          (Ast.Utils.value_to_string other));
 
   let test_build_log_api () =
-    let (v_log, _) = eval_string_env
-      {|
-      p = pipeline {
-        a = 1
-      }
-      -- We cannot build the pipeline purely inside the tests without side effects,
-      -- but we can test that error conditions are handled cleanly when there's no log.
-      error_code(build_log(p)) == "FileError"
-      |} (Packages.init_env ())
+    let v_log =
+      with_temp_pipeline_project
+        "pipeline { a = 1 }\n"
+        (fun _dir _pipeline_path ->
+          let (res, _) = eval_string_env
+            {|
+            p = pipeline {
+              missing_build_log_node = 1
+            }
+            -- We cannot build the pipeline purely inside the tests without side effects,
+            -- but we can test that error conditions are handled cleanly when there's no log.
+            error_code(build_log(p)) == "FileError"
+            |} (Packages.init_env ())
+          in
+          res)
     in
     if v_log = Ast.VBool true then begin
       incr pass_count; Printf.printf "  ✓ build_log returns FileError on missing log\n"

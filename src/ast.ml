@@ -214,6 +214,7 @@ and build_log = {
   bl_nodes : value list;
   bl_duration : float;
   bl_failed_nodes : string list;
+  bl_out_path : string option;
 }
 
 (** Runtime values *)
