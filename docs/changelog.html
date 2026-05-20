@@ -34,7 +34,28 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="xx">[0.52.1] - 2026-05-xx</h2>
+<h2 id="xx">[0.53.0] - 2026-05-xx</h2>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="structured-build-logs-as-first-class-values">Structured Build
+Logs as First-Class Values</h3>
+<ul>
+<li>Expose the underlying Nix build results as a T record. Today, these
+are JSON files; making them first-class values allows programmatic
+inspection of build health.</li>
+<li><code>build_pipeline(p)</code> now returns a <code>BuildLog</code>
+value instead of a raw output-path string. Use
+<code>build_pipeline(p).out_path</code> when you need the previous path
+value.</li>
+<li>Added <code>build_log(p)</code> to retrieve the
+<code>VBuildLog</code> record for a pipeline. Contains nodes, total
+duration, and a list of failed nodes.</li>
+<li>Added <code>build_log_to_frame(log)</code> to tabulate build results
+(one row per node) for analysis using <code>colcraft</code> verbs.</li>
+<li>Added <code>collect_errors(p)</code> to gather all
+<code>VError</code> artifacts from a built pipeline into a
+<code>List</code>.</li>
+</ul>
+<h2 id="xx-1">[0.52.1] - 2026-05-xx</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support
 and fixes pipeline compiler strategy dictionary parsing issues.</p>
 <p><strong>Status</strong>: Beta</p>

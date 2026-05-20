@@ -1049,7 +1049,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
          | _ -> Error.make_error ArityError "enquos() expects no arguments or `...`")
 
     | Call { fn = { node = Var name; _ }; args }
-      when List.mem name ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] ->
+      when List.mem name ["node"; "pyn"; "rn"; "jln"; "jn"; "qn"; "shn"] ->
         let fn_name = name in
         let lookup_arg name default =
           match List.assoc_opt (Some name) args with
@@ -1249,7 +1249,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              let default_runtime = match name with
                | "pyn" -> "Python"
                | "rn" -> "R"
-              | "jln" -> "Julia"
+               | "jln" | "jn" -> "Julia"
                | "qn" -> "Quarto"
                | "shn" -> "sh"
                | _ -> "T"
@@ -1267,6 +1267,19 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             if has_command && runtime = "Quarto" then
               Error.make_error TypeError "Quarto nodes require a script and do not support inlined `command` blocks."
             else
+              let has_stdout_capture =
+                match List.assoc_opt (Some "capture") args with
+                | Some e -> (match eval_expr env_ref e with VString "stdout" | VSymbol "stdout" -> true | _ -> false)
+                | None -> false
+              in
+              let default_serializer =
+                if has_stdout_capture || runtime = "sh" then varexpr "text"
+                else varexpr "default"
+              in
+              let default_deserializer =
+                if has_stdout_capture || runtime = "sh" then varexpr "text"
+                else varexpr "default"
+              in
               let un_command, un_script =
                 match execution_path_opt with
                 | Some path ->
@@ -1298,8 +1311,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | RawCode _ ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" (match runtime with "sh" -> varexpr "text" | _ -> varexpr "default");
-                      un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
+                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
+                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1311,8 +1324,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | Value (VString _) | Value (VSymbol _) | Value ((VNA NAGeneric)) when runtime = "sh" ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" (varexpr "text");
-                      un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
+                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
+                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1324,8 +1337,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | _ when Option.is_some un_script ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" (match runtime with "sh" -> varexpr "text" | _ -> varexpr "default");
-                      un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
+                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
+                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1340,8 +1353,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               else
                 VNode {
                   un_command; un_script; un_runtime = runtime;
-                  un_serializer = lookup_serializer_arg "serializer" (varexpr "default");
-                  un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
+                  un_serializer = lookup_serializer_arg "serializer" default_serializer;
+                  un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
                   un_env_vars; un_args;
                   un_shell = shell_opt;
                   un_shell_args = shell_args;
@@ -1519,7 +1532,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_call = match node_expr.node with
-      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
+      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "jn" | "qn" | "shn"); _ }; _ }
       | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
@@ -2470,7 +2483,7 @@ and eval_call env_ref fn_val raw_args =
             | "rename" | "rename_node"
            | "pivot_longer" | "pivot_longer_node"
            | "pivot_wider" | "pivot_wider_node"
-           | "node" | "pyn" | "rn" | "jln" | "qn" | "shn" | "inspect") -> true
+           | "node" | "pyn" | "rn" | "jln" | "jn" | "qn" | "shn" | "inspect") -> true
     | _ -> false
   in
 

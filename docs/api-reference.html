@@ -639,6 +639,44 @@ error_message(e2)  -- &quot;Division by zero&quot;</code></pre>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>error_context(e)  -- Additional debugging information</code></pre>
 <hr />
+<h3 id="error_summaryerrors"><code>error_summary(errors)</code></h3>
+<p>Converts a list of Error values into a DataFrame with columns
+<code>node</code>, <code>code</code>, <code>message</code>, and
+<code>runtime</code> for easier inspection, filtering, and analysis.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>errors</code> — A List of Error values (such as the list
+returned by <code>collect_errors()</code>).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>DataFrame</code> — A DataFrame containing columns
+<code>node</code>, <code>code</code>, <code>message</code>, and
+<code>runtime</code>.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>errors = collect_errors(p)
+summary_df = error_summary(errors)
+-- Returns a DataFrame:
+--   node       | code         | message                  | runtime
+--   &quot;bad_node&quot; | &quot;ValueError&quot; | &quot;Pipeline node...&quot;       | &quot;Python&quot;</code></pre>
+<hr />
+<h3 id="error_chainerr1-err2"><code>error_chain(err1, err2)</code></h3>
+<p>Explicitly chains two Error values together to preserve their
+provenance. This sets <code>err2</code> as the underlying cause in
+<code>err1</code>’s context.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>err1</code> — The primary or outer Error value.</li>
+<li><code>err2</code> — The underlying cause Error value.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Error</code> — The chained Error value.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>err1 = error(&quot;Primary calculation failed&quot;)
+err2 = error(&quot;KeyError&quot;, &quot;Missing key &#39;x&#39;&quot;)
+chained = error_chain(err1, err2)
+
+error_context(chained)$cause  -- Returns err2</code></pre>
+<hr />
 <h3
 id="assertcondition-assertcondition-message"><code>assert(condition)</code>
 / <code>assert(condition, message)</code></h3>
@@ -1825,7 +1863,9 @@ node records.</p>
 id="build_pipelinep-verbose-0-populate_pipelinep-build-true"><code>build_pipeline(p, verbose = 0)</code>
 / <code>populate_pipeline(p, build = true)</code></h3>
 <p>Materialize a pipeline to Nix artifacts. <code>build_pipeline</code>
-is the primary entry point for full Nix builds.
+is the primary entry point for full Nix builds and returns a
+<code>BuildLog</code> value (<code>nodes</code>, <code>duration</code>,
+<code>failed_nodes</code>, <code>out_path</code>).
 <code>populate_pipeline</code> can be used to generate the Nix
 expression without building (with <code>build = false</code>).</p>
 <hr />
@@ -1958,6 +1998,33 @@ Default: <code>default</code>.</li>
 <li><code>env_vars</code> (optional) — Dictionary of environment
 variables to pass into the Nix sandbox.</li>
 <li><code>functions</code> (optional) — R scripts to source before
+execution.</li>
+<li><code>include</code> (optional) — Additional files for the
+sandbox.</li>
+<li><code>noop</code> (optional) — Whether to skip execution and
+generate a stub. Default: <code>false</code>.</li>
+</ul>
+<p>The evaluated return value of the command.</p>
+<hr />
+<h3
+id="jncommand-script-na-serializer-csv-deserializer-csv-env_vars-functions-include-noop-false"><code>jn(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+<p>Configure a Julia Pipeline Node. A concise alias of
+<code>jln(...)</code>. A convenience wrapper around <code>node()</code>
+with <code>runtime = "Julia"</code>. Used directly within a
+<code>pipeline { ... }</code> block to execute Julia code.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>command</code> — The expression to evaluate inside the Julia
+node (must be enclosed in <code>&lt;{ ... }&gt;</code> blocks).</li>
+<li><code>script</code> — Path to an external <code>.jl</code> file to
+execute as the node body.</li>
+<li><code>serializer</code> (optional) — Custom serializer function.
+Default: <code>^csv</code>.</li>
+<li><code>deserializer</code> (optional) — Custom deserializer function.
+Default: <code>^csv</code>.</li>
+<li><code>env_vars</code> (optional) — Dictionary of environment
+variables to pass into the Nix sandbox.</li>
+<li><code>functions</code> (optional) — Julia files to source before
 execution.</li>
 <li><code>include</code> (optional) — Additional files for the
 sandbox.</li>
@@ -2157,6 +2224,12 @@ Recommended for scripts run with <code>t run</code>.</p>
 <ul>
 <li><code>pipeline</code> — Pipeline object</li>
 </ul>
+<p><strong>Returns:</strong></p>
+<p><code>BuildLog</code> with fields: - <code>nodes</code> — per-node
+status/duration records - <code>duration</code> — total build duration
+in seconds - <code>failed_nodes</code> — list of failed/errored node
+names - <code>out_path</code> — Nix output path for the build (migration
+path for previous string-return behavior)</p>
 <hr />
 <h3
 id="read_nodename-which_log-na"><code>read_node(name, which_log = NA)</code></h3>

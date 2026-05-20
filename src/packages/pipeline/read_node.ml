@@ -57,6 +57,14 @@ let register env =
         (match Pmml_utils.read_pmml cn.cn_path with
          | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
          | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read PMML node `%s`: %s" cn.cn_name msg))
+      else if cn.cn_serializer = "text" || cn.cn_serializer = "lines" then
+        (try
+           let ch = open_in cn.cn_path in
+           let content = really_input_string ch (in_channel_length ch) in
+           close_in ch;
+           VString content
+         with exn ->
+           Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read text node `%s`: %s" cn.cn_name (Printexc.to_string exn)))
       else
         Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer)
     in
@@ -72,6 +80,8 @@ let register env =
       || cn.cn_serializer = "arrow"
       || cn.cn_serializer = "csv"
       || cn.cn_serializer = "pmml"
+      || cn.cn_serializer = "text"
+      || cn.cn_serializer = "lines"
     in
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VPipeline p ->

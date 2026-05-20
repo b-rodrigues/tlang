@@ -2368,6 +2368,53 @@ error_context(e)  -- Additional debugging information
 
 ---
 
+### `error_summary(errors)`
+
+Converts a list of Error values into a DataFrame with columns `node`, `code`, `message`, and `runtime` for easier inspection, filtering, and analysis.
+
+**Parameters:**
+
+- `errors` — A List of Error values (such as the list returned by `collect_errors()`).
+
+**Returns:**
+
+`DataFrame` — A DataFrame containing columns `node`, `code`, `message`, and `runtime`.
+
+**Examples:**
+```t
+errors = collect_errors(p)
+summary_df = error_summary(errors)
+-- Returns a DataFrame:
+--   node       | code         | message                  | runtime
+--   "bad_node" | "ValueError" | "Pipeline node..."       | "Python"
+```
+
+---
+
+### `error_chain(err1, err2)`
+
+Explicitly chains two Error values together to preserve their provenance. This sets `err2` as the underlying cause in `err1`'s context.
+
+**Parameters:**
+
+- `err1` — The primary or outer Error value.
+- `err2` — The underlying cause Error value.
+
+**Returns:**
+
+`Error` — The chained Error value.
+
+**Examples:**
+```t
+err1 = error("Primary calculation failed")
+err2 = error("KeyError", "Missing key 'x'")
+chained = error_chain(err1, err2)
+
+error_context(chained)$cause  -- Returns err2
+```
+
+---
+
 ### `assert(condition)` / `assert(condition, message)`
 
 Assert that a condition is true; error if false.
@@ -3997,7 +4044,7 @@ Constructs a Pipeline from a Dictionary of named nodes or a List of node records
 
 ### `build_pipeline(p, verbose = 0)` / `populate_pipeline(p, build = true)`
 
-Materialize a pipeline to Nix artifacts. `build_pipeline` is the primary entry point for full Nix builds. `populate_pipeline` can be used to generate the Nix expression without building (with `build = false`).
+Materialize a pipeline to Nix artifacts. `build_pipeline` is the primary entry point for full Nix builds and returns a `BuildLog` value (`nodes`, `duration`, `failed_nodes`, `out_path`). `populate_pipeline` can be used to generate the Nix expression without building (with `build = false`).
 
 ---
 
@@ -4120,6 +4167,25 @@ Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtim
 - `deserializer` (optional) — Custom deserializer function. Default: `default`.
 - `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
 - `functions` (optional) — R scripts to source before execution.
+- `include` (optional) — Additional files for the sandbox.
+- `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+
+The evaluated return value of the command.
+
+---
+
+### `jn(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)`
+
+Configure a Julia Pipeline Node. A concise alias of `jln(...)`. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
+
+**Parameters:**
+
+- `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
+- `script` — Path to an external `.jl` file to execute as the node body.
+- `serializer` (optional) — Custom serializer function. Default: `^csv`.
+- `deserializer` (optional) — Custom deserializer function. Default: `^csv`.
+- `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
+- `functions` (optional) — Julia files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
 
@@ -4336,6 +4402,14 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 
 
 - `pipeline` — Pipeline object
+
+**Returns:**
+
+`BuildLog` with fields:
+- `nodes` — per-node status/duration records
+- `duration` — total build duration in seconds
+- `failed_nodes` — list of failed/errored node names
+- `out_path` — Nix output path for the build (migration path for previous string-return behavior)
 
 ---
 
@@ -5907,6 +5981,17 @@ For datasets exceeding 2-3 GB:
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.53.0] - 2026-05-xx
+
+**Status**: Beta
+
+### Structured Build Logs as First-Class Values
+- Expose the underlying Nix build results as a T record. Today, these are JSON files; making them first-class values allows programmatic inspection of build health.
+- `build_pipeline(p)` now returns a `BuildLog` value instead of a raw output-path string. Use `build_pipeline(p).out_path` when you need the previous path value.
+- Added `build_log(p)` to retrieve the `VBuildLog` record for a pipeline. Contains nodes, total duration, and a list of failed nodes.
+- Added `build_log_to_frame(log)` to tabulate build results (one row per node) for analysis using `colcraft` verbs.
+- Added `collect_errors(p)` to gather all `VError` artifacts from a built pipeline into a `List`.
 
 ## [0.52.1] - 2026-05-xx
 
@@ -9123,6 +9208,32 @@ error_message(result)   -- "Division by zero"
 
 -- Get additional context
 error_context(result)   -- Stack trace or additional info
+```
+
+### Composing and Chaining Errors
+
+T provides powerful primitives to analyze collections of errors and preserve their provenance:
+
+#### 1. `error_summary(errors)`
+Converts a list of `Error` values into a structured `DataFrame` (containing columns `node`, `code`, `message`, and `runtime`), allowing you to analyze, filter, and report on multiple failures:
+
+```t
+errors = collect_errors(my_pipeline)
+summary_df = error_summary(errors)
+
+-- summary_df can now be processed with colcraft verbs:
+summary_df |> filter($runtime == "Python")
+```
+
+#### 2. `error_chain(err1, err2)`
+Preserves the causal chain of multiple failures. Chaining sets `err2` as the `"cause"` in `err1`'s context, maintaining complete traceback and causation history:
+
+```t
+err_low_level = error("KeyError", "Key 'id' not found")
+err_high_level = error("ValueError", "Validation failed")
+
+chained = error_chain(err_high_level, err_low_level)
+error_context(chained)$cause  -- returns err_low_level
 ```
 
 ### Error Propagation
@@ -13932,6 +14043,34 @@ T maintains a persistent state directory for your pipeline. When you populate or
 
 T keeps a history of your builds in `_pipeline/`. This enables **Time Travel** — the ability to read artifacts from specific past versions of your pipeline.
 
+### Structured Build Logs
+
+When a pipeline is materialized via `build_pipeline(p)` (or `populate_pipeline(p, build=true)`), T generates a JSON log of the build. You can programmatically access these log files as first-class `VBuildLog` records in your T scripts using `build_log()`:
+
+```t
+p = pipeline { a = 1; b = a + 1 }
+build_pipeline(p)
+
+log = build_log(p)
+log.duration          -- The total wall-clock time in seconds
+log.failed_nodes      -- A list of node names that failed
+log.nodes             -- A list of dicts with node name, status, and duration
+```
+
+You can easily convert this structured log into an Arrow DataFrame for programmatic inspection using `build_log_to_frame()`:
+
+```t
+build_log_to_frame(log)
+-- DataFrame(2 rows x 3 cols: [name, status, duration])
+```
+
+If you only want to quickly retrieve the actual error objects that caused nodes to soft-fail during the build, use `collect_errors()`:
+
+```t
+collect_errors(p)
+-- A List of VError objects from all nodes that soft-failed.
+```
+
 ### Inspecting logs
 Use `list_logs()` to see available build logs:
 
@@ -16819,12 +16958,11 @@ Builds a pipeline to `pipeline.nix` and records node artifacts in a local regist
 
 ## Returns
 
-The output path (Nix store path or local fallback directory).
+A `BuildLog` with fields: `nodes`, `duration`, `failed_nodes`, and `out_path`.
 
 ## See Also
 
 [read_node](read_node.html)
-
 
 
 # FILE: docs/reference/case_when.md
@@ -19268,6 +19406,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [is_numeric](is_numeric.html) | Check for numeric columns |
 | [isoweek](isoweek.html) | Extract the ISO week number |
 | [isoyear](isoyear.html) | Extract the ISO week-based year |
+| [jn](jn.html) | Configure a Julia Pipeline Node (Alias for jln) |
 | [jln](jln.html) | Configure a Julia Pipeline Node |
 | [kron](kron.html) | Kronecker product |
 | [kurtosis](kurtosis.html) | Excess kurtosis |
@@ -19940,6 +20079,39 @@ The evaluated return value of the command.
 
 [pyn](pyn.html), [rn](rn.html), [node](node.html)
 
+
+
+# FILE: docs/reference/jn.md
+
+# jn
+
+Configure a Julia Pipeline Node (Alias for `jln`)
+
+A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code. `jn` is a concise alias for `jln`.
+
+## Parameters
+
+- **command** (`Any`): (Optional) The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks). Mutually exclusive with `script`.
+
+- **script** (`String`): (Optional) Path to an external `.jl` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Julia` automatically.
+
+- **serializer** (`String`): | Symbol (Optional) Custom serializer strategy. Built-in values include ^csv and ^json. Default = ^csv.
+
+- **deserializer** (`String`): | Symbol (Optional) Custom deserializer strategy. Built-in values include ^csv and ^json. Default = ^csv.
+
+- **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
+
+- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+
+- **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
+
+## Returns
+
+The evaluated return value of the command.
+
+## See Also
+
+[jln](jln.html), [pyn](pyn.html), [rn](rn.html), [node](node.html)
 
 
 # FILE: docs/reference/kron.md

@@ -163,7 +163,7 @@ let math_package = {
 let base_package = {
   name = "base";
   description = "Assertions, NA handling, and error utilities";
-  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_message"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"];
+  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_message"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"; "error_summary"; "error_chain"];
 }
 
 let chrono_package = {
