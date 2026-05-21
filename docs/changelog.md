@@ -1,16 +1,5 @@
 # Changelog
 
-## [0.53.0] - 2026-05-xx
-
-**Status**: Beta
-
-### Structured Build Logs as First-Class Values
-- Expose the underlying Nix build results as a T record. Today, these are JSON files; making them first-class values allows programmatic inspection of build health.
-- `build_pipeline(p)` now returns a `BuildLog` value instead of a raw output-path string. Use `build_pipeline(p).out_path` when you need the previous path value.
-- Added `build_log(p)` to retrieve the `VBuildLog` record for a pipeline. Contains nodes, total duration, and a list of failed nodes.
-- Added `build_log_to_frame(log)` to tabulate build results (one row per node) for analysis using `colcraft` verbs.
-- Added `collect_errors(p)` to gather all `VError` artifacts from a built pipeline into a `List`.
-
 ## [0.52.1] - 2026-05-xx
 
 This release finalizes end-to-end Julia ONNX serialization support, fixes pipeline compiler strategy dictionary parsing issues, and strengthens runtime safety by protecting reserved keywords.
@@ -33,6 +22,13 @@ This release finalizes end-to-end Julia ONNX serialization support, fixes pipeli
 ### End-to-End Stress Testing & CI
 - **Polyglot Parity Scoring**: Added the `onnx_julia_stress_t` end-to-end stress test to verify prediction parity (achieving 12 decimal places of precision) between Julia-serialized ONNX scoring and exact Python MLP scikit-learn mathematics.
 - **Automated Workflows**: Created premium automated GitHub Actions CI workflow to run the stress test on pull request and dispatch events.
+
+### Structured Build Logs as First-Class Values
+- Expose the underlying Nix build results as a T record. Today, these are JSON files; making them first-class values allows programmatic inspection of build health.
+- `build_pipeline(p)` now returns a `BuildLog` value instead of a raw output-path string. Use `build_pipeline(p).out_path` when you need the previous path value.
+- Added `build_log(p)` to retrieve the `VBuildLog` record for a pipeline. Contains nodes, total duration, and a list of failed nodes.
+- Added `build_log_to_frame(log)` to tabulate build results (one row per node) for analysis using `colcraft` verbs.
+- Added `collect_errors(p)` to gather all `VError` artifacts from a built pipeline into a `List`.
 
 ## [0.52.0] "Kaméhaméha" - 2026-05-18
 
