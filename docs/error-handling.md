@@ -82,6 +82,11 @@ prnt(42)
 - Levenshtein distance-based suggestions
 - Searches current scope and standard library
 - Case-insensitive suggestions
+- **Reserved Keyword & Built-in Protection**: Prevents overwriting core standard library functions or keywords (such as `build_log` or `print`), triggering a `NameError` if assignment (`=`) or reassignment (`:=`) is attempted:
+  ```t
+  print = 42
+  -- Error(NameError: Cannot overwrite print: it's a reserved keyword!)
+  ```
 
 ### 3. Value Errors
 
