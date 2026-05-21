@@ -90,6 +90,7 @@
           "ONNXRunTime"
           "ONNX"
           "StatsModels"
+          "Statistics"
           "JSON"
         ];
 
