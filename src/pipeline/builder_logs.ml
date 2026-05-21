@@ -1,4 +1,5 @@
 (* src/pipeline/builder_logs.ml *)
+open Ast
 open Builder_utils
 
 let get_all_logs () =

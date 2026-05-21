@@ -274,7 +274,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Test: capture = "stdout" sugar *)
   let (v_sh_stdout_cap, _) = eval_string_env
-    {|node(runtime = sh, command = "echo hello", capture = "stdout")|}
+    {|node(command = "echo hello", capture = "stdout")|}
     (Packages.init_env ()) in
   (match v_sh_stdout_cap with
    | Ast.VNode un ->

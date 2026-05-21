@@ -60,9 +60,8 @@ let register env =
       else if cn.cn_serializer = "text" || cn.cn_serializer = "lines" then
         (try
            let ch = open_in cn.cn_path in
-           let content = really_input_string ch (in_channel_length ch) in
-           close_in ch;
-           VString content
+           Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
+             VString (really_input_string ch (in_channel_length ch)))
          with exn ->
            Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read text node `%s`: %s" cn.cn_name (Printexc.to_string exn)))
       else

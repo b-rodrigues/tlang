@@ -86,11 +86,12 @@ let collect_errors_fn args _env =
   | [VPipeline p] ->
       (match find_latest_matching_log_path p with
        | None -> VList []
-       | Some _ ->
+       | Some log_path ->
+           let which_log = Filename.basename log_path in
            let node_names = List.map fst p.p_nodes in
            let errors = List.filter_map (fun name ->
              try
-               match Builder_read_node.read_node name with
+               match Builder_read_node.read_node ~which_log name with
                | VNodeResult { v = VError _ as err; _ } -> Some (None, err)
                | VError _ as err -> Some (None, err)
                | _ -> None
