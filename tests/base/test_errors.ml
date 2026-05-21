@@ -1,5 +1,5 @@
 
-let run_tests pass_count fail_count _failures eval_string _eval_string_env test =
+let run_tests pass_count fail_count _failures eval_string eval_string_env test =
   Printf.printf "Phase 1 — Structured Errors:\n";
   test "error() constructor" {|error("something went wrong")|} {|Error(GenericError: "something went wrong")|};
   test "error() with code" {|error("TypeError", "expected Int")|} {|Error(TypeError: "expected Int")|};
@@ -195,4 +195,49 @@ Use '.+' for element-wise (broadcast) operations.")|};
   test "lambda arity error shows params" "f = \\(a, b) a + b; f(1)" {|Error(ArityError: "Function expects 2 arguments but received 1.")|};
   test "lambda arity error shows single param" "f = \\(x) x; f(1, 2)" {|Error(ArityError: "Function expects 1 arguments but received 2.")|};
   test "builtin arity error shows count" "length(1, 2)" {|Error(ArityError: "Function `length` expects 1 arguments but received 2.")|};
+  print_newline ();
+
+  Printf.printf "Phase 8 — Error Composition:\n";
+  let e1 = Ast.make_error Ast.ValueError "outer" in
+  let e2 = Ast.make_error Ast.KeyError "inner" in
+  let err_list = Ast.VList [(None, e1); (None, e2)] in
+  let env0 = Packages.init_env () in
+  let env1 = Ast.Env.add "errs" err_list env0 in
+  let env2 = Ast.Env.add "e1" e1 (Ast.Env.add "e2" e2 env0) in
+
+  let (v_chain, _) = eval_string_env "error_message(error_context(error_chain(e1, e2)).cause)" env2 in
+  if Ast.Utils.value_to_string v_chain = {|"inner"|} then begin
+    incr pass_count;
+    Printf.printf "  ✓ error_chain links two errors\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ error_chain links two errors\n    Expected: \"inner\"\n    Got: %s\n" (Ast.Utils.value_to_string v_chain)
+  end;
+
+  let (v_colnames, _) = eval_string_env "colnames(error_summary(errs))" env1 in
+  if Ast.Utils.value_to_string v_colnames = {|["node", "code", "message", "runtime"]|} then begin
+    incr pass_count;
+    Printf.printf "  ✓ error_summary constructs DataFrame from list\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ error_summary constructs DataFrame from list\n    Expected: [\"node\", \"code\", \"message\", \"runtime\"]\n    Got: %s\n" (Ast.Utils.value_to_string v_colnames)
+  end;
+
+  let (v_nrow, _) = eval_string_env "nrow(error_summary(errs))" env1 in
+  if Ast.Utils.value_to_string v_nrow = "2" then begin
+    incr pass_count;
+    Printf.printf "  ✓ error_summary extracts row counts\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ error_summary extracts row counts\n    Expected: 2\n    Got: %s\n" (Ast.Utils.value_to_string v_nrow)
+  end;
+
+  let (v_code, _) = eval_string_env "pull(error_summary(errs), \"code\")" env1 in
+  if Ast.Utils.value_to_string v_code = {|Vector["ValueError", "KeyError"]|} then begin
+    incr pass_count;
+    Printf.printf "  ✓ error_summary extracts values\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ error_summary extracts values\n    Expected: Vector[\"ValueError\", \"KeyError\"]\n    Got: %s\n" (Ast.Utils.value_to_string v_code)
+  end;
   print_newline ()

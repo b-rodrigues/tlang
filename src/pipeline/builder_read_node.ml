@@ -117,6 +117,22 @@ let read_standard_node_value cn =
     match Pmml_utils.read_pmml cn.cn_path with
     | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
     | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "onnx" then
+    (try
+       let session = Onnx_ffi.session_create cn.cn_path in
+       let input_names = Onnx_ffi.session_input_names session in
+       let output_names = Onnx_ffi.session_output_names session in
+       let input_width = Onnx_ffi.session_input_width session in
+       let meta = Onnx_ffi.session_metadata session in
+       VDict [
+         "model_type", VSymbol "^onnx";
+         "path", VString cn.cn_path;
+         "inputs", VList (Array.to_list input_names |> List.map (fun s -> (None, VString s)));
+         "outputs", VList (Array.to_list output_names |> List.map (fun s -> (None, VString s)));
+         "input_width", VInt input_width;
+         "metadata", VDict (List.map (fun (k, v) -> (k, VString v)) meta);
+       ]
+     with _ -> VComputedNode cn)
   else
     VComputedNode cn
 
@@ -147,6 +163,23 @@ let read_logged_node_value name cn =
     (match Pmml_utils.read_pmml cn.cn_path with
      | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
      | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read PMML node `%s` from `%s`: %s" name cn.cn_path msg))
+  else if cn.cn_serializer = "onnx" then
+    (try
+       let session = Onnx_ffi.session_create cn.cn_path in
+       let input_names = Onnx_ffi.session_input_names session in
+       let output_names = Onnx_ffi.session_output_names session in
+       let input_width = Onnx_ffi.session_input_width session in
+       let meta = Onnx_ffi.session_metadata session in
+       VDict [
+         "model_type", VSymbol "^onnx";
+         "path", VString cn.cn_path;
+         "inputs", VList (Array.to_list input_names |> List.map (fun s -> (None, VString s)));
+         "outputs", VList (Array.to_list output_names |> List.map (fun s -> (None, VString s)));
+         "input_width", VInt input_width;
+         "metadata", VDict (List.map (fun (k, v) -> (k, VString v)) meta);
+       ]
+     with exn ->
+       Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read ONNX node `%s` from `%s`: %s" name cn.cn_path (Printexc.to_string exn)))
   else
     VComputedNode cn
 

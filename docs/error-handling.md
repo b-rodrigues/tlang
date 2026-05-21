@@ -82,6 +82,11 @@ prnt(42)
 - Levenshtein distance-based suggestions
 - Searches current scope and standard library
 - Case-insensitive suggestions
+- **Reserved Keyword & Built-in Protection**: Prevents overwriting core standard library functions or keywords (such as `build_log` or `print`), triggering a `NameError` if assignment (`=`) or reassignment (`:=`) is attempted:
+  ```t
+  print = 42
+  -- Error(NameError: Cannot overwrite print: it's a reserved keyword!)
+  ```
 
 ### 3. Value Errors
 
@@ -198,6 +203,32 @@ error_message(result)   -- "Division by zero"
 
 -- Get additional context
 error_context(result)   -- Stack trace or additional info
+```
+
+### Composing and Chaining Errors
+
+T provides powerful primitives to analyze collections of errors and preserve their provenance:
+
+#### 1. `error_summary(errors)`
+Converts a list of `Error` values into a structured `DataFrame` (containing columns `node`, `code`, `message`, and `runtime`), allowing you to analyze, filter, and report on multiple failures:
+
+```t
+errors = collect_errors(my_pipeline)
+summary_df = error_summary(errors)
+
+-- summary_df can now be processed with colcraft verbs:
+summary_df |> filter($runtime == "Python")
+```
+
+#### 2. `error_chain(err1, err2)`
+Preserves the causal chain of multiple failures. Chaining sets `err2` as the `"cause"` in `err1`'s context, maintaining complete traceback and causation history:
+
+```t
+err_low_level = error("KeyError", "Key 'id' not found")
+err_high_level = error("ValueError", "Validation failed")
+
+chained = error_chain(err_high_level, err_low_level)
+error_context(chained)$cause  -- returns err_low_level
 ```
 
 ### Error Propagation

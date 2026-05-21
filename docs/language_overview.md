@@ -556,6 +556,9 @@ T provides helpful error messages with suggestions:
 prnt(42)           -- Error(NameError: "'prnt' is not defined. Did you mean 'print'?")
 slect(df, "name")  -- Error(NameError: "'slect' is not defined. Did you mean 'select'?")
 
+-- Reserved keyword and built-in protection:
+print = 42         -- Error(NameError: "Cannot overwrite print: it's a reserved keyword!")
+
 -- Type conversion hints:
 1 + true           -- Error(TypeError: "Cannot add Int and Bool. Hint: ...")
 [1, 2] + 3         -- Error(TypeError: "Cannot add List and Int. Hint: Use map()...")

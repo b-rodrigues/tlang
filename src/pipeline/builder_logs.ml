@@ -1,4 +1,5 @@
 (* src/pipeline/builder_logs.ml *)
+open Ast
 open Builder_utils
 
 let get_all_logs () =
@@ -35,6 +36,25 @@ let get_logs () =
       else logs
     in
     logs
+
+let find_log_for_out_path out_path =
+  if out_path = "" then None
+  else
+    let logs = get_logs () in
+    let matches_out_path log_file =
+      let path = Filename.concat pipeline_dir log_file in
+      try
+        let json = Yojson.Safe.from_file path in
+        let open Yojson.Safe.Util in
+        match json |> member "out_path" with
+        | `String logged_out_path -> logged_out_path = out_path
+        | _ -> false
+      with _ ->
+        false
+    in
+    match List.find_opt matches_out_path logs with
+    | Some log_file -> Some (Filename.concat pipeline_dir log_file)
+    | None -> None
 
 let read_log path =
   try
@@ -83,3 +103,80 @@ let list_logs () =
   ] in
   let arrow_table = Arrow_table.create columns nrows in
   Ast.VDataFrame { arrow_table; group_keys = [] }
+
+let parse_json_log_to_vbuildlog log_path =
+  let open Yojson.Safe.Util in
+  let parse_float_or_default = function
+    | `Float f -> f
+    | `Int i -> float_of_int i
+    | `String s -> (try float_of_string s with _ -> 0.0)
+    | _ -> 0.0
+  in
+  let parse_success_with_default node_json default =
+    match node_json |> member "success" with
+    | `Bool b -> b
+    | `String s -> String.lowercase_ascii s = "true"
+    | _ -> default
+  in
+  try
+    if not (Sys.file_exists log_path) then
+      Error.make_error FileError (Printf.sprintf "Build log `%s` does not exist." log_path)
+    else
+      let json = Yojson.Safe.from_file log_path in
+      let duration = parse_float_or_default (json |> member "duration") in
+      let out_path =
+        match json |> member "out_path" with
+        | `String p -> Some p
+        | _ -> None
+      in
+      let nodes_list = json |> member "nodes" |> to_list in
+      let parse_node node_json =
+        let name = node_json |> member "node" |> to_string in
+        let status_from_json =
+          match node_json |> member "status" with
+          | `String s when s <> "" -> Some s
+          | _ -> None
+        in
+        let status =
+          match status_from_json with
+          | Some s -> s
+          | None ->
+              let success = parse_success_with_default node_json true in
+              if success then "Completed" else "SoftFailed"
+        in
+        let success_default = String.equal status "Completed" in
+        let success = parse_success_with_default node_json success_default in
+        let node_duration = parse_float_or_default (node_json |> member "duration") in
+        let is_failed =
+          match String.lowercase_ascii status with
+          | "completed" -> false
+          | "softfailed" | "errored" -> true
+          | _ -> not success
+        in
+        let record_fields = [
+          ("name", Ast.VString name);
+          ("status", Ast.VString status);
+          ("duration", Ast.VFloat node_duration);
+        ] in
+        (Ast.VDict record_fields, name, is_failed)
+      in
+      let parsed_nodes = List.map parse_node nodes_list in
+      let bl_nodes = List.map (fun (v, _, _) -> v) parsed_nodes in
+      let bl_failed_nodes =
+        parsed_nodes
+        |> List.filter (fun (_, _, is_failed) -> is_failed)
+        |> List.map (fun (_, name, _) -> name)
+      in
+      Ast.VBuildLog { bl_nodes; bl_duration = duration; bl_failed_nodes; bl_out_path = out_path }
+  with
+  | Sys_error msg ->
+      Error.make_error FileError (Printf.sprintf "Failed to read build log `%s`: %s" log_path msg)
+  | Yojson.Json_error msg ->
+      Error.make_error ValueError (Printf.sprintf "Malformed JSON in build log `%s`: %s" log_path msg)
+  | Yojson.Safe.Util.Type_error (msg, _) ->
+      Error.make_error StructuralError (Printf.sprintf "Invalid build log structure in `%s`: %s" log_path msg)
+  | Failure msg ->
+      Error.make_error StructuralError (Printf.sprintf "Invalid build log `%s`: %s" log_path msg)
+  | exn ->
+      Error.make_error RuntimeError
+        (Printf.sprintf "Unexpected error while parsing build log `%s`: %s" log_path (Printexc.to_string exn))

@@ -1,6 +1,35 @@
 # Changelog
 
-## [0.52.1] [Unreleased]
+## [0.52.1] - 2026-05-xx
+
+This release finalizes end-to-end Julia ONNX serialization support, fixes pipeline compiler strategy dictionary parsing issues, and strengthens runtime safety by protecting reserved keywords.
+
+**Status**: Beta
+
+### Structured Build Logs & Observability
+- **Structured Build Logs (`build_log(p)`)**: Expose the underlying Nix build results as a `VBuildLog` record containing node-by-node details, total duration, and a list of failed nodes. `build_pipeline(p)` now returns a `BuildLog` value instead of a raw output-path string (use `build_pipeline(p).out_path` when you need the previous path value).
+- **Build Tabulation (`build_log_to_frame`)**: Added `build_log_to_frame(log)` to tabulate build results (one row per node) for high-level analysis using `colcraft` verbs.
+- **Error Collection (`collect_errors(p)`)**: Gathers all `VError` artifacts from a built pipeline into a `List`.
+- **Error Composition Primitives**:
+    - `error_summary(errors)`: Converts a list of errors into a queryable DataFrame (`node`, `code`, `message`, `runtime`).
+    - `error_chain(err1, err2)`: Chains multiple errors to preserve failure provenance and causality across dependent nodes.
+
+### Immutable Keyword & Built-in Overwrite Protection
+- **Reserved Keyword & Built-in Immutability**: Core built-ins and standard package functions (such as `build_log`, `print`, `mean`, etc.) are now strictly protected against accidental user reassignment or overwriting.
+- **Actionable Error Messaging**: Attempting to overwrite a core keyword or built-in function using `=` or the overwrite operator `:=` will raise a highly visible `NameError` (e.g. `Cannot overwrite build_log: it's a reserved keyword!`).
+- **Resilient Package Scoping**: The package loader automatically isolates local definitions from standard library origins, allowing package developers to define functions (like `mean`) in their package scope without conflict.
+
+### Julia ONNX Serialization & Parity
+- **Dynamic Tape Workarounds**: Implemented dynamic handlers for `:Cast` (pass-through `identity`) and `:Reshape` (handling inferred `-1` shapes mapping to Julia `Colon()`) operators.
+- **World Age Resilience**: Wrapped deserialized model loading in `Base.invokelatest` to resolve world age lexical method updates in isolated Nix builds.
+- **Dynamic Package Support**: Integrated the `Umlaut` dependency into `[jl-dependencies]` and corrected column-major tracing dimension layouts.
+
+### Compiler Strategy Dictionaries
+- **Type-Safe Serialization Registry**: Fixed OCaml type-mismatch bugs in OCaml `nix_emit_node.ml` (`get_format`) and `builder_populate.ml` (`extract_format`) to correctly parse `VSerializer` values inside pipeline deserialization mapping dictionaries (e.g., `deserializer = [ julia_model: ^onnx ]`).
+
+### End-to-End Stress Testing & CI
+- **Polyglot Parity Scoring**: Added the `onnx_julia_stress_t` and `observability_hardening_t` end-to-end stress test suites to verify prediction parity, safety safeguards, and observability logs.
+- **Automated Workflows**: Created premium automated GitHub Actions CI workflows to run these suites on PR and push events.
 
 ## [0.52.0] "Kaméhaméha" - 2026-05-18
 

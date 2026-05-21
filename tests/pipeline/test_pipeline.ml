@@ -1477,5 +1477,60 @@ p.t_step|}
        incr fail_count; Printf.printf "  ✗ Julia import hoisting pipeline should return VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
 
-  print_newline ()
+  let test_build_log_api () =
+    let v_log =
+      with_temp_pipeline_project
+        "pipeline { a = 1 }\n"
+        (fun _dir _pipeline_path ->
+          let (res, _) = eval_string_env
+            {|
+            p = pipeline {
+              missing_build_log_node = 1
+            }
+            -- We cannot build the pipeline purely inside the tests without side effects,
+            -- but we can test that error conditions are handled cleanly when there's no log.
+            error_code(build_log(p)) == "FileError"
+            |} (Packages.init_env ())
+          in
+          res)
+    in
+    if v_log = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ build_log returns FileError on missing log\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ build_log expected FileError, got %s\n"
+        (Ast.Utils.value_to_string v_log)
+    end;
+    let (v_frame, _) = eval_string_env
+      {|
+      error_code(build_log_to_frame(123)) == "TypeError"
+      |} (Packages.init_env ())
+    in
+    if v_frame = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ build_log_to_frame validates arguments\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ build_log_to_frame validation failed\n"
+    end;
+    let v_errors =
+      with_temp_pipeline_project
+        "pipeline { a = 1 }\n"
+        (fun _dir _pipeline_path ->
+          let (res, _) = eval_string_env
+            {|
+            p = pipeline {
+              a = 1
+            }
+            length(collect_errors(p)) == 0
+            |} (Packages.init_env ())
+          in
+          res)
+    in
+    if v_errors = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ collect_errors returns empty list for unbuilt/clean pipeline\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ collect_errors expected [], got %s\n"
+        (Ast.Utils.value_to_string v_errors)
+    end
+  in
+  test_build_log_api ();
 
+  print_newline ()

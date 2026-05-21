@@ -34,7 +34,87 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="unreleased">[0.52.1] Unreleased</h2>
+<h2 id="xx">[0.53.0] - 2026-05-xx</h2>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="structured-build-logs-as-first-class-values">Structured Build
+Logs as First-Class Values</h3>
+<ul>
+<li>Expose the underlying Nix build results as a T record. Today, these
+are JSON files; making them first-class values allows programmatic
+inspection of build health.</li>
+<li><code>build_pipeline(p)</code> now returns a <code>BuildLog</code>
+value instead of a raw output-path string. Use
+<code>build_pipeline(p).out_path</code> when you need the previous path
+value.</li>
+<li>Added <code>build_log(p)</code> to retrieve the
+<code>VBuildLog</code> record for a pipeline. Contains nodes, total
+duration, and a list of failed nodes.</li>
+<li>Added <code>build_log_to_frame(log)</code> to tabulate build results
+(one row per node) for analysis using <code>colcraft</code> verbs.</li>
+<li>Added <code>collect_errors(p)</code> to gather all
+<code>VError</code> artifacts from a built pipeline into a
+<code>List</code>.</li>
+</ul>
+<h2 id="xx-1">[0.52.1] - 2026-05-xx</h2>
+<p>This release finalizes end-to-end Julia ONNX serialization support,
+fixes pipeline compiler strategy dictionary parsing issues, and
+strengthens runtime safety by protecting reserved keywords.</p>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="immutable-keyword-built-in-overwrite-protection">Immutable
+Keyword &amp; Built-in Overwrite Protection</h3>
+<ul>
+<li><strong>Reserved Keyword &amp; Built-in Immutability</strong>: Core
+built-ins and standard package functions (such as
+<code>build_log</code>, <code>print</code>, <code>mean</code>, etc.) are
+now strictly protected against accidental user reassignment or
+overwriting.</li>
+<li><strong>Improved Error Messaging</strong>: Attempting to overwrite a
+core keyword or built-in function using <code>=</code> or the overwrite
+operator <code>:=</code> will raise a highly visible
+<code>NameError</code>
+(e.g. <code>Cannot overwrite build_log: it's a reserved keyword!</code>).</li>
+<li><strong>Resilient Package Scoping</strong>: The package loader
+automatically isolates local definitions from standard library origins,
+allowing package developers to define functions (like <code>mean</code>)
+in their package scope without conflict.</li>
+</ul>
+<h3 id="julia-onnx-serialization-support">Julia ONNX Serialization
+Support</h3>
+<ul>
+<li><strong>Dynamic Tape Workarounds</strong>: Implemented dynamic
+handlers for <code>:Cast</code> (pass-through <code>identity</code>) and
+<code>:Reshape</code> (handling inferred <code>-1</code> shapes mapping
+to Julia <code>Colon()</code>) operators.</li>
+<li><strong>World Age Resilience</strong>: Wrapped deserialized model
+loading in <code>Base.invokelatest</code> to resolve world age lexical
+method updates in isolated Nix builds.</li>
+<li><strong>Dynamic Package Support</strong>: Integrated the
+<code>Umlaut</code> dependency into <code>[jl-dependencies]</code> and
+corrected column-major tracing dimension layouts.</li>
+</ul>
+<h3 id="compiler-strategy-dictionaries">Compiler Strategy
+Dictionaries</h3>
+<ul>
+<li><strong>Type-Safe Serialization Registry</strong>: Fixed OCaml
+type-mismatch bugs in OCaml <code>nix_emit_node.ml</code>
+(<code>get_format</code>) and <code>builder_populate.ml</code>
+(<code>extract_format</code>) to correctly parse
+<code>VSerializer</code> values inside pipeline deserialization mapping
+dictionaries (e.g.,
+<code>deserializer = [ julia_model: ^onnx ]</code>).</li>
+</ul>
+<h3 id="end-to-end-stress-testing-ci">End-to-End Stress Testing &amp;
+CI</h3>
+<ul>
+<li><strong>Polyglot Parity Scoring</strong>: Added the
+<code>onnx_julia_stress_t</code> end-to-end stress test to verify
+prediction parity (achieving 12 decimal places of precision) between
+Julia-serialized ONNX scoring and exact Python MLP scikit-learn
+mathematics.</li>
+<li><strong>Automated Workflows</strong>: Created premium automated
+GitHub Actions CI workflow to run the stress test on pull request and
+dispatch events.</li>
+</ul>
 <h2 id="kaméhaméha---2026-05-18">[0.52.0] “Kaméhaméha” - 2026-05-18</h2>
 <p>The focus of this release is the introduction of first-class Julia
 support, enabling high-performance polyglot pipelines with seamless

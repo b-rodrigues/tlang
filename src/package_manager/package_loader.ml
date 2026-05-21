@@ -99,7 +99,10 @@ let package_eval_env
     (current_env : Ast.environment)
     (program_names : string list) : Ast.environment =
   List.fold_left (fun acc name ->
-    if Ast.Env.mem name base_env then Ast.Env.remove name acc else acc
+    if Ast.Env.mem name base_env then
+      let env' = Ast.Env.remove name acc in
+      Import_registry.remove_origin env' name
+    else acc
   ) current_env program_names
 
 (** Evaluate all .t source files in a package directory.

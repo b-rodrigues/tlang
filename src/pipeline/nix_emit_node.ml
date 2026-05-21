@@ -36,8 +36,10 @@ let get_format = function
   | Ast.VDict pairs -> 
       (match List.assoc_opt "format" pairs with
        | Some (VString s) | Some (VSymbol s) -> Some (strip_hat s |> String.lowercase_ascii)
+       | Some (VSerializer s) -> Some s.s_format
        | _ -> None)
   | _ -> None
+
 
 let get_polyglot_snippet ~lang ~kind v =
   match v, lang, kind with
@@ -102,6 +104,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     if sanitized = "" then "_" else sanitized
   in
   let dep_env_var_name dep = "T_NODE_" ^ sanitize_env_var_suffix dep in
+  let dep_input_env_var_name dep = "T_INPUT_" ^ sanitize_env_var_suffix dep in
 
 
 
@@ -148,12 +151,18 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
      not a string interpolation, since it goes at the attribute level. *)
   let deps_nix_attrs =
     deps
-    |> List.map (fun d -> Printf.sprintf "    %s = %s;" (dep_env_var_name d) d)
+    |> List.map (fun d ->
+         Printf.sprintf "    %s = %s;\n    %s = \"${%s}/artifact\";"
+           (dep_env_var_name d) d
+           (dep_input_env_var_name d) d)
     |> String.concat "\n"
   in
   let deps_exports =
     deps
-    |> List.map (fun d -> Printf.sprintf "      export %s=${%s}\n" (dep_env_var_name d) d)
+    |> List.map (fun d ->
+         Printf.sprintf "      export %s=${%s}\n      export %s=${%s}/artifact\n"
+           (dep_env_var_name d) d
+           (dep_input_env_var_name d) d)
     |> String.concat ""
   in
   let imports_echo =
@@ -1320,9 +1329,13 @@ using ONNX
 
 function jl_write_onnx(model, path)
     try
-        ONNX.write(path, model)
+        ONNX.save(path, model)
     catch e
-        error("ONNX serialization failed in Julia: $(sprint(showerror, e))")
+        if e isa MethodError
+            error("T-Lang Julia ONNX export error: $(typeof(model)) is not compatible with ONNX.jl. Only ONNX.jl-supported graph/tape objects can be written directly in Julia.")
+        else
+            error("ONNX serialization failed in Julia: $(sprint(showerror, e))")
+        end
     end
 end
 
@@ -2096,7 +2109,11 @@ end
       echo "else:" >> node_script.py
       echo "    %s = %s(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
         | "Julia" ->
-            Printf.sprintf {|      echo "%s = %s(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl|} dep_name des_fn dep_var
+            Printf.sprintf {|      echo "if isfile(joinpath(\"$%s\", \"class\")) && readline(joinpath(\"$%s\", \"class\")) == \"VError\"" >> node_script.jl
+      echo "    %s = jl_read_json(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl
+      echo "else" >> node_script.jl
+      echo "    %s = %s(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl
+      echo "end" >> node_script.jl|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
         | _ ->
             Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" dep_name des_fn dep_var ext
       in
@@ -2643,9 +2660,13 @@ EOF
           in
           let dep_env =
             deps
-            |> List.map (fun dep ->
+            |> List.fold_left (fun acc dep ->
               let env_name = dep_env_var_name dep in
-              Printf.sprintf "%s=\"$%s\"" env_name env_name)
+              let input_env_name = dep_input_env_var_name dep in
+              acc @ [
+                Printf.sprintf "%s=\"$%s\"" env_name env_name;
+                Printf.sprintf "%s=\"$%s/artifact\"" input_env_name env_name
+              ]) []
           in
           String.concat " "
             ([ "env -i"; "HOME=\"$TMPDIR\""; "PATH=\"$PATH\""; "TMPDIR=\"$TMPDIR\"" ]

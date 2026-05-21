@@ -438,6 +438,34 @@ T maintains a persistent state directory for your pipeline. When you populate or
 
 T keeps a history of your builds in `_pipeline/`. This enables **Time Travel** — the ability to read artifacts from specific past versions of your pipeline.
 
+### Structured Build Logs
+
+When a pipeline is materialized via `build_pipeline(p)` (or `populate_pipeline(p, build=true)`), T generates a JSON log of the build. You can programmatically access these log files as first-class `VBuildLog` records in your T scripts using `build_log()`:
+
+```t
+p = pipeline { a = 1; b = a + 1 }
+build_pipeline(p)
+
+log = build_log(p)
+log.duration          -- The total wall-clock time in seconds
+log.failed_nodes      -- A list of node names that failed
+log.nodes             -- A list of dicts with node name, status, and duration
+```
+
+You can easily convert this structured log into an Arrow DataFrame for programmatic inspection using `build_log_to_frame()`:
+
+```t
+build_log_to_frame(log)
+-- DataFrame(2 rows x 3 cols: [name, status, duration])
+```
+
+If you only want to quickly retrieve the actual error objects that caused nodes to soft-fail during the build, use `collect_errors()`:
+
+```t
+collect_errors(p)
+-- A List of VError objects from all nodes that soft-failed.
+```
+
 ### Inspecting logs
 Use `list_logs()` to see available build logs:
 
