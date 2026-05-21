@@ -20,12 +20,12 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 - [x] **`collect_errors(p)`**: Gather all `VError` artifacts from a built pipeline into a `List`.
 
 ### Error Composition Primitives
-- [ ] **`error_summary(errors)`**: Convert a list of errors into a DataFrame (`node`, `code`, `message`, `runtime`).
-- [ ] **`error_chain(err1, err2)`**: Explicitly chain multiple errors to preserve provenance when one failure is caused by another.
+- [x] **`error_summary(errors)`**: Convert a list of errors into a DataFrame (`node`, `code`, `message`, `runtime`).
+- [x] **`error_chain(err1, err2)`**: Explicitly chain multiple errors to preserve provenance when one failure is caused by another.
 
 ### Runtime Hardening (Shell & Julia)
-- [ ] **Shell node maturity**: Implement `capture = "stdout"` sugar for `shn()`. Standardize `T_INPUT_<dep>` environment variables for easier shell script authoring.
-- [ ] **Julia parity**: Ensure `jn()` has full feature parity with `rn()` and `pyn()` (including PMML/Arrow projection registry).
+- [x] **Shell node maturity**: Implement `capture = "stdout"` sugar for `shn()`. Standardize `T_INPUT_<dep>` environment variables for easier shell script authoring.
+- [x] **Julia parity**: Ensure `jn()` has full feature parity with `rn()` and `pyn()` (including PMML/Arrow projection registry).
 
 ---
 
