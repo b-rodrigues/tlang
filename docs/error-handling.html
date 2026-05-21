@@ -191,6 +191,30 @@ error_message(result)   -- &quot;Division by zero&quot;
 
 -- Get additional context
 error_context(result)   -- Stack trace or additional info</code></pre>
+<h3 id="composing-and-chaining-errors">Composing and Chaining
+Errors</h3>
+<p>T provides powerful primitives to analyze collections of errors and
+preserve their provenance:</p>
+<h4 id="error_summaryerrors">1. <code>error_summary(errors)</code></h4>
+<p>Converts a list of <code>Error</code> values into a structured
+<code>DataFrame</code> (containing columns <code>node</code>,
+<code>code</code>, <code>message</code>, and <code>runtime</code>),
+allowing you to analyze, filter, and report on multiple failures:</p>
+<pre class="t"><code>errors = collect_errors(my_pipeline)
+summary_df = error_summary(errors)
+
+-- summary_df can now be processed with colcraft verbs:
+summary_df |&gt; filter($runtime == &quot;Python&quot;)</code></pre>
+<h4 id="error_chainerr1-err2">2.
+<code>error_chain(err1, err2)</code></h4>
+<p>Preserves the causal chain of multiple failures. Chaining sets
+<code>err2</code> as the <code>"cause"</code> in <code>err1</code>’s
+context, maintaining complete traceback and causation history:</p>
+<pre class="t"><code>err_low_level = error(&quot;KeyError&quot;, &quot;Key &#39;id&#39; not found&quot;)
+err_high_level = error(&quot;ValueError&quot;, &quot;Validation failed&quot;)
+
+chained = error_chain(err_high_level, err_low_level)
+error_context(chained)$cause  -- returns err_low_level</code></pre>
 <h3 id="error-propagation">Error Propagation</h3>
 <p>Errors flow through computations until caught:</p>
 <pre class="t"><code>step1 = 1 / 0                    -- Error

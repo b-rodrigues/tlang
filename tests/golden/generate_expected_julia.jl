@@ -1,61 +1,56 @@
 #!/usr/bin/env julia
 
-# Generate expected outputs using Tidier.jl
+# Generate expected outputs using DataFrames.jl
 # These are the "golden" results T should match for Julia parity
 
-using DataFrames, Tidier, CSV
+using DataFrames, CSV, Statistics
 
 data_dir = "tests/golden/data"
 output_dir = "tests/golden/expected"
 mkpath(output_dir)
+mkpath(data_dir)
 
-println("Generating expected outputs from Julia/Tidier...\n")
+println("Generating expected outputs from Julia...\n")
 
-# Helper to save
 function save_output(df, name, operation)
     filepath = joinpath(output_dir, name * ".csv")
     CSV.write(filepath, df)
     println("✓ $operation: $name ($(nrow(df)) rows × $(ncol(df)) cols)")
 end
 
-# Create dataset in Julia
 simple_data = DataFrame(
     id = 1:10,
-    name = ["Alice", "Bob", "Charlie", "David", "Eve", 
+    name = ["Alice", "Bob", "Charlie", "David", "Eve",
             "Frank", "Grace", "Henry", "Iris", "Jack"],
     age = [25, 30, 35, 28, 22, 45, 33, 29, 31, 27],
-    score = [85.5, 92.3, 78.9, 88.1, 95.0, 
+    score = [85.5, 92.3, 78.9, 88.1, 95.0,
              82.4, 90.2, 76.5, 89.3, 91.7]
 )
 
-# Export this for T to use
 CSV.write(joinpath(data_dir, "julia_simple_data.csv"), simple_data)
 
-# Test J.1: Tidier Mutate
-@chain simple_data begin
-    @mutate(age_plus_score = age + score)
-    save_output("julia_tidier_mutate", "Tidier @mutate")
-end
+# J.1 mutate
+df_mutate = copy(simple_data)
+df_mutate.age_plus_score = df_mutate.age .+ df_mutate.score
+save_output(df_mutate, "julia_tidier_mutate", "Julia mutate")
 
-# Test J.2: Tidier Filter
-@chain simple_data begin
-    @filter(age > 30)
-    save_output("julia_tidier_filter", "Tidier @filter")
-end
+# J.2 filter
+df_filter = filter(row -> row.age > 30, simple_data)
+save_output(df_filter, "julia_tidier_filter", "Julia filter")
 
-# Test J.3: Tidier Group By + Summarize
-@chain simple_data begin
-    @mutate(age_group = if_else(age .> 30, "old", "young"))
-    @group_by(age_group)
-    @summarize(mean_score = mean(score), count = n())
-    @arrange(age_group)
-    save_output("julia_tidier_groupby", "Tidier @group_by + @summarize")
-end
+# J.3 group by + summarize
+df_group = copy(simple_data)
+df_group.age_group = ifelse.(df_group.age .> 30, "old", "young")
+df_summary = combine(
+    groupby(df_group, :age_group),
+    :score => mean => :mean_score,
+    nrow => :count
+)
+sort!(df_summary, :age_group)
+save_output(df_summary, "julia_tidier_groupby", "Julia group by + summarize")
 
-# Test J.4: Tidier Arrange
-@chain simple_data begin
-    @arrange(desc(score))
-    save_output("julia_tidier_arrange", "Tidier @arrange")
-end
+# J.4 arrange
+df_arrange = sort(copy(simple_data), :score, rev=true)
+save_output(df_arrange, "julia_tidier_arrange", "Julia arrange")
 
 println("\n✅ All Julia expected outputs generated!")

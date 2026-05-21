@@ -521,6 +521,28 @@ previous successful builds.</li>
 <p>T keeps a history of your builds in <code>_pipeline/</code>. This
 enables <strong>Time Travel</strong> — the ability to read artifacts
 from specific past versions of your pipeline.</p>
+<h3 id="structured-build-logs">Structured Build Logs</h3>
+<p>When a pipeline is materialized via <code>build_pipeline(p)</code>
+(or <code>populate_pipeline(p, build=true)</code>), T generates a JSON
+log of the build. You can programmatically access these log files as
+first-class <code>VBuildLog</code> records in your T scripts using
+<code>build_log()</code>:</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1 }
+build_pipeline(p)
+
+log = build_log(p)
+log.duration          -- The total wall-clock time in seconds
+log.failed_nodes      -- A list of node names that failed
+log.nodes             -- A list of dicts with node name, status, and duration</code></pre>
+<p>You can easily convert this structured log into an Arrow DataFrame
+for programmatic inspection using <code>build_log_to_frame()</code>:</p>
+<pre class="t"><code>build_log_to_frame(log)
+-- DataFrame(2 rows x 3 cols: [name, status, duration])</code></pre>
+<p>If you only want to quickly retrieve the actual error objects that
+caused nodes to soft-fail during the build, use
+<code>collect_errors()</code>:</p>
+<pre class="t"><code>collect_errors(p)
+-- A List of VError objects from all nodes that soft-failed.</code></pre>
 <h3 id="inspecting-logs">Inspecting logs</h3>
 <p>Use <code>list_logs()</code> to see available build logs:</p>
 <pre class="t"><code>logs = list_logs()
@@ -554,17 +576,17 @@ This ensures that non-interactive execution always produces reproducible
 Nix artifacts. By default, <code>t run</code> operates in
 <strong>resilient mode</strong>, continuing past errors to provide a
 full diagnostic summary. Use <code>--failfast</code> to change this.</p>
-<div class="sourceCode" id="cb31"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
-<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
-<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
-<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
-<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
-<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
 <p>A valid pipeline script looks like:</p>
 <pre class="t"><code>-- my_pipeline.t
 p = pipeline {
@@ -576,14 +598,14 @@ populate_pipeline(p, build = true)</code></pre>
 <h3 id="interactive-repl">Interactive (REPL)</h3>
 <p>The REPL is <strong>unrestricted</strong> — you can run any T code
 line by line, whether or not it involves pipelines:</p>
-<div class="sourceCode" id="cb33"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
-<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
-<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
-<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
-<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
-<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
 <hr />
 <h2 id="using-imports-in-pipelines">17. Using Imports in Pipelines</h2>
 <p>When a pipeline is built with <code>build_pipeline()</code>, each
