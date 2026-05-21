@@ -2943,7 +2943,10 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
               | _ -> (v, !env_ref))
          | _ -> (v, !env_ref))
     | Assignment { name; expr; _ } ->
-        if Env.mem name env then
+        if Import_registry.find_origin env name = Some Import_registry.Builtin then
+          let msg = Printf.sprintf "Cannot overwrite %s: it's a reserved keyword!" name in
+          (make_error NameError msg, env)
+        else if Env.mem name env then
           let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite or rm() to delete the variable." name in
           (make_error NameError msg, env)
         else
@@ -2954,7 +2957,10 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
            | VError _ -> (v, new_env)
            | _ -> ((VNA NAGeneric), new_env))
     | Reassignment { name; expr } ->
-        if not (Env.mem name env) then
+        if Import_registry.find_origin env name = Some Import_registry.Builtin then
+          let msg = Printf.sprintf "Cannot overwrite %s: it's a reserved keyword!" name in
+          (make_error NameError msg, env)
+        else if not (Env.mem name env) then
           let msg = Printf.sprintf "Cannot overwrite '%s': variable not defined. Use '=' for first assignment." name in
           (make_error NameError msg, env)
         else

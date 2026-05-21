@@ -56,9 +56,28 @@ duration, and a list of failed nodes.</li>
 <code>List</code>.</li>
 </ul>
 <h2 id="xx-1">[0.52.1] - 2026-05-xx</h2>
-<p>This release finalizes end-to-end Julia ONNX serialization support
-and fixes pipeline compiler strategy dictionary parsing issues.</p>
+<p>This release finalizes end-to-end Julia ONNX serialization support,
+fixes pipeline compiler strategy dictionary parsing issues, and
+strengthens runtime safety by protecting reserved keywords.</p>
 <p><strong>Status</strong>: Beta</p>
+<h3 id="immutable-keyword-built-in-overwrite-protection">Immutable
+Keyword &amp; Built-in Overwrite Protection</h3>
+<ul>
+<li><strong>Reserved Keyword &amp; Built-in Immutability</strong>: Core
+built-ins and standard package functions (such as
+<code>build_log</code>, <code>print</code>, <code>mean</code>, etc.) are
+now strictly protected against accidental user reassignment or
+overwriting.</li>
+<li><strong>Improved Error Messaging</strong>: Attempting to overwrite a
+core keyword or built-in function using <code>=</code> or the overwrite
+operator <code>:=</code> will raise a highly visible
+<code>NameError</code>
+(e.g. <code>Cannot overwrite build_log: it's a reserved keyword!</code>).</li>
+<li><strong>Resilient Package Scoping</strong>: The package loader
+automatically isolates local definitions from standard library origins,
+allowing package developers to define functions (like <code>mean</code>)
+in their package scope without conflict.</li>
+</ul>
 <h3 id="julia-onnx-serialization-support">Julia ONNX Serialization
 Support</h3>
 <ul>

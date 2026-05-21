@@ -13,9 +13,14 @@
 
 ## [0.52.1] - 2026-05-xx
 
-This release finalizes end-to-end Julia ONNX serialization support and fixes pipeline compiler strategy dictionary parsing issues.
+This release finalizes end-to-end Julia ONNX serialization support, fixes pipeline compiler strategy dictionary parsing issues, and strengthens runtime safety by protecting reserved keywords.
 
 **Status**: Beta
+
+### Immutable Keyword & Built-in Overwrite Protection
+- **Reserved Keyword & Built-in Immutability**: Core built-ins and standard package functions (such as `build_log`, `print`, `mean`, etc.) are now strictly protected against accidental user reassignment or overwriting.
+- **Improved Error Messaging**: Attempting to overwrite a core keyword or built-in function using `=` or the overwrite operator `:=` will raise a highly visible `NameError` (e.g. `Cannot overwrite build_log: it's a reserved keyword!`).
+- **Resilient Package Scoping**: The package loader automatically isolates local definitions from standard library origins, allowing package developers to define functions (like `mean`) in their package scope without conflict.
 
 ### Julia ONNX Serialization Support
 - **Dynamic Tape Workarounds**: Implemented dynamic handlers for `:Cast` (pass-through `identity`) and `:Reshape` (handling inferred `-1` shapes mapping to Julia `Colon()`) operators.
