@@ -57,8 +57,13 @@ mock_build_log = [
 ]
 t_write_json(mock_build_log, "_pipeline/build_log_plot_metadata.json")
 
-g = read_node("ggplot_meta", which_log = "plot_metadata")
-m = read_node("matplotlib_meta", which_log = "plot_metadata")
+p = pipeline {
+  ggplot_meta = node(command = <{ 1 }>)
+  matplotlib_meta = node(command = <{ 2 }>)
+}
+
+g = read_node(p.ggplot_meta, which_log = "plot_metadata")
+m = read_node(p.matplotlib_meta, which_log = "plot_metadata")
 
 result = to_dataframe([
   class: [g.class, m.class],
