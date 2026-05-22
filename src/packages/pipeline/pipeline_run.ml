@@ -3,11 +3,17 @@ open Ast
 (*
 --# Run Pipeline
 --#
---# Re-executes a pipeline from start to finish.
+--# Re-executes a pipeline from start to finish. When any Nix orchestration
+--# argument is supplied, delegates to a Nix build instead of in-memory re-eval.
 --#
 --# @name pipeline_run
 --# @param p :: Pipeline The pipeline to run.
---# @return :: Pipeline The executed pipeline.
+--# @param targets :: List[String] (Optional) Specific node names to build. Maps to `-A <target>` in nix-build.
+--# @param force :: Bool|List[String] (Optional) Force-rebuild nodes. Maps to `--check`.
+--# @param dry_run :: Bool (Optional) Return a planned build DataFrame without executing. Maps to `--dry-run`.
+--# @param max_jobs :: Int (Optional) Maximum parallel build jobs. Maps to `--max-jobs N`.
+--# @param cache :: String (Optional) Cachix cache name to configure as an extra binary substituter.
+--# @return :: Pipeline|DataFrame The executed pipeline, or a dry-run plan DataFrame.
 --# @family pipeline
 --# @seealso pipeline_nodes
 --# @export

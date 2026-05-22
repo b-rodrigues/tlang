@@ -4,13 +4,18 @@ open Ast
 --# Populate Pipeline
 --#
 --# Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`.
---# Optionally builds the pipeline.
+--# Optionally builds the pipeline with full Nix-native orchestration support.
 --#
 --# @name populate_pipeline
 --# @param p :: Pipeline The pipeline to populate.
 --# @param build :: Bool (Optional) Whether to trigger the Nix build immediately. Defaults to false.
 --# @param verbose :: Int (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
---# @return :: String A status message or the output path if build=true.
+--# @param targets :: List[String] (Optional) Specific node names to build. Maps to `-A <target>` in nix-build.
+--# @param force :: Bool|List[String] (Optional) Force-rebuild nodes even if cached. Maps to `--check`.
+--# @param dry_run :: Bool (Optional) Return a planned build DataFrame without executing. Maps to `--dry-run`.
+--# @param max_jobs :: Int (Optional) Maximum parallel build jobs. Maps to `--max-jobs N`.
+--# @param cache :: String (Optional) Cachix cache name to configure as an extra binary substituter.
+--# @return :: String|BuildLog|DataFrame A status message, structured build log, or dry-run plan DataFrame.
 --# @note `populate_pipeline` performs several validation checks before generating the Nix files:
 --#   - **File Existence**: Verifies that all files specified in `functions` or `include` arguments of any node actually exist on the file system.
 --#   - **Custom Function Warning**: Issues a warning to `stderr` if a node uses a custom `serializer` or `deserializer` but does not provide any companion `functions` files.

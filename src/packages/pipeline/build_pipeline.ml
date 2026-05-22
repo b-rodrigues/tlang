@@ -4,11 +4,17 @@ open Ast
 --# Build Pipeline Artifacts
 --#
 --# Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry.
+--# Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs.
 --#
 --# @name build_pipeline
 --# @param p :: Pipeline The pipeline to build.
 --# @param verbose :: Int (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
---# @return :: BuildLog A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`).
+--# @param targets :: List[String] (Optional) Specific node names to build. Maps to `-A <target>` in nix-build.
+--# @param force :: Bool|List[String] (Optional) Force-rebuild nodes even if cached. Maps to `--check`.
+--# @param dry_run :: Bool (Optional) Return a planned build DataFrame without executing. Maps to `--dry-run`.
+--# @param max_jobs :: Int (Optional) Maximum parallel build jobs. Maps to `--max-jobs N`.
+--# @param cache :: String (Optional) Cachix cache name to configure as an extra binary substituter.
+--# @return :: BuildLog|DataFrame A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`), or a dry-run DataFrame.
 --# @family pipeline
 --# @seealso read_node
 --# @export

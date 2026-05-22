@@ -34,11 +34,12 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 **Objective**: Align T's pipeline management with Nix's execution model. Avoid re-implementing what Nix already does (parallelism, caching, partial builds).
 
 ### Ergonomic Nix Build Wrappers
-- [ ] **T-to-Nix flag mapping**: Update `build_pipeline()` and `pipeline_run()` to accept parameters that map directly to `nix build` flags:
-  - `targets = [...]` → Build specific derivations.
-  - `force = [...]` → Pass `--rebuild`.
-  - `dry_run = true` → Pass `--dry-run` and return the plan as a DataFrame.
-  - `max_jobs = N` → Control Nix parallelism.
+- [x] **T-to-Nix flag mapping**: Update `build_pipeline()` and `pipeline_run()` to accept parameters that map directly to `nix build` flags:
+  - [x] `targets = [...]` → Build specific derivations (`-A`).
+  - [x] `force = [...]` → Pass `--check` (force-rebuild).
+  - [x] `dry_run = true` → Pass `--dry-run` and return the plan as a DataFrame.
+  - [x] `max_jobs = N` → Control Nix parallelism (`--max-jobs`).
+- [x] **Cachix Integration**: Add a `cache` parameter to `build_pipeline()` and `pipeline_run()` to automatically configure Nix substituters for binary cache usage (`--option extra-substituters`).
 
 ### Multi-Runtime Interchange
 - [ ] **Automatic Serializer Negotiation**: Implement a compatibility matrix. When `rn()` connects to `pyn()`, T should automatically default to `^arrow` interchange unless overridden.
