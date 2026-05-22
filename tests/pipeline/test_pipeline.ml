@@ -1574,4 +1574,24 @@ p.t_step|}
   in
   test_inspect_node_errors ();
 
+  let test_inspect_pipeline_poly () =
+    let (v_inspect, _) = eval_string_env
+      {|
+      p = pipeline {
+        a = 1
+      }
+      -- inspect_pipeline(p) should not throw a TypeError and should return either a DataFrame or FileError
+      res = inspect_pipeline(p)
+      (is_error(res) && error_code(res) == "FileError") || type(res) == "DataFrame"
+      |} (Packages.init_env ())
+    in
+    if v_inspect = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ inspect_pipeline(p) polymorphically accepts a pipeline object\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ inspect_pipeline(p) parsing failed, got %s\n"
+        (Ast.Utils.value_to_string v_inspect)
+    end
+  in
+  test_inspect_pipeline_poly ();
+
   print_newline ()
