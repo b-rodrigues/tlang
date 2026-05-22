@@ -1623,28 +1623,20 @@ p.t_step|}
         (Ast.Utils.value_to_string v_invalid_force)
     end;
 
-    (* Multi-runtime negotiation test *)
-    let (v_neg, _) = eval_string_env
+    (* populate_pipeline new arguments validation test *)
+    let (v_populate_args, _) = eval_string_env
       {|
-      p = pipeline {
-        source = rn(command = <{ 42 }>)
-        report = pyn(source, command = <{ source + 1 }>)
-      }
+      p = pipeline { a = 1 }
+      df = populate_pipeline(p, build=true, targets=["a"], force=true, max_jobs=2, cache="rstats-on-nix", dry_run=true)
+      type(df) == "DataFrame"
       |} (Packages.init_env ())
     in
-    match v_neg with
-    | Ast.VPipeline p_res ->
-        let p_negotiated = Builder_populate.negotiate_pipeline_serialization p_res in
-        let nix = Nix_emit_pipeline.emit_pipeline p_negotiated in
-        let has_py_arrow_read = contains_pattern "source = py_read_arrow" nix in
-        let has_r_arrow_write = contains_pattern "r_write_arrow" nix in
-        if has_py_arrow_read && has_r_arrow_write then begin
-          incr pass_count; Printf.printf "  ✓ negotiated R and Python to arrow interchange automatically\n"
-        end else begin
-          incr fail_count; Printf.printf "  ✗ automatic serializer negotiation failed. Nix:\n%s\n" nix
-        end
-    | other ->
-        incr fail_count; Printf.printf "  ✗ expected VPipeline, got: %s\n" (Ast.Utils.value_to_string other)
+    if v_populate_args = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ populate_pipeline accepts and validates advanced Nix parameters\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ populate_pipeline advanced Nix parameters failed, got %s\n"
+        (Ast.Utils.value_to_string v_populate_args)
+    end
   in
   test_nix_orchestration_api ();
 

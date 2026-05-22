@@ -24,7 +24,7 @@ This release introduces native Nix-native orchestration features to T-Lang's pip
 - **Ecosystem Sync & Docs**: Updated `docs/pipeline_tutorial.md` and `docs/api-reference.md` to formally document the new parameters, along with comparative command mapping tables.
 
 ### Multi-Runtime Interchange & Early Safety
-- **Automatic Serializer Negotiation**: Implemented automatic compatibility matching. When different non-T runtimes (R, Python, Julia) depend on each other, T-Lang automatically upgrades their default serialization and deserialization formats to `^arrow` to guarantee perfect cross-language binary compatibility without requiring explicit user configurations.
+- **Populate Pipeline Arity Expansion**: Updated `populate_pipeline()` to support all the new Nix orchestration arguments (`targets`, `force`, `dry_run`, `max_jobs`, `cache`) in the exact same manner as `build_pipeline()`.
 - **Early Target & Force Validation**: Integrated compile-time validation of `targets` and `force` node lists in the OCaml pipeline compiler. T-Lang now instantly detects misspelled or nonexistent node targets and raises highly readable `StructuralError` warnings before spawning the Nix interpreter.
 - **Node Name Collision Prevention**: Sorted internal name matching patterns by character length in descending order, avoiding potential substring collisions where short node names (e.g. `model`) would erroneously match long node name store paths (e.g. `model_evaluation`).
 

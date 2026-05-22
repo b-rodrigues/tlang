@@ -51,6 +51,7 @@ let register env =
         let (dry_run_provided, dry_run_val) = get_arg "dry_run" 6 (VNA NAGeneric) named_args in
         let (max_jobs_provided, max_jobs_val) = get_arg "max_jobs" 7 (VNA NAGeneric) named_args in
         let (cache_provided, cache_val) = get_arg "cache" 8 (VNA NAGeneric) named_args in
+
         let build_result =
           match build_val with
           | VBool b -> Ok b
@@ -86,7 +87,16 @@ let register env =
         in
         let force_result =
           match force_val with
-          | VBool _ | VList _ | VVector _ | VString _ -> Ok (Some force_val)
+          | VBool _ -> Ok (Some force_val)
+          | VString _ -> Ok (Some force_val)
+          | VList items ->
+              if List.exists (function (_, VString _) -> false | _ -> true) items then
+                Error (Error.type_error "Function `populate_pipeline` expects `force` to contain only String values.")
+              else Ok (Some force_val)
+          | VVector arr ->
+              if Array.exists (function VString _ -> false | _ -> true) arr then
+                Error (Error.type_error "Function `populate_pipeline` expects `force` to contain only String values.")
+              else Ok (Some force_val)
           | _ when force_provided ->
               Error (Error.type_error "Function `populate_pipeline` expects `force` to be a Bool, String, List, or Vector.")
           | _ -> Ok None
@@ -112,6 +122,7 @@ let register env =
               Error (Error.type_error "Function `populate_pipeline` expects `cache` to be a String.")
           | _ -> Ok None
         in
+
         (match build_result, verbose_result, targets_result, force_result, dry_run_result, max_jobs_result, cache_result with
          | Error e, _, _, _, _, _, _ -> e
          | _, Error e, _, _, _, _, _ -> e
