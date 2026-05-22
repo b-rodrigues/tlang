@@ -89,9 +89,7 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (
     | Some b -> b
     | None -> false
   in
-  if not (command_exists "nix-build") then
-    Error "build_pipeline requires `nix-build` to be available."
-  else begin
+  begin
     let node_names = List.map fst p.p_exprs in
     let sorted_node_names = List.sort (fun a b -> compare (String.length b) (String.length a)) node_names in
     let target_args_result =
