@@ -332,7 +332,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                  Printf.sprintf "%d nodes errored: %s" (List.length errored) (String.concat ", " errored)
                else "General Nix build failure (check dependencies or environment)."
              in
-             if verbose > 0 then (
+             if verbose > 0 || errored = [] then (
                if errored <> [] then
                  print_failed_node_logs drv_paths errored
                else

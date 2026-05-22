@@ -85,6 +85,7 @@
         julia-with-packages = pkgs.julia-lts.withPackages [
           "DataFrames"
           "Tidier"
+          "TidierPlots"
           "CSV"
           "JavaCall"
           "ONNXRunTime"
@@ -92,6 +93,10 @@
           "StatsModels"
           "Statistics"
           "JSON"
+          "JLD2"
+          "Arrow"
+          "CairoMakie"
+          "Plots"
         ];
 
         # Pin a specific version of OCaml for reproducibility.
