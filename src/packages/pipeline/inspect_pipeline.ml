@@ -61,6 +61,42 @@ let register env =
   let env = Env.add "inspect_pipeline" (make_builtin_named ~name:"inspect_pipeline" ~variadic:true 1 inspect_fn) env in
 
   (*
+  --# Inspect Pipeline Logs (Dynamic)
+  --#
+  --# Reads the latest (or specified) build log and returns a DataFrame showing the pipeline status.
+  --#
+  --# @name inspect_log
+  --# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
+  --# @return :: DataFrame A DataFrame with columns = derivation, build_success, path, output.
+  --# @family pipeline
+  --# @export
+  *)
+  let inspect_log_fn named_args _env =
+    let extract_arg name pos default args =
+      match List.assoc_opt (Some name) args with
+      | Some v -> v
+      | None ->
+          let positionals = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
+          if List.length positionals >= pos then List.nth positionals (pos - 1)
+          else default
+    in
+    let first_arg = extract_arg "p" 1 (VNA NAGeneric) named_args in
+    let (_p_opt, which_log_arg) =
+      match first_arg with
+      | VPipeline p -> (Some p, extract_arg "which_log" 2 (VNA NAGeneric) named_args)
+      | _other -> (None, extract_arg "which_log" 1 (VNA NAGeneric) named_args)
+    in
+    match which_log_arg with
+    | VNA _ ->
+        Builder.inspect_pipeline ()
+    | VString s ->
+        Builder.inspect_pipeline ~which_log:s ()
+    | _ ->
+        Error.type_error "inspect_log: expected String or NA for argument 'which_log'"
+  in
+  let env = Env.add "inspect_log" (make_builtin_named ~name:"inspect_log" ~variadic:true 0 inspect_log_fn) env in
+
+  (*
   --# List Pipeline Logs
   --#
   --# Lists all available build logs in the `_pipeline/` directory.
