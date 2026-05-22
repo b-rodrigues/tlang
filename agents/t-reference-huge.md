@@ -3,7 +3,6 @@
 This file is a concatenation of the entire T documentation for LLM context.
 
 
-
 # FILE: docs/index.md
 
 # T — The Orchestration Engine for Polyglot Data Science
