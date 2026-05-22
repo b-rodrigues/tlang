@@ -42,8 +42,8 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 - [x] **Cachix Integration**: Add a `cache` parameter to `build_pipeline()` and `pipeline_run()` to automatically configure Nix substituters for binary cache usage (`--option extra-substituters`).
 
 ### Multi-Runtime Interchange
-- [ ] **Automatic Serializer Negotiation**: Implement a compatibility matrix. When `rn()` connects to `pyn()`, T should automatically default to `^arrow` interchange unless overridden.
-- [ ] **Static Format Verification**: The pipeline builder should verify that producer/consumer format types match *before* generating the Nix expression.
+- [x] **Automatic Serializer Negotiation**: Implement a compatibility matrix. When `rn()` connects to `pyn()`, T should automatically default to `^arrow` interchange unless overridden.
+- [x] **Static Format Verification**: The pipeline builder should verify that producer/consumer format types match *before* generating the Nix expression (integrated statically in OCaml builder).
 
 ---
 

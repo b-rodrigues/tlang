@@ -93,13 +93,21 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (
     Error "build_pipeline requires `nix-build` to be available."
   else begin
     let node_names = List.map fst p.p_exprs in
+    let sorted_node_names = List.sort (fun a b -> compare (String.length b) (String.length a)) node_names in
     let target_args_result =
       match targets with
       | Some lst ->
           (match extract_string_list "targets" lst with
            | Error msg -> Error msg
            | Ok [] -> Ok ["-A"; "pipeline_output"]
-           | Ok strs -> Ok (List.concat (List.map (fun t -> ["-A"; t]) strs)))
+           | Ok strs ->
+               let invalid = List.filter (fun t -> not (List.mem t node_names)) strs in
+               if invalid <> [] then
+                 Error (Printf.sprintf "build_pipeline: target node(s) %s do not exist in the pipeline. Available nodes: %s"
+                          (String.concat ", " (List.map (fun s -> "'" ^ s ^ "'") invalid))
+                          (String.concat ", " node_names))
+               else
+                 Ok (List.concat (List.map (fun t -> ["-A"; t]) strs)))
       | None ->
           (* When targets is not provided but force names specific nodes,
              use those node names as the implicit build targets. *)
@@ -108,12 +116,33 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (
                (match extract_string_list "force" v with
                 | Error msg -> Error msg
                 | Ok [] -> Ok ["-A"; "pipeline_output"]
-                | Ok strs -> Ok (List.concat (List.map (fun t -> ["-A"; t]) strs)))
+                | Ok strs ->
+                    let invalid = List.filter (fun t -> not (List.mem t node_names)) strs in
+                    if invalid <> [] then
+                      Error (Printf.sprintf "build_pipeline: force rebuild node(s) %s do not exist in the pipeline. Available nodes: %s"
+                               (String.concat ", " (List.map (fun s -> "'" ^ s ^ "'") invalid))
+                               (String.concat ", " node_names))
+                    else
+                      Ok (List.concat (List.map (fun t -> ["-A"; t]) strs)))
            | _ -> Ok ["-A"; "pipeline_output"])
     in
-    match target_args_result with
-    | Error msg -> Error msg
-    | Ok target_args ->
+    let force_check_result =
+      match force with
+      | Some (VList _ | VVector _ | VString _ as v) ->
+          (match extract_string_list "force" v with
+           | Error msg -> Error msg
+           | Ok strs ->
+               let invalid = List.filter (fun t -> not (List.mem t node_names)) strs in
+               if invalid <> [] then
+                 Error (Printf.sprintf "build_pipeline: force rebuild node(s) %s do not exist in the pipeline. Available nodes: %s"
+                          (String.concat ", " (List.map (fun s -> "'" ^ s ^ "'") invalid))
+                          (String.concat ", " node_names))
+               else Ok ())
+      | _ -> Ok ()
+    in
+    match target_args_result, force_check_result with
+    | Error msg, _ | _, Error msg -> Error msg
+    | Ok target_args, Ok () ->
     let force_args =
       let force_enabled =
         match force with
@@ -173,7 +202,7 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (
               else if String.starts_with ~prefix:"/nix/store/" trimmed then begin
                 let path = trimmed in
                 let node_name =
-                  match List.find_opt (fun name -> contains_substring path ("-" ^ name ^ ".drv") || contains_substring path ("-" ^ name)) node_names with
+                  match List.find_opt (fun name -> contains_substring path ("-" ^ name ^ ".drv") || contains_substring path ("-" ^ name)) sorted_node_names with
                   | Some name -> name
                   | None -> "NA"
                 in
@@ -227,7 +256,7 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (
         
         let line = String.trim line in
         if String.starts_with ~prefix:"building '/nix/store/" line then (
-          match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
+          match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
           | Some name -> 
               Hashtbl.replace node_start_times name (Unix.gettimeofday ());
               let drv_path = 
@@ -252,7 +281,7 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (
         )
         else if String.starts_with ~prefix:"/nix/store/" line
              && not (String.ends_with ~suffix:".drv" line) then (
-          match List.find_opt (fun name -> contains_substring line ("-" ^ name)) node_names with
+          match List.find_opt (fun name -> contains_substring line ("-" ^ name)) sorted_node_names with
           | Some name ->
               if Hashtbl.find statuses name <> "Completed" && 
                  Hashtbl.find statuses name <> "SoftFailed" &&
@@ -283,7 +312,7 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (
         )
         else if contains_substring line "builder for '/nix/store/" && 
                 contains_substring line "failed with exit code" then (
-          match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
+          match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
           | Some name ->
               if Hashtbl.find statuses name <> "Errored" then (
                 let duration =

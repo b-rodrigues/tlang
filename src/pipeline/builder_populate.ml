@@ -6,7 +6,107 @@ open Builder_internal
 let builtin_pipeline_strategies =
   [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx" ]
 
+let negotiate_pipeline_serialization (p : Ast.pipeline_result) =
+  let get_runtime name = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+  
+  (* 1. Negotiate serializers *)
+  let negotiated_serializers =
+    List.map (fun (name, _) ->
+      let serializer = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
+      let ser_str = Nix_unparse.expr_to_string serializer in
+      if ser_str = "default" then
+        let runtime = get_runtime name in
+        let has_cross_runtime_consumer =
+          List.exists (fun (c_name, _) ->
+            let c_deps = match List.assoc_opt c_name p.p_deps with Some d -> d | None -> [] in
+            if List.mem name c_deps then
+              let c_runtime = get_runtime c_name in
+              runtime <> c_runtime &&
+              List.mem runtime ["R"; "Python"; "Julia"] &&
+              List.mem c_runtime ["R"; "Python"; "Julia"]
+            else false
+          ) p.p_exprs
+        in
+        if has_cross_runtime_consumer then
+          (name, Ast.mk_expr (Ast.Value (Ast.VSymbol "^arrow")))
+        else
+          (name, serializer)
+      else
+        (name, serializer)
+    ) p.p_exprs
+  in
+
+  (* 2. Negotiate deserializers *)
+  let negotiated_deserializers =
+    List.map (fun (name, _) ->
+      let deserializer = match List.assoc_opt name p.p_deserializers with Some d -> d | None -> Ast.mk_expr (Ast.Var "default") in
+      let des_str = Nix_unparse.expr_to_string deserializer in
+      let runtime = get_runtime name in
+      let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+      if des_str = "default" then
+        let needs_arrow =
+          List.exists (fun dep_name ->
+            let dep_runtime = get_runtime dep_name in
+            runtime <> dep_runtime &&
+            List.mem runtime ["R"; "Python"; "Julia"] &&
+            List.mem dep_runtime ["R"; "Python"; "Julia"]
+          ) deps
+        in
+        if needs_arrow then
+          (name, Ast.mk_expr (Ast.Value (Ast.VSymbol "^arrow")))
+        else
+          (name, deserializer)
+      else
+        (* If it is a dictionary or list literal, negotiate individual default entries *)
+        let updated_deserializer =
+          match deserializer.Ast.node with
+          | Ast.DictLit items ->
+              let updated_items =
+                List.map (fun (k, e) ->
+                  let e_str = Nix_unparse.expr_to_string e in
+                  if e_str = "default" then
+                    let dep_runtime = get_runtime k in
+                    if runtime <> dep_runtime &&
+                       List.mem runtime ["R"; "Python"; "Julia"] &&
+                       List.mem dep_runtime ["R"; "Python"; "Julia"] then
+                      (k, Ast.mk_expr (Ast.Value (Ast.VSymbol "^arrow")))
+                    else
+                      (k, e)
+                  else
+                    (k, e)
+                ) items
+              in
+              { deserializer with Ast.node = Ast.DictLit updated_items }
+          | Ast.ListLit items ->
+              let updated_items =
+                List.map (fun (opt_k, e) ->
+                  match opt_k with
+                  | Some k ->
+                      let e_str = Nix_unparse.expr_to_string e in
+                      if e_str = "default" then
+                        let dep_runtime = get_runtime k in
+                        if runtime <> dep_runtime &&
+                           List.mem runtime ["R"; "Python"; "Julia"] &&
+                           List.mem dep_runtime ["R"; "Python"; "Julia"] then
+                          (opt_k, Ast.mk_expr (Ast.Value (Ast.VSymbol "^arrow")))
+                        else
+                          (opt_k, e)
+                      else
+                        (opt_k, e)
+                  | None -> (opt_k, e)
+                ) items
+              in
+              { deserializer with Ast.node = Ast.ListLit updated_items }
+          | _ -> deserializer
+        in
+        (name, updated_deserializer)
+    ) p.p_exprs
+  in
+
+  { p with p_serializers = negotiated_serializers; p_deserializers = negotiated_deserializers }
+
 let populate_pipeline ?(build=false) ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (p : Ast.pipeline_result) =
+  let p = negotiate_pipeline_serialization p in
   let eval_string_list lst =
     lst
     |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))

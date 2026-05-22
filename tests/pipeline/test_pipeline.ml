@@ -1591,7 +1591,60 @@ p.t_step|}
     end else begin
       incr fail_count; Printf.printf "  ✗ pipeline_run advanced Nix parameters failed, got %s\n"
         (Ast.Utils.value_to_string v_run_args)
-    end
+    end;
+
+    (* Early target validation test *)
+    let (v_invalid_target, _) = eval_string_env
+      {|
+      p = pipeline { a = 1 }
+      res = build_pipeline(p, targets=["nonexistent"], dry_run=true)
+      is_error(res)
+      |} (Packages.init_env ())
+    in
+    if v_invalid_target = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ build_pipeline detects invalid targets early\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ build_pipeline did not report invalid targets, got %s\n"
+        (Ast.Utils.value_to_string v_invalid_target)
+    end;
+
+    (* Early force validation test *)
+    let (v_invalid_force, _) = eval_string_env
+      {|
+      p = pipeline { a = 1 }
+      res = build_pipeline(p, force=["nonexistent"], dry_run=true)
+      is_error(res)
+      |} (Packages.init_env ())
+    in
+    if v_invalid_force = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ build_pipeline detects invalid force rebuild nodes early\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ build_pipeline did not report invalid force nodes, got %s\n"
+        (Ast.Utils.value_to_string v_invalid_force)
+    end;
+
+    (* Multi-runtime negotiation test *)
+    let (v_neg, _) = eval_string_env
+      {|
+      p = pipeline {
+        source = rn(command = <{ 42 }>)
+        report = pyn(source, command = <{ source + 1 }>)
+      }
+      |} (Packages.init_env ())
+    in
+    match v_neg with
+    | Ast.VPipeline p_res ->
+        let p_negotiated = Builder_populate.negotiate_pipeline_serialization p_res in
+        let nix = Nix_emit_pipeline.emit_pipeline p_negotiated in
+        let has_py_arrow_read = contains_pattern "source = py_read_arrow" nix in
+        let has_r_arrow_write = contains_pattern "r_write_arrow" nix in
+        if has_py_arrow_read && has_r_arrow_write then begin
+          incr pass_count; Printf.printf "  ✓ negotiated R and Python to arrow interchange automatically\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ automatic serializer negotiation failed. Nix:\n%s\n" nix
+        end
+    | other ->
+        incr fail_count; Printf.printf "  ✗ expected VPipeline, got: %s\n" (Ast.Utils.value_to_string other)
   in
   test_nix_orchestration_api ();
 
