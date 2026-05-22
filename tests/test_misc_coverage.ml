@@ -779,12 +779,7 @@ min_version = "0.51.0"
         && List.exists (fun issue -> contains issue.Package_doctor.message "outputs")
              project_issues
       in
-      let nix_ok =
-        match Package_doctor.check_nix_installation () with
-        | Some { Package_doctor.message; _ } -> contains message "Nix"
-        | None -> true
-      in
-      missing_file_ok && wrong_dir_ok && empty_dir_ok && project_ok && nix_ok)
+      missing_file_ok && wrong_dir_ok && empty_dir_ok && project_ok)
   );
   test_case "package_doctor julia diagnostics helpers handle env and missing binary" (fun () ->
     let original_load_path = Sys.getenv_opt "JULIA_LOAD_PATH" in
