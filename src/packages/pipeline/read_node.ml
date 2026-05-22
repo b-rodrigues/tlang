@@ -33,7 +33,10 @@ let register env =
 
   let read_fn named_args _env =
     let read_computed_node_value cn =
-      if cn.cn_runtime = "T" && cn.cn_serializer = "default" then
+      let noop_path = Filename.concat (Filename.dirname cn.cn_path) "NOOPBUILD" in
+      if Sys.file_exists noop_path then
+        Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read node `%s`: this node was skipped (noop=true) or was a downstream dependency of a skipped node, so no output artifact was created." cn.cn_name)
+      else if cn.cn_runtime = "T" && cn.cn_serializer = "default" then
         (match Serialization.deserialize_from_file cn.cn_path with
          | Ok v -> v
          | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
@@ -239,6 +242,18 @@ let register env =
              Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but got an Error because node `%s` failed. To inspect its error, query its properties (e.g. `node.error_message` or `node.error`) or use `read_node(p, \"%s\")`." name name)
          | None ->
              Error.type_error "inspect_node: expected a ComputedNode, but got an Error value. If this is a failing pipeline node, use its error properties or read_node() to inspect it.")
+    | VSymbol name as other ->
+        let node_name =
+          if String.length name > 6 && String.sub name 0 6 = "<noop:" then
+            let len = String.length name in
+            Some (String.sub name 6 (len - 7))
+          else None
+        in
+        (match node_name with
+         | Some real_name ->
+             Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but node `%s` was skipped (noop=true) or was a downstream dependency of a skipped node, so no output was generated." real_name)
+         | None ->
+             Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but got %s." (Utils.type_name other)))
     | other ->
         Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but got %s." (Utils.type_name other))
   in
