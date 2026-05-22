@@ -1585,7 +1585,8 @@ p.t_step|}
       }
       -- inspect_pipeline(p) should statically return a DataFrame with schema metadata (2 nodes, 5 properties)
       res = inspect_pipeline(p)
-      type(res) == "DataFrame" && nrow(res) == 2 && ncol(res) == 5
+      res2 = inspect_pipeline()
+      type(res) == "DataFrame" && nrow(res) == 2 && ncol(res) == 5 && type(res2) == "DataFrame" && nrow(res2) == 2 && ncol(res2) == 5
       |} (Packages.init_env ())
     in
     if v_inspect = Ast.VBool true then begin

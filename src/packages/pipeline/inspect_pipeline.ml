@@ -12,7 +12,7 @@ open Ast
 --# @export
 *)
 let register env =
-  let inspect_fn named_args _env =
+  let inspect_fn named_args env =
     let extract_arg name pos default args =
       match List.assoc_opt (Some name) args with
       | Some v -> v
@@ -21,7 +21,20 @@ let register env =
           if List.length positionals >= pos then List.nth positionals (pos - 1)
           else default
     in
-    match extract_arg "p" 1 (VNA NAGeneric) named_args with
+    let p_val =
+      match extract_arg "p" 1 (VNA NAGeneric) named_args with
+      | VNA _ ->
+          (* Fallback: scan environment for a pipeline *)
+          (match Env.fold (fun _k val_v acc ->
+             match val_v with
+             | VPipeline _ as vp -> Some vp
+             | _ -> acc
+           ) env None with
+           | Some vp -> vp
+           | None -> VNA NAGeneric)
+      | other -> other
+    in
+    match p_val with
     | VPipeline p ->
         let nodes_list = p.p_nodes in
         let nrows = List.length nodes_list in
