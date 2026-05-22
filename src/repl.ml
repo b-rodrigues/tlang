@@ -463,12 +463,22 @@ let cmd_upgrade () =
 let get_nix_version () =
   try
     let ch = Unix.open_process_in "nix --version" in
-    let line = input_line ch in
-    match Unix.close_process_in ch with
-    | Unix.WEXITED 0 ->
+    let line_result =
+      try `Line (input_line ch)
+      with
+      | End_of_file -> `No_line
+      | exn -> `Read_error exn
+    in
+    let close_result =
+      try `Status (Unix.close_process_in ch)
+      with exn -> `Close_error exn
+    in
+    match (line_result, close_result) with
+    | (`Line line, `Status (Unix.WEXITED 0)) ->
         let parts = String.split_on_char ' ' line in
         let rec last = function [] -> "" | [x] -> x | _ :: xs -> last xs in
         last parts
+    | (`Read_error exn, _) -> raise exn
     | _ -> "unknown"
   with _ -> "unknown"
 
