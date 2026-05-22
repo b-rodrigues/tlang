@@ -1533,4 +1533,45 @@ p.t_step|}
   in
   test_build_log_api ();
 
+  let test_inspect_node_errors () =
+    let env = Packages.init_env () in
+    let inspect_fn =
+      match Ast.Env.find_opt "inspect_node" env with
+      | Some (VBuiltin { b_func; _ }) -> b_func
+      | _ -> failwith "inspect_node not found"
+    in
+    let err_node =
+      Ast.VError {
+        code = Ast.RuntimeError;
+        message = "failing_node failed";
+        context = [("node_name", Ast.VString "failing_node")];
+        location = None;
+        na_count = 0;
+      }
+    in
+    let res1 = inspect_fn [(None, err_node)] (ref env) in
+    (match res1 with
+     | Ast.VError info ->
+         let expected_substr = "inspect_node: expected a ComputedNode, but got an Error because node `failing_node` failed" in
+         if contains_substring info.message expected_substr then begin
+           incr pass_count; Printf.printf "  ✓ inspect_node returns a clear error message on failing nodes\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ inspect_node error message mismatch: %s\n" info.message
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ inspect_node expected VError, got: %s\n" (Ast.Utils.value_to_string other));
+    let res2 = inspect_fn [(None, Ast.VString "not_a_computed_node")] (ref env) in
+    (match res2 with
+     | Ast.VError info ->
+         let expected_substr = "inspect_node: expected a ComputedNode, but got String" in
+         if contains_substring info.message expected_substr then begin
+           incr pass_count; Printf.printf "  ✓ inspect_node returns a clear error message on non-ComputedNode types\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ inspect_node error message mismatch on non-ComputedNode: %s\n" info.message
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ inspect_node expected VError for string, got: %s\n" (Ast.Utils.value_to_string other))
+  in
+  test_inspect_node_errors ();
+
   print_newline ()

@@ -228,7 +228,19 @@ let register env =
           ("class", VString cn.cn_class);
           ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies))
         ]
-    | _ -> Error.type_error "inspect_node: expected a ComputedNode."
+    | VError err ->
+        let node_name =
+          match List.assoc_opt "node_name" err.context with
+          | Some (VString name) -> Some name
+          | _ -> None
+        in
+        (match node_name with
+         | Some name ->
+             Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but got an Error because node `%s` failed. To inspect its error, query its properties (e.g. `node.error_message` or `node.error`) or use `read_node(p, \"%s\")`." name name)
+         | None ->
+             Error.type_error "inspect_node: expected a ComputedNode, but got an Error value. If this is a failing pipeline node, use its error properties or read_node() to inspect it.")
+    | other ->
+        Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but got %s." (Utils.type_name other))
   in
 
 (*
