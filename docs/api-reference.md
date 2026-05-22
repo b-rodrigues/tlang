@@ -2590,7 +2590,7 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 **Returns:**
 
-The evaluated return value of the node `command`.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the node code is executed by the pipeline builder, not immediately.
 
 **Examples:**
 ```t
@@ -2626,7 +2626,7 @@ Configure a Python Pipeline Node. A convenience wrapper around `node()` with `ru
 
 **Returns:**
 
-The evaluated return value of the command.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the Python code is executed by the pipeline builder, not immediately.
 
 ---
 
@@ -2645,32 +2645,13 @@ Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtim
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
 
-The evaluated return value of the command.
-
----
-
-### `jn(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)`
-
-Configure a Julia Pipeline Node. A concise alias of `jln(...)`. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
-
-**Parameters:**
-
-- `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
-- `script` — Path to an external `.jl` file to execute as the node body.
-- `serializer` (optional) — Custom serializer function. Default: `^csv`.
-- `deserializer` (optional) — Custom deserializer function. Default: `^csv`.
-- `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
-- `functions` (optional) — Julia files to source before execution.
-- `include` (optional) — Additional files for the sandbox.
-- `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
-
 **Returns:**
 
-The evaluated return value of the command.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the R code is executed by the pipeline builder, not immediately.
 
 ---
 
-### `jln(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)`
+### `jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
 
@@ -2678,8 +2659,8 @@ Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `run
 
 - `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
 - `script` — Path to an external `.jl` file to execute as the node body.
-- `serializer` (optional) — Custom serializer function. Default: `^csv`.
-- `deserializer` (optional) — Custom deserializer function. Default: `^csv`.
+- `serializer` (optional) — Custom serializer symbol (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default: runtime-native binary serialization (`jl_serialize`).
+- `deserializer` (optional) — Custom deserializer symbol. Default: runtime-native binary deserialization.
 - `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
 - `functions` (optional) — Julia files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
@@ -2687,7 +2668,7 @@ Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `run
 
 **Returns:**
 
-The evaluated return value of the command.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the Julia code is executed by the pipeline builder, not immediately.
 
 ---
 
@@ -2708,7 +2689,7 @@ Configure a Quarto pipeline node. A convenience wrapper around `node()` with `ru
 
 **Returns:**
 
-The evaluated return value of the command.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the Quarto document is rendered by the pipeline builder, not immediately.
 
 ---
 
@@ -2732,7 +2713,7 @@ Configure a shell pipeline node. A convenience wrapper around `node()` with `run
 
 **Returns:**
 
-The evaluated return value of the command.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the shell command is executed by the pipeline builder, not immediately.
 
 ### `suppress_warnings(value)`
 

@@ -308,14 +308,4 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | _ ->
        incr fail_count; Printf.printf "  ✗ T_INPUT_<dep> Nix test failed\n");
 
-  (* Test: jn() alias for jln() *)
-  let (v_jn, _) = eval_string_env
-    {|jn(command = <{ 1 + 1 }>)|}
-    (Packages.init_env ()) in
-  (match v_jn with
-   | Ast.VNode un when un.un_runtime = "Julia" ->
-       incr pass_count; Printf.printf "  ✓ jn() alias creates a Julia runtime node\n"
-   | other ->
-       incr fail_count; Printf.printf "  ✗ jn() alias failed: %s\n" (Ast.Utils.value_to_string other));
-
   print_newline ()

@@ -1049,7 +1049,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
          | _ -> Error.make_error ArityError "enquos() expects no arguments or `...`")
 
     | Call { fn = { node = Var name; _ }; args }
-      when List.mem name ["node"; "pyn"; "rn"; "jln"; "jn"; "qn"; "shn"] ->
+      when List.mem name ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] ->
         let fn_name = name in
         let lookup_arg name default =
           match List.assoc_opt (Some name) args with
@@ -1249,7 +1249,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              let default_runtime = match name with
                | "pyn" -> "Python"
                | "rn" -> "R"
-               | "jln" | "jn" -> "Julia"
+               | "jln" -> "Julia"
                | "qn" -> "Quarto"
                | "shn" -> "sh"
                | _ -> "T"
@@ -2533,7 +2533,7 @@ and eval_call env_ref fn_val raw_args =
             | "rename" | "rename_node"
            | "pivot_longer" | "pivot_longer_node"
            | "pivot_wider" | "pivot_wider_node"
-           | "node" | "pyn" | "rn" | "jln" | "jn" | "qn" | "shn" | "inspect") -> true
+           | "node" | "pyn" | "rn" | "jln" | "qn" | "shn" | "inspect") -> true
     | _ -> false
   in
 

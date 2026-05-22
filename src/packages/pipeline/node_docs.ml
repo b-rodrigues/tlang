@@ -17,7 +17,7 @@
 --# @param functions :: String | List[String] (Optional) Files to source before execution.
 --# @param include :: String | List[String] (Optional) Additional files for the sandbox.
 --# @param noop :: Bool (Optional) Whether to skip execution and generate a stub. Default = false.
---# @return :: Any The evaluated return value of the command.
+--# @return :: NodeDef A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the node code is executed by the pipeline builder, not immediately.
 --# @family pipeline
 --# @export
 *)

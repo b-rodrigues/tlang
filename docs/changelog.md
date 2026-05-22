@@ -38,6 +38,11 @@ This release finalizes end-to-end Julia ONNX serialization support, fixes pipeli
 - **Polyglot Parity Scoring**: Added the `onnx_julia_stress_t` and `observability_hardening_t` end-to-end stress test suites to verify prediction parity, safety safeguards, and observability logs.
 - **Automated Workflows**: Created premium automated GitHub Actions CI workflows to run these suites on PR and push events.
 
+### Documentation Corrections
+- **Removed `jn()` alias**: Eliminated the undocumented `jln()` alias `jn()` from the evaluator, tests, and all documentation. Use `jln()` exclusively for Julia pipeline nodes.
+- **Corrected Node-Family `Returns` docs**: All node-defining functions (`node`, `rn`, `pyn`, `jln`, `qn`, `shn`) now correctly document their return type as a `NodeDef` pipeline node configuration object, not the evaluated result of the enclosed code. The code is executed by `build_pipeline()`, not immediately.
+- **Corrected `jln` serializer default**: Documentation previously stated the default serializer was `^csv`; the actual default is the runtime-native binary serializer (`jl_serialize`), consistent with `rn` and `pyn`.
+
 ## [0.52.0] "Kaméhaméha" - 2026-05-18
 
 The focus of this release is the introduction of first-class Julia support, enabling high-performance polyglot pipelines with seamless Julia integration.
