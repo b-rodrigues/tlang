@@ -34,32 +34,61 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="xx">[0.53.0] - 2026-05-xx</h2>
-<p><strong>Status</strong>: Beta</p>
-<h3 id="structured-build-logs-as-first-class-values">Structured Build
-Logs as First-Class Values</h3>
-<ul>
-<li>Expose the underlying Nix build results as a T record. Today, these
-are JSON files; making them first-class values allows programmatic
-inspection of build health.</li>
-<li><code>build_pipeline(p)</code> now returns a <code>BuildLog</code>
-value instead of a raw output-path string. Use
-<code>build_pipeline(p).out_path</code> when you need the previous path
-value.</li>
-<li>Added <code>build_log(p)</code> to retrieve the
-<code>VBuildLog</code> record for a pipeline. Contains nodes, total
-duration, and a list of failed nodes.</li>
-<li>Added <code>build_log_to_frame(log)</code> to tabulate build results
-(one row per node) for analysis using <code>colcraft</code> verbs.</li>
-<li>Added <code>collect_errors(p)</code> to gather all
-<code>VError</code> artifacts from a built pipeline into a
-<code>List</code>.</li>
-</ul>
-<h2 id="xx-1">[0.52.1] - 2026-05-xx</h2>
+<h2 id="xx">[0.52.1] - 2026-05-xx</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
-fixes pipeline compiler strategy dictionary parsing issues, and
-strengthens runtime safety by protecting reserved keywords.</p>
+fixes pipeline compiler strategy dictionary parsing issues, strengthens
+runtime safety by protecting reserved keywords, and completes the
+migration of pipeline introspection to a strict, node-centric dot-access
+model.</p>
 <p><strong>Status</strong>: Beta</p>
+<h3 id="strict-node-centric-dot-access-migration">Strict Node-Centric
+dot-access Migration</h3>
+<ul>
+<li><strong>Strict Node-Centric read_node</strong>: Refactored
+<code>read_node()</code> to strictly require <code>ComputedNode</code>
+arguments (e.g., <code>read_node(p.node_name)</code>), disallowing
+legacy string lookup paths.</li>
+<li><strong>In-Memory Registry Priority</strong>: Refactored
+<code>read_node</code> OCaml resolution to prioritize the in-memory
+registry (<code>Ast.in_memory_node_values</code>) over disk-based build
+log artifacts, resolving transient <code>FileError</code> omissions when
+accessing unbuilt or dynamically computed nodes.</li>
+<li><strong>Dynamic Build Help Messages</strong>: Added dynamic,
+descriptive walkthroughs upon successful <code>build_pipeline()</code>
+execution, instructing users how to read, inspect, and summarize their
+pipeline using their actual variables and first-class node objects.</li>
+<li><strong>Ecosystem-Wide Synchrony</strong>: Migrated the entire
+<code>t_demos</code> workspace and workflows (79+ scripts and workflows)
+to adopt the new strict dot-access design. Standalone helper scripts are
+now automatically self-contained with explicit
+<code>import 'src/pipeline.t'</code> prepends.</li>
+</ul>
+<h3 id="structured-build-logs-observability">Structured Build Logs &amp;
+Observability</h3>
+<ul>
+<li><strong>Structured Build Logs (<code>build_log(p)</code>)</strong>:
+Expose the underlying Nix build results as a <code>VBuildLog</code>
+record containing node-by-node details, total duration, and a list of
+failed nodes. <code>build_pipeline(p)</code> now returns a
+<code>BuildLog</code> value instead of a raw output-path string (use
+<code>build_pipeline(p).out_path</code> when you need the previous path
+value).</li>
+<li><strong>Build Tabulation (<code>build_log_to_frame</code>)</strong>:
+Added <code>build_log_to_frame(log)</code> to tabulate build results
+(one row per node) for high-level analysis using <code>colcraft</code>
+verbs.</li>
+<li><strong>Error Collection (<code>collect_errors(p)</code>)</strong>:
+Gathers all <code>VError</code> artifacts from a built pipeline into a
+<code>List</code>.</li>
+<li><strong>Error Composition Primitives</strong>:
+<ul>
+<li><code>error_summary(errors)</code>: Converts a list of errors into a
+queryable DataFrame (<code>node</code>, <code>code</code>,
+<code>message</code>, <code>runtime</code>).</li>
+<li><code>error_chain(err1, err2)</code>: Chains multiple errors to
+preserve failure provenance and causality across dependent nodes.</li>
+</ul></li>
+</ul>
 <h3 id="immutable-keyword-built-in-overwrite-protection">Immutable
 Keyword &amp; Built-in Overwrite Protection</h3>
 <ul>
@@ -68,9 +97,9 @@ built-ins and standard package functions (such as
 <code>build_log</code>, <code>print</code>, <code>mean</code>, etc.) are
 now strictly protected against accidental user reassignment or
 overwriting.</li>
-<li><strong>Improved Error Messaging</strong>: Attempting to overwrite a
-core keyword or built-in function using <code>=</code> or the overwrite
-operator <code>:=</code> will raise a highly visible
+<li><strong>Actionable Error Messaging</strong>: Attempting to overwrite
+a core keyword or built-in function using <code>=</code> or the
+overwrite operator <code>:=</code> will raise a highly visible
 <code>NameError</code>
 (e.g. <code>Cannot overwrite build_log: it's a reserved keyword!</code>).</li>
 <li><strong>Resilient Package Scoping</strong>: The package loader
@@ -78,8 +107,8 @@ automatically isolates local definitions from standard library origins,
 allowing package developers to define functions (like <code>mean</code>)
 in their package scope without conflict.</li>
 </ul>
-<h3 id="julia-onnx-serialization-support">Julia ONNX Serialization
-Support</h3>
+<h3 id="julia-onnx-serialization-parity">Julia ONNX Serialization &amp;
+Parity</h3>
 <ul>
 <li><strong>Dynamic Tape Workarounds</strong>: Implemented dynamic
 handlers for <code>:Cast</code> (pass-through <code>identity</code>) and
@@ -107,13 +136,13 @@ dictionaries (e.g.,
 CI</h3>
 <ul>
 <li><strong>Polyglot Parity Scoring</strong>: Added the
-<code>onnx_julia_stress_t</code> end-to-end stress test to verify
-prediction parity (achieving 12 decimal places of precision) between
-Julia-serialized ONNX scoring and exact Python MLP scikit-learn
-mathematics.</li>
+<code>onnx_julia_stress_t</code> and
+<code>observability_hardening_t</code> end-to-end stress test suites to
+verify prediction parity, safety safeguards, and observability
+logs.</li>
 <li><strong>Automated Workflows</strong>: Created premium automated
-GitHub Actions CI workflow to run the stress test on pull request and
-dispatch events.</li>
+GitHub Actions CI workflows to run these suites on PR and push
+events.</li>
 </ul>
 <h2 id="kaméhaméha---2026-05-18">[0.52.0] “Kaméhaméha” - 2026-05-18</h2>
 <p>The focus of this release is the introduction of first-class Julia

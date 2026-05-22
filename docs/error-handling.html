@@ -115,7 +115,12 @@ prnt(42)
 -- Error(NameError: &#39;prnt&#39; is not defined. Did you mean &#39;print&#39;?)</code></pre>
 <p><strong>Features</strong>: - Levenshtein distance-based suggestions -
 Searches current scope and standard library - Case-insensitive
-suggestions</p>
+suggestions - <strong>Reserved Keyword &amp; Built-in
+Protection</strong>: Prevents overwriting core standard library
+functions or keywords (such as <code>build_log</code> or
+<code>print</code>), triggering a <code>NameError</code> if assignment
+(<code>=</code>) or reassignment (<code>:=</code>) is attempted:
+<code>t   print = 42   -- Error(NameError: Cannot overwrite print: it's a reserved keyword!)</code></p>
 <h3 id="value-errors">3. Value Errors</h3>
 <p>Occur when values are invalid for the operation:</p>
 <pre class="t"><code>sqrt(-1)

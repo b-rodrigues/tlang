@@ -650,6 +650,9 @@ err = error(&quot;ValueError&quot;, &quot;invalid input&quot;)</code></pre>
 prnt(42)           -- Error(NameError: &quot;&#39;prnt&#39; is not defined. Did you mean &#39;print&#39;?&quot;)
 slect(df, &quot;name&quot;)  -- Error(NameError: &quot;&#39;slect&#39; is not defined. Did you mean &#39;select&#39;?&quot;)
 
+-- Reserved keyword and built-in protection:
+print = 42         -- Error(NameError: &quot;Cannot overwrite print: it&#39;s a reserved keyword!&quot;)
+
 -- Type conversion hints:
 1 + true           -- Error(TypeError: &quot;Cannot add Int and Bool. Hint: ...&quot;)
 [1, 2] + 3         -- Error(TypeError: &quot;Cannot add List and Int. Hint: Use map()...&quot;)

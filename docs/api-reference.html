@@ -1875,10 +1875,10 @@ expression without building (with <code>build = false</code>).</p>
 <code>inspect_pipeline</code> focuses on the DAG structure (edges).</p>
 <hr />
 <h3
-id="read_nodenode-name-na-which_log-na"><code>read_node(node, name = NA, which_log = NA)</code></h3>
-<p>Retrieves a node artifact. Supports in-memory Pipelines (needs
-<code>name</code>), built node names (String), or ComputedNode
-objects.</p>
+id="read_nodenode-which_log-na"><code>read_node(node, which_log = NA)</code></h3>
+<p>Retrieves the dynamically evaluated or built artifact of a node.
+Strictly expects a <code>ComputedNode</code> object
+(e.g. <code>p.node_name</code>).</p>
 <hr />
 <h3
 id="filter_nodep-predicate-select_nodep-..."><code>filter_node(p, predicate)</code>
@@ -2232,19 +2232,21 @@ names - <code>out_path</code> — Nix output path for the build (migration
 path for previous string-return behavior)</p>
 <hr />
 <h3
-id="read_nodename-which_log-na"><code>read_node(name, which_log = NA)</code></h3>
-<p>Read a materialized artifact from a previous build.</p>
+id="read_nodenode-which_log-na-1"><code>read_node(node, which_log = NA)</code></h3>
+<p>Read a dynamically evaluated or materialized artifact from a pipeline
+build.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>name</code> — Name of the node to read (String)</li>
+<li><code>node</code> — The ComputedNode to read
+(e.g. <code>p.node_name</code>)</li>
 <li><code>which_log</code> (optional) — Regex pattern or filename of a
 specific build log. Defaults to latest.</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>Deserialized value.</p>
 <p><strong>Examples:</strong></p>
-<pre class="t"><code>read_node(&quot;summary_stats&quot;)
-read_node(&quot;model_v1&quot;, which_log = &quot;20260221&quot;)</code></pre>
+<pre class="t"><code>read_node(p.summary_stats)
+read_node(p.model_v1, which_log = &quot;20260221&quot;)</code></pre>
 <hr />
 <h3
 id="inspect_pipelinewhich_log-na"><code>inspect_pipeline(which_log = NA)</code></h3>

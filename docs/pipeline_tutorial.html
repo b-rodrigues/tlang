@@ -489,10 +489,9 @@ serialized artifact.</li>
 for <code>populate_pipeline(p, build = true)</code>.</p>
 </blockquote>
 <h3 id="reading-built-artifacts">Reading built artifacts</h3>
-<p>After building, use <code>read_node()</code> or
-<code>load_node()</code> to retrieve materialized values:</p>
-<pre class="t"><code>read_node(&quot;total&quot;)   -- reads the serialized artifact for &quot;total&quot;
-load_node(&quot;total&quot;)   -- same as read_node, loads the artifact</code></pre>
+<p>After building, use <code>read_node()</code> to retrieve materialized
+values:</p>
+<pre class="t"><code>read_node(p.total)   -- reads the serialized artifact for &quot;total&quot;</code></pre>
 <p>These functions look up the node in the <strong>latest build
 log</strong> and deserialize the artifact.</p>
 <hr />
@@ -559,10 +558,10 @@ build</h3>
 to specify which build to read from. You can pass a regex pattern or a
 specific filename:</p>
 <pre class="t"><code>-- Read the latest version (default)
-val = read_node(&quot;result&quot;)
+val = read_node(p.result)
 
 -- Read from a specific historical build
-val_old = read_node(&quot;result&quot;, which_log = &quot;20260221_143022&quot;)</code></pre>
+val_old = read_node(p.result, which_log = &quot;20260221_143022&quot;)</code></pre>
 <p>This ensures that even as you update your code and data, you can
 always recover and compare results from previous runs.</p>
 <hr />
@@ -1053,7 +1052,7 @@ summary reflects this state:</p>
 <p>The <code>○</code> symbol indicates a suppressed node. You can still
 access the underlying warning objects programmatically via
 <code>read_node()</code> or <code>read_pipeline()</code>.</p>
-<pre class="t"><code>res = read_node(p, &quot;filtered&quot;)
+<pre class="t"><code>res = read_node(p.filtered)
 res.diagnostics.warnings_suppressed  -- true
 res.diagnostics.warnings            -- list of captured warnings</code></pre>
 <h3 id="difference"><code>difference</code></h3>
