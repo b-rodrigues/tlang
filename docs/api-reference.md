@@ -2529,9 +2529,9 @@ Returns a dictionary with node metadata and diagnostics summary. `inspect_pipeli
 
 ---
 
-### `read_node(node, name = NA, which_log = NA)`
+### `read_node(node, which_log = NA)`
 
-Retrieves a node artifact. Supports in-memory Pipelines (needs `name`), built node names (String), or ComputedNode objects.
+Retrieves the dynamically evaluated or built artifact of a node. Strictly expects a `ComputedNode` object (e.g. `p.node_name`).
 
 ---
 
@@ -2888,14 +2888,14 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 
 ---
 
-### `read_node(name, which_log = NA)`
+### `read_node(node, which_log = NA)`
 
-Read a materialized artifact from a previous build.
+Read a dynamically evaluated or materialized artifact from a pipeline build.
 
 **Parameters:**
 
 
-- `name` — Name of the node to read (String)
+- `node` — The ComputedNode to read (e.g. `p.node_name`)
 - `which_log` (optional) — Regex pattern or filename of a specific build log. Defaults to latest.
 
 **Returns:**
@@ -2904,8 +2904,8 @@ Deserialized value.
 
 **Examples:**
 ```t
-read_node("summary_stats")
-read_node("model_v1", which_log = "20260221")
+read_node(p.summary_stats)
+read_node(p.model_v1, which_log = "20260221")
 ```
 
 ---

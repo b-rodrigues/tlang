@@ -110,14 +110,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase 3 — Pipeline Node Access:\n";
   let env_p3 = Packages.init_env () in
   let (_, env_p3) = eval_string_env "p = pipeline {\n  x = 10\n  y = 20\n  total = x + y\n}" env_p3 in
-  let (v, _) = eval_string_env "p.x" env_p3 in
+  let (v, _) = eval_string_env "read_node(p.x)" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = "10" then begin
     incr pass_count; Printf.printf "  ✓ pipeline node access via dot (x)\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ pipeline node access via dot (x)\n    Expected: 10\n    Got: %s\n" result
   end;
-  let (v, _) = eval_string_env "p.total" env_p3 in
+  let (v, _) = eval_string_env "read_node(p.total)" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = "30" then begin
     incr pass_count; Printf.printf "  ✓ pipeline node access via dot (total)\n"
@@ -141,10 +141,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "Phase 3 — Dependency Resolution:\n";
   test "out-of-order dependencies resolved"
-    "p = pipeline {\n  result = x + y\n  x = 3\n  y = 7\n}; p.result"
+    "p = pipeline {\n  result = x + y\n  x = 3\n  y = 7\n}; read_node(p.result)"
     "10";
   test "chain dependencies"
-    "p = pipeline {\n  a = 1\n  b = a + 1\n  c = b + 1\n  d = c + 1\n}; p.d"
+    "p = pipeline {\n  a = 1\n  b = a + 1\n  c = b + 1\n  d = c + 1\n}; read_node(p.d)"
     "4";
   print_newline ();
 
@@ -206,7 +206,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   end;
 
   (* Re-run produces same node values *)
-  let (rerun_result, _) = eval_string_env "p2 = pipeline_run(p); p2.total" env_p3 in
+  let (rerun_result, _) = eval_string_env "p2 = pipeline_run(p); read_node(p2.total)" env_p3 in
   let result = Ast.Utils.value_to_string rerun_result in
   if result = "30" then begin
     incr pass_count; Printf.printf "  ✓ re-run preserves cached values\n"
@@ -457,16 +457,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "Phase 3 — Pipeline with Pipes:\n";
   test "pipeline with pipe operator"
-    "double = \\(x) x * 2\np = pipeline {\n  a = 5\n  b = a |> double\n}; p.b"
+    "double = \\(x) x * 2\np = pipeline {\n  a = 5\n  b = a |> double\n}; read_node(p.b)"
     "10";
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with Functions:\n";
   test "pipeline with function calls"
-    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; p.total"
+    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.total)"
     "6";
   test "pipeline nodes available individually"
-    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; p.count"
+    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.count)"
     "3";
   print_newline ();
 
@@ -676,39 +676,39 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       close_out oc_recovered_match;
 
       test "read_node propagates R runtime on error"
-        "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).contents.runtime"
+        "explain(read_node(pipeline { r_fail = node() }.r_fail, which_log=\"ocaml_mock\")).contents.runtime"
         "\"R\"";
 
       test "read_node propagates Python runtime on error"
-        "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).contents.runtime"
+        "explain(read_node(pipeline { py_fail = node() }.py_fail, which_log=\"ocaml_mock\")).contents.runtime"
         "\"Python\"";
       test "explain(read_node(...)) wraps node metadata separately"
-        "explain(read_node(\"compatible_node\", which_log=\"legacy_version\"))"
+        "explain(read_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\"))"
         explained_compatible_node;
       test "explain(read_node(...)) nests explained error contents"
-        "explain(read_node(\"error_node\", which_log=\"ocaml_mock\")).contents.error_code"
+        "explain(read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\")).contents.error_code"
         {|"RuntimeError"|};
       test "explain(read_node(...)) exposes node display key order"
-        "explain(read_node(\"compatible_node\", which_log=\"legacy_version\"))._display_keys .== [\"kind\", \"node_name\", \"diagnostics\", \"contents\"]"
+        "explain(read_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\"))._display_keys .== [\"kind\", \"node_name\", \"diagnostics\", \"contents\"]"
         "[true, true, true, true]";
       test "read_node (mocked) reads compatible artifact"
-        "read_node(\"compatible_node\", which_log=\"legacy_version\") .== [1, 2, 3]"
+        "read_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\") .== [1, 2, 3]"
         "[true, true, true]";
       test "read_node missing key (mocked)"
-        "error_code(read_node(\"missing\", which_log=\"ocaml_mock\")) == \"KeyError\""
+        "error_code(read_node(pipeline { missing = node() }.missing, which_log=\"ocaml_mock\")) == \"KeyError\""
         "true";
       test "read_node error exposes error_code field"
-        "read_node(\"error_node\", which_log=\"ocaml_mock\").error_code"
+        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_code"
         {|"RuntimeError"|};
       test "read_node error exposes error_message field"
-        "read_node(\"error_node\", which_log=\"ocaml_mock\").error_message"
+        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_message"
         (Ast.Utils.value_to_string (Ast.VString mocked_error_message));
       test "read_node error exposes context dict"
-        "read_node(\"error_node\", which_log=\"ocaml_mock\").context.node_status"
+        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").context.node_status"
         {|"errored"|};
 
       test "read_node falls back to artifact deserializer when plot viz sidecar is absent"
-        "read_node(\"plot_json_node\", which_log=\"legacy_version\").title"
+        "read_node(pipeline { plot_json_node = node() }.plot_json_node, which_log=\"legacy_version\").title"
         {|"Fallback plot"|};
       test "plot fallback fixture does not create a viz sidecar"
         (Printf.sprintf {|file_exists("%s")|} plot_json_viz)
@@ -723,7 +723,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         {|p_logged = pipeline {
   good = 1
   bad = node(command = <{ 1 }>, runtime = R)
-}; read_node(p_logged, "bad").error.kind|}
+}; read_node(p_logged.bad).error.kind|}
         "\"RuntimeError\"";
       test "filter_node uses merged build-log diagnostics in predicates"
         {|p_logged = pipeline {
@@ -735,7 +735,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         {|p_match = pipeline {
   good_val = 20
   recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = ^json, deserializer = ^json)
-}; read_node(p_match, "recovered_with_match").value.status|}
+}; read_node(p_match.recovered_with_match).value.status|}
         {|"ok"|};
       test "read_pipeline prefers matching build-log values for unresolved nodes"
         {|p_match = pipeline {
@@ -751,7 +751,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         {|["ok"]|};
 
       test "read_node rejects older serialized node versions"
-        "read_node(\"legacy_node\", which_log=\"legacy_version\")"
+        "read_node(pipeline { legacy_node = node() }.legacy_node, which_log=\"legacy_version\")"
         legacy_node_error);
 
   print_newline ();
@@ -762,21 +762,21 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
-}; length(read_node(p_diag, "filtered").warnings)|}
+}; length(read_node(p_diag.filtered).warnings)|}
     "1";
   test "downstream nodes inherit upstream warnings"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
-}; read_node(p_diag, "count").warnings |> map(\(w) w.source.kind)|}
+}; read_node(p_diag.count).warnings |> map(\(w) w.source.kind)|}
     {|["Upstream"]|};
   test "downstream warning source points at origin node"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
-}; read_node(p_diag, "count").warnings |> map(\(w) w.source.node)|}
+}; read_node(p_diag.count).warnings |> map(\(w) w.source.node)|}
     {|["filtered"]|};
   test "read_pipeline summarizes warning origins only once"
     {|p_diag = pipeline {
@@ -791,11 +791,13 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   downstream = bad + 1
 }; read_pipeline(p_err).diagnostics.summary|}
     "\"0 node(s) with warnings, 0 suppressed, 2 error(s), 0 recovered\"";
+
+
   test "read_node(p, name) exposes structured node errors"
     {|p_err = pipeline {
   bad = 1 / 0
   downstream = bad + 1
-}; read_node(p_err, "bad").error.kind|}
+}; read_node(p_err.bad).error.kind|}
     "\"DivisionByZero\"";
   print_newline ();
 
@@ -813,7 +815,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   cols = data |> ncol
   names = data |> colnames
 }|} csv_p3) (Packages.init_env ()) in
-  let (v, _) = eval_string_env "p.rows" env_p3_df in
+  let (v, _) = eval_string_env "read_node(p.rows)" env_p3_df in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
     incr pass_count; Printf.printf "  ✓ pipeline with DataFrame nrow\n"
@@ -821,7 +823,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     incr fail_count; Printf.printf "  ✗ pipeline with DataFrame nrow\n    Expected: 3\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "p.cols" env_p3_df in
+  let (v, _) = eval_string_env "read_node(p.cols)" env_p3_df in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
     incr pass_count; Printf.printf "  ✓ pipeline with DataFrame ncol\n"

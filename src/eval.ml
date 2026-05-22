@@ -2266,11 +2266,61 @@ and eval_dot_access_val _env_ref target_val field =
          then VDict [("__partial_dot_df__", VDataFrame df);
                      ("__partial_dot_prefix__", VString field)]
          else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
-  | VPipeline { p_nodes; _ } ->
-      (match List.assoc_opt field p_nodes with
+  | VPipeline p ->
+      (match List.assoc_opt field p.p_nodes with
        | Some (VComputedNode cn) -> VComputedNode (!Ast.computed_node_resolver cn)
-       | Some v -> v
-       | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
+       | Some (VSymbol s) -> VSymbol s
+       | Some v ->
+           let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
+           let cn_serializer =
+             match List.assoc_opt field p.p_serializers with
+             | Some e -> Nix_unparse.expr_to_string e
+             | None -> "default"
+           in
+           let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
+           let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
+           if is_noop then
+             VSymbol (Printf.sprintf "<noop:%s>" field)
+           else begin
+             let diagnostics =
+               match List.assoc_opt field p.p_node_diagnostics with
+               | Some d -> d
+               | None -> Ast.Utils.empty_node_diagnostics
+             in
+             let wrapped = VNodeResult { v; node_name = field; diagnostics } in
+             Hashtbl.replace Ast.in_memory_node_values field wrapped;
+             VComputedNode {
+               cn_name = field;
+               cn_runtime;
+               cn_path = "<unbuilt>";
+               cn_serializer;
+               cn_class = "Unknown";
+               cn_dependencies;
+             }
+           end
+       | None ->
+           (match List.assoc_opt field p.p_exprs with
+            | Some _ ->
+                let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
+                let cn_serializer =
+                  match List.assoc_opt field p.p_serializers with
+                  | Some e -> Nix_unparse.expr_to_string e
+                  | None -> "default"
+                in
+                let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
+                let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
+                if is_noop then
+                  VSymbol (Printf.sprintf "<noop:%s>" field)
+                else
+                  VComputedNode {
+                    cn_name = field;
+                    cn_runtime;
+                    cn_path = "<unbuilt>";
+                    cn_serializer;
+                    cn_class = "Unknown";
+                    cn_dependencies;
+                  }
+            | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)))
   | VBuildLog bl ->
       (match field with
        | "nodes" -> VList (List.map (fun x -> (None, x)) bl.bl_nodes)

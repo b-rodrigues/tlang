@@ -53,6 +53,25 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
               | VPipeline p_resolved ->
                    (match Builder.populate_pipeline ~build:true ?verbose p_resolved with
                     | Ok out_path ->
+                        let var_name =
+                          match Env.fold (fun k val_v acc ->
+                            match val_v with
+                            | VPipeline p' when p'.p_nodes = p_resolved.p_nodes -> Some k
+                            | _ -> acc
+                          ) env None with
+                          | Some name -> name
+                          | None -> "p"
+                        in
+                        let first_node =
+                          match p_resolved.p_nodes with
+                          | (name, _) :: _ -> name
+                          | [] -> "my_node"
+                        in
+                        Printf.printf "\nPipeline successfully built!\n";
+                        Printf.printf "  - Pipeline saved in variable '%s'\n" var_name;
+                        Printf.printf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
+                        Printf.printf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
+                        Printf.printf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name;
                         (match Builder.find_log_for_out_path out_path with
                          | Some log_path -> Builder.parse_json_log_to_vbuildlog log_path
                          | None ->

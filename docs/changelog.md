@@ -2,9 +2,16 @@
 
 ## [0.52.1] - 2026-05-xx
 
-This release finalizes end-to-end Julia ONNX serialization support, fixes pipeline compiler strategy dictionary parsing issues, and strengthens runtime safety by protecting reserved keywords.
+This release finalizes end-to-end Julia ONNX serialization support, fixes pipeline compiler strategy dictionary parsing issues, strengthens runtime safety by protecting reserved keywords, and completes the migration of pipeline introspection to a strict, node-centric dot-access model.
 
 **Status**: Beta
+
+### Strict Node-Centric dot-access Migration
+- **Strict Node-Centric read_node**: Refactored `read_node()` to strictly require `ComputedNode` arguments (e.g., `read_node(p.node_name)`), disallowing legacy string lookup paths.
+- **In-Memory Registry Priority**: Refactored `read_node` OCaml resolution to prioritize the in-memory registry (`Ast.in_memory_node_values`) over disk-based build log artifacts, resolving transient `FileError` omissions when accessing unbuilt or dynamically computed nodes.
+- **Dynamic Build Help Messages**: Added dynamic, descriptive walkthroughs upon successful `build_pipeline()` execution, instructing users how to read, inspect, and summarize their pipeline using their actual variables and first-class node objects.
+- **Ecosystem-Wide Synchrony**: Migrated the entire `t_demos` workspace and workflows (79+ scripts and workflows) to adopt the new strict dot-access design. Standalone helper scripts are now automatically self-contained with explicit `import 'src/pipeline.t'` prepends.
+
 
 ### Structured Build Logs & Observability
 - **Structured Build Logs (`build_log(p)`)**: Expose the underlying Nix build results as a `VBuildLog` record containing node-by-node details, total duration, and a list of failed nodes. `build_pipeline(p)` now returns a `BuildLog` value instead of a raw output-path string (use `build_pipeline(p).out_path` when you need the previous path value).

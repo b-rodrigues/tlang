@@ -404,11 +404,10 @@ populate_pipeline(p, build = true)
 
 ### Reading built artifacts
 
-After building, use `read_node()` or `load_node()` to retrieve materialized values:
+After building, use `read_node()` to retrieve materialized values:
 
 ```t
-read_node("total")   -- reads the serialized artifact for "total"
-load_node("total")   -- same as read_node, loads the artifact
+read_node(p.total)   -- reads the serialized artifact for "total"
 ```
 
 These functions look up the node in the **latest build log** and deserialize the artifact.
@@ -489,10 +488,10 @@ Pass the `which_log` argument to `read_node()` to specify which build to read fr
 
 ```t
 -- Read the latest version (default)
-val = read_node("result")
+val = read_node(p.result)
 
 -- Read from a specific historical build
-val_old = read_node("result", which_log = "20260221_143022")
+val_old = read_node(p.result, which_log = "20260221_143022")
 ```
 
 This ensures that even as you update your code and data, you can always recover and compare results from previous runs.
@@ -961,7 +960,7 @@ Pipeline summary: 1 node(s) with warnings, 1 suppressed, 0 error(s)
 The `○` symbol indicates a suppressed node. You can still access the underlying warning objects programmatically via `read_node()` or `read_pipeline()`.
 
 ```t
-res = read_node(p, "filtered")
+res = read_node(p.filtered)
 res.diagnostics.warnings_suppressed  -- true
 res.diagnostics.warnings            -- list of captured warnings
 ```
