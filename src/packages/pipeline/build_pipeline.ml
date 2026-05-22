@@ -56,7 +56,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                         let var_name =
                           match Env.fold (fun k val_v acc ->
                             match val_v with
-                            | VPipeline p' when p'.p_nodes = p_resolved.p_nodes -> Some k
+                            | VPipeline p' when p'.p_exprs = p_resolved.p_exprs -> Some k
                             | _ -> acc
                           ) env None with
                           | Some name -> name

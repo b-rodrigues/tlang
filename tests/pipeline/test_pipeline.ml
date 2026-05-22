@@ -384,7 +384,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         output_string oc "other = 2\np = pipeline {\n  b = other\n}\npopulate_pipeline(p, build=false)\n";
         close_out oc;
         let (second, env) = eval_string_env "t_make()" env in
-        let (new_binding_check, _) = eval_string_env "other == 2 && p.b == 2" env in
+        let (new_binding_check, _) = eval_string_env "other == 2 && read_node(p.b) == 2" env in
         let (stale_binding_removed_check, _) = eval_string_env "is_error(helper)" env in
         let (old_node_check, _) = eval_string_env "is_error(p.a)" env in
         let pipeline_nix = Filename.concat "_pipeline" "pipeline.nix" in
