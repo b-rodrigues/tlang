@@ -64,7 +64,7 @@ let register env =
          | _, Error e -> e
          | Ok build, Ok verbose ->
                match Builder.populate_pipeline ~build ?verbose p with
-               | Ok out -> VString out
+               | Ok out -> out
                | Error msg -> Error.make_error StructuralError msg)
       | _ ->
           Error.type_error "Function `populate_pipeline` expects a Pipeline."

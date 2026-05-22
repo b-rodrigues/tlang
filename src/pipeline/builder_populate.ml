@@ -6,7 +6,7 @@ open Builder_internal
 let builtin_pipeline_strategies =
   [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx" ]
 
-let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
+let populate_pipeline ?(build=false) ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (p : Ast.pipeline_result) =
   let eval_string_list lst =
     lst
     |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))
@@ -155,5 +155,5 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () ->
-          if build then build_pipeline_internal ?verbose p
-          else Ok (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir)
+          if build then build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache p
+          else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))

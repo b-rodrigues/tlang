@@ -39,14 +39,10 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
   - `force = [...]` → Pass `--rebuild`.
   - `dry_run = true` → Pass `--dry-run` and return the plan as a DataFrame.
   - `max_jobs = N` → Control Nix parallelism.
-- [ ] **Cachix Integration**: Add a `cache` parameter to `build_pipeline()` to automatically configure Nix substituters for binary cache usage.
 
 ### Multi-Runtime Interchange
 - [ ] **Automatic Serializer Negotiation**: Implement a compatibility matrix. When `rn()` connects to `pyn()`, T should automatically default to `^arrow` interchange unless overridden.
 - [ ] **Static Format Verification**: The pipeline builder should verify that producer/consumer format types match *before* generating the Nix expression.
-
-### Runtime Isolation
-- [ ] **Per-node Env Overrides**: Allow nodes to specify local package versions (e.g., `env_override = [r_packages: ["MASS@7.3-60"]]`) which T translates into unique Nix derivation environments.
 
 ---
 

@@ -1494,6 +1494,63 @@ This pattern is essential for **polyglot pipelines** where data is passed betwee
 
 ---
 
+## 40. Nix-Native Orchestration & Cachix
+
+To optimize large-scale pipelines and manage remote binary caching, T-Lang includes native Nix orchestration features in `build_pipeline` and `pipeline_run`. These features map directly to native `nix build` mechanics, allowing granular rebuild control, job parallelization, Cachix integration, and dry-runs.
+
+### Orchestration Parameters
+
+The functions `build_pipeline()` and `pipeline_run()` accept the following optional named arguments:
+
+| Argument | Type | Description | Nix Command Mapping |
+|---|---|---|---|
+| `targets` | String/List/Vector | Specific node(s) or outputs to build (e.g., `targets=["model_a"]`) | `-A <targets>` |
+| `force` | Bool/String/List/Vector | Rebuild nodes even if they already exist in the Nix store. Pass `true` to force-rebuild all nodes, or a string/list of specific node names. | `--check` (rebuilds target) |
+| `dry_run` | Bool | Preview build actions without executing them. Returns a structured `DataFrame` of planned actions. | `--dry-run` |
+| `max_jobs` | Int | Limit parallel compilation/build jobs. | `-j <max_jobs>` |
+| `cache` | String | A Cachix binary cache name (e.g., `"rstats-on-nix"`) to pull/push built artifacts. | `--extra-substituters` & `--extra-trusted-public-keys` |
+
+### Using `dry_run` for Build Previews
+
+If you set `dry_run = true`, T-Lang will invoke Nix in dry-run mode and return a structured `DataFrame` detailing the exact actions Nix plans to take (e.g., fetching from binary caches, building derivations):
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Inspect planned build actions without running them
+actions = build_pipeline(p, dry_run=true)
+print(actions)
+```
+
+The resulting `DataFrame` contains the columns:
+- `node`: The name of the pipeline node.
+- `action`: The action planned (e.g., `"build"`, `"substitute"`, or `"noop"`).
+- `path`: The absolute store path of the Nix derivation or artifact.
+
+### Advanced Nix Orchestration Example
+
+Below is an example showing how to trigger a parallel, cache-backed build targeting a specific node:
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+  c = b * 2
+}
+
+-- Rebuild only node 'c', with parallel execution, using a Cachix binary cache
+build_pipeline(p,
+               targets = ["c"],
+               max_jobs = 4,
+               cache = "rstats-on-nix",
+               force = ["c"])
+```
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:

@@ -10,7 +10,7 @@ open Builder_utils
 --#
 --# @name build_pipeline_internal
 --# @param p :: PipelineResult The pipeline AST structure.
---# @return :: Result[String] The output Nix store path or an error string.
+--# @return :: Result[Value] The output Nix store path or the dry-run DataFrame.
 --# @family pipeline
 --# @export
 *)
@@ -51,112 +51,224 @@ let print_failed_node_logs drv_paths errored =
           Printf.eprintf "\n--- Logs for failed node `%s` ---\nNo derivation path was captured for this node.\n%!" name)
     errored
 
-let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
+let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (p : Ast.pipeline_result) =
   let verbose =
     match verbose with
     | Some level -> level
     | None -> !default_nix_build_verbose
   in
+  let extract_string_list = function
+    | VString s -> [s]
+    | VList items ->
+        List.filter_map (function
+          | (_, VString s) -> Some s
+          | _ -> None
+        ) items
+    | VVector arr ->
+        List.filter_map (function
+          | VString s -> Some s
+          | _ -> None
+        ) (Array.to_list arr)
+    | _ -> []
+  in
+  let contains_substring line pattern =
+    try
+      let len_p = String.length pattern in
+      let len_l = String.length line in
+      let rec loop i =
+        if i + len_p > len_l then false
+        else if String.sub line i len_p = pattern then true
+        else loop (i + 1)
+      in
+      loop 0
+    with _ -> false
+  in
+  let dry_run =
+    match dry_run with
+    | Some b -> b
+    | None -> false
+  in
   if not (command_exists "nix-build") then
     Error "build_pipeline requires `nix-build` to be available."
   else begin
     let node_names = List.map fst p.p_exprs in
-    let statuses = Hashtbl.create (List.length node_names) in
-    List.iter (fun n -> Hashtbl.add statuses n "Pending") node_names;
-    
-    let captured_output = Buffer.create 1024 in
-    let all_args = !nix_build_args @ (nix_verbosity_args verbose) in
-    let argv = Array.of_list
-      (["nix-build"; "--impure"; pipeline_nix_path; "-A"; "pipeline_output"; "--no-out-link"] @ all_args)
+    let target_args =
+      match targets with
+      | Some lst ->
+          let strs = extract_string_list lst in
+          if strs = [] then ["-A"; "pipeline_output"]
+          else List.concat (List.map (fun t -> ["-A"; t]) strs)
+      | None -> ["-A"; "pipeline_output"]
     in
-    
-    Printf.printf "\nStarting pipeline build...\n";
-    
-    let contains_substring line pattern =
-      try
+    let force_args =
+      let force_enabled =
+        match force with
+        | None -> false
+        | Some (VBool b) -> b
+        | Some (VList items) -> List.length items > 0
+        | Some (VVector arr) -> Array.length arr > 0
+        | Some (VString s) -> s <> ""
+        | _ -> false
+      in
+      if force_enabled then ["--check"] else []
+    in
+    let max_jobs_args =
+      match max_jobs with
+      | Some (VInt n) when n > 0 -> ["--max-jobs"; string_of_int n]
+      | _ -> []
+    in
+    let cache_args =
+      match cache with
+      | Some (VString name) when name <> "" ->
+          let base = ["--option"; "extra-substituters"; "https://" ^ name ^ ".cachix.org"] in
+          if name = "rstats-on-nix" then
+            base @ ["--option"; "extra-trusted-public-keys"; "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="]
+          else
+            base
+      | _ -> []
+    in
+    let all_args = !nix_build_args @ (nix_verbosity_args verbose) @ force_args @ max_jobs_args @ cache_args in
+    if dry_run then begin
+      let lines = ref [] in
+      let callback line =
+        lines := line :: !lines
+      in
+      let dry_args = ["--dry-run"] @ all_args in
+      let argv = Array.of_list (["nix-build"; "--impure"; pipeline_nix_path] @ target_args @ ["--no-out-link"] @ dry_args) in
+      match run_command_stream_argv argv callback with
+      | Ok status ->
+          let exit_code =
+            match status with
+            | Unix.WEXITED n -> n
+            | Unix.WSIGNALED n | Unix.WSTOPPED n -> n
+          in
+          if exit_code <> 0 then
+            Error (Printf.sprintf "Dry run failed with exit code %d" exit_code)
+          else begin
+            let reversed_lines = List.rev !lines in
+            let actions = ref [] in
+            let paths = ref [] in
+            let nodes = ref [] in
+            let current_action = ref "build" in
+            List.iter (fun line ->
+              let trimmed = String.trim line in
+              if contains_substring trimmed "will be built:" then
+                current_action := "build"
+              else if contains_substring trimmed "will be fetched" then
+                current_action := "fetch"
+              else if String.starts_with ~prefix:"/nix/store/" trimmed then begin
+                let path = trimmed in
+                let node_name =
+                  match List.find_opt (fun name -> contains_substring path ("-" ^ name ^ ".drv") || contains_substring path ("-" ^ name)) node_names with
+                  | Some name -> name
+                  | None -> "NA"
+                in
+                actions := !current_action :: !actions;
+                paths := path :: !paths;
+                nodes := node_name :: !nodes
+              end
+            ) reversed_lines;
+            let actions_arr = Array.of_list (List.map (fun s -> Some s) (List.rev !actions)) in
+            let paths_arr = Array.of_list (List.map (fun s -> Some s) (List.rev !paths)) in
+            let nodes_arr = Array.of_list (List.map (fun s -> Some s) (List.rev !nodes)) in
+            let nrows = Array.length actions_arr in
+            let columns = [
+              ("node", Arrow_table.StringColumn nodes_arr);
+              ("action", Arrow_table.StringColumn actions_arr);
+              ("path", Arrow_table.StringColumn paths_arr);
+            ] in
+            let arrow_table = Arrow_table.create columns nrows in
+            Ok (VDataFrame { arrow_table; group_keys = [] })
+          end
+      | Error msg -> Error ("Dry run execution failed: " ^ msg)
+    end else begin
+      let statuses = Hashtbl.create (List.length node_names) in
+      List.iter (fun n -> Hashtbl.add statuses n "Pending") node_names;
+      
+      let captured_output = Buffer.create 1024 in
+      let argv = Array.of_list
+        (["nix-build"; "--impure"; pipeline_nix_path] @ target_args @ ["--no-out-link"] @ all_args)
+      in
+      
+      Printf.printf "\nStarting pipeline build...\n";
+      
+      let contains_substring_idx line pattern =
         let len_p = String.length pattern in
         let len_l = String.length line in
         let rec loop i =
-          if i + len_p > len_l then false
-          else if String.sub line i len_p = pattern then true
+          if i + len_p > len_l then -1
+          else if String.sub line i len_p = pattern then i
           else loop (i + 1)
         in
         loop 0
-      with _ -> false
-    in
-
-    let contains_substring_idx line pattern =
-      let len_p = String.length pattern in
-      let len_l = String.length line in
-      let rec loop i =
-        if i + len_p > len_l then -1
-        else if String.sub line i len_p = pattern then i
-        else loop (i + 1)
       in
-      loop 0
-    in
 
-    let drv_paths = Hashtbl.create (List.length node_names) in
-    let node_has_warnings = Hashtbl.create (List.length node_names) in
-    let node_start_times = Hashtbl.create (List.length node_names) in
-    let node_durations = Hashtbl.create (List.length node_names) in
-    let callback line =
-      Buffer.add_string captured_output line;
-      Buffer.add_char captured_output '\n';
-      
-      let line = String.trim line in
-      (* Each branch performs a single List.find_opt scan to both detect and
-         identify the matching node, avoiding a separate exists + find_opt double
-         scan that the previous version performed per line. *)
-      if String.starts_with ~prefix:"building '/nix/store/" line then (
-        (* Building a derivation *)
-        match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
-        | Some name -> 
-            Hashtbl.replace node_start_times name (Unix.gettimeofday ());
-            let drv_path = 
-              try
-                let start_idx = contains_substring_idx line "/nix/store/" in
-                if start_idx >= 0 then
-                  let sub = String.sub line start_idx (String.length line - start_idx) in
-                  let end_idx = try String.index sub '\'' with _ ->
-                                try String.index sub ' ' with _ ->
-                                String.length sub in
-                  String.sub sub 0 end_idx
-                else ""
-              with _ -> ""
-            in
-            if drv_path <> "" then Hashtbl.replace drv_paths name drv_path;
-
-            if Hashtbl.find statuses name = "Pending" then (
-              Hashtbl.replace statuses name "Building";
-              Printf.printf "  + %s building\n%!" name
-            )
-        | None -> ()
-      )
-      else if String.starts_with ~prefix:"/nix/store/" line
-           && not (String.ends_with ~suffix:".drv" line) then (
-        (* Completed: nix-build prints the output store path without ".drv" *)
-        match List.find_opt (fun name -> contains_substring line ("-" ^ name)) node_names with
-        | Some name ->
-            if Hashtbl.find statuses name <> "Completed" && 
-               Hashtbl.find statuses name <> "SoftFailed" &&
-               Hashtbl.find statuses name <> "Errored" then (
-              (* We'll refine this to SoftFailed later if artifact class is VError *)
-              let duration =
-                match Hashtbl.find_opt node_start_times name with
-                | Some t -> Unix.gettimeofday () -. t
-                | None -> 0.0
+      let drv_paths = Hashtbl.create (List.length node_names) in
+      let node_has_warnings = Hashtbl.create (List.length node_names) in
+      let node_start_times = Hashtbl.create (List.length node_names) in
+      let node_durations = Hashtbl.create (List.length node_names) in
+      let callback line =
+        Buffer.add_string captured_output line;
+        Buffer.add_char captured_output '\n';
+        
+        let line = String.trim line in
+        if String.starts_with ~prefix:"building '/nix/store/" line then (
+          match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
+          | Some name -> 
+              Hashtbl.replace node_start_times name (Unix.gettimeofday ());
+              let drv_path = 
+                try
+                  let start_idx = contains_substring_idx line "/nix/store/" in
+                  if start_idx >= 0 then
+                    let sub = String.sub line start_idx (String.length line - start_idx) in
+                    let end_idx = try String.index sub '\'' with _ ->
+                                  try String.index sub ' ' with _ ->
+                                  String.length sub in
+                    String.sub sub 0 end_idx
+                  else ""
+                with _ -> ""
               in
-              Hashtbl.replace node_durations name duration;
-              Hashtbl.replace statuses name "Completed";
-              Printf.printf "  ✓ %s built\n%!" name
-            )
-        | None -> ()
-      )
-      else (
-        (* Error detection: only scan for a matching node when error keywords
-           are present, to avoid a find_opt scan on every non-build/output line. *)
-        if contains_substring line "error:" || contains_substring line "failed" then (
+              if drv_path <> "" then Hashtbl.replace drv_paths name drv_path;
+
+              if Hashtbl.find statuses name = "Pending" then (
+                Hashtbl.replace statuses name "Building";
+                Printf.printf "  + %s building\n%!" name
+              )
+          | None -> ()
+        )
+        else if String.starts_with ~prefix:"/nix/store/" line
+             && not (String.ends_with ~suffix:".drv" line) then (
+          match List.find_opt (fun name -> contains_substring line ("-" ^ name)) node_names with
+          | Some name ->
+              if Hashtbl.find statuses name <> "Completed" && 
+                 Hashtbl.find statuses name <> "SoftFailed" &&
+                 Hashtbl.find statuses name <> "Errored" then (
+                let duration =
+                  match Hashtbl.find_opt node_start_times name with
+                  | Some t -> Unix.gettimeofday () -. t
+                  | None -> 0.0
+                in
+                Hashtbl.replace node_durations name duration;
+                
+                let node_path = line in
+                let artifact_path = Filename.concat node_path "artifact" in
+                let class_path = Filename.concat node_path "class" in
+                let warnings_path = Filename.concat node_path "warnings" in
+                if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
+                let status =
+                  if Sys.file_exists artifact_path then (
+                    let class_name = match read_file_first_line class_path with Some c -> c | None -> "Unknown" in
+                    if class_name = "VError" then "SoftFailed" else "Completed"
+                  ) else "Completed"
+                in
+                Hashtbl.replace statuses name status;
+                let symbol = if status = "SoftFailed" then "✖" else "✓" in
+                Printf.printf "  %s %s completed (%.2fs)\n%!" symbol name duration
+              )
+          | None -> ()
+        )
+        else if contains_substring line "builder for '/nix/store/" && 
+                contains_substring line "failed with exit code" then (
           match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
           | Some name ->
               if Hashtbl.find statuses name <> "Errored" then (
@@ -175,8 +287,6 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                       let start_idx = contains_substring_idx line "/nix/store/" in
                       if start_idx >= 0 then
                         let sub = String.sub line start_idx (String.length line - start_idx) in
-                        (* Stop at closing quote or whitespace; do NOT stop at '.' so that
-                           the full ".drv" suffix is preserved in the extracted path. *)
                         let end_idx = try String.index sub '\'' with _ ->
                                       try String.index sub ' ' with _ ->
                                       String.length sub in
@@ -189,161 +299,182 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
               )
           | None -> ()
         )
-      )
-    in
-    
-    let total_start_time = Unix.gettimeofday () in
-    match run_command_stream_argv argv callback with
-    | Ok status ->
-        (* Save drv_paths for later tool use (e.g. read_log) *)
-        if Hashtbl.length drv_paths > 0 then (
-          let existing_drvs =
-            let path = Filename.concat pipeline_dir "last_build_drvs.json" in
-            if Sys.file_exists path then
-              try
-                let json = Yojson.Safe.from_file path in
-                let open Yojson.Safe.Util in
-                match json with
-                | `Assoc pairs ->
-                    List.filter_map (fun (k, v) ->
-                      if List.mem k node_names then Some (k, to_string v) else None
-                    ) pairs
-                | _ -> []
-              with _ -> []
-            else []
-          in
-          let drv_map = Hashtbl.create (List.length node_names + List.length existing_drvs) in
-          List.iter (fun (k, v) -> Hashtbl.add drv_map k v) existing_drvs;
-          Hashtbl.iter (fun k v -> Hashtbl.replace drv_map k v) drv_paths;
+      in
 
-          let drv_entries = Hashtbl.fold (fun k v acc -> 
-              (Printf.sprintf "\"%s\": \"%s\"" (Serialization.json_escape k) (Serialization.json_escape v)) :: acc
-            ) drv_map [] in
-          
-          let drv_json = "{\n  " ^ (String.concat ",\n  " drv_entries) ^ "\n}\n" in
-          ignore (write_file (Filename.concat pipeline_dir "last_build_drvs.json") drv_json)
-        );
+      let total_start_time = Unix.gettimeofday () in
+      let timestamp = get_timestamp () in
 
-        let output = String.trim (Buffer.contents captured_output) in
-        (match status with
-         | Unix.WEXITED 0 when output <> "" ->
-            let lines = String.split_on_char '\n' output in
-            let store_paths = List.filter (fun l ->
-              String.length l > 11 && String.sub l 0 11 = "/nix/store/"
-            ) lines in
-            (match store_paths with
-            | [] -> Error "nix-build succeeded but did not return a store path."
-            | _ ->
-                let out_path = List.nth store_paths (List.length store_paths - 1) in
-                
-                (* Reconcile statuses: if nix-build succeeded, check which nodes were built (cached or otherwise) *)
-                List.iter (fun name ->
-                  let node_path = Filename.concat out_path name in
-                  if Sys.file_exists node_path then (
-                    let class_path = Filename.concat node_path "class" in
-                    let warnings_path = Filename.concat node_path "warnings" in
-                    if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
-                    
-                    if Hashtbl.find statuses name <> "Completed" && 
-                       Hashtbl.find statuses name <> "SoftFailed" &&
-                       Hashtbl.find statuses name <> "Errored" then (
-                      (match read_file_first_line class_path with
-                       | Some "VError" | Some "Error" -> Hashtbl.replace statuses name "SoftFailed"
-                       | _ -> Hashtbl.replace statuses name "Completed")
-                    ) else if Hashtbl.find statuses name = "Completed" then (
-                      (* Refine "Completed" from Nix output if it was actually a soft-fail *)
-                      if (match read_file_first_line class_path with Some "VError" | Some "Error" -> true | _ -> false) then
-                         Hashtbl.replace statuses name "SoftFailed"
-                    )
-                  )
-                ) node_names;
+      match run_command_stream_argv argv callback with
+      | Ok status ->
+          (* Save drv_paths for later tool use (e.g. read_log) *)
+          if Hashtbl.length drv_paths > 0 then (
+            let existing_drvs =
+              let path = Filename.concat pipeline_dir "last_build_drvs.json" in
+              if Sys.file_exists path then
+                try
+                  let json = Yojson.Safe.from_file path in
+                  let open Yojson.Safe.Util in
+                  match json with
+                  | `Assoc pairs ->
+                      List.filter_map (fun (k, v) ->
+                        if List.mem k node_names then Some (k, to_string v) else None
+                      ) pairs
+                  | _ -> []
+                with _ -> []
+              else []
+            in
+            let drv_map = Hashtbl.create (List.length node_names + List.length existing_drvs) in
+            List.iter (fun (k, v) -> Hashtbl.add drv_map k v) existing_drvs;
+            Hashtbl.iter (fun k v -> Hashtbl.replace drv_map k v) drv_paths;
 
-                let timestamp = get_timestamp () in
-                let hash = try
-                  let parts = String.split_on_char '-' (Filename.basename out_path) in
-                  List.hd parts
-                with _ -> "no_hash"
-                in
-                
-                (* Success Summary *)
-                let completed = List.filter (fun n -> Hashtbl.find statuses n = "Completed") node_names in
-                let soft_failed = List.filter (fun n -> Hashtbl.find statuses n = "SoftFailed") node_names in
-                let with_warnings = List.filter (fun n -> Hashtbl.find_opt node_has_warnings n = Some true) node_names in
-                let total_built = List.length completed + List.length soft_failed in
-                 
-                if List.length soft_failed > 0 || List.length with_warnings > 0 then (
-                  let msg = if List.length soft_failed > 0 then "\n✖ Pipeline build captured node errors" else "\n✓ Pipeline build completed" in
-                  Printf.eprintf "%s [%d succeeded, %d captured errors, %d had warnings]\n%!" 
-                    msg (List.length completed) (List.length soft_failed) (List.length with_warnings);
-                  List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
-                  List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
-                ) else
-                  Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
-                    total_built (List.length node_names);
-                
-                let total_duration = Unix.gettimeofday () -. total_start_time in
-                let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
-                let log_path = Filename.concat pipeline_dir log_name in
-                let log_entries =
-                  List.map (fun (name, _) ->
+            let drv_entries = Hashtbl.fold (fun k v acc -> 
+                (Printf.sprintf "\"%s\": \"%s\"" (Serialization.json_escape k) (Serialization.json_escape v)) :: acc
+              ) drv_map [] in
+            
+            let drv_json = "{\n  " ^ (String.concat ",\n  " drv_entries) ^ "\n}\n" in
+            ignore (write_file (Filename.concat pipeline_dir "last_build_drvs.json") drv_json)
+          );
+
+          let output = String.trim (Buffer.contents captured_output) in
+          (match status with
+           | Unix.WEXITED 0 when output <> "" ->
+              let lines = String.split_on_char '\n' output in
+              let store_paths = List.filter (fun l ->
+                String.length l > 11 && String.sub l 0 11 = "/nix/store/"
+              ) lines in
+              (match store_paths with
+              | [] -> Error "nix-build succeeded but did not return a store path."
+              | _ ->
+                  let out_path = List.nth store_paths (List.length store_paths - 1) in
+                  
+                  (* Reconcile statuses: if nix-build succeeded, check which nodes were built (cached or otherwise) *)
+                  List.iter (fun name ->
                     let node_path = Filename.concat out_path name in
-                    let artifact_path = Filename.concat node_path "artifact" in
-                    let class_path = Filename.concat node_path "class" in
-                    let class_val = match read_file_first_line class_path with Some c -> c | None -> "Unknown" in
-                    let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-                    let serializer_expr = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
-                    let serializer = Nix_unparse.expr_to_string serializer_expr in
-                    let deps = match List.assoc_opt name p.p_deps with Some d -> d| None -> [] in
-                    let status = Hashtbl.find statuses name in
-                    let success = if status = "Completed" then "true" else "false" in
-                    let has_warns = if Hashtbl.find_opt node_has_warnings name = Some true then "true" else "false" in
-                    let node_dur = match Hashtbl.find_opt node_durations name with Some d -> d | None -> 0.0 in
-                    Serialization.json_dict [
-                      ("node", "\"" ^ Serialization.json_escape name ^ "\"");
-                      ("path", "\"" ^ Serialization.json_escape artifact_path ^ "\"");
-                      ("runtime", "\"" ^ Serialization.json_escape runtime ^ "\"");
-                      ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
-                      ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");
-                      ("dependencies", Serialization.json_list deps);
-                      ("status", "\"" ^ Serialization.json_escape status ^ "\"");
-                      ("success", success);
-                      ("warnings", has_warns);
-                      ("duration", Printf.sprintf "%.4f" node_dur)
-                    ]
-                  ) p.p_exprs
-                in
-                let log_json = Serialization.json_dict [
-                  ("timestamp", "\"" ^ timestamp ^ "\"");
-                  ("hash", "\"" ^ hash ^ "\"");
-                  ("out_path", "\"" ^ out_path ^ "\"");
-                  ("duration", Printf.sprintf "%.4f" total_duration);
-                  ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
-                ] ^ "\n" in
-                (match write_file log_path log_json with
-                | Error msg -> Error ("Failed to write build log: " ^ msg)
-                | Ok () ->
-                    Ok out_path))
-          | Unix.WEXITED 0 ->
-             Error "nix-build succeeded but did not return an output path."
-          | _ ->
-             let errored = List.filter (fun n -> Hashtbl.find statuses n = "Errored") node_names in
-             let error_summary =
-               if List.length errored > 0 then
-                 Printf.sprintf "%d nodes errored: %s" (List.length errored) (String.concat ", " errored)
-               else "General Nix build failure (check dependencies or environment)."
-             in
-             if verbose > 0 then (
-               if errored <> [] then
-                 print_failed_node_logs drv_paths errored
-               else
-                 (* Fallback for general Nix failures that were not attributed to a
-                    specific node while streaming the build output. *)
-                 let output = String.trim (Buffer.contents captured_output) in
-                 if output <> "" then
-                   Printf.eprintf "\n--- nix-build failure output ---\n%s\n%!" output
-             );
-             Printf.eprintf "\n✖ Pipeline build failed [%s]\n%!" error_summary;
-             Error (Printf.sprintf "nix-build failed. See details above."))
-    | Error msg ->
-        Error (Printf.sprintf "Failed to run nix-build: %s" msg)
+                    if Sys.file_exists node_path then (
+                      let class_path = Filename.concat node_path "class" in
+                      let warnings_path = Filename.concat node_path "warnings" in
+                      if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
+                      
+                      if Hashtbl.find statuses name <> "Completed" && 
+                         Hashtbl.find statuses name <> "SoftFailed" &&
+                         Hashtbl.find statuses name <> "Errored" then (
+                        (match read_file_first_line class_path with
+                         | Some "VError" | Some "Error" -> Hashtbl.replace statuses name "SoftFailed"
+                         | _ -> Hashtbl.replace statuses name "Completed")
+                      ) else if Hashtbl.find statuses name = "Completed" then (
+                        if (match read_file_first_line class_path with Some "VError" | Some "Error" -> true | _ -> false) then
+                           Hashtbl.replace statuses name "SoftFailed"
+                      )
+                    )
+                  ) node_names;
+
+                  let hash = try
+                    let parts = String.split_on_char '-' (Filename.basename out_path) in
+                    List.hd parts
+                  with _ -> "no_hash"
+                  in
+                  
+                  (* Success Summary *)
+                  let completed = List.filter (fun n -> Hashtbl.find statuses n = "Completed") node_names in
+                  let soft_failed = List.filter (fun n -> Hashtbl.find statuses n = "SoftFailed") node_names in
+                  let with_warnings = List.filter (fun n -> Hashtbl.find_opt node_has_warnings n = Some true) node_names in
+                  let total_built = List.length completed + List.length soft_failed in
+                   
+                  if List.length soft_failed > 0 || List.length with_warnings > 0 then (
+                    let msg = if List.length soft_failed > 0 then "\n✖ Pipeline build captured node errors" else "\n✓ Pipeline build completed" in
+                    Printf.eprintf "%s [%d succeeded, %d captured errors, %d had warnings]\n%!" 
+                      msg (List.length completed) (List.length soft_failed) (List.length with_warnings);
+                    List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
+                    List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
+                  ) else
+                    Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
+                      total_built (List.length node_names);
+                  
+                  let total_duration = Unix.gettimeofday () -. total_start_time in
+                  let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
+                  let log_path = Filename.concat pipeline_dir log_name in
+                  let log_entries =
+                    List.map (fun (name, _) ->
+                      let node_path = Filename.concat out_path name in
+                      let artifact_path = Filename.concat node_path "artifact" in
+                      let class_path = Filename.concat node_path "class" in
+                      let class_val = match read_file_first_line class_path with Some c -> c | None -> "Unknown" in
+                      let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+                      let serializer_expr = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
+                      let serializer = Nix_unparse.expr_to_string serializer_expr in
+                      let deps = match List.assoc_opt name p.p_deps with Some d -> d| None -> [] in
+                      let status = Hashtbl.find statuses name in
+                      let success = if status = "Completed" then "true" else "false" in
+                      let has_warns = if Hashtbl.find_opt node_has_warnings name = Some true then "true" else "false" in
+                      let node_dur = match Hashtbl.find_opt node_durations name with Some d -> d | None -> 0.0 in
+                      Serialization.json_dict [
+                        ("node", "\"" ^ Serialization.json_escape name ^ "\"");
+                        ("path", "\"" ^ Serialization.json_escape artifact_path ^ "\"");
+                        ("runtime", "\"" ^ Serialization.json_escape runtime ^ "\"");
+                        ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
+                        ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");
+                        ("dependencies", Serialization.json_list deps);
+                        ("status", "\"" ^ Serialization.json_escape status ^ "\"");
+                        ("success", success);
+                        ("warnings", has_warns);
+                        ("duration", Printf.sprintf "%.4f" node_dur)
+                      ]
+                    ) p.p_exprs
+                  in
+                  let log_json = Serialization.json_dict [
+                    ("timestamp", "\"" ^ timestamp ^ "\"");
+                    ("hash", "\"" ^ hash ^ "\"");
+                    ("out_path", "\"" ^ out_path ^ "\"");
+                    ("duration", Printf.sprintf "%.4f" total_duration);
+                    ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
+                  ] ^ "\n" in
+                  (match write_file log_path log_json with
+                  | Error msg -> Error ("Failed to write build log: " ^ msg)
+                  | Ok () ->
+                      Ok (VString out_path)))
+           | Unix.WEXITED 0 ->
+              Error "nix-build succeeded but did not return an output path."
+           | _ ->
+              let errored = List.filter (fun n -> Hashtbl.find statuses n = "Errored") node_names in
+              let error_summary =
+                if List.length errored > 0 then
+                  Printf.sprintf "%d nodes errored: %s" (List.length errored) (String.concat ", " errored)
+                else "General Nix build failure (check dependencies or environment)."
+              in
+              if verbose > 0 then (
+                if errored <> [] then
+                  print_failed_node_logs drv_paths errored
+                else
+                  let output = String.trim (Buffer.contents captured_output) in
+                  if output <> "" then
+                    Printf.eprintf "\n--- nix-build failure output ---\n%s\n%!" output
+              );
+              Printf.eprintf "\n✖ Pipeline build failed [%s]\n%!" error_summary;
+              Error (Printf.sprintf "nix-build failed. See details above."))
+      | Error msg ->
+          Error (Printf.sprintf "Failed to run nix-build: %s" msg)
+    end
   end
+
+let update_pipeline_with_build_paths (p : Ast.pipeline_result) out_path =
+  let updated_nodes =
+    List.map (fun (name, v) ->
+      match v with
+      | VComputedNode cn ->
+          let node_path = Filename.concat out_path name in
+          let artifact_path = Filename.concat node_path "artifact" in
+          if Sys.file_exists artifact_path then
+            let class_path = Filename.concat node_path "class" in
+            let cn_class =
+              match read_file_first_line class_path with
+              | Some c -> c
+              | None -> cn.cn_class
+            in
+            let updated_cn = { cn with cn_path = artifact_path; cn_class } in
+            (name, VComputedNode updated_cn)
+          else
+            (name, v)
+      | _ -> (name, v)
+    ) p.p_nodes
+  in
+  { p with p_nodes = updated_nodes }

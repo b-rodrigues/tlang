@@ -2826,40 +2826,50 @@ pipeline_node(p, "doubled") -- 20
 
 ---
 
-### `pipeline_run(pipeline)`
+### `pipeline_run(pipeline, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)`
 
-Re-execute a pipeline in-memory.
+Re-execute a pipeline. If any Nix orchestration flags are provided, triggers a cache-aware Nix build of the pipeline. Otherwise, re-executes the pipeline dynamically in-memory.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
+- `targets` (optional) — String, List, or Vector of specific node names to build.
+- `force` (optional) — Bool, String, List, or Vector of specific nodes to force-rebuild.
+- `dry_run` (optional) — Bool. If true, returns a planned build actions DataFrame instead of building.
+- `max_jobs` (optional) — Positive Int. Limit parallel build jobs.
+- `cache` (optional) — String. Cachix cache name.
 
 **Returns:**
 
-Pipeline object with updated values
+Pipeline object with updated values (or DataFrame if `dry_run = true`)
 
 **Examples:**
 ```t
 p = pipeline { x = 10; y = x * 2 }
 p2 = pipeline_run(p)
+df = pipeline_run(p, dry_run=true)
 ```
 
 ---
 
-### `populate_pipeline(pipeline, build = false)`
+### `populate_pipeline(pipeline, build = false, verbose = 0, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)`
 
 Prepare pipeline infrastructure in `_pipeline/`.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
 - `build` (optional) — If true, triggers a Nix build of all nodes.
+- `verbose` (optional) — Non-negative Int. Nix build verbosity level.
+- `targets` (optional) — String, List, or Vector of specific node names to build.
+- `force` (optional) — Bool, String, List, or Vector of specific nodes to force-rebuild.
+- `dry_run` (optional) — Bool. If true, returns a planned build actions DataFrame instead of building.
+- `max_jobs` (optional) — Positive Int. Limit parallel build jobs.
+- `cache` (optional) — String. Cachix cache name.
 
 **Returns:**
 
-Success message or Error.
+Success message, BuildLog, or DataFrame.
 
 **Examples:**
 ```t
@@ -2869,14 +2879,19 @@ populate_pipeline(p, build = true)
 
 ---
 
-### `build_pipeline(pipeline)`
+### `build_pipeline(pipeline, verbose = 0, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)`
 
 Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
+- `verbose` (optional) — Non-negative Int. Nix build verbosity level.
+- `targets` (optional) — String, List, or Vector of specific node names to build.
+- `force` (optional) — Bool, String, List, or Vector of specific nodes to force-rebuild.
+- `dry_run` (optional) — Bool. If true, returns a planned build actions DataFrame instead of building.
+- `max_jobs` (optional) — Positive Int. Limit parallel build jobs.
+- `cache` (optional) — String. Cachix cache name.
 
 **Returns:**
 
@@ -2885,6 +2900,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 - `duration` — total build duration in seconds
 - `failed_nodes` — list of failed/errored node names
 - `out_path` — Nix output path for the build (migration path for previous string-return behavior)
+(or `DataFrame` if `dry_run = true`)
 
 ---
 
