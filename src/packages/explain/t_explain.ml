@@ -3,6 +3,18 @@ open Ast
 let dataframe_hint =
   "Use explain(df).storage_backend, explain(df).native_path_active, explain(df).performance_note, explain(df).schema, explain(df).na_stats, and explain(df).example_rows for details"
 
+let contains_sub s sub =
+  let len_s = String.length s in
+  let len_sub = String.length sub in
+  if len_sub > len_s then false
+  else
+    let rec check i =
+      if i + len_sub > len_s then false
+      else if String.sub s i len_sub = sub then true
+      else check (i + 1)
+    in
+    check 0
+
 (*
 --# Explain Value
 --#
@@ -236,10 +248,94 @@ let register env =
           ("response", VList (List.map (fun s -> (None, VString s)) response));
           ("predictors", VList (List.map (fun s -> (None, VString s)) predictors));
         ]
-    | VBuiltin _ | VLambda _ ->
+    | VLambda l ->
+        let rec zip params param_types =
+          match params, param_types with
+          | p :: ps, pt :: pts ->
+              let type_str =
+                match pt with
+                | Some t -> Ast.Utils.typ_to_string t
+                | None -> "Any"
+              in
+              let arg_dict = make_explain_dict [
+                ("name", VString p);
+                ("type", VString type_str);
+                ("default", VNA NAGeneric);
+              ] in
+              (None, arg_dict) :: zip ps pts
+          | p :: ps, [] ->
+              let arg_dict = make_explain_dict [
+                ("name", VString p);
+                ("type", VString "Any");
+                ("default", VNA NAGeneric);
+              ] in
+              (None, arg_dict) :: zip ps []
+          | [], _ -> []
+        in
+        let arguments = VList (zip l.params l.param_types) in
         make_explain_dict [
           ("kind", VString "value");
           ("type", VString "Function");
+          ("arguments", arguments);
+        ]
+    | VBuiltin b ->
+        let rec map_params params =
+          match params with
+          | (p : Tdoc_types.param_doc) :: ps ->
+              let type_str = match p.Tdoc_types.type_info with Some t -> t | None -> "Any" in
+              let default_str =
+                let text = String.lowercase_ascii (type_str ^ " " ^ p.Tdoc_types.description) in
+                if contains_sub text "optional" || contains_sub text "default = na" then
+                  VString "NA"
+                else if contains_sub text "default =" then
+                  match String.split_on_char '=' text with
+                  | _ :: right :: _ ->
+                      let cleaned = String.trim (List.hd (String.split_on_char ' ' (String.trim right))) in
+                      VString cleaned
+                  | _ -> VNA NAGeneric
+                else if contains_sub text "defaults to" then
+                  VString "NA"
+                else
+                  VNA NAGeneric
+              in
+              let arg_dict = make_explain_dict [
+                ("name", VString p.Tdoc_types.name);
+                ("type", VString type_str);
+                ("default", default_str);
+              ] in
+              (None, arg_dict) :: map_params ps
+          | [] -> []
+        in
+        let arguments =
+          match b.b_name with
+          | Some name ->
+              (match Tdoc_registry.lookup name with
+               | Some doc -> VList (map_params doc.Tdoc_types.params)
+               | None ->
+                   let args_list = List.init b.b_arity (fun i ->
+                     let name = Printf.sprintf "arg%d" (i + 1) in
+                     (None, make_explain_dict [
+                       ("name", VString name);
+                       ("type", VString "Any");
+                       ("default", VNA NAGeneric);
+                     ])
+                   ) in
+                   VList args_list)
+          | None ->
+              let args_list = List.init b.b_arity (fun i ->
+                let name = Printf.sprintf "arg%d" (i + 1) in
+                (None, make_explain_dict [
+                  ("name", VString name);
+                  ("type", VString "Any");
+                  ("default", VNA NAGeneric);
+                ])
+              ) in
+              VList args_list
+        in
+        make_explain_dict [
+          ("kind", VString "value");
+          ("type", VString "Function");
+          ("arguments", arguments);
         ]
     | VComputedNode cn ->
         make_explain_dict [
