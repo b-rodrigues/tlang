@@ -116,7 +116,7 @@ object. These objects transition through two main states:
 
 ### Automatic (De)serialization
 
-When you call `read_node("node_name")` in the REPL, T looks at the node's
+When you call `read_node(p.node_name)` in the REPL, T looks at the node's
 **serializer** and attempts to automatically load the data back into the T
 environment:
 
