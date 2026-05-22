@@ -35,7 +35,7 @@ let register env =
     in
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
-    match List.find_opt (fun k -> not (List.mem k ["p"; "build"; "verbose"])) named_keys with
+    match List.find_opt (fun k -> not (List.mem k ["p"; "build"; "verbose"; "targets"; "force"; "dry_run"; "max_jobs"; "cache"])) named_keys with
     | Some k ->
         Error.type_error (Printf.sprintf "populate_pipeline: unknown argument '%s'" k)
     | None when positional_count > 3 ->
@@ -46,6 +46,11 @@ let register env =
       | (_, VPipeline p) ->
         let (build_provided, build_val) = get_arg "build" 2 (VBool false) named_args in
         let (verbose_provided, verbose_val) = get_arg "verbose" 3 (VNA NAGeneric) named_args in
+        let (targets_provided, targets_val) = get_arg "targets" 4 (VNA NAGeneric) named_args in
+        let (force_provided, force_val) = get_arg "force" 5 (VNA NAGeneric) named_args in
+        let (dry_run_provided, dry_run_val) = get_arg "dry_run" 6 (VNA NAGeneric) named_args in
+        let (max_jobs_provided, max_jobs_val) = get_arg "max_jobs" 7 (VNA NAGeneric) named_args in
+        let (cache_provided, cache_val) = get_arg "cache" 8 (VNA NAGeneric) named_args in
         let build_result =
           match build_val with
           | VBool b -> Ok b
@@ -64,11 +69,59 @@ let register env =
           | _ ->
               Ok None
         in
-        (match build_result, verbose_result with
-         | Error e, _ -> e
-         | _, Error e -> e
-         | Ok build, Ok verbose ->
-               match Builder.populate_pipeline ~build ?verbose p with
+        let targets_result =
+          match targets_val with
+          | VString _ -> Ok (Some targets_val)
+          | VList items ->
+              if List.exists (function (_, VString _) -> false | _ -> true) items then
+                Error (Error.type_error "Function `populate_pipeline` expects `targets` to contain only String values.")
+              else Ok (Some targets_val)
+          | VVector arr ->
+              if Array.exists (function VString _ -> false | _ -> true) arr then
+                Error (Error.type_error "Function `populate_pipeline` expects `targets` to contain only String values.")
+              else Ok (Some targets_val)
+          | _ when targets_provided ->
+              Error (Error.type_error "Function `populate_pipeline` expects `targets` to be a String, List, or Vector.")
+          | _ -> Ok None
+        in
+        let force_result =
+          match force_val with
+          | VBool _ | VList _ | VVector _ | VString _ -> Ok (Some force_val)
+          | _ when force_provided ->
+              Error (Error.type_error "Function `populate_pipeline` expects `force` to be a Bool, String, List, or Vector.")
+          | _ -> Ok None
+        in
+        let dry_run_result =
+          match dry_run_val with
+          | VBool b -> Ok (Some b)
+          | _ when dry_run_provided ->
+              Error (Error.type_error "Function `populate_pipeline` expects `dry_run` to be a Bool.")
+          | _ -> Ok None
+        in
+        let max_jobs_result =
+          match max_jobs_val with
+          | VInt n when n > 0 -> Ok (Some max_jobs_val)
+          | _ when max_jobs_provided ->
+              Error (Error.type_error "Function `populate_pipeline` expects `max_jobs` to be a positive Int.")
+          | _ -> Ok None
+        in
+        let cache_result =
+          match cache_val with
+          | VString _ -> Ok (Some cache_val)
+          | _ when cache_provided ->
+              Error (Error.type_error "Function `populate_pipeline` expects `cache` to be a String.")
+          | _ -> Ok None
+        in
+        (match build_result, verbose_result, targets_result, force_result, dry_run_result, max_jobs_result, cache_result with
+         | Error e, _, _, _, _, _, _ -> e
+         | _, Error e, _, _, _, _, _ -> e
+         | _, _, Error e, _, _, _, _ -> e
+         | _, _, _, Error e, _, _, _ -> e
+         | _, _, _, _, Error e, _, _ -> e
+         | _, _, _, _, _, Error e, _ -> e
+         | _, _, _, _, _, _, Error e -> e
+         | Ok build, Ok verbose, Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache ->
+               match Builder.populate_pipeline ~build ?verbose ?targets ?force ?dry_run ?max_jobs ?cache p with
                | Ok out -> out
                | Error msg -> Error.make_error StructuralError msg)
       | _ ->

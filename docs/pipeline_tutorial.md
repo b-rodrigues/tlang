@@ -1507,8 +1507,8 @@ The functions `build_pipeline()` and `pipeline_run()` accept the following optio
 | `targets` | String/List/Vector | Specific node(s) or outputs to build (e.g., `targets=["model_a"]`) | `-A <targets>` |
 | `force` | Bool/String/List/Vector | Rebuild nodes even if they already exist in the Nix store. Pass `true` to force-rebuild all nodes, or a string/list of specific node names. | `--check` (rebuilds target) |
 | `dry_run` | Bool | Preview build actions without executing them. Returns a structured `DataFrame` of planned actions. | `--dry-run` |
-| `max_jobs` | Int | Limit parallel compilation/build jobs. | `-j <max_jobs>` |
-| `cache` | String | A Cachix binary cache name (e.g., `"rstats-on-nix"`) to pull/push built artifacts. | `--extra-substituters` & `--extra-trusted-public-keys` |
+| `max_jobs` | Int | Limit parallel compilation/build jobs. | `--max-jobs N` |
+| `cache` | String | A Cachix binary cache name (e.g., `"rstats-on-nix"`) to pull/push built artifacts. | `--option extra-substituters ...` & `--option extra-trusted-public-keys ...` |
 
 ### Using `dry_run` for Build Previews
 

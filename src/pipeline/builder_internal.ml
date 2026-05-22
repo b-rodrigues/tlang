@@ -57,19 +57,20 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (
     | Some level -> level
     | None -> !default_nix_build_verbose
   in
-  let extract_string_list = function
-    | VString s -> [s]
+  let extract_string_list label = function
+    | VString s -> Ok [s]
     | VList items ->
-        List.filter_map (function
-          | (_, VString s) -> Some s
-          | _ -> None
-        ) items
+        if List.exists (function (_, VString _) -> false | _ -> true) items then
+          Error (Printf.sprintf "Expected `%s` to contain only String values, but found non-string elements." label)
+        else
+          Ok (List.filter_map (function (_, VString s) -> Some s | _ -> None) items)
     | VVector arr ->
-        List.filter_map (function
-          | VString s -> Some s
-          | _ -> None
-        ) (Array.to_list arr)
-    | _ -> []
+        let lst = Array.to_list arr in
+        if List.exists (function VString _ -> false | _ -> true) lst then
+          Error (Printf.sprintf "Expected `%s` to contain only String values, but found non-string elements." label)
+        else
+          Ok (List.filter_map (function VString s -> Some s | _ -> None) lst)
+    | _ -> Error (Printf.sprintf "Expected `%s` to be a String, List, or Vector of strings." label)
   in
   let contains_substring line pattern =
     try
@@ -92,14 +93,27 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (
     Error "build_pipeline requires `nix-build` to be available."
   else begin
     let node_names = List.map fst p.p_exprs in
-    let target_args =
+    let target_args_result =
       match targets with
       | Some lst ->
-          let strs = extract_string_list lst in
-          if strs = [] then ["-A"; "pipeline_output"]
-          else List.concat (List.map (fun t -> ["-A"; t]) strs)
-      | None -> ["-A"; "pipeline_output"]
+          (match extract_string_list "targets" lst with
+           | Error msg -> Error msg
+           | Ok [] -> Ok ["-A"; "pipeline_output"]
+           | Ok strs -> Ok (List.concat (List.map (fun t -> ["-A"; t]) strs)))
+      | None ->
+          (* When targets is not provided but force names specific nodes,
+             use those node names as the implicit build targets. *)
+          (match force with
+           | Some (VList _ | VVector _ | VString _ as v) ->
+               (match extract_string_list "force" v with
+                | Error msg -> Error msg
+                | Ok [] -> Ok ["-A"; "pipeline_output"]
+                | Ok strs -> Ok (List.concat (List.map (fun t -> ["-A"; t]) strs)))
+           | _ -> Ok ["-A"; "pipeline_output"])
     in
+    match target_args_result with
+    | Error msg -> Error msg
+    | Ok target_args ->
     let force_args =
       let force_enabled =
         match force with

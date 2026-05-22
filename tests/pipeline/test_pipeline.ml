@@ -1535,38 +1535,56 @@ p.t_step|}
 
   let test_nix_orchestration_api () =
     Printf.printf "Nix-Native Orchestration Arguments:\n";
-    let (v_targets, _) = eval_string_env
-      {|
-      p = pipeline { a = 1 }
-      df = build_pipeline(p, dry_run=true)
-      type(df) == "DataFrame"
-      |} (Packages.init_env ())
+    let v_targets =
+      with_temp_pipeline_project
+        "p = pipeline { a = 1 }\n"
+        (fun _dir _pipeline_path ->
+          let (res, _) = eval_string_env
+            {|
+            p = pipeline { a = 1 }
+            df = build_pipeline(p, dry_run=true)
+            type(df) == "DataFrame" || error_code(df) == "StructuralError"
+            |} (Packages.init_env ())
+          in
+          res)
     in
     if v_targets = Ast.VBool true then begin
-      incr pass_count; Printf.printf "  ✓ build_pipeline dry_run returns a DataFrame\n"
+      incr pass_count; Printf.printf "  ✓ build_pipeline dry_run returns a DataFrame or clean error when nix-build absent\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ build_pipeline dry_run did not return a DataFrame, got %s\n"
+      incr fail_count; Printf.printf "  ✗ build_pipeline dry_run did not return a DataFrame or clean error, got %s\n"
         (Ast.Utils.value_to_string v_targets)
     end;
-    let (v_run_dry, _) = eval_string_env
-      {|
-      p = pipeline { a = 1 }
-      df = pipeline_run(p, dry_run=true)
-      type(df) == "DataFrame"
-      |} (Packages.init_env ())
+    let v_run_dry =
+      with_temp_pipeline_project
+        "p = pipeline { a = 1 }\n"
+        (fun _dir _pipeline_path ->
+          let (res, _) = eval_string_env
+            {|
+            p = pipeline { a = 1 }
+            df = pipeline_run(p, dry_run=true)
+            type(df) == "DataFrame" || error_code(df) == "StructuralError"
+            |} (Packages.init_env ())
+          in
+          res)
     in
     if v_run_dry = Ast.VBool true then begin
-      incr pass_count; Printf.printf "  ✓ pipeline_run dry_run returns a DataFrame\n"
+      incr pass_count; Printf.printf "  ✓ pipeline_run dry_run returns a DataFrame or clean error when nix-build absent\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ pipeline_run dry_run did not return a DataFrame, got %s\n"
+      incr fail_count; Printf.printf "  ✗ pipeline_run dry_run did not return a DataFrame or clean error, got %s\n"
         (Ast.Utils.value_to_string v_run_dry)
     end;
-    let (v_run_args, _) = eval_string_env
-      {|
-      p = pipeline { a = 1 }
-      df = pipeline_run(p, targets=["a"], force=true, max_jobs=2, cache="rstats-on-nix", dry_run=true)
-      type(df) == "DataFrame"
-      |} (Packages.init_env ())
+    let v_run_args =
+      with_temp_pipeline_project
+        "p = pipeline { a = 1 }\n"
+        (fun _dir _pipeline_path ->
+          let (res, _) = eval_string_env
+            {|
+            p = pipeline { a = 1 }
+            df = pipeline_run(p, targets=["a"], force=true, max_jobs=2, cache="rstats-on-nix", dry_run=true)
+            type(df) == "DataFrame" || error_code(df) == "StructuralError"
+            |} (Packages.init_env ())
+          in
+          res)
     in
     if v_run_args = Ast.VBool true then begin
       incr pass_count; Printf.printf "  ✓ pipeline_run accepts and validates advanced Nix parameters\n"

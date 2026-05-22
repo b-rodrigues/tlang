@@ -59,7 +59,15 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
         in
         let targets_result =
           match targets_val with
-          | VList _ | VVector _ | VString _ -> Ok (Some targets_val)
+          | VString _ -> Ok (Some targets_val)
+          | VList items ->
+              if List.exists (function (_, VString _) -> false | _ -> true) items then
+                Error (Error.type_error "Function `build_pipeline` expects `targets` to contain only String values.")
+              else Ok (Some targets_val)
+          | VVector arr ->
+              if Array.exists (function VString _ -> false | _ -> true) arr then
+                Error (Error.type_error "Function `build_pipeline` expects `targets` to contain only String values.")
+              else Ok (Some targets_val)
           | _ when targets_provided ->
               Error (Error.type_error "Function `build_pipeline` expects `targets` to be a String, List, or Vector.")
           | _ -> Ok None
