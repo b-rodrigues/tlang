@@ -463,14 +463,24 @@ let cmd_upgrade () =
 let get_nix_version () =
   try
     let ch = Unix.open_process_in "nix --version" in
-    let line = input_line ch in
-    match Unix.close_process_in ch with
-    | Unix.WEXITED 0 ->
+    let line_result =
+      try `Line (input_line ch)
+      with
+      | End_of_file -> `No_line
+      | exn -> `Read_error exn
+    in
+    let close_result =
+      try `Status (Unix.close_process_in ch)
+      with exn -> `Close_error exn
+    in
+    match (line_result, close_result) with
+    | (`Line line, `Status (Unix.WEXITED 0)) ->
         let parts = String.split_on_char ' ' line in
         let rec last = function [] -> "" | [x] -> x | _ :: xs -> last xs in
-        Some (last parts)
-    | _ -> None
-  with _ -> None
+        last parts
+    | (`Read_error exn, _) -> raise exn
+    | _ -> "unknown"
+  with _ -> "unknown"
 
 let cmd_repl ?failfast mode env =
   Packages.ensure_docs_loaded ();
@@ -479,20 +489,16 @@ let cmd_repl ?failfast mode env =
   let base_keys = Hashtbl.create 200 in
   Ast.Env.iter (fun k _ -> Hashtbl.add base_keys k ()) env;
 
-  match get_nix_version () with
-  | None ->
-      Printf.eprintf "Nix not found! Install Nix to use T!\n";
-      exit 1
-  | Some nix_version ->
-      Printf.printf "T, a reproducibility-first orchestration engine for polyglot\n";
-      Printf.printf "data science and statistical analysis.\n";
-      Printf.printf "Version %s \"%s\" using Nix %s\n" version "Kaméhaméha" nix_version;
-      Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
-      Printf.printf "This software is in beta and is entirely LLM-generated — caveat emptor.\n";
-      Printf.printf "Website: https://tstats-project.org\n";
-      Printf.printf "Contributions are welcome!\n";
-      Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
-      Printf.printf "%s\n\n" (Import_registry.startup_rename_warning_message ());
+  let nix_version = get_nix_version () in
+  Printf.printf "T, a reproducibility-first orchestration engine for polyglot\n";
+  Printf.printf "data science and statistical analysis.\n";
+  Printf.printf "Version %s \"%s\" using Nix %s\n" version "Kaméhaméha" nix_version;
+  Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
+  Printf.printf "This software is in beta and is entirely LLM-generated — caveat emptor.\n";
+  Printf.printf "Website: https://tstats-project.org\n";
+  Printf.printf "Contributions are welcome!\n";
+  Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
+  Printf.printf "%s\n\n" (Import_registry.startup_rename_warning_message ());
 
 
   let scope = Symbol_table.create_scope () in

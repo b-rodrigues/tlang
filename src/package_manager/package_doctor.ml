@@ -124,18 +124,6 @@ let validate_project_structure dir =
 
   List.rev !issues
 
-(** Check if Nix is installed on the system.
-    
-    @return [Some issue] if missing, [None] otherwise. *)
-let check_nix_installation () =
-  let code = Sys.command "command -v nix >/dev/null 2>&1" in
-  if code <> 0 then
-    Some {
-      level = Error;
-      message = "Nix is not installed or not in PATH";
-      suggestion = Some "Install Nix: https://nixos.org/download.html";
-    }
-  else None
 
 (** Check if Julia binary is installed on the system.
     
@@ -270,9 +258,6 @@ let run_doctor () =
       }]
     end
   in
-
-  let nix_issue = check_nix_installation () in
-  let issues = match nix_issue with Some i -> i :: issues | None -> issues in
 
   (* Check Documentation *)
   let doc_issues = 
