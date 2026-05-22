@@ -473,13 +473,13 @@ logs = list_logs()
 -- DataFrame of build logs with filename, modification_time, and size_kb
 ```
 
-Use `inspect_pipeline()` to view the build status of a specific pipeline as a DataFrame (defaults to the latest):
+Use `inspect_log()` to view the build status of a specific pipeline as a DataFrame (defaults to the latest):
 
 ```t
-inspect_pipeline()
+inspect_log()
 -- DataFrame(5 rows x 4 cols: [derivation, build_success, path, output])
 
-inspect_pipeline(which_log = "20260221_143022")
+inspect_log(which_log = "20260221_143022")
 ```
 
 ### Reading from a specific build

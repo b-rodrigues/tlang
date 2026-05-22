@@ -546,12 +546,12 @@ caused nodes to soft-fail during the build, use
 <p>Use <code>list_logs()</code> to see available build logs:</p>
 <pre class="t"><code>logs = list_logs()
 -- DataFrame of build logs with filename, modification_time, and size_kb</code></pre>
-<p>Use <code>inspect_pipeline()</code> to view the build status of a
-specific pipeline as a DataFrame (defaults to the latest):</p>
-<pre class="t"><code>inspect_pipeline()
+<p>Use <code>inspect_log()</code> to view the build status of a specific
+pipeline as a DataFrame (defaults to the latest):</p>
+<pre class="t"><code>inspect_log()
 -- DataFrame(5 rows x 4 cols: [derivation, build_success, path, output])
 
-inspect_pipeline(which_log = &quot;20260221_143022&quot;)</code></pre>
+inspect_log(which_log = &quot;20260221_143022&quot;)</code></pre>
 <h3 id="reading-from-a-specific-build">Reading from a specific
 build</h3>
 <p>Pass the <code>which_log</code> argument to <code>read_node()</code>

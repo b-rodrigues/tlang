@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - inspect_pipeline</title>
+  <title>T Function Reference - inspect_log</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,22 +33,19 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="inspect_pipeline">inspect_pipeline</h1>
-<p>Static Pipeline DAG Schema Inspection</p>
-<p>Returns a DataFrame containing the static schema and dependencies of
-a pipeline’s defined nodes. Never hits the filesystem or reads build
-logs.</p>
+<h1 id="inspect_log">inspect_log</h1>
+<p>Inspect Pipeline Build Logs</p>
+<p>Reads the latest (or specified) Nix build log on the filesystem and
+returns a DataFrame showing the dynamic execution status.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline object to
-inspect (e.g. <code>p = pipeline { ... }</code>). If called without
-arguments inside the T environment, it will automatically look up the
-bound pipeline in the current scope.</li>
+<li><strong>which_log</strong> (<code>String</code>): (Optional) A regex
+pattern to match a specific build log filename in
+<code>_pipeline/</code>.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A DataFrame with columns: <code>node</code>, <code>runtime</code>,
-<code>serializer</code>, <code>dependencies</code>,
-<code>has_script</code>.</p>
+<p>A DataFrame with columns: <code>derivation</code>,
+<code>build_success</code>, <code>path</code>, <code>output</code>.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

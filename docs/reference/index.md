@@ -140,7 +140,8 @@
 | [index_of](index_of.html) | Find index of substring |
 | [inner_join](inner_join.html) | Join matching rows |
 | [inspect_node](inspect_node.html) | Inspect Pipeline Node Metadata |
-| [inspect_pipeline](inspect_pipeline.html) | Inspect Pipeline Logs |
+| [inspect_log](inspect_log.html) | Inspect Pipeline Build Logs |
+| [inspect_pipeline](inspect_pipeline.html) | Static Pipeline DAG Schema Inspection |
 | [intent_fields](intent_fields.html) | Get All Intent Fields |
 | [intent_get](intent_get.html) | Get Intent Field |
 | [intersect](intersect.html) | Keep shared pipeline nodes |

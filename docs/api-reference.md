@@ -2910,7 +2910,7 @@ read_node(p.model_v1, which_log = "20260221")
 
 ---
 
-### `inspect_pipeline(which_log = NA)`
+### `inspect_log(which_log = NA)`
 
 View build status and output paths for a pipeline build.
 

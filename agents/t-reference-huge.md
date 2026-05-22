@@ -4438,7 +4438,7 @@ read_node(p.model_v1, which_log = "20260221")
 
 ---
 
-### `inspect_pipeline(which_log = NA)`
+### `inspect_log(which_log = NA)`
 
 View build status and output paths for a pipeline build.
 
@@ -6060,7 +6060,7 @@ The focus of this release is the introduction of first-class Julia support, enab
 - **Programmatic DAG Inspection**: Added `pipeline_nodes()` to all companion packages. It returns the pipeline DAG as an idiomatic data structure (e.g., `data.frame` in R, `dict` in Python/Julia), enabling easy programmatic traversal of node relationships.
 - **Refactored Pipeline Diagnostic Output**:
     - Removed the redundant `path:` field from the default `ComputedNode` REPL printer.
-    - The default REPL printer no longer displays `path: <unbuilt>` / `path:` status lines for `ComputedNode`s; users who need explicit artifact paths in the T runtime can obtain them via `inspect_node(node).path` or `inspect_pipeline()`.
+    - The default REPL printer no longer displays `path: <unbuilt>` / `path:` status lines for `ComputedNode`s; users who need explicit artifact paths in the T runtime can obtain them via `inspect_node(node).path` or `inspect_log()`.
 - **Support for `return_path` in Companion Packages**: Added `return_path` argument to `read_node()` in the R, Python, and Julia companion packages. When set to true, these helpers return the absolute path to the artifact in the Nix store/project directory instead of deserializing it, allowing for custom loading logic or direct file inspection.
 - **Automated Log Resolution**: These helpers now automatically resolve the most recent `build_log_*.json` in the `_pipeline/` directory, providing a stable way to access node results during development and reporting (e.g., in Quarto).
 ### Strict Serialization & Pipeline Stability
@@ -14095,13 +14095,13 @@ logs = list_logs()
 -- DataFrame of build logs with filename, modification_time, and size_kb
 ```
 
-Use `inspect_pipeline()` to view the build status of a specific pipeline as a DataFrame (defaults to the latest):
+Use `inspect_log()` to view the build status of a specific pipeline as a DataFrame (defaults to the latest):
 
 ```t
-inspect_pipeline()
+inspect_log()
 -- DataFrame(5 rows x 4 cols: [derivation, build_success, path, output])
 
-inspect_pipeline(which_log = "20260221_143022")
+inspect_log(which_log = "20260221_143022")
 ```
 
 ### Reading from a specific build
@@ -19425,7 +19425,8 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [index_of](index_of.html) | Find index of substring |
 | [inner_join](inner_join.html) | Join matching rows |
 | [inspect_node](inspect_node.html) | Inspect Pipeline Node Metadata |
-| [inspect_pipeline](inspect_pipeline.html) | Inspect Pipeline Logs |
+| [inspect_log](inspect_log.html) | Inspect Pipeline Build Logs |
+| [inspect_pipeline](inspect_pipeline.html) | Static Pipeline DAG Schema Inspection |
 | [intent_fields](intent_fields.html) | Get All Intent Fields |
 | [intent_get](intent_get.html) | Get Intent Field |
 | [intersect](intersect.html) | Keep shared pipeline nodes |
@@ -19714,6 +19715,23 @@ Joins two DataFrames and keeps only rows whose keys match in both inputs.
 
 
 
+# FILE: docs/reference/inspect_log.md
+
+# inspect_log
+
+Inspect Pipeline Build Logs
+
+Reads the latest (or specified) Nix build log on the filesystem and returns a DataFrame showing the dynamic execution status.
+
+## Parameters
+
+- **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename in `_pipeline/`.
+
+## Returns
+
+A DataFrame with columns: `derivation`, `build_success`, `path`, `output`.
+
+
 # FILE: docs/reference/inspect_node.md
 
 # inspect_node
@@ -19741,19 +19759,17 @@ A dictionary with keys = name, runtime, path, serializer, class, dependencies.
 
 # inspect_pipeline
 
-Inspect Pipeline Logs
+Static Pipeline DAG Schema Inspection
 
-Reads the latest (or specified) build log and returns a DataFrame showing the pipeline status.
+Returns a DataFrame containing the static schema and dependencies of a pipeline's defined nodes. Never hits the filesystem or reads build logs.
 
 ## Parameters
 
-- **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename.
-
+- **p** (`Pipeline`): The pipeline object to inspect (e.g. `p = pipeline { ... }`). If called without arguments inside the T environment, it will automatically look up the bound pipeline in the current scope.
 
 ## Returns
 
-A DataFrame with columns = derivation, build_success, path, output.
-
+A DataFrame with columns: `node`, `runtime`, `serializer`, `dependencies`, `has_script`.
 
 
 # FILE: docs/reference/intent_fields.md

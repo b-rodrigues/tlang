@@ -1,15 +1,13 @@
 # inspect_pipeline
 
-Inspect Pipeline Logs
+Static Pipeline DAG Schema Inspection
 
-Reads the latest (or specified) build log and returns a DataFrame showing the pipeline status.
+Returns a DataFrame containing the static schema and dependencies of a pipeline's defined nodes. Never hits the filesystem or reads build logs.
 
 ## Parameters
 
-- **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename.
-
+- **p** (`Pipeline`): The pipeline object to inspect (e.g. `p = pipeline { ... }`). If called without arguments inside the T environment, it will automatically look up the bound pipeline in the current scope.
 
 ## Returns
 
-A DataFrame with columns = derivation, build_success, path, output.
-
+A DataFrame with columns: `node`, `runtime`, `serializer`, `dependencies`, `has_script`.
