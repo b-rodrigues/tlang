@@ -1549,7 +1549,7 @@ p.t_step|}
           res)
     in
     if v_targets = Ast.VBool true then begin
-      incr pass_count; Printf.printf "  ✓ build_pipeline dry_run returns a DataFrame or clean error when nix-build absent\n"
+      incr pass_count; Printf.printf "  ✓ build_pipeline dry_run returns a DataFrame or clean error\n"
     end else begin
       incr fail_count; Printf.printf "  ✗ build_pipeline dry_run did not return a DataFrame or clean error, got %s\n"
         (Ast.Utils.value_to_string v_targets)
@@ -1568,7 +1568,7 @@ p.t_step|}
           res)
     in
     if v_run_dry = Ast.VBool true then begin
-      incr pass_count; Printf.printf "  ✓ pipeline_run dry_run returns a DataFrame or clean error when nix-build absent\n"
+      incr pass_count; Printf.printf "  ✓ pipeline_run dry_run returns a DataFrame or clean error\n"
     end else begin
       incr fail_count; Printf.printf "  ✗ pipeline_run dry_run did not return a DataFrame or clean error, got %s\n"
         (Ast.Utils.value_to_string v_run_dry)
