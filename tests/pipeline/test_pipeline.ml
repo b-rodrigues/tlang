@@ -1579,16 +1579,17 @@ p.t_step|}
       {|
       p = pipeline {
         a = 1
+        b = a + 1
       }
-      -- inspect_pipeline(p) should not throw a TypeError and should return either a DataFrame or FileError
+      -- inspect_pipeline(p) should statically return a DataFrame with schema metadata (2 nodes, 5 properties)
       res = inspect_pipeline(p)
-      (is_error(res) && error_code(res) == "FileError") || type(res) == "DataFrame"
+      type(res) == "DataFrame" && nrow(res) == 2 && ncol(res) == 5
       |} (Packages.init_env ())
     in
     if v_inspect = Ast.VBool true then begin
-      incr pass_count; Printf.printf "  ✓ inspect_pipeline(p) polymorphically accepts a pipeline object\n"
+      incr pass_count; Printf.printf "  ✓ inspect_pipeline(p) statically inspects pipeline structure\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ inspect_pipeline(p) parsing failed, got %s\n"
+      incr fail_count; Printf.printf "  ✗ inspect_pipeline(p) static inspection failed, got %s\n"
         (Ast.Utils.value_to_string v_inspect)
     end
   in
