@@ -792,6 +792,21 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 }; read_pipeline(p_err).diagnostics.summary|}
     "\"0 node(s) with warnings, 0 suppressed, 2 error(s), 0 recovered\"";
 
+  test "warning_msg() built-in returns warning message"
+    {|p_diag = pipeline {
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
+  filtered = filter(data, $x > 1)
+  count = nrow(filtered)
+}; warning_msg(p_diag.filtered) != ""|}
+    "true";
+  test "warning_msg property on computed node returns warning message"
+    {|p_diag = pipeline {
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
+  filtered = filter(data, $x > 1)
+  count = nrow(filtered)
+}; p_diag.filtered.warning_msg != ""|}
+    "true";
+
 
   test "read_node(p, name) exposes structured node errors"
     {|p_err = pipeline {

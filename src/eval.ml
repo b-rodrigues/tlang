@@ -2341,18 +2341,23 @@ and eval_dot_access_val _env_ref target_val field =
       | "class" -> VString cn.cn_class
       | "dependencies" -> VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies)
       | "warning_msg" ->
-          if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then (
-            let warnings_path = Filename.concat cn.cn_path "warnings" in
-            if Sys.file_exists warnings_path then (
-              try
-                let chan = open_in warnings_path in
-                let len = in_channel_length chan in
-                let content = really_input_string chan len in
-                close_in chan;
-                VString (String.trim content)
-              with _ -> VString ""
-            ) else VString ""
-          ) else VString ""
+          (match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
+           | Some (VNodeResult { diagnostics; _ }) ->
+               let warn_msgs = List.map (fun w -> w.nw_message) diagnostics.nd_warnings in
+               VString (String.concat "\n" warn_msgs)
+           | _ ->
+               if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then (
+                 let warnings_path = Filename.concat (Filename.dirname cn.cn_path) "warnings" in
+                 if Sys.file_exists warnings_path then (
+                   try
+                     let chan = open_in warnings_path in
+                     let len = in_channel_length chan in
+                     let content = really_input_string chan len in
+                     close_in chan;
+                     VString (String.trim content)
+                   with _ -> VString ""
+                 ) else VString ""
+               ) else VString "")
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "ComputedNode has no field `%s`" field))
   | VNode un ->
       (match field with
