@@ -517,7 +517,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                if root_causes <> [] then
                  let lines =
                    List.map (fun n ->
-                     Printf.sprintf "  → %s (Run 'error_message(p.%s)' and paste the traceback to an LLM/Copilot for instant help!)" n n
+                     Printf.sprintf "  → %s (Run 'error_message(p.%s)' and share the traceback with an LLM/Copilot for instant help!)" n n
                    ) root_causes
                  in
                  "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"
