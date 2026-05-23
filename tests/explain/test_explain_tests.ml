@@ -261,6 +261,39 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|"DivisionByZero"|};
   print_newline ();
 
+  Printf.printf "Phase 6 — Explain: Functions and Lambdas:\n";
+  test "explain user-defined lambda function"
+    {|f = \(x: Int, y: String) x; e = explain(f); e.type|}
+    {|"Function"|};
+  test "explain user-defined lambda arguments count"
+    {|f = \(x: Int, y: String) x; e = explain(f); length(e.arguments)|}
+    {|2|};
+  test "explain user-defined lambda argument name"
+    {|f = \(x: Int, y: String) x; e = explain(f); get(e.arguments, 0).name|}
+    {|"x"|};
+  test "explain user-defined lambda argument type"
+    {|f = \(x: Int, y: String) x; e = explain(f); get(e.arguments, 0).type|}
+    {|"Int"|};
+  test "explain user-defined lambda argument 2 type"
+    {|f = \(x: Int, y: String) x; e = explain(f); get(e.arguments, 1).type|}
+    {|"String"|};
+  test "explain builtin function"
+    {|e = explain(explain); e.type|}
+    {|"Function"|};
+  test "explain builtin arguments count"
+    {|e = explain(explain); length(e.arguments)|}
+    {|1|};
+  test "explain builtin argument name"
+    {|e = explain(explain); get(e.arguments, 0).name|}
+    {|"x"|};
+  test "explain builtin argument type"
+    {|e = explain(explain); get(e.arguments, 0).type|}
+    {|"Any"|};
+  test "explain builtin argument default"
+    {|e = explain(explain); type(get(e.arguments, 0).default)|}
+    {|"NA"|};
+  print_newline ();
+
   Printf.printf "Phase 6 — Explain: Arity:\n";
   test "explain no args"
     "explain()"

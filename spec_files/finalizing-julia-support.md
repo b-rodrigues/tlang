@@ -20,11 +20,14 @@ Julia runtime injection now includes a hardened `jl_serialize(obj, path)` implem
 - **Provisioning:** `JLD2` is now included in the default `juliaPkg` set and base `using` statements for all Julia nodes.
 
 ### 2. PMML & ONNX Export Support
-**Status:** Largely implemented in `nix_emit_node.ml`.
+**Status:** Mixed. PMML is implemented; Julia ONNX support is currently read-heavy and write support is not yet general.
 
 - `t_pmml_jl_code` is implemented, including a GLM-focused PMML writer and a JPMML-backed reader.
-- `t_onnx_jl_code` is implemented with ONNX/ONNXRunTime based read/write helpers.
-- **Remaining gap:** model-family coverage and interoperability hardening (e.g., validate end-to-end support expectations for non-GLM models such as `DecisionTree.jl` and `Flux.jl`).
+- `t_onnx_jl_code` currently injects both `jl_read_onnx()` and `jl_write_onnx()`, and the write path calls `ONNX.save(path, model)`.
+- `jl_read_onnx()` aligns with `ONNXRunTime.jl`'s documented inference workflow and is the strongest part of the integration.
+- `jl_write_onnx()` should not be treated as a general Julia model exporter yet: upstream `ONNX.jl` documents graph-level save/load support, not broad automatic export for common Julia ML model families.
+- **Next step:** implement Julia ONNX writing as a phased rollout, starting with a narrow, explicitly typed writer contract before any broader model-family claims.
+- **See also:** `spec_files/julia-onnx-review.md`.
 
 ### 3. Runtime Diagnostics (`t doctor`)
 **Status:** ~~Still a gap~~.

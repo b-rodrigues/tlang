@@ -272,4 +272,40 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|node(command = 1, args = 1)|}
     {|Error(TypeError: "Function `node` expects `args` to be a Dict or List.")|};
 
+  (* Test: capture = "stdout" sugar *)
+  let (v_sh_stdout_cap, _) = eval_string_env
+    {|node(command = "echo hello", capture = "stdout")|}
+    (Packages.init_env ()) in
+  (match v_sh_stdout_cap with
+   | Ast.VNode un ->
+       let is_text e =
+         match e.Ast.node with
+         | Ast.Value (Ast.VString "text") | Ast.Value (Ast.VSymbol "text") | Ast.Var "text" -> true
+         | _ -> false
+       in
+       if is_text un.un_serializer && is_text un.un_deserializer then
+         begin incr pass_count; Printf.printf "  ✓ capture = \"stdout\" configures serializer/deserializer to text\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ capture = \"stdout\" failed\n" end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ capture = \"stdout\" failed: %s\n" (Ast.Utils.value_to_string other));
+
+  (* Test: T_INPUT_<dep> variable in Nix hermetic env *)
+  let (v_sh_t_input, _) = eval_string_env
+    {|pipeline {
+      a = node(runtime = sh, command = "echo 1")
+      b = node(runtime = sh, command = "echo 2", deps = ["a"])
+    }|}
+    (Packages.init_env ()) in
+  (match v_sh_t_input with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       if contains_substring nix "T_INPUT_a=\"$T_NODE_a/artifact\"" &&
+          contains_substring nix "T_INPUT_a = \"${a}/artifact\";" then
+         begin incr pass_count; Printf.printf "  ✓ Nix emission includes T_INPUT_<dep> environment variables\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ Nix emission does not include T_INPUT_<dep> correctly: %s\n" nix end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ T_INPUT_<dep> Nix test failed\n");
+
   print_newline ()

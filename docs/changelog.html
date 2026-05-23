@@ -34,7 +34,174 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="unreleased">[0.52.1] Unreleased</h2>
+<h2 id="xx">[0.52.1] - 2026-05-xx</h2>
+<p>This release finalizes end-to-end Julia ONNX serialization support,
+fixes pipeline compiler strategy dictionary parsing issues, strengthens
+runtime safety by protecting reserved keywords, and completes the
+migration of pipeline introspection to a strict, node-centric dot-access
+model.</p>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="strict-node-centric-dot-access-migration">Strict Node-Centric
+dot-access Migration</h3>
+<ul>
+<li><strong>Strict Node-Centric read_node</strong>: Refactored
+<code>read_node()</code> to strictly require <code>ComputedNode</code>
+arguments (e.g., <code>read_node(p.node_name)</code>), disallowing
+legacy string lookup paths.</li>
+<li><strong>In-Memory Registry Priority</strong>: Refactored
+<code>read_node</code> OCaml resolution to prioritize the in-memory
+registry (<code>Ast.in_memory_node_values</code>) over disk-based build
+log artifacts, resolving transient <code>FileError</code> omissions when
+accessing unbuilt or dynamically computed nodes.</li>
+<li><strong>Dynamic Build Help Messages</strong>: Added dynamic,
+descriptive walkthroughs upon successful <code>build_pipeline()</code>
+execution, instructing users how to read, inspect, and summarize their
+pipeline using their actual variables and first-class node objects.</li>
+<li><strong>Ecosystem-Wide Synchrony</strong>: Migrated the entire
+<code>t_demos</code> workspace and workflows (79+ scripts and workflows)
+to adopt the new strict dot-access design. Standalone helper scripts are
+now automatically self-contained with explicit
+<code>import 'src/pipeline.t'</code> prepends.</li>
+</ul>
+<h3 id="structured-build-logs-observability">Structured Build Logs &amp;
+Observability</h3>
+<ul>
+<li><strong>Structured Build Logs (<code>build_log(p)</code>)</strong>:
+Expose the underlying Nix build results as a <code>VBuildLog</code>
+record containing node-by-node details, total duration, and a list of
+failed nodes. <code>build_pipeline(p)</code> now returns a
+<code>BuildLog</code> value instead of a raw output-path string (use
+<code>build_pipeline(p).out_path</code> when you need the previous path
+value).</li>
+<li><strong>Build Tabulation (<code>build_log_to_frame</code>)</strong>:
+Added <code>build_log_to_frame(log)</code> to tabulate build results
+(one row per node) for high-level analysis using <code>colcraft</code>
+verbs.</li>
+<li><strong>Accurate Build Log Status Reconciliation</strong>:
+Refactored the OCaml Nix builder to automatically reconcile all
+unfinished nodes remaining in <code>"Pending"</code> or
+<code>"Building"</code> states to <code>"Skipped"</code> when the
+nix-build process crashes/fails, avoiding confusing out-of-date
+states.</li>
+<li><strong>Dynamic Build Log Summaries</strong>: Upgraded
+<code>VBuildLog</code> stringification and REPL pretty-printing to
+dynamically count and print all status types
+(e.g. <code>2 succeeded, 9 failed, 3 skipped</code>) rather than
+assuming a simple binary success/failure count.</li>
+<li><strong>Exception Collection
+(<code>collect_exceptions(p)</code>)</strong>: Gathers all
+<code>VError</code> values and warning diagnostics from computed nodes
+of a built pipeline into a structured DataFrame (<code>node</code>,
+<code>status</code>, <code>code</code>, <code>message</code>), replacing
+the legacy <code>collect_errors</code> and <code>error_summary</code>
+functions.</li>
+<li><strong>Traceback cleaning in
+<code>collect_exceptions(p)</code></strong>: Automatically cleans and
+extracts the last non-empty line of multi-line error traces (such as
+from Python or Arrow exceptions) and truncates the string to 100
+characters max, maintaining a neat, legible table in the REPL.</li>
+<li><strong>Polymorphic error functions</strong>: Made standard
+<code>error_code()</code>, <code>error_msg()</code>, and
+<code>error_context()</code> builtins polymorphic. They now accept
+either standard <code>Error</code> objects or first-class pipeline
+<code>ComputedNode</code> values (e.g. <code>p.X</code> or
+<code>p.combined_df</code>). They automatically resolve the node’s
+underlying <code>VError</code> store artifact for soft-failures, or fall
+back to parsing log traceback details for hard Nix-build failures.</li>
+<li><strong>Warning Introspection</strong>: Added a new built-in
+function <code>warning_msg()</code> and a matching
+<code>.warning_msg</code> property lookup on computed nodes to easily
+inspect non-fatal build warnings from successful derivations.</li>
+<li><strong>Upstream captured errors in <code>t_make()</code></strong>:
+Upon early termination/build crash, the Nix builder scans the store
+paths of completed upstream nodes to extract soft-failed diagnostic
+states, printing them directly in the final build failure summary
+(e.g. showing <code>(8 captured errors)</code> and listing their node
+names).</li>
+<li><strong>Polars-Style DataFrame print truncation</strong>: Tabular
+pretty-printing of all DataFrames in the REPL now automatically
+truncates cell strings exceeding <code>35</code> characters to
+<code>32</code> characters followed by <code>...</code> to keep columns
+aligned and clean.</li>
+<li><strong>Error Chaining
+(<code>error_chain(err1, err2)</code>)</strong>: Chains multiple errors
+to preserve failure provenance and causality across dependent
+nodes.</li>
+</ul>
+<h3 id="immutable-keyword-built-in-overwrite-protection">Immutable
+Keyword &amp; Built-in Overwrite Protection</h3>
+<ul>
+<li><strong>Reserved Keyword &amp; Built-in Immutability</strong>: Core
+built-ins and standard package functions (such as
+<code>build_log</code>, <code>print</code>, <code>mean</code>, etc.) are
+now strictly protected against accidental user reassignment or
+overwriting.</li>
+<li><strong>Actionable Error Messaging</strong>: Attempting to overwrite
+a core keyword or built-in function using <code>=</code> or the
+overwrite operator <code>:=</code> will raise a highly visible
+<code>NameError</code>
+(e.g. <code>Cannot overwrite build_log: it's a reserved keyword!</code>).</li>
+<li><strong>Resilient Package Scoping</strong>: The package loader
+automatically isolates local definitions from standard library origins,
+allowing package developers to define functions (like <code>mean</code>)
+in their package scope without conflict.</li>
+</ul>
+<h3 id="julia-onnx-serialization-parity">Julia ONNX Serialization &amp;
+Parity</h3>
+<ul>
+<li><strong>Dynamic Tape Workarounds</strong>: Implemented dynamic
+handlers for <code>:Cast</code> (pass-through <code>identity</code>) and
+<code>:Reshape</code> (handling inferred <code>-1</code> shapes mapping
+to Julia <code>Colon()</code>) operators.</li>
+<li><strong>World Age Resilience</strong>: Wrapped deserialized model
+loading in <code>Base.invokelatest</code> to resolve world age lexical
+method updates in isolated Nix builds.</li>
+<li><strong>Dynamic Package Support</strong>: Integrated the
+<code>Umlaut</code> dependency into <code>[jl-dependencies]</code> and
+corrected column-major tracing dimension layouts.</li>
+</ul>
+<h3 id="compiler-strategy-dictionaries">Compiler Strategy
+Dictionaries</h3>
+<ul>
+<li><strong>Type-Safe Serialization Registry</strong>: Fixed OCaml
+type-mismatch bugs in OCaml <code>nix_emit_node.ml</code>
+(<code>get_format</code>) and <code>builder_populate.ml</code>
+(<code>extract_format</code>) to correctly parse
+<code>VSerializer</code> values inside pipeline deserialization mapping
+dictionaries (e.g.,
+<code>deserializer = [ julia_model: ^onnx ]</code>).</li>
+</ul>
+<h3 id="end-to-end-stress-testing-ci">End-to-End Stress Testing &amp;
+CI</h3>
+<ul>
+<li><strong>Polyglot Parity Scoring</strong>: Added the
+<code>onnx_julia_stress_t</code> and
+<code>observability_hardening_t</code> end-to-end stress test suites to
+verify prediction parity, safety safeguards, and observability
+logs.</li>
+<li><strong>Automated Workflows</strong>: Created premium automated
+GitHub Actions CI workflows to run these suites on PR and push
+events.</li>
+</ul>
+<h3 id="documentation-corrections">Documentation Corrections</h3>
+<ul>
+<li><strong>Removed <code>jn()</code> alias</strong>: Eliminated the
+undocumented <code>jln()</code> alias <code>jn()</code> from the
+evaluator, tests, and all documentation. Use <code>jln()</code>
+exclusively for Julia pipeline nodes.</li>
+<li><strong>Corrected Node-Family <code>Returns</code> docs</strong>:
+All node-defining functions (<code>node</code>, <code>rn</code>,
+<code>pyn</code>, <code>jln</code>, <code>qn</code>, <code>shn</code>)
+now correctly document their return type as a <code>NodeDef</code>
+pipeline node configuration object, not the evaluated result of the
+enclosed code. The code is executed by <code>build_pipeline()</code>,
+not immediately.</li>
+<li><strong>Corrected <code>jln</code> serializer default</strong>:
+Documentation previously stated the default serializer was
+<code>^csv</code>; the actual default is the runtime-native binary
+serializer (<code>jl_serialize</code>), consistent with <code>rn</code>
+and <code>pyn</code>.</li>
+</ul>
 <h2 id="kaméhaméha---2026-05-18">[0.52.0] “Kaméhaméha” - 2026-05-18</h2>
 <p>The focus of this release is the introduction of first-class Julia
 support, enabling high-performance polyglot pipelines with seamless
@@ -126,7 +293,7 @@ enabling easy programmatic traversal of node relationships.</li>
 <code>path: &lt;unbuilt&gt;</code> / <code>path:</code> status lines for
 <code>ComputedNode</code>s; users who need explicit artifact paths in
 the T runtime can obtain them via <code>inspect_node(node).path</code>
-or <code>inspect_pipeline()</code>.</li>
+or <code>inspect_log()</code>.</li>
 </ul></li>
 <li><strong>Support for <code>return_path</code> in Companion
 Packages</strong>: Added <code>return_path</code> argument to

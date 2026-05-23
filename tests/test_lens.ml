@@ -60,7 +60,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
 
   (* 5. Pipeline Lenses *)
   test "node_lens on Pipeline"
-    {|p = pipeline { a = 1; b = 2 }; l = node_lens("a"); p2 = set(p, l, 10); p2.a|}
+    {|p = pipeline { a = 1; b = 2 }; l = node_lens("a"); p2 = set(p, l, 10); read_node(p2.a)|}
     "10";
 
   test "node_lens get missing node returns NA"
@@ -234,7 +234,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
 
   (* 11. filter_lens on Pipeline with over *)
   test "filter_lens over on Pipeline"
-    {|p = pipeline { a = 1; b = 2; c = 3 }; l = filter_lens(\(meta) meta.name == "b"); p2 = over(p, l, \(v) v .+ 10); p2.b|}
+    {|p = pipeline { a = 1; b = 2; c = 3 }; l = filter_lens(\(meta) meta.name == "b"); p2 = over(p, l, \(v) v .+ 10); read_node(p2.b)|}
     "[12]";
 
   (* 12. modify with errors *)

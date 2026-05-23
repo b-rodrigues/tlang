@@ -163,7 +163,7 @@ let math_package = {
 let base_package = {
   name = "base";
   description = "Assertions, NA handling, and error utilities";
-  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_message"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"];
+  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_msg"; "warning_msg"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"; "error_chain"];
 }
 
 let chrono_package = {
@@ -192,8 +192,9 @@ let dataframe_package = {
 let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
-  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
+  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "inspect_log"; "list_logs"; "read_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
                "pipeline_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings";
+               "build_log"; "build_log_to_frame"; "collect_exceptions";
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
                "chain"; "parallel";
@@ -800,6 +801,7 @@ let init_env () =
   let env = Pipeline_composition.register ~rerun_pipeline:rerun_pipeline_fn env in
   let env = T_make_mod.register env in
   let env = Pipeline_inspect2.register env in
+  let env = Build_log.register env in
   (* Colcraft package *)
   let env = T_select.register env in
   let env = T_filter.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
@@ -943,4 +945,5 @@ let init_env () =
   let env = List.fold_left (fun acc name ->
     Env.add name (VSymbol name) acc
   ) env known_symbols in
-  Import_registry.mark_builtin_bindings env
+  let env = Import_registry.mark_builtin_bindings env in
+  env

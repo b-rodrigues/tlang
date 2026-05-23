@@ -1249,7 +1249,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              let default_runtime = match name with
                | "pyn" -> "Python"
                | "rn" -> "R"
-              | "jln" -> "Julia"
+               | "jln" -> "Julia"
                | "qn" -> "Quarto"
                | "shn" -> "sh"
                | _ -> "T"
@@ -1267,6 +1267,19 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             if has_command && runtime = "Quarto" then
               Error.make_error TypeError "Quarto nodes require a script and do not support inlined `command` blocks."
             else
+              let has_stdout_capture =
+                match List.assoc_opt (Some "capture") args with
+                | Some e -> (match eval_expr env_ref e with VString "stdout" | VSymbol "stdout" -> true | _ -> false)
+                | None -> false
+              in
+              let default_serializer =
+                if has_stdout_capture || runtime = "sh" then varexpr "text"
+                else varexpr "default"
+              in
+              let default_deserializer =
+                if has_stdout_capture || runtime = "sh" then varexpr "text"
+                else varexpr "default"
+              in
               let un_command, un_script =
                 match execution_path_opt with
                 | Some path ->
@@ -1298,8 +1311,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | RawCode _ ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" (match runtime with "sh" -> varexpr "text" | _ -> varexpr "default");
-                      un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
+                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
+                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1311,8 +1324,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | Value (VString _) | Value (VSymbol _) | Value ((VNA NAGeneric)) when runtime = "sh" ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" (varexpr "text");
-                      un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
+                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
+                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1324,8 +1337,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | _ when Option.is_some un_script ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" (match runtime with "sh" -> varexpr "text" | _ -> varexpr "default");
-                      un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
+                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
+                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1340,8 +1353,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               else
                 VNode {
                   un_command; un_script; un_runtime = runtime;
-                  un_serializer = lookup_serializer_arg "serializer" (varexpr "default");
-                  un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
+                  un_serializer = lookup_serializer_arg "serializer" default_serializer;
+                  un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
                   un_env_vars; un_args;
                   un_shell = shell_opt;
                   un_shell_args = shell_args;
@@ -2253,11 +2266,71 @@ and eval_dot_access_val _env_ref target_val field =
          then VDict [("__partial_dot_df__", VDataFrame df);
                      ("__partial_dot_prefix__", VString field)]
          else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
-  | VPipeline { p_nodes; _ } ->
-      (match List.assoc_opt field p_nodes with
+  | VPipeline p ->
+      (match List.assoc_opt field p.p_nodes with
        | Some (VComputedNode cn) -> VComputedNode (!Ast.computed_node_resolver cn)
-       | Some v -> v
-       | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
+       | Some (VSymbol s) -> VSymbol s
+       | Some v ->
+           let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
+           let cn_serializer =
+             match List.assoc_opt field p.p_serializers with
+             | Some e -> Nix_unparse.expr_to_string e
+             | None -> "default"
+           in
+           let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
+           let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
+           if is_noop then
+             VSymbol (Printf.sprintf "<noop:%s>" field)
+           else begin
+             let diagnostics =
+               match List.assoc_opt field p.p_node_diagnostics with
+               | Some d -> d
+               | None -> Ast.Utils.empty_node_diagnostics
+             in
+             let wrapped = VNodeResult { v; node_name = field; diagnostics } in
+             Hashtbl.replace Ast.in_memory_node_values field wrapped;
+             VComputedNode {
+               cn_name = field;
+               cn_runtime;
+               cn_path = "<unbuilt>";
+               cn_serializer;
+               cn_class = "Unknown";
+               cn_dependencies;
+             }
+           end
+       | None ->
+           (match List.assoc_opt field p.p_exprs with
+            | Some _ ->
+                let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
+                let cn_serializer =
+                  match List.assoc_opt field p.p_serializers with
+                  | Some e -> Nix_unparse.expr_to_string e
+                  | None -> "default"
+                in
+                let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
+                let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
+                if is_noop then
+                  VSymbol (Printf.sprintf "<noop:%s>" field)
+                else
+                  VComputedNode {
+                    cn_name = field;
+                    cn_runtime;
+                    cn_path = "<unbuilt>";
+                    cn_serializer;
+                    cn_class = "Unknown";
+                    cn_dependencies;
+                  }
+            | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)))
+  | VBuildLog bl ->
+      (match field with
+       | "nodes" -> VList (List.map (fun x -> (None, x)) bl.bl_nodes)
+       | "duration" -> VFloat bl.bl_duration
+       | "failed_nodes" -> VList (List.map (fun s -> (None, VString s)) bl.bl_failed_nodes)
+       | "out_path" ->
+           (match bl.bl_out_path with
+            | Some p -> VString p
+            | None -> VNA NAString)
+       | _ -> Error.make_error KeyError (Printf.sprintf "BuildLog has no field `%s`." field))
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
       (match field with
@@ -2267,6 +2340,19 @@ and eval_dot_access_val _env_ref target_val field =
       | "serializer" -> VString cn.cn_serializer
       | "class" -> VString cn.cn_class
       | "dependencies" -> VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies)
+      | "warning_msg" ->
+          (match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
+           | Some (VNodeResult { diagnostics; _ }) ->
+               let warn_msgs = List.map (fun w -> w.nw_message) diagnostics.nd_warnings in
+               VString (String.concat "\n" warn_msgs)
+           | _ ->
+               if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then (
+                 let warnings_path = Filename.concat (Filename.dirname cn.cn_path) "warnings" in
+                 if Sys.file_exists warnings_path then
+                   let warns = Builder_read_node.parse_node_warnings warnings_path in
+                   VString (String.concat "\n" (List.map (fun w -> w.nw_message) warns))
+                 else VString ""
+               ) else VString "")
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "ComputedNode has no field `%s`" field))
   | VNode un ->
       (match field with
@@ -2301,13 +2387,13 @@ and eval_dot_access_val _env_ref target_val field =
                (Printf.sprintf "ShellResult has no field `%s`. Available fields: stdout, stderr, exit_code." field))
   | VError ({ code; message; context; location; na_count } as err) ->
       (* Structured field access for Error values mirrors explain(error):
-         error_code, error_message, context, na_count, and optional
+         error_code, error_msg, context, na_count, and optional
          location-derived file/line/column fields (NA when unavailable).
          Unknown fields preserve prior behavior by returning the original
          error unchanged. *)
       (match field with
        | "error_code" -> VString (Utils.error_code_to_string code)
-       | "error_message" -> VString message
+       | "error_msg" -> VString message
        | "context" -> VDict context
        | "na_count" -> VInt na_count
        | "file" ->
@@ -2920,7 +3006,10 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
               | _ -> (v, !env_ref))
          | _ -> (v, !env_ref))
     | Assignment { name; expr; _ } ->
-        if Env.mem name env then
+        if Import_registry.find_origin env name = Some Import_registry.Builtin then
+          let msg = Printf.sprintf "Cannot overwrite %s: it's a reserved keyword!" name in
+          (make_error NameError msg, env)
+        else if Env.mem name env then
           let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite or rm() to delete the variable." name in
           (make_error NameError msg, env)
         else
@@ -2931,7 +3020,10 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
            | VError _ -> (v, new_env)
            | _ -> ((VNA NAGeneric), new_env))
     | Reassignment { name; expr } ->
-        if not (Env.mem name env) then
+        if Import_registry.find_origin env name = Some Import_registry.Builtin then
+          let msg = Printf.sprintf "Cannot overwrite %s: it's a reserved keyword!" name in
+          (make_error NameError msg, env)
+        else if not (Env.mem name env) then
           let msg = Printf.sprintf "Cannot overwrite '%s': variable not defined. Use '=' for first assignment." name in
           (make_error NameError msg, env)
         else

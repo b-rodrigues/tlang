@@ -7,22 +7,22 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Golden test 1: Simple arithmetic pipeline *)
   test "golden: arithmetic pipeline"
-    "p = pipeline {\n  a = 2 + 3\n  b = a * 4\n  c = b - 1\n}; p.c"
+    "p = pipeline {\n  a = 2 + 3\n  b = a * 4\n  c = b - 1\n}; read_node(p.c)"
     "19";
 
   (* Golden test 2: Pipeline with function composition *)
   test "golden: function pipeline"
-    "double = \\(n) n * 2\ninc = \\(m) m + 1\np = pipeline {\n  x = 5\n  y = x |> double\n  z = y |> inc\n}; p.z"
+    "double = \\(n) n * 2\ninc = \\(m) m + 1\np = pipeline {\n  x = 5\n  y = x |> double\n  z = y |> inc\n}; read_node(p.z)"
     "11";
 
   (* Golden test 3: Pipeline with list operations *)
   test "golden: list pipeline"
-    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  count = length(data)\n}; p.total"
+    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  count = length(data)\n}; read_node(p.total)"
     "55";
 
   (* Golden test 4: Pipeline node count *)
   test "golden: list pipeline count"
-    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  count = length(data)\n}; p.count"
+    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  count = length(data)\n}; read_node(p.count)"
     "5";
 
   (* Golden test 5: Pipeline representation *)
@@ -32,12 +32,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Golden test 6: Out-of-order dependency resolution *)
   test "golden: out-of-order deps"
-    "p = pipeline {\n  sum = x + y + z\n  x = 10\n  y = 20\n  z = 30\n}; p.sum"
+    "p = pipeline {\n  sum = x + y + z\n  x = 10\n  y = 20\n  z = 30\n}; read_node(p.sum)"
     "60";
 
   (* Golden test 7: Chained computation *)
   test "golden: chain computation"
-    "p = pipeline {\n  a = 1\n  b = a + 1\n  c = b * 2\n  d = c + b\n  e = d * a\n}; p.e"
+    "p = pipeline {\n  a = 1\n  b = a + 1\n  c = b * 2\n  d = c + b\n  e = d * a\n}; read_node(p.e)"
     "6";
 
   (* Golden test 8: Pipeline introspection - nodes *)
@@ -57,7 +57,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   end;
 
   (* Golden test 10: Pipeline re-run preserves values *)
-  let (v, _) = eval_string_env "p2 = pipeline_run(p); p2.c" env_g in
+  let (v, _) = eval_string_env "p2 = pipeline_run(p); read_node(p2.c)" env_g in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
     incr pass_count; Printf.printf "  ✓ golden: re-run preserves values\n"
@@ -67,7 +67,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Golden test 11: Pipeline determinism *)
   test "golden: deterministic execution"
-    "p1 = pipeline {\n  a = 7\n  b = a * 3\n  c = b + 1\n}; p2 = pipeline {\n  a = 7\n  b = a * 3\n  c = b + 1\n}; p1.c == p2.c"
+    "p1 = pipeline {\n  a = 7\n  b = a * 3\n  c = b + 1\n}; p2 = pipeline {\n  a = 7\n  b = a * 3\n  c = b + 1\n}; read_node(p1.c) == read_node(p2.c)"
     "true";
   print_newline ();
 
@@ -137,7 +137,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   filtered_count = filtered |> nrow
 }|} csv_golden) env_gd in
 
-  let (v, _) = eval_string_env "p.rows" env_gd in
+  let (v, _) = eval_string_env "read_node(p.rows)" env_gd in
   let result = Ast.Utils.value_to_string v in
   if result = "5" then begin
     incr pass_count; Printf.printf "  ✓ golden: data pipeline nrow\n"
@@ -145,7 +145,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     incr fail_count; Printf.printf "  ✗ golden: data pipeline nrow\n    Expected: 5\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "p.cols" env_gd in
+  let (v, _) = eval_string_env "read_node(p.cols)" env_gd in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
     incr pass_count; Printf.printf "  ✓ golden: data pipeline ncol\n"
@@ -153,7 +153,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     incr fail_count; Printf.printf "  ✗ golden: data pipeline ncol\n    Expected: 3\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "p.names" env_gd in
+  let (v, _) = eval_string_env "read_node(p.names)" env_gd in
   let result = Ast.Utils.value_to_string v in
   if result = {|["name", "value", "category"]|} then begin
     incr pass_count; Printf.printf "  ✓ golden: data pipeline colnames\n"
@@ -161,7 +161,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     incr fail_count; Printf.printf "  ✗ golden: data pipeline colnames\n    Expected: [\"name\", \"value\", \"category\"]\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "p.filtered_count" env_gd in
+  let (v, _) = eval_string_env "read_node(p.filtered_count)" env_gd in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
     incr pass_count; Printf.printf "  ✓ golden: data pipeline filtered count\n"

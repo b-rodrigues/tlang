@@ -13,7 +13,7 @@ Builds a pipeline to `pipeline.nix` and records node artifacts in a local regist
 
 ## Returns
 
-The output path (Nix store path or local fallback directory).
+A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`).
 
 ## See Also
 

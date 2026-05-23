@@ -210,8 +210,16 @@ and lens =
   | CompositeLens of lens * lens
   | FilterLens of value
 
+and build_log = {
+  bl_nodes : value list;
+  bl_duration : float;
+  bl_failed_nodes : string list;
+  bl_out_path : string option;
+}
+
 (** Runtime values *)
 and value =
+  | VBuildLog of build_log
   (* Scalar Types *)
   | VInt of int
   | VFloat of float
@@ -366,6 +374,9 @@ let node_resolver : (string -> value option) ref = ref (fun _ -> None)
 
 (** Global hook for resolving computed node metadata from build logs *)
 let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn -> cn)
+
+(** Global hook for storing in-memory evaluated node values *)
+let in_memory_node_values : (string, value) Hashtbl.t = Hashtbl.create 50
 
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
@@ -617,6 +628,7 @@ module Utils = struct
     | TExpr -> "Expression"
 
   let rec type_name = function
+    | VBuildLog _ -> "BuildLog"
     | VInt _ -> "Int" | VFloat _ -> "Float"
     | VBool _ -> "Bool" | VString _ -> "String" | VRawCode _ -> "Code"
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
@@ -730,6 +742,43 @@ module Utils = struct
         "import \"" ^ filename ^ "\" [" ^ String.concat ", " (List.map (fun is -> is.import_name) names) ^ "]"
 
   and value_to_string = function
+    | VBuildLog bl ->
+        let total = List.length bl.bl_nodes in
+        let count_status status_str =
+          List.length (List.filter (function
+            | VDict fields ->
+                (match List.assoc_opt "status" fields with
+                 | Some (VString s) -> String.lowercase_ascii s = String.lowercase_ascii status_str
+                 | _ -> false)
+            | _ -> false) bl.bl_nodes)
+        in
+        let succeeded_count = count_status "Completed" + count_status "Completed with warning" in
+        let failed_count = count_status "Errored" + count_status "Completed with error" in
+        let skipped_count = count_status "Skipped" in
+        let building_count = count_status "Building" in
+        let pending_count = count_status "Pending" in
+        let warning_nodes =
+          List.filter_map (function
+            | VDict fields ->
+                (match List.assoc_opt "status" fields, List.assoc_opt "name" fields with
+                 | Some (VString "Completed with warning"), Some (VString name) -> Some name
+                 | _ -> None)
+            | _ -> None) bl.bl_nodes
+        in
+        let parts = [
+          Printf.sprintf "%d succeeded" succeeded_count;
+          Printf.sprintf "%d failed" failed_count;
+        ] in
+        let parts = if skipped_count > 0 then parts @ [Printf.sprintf "%d skipped" skipped_count] else parts in
+        let parts = if building_count > 0 then parts @ [Printf.sprintf "%d building" building_count] else parts in
+        let parts = if pending_count > 0 then parts @ [Printf.sprintf "%d pending" pending_count] else parts in
+        let base =
+          Printf.sprintf "Build Log: %d nodes [%s] (duration: %.2fs)"
+            total (String.concat ", " parts) bl.bl_duration
+        in
+        if warning_nodes = [] then base
+        else
+          base ^ "\n  ⚠ Warnings in nodes: " ^ String.concat ", " warning_nodes
     | VInt n -> string_of_int n
     | VFloat f -> string_of_float f
     | VBool b -> string_of_bool b
@@ -1010,6 +1059,7 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VInt _, TFloat -> true
 
   | VComputedNode _, TComputedNode -> true
+  | VBuildLog _, TCustom "BuildLog" -> true
   | VExpr _, TExpr -> true
   | VQuo _, TExpr -> true
 

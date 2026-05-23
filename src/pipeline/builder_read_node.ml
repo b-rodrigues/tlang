@@ -117,11 +117,36 @@ let read_standard_node_value cn =
     match Pmml_utils.read_pmml cn.cn_path with
     | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
     | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "onnx" then
+    (try
+       let session = Onnx_ffi.session_create cn.cn_path in
+       let input_names = Onnx_ffi.session_input_names session in
+       let output_names = Onnx_ffi.session_output_names session in
+       let input_width = Onnx_ffi.session_input_width session in
+       let meta = Onnx_ffi.session_metadata session in
+       VDict [
+         "model_type", VSymbol "^onnx";
+         "path", VString cn.cn_path;
+         "inputs", VList (Array.to_list input_names |> List.map (fun s -> (None, VString s)));
+         "outputs", VList (Array.to_list output_names |> List.map (fun s -> (None, VString s)));
+         "input_width", VInt input_width;
+         "metadata", VDict (List.map (fun (k, v) -> (k, VString v)) meta);
+       ]
+     with _ -> VComputedNode cn)
   else
     VComputedNode cn
 
 let read_logged_node_value name cn =
-  if cn.cn_runtime = "T"
+  let noop_build_detected =
+    if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
+      let noop_path = Filename.concat (Filename.dirname cn.cn_path) "NOOPBUILD" in
+      Sys.file_exists noop_path
+    else
+      false
+  in
+  if noop_build_detected then
+    Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read node `%s` from `%s`: this node was skipped (noop=true) or was a downstream dependency of a skipped node, so no output artifact was created." name cn.cn_path)
+  else if cn.cn_runtime = "T"
      && cn.cn_serializer = "default"
   then
     (match Serialization.deserialize_from_file cn.cn_path with
@@ -147,6 +172,23 @@ let read_logged_node_value name cn =
     (match Pmml_utils.read_pmml cn.cn_path with
      | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
      | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read PMML node `%s` from `%s`: %s" name cn.cn_path msg))
+  else if cn.cn_serializer = "onnx" then
+    (try
+       let session = Onnx_ffi.session_create cn.cn_path in
+       let input_names = Onnx_ffi.session_input_names session in
+       let output_names = Onnx_ffi.session_output_names session in
+       let input_width = Onnx_ffi.session_input_width session in
+       let meta = Onnx_ffi.session_metadata session in
+       VDict [
+         "model_type", VSymbol "^onnx";
+         "path", VString cn.cn_path;
+         "inputs", VList (Array.to_list input_names |> List.map (fun s -> (None, VString s)));
+         "outputs", VList (Array.to_list output_names |> List.map (fun s -> (None, VString s)));
+         "input_width", VInt input_width;
+         "metadata", VDict (List.map (fun (k, v) -> (k, VString v)) meta);
+       ]
+     with exn ->
+       Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read ONNX node `%s` from `%s`: %s" name cn.cn_path (Printexc.to_string exn)))
   else
     VComputedNode cn
 

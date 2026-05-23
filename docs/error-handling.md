@@ -82,6 +82,11 @@ prnt(42)
 - Levenshtein distance-based suggestions
 - Searches current scope and standard library
 - Case-insensitive suggestions
+- **Reserved Keyword & Built-in Protection**: Prevents overwriting core standard library functions or keywords (such as `build_log` or `print`), triggering a `NameError` if assignment (`=`) or reassignment (`:=`) is attempted:
+  ```t
+  print = 42
+  -- Error(NameError: Cannot overwrite print: it's a reserved keyword!)
+  ```
 
 ### 3. Value Errors
 
@@ -194,10 +199,68 @@ is_error(result)        -- true
 error_code(result)      -- "DivisionByZero"
 
 -- Get error message
-error_message(result)   -- "Division by zero"
+error_msg(result)   -- "Division by zero"
 
 -- Get additional context
 error_context(result)   -- Stack trace or additional info
+```
+
+#### Polymorphic Error Inspection on Pipeline Nodes
+
+The standard error functions (`error_code`, `error_msg`, and `error_context`) are **polymorphic** and can also be called directly on pipeline `ComputedNode` variables (e.g., `p.X` or `p.combined_df`). 
+
+* **For soft-failed nodes** (where a node built successfully but captured a runtime error/`VError`), these functions automatically resolve and read the detailed `VError` artifact from the Nix store.
+* **For hard-failed nodes** (where a node crashed the Nix build itself and wrote no output path), these functions automatically fall back to parsing the full traceback and error code stored in the latest JSON build logs in `_pipeline/`.
+
+This allows direct programmatic inspection of pipeline failures without manually opening log files:
+```t
+-- Direct inspection of a failed node's error code and message
+error_code(p.X)         -- "RuntimeError"
+error_msg(p.X)      -- "NameError: name 'dataset_n' is not defined"
+
+-- Inspecting a hard-failed nix-build node
+error_msg(p.combined_df)  -- Full multi-line Python/Arrow traceback
+```
+
+
+### Composing and Chaining Errors
+
+T provides powerful primitives to analyze exceptions/diagnostics and preserve their provenance:
+
+#### 1. `collect_exceptions(pipeline)`
+Converts all terminal errors and warning diagnostics from computed nodes of a built pipeline into a structured four-column `DataFrame` (`node`, `status`, `code`, and `message`), allowing you to inspect and filter multiple pipeline issues.
+
+To keep the printed output clean and readable:
+* **Traceback Truncation**: `collect_exceptions` automatically extracts the **last non-empty line** of multi-line tracebacks (like Python or Arrow error messages) to preserve the actual error class and message, and caps the text length at `100` characters.
+* **Polars-Style Cell Truncation**: When pretty-printing any `DataFrame` in the REPL, all string cells exceeding `35` characters are truncated to `32` characters followed by `...` (Polars-style) to prevent wide/broken columns.
+
+> [!NOTE]
+> Even if a build fails, **the build log is written unconditionally** to the `_pipeline/` directory. This guarantees that `collect_exceptions(pipeline)` can extract the exact traceback and error code of failed nodes, and retrieve warnings for successfully built nodes.
+
+
+```t
+exceptions_df = collect_exceptions(my_pipeline)
+
+-- exceptions_df can now be processed with colcraft verbs:
+exceptions_df |> filter($status == "Warning")
+```
+
+##### Explaining Collected Exceptions
+
+T's built-in `explain()` function has specialized support for `collect_exceptions` DataFrames:
+- **Direct Explanation (1 exception)**: If there is exactly one exception row in the DataFrame, calling `explain(exceptions_df)` will automatically map to that diagnostic exception and return a structured dictionary explaining the exact error or warning details (containing the originating node, diagnostic code, and description message).
+- **Consolidated Explanation (multiple exceptions)**: If there are zero or multiple exceptions, calling `explain(exceptions_df)` returns a structured representation of the exception collection itself (`exceptions_list`), with a `count` property and an `exceptions` list containing the mapped explanation of each individual diagnostic element.
+
+
+#### 2. `error_chain(err1, err2)`
+Preserves the causal chain of multiple failures. Chaining sets `err2` as the `"cause"` in `err1`'s context, maintaining complete traceback and causation history:
+
+```t
+err_low_level = error("KeyError", "Key 'id' not found")
+err_high_level = error("ValueError", "Validation failed")
+
+chained = error_chain(err_high_level, err_low_level)
+error_context(chained)$cause  -- returns err_low_level
 ```
 
 ### Error Propagation
@@ -210,7 +273,7 @@ step2 = step1 + 10               -- Still error (no computation)
 step3 = step2 * 2                -- Still error
 
 is_error(step3)                  -- true
-error_message(step3)             -- "Division by zero"
+error_msg(step3)             -- "Division by zero"
 ```
 
 ---
@@ -260,7 +323,7 @@ error("fail") ?|> \(x)
 -- Recovery pattern
 result = risky_operation()
   ?|> \(x) if (is_error(x)) {
-    print(str_join(["Error occurred: ", error_message(x)]))
+    print(str_join(["Error occurred: ", error_msg(x)]))
     default_value
   } else {
     x
@@ -357,7 +420,7 @@ process_value = \(v)
 safe_process = \(v)
   process_value(v) ?|> \(result)
     if (is_error(result)) {
-      print(str_sprintf("Invalid value: %s", error_message(result)))
+      print(str_sprintf("Invalid value: %s", error_msg(result)))
       0  -- Default
     } else {
       result
@@ -373,7 +436,7 @@ safe_process(10)   -- Returns 20
 -- Log errors and continue
 logged_operation = risky_function()
   ?|> \(x) if (is_error(x)) {
-    write_log(str_sprintf("Error in risky_function: %s", error_message(x)))
+    write_log(str_sprintf("Error in risky_function: %s", error_msg(x)))
     x  -- Pass error along
   } else {
     x
@@ -392,7 +455,7 @@ process_many = \(items)
   map(items, \(item)
     process_item(item) ?|> \(result)
       if (is_error(result))
-        {success: false, error: error_message(result)}
+        {success: false, error: error_msg(result)}
       else
         {success: true, value: result}
   )
@@ -436,10 +499,27 @@ risky_calc() ?|> enhance_error
 
 In T-Lang, the materialization of a pipeline is a separate phase from the logic execution. When a node in a pipeline fails, it doesn't necessarily halt the entire build.
 
-### Hard-Fail vs. Soft-Fail
+### Pipeline Node Statuses & Failure Modes
 
-1.  **Hard-Fail**: Occurs when the environment or system fails (e.g., missing dependencies, Nix build errors, out-of-memory). The build stops immediately and no artifacts are produced.
-2.  **Soft-Fail (Captured Error)**: Occurs when the node's internal code (T, Python, or R) raises an error. The node produces a `VError` artifact instead of the expected data. The pipeline build **continues**, allowing other independent branches to complete.
+When you run `build_pipeline(p)` and inspect the build log using `build_log(p) |> build_log_to_frame()`, each node in the pipeline is marked with a distinct execution status. 
+
+| Node Status | Did it execute? | Did it fail? | Pipeline Impact | Description & Cause |
+| :--- | :---: | :---: | :--- | :--- |
+| **`Completed`** | Yes | No | **Success** (propagates data) | The node ran successfully and serialized its output artifact. |
+| **`Completed with error`** (Soft-Fail) | Yes | **Yes (Soft)** | **Continues** (propagates error) | The script ran inside the sandbox but raised a user-space exception. T-Lang captures this as a first-class `VError` value so independent branches can still build. |
+| **`Errored`** (Hard-Fail) | Yes | **Yes (Hard)** | **Aborts Build** | The sandbox execution crashed entirely or exited with a non-zero code (e.g., syntax errors, missing packages, memory exhaustion). |
+| **`Skipped`** | **No** | No | **Bypassed** | The node was never evaluated or executed because an upstream dependency suffered a hard `Errored` failure. |
+
+#### Detailed Failure Mechanics
+
+1. **Why `Completed with error` propagates downstream:**
+   Because T-Lang treats errors as first-class values, a soft-failure is saved as a normal serialized directory outcome. Downstream nodes are still scheduled to run, receive the `VError` as input, and automatically propagate it further down the pipe unless you explicitly recover from it.
+
+2. **Why `Errored` halts downstream execution:**
+   When a node suffers a hard `Errored` nix-build failure, the Nix daemon immediately stops evaluating that branch. No output directory is produced, and the entire build process terminates.
+
+3. **Why subsequent nodes are marked `Skipped`:**
+   Because the build aborted early, any downstream nodes that rely on the failed node are never invoked. They do not contain any errors themselves; they are simply bypassed entirely and marked as `Skipped` to provide a clean, accurate picture of the pipeline state.
 
 ### The Build Summary
 
@@ -734,7 +814,7 @@ assert(is_error(risky_function(-1)))
 ```t
 production_pipeline = pipeline {
   data = read_csv("data.csv") ?|> \(x) if (is_error(x)) {
-    write_log(str_sprintf("CRITICAL: Failed to load data: %s", error_message(x)))
+    write_log(str_sprintf("CRITICAL: Failed to load data: %s", error_msg(x)))
     x
   } else x
   
@@ -779,7 +859,7 @@ result = risky_operation()
 
 if (is_error(result)) {
   print(str_sprintf("Error code: %s", error_code(result)))
-  print(str_sprintf("Error message: %s", error_message(result)))
+  print(str_sprintf("Error message: %s", error_msg(result)))
   print(str_sprintf("Error context: %s", error_context(result)))
 }
 ```

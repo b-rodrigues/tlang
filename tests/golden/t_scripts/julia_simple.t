@@ -11,4 +11,4 @@ if (is_error(res)) {
   print(read_log("calc"))
   exit(1)
 }
-write_csv(read_node("calc"), "tests/golden/t_outputs/julia_simple.csv")
+write_csv(read_node(p.calc), "tests/golden/t_outputs/julia_simple.csv")

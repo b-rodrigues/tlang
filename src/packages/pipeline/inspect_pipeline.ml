@@ -1,35 +1,113 @@
 open Ast
 
 (*
---# Inspect Pipeline Logs
+--# Inspect Pipeline Schema (Static)
 --#
---# Reads the latest (or specified) build log and returns a DataFrame showing the pipeline status.
+--# Returns a DataFrame outlining the static compile-time configuration of the pipeline.
 --#
 --# @name inspect_pipeline
---# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
---# @return :: DataFrame A DataFrame with columns = derivation, build_success, path, output.
+--# @param p :: Pipeline The pipeline to inspect statically.
+--# @return :: DataFrame A DataFrame with columns = node, runtime, serializer, dependencies, has_script.
 --# @family pipeline
 --# @export
 *)
 let register env =
-  let inspect_fn named_args _env =
-    let get_arg name pos default named_args =
-      match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
+  let inspect_fn named_args env =
+    let extract_arg name pos default args =
+      match List.assoc_opt (Some name) args with
       | Some v -> v
       | None ->
-          let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
+          let positionals = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
           if List.length positionals >= pos then List.nth positionals (pos - 1)
           else default
     in
-    match get_arg "which_log" 1 (VNA NAGeneric) named_args with
+    let p_val =
+      match extract_arg "p" 1 (VNA NAGeneric) named_args with
+      | VNA _ ->
+          (* Fallback: scan environment for a pipeline *)
+          (match Env.fold (fun _k val_v acc ->
+             match val_v with
+             | VPipeline _ as vp -> Some vp
+             | _ -> acc
+           ) env None with
+           | Some vp -> vp
+           | None -> VNA NAGeneric)
+      | other -> other
+    in
+    match p_val with
+    | VPipeline p ->
+        let nodes_list = p.p_nodes in
+        let nrows = List.length nodes_list in
+        let arr_nodes = Array.init nrows (fun i -> let (name, _) = List.nth nodes_list i in Some name) in
+        let arr_runtimes = Array.init nrows (fun i ->
+          let (name, _) = List.nth nodes_list i in
+          Some (match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "Unknown")
+        ) in
+        let arr_serializers = Array.init nrows (fun i ->
+          let (name, _) = List.nth nodes_list i in
+          Some (match List.assoc_opt name p.p_serializers with
+                | Some expr -> Nix_unparse.unparse_expr expr
+                | None -> "Unknown")
+        ) in
+        let arr_dependencies = Array.init nrows (fun i ->
+          let (name, _) = List.nth nodes_list i in
+          let deps = match List.assoc_opt name p.p_deps with Some ds -> ds | None -> [] in
+          Some (String.concat ", " deps)
+        ) in
+        let arr_has_script = Array.init nrows (fun i ->
+          let (name, _) = List.nth nodes_list i in
+          let has_sc = match List.assoc_opt name p.p_scripts with Some (Some _) -> true | _ -> false in
+          Some has_sc
+        ) in
+        let columns = [
+          ("node", Arrow_table.StringColumn arr_nodes);
+          ("runtime", Arrow_table.StringColumn arr_runtimes);
+          ("serializer", Arrow_table.StringColumn arr_serializers);
+          ("dependencies", Arrow_table.StringColumn arr_dependencies);
+          ("has_script", Arrow_table.BoolColumn arr_has_script);
+        ] in
+        let arrow_table = Arrow_table.create columns nrows in
+        VDataFrame { arrow_table; group_keys = [] }
+    | other ->
+        Error.type_error (Printf.sprintf "inspect_pipeline: expected a Pipeline, but got %s." (Utils.type_name other))
+  in
+  let env = Env.add "inspect_pipeline" (make_builtin_named ~name:"inspect_pipeline" ~variadic:true 1 inspect_fn) env in
+
+  (*
+  --# Inspect Pipeline Logs (Dynamic)
+  --#
+  --# Reads the latest (or specified) build log and returns a DataFrame showing the pipeline status.
+  --#
+  --# @name inspect_log
+  --# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
+  --# @return :: DataFrame A DataFrame with columns = derivation, build_success, path, output.
+  --# @family pipeline
+  --# @export
+  *)
+  let inspect_log_fn named_args _env =
+    let extract_arg name pos default args =
+      match List.assoc_opt (Some name) args with
+      | Some v -> v
+      | None ->
+          let positionals = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
+          if List.length positionals >= pos then List.nth positionals (pos - 1)
+          else default
+    in
+    let first_arg = extract_arg "p" 1 (VNA NAGeneric) named_args in
+    let (_p_opt, which_log_arg) =
+      match first_arg with
+      | VPipeline p -> (Some p, extract_arg "which_log" 2 (VNA NAGeneric) named_args)
+      | _other -> (None, extract_arg "which_log" 1 (VNA NAGeneric) named_args)
+    in
+    match which_log_arg with
     | VNA _ ->
         Builder.inspect_pipeline ()
     | VString s ->
         Builder.inspect_pipeline ~which_log:s ()
     | _ ->
-        Error.type_error "inspect_pipeline: expected String or NA for argument 'which_log'"
+        Error.type_error "inspect_log: expected String or NA for argument 'which_log'"
   in
-  let env = Env.add "inspect_pipeline" (make_builtin_named ~name:"inspect_pipeline" ~variadic:true 0 inspect_fn) env in
+  let env = Env.add "inspect_log" (make_builtin_named ~name:"inspect_log" ~variadic:true 0 inspect_log_fn) env in
 
   (*
   --# List Pipeline Logs

@@ -37,6 +37,18 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "rm list arg" {|a = 1; b = 2; vars = ["a", "b"]; rm(list = vars); a = 10; b = 20; a + b|} "30";
   test "rm removed variable is unbound" "x = 1; rm(x); x"
     "Error(NameError: \"[L1:C15] Name `x` is not defined.\nDid you mean `n`?\")";
+
+  (* Reserved keyword overwrite protection *)
+  test "assign to reserved keyword build_log" "build_log = 42"
+    {|Error(NameError: "[L1:C1] Cannot overwrite build_log: it's a reserved keyword!")|};
+  test "overwrite reserved keyword build_log with :=" "build_log := 42"
+    {|Error(NameError: "[L1:C1] Cannot overwrite build_log: it's a reserved keyword!")|};
+  test "assign to reserved keyword print" "print = 42"
+    {|Error(NameError: "[L1:C1] Cannot overwrite print: it's a reserved keyword!")|};
+  test "overwrite reserved keyword print with :=" "print := 42"
+    {|Error(NameError: "[L1:C1] Cannot overwrite print: it's a reserved keyword!")|};
+  test "rm then try to assign to reserved keyword" "rm(print); print = 42"
+    {|Error(NameError: "[L1:C17] Cannot overwrite print: it's a reserved keyword!")|};
   print_newline ();
 
   Printf.printf "Phase 8 — Core Semantics: Function edge cases:\n";

@@ -32,7 +32,7 @@ t_write_json([
   _display_keys: ["class", "backend", "title", "mapping", "labels", "layers"]
 ], path_join(matplotlib_dir, "viz"))
 
-build_log = [
+mock_build_log = [
   timestamp: "20260413-plot-meta",
   hash: "plotmeta",
   out_path: "/tmp",
@@ -55,10 +55,15 @@ build_log = [
     ]
   ]
 ]
-t_write_json(build_log, "_pipeline/build_log_plot_metadata.json")
+t_write_json(mock_build_log, "_pipeline/build_log_plot_metadata.json")
 
-g = read_node("ggplot_meta", which_log = "plot_metadata")
-m = read_node("matplotlib_meta", which_log = "plot_metadata")
+p = pipeline {
+  ggplot_meta = node(command = <{ 1 }>)
+  matplotlib_meta = node(command = <{ 2 }>)
+}
+
+g = read_node(p.ggplot_meta, which_log = "plot_metadata")
+m = read_node(p.matplotlib_meta, which_log = "plot_metadata")
 
 result = to_dataframe([
   class: [g.class, m.class],

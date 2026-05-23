@@ -34,17 +34,17 @@
 </nav>
 <div class="container">
 <h1 id="inspect_pipeline">inspect_pipeline</h1>
-<p>Inspect Pipeline Logs</p>
-<p>Reads the latest (or specified) build log and returns a DataFrame
-showing the pipeline status.</p>
+<p>Inspect Pipeline Schema (Static)</p>
+<p>Returns a DataFrame outlining the static compile-time configuration
+of the pipeline.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>which_log</strong> (<code>String</code>): (Optional) A regex
-pattern to match a specific build log filename.</li>
+<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to inspect
+statically.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A DataFrame with columns = derivation, build_success, path,
-output.</p>
+<p>A DataFrame with columns = node, runtime, serializer, dependencies,
+has_script.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

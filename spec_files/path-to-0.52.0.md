@@ -112,7 +112,7 @@ This document outlines the step-by-step evolution of the T language from the cur
 **Objective**: Finalize the **v0.52.0 "Kaméhaméha"** release with full Julia integration and final ecosystem polish.
 
 - [ ] **Julia First-Class Support**:
-    - [ ] **Julia Node (`jn()`)**: Specialized pipeline node for Julia scripts.
+    - [ ] **Julia Node (`jln()`)**: Specialized pipeline node for Julia scripts.
     - [ ] **Zero-Copy Arrow Interchange**: Shared memory data transfer between Julia and T.
 
 - [ ] **Language Interop Guide**: Expansion with final polyglot examples and deployment strategies.

@@ -29,7 +29,7 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 
 ## Returns
 
-The evaluated return value of the command.
+A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the shell command is executed by the pipeline builder, not immediately.
 
 ## See Also
 

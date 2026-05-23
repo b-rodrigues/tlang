@@ -1,20 +1,22 @@
 
-let run_tests pass_count fail_count _failures eval_string _eval_string_env test =
+let run_tests pass_count fail_count _failures eval_string eval_string_env test =
   Printf.printf "Phase 1 — Structured Errors:\n";
   test "error() constructor" {|error("something went wrong")|} {|Error(GenericError: "something went wrong")|};
   test "error() with code" {|error("TypeError", "expected Int")|} {|Error(TypeError: "expected Int")|};
   test "error() with StructuralError" {|error("StructuralError", "broken DAG")|} {|Error(StructuralError: "broken DAG")|};
   test "error_code()" "error_code(1 / 0)" {|"DivisionByZero"|};
-  test "error_message()" "error_message(1 / 0)" {|"Division by zero."|};
+  test "error_msg()" "error_msg(1 / 0)" {|"Division by zero."|};
   test "error_context() empty" "error_context(1 / 0)" "{}";
   test "is_error on constructed error" {|is_error(error("oops"))|} "true";
   test "error_code on type error" {|error_code(error("TypeError", "bad type"))|} {|"TypeError"|};
   test "error_code on non-error" "error_code(42)" {|Error(TypeError: "Function `error_code` expects an Error value.")|};
-  test "error_message on non-error" {|error_message("hello")|} {|Error(TypeError: "Function `error_message` expects an Error value.")|};
+  test "error_msg on non-error" {|error_msg("hello")|} {|Error(TypeError: "Function `error_msg` expects an Error value.")|};
   test "error_context on non-error" "error_context(42)" {|Error(TypeError: "Function `error_context` expects an Error value.")|};
   test "error_code arity error" "error_code()" {|Error(ArityError: "Function `error_code` expects 1 arguments but received 0.")|};
-  test "error_message arity error" "error_message()" {|Error(ArityError: "Function `error_message` expects 1 arguments but received 0.")|};
+  test "error_msg arity error" "error_msg()" {|Error(ArityError: "Function `error_msg` expects 1 arguments but received 0.")|};
   test "error_context arity error" "error_context()" {|Error(ArityError: "Function `error_context` expects 1 arguments but received 0.")|};
+  test "warning_msg on non-computed node" {|warning_msg("hello")|} {|Error(TypeError: "Function `warning_msg` expects a ComputedNode.")|};
+  test "warning_msg arity error" "warning_msg()" {|Error(ArityError: "Function `warning_msg` expects 1 arguments but received 0.")|};
   let located_error =
     Ast.make_error
       ~location:{ Ast.file = Some "script.t"; line = 12; column = 5 }
@@ -195,4 +197,21 @@ Use '.+' for element-wise (broadcast) operations.")|};
   test "lambda arity error shows params" "f = \\(a, b) a + b; f(1)" {|Error(ArityError: "Function expects 2 arguments but received 1.")|};
   test "lambda arity error shows single param" "f = \\(x) x; f(1, 2)" {|Error(ArityError: "Function expects 1 arguments but received 2.")|};
   test "builtin arity error shows count" "length(1, 2)" {|Error(ArityError: "Function `length` expects 1 arguments but received 2.")|};
+  print_newline ();
+
+  Printf.printf "Phase 8 — Error Composition:\n";
+  let e1 = Ast.make_error Ast.ValueError "outer" in
+  let e2 = Ast.make_error Ast.KeyError "inner" in
+  let env0 = Packages.init_env () in
+  let env2 = Ast.Env.add "e1" e1 (Ast.Env.add "e2" e2 env0) in
+
+  let (v_chain, _) = eval_string_env "error_msg(error_context(error_chain(e1, e2)).cause)" env2 in
+  if Ast.Utils.value_to_string v_chain = {|"inner"|} then begin
+    incr pass_count;
+    Printf.printf "  ✓ error_chain links two errors\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ error_chain links two errors\n    Expected: \"inner\"\n    Got: %s\n" (Ast.Utils.value_to_string v_chain)
+  end;
+
   print_newline ()

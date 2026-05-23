@@ -19,7 +19,7 @@ open Ast
 --# @export
 *)
 let register env =
-  let populate_fn named_args _env =
+  let populate_fn named_args env =
     let get_arg name pos default named_args =
       match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
       | Some v -> (true, v)
@@ -64,7 +64,29 @@ let register env =
          | _, Error e -> e
          | Ok build, Ok verbose ->
                match Builder.populate_pipeline ~build ?verbose p with
-               | Ok out -> VString out
+               | Ok out ->
+                   if build then (
+                     let var_name =
+                       match Env.fold (fun k val_v acc ->
+                         match val_v with
+                         | VPipeline p' when p'.p_exprs = p.p_exprs -> Some k
+                         | _ -> acc
+                       ) env None with
+                       | Some name -> name
+                       | None -> "p"
+                     in
+                     let first_node =
+                       match p.p_nodes with
+                       | (name, _) :: _ -> name
+                       | [] -> "my_node"
+                     in
+                     Printf.printf "\nPipeline successfully built!\n";
+                     Printf.printf "  - Pipeline saved in variable '%s'\n" var_name;
+                     Printf.printf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
+                     Printf.printf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
+                     Printf.printf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name
+                   );
+                   VString out
                | Error msg -> Error.make_error StructuralError msg)
       | _ ->
           Error.type_error "Function `populate_pipeline` expects a Pipeline."
