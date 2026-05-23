@@ -149,23 +149,7 @@ let register env =
   let inspect_fn named_args _env =
     match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
-        let cn =
-          if cn.cn_path = "<unbuilt>" || cn.cn_path = "" || cn.cn_class = "Unknown"
-          then
-            match Builder.latest_logged_computed_node cn.cn_name with
-            | Some logged_cn ->
-                let cn_path =
-                  if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
-                  then logged_cn.cn_path
-                  else cn.cn_path
-                in
-                let cn_class =
-                  if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class
-                in
-                { cn with cn_path; cn_class }
-            | None -> cn
-          else cn
-        in
+        let cn = !Ast.computed_node_resolver cn in
         VDict [
           ("name", VString cn.cn_name);
           ("runtime", VString cn.cn_runtime);
@@ -235,31 +219,29 @@ let register env =
       | VError _ -> None
       | v -> Some v);
     Ast.computed_node_resolver := (fun cn ->
-      if cn.cn_path = "<unbuilt>" || cn.cn_path = "" || cn.cn_class = "Unknown"
-      then
-        match Builder.latest_logged_computed_node cn.cn_name with
-        | Some logged_cn ->
-            let cn_path =
-              if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
-              then logged_cn.cn_path
-              else cn.cn_path
-            in
-            let cn_class =
-              if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class
-            in
-            let cn_runtime =
-              if cn.cn_runtime = "T" || cn.cn_runtime = ""
-              then logged_cn.cn_runtime
-              else cn.cn_runtime
-            in
-            let cn_serializer =
-              if cn.cn_serializer = "default" || cn.cn_serializer = ""
-              then logged_cn.cn_serializer
-              else cn.cn_serializer
-            in
-            { cn with cn_path; cn_class; cn_runtime; cn_serializer }
-        | None -> cn
-      else cn)
+      match Builder.latest_logged_computed_node cn.cn_name with
+      | Some logged_cn ->
+          let cn_class =
+            if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class
+          in
+          let cn_path =
+            if logged_cn.cn_path = "" then ""
+            else if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
+            then logged_cn.cn_path
+            else cn.cn_path
+          in
+          let cn_runtime =
+            if cn.cn_runtime = "T" || cn.cn_runtime = ""
+            then logged_cn.cn_runtime
+            else cn.cn_runtime
+          in
+          let cn_serializer =
+            if cn.cn_serializer = "default" || cn.cn_serializer = ""
+            then logged_cn.cn_serializer
+            else cn.cn_serializer
+          in
+          { cn with cn_path; cn_class; cn_runtime; cn_serializer }
+      | None -> cn)
   in
 
 (*

@@ -205,20 +205,52 @@ error_message(result)   -- "Division by zero"
 error_context(result)   -- Stack trace or additional info
 ```
 
+#### Polymorphic Error Inspection on Pipeline Nodes
+
+The standard error functions (`error_code`, `error_message`, and `error_context`) are **polymorphic** and can also be called directly on pipeline `ComputedNode` variables (e.g., `p.X` or `p.combined_df`). 
+
+* **For soft-failed nodes** (where a node built successfully but captured a runtime error/`VError`), these functions automatically resolve and read the detailed `VError` artifact from the Nix store.
+* **For hard-failed nodes** (where a node crashed the Nix build itself and wrote no output path), these functions automatically fall back to parsing the full traceback and error code stored in the latest JSON build logs in `_pipeline/`.
+
+This allows direct programmatic inspection of pipeline failures without manually opening log files:
+```t
+-- Direct inspection of a failed node's error code and message
+error_code(p.X)         -- "RuntimeError"
+error_message(p.X)      -- "NameError: name 'dataset_n' is not defined"
+
+-- Inspecting a hard-failed nix-build node
+error_message(p.combined_df)  -- Full multi-line Python/Arrow traceback
+```
+
+
 ### Composing and Chaining Errors
 
-T provides powerful primitives to analyze collections of errors and preserve their provenance:
+T provides powerful primitives to analyze exceptions/diagnostics and preserve their provenance:
 
-#### 1. `error_summary(errors)`
-Converts a list of `Error` values into a structured `DataFrame` (containing columns `node`, `code`, `message`, and `runtime`), allowing you to analyze, filter, and report on multiple failures:
+#### 1. `collect_exceptions(pipeline)`
+Converts all terminal errors and warning diagnostics from computed nodes of a built pipeline into a structured four-column `DataFrame` (`node`, `status`, `code`, and `message`), allowing you to inspect and filter multiple pipeline issues.
+
+To keep the printed output clean and readable:
+* **Traceback Truncation**: `collect_exceptions` automatically extracts the **last non-empty line** of multi-line tracebacks (like Python or Arrow error messages) to preserve the actual error class and message, and caps the text length at `100` characters.
+* **Polars-Style Cell Truncation**: When pretty-printing any `DataFrame` in the REPL, all string cells exceeding `35` characters are truncated to `32` characters followed by `...` (Polars-style) to prevent wide/broken columns.
+
+> [!NOTE]
+> Even if a build fails, **the build log is written unconditionally** to the `_pipeline/` directory. This guarantees that `collect_exceptions(pipeline)` can extract the exact traceback and error code of failed nodes, and retrieve warnings for successfully built nodes.
+
 
 ```t
-errors = collect_errors(my_pipeline)
-summary_df = error_summary(errors)
+exceptions_df = collect_exceptions(my_pipeline)
 
--- summary_df can now be processed with colcraft verbs:
-summary_df |> filter($runtime == "Python")
+-- exceptions_df can now be processed with colcraft verbs:
+exceptions_df |> filter($status == "Warning")
 ```
+
+##### Explaining Collected Exceptions
+
+T's built-in `explain()` function has specialized support for `collect_exceptions` DataFrames:
+- **Direct Explanation (1 exception)**: If there is exactly one exception row in the DataFrame, calling `explain(exceptions_df)` will automatically map to that diagnostic exception and return a structured dictionary explaining the exact error or warning details (containing the originating node, diagnostic code, and description message).
+- **Consolidated Explanation (multiple exceptions)**: If there are zero or multiple exceptions, calling `explain(exceptions_df)` returns a structured representation of the exception collection itself (`exceptions_list`), with a `count` property and an `exceptions` list containing the mapped explanation of each individual diagnostic element.
+
 
 #### 2. `error_chain(err1, err2)`
 Preserves the causal chain of multiple failures. Chaining sets `err2` as the `"cause"` in `err1`'s context, maintaining complete traceback and causation history:

@@ -137,8 +137,10 @@ let register env =
                               Pipeline_script.reload_env_for_pipeline_entry
                                 ~filename:!filename program !env_ref
                             in
-                            (* We print the build header BEFORE evaluation so it's always first *)
+                            (* We print the build header BEFORE evaluation so it's always first.
+                               Flush stderr first so it appears before any stdout from the build. *)
                             Printf.eprintf "Starting build for project: %s\n%!" !filename;
+                            flush stdout;
 
                             let prev_warn = !Eval.show_warnings in
                             let (v, new_env) =
@@ -148,14 +150,18 @@ let register env =
                                   Eval.show_warnings := false;
                                   Eval.eval_program ~resilient:(not !failfast) program eval_env)
                             in
-                            
+
+                            (* Always save the environment bindings, even on build error.
+                               This ensures that the pipeline variable (e.g. `p`) remains
+                               accessible in the REPL after a partial build failure, so the
+                               user can still call inspect_pipeline(p), collect_exceptions(p), etc. *)
+                            env_ref :=
+                              Pipeline_script.remember_pipeline_entry_bindings
+                                ~filename:!filename program new_env;
+
                             match v with
                             | VError _ -> v
-                            | _ ->
-                                env_ref :=
-                                  Pipeline_script.remember_pipeline_entry_bindings
-                                    ~filename:!filename program new_env;
-                                (VNA NAGeneric))
+                            | _ -> (VNA NAGeneric))
                       with
                       | Lexer.SyntaxError msg ->
                           let pos = Lexing.lexeme_start_p lexbuf in

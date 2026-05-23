@@ -83,27 +83,30 @@ Start a new T session, build a simple pipeline, and inspect the build log values
   ```
   *Expected Output:* An Arrow-backed DataFrame with 2 rows (one for `x`, one for `y`) containing column headers `name`, `status`, and `duration`.
 
+- [ ] **Unified Build Log Saving on Failed Build**:
+  Build a pipeline containing a hard error in a node (e.g. `pyn` with a Python runtime exception) and verify that the build log is written to `_pipeline/` even when the build fails, permitting full diagnostics inspection:
+  ```t
+  p = pipeline { x = pyn(script = "raise ValueError('Test Failure')") }
+  build_pipeline(p) # Or t_make()
+  log = build_log(p)
+  print(log.failed_nodes)
+  ```
+  *Expected Output:* `log` is a valid `VBuildLog` record; `failed_nodes` is `["x"]`.
+
 ---
 
 ## 4. Error Composition Primitives 🧩
 
 Build a failing pipeline resiliently, then collect and chain the diagnostic errors:
 
-- [ ] **Error Collection from Failed DAG**:
+- [ ] **Collect Exceptions and Warnings from DAG (`collect_exceptions`)**:
   ```t
   p = pipeline { a = 1 / 0; b = a + 5 }
   build_pipeline(p)
-  errors = collect_errors(p)
-  print(length(errors))
+  exceptions = collect_exceptions(p)
+  pretty_print(exceptions)
   ```
-  *Expected Output:* `errors` is a `List` of length `2` containing structured `VError` objects for both `a` and `b`.
-
-- [ ] **Error Summary DataFrame**:
-  ```t
-  df_errs = error_summary(errors)
-  print(df_errs)
-  ```
-  *Expected Output:* A DataFrame with columns `node`, `code`, `message`, and `runtime` mapping the details of the soft failures.
+  *Expected Output:* A DataFrame with columns `node`, `status`, `code`, and `message` detailing the failures of both `a` and `b`.
 
 - [ ] **Explicit Error Chaining**:
   ```t

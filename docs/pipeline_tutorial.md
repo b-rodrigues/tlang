@@ -458,12 +458,36 @@ build_log_to_frame(log)
 -- DataFrame(2 rows x 3 cols: [name, status, duration])
 ```
 
-If you only want to quickly retrieve the actual error objects that caused nodes to soft-fail during the build, use `collect_errors()`:
+If you want to retrieve the actual exceptions and warnings that occurred during the build, use `collect_exceptions()`:
 
 ```t
-collect_errors(p)
--- A List of VError objects from all nodes that soft-failed.
+collect_exceptions(p)
+-- A DataFrame detailing exceptions and warnings with columns: node, status, code, message.
 ```
+
+Calling the built-in `explain()` function on the DataFrame returned by `collect_exceptions(p)` provides intelligent diagnostic feedback tailored to the number of exceptions present:
+- **Single Exception**: If there is exactly one row in the exception DataFrame, `explain()` directly maps to it, outputting a structured explanation of the failure or warning (including the originating node name, diagnostic code, and description message).
+- **Multiple Exceptions**: If there are zero or multiple rows, `explain()` returns an overarching `exceptions_list` dictionary showing the summary counts and a list mapping the individual structured explanation of each captured warning and error.
+
+#### Build Verbosity and Failed Build Resiliency
+
+By default, T builds are **quiet and minimalist** (`verbose = 0`), outputting only high-level status lines (e.g. `  + node_a building`, `  ✖ node_a failed`) without dumping detailed derivation logs or tracebacks to the terminal on failure.
+
+Even if a build fails, **the build log is written unconditionally** to the `_pipeline/` directory. This allows you to inspect the build status, retrieve exact error tracebacks, and parse warnings for all nodes. Furthermore, the pipeline variable (e.g., `p`) remains fully bound in the REPL; successfully compiled nodes can still be queried, while failed nodes can be diagnosed programmatically using `collect_exceptions(p)` and `explain()`.
+
+To stream detailed error tracebacks/logs directly to the terminal when a node fails, pass `verbose = 1` to the build or orchestrator:
+
+```t
+build_pipeline(p, verbose = 1)
+```
+
+Similarly, from the CLI or REPL:
+
+```t
+t_make(verbose = 1)
+```
+
+
 
 ### Inspecting logs
 Use `list_logs()` to see available build logs:

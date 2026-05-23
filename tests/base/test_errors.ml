@@ -200,9 +200,7 @@ Use '.+' for element-wise (broadcast) operations.")|};
   Printf.printf "Phase 8 — Error Composition:\n";
   let e1 = Ast.make_error Ast.ValueError "outer" in
   let e2 = Ast.make_error Ast.KeyError "inner" in
-  let err_list = Ast.VList [(None, e1); (None, e2)] in
   let env0 = Packages.init_env () in
-  let env1 = Ast.Env.add "errs" err_list env0 in
   let env2 = Ast.Env.add "e1" e1 (Ast.Env.add "e2" e2 env0) in
 
   let (v_chain, _) = eval_string_env "error_message(error_context(error_chain(e1, e2)).cause)" env2 in
@@ -214,30 +212,4 @@ Use '.+' for element-wise (broadcast) operations.")|};
     Printf.printf "  ✗ error_chain links two errors\n    Expected: \"inner\"\n    Got: %s\n" (Ast.Utils.value_to_string v_chain)
   end;
 
-  let (v_colnames, _) = eval_string_env "colnames(error_summary(errs))" env1 in
-  if Ast.Utils.value_to_string v_colnames = {|["node", "code", "message", "runtime"]|} then begin
-    incr pass_count;
-    Printf.printf "  ✓ error_summary constructs DataFrame from list\n"
-  end else begin
-    incr fail_count;
-    Printf.printf "  ✗ error_summary constructs DataFrame from list\n    Expected: [\"node\", \"code\", \"message\", \"runtime\"]\n    Got: %s\n" (Ast.Utils.value_to_string v_colnames)
-  end;
-
-  let (v_nrow, _) = eval_string_env "nrow(error_summary(errs))" env1 in
-  if Ast.Utils.value_to_string v_nrow = "2" then begin
-    incr pass_count;
-    Printf.printf "  ✓ error_summary extracts row counts\n"
-  end else begin
-    incr fail_count;
-    Printf.printf "  ✗ error_summary extracts row counts\n    Expected: 2\n    Got: %s\n" (Ast.Utils.value_to_string v_nrow)
-  end;
-
-  let (v_code, _) = eval_string_env "pull(error_summary(errs), \"code\")" env1 in
-  if Ast.Utils.value_to_string v_code = {|Vector["ValueError", "KeyError"]|} then begin
-    incr pass_count;
-    Printf.printf "  ✓ error_summary extracts values\n"
-  end else begin
-    incr fail_count;
-    Printf.printf "  ✗ error_summary extracts values\n    Expected: Vector[\"ValueError\", \"KeyError\"]\n    Got: %s\n" (Ast.Utils.value_to_string v_code)
-  end;
   print_newline ()

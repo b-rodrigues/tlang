@@ -1,7 +1,8 @@
 # T Language Reference (Huge - Full Documentation)
 
-
 This file is a concatenation of the entire T documentation for LLM context.
+
+
 
 # FILE: docs/index.md
 
@@ -2370,28 +2371,6 @@ error_context(e)  -- Additional debugging information
 
 ---
 
-### `error_summary(errors)`
-
-Converts a list of Error values into a DataFrame with columns `node`, `code`, `message`, and `runtime` for easier inspection, filtering, and analysis.
-
-**Parameters:**
-
-- `errors` — A List of Error values (such as the list returned by `collect_errors()`).
-
-**Returns:**
-
-`DataFrame` — A DataFrame containing columns `node`, `code`, `message`, and `runtime`.
-
-**Examples:**
-```t
-errors = collect_errors(p)
-summary_df = error_summary(errors)
--- Returns a DataFrame:
---   node       | code         | message                  | runtime
---   "bad_node" | "ValueError" | "Pipeline node..."       | "Python"
-```
-
----
 
 ### `error_chain(err1, err2)`
 
@@ -4377,7 +4356,7 @@ populate_pipeline(p, build = true)
 
 ---
 
-### `build_pipeline(pipeline)`
+### `build_pipeline(pipeline, verbose = 0)`
 
 Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
 
@@ -4385,6 +4364,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 
 
 - `pipeline` — Pipeline object
+- `verbose` (optional) — Int build verbosity level. Defaults to `0` (quiet/minimalist live-status output without dumping failed node trace logs). Set `verbose = 1` or higher to print detailed node stdout/stderr failures directly to the terminal on build error.
 
 **Returns:**
 
@@ -4443,13 +4423,48 @@ DataFrame with columns: `filename`, `mod_time`, `size_kb`.
 
 ---
 
+### `collect_exceptions(p)`
+
+Collects all terminal error exceptions and non-terminal warning diagnostics from the computed nodes of a built pipeline.
+
+**Parameters:**
+
+- `p` — The Pipeline object to collect diagnostics from.
+
+**Returns:**
+
+`DataFrame` — A DataFrame with columns `node`, `status`, `code`, and `message` detailing the exceptions and warnings across all nodes.
+
+**Examples:**
+```t
+p = pipeline { a = 1 / 0; b = a + 5 }
+build_pipeline(p)
+exceptions = collect_exceptions(p)
+-- Returns a DataFrame with:
+--   node | status  | code             | message
+--   "a"  | "Error" | "DivisionByZero" | "Division by zero"
+--   "b"  | "Error" | "UpstreamError"  | "Upstream dependency 'a' failed"
+```
+
+---
+
 ## Explain Package
 
 Introspection and LLM tooling.
 
 ### `explain(value)`
 
-Get detailed explanation of a value. For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `ncol`, and a `hint`. Detailed fields (`schema`, `na_stats`, `example_rows`) are accessible via dot notation. For pipeline node results returned by `read_node(...)`, `explain()` now returns a top-level node wrapper with `kind`, `node_name`, `diagnostics`, and `contents`. The `contents` field is the explained payload stored in the node. In the REPL and CLI `t explain ...`, explain output is shown with a tree-style formatter for readability, but the runtime value remains a normal `Dict`.
+Get detailed explanation of a value. 
+
+For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `ncol`, and a `hint`. Detailed fields (`schema`, `na_stats`, `example_rows`) are accessible via dot notation.
+
+**Specialized support for `collect_exceptions(p)` DataFrames**:
+If the input DataFrame is the diagnostics table returned by `collect_exceptions(p)` (detected via the columns `["node", "status", "code", "message"]`), `explain()` behaves as follows:
+- **Single Exception**: If the DataFrame contains exactly one row, calling `explain()` directly maps to that specific exception, returning a dictionary with keys `kind`, `type` (`"Error"` or `"Warning"`), `error_code`/`warning_code`, `error_message`/`warning_message`, and `node`.
+- **Multiple Exceptions**: If there are zero or multiple rows, `explain()` returns an overarching `exceptions_list` dictionary containing keys `kind`, `type`, `description`, `count`, and `exceptions` (a list of mapped explanation dictionaries for each diagnostic element).
+
+For pipeline node results returned by `read_node(...)`, `explain()` now returns a top-level node wrapper with `kind`, `node_name`, `diagnostics`, and `contents`. The `contents` field is the explained payload stored in the node. In the REPL and CLI `t explain ...`, explain output is shown with a tree-style formatter for readability, but the runtime value remains a normal `Dict`.
+
 
 **Parameters:**
 
@@ -5981,10 +5996,12 @@ This release finalizes end-to-end Julia ONNX serialization support, fixes pipeli
 ### Structured Build Logs & Observability
 - **Structured Build Logs (`build_log(p)`)**: Expose the underlying Nix build results as a `VBuildLog` record containing node-by-node details, total duration, and a list of failed nodes. `build_pipeline(p)` now returns a `BuildLog` value instead of a raw output-path string (use `build_pipeline(p).out_path` when you need the previous path value).
 - **Build Tabulation (`build_log_to_frame`)**: Added `build_log_to_frame(log)` to tabulate build results (one row per node) for high-level analysis using `colcraft` verbs.
-- **Error Collection (`collect_errors(p)`)**: Gathers all `VError` artifacts from a built pipeline into a `List`.
-- **Error Composition Primitives**:
-    - `error_summary(errors)`: Converts a list of errors into a queryable DataFrame (`node`, `code`, `message`, `runtime`).
-    - `error_chain(err1, err2)`: Chains multiple errors to preserve failure provenance and causality across dependent nodes.
+- **Exception Collection (`collect_exceptions(p)`)**: Gathers all `VError` values and warning diagnostics from computed nodes of a built pipeline into a structured DataFrame (`node`, `status`, `code`, `message`), replacing the legacy `collect_errors` and `error_summary` functions.
+- **Traceback cleaning in `collect_exceptions(p)`**: Automatically cleans and extracts the last non-empty line of multi-line error traces (such as from Python or Arrow exceptions) and truncates the string to 100 characters max, maintaining a neat, legible table in the REPL.
+- **Polymorphic error functions**: Made standard `error_code()`, `error_message()`, and `error_context()` builtins polymorphic. They now accept either standard `Error` objects or first-class pipeline `ComputedNode` values (e.g. `p.X` or `p.combined_df`). They automatically resolve the node's underlying `VError` store artifact for soft-failures, or fall back to parsing log traceback details for hard Nix-build failures.
+- **Upstream captured errors in `t_make()`**: Upon early termination/build crash, the Nix builder scans the store paths of completed upstream nodes to extract soft-failed diagnostic states, printing them directly in the final build failure summary (e.g. showing `(8 captured errors)` and listing their node names).
+- **Polars-Style DataFrame print truncation**: Tabular pretty-printing of all DataFrames in the REPL now automatically truncates cell strings exceeding `35` characters to `32` characters followed by `...` to keep columns aligned and clean.
+- **Error Chaining (`error_chain(err1, err2)`)**: Chains multiple errors to preserve failure provenance and causality across dependent nodes.
 
 ### Immutable Keyword & Built-in Overwrite Protection
 - **Reserved Keyword & Built-in Immutability**: Core built-ins and standard package functions (such as `build_log`, `print`, `mean`, etc.) are now strictly protected against accidental user reassignment or overwriting.
@@ -6002,6 +6019,11 @@ This release finalizes end-to-end Julia ONNX serialization support, fixes pipeli
 ### End-to-End Stress Testing & CI
 - **Polyglot Parity Scoring**: Added the `onnx_julia_stress_t` and `observability_hardening_t` end-to-end stress test suites to verify prediction parity, safety safeguards, and observability logs.
 - **Automated Workflows**: Created premium automated GitHub Actions CI workflows to run these suites on PR and push events.
+
+### Documentation Corrections
+- **Removed `jn()` alias**: Eliminated the undocumented `jln()` alias `jn()` from the evaluator, tests, and all documentation. Use `jln()` exclusively for Julia pipeline nodes.
+- **Corrected Node-Family `Returns` docs**: All node-defining functions (`node`, `rn`, `pyn`, `jln`, `qn`, `shn`) now correctly document their return type as a `NodeDef` pipeline node configuration object, not the evaluated result of the enclosed code. The code is executed by `build_pipeline()`, not immediately.
+- **Corrected `jln` serializer default**: Documentation previously stated the default serializer was `^csv`; the actual default is the runtime-native binary serializer (`jl_serialize`), consistent with `rn` and `pyn`.
 
 ## [0.52.0] "Kaméhaméha" - 2026-05-18
 
@@ -9207,20 +9229,52 @@ error_message(result)   -- "Division by zero"
 error_context(result)   -- Stack trace or additional info
 ```
 
+#### Polymorphic Error Inspection on Pipeline Nodes
+
+The standard error functions (`error_code`, `error_message`, and `error_context`) are **polymorphic** and can also be called directly on pipeline `ComputedNode` variables (e.g., `p.X` or `p.combined_df`). 
+
+* **For soft-failed nodes** (where a node built successfully but captured a runtime error/`VError`), these functions automatically resolve and read the detailed `VError` artifact from the Nix store.
+* **For hard-failed nodes** (where a node crashed the Nix build itself and wrote no output path), these functions automatically fall back to parsing the full traceback and error code stored in the latest JSON build logs in `_pipeline/`.
+
+This allows direct programmatic inspection of pipeline failures without manually opening log files:
+```t
+-- Direct inspection of a failed node's error code and message
+error_code(p.X)         -- "RuntimeError"
+error_message(p.X)      -- "NameError: name 'dataset_n' is not defined"
+
+-- Inspecting a hard-failed nix-build node
+error_message(p.combined_df)  -- Full multi-line Python/Arrow traceback
+```
+
+
 ### Composing and Chaining Errors
 
-T provides powerful primitives to analyze collections of errors and preserve their provenance:
+T provides powerful primitives to analyze exceptions/diagnostics and preserve their provenance:
 
-#### 1. `error_summary(errors)`
-Converts a list of `Error` values into a structured `DataFrame` (containing columns `node`, `code`, `message`, and `runtime`), allowing you to analyze, filter, and report on multiple failures:
+#### 1. `collect_exceptions(pipeline)`
+Converts all terminal errors and warning diagnostics from computed nodes of a built pipeline into a structured four-column `DataFrame` (`node`, `status`, `code`, and `message`), allowing you to inspect and filter multiple pipeline issues.
+
+To keep the printed output clean and readable:
+* **Traceback Truncation**: `collect_exceptions` automatically extracts the **last non-empty line** of multi-line tracebacks (like Python or Arrow error messages) to preserve the actual error class and message, and caps the text length at `100` characters.
+* **Polars-Style Cell Truncation**: When pretty-printing any `DataFrame` in the REPL, all string cells exceeding `35` characters are truncated to `32` characters followed by `...` (Polars-style) to prevent wide/broken columns.
+
+> [!NOTE]
+> Even if a build fails, **the build log is written unconditionally** to the `_pipeline/` directory. This guarantees that `collect_exceptions(pipeline)` can extract the exact traceback and error code of failed nodes, and retrieve warnings for successfully built nodes.
+
 
 ```t
-errors = collect_errors(my_pipeline)
-summary_df = error_summary(errors)
+exceptions_df = collect_exceptions(my_pipeline)
 
--- summary_df can now be processed with colcraft verbs:
-summary_df |> filter($runtime == "Python")
+-- exceptions_df can now be processed with colcraft verbs:
+exceptions_df |> filter($status == "Warning")
 ```
+
+##### Explaining Collected Exceptions
+
+T's built-in `explain()` function has specialized support for `collect_exceptions` DataFrames:
+- **Direct Explanation (1 exception)**: If there is exactly one exception row in the DataFrame, calling `explain(exceptions_df)` will automatically map to that diagnostic exception and return a structured dictionary explaining the exact error or warning details (containing the originating node, diagnostic code, and description message).
+- **Consolidated Explanation (multiple exceptions)**: If there are zero or multiple exceptions, calling `explain(exceptions_df)` returns a structured representation of the exception collection itself (`exceptions_list`), with a `count` property and an `exceptions` list containing the mapped explanation of each individual diagnostic element.
+
 
 #### 2. `error_chain(err1, err2)`
 Preserves the causal chain of multiple failures. Chaining sets `err2` as the `"cause"` in `err1`'s context, maintaining complete traceback and causation history:
@@ -13369,6 +13423,86 @@ Now that you know how to build packages, explore how to ensure your work is repr
 4. **[API Reference](api-reference.md)** — Complete function reference by package.
 
 
+# FILE: docs/performance_analysis.md
+
+# Performance Analysis
+
+> Generated by `scripts/profile_performance.sh` — run the script to populate with actual measurements
+
+---
+
+## Test Environment
+
+- **Date**: (run `scripts/profile_performance.sh` to populate)
+- **Platform**: (auto-detected)
+- **OCaml**: (auto-detected)
+
+---
+
+## Timing Results
+
+### 10k Rows (100 groups)
+
+| Operation | Time (s) |
+|-----------|----------|
+| Project 2 columns | — |
+| Filter rows | — |
+| Sum column | — |
+| Group-by | — |
+| Group aggregate (mean) | — |
+
+### 100k Rows (1000 groups)
+
+| Operation | Time (s) |
+|-----------|----------|
+| Project 2 columns | — |
+| Sum column | — |
+| Group-by | — |
+| Group aggregate (sum) | — |
+| sqrt (vectorized) | — |
+| abs (vectorized) | — |
+| compare scalar | — |
+
+### 1M Rows (10000 groups)
+
+| Operation | Time (s) |
+|-----------|----------|
+| Project 2 columns | — |
+| Sum column | — |
+| Mean column | — |
+| Group-by | — |
+| Group aggregate (mean) | — |
+
+---
+
+## Analysis
+
+### Scaling Behavior
+
+Operations should scale approximately linearly with row count:
+- 10x rows → ~10x time for columnar operations
+- Group-by scaling depends on group cardinality
+
+### Hot Paths
+
+The most time-critical operations for large datasets are:
+1. **Group-by + aggregation**: Dominates pipeline execution time for grouped summarizations
+2. **Filter**: Boolean mask construction + row extraction
+3. **CSV reading**: I/O bound for large files; Arrow native reader provides significant speedup
+
+### Optimization Opportunities
+
+- **Materialization avoidance**: After `mutate()`, the native Arrow handle is dropped. Lazy evaluation could defer materialization.
+- **Column pruning**: Pipelines that only use a subset of columns could skip loading unused columns from CSV.
+- **Parallel execution**: Arrow Compute supports multi-threaded execution via Rayon; not yet exposed through FFI.
+
+---
+
+## Targets
+
+See [docs/performance.md](performance.md) for detailed performance expectations and the Arrow backend architecture overview.
+
+
 # FILE: docs/performance.md
 
 # Performance
@@ -13516,86 +13650,6 @@ The following optimizations are planned for future versions:
 - Advanced query optimization (cost-based optimizer)
 - Native Parquet support (faster than CSV)
 - Zero-copy interop with Python/Pandas via Arrow Flight
-
-
-# FILE: docs/performance_analysis.md
-
-# Performance Analysis
-
-> Generated by `scripts/profile_performance.sh` — run the script to populate with actual measurements
-
----
-
-## Test Environment
-
-- **Date**: (run `scripts/profile_performance.sh` to populate)
-- **Platform**: (auto-detected)
-- **OCaml**: (auto-detected)
-
----
-
-## Timing Results
-
-### 10k Rows (100 groups)
-
-| Operation | Time (s) |
-|-----------|----------|
-| Project 2 columns | — |
-| Filter rows | — |
-| Sum column | — |
-| Group-by | — |
-| Group aggregate (mean) | — |
-
-### 100k Rows (1000 groups)
-
-| Operation | Time (s) |
-|-----------|----------|
-| Project 2 columns | — |
-| Sum column | — |
-| Group-by | — |
-| Group aggregate (sum) | — |
-| sqrt (vectorized) | — |
-| abs (vectorized) | — |
-| compare scalar | — |
-
-### 1M Rows (10000 groups)
-
-| Operation | Time (s) |
-|-----------|----------|
-| Project 2 columns | — |
-| Sum column | — |
-| Mean column | — |
-| Group-by | — |
-| Group aggregate (mean) | — |
-
----
-
-## Analysis
-
-### Scaling Behavior
-
-Operations should scale approximately linearly with row count:
-- 10x rows → ~10x time for columnar operations
-- Group-by scaling depends on group cardinality
-
-### Hot Paths
-
-The most time-critical operations for large datasets are:
-1. **Group-by + aggregation**: Dominates pipeline execution time for grouped summarizations
-2. **Filter**: Boolean mask construction + row extraction
-3. **CSV reading**: I/O bound for large files; Arrow native reader provides significant speedup
-
-### Optimization Opportunities
-
-- **Materialization avoidance**: After `mutate()`, the native Arrow handle is dropped. Lazy evaluation could defer materialization.
-- **Column pruning**: Pipelines that only use a subset of columns could skip loading unused columns from CSV.
-- **Parallel execution**: Arrow Compute supports multi-threaded execution via Rayon; not yet exposed through FFI.
-
----
-
-## Targets
-
-See [docs/performance.md](performance.md) for detailed performance expectations and the Arrow backend architecture overview.
 
 
 # FILE: docs/pipeline_tutorial.md
@@ -14060,12 +14114,36 @@ build_log_to_frame(log)
 -- DataFrame(2 rows x 3 cols: [name, status, duration])
 ```
 
-If you only want to quickly retrieve the actual error objects that caused nodes to soft-fail during the build, use `collect_errors()`:
+If you want to retrieve the actual exceptions and warnings that occurred during the build, use `collect_exceptions()`:
 
 ```t
-collect_errors(p)
--- A List of VError objects from all nodes that soft-failed.
+collect_exceptions(p)
+-- A DataFrame detailing exceptions and warnings with columns: node, status, code, message.
 ```
+
+Calling the built-in `explain()` function on the DataFrame returned by `collect_exceptions(p)` provides intelligent diagnostic feedback tailored to the number of exceptions present:
+- **Single Exception**: If there is exactly one row in the exception DataFrame, `explain()` directly maps to it, outputting a structured explanation of the failure or warning (including the originating node name, diagnostic code, and description message).
+- **Multiple Exceptions**: If there are zero or multiple rows, `explain()` returns an overarching `exceptions_list` dictionary showing the summary counts and a list mapping the individual structured explanation of each captured warning and error.
+
+#### Build Verbosity and Failed Build Resiliency
+
+By default, T builds are **quiet and minimalist** (`verbose = 0`), outputting only high-level status lines (e.g. `  + node_a building`, `  ✖ node_a failed`) without dumping detailed derivation logs or tracebacks to the terminal on failure.
+
+Even if a build fails, **the build log is written unconditionally** to the `_pipeline/` directory. This allows you to inspect the build status, retrieve exact error tracebacks, and parse warnings for all nodes. Furthermore, the pipeline variable (e.g., `p`) remains fully bound in the REPL; successfully compiled nodes can still be queried, while failed nodes can be diagnosed programmatically using `collect_exceptions(p)` and `explain()`.
+
+To stream detailed error tracebacks/logs directly to the terminal when a node fails, pass `verbose = 1` to the build or orchestrator:
+
+```t
+build_pipeline(p, verbose = 1)
+```
+
+Similarly, from the CLI or REPL:
+
+```t
+t_make(verbose = 1)
+```
+
+
 
 ### Inspecting logs
 Use `list_logs()` to see available build logs:
@@ -16311,27 +16389,6 @@ df |> mutate(new = $score * 2)
 3.  **Dynamic Naming**: Use `!!name := !!value` for maximum flexibility when writing generic data processing functions.
 
 
-# FILE: docs/reference/%within%.md
-
-# %within%
-
-Test interval membership
-
-Returns true when a Date or Datetime value falls inside an interval.
-
-## Parameters
-
-- **x** (`Date`): | Datetime | Vector The temporal value(s) to check.
-
-- **interval** (`Interval`): The interval to check against.
-
-
-## Returns
-
-| Vector[Bool] True if value is inside the interval.
-
-
-
 # FILE: docs/reference/abs.md
 
 # abs
@@ -16360,13 +16417,13 @@ abs(-5)
 
 
 
-# FILE: docs/reference/acos.md
+# FILE: docs/reference/acosh.md
 
-# acos
+# acosh
 
-Inverse cosine
+Inverse hyperbolic cosine
 
-Compute arccosine.
+Compute inverse hyperbolic cosine.
 
 ## Parameters
 
@@ -16379,13 +16436,13 @@ Compute arccosine.
 
 
 
-# FILE: docs/reference/acosh.md
+# FILE: docs/reference/acos.md
 
-# acosh
+# acos
 
-Inverse hyperbolic cosine
+Inverse cosine
 
-Compute inverse hyperbolic cosine.
+Compute arccosine.
 
 ## Parameters
 
@@ -16634,25 +16691,6 @@ p |> arrange_node($depth, "desc")
 
 
 
-# FILE: docs/reference/asin.md
-
-# asin
-
-Inverse sine
-
-Compute arcsine.
-
-## Parameters
-
-- **x** (`Number`): | Vector | NDArray Numeric input.
-
-
-## Returns
-
-| Vector Computed result (scalar or vectorized).
-
-
-
 # FILE: docs/reference/asinh.md
 
 # asinh
@@ -16672,35 +16710,22 @@ Compute inverse hyperbolic sine.
 
 
 
-# FILE: docs/reference/assert.md
+# FILE: docs/reference/asin.md
 
-# assert
+# asin
 
-Assert Condition
+Inverse sine
 
-Checks if a condition is true, raising an error if false.
+Compute arcsine.
 
 ## Parameters
 
-- **condition** (`Bool`): The condition to check.
-
-- **message** (`String`): (Optional) Custom error message.
+- **x** (`Number`): | Vector | NDArray Numeric input.
 
 
 ## Returns
 
-True if successful.
-
-## Examples
-
-```t
-assert(1 == 1)
-assert(x > 0, "x must be positive")
-```
-
-## See Also
-
-[is_error](is_error.html), [error](error.html)
+| Vector Computed result (scalar or vectorized).
 
 
 
@@ -16765,6 +16790,38 @@ assert_file_exists("report.html", "report generation failed")
 ## See Also
 
 [file_exists](file_exists.html), [assert](assert.html)
+
+
+
+# FILE: docs/reference/assert.md
+
+# assert
+
+Assert Condition
+
+Checks if a condition is true, raising an error if false.
+
+## Parameters
+
+- **condition** (`Bool`): The condition to check.
+
+- **message** (`String`): (Optional) Custom error message.
+
+
+## Returns
+
+True if successful.
+
+## Examples
+
+```t
+assert(1 == 1)
+assert(x > 0, "x must be positive")
+```
+
+## See Also
+
+[is_error](is_error.html), [error](error.html)
 
 
 
@@ -16834,25 +16891,6 @@ assert_size_of_file("report.html", 0, "report should be empty")
 
 
 
-# FILE: docs/reference/atan.md
-
-# atan
-
-Inverse tangent
-
-Compute arctangent.
-
-## Parameters
-
-- **x** (`Number`): | Vector | NDArray Numeric input.
-
-
-## Returns
-
-| Vector Computed result (scalar or vectorized).
-
-
-
 # FILE: docs/reference/atan2.md
 
 # atan2
@@ -16881,6 +16919,25 @@ Compute `atan2(y, x)` with quadrant-aware angle.
 Inverse hyperbolic tangent
 
 Compute inverse hyperbolic tangent.
+
+## Parameters
+
+- **x** (`Number`): | Vector | NDArray Numeric input.
+
+
+## Returns
+
+| Vector Computed result (scalar or vectorized).
+
+
+
+# FILE: docs/reference/atan.md
+
+# atan
+
+Inverse tangent
+
+Compute arctangent.
 
 ## Parameters
 
@@ -16939,6 +16996,25 @@ body(f)
 
 
 
+# FILE: docs/reference/build_pipeline_internal.md
+
+# build_pipeline_internal
+
+Build Pipeline Internally
+
+Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path of the result and saves a build log with an exact mapping of node names to artifact paths in the Nix store.
+
+## Parameters
+
+- **p** (`PipelineResult`): The pipeline AST structure.
+
+
+## Returns
+
+The output Nix store path or an error string.
+
+
+
 # FILE: docs/reference/build_pipeline.md
 
 # build_pipeline
@@ -16961,25 +17037,6 @@ A `BuildLog` with fields: `nodes`, `duration`, `failed_nodes`, and `out_path`.
 ## See Also
 
 [read_node](read_node.html)
-
-
-# FILE: docs/reference/build_pipeline_internal.md
-
-# build_pipeline_internal
-
-Build Pipeline Internally
-
-Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path of the result and saves a build log with an exact mapping of node names to artifact paths in the Nix store.
-
-## Parameters
-
-- **p** (`PipelineResult`): The pipeline AST structure.
-
-
-## Returns
-
-The output Nix store path or an error string.
-
 
 
 # FILE: docs/reference/case_when.md
@@ -17051,25 +17108,6 @@ The combined matrix.
 
 
 
-# FILE: docs/reference/ceiling.md
-
-# ceiling
-
-Ceiling function
-
-Return smallest integer greater than or equal to input.
-
-## Parameters
-
-- **x** (`Number`): | Vector | NDArray Numeric input.
-
-
-## Returns
-
-| Vector Computed result (scalar or vectorized).
-
-
-
 # FILE: docs/reference/ceiling_date.md
 
 # ceiling_date
@@ -17088,6 +17126,25 @@ Rounds Date or Datetime values up to the requested unit boundary.
 ## Returns
 
 | Datetime | Vector The ceiled value(s).
+
+
+
+# FILE: docs/reference/ceiling.md
+
+# ceiling
+
+Ceiling function
+
+Return smallest integer greater than or equal to input.
+
+## Parameters
+
+- **x** (`Number`): | Vector | NDArray Numeric input.
+
+
+## Returns
+
+| Vector Computed result (scalar or vectorized).
 
 
 
@@ -17428,13 +17485,13 @@ cor(mtcars["mpg"], mtcars["wt"])
 
 
 
-# FILE: docs/reference/cos.md
+# FILE: docs/reference/cosh.md
 
-# cos
+# cosh
 
-Cosine
+Hyperbolic cosine
 
-Compute cosine (radians).
+Compute hyperbolic cosine.
 
 ## Parameters
 
@@ -17447,13 +17504,13 @@ Compute cosine (radians).
 
 
 
-# FILE: docs/reference/cosh.md
+# FILE: docs/reference/cos.md
 
-# cosh
+# cos
 
-Hyperbolic cosine
+Cosine
 
-Compute hyperbolic cosine.
+Compute cosine (radians).
 
 ## Parameters
 
@@ -18230,38 +18287,6 @@ env("HOME")
 
 
 
-# FILE: docs/reference/error.md
-
-# error
-
-Raise Error
-
-Raises a runtime error with a message and optional code.
-
-## Parameters
-
-- **message_or_code** (`String`): The error message (if 1 argument) or error code (if 2 arguments).
-
-- **message** (`String`): (Optional) The error message if a code was provided as the first argument.
-
-
-## Returns
-
-
-
-## Examples
-
-```t
-error("Invalid input")
-error("ValueError", "Must be positive")
-```
-
-## See Also
-
-[is_error](is_error.html), [assert](assert.html)
-
-
-
 # FILE: docs/reference/error_code.md
 
 # error_code
@@ -18300,25 +18325,6 @@ A dictionary of related context data.
 
 
 
-# FILE: docs/reference/error_message.md
-
-# error_message
-
-Get error message
-
-Returns the human-readable message associated with an error.
-
-## Parameters
-
-- **x** (`Error`): The error value to inspect.
-
-
-## Returns
-
-The error message.
-
-
-
 # FILE: docs/reference/errored_nodes.md
 
 # errored_nodes
@@ -18345,6 +18351,57 @@ errored_nodes(p)
 ## See Also
 
 [read_pipeline](read_pipeline.html), [which_nodes](which_nodes.html)
+
+
+
+# FILE: docs/reference/error.md
+
+# error
+
+Raise Error
+
+Raises a runtime error with a message and optional code.
+
+## Parameters
+
+- **message_or_code** (`String`): The error message (if 1 argument) or error code (if 2 arguments).
+
+- **message** (`String`): (Optional) The error message if a code was provided as the first argument.
+
+
+## Returns
+
+
+
+## Examples
+
+```t
+error("Invalid input")
+error("ValueError", "Must be positive")
+```
+
+## See Also
+
+[is_error](is_error.html), [assert](assert.html)
+
+
+
+# FILE: docs/reference/error_message.md
+
+# error_message
+
+Get error message
+
+Returns the human-readable message associated with an error.
+
+## Parameters
+
+- **x** (`Error`): The error value to inspect.
+
+
+## Returns
+
+The error message.
 
 
 
@@ -18378,38 +18435,6 @@ Terminates the current T process and accepts an optional numeric exit status.
 
 
 
-# FILE: docs/reference/exp.md
-
-# exp
-
-Exponential function
-
-Calculates e raised to the power of x.
-
-## Parameters
-
-- **x** (`Number`): | Vector | NDArray The input value.
-
-- **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
-
-
-## Returns
-
-| Vector | NDArray The exponential.
-
-## Examples
-
-```t
-exp(1)
--- Returns = 2.71828...
-```
-
-## See Also
-
-[pow](pow.html), [log](log.html)
-
-
-
 # FILE: docs/reference/expand.md
 
 # expand
@@ -18436,6 +18461,29 @@ expand(df, $type, $size)
 expand(df, nesting($type, $size))
 expand(df, $type, 2010:2012)
 ```
+
+
+
+# FILE: docs/reference/explain_json.md
+
+# explain_json
+
+Explain Value as JSON
+
+Returns a JSON string representation of the explain output.
+
+## Parameters
+
+- **x** (`Any`): The value to explain.
+
+
+## Returns
+
+The JSON description.
+
+## See Also
+
+[explain](explain.html)
 
 
 
@@ -18469,26 +18517,35 @@ explain(1)
 
 
 
-# FILE: docs/reference/explain_json.md
+# FILE: docs/reference/exp.md
 
-# explain_json
+# exp
 
-Explain Value as JSON
+Exponential function
 
-Returns a JSON string representation of the explain output.
+Calculates e raised to the power of x.
 
 ## Parameters
 
-- **x** (`Any`): The value to explain.
+- **x** (`Number`): | Vector | NDArray The input value.
+
+- **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-The JSON description.
+| Vector | NDArray The exponential.
+
+## Examples
+
+```t
+exp(1)
+-- Returns = 2.71828...
+```
 
 ## See Also
 
-[explain](explain.html)
+[pow](pow.html), [log](log.html)
 
 
 
@@ -18676,6 +18733,25 @@ fill(df, $category, .direction = "down")
 
 
 
+# FILE: docs/reference/filter_lens.md
+
+# filter_lens
+
+Filter Lens
+
+Targets elements in a List/Vector or rows in a DataFrame that satisfy a predicate.
+
+## Parameters
+
+- **p** (`Function`): The predicate function.
+
+
+## Returns
+
+A lens for elements matching the predicate.
+
+
+
 # FILE: docs/reference/filter.md
 
 # filter
@@ -18704,25 +18780,6 @@ filter(mtcars, \(row) -> row.mpg > 20)
 ## See Also
 
 [arrange](arrange.html), [select](select.html)
-
-
-
-# FILE: docs/reference/filter_lens.md
-
-# filter_lens
-
-Filter Lens
-
-Targets elements in a List/Vector or rows in a DataFrame that satisfy a predicate.
-
-## Parameters
-
-- **p** (`Function`): The predicate function.
-
-
-## Returns
-
-A lens for elements matching the predicate.
 
 
 
@@ -18815,25 +18872,6 @@ Return min, Q1, median, Q3, max.
 
 
 
-# FILE: docs/reference/floor.md
-
-# floor
-
-Floor function
-
-Return greatest integer less than or equal to input.
-
-## Parameters
-
-- **x** (`Number`): | Vector | NDArray Numeric input.
-
-
-## Returns
-
-| Vector Computed result (scalar or vectorized).
-
-
-
 # FILE: docs/reference/floor_date.md
 
 # floor_date
@@ -18852,6 +18890,25 @@ Rounds Date or Datetime values down to the requested unit boundary.
 ## Returns
 
 | Datetime | Vector The floored value(s).
+
+
+
+# FILE: docs/reference/floor.md
+
+# floor
+
+Floor function
+
+Return greatest integer less than or equal to input.
+
+## Parameters
+
+- **x** (`Number`): | Vector | NDArray Numeric input.
+
+
+## Returns
+
+| Vector Computed result (scalar or vectorized).
 
 
 
@@ -19424,7 +19481,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [is_numeric](is_numeric.html) | Check for numeric columns |
 | [isoweek](isoweek.html) | Extract the ISO week number |
 | [isoyear](isoyear.html) | Extract the ISO week-based year |
-| [jn](jn.html) | Configure a Julia Pipeline Node (Alias for jln) |
+
 | [jln](jln.html) | Configure a Julia Pipeline Node |
 | [kron](kron.html) | Kronecker product |
 | [kurtosis](kurtosis.html) | Excess kurtosis |
@@ -20112,39 +20169,6 @@ The evaluated return value of the command.
 
 [pyn](pyn.html), [rn](rn.html), [node](node.html)
 
-
-
-# FILE: docs/reference/jn.md
-
-# jn
-
-Configure a Julia Pipeline Node (Alias for `jln`)
-
-A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code. `jn` is a concise alias for `jln`.
-
-## Parameters
-
-- **command** (`Any`): (Optional) The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks). Mutually exclusive with `script`.
-
-- **script** (`String`): (Optional) Path to an external `.jl` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Julia` automatically.
-
-- **serializer** (`String`): | Symbol (Optional) Custom serializer strategy. Built-in values include ^csv and ^json. Default = ^csv.
-
-- **deserializer** (`String`): | Symbol (Optional) Custom deserializer strategy. Built-in values include ^csv and ^json. Default = ^csv.
-
-- **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
-
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
-
-- **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
-
-## Returns
-
-The evaluated return value of the command.
-
-## See Also
-
-[jln](jln.html), [pyn](pyn.html), [rn](rn.html), [node](node.html)
 
 
 # FILE: docs/reference/kron.md
@@ -20903,77 +20927,6 @@ p |> mutate_node($serializer = "pmml", where = $runtime == "R")
 
 
 
-# FILE: docs/reference/n.md
-
-# n
-
-Group size aggregation
-
-Returns the number of rows in the current aggregation context. Use this inside `summarize()` to count rows per group.
-
-## Returns
-
-The row count.
-
-## Examples
-
-```t
-df |> group_by($species) |> summarize($rows = n())
-```
-
-## See Also
-
-[count](count.html), [summarize](summarize.html)
-
-
-
-# FILE: docs/reference/n_distinct.md
-
-# n_distinct
-
-Count distinct values
-
-Returns the number of distinct values in a vector or list. Inside `summarize()`, this acts as an aggregation expression.
-
-## Parameters
-
-- **x** (`Vector`): | List The input values.
-
-
-## Returns
-
-The number of distinct values.
-
-## Examples
-
-```t
-summarize(df, $unique_species = n_distinct($species))
-```
-
-## See Also
-
-[distinct](distinct.html), [summarize](summarize.html)
-
-
-
-# FILE: docs/reference/na.md
-
-# na
-
-Generic NA
-
-Represents a missing value of generic type.
-
-## Returns
-
-
-
-## See Also
-
-[is_na](is_na.html)
-
-
-
 # FILE: docs/reference/na_bool.md
 
 # na_bool
@@ -21028,6 +20981,24 @@ Represents a missing integer value.
 
 
 
+# FILE: docs/reference/na.md
+
+# na
+
+Generic NA
+
+Represents a missing value of generic type.
+
+## Returns
+
+
+
+## See Also
+
+[is_na](is_na.html)
+
+
+
 # FILE: docs/reference/na_string.md
 
 # na_string
@@ -21075,6 +21046,25 @@ ncol(mtcars)
 
 
 
+# FILE: docs/reference/ndarray_data.md
+
+# ndarray_data
+
+Get NDArray data
+
+Returns the flattened data of an NDArray as a list of floats.
+
+## Parameters
+
+- **array** (`NDArray`): The array to inspect.
+
+
+## Returns
+
+The flat data.
+
+
+
 # FILE: docs/reference/ndarray.md
 
 # ndarray
@@ -21107,47 +21097,32 @@ ndarray([[1, 2], [3, 4]])
 
 
 
-# FILE: docs/reference/ndarray_data.md
+# FILE: docs/reference/n_distinct.md
 
-# ndarray_data
+# n_distinct
 
-Get NDArray data
+Count distinct values
 
-Returns the flattened data of an NDArray as a list of floats.
+Returns the number of distinct values in a vector or list. Inside `summarize()`, this acts as an aggregation expression.
 
 ## Parameters
 
-- **array** (`NDArray`): The array to inspect.
+- **x** (`Vector`): | List The input values.
 
 
 ## Returns
 
-The flat data.
+The number of distinct values.
 
+## Examples
 
+```t
+summarize(df, $unique_species = n_distinct($species))
+```
 
-# FILE: docs/reference/nest.md
+## See Also
 
-# nest
-
-Nest columns into sub-dataframes
-
-Packs selected columns into nested DataFrame values grouped by the remaining columns. Supports flexible column selection using symbols, strings, or selection helpers (like starts_with, ends_with).  If the DataFrame is already grouped (via group_by()) and no columns are specified, nest() will automatically nest all columns except the grouping keys.
-
-## Parameters
-
-- **data** (`Selection`): (Optional) Columns or matchers to nest.
-
-- **df** (`DataFrame`): The DataFrame to nest.
-
-- **name** (`String`): (Optional) Name for the new nested column, defaults to "data".
-
-- **...** (`Selection`): (Optional) Positional columns to nest if 'data' is not provided.
-
-
-## Returns
-
-A new DataFrame with grouped keys and a nested list-column.
+[distinct](distinct.html), [summarize](summarize.html)
 
 
 
@@ -21176,6 +21151,55 @@ expand(df, nesting($year, $month))
 
 
 
+# FILE: docs/reference/nest.md
+
+# nest
+
+Nest columns into sub-dataframes
+
+Packs selected columns into nested DataFrame values grouped by the remaining columns. Supports flexible column selection using symbols, strings, or selection helpers (like starts_with, ends_with).  If the DataFrame is already grouped (via group_by()) and no columns are specified, nest() will automatically nest all columns except the grouping keys.
+
+## Parameters
+
+- **data** (`Selection`): (Optional) Columns or matchers to nest.
+
+- **df** (`DataFrame`): The DataFrame to nest.
+
+- **name** (`String`): (Optional) Name for the new nested column, defaults to "data".
+
+- **...** (`Selection`): (Optional) Positional columns to nest if 'data' is not provided.
+
+
+## Returns
+
+A new DataFrame with grouped keys and a nested list-column.
+
+
+
+# FILE: docs/reference/n.md
+
+# n
+
+Group size aggregation
+
+Returns the number of rows in the current aggregation context. Use this inside `summarize()` to count rows per group.
+
+## Returns
+
+The row count.
+
+## Examples
+
+```t
+df |> group_by($species) |> summarize($rows = n())
+```
+
+## See Also
+
+[count](count.html), [summarize](summarize.html)
+
+
+
 # FILE: docs/reference/nobs.md
 
 # nobs
@@ -21199,6 +21223,25 @@ The number of observations.
 model = lm(mpg ~ wt, data = mtcars)
 n = nobs(model)
 ```
+
+
+
+# FILE: docs/reference/node_lens.md
+
+# node_lens
+
+Pipeline Node Lens
+
+Targets the cached result value of a specific node in a Pipeline. In a Nix-managed sandbox, this lens also supports cross-node retrieval using the 1-argument `get(node_lens("name"))` syntax, which automatically locates and deserializes the sibling node's artifact from the environment.
+
+## Parameters
+
+- **node_name** (`String`): The name of the node.
+
+
+## Returns
+
+A lens for the node's value.
 
 
 
@@ -21234,25 +21277,6 @@ Configure execution settings such as the runtime and custom serialized methods f
 ## Returns
 
 The evaluated return value of the command.
-
-
-
-# FILE: docs/reference/node_lens.md
-
-# node_lens
-
-Pipeline Node Lens
-
-Targets the cached result value of a specific node in a Pipeline. In a Nix-managed sandbox, this lens also supports cross-node retrieval using the 1-argument `get(node_lens("name"))` syntax, which automatically locates and deserializes the sibling node's artifact from the environment.
-
-## Parameters
-
-- **node_name** (`String`): The name of the node.
-
-
-## Returns
-
-A lens for the node's value.
 
 
 
@@ -23233,27 +23257,6 @@ The evaluated return value of the command.
 
 
 
-# FILE: docs/reference/round.md
-
-# round
-
-Round values
-
-Round numbers to a specified number of decimal digits.
-
-## Parameters
-
-- **x** (`Number`): | Vector | NDArray Numeric input.
-
-- **digits** (`Int`): = 0 Decimal digits.
-
-
-## Returns
-
-| Vector Computed result (scalar or vectorized).
-
-
-
 # FILE: docs/reference/round_date.md
 
 # round_date
@@ -23272,6 +23275,27 @@ Rounds Date or Datetime values to the nearest requested unit boundary.
 ## Returns
 
 | Datetime | Vector The rounded value(s).
+
+
+
+# FILE: docs/reference/round.md
+
+# round
+
+Round values
+
+Round numbers to a specified number of decimal digits.
+
+## Parameters
+
+- **x** (`Number`): | Vector | NDArray Numeric input.
+
+- **digits** (`Int`): = 0 Decimal digits.
+
+
+## Returns
+
+| Vector Computed result (scalar or vectorized).
 
 
 
@@ -23317,6 +23341,20 @@ The ranks (1 to n).
 
 
 
+# FILE: docs/reference/run_doctor.md
+
+# run_doctor
+
+Run Package/Project Doctor
+
+Validates the structure of a T package or project, checking for required files, directories, valid Nix configuration, and ensuring proper documentation setup.
+
+## Returns
+
+Prints the validation results to the console.
+
+
+
 # FILE: docs/reference/run.md
 
 # run
@@ -23340,20 +23378,6 @@ The stdout of the command.
 branch = run("git rev-parse --abbrev-ref HEAD")
 print(branch)
 ```
-
-
-
-# FILE: docs/reference/run_doctor.md
-
-# run_doctor
-
-Run Package/Project Doctor
-
-Validates the structure of a T package or project, checking for required files, directories, valid Nix configuration, and ensuring proper documentation setup.
-
-## Returns
-
-Prints the validation results to the console.
 
 
 
@@ -23825,25 +23849,6 @@ s = sigma(model)
 
 
 
-# FILE: docs/reference/sign.md
-
-# sign
-
-Sign of number
-
-Return -1, 0, or 1 depending on sign.
-
-## Parameters
-
-- **x** (`Number`): | Vector | NDArray Numeric input.
-
-
-## Returns
-
-| Vector Computed result (scalar or vectorized).
-
-
-
 # FILE: docs/reference/signif.md
 
 # signif
@@ -23865,13 +23870,13 @@ Round to a fixed number of significant digits.
 
 
 
-# FILE: docs/reference/sin.md
+# FILE: docs/reference/sign.md
 
-# sin
+# sign
 
-Sine
+Sign of number
 
-Compute sine (radians).
+Return -1, 0, or 1 depending on sign.
 
 ## Parameters
 
@@ -23891,6 +23896,25 @@ Compute sine (radians).
 Hyperbolic sine
 
 Compute hyperbolic sine.
+
+## Parameters
+
+- **x** (`Number`): | Vector | NDArray Numeric input.
+
+
+## Returns
+
+| Vector Computed result (scalar or vectorized).
+
+
+
+# FILE: docs/reference/sin.md
+
+# sin
+
+Sine
+
+Compute sine (radians).
 
 ## Parameters
 
@@ -23926,6 +23950,16 @@ Compute third standardized moment.
 
 
 
+# FILE: docs/reference/slice_max.md
+
+# slice_max
+
+Keep rows with the largest values
+
+Returns the rows with the highest values in an ordering column.
+
+
+
 # FILE: docs/reference/slice.md
 
 # slice
@@ -23946,16 +23980,6 @@ Alias for `str_substring`. Returns the part of the string between `start` and `e
 ## Returns
 
 The extracted substring.
-
-
-
-# FILE: docs/reference/slice_max.md
-
-# slice_max
-
-Keep rows with the largest values
-
-Returns the rows with the highest values in an ordering column.
 
 
 
@@ -24086,16 +24110,6 @@ Returns true when a regular expression matches a string.
 
 
 
-# FILE: docs/reference/str_extract.md
-
-# str_extract
-
-Extract the first regex match
-
-Returns the first regular-expression match found in each string.
-
-
-
 # FILE: docs/reference/str_extract_all.md
 
 # str_extract_all
@@ -24103,6 +24117,16 @@ Returns the first regular-expression match found in each string.
 Extract all regex matches
 
 Returns every regular-expression match found in each string.
+
+
+
+# FILE: docs/reference/str_extract.md
+
+# str_extract
+
+Extract the first regex match
+
+Returns the first regular-expression match found in each string.
 
 
 
@@ -24468,37 +24492,6 @@ p |> subgraph("model_r")
 
 
 
-# FILE: docs/reference/sum.md
-
-# sum
-
-Sum of numeric values
-
-Calculates the sum of values in a List or Vector.
-
-## Parameters
-
-- **x** (`List[Number]`): | Vector[Number] The collection to sum.
-
-- **na_rm** (`Bool`): = false Remove NA values before summing.
-
-
-## Returns
-
-| NA The sum of values.
-
-## Examples
-
-```t
-sum([1, 2, 3])
--- Returns = 6
-
-sum([1, NA, 3], na_rm = true)
--- Returns = 4
-```
-
-
-
 # FILE: docs/reference/summarize.md
 
 # summarize
@@ -24558,6 +24551,37 @@ coefficients = s._tidy_df
 ## See Also
 
 [fit_stats](fit_stats.html), [lm](lm.html)
+
+
+
+# FILE: docs/reference/sum.md
+
+# sum
+
+Sum of numeric values
+
+Calculates the sum of values in a List or Vector.
+
+## Parameters
+
+- **x** (`List[Number]`): | Vector[Number] The collection to sum.
+
+- **na_rm** (`Bool`): = false Remove NA values before summing.
+
+
+## Returns
+
+| NA The sum of values.
+
+## Examples
+
+```t
+sum([1, 2, 3])
+-- Returns = 6
+
+sum([1, NA, 3], na_rm = true)
+-- Returns = 4
+```
 
 
 
@@ -24639,6 +24663,74 @@ to_expr(select(df, !!to_symbol("mpg")))
 
 
 
+# FILE: docs/reference/tail.md
+
+# tail
+
+Get the last n rows/items
+
+Returns the last n items from a List, Vector, or DataFrame. For DataFrames, it returns the bottom n rows.
+
+## Parameters
+
+- **data** (`DataFrame`): | List | Vector The collection to slice.
+
+- **n** (`Int`): = 5 Number of items to return.
+
+
+## Returns
+
+| List | Vector A subset of the input containing the last n items.
+
+## Examples
+
+```t
+tail([1, 2, 3, 4, 5, 6], n = 3)
+-- Returns = [4, 5, 6]
+
+df |> tail(n = 10)
+```
+
+
+
+# FILE: docs/reference/tanh.md
+
+# tanh
+
+Hyperbolic tangent
+
+Compute hyperbolic tangent.
+
+## Parameters
+
+- **x** (`Number`): | Vector | NDArray Numeric input.
+
+
+## Returns
+
+| Vector Computed result (scalar or vectorized).
+
+
+
+# FILE: docs/reference/tan.md
+
+# tan
+
+Tangent
+
+Compute tangent (radians).
+
+## Parameters
+
+- **x** (`Number`): | Vector | NDArray Numeric input.
+
+
+## Returns
+
+| Vector Computed result (scalar or vectorized).
+
+
+
 # FILE: docs/reference/t_doc.md
 
 # t_doc
@@ -24677,264 +24769,6 @@ Builds the `src/pipeline.t` pipeline entrypoint.
 
 - **filename** (`String`): (Optional) The pipeline build script path. Must be `src/pipeline.t`.
 
-
-
-
-# FILE: docs/reference/t_read_json.md
-
-# t_read_json
-
-Read Value from JSON
-
-Deserializes a T value from a JSON file. Automatically handles type conversion for scalars, lists, and dictionaries.
-
-## Parameters
-
-- **path** (`String`): Path to the JSON file.
-
-
-## Returns
-
-The deserialized value.
-
-
-
-# FILE: docs/reference/t_read_onnx.md
-
-# t_read_onnx
-
-Read an ONNX model file
-
-Loads an ONNX model file from disk and returns a model dictionary. The resulting dictionary contains the model type identifier (^onnx), the file path, input/output names, and model-level metadata. This model object can be passed to `predict()` for native T-side inference.
-
-## Parameters
-
-- **path** (`String`): The file path to the .onnx model.
-
-
-## Returns
-
-A model dictionary containing:
-
-
-
-# FILE: docs/reference/t_read_pmml.md
-
-# t_read_pmml
-
-Read a PMML model file
-
-Loads a Predictive Model Markup Language (PMML) file from disk and returns its parsed model representation. This model can be used with `predict()`.
-
-## Parameters
-
-- **path** (`String`): The file path to the .pmml file.
-
-
-## Returns
-
-The parsed model dictionary.
-
-## See Also
-
-[t_write_pmml](t_write_pmml.html)
-
-
-
-# FILE: docs/reference/t_run.md
-
-# t_run
-
-Run a T script
-
-Evaluates a T script file and imports its definitions into the current environment. Useful for interactive development to reload module files.
-
-## Parameters
-
-- **filename** (`String`): The path to the T file to execute.
-
-- **failfast** (`Bool`): Whether to fail on error (defaults to false).
-
-
-## Returns
-
-
-
-## Examples
-
-```t
-t_run("src/my_script.t")
-```
-
-
-
-# FILE: docs/reference/t_score_pmml.md
-
-# t_score_pmml
-
-Score a PMML model using JPMML
-
-Evaluates a PMML model against a DataFrame using the JPMML-evaluator library. Requires a Java runtime and the JPMML-evaluator JAR to be available.
-
-## Parameters
-
-- **df** (`DataFrame`): The data to score.
-
-- **model** (`Dict`): The PMML model dictionary (loaded via `t_read_pmml`).
-
-
-## Returns
-
-| DataFrame The model predictions.
-
-
-
-# FILE: docs/reference/t_test.md
-
-# t_test
-
-Run tests
-
-Runs the test suite for the current package. Wraps the CLI `t test` command for use within the REPL.
-
-## Returns
-
-Returns NA on success, or an Error if tests fail.
-
-
-
-# FILE: docs/reference/t_write_json.md
-
-# t_write_json
-
-Write Value to JSON
-
-Serializes a T value to a JSON file. This is used as the universal baseline for object transport between runtimes in the sandbox interchange protocol.
-
-## Parameters
-
-- **value** (`Any`): The value to serialize.
-
-- **path** (`String`): Path to the destination file.
-
-
-## Returns
-
-
-
-
-
-# FILE: docs/reference/t_write_onnx.md
-
-# t_write_onnx
-
-Write an ONNX model file
-
-Note: Currently this is a placeholder. T-native writing of ONNX models is not yet implemented. Use ^onnx within R or Python nodes to export models.
-
-## Parameters
-
-- **model** (`Dict`): The ONNX model dictionary.
-
-- **path** (`String`): The destination file path.
-
-
-## Returns
-
-Currently returns a RuntimeError.
-
-
-
-# FILE: docs/reference/t_write_pmml.md
-
-# t_write_pmml
-
-Write a PMML model file
-
-Writes a model dictionary back to a PMML file on disk. Currently, this primarily supports pass-through copying of models that were originally loaded from PMML.
-
-## Parameters
-
-- **model** (`Dict`): The model dictionary.
-
-- **path** (`String`): The destination file path.
-
-
-## Returns
-
-The path to the written file.
-
-## See Also
-
-[t_read_pmml](t_read_pmml.html)
-
-
-
-# FILE: docs/reference/tail.md
-
-# tail
-
-Get the last n rows/items
-
-Returns the last n items from a List, Vector, or DataFrame. For DataFrames, it returns the bottom n rows.
-
-## Parameters
-
-- **data** (`DataFrame`): | List | Vector The collection to slice.
-
-- **n** (`Int`): = 5 Number of items to return.
-
-
-## Returns
-
-| List | Vector A subset of the input containing the last n items.
-
-## Examples
-
-```t
-tail([1, 2, 3, 4, 5, 6], n = 3)
--- Returns = [4, 5, 6]
-
-df |> tail(n = 10)
-```
-
-
-
-# FILE: docs/reference/tan.md
-
-# tan
-
-Tangent
-
-Compute tangent (radians).
-
-## Parameters
-
-- **x** (`Number`): | Vector | NDArray Numeric input.
-
-
-## Returns
-
-| Vector Computed result (scalar or vectorized).
-
-
-
-# FILE: docs/reference/tanh.md
-
-# tanh
-
-Hyperbolic tangent
-
-Compute hyperbolic tangent.
-
-## Parameters
-
-- **x** (`Number`): | Vector | NDArray Numeric input.
-
-
-## Returns
-
-| Vector Computed result (scalar or vectorized).
 
 
 
@@ -25011,6 +24845,20 @@ Converts strings, dates, and related temporal values to Datetime values.
 ## Returns
 
 | Vector[Datetime] The converted datetime(s).
+
+
+
+# FILE: docs/reference/today.md
+
+# today
+
+Get the current date
+
+Returns the current local date as a Date value.
+
+## Returns
+
+The current date.
 
 
 
@@ -25163,20 +25011,6 @@ The uppercase string.
 
 
 
-# FILE: docs/reference/today.md
-
-# today
-
-Get the current date
-
-Returns the current local date as a Date value.
-
-## Returns
-
-The current date.
-
-
-
 # FILE: docs/reference/trace_nodes.md
 
 # trace_nodes
@@ -25227,28 +25061,72 @@ The transposed matrix.
 
 
 
+# FILE: docs/reference/t_read_json.md
+
+# t_read_json
+
+Read Value from JSON
+
+Deserializes a T value from a JSON file. Automatically handles type conversion for scalars, lists, and dictionaries.
+
+## Parameters
+
+- **path** (`String`): Path to the JSON file.
+
+
+## Returns
+
+The deserialized value.
+
+
+
+# FILE: docs/reference/t_read_onnx.md
+
+# t_read_onnx
+
+Read an ONNX model file
+
+Loads an ONNX model file from disk and returns a model dictionary. The resulting dictionary contains the model type identifier (^onnx), the file path, input/output names, and model-level metadata. This model object can be passed to `predict()` for native T-side inference.
+
+## Parameters
+
+- **path** (`String`): The file path to the .onnx model.
+
+
+## Returns
+
+A model dictionary containing:
+
+
+
+# FILE: docs/reference/t_read_pmml.md
+
+# t_read_pmml
+
+Read a PMML model file
+
+Loads a Predictive Model Markup Language (PMML) file from disk and returns its parsed model representation. This model can be used with `predict()`.
+
+## Parameters
+
+- **path** (`String`): The file path to the .pmml file.
+
+
+## Returns
+
+The parsed model dictionary.
+
+## See Also
+
+[t_write_pmml](t_write_pmml.html)
+
+
+
 # FILE: docs/reference/trim_end.md
 
 # trim_end
 
 Trim trailing whitespace
-
-## Parameters
-
-- **s** (`String`): 
-
-
-## Returns
-
-
-
-
-
-# FILE: docs/reference/trim_start.md
-
-# trim_start
-
-Trim leading whitespace
 
 ## Parameters
 
@@ -25286,6 +25164,23 @@ Compute mean after trimming both tails by fraction.
 
 
 
+# FILE: docs/reference/trim_start.md
+
+# trim_start
+
+Trim leading whitespace
+
+## Parameters
+
+- **s** (`String`): 
+
+
+## Returns
+
+
+
+
+
 # FILE: docs/reference/trunc.md
 
 # trunc
@@ -25302,6 +25197,135 @@ Truncate fractional component toward zero.
 ## Returns
 
 | Vector Computed result (scalar or vectorized).
+
+
+
+# FILE: docs/reference/t_run.md
+
+# t_run
+
+Run a T script
+
+Evaluates a T script file and imports its definitions into the current environment. Useful for interactive development to reload module files.
+
+## Parameters
+
+- **filename** (`String`): The path to the T file to execute.
+
+- **failfast** (`Bool`): Whether to fail on error (defaults to false).
+
+
+## Returns
+
+
+
+## Examples
+
+```t
+t_run("src/my_script.t")
+```
+
+
+
+# FILE: docs/reference/t_score_pmml.md
+
+# t_score_pmml
+
+Score a PMML model using JPMML
+
+Evaluates a PMML model against a DataFrame using the JPMML-evaluator library. Requires a Java runtime and the JPMML-evaluator JAR to be available.
+
+## Parameters
+
+- **df** (`DataFrame`): The data to score.
+
+- **model** (`Dict`): The PMML model dictionary (loaded via `t_read_pmml`).
+
+
+## Returns
+
+| DataFrame The model predictions.
+
+
+
+# FILE: docs/reference/t_test.md
+
+# t_test
+
+Run tests
+
+Runs the test suite for the current package. Wraps the CLI `t test` command for use within the REPL.
+
+## Returns
+
+Returns NA on success, or an Error if tests fail.
+
+
+
+# FILE: docs/reference/t_write_json.md
+
+# t_write_json
+
+Write Value to JSON
+
+Serializes a T value to a JSON file. This is used as the universal baseline for object transport between runtimes in the sandbox interchange protocol.
+
+## Parameters
+
+- **value** (`Any`): The value to serialize.
+
+- **path** (`String`): Path to the destination file.
+
+
+## Returns
+
+
+
+
+
+# FILE: docs/reference/t_write_onnx.md
+
+# t_write_onnx
+
+Write an ONNX model file
+
+Note: Currently this is a placeholder. T-native writing of ONNX models is not yet implemented. Use ^onnx within R or Python nodes to export models.
+
+## Parameters
+
+- **model** (`Dict`): The ONNX model dictionary.
+
+- **path** (`String`): The destination file path.
+
+
+## Returns
+
+Currently returns a RuntimeError.
+
+
+
+# FILE: docs/reference/t_write_pmml.md
+
+# t_write_pmml
+
+Write a PMML model file
+
+Writes a model dictionary back to a PMML file on disk. Currently, this primarily supports pass-through copying of models that were originally loaded from PMML.
+
+## Parameters
+
+- **model** (`Dict`): The model dictionary.
+
+- **path** (`String`): The destination file path.
+
+
+## Returns
+
+The path to the written file.
+
+## See Also
+
+[t_read_pmml](t_read_pmml.html)
 
 
 
@@ -25705,6 +25729,27 @@ Clamp tails to specified quantile limits.
 ## Returns
 
 | Vector Computed result (scalar or vectorized).
+
+
+
+# FILE: docs/reference/%within%.md
+
+# %within%
+
+Test interval membership
+
+Returns true when a Date or Datetime value falls inside an interval.
+
+## Parameters
+
+- **x** (`Date`): | Datetime | Vector The temporal value(s) to check.
+
+- **interval** (`Interval`): The interval to check against.
+
+
+## Returns
+
+| Vector[Bool] True if value is inside the interval.
 
 
 

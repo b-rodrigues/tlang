@@ -745,8 +745,21 @@ module Utils = struct
     | VBuildLog bl ->
         let total = List.length bl.bl_nodes in
         let failed = List.length bl.bl_failed_nodes in
-        Printf.sprintf "Build Log: %d nodes [%d succeeded, %d failed] (duration: %.2fs)"
-          total (total - failed) failed bl.bl_duration
+        let warning_nodes =
+          List.filter_map (function
+            | VDict fields ->
+                (match List.assoc_opt "status" fields, List.assoc_opt "name" fields with
+                 | Some (VString "Completed with warning"), Some (VString name) -> Some name
+                 | _ -> None)
+            | _ -> None) bl.bl_nodes
+        in
+        let base =
+          Printf.sprintf "Build Log: %d nodes [%d succeeded, %d failed] (duration: %.2fs)"
+            total (total - failed) failed bl.bl_duration
+        in
+        if warning_nodes = [] then base
+        else
+          base ^ "\n  ⚠ Warnings in nodes: " ^ String.concat ", " warning_nodes
     | VInt n -> string_of_int n
     | VFloat f -> string_of_float f
     | VBool b -> string_of_bool b

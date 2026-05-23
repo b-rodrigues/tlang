@@ -537,11 +537,43 @@ log.nodes             -- A list of dicts with node name, status, and duration</c
 for programmatic inspection using <code>build_log_to_frame()</code>:</p>
 <pre class="t"><code>build_log_to_frame(log)
 -- DataFrame(2 rows x 3 cols: [name, status, duration])</code></pre>
-<p>If you only want to quickly retrieve the actual error objects that
-caused nodes to soft-fail during the build, use
-<code>collect_errors()</code>:</p>
-<pre class="t"><code>collect_errors(p)
--- A List of VError objects from all nodes that soft-failed.</code></pre>
+<p>If you want to retrieve the actual exceptions and warnings that
+occurred during the build, use <code>collect_exceptions()</code>:</p>
+<pre class="t"><code>collect_exceptions(p)
+-- A DataFrame detailing exceptions and warnings with columns: node, status, code, message.</code></pre>
+<p>Calling the built-in <code>explain()</code> function on the DataFrame
+returned by <code>collect_exceptions(p)</code> provides intelligent
+diagnostic feedback tailored to the number of exceptions present: -
+<strong>Single Exception</strong>: If there is exactly one row in the
+exception DataFrame, <code>explain()</code> directly maps to it,
+outputting a structured explanation of the failure or warning (including
+the originating node name, diagnostic code, and description message). -
+<strong>Multiple Exceptions</strong>: If there are zero or multiple
+rows, <code>explain()</code> returns an overarching
+<code>exceptions_list</code> dictionary showing the summary counts and a
+list mapping the individual structured explanation of each captured
+warning and error.</p>
+<h4 id="build-verbosity-and-failed-build-resiliency">Build Verbosity and
+Failed Build Resiliency</h4>
+<p>By default, T builds are <strong>quiet and minimalist</strong>
+(<code>verbose = 0</code>), outputting only high-level status lines
+(e.g. <code>+ node_a building</code>, <code>✖ node_a failed</code>)
+without dumping detailed derivation logs or tracebacks to the terminal
+on failure.</p>
+<p>Even if a build fails, <strong>the build log is written
+unconditionally</strong> to the <code>_pipeline/</code> directory. This
+allows you to inspect the build status, retrieve exact error tracebacks,
+and parse warnings for all nodes. Furthermore, the pipeline variable
+(e.g., <code>p</code>) remains fully bound in the REPL; successfully
+compiled nodes can still be queried, while failed nodes can be diagnosed
+programmatically using <code>collect_exceptions(p)</code> and
+<code>explain()</code>.</p>
+<p>To stream detailed error tracebacks/logs directly to the terminal
+when a node fails, pass <code>verbose = 1</code> to the build or
+orchestrator:</p>
+<pre class="t"><code>build_pipeline(p, verbose = 1)</code></pre>
+<p>Similarly, from the CLI or REPL:</p>
+<pre class="t"><code>t_make(verbose = 1)</code></pre>
 <h3 id="inspecting-logs">Inspecting logs</h3>
 <p>Use <code>list_logs()</code> to see available build logs:</p>
 <pre class="t"><code>logs = list_logs()
@@ -575,17 +607,17 @@ This ensures that non-interactive execution always produces reproducible
 Nix artifacts. By default, <code>t run</code> operates in
 <strong>resilient mode</strong>, continuing past errors to provide a
 full diagnostic summary. Use <code>--failfast</code> to change this.</p>
-<div class="sourceCode" id="cb34"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
-<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
-<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
-<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
-<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
-<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
-<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
 <p>A valid pipeline script looks like:</p>
 <pre class="t"><code>-- my_pipeline.t
 p = pipeline {
@@ -597,14 +629,14 @@ populate_pipeline(p, build = true)</code></pre>
 <h3 id="interactive-repl">Interactive (REPL)</h3>
 <p>The REPL is <strong>unrestricted</strong> — you can run any T code
 line by line, whether or not it involves pipelines:</p>
-<div class="sourceCode" id="cb36"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
-<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
-<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
-<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
-<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
 <hr />
 <h2 id="using-imports-in-pipelines">17. Using Imports in Pipelines</h2>
 <p>When a pipeline is built with <code>build_pipeline()</code>, each

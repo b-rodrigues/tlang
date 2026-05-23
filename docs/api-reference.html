@@ -639,26 +639,6 @@ error_message(e2)  -- &quot;Division by zero&quot;</code></pre>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>error_context(e)  -- Additional debugging information</code></pre>
 <hr />
-<h3 id="error_summaryerrors"><code>error_summary(errors)</code></h3>
-<p>Converts a list of Error values into a DataFrame with columns
-<code>node</code>, <code>code</code>, <code>message</code>, and
-<code>runtime</code> for easier inspection, filtering, and analysis.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>errors</code> — A List of Error values (such as the list
-returned by <code>collect_errors()</code>).</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p><code>DataFrame</code> — A DataFrame containing columns
-<code>node</code>, <code>code</code>, <code>message</code>, and
-<code>runtime</code>.</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>errors = collect_errors(p)
-summary_df = error_summary(errors)
--- Returns a DataFrame:
---   node       | code         | message                  | runtime
---   &quot;bad_node&quot; | &quot;ValueError&quot; | &quot;Pipeline node...&quot;       | &quot;Python&quot;</code></pre>
-<hr />
 <h3 id="error_chainerr1-err2"><code>error_chain(err1, err2)</code></h3>
 <p>Explicitly chains two Error values together to preserve their
 provenance. This sets <code>err2</code> as the underlying cause in
@@ -1943,7 +1923,9 @@ sandbox.</li>
 generate a stub.</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>The evaluated return value of the node <code>command</code>.</p>
+<p>A pipeline node configuration object (<code>NodeDef</code>). Must be
+used as a named binding inside a <code>pipeline { ... }</code> block;
+the node code is executed by the pipeline builder, not immediately.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline {
 y = node(command = x + 5, runtime = T)
@@ -1980,7 +1962,10 @@ sandbox.</li>
 generate a stub. Default: <code>false</code>.</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>The evaluated return value of the command.</p>
+<p>A pipeline node configuration object (<code>NodeDef</code>). Must be
+used as a named binding inside a <code>pipeline { ... }</code> block;
+the Python code is executed by the pipeline builder, not
+immediately.</p>
 <hr />
 <h3
 id="rncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
@@ -2004,38 +1989,13 @@ sandbox.</li>
 <li><code>noop</code> (optional) — Whether to skip execution and
 generate a stub. Default: <code>false</code>.</li>
 </ul>
-<p>The evaluated return value of the command.</p>
-<hr />
-<h3
-id="jncommand-script-na-serializer-csv-deserializer-csv-env_vars-functions-include-noop-false"><code>jn(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)</code></h3>
-<p>Configure a Julia Pipeline Node. A concise alias of
-<code>jln(...)</code>. A convenience wrapper around <code>node()</code>
-with <code>runtime = "Julia"</code>. Used directly within a
-<code>pipeline { ... }</code> block to execute Julia code.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>command</code> — The expression to evaluate inside the Julia
-node (must be enclosed in <code>&lt;{ ... }&gt;</code> blocks).</li>
-<li><code>script</code> — Path to an external <code>.jl</code> file to
-execute as the node body.</li>
-<li><code>serializer</code> (optional) — Custom serializer function.
-Default: <code>^csv</code>.</li>
-<li><code>deserializer</code> (optional) — Custom deserializer function.
-Default: <code>^csv</code>.</li>
-<li><code>env_vars</code> (optional) — Dictionary of environment
-variables to pass into the Nix sandbox.</li>
-<li><code>functions</code> (optional) — Julia files to source before
-execution.</li>
-<li><code>include</code> (optional) — Additional files for the
-sandbox.</li>
-<li><code>noop</code> (optional) — Whether to skip execution and
-generate a stub. Default: <code>false</code>.</li>
-</ul>
 <p><strong>Returns:</strong></p>
-<p>The evaluated return value of the command.</p>
+<p>A pipeline node configuration object (<code>NodeDef</code>). Must be
+used as a named binding inside a <code>pipeline { ... }</code> block;
+the R code is executed by the pipeline builder, not immediately.</p>
 <hr />
 <h3
-id="jlncommand-script-na-serializer-csv-deserializer-csv-env_vars-functions-include-noop-false"><code>jln(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="jlncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
 <p>Configure a Julia Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Julia"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Julia code.</p>
@@ -2045,10 +2005,12 @@ within a <code>pipeline { ... }</code> block to execute Julia code.</p>
 node (must be enclosed in <code>&lt;{ ... }&gt;</code> blocks).</li>
 <li><code>script</code> — Path to an external <code>.jl</code> file to
 execute as the node body.</li>
-<li><code>serializer</code> (optional) — Custom serializer function.
-Default: <code>^csv</code>.</li>
-<li><code>deserializer</code> (optional) — Custom deserializer function.
-Default: <code>^csv</code>.</li>
+<li><code>serializer</code> (optional) — Custom serializer symbol (e.g.,
+<code>^csv</code>, <code>^json</code>, <code>^arrow</code>,
+<code>^onnx</code>). Default: runtime-native binary serialization
+(<code>jl_serialize</code>).</li>
+<li><code>deserializer</code> (optional) — Custom deserializer symbol.
+Default: runtime-native binary deserialization.</li>
 <li><code>env_vars</code> (optional) — Dictionary of environment
 variables to pass into the Nix sandbox.</li>
 <li><code>functions</code> (optional) — Julia files to source before
@@ -2059,7 +2021,9 @@ sandbox.</li>
 generate a stub. Default: <code>false</code>.</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>The evaluated return value of the command.</p>
+<p>A pipeline node configuration object (<code>NodeDef</code>). Must be
+used as a named binding inside a <code>pipeline { ... }</code> block;
+the Julia code is executed by the pipeline builder, not immediately.</p>
 <hr />
 <h3
 id="qnscript-na-serializer-default-deserializer-default-env_vars-args-functions-include-noop-false"><code>qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false)</code></h3>
@@ -2089,7 +2053,10 @@ sandbox.</li>
 generate a stub. Default: <code>false</code>.</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>The evaluated return value of the command.</p>
+<p>A pipeline node configuration object (<code>NodeDef</code>). Must be
+used as a named binding inside a <code>pipeline { ... }</code> block;
+the Quarto document is rendered by the pipeline builder, not
+immediately.</p>
 <hr />
 <h3
 id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false"><code>shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)</code></h3>
@@ -2125,7 +2092,10 @@ sandbox.</li>
 generate a stub. Default: <code>false</code>.</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>The evaluated return value of the command.</p>
+<p>A pipeline node configuration object (<code>NodeDef</code>). Must be
+used as a named binding inside a <code>pipeline { ... }</code> block;
+the shell command is executed by the pipeline builder, not
+immediately.</p>
 <h3
 id="suppress_warningsvalue"><code>suppress_warnings(value)</code></h3>
 <p>Silence diagnostic warnings for a pipeline node while maintaining
@@ -2217,12 +2187,17 @@ nodes.</li>
 populate_pipeline(p, build = true)</code></pre>
 <hr />
 <h3
-id="build_pipelinepipeline"><code>build_pipeline(pipeline)</code></h3>
+id="build_pipelinepipeline-verbose-0"><code>build_pipeline(pipeline, verbose = 0)</code></h3>
 <p>Shorthand for <code>populate_pipeline(p, build = true)</code>.
 Recommended for scripts run with <code>t run</code>.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>pipeline</code> — Pipeline object</li>
+<li><code>verbose</code> (optional) — Int build verbosity level.
+Defaults to <code>0</code> (quiet/minimalist live-status output without
+dumping failed node trace logs). Set <code>verbose = 1</code> or higher
+to print detailed node stdout/stderr failures directly to the terminal
+on build error.</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>BuildLog</code> with fields: - <code>nodes</code> — per-node
@@ -2266,21 +2241,61 @@ inspect.</li>
 <p>DataFrame with columns: <code>filename</code>, <code>mod_time</code>,
 <code>size_kb</code>.</p>
 <hr />
+<h3 id="collect_exceptionsp"><code>collect_exceptions(p)</code></h3>
+<p>Collects all terminal error exceptions and non-terminal warning
+diagnostics from the computed nodes of a built pipeline.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — The Pipeline object to collect diagnostics
+from.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>DataFrame</code> — A DataFrame with columns <code>node</code>,
+<code>status</code>, <code>code</code>, and <code>message</code>
+detailing the exceptions and warnings across all nodes.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>p = pipeline { a = 1 / 0; b = a + 5 }
+build_pipeline(p)
+exceptions = collect_exceptions(p)
+-- Returns a DataFrame with:
+--   node | status  | code             | message
+--   &quot;a&quot;  | &quot;Error&quot; | &quot;DivisionByZero&quot; | &quot;Division by zero&quot;
+--   &quot;b&quot;  | &quot;Error&quot; | &quot;UpstreamError&quot;  | &quot;Upstream dependency &#39;a&#39; failed&quot;</code></pre>
+<hr />
 <h2 id="explain-package">Explain Package</h2>
 <p>Introspection and LLM tooling.</p>
 <h3 id="explainvalue"><code>explain(value)</code></h3>
-<p>Get detailed explanation of a value. For DataFrames, returns a
-compact summary by default showing <code>kind</code>, <code>nrow</code>,
-<code>ncol</code>, and a <code>hint</code>. Detailed fields
-(<code>schema</code>, <code>na_stats</code>, <code>example_rows</code>)
-are accessible via dot notation. For pipeline node results returned by
-<code>read_node(...)</code>, <code>explain()</code> now returns a
-top-level node wrapper with <code>kind</code>, <code>node_name</code>,
-<code>diagnostics</code>, and <code>contents</code>. The
-<code>contents</code> field is the explained payload stored in the node.
-In the REPL and CLI <code>t explain ...</code>, explain output is shown
-with a tree-style formatter for readability, but the runtime value
-remains a normal <code>Dict</code>.</p>
+<p>Get detailed explanation of a value.</p>
+<p>For DataFrames, returns a compact summary by default showing
+<code>kind</code>, <code>nrow</code>, <code>ncol</code>, and a
+<code>hint</code>. Detailed fields (<code>schema</code>,
+<code>na_stats</code>, <code>example_rows</code>) are accessible via dot
+notation.</p>
+<p><strong>Specialized support for <code>collect_exceptions(p)</code>
+DataFrames</strong>: If the input DataFrame is the diagnostics table
+returned by <code>collect_exceptions(p)</code> (detected via the columns
+<code>["node", "status", "code", "message"]</code>),
+<code>explain()</code> behaves as follows: - <strong>Single
+Exception</strong>: If the DataFrame contains exactly one row, calling
+<code>explain()</code> directly maps to that specific exception,
+returning a dictionary with keys <code>kind</code>, <code>type</code>
+(<code>"Error"</code> or <code>"Warning"</code>),
+<code>error_code</code>/<code>warning_code</code>,
+<code>error_message</code>/<code>warning_message</code>, and
+<code>node</code>. - <strong>Multiple Exceptions</strong>: If there are
+zero or multiple rows, <code>explain()</code> returns an overarching
+<code>exceptions_list</code> dictionary containing keys
+<code>kind</code>, <code>type</code>, <code>description</code>,
+<code>count</code>, and <code>exceptions</code> (a list of mapped
+explanation dictionaries for each diagnostic element).</p>
+<p>For pipeline node results returned by <code>read_node(...)</code>,
+<code>explain()</code> now returns a top-level node wrapper with
+<code>kind</code>, <code>node_name</code>, <code>diagnostics</code>, and
+<code>contents</code>. The <code>contents</code> field is the explained
+payload stored in the node. In the REPL and CLI
+<code>t explain ...</code>, explain output is shown with a tree-style
+formatter for readability, but the runtime value remains a normal
+<code>Dict</code>.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>value</code> — Any value</li>

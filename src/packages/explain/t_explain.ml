@@ -126,11 +126,66 @@ let register env =
     | VDataFrame df ->
         let value_columns = Arrow_bridge.table_to_value_columns df.arrow_table in
         let nrows = Arrow_table.num_rows df.arrow_table in
-        let native_path_active = Arrow_table.is_native_backed df.arrow_table in
-        let storage_backend =
-          if native_path_active then "native_arrow" else "pure_ocaml"
+        let is_collect_exceptions_df =
+          match List.map fst value_columns with
+          | ["node"; "status"; "code"; "message"] -> true
+          | _ -> false
         in
-        let performance_note =
+        if is_collect_exceptions_df then
+          let node_col = List.assoc "node" value_columns in
+          let status_col = List.assoc "status" value_columns in
+          let code_col = List.assoc "code" value_columns in
+          let message_col = List.assoc "message" value_columns in
+          let get_str_val col row =
+            match col.(row) with
+            | VString s -> s
+            | _ -> ""
+          in
+          let explain_exception_row node_val status_val code_val message_val =
+            if status_val = "Error" then
+              make_explain_dict [
+                ("kind", VString "value");
+                ("type", VString "Error");
+                ("error_code", VString code_val);
+                ("error_message", VString message_val);
+                ("node", VString node_val);
+              ]
+            else
+              make_explain_dict [
+                ("kind", VString "value");
+                ("type", VString "Warning");
+                ("warning_code", VString code_val);
+                ("warning_message", VString message_val);
+                ("node", VString node_val);
+              ]
+          in
+          if nrows = 1 then
+            let node_val = get_str_val node_col 0 in
+            let status_val = get_str_val status_col 0 in
+            let code_val = get_str_val code_col 0 in
+            let message_val = get_str_val message_col 0 in
+            explain_exception_row node_val status_val code_val message_val
+          else
+            let elements = List.init nrows (fun i ->
+              let node_val = get_str_val node_col i in
+              let status_val = get_str_val status_col i in
+              let code_val = get_str_val code_col i in
+              let message_val = get_str_val message_col i in
+              (None, explain_exception_row node_val status_val code_val message_val)
+            ) in
+            make_explain_dict [
+              ("kind", VString "exceptions_list");
+              ("type", VString "exceptions_list");
+              ("description", VString "A list of exceptions and warnings captured from the pipeline build.");
+              ("count", VInt nrows);
+              ("exceptions", VList elements);
+            ]
+        else
+          let native_path_active = Arrow_table.is_native_backed df.arrow_table in
+          let storage_backend =
+            if native_path_active then "native_arrow" else "pure_ocaml"
+          in
+          let performance_note =
           if native_path_active then
             "Native Arrow handle is active; eligible operations can use the vectorized Arrow path."
           else
@@ -338,6 +393,7 @@ let register env =
           ("arguments", arguments);
         ]
     | VComputedNode cn ->
+        let cn = !Ast.computed_node_resolver cn in
         make_explain_dict [
           ("kind", VString "computed_node");
           ("name", VString cn.cn_name);

@@ -221,7 +221,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "Pipeline Build and Artifact I/O:\n";
   let verbose_args_ok =
-    Builder_internal.nix_verbosity_args 0 = ["--quiet"]
+    Builder_internal.nix_verbosity_args 0 = []
     && Builder_internal.nix_verbosity_args 1 = []
     && Builder_internal.nix_verbosity_args 2 = ["--verbose"]
     && Builder_internal.nix_verbosity_args 3 = ["--verbose"; "--verbose"]
@@ -1512,6 +1512,24 @@ p.t_step|}
     end else begin
       incr fail_count; Printf.printf "  ✗ build_log_to_frame validation failed\n"
     end;
+    let test_build_log_warnings () =
+      let mock_node1 = Ast.VDict [("name", Ast.VString "node_a"); ("status", Ast.VString "Completed"); ("duration", Ast.VFloat 1.2); ("path", Ast.VString "/nix/store/a")] in
+      let mock_node2 = Ast.VDict [("name", Ast.VString "node_b"); ("status", Ast.VString "Completed with warning"); ("duration", Ast.VFloat 3.4); ("path", Ast.VString "/nix/store/b")] in
+      let bl = Ast.VBuildLog {
+        bl_nodes = [mock_node1; mock_node2];
+        bl_duration = 4.6;
+        bl_failed_nodes = [];
+        bl_out_path = None;
+      } in
+      let s = Ast.Utils.value_to_string bl in
+      let expected = "Build Log: 2 nodes [2 succeeded, 0 failed] (duration: 4.60s)\n  ⚠ Warnings in nodes: node_b" in
+      if s = expected then begin
+        incr pass_count; Printf.printf "  ✓ value_to_string(VBuildLog) formats warnings correctly\n"
+      end else begin
+        incr fail_count; Printf.printf "  ✗ value_to_string(VBuildLog) mismatch:\n    Expected: %S\n    Got:      %S\n" expected s
+      end
+    in
+    test_build_log_warnings ();
     let v_errors =
       with_temp_pipeline_project
         "pipeline { a = 1 }\n"
@@ -1521,15 +1539,15 @@ p.t_step|}
             p = pipeline {
               a = 1
             }
-            length(collect_errors(p)) == 0
+            nrow(collect_exceptions(p)) == 0
             |} (Packages.init_env ())
           in
           res)
     in
     if v_errors = Ast.VBool true then begin
-      incr pass_count; Printf.printf "  ✓ collect_errors returns empty list for unbuilt/clean pipeline\n"
+      incr pass_count; Printf.printf "  ✓ collect_exceptions returns empty DataFrame for unbuilt/clean pipeline\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ collect_errors expected [], got %s\n"
+      incr fail_count; Printf.printf "  ✗ collect_exceptions expected empty DataFrame, got %s\n"
         (Ast.Utils.value_to_string v_errors)
     end
   in
@@ -1597,5 +1615,55 @@ p.t_step|}
     end
   in
   test_inspect_pipeline_poly ();
+
+  let test_explain_collect_exceptions () =
+    let make_mock_df rows =
+      let node_arr = Array.make (List.length rows) None in
+      let status_arr = Array.make (List.length rows) None in
+      let code_arr = Array.make (List.length rows) None in
+      let message_arr = Array.make (List.length rows) None in
+      List.iteri (fun i (n, s, c, m) ->
+        node_arr.(i) <- Some n;
+        status_arr.(i) <- Some s;
+        code_arr.(i) <- Some c;
+        message_arr.(i) <- Some m;
+      ) rows;
+      let cols = [
+        ("node", Arrow_table.StringColumn node_arr);
+        ("status", Arrow_table.StringColumn status_arr);
+        ("code", Arrow_table.StringColumn code_arr);
+        ("message", Arrow_table.StringColumn message_arr);
+      ] in
+      let arrow_table = Arrow_table.create cols (List.length rows) in
+      Ast.VDataFrame { arrow_table; group_keys = [] }
+    in
+    let env = Packages.init_env () in
+    let env = Ast.Env.add "df_empty" (make_mock_df []) env in
+    let env = Ast.Env.add "df_single" (make_mock_df [("a", "Error", "DivisionByZero", "Division by zero")]) env in
+    let env = Ast.Env.add "df_multi" (make_mock_df [
+      ("a", "Error", "DivisionByZero", "Division by zero");
+      ("b", "Warning", "UnusedVariable", "Variable b is not used")
+    ]) env in
+    let (v_res, _) = eval_string_env
+      {|
+      exp_empty = explain(df_empty)
+      exp_single = explain(df_single)
+      exp_multi = explain(df_multi)
+      
+      ok_empty = (exp_empty.kind == "exceptions_list" && exp_empty.count == 0)
+      ok_single = (exp_single.kind == "value" && exp_single.type == "Error" && exp_single.node == "a")
+      ok_multi = (exp_multi.kind == "exceptions_list" && exp_multi.count == 2 && get(exp_multi.exceptions, 0).type == "Error" && get(exp_multi.exceptions, 1).type == "Warning")
+      
+      ok_empty && ok_single && ok_multi
+      |} env
+    in
+    if v_res = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ explain(collect_exceptions(p)) returns custom structured explanations\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ explain(collect_exceptions(p)) validation failed, got %s\n"
+        (Ast.Utils.value_to_string v_res)
+    end
+  in
+  test_explain_collect_exceptions ();
 
   print_newline ()

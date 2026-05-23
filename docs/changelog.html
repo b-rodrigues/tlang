@@ -77,17 +77,41 @@ value).</li>
 Added <code>build_log_to_frame(log)</code> to tabulate build results
 (one row per node) for high-level analysis using <code>colcraft</code>
 verbs.</li>
-<li><strong>Error Collection (<code>collect_errors(p)</code>)</strong>:
-Gathers all <code>VError</code> artifacts from a built pipeline into a
-<code>List</code>.</li>
-<li><strong>Error Composition Primitives</strong>:
-<ul>
-<li><code>error_summary(errors)</code>: Converts a list of errors into a
-queryable DataFrame (<code>node</code>, <code>code</code>,
-<code>message</code>, <code>runtime</code>).</li>
-<li><code>error_chain(err1, err2)</code>: Chains multiple errors to
-preserve failure provenance and causality across dependent nodes.</li>
-</ul></li>
+<li><strong>Exception Collection
+(<code>collect_exceptions(p)</code>)</strong>: Gathers all
+<code>VError</code> values and warning diagnostics from computed nodes
+of a built pipeline into a structured DataFrame (<code>node</code>,
+<code>status</code>, <code>code</code>, <code>message</code>), replacing
+the legacy <code>collect_errors</code> and <code>error_summary</code>
+functions.</li>
+<li><strong>Traceback cleaning in
+<code>collect_exceptions(p)</code></strong>: Automatically cleans and
+extracts the last non-empty line of multi-line error traces (such as
+from Python or Arrow exceptions) and truncates the string to 100
+characters max, maintaining a neat, legible table in the REPL.</li>
+<li><strong>Polymorphic error functions</strong>: Made standard
+<code>error_code()</code>, <code>error_message()</code>, and
+<code>error_context()</code> builtins polymorphic. They now accept
+either standard <code>Error</code> objects or first-class pipeline
+<code>ComputedNode</code> values (e.g. <code>p.X</code> or
+<code>p.combined_df</code>). They automatically resolve the node’s
+underlying <code>VError</code> store artifact for soft-failures, or fall
+back to parsing log traceback details for hard Nix-build failures.</li>
+<li><strong>Upstream captured errors in <code>t_make()</code></strong>:
+Upon early termination/build crash, the Nix builder scans the store
+paths of completed upstream nodes to extract soft-failed diagnostic
+states, printing them directly in the final build failure summary
+(e.g. showing <code>(8 captured errors)</code> and listing their node
+names).</li>
+<li><strong>Polars-Style DataFrame print truncation</strong>: Tabular
+pretty-printing of all DataFrames in the REPL now automatically
+truncates cell strings exceeding <code>35</code> characters to
+<code>32</code> characters followed by <code>...</code> to keep columns
+aligned and clean.</li>
+<li><strong>Error Chaining
+(<code>error_chain(err1, err2)</code>)</strong>: Chains multiple errors
+to preserve failure provenance and causality across dependent
+nodes.</li>
 </ul>
 <h3 id="immutable-keyword-built-in-overwrite-protection">Immutable
 Keyword &amp; Built-in Overwrite Protection</h3>
@@ -143,6 +167,25 @@ logs.</li>
 <li><strong>Automated Workflows</strong>: Created premium automated
 GitHub Actions CI workflows to run these suites on PR and push
 events.</li>
+</ul>
+<h3 id="documentation-corrections">Documentation Corrections</h3>
+<ul>
+<li><strong>Removed <code>jn()</code> alias</strong>: Eliminated the
+undocumented <code>jln()</code> alias <code>jn()</code> from the
+evaluator, tests, and all documentation. Use <code>jln()</code>
+exclusively for Julia pipeline nodes.</li>
+<li><strong>Corrected Node-Family <code>Returns</code> docs</strong>:
+All node-defining functions (<code>node</code>, <code>rn</code>,
+<code>pyn</code>, <code>jln</code>, <code>qn</code>, <code>shn</code>)
+now correctly document their return type as a <code>NodeDef</code>
+pipeline node configuration object, not the evaluated result of the
+enclosed code. The code is executed by <code>build_pipeline()</code>,
+not immediately.</li>
+<li><strong>Corrected <code>jln</code> serializer default</strong>:
+Documentation previously stated the default serializer was
+<code>^csv</code>; the actual default is the runtime-native binary
+serializer (<code>jl_serialize</code>), consistent with <code>rn</code>
+and <code>pyn</code>.</li>
 </ul>
 <h2 id="kaméhaméha---2026-05-18">[0.52.0] “Kaméhaméha” - 2026-05-18</h2>
 <p>The focus of this release is the introduction of first-class Julia

@@ -843,28 +843,6 @@ error_context(e)  -- Additional debugging information
 
 ---
 
-### `error_summary(errors)`
-
-Converts a list of Error values into a DataFrame with columns `node`, `code`, `message`, and `runtime` for easier inspection, filtering, and analysis.
-
-**Parameters:**
-
-- `errors` — A List of Error values (such as the list returned by `collect_errors()`).
-
-**Returns:**
-
-`DataFrame` — A DataFrame containing columns `node`, `code`, `message`, and `runtime`.
-
-**Examples:**
-```t
-errors = collect_errors(p)
-summary_df = error_summary(errors)
--- Returns a DataFrame:
---   node       | code         | message                  | runtime
---   "bad_node" | "ValueError" | "Pipeline node..."       | "Python"
-```
-
----
 
 ### `error_chain(err1, err2)`
 
@@ -2850,7 +2828,7 @@ populate_pipeline(p, build = true)
 
 ---
 
-### `build_pipeline(pipeline)`
+### `build_pipeline(pipeline, verbose = 0)`
 
 Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
 
@@ -2858,6 +2836,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 
 
 - `pipeline` — Pipeline object
+- `verbose` (optional) — Int build verbosity level. Defaults to `0` (quiet/minimalist live-status output without dumping failed node trace logs). Set `verbose = 1` or higher to print detailed node stdout/stderr failures directly to the terminal on build error.
 
 **Returns:**
 
@@ -2916,13 +2895,48 @@ DataFrame with columns: `filename`, `mod_time`, `size_kb`.
 
 ---
 
+### `collect_exceptions(p)`
+
+Collects all terminal error exceptions and non-terminal warning diagnostics from the computed nodes of a built pipeline.
+
+**Parameters:**
+
+- `p` — The Pipeline object to collect diagnostics from.
+
+**Returns:**
+
+`DataFrame` — A DataFrame with columns `node`, `status`, `code`, and `message` detailing the exceptions and warnings across all nodes.
+
+**Examples:**
+```t
+p = pipeline { a = 1 / 0; b = a + 5 }
+build_pipeline(p)
+exceptions = collect_exceptions(p)
+-- Returns a DataFrame with:
+--   node | status  | code             | message
+--   "a"  | "Error" | "DivisionByZero" | "Division by zero"
+--   "b"  | "Error" | "UpstreamError"  | "Upstream dependency 'a' failed"
+```
+
+---
+
 ## Explain Package
 
 Introspection and LLM tooling.
 
 ### `explain(value)`
 
-Get detailed explanation of a value. For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `ncol`, and a `hint`. Detailed fields (`schema`, `na_stats`, `example_rows`) are accessible via dot notation. For pipeline node results returned by `read_node(...)`, `explain()` now returns a top-level node wrapper with `kind`, `node_name`, `diagnostics`, and `contents`. The `contents` field is the explained payload stored in the node. In the REPL and CLI `t explain ...`, explain output is shown with a tree-style formatter for readability, but the runtime value remains a normal `Dict`.
+Get detailed explanation of a value. 
+
+For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `ncol`, and a `hint`. Detailed fields (`schema`, `na_stats`, `example_rows`) are accessible via dot notation.
+
+**Specialized support for `collect_exceptions(p)` DataFrames**:
+If the input DataFrame is the diagnostics table returned by `collect_exceptions(p)` (detected via the columns `["node", "status", "code", "message"]`), `explain()` behaves as follows:
+- **Single Exception**: If the DataFrame contains exactly one row, calling `explain()` directly maps to that specific exception, returning a dictionary with keys `kind`, `type` (`"Error"` or `"Warning"`), `error_code`/`warning_code`, `error_message`/`warning_message`, and `node`.
+- **Multiple Exceptions**: If there are zero or multiple rows, `explain()` returns an overarching `exceptions_list` dictionary containing keys `kind`, `type`, `description`, `count`, and `exceptions` (a list of mapped explanation dictionaries for each diagnostic element).
+
+For pipeline node results returned by `read_node(...)`, `explain()` now returns a top-level node wrapper with `kind`, `node_name`, `diagnostics`, and `contents`. The `contents` field is the explained payload stored in the node. In the REPL and CLI `t explain ...`, explain output is shown with a tree-style formatter for readability, but the runtime value remains a normal `Dict`.
+
 
 **Parameters:**
 
