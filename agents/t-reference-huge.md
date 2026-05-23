@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.52.0 "Kaméhaméha".
+**Status:** Version 0.52.1 "Kaméhaméha".
 
 ---
 
@@ -404,7 +404,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.52.0
+> **Version**: 0.52.1
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -6046,7 +6046,7 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.52.1] - 2026-05-xx
+## [0.52.1] - 2026-05-23
 
 This release finalizes end-to-end Julia ONNX serialization support, fixes pipeline compiler strategy dictionary parsing issues, strengthens runtime safety by protecting reserved keywords, and completes the migration of pipeline introspection to a strict, node-centric dot-access model.
 
@@ -15975,7 +15975,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.52.0"
+min_version = "0.52.1"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -17093,8 +17093,7 @@ Returns the `BuildLog` of the latest Nix build for the given pipeline. Includes 
 
 ## Returns
 
-
-
+`BuildLog`: Structured build log value with node statuses, duration, failed nodes, and `out_path`.
 
 
 # FILE: docs/reference/build_log_to_frame.md
@@ -26263,13 +26262,12 @@ Writes a flat JSON object mapping node names to artifact paths.
 
 - **path** (`String`): Destination file.
 
-- **entries** (`List[(String,`): String)] Name-path pairs.
+- **entries** (`List[(String, String)]`): Name-path pairs.
 
 
 ## Returns
 
-String] Status.
-
+`String`: Status.
 
 
 # FILE: docs/reference/write_text.md
@@ -26382,7 +26380,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.52.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.52.1";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -26503,7 +26501,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.52.0",
+    t_version: "0.52.1",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -26546,7 +26544,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.52.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.52.1";
   };
   
   outputs = { self, nixpkgs, tlang }: {
