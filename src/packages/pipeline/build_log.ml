@@ -31,7 +31,7 @@ let find_latest_matching_log_path (p : Ast.pipeline_result) =
 --# Includes node-level status records, total duration, failed node names, and `out_path`.
 --#
 --# @name build_log
---# @param p :: Pipeline The pipeline to retrieve logs for.
+--# @param pipeline :: Pipeline The pipeline to retrieve logs for.
 --# @return :: BuildLog
 --# @family pipeline
 --# @export
@@ -95,7 +95,7 @@ let build_log_to_frame_fn args _env =
 --# and returns them as a structured DataFrame.
 --#
 --# @name collect_exceptions
---# @param p :: Pipeline The built pipeline to gather exceptions from.
+--# @param pipeline :: Pipeline The built pipeline to gather exceptions from.
 --# @return :: DataFrame A DataFrame with columns `node`, `status`, `code`, and `message`.
 --# @family pipeline
 --# @export

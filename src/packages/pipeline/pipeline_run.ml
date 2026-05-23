@@ -6,7 +6,7 @@ open Ast
 --# Re-executes a pipeline from start to finish.
 --#
 --# @name pipeline_run
---# @param p :: Pipeline The pipeline to run.
+--# @param pipeline :: Pipeline The pipeline to run.
 --# @return :: Pipeline The executed pipeline.
 --# @family pipeline
 --# @seealso pipeline_nodes

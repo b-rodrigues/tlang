@@ -103,7 +103,7 @@ let resolve_warning_val = function
 --# Returns the error code as a string (e.g., "TypeError", "ValueError").
 --#
 --# @name error_code
---# @param x :: Error The error value to inspect.
+--# @param node_or_error :: Error The error value or computed node to inspect.
 --# @return :: String The error code as a string.
 --# @family base
 --# @export
@@ -128,7 +128,7 @@ let register env =
   --# Returns the human-readable message associated with an error.
   --#
   --# @name error_msg
-  --# @param x :: Error The error value to inspect.
+  --# @param node_or_error :: Error The error value or computed node to inspect.
   --# @return :: String The error message.
   --# @family base
   --# @export
@@ -152,7 +152,7 @@ let register env =
   --# Returns the human-readable warning associated with a completed computed node, or an empty string if none.
   --#
   --# @name warning_msg
-  --# @param x :: ComputedNode The computed node to inspect.
+  --# @param node :: ComputedNode The computed node to inspect.
   --# @return :: String The warning message.
   --# @family base
   --# @export
@@ -176,7 +176,7 @@ let register env =
   --# the error occurred.
   --#
   --# @name error_context
-  --# @param x :: Error The error value to inspect.
+  --# @param node_or_error :: Error The error value or computed node to inspect.
   --# @return :: Dict A dictionary of related context data.
   --# @family base
   --# @export

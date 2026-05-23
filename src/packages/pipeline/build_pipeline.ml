@@ -6,7 +6,7 @@ open Ast
 --# Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry.
 --#
 --# @name build_pipeline
---# @param p :: Pipeline The pipeline to build.
+--# @param pipeline :: Pipeline The pipeline to build.
 --# @param verbose :: Int (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
 --# @return :: BuildLog A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`).
 --# @family pipeline
