@@ -137,10 +137,8 @@ let register env =
                               Pipeline_script.reload_env_for_pipeline_entry
                                 ~filename:!filename program !env_ref
                             in
-                            (* We print the build header BEFORE evaluation so it's always first.
-                               Flush stderr first so it appears before any stdout from the build. *)
+                            (* We print the build header BEFORE evaluation so it's always first. *)
                             Printf.eprintf "Starting build for project: %s\n%!" !filename;
-                            flush stdout;
 
                             let prev_warn = !Eval.show_warnings in
                             let (v, new_env) =

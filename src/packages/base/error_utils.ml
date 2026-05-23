@@ -86,13 +86,9 @@ let resolve_warning_val = function
            if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
              let warnings_path = Filename.concat (Filename.dirname cn.cn_path) "warnings" in
              if Sys.file_exists warnings_path then (
-               try
-                 let chan = open_in warnings_path in
-                 let len = in_channel_length chan in
-                 let content = really_input_string chan len in
-                 close_in chan;
-                 Some (String.trim content)
-               with _ -> None
+               let warns = Builder_read_node.parse_node_warnings warnings_path in
+               let warn_msgs = List.map (fun w -> w.nw_message) warns in
+               if warn_msgs <> [] then Some (String.concat "\n" warn_msgs) else None
              ) else None
            else None)
   | _ -> None

@@ -11,5 +11,4 @@ Returns the `BuildLog` of the latest Nix build for the given pipeline. Includes 
 
 ## Returns
 
-
-
+`BuildLog`: Structured build log value with node statuses, duration, failed nodes, and `out_path`.

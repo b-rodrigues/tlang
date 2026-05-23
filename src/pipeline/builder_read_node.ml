@@ -137,8 +137,14 @@ let read_standard_node_value cn =
     VComputedNode cn
 
 let read_logged_node_value name cn =
-  let noop_path = Filename.concat (Filename.dirname cn.cn_path) "NOOPBUILD" in
-  if Sys.file_exists noop_path then
+  let noop_build_detected =
+    if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
+      let noop_path = Filename.concat (Filename.dirname cn.cn_path) "NOOPBUILD" in
+      Sys.file_exists noop_path
+    else
+      false
+  in
+  if noop_build_detected then
     Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read node `%s` from `%s`: this node was skipped (noop=true) or was a downstream dependency of a skipped node, so no output artifact was created." name cn.cn_path)
   else if cn.cn_runtime = "T"
      && cn.cn_serializer = "default"

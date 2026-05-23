@@ -1532,7 +1532,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_call = match node_expr.node with
-      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "jn" | "qn" | "shn"); _ }; _ }
+      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
       | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
@@ -2348,15 +2348,10 @@ and eval_dot_access_val _env_ref target_val field =
            | _ ->
                if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then (
                  let warnings_path = Filename.concat (Filename.dirname cn.cn_path) "warnings" in
-                 if Sys.file_exists warnings_path then (
-                   try
-                     let chan = open_in warnings_path in
-                     let len = in_channel_length chan in
-                     let content = really_input_string chan len in
-                     close_in chan;
-                     VString (String.trim content)
-                   with _ -> VString ""
-                 ) else VString ""
+                 if Sys.file_exists warnings_path then
+                   let warns = Builder_read_node.parse_node_warnings warnings_path in
+                   VString (String.concat "\n" (List.map (fun w -> w.nw_message) warns))
+                 else VString ""
                ) else VString "")
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "ComputedNode has no field `%s`" field))
   | VNode un ->

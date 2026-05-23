@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.52.1] - 2026-05-xx
+## [0.52.1] - 2026-05-23
 
 This release finalizes end-to-end Julia ONNX serialization support, fixes pipeline compiler strategy dictionary parsing issues, strengthens runtime safety by protecting reserved keywords, and completes the migration of pipeline introspection to a strict, node-centric dot-access model.
 
