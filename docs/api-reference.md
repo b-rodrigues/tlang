@@ -2895,6 +2895,50 @@ DataFrame with columns: `filename`, `mod_time`, `size_kb`.
 
 ---
 
+### `build_log(p)`
+
+Returns the `BuildLog` of the latest Nix build for the given pipeline. Contains detailed node-level status records, duration, failed node names, and `out_path`.
+
+**Parameters:**
+
+- `p` — The Pipeline object to retrieve the build log for.
+
+**Returns:**
+
+`BuildLog` — A structured build log record.
+
+**Examples:**
+```t
+p = pipeline { a = 1 / 0 }
+build_pipeline(p)
+log = build_log(p)
+```
+
+---
+
+### `build_log_to_frame(log)`
+
+Tabulates a `BuildLog` record into a structured DataFrame summarizing the build status, duration, and Nix store paths of all pipeline nodes.
+
+**Parameters:**
+
+- `log` — The `BuildLog` record (retrieved via `build_log(p)`).
+
+**Returns:**
+
+`DataFrame` — A DataFrame with columns `name`, `status`, `duration`, and `path`.
+
+**Examples:**
+```t
+log = build_log(p)
+df = build_log_to_frame(log)
+-- Returns a DataFrame:
+--   name  | status     | duration | path
+--   "a"   | "Errored"  | 0.02     | "/nix/store/..."
+```
+
+---
+
 ### `collect_exceptions(p)`
 
 Collects all terminal error exceptions and non-terminal warning diagnostics from the computed nodes of a built pipeline.

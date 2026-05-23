@@ -2241,6 +2241,41 @@ inspect.</li>
 <p>DataFrame with columns: <code>filename</code>, <code>mod_time</code>,
 <code>size_kb</code>.</p>
 <hr />
+<h3 id="build_logp"><code>build_log(p)</code></h3>
+<p>Returns the <code>BuildLog</code> of the latest Nix build for the
+given pipeline. Contains detailed node-level status records, duration,
+failed node names, and <code>out_path</code>.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — The Pipeline object to retrieve the build log
+for.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>BuildLog</code> — A structured build log record.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>p = pipeline { a = 1 / 0 }
+build_pipeline(p)
+log = build_log(p)</code></pre>
+<hr />
+<h3 id="build_log_to_framelog"><code>build_log_to_frame(log)</code></h3>
+<p>Tabulates a <code>BuildLog</code> record into a structured DataFrame
+summarizing the build status, duration, and Nix store paths of all
+pipeline nodes.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>log</code> — The <code>BuildLog</code> record (retrieved via
+<code>build_log(p)</code>).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>DataFrame</code> — A DataFrame with columns <code>name</code>,
+<code>status</code>, <code>duration</code>, and <code>path</code>.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>log = build_log(p)
+df = build_log_to_frame(log)
+-- Returns a DataFrame:
+--   name  | status     | duration | path
+--   &quot;a&quot;   | &quot;Errored&quot;  | 0.02     | &quot;/nix/store/...&quot;</code></pre>
+<hr />
 <h3 id="collect_exceptionsp"><code>collect_exceptions(p)</code></h3>
 <p>Collects all terminal error exceptions and non-terminal warning
 diagnostics from the computed nodes of a built pipeline.</p>
