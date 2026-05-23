@@ -456,7 +456,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                      
                      (match read_file_first_line class_path with
                       | Some "VError" | Some "Error" -> Hashtbl.replace statuses name "SoftFailed"
-                      | _ -> ())
+                      | _ -> Hashtbl.replace statuses name "Completed")
                    )
                | _ -> ()
              ) node_names;
@@ -499,9 +499,43 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                Printf.eprintf "\n✖ Pipeline build failed [%s]\n%!" error_summary
              );
 
+             let is_failed name =
+               match Hashtbl.find_opt statuses name with
+               | Some "Completed" -> false
+               | _ -> true
+             in
+             let root_causes =
+               List.filter (fun name ->
+                 if not (is_failed name) then false
+                 else
+                   let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+                   not (List.exists is_failed deps)
+               ) node_names
+             in
+
+             let rec_msg =
+               if root_causes <> [] then
+                 let lines =
+                   List.map (fun n ->
+                     Printf.sprintf "  → %s (Run 'error_message(p.%s)' and paste the traceback to an LLM/Copilot for instant help!)" n n
+                   ) root_causes
+                 in
+                 "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"
+               else ""
+             in
+             if rec_msg <> "" then Printf.eprintf "%s%!" rec_msg;
+
              let hint =
-               if verbose > 0 then "See logs above."
-               else "Use collect_exceptions(p) and explain() for diagnostics."
+               let base_hint =
+                 if verbose > 0 then "See logs above."
+                 else "Use collect_exceptions(p) and explain() for diagnostics."
+               in
+               if root_causes <> [] then
+                 Printf.sprintf "%s (Root cause: %s. Run 'error_message(p.%s)' and share the traceback with an LLM for help!)"
+                   base_hint
+                   (String.concat ", " root_causes)
+                   (List.hd root_causes)
+               else base_hint
              in
              ignore (save_build_log None);
              Error (Printf.sprintf "nix-build failed: %s %s" error_summary hint))
