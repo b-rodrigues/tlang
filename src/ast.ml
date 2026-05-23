@@ -744,7 +744,19 @@ module Utils = struct
   and value_to_string = function
     | VBuildLog bl ->
         let total = List.length bl.bl_nodes in
-        let failed = List.length bl.bl_failed_nodes in
+        let count_status status_str =
+          List.length (List.filter (function
+            | VDict fields ->
+                (match List.assoc_opt "status" fields with
+                 | Some (VString s) -> String.lowercase_ascii s = String.lowercase_ascii status_str
+                 | _ -> false)
+            | _ -> false) bl.bl_nodes)
+        in
+        let succeeded_count = count_status "Completed" + count_status "Completed with warning" in
+        let failed_count = count_status "Errored" + count_status "Completed with error" in
+        let skipped_count = count_status "Skipped" in
+        let building_count = count_status "Building" in
+        let pending_count = count_status "Pending" in
         let warning_nodes =
           List.filter_map (function
             | VDict fields ->
@@ -753,9 +765,16 @@ module Utils = struct
                  | _ -> None)
             | _ -> None) bl.bl_nodes
         in
+        let parts = [
+          Printf.sprintf "%d succeeded" succeeded_count;
+          Printf.sprintf "%d failed" failed_count;
+        ] in
+        let parts = if skipped_count > 0 then parts @ [Printf.sprintf "%d skipped" skipped_count] else parts in
+        let parts = if building_count > 0 then parts @ [Printf.sprintf "%d building" building_count] else parts in
+        let parts = if pending_count > 0 then parts @ [Printf.sprintf "%d pending" pending_count] else parts in
         let base =
-          Printf.sprintf "Build Log: %d nodes [%d succeeded, %d failed] (duration: %.2fs)"
-            total (total - failed) failed bl.bl_duration
+          Printf.sprintf "Build Log: %d nodes [%s] (duration: %.2fs)"
+            total (String.concat ", " parts) bl.bl_duration
         in
         if warning_nodes = [] then base
         else

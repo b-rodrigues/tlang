@@ -77,6 +77,17 @@ value).</li>
 Added <code>build_log_to_frame(log)</code> to tabulate build results
 (one row per node) for high-level analysis using <code>colcraft</code>
 verbs.</li>
+<li><strong>Accurate Build Log Status Reconciliation</strong>:
+Refactored the OCaml Nix builder to automatically reconcile all
+unfinished nodes remaining in <code>"Pending"</code> or
+<code>"Building"</code> states to <code>"Skipped"</code> when the
+nix-build process crashes/fails, avoiding confusing out-of-date
+states.</li>
+<li><strong>Dynamic Build Log Summaries</strong>: Upgraded
+<code>VBuildLog</code> stringification and REPL pretty-printing to
+dynamically count and print all status types
+(e.g. <code>2 succeeded, 9 failed, 3 skipped</code>) rather than
+assuming a simple binary success/failure count.</li>
 <li><strong>Exception Collection
 (<code>collect_exceptions(p)</code>)</strong>: Gathers all
 <code>VError</code> values and warning diagnostics from computed nodes

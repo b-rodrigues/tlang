@@ -298,6 +298,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
             if current = "Errored" then "Errored"
             else if class_val = "VError" || class_val = "Error" then "SoftFailed"
             else if class_val <> "Unknown" then "Completed"
+            else if current = "Pending" || current = "Building" then "Skipped"
             else current
           in
           let success = if status = "Completed" then "true" else "false" in

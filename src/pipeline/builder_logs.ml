@@ -169,8 +169,6 @@ let parse_json_log_to_vbuildlog log_path =
               let success = parse_success_with_default node_json true in
               if success then "Completed" else "SoftFailed"
         in
-        let success_default = String.equal status "Completed" in
-        let success = parse_success_with_default node_json success_default in
         let node_duration = parse_float_or_default (node_json |> member "duration") in
         let has_warnings =
           match node_json |> member "warnings" with
@@ -185,9 +183,8 @@ let parse_json_log_to_vbuildlog log_path =
         in
         let is_failed =
           match String.lowercase_ascii status with
-          | "completed" -> false
           | "softfailed" | "errored" -> true
-          | _ -> not success
+          | _ -> false
         in
         let record_fields = [
           ("name", Ast.VString name);
