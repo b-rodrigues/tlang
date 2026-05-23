@@ -18,7 +18,7 @@ open Ast
 --# - `command_type` — one of "command" or "script" (String)
 --#
 --# @name pipeline_to_frame
---# @param p :: Pipeline The pipeline to convert.
+--# @param pipeline :: Pipeline The pipeline to convert.
 --# @return :: DataFrame A DataFrame with one row per node.
 --# @example
 --#   pipeline_to_frame(p)

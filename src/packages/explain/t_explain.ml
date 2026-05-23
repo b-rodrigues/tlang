@@ -3,6 +3,18 @@ open Ast
 let dataframe_hint =
   "Use explain(df).storage_backend, explain(df).native_path_active, explain(df).performance_note, explain(df).schema, explain(df).na_stats, and explain(df).example_rows for details"
 
+let contains_sub s sub =
+  let len_s = String.length s in
+  let len_sub = String.length sub in
+  if len_sub > len_s then false
+  else
+    let rec check i =
+      if i + len_sub > len_s then false
+      else if String.sub s i len_sub = sub then true
+      else check (i + 1)
+    in
+    check 0
+
 (*
 --# Explain Value
 --#
@@ -114,11 +126,66 @@ let register env =
     | VDataFrame df ->
         let value_columns = Arrow_bridge.table_to_value_columns df.arrow_table in
         let nrows = Arrow_table.num_rows df.arrow_table in
-        let native_path_active = Arrow_table.is_native_backed df.arrow_table in
-        let storage_backend =
-          if native_path_active then "native_arrow" else "pure_ocaml"
+        let is_collect_exceptions_df =
+          match List.map fst value_columns with
+          | ["node"; "status"; "code"; "message"] -> true
+          | _ -> false
         in
-        let performance_note =
+        if is_collect_exceptions_df then
+          let node_col = List.assoc "node" value_columns in
+          let status_col = List.assoc "status" value_columns in
+          let code_col = List.assoc "code" value_columns in
+          let message_col = List.assoc "message" value_columns in
+          let get_str_val col row =
+            match col.(row) with
+            | VString s -> s
+            | _ -> ""
+          in
+          let explain_exception_row node_val status_val code_val message_val =
+            if status_val = "Error" then
+              make_explain_dict [
+                ("kind", VString "value");
+                ("type", VString "Error");
+                ("error_code", VString code_val);
+                ("error_message", VString message_val);
+                ("node", VString node_val);
+              ]
+            else
+              make_explain_dict [
+                ("kind", VString "value");
+                ("type", VString "Warning");
+                ("warning_code", VString code_val);
+                ("warning_message", VString message_val);
+                ("node", VString node_val);
+              ]
+          in
+          if nrows = 1 then
+            let node_val = get_str_val node_col 0 in
+            let status_val = get_str_val status_col 0 in
+            let code_val = get_str_val code_col 0 in
+            let message_val = get_str_val message_col 0 in
+            explain_exception_row node_val status_val code_val message_val
+          else
+            let elements = List.init nrows (fun i ->
+              let node_val = get_str_val node_col i in
+              let status_val = get_str_val status_col i in
+              let code_val = get_str_val code_col i in
+              let message_val = get_str_val message_col i in
+              (None, explain_exception_row node_val status_val code_val message_val)
+            ) in
+            make_explain_dict [
+              ("kind", VString "exceptions_list");
+              ("type", VString "exceptions_list");
+              ("description", VString "A list of exceptions and warnings captured from the pipeline build.");
+              ("count", VInt nrows);
+              ("exceptions", VList elements);
+            ]
+        else
+          let native_path_active = Arrow_table.is_native_backed df.arrow_table in
+          let storage_backend =
+            if native_path_active then "native_arrow" else "pure_ocaml"
+          in
+          let performance_note =
           if native_path_active then
             "Native Arrow handle is active; eligible operations can use the vectorized Arrow path."
           else
@@ -236,12 +303,97 @@ let register env =
           ("response", VList (List.map (fun s -> (None, VString s)) response));
           ("predictors", VList (List.map (fun s -> (None, VString s)) predictors));
         ]
-    | VBuiltin _ | VLambda _ ->
+    | VLambda l ->
+        let rec zip params param_types =
+          match params, param_types with
+          | p :: ps, pt :: pts ->
+              let type_str =
+                match pt with
+                | Some t -> Ast.Utils.typ_to_string t
+                | None -> "Any"
+              in
+              let arg_dict = make_explain_dict [
+                ("name", VString p);
+                ("type", VString type_str);
+                ("default", VNA NAGeneric);
+              ] in
+              (None, arg_dict) :: zip ps pts
+          | p :: ps, [] ->
+              let arg_dict = make_explain_dict [
+                ("name", VString p);
+                ("type", VString "Any");
+                ("default", VNA NAGeneric);
+              ] in
+              (None, arg_dict) :: zip ps []
+          | [], _ -> []
+        in
+        let arguments = VList (zip l.params l.param_types) in
         make_explain_dict [
           ("kind", VString "value");
           ("type", VString "Function");
+          ("arguments", arguments);
+        ]
+    | VBuiltin b ->
+        let rec map_params params =
+          match params with
+          | (p : Tdoc_types.param_doc) :: ps ->
+              let type_str = match p.Tdoc_types.type_info with Some t -> t | None -> "Any" in
+              let default_str =
+                let text = String.lowercase_ascii (type_str ^ " " ^ p.Tdoc_types.description) in
+                if contains_sub text "optional" || contains_sub text "default = na" then
+                  VString "NA"
+                else if contains_sub text "default =" then
+                  match String.split_on_char '=' text with
+                  | _ :: right :: _ ->
+                      let cleaned = String.trim (List.hd (String.split_on_char ' ' (String.trim right))) in
+                      VString cleaned
+                  | _ -> VNA NAGeneric
+                else if contains_sub text "defaults to" then
+                  VString "NA"
+                else
+                  VNA NAGeneric
+              in
+              let arg_dict = make_explain_dict [
+                ("name", VString p.Tdoc_types.name);
+                ("type", VString type_str);
+                ("default", default_str);
+              ] in
+              (None, arg_dict) :: map_params ps
+          | [] -> []
+        in
+        let arguments =
+          match b.b_name with
+          | Some name ->
+              (match Tdoc_registry.lookup name with
+               | Some doc -> VList (map_params doc.Tdoc_types.params)
+               | None ->
+                   let args_list = List.init b.b_arity (fun i ->
+                     let name = Printf.sprintf "arg%d" (i + 1) in
+                     (None, make_explain_dict [
+                       ("name", VString name);
+                       ("type", VString "Any");
+                       ("default", VNA NAGeneric);
+                     ])
+                   ) in
+                   VList args_list)
+          | None ->
+              let args_list = List.init b.b_arity (fun i ->
+                let name = Printf.sprintf "arg%d" (i + 1) in
+                (None, make_explain_dict [
+                  ("name", VString name);
+                  ("type", VString "Any");
+                  ("default", VNA NAGeneric);
+                ])
+              ) in
+              VList args_list
+        in
+        make_explain_dict [
+          ("kind", VString "value");
+          ("type", VString "Function");
+          ("arguments", arguments);
         ]
     | VComputedNode cn ->
+        let cn = !Ast.computed_node_resolver cn in
         make_explain_dict [
           ("kind", VString "computed_node");
           ("name", VString cn.cn_name);

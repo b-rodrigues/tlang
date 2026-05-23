@@ -1049,7 +1049,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
          | _ -> Error.make_error ArityError "enquos() expects no arguments or `...`")
 
     | Call { fn = { node = Var name; _ }; args }
-      when List.mem name ["node"; "pyn"; "rn"; "jln"; "jn"; "qn"; "shn"] ->
+      when List.mem name ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] ->
         let fn_name = name in
         let lookup_arg name default =
           match List.assoc_opt (Some name) args with
@@ -1249,7 +1249,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              let default_runtime = match name with
                | "pyn" -> "Python"
                | "rn" -> "R"
-               | "jln" | "jn" -> "Julia"
+               | "jln" -> "Julia"
                | "qn" -> "Quarto"
                | "shn" -> "sh"
                | _ -> "T"
@@ -1532,7 +1532,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_call = match node_expr.node with
-      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "jn" | "qn" | "shn"); _ }; _ }
+      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
       | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
@@ -2266,11 +2266,61 @@ and eval_dot_access_val _env_ref target_val field =
          then VDict [("__partial_dot_df__", VDataFrame df);
                      ("__partial_dot_prefix__", VString field)]
          else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
-  | VPipeline { p_nodes; _ } ->
-      (match List.assoc_opt field p_nodes with
+  | VPipeline p ->
+      (match List.assoc_opt field p.p_nodes with
        | Some (VComputedNode cn) -> VComputedNode (!Ast.computed_node_resolver cn)
-       | Some v -> v
-       | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
+       | Some (VSymbol s) -> VSymbol s
+       | Some v ->
+           let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
+           let cn_serializer =
+             match List.assoc_opt field p.p_serializers with
+             | Some e -> Nix_unparse.expr_to_string e
+             | None -> "default"
+           in
+           let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
+           let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
+           if is_noop then
+             VSymbol (Printf.sprintf "<noop:%s>" field)
+           else begin
+             let diagnostics =
+               match List.assoc_opt field p.p_node_diagnostics with
+               | Some d -> d
+               | None -> Ast.Utils.empty_node_diagnostics
+             in
+             let wrapped = VNodeResult { v; node_name = field; diagnostics } in
+             Hashtbl.replace Ast.in_memory_node_values field wrapped;
+             VComputedNode {
+               cn_name = field;
+               cn_runtime;
+               cn_path = "<unbuilt>";
+               cn_serializer;
+               cn_class = "Unknown";
+               cn_dependencies;
+             }
+           end
+       | None ->
+           (match List.assoc_opt field p.p_exprs with
+            | Some _ ->
+                let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
+                let cn_serializer =
+                  match List.assoc_opt field p.p_serializers with
+                  | Some e -> Nix_unparse.expr_to_string e
+                  | None -> "default"
+                in
+                let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
+                let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
+                if is_noop then
+                  VSymbol (Printf.sprintf "<noop:%s>" field)
+                else
+                  VComputedNode {
+                    cn_name = field;
+                    cn_runtime;
+                    cn_path = "<unbuilt>";
+                    cn_serializer;
+                    cn_class = "Unknown";
+                    cn_dependencies;
+                  }
+            | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)))
   | VBuildLog bl ->
       (match field with
        | "nodes" -> VList (List.map (fun x -> (None, x)) bl.bl_nodes)
@@ -2290,6 +2340,19 @@ and eval_dot_access_val _env_ref target_val field =
       | "serializer" -> VString cn.cn_serializer
       | "class" -> VString cn.cn_class
       | "dependencies" -> VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies)
+      | "warning_msg" ->
+          (match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
+           | Some (VNodeResult { diagnostics; _ }) ->
+               let warn_msgs = List.map (fun w -> w.nw_message) diagnostics.nd_warnings in
+               VString (String.concat "\n" warn_msgs)
+           | _ ->
+               if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then (
+                 let warnings_path = Filename.concat (Filename.dirname cn.cn_path) "warnings" in
+                 if Sys.file_exists warnings_path then
+                   let warns = Builder_read_node.parse_node_warnings warnings_path in
+                   VString (String.concat "\n" (List.map (fun w -> w.nw_message) warns))
+                 else VString ""
+               ) else VString "")
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "ComputedNode has no field `%s`" field))
   | VNode un ->
       (match field with
@@ -2324,13 +2387,13 @@ and eval_dot_access_val _env_ref target_val field =
                (Printf.sprintf "ShellResult has no field `%s`. Available fields: stdout, stderr, exit_code." field))
   | VError ({ code; message; context; location; na_count } as err) ->
       (* Structured field access for Error values mirrors explain(error):
-         error_code, error_message, context, na_count, and optional
+         error_code, error_msg, context, na_count, and optional
          location-derived file/line/column fields (NA when unavailable).
          Unknown fields preserve prior behavior by returning the original
          error unchanged. *)
       (match field with
        | "error_code" -> VString (Utils.error_code_to_string code)
-       | "error_message" -> VString message
+       | "error_msg" -> VString message
        | "context" -> VDict context
        | "na_count" -> VInt na_count
        | "file" ->
@@ -2483,7 +2546,7 @@ and eval_call env_ref fn_val raw_args =
             | "rename" | "rename_node"
            | "pivot_longer" | "pivot_longer_node"
            | "pivot_wider" | "pivot_wider_node"
-           | "node" | "pyn" | "rn" | "jln" | "jn" | "qn" | "shn" | "inspect") -> true
+           | "node" | "pyn" | "rn" | "jln" | "qn" | "shn" | "inspect") -> true
     | _ -> false
   in
 

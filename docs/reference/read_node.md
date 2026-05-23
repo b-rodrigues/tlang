@@ -2,20 +2,18 @@
 
 Read Pipeline Node Artifact
 
-For in-memory Pipelines, returns a node record with the node value and structured diagnostics. For built pipelines, reads the artifact from the latest (or specified) build log in `_pipeline/`. Use `which_log` to read from a specific historical build ("time travel").
+Reads and returns the contents of a ComputedNode. For in-memory pipelines, returns the dynamically computed value directly from the registry. For built pipelines, reads the materialized artifact from the latest (or specified) build log. Use `which_log` to read from a specific historical build ("time travel").
 
 ## Parameters
 
-- **node** (`Pipeline`): | String | ComputedNode Pass a Pipeline for in-memory node diagnostics, or a String/ComputedNode to load a built artifact.
-
-- **name** (`String`): (Optional) The node name to read when `node` is a Pipeline.
+- **node** (`ComputedNode`): The ComputedNode object to read (e.g. `p.node_name`).
 
 - **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename.
 
 
 ## Returns
 
-A Dict with value+diagnostics for in-memory pipelines, or the deserialized artifact for built nodes.
+The deserialized artifact value, or the in-memory value.
 
 ## See Also
 

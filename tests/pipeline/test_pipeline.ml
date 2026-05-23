@@ -110,14 +110,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase 3 — Pipeline Node Access:\n";
   let env_p3 = Packages.init_env () in
   let (_, env_p3) = eval_string_env "p = pipeline {\n  x = 10\n  y = 20\n  total = x + y\n}" env_p3 in
-  let (v, _) = eval_string_env "p.x" env_p3 in
+  let (v, _) = eval_string_env "read_node(p.x)" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = "10" then begin
     incr pass_count; Printf.printf "  ✓ pipeline node access via dot (x)\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ pipeline node access via dot (x)\n    Expected: 10\n    Got: %s\n" result
   end;
-  let (v, _) = eval_string_env "p.total" env_p3 in
+  let (v, _) = eval_string_env "read_node(p.total)" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = "30" then begin
     incr pass_count; Printf.printf "  ✓ pipeline node access via dot (total)\n"
@@ -141,10 +141,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "Phase 3 — Dependency Resolution:\n";
   test "out-of-order dependencies resolved"
-    "p = pipeline {\n  result = x + y\n  x = 3\n  y = 7\n}; p.result"
+    "p = pipeline {\n  result = x + y\n  x = 3\n  y = 7\n}; read_node(p.result)"
     "10";
   test "chain dependencies"
-    "p = pipeline {\n  a = 1\n  b = a + 1\n  c = b + 1\n  d = c + 1\n}; p.d"
+    "p = pipeline {\n  a = 1\n  b = a + 1\n  c = b + 1\n  d = c + 1\n}; read_node(p.d)"
     "4";
   print_newline ();
 
@@ -206,7 +206,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   end;
 
   (* Re-run produces same node values *)
-  let (rerun_result, _) = eval_string_env "p2 = pipeline_run(p); p2.total" env_p3 in
+  let (rerun_result, _) = eval_string_env "p2 = pipeline_run(p); read_node(p2.total)" env_p3 in
   let result = Ast.Utils.value_to_string rerun_result in
   if result = "30" then begin
     incr pass_count; Printf.printf "  ✓ re-run preserves cached values\n"
@@ -221,7 +221,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "Pipeline Build and Artifact I/O:\n";
   let verbose_args_ok =
-    Builder_internal.nix_verbosity_args 0 = ["--quiet"]
+    Builder_internal.nix_verbosity_args 0 = []
     && Builder_internal.nix_verbosity_args 1 = []
     && Builder_internal.nix_verbosity_args 2 = ["--verbose"]
     && Builder_internal.nix_verbosity_args 3 = ["--verbose"; "--verbose"]
@@ -384,7 +384,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         output_string oc "other = 2\np = pipeline {\n  b = other\n}\npopulate_pipeline(p, build=false)\n";
         close_out oc;
         let (second, env) = eval_string_env "t_make()" env in
-        let (new_binding_check, _) = eval_string_env "other == 2 && p.b == 2" env in
+        let (new_binding_check, _) = eval_string_env "other == 2 && read_node(p.b) == 2" env in
         let (stale_binding_removed_check, _) = eval_string_env "is_error(helper)" env in
         let (old_node_check, _) = eval_string_env "is_error(p.a)" env in
         let pipeline_nix = Filename.concat "_pipeline" "pipeline.nix" in
@@ -457,16 +457,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "Phase 3 — Pipeline with Pipes:\n";
   test "pipeline with pipe operator"
-    "double = \\(x) x * 2\np = pipeline {\n  a = 5\n  b = a |> double\n}; p.b"
+    "double = \\(x) x * 2\np = pipeline {\n  a = 5\n  b = a |> double\n}; read_node(p.b)"
     "10";
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with Functions:\n";
   test "pipeline with function calls"
-    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; p.total"
+    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.total)"
     "6";
   test "pipeline nodes available individually"
-    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; p.count"
+    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.count)"
     "3";
   print_newline ();
 
@@ -676,39 +676,39 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       close_out oc_recovered_match;
 
       test "read_node propagates R runtime on error"
-        "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).contents.runtime"
+        "explain(read_node(pipeline { r_fail = node() }.r_fail, which_log=\"ocaml_mock\")).contents.runtime"
         "\"R\"";
 
       test "read_node propagates Python runtime on error"
-        "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).contents.runtime"
+        "explain(read_node(pipeline { py_fail = node() }.py_fail, which_log=\"ocaml_mock\")).contents.runtime"
         "\"Python\"";
       test "explain(read_node(...)) wraps node metadata separately"
-        "explain(read_node(\"compatible_node\", which_log=\"legacy_version\"))"
+        "explain(read_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\"))"
         explained_compatible_node;
       test "explain(read_node(...)) nests explained error contents"
-        "explain(read_node(\"error_node\", which_log=\"ocaml_mock\")).contents.error_code"
+        "explain(read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\")).contents.error_code"
         {|"RuntimeError"|};
       test "explain(read_node(...)) exposes node display key order"
-        "explain(read_node(\"compatible_node\", which_log=\"legacy_version\"))._display_keys .== [\"kind\", \"node_name\", \"diagnostics\", \"contents\"]"
+        "explain(read_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\"))._display_keys .== [\"kind\", \"node_name\", \"diagnostics\", \"contents\"]"
         "[true, true, true, true]";
       test "read_node (mocked) reads compatible artifact"
-        "read_node(\"compatible_node\", which_log=\"legacy_version\") .== [1, 2, 3]"
+        "read_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\") .== [1, 2, 3]"
         "[true, true, true]";
       test "read_node missing key (mocked)"
-        "error_code(read_node(\"missing\", which_log=\"ocaml_mock\")) == \"KeyError\""
+        "error_code(read_node(pipeline { missing = node() }.missing, which_log=\"ocaml_mock\")) == \"KeyError\""
         "true";
       test "read_node error exposes error_code field"
-        "read_node(\"error_node\", which_log=\"ocaml_mock\").error_code"
+        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_code"
         {|"RuntimeError"|};
-      test "read_node error exposes error_message field"
-        "read_node(\"error_node\", which_log=\"ocaml_mock\").error_message"
+      test "read_node error exposes error_msg field"
+        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_msg"
         (Ast.Utils.value_to_string (Ast.VString mocked_error_message));
       test "read_node error exposes context dict"
-        "read_node(\"error_node\", which_log=\"ocaml_mock\").context.node_status"
+        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").context.node_status"
         {|"errored"|};
 
       test "read_node falls back to artifact deserializer when plot viz sidecar is absent"
-        "read_node(\"plot_json_node\", which_log=\"legacy_version\").title"
+        "read_node(pipeline { plot_json_node = node() }.plot_json_node, which_log=\"legacy_version\").title"
         {|"Fallback plot"|};
       test "plot fallback fixture does not create a viz sidecar"
         (Printf.sprintf {|file_exists("%s")|} plot_json_viz)
@@ -723,7 +723,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         {|p_logged = pipeline {
   good = 1
   bad = node(command = <{ 1 }>, runtime = R)
-}; read_node(p_logged, "bad").error.kind|}
+}; read_node(p_logged.bad).error.kind|}
         "\"RuntimeError\"";
       test "filter_node uses merged build-log diagnostics in predicates"
         {|p_logged = pipeline {
@@ -735,7 +735,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         {|p_match = pipeline {
   good_val = 20
   recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = ^json, deserializer = ^json)
-}; read_node(p_match, "recovered_with_match").value.status|}
+}; read_node(p_match.recovered_with_match).value.status|}
         {|"ok"|};
       test "read_pipeline prefers matching build-log values for unresolved nodes"
         {|p_match = pipeline {
@@ -751,7 +751,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         {|["ok"]|};
 
       test "read_node rejects older serialized node versions"
-        "read_node(\"legacy_node\", which_log=\"legacy_version\")"
+        "read_node(pipeline { legacy_node = node() }.legacy_node, which_log=\"legacy_version\")"
         legacy_node_error);
 
   print_newline ();
@@ -762,21 +762,21 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
-}; length(read_node(p_diag, "filtered").warnings)|}
+}; length(read_node(p_diag.filtered).warnings)|}
     "1";
   test "downstream nodes inherit upstream warnings"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
-}; read_node(p_diag, "count").warnings |> map(\(w) w.source.kind)|}
+}; read_node(p_diag.count).warnings |> map(\(w) w.source.kind)|}
     {|["Upstream"]|};
   test "downstream warning source points at origin node"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
-}; read_node(p_diag, "count").warnings |> map(\(w) w.source.node)|}
+}; read_node(p_diag.count).warnings |> map(\(w) w.source.node)|}
     {|["filtered"]|};
   test "read_pipeline summarizes warning origins only once"
     {|p_diag = pipeline {
@@ -791,11 +791,28 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   downstream = bad + 1
 }; read_pipeline(p_err).diagnostics.summary|}
     "\"0 node(s) with warnings, 0 suppressed, 2 error(s), 0 recovered\"";
+
+  test "warning_msg() built-in returns warning message"
+    {|p_diag = pipeline {
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
+  filtered = filter(data, $x > 1)
+  count = nrow(filtered)
+}; warning_msg(p_diag.filtered) != ""|}
+    "true";
+  test "warning_msg property on computed node returns warning message"
+    {|p_diag = pipeline {
+  data = to_dataframe([[x: 1], [x: NA], [x: 3]])
+  filtered = filter(data, $x > 1)
+  count = nrow(filtered)
+}; p_diag.filtered.warning_msg != ""|}
+    "true";
+
+
   test "read_node(p, name) exposes structured node errors"
     {|p_err = pipeline {
   bad = 1 / 0
   downstream = bad + 1
-}; read_node(p_err, "bad").error.kind|}
+}; read_node(p_err.bad).error.kind|}
     "\"DivisionByZero\"";
   print_newline ();
 
@@ -813,7 +830,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   cols = data |> ncol
   names = data |> colnames
 }|} csv_p3) (Packages.init_env ()) in
-  let (v, _) = eval_string_env "p.rows" env_p3_df in
+  let (v, _) = eval_string_env "read_node(p.rows)" env_p3_df in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
     incr pass_count; Printf.printf "  ✓ pipeline with DataFrame nrow\n"
@@ -821,7 +838,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     incr fail_count; Printf.printf "  ✗ pipeline with DataFrame nrow\n    Expected: 3\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "p.cols" env_p3_df in
+  let (v, _) = eval_string_env "read_node(p.cols)" env_p3_df in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
     incr pass_count; Printf.printf "  ✓ pipeline with DataFrame ncol\n"
@@ -1510,6 +1527,24 @@ p.t_step|}
     end else begin
       incr fail_count; Printf.printf "  ✗ build_log_to_frame validation failed\n"
     end;
+    let test_build_log_warnings () =
+      let mock_node1 = Ast.VDict [("name", Ast.VString "node_a"); ("status", Ast.VString "Completed"); ("duration", Ast.VFloat 1.2); ("path", Ast.VString "/nix/store/a")] in
+      let mock_node2 = Ast.VDict [("name", Ast.VString "node_b"); ("status", Ast.VString "Completed with warning"); ("duration", Ast.VFloat 3.4); ("path", Ast.VString "/nix/store/b")] in
+      let bl = Ast.VBuildLog {
+        bl_nodes = [mock_node1; mock_node2];
+        bl_duration = 4.6;
+        bl_failed_nodes = [];
+        bl_out_path = None;
+      } in
+      let s = Ast.Utils.value_to_string bl in
+      let expected = "Build Log: 2 nodes [2 succeeded, 0 failed] (duration: 4.60s)\n  ⚠ Warnings in nodes: node_b" in
+      if s = expected then begin
+        incr pass_count; Printf.printf "  ✓ value_to_string(VBuildLog) formats warnings correctly\n"
+      end else begin
+        incr fail_count; Printf.printf "  ✗ value_to_string(VBuildLog) mismatch:\n    Expected: %S\n    Got:      %S\n" expected s
+      end
+    in
+    test_build_log_warnings ();
     let v_errors =
       with_temp_pipeline_project
         "pipeline { a = 1 }\n"
@@ -1519,18 +1554,131 @@ p.t_step|}
             p = pipeline {
               a = 1
             }
-            length(collect_errors(p)) == 0
+            nrow(collect_exceptions(p)) == 0
             |} (Packages.init_env ())
           in
           res)
     in
     if v_errors = Ast.VBool true then begin
-      incr pass_count; Printf.printf "  ✓ collect_errors returns empty list for unbuilt/clean pipeline\n"
+      incr pass_count; Printf.printf "  ✓ collect_exceptions returns empty DataFrame for unbuilt/clean pipeline\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ collect_errors expected [], got %s\n"
+      incr fail_count; Printf.printf "  ✗ collect_exceptions expected empty DataFrame, got %s\n"
         (Ast.Utils.value_to_string v_errors)
     end
   in
   test_build_log_api ();
+
+  let test_inspect_node_errors () =
+    let env = Packages.init_env () in
+    let inspect_fn =
+      match Ast.Env.find_opt "inspect_node" env with
+      | Some (VBuiltin { b_func; _ }) -> b_func
+      | _ -> failwith "inspect_node not found"
+    in
+    let err_node =
+      Ast.VError {
+        code = Ast.RuntimeError;
+        message = "failing_node failed";
+        context = [("node_name", Ast.VString "failing_node")];
+        location = None;
+        na_count = 0;
+      }
+    in
+    let res1 = inspect_fn [(None, err_node)] (ref env) in
+    (match res1 with
+     | Ast.VError info ->
+         let expected_substr = "inspect_node: expected a ComputedNode, but got an Error because node `failing_node` failed" in
+         if contains_substring info.message expected_substr then begin
+           incr pass_count; Printf.printf "  ✓ inspect_node returns a clear error message on failing nodes\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ inspect_node error message mismatch: %s\n" info.message
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ inspect_node expected VError, got: %s\n" (Ast.Utils.value_to_string other));
+    let res2 = inspect_fn [(None, Ast.VString "not_a_computed_node")] (ref env) in
+    (match res2 with
+     | Ast.VError info ->
+         let expected_substr = "inspect_node: expected a ComputedNode, but got String" in
+         if contains_substring info.message expected_substr then begin
+           incr pass_count; Printf.printf "  ✓ inspect_node returns a clear error message on non-ComputedNode types\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ inspect_node error message mismatch on non-ComputedNode: %s\n" info.message
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ inspect_node expected VError for string, got: %s\n" (Ast.Utils.value_to_string other))
+  in
+  test_inspect_node_errors ();
+
+  let test_inspect_pipeline_poly () =
+    let (v_inspect, _) = eval_string_env
+      {|
+      p = pipeline {
+        a = 1
+        b = a + 1
+      }
+      -- inspect_pipeline(p) should statically return a DataFrame with schema metadata (2 nodes, 5 properties)
+      res = inspect_pipeline(p)
+      res2 = inspect_pipeline()
+      type(res) == "DataFrame" && nrow(res) == 2 && ncol(res) == 5 && type(res2) == "DataFrame" && nrow(res2) == 2 && ncol(res2) == 5
+      |} (Packages.init_env ())
+    in
+    if v_inspect = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ inspect_pipeline(p) statically inspects pipeline structure\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ inspect_pipeline(p) static inspection failed, got %s\n"
+        (Ast.Utils.value_to_string v_inspect)
+    end
+  in
+  test_inspect_pipeline_poly ();
+
+  let test_explain_collect_exceptions () =
+    let make_mock_df rows =
+      let node_arr = Array.make (List.length rows) None in
+      let status_arr = Array.make (List.length rows) None in
+      let code_arr = Array.make (List.length rows) None in
+      let message_arr = Array.make (List.length rows) None in
+      List.iteri (fun i (n, s, c, m) ->
+        node_arr.(i) <- Some n;
+        status_arr.(i) <- Some s;
+        code_arr.(i) <- Some c;
+        message_arr.(i) <- Some m;
+      ) rows;
+      let cols = [
+        ("node", Arrow_table.StringColumn node_arr);
+        ("status", Arrow_table.StringColumn status_arr);
+        ("code", Arrow_table.StringColumn code_arr);
+        ("message", Arrow_table.StringColumn message_arr);
+      ] in
+      let arrow_table = Arrow_table.create cols (List.length rows) in
+      Ast.VDataFrame { arrow_table; group_keys = [] }
+    in
+    let env = Packages.init_env () in
+    let env = Ast.Env.add "df_empty" (make_mock_df []) env in
+    let env = Ast.Env.add "df_single" (make_mock_df [("a", "Error", "DivisionByZero", "Division by zero")]) env in
+    let env = Ast.Env.add "df_multi" (make_mock_df [
+      ("a", "Error", "DivisionByZero", "Division by zero");
+      ("b", "Warning", "UnusedVariable", "Variable b is not used")
+    ]) env in
+    let (v_res, _) = eval_string_env
+      {|
+      exp_empty = explain(df_empty)
+      exp_single = explain(df_single)
+      exp_multi = explain(df_multi)
+      
+      ok_empty = (exp_empty.kind == "exceptions_list" && exp_empty.count == 0)
+      ok_single = (exp_single.kind == "value" && exp_single.type == "Error" && exp_single.node == "a")
+      ok_multi = (exp_multi.kind == "exceptions_list" && exp_multi.count == 2 && get(exp_multi.exceptions, 0).type == "Error" && get(exp_multi.exceptions, 1).type == "Warning")
+      
+      ok_empty && ok_single && ok_multi
+      |} env
+    in
+    if v_res = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ explain(collect_exceptions(p)) returns custom structured explanations\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ explain(collect_exceptions(p)) validation failed, got %s\n"
+        (Ast.Utils.value_to_string v_res)
+    end
+  in
+  test_explain_collect_exceptions ();
 
   print_newline ()

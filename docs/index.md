@@ -22,7 +22,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.52.0 "Kaméhaméha".
+**Status:** Version 0.52.1 "Kaméhaméha".
 
 ---
 
@@ -108,7 +108,7 @@ object. These objects transition through two main states:
 
 ### Automatic (De)serialization
 
-When you call `read_node("node_name")` in the REPL, T looks at the node's
+When you call `read_node(p.node_name)` in the REPL, T looks at the node's
 **serializer** and attempts to automatically load the data back into the T
 environment:
 

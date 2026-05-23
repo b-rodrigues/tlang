@@ -5,16 +5,18 @@ let run_tests pass_count fail_count _failures eval_string eval_string_env test =
   test "error() with code" {|error("TypeError", "expected Int")|} {|Error(TypeError: "expected Int")|};
   test "error() with StructuralError" {|error("StructuralError", "broken DAG")|} {|Error(StructuralError: "broken DAG")|};
   test "error_code()" "error_code(1 / 0)" {|"DivisionByZero"|};
-  test "error_message()" "error_message(1 / 0)" {|"Division by zero."|};
+  test "error_msg()" "error_msg(1 / 0)" {|"Division by zero."|};
   test "error_context() empty" "error_context(1 / 0)" "{}";
   test "is_error on constructed error" {|is_error(error("oops"))|} "true";
   test "error_code on type error" {|error_code(error("TypeError", "bad type"))|} {|"TypeError"|};
   test "error_code on non-error" "error_code(42)" {|Error(TypeError: "Function `error_code` expects an Error value.")|};
-  test "error_message on non-error" {|error_message("hello")|} {|Error(TypeError: "Function `error_message` expects an Error value.")|};
+  test "error_msg on non-error" {|error_msg("hello")|} {|Error(TypeError: "Function `error_msg` expects an Error value.")|};
   test "error_context on non-error" "error_context(42)" {|Error(TypeError: "Function `error_context` expects an Error value.")|};
   test "error_code arity error" "error_code()" {|Error(ArityError: "Function `error_code` expects 1 arguments but received 0.")|};
-  test "error_message arity error" "error_message()" {|Error(ArityError: "Function `error_message` expects 1 arguments but received 0.")|};
+  test "error_msg arity error" "error_msg()" {|Error(ArityError: "Function `error_msg` expects 1 arguments but received 0.")|};
   test "error_context arity error" "error_context()" {|Error(ArityError: "Function `error_context` expects 1 arguments but received 0.")|};
+  test "warning_msg on non-computed node" {|warning_msg("hello")|} {|Error(TypeError: "Function `warning_msg` expects a ComputedNode.")|};
+  test "warning_msg arity error" "warning_msg()" {|Error(ArityError: "Function `warning_msg` expects 1 arguments but received 0.")|};
   let located_error =
     Ast.make_error
       ~location:{ Ast.file = Some "script.t"; line = 12; column = 5 }
@@ -200,12 +202,10 @@ Use '.+' for element-wise (broadcast) operations.")|};
   Printf.printf "Phase 8 — Error Composition:\n";
   let e1 = Ast.make_error Ast.ValueError "outer" in
   let e2 = Ast.make_error Ast.KeyError "inner" in
-  let err_list = Ast.VList [(None, e1); (None, e2)] in
   let env0 = Packages.init_env () in
-  let env1 = Ast.Env.add "errs" err_list env0 in
   let env2 = Ast.Env.add "e1" e1 (Ast.Env.add "e2" e2 env0) in
 
-  let (v_chain, _) = eval_string_env "error_message(error_context(error_chain(e1, e2)).cause)" env2 in
+  let (v_chain, _) = eval_string_env "error_msg(error_context(error_chain(e1, e2)).cause)" env2 in
   if Ast.Utils.value_to_string v_chain = {|"inner"|} then begin
     incr pass_count;
     Printf.printf "  ✓ error_chain links two errors\n"
@@ -214,30 +214,4 @@ Use '.+' for element-wise (broadcast) operations.")|};
     Printf.printf "  ✗ error_chain links two errors\n    Expected: \"inner\"\n    Got: %s\n" (Ast.Utils.value_to_string v_chain)
   end;
 
-  let (v_colnames, _) = eval_string_env "colnames(error_summary(errs))" env1 in
-  if Ast.Utils.value_to_string v_colnames = {|["node", "code", "message", "runtime"]|} then begin
-    incr pass_count;
-    Printf.printf "  ✓ error_summary constructs DataFrame from list\n"
-  end else begin
-    incr fail_count;
-    Printf.printf "  ✗ error_summary constructs DataFrame from list\n    Expected: [\"node\", \"code\", \"message\", \"runtime\"]\n    Got: %s\n" (Ast.Utils.value_to_string v_colnames)
-  end;
-
-  let (v_nrow, _) = eval_string_env "nrow(error_summary(errs))" env1 in
-  if Ast.Utils.value_to_string v_nrow = "2" then begin
-    incr pass_count;
-    Printf.printf "  ✓ error_summary extracts row counts\n"
-  end else begin
-    incr fail_count;
-    Printf.printf "  ✗ error_summary extracts row counts\n    Expected: 2\n    Got: %s\n" (Ast.Utils.value_to_string v_nrow)
-  end;
-
-  let (v_code, _) = eval_string_env "pull(error_summary(errs), \"code\")" env1 in
-  if Ast.Utils.value_to_string v_code = {|Vector["ValueError", "KeyError"]|} then begin
-    incr pass_count;
-    Printf.printf "  ✓ error_summary extracts values\n"
-  end else begin
-    incr fail_count;
-    Printf.printf "  ✗ error_summary extracts values\n    Expected: Vector[\"ValueError\", \"KeyError\"]\n    Got: %s\n" (Ast.Utils.value_to_string v_code)
-  end;
   print_newline ()

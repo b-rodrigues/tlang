@@ -25,7 +25,7 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 
 ### Runtime Hardening (Shell & Julia)
 - [x] **Shell node maturity**: Implement `capture = "stdout"` sugar for `shn()`. Standardize `T_INPUT_<dep>` environment variables for easier shell script authoring.
-- [x] **Julia parity**: Ensure `jn()` has full feature parity with `rn()` and `pyn()` (including PMML/Arrow projection registry).
+- [x] **Julia parity**: Ensure `jln()` has full feature parity with `rn()` and `pyn()` (including PMML/Arrow projection registry).
 
 ---
 

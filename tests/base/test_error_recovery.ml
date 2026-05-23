@@ -79,8 +79,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|error_code(1 / 0)|}
     {|"DivisionByZero"|};
 
-  test "error_message on division by zero"
-    {|error_message(1 / 0)|}
+  test "error_msg on division by zero"
+    {|error_msg(1 / 0)|}
     {|"Division by zero."|};
 
   print_newline ();

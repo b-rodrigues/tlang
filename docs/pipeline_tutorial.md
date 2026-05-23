@@ -404,11 +404,10 @@ populate_pipeline(p, build = true)
 
 ### Reading built artifacts
 
-After building, use `read_node()` or `load_node()` to retrieve materialized values:
+After building, use `read_node()` to retrieve materialized values:
 
 ```t
-read_node("total")   -- reads the serialized artifact for "total"
-load_node("total")   -- same as read_node, loads the artifact
+read_node(p.total)   -- reads the serialized artifact for "total"
 ```
 
 These functions look up the node in the **latest build log** and deserialize the artifact.
@@ -459,12 +458,36 @@ build_log_to_frame(log)
 -- DataFrame(2 rows x 3 cols: [name, status, duration])
 ```
 
-If you only want to quickly retrieve the actual error objects that caused nodes to soft-fail during the build, use `collect_errors()`:
+If you want to retrieve the actual exceptions and warnings that occurred during the build, use `collect_exceptions()`:
 
 ```t
-collect_errors(p)
--- A List of VError objects from all nodes that soft-failed.
+collect_exceptions(p)
+-- A DataFrame detailing exceptions and warnings with columns: node, status, code, message.
 ```
+
+Calling the built-in `explain()` function on the DataFrame returned by `collect_exceptions(p)` provides intelligent diagnostic feedback tailored to the number of exceptions present:
+- **Single Exception**: If there is exactly one row in the exception DataFrame, `explain()` directly maps to it, outputting a structured explanation of the failure or warning (including the originating node name, diagnostic code, and description message).
+- **Multiple Exceptions**: If there are zero or multiple rows, `explain()` returns an overarching `exceptions_list` dictionary showing the summary counts and a list mapping the individual structured explanation of each captured warning and error.
+
+#### Build Verbosity and Failed Build Resiliency
+
+By default, T builds are **quiet and minimalist** (`verbose = 0`), outputting only high-level status lines (e.g. `  + node_a building`, `  ✖ node_a failed`) without dumping detailed derivation logs or tracebacks to the terminal on failure.
+
+Even if a build fails, **the build log is written unconditionally** to the `_pipeline/` directory. This allows you to inspect the build status, retrieve exact error tracebacks, and parse warnings for all nodes. Furthermore, the pipeline variable (e.g., `p`) remains fully bound in the REPL; successfully compiled nodes can still be queried, while failed nodes can be diagnosed programmatically using `collect_exceptions(p)` and `explain()`.
+
+To stream detailed error tracebacks/logs directly to the terminal when a node fails, pass `verbose = 1` to the build or orchestrator:
+
+```t
+build_pipeline(p, verbose = 1)
+```
+
+Similarly, from the CLI or REPL:
+
+```t
+t_make(verbose = 1)
+```
+
+
 
 ### Inspecting logs
 Use `list_logs()` to see available build logs:
@@ -474,13 +497,13 @@ logs = list_logs()
 -- DataFrame of build logs with filename, modification_time, and size_kb
 ```
 
-Use `inspect_pipeline()` to view the build status of a specific pipeline as a DataFrame (defaults to the latest):
+Use `inspect_log()` to view the build status of a specific pipeline as a DataFrame (defaults to the latest):
 
 ```t
-inspect_pipeline()
+inspect_log()
 -- DataFrame(5 rows x 4 cols: [derivation, build_success, path, output])
 
-inspect_pipeline(which_log = "20260221_143022")
+inspect_log(which_log = "20260221_143022")
 ```
 
 ### Reading from a specific build
@@ -489,10 +512,10 @@ Pass the `which_log` argument to `read_node()` to specify which build to read fr
 
 ```t
 -- Read the latest version (default)
-val = read_node("result")
+val = read_node(p.result)
 
 -- Read from a specific historical build
-val_old = read_node("result", which_log = "20260221_143022")
+val_old = read_node(p.result, which_log = "20260221_143022")
 ```
 
 This ensures that even as you update your code and data, you can always recover and compare results from previous runs.
@@ -961,7 +984,7 @@ Pipeline summary: 1 node(s) with warnings, 1 suppressed, 0 error(s)
 The `○` symbol indicates a suppressed node. You can still access the underlying warning objects programmatically via `read_node()` or `read_pipeline()`.
 
 ```t
-res = read_node(p, "filtered")
+res = read_node(p.filtered)
 res.diagnostics.warnings_suppressed  -- true
 res.diagnostics.warnings            -- list of captured warnings
 ```

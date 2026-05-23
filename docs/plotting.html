@@ -182,7 +182,7 @@ it to an image.</p>
 <p>When you call <code>read_node()</code> on a plotting node, T returns
 the <strong>metadata dictionary</strong> instead of the binary
 artifact.</p>
-<pre class="t"><code>&gt; g = read_node(&quot;p_ggplot&quot;)
+<pre class="t"><code>&gt; g = read_node(p.p_ggplot)
 &gt; print(g.title)
 &quot;Fuel Economy&quot;
 
@@ -224,7 +224,7 @@ follows the same behavior as the REPL: it returns the <strong>JSON
 metadata dictionary</strong>.</p>
 <pre><code class="language-markdown">```{t}
 #| echo: false
-g = read_node("p_ggplot")
+g = read_node(p.p_ggplot)
 print(g.title)
 ```</code></pre>
 <p><em>Output: “Fuel Economy”</em></p>

@@ -140,7 +140,8 @@
 | [index_of](index_of.html) | Find index of substring |
 | [inner_join](inner_join.html) | Join matching rows |
 | [inspect_node](inspect_node.html) | Inspect Pipeline Node Metadata |
-| [inspect_pipeline](inspect_pipeline.html) | Inspect Pipeline Logs |
+| [inspect_log](inspect_log.html) | Inspect Pipeline Build Logs |
+| [inspect_pipeline](inspect_pipeline.html) | Static Pipeline DAG Schema Inspection |
 | [intent_fields](intent_fields.html) | Get All Intent Fields |
 | [intent_get](intent_get.html) | Get Intent Field |
 | [intersect](intersect.html) | Keep shared pipeline nodes |
@@ -158,7 +159,7 @@
 | [is_numeric](is_numeric.html) | Check for numeric columns |
 | [isoweek](isoweek.html) | Extract the ISO week number |
 | [isoyear](isoyear.html) | Extract the ISO week-based year |
-| [jn](jn.html) | Configure a Julia Pipeline Node (Alias for jln) |
+
 | [jln](jln.html) | Configure a Julia Pipeline Node |
 | [kron](kron.html) | Kronecker product |
 | [kurtosis](kurtosis.html) | Excess kurtosis |

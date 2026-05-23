@@ -1,4 +1,4 @@
-# error_message
+# error_msg
 
 Get error message
 

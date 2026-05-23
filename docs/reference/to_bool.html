@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - error_message</title>
+  <title>T Function Reference - to_bool</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,16 +33,16 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="error_message">error_message</h1>
-<p>Get error message</p>
-<p>Returns the human-readable message associated with an error.</p>
+<h1 id="to_bool">to_bool</h1>
+<p>Convert to Boolean</p>
+<p>Coerces a value to a boolean. Recognizes ‘TRUE’/‘FALSE’, ‘T’/‘F’,
+non-zero numbers as true, and zero as false.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>x</strong> (<code>Error</code>): The error value to
-inspect.</li>
+<li><strong>x</strong> (<code>Any</code>): The value to convert.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The error message.</p>
+<div class="line-block">NA The converted boolean.</div>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

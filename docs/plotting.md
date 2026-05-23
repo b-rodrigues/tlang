@@ -83,7 +83,7 @@ Because T captures this metadata, you can inspect the "contents" of a plot direc
 When you call `read_node()` on a plotting node, T returns the **metadata dictionary** instead of the binary artifact.
 
 ```t
-> g = read_node("p_ggplot")
+> g = read_node(p.p_ggplot)
 > print(g.title)
 "Fuel Economy"
 
@@ -124,7 +124,7 @@ Within a `{t}` code block, `read_node()` follows the same behavior as the REPL: 
 
 <pre><code class="language-markdown">```{t}
 #| echo: false
-g = read_node("p_ggplot")
+g = read_node(p.p_ggplot)
 print(g.title)
 ```</code></pre>
 *Output: "Fuel Economy"*

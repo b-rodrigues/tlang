@@ -7,7 +7,7 @@ open Ast
 --# Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs.
 --#
 --# @name build_pipeline
---# @param p :: Pipeline The pipeline to build.
+--# @param pipeline :: Pipeline The pipeline to build.
 --# @param verbose :: Int (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
 --# @param targets :: List[String] (Optional) Specific node names to build. Maps to `-A <target>` in nix-build.
 --# @param force :: Bool|List[String] (Optional) Force-rebuild nodes even if cached. Maps to `--check`.
@@ -111,9 +111,35 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
              (* Trigger a final resolution pass to catch typos or unresolved cross-pipeline deps *)
              (match rerun_pipeline ?strict:(Some true) ~verbose:false env p with
               | VPipeline p_resolved ->
-                   (match Builder.populate_pipeline ~build:true ?verbose ?targets ?force ?dry_run ?max_jobs ?cache p_resolved with
-                    | Ok (VDataFrame _ as df) -> df
-                    | Ok (VString out_path) ->
+                    (match Builder.populate_pipeline ~build:true ?verbose ?targets ?force ?dry_run ?max_jobs ?cache p_resolved with
+                     | Ok (VDataFrame _ as df) -> df
+                     | Ok (VString out_path) ->
+                         let var_name =
+                           match Env.fold (fun k val_v acc ->
+                             match val_v with
+                             | VPipeline p' when p'.p_exprs = p_resolved.p_exprs -> Some k
+                             | _ -> acc
+                           ) env None with
+                           | Some name -> name
+                           | None -> "p"
+                         in
+                         let first_node =
+                           match p_resolved.p_nodes with
+                           | (name, _) :: _ -> name
+                           | [] -> "my_node"
+                         in
+                         Printf.eprintf "
+Pipeline successfully built!
+";
+                         Printf.eprintf "  - Pipeline saved in variable '%s'
+" var_name;
+                         Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)
+" first_node var_name first_node;
+                         Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)
+" var_name first_node;
+                         Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)
+
+%!" var_name;
                          (match Builder.find_log_for_out_path out_path with
                           | Some log_path -> Builder.parse_json_log_to_vbuildlog log_path
                           | None ->
@@ -121,7 +147,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                                 (Printf.sprintf
                                    "No build log matching output path `%s` was found after build completed."
                                    out_path))
-                    | Ok other -> other
+                     | Ok other -> other
                     | Error msg -> Error.make_error StructuralError msg)
               | VError _ as err -> err
               | other ->

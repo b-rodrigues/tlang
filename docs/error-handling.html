@@ -115,7 +115,12 @@ prnt(42)
 -- Error(NameError: &#39;prnt&#39; is not defined. Did you mean &#39;print&#39;?)</code></pre>
 <p><strong>Features</strong>: - Levenshtein distance-based suggestions -
 Searches current scope and standard library - Case-insensitive
-suggestions</p>
+suggestions - <strong>Reserved Keyword &amp; Built-in
+Protection</strong>: Prevents overwriting core standard library
+functions or keywords (such as <code>build_log</code> or
+<code>print</code>), triggering a <code>NameError</code> if assignment
+(<code>=</code>) or reassignment (<code>:=</code>) is attempted:
+<code>t   print = 42   -- Error(NameError: Cannot overwrite print: it's a reserved keyword!)</code></p>
 <h3 id="value-errors">3. Value Errors</h3>
 <p>Occur when values are invalid for the operation:</p>
 <pre class="t"><code>sqrt(-1)
@@ -187,24 +192,83 @@ is_error(result)        -- true
 error_code(result)      -- &quot;DivisionByZero&quot;
 
 -- Get error message
-error_message(result)   -- &quot;Division by zero&quot;
+error_msg(result)   -- &quot;Division by zero&quot;
 
 -- Get additional context
 error_context(result)   -- Stack trace or additional info</code></pre>
+<h4 id="polymorphic-error-inspection-on-pipeline-nodes">Polymorphic
+Error Inspection on Pipeline Nodes</h4>
+<p>The standard error functions (<code>error_code</code>,
+<code>error_msg</code>, and <code>error_context</code>) are
+<strong>polymorphic</strong> and can also be called directly on pipeline
+<code>ComputedNode</code> variables (e.g., <code>p.X</code> or
+<code>p.combined_df</code>).</p>
+<ul>
+<li><strong>For soft-failed nodes</strong> (where a node built
+successfully but captured a runtime error/<code>VError</code>), these
+functions automatically resolve and read the detailed
+<code>VError</code> artifact from the Nix store.</li>
+<li><strong>For hard-failed nodes</strong> (where a node crashed the Nix
+build itself and wrote no output path), these functions automatically
+fall back to parsing the full traceback and error code stored in the
+latest JSON build logs in <code>_pipeline/</code>.</li>
+</ul>
+<p>This allows direct programmatic inspection of pipeline failures
+without manually opening log files:</p>
+<pre class="t"><code>-- Direct inspection of a failed node&#39;s error code and message
+error_code(p.X)         -- &quot;RuntimeError&quot;
+error_msg(p.X)      -- &quot;NameError: name &#39;dataset_n&#39; is not defined&quot;
+
+-- Inspecting a hard-failed nix-build node
+error_msg(p.combined_df)  -- Full multi-line Python/Arrow traceback</code></pre>
 <h3 id="composing-and-chaining-errors">Composing and Chaining
 Errors</h3>
-<p>T provides powerful primitives to analyze collections of errors and
+<p>T provides powerful primitives to analyze exceptions/diagnostics and
 preserve their provenance:</p>
-<h4 id="error_summaryerrors">1. <code>error_summary(errors)</code></h4>
-<p>Converts a list of <code>Error</code> values into a structured
-<code>DataFrame</code> (containing columns <code>node</code>,
-<code>code</code>, <code>message</code>, and <code>runtime</code>),
-allowing you to analyze, filter, and report on multiple failures:</p>
-<pre class="t"><code>errors = collect_errors(my_pipeline)
-summary_df = error_summary(errors)
+<h4 id="collect_exceptionspipeline">1.
+<code>collect_exceptions(pipeline)</code></h4>
+<p>Converts all terminal errors and warning diagnostics from computed
+nodes of a built pipeline into a structured four-column
+<code>DataFrame</code> (<code>node</code>, <code>status</code>,
+<code>code</code>, and <code>message</code>), allowing you to inspect
+and filter multiple pipeline issues.</p>
+<p>To keep the printed output clean and readable: * <strong>Traceback
+Truncation</strong>: <code>collect_exceptions</code> automatically
+extracts the <strong>last non-empty line</strong> of multi-line
+tracebacks (like Python or Arrow error messages) to preserve the actual
+error class and message, and caps the text length at <code>100</code>
+characters. * <strong>Polars-Style Cell Truncation</strong>: When
+pretty-printing any <code>DataFrame</code> in the REPL, all string cells
+exceeding <code>35</code> characters are truncated to <code>32</code>
+characters followed by <code>...</code> (Polars-style) to prevent
+wide/broken columns.</p>
+<blockquote>
+<p>[!NOTE] Even if a build fails, <strong>the build log is written
+unconditionally</strong> to the <code>_pipeline/</code> directory. This
+guarantees that <code>collect_exceptions(pipeline)</code> can extract
+the exact traceback and error code of failed nodes, and retrieve
+warnings for successfully built nodes.</p>
+</blockquote>
+<pre class="t"><code>exceptions_df = collect_exceptions(my_pipeline)
 
--- summary_df can now be processed with colcraft verbs:
-summary_df |&gt; filter($runtime == &quot;Python&quot;)</code></pre>
+-- exceptions_df can now be processed with colcraft verbs:
+exceptions_df |&gt; filter($status == &quot;Warning&quot;)</code></pre>
+<h5 id="explaining-collected-exceptions">Explaining Collected
+Exceptions</h5>
+<p>T’s built-in <code>explain()</code> function has specialized support
+for <code>collect_exceptions</code> DataFrames: - <strong>Direct
+Explanation (1 exception)</strong>: If there is exactly one exception
+row in the DataFrame, calling <code>explain(exceptions_df)</code> will
+automatically map to that diagnostic exception and return a structured
+dictionary explaining the exact error or warning details (containing the
+originating node, diagnostic code, and description message). -
+<strong>Consolidated Explanation (multiple exceptions)</strong>: If
+there are zero or multiple exceptions, calling
+<code>explain(exceptions_df)</code> returns a structured representation
+of the exception collection itself (<code>exceptions_list</code>), with
+a <code>count</code> property and an <code>exceptions</code> list
+containing the mapped explanation of each individual diagnostic
+element.</p>
 <h4 id="error_chainerr1-err2">2.
 <code>error_chain(err1, err2)</code></h4>
 <p>Preserves the causal chain of multiple failures. Chaining sets
@@ -222,7 +286,7 @@ step2 = step1 + 10               -- Still error (no computation)
 step3 = step2 * 2                -- Still error
 
 is_error(step3)                  -- true
-error_message(step3)             -- &quot;Division by zero&quot;</code></pre>
+error_msg(step3)             -- &quot;Division by zero&quot;</code></pre>
 <hr />
 <h2 id="pipe-operators-and-errors">Pipe Operators and Errors</h2>
 <h3 id="conditional-pipe">Conditional Pipe (<code>|&gt;</code>)</h3>
@@ -254,7 +318,7 @@ logging.</p>
 <pre class="t"><code>-- Recovery pattern
 result = risky_operation()
   ?|&gt; \(x) if (is_error(x)) {
-    print(str_join([&quot;Error occurred: &quot;, error_message(x)]))
+    print(str_join([&quot;Error occurred: &quot;, error_msg(x)]))
     default_value
   } else {
     x
@@ -331,7 +395,7 @@ process_value = \(v)
 safe_process = \(v)
   process_value(v) ?|&gt; \(result)
     if (is_error(result)) {
-      print(str_sprintf(&quot;Invalid value: %s&quot;, error_message(result)))
+      print(str_sprintf(&quot;Invalid value: %s&quot;, error_msg(result)))
       0  -- Default
     } else {
       result
@@ -343,7 +407,7 @@ safe_process(10)   -- Returns 20</code></pre>
 <pre class="t"><code>-- Log errors and continue
 logged_operation = risky_function()
   ?|&gt; \(x) if (is_error(x)) {
-    write_log(str_sprintf(&quot;Error in risky_function: %s&quot;, error_message(x)))
+    write_log(str_sprintf(&quot;Error in risky_function: %s&quot;, error_msg(x)))
     x  -- Pass error along
   } else {
     x
@@ -358,7 +422,7 @@ process_many = \(items)
   map(items, \(item)
     process_item(item) ?|&gt; \(result)
       if (is_error(result))
-        {success: false, error: error_message(result)}
+        {success: false, error: error_msg(result)}
       else
         {success: true, value: result}
   )
@@ -397,16 +461,91 @@ Soft-Failures</h2>
 <p>In T-Lang, the materialization of a pipeline is a separate phase from
 the logic execution. When a node in a pipeline fails, it doesn’t
 necessarily halt the entire build.</p>
-<h3 id="hard-fail-vs.-soft-fail">Hard-Fail vs. Soft-Fail</h3>
+<h3 id="pipeline-node-statuses-failure-modes">Pipeline Node Statuses
+&amp; Failure Modes</h3>
+<p>When you run <code>build_pipeline(p)</code> and inspect the build log
+using <code>build_log(p) |&gt; build_log_to_frame()</code>, each node in
+the pipeline is marked with a distinct execution status.</p>
+<table>
+<colgroup>
+<col style="width: 18%" />
+<col style="width: 22%" />
+<col style="width: 22%" />
+<col style="width: 18%" />
+<col style="width: 18%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Node Status</th>
+<th style="text-align: center;">Did it execute?</th>
+<th style="text-align: center;">Did it fail?</th>
+<th style="text-align: left;">Pipeline Impact</th>
+<th style="text-align: left;">Description &amp; Cause</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td
+style="text-align: left;"><strong><code>Completed</code></strong></td>
+<td style="text-align: center;">Yes</td>
+<td style="text-align: center;">No</td>
+<td style="text-align: left;"><strong>Success</strong> (propagates
+data)</td>
+<td style="text-align: left;">The node ran successfully and serialized
+its output artifact.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>Completed with error</code></strong>
+(Soft-Fail)</td>
+<td style="text-align: center;">Yes</td>
+<td style="text-align: center;"><strong>Yes (Soft)</strong></td>
+<td style="text-align: left;"><strong>Continues</strong> (propagates
+error)</td>
+<td style="text-align: left;">The script ran inside the sandbox but
+raised a user-space exception. T-Lang captures this as a first-class
+<code>VError</code> value so independent branches can still build.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Errored</code></strong>
+(Hard-Fail)</td>
+<td style="text-align: center;">Yes</td>
+<td style="text-align: center;"><strong>Yes (Hard)</strong></td>
+<td style="text-align: left;"><strong>Aborts Build</strong></td>
+<td style="text-align: left;">The sandbox execution crashed entirely or
+exited with a non-zero code (e.g., syntax errors, missing packages,
+memory exhaustion).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Skipped</code></strong></td>
+<td style="text-align: center;"><strong>No</strong></td>
+<td style="text-align: center;">No</td>
+<td style="text-align: left;"><strong>Bypassed</strong></td>
+<td style="text-align: left;">The node was never evaluated or executed
+because an upstream dependency suffered a hard <code>Errored</code>
+failure.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="detailed-failure-mechanics">Detailed Failure Mechanics</h4>
 <ol type="1">
-<li><strong>Hard-Fail</strong>: Occurs when the environment or system
-fails (e.g., missing dependencies, Nix build errors, out-of-memory). The
-build stops immediately and no artifacts are produced.</li>
-<li><strong>Soft-Fail (Captured Error)</strong>: Occurs when the node’s
-internal code (T, Python, or R) raises an error. The node produces a
-<code>VError</code> artifact instead of the expected data. The pipeline
-build <strong>continues</strong>, allowing other independent branches to
-complete.</li>
+<li><p><strong>Why <code>Completed with error</code> propagates
+downstream:</strong> Because T-Lang treats errors as first-class values,
+a soft-failure is saved as a normal serialized directory outcome.
+Downstream nodes are still scheduled to run, receive the
+<code>VError</code> as input, and automatically propagate it further
+down the pipe unless you explicitly recover from it.</p></li>
+<li><p><strong>Why <code>Errored</code> halts downstream
+execution:</strong> When a node suffers a hard <code>Errored</code>
+nix-build failure, the Nix daemon immediately stops evaluating that
+branch. No output directory is produced, and the entire build process
+terminates.</p></li>
+<li><p><strong>Why subsequent nodes are marked
+<code>Skipped</code>:</strong> Because the build aborted early, any
+downstream nodes that rely on the failed node are never invoked. They do
+not contain any errors themselves; they are simply bypassed entirely and
+marked as <code>Skipped</code> to provide a clean, accurate picture of
+the pipeline state.</p></li>
 </ol>
 <h3 id="the-build-summary">The Build Summary</h3>
 <p>After a build, T provides an iconographic summary:</p>
@@ -643,7 +782,7 @@ assert(is_error(risky_function(-1)))</code></pre>
 <h3 id="log-errors-in-production">6. Log Errors in Production</h3>
 <pre class="t"><code>production_pipeline = pipeline {
   data = read_csv(&quot;data.csv&quot;) ?|&gt; \(x) if (is_error(x)) {
-    write_log(str_sprintf(&quot;CRITICAL: Failed to load data: %s&quot;, error_message(x)))
+    write_log(str_sprintf(&quot;CRITICAL: Failed to load data: %s&quot;, error_msg(x)))
     x
   } else x
   
@@ -673,7 +812,7 @@ else
 
 if (is_error(result)) {
   print(str_sprintf(&quot;Error code: %s&quot;, error_code(result)))
-  print(str_sprintf(&quot;Error message: %s&quot;, error_message(result)))
+  print(str_sprintf(&quot;Error message: %s&quot;, error_msg(result)))
   print(str_sprintf(&quot;Error context: %s&quot;, error_context(result)))
 }</code></pre>
 <h3 id="trace-error-source">Trace Error Source</h3>

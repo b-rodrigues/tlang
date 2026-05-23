@@ -27,5 +27,5 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 ## Returns
 
-The evaluated return value of the command.
+A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the node code is executed by the pipeline builder, not immediately.
 

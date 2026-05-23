@@ -1,0 +1,22 @@
+# to_symbol
+
+Convert a string to a Symbol
+
+Creates a Symbol from a string so it can be injected into quoted code with `!!`. Existing Symbol values pass through unchanged.
+
+## Parameters
+
+- **x** (`String`): | Symbol The name to convert.
+
+
+## Returns
+
+The resulting symbol.
+
+## Examples
+
+```t
+to_symbol("mpg")
+to_expr(select(df, !!to_symbol("mpg")))
+```
+

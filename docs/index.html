@@ -57,7 +57,7 @@ inspired by the R tidyverse ecosystem, particularly packages such as
 dplyr, stringr, and lubridate. This makes it possible to perform
 exploratory data analysis directly from the T REPL before promoting
 computations into reproducible pipelines.</p>
-<p><strong>Status:</strong> Version 0.52.0 “Kaméhaméha”.</p>
+<p><strong>Status:</strong> Version 0.52.1 “Kaméhaméha”.</p>
 <hr />
 <h2 id="the-polyglot-pipeline">The Polyglot Pipeline</h2>
 <p>T’s core strength is its <strong>mandatory pipeline
@@ -140,7 +140,7 @@ states:</p>
 the node points to a concrete, immutable artifact in the Nix store.</li>
 </ol>
 <h3 id="automatic-deserialization">Automatic (De)serialization</h3>
-<p>When you call <code>read_node("node_name")</code> in the REPL, T
+<p>When you call <code>read_node(p.node_name)</code> in the REPL, T
 looks at the node’s <strong>serializer</strong> and attempts to
 automatically load the data back into the T environment:</p>
 <table>

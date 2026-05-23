@@ -3,7 +3,11 @@ open Ast
 (** Internal helper to format cell values *)
 let cell_to_string v =
   match v with
-  | VString s -> s
+  | VString s ->
+      if String.length s > 35 then
+        String.sub s 0 32 ^ "..."
+      else
+        s
   | VNA na_t ->
       let tag = Utils.na_type_to_string na_t in
       if tag = "" then "NA" else "NA(" ^ tag ^ ")"
@@ -12,6 +16,7 @@ let cell_to_string v =
       else if Float.abs f < 0.001 then Printf.sprintf "%.4e" f
       else Printf.sprintf "%.4g" f
   | other -> Utils.value_to_string other
+
 
 (** Pretty-print a DataFrame as a table *)
 let pretty_print_dataframe ?(headers) { arrow_table; group_keys } =
@@ -282,9 +287,41 @@ let rec pretty_print_value v =
         cn.cn_runtime path_str cn.cn_serializer cn.cn_class
   | VBuildLog bl ->
       let total = List.length bl.bl_nodes in
-      let failed = List.length bl.bl_failed_nodes in
-      Printf.sprintf "Build Log: %d nodes [%d succeeded, %d failed] (duration: %.2fs)\n"
-        total (total - failed) failed bl.bl_duration
+      let count_status status_str =
+        List.length (List.filter (function
+          | VDict fields ->
+              (match List.assoc_opt "status" fields with
+               | Some (VString s) -> String.lowercase_ascii s = String.lowercase_ascii status_str
+               | _ -> false)
+          | _ -> false) bl.bl_nodes)
+      in
+      let succeeded_count = count_status "Completed" + count_status "Completed with warning" in
+      let failed_count = count_status "Errored" + count_status "Completed with error" in
+      let skipped_count = count_status "Skipped" in
+      let building_count = count_status "Building" in
+      let pending_count = count_status "Pending" in
+      let warning_nodes =
+        List.filter_map (function
+          | VDict fields ->
+              (match List.assoc_opt "status" fields, List.assoc_opt "name" fields with
+               | Some (VString "Completed with warning"), Some (VString name) -> Some name
+               | _ -> None)
+          | _ -> None) bl.bl_nodes
+      in
+      let parts = [
+        Printf.sprintf "%d succeeded" succeeded_count;
+        Printf.sprintf "%d failed" failed_count;
+      ] in
+      let parts = if skipped_count > 0 then parts @ [Printf.sprintf "%d skipped" skipped_count] else parts in
+      let parts = if building_count > 0 then parts @ [Printf.sprintf "%d building" building_count] else parts in
+      let parts = if pending_count > 0 then parts @ [Printf.sprintf "%d pending" pending_count] else parts in
+      let base =
+        Printf.sprintf "Build Log: %d nodes [%s] (duration: %.2fs)\n"
+          total (String.concat ", " parts) bl.bl_duration
+      in
+      if warning_nodes = [] then base
+      else
+        base ^ "  ⚠ Warnings in nodes: " ^ String.concat ", " warning_nodes ^ "\n"
   | VDataFrame df -> pretty_print_dataframe df
   | VError err -> pretty_print_error err
   | VPipeline p -> pretty_print_pipeline p

@@ -770,7 +770,7 @@ error("Something went wrong")
 error("ValueError", "Invalid input")
 
 e = error("custom error")
-error_message(e)  -- "custom error"
+error_msg(e)  -- "custom error"
 ```
 
 ---
@@ -799,7 +799,7 @@ error_code(e2)  -- "TypeError"
 
 ---
 
-### `error_message(err)`
+### `error_msg(err)`
 
 Get the error message from an Error value.
 
@@ -815,10 +815,32 @@ Get the error message from an Error value.
 **Examples:**
 ```t
 e = error("Something broke")
-error_message(e)  -- "Something broke"
+error_msg(e)  -- "Something broke"
 
 e2 = 1 / 0
-error_message(e2)  -- "Division by zero"
+error_msg(e2)  -- "Division by zero"
+```
+
+---
+
+### `warning_msg(node)`
+
+Get the warning message from a completed computed node (if any exists).
+
+**Parameters:**
+
+
+- `node` — ComputedNode value
+
+**Returns:**
+
+`String` — Warning message, or an empty string `""` if there are no warnings.
+
+**Examples:**
+```t
+p = pipeline { a = suppress_warnings(node()) }
+build_pipeline(p)
+warning_msg(p.a)  -- Returns warning message string or ""
 ```
 
 ---
@@ -843,28 +865,6 @@ error_context(e)  -- Additional debugging information
 
 ---
 
-### `error_summary(errors)`
-
-Converts a list of Error values into a DataFrame with columns `node`, `code`, `message`, and `runtime` for easier inspection, filtering, and analysis.
-
-**Parameters:**
-
-- `errors` — A List of Error values (such as the list returned by `collect_errors()`).
-
-**Returns:**
-
-`DataFrame` — A DataFrame containing columns `node`, `code`, `message`, and `runtime`.
-
-**Examples:**
-```t
-errors = collect_errors(p)
-summary_df = error_summary(errors)
--- Returns a DataFrame:
---   node       | code         | message                  | runtime
---   "bad_node" | "ValueError" | "Pipeline node..."       | "Python"
-```
-
----
 
 ### `error_chain(err1, err2)`
 
@@ -2529,9 +2529,9 @@ Returns a dictionary with node metadata and diagnostics summary. `inspect_pipeli
 
 ---
 
-### `read_node(node, name = NA, which_log = NA)`
+### `read_node(node, which_log = NA)`
 
-Retrieves a node artifact. Supports in-memory Pipelines (needs `name`), built node names (String), or ComputedNode objects.
+Retrieves the dynamically evaluated or built artifact of a node. Strictly expects a `ComputedNode` object (e.g. `p.node_name`).
 
 ---
 
@@ -2590,7 +2590,7 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 **Returns:**
 
-The evaluated return value of the node `command`.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the node code is executed by the pipeline builder, not immediately.
 
 **Examples:**
 ```t
@@ -2626,7 +2626,7 @@ Configure a Python Pipeline Node. A convenience wrapper around `node()` with `ru
 
 **Returns:**
 
-The evaluated return value of the command.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the Python code is executed by the pipeline builder, not immediately.
 
 ---
 
@@ -2645,32 +2645,13 @@ Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtim
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
 
-The evaluated return value of the command.
-
----
-
-### `jn(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)`
-
-Configure a Julia Pipeline Node. A concise alias of `jln(...)`. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
-
-**Parameters:**
-
-- `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
-- `script` — Path to an external `.jl` file to execute as the node body.
-- `serializer` (optional) — Custom serializer function. Default: `^csv`.
-- `deserializer` (optional) — Custom deserializer function. Default: `^csv`.
-- `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
-- `functions` (optional) — Julia files to source before execution.
-- `include` (optional) — Additional files for the sandbox.
-- `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
-
 **Returns:**
 
-The evaluated return value of the command.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the R code is executed by the pipeline builder, not immediately.
 
 ---
 
-### `jln(command, script = NA, serializer = ^csv, deserializer = ^csv, env_vars = [:], functions = [], include = [], noop = false)`
+### `jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
 
@@ -2678,8 +2659,8 @@ Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `run
 
 - `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
 - `script` — Path to an external `.jl` file to execute as the node body.
-- `serializer` (optional) — Custom serializer function. Default: `^csv`.
-- `deserializer` (optional) — Custom deserializer function. Default: `^csv`.
+- `serializer` (optional) — Custom serializer symbol (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default: runtime-native binary serialization (`jl_serialize`).
+- `deserializer` (optional) — Custom deserializer symbol. Default: runtime-native binary deserialization.
 - `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
 - `functions` (optional) — Julia files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
@@ -2687,7 +2668,7 @@ Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `run
 
 **Returns:**
 
-The evaluated return value of the command.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the Julia code is executed by the pipeline builder, not immediately.
 
 ---
 
@@ -2708,7 +2689,7 @@ Configure a Quarto pipeline node. A convenience wrapper around `node()` with `ru
 
 **Returns:**
 
-The evaluated return value of the command.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the Quarto document is rendered by the pipeline builder, not immediately.
 
 ---
 
@@ -2732,7 +2713,7 @@ Configure a shell pipeline node. A convenience wrapper around `node()` with `run
 
 **Returns:**
 
-The evaluated return value of the command.
+A pipeline node configuration object (`NodeDef`). Must be used as a named binding inside a `pipeline { ... }` block; the shell command is executed by the pipeline builder, not immediately.
 
 ### `suppress_warnings(value)`
 
@@ -2886,7 +2867,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 **Parameters:**
 
 - `pipeline` — Pipeline object
-- `verbose` (optional) — Non-negative Int. Nix build verbosity level.
+- `verbose` (optional) — Int build verbosity level. Defaults to `0` (quiet/minimalist live-status output without dumping failed node trace logs). Set `verbose = 1` or higher to print detailed node stdout/stderr failures directly to the terminal on build error.
 - `targets` (optional) — String, List, or Vector of specific node names to build.
 - `force` (optional) — Bool, String, List, or Vector of specific nodes to force-rebuild.
 - `dry_run` (optional) — Bool. If true, returns a planned build actions DataFrame instead of building.
@@ -2904,14 +2885,14 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 
 ---
 
-### `read_node(name, which_log = NA)`
+### `read_node(node, which_log = NA)`
 
-Read a materialized artifact from a previous build.
+Read a dynamically evaluated or materialized artifact from a pipeline build.
 
 **Parameters:**
 
 
-- `name` — Name of the node to read (String)
+- `node` — The ComputedNode to read (e.g. `p.node_name`)
 - `which_log` (optional) — Regex pattern or filename of a specific build log. Defaults to latest.
 
 **Returns:**
@@ -2920,13 +2901,13 @@ Deserialized value.
 
 **Examples:**
 ```t
-read_node("summary_stats")
-read_node("model_v1", which_log = "20260221")
+read_node(p.summary_stats)
+read_node(p.model_v1, which_log = "20260221")
 ```
 
 ---
 
-### `inspect_pipeline(which_log = NA)`
+### `inspect_log(which_log = NA)`
 
 View build status and output paths for a pipeline build.
 
@@ -2951,13 +2932,92 @@ DataFrame with columns: `filename`, `mod_time`, `size_kb`.
 
 ---
 
+### `build_log(p)`
+
+Returns the `BuildLog` of the latest Nix build for the given pipeline. Contains detailed node-level status records, duration, failed node names, and `out_path`.
+
+**Parameters:**
+
+- `p` — The Pipeline object to retrieve the build log for.
+
+**Returns:**
+
+`BuildLog` — A structured build log record.
+
+**Examples:**
+```t
+p = pipeline { a = 1 / 0 }
+build_pipeline(p)
+log = build_log(p)
+```
+
+---
+
+### `build_log_to_frame(log)`
+
+Tabulates a `BuildLog` record into a structured DataFrame summarizing the build status, duration, and Nix store paths of all pipeline nodes.
+
+**Parameters:**
+
+- `log` — The `BuildLog` record (retrieved via `build_log(p)`).
+
+**Returns:**
+
+`DataFrame` — A DataFrame with columns `name`, `status`, `duration`, and `path`.
+
+**Examples:**
+```t
+log = build_log(p)
+df = build_log_to_frame(log)
+-- Returns a DataFrame:
+--   name  | status     | duration | path
+--   "a"   | "Errored"  | 0.02     | "/nix/store/..."
+```
+
+---
+
+### `collect_exceptions(p)`
+
+Collects all terminal error exceptions and non-terminal warning diagnostics from the computed nodes of a built pipeline.
+
+**Parameters:**
+
+- `p` — The Pipeline object to collect diagnostics from.
+
+**Returns:**
+
+`DataFrame` — A DataFrame with columns `node`, `status`, `code`, and `message` detailing the exceptions and warnings across all nodes.
+
+**Examples:**
+```t
+p = pipeline { a = 1 / 0; b = a + 5 }
+build_pipeline(p)
+exceptions = collect_exceptions(p)
+-- Returns a DataFrame with:
+--   node | status  | code             | message
+--   "a"  | "Error" | "DivisionByZero" | "Division by zero"
+--   "b"  | "Error" | "UpstreamError"  | "Upstream dependency 'a' failed"
+```
+
+---
+
 ## Explain Package
 
 Introspection and LLM tooling.
 
 ### `explain(value)`
 
-Get detailed explanation of a value. For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `ncol`, and a `hint`. Detailed fields (`schema`, `na_stats`, `example_rows`) are accessible via dot notation. For pipeline node results returned by `read_node(...)`, `explain()` now returns a top-level node wrapper with `kind`, `node_name`, `diagnostics`, and `contents`. The `contents` field is the explained payload stored in the node. In the REPL and CLI `t explain ...`, explain output is shown with a tree-style formatter for readability, but the runtime value remains a normal `Dict`.
+Get detailed explanation of a value. 
+
+For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `ncol`, and a `hint`. Detailed fields (`schema`, `na_stats`, `example_rows`) are accessible via dot notation.
+
+**Specialized support for `collect_exceptions(p)` DataFrames**:
+If the input DataFrame is the diagnostics table returned by `collect_exceptions(p)` (detected via the columns `["node", "status", "code", "message"]`), `explain()` behaves as follows:
+- **Single Exception**: If the DataFrame contains exactly one row, calling `explain()` directly maps to that specific exception, returning a dictionary with keys `kind`, `type` (`"Error"` or `"Warning"`), `error_code`/`warning_code`, `error_message`/`warning_message`, and `node`.
+- **Multiple Exceptions**: If there are zero or multiple rows, `explain()` returns an overarching `exceptions_list` dictionary containing keys `kind`, `type`, `description`, `count`, and `exceptions` (a list of mapped explanation dictionaries for each diagnostic element).
+
+For pipeline node results returned by `read_node(...)`, `explain()` now returns a top-level node wrapper with `kind`, `node_name`, `diagnostics`, and `contents`. The `contents` field is the explained payload stored in the node. In the REPL and CLI `t explain ...`, explain output is shown with a tree-style formatter for readability, but the runtime value remains a normal `Dict`.
+
 
 **Parameters:**
 

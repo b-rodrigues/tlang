@@ -3,16 +3,16 @@ open Ast
 (* 
 --# Read Pipeline Node Artifact
 --#
---# For in-memory Pipelines, returns a node record with the node value and
---# structured diagnostics. For built pipelines, reads the artifact from the
---# latest (or specified) build log in `_pipeline/`.
+--# Reads and returns the contents of a ComputedNode. For in-memory pipelines,
+--# returns the dynamically computed value directly from the registry. For built
+--# pipelines, reads the materialized artifact from the latest (or specified) 
+--# build log.
 --# Use `which_log` to read from a specific historical build ("time travel").
 --#
 --# @name read_node
---# @param node :: Pipeline | String | ComputedNode Pass a Pipeline for in-memory node diagnostics, or a String/ComputedNode to load a built artifact.
---# @param name :: String (Optional) The node name to read when `node` is a Pipeline.
+--# @param node :: ComputedNode The ComputedNode object to read (e.g. `p.node_name`).
 --# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
---# @return :: Any A Dict with value+diagnostics for in-memory pipelines, or the deserialized artifact for built nodes.
+--# @return :: Any The deserialized artifact value, or the in-memory value.
 --# @family pipeline
 --# @seealso read_pipeline, build_pipeline, inspect_pipeline
 --# @export
@@ -32,115 +32,61 @@ let register env =
   in
 
   let read_fn named_args _env =
-    let read_computed_node_value cn =
-      if cn.cn_runtime = "T" && cn.cn_serializer = "default" then
-        (match Serialization.deserialize_from_file cn.cn_path with
-         | Ok v -> v
-         | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
-      else if cn.cn_serializer = "json" then
-        (match Serialization.read_json cn.cn_path with
-         | Ok v -> v
-         | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read JSON node `%s`: %s" cn.cn_name msg))
-      else if cn.cn_serializer = "arrow" then
-        (match Arrow_io.read_ipc cn.cn_path with
-         | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
-         | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read Arrow node `%s`: %s" cn.cn_name msg))
-      else if cn.cn_serializer = "csv" then
-        (try
-           let ch = open_in cn.cn_path in
-           let content = really_input_string ch (in_channel_length ch) in
-           close_in ch;
-           T_read_csv.parse_csv_string content
-         with exn ->
-           Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read CSV node `%s`: %s" cn.cn_name (Printexc.to_string exn)))
-      else if cn.cn_serializer = "pmml" then
-        (match Pmml_utils.read_pmml cn.cn_path with
-         | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
-         | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read PMML node `%s`: %s" cn.cn_name msg))
-      else if cn.cn_serializer = "text" || cn.cn_serializer = "lines" then
-        (try
-           let ch = open_in cn.cn_path in
-           Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
-             VString (really_input_string ch (in_channel_length ch)))
-         with exn ->
-           Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read text node `%s`: %s" cn.cn_name (Printexc.to_string exn)))
-      else
-        Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer)
-    in
-    let is_visual_metadata_class = function
-      | "ggplot" | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" -> true
-      | "tidierplots" | "plotsjl" | "makie" -> true
-      | _ -> false
-    in
-    let uses_builtin_fallback_reader cn =
-      (cn.cn_runtime = "T"
-       && cn.cn_serializer = "default")
-      || cn.cn_serializer = "json"
-      || cn.cn_serializer = "arrow"
-      || cn.cn_serializer = "csv"
-      || cn.cn_serializer = "pmml"
-      || cn.cn_serializer = "text"
-      || cn.cn_serializer = "lines"
-    in
+
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
-    | VPipeline p ->
-        let pipeline_nodes =
-          Builder.merge_pipeline_nodes_with_latest_log p
+    | VComputedNode cn ->
+        let which_log_provided =
+          match extract_arg "which_log" 2 (VNA NAGeneric) named_args with
+          | VString _ -> true
+          | _ -> false
         in
-        let pipeline_diagnostics =
-          Builder.merge_pipeline_node_diagnostics_with_latest_log p
+        if not which_log_provided && Hashtbl.mem Ast.in_memory_node_values cn.cn_name then
+          Hashtbl.find Ast.in_memory_node_values cn.cn_name
+        else
+          let cn_or_err =
+            if which_log_provided then
+              let log_name = match extract_arg "which_log" 2 (VNA NAGeneric) named_args with VString s -> s | _ -> "" in
+              (match Builder.latest_logged_computed_node ~log_name_pattern:log_name cn.cn_name with
+               | Some logged_cn ->
+                   let cn_path = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
+                   let cn_class = if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class in
+                   let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
+                   let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
+                   Ok { cn with cn_path; cn_class; cn_runtime; cn_serializer }
+               | None ->
+                   Error (Error.make_error KeyError (Printf.sprintf "Node `%s` not found in BuildLog." cn.cn_name)))
+            else Ok (!Ast.computed_node_resolver cn)
+          in
+          (match cn_or_err with
+           | Error err -> err
+           | Ok cn ->
+               if cn.cn_path = "<unbuilt>" && not which_log_provided then
+                 (match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
+                  | Some v -> v
+                  | None ->
+                      Error.make_error FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: Sys_error(\"<unbuilt>: No such file or directory\")" cn.cn_name))
+               else
+                 let raw_val = Builder.logged_node_value cn.cn_name cn in
+                 Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
+    | VString _ ->
+        Error.type_error "read_node: expected a ComputedNode for argument 'node', but got String. Use read_node(p.node_name) instead."
+    | VSymbol name as other ->
+        let node_name =
+          if String.length name > 6 && String.sub name 0 6 = "<noop:" then
+            let len = String.length name in
+            Some (String.sub name 6 (len - 7))
+          else None
         in
-        (match extract_arg "name" 2 (VNA NAGeneric) named_args with
-         | VString name ->
-               (match List.assoc_opt name pipeline_nodes with
-                | Some value ->
-                    let diagnostics =
-                      match List.assoc_opt name pipeline_diagnostics with
-                     | Some diagnostics -> diagnostics
-                     | None -> Ast.Utils.empty_node_diagnostics
-                   in
-                  Ast.VNodeResult {
-                    v = value;
-                    node_name = name;
-                    diagnostics;
-                  }
-              | None ->
-                  Error.make_error KeyError
-                    (Printf.sprintf "Node `%s` not found in Pipeline." name))
-         | VNA _ ->
-             Error.make_error ValueError
-               "read_node: when the first argument is a Pipeline, a node name is required as the second argument."
-         | _ ->
-             Error.type_error
-               "read_node: expected a String node name as the second argument when reading from a Pipeline.")
-    | VString name ->
-        (match extract_arg "which_log" 2 (VNA NAGeneric) named_args with
-         | VNA _ -> Builder.read_node name
-         | VString s -> Builder.read_node ~which_log:s name
-         | _ -> Error.type_error "read_node: expected String for 'which_log'")
-     | VComputedNode cn ->
-          if is_visual_metadata_class cn.cn_class then
-            let viz_path = Filename.concat (Filename.dirname cn.cn_path) "viz" in
-            if Sys.file_exists viz_path then
-              (match Serialization.read_json viz_path with
-               | Ok v -> v
-               | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read plot metadata node `%s`: %s" cn.cn_name msg))
-            else
-              read_computed_node_value cn
-          else if uses_builtin_fallback_reader cn then
-            read_computed_node_value cn
-          else
-            (match Serialization_registry.lookup cn.cn_serializer with
-           | Some ser ->
-                (match ser.s_reader with
-                 | VBuiltin { b_func; _ } ->
-                    b_func [(None, VString cn.cn_path)] (ref _env)
-                 | _ ->
-                     Error.make_error RuntimeError (Printf.sprintf "read_node: Serializer ^%s has no T-native reader." cn.cn_serializer))
-            | None ->
-                read_computed_node_value cn)
-    | VNA _ -> Error.make_error ValueError "read_node: requires a node name or a ComputedNode object."
-    | _ -> Error.type_error "read_node: expected String or ComputedNode for argument 'node'"
+        (match node_name with
+         | Some real_name ->
+             Error.type_error (Printf.sprintf "read_node: cannot read node `%s` because it was skipped (noop=true) or was a downstream dependency of a skipped node." real_name)
+         | None ->
+             Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got %s." (Utils.type_name other)))
+    | VPipeline _ ->
+        Error.type_error "read_node: expected a ComputedNode for argument 'node', but got Pipeline. Use read_node(p.node_name) instead."
+    | VNA _ -> Error.make_error ValueError "read_node: requires a ComputedNode object."
+    | other ->
+        Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got %s." (Utils.type_name other))
   in
 
 (*
@@ -203,23 +149,7 @@ let register env =
   let inspect_fn named_args _env =
     match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
-        let cn =
-          if cn.cn_path = "<unbuilt>" || cn.cn_path = "" || cn.cn_class = "Unknown"
-          then
-            match Builder.latest_logged_computed_node cn.cn_name with
-            | Some logged_cn ->
-                let cn_path =
-                  if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
-                  then logged_cn.cn_path
-                  else cn.cn_path
-                in
-                let cn_class =
-                  if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class
-                in
-                { cn with cn_path; cn_class }
-            | None -> cn
-          else cn
-        in
+        let cn = !Ast.computed_node_resolver cn in
         VDict [
           ("name", VString cn.cn_name);
           ("runtime", VString cn.cn_runtime);
@@ -228,7 +158,31 @@ let register env =
           ("class", VString cn.cn_class);
           ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies))
         ]
-    | _ -> Error.type_error "inspect_node: expected a ComputedNode."
+    | VError err ->
+        let node_name =
+          match List.assoc_opt "node_name" err.context with
+          | Some (VString name) -> Some name
+          | _ -> None
+        in
+        (match node_name with
+         | Some name ->
+             Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but got an Error because node `%s` failed. To inspect its error, query its properties (e.g. `node.error_msg` or `node.error`) or use `read_node(p, \"%s\")`." name name)
+         | None ->
+             Error.type_error "inspect_node: expected a ComputedNode, but got an Error value. If this is a failing pipeline node, use its error properties or read_node() to inspect it.")
+    | VSymbol name as other ->
+        let node_name =
+          if String.length name > 6 && String.sub name 0 6 = "<noop:" then
+            let len = String.length name in
+            Some (String.sub name 6 (len - 7))
+          else None
+        in
+        (match node_name with
+         | Some real_name ->
+             Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but node `%s` was skipped (noop=true) or was a downstream dependency of a skipped node, so no output was generated." real_name)
+         | None ->
+             Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but got %s." (Utils.type_name other)))
+    | other ->
+        Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but got %s." (Utils.type_name other))
   in
 
 (*
@@ -265,21 +219,29 @@ let register env =
       | VError _ -> None
       | v -> Some v);
     Ast.computed_node_resolver := (fun cn ->
-      if cn.cn_path = "<unbuilt>" || cn.cn_path = "" || cn.cn_class = "Unknown"
-      then
-        match Builder.latest_logged_computed_node cn.cn_name with
-        | Some logged_cn ->
-            let cn_path =
-              if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
-              then logged_cn.cn_path
-              else cn.cn_path
-            in
-            let cn_class =
-              if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class
-            in
-            { cn with cn_path; cn_class }
-        | None -> cn
-      else cn)
+      match Builder.latest_logged_computed_node cn.cn_name with
+      | Some logged_cn ->
+          let cn_class =
+            if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class
+          in
+          let cn_path =
+            if logged_cn.cn_path = "" then ""
+            else if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
+            then logged_cn.cn_path
+            else cn.cn_path
+          in
+          let cn_runtime =
+            if cn.cn_runtime = "T" || cn.cn_runtime = ""
+            then logged_cn.cn_runtime
+            else cn.cn_runtime
+          in
+          let cn_serializer =
+            if cn.cn_serializer = "default" || cn.cn_serializer = ""
+            then logged_cn.cn_serializer
+            else cn.cn_serializer
+          in
+          { cn with cn_path; cn_class; cn_runtime; cn_serializer }
+      | None -> cn)
   in
 
 (*

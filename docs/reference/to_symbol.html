@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - jn</title>
+  <title>T Function Reference - to_symbol</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,40 +33,20 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="jn">jn</h1>
-<p>Configure a Julia Pipeline Node (Alias for <code>jln</code>)</p>
-<p>A convenience wrapper around <code>node()</code> with
-<code>runtime = "Julia"</code>. Used directly within a
-<code>pipeline { ... }</code> block to execute Julia code.
-<code>jn</code> is a concise alias for <code>jln</code>.</p>
+<h1 id="to_symbol">to_symbol</h1>
+<p>Convert a string to a Symbol</p>
+<p>Creates a Symbol from a string so it can be injected into quoted code
+with <code>!!</code>. Existing Symbol values pass through unchanged.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>command</strong> (<code>Any</code>): (Optional) The
-expression to evaluate inside the Julia node (must be enclosed in
-<code>&lt;{ ... }&gt;</code> blocks). Mutually exclusive with
-<code>script</code>.</p></li>
-<li><p><strong>script</strong> (<code>String</code>): (Optional) Path to
-an external <code>.jl</code> file to execute as the node body. Mutually
-exclusive with <code>command</code>. Sets the runtime to
-<code>Julia</code> automatically.</p></li>
-<li><p><strong>serializer</strong> (<code>String</code>): | Symbol
-(Optional) Custom serializer strategy. Built-in values include ^csv and
-^json. Default = ^csv.</p></li>
-<li><p><strong>deserializer</strong> (<code>String</code>): | Symbol
-(Optional) Custom deserializer strategy. Built-in values include ^csv
-and ^json. Default = ^csv.</p></li>
-<li><p><strong>functions</strong> (<code>String</code>): | List[String]
-(Optional) Julia files to source before execution.</p></li>
-<li><p><strong>include</strong> (<code>String</code>): | List[String]
-(Optional) Additional files for the sandbox.</p></li>
-<li><p><strong>noop</strong> (<code>Bool</code>): (Optional) Whether to
-skip execution and generate a stub. Default = false.</p></li>
+<li><strong>x</strong> (<code>String</code>): | Symbol The name to
+convert.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The evaluated return value of the command.</p>
-<h2 id="see-also">See Also</h2>
-<p><a href="jln.html">jln</a>, <a href="pyn.html">pyn</a>, <a
-href="rn.html">rn</a>, <a href="node.html">node</a></p>
+<p>The resulting symbol.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>to_symbol(&quot;mpg&quot;)
+to_expr(select(df, !!to_symbol(&quot;mpg&quot;)))</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

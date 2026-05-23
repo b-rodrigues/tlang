@@ -1,15 +1,15 @@
 # inspect_pipeline
 
-Inspect Pipeline Logs
+Inspect Pipeline Schema (Static)
 
-Reads the latest (or specified) build log and returns a DataFrame showing the pipeline status.
+Returns a DataFrame outlining the static compile-time configuration of the pipeline.
 
 ## Parameters
 
-- **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename.
+- **p** (`Pipeline`): The pipeline to inspect statically.
 
 
 ## Returns
 
-A DataFrame with columns = derivation, build_success, path, output.
+A DataFrame with columns = node, runtime, serializer, dependencies, has_script.
 

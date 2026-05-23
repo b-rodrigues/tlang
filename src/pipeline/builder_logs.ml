@@ -63,12 +63,32 @@ let read_log path =
     let nodes = json |> member "nodes" |> to_list in
     let entries = List.map (fun node_json ->
       let name = node_json |> member "node" |> to_string in
+      let status =
+        match node_json |> member "status" with
+        | `String s -> s
+        | _ -> ""
+      in
+      let err_code =
+        match node_json |> member "error_code" with
+        | `String s -> s
+        | _ -> ""
+      in
+      let cn_class =
+        if status = "Errored" || status = "SoftFailed" then
+          (if err_code <> "" then err_code else "Error")
+        else
+          node_json |> member "class" |> to_string
+      in
+      let cn_path =
+        if status = "Errored" then ""
+        else node_json |> member "path" |> to_string
+      in
       let cn = {
         Ast.cn_name = name;
         cn_runtime = node_json |> member "runtime" |> to_string;
-        cn_path = node_json |> member "path" |> to_string;
+        cn_path;
         cn_serializer = node_json |> member "serializer" |> to_string;
-        cn_class = node_json |> member "class" |> to_string;
+        cn_class;
         cn_dependencies = node_json |> member "dependencies" |> to_list |> filter_string;
       } in
       (name, cn)
@@ -132,6 +152,11 @@ let parse_json_log_to_vbuildlog log_path =
       let nodes_list = json |> member "nodes" |> to_list in
       let parse_node node_json =
         let name = node_json |> member "node" |> to_string in
+        let node_path =
+          match node_json |> member "path" with
+          | `String s -> s
+          | _ -> ""
+        in
         let status_from_json =
           match node_json |> member "status" with
           | `String s when s <> "" -> Some s
@@ -144,19 +169,28 @@ let parse_json_log_to_vbuildlog log_path =
               let success = parse_success_with_default node_json true in
               if success then "Completed" else "SoftFailed"
         in
-        let success_default = String.equal status "Completed" in
-        let success = parse_success_with_default node_json success_default in
         let node_duration = parse_float_or_default (node_json |> member "duration") in
+        let has_warnings =
+          match node_json |> member "warnings" with
+          | `Bool b -> b
+          | `String s -> String.lowercase_ascii s = "true"
+          | _ -> false
+        in
+        let display_status =
+          if status = "SoftFailed" then "Completed with error"
+          else if status = "Completed" && has_warnings then "Completed with warning"
+          else status
+        in
         let is_failed =
           match String.lowercase_ascii status with
-          | "completed" -> false
           | "softfailed" | "errored" -> true
-          | _ -> not success
+          | _ -> false
         in
         let record_fields = [
           ("name", Ast.VString name);
-          ("status", Ast.VString status);
+          ("status", Ast.VString display_status);
           ("duration", Ast.VFloat node_duration);
+          ("path", Ast.VString node_path);
         ] in
         (Ast.VDict record_fields, name, is_failed)
       in

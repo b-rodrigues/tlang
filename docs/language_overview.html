@@ -35,7 +35,7 @@
 <div class="container">
 <h1 id="t-language-overview">T Language Overview</h1>
 <blockquote>
-<p><strong>Version</strong>: 0.52.0</p>
+<p><strong>Version</strong>: 0.52.1</p>
 </blockquote>
 <p>T is a functional programming language designed for declarative,
 tabular data manipulation. It combines the pipeline-driven style of R’s
@@ -649,6 +649,9 @@ err = error(&quot;ValueError&quot;, &quot;invalid input&quot;)</code></pre>
 <pre class="t"><code>-- Name suggestions for typos (Levenshtein distance):
 prnt(42)           -- Error(NameError: &quot;&#39;prnt&#39; is not defined. Did you mean &#39;print&#39;?&quot;)
 slect(df, &quot;name&quot;)  -- Error(NameError: &quot;&#39;slect&#39; is not defined. Did you mean &#39;select&#39;?&quot;)
+
+-- Reserved keyword and built-in protection:
+print = 42         -- Error(NameError: &quot;Cannot overwrite print: it&#39;s a reserved keyword!&quot;)
 
 -- Type conversion hints:
 1 + true           -- Error(TypeError: &quot;Cannot add Int and Bool. Hint: ...&quot;)

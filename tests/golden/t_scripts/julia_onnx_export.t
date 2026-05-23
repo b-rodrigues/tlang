@@ -14,7 +14,7 @@ if (is_error(res)) {
 }
 
 -- Read back the exported node's artifact using native ONNX reader
-model = read_node("export_node")
+model = read_node(p.export_node)
 
 df = read_csv("tests/golden/data/mtcars.csv")
 X = df |> head(1) |> select($wt)
