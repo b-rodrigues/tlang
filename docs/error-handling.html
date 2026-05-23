@@ -461,16 +461,91 @@ Soft-Failures</h2>
 <p>In T-Lang, the materialization of a pipeline is a separate phase from
 the logic execution. When a node in a pipeline fails, it doesn’t
 necessarily halt the entire build.</p>
-<h3 id="hard-fail-vs.-soft-fail">Hard-Fail vs. Soft-Fail</h3>
+<h3 id="pipeline-node-statuses-failure-modes">Pipeline Node Statuses
+&amp; Failure Modes</h3>
+<p>When you run <code>build_pipeline(p)</code> and inspect the build log
+using <code>build_log(p) |&gt; build_log_to_frame()</code>, each node in
+the pipeline is marked with a distinct execution status.</p>
+<table>
+<colgroup>
+<col style="width: 18%" />
+<col style="width: 22%" />
+<col style="width: 22%" />
+<col style="width: 18%" />
+<col style="width: 18%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Node Status</th>
+<th style="text-align: center;">Did it execute?</th>
+<th style="text-align: center;">Did it fail?</th>
+<th style="text-align: left;">Pipeline Impact</th>
+<th style="text-align: left;">Description &amp; Cause</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td
+style="text-align: left;"><strong><code>Completed</code></strong></td>
+<td style="text-align: center;">Yes</td>
+<td style="text-align: center;">No</td>
+<td style="text-align: left;"><strong>Success</strong> (propagates
+data)</td>
+<td style="text-align: left;">The node ran successfully and serialized
+its output artifact.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>Completed with error</code></strong>
+(Soft-Fail)</td>
+<td style="text-align: center;">Yes</td>
+<td style="text-align: center;"><strong>Yes (Soft)</strong></td>
+<td style="text-align: left;"><strong>Continues</strong> (propagates
+error)</td>
+<td style="text-align: left;">The script ran inside the sandbox but
+raised a user-space exception. T-Lang captures this as a first-class
+<code>VError</code> value so independent branches can still build.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Errored</code></strong>
+(Hard-Fail)</td>
+<td style="text-align: center;">Yes</td>
+<td style="text-align: center;"><strong>Yes (Hard)</strong></td>
+<td style="text-align: left;"><strong>Aborts Build</strong></td>
+<td style="text-align: left;">The sandbox execution crashed entirely or
+exited with a non-zero code (e.g., syntax errors, missing packages,
+memory exhaustion).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Skipped</code></strong></td>
+<td style="text-align: center;"><strong>No</strong></td>
+<td style="text-align: center;">No</td>
+<td style="text-align: left;"><strong>Bypassed</strong></td>
+<td style="text-align: left;">The node was never evaluated or executed
+because an upstream dependency suffered a hard <code>Errored</code>
+failure.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="detailed-failure-mechanics">Detailed Failure Mechanics</h4>
 <ol type="1">
-<li><strong>Hard-Fail</strong>: Occurs when the environment or system
-fails (e.g., missing dependencies, Nix build errors, out-of-memory). The
-build stops immediately and no artifacts are produced.</li>
-<li><strong>Soft-Fail (Captured Error)</strong>: Occurs when the node’s
-internal code (T, Python, or R) raises an error. The node produces a
-<code>VError</code> artifact instead of the expected data. The pipeline
-build <strong>continues</strong>, allowing other independent branches to
-complete.</li>
+<li><p><strong>Why <code>Completed with error</code> propagates
+downstream:</strong> Because T-Lang treats errors as first-class values,
+a soft-failure is saved as a normal serialized directory outcome.
+Downstream nodes are still scheduled to run, receive the
+<code>VError</code> as input, and automatically propagate it further
+down the pipe unless you explicitly recover from it.</p></li>
+<li><p><strong>Why <code>Errored</code> halts downstream
+execution:</strong> When a node suffers a hard <code>Errored</code>
+nix-build failure, the Nix daemon immediately stops evaluating that
+branch. No output directory is produced, and the entire build process
+terminates.</p></li>
+<li><p><strong>Why subsequent nodes are marked
+<code>Skipped</code>:</strong> Because the build aborted early, any
+downstream nodes that rely on the failed node are never invoked. They do
+not contain any errors themselves; they are simply bypassed entirely and
+marked as <code>Skipped</code> to provide a clean, accurate picture of
+the pipeline state.</p></li>
 </ol>
 <h3 id="the-build-summary">The Build Summary</h3>
 <p>After a build, T provides an iconographic summary:</p>

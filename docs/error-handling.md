@@ -499,10 +499,27 @@ risky_calc() ?|> enhance_error
 
 In T-Lang, the materialization of a pipeline is a separate phase from the logic execution. When a node in a pipeline fails, it doesn't necessarily halt the entire build.
 
-### Hard-Fail vs. Soft-Fail
+### Pipeline Node Statuses & Failure Modes
 
-1.  **Hard-Fail**: Occurs when the environment or system fails (e.g., missing dependencies, Nix build errors, out-of-memory). The build stops immediately and no artifacts are produced.
-2.  **Soft-Fail (Captured Error)**: Occurs when the node's internal code (T, Python, or R) raises an error. The node produces a `VError` artifact instead of the expected data. The pipeline build **continues**, allowing other independent branches to complete.
+When you run `build_pipeline(p)` and inspect the build log using `build_log(p) |> build_log_to_frame()`, each node in the pipeline is marked with a distinct execution status. 
+
+| Node Status | Did it execute? | Did it fail? | Pipeline Impact | Description & Cause |
+| :--- | :---: | :---: | :--- | :--- |
+| **`Completed`** | Yes | No | **Success** (propagates data) | The node ran successfully and serialized its output artifact. |
+| **`Completed with error`** (Soft-Fail) | Yes | **Yes (Soft)** | **Continues** (propagates error) | The script ran inside the sandbox but raised a user-space exception. T-Lang captures this as a first-class `VError` value so independent branches can still build. |
+| **`Errored`** (Hard-Fail) | Yes | **Yes (Hard)** | **Aborts Build** | The sandbox execution crashed entirely or exited with a non-zero code (e.g., syntax errors, missing packages, memory exhaustion). |
+| **`Skipped`** | **No** | No | **Bypassed** | The node was never evaluated or executed because an upstream dependency suffered a hard `Errored` failure. |
+
+#### Detailed Failure Mechanics
+
+1. **Why `Completed with error` propagates downstream:**
+   Because T-Lang treats errors as first-class values, a soft-failure is saved as a normal serialized directory outcome. Downstream nodes are still scheduled to run, receive the `VError` as input, and automatically propagate it further down the pipe unless you explicitly recover from it.
+
+2. **Why `Errored` halts downstream execution:**
+   When a node suffers a hard `Errored` nix-build failure, the Nix daemon immediately stops evaluating that branch. No output directory is produced, and the entire build process terminates.
+
+3. **Why subsequent nodes are marked `Skipped`:**
+   Because the build aborted early, any downstream nodes that rely on the failed node are never invoked. They do not contain any errors themselves; they are simply bypassed entirely and marked as `Skipped` to provide a clean, accurate picture of the pipeline state.
 
 ### The Build Summary
 
