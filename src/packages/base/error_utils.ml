@@ -75,6 +75,23 @@ let resolve_error_val = function
               | None -> None))
   | _ -> None
 
+let resolve_warning_val = function
+  | VComputedNode cn ->
+      let cn = !Ast.computed_node_resolver cn in
+      if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
+        let warnings_path = Filename.concat cn.cn_path "warnings" in
+        if Sys.file_exists warnings_path then (
+          try
+            let chan = open_in warnings_path in
+            let len = in_channel_length chan in
+            let content = really_input_string chan len in
+            close_in chan;
+            Some (String.trim content)
+          with _ -> None
+        ) else None
+      else None
+  | _ -> None
+
 (*
 --# Get error code
 --#
@@ -105,22 +122,45 @@ let register env =
   --#
   --# Returns the human-readable message associated with an error.
   --#
-  --# @name error_message
+  --# @name error_msg
   --# @param x :: Error The error value to inspect.
   --# @return :: String The error message.
   --# @family base
   --# @export
   *)
-  let env = Env.add "error_message"
-    (make_builtin ~name:"error_message" 1 (fun args _env ->
+  let env = Env.add "error_msg"
+    (make_builtin ~name:"error_msg" 1 (fun args _env ->
       match args with
       | [VError { message; _ }] -> VString message
       | [VComputedNode _ as v] ->
           (match resolve_error_val v with
            | Some err -> VString err.re_message
-           | None -> Error.type_error "Function `error_message` expects an Error value.")
-      | [_] -> Error.type_error "Function `error_message` expects an Error value."
-      | _ -> Error.arity_error_named "error_message" 1 (List.length args)
+           | None -> Error.type_error "Function `error_msg` expects an Error value.")
+      | [_] -> Error.type_error "Function `error_msg` expects an Error value."
+      | _ -> Error.arity_error_named "error_msg" 1 (List.length args)
+    ))
+    env in
+
+  (*
+  --# Get warning message
+  --#
+  --# Returns the human-readable warning associated with a completed computed node, or an empty string if none.
+  --#
+  --# @name warning_msg
+  --# @param x :: ComputedNode The computed node to inspect.
+  --# @return :: String The warning message.
+  --# @family base
+  --# @export
+  *)
+  let env = Env.add "warning_msg"
+    (make_builtin ~name:"warning_msg" 1 (fun args _env ->
+      match args with
+      | [VComputedNode _ as v] ->
+          (match resolve_warning_val v with
+           | Some w -> VString w
+           | None -> VString "")
+      | [_] -> Error.type_error "Function `warning_msg` expects a ComputedNode."
+      | _ -> Error.arity_error_named "warning_msg" 1 (List.length args)
     ))
     env in
   

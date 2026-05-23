@@ -596,7 +596,7 @@ code (if 2 args)</li>
 error(&quot;ValueError&quot;, &quot;Invalid input&quot;)
 
 e = error(&quot;custom error&quot;)
-error_message(e)  -- &quot;custom error&quot;</code></pre>
+error_msg(e)  -- &quot;custom error&quot;</code></pre>
 <hr />
 <h3 id="error_codeerr"><code>error_code(err)</code></h3>
 <p>Get the error code from an Error value.</p>
@@ -613,7 +613,7 @@ error_code(e)  -- &quot;DivisionByZero&quot;
 e2 = error(&quot;TypeError&quot;, &quot;msg&quot;)
 error_code(e2)  -- &quot;TypeError&quot;</code></pre>
 <hr />
-<h3 id="error_messageerr"><code>error_message(err)</code></h3>
+<h3 id="error_msgerr"><code>error_msg(err)</code></h3>
 <p>Get the error message from an Error value.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
@@ -623,10 +623,25 @@ error_code(e2)  -- &quot;TypeError&quot;</code></pre>
 <p><code>String</code> — Error message</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>e = error(&quot;Something broke&quot;)
-error_message(e)  -- &quot;Something broke&quot;
+error_msg(e)  -- &quot;Something broke&quot;
 
 e2 = 1 / 0
-error_message(e2)  -- &quot;Division by zero&quot;</code></pre>
+error_msg(e2)  -- &quot;Division by zero&quot;</code></pre>
+<hr />
+<h3 id="warning_msgnode"><code>warning_msg(node)</code></h3>
+<p>Get the warning message from a completed computed node (if any
+exists).</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>node</code> — ComputedNode value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> — Warning message, or an empty string
+<code>""</code> if there are no warnings.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>p = pipeline { a = suppress_warnings(node()) }
+build_pipeline(p)
+warning_msg(p.a)  -- Returns warning message string or &quot;&quot;</code></pre>
 <hr />
 <h3 id="error_contexterr"><code>error_context(err)</code></h3>
 <p>Get additional context from an Error value (if available).</p>

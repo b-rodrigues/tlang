@@ -13,8 +13,9 @@ Builds a pipeline to `pipeline.nix` and records node artifacts in a local regist
 
 ## Returns
 
-A `BuildLog` with fields: `nodes`, `duration`, `failed_nodes`, and `out_path`.
+A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`).
 
 ## See Also
 
 [read_node](read_node.html)
+

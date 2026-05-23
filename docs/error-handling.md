@@ -199,7 +199,7 @@ is_error(result)        -- true
 error_code(result)      -- "DivisionByZero"
 
 -- Get error message
-error_message(result)   -- "Division by zero"
+error_msg(result)   -- "Division by zero"
 
 -- Get additional context
 error_context(result)   -- Stack trace or additional info
@@ -207,7 +207,7 @@ error_context(result)   -- Stack trace or additional info
 
 #### Polymorphic Error Inspection on Pipeline Nodes
 
-The standard error functions (`error_code`, `error_message`, and `error_context`) are **polymorphic** and can also be called directly on pipeline `ComputedNode` variables (e.g., `p.X` or `p.combined_df`). 
+The standard error functions (`error_code`, `error_msg`, and `error_context`) are **polymorphic** and can also be called directly on pipeline `ComputedNode` variables (e.g., `p.X` or `p.combined_df`). 
 
 * **For soft-failed nodes** (where a node built successfully but captured a runtime error/`VError`), these functions automatically resolve and read the detailed `VError` artifact from the Nix store.
 * **For hard-failed nodes** (where a node crashed the Nix build itself and wrote no output path), these functions automatically fall back to parsing the full traceback and error code stored in the latest JSON build logs in `_pipeline/`.
@@ -216,10 +216,10 @@ This allows direct programmatic inspection of pipeline failures without manually
 ```t
 -- Direct inspection of a failed node's error code and message
 error_code(p.X)         -- "RuntimeError"
-error_message(p.X)      -- "NameError: name 'dataset_n' is not defined"
+error_msg(p.X)      -- "NameError: name 'dataset_n' is not defined"
 
 -- Inspecting a hard-failed nix-build node
-error_message(p.combined_df)  -- Full multi-line Python/Arrow traceback
+error_msg(p.combined_df)  -- Full multi-line Python/Arrow traceback
 ```
 
 
@@ -273,7 +273,7 @@ step2 = step1 + 10               -- Still error (no computation)
 step3 = step2 * 2                -- Still error
 
 is_error(step3)                  -- true
-error_message(step3)             -- "Division by zero"
+error_msg(step3)             -- "Division by zero"
 ```
 
 ---
@@ -323,7 +323,7 @@ error("fail") ?|> \(x)
 -- Recovery pattern
 result = risky_operation()
   ?|> \(x) if (is_error(x)) {
-    print(str_join(["Error occurred: ", error_message(x)]))
+    print(str_join(["Error occurred: ", error_msg(x)]))
     default_value
   } else {
     x
@@ -420,7 +420,7 @@ process_value = \(v)
 safe_process = \(v)
   process_value(v) ?|> \(result)
     if (is_error(result)) {
-      print(str_sprintf("Invalid value: %s", error_message(result)))
+      print(str_sprintf("Invalid value: %s", error_msg(result)))
       0  -- Default
     } else {
       result
@@ -436,7 +436,7 @@ safe_process(10)   -- Returns 20
 -- Log errors and continue
 logged_operation = risky_function()
   ?|> \(x) if (is_error(x)) {
-    write_log(str_sprintf("Error in risky_function: %s", error_message(x)))
+    write_log(str_sprintf("Error in risky_function: %s", error_msg(x)))
     x  -- Pass error along
   } else {
     x
@@ -455,7 +455,7 @@ process_many = \(items)
   map(items, \(item)
     process_item(item) ?|> \(result)
       if (is_error(result))
-        {success: false, error: error_message(result)}
+        {success: false, error: error_msg(result)}
       else
         {success: true, value: result}
   )
@@ -797,7 +797,7 @@ assert(is_error(risky_function(-1)))
 ```t
 production_pipeline = pipeline {
   data = read_csv("data.csv") ?|> \(x) if (is_error(x)) {
-    write_log(str_sprintf("CRITICAL: Failed to load data: %s", error_message(x)))
+    write_log(str_sprintf("CRITICAL: Failed to load data: %s", error_msg(x)))
     x
   } else x
   
@@ -842,7 +842,7 @@ result = risky_operation()
 
 if (is_error(result)) {
   print(str_sprintf("Error code: %s", error_code(result)))
-  print(str_sprintf("Error message: %s", error_message(result)))
+  print(str_sprintf("Error message: %s", error_msg(result)))
   print(str_sprintf("Error context: %s", error_context(result)))
 }
 ```

@@ -2298,7 +2298,7 @@ error("Something went wrong")
 error("ValueError", "Invalid input")
 
 e = error("custom error")
-error_message(e)  -- "custom error"
+error_msg(e)  -- "custom error"
 ```
 
 ---
@@ -2327,7 +2327,7 @@ error_code(e2)  -- "TypeError"
 
 ---
 
-### `error_message(err)`
+### `error_msg(err)`
 
 Get the error message from an Error value.
 
@@ -2343,10 +2343,32 @@ Get the error message from an Error value.
 **Examples:**
 ```t
 e = error("Something broke")
-error_message(e)  -- "Something broke"
+error_msg(e)  -- "Something broke"
 
 e2 = 1 / 0
-error_message(e2)  -- "Division by zero"
+error_msg(e2)  -- "Division by zero"
+```
+
+---
+
+### `warning_msg(node)`
+
+Get the warning message from a completed computed node (if any exists).
+
+**Parameters:**
+
+
+- `node` — ComputedNode value
+
+**Returns:**
+
+`String` — Warning message, or an empty string `""` if there are no warnings.
+
+**Examples:**
+```t
+p = pipeline { a = suppress_warnings(node()) }
+build_pipeline(p)
+warning_msg(p.a)  -- Returns warning message string or ""
 ```
 
 ---
@@ -6042,7 +6064,8 @@ This release finalizes end-to-end Julia ONNX serialization support, fixes pipeli
 - **Build Tabulation (`build_log_to_frame`)**: Added `build_log_to_frame(log)` to tabulate build results (one row per node) for high-level analysis using `colcraft` verbs.
 - **Exception Collection (`collect_exceptions(p)`)**: Gathers all `VError` values and warning diagnostics from computed nodes of a built pipeline into a structured DataFrame (`node`, `status`, `code`, `message`), replacing the legacy `collect_errors` and `error_summary` functions.
 - **Traceback cleaning in `collect_exceptions(p)`**: Automatically cleans and extracts the last non-empty line of multi-line error traces (such as from Python or Arrow exceptions) and truncates the string to 100 characters max, maintaining a neat, legible table in the REPL.
-- **Polymorphic error functions**: Made standard `error_code()`, `error_message()`, and `error_context()` builtins polymorphic. They now accept either standard `Error` objects or first-class pipeline `ComputedNode` values (e.g. `p.X` or `p.combined_df`). They automatically resolve the node's underlying `VError` store artifact for soft-failures, or fall back to parsing log traceback details for hard Nix-build failures.
+- **Polymorphic error functions**: Made standard `error_code()`, `error_msg()`, and `error_context()` builtins polymorphic. They now accept either standard `Error` objects or first-class pipeline `ComputedNode` values (e.g. `p.X` or `p.combined_df`). They automatically resolve the node's underlying `VError` store artifact for soft-failures, or fall back to parsing log traceback details for hard Nix-build failures.
+- **Warning Introspection**: Added a new built-in function `warning_msg()` and a matching `.warning_msg` property lookup on computed nodes to easily inspect non-fatal build warnings from successful derivations.
 - **Upstream captured errors in `t_make()`**: Upon early termination/build crash, the Nix builder scans the store paths of completed upstream nodes to extract soft-failed diagnostic states, printing them directly in the final build failure summary (e.g. showing `(8 captured errors)` and listing their node names).
 - **Polars-Style DataFrame print truncation**: Tabular pretty-printing of all DataFrames in the REPL now automatically truncates cell strings exceeding `35` characters to `32` characters followed by `...` to keep columns aligned and clean.
 - **Error Chaining (`error_chain(err1, err2)`)**: Chains multiple errors to preserve failure provenance and causality across dependent nodes.
@@ -9267,7 +9290,7 @@ is_error(result)        -- true
 error_code(result)      -- "DivisionByZero"
 
 -- Get error message
-error_message(result)   -- "Division by zero"
+error_msg(result)   -- "Division by zero"
 
 -- Get additional context
 error_context(result)   -- Stack trace or additional info
@@ -9275,7 +9298,7 @@ error_context(result)   -- Stack trace or additional info
 
 #### Polymorphic Error Inspection on Pipeline Nodes
 
-The standard error functions (`error_code`, `error_message`, and `error_context`) are **polymorphic** and can also be called directly on pipeline `ComputedNode` variables (e.g., `p.X` or `p.combined_df`). 
+The standard error functions (`error_code`, `error_msg`, and `error_context`) are **polymorphic** and can also be called directly on pipeline `ComputedNode` variables (e.g., `p.X` or `p.combined_df`). 
 
 * **For soft-failed nodes** (where a node built successfully but captured a runtime error/`VError`), these functions automatically resolve and read the detailed `VError` artifact from the Nix store.
 * **For hard-failed nodes** (where a node crashed the Nix build itself and wrote no output path), these functions automatically fall back to parsing the full traceback and error code stored in the latest JSON build logs in `_pipeline/`.
@@ -9284,10 +9307,10 @@ This allows direct programmatic inspection of pipeline failures without manually
 ```t
 -- Direct inspection of a failed node's error code and message
 error_code(p.X)         -- "RuntimeError"
-error_message(p.X)      -- "NameError: name 'dataset_n' is not defined"
+error_msg(p.X)      -- "NameError: name 'dataset_n' is not defined"
 
 -- Inspecting a hard-failed nix-build node
-error_message(p.combined_df)  -- Full multi-line Python/Arrow traceback
+error_msg(p.combined_df)  -- Full multi-line Python/Arrow traceback
 ```
 
 
@@ -9341,7 +9364,7 @@ step2 = step1 + 10               -- Still error (no computation)
 step3 = step2 * 2                -- Still error
 
 is_error(step3)                  -- true
-error_message(step3)             -- "Division by zero"
+error_msg(step3)             -- "Division by zero"
 ```
 
 ---
@@ -9391,7 +9414,7 @@ error("fail") ?|> \(x)
 -- Recovery pattern
 result = risky_operation()
   ?|> \(x) if (is_error(x)) {
-    print(str_join(["Error occurred: ", error_message(x)]))
+    print(str_join(["Error occurred: ", error_msg(x)]))
     default_value
   } else {
     x
@@ -9488,7 +9511,7 @@ process_value = \(v)
 safe_process = \(v)
   process_value(v) ?|> \(result)
     if (is_error(result)) {
-      print(str_sprintf("Invalid value: %s", error_message(result)))
+      print(str_sprintf("Invalid value: %s", error_msg(result)))
       0  -- Default
     } else {
       result
@@ -9504,7 +9527,7 @@ safe_process(10)   -- Returns 20
 -- Log errors and continue
 logged_operation = risky_function()
   ?|> \(x) if (is_error(x)) {
-    write_log(str_sprintf("Error in risky_function: %s", error_message(x)))
+    write_log(str_sprintf("Error in risky_function: %s", error_msg(x)))
     x  -- Pass error along
   } else {
     x
@@ -9523,7 +9546,7 @@ process_many = \(items)
   map(items, \(item)
     process_item(item) ?|> \(result)
       if (is_error(result))
-        {success: false, error: error_message(result)}
+        {success: false, error: error_msg(result)}
       else
         {success: true, value: result}
   )
@@ -9865,7 +9888,7 @@ assert(is_error(risky_function(-1)))
 ```t
 production_pipeline = pipeline {
   data = read_csv("data.csv") ?|> \(x) if (is_error(x)) {
-    write_log(str_sprintf("CRITICAL: Failed to load data: %s", error_message(x)))
+    write_log(str_sprintf("CRITICAL: Failed to load data: %s", error_msg(x)))
     x
   } else x
   
@@ -9910,7 +9933,7 @@ result = risky_operation()
 
 if (is_error(result)) {
   print(str_sprintf("Error code: %s", error_code(result)))
-  print(str_sprintf("Error message: %s", error_message(result)))
+  print(str_sprintf("Error message: %s", error_msg(result)))
   print(str_sprintf("Error context: %s", error_context(result)))
 }
 ```
@@ -16503,30 +16526,26 @@ Compute arccosine.
 
 # add_diagnostics
 
-Add Model Diagnostics
+Augment Data with Model Calculations
 
-augments the data with model diagnostic columns (residuals, fitted values, etc.).
+Appends model predictions, residuals, and potentially diagnostic metrics to a dataset.
 
 ## Parameters
 
-- **data** (`DataFrame`): (Optional) The data to add_diagnostics.
+- **data** (`DataFrame`): The dataset to add_diagnostics.
 
 - **model** (`Model`): The model object.
 
 
 ## Returns
 
-The data with added diagnostic columns.
+The original DataFrame with appended `fitted`, `resid`, etc.
 
 ## Examples
 
 ```t
 df = add_diagnostics(mtcars, model)
 ```
-
-## See Also
-
-[lm](lm.html)
 
 
 
@@ -17040,6 +17059,44 @@ body(f)
 
 
 
+# FILE: docs/reference/build_log.md
+
+# build_log
+
+Retrieve Build Log for Pipeline
+
+Returns the `BuildLog` of the latest Nix build for the given pipeline. Includes node-level status records, total duration, failed node names, and `out_path`.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to retrieve logs for.
+
+
+## Returns
+
+
+
+
+
+# FILE: docs/reference/build_log_to_frame.md
+
+# build_log_to_frame
+
+Tabulate Build Log as DataFrame
+
+Returns a DataFrame with columns `name`, `status`, and `duration` summarizing the build nodes.
+
+## Parameters
+
+- **log** (`BuildLog`): The build log to tabulate.
+
+
+## Returns
+
+
+
+
+
 # FILE: docs/reference/build_pipeline_internal.md
 
 # build_pipeline_internal
@@ -17076,11 +17133,12 @@ Builds a pipeline to `pipeline.nix` and records node artifacts in a local regist
 
 ## Returns
 
-A `BuildLog` with fields: `nodes`, `duration`, `failed_nodes`, and `out_path`.
+A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`).
 
 ## See Also
 
 [read_node](read_node.html)
+
 
 
 # FILE: docs/reference/case_when.md
@@ -17267,6 +17325,25 @@ Standardizes column names using a snake_case convention. Removes special charact
 
 
 
+# FILE: docs/reference/clean_names.md
+
+# clean_names
+
+Clean Column Names
+
+Normalizes a list of strings to be safe, consistent column names. Converts symbols (like €) to text, strips diacritics, lowers the case, replaces non-alphanumeric characters with underscores, and resolves duplicates.
+
+## Parameters
+
+- **names** (`Vector[String]`): The column names to clean.
+
+
+## Returns
+
+The cleaned column names.
+
+
+
 # FILE: docs/reference/coef.md
 
 # coef
@@ -17293,6 +17370,25 @@ coef(model)
 ## See Also
 
 [conf_int](conf_int.html), [summary](summary.html)
+
+
+
+# FILE: docs/reference/collect_exceptions.md
+
+# collect_exceptions
+
+Gather Pipeline Node Exceptions and Warnings
+
+Gathers all `VError` values and warning diagnostics from computed nodes of a built pipeline and returns them as a structured DataFrame.
+
+## Parameters
+
+- **p** (`Pipeline`): The built pipeline to gather exceptions from.
+
+
+## Returns
+
+A DataFrame with columns `node`, `status`, `code`, and `message`.
 
 
 
@@ -17995,6 +18091,25 @@ dense_rank([1, 2, 2, 4])
 
 
 
+# FILE: docs/reference/deserialize_from_file.md
+
+# deserialize_from_file
+
+Binary Deserialization
+
+Reads a serialized T value from a file. Verifies an integrity digest before unmarshalling to reject tampered or externally-supplied artifacts.  SECURITY NOTE: OCaml Marshal is not safe for fully untrusted input. The MD5 digest check detects accidental corruption only — MD5 is not cryptographically secure and provides no protection against intentional tampering. Only load .tobj files produced by your own T installation.
+
+## Parameters
+
+- **path** (`String`): Source file path.
+
+
+## Returns
+
+String] Value or error.
+
+
+
 # FILE: docs/reference/deserialize.md
 
 # deserialize
@@ -18331,6 +18446,27 @@ env("HOME")
 
 
 
+# FILE: docs/reference/error_chain.md
+
+# error_chain
+
+Chain errors to preserve provenance
+
+Explicitly chains two errors together by setting the second error as the cause of the first error.
+
+## Parameters
+
+- **err1** (`Error`): The primary or outer Error.
+
+- **err2** (`Error`): The underlying cause Error.
+
+
+## Returns
+
+The chained Error value.
+
+
+
 # FILE: docs/reference/error_code.md
 
 # error_code
@@ -18430,9 +18566,9 @@ error("ValueError", "Must be positive")
 
 
 
-# FILE: docs/reference/error_message.md
+# FILE: docs/reference/error_msg.md
 
-# error_message
+# error_msg
 
 Get error message
 
@@ -19800,17 +19936,19 @@ Joins two DataFrames and keeps only rows whose keys match in both inputs.
 
 # inspect_log
 
-Inspect Pipeline Build Logs
+Inspect Pipeline Logs (Dynamic)
 
-Reads the latest (or specified) Nix build log on the filesystem and returns a DataFrame showing the dynamic execution status.
+Reads the latest (or specified) build log and returns a DataFrame showing the pipeline status.
 
 ## Parameters
 
-- **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename in `_pipeline/`.
+- **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename.
+
 
 ## Returns
 
-A DataFrame with columns: `derivation`, `build_success`, `path`, `output`.
+A DataFrame with columns = derivation, build_success, path, output.
+
 
 
 # FILE: docs/reference/inspect_node.md
@@ -19840,17 +19978,19 @@ A dictionary with keys = name, runtime, path, serializer, class, dependencies.
 
 # inspect_pipeline
 
-Static Pipeline DAG Schema Inspection
+Inspect Pipeline Schema (Static)
 
-Returns a DataFrame containing the static schema and dependencies of a pipeline's defined nodes. Never hits the filesystem or reads build logs.
+Returns a DataFrame outlining the static compile-time configuration of the pipeline.
 
 ## Parameters
 
-- **p** (`Pipeline`): The pipeline object to inspect (e.g. `p = pipeline { ... }`). If called without arguments inside the T environment, it will automatically look up the bound pipeline in the current scope.
+- **p** (`Pipeline`): The pipeline to inspect statically.
+
 
 ## Returns
 
-A DataFrame with columns: `node`, `runtime`, `serializer`, `dependencies`, `has_script`.
+A DataFrame with columns = node, runtime, serializer, dependencies, has_script.
+
 
 
 # FILE: docs/reference/intent_fields.md
@@ -20194,9 +20334,9 @@ A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly wi
 
 - **script** (`String`): (Optional) Path to an external `.jl` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Julia` automatically.
 
-- **serializer** (`String`): | Symbol (Optional) Custom serializer strategy. Built-in values include ^csv and ^json. Default = ^csv.
+- **serializer** (`Symbol`): (Optional) Custom serializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default = runtime-native binary serialization (`jl_serialize`).
 
-- **deserializer** (`String`): | Symbol (Optional) Custom deserializer strategy. Built-in values include ^csv and ^json. Default = ^csv.
+- **deserializer** (`Symbol`): (Optional) Custom deserializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default = runtime-native binary deserialization.
 
 - **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
 
@@ -20207,11 +20347,49 @@ A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly wi
 
 ## Returns
 
-The evaluated return value of the command.
+A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the Julia code is executed by the pipeline builder, not immediately.
 
 ## See Also
 
 [pyn](pyn.html), [rn](rn.html), [node](node.html)
+
+
+
+# FILE: docs/reference/json_escape.md
+
+# json_escape
+
+JSON String Escaper
+
+Escapes special characters for JSON compatibility.
+
+## Parameters
+
+- **s** (`String`): The string to escape.
+
+
+## Returns
+
+The escaped string.
+
+
+
+# FILE: docs/reference/json_unescape.md
+
+# json_unescape
+
+JSON String Unescaper
+
+Decodes escaped characters from a JSON string.
+
+## Parameters
+
+- **s** (`String`): The escaped string.
+
+
+## Returns
+
+The literal string.
 
 
 
@@ -21320,7 +21498,7 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 ## Returns
 
-The evaluated return value of the command.
+A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the node code is executed by the pipeline builder, not immediately.
 
 
 
@@ -22645,7 +22823,7 @@ A convenience wrapper around `node()` with `runtime = "Python"`. Used directly w
 
 ## Returns
 
-The evaluated return value of the command.
+A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the Python code is executed by the pipeline builder, not immediately.
 
 ## See Also
 
@@ -22682,7 +22860,7 @@ A convenience wrapper around `node()` with `runtime = "Quarto"`. Used directly w
 
 ## Returns
 
-The evaluated return value of the command.
+A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the Quarto document is rendered by the pipeline builder, not immediately.
 
 ## See Also
 
@@ -22938,20 +23116,18 @@ The build log content.
 
 Read Pipeline Node Artifact
 
-For in-memory Pipelines, returns a node record with the node value and structured diagnostics. For built pipelines, reads the artifact from the latest (or specified) build log in `_pipeline/`. Use `which_log` to read from a specific historical build ("time travel").
+Reads and returns the contents of a ComputedNode. For in-memory pipelines, returns the dynamically computed value directly from the registry. For built pipelines, reads the materialized artifact from the latest (or specified) build log. Use `which_log` to read from a specific historical build ("time travel").
 
 ## Parameters
 
-- **node** (`Pipeline`): | String | ComputedNode Pass a Pipeline for in-memory node diagnostics, or a String/ComputedNode to load a built artifact.
-
-- **name** (`String`): (Optional) The node name to read when `node` is a Pipeline.
+- **node** (`ComputedNode`): The ComputedNode object to read (e.g. `p.node_name`).
 
 - **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename.
 
 
 ## Returns
 
-A Dict with value+diagnostics for in-memory pipelines, or the deserialized artifact for built nodes.
+The deserialized artifact value, or the in-memory value.
 
 ## See Also
 
@@ -23008,6 +23184,25 @@ A dictionary with node metadata and diagnostics.
 ## See Also
 
 [explain](explain.html), [read_node](read_node.html)
+
+
+
+# FILE: docs/reference/read_registry.md
+
+# read_registry
+
+Registry Maintenance (Reader)
+
+Parses a registry JSON file back into a list of name-path pairs.
+
+## Parameters
+
+- **path** (`String`): Source file.
+
+
+## Returns
+
+String)], String] Entries or error.
 
 
 
@@ -23293,7 +23488,7 @@ A convenience wrapper around `node()` with `runtime = "R"`. Used directly within
 
 ## Returns
 
-The evaluated return value of the command.
+A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the R code is executed by the pipeline builder, not immediately.
 
 ## See Also
 
@@ -23754,6 +23949,27 @@ Serializes a value to a `.tobj` file.
 
 
 
+# FILE: docs/reference/serialize_to_file.md
+
+# serialize_to_file
+
+Binary Serialization
+
+Serializes any T value to a file using OCaml's Marshal module. Includes a content digest for integrity verification on deserialization.
+
+## Parameters
+
+- **path** (`String`): Destination file path.
+
+- **value** (`Any`): The T value to serialize.
+
+
+## Returns
+
+String] Ok or error.
+
+
+
 # FILE: docs/reference/set.md
 
 # set
@@ -23833,7 +24049,7 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 
 ## Returns
 
-The evaluated return value of the command.
+A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the shell command is executed by the pipeline builder, not immediately.
 
 ## See Also
 
@@ -23861,6 +24077,7 @@ The local rendered image path.
 ## See Also
 
 [build_pipeline](build_pipeline.html), [read_node](read_node.html)
+
 
 
 # FILE: docs/reference/sigma.md
@@ -24848,6 +25065,64 @@ mat = to_array(mtcars, [$mpg, $wt])
 
 
 
+# FILE: docs/reference/to_bool.md
+
+# to_bool
+
+Convert to Boolean
+
+Coerces a value to a boolean. Recognizes 'TRUE'/'FALSE', 'T'/'F', non-zero numbers as true, and zero as false.
+
+## Parameters
+
+- **x** (`Any`): The value to convert.
+
+
+## Returns
+
+| NA The converted boolean.
+
+
+
+# FILE: docs/reference/to_dataframe.md
+
+# to_dataframe
+
+Create a DataFrame
+
+Constructs a DataFrame from either a list of rows (Dicts) or a Dictionary of columns (Vectors/Lists).
+
+## Parameters
+
+- **data** (`List[Dict]|Dict`): The data rows or columns.
+
+
+## Returns
+
+The created DataFrame.
+
+## Examples
+
+```t
+# Row-wise construction:
+df = to_dataframe([
+{"a": 1, "b": 2},
+{"a": 3, "b": 4}
+])
+
+# Column-wise construction (supported for VDict):
+df2 = to_dataframe([a: [1, 3], b = [2, 4]])
+
+# Scalar values are recycled to match other column lengths:
+df3 = to_dataframe([x: [1, 2, 3], constant = 0])
+```
+
+## See Also
+
+[read_csv](read_csv.html)
+
+
+
 # FILE: docs/reference/to_date.md
 
 # to_date
@@ -25033,6 +25308,62 @@ Converts all characters in the string to lowercase.
 ## Returns
 
 The lowercase string.
+
+
+
+# FILE: docs/reference/to_string.md
+
+# to_string
+
+Convert to string
+
+Converts any value to its string representation.
+
+## Parameters
+
+- **x** (`Any`): The value to convert.
+
+
+## Returns
+
+The string representation.
+
+## Examples
+
+```t
+to_string(123)
+-- Returns = "123"
+```
+
+## See Also
+
+[str_join](str_join.html)
+
+
+
+# FILE: docs/reference/to_symbol.md
+
+# to_symbol
+
+Convert a string to a Symbol
+
+Creates a Symbol from a string so it can be injected into quoted code with `!!`. Existing Symbol values pass through unchanged.
+
+## Parameters
+
+- **x** (`String`): | Symbol The name to convert.
+
+
+## Returns
+
+The resulting symbol.
+
+## Examples
+
+```t
+to_symbol("mpg")
+to_expr(select(df, !!to_symbol("mpg")))
+```
 
 
 
@@ -25666,6 +25997,25 @@ wald_test(model, terms = ["wt", "hp"])
 
 
 
+# FILE: docs/reference/warning_msg.md
+
+# warning_msg
+
+Get warning message
+
+Returns the human-readable warning associated with a completed computed node, or an empty string if none.
+
+## Parameters
+
+- **x** (`ComputedNode`): The computed node to inspect.
+
+
+## Returns
+
+The warning message.
+
+
+
 # FILE: docs/reference/wday.md
 
 # wday
@@ -25879,6 +26229,27 @@ write_csv(df, "output.csv")
 ## See Also
 
 [read_csv](read_csv.html)
+
+
+
+# FILE: docs/reference/write_registry.md
+
+# write_registry
+
+Registry Maintenance (Writer)
+
+Writes a flat JSON object mapping node names to artifact paths.
+
+## Parameters
+
+- **path** (`String`): Destination file.
+
+- **entries** (`List[(String,`): String)] Name-path pairs.
+
+
+## Returns
+
+String] Status.
 
 
 

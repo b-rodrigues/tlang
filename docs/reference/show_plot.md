@@ -16,3 +16,4 @@ The local rendered image path.
 ## See Also
 
 [build_pipeline](build_pipeline.html), [read_node](read_node.html)
+

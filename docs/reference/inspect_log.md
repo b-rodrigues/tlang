@@ -1,13 +1,15 @@
 # inspect_log
 
-Inspect Pipeline Build Logs
+Inspect Pipeline Logs (Dynamic)
 
-Reads the latest (or specified) Nix build log on the filesystem and returns a DataFrame showing the dynamic execution status.
+Reads the latest (or specified) build log and returns a DataFrame showing the pipeline status.
 
 ## Parameters
 
-- **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename in `_pipeline/`.
+- **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename.
+
 
 ## Returns
 
-A DataFrame with columns: `derivation`, `build_success`, `path`, `output`.
+A DataFrame with columns = derivation, build_success, path, output.
+

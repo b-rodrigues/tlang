@@ -700,8 +700,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       test "read_node error exposes error_code field"
         "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_code"
         {|"RuntimeError"|};
-      test "read_node error exposes error_message field"
-        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_message"
+      test "read_node error exposes error_msg field"
+        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_msg"
         (Ast.Utils.value_to_string (Ast.VString mocked_error_message));
       test "read_node error exposes context dict"
         "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").context.node_status"

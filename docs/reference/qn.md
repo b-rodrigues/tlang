@@ -25,7 +25,7 @@ A convenience wrapper around `node()` with `runtime = "Quarto"`. Used directly w
 
 ## Returns
 
-The evaluated return value of the command.
+A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the Quarto document is rendered by the pipeline builder, not immediately.
 
 ## See Also
 

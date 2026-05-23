@@ -34,18 +34,17 @@
 </nav>
 <div class="container">
 <h1 id="inspect_log">inspect_log</h1>
-<p>Inspect Pipeline Build Logs</p>
-<p>Reads the latest (or specified) Nix build log on the filesystem and
-returns a DataFrame showing the dynamic execution status.</p>
+<p>Inspect Pipeline Logs (Dynamic)</p>
+<p>Reads the latest (or specified) build log and returns a DataFrame
+showing the pipeline status.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>which_log</strong> (<code>String</code>): (Optional) A regex
-pattern to match a specific build log filename in
-<code>_pipeline/</code>.</li>
+pattern to match a specific build log filename.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A DataFrame with columns: <code>derivation</code>,
-<code>build_success</code>, <code>path</code>, <code>output</code>.</p>
+<p>A DataFrame with columns = derivation, build_success, path,
+output.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

@@ -770,7 +770,7 @@ error("Something went wrong")
 error("ValueError", "Invalid input")
 
 e = error("custom error")
-error_message(e)  -- "custom error"
+error_msg(e)  -- "custom error"
 ```
 
 ---
@@ -799,7 +799,7 @@ error_code(e2)  -- "TypeError"
 
 ---
 
-### `error_message(err)`
+### `error_msg(err)`
 
 Get the error message from an Error value.
 
@@ -815,10 +815,32 @@ Get the error message from an Error value.
 **Examples:**
 ```t
 e = error("Something broke")
-error_message(e)  -- "Something broke"
+error_msg(e)  -- "Something broke"
 
 e2 = 1 / 0
-error_message(e2)  -- "Division by zero"
+error_msg(e2)  -- "Division by zero"
+```
+
+---
+
+### `warning_msg(node)`
+
+Get the warning message from a completed computed node (if any exists).
+
+**Parameters:**
+
+
+- `node` — ComputedNode value
+
+**Returns:**
+
+`String` — Warning message, or an empty string `""` if there are no warnings.
+
+**Examples:**
+```t
+p = pipeline { a = suppress_warnings(node()) }
+build_pipeline(p)
+warning_msg(p.a)  -- Returns warning message string or ""
 ```
 
 ---

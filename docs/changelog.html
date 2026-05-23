@@ -90,13 +90,17 @@ extracts the last non-empty line of multi-line error traces (such as
 from Python or Arrow exceptions) and truncates the string to 100
 characters max, maintaining a neat, legible table in the REPL.</li>
 <li><strong>Polymorphic error functions</strong>: Made standard
-<code>error_code()</code>, <code>error_message()</code>, and
+<code>error_code()</code>, <code>error_msg()</code>, and
 <code>error_context()</code> builtins polymorphic. They now accept
 either standard <code>Error</code> objects or first-class pipeline
 <code>ComputedNode</code> values (e.g. <code>p.X</code> or
 <code>p.combined_df</code>). They automatically resolve the node’s
 underlying <code>VError</code> store artifact for soft-failures, or fall
 back to parsing log traceback details for hard Nix-build failures.</li>
+<li><strong>Warning Introspection</strong>: Added a new built-in
+function <code>warning_msg()</code> and a matching
+<code>.warning_msg</code> property lookup on computed nodes to easily
+inspect non-fatal build warnings from successful derivations.</li>
 <li><strong>Upstream captured errors in <code>t_make()</code></strong>:
 Upon early termination/build crash, the Nix builder scans the store
 paths of completed upstream nodes to extract soft-failed diagnostic

@@ -192,14 +192,14 @@ is_error(result)        -- true
 error_code(result)      -- &quot;DivisionByZero&quot;
 
 -- Get error message
-error_message(result)   -- &quot;Division by zero&quot;
+error_msg(result)   -- &quot;Division by zero&quot;
 
 -- Get additional context
 error_context(result)   -- Stack trace or additional info</code></pre>
 <h4 id="polymorphic-error-inspection-on-pipeline-nodes">Polymorphic
 Error Inspection on Pipeline Nodes</h4>
 <p>The standard error functions (<code>error_code</code>,
-<code>error_message</code>, and <code>error_context</code>) are
+<code>error_msg</code>, and <code>error_context</code>) are
 <strong>polymorphic</strong> and can also be called directly on pipeline
 <code>ComputedNode</code> variables (e.g., <code>p.X</code> or
 <code>p.combined_df</code>).</p>
@@ -217,10 +217,10 @@ latest JSON build logs in <code>_pipeline/</code>.</li>
 without manually opening log files:</p>
 <pre class="t"><code>-- Direct inspection of a failed node&#39;s error code and message
 error_code(p.X)         -- &quot;RuntimeError&quot;
-error_message(p.X)      -- &quot;NameError: name &#39;dataset_n&#39; is not defined&quot;
+error_msg(p.X)      -- &quot;NameError: name &#39;dataset_n&#39; is not defined&quot;
 
 -- Inspecting a hard-failed nix-build node
-error_message(p.combined_df)  -- Full multi-line Python/Arrow traceback</code></pre>
+error_msg(p.combined_df)  -- Full multi-line Python/Arrow traceback</code></pre>
 <h3 id="composing-and-chaining-errors">Composing and Chaining
 Errors</h3>
 <p>T provides powerful primitives to analyze exceptions/diagnostics and
@@ -286,7 +286,7 @@ step2 = step1 + 10               -- Still error (no computation)
 step3 = step2 * 2                -- Still error
 
 is_error(step3)                  -- true
-error_message(step3)             -- &quot;Division by zero&quot;</code></pre>
+error_msg(step3)             -- &quot;Division by zero&quot;</code></pre>
 <hr />
 <h2 id="pipe-operators-and-errors">Pipe Operators and Errors</h2>
 <h3 id="conditional-pipe">Conditional Pipe (<code>|&gt;</code>)</h3>
@@ -318,7 +318,7 @@ logging.</p>
 <pre class="t"><code>-- Recovery pattern
 result = risky_operation()
   ?|&gt; \(x) if (is_error(x)) {
-    print(str_join([&quot;Error occurred: &quot;, error_message(x)]))
+    print(str_join([&quot;Error occurred: &quot;, error_msg(x)]))
     default_value
   } else {
     x
@@ -395,7 +395,7 @@ process_value = \(v)
 safe_process = \(v)
   process_value(v) ?|&gt; \(result)
     if (is_error(result)) {
-      print(str_sprintf(&quot;Invalid value: %s&quot;, error_message(result)))
+      print(str_sprintf(&quot;Invalid value: %s&quot;, error_msg(result)))
       0  -- Default
     } else {
       result
@@ -407,7 +407,7 @@ safe_process(10)   -- Returns 20</code></pre>
 <pre class="t"><code>-- Log errors and continue
 logged_operation = risky_function()
   ?|&gt; \(x) if (is_error(x)) {
-    write_log(str_sprintf(&quot;Error in risky_function: %s&quot;, error_message(x)))
+    write_log(str_sprintf(&quot;Error in risky_function: %s&quot;, error_msg(x)))
     x  -- Pass error along
   } else {
     x
@@ -422,7 +422,7 @@ process_many = \(items)
   map(items, \(item)
     process_item(item) ?|&gt; \(result)
       if (is_error(result))
-        {success: false, error: error_message(result)}
+        {success: false, error: error_msg(result)}
       else
         {success: true, value: result}
   )
@@ -707,7 +707,7 @@ assert(is_error(risky_function(-1)))</code></pre>
 <h3 id="log-errors-in-production">6. Log Errors in Production</h3>
 <pre class="t"><code>production_pipeline = pipeline {
   data = read_csv(&quot;data.csv&quot;) ?|&gt; \(x) if (is_error(x)) {
-    write_log(str_sprintf(&quot;CRITICAL: Failed to load data: %s&quot;, error_message(x)))
+    write_log(str_sprintf(&quot;CRITICAL: Failed to load data: %s&quot;, error_msg(x)))
     x
   } else x
   
@@ -737,7 +737,7 @@ else
 
 if (is_error(result)) {
   print(str_sprintf(&quot;Error code: %s&quot;, error_code(result)))
-  print(str_sprintf(&quot;Error message: %s&quot;, error_message(result)))
+  print(str_sprintf(&quot;Error message: %s&quot;, error_msg(result)))
   print(str_sprintf(&quot;Error context: %s&quot;, error_context(result)))
 }</code></pre>
 <h3 id="trace-error-source">Trace Error Source</h3>

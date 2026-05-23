@@ -2340,6 +2340,19 @@ and eval_dot_access_val _env_ref target_val field =
       | "serializer" -> VString cn.cn_serializer
       | "class" -> VString cn.cn_class
       | "dependencies" -> VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies)
+      | "warning_msg" ->
+          if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then (
+            let warnings_path = Filename.concat cn.cn_path "warnings" in
+            if Sys.file_exists warnings_path then (
+              try
+                let chan = open_in warnings_path in
+                let len = in_channel_length chan in
+                let content = really_input_string chan len in
+                close_in chan;
+                VString (String.trim content)
+              with _ -> VString ""
+            ) else VString ""
+          ) else VString ""
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "ComputedNode has no field `%s`" field))
   | VNode un ->
       (match field with
@@ -2374,13 +2387,13 @@ and eval_dot_access_val _env_ref target_val field =
                (Printf.sprintf "ShellResult has no field `%s`. Available fields: stdout, stderr, exit_code." field))
   | VError ({ code; message; context; location; na_count } as err) ->
       (* Structured field access for Error values mirrors explain(error):
-         error_code, error_message, context, na_count, and optional
+         error_code, error_msg, context, na_count, and optional
          location-derived file/line/column fields (NA when unavailable).
          Unknown fields preserve prior behavior by returning the original
          error unchanged. *)
       (match field with
        | "error_code" -> VString (Utils.error_code_to_string code)
-       | "error_message" -> VString message
+       | "error_msg" -> VString message
        | "context" -> VDict context
        | "na_count" -> VInt na_count
        | "file" ->

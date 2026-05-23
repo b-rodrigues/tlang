@@ -23,7 +23,7 @@ A convenience wrapper around `node()` with `runtime = "Python"`. Used directly w
 
 ## Returns
 
-The evaluated return value of the command.
+A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the Python code is executed by the pipeline builder, not immediately.
 
 ## See Also
 

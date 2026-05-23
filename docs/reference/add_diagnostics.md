@@ -1,27 +1,23 @@
 # add_diagnostics
 
-Add Model Diagnostics
+Augment Data with Model Calculations
 
-augments the data with model diagnostic columns (residuals, fitted values, etc.).
+Appends model predictions, residuals, and potentially diagnostic metrics to a dataset.
 
 ## Parameters
 
-- **data** (`DataFrame`): (Optional) The data to add_diagnostics.
+- **data** (`DataFrame`): The dataset to add_diagnostics.
 
 - **model** (`Model`): The model object.
 
 
 ## Returns
 
-The data with added diagnostic columns.
+The original DataFrame with appended `fitted`, `resid`, etc.
 
 ## Examples
 
 ```t
 df = add_diagnostics(mtcars, model)
 ```
-
-## See Also
-
-[lm](lm.html)
 
