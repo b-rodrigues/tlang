@@ -26,11 +26,18 @@ let register env =
            | Ok _ ->
                let drv_pairs =
                  List.map (fun (name, _) ->
-                   let cmd = Printf.sprintf "nix-instantiate --impure _pipeline/pipeline.nix -A %s 2>/dev/null" name in
-                   let ic = Unix.open_process_in cmd in
-                   let line = try String.trim (input_line ic) with _ -> "" in
-                   ignore (Unix.close_process_in ic);
-                   (name, VString line)
+                   let argv = [| "nix-instantiate"; "--impure"; Builder_utils.pipeline_nix_path; "-A"; name |] in
+                   let v = match Builder_utils.run_command_argv_capture argv with
+                     | Error msg ->
+                         Error.make_error RuntimeError
+                           (Printf.sprintf "pipeline_to_drv: `nix-instantiate` failed for node '%s': %s" name msg)
+                     | Ok "" ->
+                         Error.make_error RuntimeError
+                           (Printf.sprintf "pipeline_to_drv: `nix-instantiate` returned empty output for node '%s'" name)
+                     | Ok drv_path ->
+                         VString drv_path
+                   in
+                   (name, v)
                  ) p.p_nodes
                in
                VDict drv_pairs)

@@ -105,8 +105,10 @@ let register env =
                 | "force", VBool true ->
                     nix_args := "--check" :: !nix_args
                 | "force", VBool false -> ()
-                | "force", _ ->
+                | "force", VString _ | "force", VList _ | "force", VVector _ ->
                     nix_args := "--check" :: !nix_args
+                | "force", _ ->
+                    arg_error_opt := Some (TypeError, "t_make: 'force' in nix_options must be a Bool, String, List, or Vector")
                 | "builders", VString s ->
                     nix_args := s :: "--builders" :: !nix_args
                 | "builders", _ ->

@@ -2807,18 +2807,22 @@ pipeline_node(p, "doubled") -- 20
 
 ---
 
-### `pipeline_run(pipeline, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)`
+### `pipeline_run(pipeline, nix_options = NA)`
 
-Re-execute a pipeline. If any Nix orchestration flags are provided, triggers a cache-aware Nix build of the pipeline. Otherwise, re-executes the pipeline dynamically in-memory.
+Re-execute a pipeline. If `nix_options` is provided, triggers a cache-aware Nix build of the pipeline using the specified options. Otherwise, re-executes the pipeline dynamically in-memory.
 
 **Parameters:**
 
 - `pipeline` — Pipeline object
-- `targets` (optional) — String, List, or Vector of specific node names to build.
-- `force` (optional) — Bool, String, List, or Vector of specific nodes to force-rebuild.
-- `dry_run` (optional) — Bool. If true, returns a planned build actions DataFrame instead of building.
-- `max_jobs` (optional) — Positive Int. Limit parallel build jobs.
-- `cache` (optional) — String. Cachix cache name.
+- `nix_options` (optional) — Dict of Nix build options. Supported keys:
+  - `targets` — String, List, or Vector of specific node names to build.
+  - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
+  - `dry_run` — Bool. If true, returns a planned build actions DataFrame instead of building.
+  - `max_jobs` — Positive Int. Limit parallel build jobs.
+  - `cache` — String. Cachix cache name.
+  - `builders` — String. Remote builder specification (SSH syntax).
+  - `keep_env` — String, List, or Vector of environment variable names to pass into the sandbox.
+  - `sandbox` — Bool or String (`"relaxed"`, `"strict"`, `"none"`). Sandbox policy.
 
 **Returns:**
 
@@ -2828,12 +2832,12 @@ Pipeline object with updated values (or DataFrame if `dry_run = true`)
 ```t
 p = pipeline { x = 10; y = x * 2 }
 p2 = pipeline_run(p)
-df = pipeline_run(p, dry_run=true)
+df = pipeline_run(p, nix_options = [dry_run: true])
 ```
 
 ---
 
-### `populate_pipeline(pipeline, build = false, verbose = 0, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)`
+### `populate_pipeline(pipeline, build = false, verbose = 0, nix_options = NA)`
 
 Prepare pipeline infrastructure in `_pipeline/`.
 
@@ -2842,11 +2846,15 @@ Prepare pipeline infrastructure in `_pipeline/`.
 - `pipeline` — Pipeline object
 - `build` (optional) — If true, triggers a Nix build of all nodes.
 - `verbose` (optional) — Non-negative Int. Nix build verbosity level.
-- `targets` (optional) — String, List, or Vector of specific node names to build.
-- `force` (optional) — Bool, String, List, or Vector of specific nodes to force-rebuild.
-- `dry_run` (optional) — Bool. If true, returns a planned build actions DataFrame instead of building.
-- `max_jobs` (optional) — Positive Int. Limit parallel build jobs.
-- `cache` (optional) — String. Cachix cache name.
+- `nix_options` (optional) — Dict of Nix build options. Supported keys:
+  - `targets` — String, List, or Vector of specific node names to build.
+  - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
+  - `dry_run` — Bool. If true, returns a planned build actions DataFrame instead of building.
+  - `max_jobs` — Positive Int. Limit parallel build jobs.
+  - `cache` — String. Cachix cache name.
+  - `builders` — String. Remote builder specification (SSH syntax).
+  - `keep_env` — String, List, or Vector of environment variable names to pass into the sandbox.
+  - `sandbox` — Bool or String (`"relaxed"`, `"strict"`, `"none"`). Sandbox policy.
 
 **Returns:**
 
@@ -2856,11 +2864,12 @@ Success message, BuildLog, or DataFrame.
 ```t
 populate_pipeline(p)
 populate_pipeline(p, build = true)
+populate_pipeline(p, build = true, nix_options = [max_jobs: 4, cache: "rstats-on-nix"])
 ```
 
 ---
 
-### `build_pipeline(pipeline, verbose = 0, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)`
+### `build_pipeline(pipeline, verbose = 0, nix_options = NA)`
 
 Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
 
@@ -2868,11 +2877,15 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 
 - `pipeline` — Pipeline object
 - `verbose` (optional) — Int build verbosity level. Defaults to `0` (quiet/minimalist live-status output without dumping failed node trace logs). Set `verbose = 1` or higher to print detailed node stdout/stderr failures directly to the terminal on build error.
-- `targets` (optional) — String, List, or Vector of specific node names to build.
-- `force` (optional) — Bool, String, List, or Vector of specific nodes to force-rebuild.
-- `dry_run` (optional) — Bool. If true, returns a planned build actions DataFrame instead of building.
-- `max_jobs` (optional) — Positive Int. Limit parallel build jobs.
-- `cache` (optional) — String. Cachix cache name.
+- `nix_options` (optional) — Dict of Nix build options. Supported keys:
+  - `targets` — String, List, or Vector of specific node names to build.
+  - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
+  - `dry_run` — Bool. If true, returns a planned build actions DataFrame instead of building.
+  - `max_jobs` — Positive Int. Limit parallel build jobs.
+  - `cache` — String. Cachix cache name.
+  - `builders` — String. Remote builder specification (SSH syntax).
+  - `keep_env` — String, List, or Vector of environment variable names to pass into the sandbox.
+  - `sandbox` — Bool or String (`"relaxed"`, `"strict"`, `"none"`). Sandbox policy.
 
 **Returns:**
 
@@ -2882,6 +2895,13 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 - `failed_nodes` — list of failed/errored node names
 - `out_path` — Nix output path for the build (migration path for previous string-return behavior)
 (or `DataFrame` if `dry_run = true`)
+
+**Examples:**
+```t
+build_pipeline(p)
+build_pipeline(p, nix_options = [dry_run: true])
+build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-nix", force: ["c"]])
+```
 
 ---
 

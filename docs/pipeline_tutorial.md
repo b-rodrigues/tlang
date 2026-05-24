@@ -1526,19 +1526,22 @@ To optimize large-scale pipelines and manage remote binary caching, T-Lang inclu
 
 ### Orchestration Parameters
 
-The functions `build_pipeline()` and `pipeline_run()` accept the following optional named arguments:
+The functions `build_pipeline()` and `pipeline_run()` accept an optional `nix_options` dictionary containing the following keys:
 
-| Argument | Type | Description | Nix Command Mapping |
+| Key | Type | Description | Nix Command Mapping |
 |---|---|---|---|
-| `targets` | String/List/Vector | Specific node(s) or outputs to build (e.g., `targets=["model_a"]`) | `-A <targets>` |
+| `targets` | String/List/Vector | Specific node(s) or outputs to build (e.g., `targets: ["model_a"]`) | `-A <targets>` |
 | `force` | Bool/String/List/Vector | Rebuild nodes even if they already exist in the Nix store. Pass `true` to force-rebuild all nodes, or a string/list of specific node names. | `--check` (rebuilds target) |
 | `dry_run` | Bool | Preview build actions without executing them. Returns a structured `DataFrame` of planned actions. | `--dry-run` |
 | `max_jobs` | Int | Limit parallel compilation/build jobs. | `--max-jobs N` |
 | `cache` | String | A Cachix binary cache name (e.g., `"rstats-on-nix"`) to pull/push built artifacts. | `--option extra-substituters ...` & `--option extra-trusted-public-keys ...` |
+| `builders` | String | Remote builder specification in SSH syntax. | `--builders ...` |
+| `keep_env` | String/List/Vector | Environment variable names to pass into the Nix sandbox. | `--option keep-env ...` |
+| `sandbox` | Bool/String | Sandboxing policy: `true`/`"strict"`, `"relaxed"`, or `false`/`"none"`. | `--option sandbox ...` |
 
 ### Using `dry_run` for Build Previews
 
-If you set `dry_run = true`, T-Lang will invoke Nix in dry-run mode and return a structured `DataFrame` detailing the exact actions Nix plans to take (e.g., fetching from binary caches, building derivations):
+If you set `dry_run: true` inside `nix_options`, T-Lang will invoke Nix in dry-run mode and return a structured `DataFrame` detailing the exact actions Nix plans to take (e.g., fetching from binary caches, building derivations):
 
 ```t
 p = pipeline {
@@ -1547,7 +1550,7 @@ p = pipeline {
 }
 
 -- Inspect planned build actions without running them
-actions = build_pipeline(p, dry_run=true)
+actions = build_pipeline(p, nix_options = [dry_run: true])
 print(actions)
 ```
 
@@ -1569,10 +1572,12 @@ p = pipeline {
 
 -- Rebuild only node 'c', with parallel execution, using a Cachix binary cache
 build_pipeline(p,
-               targets = ["c"],
-               max_jobs = 4,
-               cache = "rstats-on-nix",
-               force = ["c"])
+               nix_options = [
+                 targets: ["c"],
+                 max_jobs: 4,
+                 cache: "rstats-on-nix",
+                 force: ["c"]
+               ])
 ```
 
 ---

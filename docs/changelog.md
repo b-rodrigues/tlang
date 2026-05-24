@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.52.2] - 2026-05-22
+## [0.52.2] - 2026-05-24
 
 This release introduces native Nix-native orchestration features to T-Lang's pipeline builders, enabling granular rebuild control, job parallelization, remote Cachix binary caching, and dry-runs.
 
@@ -28,7 +28,7 @@ This release introduces native Nix-native orchestration features to T-Lang's pip
 - **Early Target & Force Validation**: Integrated compile-time validation of `targets` and `force` node lists in the OCaml pipeline compiler. T-Lang now instantly detects misspelled or nonexistent node targets and raises highly readable `StructuralError` warnings before spawning the Nix interpreter.
 - **Node Name Collision Prevention**: Sorted internal name matching patterns by character length in descending order, avoiding potential substring collisions where short node names (e.g. `model`) would erroneously match long node name store paths (e.g. `model_evaluation`).
 
-## [0.52.1] - 2026-05-23
+## [0.52.1] - 2026-05-22
 
 This release finalizes end-to-end Julia ONNX serialization support, fixes pipeline compiler strategy dictionary parsing issues, strengthens runtime safety by protecting reserved keywords, and completes the migration of pipeline introspection to a strict, node-centric dot-access model.
 
