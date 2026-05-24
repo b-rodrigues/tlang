@@ -210,16 +210,77 @@ t_make(nix_options = [max_jobs: 4, max_cores: 2])
 -- Positional signature: t_make(filename, nix_options, verbose, failfast)
 t_make(&quot;src/pipeline.t&quot;, [max_jobs: 8])</code></pre>
 <hr />
-<h2 id="strong-validation">4. Strong Validation</h2>
+<h2 id="remote-builders-builders">4. Remote Builders
+(<code>builders</code>)</h2>
+<p>Offloading computationally intensive pipeline tasks (such as deep
+learning models or high-dimensional matrix operations) to
+high-performance remote builders or GPU clusters is fully supported
+using standard Nix remote builders:</p>
+<pre class="t"><code>-- Run the pipeline but offload the build derivations to remote machines
+pipeline_run(p, nix_options = [
+  builders: &quot;ssh://gpu-builder.local x86_64-linux /root/.ssh/id_rsa 16 1 kvm,benchmark - -&quot;
+])</code></pre>
+<p>The <code>builders</code> parameter accepts a string formatted
+according to standard Nix remote builders syntax
+(<code>ssh://&lt;host&gt; &lt;system-types&gt; &lt;ssh-key-path&gt; &lt;max-jobs&gt; &lt;features&gt;</code>).
+Multiple builders can be provided by separating them with a newline
+character.</p>
+<hr />
+<h2 id="sandboxing-control-sandbox">5. Sandboxing Control
+(<code>sandbox</code>)</h2>
+<p>By default, Nix runs all build jobs inside highly isolated
+environments. While this guarantees 100% reproducibility, certain legacy
+tasks or developer workflows may require relaxing sandboxing
+constraints:</p>
+<pre class="t"><code>-- Relax sandboxing to allow local resource access for specific nodes
+build_pipeline(p, nix_options = [
+  sandbox: &quot;relaxed&quot;
+])
+
+-- Fully disable sandboxing (not recommended for production)
+pipeline_run(p, nix_options = [
+  sandbox: false -- maps to sandbox: &quot;none&quot;
+])</code></pre>
+<p>Supported values for <code>sandbox</code>: - <code>true</code> or
+<code>"strict"</code>: All build jobs are completely isolated (default).
+- <code>"relaxed"</code>: Relaxes sandboxing rules for derivations that
+request it, allowing paths in the host filesystem to be accessed. -
+<code>false</code> or <code>"none"</code>: Sandboxing is disabled
+entirely.</p>
+<hr />
+<h2 id="environment-whitelisting-keep_env">6. Environment Whitelisting
+(<code>keep_env</code>)</h2>
+<p>To protect the purity and reproducibility of your builds, Nix purges
+all host environment variables by default. If your pipeline steps
+require access to specific host environment variables (such as access
+tokens, private database connection URIs, or licensing keys), you can
+pass-through these variables using <code>keep_env</code>:</p>
+<pre class="t"><code>-- Pass-through specific environment variables into the build sandbox
+t_make(nix_options = [
+  keep_env: [&quot;GITHUB_TOKEN&quot;, &quot;DB_CONNECTION_STRING&quot;]
+])
+
+-- Single variable pass-through
+pipeline_run(p, nix_options = [
+  keep_env: &quot;AWS_ACCESS_KEY_ID&quot;
+])</code></pre>
+<p>The pipeline engine validates that only allowed variables are
+whitelisted and safely passes them to the Nix builder, keeping all other
+host details hidden.</p>
+<hr />
+<h2 id="strong-validation">7. Strong Validation</h2>
 <p>T enforces strict validation at pipeline construction time. Providing
 an unrecognized option or an invalid type inside the
 <code>nix_options</code> dictionary will raise a structured
-<code>TypeError</code>:</p>
+<code>TypeError</code> or <code>ValueError</code>:</p>
 <pre class="t"><code>-- ❌ TypeError: t_make: &#39;max_jobs&#39; in nix_options must be an Int
 t_make(nix_options = [max_jobs: &quot;high&quot;])
 
 -- ❌ TypeError: t_make: unknown option &#39;threads&#39; in nix_options
-t_make(nix_options = [threads: 4])</code></pre>
+t_make(nix_options = [threads: 4])
+
+-- ❌ ValueError: sandbox: &#39;invalid_sandbox&#39; is not a valid sandboxing mode
+t_make(nix_options = [sandbox: &quot;invalid_sandbox&quot;])</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

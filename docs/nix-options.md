@@ -102,9 +102,67 @@ t_make("src/pipeline.t", [max_jobs: 8])
 
 ---
 
-## 4. Strong Validation
+## 4. Remote Builders (`builders`)
 
-T enforces strict validation at pipeline construction time. Providing an unrecognized option or an invalid type inside the `nix_options` dictionary will raise a structured `TypeError`:
+Offloading computationally intensive pipeline tasks (such as deep learning models or high-dimensional matrix operations) to high-performance remote builders or GPU clusters is fully supported using standard Nix remote builders:
+
+```t
+-- Run the pipeline but offload the build derivations to remote machines
+pipeline_run(p, nix_options = [
+  builders: "ssh://gpu-builder.local x86_64-linux /root/.ssh/id_rsa 16 1 kvm,benchmark - -"
+])
+```
+
+The `builders` parameter accepts a string formatted according to standard Nix remote builders syntax (`ssh://<host> <system-types> <ssh-key-path> <max-jobs> <features>`). Multiple builders can be provided by separating them with a newline character.
+
+---
+
+## 5. Sandboxing Control (`sandbox`)
+
+By default, Nix runs all build jobs inside highly isolated environments. While this guarantees 100% reproducibility, certain legacy tasks or developer workflows may require relaxing sandboxing constraints:
+
+```t
+-- Relax sandboxing to allow local resource access for specific nodes
+build_pipeline(p, nix_options = [
+  sandbox: "relaxed"
+])
+
+-- Fully disable sandboxing (not recommended for production)
+pipeline_run(p, nix_options = [
+  sandbox: false -- maps to sandbox: "none"
+])
+```
+
+Supported values for `sandbox`:
+- `true` or `"strict"`: All build jobs are completely isolated (default).
+- `"relaxed"`: Relaxes sandboxing rules for derivations that request it, allowing paths in the host filesystem to be accessed.
+- `false` or `"none"`: Sandboxing is disabled entirely.
+
+---
+
+## 6. Environment Whitelisting (`keep_env`)
+
+To protect the purity and reproducibility of your builds, Nix purges all host environment variables by default. If your pipeline steps require access to specific host environment variables (such as access tokens, private database connection URIs, or licensing keys), you can pass-through these variables using `keep_env`:
+
+```t
+-- Pass-through specific environment variables into the build sandbox
+t_make(nix_options = [
+  keep_env: ["GITHUB_TOKEN", "DB_CONNECTION_STRING"]
+])
+
+-- Single variable pass-through
+pipeline_run(p, nix_options = [
+  keep_env: "AWS_ACCESS_KEY_ID"
+])
+```
+
+The pipeline engine validates that only allowed variables are whitelisted and safely passes them to the Nix builder, keeping all other host details hidden.
+
+---
+
+## 7. Strong Validation
+
+T enforces strict validation at pipeline construction time. Providing an unrecognized option or an invalid type inside the `nix_options` dictionary will raise a structured `TypeError` or `ValueError`:
 
 ```t
 -- ❌ TypeError: t_make: 'max_jobs' in nix_options must be an Int
@@ -112,4 +170,7 @@ t_make(nix_options = [max_jobs: "high"])
 
 -- ❌ TypeError: t_make: unknown option 'threads' in nix_options
 t_make(nix_options = [threads: 4])
+
+-- ❌ ValueError: sandbox: 'invalid_sandbox' is not a valid sandboxing mode
+t_make(nix_options = [sandbox: "invalid_sandbox"])
 ```
