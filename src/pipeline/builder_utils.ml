@@ -26,6 +26,20 @@ let default_nix_opts = {
   sandbox = None;
 }
 
+let global_nix_defaults = ref default_nix_opts
+
+let merge_nix_opts ~specific ~fallback =
+  {
+    targets = (match specific.targets with Some _ as v -> v | None -> fallback.targets);
+    force = (match specific.force with Some _ as v -> v | None -> fallback.force);
+    dry_run = specific.dry_run || fallback.dry_run;
+    max_jobs = (match specific.max_jobs with Some _ as v -> v | None -> fallback.max_jobs);
+    cache = (match specific.cache with Some _ as v -> v | None -> fallback.cache);
+    builders = (match specific.builders with Some _ as v -> v | None -> fallback.builders);
+    keep_env = (match specific.keep_env with Some _ as v -> v | None -> fallback.keep_env);
+    sandbox = (match specific.sandbox with Some _ as v -> v | None -> fallback.sandbox);
+  }
+
 let validate_nix_options func_name pairs =
   let open Ast in
   match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"; "builders"; "keep_env"; "sandbox"])) pairs with

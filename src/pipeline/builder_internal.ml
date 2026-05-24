@@ -91,8 +91,8 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
   in
   let opts =
     match nix_options with
-    | Some o -> o
-    | None -> default_nix_opts
+    | Some o -> merge_nix_opts ~specific:o ~fallback:(!global_nix_defaults)
+    | None -> !global_nix_defaults
   in
   let targets = opts.targets in
   let force = opts.force in

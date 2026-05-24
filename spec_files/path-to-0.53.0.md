@@ -50,6 +50,9 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 - [x] **Environment Pass-Through Whitelisting (`keep_env`)**: Explicitly whitelist and forward specific host environment variables (like access tokens or API keys) into the Nix sandbox during developer builds while maintaining strict purity defaults.
 - [x] **Advanced Sandboxing Controls (`sandbox`)**: Introduce fine-grained sandboxing options within `nix_options` (e.g., `sandbox: "relaxed" | "strict" | "none"`) mapping directly to Nix isolation policies for legacy or system-dependent workflow steps.
 - [x] **Low-level Derivation Projection (`pipeline_to_drv`)**: Provide introspection functions that return the raw Nix store derivation `.drv` paths for each node, enabling developers to perform static analysis and debug Nix inputs at the lowest level.
+- [x] **Store Path Introspection (`pipeline_to_store`)**: Provide companion introspection to `pipeline_to_drv` that returns the realised output paths in `/nix/store/` for nodes, evaluated statically via Nix without executing a build.
+- [x] **Global Build Configuration (`set_nix_defaults`)**: Introduce a session-wide global defaults configurer `set_nix_defaults(nix_options = [...])` to establish persistent Nix build options (e.g. Cachix caches, max-jobs, sandboxing, builders) across all subsequent pipeline invocations.
+- [x] **Cache Status Introspection (`pipeline_cache_status`)**: Introduce `pipeline_cache_status(p)` to query Nix cache validity and presence (`nix-store --query --valid`) on each node's derivation, returning a DataFrame with columns `node` (String), `cached` (Bool), and `store_path` (String) to preview cache hits.
 
 ---
 
