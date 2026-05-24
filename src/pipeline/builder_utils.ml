@@ -3,11 +3,7 @@
 type nix_opts = {
   targets  : Ast.value option;
   force    : Ast.value option;
-  (* Note: dry_run is defined as a plain bool rather than an option.
-     Since false and None are semantically identical (meaning no dry run),
-     representing it as a pure boolean simplifies downstream consumption
-     and avoids unnecessary pattern matching. *)
-  dry_run  : bool;
+  dry_run  : bool option;
   max_jobs : Ast.value option;
   cache    : Ast.value option;
   builders : Ast.value option;
@@ -18,7 +14,7 @@ type nix_opts = {
 let default_nix_opts = {
   targets = None;
   force = None;
-  dry_run = false;
+  dry_run = None;
   max_jobs = None;
   cache = None;
   builders = None;
@@ -32,7 +28,7 @@ let merge_nix_opts ~specific ~fallback =
   {
     targets = (match specific.targets with Some _ as v -> v | None -> fallback.targets);
     force = (match specific.force with Some _ as v -> v | None -> fallback.force);
-    dry_run = specific.dry_run || fallback.dry_run;
+    dry_run = (match specific.dry_run with Some _ as v -> v | None -> fallback.dry_run);
     max_jobs = (match specific.max_jobs with Some _ as v -> v | None -> fallback.max_jobs);
     cache = (match specific.cache with Some _ as v -> v | None -> fallback.cache);
     builders = (match specific.builders with Some _ as v -> v | None -> fallback.builders);
@@ -94,10 +90,10 @@ let validate_nix_options func_name pairs =
       in
       let dry_run_result =
         match dry_run_val with
-        | VBool b -> Ok b
+        | VBool b -> Ok (Some b)
         | _ when dry_run_provided ->
             Error (Error.type_error (Printf.sprintf "Function `%s` expects `dry_run` to be a Bool." func_name))
-        | _ -> Ok false
+        | _ -> Ok None
       in
       let max_jobs_result =
         match max_jobs_val with
@@ -501,3 +497,23 @@ let get_timestamp () =
   Printf.sprintf "%04d%02d%02d_%02d%02d%02d"
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
     tm.tm_hour tm.tm_min tm.tm_sec
+
+let eval_node_store_path name : (string, Ast.value) result =
+  let expr = Printf.sprintf "(import %s {}).%s.outPath" (Filename.quote pipeline_nix_path) name in
+  let argv = [| "nix-instantiate"; "--eval"; "--impure"; "--json"; "-E"; expr |] in
+  match run_command_argv_capture argv with
+  | Error msg ->
+      Error (Error.make_error RuntimeError
+        (Printf.sprintf "nix-instantiate failed for node '%s': %s" name msg))
+  | Ok "" ->
+      Error (Error.make_error RuntimeError
+        (Printf.sprintf "nix-instantiate returned empty output for node '%s'" name))
+  | Ok res ->
+      let len = String.length res in
+      let clean =
+        if len >= 2 && res.[0] = '"' && res.[len - 1] = '"' then
+          String.sub res 1 (len - 2)
+        else
+          res
+      in
+      Ok clean

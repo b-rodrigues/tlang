@@ -96,7 +96,7 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
   in
   let targets = opts.targets in
   let force = opts.force in
-  let dry_run = opts.dry_run in
+  let dry_run = Option.value ~default:false opts.dry_run in
   let max_jobs = opts.max_jobs in
   let cache = opts.cache in
   let builders = opts.builders in

@@ -14,7 +14,7 @@ open Ast
 --#   - `builders` :: String Nix remote builders config.
 --#   - `keep_env` :: List[String] Environment variables to pass through to the Nix sandbox.
 --#   - `sandbox` :: Bool|String Nix isolation sandbox policy ("relaxed", "strict", "none").
---# @return :: Bool Returns `true` upon successfully setting the defaults.
+--# @return :: String Returns "Nix defaults updated" upon successfully setting the defaults.
 --# @family pipeline
 --# @export
 *)
@@ -42,7 +42,7 @@ let register env =
           (match Builder_utils.validate_nix_options "set_nix_defaults" pairs with
            | Ok opts ->
                Builder_utils.global_nix_defaults := opts;
-               VBool true
+               VString "Nix defaults updated"
            | Error e -> e)
       | _ -> Error.type_error "Function `set_nix_defaults` expects a Dictionary of options."
   in

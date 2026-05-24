@@ -206,7 +206,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "set_nix_defaults successful dict"
     "set_nix_defaults(nix_options = [ max_jobs: 4 ])"
-    "true";
+    {|"Nix defaults updated"|};
 
   test "set_nix_defaults on non-dict"
     "set_nix_defaults(nix_options = 42)"
@@ -215,6 +215,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   test "set_nix_defaults invalid option"
     "set_nix_defaults(nix_options = [ unknown_opt: 1 ])"
     {|Error(TypeError: "set_nix_defaults: unknown option 'unknown_opt' in nix_options")|};
+
+  let (v_override, _) =
+    eval_string_env "set_nix_defaults(nix_options = [ dry_run: true ]); p_over = pipeline { a = 1 }; res = populate_pipeline(p_over, build=false, nix_options=[ dry_run: false ]); res" env_p3 in
+  let result_override = Ast.Utils.value_to_string v_override in
+  if Test_helpers.contains result_override "Pipeline populated in" then begin
+    incr pass_count; Printf.printf "  ✓ dry_run call-site false overrides global dry_run true default\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ dry_run call-site false overrides global dry_run true default\n    Got: %s\n" result_override
+  end;
+  Builder_utils.global_nix_defaults := Builder_utils.default_nix_opts;
 
   let (v_cache, _) = eval_string_env "p_cache = pipeline { a = 1 }; pipeline_cache_status(p_cache)" env_p3 in
   let result_cache = Ast.Utils.value_to_string v_cache in

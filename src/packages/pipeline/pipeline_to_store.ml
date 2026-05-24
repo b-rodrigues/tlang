@@ -24,26 +24,12 @@ let register env =
           (match Builder.populate_pipeline ~build:false p with
            | Error msg -> Error.make_error StructuralError msg
            | Ok _ ->
-               let strip_quotes s =
-                 let len = String.length s in
-                 if len >= 2 && s.[0] = '"' && s.[len - 1] = '"' then
-                   String.sub s 1 (len - 2)
-                 else
-                   s
-               in
                let store_pairs =
                  List.map (fun (name, _) ->
-                   let expr = Printf.sprintf "(import %s {}).%s.outPath" (Filename.quote Builder_utils.pipeline_nix_path) name in
-                   let argv = [| "nix-instantiate"; "--eval"; "--impure"; "--json"; "-E"; expr |] in
-                   let v = match Builder_utils.run_command_argv_capture argv with
-                     | Error msg ->
-                         Error.make_error RuntimeError
-                           (Printf.sprintf "pipeline_to_store: `nix-instantiate` failed for node '%s': %s" name msg)
-                     | Ok "" ->
-                         Error.make_error RuntimeError
-                           (Printf.sprintf "pipeline_to_store: `nix-instantiate` returned empty output for node '%s'" name)
-                     | Ok res ->
-                         VString (strip_quotes res)
+                   let v =
+                     match Builder_utils.eval_node_store_path name with
+                     | Ok path -> VString path
+                     | Error err -> err
                    in
                    (name, v)
                  ) p.p_nodes
