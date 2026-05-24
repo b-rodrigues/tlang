@@ -569,12 +569,9 @@ let render_plot_artifact cn =
             Error
               (Printf.sprintf "show_plot: failed to write `%s`: %s" nix_path msg)
         | Ok () ->
-            if not (Builder_utils.command_exists "nix-build") then
-              Error "show_plot: `nix-build` is not available. Please install Nix to render plots in a sandbox."
-            else
             let argv = [| "nix-build"; "--impure"; nix_path; "--no-out-link" |] in
-              (match Builder_utils.run_command_argv_capture argv with
-               | Error msg ->
+            (match Builder_utils.run_command_argv_capture argv with
+             | Error msg ->
                    Error ("show_plot: failed to render plot in Nix sandbox: " ^ msg)
                | Ok out_path ->
                    let rendered_path = Filename.concat out_path rendered_plot_filename in
