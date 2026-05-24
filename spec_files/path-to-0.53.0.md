@@ -46,9 +46,9 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 - [x] **Static Format Verification**: The pipeline builder should verify that producer/consumer format types match *before* generating the Nix expression (integrated statically in OCaml builder).
 
 ### Future Nix Orchestration Extensions (Brainstorming)
-- [ ] **Remote Builders Integration (`builders`)**: Support offloading computationally intensive pipeline nodes (e.g. large ML models) to external GPU clusters or high-performance remote builders using standard Nix remote builder configurations (`--builders`).
-- [ ] **Environment Pass-Through Whitelisting (`keep_env`)**: Explicitly whitelist and forward specific host environment variables (like access tokens or API keys) into the Nix sandbox during developer builds while maintaining strict purity defaults.
-- [ ] **Advanced Sandboxing Controls (`sandbox`)**: Introduce fine-grained sandboxing options within `nix_options` (e.g., `sandbox: "relaxed" | "strict" | "none"`) mapping directly to Nix isolation policies for legacy or system-dependent workflow steps.
+- [x] **Remote Builders Integration (`builders`)**: Support offloading computationally intensive pipeline nodes (e.g. large ML models) to external GPU clusters or high-performance remote builders using standard Nix remote builder configurations (`--builders`).
+- [x] **Environment Pass-Through Whitelisting (`keep_env`)**: Explicitly whitelist and forward specific host environment variables (like access tokens or API keys) into the Nix sandbox during developer builds while maintaining strict purity defaults.
+- [x] **Advanced Sandboxing Controls (`sandbox`)**: Introduce fine-grained sandboxing options within `nix_options` (e.g., `sandbox: "relaxed" | "strict" | "none"`) mapping directly to Nix isolation policies for legacy or system-dependent workflow steps.
 - [ ] **Low-level Derivation Projection (`pipeline_to_drv`)**: Provide introspection functions that return the raw Nix store derivation `.drv` paths for each node, enabling developers to perform static analysis and debug Nix inputs at the lowest level.
 
 ---

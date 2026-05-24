@@ -59,7 +59,7 @@ let register env =
         (match nix_options_result with
          | Error e -> e
          | Ok pairs ->
-             match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"; "builders"])) pairs with
+             match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"; "builders"; "keep_env"; "sandbox"])) pairs with
              | Some (k, _) ->
                  Error.type_error (Printf.sprintf "populate_pipeline: unknown option '%s' in nix_options" k)
              | None ->
@@ -75,6 +75,10 @@ let register env =
                  let cache_provided = match List.assoc_opt "cache" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
                  let builders_val = match List.assoc_opt "builders" pairs with Some v -> v | None -> VNA NAGeneric in
                  let builders_provided = match List.assoc_opt "builders" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+                 let keep_env_val = match List.assoc_opt "keep_env" pairs with Some v -> v | None -> VNA NAGeneric in
+                 let keep_env_provided = match List.assoc_opt "keep_env" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+                 let sandbox_val = match List.assoc_opt "sandbox" pairs with Some v -> v | None -> VNA NAGeneric in
+                 let sandbox_provided = match List.assoc_opt "sandbox" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
 
                  let build_result =
                    match build_val with
@@ -153,18 +157,47 @@ let register env =
                        Error (Error.type_error "Function `populate_pipeline` expects `builders` to be a String.")
                    | _ -> Ok None
                  in
+                 let keep_env_result =
+                   match keep_env_val with
+                   | VString _ | VList _ | VVector _ ->
+                       (match keep_env_val with
+                        | VList items ->
+                            if List.exists (function (_, VString _) -> false | _ -> true) items then
+                              Error (Error.type_error "Function `populate_pipeline` expects `keep_env` to contain only String values.")
+                            else Ok (Some keep_env_val)
+                        | VVector arr ->
+                            if Array.exists (function VString _ -> false | _ -> true) arr then
+                              Error (Error.type_error "Function `populate_pipeline` expects `keep_env` to contain only String values.")
+                            else Ok (Some keep_env_val)
+                        | _ -> Ok (Some keep_env_val))
+                   | _ when keep_env_provided ->
+                       Error (Error.type_error "Function `populate_pipeline` expects `keep_env` to be a String, List, or Vector of strings.")
+                   | _ -> Ok None
+                 in
+                 let sandbox_result =
+                   match sandbox_val with
+                   | VBool _ -> Ok (Some sandbox_val)
+                   | VString s ->
+                       if s = "relaxed" || s = "strict" || s = "none" then Ok (Some sandbox_val)
+                       else Error (Error.value_error "Function `populate_pipeline` expects `sandbox` to be 'relaxed', 'strict', 'none', or a Bool.")
+                   | _ when sandbox_provided ->
+                       Error (Error.type_error "Function `populate_pipeline` expects `sandbox` to be a Bool or String.")
+                   | _ -> Ok None
+                 in
 
-                 (match build_result, verbose_result, targets_result, force_result, dry_run_result, max_jobs_result, cache_result, builders_result with
-                  | Error e, _, _, _, _, _, _, _ -> e
-                  | _, Error e, _, _, _, _, _, _ -> e
-                  | _, _, Error e, _, _, _, _, _ -> e
-                  | _, _, _, Error e, _, _, _, _ -> e
-                  | _, _, _, _, Error e, _, _, _ -> e
-                  | _, _, _, _, _, Error e, _, _ -> e
-                  | _, _, _, _, _, _, Error e, _ -> e
-                  | _, _, _, _, _, _, _, Error e -> e
-                  | Ok build, Ok verbose, Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache, Ok builders ->
-                        match Builder.populate_pipeline ~build ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?builders p with
+                 (match build_result, verbose_result, targets_result, force_result, dry_run_result, max_jobs_result, cache_result, builders_result, keep_env_result, sandbox_result with
+                  | Error e, _, _, _, _, _, _, _, _, _
+                  | _, Error e, _, _, _, _, _, _, _, _
+                  | _, _, Error e, _, _, _, _, _, _, _
+                  | _, _, _, Error e, _, _, _, _, _, _
+                  | _, _, _, _, Error e, _, _, _, _, _
+                  | _, _, _, _, _, Error e, _, _, _, _
+                  | _, _, _, _, _, _, Error e, _, _, _
+                  | _, _, _, _, _, _, _, Error e, _, _
+                  | _, _, _, _, _, _, _, _, Error e, _
+                  | _, _, _, _, _, _, _, _, _, Error e -> e
+                  | Ok build, Ok verbose, Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache, Ok builders, Ok keep_env, Ok sandbox ->
+                        match Builder.populate_pipeline ~build ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?builders ?keep_env ?sandbox p with
                         | Ok out ->
                             if build then (
                               let var_name =

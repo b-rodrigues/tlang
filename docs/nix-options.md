@@ -24,7 +24,9 @@ nix_options = [
   force: true,
   targets: ["filtered_data"],
   cache: "rstats-on-nix",
-  builders: "ssh://builder.example.com"
+  builders: "ssh://builder.example.com",
+  keep_env: ["API_KEY", "ACCESS_TOKEN"],
+  sandbox: "relaxed"
 ]
 ```
 
@@ -39,6 +41,8 @@ nix_options = [
 | `targets` | `String` or `List[String]` | `-A <target>` | Limits execution or building to specific node name(s) and their upstream dependencies. |
 | `cache` | `String` | `--option extra-substituters ...` | Sets a custom Cachix cache repository name (e.g. `"my-cache"` maps to `https://my-cache.cachix.org`). |
 | `builders` | `String` | `--builders <uri>` | Configures Nix remote build machines (e.g. `"ssh://builder.example.com"`). |
+| `keep_env` | `String` or `List[String]` | `--option keep-env ...` | Whitelists specific environment variables to forward into the Nix sandbox. |
+| `sandbox` | `Bool` or `String` | `--option sandbox <strict|relaxed|false>` | Controls Nix sandboxing mode: `relaxed`, `strict` (or `true`), `none` (or `false`). |
 
 ---
 

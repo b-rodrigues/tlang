@@ -111,6 +111,41 @@ let register env =
                     nix_args := s :: "--builders" :: !nix_args
                 | "builders", _ ->
                     arg_error_opt := Some (TypeError, "t_make: 'builders' in nix_options must be a String")
+                | "keep_env", VString s ->
+                    nix_args := s :: "keep-env" :: "--option" :: !nix_args
+                | "keep_env", VList items ->
+                    let rec extract_strings acc = function
+                      | [] -> Some (List.rev acc)
+                      | (_, VString s) :: tl -> extract_strings (s :: acc) tl
+                      | _ -> None
+                    in
+                    (match extract_strings [] items with
+                     | Some strs -> nix_args := (String.concat " " strs) :: "keep-env" :: "--option" :: !nix_args
+                     | None -> arg_error_opt := Some (TypeError, "t_make: 'keep_env' in nix_options must contain only Strings"))
+                | "keep_env", VVector arr ->
+                    let lst = Array.to_list arr in
+                    let rec extract_strings acc = function
+                      | [] -> Some (List.rev acc)
+                      | VString s :: tl -> extract_strings (s :: acc) tl
+                      | _ -> None
+                    in
+                    (match extract_strings [] lst with
+                     | Some strs -> nix_args := (String.concat " " strs) :: "keep-env" :: "--option" :: !nix_args
+                     | None -> arg_error_opt := Some (TypeError, "t_make: 'keep_env' in nix_options must contain only Strings"))
+                | "keep_env", _ ->
+                    arg_error_opt := Some (TypeError, "t_make: 'keep_env' in nix_options must be a String, List, or Vector of Strings")
+                | "sandbox", VBool true ->
+                    nix_args := "true" :: "sandbox" :: "--option" :: !nix_args
+                | "sandbox", VBool false ->
+                    nix_args := "false" :: "sandbox" :: "--option" :: !nix_args
+                | "sandbox", VString "relaxed" ->
+                    nix_args := "relaxed" :: "sandbox" :: "--option" :: !nix_args
+                | "sandbox", VString "strict" ->
+                    nix_args := "true" :: "sandbox" :: "--option" :: !nix_args
+                | "sandbox", VString "none" ->
+                    nix_args := "false" :: "sandbox" :: "--option" :: !nix_args
+                | "sandbox", _ ->
+                    arg_error_opt := Some (TypeError, "t_make: 'sandbox' in nix_options must be 'relaxed', 'strict', 'none', or a Bool")
                 | unknown, _ ->
                     arg_error_opt := Some (TypeError, Printf.sprintf "t_make: unknown option '%s' in nix_options" unknown)
               ) pairs

@@ -60,7 +60,9 @@ Nix build and resource limits are grouped under a single, optional
   force: true,
   targets: [&quot;filtered_data&quot;],
   cache: &quot;rstats-on-nix&quot;,
-  builders: &quot;ssh://builder.example.com&quot;
+  builders: &quot;ssh://builder.example.com&quot;,
+  keep_env: [&quot;API_KEY&quot;, &quot;ACCESS_TOKEN&quot;],
+  sandbox: &quot;relaxed&quot;
 ]</code></pre>
 <h3 id="supported-parameters">Supported Parameters</h3>
 <table>
@@ -133,6 +135,24 @@ style="text-align: left;"><code>--option extra-substituters ...</code></td>
 <td style="text-align: left;"><code>--builders &lt;uri&gt;</code></td>
 <td style="text-align: left;">Configures Nix remote build machines
 (e.g. <code>"ssh://builder.example.com"</code>).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>keep_env</code></td>
+<td style="text-align: left;"><code>String</code> or
+<code>List[String]</code></td>
+<td style="text-align: left;"><code>--option keep-env ...</code></td>
+<td style="text-align: left;">Whitelists specific environment variables
+to forward into the Nix sandbox.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>sandbox</code></td>
+<td style="text-align: left;"><code>Bool</code> or
+<code>String</code></td>
+<td
+style="text-align: left;"><code>--option sandbox &lt;strict|relaxed|false&gt;</code></td>
+<td style="text-align: left;">Controls Nix sandboxing mode:
+<code>relaxed</code>, <code>strict</code> (or <code>true</code>),
+<code>none</code> (or <code>false</code>).</td>
 </tr>
 </tbody>
 </table>

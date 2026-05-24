@@ -83,7 +83,7 @@ let get_failed_node_error_info drv_path =
   | Error msg ->
       ("NixError", "Failed to run nix log: " ^ msg)
 
-let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?builders (p : Ast.pipeline_result) =
+let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?builders ?keep_env ?sandbox (p : Ast.pipeline_result) =
   let verbose =
     match verbose with
     | Some level -> level
@@ -218,7 +218,25 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?
       | Some (VString s) when s <> "" -> ["--builders"; s]
       | _ -> []
     in
-    let all_args = !nix_build_args @ (nix_verbosity_args verbose) @ force_args @ max_jobs_args @ cache_args @ builders_args in
+    let keep_env_args =
+      match keep_env with
+      | Some v ->
+          (match extract_string_list "keep_env" v with
+           | Ok [] -> []
+           | Ok strs -> ["--option"; "keep-env"; String.concat " " strs]
+           | Error _ -> [])
+      | _ -> []
+    in
+    let sandbox_args =
+      match sandbox with
+      | Some (VBool true) -> ["--option"; "sandbox"; "true"]
+      | Some (VBool false) -> ["--option"; "sandbox"; "false"]
+      | Some (VString "relaxed") -> ["--option"; "sandbox"; "relaxed"]
+      | Some (VString "strict") -> ["--option"; "sandbox"; "true"]
+      | Some (VString "none") -> ["--option"; "sandbox"; "false"]
+      | _ -> []
+    in
+    let all_args = !nix_build_args @ (nix_verbosity_args verbose) @ force_args @ max_jobs_args @ cache_args @ builders_args @ keep_env_args @ sandbox_args in
     if dry_run then begin
       let lines = ref [] in
       let callback line =
