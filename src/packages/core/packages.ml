@@ -194,7 +194,7 @@ let pipeline_package = {
   description = "Pipeline definition and introspection";
   functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "inspect_log"; "list_logs"; "read_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
                "pipeline_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings"; "pipeline_to_drv";
-               "pipeline_to_store"; "set_nix_defaults"; "pipeline_cache_status";
+               "pipeline_to_store"; "set_nix_defaults"; "pipeline_cache_status"; "pipeline_gc";
                "build_log"; "build_log_to_frame"; "collect_exceptions";
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
@@ -793,6 +793,7 @@ let init_env () =
   let env = Pipeline_to_store.register env in
   let env = Set_nix_defaults.register env in
   let env = Pipeline_cache_status.register env in
+  let env = Pipeline_gc.register env in
   let env = Filter_node.register ~eval_call:Eval.eval_call_immutable env in
   let env = Which_nodes.register ~eval_call:Eval.eval_call_immutable env in
   let env = Mutate_node.register ~eval_call:Eval.eval_call_immutable env in

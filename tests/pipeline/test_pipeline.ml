@@ -238,6 +238,22 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "pipeline_cache_status(42)"
     {|Error(TypeError: "Function `pipeline_cache_status` expects a Pipeline as argument.")|};
 
+  let (v_gc, _) = eval_string_env "p_gc = pipeline { a = 1 }; pipeline_gc(p_gc, dry_run=true)" env_p3 in
+  let result_gc = Ast.Utils.value_to_string v_gc in
+  if Test_helpers.contains result_gc "node" && Test_helpers.contains result_gc "store_path" && Test_helpers.contains result_gc "deleted" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline_gc() returns DataFrame with correct columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pipeline_gc() returns DataFrame with correct columns\n    Got: %s\n" result_gc
+  end;
+
+  test "pipeline_gc on non-pipeline"
+    "pipeline_gc(42)"
+    {|Error(TypeError: "Function `pipeline_gc` expects a Pipeline.")|};
+
+  test "pipeline_gc invalid dry_run type"
+    "p_gc_invalid = pipeline { a = 1 }; pipeline_gc(p_gc_invalid, dry_run=42)"
+    {|Error(TypeError: "Function `pipeline_gc` expects `dry_run` to be a Bool.")|};
+
   Printf.printf "Phase 3 — Static Interrogations (Roots/Leaves/Cycles):\n";
   test "pipeline_roots"
     "p = pipeline { a = 1; b = a + 1; c = 10 }; pipeline_roots(p)"

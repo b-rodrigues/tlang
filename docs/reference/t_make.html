@@ -34,13 +34,38 @@
 </nav>
 <div class="container">
 <h1 id="t_make">t_make</h1>
-<p>Build Pipeline Internally</p>
-<p>Builds the <code>src/pipeline.t</code> pipeline entrypoint.</p>
+<p>Build and Run a Pipeline File</p>
+<p>Reads, parses, evaluates, and builds a T pipeline script path. This is a high-level orchestrator often used from the interactive T REPL to trigger full builds.</p>
+<h2 id="signatures">Signatures</h2>
+<ul>
+<li><strong>Named Signature</strong>:
+<pre class="t"><code>t_make(filename = "src/pipeline.t", nix_options = [...], verbose = 1, failfast = false)</code></pre></li>
+<li><strong>Positional Signature</strong>:
+<pre class="t"><code>t_make(filename, nix_options, verbose, failfast)</code></pre></li>
+</ul>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>filename</strong> (<code>String</code>): (Optional) The
-pipeline build script path. Must be <code>src/pipeline.t</code>.</li>
+<li><strong>filename</strong> (<code>String</code>): (Optional) The pipeline build script path. Must be <code>"src/pipeline.t"</code>. Defaults to <code>"src/pipeline.t"</code>.</li>
+<li><strong>nix_options</strong> (<code>Dict</code>): (Optional) A dictionary of Nix orchestration options:
+<ul>
+<li><code>max_jobs</code> (<code>Int</code>): The maximum parallel build jobs. Maps to <code>--max-jobs</code>.</li>
+<li><code>max_cores</code> (<code>Int</code>): The maximum number of cores per job. Maps to <code>--cores</code>.</li>
+<li><code>cache</code> (<code>String</code>): Cachix cache name to use as a binary substituter.</li>
+<li><code>targets</code> (<code>String</code>|<code>List[String]</code>): Specific node names to build. Maps to <code>-A</code>.</li>
+<li><code>force</code> (<code>Bool</code>): Force rebuilds even if cached. Maps to <code>--check</code>.</li>
+<li><code>dry_run</code> (<code>Bool</code>): Plan and show what would be built without executing. Maps to <code>--dry-run</code>.</li>
+<li><code>builders</code> (<code>String</code>): Nix remote builders configuration.</li>
+<li><code>keep_env</code> (<code>String</code>|<code>List[String]</code>): Environment variables to pass through to the sandbox.</li>
+<li><code>sandbox</code> (<code>Bool</code>|<code>String</code>): Nix isolation sandbox policy (<code>"relaxed"</code>, <code>"strict"</code>, <code>"none"</code>).</li>
+</ul></li>
+<li><strong>verbose</strong> (<code>Int</code>): (Optional) The Nix build verbosity level. <code>0</code> is quiet, values <code>&gt; 0</code> enable build output and failure diagnostics.</li>
+<li><strong>failfast</strong> (<code>Bool</code>): (Optional) If <code>true</code>, stops immediately on evaluation/build errors. Defaults to <code>false</code>.</li>
 </ul>
+<h2 id="examples">Examples</h2>
+<p>Using named parameters:</p>
+<pre class="t"><code>t_make(nix_options = [max_jobs: 4, dry_run: true])</code></pre>
+<p>Using the positional signature:</p>
+<pre class="t"><code>t_make("src/pipeline.t", [max_jobs: 8], 2, true)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>
