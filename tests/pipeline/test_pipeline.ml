@@ -1826,4 +1826,91 @@ p.t_step|}
   in
   test_explain_collect_exceptions ();
 
+  let with_repo_temp_pipeline_project script f =
+    let repo_root = Sys.getcwd () in
+    let rec make_temp_dir attempts =
+      if attempts <= 0 then
+        failwith "failed to create temporary pipeline test directory"
+      else
+        let candidate =
+          Filename.concat
+            repo_root
+            (Printf.sprintf ".tlang-pipeline-%d-%06d" (Unix.getpid ()) (Random.int 1_000_000))
+        in
+        try
+          Unix.mkdir candidate 0o755;
+          candidate
+        with Unix.Unix_error (Unix.EEXIST, _, _) ->
+          make_temp_dir (attempts - 1)
+    in
+    let dir = make_temp_dir 8 in
+    let src_dir = Filename.concat dir "src" in
+    let pipeline_path = Filename.concat src_dir "pipeline.t" in
+    let old_cwd = Sys.getcwd () in
+    Unix.mkdir src_dir 0o755;
+    let oc = open_out pipeline_path in
+    output_string oc script;
+    close_out oc;
+    try
+      Sys.chdir dir;
+      let result = f dir pipeline_path in
+      Sys.chdir old_cwd;
+      remove_path dir;
+      result
+    with exn ->
+      Sys.chdir old_cwd;
+      remove_path dir;
+      raise exn
+  in
+
+  let test_nix_execution_equivalence_golden () =
+    let golden_ok =
+      with_repo_temp_pipeline_project
+        "p = pipeline {\n  golden_node = shn(command = \"echo -n 'golden_value'\", capture = \"stdout\")\n}\n"
+        (fun dir _pipeline_path ->
+          (* Build the pipeline using T OCaml interpreter *)
+          let env = Packages.init_env () in
+          let (_, env) = eval_string_env "p = pipeline { golden_node = shn(command = \"echo -n 'golden_value'\", capture = \"stdout\") }" env in
+          let (_, env) = eval_string_env "build_pipeline(p)" env in
+          (* Verify that the build completed and we can query the built value *)
+          let (v_val, _) = eval_string_env "read_node(p.golden_node)" env in
+          let t_value = match Ast.Utils.unwrap_value v_val with Ast.VString s -> s | _ -> "" in
+          (* Now manually run nix-build on the generated _pipeline/pipeline.nix directly *)
+          let nix_path = Filename.concat (Filename.concat dir "_pipeline") "pipeline.nix" in
+          if Sys.file_exists nix_path then
+            let argv = [| "nix-build"; "--impure"; nix_path; "-A"; "golden_node"; "--no-out-link" |] in
+            match Builder_utils.run_command_argv_capture argv with
+            | Error msg ->
+                Printf.printf "Nix build failed: %s\n" msg;
+                false
+            | Ok out_dir ->
+                let artifact_path = Filename.concat (String.trim out_dir) "artifact" in
+                if Sys.file_exists artifact_path then
+                  let ic = open_in artifact_path in
+                  let nix_value = try input_line ic with _ -> "" in
+                  close_in ic;
+                  let nix_value_trimmed = String.trim nix_value in
+                  let eq = (t_value = nix_value_trimmed && nix_value_trimmed = "golden_value") in
+                  if not eq then
+                    Printf.printf "Values mismatch: t_value=%S, nix_value_trimmed=%S\n" t_value nix_value_trimmed;
+                  eq
+                else begin
+                  Printf.printf "Artifact path %s does not exist\n" artifact_path;
+                  false
+                end
+          else begin
+            Printf.printf "Nix path %s does not exist\n" nix_path;
+            false
+          end
+        )
+    in
+    if golden_ok then begin
+      incr pass_count; Printf.printf "  ✓ Nix execution equivalence golden test matches manual nix-build exactly\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ Nix execution equivalence golden test failed\n"
+    end
+  in
+  test_nix_execution_equivalence_golden ();
+
   print_newline ()
+

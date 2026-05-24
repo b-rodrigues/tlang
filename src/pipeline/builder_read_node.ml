@@ -113,6 +113,14 @@ let read_standard_node_value cn =
        T_read_csv.parse_csv_string content
      with _ ->
        VComputedNode cn)
+  else if cn.cn_serializer = "text" then
+    (try
+       let ch = open_in cn.cn_path in
+       let content = really_input_string ch (in_channel_length ch) in
+       close_in ch;
+       VString content
+     with _ ->
+       VComputedNode cn)
   else if cn.cn_serializer = "pmml" then
     match Pmml_utils.read_pmml cn.cn_path with
     | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
@@ -152,6 +160,14 @@ let read_logged_node_value name cn =
     (match Serialization.deserialize_from_file cn.cn_path with
      | Ok v -> v
      | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name cn.cn_path msg))
+  else if cn.cn_serializer = "text" then
+    (try
+       let ch = open_in cn.cn_path in
+       let content = really_input_string ch (in_channel_length ch) in
+       close_in ch;
+       VString content
+     with exn ->
+       Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read text node `%s` from `%s`: %s" name cn.cn_path (Printexc.to_string exn)))
   else if cn.cn_serializer = "json" then
     (match Serialization.read_json cn.cn_path with
      | Ok v -> v
