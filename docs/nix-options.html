@@ -59,7 +59,8 @@ Nix build and resource limits are grouped under a single, optional
   dry_run: true,
   force: true,
   targets: [&quot;filtered_data&quot;],
-  cache: &quot;rstats-on-nix&quot;
+  cache: &quot;rstats-on-nix&quot;,
+  builders: &quot;ssh://builder.example.com&quot;
 ]</code></pre>
 <h3 id="supported-parameters">Supported Parameters</h3>
 <table>
@@ -125,6 +126,13 @@ style="text-align: left;"><code>--option extra-substituters ...</code></td>
 <td style="text-align: left;">Sets a custom Cachix cache repository name
 (e.g. <code>"my-cache"</code> maps to
 <code>https://my-cache.cachix.org</code>).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>builders</code></td>
+<td style="text-align: left;"><code>String</code></td>
+<td style="text-align: left;"><code>--builders &lt;uri&gt;</code></td>
+<td style="text-align: left;">Configures Nix remote build machines
+(e.g. <code>"ssh://builder.example.com"</code>).</td>
 </tr>
 </tbody>
 </table>

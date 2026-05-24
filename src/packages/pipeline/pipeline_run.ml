@@ -52,7 +52,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
         (match nix_options_result with
          | Error e -> e
          | Ok pairs ->
-             match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"])) pairs with
+             match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"; "builders"])) pairs with
              | Some (k, _) ->
                  Error.type_error (Printf.sprintf "pipeline_run: unknown option '%s' in nix_options" k)
              | None ->
@@ -66,6 +66,8 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                  let max_jobs_provided = match List.assoc_opt "max_jobs" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
                  let cache_val = match List.assoc_opt "cache" pairs with Some v -> v | None -> VNA NAGeneric in
                  let cache_provided = match List.assoc_opt "cache" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+                 let builders_val = match List.assoc_opt "builders" pairs with Some v -> v | None -> VNA NAGeneric in
+                 let builders_provided = match List.assoc_opt "builders" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
 
                  let targets_result =
                    match targets_val with
@@ -110,18 +112,26 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                        Error (Error.type_error "Function `pipeline_run` expects `cache` to be a String.")
                    | _ -> Ok None
                  in
+                 let builders_result =
+                   match builders_val with
+                   | VString _ -> Ok (Some builders_val)
+                   | _ when builders_provided ->
+                       Error (Error.type_error "Function `pipeline_run` expects `builders` to be a String.")
+                   | _ -> Ok None
+                 in
 
-                 (match targets_result, force_result, dry_run_result, max_jobs_result, cache_result with
-                  | Error e, _, _, _, _
-                  | _, Error e, _, _, _
-                  | _, _, Error e, _, _
-                  | _, _, _, Error e, _
-                  | _, _, _, _, Error e -> e
-                  | Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache ->
+                 (match targets_result, force_result, dry_run_result, max_jobs_result, cache_result, builders_result with
+                  | Error e, _, _, _, _, _
+                  | _, Error e, _, _, _, _
+                  | _, _, Error e, _, _, _
+                  | _, _, _, Error e, _, _
+                  | _, _, _, _, Error e, _
+                  | _, _, _, _, _, Error e -> e
+                  | Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache, Ok builders ->
                       (match rerun_pipeline ?strict:None env p with
                        | VPipeline p_resolved ->
-                           if targets_provided || force_provided || dry_run_provided || max_jobs_provided || cache_provided then
-                             (match Builder.populate_pipeline ~build:true ?targets ?force ?dry_run ?max_jobs ?cache p_resolved with
+                           if targets_provided || force_provided || dry_run_provided || max_jobs_provided || cache_provided || builders_provided then
+                             (match Builder.populate_pipeline ~build:true ?targets ?force ?dry_run ?max_jobs ?cache ?builders p_resolved with
                               | Ok (VDataFrame _ as df) -> df
                               | Ok (VString out_path) ->
                                   VPipeline (Builder.update_pipeline_with_build_paths p_resolved out_path)

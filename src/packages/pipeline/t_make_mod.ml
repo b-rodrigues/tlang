@@ -107,6 +107,10 @@ let register env =
                 | "force", VBool false -> ()
                 | "force", _ ->
                     nix_args := "--check" :: !nix_args
+                | "builders", VString s ->
+                    nix_args := s :: "--builders" :: !nix_args
+                | "builders", _ ->
+                    arg_error_opt := Some (TypeError, "t_make: 'builders' in nix_options must be a String")
                 | unknown, _ ->
                     arg_error_opt := Some (TypeError, Printf.sprintf "t_make: unknown option '%s' in nix_options" unknown)
               ) pairs

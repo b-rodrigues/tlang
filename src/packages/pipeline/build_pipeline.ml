@@ -54,7 +54,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
         (match nix_options_result with
          | Error e -> e
          | Ok pairs ->
-             match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"])) pairs with
+             match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"; "builders"])) pairs with
              | Some (k, _) ->
                  Error.type_error (Printf.sprintf "build_pipeline: unknown option '%s' in nix_options" k)
              | None ->
@@ -68,6 +68,8 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                  let max_jobs_provided = match List.assoc_opt "max_jobs" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
                  let cache_val = match List.assoc_opt "cache" pairs with Some v -> v | None -> VNA NAGeneric in
                  let cache_provided = match List.assoc_opt "cache" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+                 let builders_val = match List.assoc_opt "builders" pairs with Some v -> v | None -> VNA NAGeneric in
+                 let builders_provided = match List.assoc_opt "builders" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
 
                  let verbose_result =
                    match verbose_val with
@@ -122,18 +124,26 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                        Error (Error.type_error "Function `build_pipeline` expects `cache` to be a String.")
                    | _ -> Ok None
                  in
-                 (match verbose_result, targets_result, force_result, dry_run_result, max_jobs_result, cache_result with
-                  | Error e, _, _, _, _, _
-                  | _, Error e, _, _, _, _
-                  | _, _, Error e, _, _, _
-                  | _, _, _, Error e, _, _
-                  | _, _, _, _, Error e, _
-                  | _, _, _, _, _, Error e -> e
-                  | Ok verbose, Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache ->
+                 let builders_result =
+                   match builders_val with
+                   | VString _ -> Ok (Some builders_val)
+                   | _ when builders_provided ->
+                       Error (Error.type_error "Function `build_pipeline` expects `builders` to be a String.")
+                   | _ -> Ok None
+                 in
+                 (match verbose_result, targets_result, force_result, dry_run_result, max_jobs_result, cache_result, builders_result with
+                  | Error e, _, _, _, _, _, _
+                  | _, Error e, _, _, _, _, _
+                  | _, _, Error e, _, _, _, _
+                  | _, _, _, Error e, _, _, _
+                  | _, _, _, _, Error e, _, _
+                  | _, _, _, _, _, Error e, _
+                  | _, _, _, _, _, _, Error e -> e
+                  | Ok verbose, Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache, Ok builders ->
                       (* Trigger a final resolution pass to catch typos or unresolved cross-pipeline deps *)
                       (match rerun_pipeline ?strict:(Some true) ~verbose:false env p with
                        | VPipeline p_resolved ->
-                             (match Builder.populate_pipeline ~build:true ?verbose ?targets ?force ?dry_run ?max_jobs ?cache p_resolved with
+                             (match Builder.populate_pipeline ~build:true ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?builders p_resolved with
                               | Ok (VDataFrame _ as df) -> df
                               | Ok (VString out_path) ->
                                   let var_name =

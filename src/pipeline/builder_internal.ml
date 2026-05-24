@@ -83,7 +83,7 @@ let get_failed_node_error_info drv_path =
   | Error msg ->
       ("NixError", "Failed to run nix log: " ^ msg)
 
-let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (p : Ast.pipeline_result) =
+let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?builders (p : Ast.pipeline_result) =
   let verbose =
     match verbose with
     | Some level -> level
@@ -213,7 +213,12 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache (
             base
       | _ -> []
     in
-    let all_args = !nix_build_args @ (nix_verbosity_args verbose) @ force_args @ max_jobs_args @ cache_args in
+    let builders_args =
+      match builders with
+      | Some (VString s) when s <> "" -> ["--builders"; s]
+      | _ -> []
+    in
+    let all_args = !nix_build_args @ (nix_verbosity_args verbose) @ force_args @ max_jobs_args @ cache_args @ builders_args in
     if dry_run then begin
       let lines = ref [] in
       let callback line =

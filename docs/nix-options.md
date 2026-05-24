@@ -23,7 +23,8 @@ nix_options = [
   dry_run: true,
   force: true,
   targets: ["filtered_data"],
-  cache: "rstats-on-nix"
+  cache: "rstats-on-nix",
+  builders: "ssh://builder.example.com"
 ]
 ```
 
@@ -37,6 +38,7 @@ nix_options = [
 | `force` | `Bool` | `--check` | When `true`, forces Nix to rebuild the specified nodes even if they already exist in the cache. |
 | `targets` | `String` or `List[String]` | `-A <target>` | Limits execution or building to specific node name(s) and their upstream dependencies. |
 | `cache` | `String` | `--option extra-substituters ...` | Sets a custom Cachix cache repository name (e.g. `"my-cache"` maps to `https://my-cache.cachix.org`). |
+| `builders` | `String` | `--builders <uri>` | Configures Nix remote build machines (e.g. `"ssh://builder.example.com"`). |
 
 ---
 

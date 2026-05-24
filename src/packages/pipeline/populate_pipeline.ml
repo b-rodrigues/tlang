@@ -59,7 +59,7 @@ let register env =
         (match nix_options_result with
          | Error e -> e
          | Ok pairs ->
-             match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"])) pairs with
+             match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"; "builders"])) pairs with
              | Some (k, _) ->
                  Error.type_error (Printf.sprintf "populate_pipeline: unknown option '%s' in nix_options" k)
              | None ->
@@ -73,6 +73,8 @@ let register env =
                  let max_jobs_provided = match List.assoc_opt "max_jobs" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
                  let cache_val = match List.assoc_opt "cache" pairs with Some v -> v | None -> VNA NAGeneric in
                  let cache_provided = match List.assoc_opt "cache" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+                 let builders_val = match List.assoc_opt "builders" pairs with Some v -> v | None -> VNA NAGeneric in
+                 let builders_provided = match List.assoc_opt "builders" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
 
                  let build_result =
                    match build_val with
@@ -144,17 +146,25 @@ let register env =
                        Error (Error.type_error "Function `populate_pipeline` expects `cache` to be a String.")
                    | _ -> Ok None
                  in
+                 let builders_result =
+                   match builders_val with
+                   | VString _ -> Ok (Some builders_val)
+                   | _ when builders_provided ->
+                       Error (Error.type_error "Function `populate_pipeline` expects `builders` to be a String.")
+                   | _ -> Ok None
+                 in
 
-                 (match build_result, verbose_result, targets_result, force_result, dry_run_result, max_jobs_result, cache_result with
-                  | Error e, _, _, _, _, _, _ -> e
-                  | _, Error e, _, _, _, _, _ -> e
-                  | _, _, Error e, _, _, _, _ -> e
-                  | _, _, _, Error e, _, _, _ -> e
-                  | _, _, _, _, Error e, _, _ -> e
-                  | _, _, _, _, _, Error e, _ -> e
-                  | _, _, _, _, _, _, Error e -> e
-                  | Ok build, Ok verbose, Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache ->
-                        match Builder.populate_pipeline ~build ?verbose ?targets ?force ?dry_run ?max_jobs ?cache p with
+                 (match build_result, verbose_result, targets_result, force_result, dry_run_result, max_jobs_result, cache_result, builders_result with
+                  | Error e, _, _, _, _, _, _, _ -> e
+                  | _, Error e, _, _, _, _, _, _ -> e
+                  | _, _, Error e, _, _, _, _, _ -> e
+                  | _, _, _, Error e, _, _, _, _ -> e
+                  | _, _, _, _, Error e, _, _, _ -> e
+                  | _, _, _, _, _, Error e, _, _ -> e
+                  | _, _, _, _, _, _, Error e, _ -> e
+                  | _, _, _, _, _, _, _, Error e -> e
+                  | Ok build, Ok verbose, Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache, Ok builders ->
+                        match Builder.populate_pipeline ~build ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?builders p with
                         | Ok out ->
                             if build then (
                               let var_name =
