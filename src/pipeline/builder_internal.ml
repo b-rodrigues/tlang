@@ -83,12 +83,25 @@ let get_failed_node_error_info drv_path =
   | Error msg ->
       ("NixError", "Failed to run nix log: " ^ msg)
 
-let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?builders ?keep_env ?sandbox (p : Ast.pipeline_result) =
+let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
   let verbose =
     match verbose with
     | Some level -> level
     | None -> !default_nix_build_verbose
   in
+  let opts =
+    match nix_options with
+    | Some o -> o
+    | None -> default_nix_opts
+  in
+  let targets = opts.targets in
+  let force = opts.force in
+  let dry_run = opts.dry_run in
+  let max_jobs = opts.max_jobs in
+  let cache = opts.cache in
+  let builders = opts.builders in
+  let keep_env = opts.keep_env in
+  let sandbox = opts.sandbox in
   let extract_string_list label = function
     | VString s -> Ok [s]
     | VList items ->
@@ -125,11 +138,6 @@ let build_pipeline_internal ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?
       else loop (i + 1)
     in
     loop 0
-  in
-  let dry_run =
-    match dry_run with
-    | Some b -> b
-    | None -> false
   in
   if not (command_exists "nix-build") then
     Error "build_pipeline requires `nix-build` to be available."

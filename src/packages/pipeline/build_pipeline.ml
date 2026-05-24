@@ -44,174 +44,69 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
         let (verbose_provided, verbose_val) = get_arg "verbose" 2 (VNA NAGeneric) named_args in
         let (_, nix_options_val) = get_arg "nix_options" 3 (VDict []) named_args in
 
+        let verbose_result =
+          match verbose_val with
+          | VInt i when i >= 0 -> Ok (Some i)
+          | VInt _ ->
+              Error (Error.value_error "Function `build_pipeline` expects `verbose` to be a non-negative Int.")
+          | _ when verbose_provided ->
+              Error (Error.type_error "Function `build_pipeline` expects `verbose` to be an Int.")
+          | _ ->
+              Ok None
+        in
+
         let nix_options_result =
           match nix_options_val with
-          | VNA _ -> Ok []
-          | VDict pairs -> Ok pairs
+          | VNA _ -> Ok None
+          | VDict pairs ->
+              (match Builder_utils.validate_nix_options "build_pipeline" pairs with
+               | Ok opts -> Ok (Some opts)
+               | Error e -> Error e)
           | _ -> Error (Error.type_error "Function `build_pipeline` expects `nix_options` to be a Dictionary.")
         in
 
-        (match nix_options_result with
-         | Error e -> e
-         | Ok pairs ->
-             match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"; "builders"; "keep_env"; "sandbox"])) pairs with
-             | Some (k, _) ->
-                 Error.type_error (Printf.sprintf "build_pipeline: unknown option '%s' in nix_options" k)
-             | None ->
-                 let targets_val = match List.assoc_opt "targets" pairs with Some v -> v | None -> VNA NAGeneric in
-                 let targets_provided = match List.assoc_opt "targets" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-                 let force_val = match List.assoc_opt "force" pairs with Some v -> v | None -> VNA NAGeneric in
-                 let force_provided = match List.assoc_opt "force" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-                 let dry_run_val = match List.assoc_opt "dry_run" pairs with Some v -> v | None -> VNA NAGeneric in
-                 let dry_run_provided = match List.assoc_opt "dry_run" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-                 let max_jobs_val = match List.assoc_opt "max_jobs" pairs with Some v -> v | None -> VNA NAGeneric in
-                 let max_jobs_provided = match List.assoc_opt "max_jobs" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-                 let cache_val = match List.assoc_opt "cache" pairs with Some v -> v | None -> VNA NAGeneric in
-                 let cache_provided = match List.assoc_opt "cache" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-                 let builders_val = match List.assoc_opt "builders" pairs with Some v -> v | None -> VNA NAGeneric in
-                 let builders_provided = match List.assoc_opt "builders" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-                 let keep_env_val = match List.assoc_opt "keep_env" pairs with Some v -> v | None -> VNA NAGeneric in
-                 let keep_env_provided = match List.assoc_opt "keep_env" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-                 let sandbox_val = match List.assoc_opt "sandbox" pairs with Some v -> v | None -> VNA NAGeneric in
-                 let sandbox_provided = match List.assoc_opt "sandbox" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-
-                 let verbose_result =
-                   match verbose_val with
-                   | VInt i when i >= 0 -> Ok (Some i)
-                   | VInt _ ->
-                       Error (Error.value_error "Function `build_pipeline` expects `verbose` to be a non-negative Int.")
-                   | _ when verbose_provided ->
-                       Error (Error.type_error "Function `build_pipeline` expects `verbose` to be an Int.")
-                   | _ ->
-                       Ok None
-                 in
-                 let targets_result =
-                   match targets_val with
-                   | VString _ -> Ok (Some targets_val)
-                   | VList items ->
-                       if List.exists (function (_, VString _) -> false | _ -> true) items then
-                         Error (Error.type_error "Function `build_pipeline` expects `targets` to contain only String values.")
-                       else Ok (Some targets_val)
-                   | VVector arr ->
-                       if Array.exists (function VString _ -> false | _ -> true) arr then
-                         Error (Error.type_error "Function `build_pipeline` expects `targets` to contain only String values.")
-                       else Ok (Some targets_val)
-                   | _ when targets_provided ->
-                       Error (Error.type_error "Function `build_pipeline` expects `targets` to be a String, List, or Vector.")
-                   | _ -> Ok None
-                 in
-                 let force_result =
-                   match force_val with
-                   | VBool _ | VList _ | VVector _ | VString _ -> Ok (Some force_val)
-                   | _ when force_provided ->
-                       Error (Error.type_error "Function `build_pipeline` expects `force` to be a Bool, String, List, or Vector.")
-                   | _ -> Ok None
-                 in
-                 let dry_run_result =
-                   match dry_run_val with
-                   | VBool b -> Ok (Some b)
-                   | _ when dry_run_provided ->
-                       Error (Error.type_error "Function `build_pipeline` expects `dry_run` to be a Bool.")
-                   | _ -> Ok None
-                 in
-                 let max_jobs_result =
-                   match max_jobs_val with
-                   | VInt n when n > 0 -> Ok (Some max_jobs_val)
-                   | _ when max_jobs_provided ->
-                       Error (Error.type_error "Function `build_pipeline` expects `max_jobs` to be a positive Int.")
-                   | _ -> Ok None
-                 in
-                 let cache_result =
-                   match cache_val with
-                   | VString _ -> Ok (Some cache_val)
-                   | _ when cache_provided ->
-                       Error (Error.type_error "Function `build_pipeline` expects `cache` to be a String.")
-                   | _ -> Ok None
-                 in
-                 let builders_result =
-                   match builders_val with
-                   | VString _ -> Ok (Some builders_val)
-                   | _ when builders_provided ->
-                       Error (Error.type_error "Function `build_pipeline` expects `builders` to be a String.")
-                   | _ -> Ok None
-                 in
-                 let keep_env_result =
-                   match keep_env_val with
-                   | VString _ | VList _ | VVector _ ->
-                       (match keep_env_val with
-                        | VList items ->
-                            if List.exists (function (_, VString _) -> false | _ -> true) items then
-                              Error (Error.type_error "Function `build_pipeline` expects `keep_env` to contain only String values.")
-                            else Ok (Some keep_env_val)
-                        | VVector arr ->
-                            if Array.exists (function VString _ -> false | _ -> true) arr then
-                              Error (Error.type_error "Function `build_pipeline` expects `keep_env` to contain only String values.")
-                            else Ok (Some keep_env_val)
-                        | _ -> Ok (Some keep_env_val))
-                   | _ when keep_env_provided ->
-                       Error (Error.type_error "Function `build_pipeline` expects `keep_env` to be a String, List, or Vector of strings.")
-                   | _ -> Ok None
-                 in
-                 let sandbox_result =
-                   match sandbox_val with
-                   | VBool _ -> Ok (Some sandbox_val)
-                   | VString s ->
-                       if s = "relaxed" || s = "strict" || s = "none" then Ok (Some sandbox_val)
-                       else Error (Error.value_error "Function `build_pipeline` expects `sandbox` to be 'relaxed', 'strict', 'none', or a Bool.")
-                   | _ when sandbox_provided ->
-                       Error (Error.type_error "Function `build_pipeline` expects `sandbox` to be a Bool or String.")
-                   | _ -> Ok None
-                 in
-                 (match verbose_result, targets_result, force_result, dry_run_result, max_jobs_result, cache_result, builders_result, keep_env_result, sandbox_result with
-                  | Error e, _, _, _, _, _, _, _, _
-                  | _, Error e, _, _, _, _, _, _, _
-                  | _, _, Error e, _, _, _, _, _, _
-                  | _, _, _, Error e, _, _, _, _, _
-                  | _, _, _, _, Error e, _, _, _, _
-                  | _, _, _, _, _, Error e, _, _, _
-                  | _, _, _, _, _, _, Error e, _, _
-                  | _, _, _, _, _, _, _, Error e, _
-                  | _, _, _, _, _, _, _, _, Error e -> e
-                  | Ok verbose, Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache, Ok builders, Ok keep_env, Ok sandbox ->
-                      (* Trigger a final resolution pass to catch typos or unresolved cross-pipeline deps *)
-                      (match rerun_pipeline ?strict:(Some true) ~verbose:false env p with
-                       | VPipeline p_resolved ->
-                             (match Builder.populate_pipeline ~build:true ?verbose ?targets ?force ?dry_run ?max_jobs ?cache ?builders ?keep_env ?sandbox p_resolved with
-                              | Ok (VDataFrame _ as df) -> df
-                              | Ok (VString out_path) ->
-                                  let var_name =
-                                    match Env.fold (fun k val_v acc ->
-                                      match val_v with
-                                      | VPipeline p' when p'.p_exprs = p_resolved.p_exprs -> Some k
-                                      | _ -> acc
-                                    ) env None with
-                                    | Some name -> name
-                                    | None -> "p"
-                                  in
-                                  let first_node =
-                                    match p_resolved.p_nodes with
-                                    | (name, _) :: _ -> name
-                                    | [] -> "my_node"
-                                  in
-                                  Printf.eprintf "\nPipeline successfully built!\n";
-                                  Printf.eprintf "  - Pipeline saved in variable '%s'\n" var_name;
-                                  Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
-                                  Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
-                                  Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name;
-                                  (match Builder.find_log_for_out_path out_path with
-                                   | Some log_path -> Builder.parse_json_log_to_vbuildlog log_path
-                                   | None ->
-                                       Error.make_error FileError
-                                         (Printf.sprintf
-                                            "No build log matching output path `%s` was found after build completed."
-                                            out_path))
-                              | Ok other -> other
-                             | Error msg -> Error.make_error StructuralError msg)
-                       | VError _ as err -> err
-                       | other ->
-                           Error.make_error RuntimeError
-                             ("build_pipeline expected pipeline resolution to return a Pipeline or Error, but got: "
-                              ^ Utils.value_to_string other))))
+        (match verbose_result, nix_options_result with
+         | Error e, _ | _, Error e -> e
+         | Ok verbose, Ok nix_options ->
+             (* Trigger a final resolution pass to catch typos or unresolved cross-pipeline deps *)
+             (match rerun_pipeline ?strict:(Some true) ~verbose:false env p with
+              | VPipeline p_resolved ->
+                    (match Builder.populate_pipeline ~build:true ?verbose ?nix_options p_resolved with
+                     | Ok (VDataFrame _ as df) -> df
+                     | Ok (VString out_path) ->
+                         let var_name =
+                           match Env.fold (fun k val_v acc ->
+                             match val_v with
+                             | VPipeline p' when p'.p_exprs = p_resolved.p_exprs -> Some k
+                             | _ -> acc
+                           ) env None with
+                           | Some name -> name
+                           | None -> "p"
+                         in
+                         let first_node =
+                           match p_resolved.p_nodes with
+                           | (name, _) :: _ -> name
+                           | [] -> "my_node"
+                         in
+                         Printf.eprintf "\nPipeline successfully built!\n";
+                         Printf.eprintf "  - Pipeline saved in variable '%s'\n" var_name;
+                         Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
+                         Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
+                         Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name;
+                         (match Builder.find_log_for_out_path out_path with
+                          | Some log_path -> Builder.parse_json_log_to_vbuildlog log_path
+                          | None ->
+                              Error.make_error FileError
+                                (Printf.sprintf
+                                   "No build log matching output path `%s` was found after build completed."
+                                   out_path))
+                     | Ok other -> other
+                     | Error msg -> Error.make_error StructuralError msg)
+              | VError _ as err -> err
+              | other ->
+                  Error.make_error RuntimeError
+                    ("build_pipeline expected pipeline resolution to return a Pipeline or Error, but got: "
+                     ^ Utils.value_to_string other)))
       | _ -> Error.type_error "Function `build_pipeline` expects a Pipeline."
   in
   Env.add "build_pipeline" (make_builtin_named ~name:"build_pipeline" ~variadic:true 1 build_fn) env

@@ -1,5 +1,160 @@
 (* src/pipeline/builder_utils.ml *)
 
+type nix_opts = {
+  targets  : Ast.value option;
+  force    : Ast.value option;
+  dry_run  : bool;
+  max_jobs : Ast.value option;
+  cache    : Ast.value option;
+  builders : Ast.value option;
+  keep_env : Ast.value option;
+  sandbox  : Ast.value option;
+}
+
+let default_nix_opts = {
+  targets = None;
+  force = None;
+  dry_run = false;
+  max_jobs = None;
+  cache = None;
+  builders = None;
+  keep_env = None;
+  sandbox = None;
+}
+
+let validate_nix_options func_name pairs =
+  let open Ast in
+  match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"; "builders"; "keep_env"; "sandbox"])) pairs with
+  | Some (k, _) ->
+      Error (Error.type_error (Printf.sprintf "%s: unknown option '%s' in nix_options" func_name k))
+  | None ->
+      let targets_val = match List.assoc_opt "targets" pairs with Some v -> v | None -> VNA NAGeneric in
+      let targets_provided = match List.assoc_opt "targets" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+      let force_val = match List.assoc_opt "force" pairs with Some v -> v | None -> VNA NAGeneric in
+      let force_provided = match List.assoc_opt "force" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+      let dry_run_val = match List.assoc_opt "dry_run" pairs with Some v -> v | None -> VNA NAGeneric in
+      let dry_run_provided = match List.assoc_opt "dry_run" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+      let max_jobs_val = match List.assoc_opt "max_jobs" pairs with Some v -> v | None -> VNA NAGeneric in
+      let max_jobs_provided = match List.assoc_opt "max_jobs" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+      let cache_val = match List.assoc_opt "cache" pairs with Some v -> v | None -> VNA NAGeneric in
+      let cache_provided = match List.assoc_opt "cache" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+      let builders_val = match List.assoc_opt "builders" pairs with Some v -> v | None -> VNA NAGeneric in
+      let builders_provided = match List.assoc_opt "builders" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+      let keep_env_val = match List.assoc_opt "keep_env" pairs with Some v -> v | None -> VNA NAGeneric in
+      let keep_env_provided = match List.assoc_opt "keep_env" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+      let sandbox_val = match List.assoc_opt "sandbox" pairs with Some v -> v | None -> VNA NAGeneric in
+      let sandbox_provided = match List.assoc_opt "sandbox" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+
+      let targets_result =
+        match targets_val with
+        | VString _ -> Ok (Some targets_val)
+        | VList items ->
+            if List.exists (function (_, VString _) -> false | _ -> true) items then
+              Error (Error.type_error (Printf.sprintf "Function `%s` expects `targets` to contain only String values." func_name))
+            else Ok (Some targets_val)
+        | VVector arr ->
+            if Array.exists (function VString _ -> false | _ -> true) arr then
+              Error (Error.type_error (Printf.sprintf "Function `%s` expects `targets` to contain only String values." func_name))
+            else Ok (Some targets_val)
+        | _ when targets_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `targets` to be a String, List, or Vector." func_name))
+        | _ -> Ok None
+      in
+      let force_result =
+        match force_val with
+        | VBool _ | VList _ | VVector _ | VString _ ->
+            (match force_val with
+             | VList items ->
+                 if List.exists (function (_, VString _) -> false | _ -> true) items then
+                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `force` to contain only String values." func_name))
+                 else Ok (Some force_val)
+             | VVector arr ->
+                 if Array.exists (function VString _ -> false | _ -> true) arr then
+                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `force` to contain only String values." func_name))
+                 else Ok (Some force_val)
+             | _ -> Ok (Some force_val))
+        | _ when force_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `force` to be a Bool, String, List, or Vector." func_name))
+        | _ -> Ok None
+      in
+      let dry_run_result =
+        match dry_run_val with
+        | VBool b -> Ok b
+        | _ when dry_run_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `dry_run` to be a Bool." func_name))
+        | _ -> Ok false
+      in
+      let max_jobs_result =
+        match max_jobs_val with
+        | VInt n when n > 0 -> Ok (Some max_jobs_val)
+        | _ when max_jobs_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `max_jobs` to be a positive Int." func_name))
+        | _ -> Ok None
+      in
+      let cache_result =
+        match cache_val with
+        | VString _ -> Ok (Some cache_val)
+        | _ when cache_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `cache` to be a String." func_name))
+        | _ -> Ok None
+      in
+      let builders_result =
+        match builders_val with
+        | VString _ -> Ok (Some builders_val)
+        | _ when builders_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `builders` to be a String." func_name))
+        | _ -> Ok None
+      in
+      let keep_env_result =
+        match keep_env_val with
+        | VString _ | VList _ | VVector _ ->
+            (match keep_env_val with
+             | VList items ->
+                 if List.exists (function (_, VString _) -> false | _ -> true) items then
+                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `keep_env` to contain only String values." func_name))
+                 else Ok (Some keep_env_val)
+             | VVector arr ->
+                 if Array.exists (function VString _ -> false | _ -> true) arr then
+                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `keep_env` to contain only String values." func_name))
+                 else Ok (Some keep_env_val)
+             | _ -> Ok (Some keep_env_val))
+        | _ when keep_env_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `keep_env` to be a String, List, or Vector of strings." func_name))
+        | _ -> Ok None
+      in
+      let sandbox_result =
+        match sandbox_val with
+        | VBool _ -> Ok (Some sandbox_val)
+        | VString s ->
+            if s = "relaxed" || s = "strict" || s = "none" then Ok (Some sandbox_val)
+            else Error (Error.value_error (Printf.sprintf "Function `%s` expects `sandbox` to be 'relaxed', 'strict', 'none', or a Bool." func_name))
+        | _ when sandbox_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `sandbox` to be a Bool or String." func_name))
+        | _ -> Ok None
+      in
+
+      match targets_result, force_result, dry_run_result, max_jobs_result, cache_result, builders_result, keep_env_result, sandbox_result with
+      | Error e, _, _, _, _, _, _, _
+      | _, Error e, _, _, _, _, _, _
+      | _, _, Error e, _, _, _, _, _
+      | _, _, _, Error e, _, _, _, _
+      | _, _, _, _, Error e, _, _, _
+      | _, _, _, _, _, Error e, _, _
+      | _, _, _, _, _, _, Error e, _
+      | _, _, _, _, _, _, _, Error e -> Error e
+      | Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache, Ok builders, Ok keep_env, Ok sandbox ->
+          let opts = {
+            targets;
+            force;
+            dry_run;
+            max_jobs;
+            cache;
+            builders;
+            keep_env;
+            sandbox;
+          } in
+          Ok opts
+
 let pipeline_dir = "_pipeline"
 let pipeline_nix_path = Filename.concat pipeline_dir "pipeline.nix"
 let dag_path = Filename.concat pipeline_dir "dag.json"
