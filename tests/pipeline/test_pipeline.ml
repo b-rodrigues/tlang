@@ -283,6 +283,69 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   test "t_make rejects non-pipeline entry filenames"
     "error_code(t_make(filename=\"script.t\")) == \"ValueError\""
     "true";
+
+  (* nix_options validation and parsing tests *)
+  test "populate_pipeline rejects non-dict nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, nix_options=\"not_a_dict\")) == \"TypeError\""
+    "true";
+
+  test "populate_pipeline rejects unknown option inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, nix_options=[unknown_opt: true])) == \"TypeError\""
+    "true";
+
+  test "populate_pipeline rejects non-positive max_jobs inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, nix_options=[max_jobs: -1])) == \"TypeError\""
+    "true";
+
+  test "populate_pipeline accepts valid nix_options dictionary"
+    "p = pipeline {\n  a = 1\n}\nres = populate_pipeline(p, build=false, nix_options=[max_jobs: 4, force: true, dry_run: true, cache: \"mycache\"])\nstarts_with(res, \"Pipeline populated in\")"
+    "true";
+
+  test "build_pipeline rejects non-dict nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, nix_options=\"not_a_dict\")) == \"TypeError\""
+    "true";
+
+  test "build_pipeline rejects unknown option inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, nix_options=[unknown_opt: true])) == \"TypeError\""
+    "true";
+
+  test "pipeline_run rejects non-dict nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(pipeline_run(p, nix_options=\"not_a_dict\")) == \"TypeError\""
+    "true";
+
+  test "pipeline_run rejects unknown option inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(pipeline_run(p, nix_options=[unknown_opt: true])) == \"TypeError\""
+    "true";
+
+  let t_make_nix_options_ok =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let (v, _) = eval_string_env "t_make(nix_options=[max_jobs: 2])" env in
+        Ast.Utils.value_to_string v = "NA")
+  in
+  if t_make_nix_options_ok then begin
+    incr pass_count; Printf.printf "  ✓ t_make accepts nix_options dictionary\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make accepts nix_options dictionary\n"
+  end;
+
+  let t_make_nix_options_invalid =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let (v, _) = eval_string_env "t_make(nix_options=\"invalid\")" env in
+        let s = Ast.Utils.value_to_string v in
+        Test_helpers.contains s "TypeError")
+  in
+  if t_make_nix_options_invalid then begin
+    incr pass_count; Printf.printf "  ✓ t_make rejects non-dict nix_options\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make rejects non-dict nix_options\n"
+  end;
+
   let t_make_requires_pipeline_action =
     with_temp_pipeline_project
       "p = pipeline {\n  a = 1\n}\n"

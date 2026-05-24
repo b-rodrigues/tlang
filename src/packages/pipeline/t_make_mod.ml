@@ -32,16 +32,21 @@ let interrupt_error () =
 --#
 --# Reads, parses, evaluates and builds a T pipeline file. This is a 
 --# high-level build orchestrator often used from the CLI (repl) to
---# trigger a full project build. It supports named and positional 
---# arguments for common Nix build controls.
+--# trigger a full project build. It supports a single dictionary argument 
+--# for Nix specific build options.
 --# `src/pipeline.t` must call `populate_pipeline(...)` or `build_pipeline(...)`.
 --# If it only calls `populate_pipeline(...)` without `build=true`, `t_make()`
 --# emits a warning and continues after populating the pipeline.
 --#
 --# @name t_make
 --# @param filename :: String The pipeline file path. Must be `src/pipeline.t`.
---# @param max_jobs :: Int The maximum number of jobs for Nix to run in parallel.
---# @param max_cores :: Int The maximum number of cores per job for Nix to use.
+--# @param nix_options :: Dict (Optional) A dictionary of Nix orchestration options:
+--#   - `max_jobs` :: Int The maximum number of jobs for Nix to run in parallel.
+--#   - `max_cores` :: Int The maximum number of cores per job for Nix to use.
+--#   - `cache` :: String Cachix cache name.
+--#   - `targets` :: List[String] Specific node names to build.
+--#   - `force` :: Bool Force rebuild.
+--#   - `dry_run` :: Bool Plan build.
 --# @param verbose :: Int The Nix build verbosity level. `0` is quiet; values > 0 enable internal node failure logs.
 --# @param failfast :: Bool Whether to stop immediately on evaluation errors (defaults to false).
 --# @return :: Null
@@ -61,19 +66,61 @@ let register env =
         let named_only, positional_only =
           List.partition (fun (k_opt, _) -> k_opt <> None) named_args
         in
+
+        let process_nix_options = function
+          | VDict pairs ->
+              List.iter (fun (k, v) ->
+                match k, v with
+                | "max_jobs", VInt i ->
+                    nix_args := (string_of_int i) :: "--max-jobs" :: !nix_args
+                | "max_jobs", _ ->
+                    arg_error_opt := Some (TypeError, "t_make: 'max_jobs' in nix_options must be an Int")
+                | "max_cores", VInt i ->
+                    nix_args := (string_of_int i) :: "--cores" :: !nix_args
+                | "max_cores", _ ->
+                    arg_error_opt := Some (TypeError, "t_make: 'max_cores' in nix_options must be an Int")
+                | "cache", VString s ->
+                    nix_args := ("https://" ^ s ^ ".cachix.org") :: "extra-substituters" :: "--option" :: !nix_args;
+                    if s = "rstats-on-nix" then
+                      nix_args := "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=" :: "extra-trusted-public-keys" :: "--option" :: !nix_args
+                | "cache", _ ->
+                    arg_error_opt := Some (TypeError, "t_make: 'cache' in nix_options must be a String")
+                | "targets", VString t ->
+                    nix_args := t :: "-A" :: !nix_args
+                | "targets", VList items ->
+                    List.iter (function
+                      | (_, VString t) -> nix_args := t :: "-A" :: !nix_args
+                      | _ -> arg_error_opt := Some (TypeError, "t_make: 'targets' in nix_options must contain only Strings")
+                    ) items
+                | "targets", VVector arr ->
+                    Array.iter (function
+                      | VString t -> nix_args := t :: "-A" :: !nix_args
+                      | _ -> arg_error_opt := Some (TypeError, "t_make: 'targets' in nix_options must contain only Strings")
+                    ) arr
+                | "dry_run", VBool true ->
+                    nix_args := "--dry-run" :: !nix_args
+                | "dry_run", VBool false -> ()
+                | "dry_run", _ ->
+                    arg_error_opt := Some (TypeError, "t_make: 'dry_run' in nix_options must be a Bool")
+                | "force", VBool true ->
+                    nix_args := "--check" :: !nix_args
+                | "force", VBool false -> ()
+                | "force", _ ->
+                    nix_args := "--check" :: !nix_args
+                | unknown, _ ->
+                    arg_error_opt := Some (TypeError, Printf.sprintf "t_make: unknown option '%s' in nix_options" unknown)
+              ) pairs
+          | VNA _ -> ()
+          | _ ->
+              arg_error_opt := Some (TypeError, "t_make: 'nix_options' must be a Dictionary")
+        in
         
         List.iter (function
           | (Some "filename", VString s) -> filename := s
           | (Some "filename", _) ->
               arg_error_opt := Some (TypeError, "t_make: 'filename' must be a String")
-          | (Some "max_jobs", VInt i) ->
-              nix_args := (string_of_int i) :: "--max-jobs" :: !nix_args
-          | (Some "max_jobs", _) ->
-              arg_error_opt := Some (TypeError, "t_make: 'max_jobs' must be an Int")
-          | (Some "max_cores", VInt i) ->
-              nix_args := (string_of_int i) :: "--cores" :: !nix_args
-          | (Some "max_cores", _) ->
-              arg_error_opt := Some (TypeError, "t_make: 'max_cores' must be an Int")
+          | (Some "nix_options", dict_v) ->
+              process_nix_options dict_v
           | (Some "verbose", VInt i) when i >= 0 ->
               verbose := i
           | (Some "verbose", VInt _) ->
@@ -92,11 +139,10 @@ let register env =
         let _ = List.fold_left (fun idx (_, v) ->
           (match idx, v with
            | 0, VString s -> filename := s
-           | 1, VInt i -> nix_args := (string_of_int i) :: "--max-jobs" :: !nix_args
-           | 2, VInt i -> nix_args := (string_of_int i) :: "--cores" :: !nix_args
-           | 3, VInt i when i >= 0 -> verbose := i
-           | 3, VInt _ -> arg_error_opt := Some (ValueError, "t_make: 'verbose' must be a non-negative Int")
-           | 4, VBool b -> failfast := b
+           | 1, dict_v -> process_nix_options dict_v
+           | 2, VInt i when i >= 0 -> verbose := i
+           | 2, VInt _ -> arg_error_opt := Some (ValueError, "t_make: 'verbose' must be a non-negative Int")
+           | 3, VBool b -> failfast := b
            | n, _ -> arg_error_opt := Some (TypeError, Printf.sprintf "t_make: unexpected argument at position %d" n));
           idx + 1
         ) 0 positional_only in
