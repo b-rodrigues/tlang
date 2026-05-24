@@ -32,22 +32,19 @@ let validate_nix_options func_name pairs =
   | Some (k, _) ->
       Error (Error.type_error (Printf.sprintf "%s: unknown option '%s' in nix_options" func_name k))
   | None ->
-      let targets_val = match List.assoc_opt "targets" pairs with Some v -> v | None -> VNA NAGeneric in
-      let targets_provided = match List.assoc_opt "targets" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-      let force_val = match List.assoc_opt "force" pairs with Some v -> v | None -> VNA NAGeneric in
-      let force_provided = match List.assoc_opt "force" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-      let dry_run_val = match List.assoc_opt "dry_run" pairs with Some v -> v | None -> VNA NAGeneric in
-      let dry_run_provided = match List.assoc_opt "dry_run" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-      let max_jobs_val = match List.assoc_opt "max_jobs" pairs with Some v -> v | None -> VNA NAGeneric in
-      let max_jobs_provided = match List.assoc_opt "max_jobs" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-      let cache_val = match List.assoc_opt "cache" pairs with Some v -> v | None -> VNA NAGeneric in
-      let cache_provided = match List.assoc_opt "cache" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-      let builders_val = match List.assoc_opt "builders" pairs with Some v -> v | None -> VNA NAGeneric in
-      let builders_provided = match List.assoc_opt "builders" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-      let keep_env_val = match List.assoc_opt "keep_env" pairs with Some v -> v | None -> VNA NAGeneric in
-      let keep_env_provided = match List.assoc_opt "keep_env" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
-      let sandbox_val = match List.assoc_opt "sandbox" pairs with Some v -> v | None -> VNA NAGeneric in
-      let sandbox_provided = match List.assoc_opt "sandbox" pairs with Some (VNA _) -> false | Some _ -> true | None -> false in
+      let get_opt key pairs =
+        match List.assoc_opt key pairs with
+        | None | Some (VNA _) -> (false, VNA NAGeneric)
+        | Some v -> (true, v)
+      in
+      let (targets_provided, targets_val) = get_opt "targets" pairs in
+      let (force_provided, force_val) = get_opt "force" pairs in
+      let (dry_run_provided, dry_run_val) = get_opt "dry_run" pairs in
+      let (max_jobs_provided, max_jobs_val) = get_opt "max_jobs" pairs in
+      let (cache_provided, cache_val) = get_opt "cache" pairs in
+      let (builders_provided, builders_val) = get_opt "builders" pairs in
+      let (keep_env_provided, keep_env_val) = get_opt "keep_env" pairs in
+      let (sandbox_provided, sandbox_val) = get_opt "sandbox" pairs in
 
       let targets_result =
         match targets_val with
