@@ -3,6 +3,10 @@
 type nix_opts = {
   targets  : Ast.value option;
   force    : Ast.value option;
+  (* Note: dry_run is defined as a plain bool rather than an option.
+     Since false and None are semantically identical (meaning no dry run),
+     representing it as a pure boolean simplifies downstream consumption
+     and avoids unnecessary pattern matching. *)
   dry_run  : bool;
   max_jobs : Ast.value option;
   cache    : Ast.value option;
