@@ -498,8 +498,22 @@ let get_timestamp () =
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
     tm.tm_hour tm.tm_min tm.tm_sec
 
+let escape_nix_string s =
+  let b = Buffer.create (String.length s + 2) in
+  Buffer.add_char b '"';
+  for i = 0 to String.length s - 1 do
+    match s.[i] with
+    | '"' | '\\' | '$' ->
+        Buffer.add_char b '\\';
+        Buffer.add_char b s.[i]
+    | c -> Buffer.add_char b c
+  done;
+  Buffer.add_char b '"';
+  Buffer.contents b
+
 let eval_node_store_path name : (string, Ast.value) result =
-  let expr = Printf.sprintf "(import %s {}).%s.outPath" (Filename.quote pipeline_nix_path) name in
+  let abs_path = Filename.concat (Sys.getcwd ()) pipeline_nix_path in
+  let expr = Printf.sprintf "(import %s {}).%s.outPath" (escape_nix_string abs_path) name in
   let argv = [| "nix-instantiate"; "--eval"; "--impure"; "--json"; "-E"; expr |] in
   match run_command_argv_capture argv with
   | Error msg ->
