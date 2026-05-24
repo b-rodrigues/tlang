@@ -193,7 +193,7 @@ let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
   functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "inspect_log"; "list_logs"; "read_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
-               "pipeline_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings";
+               "pipeline_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings"; "pipeline_to_drv";
                "build_log"; "build_log_to_frame"; "collect_exceptions";
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
@@ -788,6 +788,7 @@ let init_env () =
   let env = Pipeline_copy.register env in
   let env = Trace_nodes.register env in
   let env = Pipeline_to_frame.register env in
+  let env = Pipeline_to_drv.register env in
   let env = Filter_node.register ~eval_call:Eval.eval_call_immutable env in
   let env = Which_nodes.register ~eval_call:Eval.eval_call_immutable env in
   let env = Mutate_node.register ~eval_call:Eval.eval_call_immutable env in

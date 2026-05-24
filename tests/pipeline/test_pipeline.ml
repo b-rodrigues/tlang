@@ -180,6 +180,18 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|p = pipeline { a = 1 }; pipeline_node(p, "b")|}
     {|Error(KeyError: "Node `b` not found in Pipeline.")|};
 
+  let (v, _) = eval_string_env "p_drv = pipeline { a = 1 }; pipeline_to_drv(p_drv)" env_p3 in
+  let result = Ast.Utils.value_to_string v in
+  if Test_helpers.contains result "a" && Test_helpers.contains result ".drv" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline_to_drv() returns dictionary of drv paths\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pipeline_to_drv() returns dictionary of drv paths\n    Got: %s\n" result
+  end;
+
+  test "pipeline_to_drv on non-pipeline"
+    "pipeline_to_drv(42)"
+    {|Error(TypeError: "Function `pipeline_to_drv` expects a Pipeline as argument.")|};
+
   Printf.printf "Phase 3 — Static Interrogations (Roots/Leaves/Cycles):\n";
   test "pipeline_roots"
     "p = pipeline { a = 1; b = a + 1; c = 10 }; pipeline_roots(p)"

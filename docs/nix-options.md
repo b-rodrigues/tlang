@@ -174,3 +174,23 @@ t_make(nix_options = [threads: 4])
 -- ❌ ValueError: sandbox: 'invalid_sandbox' is not a valid sandboxing mode
 t_make(nix_options = [sandbox: "invalid_sandbox"])
 ```
+
+---
+
+## 8. Low-Level Derivation Projection (`pipeline_to_drv`)
+
+For static analysis, auditing, and deep debugging, you can introspect the raw Nix store derivation `.drv` paths generated for each node without running the actual build tasks:
+
+```t
+-- Get raw Nix store derivation paths for all pipeline nodes
+drvs = pipeline_to_drv(p)
+
+-- Returns a dictionary mapping node names to their store paths:
+-- {
+--   "node_a": "/nix/store/a1b2c3d4...-node_a.drv",
+--   "node_b": "/nix/store/x9y8z7w6...-node_b.drv"
+-- }
+```
+
+By querying the `.drv` path, developers can perform low-level audits, inspect generated Nix environments, or run `nix derivation show` to analyze precise inputs and environment configurations.
+
