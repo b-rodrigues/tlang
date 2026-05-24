@@ -423,6 +423,9 @@ populate_pipeline(p)                -- Prepares _pipeline/ only
 populate_pipeline(p, build = true)  -- Same as build_pipeline(p)
 ```
 
+> [!TIP]
+> For advanced configuration and passing low-level arguments directly to the underlying Nix build system (such as concurrency, targeted nodes, custom binary caches, dry runs, and force rebuilds), see the comprehensive [Nix Build Options & Orchestration](nix-options.html) guide.
+
 ### The `_pipeline/` directory
 
 T maintains a persistent state directory for your pipeline. When you populate or build, T creates:

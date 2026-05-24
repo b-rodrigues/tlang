@@ -2174,35 +2174,60 @@ id="pipeline_nodepipeline-node_name"><code>pipeline_node(pipeline, node_name)</c
 pipeline_node(p, &quot;x&quot;)       -- 10
 pipeline_node(p, &quot;doubled&quot;) -- 20</code></pre>
 <hr />
-<h3 id="pipeline_runpipeline"><code>pipeline_run(pipeline)</code></h3>
-<p>Re-execute a pipeline in-memory.</p>
+<h3
+id="pipeline_runpipeline-targets-na-force-na-dry_run-false-max_jobs-na-cache-na"><code>pipeline_run(pipeline, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)</code></h3>
+<p>Re-execute a pipeline. If any Nix orchestration flags are provided,
+triggers a cache-aware Nix build of the pipeline. Otherwise, re-executes
+the pipeline dynamically in-memory.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>pipeline</code> — Pipeline object</li>
+<li><code>targets</code> (optional) — String, List, or Vector of
+specific node names to build.</li>
+<li><code>force</code> (optional) — Bool, String, List, or Vector of
+specific nodes to force-rebuild.</li>
+<li><code>dry_run</code> (optional) — Bool. If true, returns a planned
+build actions DataFrame instead of building.</li>
+<li><code>max_jobs</code> (optional) — Positive Int. Limit parallel
+build jobs.</li>
+<li><code>cache</code> (optional) — String. Cachix cache name.</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>Pipeline object with updated values</p>
+<p>Pipeline object with updated values (or DataFrame if
+<code>dry_run = true</code>)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { x = 10; y = x * 2 }
-p2 = pipeline_run(p)</code></pre>
+p2 = pipeline_run(p)
+df = pipeline_run(p, dry_run=true)</code></pre>
 <hr />
 <h3
-id="populate_pipelinepipeline-build-false"><code>populate_pipeline(pipeline, build = false)</code></h3>
+id="populate_pipelinepipeline-build-false-verbose-0-targets-na-force-na-dry_run-false-max_jobs-na-cache-na"><code>populate_pipeline(pipeline, build = false, verbose = 0, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)</code></h3>
 <p>Prepare pipeline infrastructure in <code>_pipeline/</code>.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>pipeline</code> — Pipeline object</li>
 <li><code>build</code> (optional) — If true, triggers a Nix build of all
 nodes.</li>
+<li><code>verbose</code> (optional) — Non-negative Int. Nix build
+verbosity level.</li>
+<li><code>targets</code> (optional) — String, List, or Vector of
+specific node names to build.</li>
+<li><code>force</code> (optional) — Bool, String, List, or Vector of
+specific nodes to force-rebuild.</li>
+<li><code>dry_run</code> (optional) — Bool. If true, returns a planned
+build actions DataFrame instead of building.</li>
+<li><code>max_jobs</code> (optional) — Positive Int. Limit parallel
+build jobs.</li>
+<li><code>cache</code> (optional) — String. Cachix cache name.</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>Success message or Error.</p>
+<p>Success message, BuildLog, or DataFrame.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>populate_pipeline(p)
 populate_pipeline(p, build = true)</code></pre>
 <hr />
 <h3
-id="build_pipelinepipeline-verbose-0"><code>build_pipeline(pipeline, verbose = 0)</code></h3>
+id="build_pipelinepipeline-verbose-0-targets-na-force-na-dry_run-false-max_jobs-na-cache-na"><code>build_pipeline(pipeline, verbose = 0, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)</code></h3>
 <p>Shorthand for <code>populate_pipeline(p, build = true)</code>.
 Recommended for scripts run with <code>t run</code>.</p>
 <p><strong>Parameters:</strong></p>
@@ -2213,13 +2238,23 @@ Defaults to <code>0</code> (quiet/minimalist live-status output without
 dumping failed node trace logs). Set <code>verbose = 1</code> or higher
 to print detailed node stdout/stderr failures directly to the terminal
 on build error.</li>
+<li><code>targets</code> (optional) — String, List, or Vector of
+specific node names to build.</li>
+<li><code>force</code> (optional) — Bool, String, List, or Vector of
+specific nodes to force-rebuild.</li>
+<li><code>dry_run</code> (optional) — Bool. If true, returns a planned
+build actions DataFrame instead of building.</li>
+<li><code>max_jobs</code> (optional) — Positive Int. Limit parallel
+build jobs.</li>
+<li><code>cache</code> (optional) — String. Cachix cache name.</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>BuildLog</code> with fields: - <code>nodes</code> — per-node
 status/duration records - <code>duration</code> — total build duration
 in seconds - <code>failed_nodes</code> — list of failed/errored node
 names - <code>out_path</code> — Nix output path for the build (migration
-path for previous string-return behavior)</p>
+path for previous string-return behavior) (or <code>DataFrame</code> if
+<code>dry_run = true</code>)</p>
 <hr />
 <h3
 id="read_nodenode-which_log-na-1"><code>read_node(node, which_log = NA)</code></h3>

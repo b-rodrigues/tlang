@@ -199,6 +199,7 @@ resolution and deserialization from within those environments.
 - [Performance](performance.html) — Arrow backend and optimization
 - [Performance Analysis](performance_analysis.html) — in-depth analysis of T's performance metrics
 - [Composable Lenses](lens.html) — functional updates for nested structures
+- [Nix Build Options & Orchestration](nix-options.html) — passing low-level nix arguments to the build
 
 ### Developer Resources
 - [Architecture](architecture.html) — language design and implementation
@@ -4335,40 +4336,50 @@ pipeline_node(p, "doubled") -- 20
 
 ---
 
-### `pipeline_run(pipeline)`
+### `pipeline_run(pipeline, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)`
 
-Re-execute a pipeline in-memory.
+Re-execute a pipeline. If any Nix orchestration flags are provided, triggers a cache-aware Nix build of the pipeline. Otherwise, re-executes the pipeline dynamically in-memory.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
+- `targets` (optional) — String, List, or Vector of specific node names to build.
+- `force` (optional) — Bool, String, List, or Vector of specific nodes to force-rebuild.
+- `dry_run` (optional) — Bool. If true, returns a planned build actions DataFrame instead of building.
+- `max_jobs` (optional) — Positive Int. Limit parallel build jobs.
+- `cache` (optional) — String. Cachix cache name.
 
 **Returns:**
 
-Pipeline object with updated values
+Pipeline object with updated values (or DataFrame if `dry_run = true`)
 
 **Examples:**
 ```t
 p = pipeline { x = 10; y = x * 2 }
 p2 = pipeline_run(p)
+df = pipeline_run(p, dry_run=true)
 ```
 
 ---
 
-### `populate_pipeline(pipeline, build = false)`
+### `populate_pipeline(pipeline, build = false, verbose = 0, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)`
 
 Prepare pipeline infrastructure in `_pipeline/`.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
 - `build` (optional) — If true, triggers a Nix build of all nodes.
+- `verbose` (optional) — Non-negative Int. Nix build verbosity level.
+- `targets` (optional) — String, List, or Vector of specific node names to build.
+- `force` (optional) — Bool, String, List, or Vector of specific nodes to force-rebuild.
+- `dry_run` (optional) — Bool. If true, returns a planned build actions DataFrame instead of building.
+- `max_jobs` (optional) — Positive Int. Limit parallel build jobs.
+- `cache` (optional) — String. Cachix cache name.
 
 **Returns:**
 
-Success message or Error.
+Success message, BuildLog, or DataFrame.
 
 **Examples:**
 ```t
@@ -4378,15 +4389,19 @@ populate_pipeline(p, build = true)
 
 ---
 
-### `build_pipeline(pipeline, verbose = 0)`
+### `build_pipeline(pipeline, verbose = 0, targets = NA, force = NA, dry_run = false, max_jobs = NA, cache = NA)`
 
 Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
 - `verbose` (optional) — Int build verbosity level. Defaults to `0` (quiet/minimalist live-status output without dumping failed node trace logs). Set `verbose = 1` or higher to print detailed node stdout/stderr failures directly to the terminal on build error.
+- `targets` (optional) — String, List, or Vector of specific node names to build.
+- `force` (optional) — Bool, String, List, or Vector of specific nodes to force-rebuild.
+- `dry_run` (optional) — Bool. If true, returns a planned build actions DataFrame instead of building.
+- `max_jobs` (optional) — Positive Int. Limit parallel build jobs.
+- `cache` (optional) — String. Cachix cache name.
 
 **Returns:**
 
@@ -4395,6 +4410,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 - `duration` — total build duration in seconds
 - `failed_nodes` — list of failed/errored node names
 - `out_path` — Nix output path for the build (migration path for previous string-return behavior)
+(or `DataFrame` if `dry_run = true`)
 
 ---
 
@@ -6045,6 +6061,34 @@ For datasets exceeding 2-3 GB:
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.52.2] - 2026-05-22
+
+This release introduces native Nix-native orchestration features to T-Lang's pipeline builders, enabling granular rebuild control, job parallelization, remote Cachix binary caching, and dry-runs.
+
+**Status**: Beta
+
+### Nix-Native Orchestration & Rebuild Control
+- **Nix Build Flags Integration**: Added full support for `targets`, `force`, `dry_run`, `max_jobs`, and `cache` parameters in `build_pipeline` and `pipeline_run`.
+- **Derivation Targets (`targets`)**: Map `targets` to `-A <derivations>` in the underlying `nix build` command, allowing specific parts of the pipeline to be built selectively.
+- **Granular Rebuild Control (`force`)**: Map `force` to native `--check` flags. Pass `true` to force-rebuild the entire pipeline, or a string/list of specific node names to force-rebuild only selected steps.
+- **Parallel Compilation (`max_jobs`)**: Mapped the `max_jobs` parameter directly to `-j <max_jobs>`, enabling parallel compilation of sandbox environments and derivations.
+- **Binary Cache Optimization (`cache`)**: Seamless Cachix binary cache integration by dynamically configuring `extra-substituters` and `extra-trusted-public-keys` (prioritizing `rstats-on-nix` as the preferred default cache).
+- **Dry-Run Preview Mode (`dry_run`)**: Implemented a native dry-run mode that parses `nix-build --dry-run` output into a structured T-Lang `DataFrame` (containing columns `node`, `action`, `path`) to inspect build execution plans without mutating local store state.
+
+### Pipeline Propagation & Path Reconciliation
+- **Nix Store Path Alignment**: Added a robust post-build step (`update_pipeline_with_build_paths`) that reconciles internal `ComputedNode` paths with the real store paths generated by Nix.
+- **Dynamic Argument List Conversion**: Used dynamically parsed array parameters to maintain 100% backward compatibility with previous T-Lang CLI and OCaml process invocations.
+
+### API Parity & Testing
+- **Robust Builtin Validation**: Added comprehensive type-safety guards for all new orchestration parameters to raise highly readable compile-time warnings and TypeErrors instead of silent Nix failures.
+- **High-Coverage Test Harness**: Expanded the unit testing suite in `test_pipeline.ml` to verify dry-run DataFrame output, validation guards, and advanced parameter passthroughs (2271/2271 tests passing).
+- **Ecosystem Sync & Docs**: Updated `docs/pipeline_tutorial.md` and `docs/api-reference.md` to formally document the new parameters, along with comparative command mapping tables.
+
+### Multi-Runtime Interchange & Early Safety
+- **Populate Pipeline Arity Expansion**: Updated `populate_pipeline()` to support all the new Nix orchestration arguments (`targets`, `force`, `dry_run`, `max_jobs`, `cache`) in the exact same manner as `build_pipeline()`.
+- **Early Target & Force Validation**: Integrated compile-time validation of `targets` and `force` node lists in the OCaml pipeline compiler. T-Lang now instantly detects misspelled or nonexistent node targets and raises highly readable `StructuralError` warnings before spawning the Nix interpreter.
+- **Node Name Collision Prevention**: Sorted internal name matching patterns by character length in descending order, avoiding potential substring collisions where short node names (e.g. `model`) would erroneously match long node name store paths (e.g. `model_evaluation`).
 
 ## [0.52.1] - 2026-05-23
 
@@ -13243,6 +13287,119 @@ trusted-users = root @wheel your_username
 Now that Nix is installed, you are ready to [Get Started with T](getting-started.md)!
 
 
+# FILE: docs/nix-options.md
+
+# Nix Build Options & Orchestration
+
+> Passing low-level Nix configuration and arguments directly to the T pipeline builders
+
+T integrates declaratively with the Nix ecosystem to compile, build, and run pipelines in completely isolated, reproducible sandboxes. To offer fine-grained control over Nix builds, T provides a unified `nix_options` dictionary argument. 
+
+This argument is accepted by all primary orchestration and execution entry points:
+- `populate_pipeline()`
+- `build_pipeline()`
+- `pipeline_run()`
+- `t_make()`
+
+---
+
+## The `nix_options` Dictionary
+
+Instead of cluttering functions with flat parameters, all low-level Nix build and resource limits are grouped under a single, optional `nix_options` dictionary:
+
+```t
+nix_options = [
+  max_jobs: 4,
+  max_cores: 2,
+  dry_run: true,
+  force: true,
+  targets: ["filtered_data"],
+  cache: "rstats-on-nix"
+]
+```
+
+### Supported Parameters
+
+| Parameter | Type | Command Line Equivalence | Description |
+| :--- | :--- | :--- | :--- |
+| `max_jobs` | `Int` | `--max-jobs <N>` | The maximum number of build jobs Nix is allowed to run in parallel. Must be greater than `0`. |
+| `max_cores` | `Int` | `--cores <N>` | The maximum number of CPU cores that Nix will assign per build job. Must be greater than `0` (or `0` to use all available cores). |
+| `dry_run` | `Bool` | `--dry-run` | When `true`, Nix plans the build actions instead of executing them. Returns a planned DataFrame (see details below). |
+| `force` | `Bool` | `--check` | When `true`, forces Nix to rebuild the specified nodes even if they already exist in the cache. |
+| `targets` | `String` or `List[String]` | `-A <target>` | Limits execution or building to specific node name(s) and their upstream dependencies. |
+| `cache` | `String` | `--option extra-substituters ...` | Sets a custom Cachix cache repository name (e.g. `"my-cache"` maps to `https://my-cache.cachix.org`). |
+
+---
+
+## 1. Dry Runs and planned DataFrames
+
+Passing `dry_run: true` instructs Nix to query the derivation graph and compute build and binary cache fetch actions without actually running any code.
+
+In T, this is a first-class operation: instead of dumping text to stdout, `build_pipeline()` and `pipeline_run()` in dry-run mode return a structured T **DataFrame** outlining the planned build graph:
+
+```t
+p = pipeline {
+  raw = read_csv("data.csv")
+  filtered = raw |> filter($age > 30)
+}
+
+-- Trigger a planned dry-run
+plan_df = build_pipeline(p, nix_options = [dry_run: true])
+print(plan_df)
+```
+
+The returned DataFrame contains three columns:
+- **`node`**: The name of the pipeline node.
+- **`action`**: The build action determined by Nix (`"build"`, `"fetch"` from cache, or `"noop"`).
+- **`path`**: The absolute `/nix/store/` path where the node's output derivation resides.
+
+This allows you to programmatically inspect build plans, perform capacity planning, or check whether specific nodes will be pulled from a binary cache before initiating a build.
+
+---
+
+## 2. Targeting Specific Nodes
+
+For large pipelines with many expensive nodes, you can run and materialize only a subset of nodes by defining `targets` inside `nix_options`:
+
+```t
+-- Rebuild only the "filtered" node and its upstream dependencies
+build_pipeline(p, nix_options = [
+  targets: ["filtered"],
+  force: true
+])
+```
+
+The pipeline runner parses `targets` (which can be a single String or a List/Vector of Strings), ensures they match valid node identifiers in the DAG, and appends the appropriate `-A` flags during the `nix-build` invocation.
+
+---
+
+## 3. High-level CLI Orchestration via `t_make`
+
+The high-level CLI and REPL builder, `t_make()`, also supports the `nix_options` dictionary, accepting it as either a named parameter or as the second positional argument:
+
+```t
+-- In the REPL: Run the pipeline with parallel execution limits
+t_make(nix_options = [max_jobs: 4, max_cores: 2])
+
+-- Positional signature: t_make(filename, nix_options, verbose, failfast)
+t_make("src/pipeline.t", [max_jobs: 8])
+```
+
+---
+
+## 4. Strong Validation
+
+T enforces strict validation at pipeline construction time. Providing an unrecognized option or an invalid type inside the `nix_options` dictionary will raise a structured `TypeError`:
+
+```t
+-- ❌ TypeError: t_make: 'max_jobs' in nix_options must be an Int
+t_make(nix_options = [max_jobs: "high"])
+
+-- ❌ TypeError: t_make: unknown option 'threads' in nix_options
+t_make(nix_options = [threads: 4])
+```
+
+
 # FILE: docs/package_development.md
 
 # T Package Development Guide
@@ -14164,6 +14321,9 @@ For more control over the build process, T provides `populate_pipeline()`. This 
 populate_pipeline(p)                -- Prepares _pipeline/ only
 populate_pipeline(p, build = true)  -- Same as build_pipeline(p)
 ```
+
+> [!TIP]
+> For advanced configuration and passing low-level arguments directly to the underlying Nix build system (such as concurrency, targeted nodes, custom binary caches, dry runs, and force rebuilds), see the comprehensive [Nix Build Options & Orchestration](nix-options.html) guide.
 
 ### The `_pipeline/` directory
 
@@ -15256,6 +15416,63 @@ When `dynamic_access` runs inside the Nix sandbox:
 3. It detects the artifact class (e.g., `Int` from JSON) and deserializes it back into a T value.
 
 This pattern is essential for **polyglot pipelines** where data is passed between T, R, and Python nodes through files, and for **dynamic access** nodes where the target of a retrieval is determined at runtime (e.g., `target = "A"; get(node_lens(target))`).
+
+---
+
+## 40. Nix-Native Orchestration & Cachix
+
+To optimize large-scale pipelines and manage remote binary caching, T-Lang includes native Nix orchestration features in `build_pipeline` and `pipeline_run`. These features map directly to native `nix build` mechanics, allowing granular rebuild control, job parallelization, Cachix integration, and dry-runs.
+
+### Orchestration Parameters
+
+The functions `build_pipeline()` and `pipeline_run()` accept the following optional named arguments:
+
+| Argument | Type | Description | Nix Command Mapping |
+|---|---|---|---|
+| `targets` | String/List/Vector | Specific node(s) or outputs to build (e.g., `targets=["model_a"]`) | `-A <targets>` |
+| `force` | Bool/String/List/Vector | Rebuild nodes even if they already exist in the Nix store. Pass `true` to force-rebuild all nodes, or a string/list of specific node names. | `--check` (rebuilds target) |
+| `dry_run` | Bool | Preview build actions without executing them. Returns a structured `DataFrame` of planned actions. | `--dry-run` |
+| `max_jobs` | Int | Limit parallel compilation/build jobs. | `--max-jobs N` |
+| `cache` | String | A Cachix binary cache name (e.g., `"rstats-on-nix"`) to pull/push built artifacts. | `--option extra-substituters ...` & `--option extra-trusted-public-keys ...` |
+
+### Using `dry_run` for Build Previews
+
+If you set `dry_run = true`, T-Lang will invoke Nix in dry-run mode and return a structured `DataFrame` detailing the exact actions Nix plans to take (e.g., fetching from binary caches, building derivations):
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Inspect planned build actions without running them
+actions = build_pipeline(p, dry_run=true)
+print(actions)
+```
+
+The resulting `DataFrame` contains the columns:
+- `node`: The name of the pipeline node.
+- `action`: The action planned (e.g., `"build"`, `"substitute"`, or `"noop"`).
+- `path`: The absolute store path of the Nix derivation or artifact.
+
+### Advanced Nix Orchestration Example
+
+Below is an example showing how to trigger a parallel, cache-backed build targeting a specific node:
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+  c = b * 2
+}
+
+-- Rebuild only node 'c', with parallel execution, using a Cachix binary cache
+build_pipeline(p,
+               targets = ["c"],
+               max_jobs = 4,
+               cache = "rstats-on-nix",
+               force = ["c"])
+```
 
 ---
 

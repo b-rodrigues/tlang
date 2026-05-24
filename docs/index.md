@@ -191,6 +191,7 @@ resolution and deserialization from within those environments.
 - [Performance](performance.html) — Arrow backend and optimization
 - [Performance Analysis](performance_analysis.html) — in-depth analysis of T's performance metrics
 - [Composable Lenses](lens.html) — functional updates for nested structures
+- [Nix Build Options & Orchestration](nix-options.html) — passing low-level nix arguments to the build
 
 ### Developer Resources
 - [Architecture](architecture.html) — language design and implementation
