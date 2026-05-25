@@ -31,6 +31,81 @@ let register env =
         else default
   in
 
+  let run_interactive_subshell cn =
+    let cn = !Ast.computed_node_resolver cn in
+    let dependencies =
+      if cn.cn_dependencies = [] then
+        (match Builder.latest_logged_computed_node cn.cn_name with
+         | Some logged -> logged.cn_dependencies
+         | None -> [])
+      else cn.cn_dependencies
+    in
+    (* Set environment variables for all dependencies *)
+    let dep_envs = ref [] in
+    List.iter (fun dep_name ->
+      match Builder.latest_logged_computed_node dep_name with
+      | Some dep_cn ->
+          if dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" then (
+            let store_dir = Filename.dirname dep_cn.cn_path in
+            Unix.putenv dep_name store_dir;
+            dep_envs := (dep_name, store_dir) :: !dep_envs
+          ) else
+            Printf.printf "Warning: Upstream dependency '%s' is not built yet; environment variable not set.\n%!" dep_name
+      | None ->
+          Printf.printf "Warning: Upstream dependency '%s' metadata not found; environment variable not set.\n%!" dep_name
+    ) dependencies;
+
+    Printf.printf "==================================================\n%!";
+    Printf.printf "Debugging Node: %s (Runtime: %s)\n%!" cn.cn_name cn.cn_runtime;
+    Printf.printf "==================================================\n%!";
+    if !dep_envs <> [] then (
+      Printf.printf "Environment variables set for dependencies:\n%!";
+      List.iter (fun (name, path) ->
+        Printf.printf "  - %s = %s\n%!" name path
+      ) !dep_envs
+    );
+    Printf.printf "\n%!";
+
+    let shell_cmd =
+      match String.lowercase_ascii cn.cn_runtime with
+      | "python" ->
+          Printf.printf "Starting interactive Python REPL...\n%!";
+          Printf.printf "Tip: To load and debug a script, run: exec(open(\"src/your_script.py\").read())\n%!";
+          "python -i"
+      | "r" ->
+          Printf.printf "Starting interactive R REPL...\n%!";
+          Printf.printf "Tip: To load and debug a script, run: source(\"src/your_script.R\")\n%!";
+          "R --no-save"
+      | "julia" ->
+          Printf.printf "Starting interactive Julia REPL...\n%!";
+          Printf.printf "Tip: To load and debug a script, run: include(\"src/your_script.jl\")\n%!";
+          "julia -i"
+      | _ ->
+          Printf.printf "Starting interactive bash subshell...\n%!";
+          "bash"
+    in
+    Printf.printf "Press Ctrl+D or exit to return to T REPL.\n";
+    Printf.printf "==================================================\n\n%!";
+    flush stdout;
+    let status = Unix.system shell_cmd in
+    Printf.printf "\n==================================================\n%!";
+    Printf.printf "Exited subshell (status: %s). Returning to T REPL.\n%!"
+      (match status with
+       | Unix.WEXITED n -> Printf.sprintf "exit %d" n
+       | Unix.WSIGNALED n -> Printf.sprintf "signaled %d" n
+       | Unix.WSTOPPED n -> Printf.sprintf "stopped %d" n);
+    Printf.printf "==================================================\n%!";
+    flush stdout;
+    VNA NAGeneric
+  in
+
+  let debug_fn named_args _env =
+    match extract_arg "node" 1 (VNA NAGeneric) named_args with
+    | VComputedNode cn ->
+        run_interactive_subshell cn
+    | _ -> Error.type_error "debug_node: expected a ComputedNode."
+  in
+
   let read_fn named_args _env =
 
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
@@ -273,3 +348,4 @@ let register env =
   |> Env.add "inspect_node" (make_builtin_named ~name:"inspect_node" ~unwrap:false ~variadic:true 1 inspect_fn)
   |> Env.add "rebuild_node" (make_builtin_named ~name:"rebuild_node" ~unwrap:false ~variadic:true 1 rebuild_fn)
   |> Env.add "suppress_warnings" (make_builtin ~name:"suppress_warnings" ~unwrap:false 1 suppress_warnings_fn)
+  |> Env.add "debug_node" (make_builtin_named ~name:"debug_node" ~unwrap:false ~variadic:true 1 debug_fn)

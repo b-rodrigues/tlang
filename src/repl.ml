@@ -262,6 +262,7 @@ let print_help () =
   Printf.printf "  repl              Start the interactive REPL (default)\n";
   Printf.printf "  run <file.t>      Execute a T source file\n";
   Printf.printf "  run --expr <expr> Execute a T expression directly\n";
+  Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
@@ -323,6 +324,46 @@ let cmd_run_expr ?failfast mode expr env =
       Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
   | Ast.(VNA NAGeneric) -> ()
   | v -> print_string (Pretty_print.pretty_print_value v)
+
+let cmd_debug ?(unsafe=false) ?failfast mode filename node_name env =
+  let _ = unsafe in
+  Packages.ensure_docs_loaded ();
+  ensure_file_path filename;
+  let (result, new_env) = run_file ?failfast mode filename env in
+  match result with
+  | Ast.VError _ ->
+      Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
+  | _ ->
+      let find_node_by_name node_name env =
+        let bindings = Ast.Env.bindings env in
+        let rec search_pipelines = function
+          | [] -> None
+          | (_, Ast.VPipeline p) :: rest ->
+              (match List.find_opt (fun (name, _) -> name = node_name) p.p_nodes with
+               | Some (_, node_val) ->
+                   (match node_val with
+                    | Ast.VComputedNode cn -> Some cn
+                    | _ -> search_pipelines rest)
+               | None -> search_pipelines rest)
+          | _ :: rest -> search_pipelines rest
+        in
+        match Ast.Env.find_opt node_name env with
+        | Some (Ast.VComputedNode cn) -> Some cn
+        | _ -> search_pipelines bindings
+      in
+      (match find_node_by_name node_name new_env with
+       | Some cn ->
+           let debug_func =
+             match Ast.Env.find_opt "debug_node" new_env with
+             | Some (Ast.VBuiltin b) -> b.b_func
+             | _ -> exit_with_error "Function `debug_node` not found in pipeline package."
+           in
+           let named_args = [(Some "node", Ast.VComputedNode cn)] in
+           let env_ref = ref new_env in
+           let _ = debug_func named_args env_ref in
+           ()
+       | None ->
+           exit_with_error (Printf.sprintf "Could not find node `%s` in the pipeline defined in '%s'." node_name filename))
 
 let cmd_init_package args =
   match Scaffold.parse_init_flags args with
@@ -856,6 +897,15 @@ let () =
   in
 
   match args with
+  | _ :: "debug" :: [] ->
+      Printf.eprintf "Usage: t debug <node_name> | t debug <file.t> <node_name>\n";
+      exit 1
+  | _ :: "debug" :: node_name :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_debug ~unsafe ~failfast script_mode "src/pipeline.t" node_name env
+  | _ :: "debug" :: filename :: node_name :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_debug ~unsafe ~failfast script_mode filename node_name env
   | _ :: "run" :: [] ->
       Printf.eprintf "Usage: t run <file.t> | t run --expr <expr>\n";
       exit 1
