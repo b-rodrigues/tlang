@@ -195,7 +195,7 @@ let pipeline_package = {
   functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "inspect_log"; "list_logs"; "read_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
                "pipeline_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings"; "pipeline_to_drv";
                "pipeline_to_store"; "set_nix_defaults"; "pipeline_cache_status"; "pipeline_gc";
-               "build_log"; "build_log_to_frame"; "collect_exceptions";
+               "build_log"; "build_log_to_frame"; "collect_exceptions"; "build_log_history"; "node_diff";
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
                "chain"; "parallel";

@@ -1974,5 +1974,149 @@ p.t_step|}
   in
   test_nix_execution_equivalence_golden ();
 
+  let test_build_log_history_and_node_diff () =
+    let success =
+      with_temp_pipeline_project
+        "pipeline { a = 1; b = 2; df_node = 3; text_node = 4; model_node = 5 }\n"
+        (fun _dir _pipeline_path ->
+           Unix.mkdir "_pipeline" 0o755;
+           
+           (* Mock 3 logs with different mtimes *)
+           let log1 = {|{
+             "timestamp": "2026-05-25T12:00:00Z",
+             "duration": 5.2,
+             "hash": "hash1",
+             "out_path": "/nix/store/abc1",
+             "nodes": [
+               { "node": "a", "path": "node_a_1.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "b", "path": "node_b_1.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "df_node", "path": "df_1.csv", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": [], "success": "true" },
+               { "node": "text_node", "path": "text_1.txt", "runtime": "T", "serializer": "text", "class": "VString", "dependencies": [], "success": "true" },
+               { "node": "model_node", "path": "model_1.pmml", "runtime": "T", "serializer": "pmml", "class": "VComputedNode", "dependencies": [], "success": "true" }
+             ]
+           }|} in
+           let log2 = {|{
+             "timestamp": "2026-05-25T11:00:00Z",
+             "duration": 4.1,
+             "hash": "hash2",
+             "out_path": "/nix/store/abc2",
+             "nodes": [
+               { "node": "a", "path": "node_a_2.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "b", "path": "node_b_2.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "df_node", "path": "df_2.csv", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": [], "success": "true" },
+               { "node": "text_node", "path": "text_2.txt", "runtime": "T", "serializer": "text", "class": "VString", "dependencies": [], "success": "true" },
+               { "node": "model_node", "path": "model_2.pmml", "runtime": "T", "serializer": "pmml", "class": "VComputedNode", "dependencies": [], "success": "true" }
+             ]
+           }|} in
+           let log3 = {|{
+             "timestamp": "2026-05-25T10:00:00Z",
+             "duration": 3.0,
+             "hash": "hash3",
+             "out_path": "/nix/store/abc3",
+             "nodes": [
+               { "node": "a", "path": "node_a_3.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "b", "path": "node_b_3.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "df_node", "path": "df_3.csv", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": [], "success": "true" },
+               { "node": "text_node", "path": "text_3.txt", "runtime": "T", "serializer": "text", "class": "VString", "dependencies": [], "success": "true" },
+               { "node": "model_node", "path": "model_3.pmml", "runtime": "T", "serializer": "pmml", "class": "VComputedNode", "dependencies": [], "success": "true" }
+             ]
+           }|} in
+           let p1 = Filename.concat "_pipeline" "build_log_test1.json" in
+           let p2 = Filename.concat "_pipeline" "build_log_test2.json" in
+           let p3 = Filename.concat "_pipeline" "build_log_test3.json" in
+           
+           let write_file p content =
+             let oc = open_out p in
+             output_string oc content;
+             close_out oc
+           in
+           write_file p1 log1;
+           write_file p2 log2;
+           write_file p3 log3;
+           
+           (* Set explicit mtimes so sorting is 100% deterministic *)
+           Unix.utimes p1 1700000000.0 1700000000.0;
+           Unix.utimes p2 1600000000.0 1600000000.0;
+           Unix.utimes p3 1500000000.0 1500000000.0;
+           
+           (* 1. Scalar nodes values *)
+           ignore (Serialization.serialize_to_file "node_a_1.tobj" (Ast.VInt 10));
+           ignore (Serialization.serialize_to_file "node_a_2.tobj" (Ast.VInt 20));
+           ignore (Serialization.serialize_to_file "node_a_3.tobj" (Ast.VInt 30));
+           
+           (* 2. DataFrame nodes values (using CSV) *)
+           let df1_content = "x,y\n1,2\n3,4\n" in
+           let df2_content = "x,y,z\n1.5,2,5\n3.5,4,6\n" in
+           write_file "df_1.csv" df1_content;
+           write_file "df_2.csv" df2_content;
+
+           (* 3. Text nodes values *)
+           let text1_content = "hello\nworld\n" in
+           let text2_content = "hello\nthere\nworld\n" in
+           write_file "text_1.txt" text1_content;
+           write_file "text_2.txt" text2_content;
+
+           (* 4. PMML nodes values (write blank file, will fail XML parse and use fallback diff) *)
+           write_file "model_1.pmml" "";
+           write_file "model_2.pmml" "";
+
+            Printexc.record_backtrace true;
+            let (res, _) =
+              try
+                eval_string_env
+                  {|
+                  p = pipeline { a = 1; b = 2; df_node = 3; text_node = 4; model_node = 5 }
+                  hist = build_log_history(p)
+                  hist_limit = build_log_history(p, n = 2)
+                  
+                  ok_history = (type(hist) == "DataFrame" && nrow(hist) == 3 && nrow(hist_limit) == 2)
+                  
+                  diff_scalar = node_diff(p, "a", 1, 2)
+                  ok_scalar = (type(diff_scalar) == "Dict" && diff_scalar.changed == true && diff_scalar.value_a == 10 && diff_scalar.value_b == 20 && diff_scalar.delta == 10.0)
+                  
+                  diff_df = node_diff(p, "df_node", 1, 2)
+                  ok_df = (type(diff_df) == "Dict" && diff_df.schema_changed == true && length(diff_df.added_columns) == 1 && length(diff_df.removed_columns) == 0 && diff_df.nrows_a == 2 && diff_df.nrows_b == 2)
+
+                  diff_text = node_diff(p, "text_node", 1, 2)
+                  ok_text = (type(diff_text) == "Dict" && diff_text.changed == true && diff_text.lines_added == 1 && (diff_text.lines_removed == 0 || diff_text.lines_removed == 1))
+
+                  diff_pmml = node_diff(p, "model_node", 1, 2)
+                  ok_pmml = (type(diff_pmml) == "Dict" && diff_pmml.model_type == "Generic PMML Model")
+                  
+                  ok_out_of_range = (is_error(node_diff(p, "a", 10, 2)) && error_code(node_diff(p, "a", 10, 2)) == "ValueError")
+
+                  ok_nonexistent = (is_error(node_diff(p, "nonexistent", 1, 2)) && error_code(node_diff(p, "nonexistent", 1, 2)) == "NameError")
+
+                  ok_negative = (is_error(node_diff(p, "a", -1, 2)) && error_code(node_diff(p, "a", -1, 2)) == "ValueError")
+
+                  log_test2 = build_log(p, which_log = ".*test2.*")
+                  ok_log_regex = (type(log_test2) == "BuildLog" && log_test2.out_path == "/nix/store/abc2")
+
+                  hist_filtered = build_log_history(p, pattern = ".*test[23].*")
+                  ok_history_regex = (type(hist_filtered) == "DataFrame" && nrow(hist_filtered) == 2)
+
+                  diff_scalar_regex = node_diff(p, "a", build_a = ".*test1.*", build_b = ".*test2.*")
+                  ok_diff_regex = (type(diff_scalar_regex) == "Dict" && diff_scalar_regex.changed == true && diff_scalar_regex.value_a == 10 && diff_scalar_regex.value_b == 20)
+
+                  ok_no_match = (is_error(node_diff(p, "a", build_a = ".*nomatch.*", build_b = 2)) && error_code(node_diff(p, "a", build_a = ".*nomatch.*", build_b = 2)) == "ValueError")
+
+                  ok_history && ok_scalar && ok_df && ok_text && ok_pmml && ok_out_of_range && ok_nonexistent && ok_negative && ok_log_regex && ok_history_regex && ok_diff_regex && ok_no_match
+                  |} (Packages.init_env ())
+              with e ->
+                Printf.printf "EXCEPTION CAUGHT: %s\n%!" (Printexc.to_string e);
+                Printf.printf "BACKTRACE:\n%s\n%!" (Printexc.get_backtrace ());
+                raise e
+            in
+            res)
+    in
+    if success = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ build_log_history and node_diff comprehensive test passes\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ build_log_history and node_diff comprehensive test failed, got: %s\n"
+        (Ast.Utils.value_to_string success)
+    end
+  in
+  test_build_log_history_and_node_diff ();
+
   print_newline ()
 

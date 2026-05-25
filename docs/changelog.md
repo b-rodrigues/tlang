@@ -2,9 +2,20 @@
 
 ## [0.52.2] - 2026-05-24
 
-This release introduces native Nix-native orchestration features to T-Lang's pipeline builders, enabling granular rebuild control, job parallelization, remote Cachix binary caching, and dry-runs.
+This release introduces native Nix-native orchestration features to T-Lang's pipeline builders, enabling granular rebuild control, job parallelization, remote Cachix binary caching, and dry-runs. It also implements the temporal introspection pair `build_log_history` and `node_diff` for tracking pipeline output changes across builds.
 
 **Status**: Beta
+
+### Pipeline Temporal Introspection
+- **Pipeline History (`build_log_history(p, n = NA)`)**: Exposes the historical record of builds matching the current pipeline signature as a sorted DataFrame, ordered from most recent to oldest. Uses the 1-indexed `build_rank` convention (where `1` represents the most recent build, `2` the second most recent, etc.).
+- **Type-Sensitive Node Diffs (`node_diff(p, node, build_a = 1, build_b = 2)`)**: Compares outputs of a specific node across two historical builds (defaulting to the most recent vs. second most recent). Implements type-sensitive comparison strategies:
+  - *DataFrames*: Summarizes schema changes, lists added/removed columns, reports row count shifts, and evaluates column-level mean drift for numeric fields. Note: This highlights high-level summary statistic shifts and does not perform full statistical distribution tests.
+  - *PMML Models*: Parses regression coefficients and intercept changes for linear models. For non-linear model formats (e.g. Random Forests, Decision Trees), it falls back to a structural equality diff.
+  - *Text Files*: Uses native `diff -u` to extract precise line additions, removals, and diff summaries. Includes a robust fallback if system tools are sandboxed or missing.
+  - *Scalars/Generic Fallback*: Direct value structural comparison and numeric delta calculations.
+
+### Serialization & Correctness Fixes
+- **Correctness Fix for `"default"`/`"tobj"` Deserialization**: Fixed a major correctness bug in `read_standard_node_value` where scalar nodes serialized with `"default"` or `"tobj"` formats were not being deserialized when queried via standard readers, returning a fallback `VComputedNode` token instead. Standard readers now correctly deserialize value payloads (like `VInt`, `VFloat`) using OCaml's Marshal digestion, enabling precise cross-node value and delta comparisons.
 
 ### Nix-Native Orchestration & Rebuild Control
 - **Nix Build Flags Integration**: Added full support for `targets`, `force`, `dry_run`, `max_jobs`, and `cache` parameters in `build_pipeline` and `pipeline_run`.

@@ -2996,6 +2996,67 @@ df = build_log_to_frame(log)
 
 ---
 
+### `build_log_history(p, n = NA, pattern = NA)`
+
+Returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+- `n` (optional) — Positive Int. Maximum number of historical builds to return.
+- `pattern` (optional) — String. Regular expression pattern to filter log filenames (e.g. `".*test.*"`).
+
+**Returns:**
+
+`DataFrame` — A DataFrame detailing historical builds with columns:
+- `build_id` (1-indexed rank from most recent to oldest)
+- `timestamp` (ISO-8601 UTC string of build time)
+- `duration` (total duration in seconds)
+- `n_nodes` (total number of nodes)
+- `n_failed` (number of failed/errored nodes)
+- `n_warnings` (number of warnings issued)
+- `out_path` (Nix output store path for the build)
+- `hash` (unique content hash of build input signature)
+
+**Examples:**
+```t
+p = pipeline { a = 1; b = 2 }
+hist = build_log_history(p, n = 5)
+```
+
+---
+
+### `node_diff(p, node, build_a = 1, build_b = 2)`
+
+Compares the dynamic evaluations or built artifacts of a specific node across two historical builds (defaults to comparing the most recent build `1` against the second most recent `2`).
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+- `node` — Name of the node to compare (String).
+- `build_a` (optional) — 1-indexed build rank (Int) or regular expression filename filter (String) for the first build. Default: `1` (latest).
+- `build_b` (optional) — 1-indexed build rank (Int) or regular expression filename filter (String) for the second build. Default: `2`.
+
+**Returns:**
+
+`Dict` — A structured type-sensitive diff dictionary containing:
+- **For DataFrames** (`csv`, `arrow`, `parquet`): `schema_changed` (Bool), `added_columns` (List), `removed_columns` (List), `nrows_a` (Int), `nrows_b` (Int), and `numeric_drift` (DataFrame summarizing column-level mean values and shift percentages).
+- **For PMML Models** (`pmml`): `model_type` (String), `coefficients_changed` (Bool), and `coef_diff` (DataFrame comparing regression coefficients and intercept shift deltas). Falls back to generic structural equality diff for non-regression models.
+- **For Text Files** (`text`): `changed` (Bool), `lines_added` (Int), `lines_removed` (Int), and `diff` (String unified diff output).
+- **For Generic/Scalars**: `value_a` (Any), `value_b` (Any), `changed` (Bool), and `delta` (Float numeric difference or NA).
+
+**Examples:**
+```t
+p = pipeline { a = 1; b = 2 }
+-- Compare most recent to second most recent
+diff_scalar = node_diff(p, "a")
+
+-- Compare with explicit 1-indexed ranks or regex patterns
+diff_model = node_diff(p, "model_node", build_a = ".*train1.*", build_b = ".*train2.*")
+```
+
+---
+
 ### `collect_exceptions(p)`
 
 Collects all terminal error exceptions and non-terminal warning diagnostics from the computed nodes of a built pipeline.

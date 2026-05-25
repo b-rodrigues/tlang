@@ -97,7 +97,11 @@ let is_visual_metadata_class = function
   | _ -> false
 
 let read_standard_node_value cn =
-  if cn.cn_serializer = "json" then
+  if cn.cn_serializer = "default" || cn.cn_serializer = "tobj" then
+    match Serialization.deserialize_from_file cn.cn_path with
+    | Ok v -> v
+    | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "json" then
     match Serialization.read_json cn.cn_path with
     | Ok v -> v
     | Error _ -> VComputedNode cn
