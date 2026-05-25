@@ -78,28 +78,22 @@ This starts the same subshell environment. Once you exit the subshell (using `Ct
 
 ## How It Works (Under the Hood)
 
-### Dependency Injection via Environment Variables
-T-Lang pipelines pass inputs to guest runtimes using environment variables matching the dependency node names. 
-For example, if a Python node depends on `raw_source`, the environment variable `raw_source` is set to the parent directory of that node's output in the Nix store (e.g. `/nix/store/...-raw_source`).
+### Pristine Environments & Custom Node Variables
+To keep the subshell clean and avoid environment pollution, T-Lang **does not** inject Nix store dependency paths directly as environment variables in the spawned subprocess. Instead, it prints them clearly under the `Upstream dependencies` header on startup, along with language-specific companion package loading tips.
 
-When the subshell launches, these variables are fully inherited. Inside the subshell, you can import T-Lang deserializers and inspect inputs:
+However, if you have configured custom node-specific environment variables in your pipeline (via `p_env_vars` / `un_env_vars`), T-Lang programmatically extracts and propagates these variables directly into the debugger subshell process environment.
 
-#### Python Subshell
-```python
->>> import tlang
->>> dataset_np = tlang.read_node("dataset_np")
-```
+### Custom Prompts and R Quiet Mode
+The interactive subshells automatically apply customized prompt configurations so you always know you are in a debugger session:
+* **Python**: Launches with a `py> ` prompt.
+* **R**: Launches quietly (suppressing R's verbose default welcome copyright banner) with a `r> ` prompt.
+* **Julia**: Configures an asynchronous REPL prompt hook to display `jl> `.
 
-#### R Subshell
-```R
-> library(tlang)
-> dataset_np <- read_node("dataset_np")
-```
-
-#### Julia Subshell
-```julia
-julia> using TLang
-julia> dataset_np = read_node("dataset_np")
+### Runtime Safety Validation Guard
+T-Lang interactive debugging is supported exclusively for interactive REPL-capable runtimes (**Python**, **R**, and **Julia**). Attempting to debug any other runtime (such as **Quarto** or **Bash**) will be intercepted immediately and will raise a descriptive `ValueError` instead of dropping you into a raw shell or crashing:
+```text
+T> debug_node(p.report)
+Error(ValueError: "[L1:C1] debug_node: only R, Python, and Julia nodes are supported for interactive debugging. Node 'report' has unsupported runtime 'Quarto'.")
 ```
 
 ---
@@ -113,25 +107,25 @@ Let's say your Python node fails because of a column type mismatch.
    t debug process_features
    ```
 2. **The Python REPL Opens**:
-   All upstream nodes (e.g. `raw_df`) are ready.
+   The `py> ` prompt is shown, and all upstream dependencies and their paths are listed.
 3. **Inspect Inputs**:
    ```python
-   >>> import tlang
-   >>> df = tlang.read_node("raw_df")
-   >>> df.dtypes
+   py> import tlang
+   py> df = tlang.read_node("raw_df")
+   py> df.dtypes
    ```
 4. **Locate the Bug**:
    You realize a column is parsed as a string instead of a float.
 5. **Exit the Debugger**:
-   Press `Ctrl+D`. You are returned back to your terminal, ready to fix the source code!
+   Press `Ctrl+D`. You are returned back to your T REPL session, ready to fix the source code!
 
 ---
 
 ## Reference Table: Runtime Subshells
 
-| Node Runtime | Spawned Subshell | Loading Command |
-| :--- | :--- | :--- |
-| **Python** | `python -i` | `import tlang; dep = tlang.read_node("dep")` |
-| **R** | `R --no-save` | `library(tlang); dep <- read_node("dep")` |
-| **Julia** | `julia -i` | `using TLang; dep = read_node("dep")` |
-| **POSIX Shell / T** | `bash` | `./path/to/script.sh` |
+| Node Runtime | Spawned Subshell | Prompt | Loading Command |
+| :--- | :--- | :--- | :--- |
+| **Python** | `python -i` | `py> ` | `import tlang; dep = tlang.read_node(\"dep\")` |
+| **R** | `R --no-save --quiet` | `r> ` | `library(tlang); dep <- read_node(\"dep\")` |
+| **Julia** | `julia -i` | `jl> ` | `using TLang; dep = read_node(\"dep\")` |
+

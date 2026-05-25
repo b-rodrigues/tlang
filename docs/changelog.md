@@ -6,6 +6,13 @@ This release introduces native Nix-native orchestration features to T-Lang's pip
 
 **Status**: Beta
 
+### Interactive Node Debugging
+- **Custom Prompt Overrides (`py> `, `r> `, `jl> `)**: Interactive subshells now feature custom prompts reflecting their guest runtimes. Python launches with `py> `, R with `r> `, and Julia with `jl> ` for absolute clarity during debugging sessions.
+- **R Startup Noise Reduction**: Passed `--quiet` to R interactive REPL sessions, fully hiding the verbose copyright and starting messages for a clean workspace.
+- **Clean Subshell Environment Variables**: Stopped setting Nix dependency paths directly into the subprocess environment variables to avoid environment pollution. Instead, a clean summary of upstream dependency paths and specific load commands is displayed on startup.
+- **Node-Specific Custom Environment Variables Propagation**: Custom variables declared in the pipeline node config (`p_env_vars` / `un_env_vars`) are extracted and set inside the active subshell environment automatically.
+- **Runtime Validation Safety Guard**: Implemented strict validation to ensure only interactive REPL-capable runtimes (R, Python, and Julia) can be debugged, raising a highly descriptive `ValueError` for unsupported runtimes (like Quarto or Bash).
+
 ### Pipeline Temporal Introspection
 - **Pipeline History (`build_log_history(p, n = NA)`)**: Exposes the historical record of builds matching the current pipeline signature as a sorted DataFrame, ordered from most recent to oldest. Uses the 1-indexed `build_rank` convention (where `1` represents the most recent build, `2` the second most recent, etc.).
 - **Type-Sensitive Node Diffs (`node_diff(p, node, build_a = 1, build_b = 2)`)**: Compares outputs of a specific node across two historical builds (defaulting to the most recent vs. second most recent). Implements type-sensitive comparison strategies:
