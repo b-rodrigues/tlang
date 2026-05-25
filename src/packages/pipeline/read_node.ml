@@ -31,7 +31,7 @@ let register env =
         else default
   in
 
-  let run_interactive_subshell cn =
+  let run_interactive_subshell ?env cn =
     let cn = !Ast.computed_node_resolver cn in
     let dependencies =
       if cn.cn_dependencies = [] then
@@ -40,34 +40,71 @@ let register env =
          | None -> [])
       else cn.cn_dependencies
     in
-    (* Set environment variables for all dependencies *)
-    let dep_envs = ref [] in
+
+    (* Find custom node env vars in evaluated pipelines *)
+    let node_env_vars =
+      match env with
+      | None -> []
+      | Some e ->
+          let bindings = Ast.Env.bindings e in
+          let rec find_in_pipelines = function
+            | [] -> []
+            | (_, Ast.VPipeline p) :: rest ->
+                (match List.assoc_opt cn.cn_name p.p_env_vars with
+                 | Some vars -> vars
+                 | None -> find_in_pipelines rest)
+            | _ :: rest -> find_in_pipelines rest
+          in
+          find_in_pipelines bindings
+    in
+
+    (* Set and print custom environment variables *)
+    let printed_env_vars = ref [] in
+    List.iter (fun (name, v) ->
+      let v_str =
+        match v with
+        | Ast.VString s -> s
+        | Ast.VInt n -> string_of_int n
+        | Ast.VFloat f -> string_of_float f
+        | Ast.VBool b -> string_of_bool b
+        | _ -> Pretty_print.pretty_print_value v
+      in
+      Unix.putenv name v_str;
+      printed_env_vars := (name, v_str) :: !printed_env_vars
+    ) node_env_vars;
+
+    (* Gather upstream dependency information but do NOT set env vars *)
+    let resolved_deps = ref [] in
     List.iter (fun dep_name ->
       match Builder.latest_logged_computed_node dep_name with
       | Some dep_cn ->
           if dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" then (
             let store_dir = Filename.dirname dep_cn.cn_path in
-            Unix.putenv dep_name store_dir;
-            dep_envs := (dep_name, store_dir) :: !dep_envs
-          ) else
-            Printf.printf "Warning: Upstream dependency '%s' is not built yet; environment variable not set.\n%!" dep_name
-      | None ->
-          Printf.printf "Warning: Upstream dependency '%s' metadata not found; environment variable not set.\n%!" dep_name
+            resolved_deps := (dep_name, store_dir) :: !resolved_deps
+          )
+      | None -> ()
     ) dependencies;
 
     Printf.printf "==================================================\n%!";
     Printf.printf "Debugging Node: %s (Runtime: %s)\n%!" cn.cn_name cn.cn_runtime;
     Printf.printf "==================================================\n%!";
-    if !dep_envs <> [] then (
-      Printf.printf "Environment variables set for dependencies:\n%!";
-      List.iter (fun (name, path) ->
-        Printf.printf "  - %s = %s\n%!" name path
-      ) !dep_envs
+    if !printed_env_vars <> [] then (
+      Printf.printf "Environment variables set for custom node configuration:\n%!";
+      List.iter (fun (name, value) ->
+        Printf.printf "  - %s = %s\n%!" name value
+      ) !printed_env_vars;
+      Printf.printf "\n%!"
     );
-    Printf.printf "\n%!";
+    if !resolved_deps <> [] then (
+      Printf.printf "Upstream dependencies:\n%!";
+      List.iter (fun (name, path) ->
+        Printf.printf "  - %s (Path: %s)\n%!" name path
+      ) !resolved_deps;
+      Printf.printf "\n%!"
+    );
 
     let shell_cmd =
-      let clean_deps = List.map (fun (name, _) -> name) !dep_envs in
+      let clean_deps = List.map (fun (name, _) -> name) !resolved_deps in
       match String.lowercase_ascii cn.cn_runtime with
       | "python" ->
           Printf.printf "Starting interactive Python REPL...\n%!";
@@ -150,10 +187,10 @@ let register env =
     VNA NAGeneric
   in
 
-  let debug_fn named_args _env =
+  let debug_fn named_args env =
     match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
-        run_interactive_subshell cn
+        run_interactive_subshell ~env cn
     | _ -> Error.type_error "debug_node: expected a ComputedNode."
   in
 
