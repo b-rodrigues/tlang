@@ -67,18 +67,37 @@ let register env =
     Printf.printf "\n%!";
 
     let shell_cmd =
+      let clean_deps = List.map (fun (name, _) -> name) !dep_envs in
       match String.lowercase_ascii cn.cn_runtime with
       | "python" ->
           Printf.printf "Starting interactive Python REPL...\n%!";
-          Printf.printf "Tip: To load and debug a script, run: exec(open(\"src/your_script.py\").read())\n%!";
+          Printf.printf "Tip: Load upstream dependencies in Python using:\n%!";
+          Printf.printf "  import tlang\n%!";
+          List.iter (fun dep ->
+            Printf.printf "  %s = tlang.read_node(\"%s\")\n%!" dep dep
+          ) clean_deps;
+          if clean_deps = [] then
+            Printf.printf "  # No upstream dependencies. You can import tlang: import tlang\n%!";
           "python -i"
       | "r" ->
           Printf.printf "Starting interactive R REPL...\n%!";
-          Printf.printf "Tip: To load and debug a script, run: source(\"src/your_script.R\")\n%!";
+          Printf.printf "Tip: Load upstream dependencies in R using:\n%!";
+          Printf.printf "  library(tlang)\n%!";
+          List.iter (fun dep ->
+            Printf.printf "  %s <- read_node(\"%s\")\n%!" dep dep
+          ) clean_deps;
+          if clean_deps = [] then
+            Printf.printf "  # No upstream dependencies. You can load tlang: library(tlang)\n%!";
           "R --no-save"
       | "julia" ->
           Printf.printf "Starting interactive Julia REPL...\n%!";
-          Printf.printf "Tip: To load and debug a script, run: include(\"src/your_script.jl\")\n%!";
+          Printf.printf "Tip: Load upstream dependencies in Julia using:\n%!";
+          Printf.printf "  using TLang\n%!";
+          List.iter (fun dep ->
+            Printf.printf "  %s = read_node(\"%s\")\n%!" dep dep
+          ) clean_deps;
+          if clean_deps = [] then
+            Printf.printf "  # No upstream dependencies. You can load TLang: using TLang\n%!";
           "julia -i"
       | _ ->
           Printf.printf "Starting interactive bash subshell...\n%!";
