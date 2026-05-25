@@ -47,6 +47,27 @@ let register env =
                     let arr_deleted = Array.make nrows (Some false) in
                     let arr_store_path = Array.make nrows None in
 
+                    let is_safe_to_delete store_path =
+                      if not (Sys.file_exists store_path) then false
+                      else
+                        let roots_argv = [| "nix-store"; "--query"; "--roots"; store_path |] in
+                        match Builder_utils.run_command_argv_capture roots_argv with
+                        | Error _ -> false
+                        | Ok roots_out ->
+                            if String.trim roots_out <> "" then false
+                            else
+                              let refs_argv = [| "nix-store"; "--query"; "--referrers"; store_path |] in
+                              match Builder_utils.run_command_argv_capture refs_argv with
+                              | Error _ -> false
+                              | Ok refs_out ->
+                                  let lines =
+                                    String.split_on_char '\n' refs_out
+                                    |> List.map String.trim
+                                    |> List.filter (fun s -> s <> "" && s <> store_path)
+                                  in
+                                  List.length lines = 0
+                    in
+
                     let err_opt = ref None in
                     List.iteri (fun i name ->
                       if !err_opt = None then (
@@ -55,33 +76,15 @@ let register env =
                         | Ok store_path ->
                             arr_store_path.(i) <- Some store_path;
                             if dry_run then (
-                              let would_del =
-                                if not (Sys.file_exists store_path) then false
-                                else
-                                  let roots_argv = [| "nix-store"; "--query"; "--roots"; store_path |] in
-                                  match Builder_utils.run_command_argv_capture roots_argv with
-                                  | Error _ -> false
-                                  | Ok roots_out ->
-                                      if String.trim roots_out <> "" then false
-                                      else
-                                        let refs_argv = [| "nix-store"; "--query"; "--referrers"; store_path |] in
-                                        match Builder_utils.run_command_argv_capture refs_argv with
-                                        | Error _ -> false
-                                        | Ok refs_out ->
-                                            let lines =
-                                              String.split_on_char '\n' refs_out
-                                              |> List.map String.trim
-                                              |> List.filter (fun s -> s <> "" && s <> store_path)
-                                            in
-                                            List.length lines = 0
-                              in
-                              arr_deleted.(i) <- Some would_del
+                              arr_deleted.(i) <- Some (is_safe_to_delete store_path)
                             ) else (
-                              let check_argv = [| "nix-store"; "--delete"; store_path |] in
                               let deleted =
-                                match Builder_utils.run_command_argv_exit check_argv with
-                                | Ok 0 -> true
-                                | _ -> false
+                                if is_safe_to_delete store_path then
+                                  let check_argv = [| "nix-store"; "--delete"; store_path |] in
+                                  match Builder_utils.run_command_argv_exit check_argv with
+                                  | Ok 0 -> true
+                                  | _ -> false
+                                else false
                               in
                               arr_deleted.(i) <- Some deleted
                             )

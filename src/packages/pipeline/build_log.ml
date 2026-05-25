@@ -67,30 +67,37 @@ let build_log_fn named_args _env =
     match get_arg "p" 1 (VNA NAGeneric) named_args with
     | (_, VPipeline p) ->
         let (_, which_log_val) = get_arg "which_log" 2 (VNA NAGeneric) named_args in
-        let log_path_opt =
+        let get_log_path () =
           match which_log_val with
           | VString pattern ->
               (try
                  let re = Str.regexp pattern in
                  let all_matches = find_all_matching_log_paths p in
-                 List.find_map (fun path ->
-                   let log_file = Filename.basename path in
-                   try
-                     let _ = Str.search_forward re log_file 0 in
-                     Some path
-                   with Not_found -> None
-                 ) all_matches
-               with Failure _ -> None)
-          | VNA _ -> find_latest_matching_log_path p
-          | _ -> None
+                 let matched_path =
+                   List.find_map (fun path ->
+                     let log_file = Filename.basename path in
+                     try
+                       let _ = Str.search_forward re log_file 0 in
+                       Some path
+                     with Not_found -> None
+                   ) all_matches
+                 in
+                 (match matched_path with
+                  | Some path -> Ok (Some path)
+                  | None -> Error (Error.make_error ValueError "Function `build_log` could not find any matching build log for the specified `which_log` regex pattern."))
+               with Failure msg ->
+                 Error (Error.make_error ValueError (Printf.sprintf "Function `build_log` received an invalid regex pattern '%s': %s" pattern msg)))
+          | VNA _ ->
+              (match find_latest_matching_log_path p with
+               | Some path -> Ok (Some path)
+               | None -> Ok None)
+          | _ ->
+              Error (Error.type_error "Function `build_log` expects `which_log` to be a String or NA.")
         in
-        if which_log_val <> VNA NAGeneric && log_path_opt = None then
-          Error.make_error ValueError "Function `build_log` could not find any matching build log for the specified `which_log` regex pattern."
-        else (
-          match log_path_opt with
-          | Some log_path -> Builder.parse_json_log_to_vbuildlog log_path
-          | None -> Error.make_error FileError "No matching build log found for the pipeline. Run build_pipeline(p) first."
-        )
+        (match get_log_path () with
+         | Error err -> err
+         | Ok (Some log_path) -> Builder.parse_json_log_to_vbuildlog log_path
+         | Ok None -> Error.make_error FileError "No matching build log found for the pipeline. Run build_pipeline(p) first.")
     | _ -> Error.type_error "Function `build_log` expects a Pipeline."
 
 (*
