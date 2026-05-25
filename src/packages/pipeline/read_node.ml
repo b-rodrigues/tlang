@@ -106,7 +106,7 @@ let register env =
              Unix.putenv "R_PROFILE_USER" ".t_debug_startup.R"
            with _ -> ());
 
-          "R --no-save"
+          "R --no-save --quiet"
       | "julia" ->
           Printf.printf "Starting interactive Julia REPL...\n%!";
           Printf.printf "Tip: Load upstream dependencies in Julia using:\n%!";
