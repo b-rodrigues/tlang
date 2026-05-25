@@ -523,6 +523,81 @@ val_old = read_node(p.result, which_log = "20260221_143022")
 
 This ensures that even as you update your code and data, you can always recover and compare results from previous runs.
 
+### Temporal Introspection: History and Diffs
+
+To reason about how your pipeline's outputs have evolved across iterative development (like tuning models, updating serializers, or changing data sources), T provides the temporal introspection pair `build_log_history()` and `node_diff()`.
+
+#### Pipeline Build History (`build_log_history`)
+
+`build_log_history(p, n = NA, pattern = NA)` returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
+
+```t
+-- Get full build history for pipeline p
+history = build_log_history(p)
+
+-- Limit history to the last 3 matching builds
+history_limit = build_log_history(p, n = 3)
+
+-- Filter historical builds whose filenames match a regex pattern
+history_filtered = build_log_history(p, pattern = ".*train.*")
+```
+
+The resulting DataFrame is structured with the following columns:
+- `build_id`: 1-indexed rank from most recent to oldest (where `1` is the latest, `2` is the second latest, etc.).
+- `timestamp`: UTC ISO-8601 build timestamp string.
+- `duration`: Total wall-clock duration of the build in seconds.
+- `n_nodes` / `n_failed` / `n_warnings`: Summary metrics of node counts, failures, and warnings in that build.
+- `out_path`: Nix store output root path of the build.
+- `hash`: Content signature hash.
+
+#### Type-Sensitive Node Diffs (`node_diff`)
+
+`node_diff(p, node, build_a = 1, build_b = 2)` compares the artifacts of a named node across two historical builds (specified via 1-indexed build rank or regex pattern filename, defaulting to the latest vs. second most recent).
+
+It dispatches to a comparison strategy tailored specifically to the node's serializer type, returning a structured dictionary:
+
+1. **DataFrames** (`csv`, `arrow`, `parquet`):
+   Returns a dictionary detailing:
+   - `schema_changed` (Bool)
+   - `added_columns` / `removed_columns` (List of Strings)
+   - `nrows_a` / `nrows_b` (Int)
+   - `numeric_drift` (DataFrame summarizing average column shifts and mean drift metrics). Note: This acts as a high-level drift summary and does not perform full statistical distribution tests.
+
+2. **PMML Models** (`pmml`):
+   Parses model coefficients and intercepts:
+   - `model_type` (String)
+   - `coefficients_changed` (Bool)
+   - `coef_diff` (DataFrame with columns `name`, `value_a`, `value_b`, `delta`).
+   *Note: Non-regression PMML models fall back gracefully to structural value diffs.*
+
+3. **Text Nodes** (`text`):
+   Performs a line-by-line diff using system utilities:
+   - `changed` (Bool)
+   - `lines_added` / `lines_removed` (Int)
+   - `diff` (String containing the raw unified diff format).
+
+4. **Scalars / Fallbacks**:
+   Performs direct value comparison and computes the numeric delta:
+   - `value_a` / `value_b` (Any)
+   - `changed` (Bool)
+   - `delta` (Float numeric difference or NA).
+
+```t
+-- 1. Compare scalar value shifts between latest and second latest builds
+diff_scalar = node_diff(p, "a")
+diff_scalar.changed  -- true/false
+diff_scalar.delta    -- numeric shift
+
+-- 2. Compare DataFrame schema and drift metrics
+diff_df = node_diff(p, "my_dataset", 1, 2)
+diff_df.schema_changed
+diff_df.nrows_a
+
+-- 3. Compare models across explicit historical builds or regex-matched logs
+diff_model = node_diff(p, "model_node", build_a = ".*test1.*", build_b = ".*test2.*")
+diff_model.coef_diff
+```
+
 ---
 
 ## 16. Execution Modes
