@@ -78,6 +78,15 @@ let register env =
           ) clean_deps;
           if clean_deps = [] then
             Printf.printf "  # No upstream dependencies. You can import tlang: import tlang\n%!";
+
+          (* Write temporary startup file to customize python prompt *)
+          (try
+             let ch = open_out ".t_debug_startup.py" in
+             output_string ch "import sys\nsys.ps1 = 'py> '\nsys.ps2 = 'py... '\n";
+             close_out ch;
+             Unix.putenv "PYTHONSTARTUP" ".t_debug_startup.py"
+           with _ -> ());
+
           "python -i"
       | "r" ->
           Printf.printf "Starting interactive R REPL...\n%!";
@@ -88,6 +97,15 @@ let register env =
           ) clean_deps;
           if clean_deps = [] then
             Printf.printf "  # No upstream dependencies. You can load tlang: library(tlang)\n%!";
+
+          (* Write temporary startup file to customize R prompt *)
+          (try
+             let ch = open_out ".t_debug_startup.R" in
+             output_string ch "options(prompt='r> ', continue='r+ ')\n";
+             close_out ch;
+             Unix.putenv "R_PROFILE_USER" ".t_debug_startup.R"
+           with _ -> ());
+
           "R --no-save"
       | "julia" ->
           Printf.printf "Starting interactive Julia REPL...\n%!";
@@ -98,7 +116,15 @@ let register env =
           ) clean_deps;
           if clean_deps = [] then
             Printf.printf "  # No upstream dependencies. You can load TLang: using TLang\n%!";
-          "julia -i"
+
+          (* Write temporary startup file to customize Julia prompt *)
+          (try
+             let ch = open_out ".t_debug_startup.jl" in
+             output_string ch "atreplinit() do repl\n  @async begin\n    sleep(0.1)\n    if isdefined(repl, :interface)\n      repl.interface.modes[1].prompt = \"jl> \"\n    end\n  end\nend\n";
+             close_out ch
+           with _ -> ());
+
+          "julia -i -e 'include(\".t_debug_startup.jl\")'"
       | _ ->
           Printf.printf "Starting interactive bash subshell...\n%!";
           "bash"
@@ -107,6 +133,12 @@ let register env =
     Printf.printf "==================================================\n\n%!";
     flush stdout;
     let status = Unix.system shell_cmd in
+
+    (* Clean up temporary startup files *)
+    (try Sys.remove ".t_debug_startup.py" with _ -> ());
+    (try Sys.remove ".t_debug_startup.R" with _ -> ());
+    (try Sys.remove ".t_debug_startup.jl" with _ -> ());
+
     Printf.printf "\n==================================================\n%!";
     Printf.printf "Exited subshell (status: %s). Returning to T REPL.\n%!"
       (match status with
