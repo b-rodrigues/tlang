@@ -1660,7 +1660,7 @@ building derivations):</p>
 }
 
 -- Inspect planned build actions without running them
-actions = build_pipeline(p, dry_run=true)
+actions = build_pipeline(p, nix_options = [dry_run: true])
 print(actions)</code></pre>
 <p>The resulting <code>DataFrame</code> contains the columns: -
 <code>node</code>: The name of the pipeline node. - <code>action</code>:
@@ -1677,12 +1677,12 @@ build targeting a specific node:</p>
   c = b * 2
 }
 
--- Rebuild only node &#39;c&#39;, with parallel execution, using a Cachix binary cache
+-- Rebuild only node 'c', with parallel execution, using a Cachix binary cache
 build_pipeline(p,
-               targets = [&quot;c&quot;],
-               max_jobs = 4,
-               cache = &quot;rstats-on-nix&quot;,
-               force = [&quot;c&quot;])</code></pre>
+               nix_options = [targets: [&quot;c&quot;],
+                              max_jobs: 4,
+                              cache: &quot;rstats-on-nix&quot;,
+                              force: [&quot;c&quot;]])</code></pre>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you’ve mastered pipelines, learn how to manage reproducible

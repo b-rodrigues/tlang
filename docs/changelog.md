@@ -10,7 +10,7 @@ This release introduces native Nix-native orchestration features to T-Lang's pip
 - **Nix Build Flags Integration**: Added full support for `targets`, `force`, `dry_run`, `max_jobs`, and `cache` parameters in `build_pipeline` and `pipeline_run`.
 - **Derivation Targets (`targets`)**: Map `targets` to `-A <derivations>` in the underlying `nix build` command, allowing specific parts of the pipeline to be built selectively.
 - **Granular Rebuild Control (`force`)**: Map `force` to native `--check` flags. Pass `true` to force-rebuild the entire pipeline, or a string/list of specific node names to force-rebuild only selected steps.
-- **Parallel Compilation (`max_jobs`)**: Mapped the `max_jobs` parameter directly to `-j <max_jobs>`, enabling parallel compilation of sandbox environments and derivations.
+- **Parallel Compilation (`max_jobs`)**: Mapped the `max_jobs` parameter directly to `--max-jobs <N>`, enabling parallel compilation of sandbox environments and derivations.
 - **Binary Cache Optimization (`cache`)**: Seamless Cachix binary cache integration by dynamically configuring `extra-substituters` and `extra-trusted-public-keys` (prioritizing `rstats-on-nix` as the preferred default cache).
 - **Dry-Run Preview Mode (`dry_run`)**: Implemented a native dry-run mode that parses `nix-build --dry-run` output into a structured T-Lang `DataFrame` (containing columns `node`, `action`, `path`) to inspect build execution plans without mutating local store state.
 

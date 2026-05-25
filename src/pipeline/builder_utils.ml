@@ -1,14 +1,15 @@
 (* src/pipeline/builder_utils.ml *)
 
 type nix_opts = {
-  targets  : Ast.value option;
-  force    : Ast.value option;
-  dry_run  : bool option;
-  max_jobs : Ast.value option;
-  cache    : Ast.value option;
-  builders : Ast.value option;
-  keep_env : Ast.value option;
-  sandbox  : Ast.value option;
+  targets   : Ast.value option;
+  force     : Ast.value option;
+  dry_run   : bool option;
+  max_jobs  : Ast.value option;
+  max_cores : Ast.value option;
+  cache     : Ast.value option;
+  builders  : Ast.value option;
+  keep_env  : Ast.value option;
+  sandbox   : Ast.value option;
 }
 
 let default_nix_opts = {
@@ -16,6 +17,7 @@ let default_nix_opts = {
   force = None;
   dry_run = None;
   max_jobs = None;
+  max_cores = None;
   cache = None;
   builders = None;
   keep_env = None;
@@ -26,19 +28,20 @@ let global_nix_defaults = ref default_nix_opts
 
 let merge_nix_opts ~specific ~fallback =
   {
-    targets = (match specific.targets with Some _ as v -> v | None -> fallback.targets);
-    force = (match specific.force with Some _ as v -> v | None -> fallback.force);
-    dry_run = (match specific.dry_run with Some _ as v -> v | None -> fallback.dry_run);
-    max_jobs = (match specific.max_jobs with Some _ as v -> v | None -> fallback.max_jobs);
-    cache = (match specific.cache with Some _ as v -> v | None -> fallback.cache);
-    builders = (match specific.builders with Some _ as v -> v | None -> fallback.builders);
-    keep_env = (match specific.keep_env with Some _ as v -> v | None -> fallback.keep_env);
-    sandbox = (match specific.sandbox with Some _ as v -> v | None -> fallback.sandbox);
+    targets   = (match specific.targets   with Some _ as v -> v | None -> fallback.targets);
+    force     = (match specific.force     with Some _ as v -> v | None -> fallback.force);
+    dry_run   = (match specific.dry_run   with Some _ as v -> v | None -> fallback.dry_run);
+    max_jobs  = (match specific.max_jobs  with Some _ as v -> v | None -> fallback.max_jobs);
+    max_cores = (match specific.max_cores with Some _ as v -> v | None -> fallback.max_cores);
+    cache     = (match specific.cache     with Some _ as v -> v | None -> fallback.cache);
+    builders  = (match specific.builders  with Some _ as v -> v | None -> fallback.builders);
+    keep_env  = (match specific.keep_env  with Some _ as v -> v | None -> fallback.keep_env);
+    sandbox   = (match specific.sandbox   with Some _ as v -> v | None -> fallback.sandbox);
   }
 
 let validate_nix_options func_name pairs =
   let open Ast in
-  match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "cache"; "builders"; "keep_env"; "sandbox"])) pairs with
+  match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "max_cores"; "cache"; "builders"; "keep_env"; "sandbox"])) pairs with
   | Some (k, _) ->
       Error (Error.type_error (Printf.sprintf "%s: unknown option '%s' in nix_options" func_name k))
   | None ->
@@ -51,6 +54,7 @@ let validate_nix_options func_name pairs =
       let (force_provided, force_val) = get_opt "force" pairs in
       let (dry_run_provided, dry_run_val) = get_opt "dry_run" pairs in
       let (max_jobs_provided, max_jobs_val) = get_opt "max_jobs" pairs in
+      let (max_cores_provided, max_cores_val) = get_opt "max_cores" pairs in
       let (cache_provided, cache_val) = get_opt "cache" pairs in
       let (builders_provided, builders_val) = get_opt "builders" pairs in
       let (keep_env_provided, keep_env_val) = get_opt "keep_env" pairs in
@@ -102,6 +106,13 @@ let validate_nix_options func_name pairs =
             Error (Error.type_error (Printf.sprintf "Function `%s` expects `max_jobs` to be a positive Int." func_name))
         | _ -> Ok None
       in
+      let max_cores_result =
+        match max_cores_val with
+        | VInt n when n >= 0 -> Ok (Some max_cores_val)
+        | _ when max_cores_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `max_cores` to be a non-negative Int (0 = use all available cores)." func_name))
+        | _ -> Ok None
+      in
       let cache_result =
         match cache_val with
         | VString _ -> Ok (Some cache_val)
@@ -144,21 +155,23 @@ let validate_nix_options func_name pairs =
         | _ -> Ok None
       in
 
-      match targets_result, force_result, dry_run_result, max_jobs_result, cache_result, builders_result, keep_env_result, sandbox_result with
-      | Error e, _, _, _, _, _, _, _
-      | _, Error e, _, _, _, _, _, _
-      | _, _, Error e, _, _, _, _, _
-      | _, _, _, Error e, _, _, _, _
-      | _, _, _, _, Error e, _, _, _
-      | _, _, _, _, _, Error e, _, _
-      | _, _, _, _, _, _, Error e, _
-      | _, _, _, _, _, _, _, Error e -> Error e
-      | Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok cache, Ok builders, Ok keep_env, Ok sandbox ->
+      match targets_result, force_result, dry_run_result, max_jobs_result, max_cores_result, cache_result, builders_result, keep_env_result, sandbox_result with
+      | Error e, _, _, _, _, _, _, _, _
+      | _, Error e, _, _, _, _, _, _, _
+      | _, _, Error e, _, _, _, _, _, _
+      | _, _, _, Error e, _, _, _, _, _
+      | _, _, _, _, Error e, _, _, _, _
+      | _, _, _, _, _, Error e, _, _, _
+      | _, _, _, _, _, _, Error e, _, _
+      | _, _, _, _, _, _, _, Error e, _
+      | _, _, _, _, _, _, _, _, Error e -> Error e
+      | Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok max_cores, Ok cache, Ok builders, Ok keep_env, Ok sandbox ->
           let opts = {
             targets;
             force;
             dry_run;
             max_jobs;
+            max_cores;
             cache;
             builders;
             keep_env;

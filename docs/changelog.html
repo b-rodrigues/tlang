@@ -34,7 +34,7 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.52.2] - 2026-05-22</h2>
+<h2 id="section">[0.52.2] - 2026-05-24</h2>
 <p>This release introduces native Nix-native orchestration features to
 T-Lang’s pipeline builders, enabling granular rebuild control, job
 parallelization, remote Cachix binary caching, and dry-runs.</p>
@@ -56,7 +56,7 @@ the pipeline to be built selectively.</li>
 of specific node names to force-rebuild only selected steps.</li>
 <li><strong>Parallel Compilation (<code>max_jobs</code>)</strong>:
 Mapped the <code>max_jobs</code> parameter directly to
-<code>-j &lt;max_jobs&gt;</code>, enabling parallel compilation of
+<code>--max-jobs &lt;N&gt;</code>, enabling parallel compilation of
 sandbox environments and derivations.</li>
 <li><strong>Binary Cache Optimization (<code>cache</code>)</strong>:
 Seamless Cachix binary cache integration by dynamically configuring

@@ -98,6 +98,7 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
   let force = opts.force in
   let dry_run = Option.value ~default:false opts.dry_run in
   let max_jobs = opts.max_jobs in
+  let max_cores = opts.max_cores in
   let cache = opts.cache in
   let builders = opts.builders in
   let keep_env = opts.keep_env in
@@ -211,6 +212,11 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
       | Some (VInt n) when n > 0 -> ["--max-jobs"; string_of_int n]
       | _ -> []
     in
+    let max_cores_args =
+      match max_cores with
+      | Some (VInt n) when n >= 0 -> ["--cores"; string_of_int n]
+      | _ -> []
+    in
     let cache_args =
       match cache with
       | Some (VString name) when name <> "" ->
@@ -244,7 +250,7 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
       | Some (VString "none") -> ["--option"; "sandbox"; "false"]
       | _ -> []
     in
-    let all_args = !nix_build_args @ (nix_verbosity_args verbose) @ force_args @ max_jobs_args @ cache_args @ builders_args @ keep_env_args @ sandbox_args in
+    let all_args = !nix_build_args @ (nix_verbosity_args verbose) @ force_args @ max_jobs_args @ max_cores_args @ cache_args @ builders_args @ keep_env_args @ sandbox_args in
     if dry_run then begin
       let lines = ref [] in
       let callback line =

@@ -108,16 +108,16 @@ let read_standard_node_value cn =
   else if cn.cn_serializer = "csv" then
     (try
        let ch = open_in cn.cn_path in
-       let content = really_input_string ch (in_channel_length ch) in
-       close_in ch;
+       let content = Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
+         really_input_string ch (in_channel_length ch)) in
        T_read_csv.parse_csv_string content
      with _ ->
        VComputedNode cn)
   else if cn.cn_serializer = "text" then
     (try
        let ch = open_in cn.cn_path in
-       let content = really_input_string ch (in_channel_length ch) in
-       close_in ch;
+       let content = Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
+         really_input_string ch (in_channel_length ch)) in
        VString content
      with _ ->
        VComputedNode cn)
@@ -163,8 +163,8 @@ let read_logged_node_value name cn =
   else if cn.cn_serializer = "text" then
     (try
        let ch = open_in cn.cn_path in
-       let content = really_input_string ch (in_channel_length ch) in
-       close_in ch;
+       let content = Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
+         really_input_string ch (in_channel_length ch)) in
        VString content
      with exn ->
        Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read text node `%s` from `%s`: %s" name cn.cn_path (Printexc.to_string exn)))

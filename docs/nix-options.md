@@ -35,7 +35,7 @@ nix_options = [
 | Parameter | Type | Command Line Equivalence | Description |
 | :--- | :--- | :--- | :--- |
 | `max_jobs` | `Int` | `--max-jobs <N>` | The maximum number of build jobs Nix is allowed to run in parallel. Must be greater than `0`. |
-| `max_cores` | `Int` | `--cores <N>` | The maximum number of CPU cores that Nix will assign per build job. Must be greater than `0` (or `0` to use all available cores). |
+| `max_cores` | `Int` | `--cores <N>` | The maximum number of CPU cores that Nix will assign per build job. Use `0` to allow Nix to use all available cores. Supported by all orchestration entry points (`build_pipeline`, `populate_pipeline`, `pipeline_run`, `t_make`). |
 | `dry_run` | `Bool` | `--dry-run` | When `true`, Nix plans the build actions instead of executing them. Returns a planned DataFrame (see details below). |
 | `force` | `Bool` | `--check` | When `true`, forces Nix to rebuild the specified nodes even if they already exist in the cache. |
 | `targets` | `String` or `List[String]` | `-A <target>` | Limits execution or building to specific node name(s) and their upstream dependencies. |
