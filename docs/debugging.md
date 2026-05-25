@@ -47,15 +47,16 @@ T-Lang will evaluate your script up to the requested node, gather all upstream b
 
 ```text
 ==================================================
-Debugging Node: data_cleanup (Runtime: Python)
+Debugging Node: Y (Runtime: Python)
 ==================================================
 Environment variables set for dependencies:
-  - raw_source = /nix/store/h2a3v...-raw_source
-  - configs = /nix/store/z7p9k...-configs
+  - dataset_np = /nix/store/5fcfj6wfh...-pipeline_output/dataset_np
 
 Starting interactive Python REPL...
-Tip: To load and debug a script, run: exec(open("src/clean.py").read())
-Press Ctrl+D or exit() to return to T REPL.
+Tip: Load upstream dependencies in Python using:
+  import tlang
+  dataset_np = tlang.read_node("dataset_np")
+Press Ctrl+D or exit to return to T REPL.
 ==================================================
 >>>
 ```
@@ -85,19 +86,20 @@ When the subshell launches, these variables are fully inherited. Inside the subs
 
 #### Python Subshell
 ```python
->>> import os
->>> from tlang import py_read_json
->>> # Load the active upstream data!
->>> raw_data = py_read_json(os.path.join(os.environ["raw_source"], "artifact"))
->>> print(raw_data.head())
+>>> import tlang
+>>> dataset_np = tlang.read_node("dataset_np")
 ```
 
 #### R Subshell
 ```R
 > library(tlang)
-> # Load the active upstream data!
-> raw_data <- r_read_json(file.path(Sys.getenv("raw_source"), "artifact"))
-> head(raw_data)
+> dataset_np <- read_node("dataset_np")
+```
+
+#### Julia Subshell
+```julia
+julia> using TLang
+julia> dataset_np = read_node("dataset_np")
 ```
 
 ---
@@ -114,30 +116,22 @@ Let's say your Python node fails because of a column type mismatch.
    All upstream nodes (e.g. `raw_df`) are ready.
 3. **Inspect Inputs**:
    ```python
-   >>> import os
-   >>> from tlang import py_read_csv
-   >>> df = py_read_csv(os.path.join(os.environ["raw_df"], "artifact"))
+   >>> import tlang
+   >>> df = tlang.read_node("raw_df")
    >>> df.dtypes
    ```
 4. **Locate the Bug**:
    You realize a column is parsed as a string instead of a float.
-5. **Load and Step Through Your Script**:
-   You can easily load your script file and interactively run its functions:
-   ```python
-   >>> exec(open("src/process.py").read())
-   >>> # Call the function with loaded df to see the traceback locally!
-   >>> process_features(df)
-   ```
-6. **Exit the Debugger**:
-   Press `Ctrl+D`. You are returned back to your terminal, ready to fix the source code in `src/process.py`!
+5. **Exit the Debugger**:
+   Press `Ctrl+D`. You are returned back to your terminal, ready to fix the source code!
 
 ---
 
 ## Reference Table: Runtime Subshells
 
-| Node Runtime | Spawned Subshell | Helpful Loading Command |
+| Node Runtime | Spawned Subshell | Loading Command |
 | :--- | :--- | :--- |
-| **Python** | `python -i` | `exec(open("path/to/script.py").read())` |
-| **R** | `R --no-save` | `source("path/to/script.R")` |
-| **Julia** | `julia -i` | `include("path/to/script.jl")` |
+| **Python** | `python -i` | `import tlang; dep = tlang.read_node("dep")` |
+| **R** | `R --no-save` | `library(tlang); dep <- read_node("dep")` |
+| **Julia** | `julia -i` | `using TLang; dep = read_node("dep")` |
 | **POSIX Shell / T** | `bash` | `./path/to/script.sh` |
