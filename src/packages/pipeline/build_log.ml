@@ -731,9 +731,9 @@ let node_diff_fn named_args _env =
                               (* Text Diff using system diff utility *)
                               let path_a = cn_a.cn_path in
                               let path_b = cn_b.cn_path in
-                              let argv = [| "diff"; "-u"; path_a; path_b |] in
-                              match Builder_utils.run_command_argv_capture argv with
-                              | Ok diff_out ->
+                              let cmd = Printf.sprintf "diff -u %s %s" (Filename.quote path_a) (Filename.quote path_b) in
+                              match Builder_utils.run_command_capture cmd with
+                              | Ok (Unix.WEXITED (0 | 1), diff_out) ->
                                   let diff_str = String.trim diff_out in
                                   let lines = String.split_on_char '\n' diff_str in
                                   let added = ref 0 in
@@ -750,7 +750,7 @@ let node_diff_fn named_args _env =
                                     ("lines_removed", VInt !removed);
                                     ("diff",          VString diff_str);
                                   ]
-                              | Error _ ->
+                              | _ ->
                                   (* Fallback if diff failed or was empty *)
                                   let changed = val_a <> val_b in
                                   VDict [
