@@ -296,18 +296,24 @@ let build_log_history_fn named_args _env =
           | _ -> None
         in
         let (pattern_provided, pattern_val) = get_arg "pattern" 3 (VNA NAGeneric) named_args in
-        let filter_by_pattern_opt =
+        let filter_by_pattern_result =
           match pattern_val with
           | VString pat ->
-              (try Some (Str.regexp pat)
-               with Failure _ -> None)
-          | _ -> None
+              (try Ok (Some (Str.regexp pat))
+               with Failure msg ->
+                 Error (Error.make_error ValueError
+                          (Printf.sprintf "Function `build_log_history` received an invalid regex pattern '%s': %s" pat msg)))
+          | VNA _ -> Ok None
+          | _ when pattern_provided ->
+              Error (Error.type_error "Function `build_log_history` expects argument `pattern` to be a String or NA.")
+          | _ -> Ok None
         in
         if n_provided && limit_opt = None && n_val <> VNA NAGeneric then
           Error.type_error "Function `build_log_history` expects argument `n` to be a positive Int."
-        else if pattern_provided && filter_by_pattern_opt = None && pattern_val <> VNA NAGeneric then
-          Error.type_error "Function `build_log_history` expects argument `pattern` to be a valid regular expression String."
         else (
+          match filter_by_pattern_result with
+          | Error err -> err
+          | Ok filter_by_pattern_opt ->
           let all_matches = find_all_matching_log_paths p in
           let matched_by_pattern =
             match filter_by_pattern_opt with
@@ -429,6 +435,7 @@ let build_log_history_fn named_args _env =
           ] in
           let arrow_table = Arrow_table.create columns nrows in
           VDataFrame { arrow_table; group_keys = [] }
+          )
         )
     | _ -> Error.type_error "Function `build_log_history` expects a Pipeline."
 

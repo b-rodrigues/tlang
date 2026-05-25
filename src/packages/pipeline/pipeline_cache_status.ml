@@ -3,7 +3,7 @@ open Ast
 (*
 --# Check Pipeline Cache Status
 --#
---# Queries Nix cache validity for each node in a pipeline.
+--# Queries local Nix store validity for each node in a pipeline.
 --#
 --# @name pipeline_cache_status
 --# @param p :: Pipeline The pipeline to inspect.
@@ -34,7 +34,7 @@ let register env =
                    | Error err -> err_opt := Some err
                    | Ok store_path ->
                        arr_store_path.(i) <- Some store_path;
-                       let check_argv = [| "nix"; "path-info"; store_path |] in
+                       let check_argv = [| "nix-store"; "--query"; "--valid"; store_path |] in
                        let cached =
                          match Builder_utils.run_command_argv_exit check_argv with
                          | Ok 0 -> true

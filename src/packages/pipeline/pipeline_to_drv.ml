@@ -35,7 +35,7 @@ let register env =
                          Error.make_error RuntimeError
                            (Printf.sprintf "pipeline_to_drv: `nix-instantiate` returned empty output for node '%s'" name)
                      | Ok drv_path ->
-                         VString drv_path
+                         VString (String.trim drv_path)
                    in
                    (name, v)
                  ) p.p_nodes
