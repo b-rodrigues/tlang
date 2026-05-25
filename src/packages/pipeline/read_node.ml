@@ -33,158 +33,163 @@ let register env =
 
   let run_interactive_subshell ?env cn =
     let cn = !Ast.computed_node_resolver cn in
-    let dependencies =
-      if cn.cn_dependencies = [] then
-        (match Builder.latest_logged_computed_node cn.cn_name with
-         | Some logged -> logged.cn_dependencies
-         | None -> [])
-      else cn.cn_dependencies
-    in
-
-    (* Find custom node env vars in evaluated pipelines *)
-    let node_env_vars =
-      match env with
-      | None -> []
-      | Some e ->
-          let bindings = Ast.Env.bindings e in
-          let rec find_in_pipelines = function
-            | [] -> []
-            | (_, Ast.VPipeline p) :: rest ->
-                (match List.assoc_opt cn.cn_name p.p_env_vars with
-                 | Some vars -> vars
-                 | None -> find_in_pipelines rest)
-            | _ :: rest -> find_in_pipelines rest
-          in
-          find_in_pipelines bindings
-    in
-
-    (* Set and print custom environment variables *)
-    let printed_env_vars = ref [] in
-    List.iter (fun (name, v) ->
-      let v_str =
-        match v with
-        | Ast.VString s -> s
-        | Ast.VInt n -> string_of_int n
-        | Ast.VFloat f -> string_of_float f
-        | Ast.VBool b -> string_of_bool b
-        | _ -> Pretty_print.pretty_print_value v
+    let runtime = String.lowercase_ascii cn.cn_runtime in
+    if runtime <> "python" && runtime <> "r" && runtime <> "julia" then
+      Error.value_error (Printf.sprintf "debug_node: only R, Python, and Julia nodes are supported for interactive debugging. Node '%s' has unsupported runtime '%s'." cn.cn_name cn.cn_runtime)
+    else (
+      let dependencies =
+        if cn.cn_dependencies = [] then
+          (match Builder.latest_logged_computed_node cn.cn_name with
+           | Some logged -> logged.cn_dependencies
+           | None -> [])
+        else cn.cn_dependencies
       in
-      Unix.putenv name v_str;
-      printed_env_vars := (name, v_str) :: !printed_env_vars
-    ) node_env_vars;
 
-    (* Gather upstream dependency information but do NOT set env vars *)
-    let resolved_deps = ref [] in
-    List.iter (fun dep_name ->
-      match Builder.latest_logged_computed_node dep_name with
-      | Some dep_cn ->
-          if dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" then (
-            let store_dir = Filename.dirname dep_cn.cn_path in
-            resolved_deps := (dep_name, store_dir) :: !resolved_deps
-          )
-      | None -> ()
-    ) dependencies;
+      (* Find custom node env vars in evaluated pipelines *)
+      let node_env_vars =
+        match env with
+        | None -> []
+        | Some e ->
+            let bindings = Ast.Env.bindings e in
+            let rec find_in_pipelines = function
+              | [] -> []
+              | (_, Ast.VPipeline p) :: rest ->
+                  (match List.assoc_opt cn.cn_name p.p_env_vars with
+                   | Some vars -> vars
+                   | None -> find_in_pipelines rest)
+              | _ :: rest -> find_in_pipelines rest
+            in
+            find_in_pipelines bindings
+      in
 
-    Printf.printf "==================================================\n%!";
-    Printf.printf "Debugging Node: %s (Runtime: %s)\n%!" cn.cn_name cn.cn_runtime;
-    Printf.printf "==================================================\n%!";
-    if !printed_env_vars <> [] then (
-      Printf.printf "Environment variables set for custom node configuration:\n%!";
-      List.iter (fun (name, value) ->
-        Printf.printf "  - %s = %s\n%!" name value
-      ) !printed_env_vars;
-      Printf.printf "\n%!"
-    );
-    if !resolved_deps <> [] then (
-      Printf.printf "Upstream dependencies:\n%!";
-      List.iter (fun (name, path) ->
-        Printf.printf "  - %s (Path: %s)\n%!" name path
-      ) !resolved_deps;
-      Printf.printf "\n%!"
-    );
+      (* Set and print custom environment variables *)
+      let printed_env_vars = ref [] in
+      List.iter (fun (name, v) ->
+        let v_str =
+          match v with
+          | Ast.VString s -> s
+          | Ast.VInt n -> string_of_int n
+          | Ast.VFloat f -> string_of_float f
+          | Ast.VBool b -> string_of_bool b
+          | _ -> Pretty_print.pretty_print_value v
+        in
+        Unix.putenv name v_str;
+        printed_env_vars := (name, v_str) :: !printed_env_vars
+      ) node_env_vars;
 
-    let shell_cmd =
-      let clean_deps = List.map (fun (name, _) -> name) !resolved_deps in
-      match String.lowercase_ascii cn.cn_runtime with
-      | "python" ->
-          Printf.printf "Starting interactive Python REPL...\n%!";
-          Printf.printf "Tip: Load upstream dependencies in Python using:\n%!";
-          Printf.printf "  import tlang\n%!";
-          List.iter (fun dep ->
-            Printf.printf "  %s = tlang.read_node(\"%s\")\n%!" dep dep
-          ) clean_deps;
-          if clean_deps = [] then
-            Printf.printf "  # No upstream dependencies. You can import tlang: import tlang\n%!";
+      (* Gather upstream dependency information but do NOT set env vars *)
+      let resolved_deps = ref [] in
+      List.iter (fun dep_name ->
+        match Builder.latest_logged_computed_node dep_name with
+        | Some dep_cn ->
+            if dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" then (
+              let store_dir = Filename.dirname dep_cn.cn_path in
+              resolved_deps := (dep_name, store_dir) :: !resolved_deps
+            )
+        | None -> ()
+      ) dependencies;
 
-          (* Write temporary startup file to customize python prompt *)
-          (try
-             let ch = open_out ".t_debug_startup.py" in
-             output_string ch "import sys\nsys.ps1 = 'py> '\nsys.ps2 = 'py... '\n";
-             close_out ch;
-             Unix.putenv "PYTHONSTARTUP" ".t_debug_startup.py"
-           with _ -> ());
+      Printf.printf "==================================================\n%!";
+      Printf.printf "Debugging Node: %s (Runtime: %s)\n%!" cn.cn_name cn.cn_runtime;
+      Printf.printf "==================================================\n%!";
+      if !printed_env_vars <> [] then (
+        Printf.printf "Environment variables set for custom node configuration:\n%!";
+        List.iter (fun (name, value) ->
+          Printf.printf "  - %s = %s\n%!" name value
+        ) !printed_env_vars;
+        Printf.printf "\n%!"
+      );
+      if !resolved_deps <> [] then (
+        Printf.printf "Upstream dependencies:\n%!";
+        List.iter (fun (name, path) ->
+          Printf.printf "  - %s (Path: %s)\n%!" name path
+        ) !resolved_deps;
+        Printf.printf "\n%!"
+      );
 
-          "python -i"
-      | "r" ->
-          Printf.printf "Starting interactive R REPL...\n%!";
-          Printf.printf "Tip: Load upstream dependencies in R using:\n%!";
-          Printf.printf "  library(tlang)\n%!";
-          List.iter (fun dep ->
-            Printf.printf "  %s <- read_node(\"%s\")\n%!" dep dep
-          ) clean_deps;
-          if clean_deps = [] then
-            Printf.printf "  # No upstream dependencies. You can load tlang: library(tlang)\n%!";
+      let shell_cmd =
+        let clean_deps = List.map (fun (name, _) -> name) !resolved_deps in
+        match String.lowercase_ascii cn.cn_runtime with
+        | "python" ->
+            Printf.printf "Starting interactive Python REPL...\n%!";
+            Printf.printf "Tip: Load upstream dependencies in Python using:\n%!";
+            Printf.printf "  import tlang\n%!";
+            List.iter (fun dep ->
+              Printf.printf "  %s = tlang.read_node(\"%s\")\n%!" dep dep
+            ) clean_deps;
+            if clean_deps = [] then
+              Printf.printf "  # No upstream dependencies. You can import tlang: import tlang\n%!";
 
-          (* Write temporary startup file to customize R prompt *)
-          (try
-             let ch = open_out ".t_debug_startup.R" in
-             output_string ch "options(prompt='r> ', continue='r+ ')\n";
-             close_out ch;
-             Unix.putenv "R_PROFILE_USER" ".t_debug_startup.R"
-           with _ -> ());
+            (* Write temporary startup file to customize python prompt *)
+            (try
+               let ch = open_out ".t_debug_startup.py" in
+               output_string ch "import sys\nsys.ps1 = 'py> '\nsys.ps2 = 'py... '\n";
+               close_out ch;
+               Unix.putenv "PYTHONSTARTUP" ".t_debug_startup.py"
+             with _ -> ());
 
-          "R --no-save --quiet"
-      | "julia" ->
-          Printf.printf "Starting interactive Julia REPL...\n%!";
-          Printf.printf "Tip: Load upstream dependencies in Julia using:\n%!";
-          Printf.printf "  using TLang\n%!";
-          List.iter (fun dep ->
-            Printf.printf "  %s = read_node(\"%s\")\n%!" dep dep
-          ) clean_deps;
-          if clean_deps = [] then
-            Printf.printf "  # No upstream dependencies. You can load TLang: using TLang\n%!";
+            "python -i"
+        | "r" ->
+            Printf.printf "Starting interactive R REPL...\n%!";
+            Printf.printf "Tip: Load upstream dependencies in R using:\n%!";
+            Printf.printf "  library(tlang)\n%!";
+            List.iter (fun dep ->
+              Printf.printf "  %s <- read_node(\"%s\")\n%!" dep dep
+            ) clean_deps;
+            if clean_deps = [] then
+              Printf.printf "  # No upstream dependencies. You can load tlang: library(tlang)\n%!";
 
-          (* Write temporary startup file to customize Julia prompt *)
-          (try
-             let ch = open_out ".t_debug_startup.jl" in
-             output_string ch "atreplinit() do repl\n  @async begin\n    sleep(0.1)\n    if isdefined(repl, :interface)\n      repl.interface.modes[1].prompt = \"jl> \"\n    end\n  end\nend\n";
-             close_out ch
-           with _ -> ());
+            (* Write temporary startup file to customize R prompt *)
+            (try
+               let ch = open_out ".t_debug_startup.R" in
+               output_string ch "options(prompt='r> ', continue='r+ ')\n";
+               close_out ch;
+               Unix.putenv "R_PROFILE_USER" ".t_debug_startup.R"
+             with _ -> ());
 
-          "julia -i -e 'include(\".t_debug_startup.jl\")'"
-      | _ ->
-          Printf.printf "Starting interactive bash subshell...\n%!";
-          "bash"
-    in
-    Printf.printf "Press Ctrl+D or exit to return to T REPL.\n";
-    Printf.printf "==================================================\n\n%!";
-    flush stdout;
-    let status = Unix.system shell_cmd in
+            "R --no-save --quiet"
+        | "julia" ->
+            Printf.printf "Starting interactive Julia REPL...\n%!";
+            Printf.printf "Tip: Load upstream dependencies in Julia using:\n%!";
+            Printf.printf "  using TLang\n%!";
+            List.iter (fun dep ->
+              Printf.printf "  %s = read_node(\"%s\")\n%!" dep dep
+            ) clean_deps;
+            if clean_deps = [] then
+              Printf.printf "  # No upstream dependencies. You can load TLang: using TLang\n%!";
 
-    (* Clean up temporary startup files *)
-    (try Sys.remove ".t_debug_startup.py" with _ -> ());
-    (try Sys.remove ".t_debug_startup.R" with _ -> ());
-    (try Sys.remove ".t_debug_startup.jl" with _ -> ());
+            (* Write temporary startup file to customize Julia prompt *)
+            (try
+               let ch = open_out ".t_debug_startup.jl" in
+               output_string ch "atreplinit() do repl\n  @async begin\n    sleep(0.1)\n    if isdefined(repl, :interface)\n      repl.interface.modes[1].prompt = \"jl> \"\n    end\n  end\nend\n";
+               close_out ch
+             with _ -> ());
 
-    Printf.printf "\n==================================================\n%!";
-    Printf.printf "Exited subshell (status: %s). Returning to T REPL.\n%!"
-      (match status with
-       | Unix.WEXITED n -> Printf.sprintf "exit %d" n
-       | Unix.WSIGNALED n -> Printf.sprintf "signaled %d" n
-       | Unix.WSTOPPED n -> Printf.sprintf "stopped %d" n);
-    Printf.printf "==================================================\n%!";
-    flush stdout;
-    VNA NAGeneric
+            "julia -i -e 'include(\".t_debug_startup.jl\")'"
+        | _ ->
+            Printf.printf "Starting interactive bash subshell...\n%!";
+            "bash"
+      in
+      Printf.printf "Press Ctrl+D or exit to return to T REPL.\n";
+      Printf.printf "==================================================\n\n%!";
+      flush stdout;
+      let status = Unix.system shell_cmd in
+
+      (* Clean up temporary startup files *)
+      (try Sys.remove ".t_debug_startup.py" with _ -> ());
+      (try Sys.remove ".t_debug_startup.R" with _ -> ());
+      (try Sys.remove ".t_debug_startup.jl" with _ -> ());
+
+      Printf.printf "\n==================================================\n%!";
+      Printf.printf "Exited subshell (status: %s). Returning to T REPL.\n%!"
+        (match status with
+         | Unix.WEXITED n -> Printf.sprintf "exit %d" n
+         | Unix.WSIGNALED n -> Printf.sprintf "signaled %d" n
+         | Unix.WSTOPPED n -> Printf.sprintf "stopped %d" n);
+      Printf.printf "==================================================\n%!";
+      flush stdout;
+      VNA NAGeneric
+    )
   in
 
   let debug_fn named_args env =
