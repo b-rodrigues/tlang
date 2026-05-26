@@ -436,7 +436,6 @@ let build_log_history_fn named_args _env =
           let arrow_table = Arrow_table.create columns nrows in
           VDataFrame { arrow_table; group_keys = [] }
           )
-        )
     | _ -> Error.type_error "Function `build_log_history` expects a Pipeline."
 
 let get_cell (t : Arrow_table.t) (name : string) (row : int) : Ast.value =
