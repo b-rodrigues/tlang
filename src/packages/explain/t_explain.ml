@@ -267,6 +267,34 @@ let register env =
           ("kind", VString "intent");
           ("fields", VDict (List.map (fun (k, v) -> (k, VString v)) intent_fields));
         ]
+    | VDict pairs when List.mem_assoc "kind" pairs
+                      && (match List.assoc_opt "kind" pairs with
+                          | Some (VString k) -> k = "dataframe_diff" || k = "model_diff"
+                                                || k = "scalar_diff" || k = "generic_diff"
+                          | _ -> false) ->
+        (* VDiff envelope — explain renders a structured summary *)
+        let get_str k = match List.assoc_opt k pairs with Some (VString s) -> s | _ -> "" in
+        let get_bool k = match List.assoc_opt k pairs with Some (VBool b) -> b | _ -> false in
+        let kind = get_str "kind" in
+        let node_a = get_str "node_a" in
+        let node_b = get_str "node_b" in
+        let log_a = get_str "log_a" in
+        let log_b = get_str "log_b" in
+        let value_type = get_str "value_type" in
+        let identical = get_bool "identical" in
+        let summary = match List.assoc_opt "summary" pairs with Some v -> v | None -> VNA NAGeneric in
+        let hunks = match List.assoc_opt "hunks" pairs with Some (VList h) -> List.length h | _ -> 0 in
+        make_explain_dict
+          ~display_keys:["kind"; "nodes"; "builds"; "value_type"; "identical"; "summary"; "hunks_count"]
+          [
+            ("kind", VString ("VDiff (" ^ kind ^ ")"));
+            ("nodes", VString (node_a ^ " → " ^ node_b));
+            ("builds", VString (log_a ^ " → " ^ log_b));
+            ("value_type", VString value_type);
+            ("identical", VBool identical);
+            ("summary", summary);
+            ("hunks_count", VInt hunks);
+          ]
     | VDict pairs ->
         make_explain_dict [
           ("kind", VString "value");

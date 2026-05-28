@@ -326,6 +326,61 @@ let rec pretty_print_value v =
   | VError err -> pretty_print_error err
   | VPipeline p -> pretty_print_pipeline p
   | VNodeResult { v; _ } -> pretty_print_value v
+  | VDict pairs when (match List.assoc_opt "kind" pairs with
+                      | Some (VString k) -> k = "dataframe_diff" || k = "model_diff"
+                                            || k = "scalar_diff" || k = "generic_diff"
+                      | _ -> false) ->
+      (* VDiff envelope — compact display *)
+      let get_str k = match List.assoc_opt k pairs with Some (VString s) -> s | _ -> "" in
+      let get_bool k = match List.assoc_opt k pairs with Some (VBool b) -> b | _ -> false in
+      let kind = get_str "kind" in
+      let node_a = get_str "node_a" in
+      let node_b = get_str "node_b" in
+      let log_a = get_str "log_a" in
+      let log_b = get_str "log_b" in
+      let identical = get_bool "identical" in
+      let buf = Buffer.create 256 in
+      Buffer.add_string buf (Printf.sprintf "VDiff (%s)\n" kind);
+      Buffer.add_string buf (Printf.sprintf "  nodes:     %s → %s\n" node_a node_b);
+      Buffer.add_string buf (Printf.sprintf "  builds:    %s → %s\n" log_a log_b);
+      Buffer.add_string buf (Printf.sprintf "  identical: %b\n" identical);
+      if not identical then begin
+        (match kind, List.assoc_opt "summary" pairs with
+         | "dataframe_diff", Some (VDict summary) ->
+             let get_int k = match List.assoc_opt k summary with Some (VInt n) -> n | _ -> 0 in
+             let get_list k = match List.assoc_opt k summary with Some (VList l) -> l | _ -> [] in
+             let cols_added = get_list "cols_added" in
+             let cols_removed = get_list "cols_removed" in
+             Buffer.add_string buf "\n  schema\n";
+             Buffer.add_string buf (Printf.sprintf "    added:   %s\n"
+               (if cols_added = [] then "(none)"
+                else String.concat ", " (List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) cols_added)));
+             Buffer.add_string buf (Printf.sprintf "    removed: %s\n"
+               (if cols_removed = [] then "(none)"
+                else String.concat ", " (List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) cols_removed)));
+             Buffer.add_string buf "\n  rows\n";
+             Buffer.add_string buf (Printf.sprintf "    added:      %d\n" (get_int "rows_added"));
+             Buffer.add_string buf (Printf.sprintf "    removed:    %d\n" (get_int "rows_removed"));
+             Buffer.add_string buf (Printf.sprintf "    changed:    %d\n" (get_int "rows_changed"));
+             Buffer.add_string buf (Printf.sprintf "    unchanged:  %d\n" (get_int "rows_unchanged"))
+         | "model_diff", Some (VDict summary) ->
+             let get_int k = match List.assoc_opt k summary with Some (VInt n) -> n | _ -> 0 in
+             let get_flt k = match List.assoc_opt k summary with Some (VFloat f) -> f | _ -> 0.0 in
+             Buffer.add_string buf "\n  coefficients\n";
+             Buffer.add_string buf (Printf.sprintf "    changed:  %d\n" (get_int "coef_changed"));
+             Buffer.add_string buf (Printf.sprintf "    added:    %d\n" (get_int "coef_added"));
+             Buffer.add_string buf (Printf.sprintf "    removed:  %d\n" (get_int "coef_removed"));
+             Buffer.add_string buf (Printf.sprintf "    r²Δ:      %.4g\n" (get_flt "r2_delta"));
+             Buffer.add_string buf (Printf.sprintf "    aicΔ:     %.4g\n" (get_flt "aic_delta"))
+         | "scalar_diff", Some (VDict summary) ->
+             let va = match List.assoc_opt "value_a" summary with Some v -> Utils.value_to_string v | None -> "?" in
+             let vb = match List.assoc_opt "value_b" summary with Some v -> Utils.value_to_string v | None -> "?" in
+             Buffer.add_string buf (Printf.sprintf "\n  %s → %s\n" va vb)
+         | _ -> ());
+        let n_hunks = match List.assoc_opt "hunks" pairs with Some (VList h) -> List.length h | _ -> 0 in
+        Buffer.add_string buf (Printf.sprintf "\n  hunks: %d (use d.hunks to inspect)\n" n_hunks)
+      end;
+      Buffer.contents buf
   | VDict pairs ->
       let is_summary = List.mem_assoc "class" pairs && List.assoc "class" pairs = VString "summary" in
       let is_visual_metadata =
