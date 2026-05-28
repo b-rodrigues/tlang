@@ -438,59 +438,28 @@ let build_log_history_fn named_args _env =
           )
     | _ -> Error.type_error "Function `build_log_history` expects a Pipeline."
 
-let get_cell (t : Arrow_table.t) (name : string) (row : int) : Ast.value =
-  match Arrow_table.get_column t name with
-  | None -> VNA NAGeneric
-  | Some col ->
-      (match col with
-       | Arrow_table.IntColumn a ->
-           if row < Array.length a then
-             (match a.(row) with Some i -> VInt i | None -> VNA NAGeneric)
-           else VNA NAGeneric
-       | Arrow_table.FloatColumn a ->
-           if row < Array.length a then
-             (match a.(row) with Some f -> VFloat f | None -> VNA NAGeneric)
-           else VNA NAGeneric
-       | Arrow_table.BoolColumn a ->
-           if row < Array.length a then
-             (match a.(row) with Some b -> VBool b | None -> VNA NAGeneric)
-           else VNA NAGeneric
-       | Arrow_table.StringColumn a ->
-           if row < Array.length a then
-             (match a.(row) with Some s -> VString s | None -> VNA NAGeneric)
-           else VNA NAGeneric
-       | Arrow_table.DateColumn a ->
-           if row < Array.length a then
-             (match a.(row) with Some d -> VDate d | None -> VNA NAGeneric)
-           else VNA NAGeneric
-       | Arrow_table.DatetimeColumn (a, tz) ->
-           if row < Array.length a then
-             (match a.(row) with Some dt -> VDatetime (dt, tz) | None -> VNA NAGeneric)
-           else VNA NAGeneric
-       | Arrow_table.DictionaryColumn (indices, levels, _) ->
-           if row < Array.length indices then
-             (match indices.(row) with
-              | Some idx ->
-                  (match List.nth_opt levels idx with
-                   | Some s -> VString s
-                   | None -> VNA NAGeneric)
-              | None -> VNA NAGeneric)
-           else VNA NAGeneric
-       | Arrow_table.NAColumn _ -> VNA NAGeneric
-       | Arrow_table.ListColumn _ -> VNA NAGeneric)
-
 (*
 --# Compare Node Outputs Across Builds
 --#
---# Compares the artifact produced by a named node across two historical builds.
---# Dispatches to a type-appropriate comparison based on the node's serializer.
+--# Compares the artifact produced by a named node across two historical builds
+--# of the same pipeline.  Returns a structured VDiff dictionary with a
+--# consistent envelope (kind, node_a, node_b, log_a, log_b, value_type,
+--# identical, summary, detail, hunks).
+--#
+--# Dispatches to a type-appropriate comparison:
+--#   - DataFrame → row-/column-level diff with optional key-based alignment
+--#   - Model (PMML) → coefficient deltas and fit-stat comparison
+--#   - Scalar → before/after with numeric delta
+--#   - Generic → structural comparison over string representations
 --#
 --# @name node_diff
---# @param pipeline :: Pipeline The pipeline.
---# @param node :: String The node name.
---# @param build_a :: Int (Optional) Most recent build rank index (default 1).
---# @param build_b :: Int (Optional) Second most recent build rank index (default 2).
---# @return :: Dict A structured diff dictionary depending on the node's serializer type.
+--# @param node_a :: ComputedNode | Pipeline  The "before" node (or a Pipeline for the legacy form).
+--# @param node_b :: ComputedNode | String    The "after" node (or a node name String for the legacy form).
+--# @param log_a  :: String | Int  Build log selector for node_a (default "latest"). Accepts a timestamp prefix, regex, or 1-indexed integer.
+--# @param log_b  :: String | Int  Build log selector for node_b (default "latest"). Same format as log_a.
+--# @param key    :: List[Symbol]  For DataFrames: natural key column(s) for row alignment (default []).
+--# @param context :: Int  Number of unchanged rows shown around each hunk (default 3).
+--# @return :: Dict  A VDiff envelope dictionary.
 --# @family pipeline
 --# @export
 *)
@@ -503,299 +472,134 @@ let node_diff_fn named_args _env =
         if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
         else (false, default)
   in
-  let resolve_build_path p val_arg arg_name =
-    let all_matches = find_all_matching_log_paths p in
-    let num_builds = List.length all_matches in
-    match val_arg with
-    | VInt idx ->
-        if idx <= 0 then
-          Error (Error.make_error ValueError (Printf.sprintf "Function `node_diff` expects `%s` to be a positive 1-indexed integer." arg_name))
-        else if idx > num_builds then
-          Error (Error.make_error ValueError (Printf.sprintf "%s index %d is out of range. Only %d historical builds match this pipeline." arg_name idx num_builds))
-        else
-          Ok (List.nth all_matches (idx - 1), idx)
-    | VString pattern ->
-        (try
-           let re = Str.regexp pattern in
-           let matched_indices = List.filter_map (fun (i, path) ->
-             let log_file = Filename.basename path in
-             try
-               let _ = Str.search_forward re log_file 0 in
-               Some (path, i + 1)
-             with Not_found -> None
-           ) (List.mapi (fun i x -> (i, x)) all_matches) in
-           match matched_indices with
-           | [] ->
-               Error (Error.make_error ValueError (Printf.sprintf "No build logs matched the regex pattern '%s' for argument `%s`." pattern arg_name))
-           | (path, idx) :: _ ->
-               Ok (path, idx)
-         with Failure _ ->
-           Error (Error.make_error ValueError (Printf.sprintf "Invalid regular expression pattern '%s' for argument `%s`." pattern arg_name)))
-    | _ ->
-        Error (Error.type_error (Printf.sprintf "Function `node_diff` expects `%s` to be an Integer or a String regex pattern." arg_name))
-  in
   let named_keys = List.filter_map (fun (k, _) -> k) named_args in
   let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
-  match List.find_opt (fun k -> not (List.mem k ["p"; "node"; "build_a"; "build_b"])) named_keys with
-  | Some k -> Error.type_error (Printf.sprintf "node_diff: unknown argument '%s'" k)
-  | None when positional_count > 4 ->
-      Error.make_error ArityError
-        (Printf.sprintf "Function `node_diff` accepts at most 4 positional arguments but received %d." positional_count)
-  | None ->
-    match get_arg "p" 1 (VNA NAGeneric) named_args, get_arg "node" 2 (VNA NAGeneric) named_args with
-    | (_, VPipeline p), (_, VString node_name) ->
-        let (_, build_a_val) = get_arg "build_a" 3 (VInt 1) named_args in
-        let (_, build_b_val) = get_arg "build_b" 4 (VInt 2) named_args in
-        (match resolve_build_path p build_a_val "build_a", resolve_build_path p build_b_val "build_b" with
-         | Ok (log_path_a, idx_a), Ok (log_path_b, idx_b) ->
-             (match Builder.read_log log_path_a, Builder.read_log log_path_b with
-              | Ok entries_a, Ok entries_b ->
-                  (match List.assoc_opt node_name entries_a, List.assoc_opt node_name entries_b with
-                   | Some cn_a, Some cn_b ->
-                       if cn_a.cn_serializer <> cn_b.cn_serializer then
-                         Error.make_error TypeError
-                           (Printf.sprintf "Serializer mismatch for node '%s': build %d used '%s', but build %d used '%s'."
-                              node_name idx_a cn_a.cn_serializer idx_b cn_b.cn_serializer)
-                          else if cn_a.cn_path = "" || not (Sys.file_exists cn_a.cn_path) then
-                            Error.make_error FileError
-                              (Printf.sprintf "Artifact for node '%s' in build %d is no longer present in the Nix store at path: %s"
-                                 node_name idx_a cn_a.cn_path)
-                          else if cn_b.cn_path = "" || not (Sys.file_exists cn_b.cn_path) then
-                            Error.make_error FileError
-                              (Printf.sprintf "Artifact for node '%s' in build %d is no longer present in the Nix store at path: %s"
-                                 node_name idx_b cn_b.cn_path)
-                          else (
-                            (* Load both values using standard pipeline reader *)
-                            let val_a = Builder_read_node.read_standard_node_value cn_a in
-                            let val_b = Builder_read_node.read_standard_node_value cn_b in
-                            
-                            (* Check serializer to decide on comparison strategy *)
-                            if cn_a.cn_serializer = "csv" || cn_a.cn_serializer = "arrow" || cn_a.cn_serializer = "parquet" then (
-                              match val_a, val_b with
-                              | VDataFrame df_a, VDataFrame df_b ->
-                                  (* DataFrame Diff logic *)
-                                  let cols_a = Arrow_table.column_names df_a.arrow_table in
-                                  let cols_b = Arrow_table.column_names df_b.arrow_table in
-                                  let added_cols = List.filter (fun c -> not (List.mem c cols_a)) cols_b in
-                                  let removed_cols = List.filter (fun c -> not (List.mem c cols_b)) cols_a in
-                                  let schema_changed = added_cols <> [] || removed_cols <> [] in
-                                  
-                                  let nrows_a = Arrow_table.num_rows df_a.arrow_table in
-                                  let nrows_b = Arrow_table.num_rows df_b.arrow_table in
-                                  
-                                  (* Shared columns comparison *)
-                                  let shared_cols = List.filter (fun c -> List.mem c cols_b) cols_a in
-                                  let nrows_summaries = List.length shared_cols in
-                                  let arr_col_name = Array.make nrows_summaries None in
-                                  let arr_col_type = Array.make nrows_summaries None in
-                                  let arr_mean_a = Array.make nrows_summaries None in
-                                  let arr_mean_b = Array.make nrows_summaries None in
-                                  let arr_mean_delta = Array.make nrows_summaries None in
-                                  let arr_n_changed = Array.make nrows_summaries None in
-                                  
-                                  List.iteri (fun i col ->
-                                    arr_col_name.(i) <- Some col;
-                                    (match Arrow_table.get_column df_a.arrow_table col, Arrow_table.get_column df_b.arrow_table col with
-                                     | Some col_a, Some col_b ->
-                                         let t_name =
-                                           match col_a with
-                                           | Arrow_table.IntColumn _ -> "Int"
-                                           | Arrow_table.FloatColumn _ -> "Float"
-                                           | Arrow_table.BoolColumn _ -> "Bool"
-                                           | Arrow_table.StringColumn _ -> "String"
-                                           | _ -> "Unknown"
-                                         in
-                                         arr_col_type.(i) <- Some t_name;
-                                         
-                                         (* Compute means for numeric types *)
-                                         (match col_a, col_b with
-                                          | Arrow_table.FloatColumn arr_a, Arrow_table.FloatColumn arr_b ->
-                                              let mean xs =
-                                                let vals = List.filter_map (fun x -> x) (Array.to_list xs) in
-                                                if vals = [] then 0.0
-                                                else List.fold_left (+.) 0.0 vals /. float_of_int (List.length vals)
-                                              in
-                                              let m_a = mean arr_a in
-                                              let m_b = mean arr_b in
-                                              arr_mean_a.(i) <- Some m_a;
-                                              arr_mean_b.(i) <- Some m_b;
-                                              arr_mean_delta.(i) <- Some (m_b -. m_a)
-                                          | Arrow_table.IntColumn arr_a, Arrow_table.IntColumn arr_b ->
-                                              let mean xs =
-                                                let vals = List.filter_map (fun x -> x) (Array.to_list xs) |> List.map float_of_int in
-                                                if vals = [] then 0.0
-                                                else List.fold_left (+.) 0.0 vals /. float_of_int (List.length vals)
-                                              in
-                                              let m_a = mean arr_a in
-                                              let m_b = mean arr_b in
-                                              arr_mean_a.(i) <- Some m_a;
-                                              arr_mean_b.(i) <- Some m_b;
-                                              arr_mean_delta.(i) <- Some (m_b -. m_a)
-                                          | _ -> ());
-                                          
-                                         (* Compute raw differences row by row if row counts are equal *)
-                                          if nrows_a = nrows_b then (
-                                            let count_changed = ref 0 in
-                                            for r = 0 to nrows_a - 1 do
-                                              let cell_a = get_cell df_a.arrow_table col r in
-                                              let cell_b = get_cell df_b.arrow_table col r in
-                                              if cell_a <> cell_b then incr count_changed
-                                            done;
-                                            arr_n_changed.(i) <- Some !count_changed
-                                          )
-                                     | _ -> ())
-                                  ) shared_cols;
-                                  
-                                  let col_summaries_columns = [
-                                    ("name",       Arrow_table.StringColumn arr_col_name);
-                                    ("type",       Arrow_table.StringColumn arr_col_type);
-                                    ("mean_a",     Arrow_table.FloatColumn arr_mean_a);
-                                    ("mean_b",     Arrow_table.FloatColumn arr_mean_b);
-                                    ("mean_delta", Arrow_table.FloatColumn arr_mean_delta);
-                                    ("n_changed",  Arrow_table.IntColumn arr_n_changed);
-                                  ] in
-                                  let col_summaries_table = Arrow_table.create col_summaries_columns nrows_summaries in
-                                  let col_summaries = VDataFrame { arrow_table = col_summaries_table; group_keys = [] } in
-                                  
-                                  VDict [
-                                    ("schema_changed",   VBool schema_changed);
-                                    ("added_columns",    VList (List.map (fun c -> (None, VString c)) added_cols));
-                                    ("removed_columns",  VList (List.map (fun c -> (None, VString c)) removed_cols));
-                                    ("nrows_a",          VInt nrows_a);
-                                    ("nrows_b",          VInt nrows_b);
-                                    ("nrows_added",      VInt (max 0 (nrows_b - nrows_a)));
-                                    ("nrows_removed",    VInt (max 0 (nrows_a - nrows_b)));
-                                    ("column_summaries", col_summaries);
-                                  ]
-                              | _ ->
-                                  Error.make_error StructuralError "DataFrame diff failed: loaded node values were not DataFrames."
-                            )
-                            else if cn_a.cn_serializer = "pmml" then (
-                              (* PMML Model Diff logic *)
-                              match val_a, val_b with
-                              | VDict coef_a, VDict coef_b ->
-                                  let find_linear_regression coeffs =
-                                    let get_str k = match List.assoc_opt k coeffs with Some (VString s) -> s | _ -> "" in
-                                    let model_type = get_str "model_type" in
-                                    let coefficients =
-                                      match List.assoc_opt "coefficients" coeffs with
-                                      | Some (VDict pairs) -> pairs
-                                      | _ -> []
-                                    in
-                                    (model_type, coefficients)
-                                  in
-                                  let mtype_a, coefs_a = find_linear_regression coef_a in
-                                  let mtype_b, coefs_b = find_linear_regression coef_b in
-                                  
-                                  let names_a = List.map fst coefs_a in
-                                  let names_b = List.map fst coefs_b in
-                                  let all_names = List.sort_uniq String.compare (names_a @ names_b) in
-                                  
-                                  let nrows = List.length all_names in
-                                  let arr_coef_name = Array.make nrows None in
-                                  let arr_val_a = Array.make nrows None in
-                                  let arr_val_b = Array.make nrows None in
-                                  let arr_delta = Array.make nrows None in
-                                  
-                                  let changed = ref (mtype_a <> mtype_b) in
-                                  List.iteri (fun i name ->
-                                    arr_coef_name.(i) <- Some name;
-                                    let get_float v_opt =
-                                      match v_opt with
-                                      | Some (VFloat f) -> Some f
-                                      | Some (VInt n) -> Some (float_of_int n)
-                                      | _ -> None
-                                    in
-                                    let v_a = get_float (List.assoc_opt name coefs_a) in
-                                    let v_b = get_float (List.assoc_opt name coefs_b) in
-                                    arr_val_a.(i) <- v_a;
-                                    arr_val_b.(i) <- v_b;
-                                    (match v_a, v_b with
-                                     | Some fa, Some fb ->
-                                         arr_delta.(i) <- Some (fb -. fa);
-                                         if abs_float (fb -. fa) > 1e-9 then changed := true
-                                     | _ -> changed := true)
-                                  ) all_names;
-                                  
-                                  let coef_diff_columns = [
-                                    ("name",    Arrow_table.StringColumn arr_coef_name);
-                                    ("value_a", Arrow_table.FloatColumn arr_val_a);
-                                    ("value_b", Arrow_table.FloatColumn arr_val_b);
-                                    ("delta",   Arrow_table.FloatColumn arr_delta);
-                                  ] in
-                                  let coef_diff_table = Arrow_table.create coef_diff_columns nrows in
-                                  let coef_diff = VDataFrame { arrow_table = coef_diff_table; group_keys = [] } in
-                                  
-                                  VDict [
-                                    ("model_type",           VString (if mtype_b <> "" then mtype_b else mtype_a));
-                                    ("coefficients_changed", VBool !changed);
-                                    ("coef_diff",            coef_diff);
-                                  ]
-                              | _ ->
-                                  (* Simple structural diff fallback *)
-                                  let changed = val_a <> val_b in
-                                  VDict [
-                                    ("model_type",           VString "Generic PMML Model");
-                                    ("coefficients_changed", VBool changed);
-                                    ("coef_diff",            VNA NAGeneric);
-                                  ]
-                            )
-                            else if cn_a.cn_serializer = "text" then (
-                              (* Text Diff using system diff utility *)
-                              let path_a = cn_a.cn_path in
-                              let path_b = cn_b.cn_path in
-                              let cmd = Printf.sprintf "diff -u %s %s" (Filename.quote path_a) (Filename.quote path_b) in
-                              match Builder_utils.run_command_capture cmd with
-                              | Ok (Unix.WEXITED (0 | 1), diff_out) ->
-                                  let diff_str = String.trim diff_out in
-                                  let lines = String.split_on_char '\n' diff_str in
-                                  let added = ref 0 in
-                                  let removed = ref 0 in
-                                  List.iter (fun line ->
-                                    if String.length line > 0 then (
-                                      if line.[0] = '+' && not (String.starts_with ~prefix:"+++" line) then incr added
-                                      else if line.[0] = '-' && not (String.starts_with ~prefix:"---" line) then incr removed
-                                    )
-                                  ) lines;
-                                  VDict [
-                                    ("changed",       VBool (diff_str <> ""));
-                                    ("lines_added",   VInt !added);
-                                    ("lines_removed", VInt !removed);
-                                    ("diff",          VString diff_str);
-                                  ]
-                              | _ ->
-                                  (* Fallback if diff failed or was empty *)
-                                  let changed = val_a <> val_b in
-                                  VDict [
-                                    ("changed",       VBool changed);
-                                    ("lines_added",   VInt (if changed then 1 else 0));
-                                    ("lines_removed", VInt (if changed then 1 else 0));
-                                    ("diff",          VString (if changed then "Text nodes are different." else ""));
-                                  ]
-                            )
-                            else (
-                              (* Scalar or general serializer fallback *)
-                              let changed = val_a <> val_b in
-                              let delta =
-                                match val_a, val_b with
-                                | VFloat fa, VFloat fb -> VFloat (fb -. fa)
-                                | VInt ia, VInt ib -> VFloat (float_of_int (ib - ia))
-                                | _ -> VNA NAGeneric
-                              in
-                              VDict [
-                                ("value_a", val_a);
-                                ("value_b", val_b);
-                                ("changed", VBool changed);
-                                ("delta",   delta);
-                              ]
-                            )
-                          )
-                      | _ ->
-                          Error.make_error NameError (Printf.sprintf "Node '%s' was not found in one or both of the matching build logs." node_name))
-                 | Error msg, _ | _, Error msg ->
-                     Error.make_error FileError (Printf.sprintf "Failed to read historical build logs: %s" msg))
-         | Error err, _ | _, Error err -> err)
-    | _ -> Error.type_error "Function `node_diff` expects a Pipeline and a String node name as its first two arguments."
+
+  (* Detect which calling convention is being used:
+     - New form: node_diff(node_a :: ComputedNode, node_b :: ComputedNode, ...)
+     - Legacy form: node_diff(p :: Pipeline, node :: String, build_a, build_b) *)
+  let (_, first_arg) = get_arg "node_a" 1 (VNA NAGeneric) named_args in
+  let (_, second_arg) = get_arg "node_b" 2 (VNA NAGeneric) named_args in
+
+  match first_arg, second_arg with
+  (* ---- New form: two ComputedNode values ---- *)
+  | VComputedNode cn_a, VComputedNode cn_b ->
+      let valid_keys = ["node_a"; "node_b"; "log_a"; "log_b"; "key"; "context"] in
+      (match List.find_opt (fun k -> not (List.mem k valid_keys)) named_keys with
+       | Some k -> Error.type_error (Printf.sprintf "node_diff: unknown argument '%s'" k)
+       | None when positional_count > 6 ->
+           Error.make_error ArityError
+             (Printf.sprintf "Function `node_diff` accepts at most 6 positional arguments but received %d." positional_count)
+       | None ->
+           let (_, log_a_val) = get_arg "log_a" 3 (VString "latest") named_args in
+           let (_, log_b_val) = get_arg "log_b" 4 (VString "latest") named_args in
+           let (_, key_val)   = get_arg "key"   5 (VList []) named_args in
+           let (_, ctx_val)   = get_arg "context" 6 (VInt 3) named_args in
+           let key = match key_val with
+             | VList items -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | VSymbol s -> Some s | _ -> None) items
+             | _ -> []
+           in
+           let context = match ctx_val with VInt n -> n | _ -> 3 in
+           (* Load artifacts *)
+           let load_artifact cn log_val arg_name =
+             match log_val with
+             | VString "latest" ->
+                 if cn.cn_path <> "" && Sys.file_exists cn.cn_path then
+                   Ok ("latest", Builder_read_node.read_standard_node_value cn)
+                 else
+                   Error (Error.make_error FileError
+                     (Printf.sprintf "Artifact for node '%s' is not available at path: %s" cn.cn_name cn.cn_path))
+             | _ ->
+                 (* For non-latest selectors, we need a pipeline context.
+                    Fall back to scanning all logs for this node name. *)
+                 let logs = Builder_logs.get_logs () in
+                 let all_matches = List.filter_map (fun log_file ->
+                   let full_path = Filename.concat Builder_utils.pipeline_dir log_file in
+                   match Builder_logs.read_log full_path with
+                   | Ok entries ->
+                       (match List.assoc_opt cn.cn_name entries with
+                        | Some _ -> Some full_path
+                        | None -> None)
+                   | _ -> None
+                 ) logs in
+                 let num_builds = List.length all_matches in
+                 let resolve = function
+                   | VInt idx ->
+                       if idx <= 0 then
+                         Error (Error.make_error ValueError (Printf.sprintf "Function `node_diff` expects `%s` to be a positive 1-indexed integer." arg_name))
+                       else if idx > num_builds then
+                         Error (Error.make_error ValueError (Printf.sprintf "%s index %d is out of range. Only %d historical builds found." arg_name idx num_builds))
+                       else Ok (List.nth all_matches (idx - 1))
+                   | VString pattern ->
+                       (try
+                          let re = Str.regexp pattern in
+                          let matched = List.find_opt (fun path ->
+                            let f = Filename.basename path in
+                            try let _ = Str.search_forward re f 0 in true
+                            with Not_found -> false
+                          ) all_matches in
+                          match matched with
+                          | None -> Error (Error.make_error ValueError (Printf.sprintf "No build logs matched '%s' for `%s`." pattern arg_name))
+                          | Some p -> Ok p
+                        with Failure _ ->
+                          Error (Error.make_error ValueError (Printf.sprintf "Invalid regex '%s' for `%s`." pattern arg_name)))
+                   | _ -> Error (Error.type_error (Printf.sprintf "Function `node_diff` expects `%s` to be a String or Int." arg_name))
+                 in
+                 match resolve log_val with
+                 | Error e -> Error e
+                 | Ok log_path ->
+                     match Builder_logs.read_log log_path with
+                     | Error msg -> Error (Error.make_error FileError (Printf.sprintf "Failed to read build log: %s" msg))
+                     | Ok entries ->
+                         match List.assoc_opt cn.cn_name entries with
+                         | None -> Error (Error.make_error NameError (Printf.sprintf "Node '%s' not found in log '%s'." cn.cn_name (Filename.basename log_path)))
+                         | Some logged_cn ->
+                             if logged_cn.cn_path = "" || not (Sys.file_exists logged_cn.cn_path) then
+                               Error (Error.make_error FileError (Printf.sprintf "Artifact for node '%s' is no longer present at: %s" cn.cn_name logged_cn.cn_path))
+                             else
+                               Ok (Filename.basename log_path, Builder_read_node.read_standard_node_value logged_cn)
+           in
+           match load_artifact cn_a log_a_val "log_a", load_artifact cn_b log_b_val "log_b" with
+           | Error e, _ | _, Error e -> e
+           | Ok (resolved_a, val_a), Ok (resolved_b, val_b) ->
+               Diff.node_diff_values
+                 ~va:val_a ~vb:val_b
+                 ~node_a_name:cn_a.cn_name ~node_b_name:cn_b.cn_name
+                 ~log_a:resolved_a ~log_b:resolved_b
+                 ~key ~context)
+
+  (* ---- Legacy form: Pipeline + String node name ---- *)
+  | VPipeline p, VString node_name ->
+      let valid_keys = ["p"; "node"; "node_a"; "node_b"; "build_a"; "build_b"; "log_a"; "log_b"; "key"; "context"] in
+      (match List.find_opt (fun k -> not (List.mem k valid_keys)) named_keys with
+       | Some k -> Error.type_error (Printf.sprintf "node_diff: unknown argument '%s'" k)
+       | None when positional_count > 6 ->
+           Error.make_error ArityError
+             (Printf.sprintf "Function `node_diff` accepts at most 6 positional arguments but received %d." positional_count)
+       | None ->
+           (* Support both old (build_a/build_b) and new (log_a/log_b) param names *)
+           let (has_log_a, log_a_val) = get_arg "log_a" 3 (VNA NAGeneric) named_args in
+           let (has_log_b, log_b_val) = get_arg "log_b" 4 (VNA NAGeneric) named_args in
+           let log_a_val = if has_log_a then log_a_val else let (_, v) = get_arg "build_a" 3 (VInt 1) named_args in v in
+           let log_b_val = if has_log_b then log_b_val else let (_, v) = get_arg "build_b" 4 (VInt 2) named_args in v in
+           let (_, key_val)   = get_arg "key"   5 (VList []) named_args in
+           let (_, ctx_val)   = get_arg "context" 6 (VInt 3) named_args in
+           let key = match key_val with
+             | VList items -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | VSymbol s -> Some s | _ -> None) items
+             | _ -> []
+           in
+           let context = match ctx_val with VInt n -> n | _ -> 3 in
+           match Builder_read_node.resolve_node_artifact p node_name log_a_val "build_a",
+                 Builder_read_node.resolve_node_artifact p node_name log_b_val "build_b" with
+           | Error e, _ | _, Error e -> e
+           | Ok (resolved_a, val_a), Ok (resolved_b, val_b) ->
+               Diff.node_diff_values
+                 ~va:val_a ~vb:val_b
+                 ~node_a_name:node_name ~node_b_name:node_name
+                 ~log_a:resolved_a ~log_b:resolved_b
+                 ~key ~context)
+
+  | _ -> Error.type_error "Function `node_diff` expects either (ComputedNode, ComputedNode, ...) or (Pipeline, String, ...) as its first two arguments."
 
 let register env =
   let make_builtin_named ?name ?(variadic=false) arity func =
