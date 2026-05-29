@@ -76,21 +76,21 @@ No new OCaml dependencies. Estimated ~60 lines in a new `build_log_history.ml`.
 
 ---
 
-## 2. `node_diff(p, node, build_a = 1, build_b = 2)`
+## 2. `node_diff(node_a, node_b, log_a = "latest", log_b = "latest", key = [], context = 3)`
 
 ### Description
 
-Compares the artifact produced by a named node across two historical builds. Dispatches to a type-appropriate comparison based on the node's serializer, returning a structured diff value.
+Compares the artifact produced by `node_a` and `node_b` across two historical builds. Dispatches to a type-appropriate comparison based on the node's serializer, returning a structured diff value.
 
 ### Signature
 
 ```t
-node_diff(p, "model")              -- compare most recent vs. second most recent
-node_diff(p, "model", 1, 3)        -- compare build 1 vs. build 3 (1-indexed from build_log_history)
-node_diff(p, "model", build_a = 2, build_b = 4)
+node_diff(p.model, p.model)              -- compare most recent vs. second most recent
+node_diff(p.model, p.model, "latest", "20260515_090000")
+node_diff(p.model, p.model, log_a = "latest", log_b = ".*train.*")
 ```
 
-`build_a` and `build_b` are `build_id` values from `build_log_history` — 1 is the most recent build.
+`log_a` and `log_b` are build log selectors (defaults to `"latest"`).
 
 ### Returns
 
@@ -158,7 +158,7 @@ A Dict with:
 
 ```t
 -- After refactoring the model node
-node_diff(p, "model")
+node_diff(p.model, p.model)
 -- [
 --   model_type: "LinearRegression",
 --   coefficients_changed: true,
@@ -171,7 +171,7 @@ node_diff(p, "model")
 -- ]
 
 -- After updating the data source
-node_diff(p, "data")
+node_diff(p.data, p.data)
 -- [
 --   schema_changed: false,
 --   nrows_a: 4821,
@@ -208,7 +208,7 @@ build_log_history(p)
     └── find_latest_matching_log_path() [exists]
     └── parse_json_log fields           [exists]
 
-node_diff(p, node, a, b)
+node_diff(node_a, node_b, log_a, log_b)
     └── build_log_history(p)            [new]
     └── read artifact from out_path     [exists via read_node path logic]
     └── serializer dispatch             [new, reuses existing serializer modules]

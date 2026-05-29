@@ -2267,8 +2267,24 @@ and eval_dot_access_val _env_ref target_val field =
                      ("__partial_dot_prefix__", VString field)]
          else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
   | VPipeline p ->
+      let resolved_cn cn =
+        match Hashtbl.find_opt Ast.pipeline_build_logs p.p_exprs with
+        | Some log_path ->
+            (match Builder_logs.read_log log_path with
+             | Ok entries ->
+                 (match List.assoc_opt cn.cn_name entries with
+                  | Some logged_cn ->
+                      let cn_path = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
+                      let cn_class = if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class in
+                      let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
+                      let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
+                      { cn with cn_path; cn_class; cn_runtime; cn_serializer }
+                  | None -> !Ast.computed_node_resolver cn)
+             | _ -> !Ast.computed_node_resolver cn)
+        | None -> !Ast.computed_node_resolver cn
+      in
       (match List.assoc_opt field p.p_nodes with
-       | Some (VComputedNode cn) -> VComputedNode (!Ast.computed_node_resolver cn)
+       | Some (VComputedNode cn) -> VComputedNode (resolved_cn cn)
        | Some (VSymbol s) -> VSymbol s
        | Some v ->
            let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
@@ -2289,14 +2305,14 @@ and eval_dot_access_val _env_ref target_val field =
              in
              let wrapped = VNodeResult { v; node_name = field; diagnostics } in
              Hashtbl.replace Ast.in_memory_node_values field wrapped;
-             VComputedNode {
+             VComputedNode (resolved_cn {
                cn_name = field;
                cn_runtime;
                cn_path = "<unbuilt>";
                cn_serializer;
                cn_class = "Unknown";
                cn_dependencies;
-             }
+             })
            end
        | None ->
            (match List.assoc_opt field p.p_exprs with
@@ -2312,14 +2328,14 @@ and eval_dot_access_val _env_ref target_val field =
                 if is_noop then
                   VSymbol (Printf.sprintf "<noop:%s>" field)
                 else
-                  VComputedNode {
+                  VComputedNode (resolved_cn {
                     cn_name = field;
                     cn_runtime;
                     cn_path = "<unbuilt>";
                     cn_serializer;
                     cn_class = "Unknown";
                     cn_dependencies;
-                  }
+                  })
             | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)))
   | VBuildLog bl ->
       (match field with

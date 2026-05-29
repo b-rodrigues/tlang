@@ -476,3 +476,81 @@ let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline
         (List.map fst p.p_nodes)
   | None ->
       p.p_node_diagnostics
+
+(* ------------------------------------------------------------------ *)
+(* resolve_node_artifact — bridge between node_diff and build logs     *)
+(* ------------------------------------------------------------------ *)
+
+(** Resolve a node artifact for diffing.  Given a pipeline, a node name,
+    and a log selector (an integer build-rank index, a string regex, or
+    "latest"), returns [(resolved_log_filename, loaded_value)].
+
+    The log selector works as follows:
+    - [VInt idx]: 1-indexed build rank (1 = most recent)
+    - [VString "latest"]: equivalent to [VInt 1]
+    - [VString pattern]: regex matched against log filenames
+*)
+let resolve_node_artifact (p : Ast.pipeline_result) (node_name : string)
+    (selector : Ast.value) (arg_name : string) : (string * Ast.value, Ast.value) result =
+  let all_matches = List.filter_map (fun log_file ->
+    let full_path = Filename.concat pipeline_dir log_file in
+    match read_log full_path with
+    | Ok entries when pipeline_matches_logged_entries p entries -> Some full_path
+    | _ -> None
+  ) (get_logs ()) in
+  let num_builds = List.length all_matches in
+  let resolve_log_path = function
+    | Ast.VString "latest" ->
+        if num_builds = 0 then
+          Error (Error.make_error ValueError
+            (Printf.sprintf "No historical builds found for this pipeline."))
+        else
+          Ok (List.hd all_matches)
+    | Ast.VInt idx ->
+        if idx <= 0 then
+          Error (Error.make_error ValueError
+            (Printf.sprintf "Function `node_diff` expects `%s` to be a positive 1-indexed integer." arg_name))
+        else if idx > num_builds then
+          Error (Error.make_error ValueError
+            (Printf.sprintf "%s index %d is out of range. Only %d historical builds match this pipeline." arg_name idx num_builds))
+        else
+          Ok (List.nth all_matches (idx - 1))
+    | Ast.VString pattern ->
+        (try
+           let re = Str.regexp pattern in
+           let matched = List.find_opt (fun path ->
+             let log_file = Filename.basename path in
+             try let _ = Str.search_forward re log_file 0 in true
+             with Not_found -> false
+           ) all_matches in
+           match matched with
+           | None ->
+               Error (Error.make_error ValueError
+                 (Printf.sprintf "No build logs matched the regex pattern '%s' for argument `%s`." pattern arg_name))
+           | Some path -> Ok path
+         with Failure _ ->
+           Error (Error.make_error ValueError
+             (Printf.sprintf "Invalid regular expression pattern '%s' for argument `%s`." pattern arg_name)))
+    | _ ->
+        Error (Error.type_error
+          (Printf.sprintf "Function `node_diff` expects `%s` to be an Integer or a String log selector." arg_name))
+  in
+  match resolve_log_path selector with
+  | Error err -> Error err
+  | Ok log_path ->
+      match read_log log_path with
+      | Error msg ->
+          Error (Error.make_error FileError
+            (Printf.sprintf "Failed to read build log: %s" msg))
+      | Ok entries ->
+          match List.assoc_opt node_name entries with
+          | None ->
+              Error (Error.make_error NameError
+                (Printf.sprintf "Node '%s' was not found in build log '%s'." node_name (Filename.basename log_path)))
+          | Some cn ->
+              if cn.cn_path = "" || not (Sys.file_exists cn.cn_path) then
+                Error (Error.make_error FileError
+                  (Printf.sprintf "Artifact for node '%s' is no longer present at path: %s" node_name cn.cn_path))
+              else
+                let v = read_standard_node_value cn in
+                Ok (Filename.basename log_path, v)

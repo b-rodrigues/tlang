@@ -139,6 +139,8 @@
               ocamlVersion.xmlm
               ocamlVersion.lsp
               ocamlVersion.jsonrpc
+              # patience_diff — Jane Street patience diff algorithm for node_diff hunks
+              ocamlVersion.patience_diff
               # Arrow C++ — provides arrow.pc that arrow-glib depends on
               pkgs.arrow-cpp
               # Arrow C GLib — Apache Arrow columnar data library
@@ -362,6 +364,7 @@ chmod +x $out/bin/bisect-ppx-report
             ocamlVersion.xmlm
             ocamlVersion.lsp
             ocamlVersion.jsonrpc
+            ocamlVersion.patience_diff
 
             # 2. Enhanced Development Tools (Highly Recommended)
             # ----------------------------------------------------

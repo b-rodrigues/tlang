@@ -42,13 +42,26 @@ let register env =
             (* Fallback if all NA *)
             if not !found_type && len > 0 then col_type := "NA";
 
+            let truncate_str s =
+              if String.length s > 25 then
+                String.sub s 0 22 ^ "..."
+              else
+                s
+            in
             let example_n = min 10 (Array.length col) in
             let examples = List.init example_n (fun i ->
-              Utils.value_to_string col.(i)
+              truncate_str (Utils.value_to_string col.(i))
             ) in
             let example_str = String.concat ", " examples in
             let suffix = if Array.length col > 10 then ", ..." else "" in
-            Printf.printf "$ %-13s <%s> %s%s\n" name !col_type example_str suffix
+            let final_str = example_str ^ suffix in
+            let truncated_final =
+              if String.length final_str > 75 then
+                String.sub final_str 0 72 ^ "..."
+              else
+                final_str
+            in
+            Printf.printf "$ %-13s <%s> %s\n" name !col_type truncated_final
           ) value_columns;
           
           flush stdout;

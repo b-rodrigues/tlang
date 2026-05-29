@@ -722,22 +722,33 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
 let update_pipeline_with_build_paths (p : Ast.pipeline_result) out_path =
   let updated_nodes =
     List.map (fun (name, v) ->
-      match v with
-      | VComputedNode cn ->
-          let node_path = Filename.concat out_path name in
-          let artifact_path = Filename.concat node_path "artifact" in
-          if Sys.file_exists artifact_path then
-            let class_path = Filename.concat node_path "class" in
-            let cn_class =
-              match read_file_first_line class_path with
-              | Some c -> c
-              | None -> cn.cn_class
-            in
-            let updated_cn = { cn with cn_path = artifact_path; cn_class } in
-            (name, VComputedNode updated_cn)
-          else
-            (name, v)
-      | _ -> (name, v)
+      let node_path = Filename.concat out_path name in
+      let artifact_path = Filename.concat node_path "artifact" in
+      if Sys.file_exists artifact_path then
+        let class_path = Filename.concat node_path "class" in
+        let cn_class =
+          match read_file_first_line class_path with
+          | Some c -> c
+          | None -> (match v with VComputedNode cn -> cn.cn_class | _ -> "Unknown")
+        in
+        let cn_runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+        let cn_serializer =
+          match List.assoc_opt name p.p_serializers with
+          | Some e -> Nix_unparse.expr_to_string e
+          | None -> (match v with VComputedNode cn -> cn.cn_serializer | _ -> "default")
+        in
+        let cn_dependencies = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+        let updated_cn = {
+          cn_name = name;
+          cn_runtime;
+          cn_path = artifact_path;
+          cn_serializer;
+          cn_class;
+          cn_dependencies;
+        } in
+        (name, VComputedNode updated_cn)
+      else
+        (name, v)
     ) p.p_nodes
   in
   { p with p_nodes = updated_nodes }

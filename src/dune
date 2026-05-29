@@ -42,7 +42,7 @@
    arrow_table arrow_ffi arrow_bridge arrow_io arrow_compute arrow_column
    arrow_owl_bridge
    ; core language
-       ast lexer parser eval typecheck error serialization serialization_registry pmml_utils semantic_type symbol_table completion analyzer stats import_registry value_hash cli_args
+       ast lexer parser eval typecheck error serialization serialization_registry pmml_utils semantic_type symbol_table completion analyzer stats import_registry value_hash cli_args diff
     ; pipeline compiler
     nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter pipeline_script
     builder_utils pipeline_dependency_requirements builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder_copy builder
@@ -59,7 +59,7 @@
     ; packages/pipeline
     pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node pipeline_copy
      pipeline_to_frame filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
-     pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2 t_make_mod build_log
+     pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2 t_make_mod build_log pipeline_diff
      pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc
     ; packages/colcraft
     t_select t_filter mutate arrange group_by ungroup summarize n n_distinct
@@ -78,7 +78,7 @@
    ; tdoc
    tdoc_types tdoc_parser tdoc_registry tdoc_markdown tdoc_json
  )
- (libraries menhirLib otoml yojson xmlm unix str)
+ (libraries menhirLib otoml yojson xmlm unix str patience_diff)
 )
 
 (executable

@@ -16,7 +16,7 @@ This release introduces interactive pipeline node debugging via `debug_node`, na
 
 ### Pipeline Temporal Introspection
 - **Pipeline History (`build_log_history(p, n = NA)`)**: Exposes the historical record of builds matching the current pipeline signature as a sorted DataFrame, ordered from most recent to oldest. Uses the 1-indexed `build_rank` convention (where `1` represents the most recent build, `2` the second most recent, etc.).
-- **Type-Sensitive Node Diffs (`node_diff(p, node, build_a = 1, build_b = 2)`)**: Compares outputs of a specific node across two historical builds (defaulting to the most recent vs. second most recent). Implements type-sensitive comparison strategies:
+- **Type-Sensitive Node Diffs (`node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`)**: Compares outputs of a specific node across two historical builds (defaulting to the most recent vs. second most recent). Implements type-sensitive comparison strategies:
   - *DataFrames*: Summarizes schema changes, lists added/removed columns, reports row count shifts, and evaluates column-level mean drift for numeric fields. Note: This highlights high-level summary statistic shifts and does not perform full statistical distribution tests.
   - *PMML Models*: Parses regression coefficients and intercept changes for linear models. For non-linear model formats (e.g. Random Forests, Decision Trees), it falls back to a structural equality diff.
   - *Text Files*: Uses native `diff -u` to extract precise line additions, removals, and diff summaries. Includes a robust fallback if system tools are sandboxed or missing.

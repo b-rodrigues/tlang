@@ -525,7 +525,33 @@ This ensures that even as you update your code and data, you can always recover 
 
 ### Temporal Introspection: History and Diffs
 
-To reason about how your pipeline's outputs have evolved across iterative development (like tuning models, updating serializers, or changing data sources), T provides the temporal introspection pair `build_log_history()` and `node_diff()`.
+To reason about how your pipeline's outputs have evolved across iterative development (like tuning models, updating serializers, or changing data sources), T provides `build_log_history()`, `node_diff()`, and `pipeline_diff()`.
+
+#### Comparing builds
+
+A common workflow is to rebuild the same pipeline after changing a node and then compare the new artifact against an earlier build. `node_diff()` returns a structured `VDiff` envelope with `kind`, `identical`, `summary`, `detail`, and `hunks`, so you can inspect both the high-level counts and the raw changed regions.
+
+```t
+-- Compare the same node across two historical builds
+d = node_diff(p.clean_data, p.clean_data,
+      log_a = "20260510_120000",
+      log_b = "20260515_090000",
+      key = [$customer_id])
+
+d.kind
+d.identical
+d.summary
+d.hunks
+```
+
+Use `pipeline_diff()` when you want to compare pipeline structure rather than artifact contents. It reports added, removed, changed, and rewired nodes, and includes `pipeline_to_frame()` snapshots for both sides.
+
+```t
+struct_diff = pipeline_diff(p_before, p_after)
+struct_diff.added_nodes
+struct_diff.changed_nodes
+struct_diff.rewired_edges
+```
 
 #### Pipeline Build History (`build_log_history`)
 
@@ -552,50 +578,46 @@ The resulting DataFrame is structured with the following columns:
 
 #### Type-Sensitive Node Diffs (`node_diff`)
 
-`node_diff(p, node, build_a = 1, build_b = 2)` compares the artifacts of a named node across two historical builds (specified via 1-indexed build rank or regex pattern filename, defaulting to the latest vs. second most recent).
+`node_diff()` compares two node artifacts and chooses a type-specific diff automatically:
 
-It dispatches to a comparison strategy tailored specifically to the node's serializer type, returning a structured dictionary:
-
-1. **DataFrames** (`csv`, `arrow`, `parquet`):
-   Returns a dictionary detailing:
-   - `schema_changed` (Bool)
-   - `added_columns` / `removed_columns` (List of Strings)
-   - `nrows_a` / `nrows_b` (Int)
-   - `numeric_drift` (DataFrame summarizing average column shifts and mean drift metrics). Note: This acts as a high-level drift summary and does not perform full statistical distribution tests.
-
-2. **PMML Models** (`pmml`):
-   Parses model coefficients and intercepts:
-   - `model_type` (String)
-   - `coefficients_changed` (Bool)
-   - `coef_diff` (DataFrame with columns `name`, `value_a`, `value_b`, `delta`).
-   *Note: Non-regression PMML models fall back gracefully to structural value diffs.*
-
-3. **Text Nodes** (`text`):
-   Performs a line-by-line diff using system utilities:
-   - `changed` (Bool)
-   - `lines_added` / `lines_removed` (Int)
-   - `diff` (String containing the raw unified diff format).
-
-4. **Scalars / Fallbacks**:
-   Performs direct value comparison and computes the numeric delta:
-   - `value_a` / `value_b` (Any)
-   - `changed` (Bool)
-   - `delta` (Float numeric difference or NA).
+1. **DataFrames** return row and schema summaries plus DataFrame-valued `detail` sections for added, removed, and changed rows.
+2. **Models** return coefficient and fit-stat deltas, including a `coef_diff` DataFrame.
+3. **Scalars** return before/after values and a numeric delta when one exists.
+4. **Generic values** fall back to structural string diffs while preserving the original values in `detail`.
 
 ```t
 -- 1. Compare scalar value shifts between latest and second latest builds
-diff_scalar = node_diff(p, "a")
-diff_scalar.changed  -- true/false
-diff_scalar.delta    -- numeric shift
+diff_scalar = node_diff(p.a, p.a)
+diff_scalar.summary.changed  -- true/false
+diff_scalar.summary.delta    -- numeric shift
 
 -- 2. Compare DataFrame schema and drift metrics
-diff_df = node_diff(p, "my_dataset", 1, 2)
-diff_df.schema_changed
-diff_df.nrows_a
+diff_df = node_diff(p.my_dataset, p.my_dataset, log_a = 1, log_b = 2)
+diff_df.summary.cols_added
+diff_df.detail.changed
 
 -- 3. Compare models across explicit historical builds or regex-matched logs
-diff_model = node_diff(p, "model_node", build_a = ".*test1.*", build_b = ".*test2.*")
-diff_model.coef_diff
+diff_model = node_diff(p.model_node, p.model_node, log_a = ".*test1.*", log_b = ".*test2.*")
+diff_model.detail.coef_diff
+```
+
+#### Interactive REPL Diffs & Colorization
+
+When working interactively inside the REPL, T provides first-class visual formatting for `VDiff` results:
+- **Automatic Summary & Colorized Diffs**: If you print or evaluate a non-identical `VDiff` envelope (e.g. `diff_df`), the REPL prints the summary metrics followed immediately by a beautifully colorized git-like unified diff (`detailed_summary`) showing added rows in **green**, deleted rows in **red**, and hunk headers in **cyan**.
+- **Direct String Colorization**: Accessing `diff_df.detailed_summary` directly prints the raw, colorized git-like diff as a beautifully readable multiline block.
+- **Key Validation**: When using a custom natural key list (e.g., `key = [$customer_id]`), `node_diff` strictly validates that all requested key columns exist in both schemas. If there is a typo or missing column, it returns a clean, native `ValueError` immediately rather than silently keeping only one row per side.
+
+#### Inspecting Diffs in a Text Editor
+
+For very large diffs, printing to the console may be hard to scroll. You can write the unified diff directly to a text file for inspection using a text editor (e.g., VSCode, Vim, or Emacs) using the standard `write_text` builtin:
+
+```t
+-- 1. Compute the DataFrame diff
+diff_df = node_diff(p3.data, p2.data, key = [$id])
+
+-- 2. Write the detailed unified diff string to a file on disk
+write_text("dataframe_changes.diff", diff_df.detailed_summary)
 ```
 
 ---
