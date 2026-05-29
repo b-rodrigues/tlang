@@ -280,6 +280,7 @@ and pretty_print_visual_metadata pairs =
 (** Pretty-print any value for REPL display *)
 let rec pretty_print_value v =
   match v with
+  | VString s -> s
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
       let path_str = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then "" else "\npath: " ^ cn.cn_path in
