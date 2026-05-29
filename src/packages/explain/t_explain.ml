@@ -272,6 +272,7 @@ let register env =
                           | Some (VString k) -> k = "dataframe_diff" || k = "model_diff"
                                                 || k = "scalar_diff" || k = "generic_diff"
                                                 || k = "python_object_diff"
+                                                || k = "julia_object_diff"
                                                 || k = "r_object_diff"
                                                 || k = "pipeline_diff"
                           | _ -> false) ->

@@ -585,7 +585,8 @@ The resulting DataFrame is structured with the following columns:
 3. **Scalars** return before/after values and a numeric delta when one exists.
 4. **Python-native objects** (for example pickled NumPy ndarrays) are loaded through the bundled `tlang` Python package and compared with DeepDiff.
 5. **Julia-native objects** (for example `Serialization.serialize`d arrays or structs) are loaded through the bundled `tlang` Julia package and compared with DeepDiffs.
-6. **Generic values** fall back to structural string diffs while preserving the original values in `detail`.
+6. **R-native objects** (for example `.rds` artifacts) are loaded through the bundled `tlang` R package and compared with `diffobj`.
+7. **Generic values** fall back to structural string diffs while preserving the original values in `detail`.
 
 ```t
 -- 1. Compare scalar value shifts between latest and second latest builds

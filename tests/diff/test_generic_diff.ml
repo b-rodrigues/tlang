@@ -54,7 +54,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
         cn_path = path;
         cn_serializer = "default";
         cn_class = class_name;
-        cn_description = None;
+        cn_dependencies = [];
       }
     in
     let artifact_a = Filename.temp_file "tlang-julia-node-a" ".jls" in
