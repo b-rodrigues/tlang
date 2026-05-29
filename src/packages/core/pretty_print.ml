@@ -277,10 +277,27 @@ let rec pretty_format ?(max_depth=5) ?(indent="") v =
 and pretty_print_visual_metadata pairs =
   pretty_print_tree ~object_mode:true pairs ^ "\n"
 
+let colorize_diff s =
+  let lines = String.split_on_char '\n' s in
+  let colored_lines = List.map (fun line ->
+    if String.length line > 0 then
+      match line.[0] with
+      | '+' -> "\027[32m" ^ line ^ "\027[0m"
+      | '-' -> "\027[31m" ^ line ^ "\027[0m"
+      | '@' -> "\027[36m" ^ line ^ "\027[0m"
+      | _ -> line
+    else line
+  ) lines in
+  String.concat "\n" colored_lines
+
 (** Pretty-print any value for REPL display *)
 let rec pretty_print_value v =
   match v with
-  | VString s -> s
+  | VString s ->
+      if String.length s >= 3 && String.sub s 0 3 = "@@ " then
+        colorize_diff s
+      else
+        s
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
       let path_str = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then "" else "\npath: " ^ cn.cn_path in
@@ -402,7 +419,13 @@ let rec pretty_print_value v =
              Buffer.add_string buf (Printf.sprintf "\n  %s → %s\n" va vb)
          | _ -> ());
         let n_hunks = match List.assoc_opt "hunks" pairs with Some (VList h) -> List.length h | _ -> 0 in
-        Buffer.add_string buf (Printf.sprintf "\n  hunks: %d (use d.hunks to inspect)\n" n_hunks)
+        Buffer.add_string buf (Printf.sprintf "\n  hunks: %d (use d.hunks to inspect)\n" n_hunks);
+        let detailed_sum = get_str "detailed_summary" in
+        if detailed_sum <> "" then begin
+          Buffer.add_string buf "\nDetailed Diff:\n";
+          Buffer.add_string buf (colorize_diff detailed_sum);
+          Buffer.add_string buf "\n"
+        end
         end;
       end;
       Buffer.contents buf
