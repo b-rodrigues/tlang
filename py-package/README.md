@@ -39,8 +39,8 @@ older_model = read_node("model", which_log="20260221")
 
 ## Diff Python artifacts
 
-Use the bundled DeepDiff-based helpers to compare Python-native artifacts such as
-NumPy ndarrays:
+Use the bundled DeepDiff-based helpers to compare Python-native artifacts that do
+not have a direct T equivalent, such as pickled model objects or custom classes:
 
 ```python
 from tlang import diff_nodes
