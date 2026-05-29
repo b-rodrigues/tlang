@@ -90,7 +90,12 @@ render_diffobj <- function(obj_a, obj_b, context = 3L) {
   on.exit(options(old_options), add = TRUE)
 
   diff <- tryCatch(
-    diffobj_ns$diffObj(obj_a, obj_b, context = as.integer(context)),
+    diffobj_ns$diffObj(
+      obj_a,
+      obj_b,
+      context = as.integer(context),
+      mode = "unified"
+    ),
     error = function(err) {
       stop(
         sprintf("Failed to diff R objects with diffobj: %s", conditionMessage(err)),
