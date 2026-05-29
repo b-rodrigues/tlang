@@ -10,7 +10,20 @@ Dispatches to a type-appropriate comparison:
 - **DataFrame** → row-/column-level diff with optional key-based alignment
 - **Model (PMML)** → coefficient deltas and fit-stat comparison
 - **Scalar** → before/after with numeric delta
+- **Python-native objects** → artifact deserialization through the bundled `tlang` Python package, then stable JSON rendering plus git-like unified diffs
+- **Julia-native objects** → artifact deserialization through the bundled `tlang` Julia package, then DeepDiffs-based structural comparison
+- **R-native objects** → artifact deserialization through the bundled `tlang` R package, then diffobj-based structural comparison
 - **Generic** → structural comparison over string representations
+
+Runtime-native object diffs are preserved only for artifacts using the standard
+`default` or `tobj` serializers. If you assign a custom serializer name (for
+example `"rds"` or `"pkl"`), `node_diff()` falls back to the normal artifact
+loading path; for those cases, call the companion R/Python/Julia helper
+packages directly with an explicit deserializer.
+
+For Julia-native artifacts, `node_diff()` launches a fresh Julia helper process
+for each comparison. This keeps the integration simple but adds startup cost for
+repeated or very large diffs.
 
 ## Signature
 
@@ -41,7 +54,7 @@ node_diff(
 
 | Field | Type | Description |
 |---|---|---|
-| `kind` | `String` | `"dataframe_diff"`, `"model_diff"`, `"scalar_diff"`, or `"generic_diff"` |
+| `kind` | `String` | `"dataframe_diff"`, `"model_diff"`, `"scalar_diff"`, `"python_object_diff"`, `"julia_object_diff"`, `"r_object_diff"`, or `"generic_diff"` |
 | `node_a` | `String` | Name of the first node |
 | `node_b` | `String` | Name of the second node |
 | `log_a` | `String` | Resolved log filename for node_a |
@@ -50,7 +63,7 @@ node_diff(
 | `identical` | `Bool` | `true` if no differences were found |
 | `summary` | `Dict` | Type-specific summary counts |
 | `detail` | `Dict` | Type-specific detail |
-| `hunks` | `List[Dict]` | Patience-diff hunks |
+| `hunks` | `List[Dict]` | Diff hunks or rendered diff regions when available |
 
 ## Examples
 
@@ -71,6 +84,15 @@ d = node_diff(p.customers, p.customers,
 
 -- Model comparison
 d = node_diff(p.model_v1, p.model_v2)
+
+-- Python-native artifact comparison (for example NumPy ndarrays)
+d = node_diff(p.weights, p.weights, log_a = 1, log_b = 2)
+
+-- Julia-native artifact comparison (for example serialized structs or arrays)
+d = node_diff(p.julia_model, p.julia_model, log_a = 1, log_b = 2)
+
+-- R-native artifact comparison (for example saved model objects)
+d = node_diff(p.r_model, p.r_model, log_a = 1, log_b = 2)
 ```
 
 ## See Also

@@ -583,7 +583,17 @@ The resulting DataFrame is structured with the following columns:
 1. **DataFrames** return row and schema summaries plus DataFrame-valued `detail` sections for added, removed, and changed rows.
 2. **Models** return coefficient and fit-stat deltas, including a `coef_diff` DataFrame.
 3. **Scalars** return before/after values and a numeric delta when one exists.
-4. **Generic values** fall back to structural string diffs while preserving the original values in `detail`.
+4. **Python-native objects** (for example pickled NumPy ndarrays) are loaded through the bundled `tlang` Python package and compared through stable JSON rendering plus a git-like unified diff.
+5. **Julia-native objects** (for example `Serialization.serialize`d arrays or structs) are loaded through the bundled `tlang` Julia package and compared with DeepDiffs.
+6. **R-native objects** (for example `.rds` artifacts) are loaded through the bundled `tlang` R package and compared with `diffobj`.
+7. **Generic values** fall back to structural string diffs while preserving the original values in `detail`.
+
+Native Python, Julia, and R object diffs are preserved only for artifacts built
+with the standard `default` or `tobj` serializers. If you assign a custom
+serializer name, `node_diff()` uses the normal artifact-loading path instead;
+call the companion helper package directly when you need a custom deserializer
+for a native object. Julia-native comparisons currently start a fresh Julia
+helper process for each diff, so repeated large diffs will include startup cost.
 
 ```t
 -- 1. Compare scalar value shifts between latest and second latest builds
@@ -604,8 +614,8 @@ diff_model.detail.coef_diff
 #### Interactive REPL Diffs & Colorization
 
 When working interactively inside the REPL, T provides first-class visual formatting for `VDiff` results:
-- **Automatic Summary & Colorized Diffs**: If you print or evaluate a non-identical `VDiff` envelope (e.g. `diff_df`), the REPL prints the summary metrics followed immediately by a beautifully colorized git-like unified diff (`detailed_summary`) showing added rows in **green**, deleted rows in **red**, and hunk headers in **cyan**.
-- **Direct String Colorization**: Accessing `diff_df.detailed_summary` directly prints the raw, colorized git-like diff as a beautifully readable multiline block.
+- **Automatic Summary & Colorized Diff Preview**: If you print or evaluate a non-identical `VDiff` envelope (e.g. `diff_df`), the REPL prints the summary metrics followed by a short, colorized git-like preview of the diff, then points you to the full diff string.
+- **Direct String Colorization**: Accessing `diff_df.detailed_diff` directly prints the raw, colorized git-like diff as a beautifully readable multiline block.
 - **Key Validation**: When using a custom natural key list (e.g., `key = [$customer_id]`), `node_diff` strictly validates that all requested key columns exist in both schemas. If there is a typo or missing column, it returns a clean, native `ValueError` immediately rather than silently keeping only one row per side.
 
 #### Inspecting Diffs in a Text Editor
@@ -617,7 +627,7 @@ For very large diffs, printing to the console may be hard to scroll. You can wri
 diff_df = node_diff(p3.data, p2.data, key = [$id])
 
 -- 2. Write the detailed unified diff string to a file on disk
-write_text("dataframe_changes.diff", diff_df.detailed_summary)
+write_text("dataframe_changes.diff", diff_df.detailed_diff)
 ```
 
 ---

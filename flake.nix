@@ -49,6 +49,7 @@
             tidyr
             purrr
             broom
+            diffobj
             jsonlite
             arrow
             lubridate
@@ -66,6 +67,7 @@
         };
 
         python-with-packages = pkgs.python314.withPackages (p: with p; [
+          deepdiff
           pandas
           pyarrow
           scikit-learn
@@ -265,7 +267,7 @@ chmod +x $out/bin/bisect-ppx-report
         tlang-r = pkgs.rPackages.buildRPackage {
           name = "tlang";
           src = ./r-package;
-          propagatedBuildInputs = with pkgs.rPackages; [ jsonlite ];
+          propagatedBuildInputs = with pkgs.rPackages; [ diffobj jsonlite ];
         };
 
         # Companion Python package
@@ -275,7 +277,7 @@ chmod +x $out/bin/bisect-ppx-report
           src = ./py-package;
           format = "pyproject";
           nativeBuildInputs = [ pkgs.python314.pkgs.setuptools ];
-          propagatedBuildInputs = [ pkgs.python314.pkgs.pandas ];
+          propagatedBuildInputs = with pkgs.python314.pkgs; [ pandas numpy deepdiff ];
         };
         # Companion Julia path
         tlang-julia-path = pkgs.stdenv.mkDerivation {

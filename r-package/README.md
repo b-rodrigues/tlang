@@ -37,6 +37,20 @@ older_model <- read_node("model", which_log = "20260221")
 ```
 
 
+## Diff R artifacts
+
+Use the bundled diffobj-based helpers to compare R-native artifacts such as
+models, lists, or custom S3 objects:
+
+```r
+library(tlang)
+
+diff <- diff_nodes("model", "model", which_log_a = "20260501", which_log_b = "latest")
+print(diff$kind)
+print(diff$summary)
+```
+
+
 ## Inspect pipeline DAG
 
 Get the nodes and their dependencies as a data frame:

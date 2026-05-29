@@ -37,6 +37,19 @@ You can also target a specific historical build log:
 older_model = read_node("model", which_log="20260221")
 ```
 
+## Diff Python artifacts
+
+Use the bundled unified-diff helpers to compare Python-native artifacts that do
+not have a direct T equivalent, such as pickled model objects or custom classes:
+
+```python
+from tlang import diff_nodes
+
+diff = diff_nodes("weights", "weights", which_log_a="20260501", which_log_b="latest")
+print(diff["kind"])
+print(diff["summary"])
+```
+
 
 ## Inspect pipeline DAG
 

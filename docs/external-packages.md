@@ -78,6 +78,9 @@ df = read_node("my_data")
 # Get only the path to the artifact
 path = read_node("my_model", return_path=true)
 
+# Compare Julia-native artifacts across historical builds
+diff = diff_nodes("my_model", "my_model", which_log_a="20260501", which_log_b="latest")
+
 # Inspect the pipeline DAG (returns a Dict)
 nodes = pipeline_nodes()
 ```
@@ -93,3 +96,10 @@ When you run `build_pipeline()`, T-Lang generates a timestamped build log (e.g.,
 3.  Parse the JSON to find the entry for the requested node.
 4.  Resolve the `path` (which might be relative to the project root or an absolute Nix store path).
 5.  Call the appropriate deserializer (`readRDS` for R, `pickle.load` for Python, `Serialization.deserialize` for Julia).
+
+When T's `node_diff()` delegates to these helpers for runtime-native object
+comparisons, it preserves the original native artifact only for nodes using the
+standard `default` or `tobj` serializers. If you use a custom serializer name,
+call the helper package directly and pass the matching deserializer yourself.
+Julia-native diffs invoked from T currently launch a fresh Julia helper process
+for each comparison, so repeated large diffs will include Julia startup cost.

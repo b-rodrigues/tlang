@@ -450,7 +450,15 @@ let build_log_history_fn named_args _env =
 --#   - DataFrame → row-/column-level diff with optional key-based alignment
 --#   - Model (PMML) → coefficient deltas and fit-stat comparison
 --#   - Scalar → before/after with numeric delta
+--#   - Python-native objects → unified_diff-based structural comparison
+--#   - Julia-native objects → DeepDiffs-based structural comparison
+--#   - R-native objects → diffobj-based structural comparison
 --#   - Generic → structural comparison over string representations
+--#
+--# Runtime-native object diffs are preserved only for runtime artifacts using
+--# the standard `default`/`tobj` serializers. Custom serializer names follow
+--# the normal artifact-loading path; use the companion helper packages directly
+--# when you need a custom deserializer for native objects.
 --#
 --# @name node_diff
 --# @param node_a :: ComputedNode  The "before" node.
@@ -478,6 +486,12 @@ let node_diff_fn named_args _env =
   (* Form: node_diff(node_a :: ComputedNode, node_b :: ComputedNode, ...) *)
   let (_, first_arg) = get_arg "node_a" 1 (VNA NAGeneric) named_args in
   let (_, second_arg) = get_arg "node_b" 2 (VNA NAGeneric) named_args in
+  let preserve_native_object cn =
+    let runtime = String.lowercase_ascii cn.cn_runtime in
+    let serializer = String.lowercase_ascii cn.cn_serializer in
+    (runtime = "python" || runtime = "julia" || runtime = "r")
+    && (serializer = "default" || serializer = "tobj")
+  in
 
   match first_arg, second_arg with
   (* ---- New form: two ComputedNode values ---- *)
@@ -550,11 +564,19 @@ let node_diff_fn named_args _env =
                              if logged_cn.cn_path = "" || not (Sys.file_exists logged_cn.cn_path) then
                                Error (Error.make_error FileError (Printf.sprintf "Artifact for node '%s' is no longer present at: %s" cn.cn_name logged_cn.cn_path))
                              else
-                               Ok (Filename.basename log_path, Builder_read_node.read_standard_node_value logged_cn)
+                               Ok
+                                 ( Filename.basename log_path,
+                                   if preserve_native_object logged_cn
+                                   then VComputedNode logged_cn
+                                   else Builder_read_node.read_standard_node_value logged_cn )
              in
              match log_val with
              | VString "latest" when cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" && Sys.file_exists cn.cn_path ->
-                 Ok ("latest", Builder_read_node.read_standard_node_value cn)
+                 Ok
+                   ( "latest",
+                     if preserve_native_object cn
+                     then VComputedNode cn
+                     else Builder_read_node.read_standard_node_value cn )
              | _ ->
                  resolve_from_logs cn log_val
            in

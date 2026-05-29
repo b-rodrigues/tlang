@@ -166,9 +166,446 @@ let make_vdiff ~kind ~node_a ~node_b ~log_a ~log_b
     "identical",        VBool   identical;
     "summary",          summary;
     "detail",           detail;
+    "detailed_diff",    VString detailed_summary;
     "detailed_summary", VString detailed_summary;
     "hunks",            VList (List.map (fun v -> (None, v)) hunks);
   ]
+
+let python_node_diff_script = {|
+import json
+import os
+import sys
+import traceback
+from pathlib import Path
+
+def _bootstrap_tlang():
+    try:
+        import tlang
+        if hasattr(tlang, 'diff_artifacts'):
+            return tlang
+    except Exception:
+        pass
+
+    candidates = []
+    repo_root = os.environ.get("TLANG_REPO_ROOT")
+    if repo_root:
+        candidates.append(Path(repo_root) / "py-package" / "src")
+
+    cwd = Path.cwd().resolve()
+    candidates.extend(path / "py-package" / "src" for path in [cwd, *cwd.parents])
+
+    for candidate in candidates:
+        init_py = candidate / "tlang" / "__init__.py"
+        if init_py.is_file():
+            candidate_str = str(candidate)
+            if candidate_str not in sys.path:
+                sys.path.insert(0, candidate_str)
+            break
+
+    import tlang
+    return tlang
+
+try:
+    tlang = _bootstrap_tlang()
+    payload = tlang.diff_artifacts(
+        sys.argv[1],
+        sys.argv[2],
+        node_a=sys.argv[3],
+        node_b=sys.argv[4],
+        log_a=sys.argv[5],
+        log_b=sys.argv[6],
+        class_a=sys.argv[7],
+        class_b=sys.argv[8],
+        context=int(sys.argv[9]),
+    )
+except Exception as exc:
+    payload = {
+        "type": "VError",
+        "code": "RuntimeError",
+        "message": str(exc),
+        "na_count": 0,
+        "context": {
+            "runtime_traceback": traceback.format_exc(),
+            "node_status": "errored",
+        },
+        "location": None,
+    }
+
+print(json.dumps(payload))
+|}
+
+let julia_node_diff_script = {|
+@eval using JSON
+
+function _bootstrap_tlang()
+    try
+        @eval using tlang
+        m = getfield(Main, :tlang)
+        if isdefined(m, :diff_artifacts)
+            return m
+        end
+    catch
+    end
+
+    candidates = String[]
+    repo_root = get(ENV, "TLANG_REPO_ROOT", "")
+    if !isempty(repo_root)
+        push!(candidates, joinpath(repo_root, "jl-package", "src", "tlang.jl"))
+    end
+
+    current = abspath(pwd())
+    while true
+        push!(candidates, joinpath(current, "jl-package", "src", "tlang.jl"))
+        parent = dirname(current)
+        parent == current && break
+        current = parent
+    end
+
+    for candidate in unique(candidates)
+        if isfile(candidate)
+            Base.include(Main, candidate)
+            return getfield(Main, :tlang)
+        end
+    end
+
+    error("Unable to locate the `tlang` Julia helpers.")
+end
+
+try
+    tlang = _bootstrap_tlang()
+    payload = tlang.diff_artifacts(
+        ARGS[1],
+        ARGS[2],
+        node_a = ARGS[3],
+        node_b = ARGS[4],
+        log_a = ARGS[5],
+        log_b = ARGS[6],
+        class_a = ARGS[7],
+        class_b = ARGS[8],
+        context = parse(Int, ARGS[9]),
+    )
+catch err
+    payload = Dict(
+        "type" => "VError",
+        "code" => "RuntimeError",
+        "message" => sprint(showerror, err),
+        "na_count" => 0,
+        "context" => Dict(
+            "runtime_traceback" => sprint(showerror, err, catch_backtrace()),
+            "node_status" => "errored",
+        ),
+        "location" => nothing,
+    )
+end
+
+print(JSON.json(payload))
+|}
+
+let r_node_diff_script = {|
+args <- commandArgs(trailingOnly = TRUE)
+
+bootstrap_tlang <- function() {
+  if (requireNamespace("tlang", quietly = TRUE)) {
+    ns <- asNamespace("tlang")
+    if (exists("diff_artifacts", envir = ns, inherits = FALSE)) {
+      return(ns)
+    }
+  }
+
+  candidates <- character()
+  repo_root <- Sys.getenv("TLANG_REPO_ROOT", unset = "")
+  if (nzchar(repo_root)) {
+    candidates <- c(candidates, file.path(repo_root, "r-package", "R"))
+  }
+
+  current <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
+  parents <- current
+  repeat {
+    parent <- dirname(current)
+    if (identical(parent, current)) {
+      break
+    }
+    parents <- c(parents, parent)
+    current <- parent
+  }
+
+  candidates <- c(candidates, file.path(parents, "r-package", "R"))
+  candidates <- unique(candidates)
+
+  for (candidate in candidates) {
+    if (!file.exists(file.path(candidate, "node_diff.R")) ||
+        !file.exists(file.path(candidate, "read_node.R"))) {
+      next
+    }
+
+    env <- new.env(parent = baseenv())
+    scripts <- sort(list.files(candidate, pattern = "\\.R$", full.names = TRUE))
+    for (script in scripts) {
+      sys.source(script, envir = env)
+    }
+    return(env)
+  }
+
+  stop("Unable to locate the `tlang` R helpers.", call. = FALSE)
+}
+
+if (length(args) != 9L) {
+  stop(sprintf("Expected 9 arguments, got %d.", length(args)), call. = FALSE)
+}
+
+payload <- tryCatch(
+  {
+    tlang <- bootstrap_tlang()
+    tlang$diff_artifacts(
+      args[[1L]],
+      args[[2L]],
+      node_a = args[[3L]],
+      node_b = args[[4L]],
+      log_a = args[[5L]],
+      log_b = args[[6L]],
+      class_a = args[[7L]],
+      class_b = args[[8L]],
+      context = as.integer(args[[9L]])
+    )
+  },
+  error = function(err) {
+    list(
+      type = "VError",
+      code = "RuntimeError",
+      message = conditionMessage(err),
+      na_count = 0L,
+      context = list(
+        runtime_traceback = paste(utils::capture.output(traceback()), collapse = "\n"),
+        node_status = "errored"
+      ),
+      location = NULL
+    )
+  }
+)
+
+cat(jsonlite::toJSON(payload, auto_unbox = TRUE, null = "null"))
+|}
+
+let slurp_channel ic =
+  let buf = Buffer.create 1024 in
+  (try
+     while true do
+       Buffer.add_char buf (input_char ic)
+     done
+   with End_of_file -> ());
+  Buffer.contents buf
+
+let rec find_repo_root_from_dir dir =
+  let candidate = Filename.concat (Filename.concat dir "jl-package") "Project.toml" in
+  if Sys.file_exists candidate then Some dir
+  else
+    let parent = Filename.dirname dir in
+    if parent = dir then None else find_repo_root_from_dir parent
+
+let detect_repo_root () =
+  let candidate_dirs =
+    let cwd = Sys.getcwd () in
+    let exe_dir =
+      try Sys.executable_name |> Unix.realpath |> Filename.dirname
+      with _ -> cwd
+    in
+    [cwd; exe_dir]
+  in
+  candidate_dirs
+  |> List.find_map find_repo_root_from_dir
+
+let add_env_var env ~key ~value =
+  let kept =
+    env
+    |> Array.to_list
+    |> List.filter (fun entry ->
+         let prefix = key ^ "=" in
+         not (String.starts_with ~prefix entry))
+  in
+  Array.of_list ((key ^ "=" ^ value) :: kept)
+
+let run_python_node_diff
+    ~(cn_a : computed_node)
+    ~(cn_b : computed_node)
+    ~(context : int)
+    ~(node_a_name : string)
+    ~(node_b_name : string)
+    ~(log_a : string)
+    ~(log_b : string)
+  : value =
+  let python_cmd =
+    if Builder_utils.command_exists "python3" then Some "python3"
+    else if Builder_utils.command_exists "python" then Some "python"
+    else None
+  in
+  match python_cmd with
+  | None ->
+      Error.make_error FileError
+        "Python object diffing requires a Python interpreter, but neither `python3` nor `python` is available."
+  | Some cmd ->
+      let argv =
+        [|
+          cmd; "-c"; python_node_diff_script;
+          cn_a.cn_path; cn_b.cn_path;
+          node_a_name; node_b_name;
+          log_a; log_b;
+          cn_a.cn_class; cn_b.cn_class;
+          string_of_int context;
+        |]
+      in
+      (try
+         let ((ic, oc, ec) as proc) =
+           Unix.open_process_args_full cmd argv (Unix.environment ())
+         in
+         close_out_noerr oc;
+         let stdout = slurp_channel ic in
+         let stderr = slurp_channel ec in
+         ignore (Unix.close_process_full proc);
+         if String.trim stdout = "" then
+           Error.make_error RuntimeError
+             (Printf.sprintf "Python diff helper returned no output.%s"
+                (if String.trim stderr = "" then "" else " stderr: " ^ String.trim stderr))
+         else
+           try
+             stdout
+             |> Yojson.Safe.from_string
+             |> Serialization.yojson_to_value
+           with exn ->
+             Error.make_error RuntimeError
+               (Printf.sprintf "Failed to decode Python diff helper output: %s"
+                  (Printexc.to_string exn))
+       with exn ->
+         Error.make_error RuntimeError
+           (Printf.sprintf "Failed to run Python diff helper: %s" (Printexc.to_string exn)))
+
+let run_r_node_diff
+    ~(cn_a : computed_node)
+    ~(cn_b : computed_node)
+    ~(context : int)
+    ~(node_a_name : string)
+    ~(node_b_name : string)
+    ~(log_a : string)
+    ~(log_b : string)
+  : value =
+  let r_cmd =
+    if Builder_utils.command_exists "Rscript" then Some ("Rscript", false)
+    else if Builder_utils.command_exists "R" then Some ("R", true)
+    else None
+  in
+  match r_cmd with
+  | None ->
+      Error.make_error FileError
+       "R object diffing requires `Rscript` or `R`, but neither is available."
+  | Some (cmd, use_r_shell) ->
+      let argv =
+       if use_r_shell then
+         [|
+           cmd; "--vanilla"; "--slave"; "-e"; r_node_diff_script; "--args";
+           cn_a.cn_path; cn_b.cn_path;
+           node_a_name; node_b_name;
+           log_a; log_b;
+           cn_a.cn_class; cn_b.cn_class;
+           string_of_int context;
+         |]
+       else
+         [|
+           cmd; "-e"; r_node_diff_script; "--args";
+           cn_a.cn_path; cn_b.cn_path;
+           node_a_name; node_b_name;
+           log_a; log_b;
+           cn_a.cn_class; cn_b.cn_class;
+           string_of_int context;
+         |]
+      in
+      (try
+        let ((ic, oc, ec) as proc) =
+          Unix.open_process_args_full cmd argv (Unix.environment ())
+        in
+        close_out_noerr oc;
+        let stdout = slurp_channel ic in
+        let stderr = slurp_channel ec in
+        ignore (Unix.close_process_full proc);
+        if String.trim stdout = "" then
+          Error.make_error RuntimeError
+            (Printf.sprintf "R diff helper returned no output.%s"
+               (if String.trim stderr = "" then "" else " stderr: " ^ String.trim stderr))
+        else
+          try
+            stdout
+            |> Yojson.Safe.from_string
+            |> Serialization.yojson_to_value
+          with exn ->
+            Error.make_error RuntimeError
+              (Printf.sprintf "Failed to decode R diff helper output: %s"
+                 (Printexc.to_string exn))
+       with exn ->
+        Error.make_error RuntimeError
+          (Printf.sprintf "Failed to run R diff helper: %s" (Printexc.to_string exn)))
+
+let run_julia_node_diff
+    ~(cn_a : computed_node)
+    ~(cn_b : computed_node)
+    ~(context : int)
+    ~(node_a_name : string)
+    ~(node_b_name : string)
+    ~(log_a : string)
+    ~(log_b : string)
+  : value =
+  if not (Builder_utils.command_exists "julia") then
+    Error.make_error FileError
+      "Julia object diffing requires `julia`, but it is not available."
+  else
+    let repo_root = detect_repo_root () in
+    let project_argv =
+      match repo_root with
+      | Some root ->
+          let project_path = Filename.concat root "jl-package" in
+          if Sys.file_exists (Filename.concat project_path "Project.toml")
+          then [ "--project=" ^ project_path ]
+          else []
+      | None -> []
+    in
+    let argv =
+      Array.of_list
+        ([ "julia" ]
+         @ project_argv
+         @ [ "-e"; julia_node_diff_script;
+             cn_a.cn_path; cn_b.cn_path;
+             node_a_name; node_b_name;
+             log_a; log_b;
+             cn_a.cn_class; cn_b.cn_class;
+             string_of_int context ])
+    in
+    let env =
+      let base = Unix.environment () in
+      match repo_root with
+      | Some root -> add_env_var base ~key:"TLANG_REPO_ROOT" ~value:root
+      | None -> base
+    in
+    (try
+       let ((ic, oc, ec) as proc) =
+         Unix.open_process_args_full "julia" argv env
+       in
+       close_out_noerr oc;
+       let stdout = slurp_channel ic in
+       let stderr = slurp_channel ec in
+       ignore (Unix.close_process_full proc);
+       if String.trim stdout = "" then
+         Error.make_error RuntimeError
+           (Printf.sprintf "Julia diff helper returned no output.%s"
+              (if String.trim stderr = "" then "" else " stderr: " ^ String.trim stderr))
+       else
+         try
+           stdout
+           |> Yojson.Safe.from_string
+           |> Serialization.yojson_to_value
+         with exn ->
+           Error.make_error RuntimeError
+             (Printf.sprintf "Failed to decode Julia diff helper output: %s"
+                (Printexc.to_string exn))
+     with exn ->
+       Error.make_error RuntimeError
+         (Printf.sprintf "Failed to run Julia diff helper: %s" (Printexc.to_string exn)))
 
 (* ------------------------------------------------------------------ *)
 (* Value equality helpers                                              *)
@@ -693,6 +1130,24 @@ let node_diff_values
     ~(key : string list) ~(context : int)
   : value =
   match va, vb with
+  | VComputedNode cn_a, VComputedNode cn_b
+    when String.lowercase_ascii cn_a.cn_runtime = "r"
+      && String.lowercase_ascii cn_b.cn_runtime = "r" ->
+      run_r_node_diff ~cn_a ~cn_b ~context
+        ~node_a_name ~node_b_name ~log_a ~log_b
+
+  | VComputedNode cn_a, VComputedNode cn_b
+    when String.lowercase_ascii cn_a.cn_runtime = "python"
+      && String.lowercase_ascii cn_b.cn_runtime = "python" ->
+      run_python_node_diff ~cn_a ~cn_b ~context
+        ~node_a_name ~node_b_name ~log_a ~log_b
+
+  | VComputedNode cn_a, VComputedNode cn_b
+    when String.lowercase_ascii cn_a.cn_runtime = "julia"
+      && String.lowercase_ascii cn_b.cn_runtime = "julia" ->
+      run_julia_node_diff ~cn_a ~cn_b ~context
+        ~node_a_name ~node_b_name ~log_a ~log_b
+
   | VDataFrame dfa, VDataFrame dfb ->
       diff_dataframes ~df_a:dfa ~df_b:dfb ~key ~context
         ~node_a_name ~node_b_name ~log_a ~log_b

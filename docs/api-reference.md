@@ -3045,7 +3045,17 @@ Compares the dynamic evaluations or built artifacts of `node_a` and `node_b` acr
 - **For DataFrames** (`csv`, `arrow`, `parquet`): `schema_changed` (Bool), `added_columns` (List), `removed_columns` (List), `nrows_a` (Int), `nrows_b` (Int), and `numeric_drift` (DataFrame summarizing column-level mean values and shift percentages).
 - **For PMML Models** (`pmml`): `model_type` (String), `coefficients_changed` (Bool), and `coef_diff` (DataFrame comparing regression coefficients and intercept shift deltas). Falls back to generic structural equality diff for non-regression models.
 - **For Text Files** (`text`): `changed` (Bool), `lines_added` (Int), `lines_removed` (Int), and `diff` (String unified diff output).
+- **For Python-native artifacts** (for example pickled NumPy ndarrays): `kind = "python_object_diff"`, unified diff line counts, rendered git-like diff hunks, and shape/dtype metadata when available.
+- **For Julia-native artifacts** (for example serialized arrays or structs): `kind = "julia_object_diff"`, DeepDiffs-rendered summaries, captured diff lines, and type/shape metadata when available.
+- **For R-native artifacts** (for example serialized model objects): `kind = "r_object_diff"`, diffobj-rendered summaries, captured diff lines, and class/type metadata when available.
 - **For Generic/Scalars**: `value_a` (Any), `value_b` (Any), `changed` (Bool), and `delta` (Float numeric difference or NA).
+
+Native Python, Julia, and R object diffs are preserved only for artifacts using
+the standard `default` or `tobj` serializers. Custom serializer names use the
+normal artifact-loading path instead; use the companion helper package directly
+when a native artifact requires a custom deserializer. Julia-native diffs are
+executed through a fresh Julia helper process per comparison, so repeated large
+diffs will include Julia startup cost.
 
 **Examples:**
 ```t
