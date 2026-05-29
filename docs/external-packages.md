@@ -96,3 +96,10 @@ When you run `build_pipeline()`, T-Lang generates a timestamped build log (e.g.,
 3.  Parse the JSON to find the entry for the requested node.
 4.  Resolve the `path` (which might be relative to the project root or an absolute Nix store path).
 5.  Call the appropriate deserializer (`readRDS` for R, `pickle.load` for Python, `Serialization.deserialize` for Julia).
+
+When T's `node_diff()` delegates to these helpers for runtime-native object
+comparisons, it preserves the original native artifact only for nodes using the
+standard `default` or `tobj` serializers. If you use a custom serializer name,
+call the helper package directly and pass the matching deserializer yourself.
+Julia-native diffs invoked from T currently launch a fresh Julia helper process
+for each comparison, so repeated large diffs will include Julia startup cost.

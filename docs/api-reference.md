@@ -3050,6 +3050,13 @@ Compares the dynamic evaluations or built artifacts of `node_a` and `node_b` acr
 - **For R-native artifacts** (for example serialized model objects): `kind = "r_object_diff"`, diffobj-rendered summaries, captured diff lines, and class/type metadata when available.
 - **For Generic/Scalars**: `value_a` (Any), `value_b` (Any), `changed` (Bool), and `delta` (Float numeric difference or NA).
 
+Native Python, Julia, and R object diffs are preserved only for artifacts using
+the standard `default` or `tobj` serializers. Custom serializer names use the
+normal artifact-loading path instead; use the companion helper package directly
+when a native artifact requires a custom deserializer. Julia-native diffs are
+executed through a fresh Julia helper process per comparison, so repeated large
+diffs will include Julia startup cost.
+
 **Examples:**
 ```t
 p = pipeline { a = 1; b = 2 }

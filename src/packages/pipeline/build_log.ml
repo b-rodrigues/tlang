@@ -455,6 +455,11 @@ let build_log_history_fn named_args _env =
 --#   - R-native objects → diffobj-based structural comparison
 --#   - Generic → structural comparison over string representations
 --#
+--# Runtime-native object diffs are preserved only for runtime artifacts using
+--# the standard `default`/`tobj` serializers. Custom serializer names follow
+--# the normal artifact-loading path; use the companion helper packages directly
+--# when you need a custom deserializer for native objects.
+--#
 --# @name node_diff
 --# @param node_a :: ComputedNode  The "before" node.
 --# @param node_b :: ComputedNode  The "after" node.

@@ -588,6 +588,13 @@ The resulting DataFrame is structured with the following columns:
 6. **R-native objects** (for example `.rds` artifacts) are loaded through the bundled `tlang` R package and compared with `diffobj`.
 7. **Generic values** fall back to structural string diffs while preserving the original values in `detail`.
 
+Native Python, Julia, and R object diffs are preserved only for artifacts built
+with the standard `default` or `tobj` serializers. If you assign a custom
+serializer name, `node_diff()` uses the normal artifact-loading path instead;
+call the companion helper package directly when you need a custom deserializer
+for a native object. Julia-native comparisons currently start a fresh Julia
+helper process for each diff, so repeated large diffs will include startup cost.
+
 ```t
 -- 1. Compare scalar value shifts between latest and second latest builds
 diff_scalar = node_diff(p.a, p.a)

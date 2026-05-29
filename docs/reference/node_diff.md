@@ -15,6 +15,16 @@ Dispatches to a type-appropriate comparison:
 - **R-native objects** → artifact deserialization through the bundled `tlang` R package, then diffobj-based structural comparison
 - **Generic** → structural comparison over string representations
 
+Runtime-native object diffs are preserved only for artifacts using the standard
+`default` or `tobj` serializers. If you assign a custom serializer name (for
+example `"rds"` or `"pkl"`), `node_diff()` falls back to the normal artifact
+loading path; for those cases, call the companion R/Python/Julia helper
+packages directly with an explicit deserializer.
+
+For Julia-native artifacts, `node_diff()` launches a fresh Julia helper process
+for each comparison. This keeps the integration simple but adds startup cost for
+repeated or very large diffs.
+
 ## Signature
 
 ```t
@@ -53,7 +63,7 @@ node_diff(
 | `identical` | `Bool` | `true` if no differences were found |
 | `summary` | `Dict` | Type-specific summary counts |
 | `detail` | `Dict` | Type-specific detail |
-| `hunks` | `List[Dict]` | Patience-diff hunks |
+| `hunks` | `List[Dict]` | Diff hunks or rendered diff regions when available |
 
 ## Examples
 

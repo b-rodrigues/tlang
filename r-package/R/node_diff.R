@@ -78,14 +78,14 @@ value_type <- function(obj_a, obj_b, class_a = NULL, class_b = NULL) {
 #' @param obj_b Second object.
 #' @param context Integer. Requested diff context.
 #'
-#' @return Character vector of rendered diff lines.
+#' @return List with ANSI-preserving and ANSI-stripped rendered diff lines.
 #'
 #' @keywords internal
 render_diffobj <- function(obj_a, obj_b, context = 3L) {
   diffobj_ns <- load_diffobj()
   old_options <- options(
-    crayon.enabled = FALSE,
-    cli.num_colors = 1L
+    crayon.enabled = TRUE,
+    cli.num_colors = 256L
   )
   on.exit(options(old_options), add = TRUE)
 
@@ -99,7 +99,102 @@ render_diffobj <- function(obj_a, obj_b, context = 3L) {
     }
   )
 
-  strip_ansi(capture.output(print(diff)))
+  raw_lines <- unname(capture.output(print(diff)))
+  list(
+    raw_lines = raw_lines,
+    clean_lines = unname(strip_ansi(raw_lines))
+  )
+}
+
+#' Convert rendered diffobj lines to coarse VDiff hunks
+#'
+#' @param lines ANSI-stripped rendered diff lines.
+#'
+#' @return List of hunk dictionaries compatible with the T VDiff envelope.
+#'
+#' @keywords internal
+diffobj_hunks <- function(lines) {
+  if (!length(lines)) {
+    return(list())
+  }
+
+  header_matches <- gregexpr("^@@ -[0-9]+(?:,[0-9]+)? \\+[0-9]+(?:,[0-9]+)? @@", lines, perl = TRUE)
+  header_idx <- which(vapply(header_matches, function(hit) hit[1] > 0L, logical(1)))
+
+  parse_hunk <- function(block) {
+    header <- block[[1]]
+    captures <- regmatches(
+      header,
+      regexec("^@@ -([0-9]+)(?:,([0-9]+))? \\+([0-9]+)(?:,([0-9]+))? @@", header, perl = TRUE)
+    )[[1]]
+    a_start <- as.integer(captures[[2]]) - 1L
+    a_len <- if (!is.na(captures[[3]]) && nzchar(captures[[3]])) as.integer(captures[[3]]) else 1L
+    b_start <- as.integer(captures[[4]]) - 1L
+    b_len <- if (!is.na(captures[[5]]) && nzchar(captures[[5]])) as.integer(captures[[5]]) else 1L
+
+    lines_a <- character()
+    lines_b <- character()
+    has_prev <- FALSE
+    has_next <- FALSE
+
+    if (length(block) > 1L) {
+      for (line in block[-1]) {
+        if (grepl("^-", line)) {
+          has_prev <- TRUE
+          lines_a <- c(lines_a, sub("^-\\s?", "", line))
+        } else if (grepl("^\\+", line)) {
+          has_next <- TRUE
+          lines_b <- c(lines_b, sub("^\\+\\s?", "", line))
+        } else if (grepl("^ ", line)) {
+          shared <- sub("^\\s+", "", line)
+          lines_a <- c(lines_a, shared)
+          lines_b <- c(lines_b, shared)
+        } else {
+          shared <- line
+          lines_a <- c(lines_a, shared)
+          lines_b <- c(lines_b, shared)
+        }
+      }
+    }
+
+    kind <- if (has_prev && has_next) {
+      "replace"
+    } else if (has_prev) {
+      "delete"
+    } else if (has_next) {
+      "insert"
+    } else {
+      "equal"
+    }
+
+    list(
+      kind = kind,
+      a_start = a_start,
+      a_end = a_start + a_len,
+      b_start = b_start,
+      b_end = b_start + b_len,
+      lines_a = as.list(unname(lines_a)),
+      lines_b = as.list(unname(lines_b))
+    )
+  }
+
+  if (!length(header_idx)) {
+    return(list(
+      list(
+        kind = "replace",
+        a_start = 0L,
+        a_end = length(lines),
+        b_start = 0L,
+        b_end = length(lines),
+        lines_a = as.list(unname(lines)),
+        lines_b = as.list(unname(lines))
+      )
+    ))
+  }
+
+  starts <- header_idx
+  ends <- c(header_idx[-1] - 1L, length(lines))
+  Map(function(start, end) parse_hunk(lines[start:end]), starts, ends)
 }
 
 #' Diff two R objects and return a T-compatible VDiff envelope
@@ -130,14 +225,16 @@ diff_objects <- function(
   identical_objects <- identical(obj_a, obj_b)
   detail <- list()
   detailed_summary <- "Objects are identical."
+  hunks <- list()
 
   if (!identical_objects) {
-    diff_lines <- render_diffobj(obj_a, obj_b, context = context)
+    rendered <- render_diffobj(obj_a, obj_b, context = context)
     detail <- list(
       renderer = "diffobj",
-      lines = unname(diff_lines)
+      lines = rendered$clean_lines
     )
-    detailed_summary <- paste(diff_lines, collapse = "\n")
+    detailed_summary <- paste(rendered$raw_lines, collapse = "\n")
+    hunks <- diffobj_hunks(rendered$clean_lines)
   }
 
   summary <- list(
@@ -170,7 +267,7 @@ diff_objects <- function(
     summary = summary,
     detail = detail,
     detailed_summary = detailed_summary,
-    hunks = list()
+    hunks = hunks
   )
 }
 
