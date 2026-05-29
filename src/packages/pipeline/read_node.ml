@@ -107,6 +107,13 @@ let register env =
         Printf.printf "\n%!"
       );
 
+      let julia_package_path =
+        match Diff.detect_repo_root () with
+        | Some root ->
+            let path = Filename.concat (Filename.concat root "jl-package") "Project.toml" in
+            if Sys.file_exists path then Some (Filename.dirname path) else None
+        | None -> None
+      in
       let shell_cmd =
         let clean_deps = List.map (fun (name, _) -> name) !resolved_deps in
         match String.lowercase_ascii cn.cn_runtime with
@@ -151,17 +158,31 @@ let register env =
         | "julia" ->
             Printf.printf "Starting interactive Julia REPL...\n%!";
             Printf.printf "Tip: Load upstream dependencies in Julia using:\n%!";
-            Printf.printf "  using TLang\n%!";
+            Printf.printf "  using tlang\n%!";
             List.iter (fun dep ->
               Printf.printf "  %s = read_node(\"%s\")\n%!" dep dep
             ) clean_deps;
             if clean_deps = [] then
-              Printf.printf "  # No upstream dependencies. You can load TLang: using TLang\n%!";
+             Printf.printf "  # No upstream dependencies. You can load tlang: using tlang\n%!";
 
             (* Write temporary startup file to customize Julia prompt *)
             (try
                let ch = open_out ".t_debug_startup.jl" in
-               output_string ch "atreplinit() do repl\n  @async begin\n    sleep(0.1)\n    if isdefined(repl, :interface)\n      repl.interface.modes[1].prompt = \"jl> \"\n    end\n  end\nend\n";
+              (match julia_package_path with
+               | Some path ->
+                   Printf.fprintf ch
+                     "import Pkg\n\
+                      const _tlang_project = %S\n\
+                      try\n\
+                      \  Pkg.activate(; temp=true, io=devnull)\n\
+                      \  Pkg.develop(path=_tlang_project, io=devnull)\n\
+                      \  Pkg.instantiate(io=devnull)\n\
+                      catch err\n\
+                      \  @warn \"Failed to prepare repo-local Julia tlang package for debug_node\" exception=(err, catch_backtrace())\n\
+                      end\n"
+                     path
+               | None -> ());
+              output_string ch "atreplinit() do repl\n  @async begin\n    sleep(0.1)\n    if isdefined(repl, :interface)\n      repl.interface.modes[1].prompt = \"jl> \"\n    end\n  end\nend\n";
                close_out ch
              with _ -> ());
 

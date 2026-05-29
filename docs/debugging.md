@@ -127,5 +127,4 @@ Let's say your Python node fails because of a column type mismatch.
 | :--- | :--- | :--- | :--- |
 | **Python** | `python -i` | `py> ` | `import tlang; dep = tlang.read_node(\"dep\")` |
 | **R** | `R --no-save --quiet` | `r> ` | `library(tlang); dep <- read_node(\"dep\")` |
-| **Julia** | `julia -i` | `jl> ` | `using TLang; dep = read_node(\"dep\")` |
-
+| **Julia** | `julia -i` | `jl> ` | `using tlang; dep = read_node(\"dep\")` |
