@@ -56,6 +56,7 @@ class NodeDiffTests(unittest.TestCase):
             self.assertEqual(diff["value_type"], "ModelSnapshot")
             self.assertGreater(diff["summary"]["changes"], 0)
             self.assertEqual(diff["detail"]["renderer"], "difflib.unified_diff")
+            self.assertEqual(diff["detailed_diff"], diff["detailed_summary"])
             self.assertIn("@@ ", diff["detailed_summary"])
             self.assertGreater(len(diff["hunks"]), 0)
             self.assertGreater(diff["summary"]["lines_added"], 0)

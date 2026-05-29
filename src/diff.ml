@@ -166,6 +166,7 @@ let make_vdiff ~kind ~node_a ~node_b ~log_a ~log_b
     "identical",        VBool   identical;
     "summary",          summary;
     "detail",           detail;
+    "detailed_diff",    VString detailed_summary;
     "detailed_summary", VString detailed_summary;
     "hunks",            VList (List.map (fun v -> (None, v)) hunks);
   ]

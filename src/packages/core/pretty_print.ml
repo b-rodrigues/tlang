@@ -290,6 +290,21 @@ let colorize_diff s =
   ) lines in
   String.concat "\n" colored_lines
 
+let diff_preview_line_count = 10
+
+let diff_preview s =
+  let lines = String.split_on_char '\n' s in
+  let rec take n acc rest =
+    if n <= 0 then List.rev acc, rest
+    else match rest with
+    | [] -> List.rev acc, []
+    | x :: xs -> take (n - 1) (x :: acc) xs
+  in
+  let preview_lines, remaining = take diff_preview_line_count [] lines in
+  let preview = String.concat "\n" preview_lines in
+  let truncated = remaining <> [] in
+  preview, truncated
+
 (** Pretty-print any value for REPL display *)
 let rec pretty_print_value v =
   match v with
@@ -423,11 +438,21 @@ let rec pretty_print_value v =
          | _ -> ());
         let n_hunks = match List.assoc_opt "hunks" pairs with Some (VList h) -> List.length h | _ -> 0 in
         Buffer.add_string buf (Printf.sprintf "\n  hunks: %d (use d.hunks to inspect)\n" n_hunks);
-        let detailed_sum = get_str "detailed_summary" in
+        let detailed_sum =
+          match List.assoc_opt "detailed_diff" pairs with
+          | Some (VString s) when s <> "" -> s
+          | _ -> get_str "detailed_summary"
+        in
         if detailed_sum <> "" then begin
-          Buffer.add_string buf "\nDetailed Diff:\n";
-          Buffer.add_string buf (colorize_diff detailed_sum);
-          Buffer.add_string buf "\n"
+          Buffer.add_string buf "\nDetailed Diff (preview):\n";
+          let preview, truncated = diff_preview detailed_sum in
+          Buffer.add_string buf (colorize_diff preview);
+          Buffer.add_string buf "\n";
+          let preview_note =
+            if truncated then "\n  … use d.detailed_diff to inspect the full diff\n"
+            else "\n  use d.detailed_diff to inspect the full diff\n"
+          in
+          Buffer.add_string buf preview_note
         end
         end;
       end;

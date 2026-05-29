@@ -285,6 +285,7 @@ def diff_objects(
         "identical": identical_objects,
         "summary": summary,
         "detail": detail,
+        "detailed_diff": detailed_summary,
         "detailed_summary": detailed_summary,
         "hunks": hunks,
     }

@@ -434,6 +434,7 @@ function diff_objects(
         "identical" => identical_objects,
         "summary" => summary,
         "detail" => detail,
+        "detailed_diff" => rendered,
         "detailed_summary" => rendered,
         "hunks" => Any[],
     )

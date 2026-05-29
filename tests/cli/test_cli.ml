@@ -327,6 +327,40 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      contains explain_tree_pretty "├── diagnostics" &&
      contains explain_tree_pretty "│   └── error" &&
      contains explain_tree_pretty "└── contents");
+  let vdiff_preview =
+    Pretty_print.pretty_print_value
+      (Ast.VDict [
+        ("kind", Ast.VString "generic_diff");
+        ("node_a", Ast.VString "before");
+        ("node_b", Ast.VString "after");
+        ("log_a", Ast.VString "1");
+        ("log_b", Ast.VString "2");
+        ("identical", Ast.VBool false);
+        ("summary", Ast.VDict []);
+        ("hunks", Ast.VList []);
+        ("detailed_diff", Ast.VString (String.concat "\n" [
+          "@@ -1,12 +1,12 @@";
+          "- line 1";
+          "+ line 1 updated";
+          "  line 2";
+          "  line 3";
+          "  line 4";
+          "  line 5";
+          "  line 6";
+          "  line 7";
+          "  line 8";
+          "  line 9";
+          "  line 10";
+          "  line 11";
+        ]));
+      ])
+  in
+  test_message "pretty_print VDiff shows a truncated diff preview"
+    (contains vdiff_preview "Detailed Diff (preview):\n" &&
+     contains vdiff_preview "@@ -1,12 +1,12 @@" &&
+     contains vdiff_preview "line 10" &&
+     not (contains vdiff_preview "line 11") &&
+     contains vdiff_preview "use d.detailed_diff to inspect the full diff");
   let ggplot_render =
     Show_plot.render_script_for_class "ggplot" "/tmp/plot.rds"
   in
