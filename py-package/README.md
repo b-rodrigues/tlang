@@ -37,6 +37,19 @@ You can also target a specific historical build log:
 older_model = read_node("model", which_log="20260221")
 ```
 
+## Diff Python artifacts
+
+Use the bundled DeepDiff-based helpers to compare Python-native artifacts such as
+NumPy ndarrays:
+
+```python
+from tlang import diff_nodes
+
+diff = diff_nodes("weights", "weights", which_log_a="20260501", which_log_b="latest")
+print(diff["kind"])
+print(diff["summary"])
+```
+
 
 ## Inspect pipeline DAG
 

@@ -170,6 +170,131 @@ let make_vdiff ~kind ~node_a ~node_b ~log_a ~log_b
     "hunks",            VList (List.map (fun v -> (None, v)) hunks);
   ]
 
+let python_node_diff_script = {|
+import json
+import os
+import sys
+import traceback
+from pathlib import Path
+
+def _bootstrap_tlang():
+    try:
+        import tlang
+        return tlang
+    except Exception:
+        pass
+
+    candidates = []
+    repo_root = os.environ.get("TLANG_REPO_ROOT")
+    if repo_root:
+        candidates.append(Path(repo_root) / "py-package" / "src")
+
+    cwd = Path.cwd().resolve()
+    candidates.extend(path / "py-package" / "src" for path in [cwd, *cwd.parents])
+
+    for candidate in candidates:
+        init_py = candidate / "tlang" / "__init__.py"
+        if init_py.is_file():
+            candidate_str = str(candidate)
+            if candidate_str not in sys.path:
+                sys.path.insert(0, candidate_str)
+            break
+
+    import tlang
+    return tlang
+
+try:
+    tlang = _bootstrap_tlang()
+    payload = tlang.diff_artifacts(
+        sys.argv[1],
+        sys.argv[2],
+        node_a=sys.argv[3],
+        node_b=sys.argv[4],
+        log_a=sys.argv[5],
+        log_b=sys.argv[6],
+        class_a=sys.argv[7],
+        class_b=sys.argv[8],
+        context=int(sys.argv[9]),
+    )
+except Exception as exc:
+    payload = {
+        "type": "VError",
+        "code": "RuntimeError",
+        "message": str(exc),
+        "na_count": 0,
+        "context": {
+            "runtime_traceback": traceback.format_exc(),
+            "node_status": "errored",
+        },
+        "location": None,
+    }
+
+print(json.dumps(payload))
+|}
+
+let slurp_channel ic =
+  let buf = Buffer.create 1024 in
+  (try
+     while true do
+       Buffer.add_char buf (input_char ic)
+     done
+   with End_of_file -> ());
+  Buffer.contents buf
+
+let run_python_node_diff
+    ~(cn_a : computed_node)
+    ~(cn_b : computed_node)
+    ~(context : int)
+    ~(node_a_name : string)
+    ~(node_b_name : string)
+    ~(log_a : string)
+    ~(log_b : string)
+  : value =
+  let python_cmd =
+    if Builder_utils.command_exists "python3" then Some "python3"
+    else if Builder_utils.command_exists "python" then Some "python"
+    else None
+  in
+  match python_cmd with
+  | None ->
+      Error.make_error FileError
+        "Python object diffing requires a Python interpreter, but neither `python3` nor `python` is available."
+  | Some cmd ->
+      let argv =
+        [|
+          cmd; "-c"; python_node_diff_script;
+          cn_a.cn_path; cn_b.cn_path;
+          node_a_name; node_b_name;
+          log_a; log_b;
+          cn_a.cn_class; cn_b.cn_class;
+          string_of_int context;
+        |]
+      in
+      (try
+         let ((ic, oc, ec) as proc) =
+           Unix.open_process_args_full cmd argv (Unix.environment ())
+         in
+         close_out_noerr oc;
+         let stdout = slurp_channel ic in
+         let stderr = slurp_channel ec in
+         ignore (Unix.close_process_full proc);
+         if String.trim stdout = "" then
+           Error.make_error RuntimeError
+             (Printf.sprintf "Python diff helper returned no output.%s"
+                (if String.trim stderr = "" then "" else " stderr: " ^ String.trim stderr))
+         else
+           try
+             stdout
+             |> Yojson.Safe.from_string
+             |> Serialization.yojson_to_value
+           with exn ->
+             Error.make_error RuntimeError
+               (Printf.sprintf "Failed to decode Python diff helper output: %s"
+                  (Printexc.to_string exn))
+       with exn ->
+         Error.make_error RuntimeError
+           (Printf.sprintf "Failed to run Python diff helper: %s" (Printexc.to_string exn)))
+
 (* ------------------------------------------------------------------ *)
 (* Value equality helpers                                              *)
 (* ------------------------------------------------------------------ *)
@@ -693,6 +818,12 @@ let node_diff_values
     ~(key : string list) ~(context : int)
   : value =
   match va, vb with
+  | VComputedNode cn_a, VComputedNode cn_b
+    when String.lowercase_ascii cn_a.cn_runtime = "python"
+      && String.lowercase_ascii cn_b.cn_runtime = "python" ->
+      run_python_node_diff ~cn_a ~cn_b ~context
+        ~node_a_name ~node_b_name ~log_a ~log_b
+
   | VDataFrame dfa, VDataFrame dfb ->
       diff_dataframes ~df_a:dfa ~df_b:dfb ~key ~context
         ~node_a_name ~node_b_name ~log_a ~log_b

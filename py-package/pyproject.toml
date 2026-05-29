@@ -17,6 +17,10 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only"
 ]
+dependencies = [
+  "deepdiff>=8.0.0",
+  "numpy>=1.23"
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

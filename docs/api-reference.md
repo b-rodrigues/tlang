@@ -3045,6 +3045,7 @@ Compares the dynamic evaluations or built artifacts of `node_a` and `node_b` acr
 - **For DataFrames** (`csv`, `arrow`, `parquet`): `schema_changed` (Bool), `added_columns` (List), `removed_columns` (List), `nrows_a` (Int), `nrows_b` (Int), and `numeric_drift` (DataFrame summarizing column-level mean values and shift percentages).
 - **For PMML Models** (`pmml`): `model_type` (String), `coefficients_changed` (Bool), and `coef_diff` (DataFrame comparing regression coefficients and intercept shift deltas). Falls back to generic structural equality diff for non-regression models.
 - **For Text Files** (`text`): `changed` (Bool), `lines_added` (Int), `lines_removed` (Int), and `diff` (String unified diff output).
+- **For Python-native artifacts** (for example pickled NumPy ndarrays): `kind = "python_object_diff"`, DeepDiff summary counts, normalized detail payloads, and shape/dtype metadata when available.
 - **For Generic/Scalars**: `value_a` (Any), `value_b` (Any), `changed` (Bool), and `delta` (Float numeric difference or NA).
 
 **Examples:**

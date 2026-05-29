@@ -583,7 +583,8 @@ The resulting DataFrame is structured with the following columns:
 1. **DataFrames** return row and schema summaries plus DataFrame-valued `detail` sections for added, removed, and changed rows.
 2. **Models** return coefficient and fit-stat deltas, including a `coef_diff` DataFrame.
 3. **Scalars** return before/after values and a numeric delta when one exists.
-4. **Generic values** fall back to structural string diffs while preserving the original values in `detail`.
+4. **Python-native objects** (for example pickled NumPy ndarrays) are loaded through the bundled `tlang` Python package and compared with DeepDiff.
+5. **Generic values** fall back to structural string diffs while preserving the original values in `detail`.
 
 ```t
 -- 1. Compare scalar value shifts between latest and second latest builds

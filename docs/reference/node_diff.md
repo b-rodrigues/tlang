@@ -10,6 +10,7 @@ Dispatches to a type-appropriate comparison:
 - **DataFrame** → row-/column-level diff with optional key-based alignment
 - **Model (PMML)** → coefficient deltas and fit-stat comparison
 - **Scalar** → before/after with numeric delta
+- **Python-native objects** → artifact deserialization through the bundled `tlang` Python package, then DeepDiff-based structural comparison
 - **Generic** → structural comparison over string representations
 
 ## Signature
@@ -41,7 +42,7 @@ node_diff(
 
 | Field | Type | Description |
 |---|---|---|
-| `kind` | `String` | `"dataframe_diff"`, `"model_diff"`, `"scalar_diff"`, or `"generic_diff"` |
+| `kind` | `String` | `"dataframe_diff"`, `"model_diff"`, `"scalar_diff"`, `"python_object_diff"`, or `"generic_diff"` |
 | `node_a` | `String` | Name of the first node |
 | `node_b` | `String` | Name of the second node |
 | `log_a` | `String` | Resolved log filename for node_a |
@@ -71,6 +72,9 @@ d = node_diff(p.customers, p.customers,
 
 -- Model comparison
 d = node_diff(p.model_v1, p.model_v2)
+
+-- Python-native artifact comparison (for example NumPy ndarrays)
+d = node_diff(p.weights, p.weights, log_a = 1, log_b = 2)
 ```
 
 ## See Also

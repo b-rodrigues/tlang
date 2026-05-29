@@ -275,7 +275,7 @@ chmod +x $out/bin/bisect-ppx-report
           src = ./py-package;
           format = "pyproject";
           nativeBuildInputs = [ pkgs.python314.pkgs.setuptools ];
-          propagatedBuildInputs = [ pkgs.python314.pkgs.pandas ];
+          propagatedBuildInputs = with pkgs.python314.pkgs; [ pandas numpy deepdiff ];
         };
         # Companion Julia path
         tlang-julia-path = pkgs.stdenv.mkDerivation {
