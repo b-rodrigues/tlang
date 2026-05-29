@@ -252,8 +252,14 @@ function _auto_deserializer(serializer::String, artifact_path::String)
         return Base.invokelatest(getfield(csv_mod, :read), artifact_path, getfield(df_mod, :DataFrame))
     elseif s == "json"
         return JSON.parsefile(artifact_path)
-    else
+    elseif s == "default" || s == "tobj"
+        # Julia-native binary formats — use Julia's own serializer.
         return Serialization.deserialize(artifact_path)
+    else
+        # Unknown serializer (e.g. pmml, parquet, rds): return the path so the
+        # caller can handle deserialization themselves, consistent with return_path=true.
+        @warn "read_node: no built-in deserializer for serializer \"$serializer\" — returning artifact path. Pass a custom `deserializer` function or use `return_path=true`."
+        return artifact_path
     end
 end
 
