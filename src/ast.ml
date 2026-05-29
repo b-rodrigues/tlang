@@ -378,6 +378,9 @@ let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn 
 (** Global hook for storing in-memory evaluated node values *)
 let in_memory_node_values : (string, value) Hashtbl.t = Hashtbl.create 50
 
+(** Global hook for storing mapping from pipeline expressions to build log paths *)
+let pipeline_build_logs : ((string * expr) list, string) Hashtbl.t = Hashtbl.create 10
+
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
     Scans for [a-zA-Z_][a-zA-Z0-9_]* patterns and returns unique results.

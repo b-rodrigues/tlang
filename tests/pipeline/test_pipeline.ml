@@ -2071,23 +2071,23 @@ p.t_step|}
                   
                   ok_history = (type(hist) == "DataFrame" && nrow(hist) == 3 && nrow(hist_limit) == 2)
                   
-                  diff_scalar = node_diff(p, "a", 1, 2)
+                  diff_scalar = node_diff(p.a, p.a, 1, 2)
                   ok_scalar = (type(diff_scalar) == "Dict" && diff_scalar.kind == "scalar_diff" && diff_scalar.identical == false && diff_scalar.summary.changed == true && diff_scalar.summary.value_a == 10 && diff_scalar.summary.value_b == 20 && diff_scalar.summary.delta == 10)
                   
-                  diff_df = node_diff(p, "df_node", 1, 2)
+                  diff_df = node_diff(p.df_node, p.df_node, 1, 2)
                   ok_df = (type(diff_df) == "Dict" && diff_df.kind == "dataframe_diff" && diff_df.value_type == "DataFrame")
 
-                  diff_text = node_diff(p, "text_node", 1, 2)
+                  diff_text = node_diff(p.text_node, p.text_node, 1, 2)
                   ok_text = (type(diff_text) == "Dict" && diff_text.identical == false)
 
-                  diff_pmml = node_diff(p, "model_node", 1, 2)
+                  diff_pmml = node_diff(p.model_node, p.model_node, 1, 2)
                   ok_pmml = (type(diff_pmml) == "Dict" && (diff_pmml.kind == "model_diff" || diff_pmml.kind == "generic_diff"))
                   
-                  ok_out_of_range = (is_error(node_diff(p, "a", 10, 2)) && error_code(node_diff(p, "a", 10, 2)) == "ValueError")
+                  ok_out_of_range = (is_error(node_diff(p.a, p.a, 10, 2)) && error_code(node_diff(p.a, p.a, 10, 2)) == "ValueError")
 
-                  ok_nonexistent = (is_error(node_diff(p, "nonexistent", 1, 2)) && error_code(node_diff(p, "nonexistent", 1, 2)) == "NameError")
+                  ok_nonexistent = (is_error(p.nonexistent) && error_code(p.nonexistent) == "KeyError")
 
-                  ok_negative = (is_error(node_diff(p, "a", -1, 2)) && error_code(node_diff(p, "a", -1, 2)) == "ValueError")
+                  ok_negative = (is_error(node_diff(p.a, p.a, -1, 2)) && error_code(node_diff(p.a, p.a, -1, 2)) == "ValueError")
 
                   log_test2 = build_log(p, which_log = ".*test2.*")
                   ok_log_regex = (type(log_test2) == "BuildLog" && log_test2.out_path == "/nix/store/abc2")
@@ -2095,10 +2095,10 @@ p.t_step|}
                   hist_filtered = build_log_history(p, pattern = ".*test[23].*")
                   ok_history_regex = (type(hist_filtered) == "DataFrame" && nrow(hist_filtered) == 2)
 
-                  diff_scalar_regex = node_diff(p, "a", build_a = ".*test1.*", build_b = ".*test2.*")
+                  diff_scalar_regex = node_diff(p.a, p.a, log_a = ".*test1.*", log_b = ".*test2.*")
                   ok_diff_regex = (type(diff_scalar_regex) == "Dict" && diff_scalar_regex.kind == "scalar_diff" && diff_scalar_regex.identical == false && diff_scalar_regex.summary.value_a == 10 && diff_scalar_regex.summary.value_b == 20)
 
-                  ok_no_match = (is_error(node_diff(p, "a", build_a = ".*nomatch.*", build_b = 2)) && error_code(node_diff(p, "a", build_a = ".*nomatch.*", build_b = 2)) == "ValueError")
+                  ok_no_match = (is_error(node_diff(p.a, p.a, log_a = ".*nomatch.*", log_b = 2)) && error_code(node_diff(p.a, p.a, log_a = ".*nomatch.*", log_b = 2)) == "ValueError")
 
                   ok_history && ok_scalar && ok_df && ok_text && ok_pmml && ok_out_of_range && ok_nonexistent && ok_negative && ok_log_regex && ok_history_regex && ok_diff_regex && ok_no_match
                   |} (Packages.init_env ())

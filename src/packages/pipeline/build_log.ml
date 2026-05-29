@@ -475,9 +475,7 @@ let node_diff_fn named_args _env =
   let named_keys = List.filter_map (fun (k, _) -> k) named_args in
   let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
 
-  (* Detect which calling convention is being used:
-     - New form: node_diff(node_a :: ComputedNode, node_b :: ComputedNode, ...)
-     - Legacy form: node_diff(p :: Pipeline, node :: String, build_a, build_b) *)
+  (* New form: node_diff(node_a :: ComputedNode, node_b :: ComputedNode, ...) *)
   let (_, first_arg) = get_arg "node_a" 1 (VNA NAGeneric) named_args in
   let (_, second_arg) = get_arg "node_b" 2 (VNA NAGeneric) named_args in
 
@@ -502,16 +500,7 @@ let node_diff_fn named_args _env =
            let context = match ctx_val with VInt n -> n | _ -> 3 in
            (* Load artifacts *)
            let load_artifact cn log_val arg_name =
-             match log_val with
-             | VString "latest" ->
-                 if cn.cn_path <> "" && Sys.file_exists cn.cn_path then
-                   Ok ("latest", Builder_read_node.read_standard_node_value cn)
-                 else
-                   Error (Error.make_error FileError
-                     (Printf.sprintf "Artifact for node '%s' is not available at path: %s" cn.cn_name cn.cn_path))
-             | _ ->
-                 (* For non-latest selectors, we need a pipeline context.
-                    Fall back to scanning all logs for this node name. *)
+             let resolve_from_logs cn selector_val =
                  let logs = Builder_logs.get_logs () in
                  let all_matches = List.filter_map (fun log_file ->
                    let full_path = Filename.concat Builder_utils.pipeline_dir log_file in
@@ -524,6 +513,10 @@ let node_diff_fn named_args _env =
                  ) logs in
                  let num_builds = List.length all_matches in
                  let resolve = function
+                   | VString "latest" ->
+                       if num_builds = 0 then
+                         Error (Error.make_error FileError (Printf.sprintf "No historical builds found for node '%s'." cn.cn_name))
+                       else Ok (List.hd all_matches)
                    | VInt idx ->
                        if idx <= 0 then
                          Error (Error.make_error ValueError (Printf.sprintf "Function `node_diff` expects `%s` to be a positive 1-indexed integer." arg_name))
@@ -545,7 +538,7 @@ let node_diff_fn named_args _env =
                           Error (Error.make_error ValueError (Printf.sprintf "Invalid regex '%s' for `%s`." pattern arg_name)))
                    | _ -> Error (Error.type_error (Printf.sprintf "Function `node_diff` expects `%s` to be a String or Int." arg_name))
                  in
-                 match resolve log_val with
+                 match resolve selector_val with
                  | Error e -> Error e
                  | Ok log_path ->
                      match Builder_logs.read_log log_path with
@@ -558,6 +551,12 @@ let node_diff_fn named_args _env =
                                Error (Error.make_error FileError (Printf.sprintf "Artifact for node '%s' is no longer present at: %s" cn.cn_name logged_cn.cn_path))
                              else
                                Ok (Filename.basename log_path, Builder_read_node.read_standard_node_value logged_cn)
+             in
+             match log_val with
+             | VString "latest" when cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" && Sys.file_exists cn.cn_path ->
+                 Ok ("latest", Builder_read_node.read_standard_node_value cn)
+             | _ ->
+                 resolve_from_logs cn log_val
            in
            match load_artifact cn_a log_a_val "log_a", load_artifact cn_b log_b_val "log_b" with
            | Error e, _ | _, Error e -> e
@@ -568,38 +567,7 @@ let node_diff_fn named_args _env =
                  ~log_a:resolved_a ~log_b:resolved_b
                  ~key ~context)
 
-  (* ---- Legacy form: Pipeline + String node name ---- *)
-  | VPipeline p, VString node_name ->
-      let valid_keys = ["p"; "node"; "node_a"; "node_b"; "build_a"; "build_b"; "log_a"; "log_b"; "key"; "context"] in
-      (match List.find_opt (fun k -> not (List.mem k valid_keys)) named_keys with
-       | Some k -> Error.type_error (Printf.sprintf "node_diff: unknown argument '%s'" k)
-       | None when positional_count > 6 ->
-           Error.make_error ArityError
-             (Printf.sprintf "Function `node_diff` accepts at most 6 positional arguments but received %d." positional_count)
-       | None ->
-           (* Support both old (build_a/build_b) and new (log_a/log_b) param names *)
-           let (has_log_a, log_a_val) = get_arg "log_a" 3 (VNA NAGeneric) named_args in
-           let (has_log_b, log_b_val) = get_arg "log_b" 4 (VNA NAGeneric) named_args in
-           let log_a_val = if has_log_a then log_a_val else let (_, v) = get_arg "build_a" 3 (VInt 1) named_args in v in
-           let log_b_val = if has_log_b then log_b_val else let (_, v) = get_arg "build_b" 4 (VInt 2) named_args in v in
-           let (_, key_val)   = get_arg "key"   5 (VList []) named_args in
-           let (_, ctx_val)   = get_arg "context" 6 (VInt 3) named_args in
-           let key = match key_val with
-             | VList items -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | VSymbol s -> Some s | _ -> None) items
-             | _ -> []
-           in
-           let context = match ctx_val with VInt n -> n | _ -> 3 in
-           match Builder_read_node.resolve_node_artifact p node_name log_a_val "build_a",
-                 Builder_read_node.resolve_node_artifact p node_name log_b_val "build_b" with
-           | Error e, _ | _, Error e -> e
-           | Ok (resolved_a, val_a), Ok (resolved_b, val_b) ->
-               Diff.node_diff_values
-                 ~va:val_a ~vb:val_b
-                 ~node_a_name:node_name ~node_b_name:node_name
-                 ~log_a:resolved_a ~log_b:resolved_b
-                 ~key ~context)
-
-  | _ -> Error.type_error "Function `node_diff` expects either (ComputedNode, ComputedNode, ...) or (Pipeline, String, ...) as its first two arguments."
+  | _ -> Error.type_error "Function `node_diff` expects two ComputedNodes as its first two arguments."
 
 let register env =
   let make_builtin_named ?name ?(variadic=false) arity func =

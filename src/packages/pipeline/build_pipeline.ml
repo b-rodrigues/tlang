@@ -94,7 +94,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                          Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
                          Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name;
                          (match Builder.find_log_for_out_path out_path with
-                          | Some log_path -> Builder.parse_json_log_to_vbuildlog log_path
+                          | Some log_path -> ( Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path; Hashtbl.replace Ast.pipeline_build_logs p_resolved.p_exprs log_path; Builder.parse_json_log_to_vbuildlog log_path )
                           | None ->
                               Error.make_error FileError
                                 (Printf.sprintf
