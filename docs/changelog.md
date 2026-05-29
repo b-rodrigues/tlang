@@ -1,37 +1,8 @@
 # Changelog
 
-## [0.52.3] - 2026-05-29
-
-This release hardens the `node_diff` / `diff` subsystem with correctness fixes across all diff kinds, introduces beautiful line-by-line unified diffs for scalar strings, and fixes UTF-8 rendering in the REPL and `explain()` output.
-
-**Status**: Beta
-
-### Diff — Correctness Fixes
-
-- **Semantic equality in DataFrame cell comparison**: DataFrame cell comparison now routes through `Diff.values_equal` instead of a raw structural comparison. This ensures that cells containing semantically equal values (e.g. `NaN` vs `NaN`, `NA` vs `NA`) are no longer falsely classified as changed.
-- **Model `identical` flag now considers fit statistics**: The `VDiff` `identical` predicate for model diffs previously only compared regression coefficients. It now also checks all fit-statistic deltas (`r_squared`, `aic`, `bic`, etc.), so a model with equal coefficients but different fit stats is correctly reported as changed.
-- **Invalid key detection in keyed DataFrame alignment**: Key-based row alignment now validates that the requested key column actually exists in both DataFrames before attempting alignment. If the key is absent (e.g. due to a typo), a descriptive `StructuralError` is raised immediately rather than silently producing incorrect add/remove/change counts caused by all rows collapsing to the same empty key.
-- **`node_diff` non-ComputedNode guard**: Passing a non-`ComputedNode` value as the first argument to `node_diff` now raises a clear `TypeError` rather than falling through to undefined behaviour. The legacy Pipeline/String calling convention has been removed consistently with the strict dot-access model.
-
-### Diff — Scalar String Line-by-Line Diffs
-
-- **Multiline string diffing**: Scalar string values are now split on newlines and diffed line-by-line using the patience diff algorithm (with 3 lines of context), producing proper unified-diff hunks instead of a single opaque before/after blob.
-- **Beautiful colourised text diffs in the REPL and in `.diff` files**: The unified diff output uses ANSI colour codes (`+` lines in green, `-` lines in red, `@@` hunk headers in cyan) when printed to the terminal, and writes plain unified-diff syntax when serialised to disk.
-- **`detailed_summary` and `hunks` fields populated for string scalars**: `node_diff` on string nodes now returns a populated `hunks` list and a colourised `detailed_summary`, consistent with the DataFrame and generic diff kinds.
-
-### Core — UTF-8 Safe String Formatting
-
-- **`escape_string_utf8` helper in `Ast.Utils`**: Replaced OCaml's built-in `String.escaped` (which converts all bytes above ASCII 127 into octal escape sequences) with a new `escape_string_utf8` function. The new function preserves all valid UTF-8 multibyte byte sequences (bytes ≥ 128) verbatim, while still safely escaping control characters, backslashes, and double-quotes.
-- **REPL and `explain()` now render Unicode correctly**: Any string value containing Unicode characters — including the `→` arrows used in `explain()` diff summaries — now prints correctly in the terminal instead of showing raw byte codes like `\226\134\146`.
-
-### Docs & Demo Updates
-
-- **`docs/pipeline_tutorial.md`**: Updated the diffing section to document the new `node_diff` calling convention, the line-by-line string diff output, and the `detailed_summary` field. Added an example showing how to write `detailed_summary` to a `.diff` file on disk for inspection in a text editor.
-- **`t_demos/diff_history_t`**: Updated the demo pipeline (`src/pipeline.t`) to write both DataFrame and text diffs to disk (`.diff` files). The accompanying GitHub Actions workflow (`diff_history_t.yml`) was extended with a step that reads and prints the generated diff files using plain Bash commands.
-
 ## [0.52.2] - 2026-05-24
 
-This release introduces interactive pipeline node debugging via `debug_node`, native Nix-native orchestration features enabling granular rebuild control, job parallelization, Cachix binary caching, and dry-runs, as well as the temporal introspection pair `build_log_history` and `node_diff` for tracking pipeline output changes across builds.
+This release introduces interactive pipeline node debugging via `debug_node`, native Nix orchestration features for granular rebuild control, job parallelisation, Cachix binary caching, and dry-runs, and the temporal introspection pair `build_log_history` and `node_diff` for tracking how pipeline outputs change across builds.
 
 **Status**: Beta
 
@@ -75,6 +46,18 @@ This release introduces interactive pipeline node debugging via `debug_node`, na
 - **Populate Pipeline Arity Expansion**: Updated `populate_pipeline()` to support all the new Nix orchestration arguments (`targets`, `force`, `dry_run`, `max_jobs`, `cache`) in the exact same manner as `build_pipeline()`.
 - **Early Target & Force Validation**: Integrated compile-time validation of `targets` and `force` node lists in the OCaml pipeline compiler. T-Lang now instantly detects misspelled or nonexistent node targets and raises highly readable `StructuralError` warnings before spawning the Nix interpreter.
 - **Node Name Collision Prevention**: Sorted internal name matching patterns by character length in descending order, avoiding potential substring collisions where short node names (e.g. `model`) would erroneously match long node name store paths (e.g. `model_evaluation`).
+
+### Pipeline Temporal Introspection — `node_diff` improvements
+
+- **Line-by-line string diffs**: When comparing string-typed node outputs, `node_diff` now splits the values on newlines and produces a proper unified diff with context lines — the same colourised format already used for text-file nodes. Calling `detailed_summary` on the result shows added/removed lines highlighted in green and red.
+- **Reliable `NaN` / `NA` handling in DataFrames**: Cells that contain `NaN` or `NA` on both sides are no longer incorrectly reported as changed.
+- **Accurate model change detection**: A model whose coefficients are identical but whose fit statistics (R², AIC, BIC, …) differ is now correctly reported as changed, not identical.
+- **Helpful error on missing key column**: If you pass a `key` that does not exist in one of the DataFrames, `node_diff` now raises a clear error immediately instead of silently producing wrong counts.
+- **`node_diff` requires `ComputedNode` arguments**: `node_diff` now enforces that both arguments are pipeline node references (e.g. `node_diff(p.my_node, p.my_node)`). Passing a plain string or pipeline object raises a descriptive `TypeError`.
+
+### REPL & `explain()` — Unicode display
+
+- **Unicode characters now render correctly**: String values containing non-ASCII characters (accented letters, symbols like `→`, emoji, …) are displayed as-is in the REPL and inside `explain()` tree output, instead of being shown as raw byte sequences such as `\226\134\146`.
 
 ## [0.52.1] - 2026-05-22
 
