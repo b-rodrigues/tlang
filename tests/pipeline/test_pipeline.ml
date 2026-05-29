@@ -2118,5 +2118,16 @@ p.t_step|}
   in
   test_build_log_history_and_node_diff ();
 
-  print_newline ()
+  let classify_hunk_kind_tests =
+    Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:true = "replace"
+    && Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:false = "delete"
+    && Diff.classify_hunk_kind ~has_replace:false ~has_prev:false ~has_next:true = "insert"
+    && Diff.classify_hunk_kind ~has_replace:true ~has_prev:false ~has_next:false = "replace"
+  in
+  if classify_hunk_kind_tests then begin
+    incr pass_count; Printf.printf "  ✓ patience diff hunk kinds classify mixed changes correctly\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ patience diff hunk kinds classify mixed changes correctly\n"
+  end;
 
+  print_newline ()

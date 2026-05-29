@@ -28,6 +28,13 @@ let row_to_string (row : (string * value) list) : string =
 (* Patience diff over string arrays                                    *)
 (* ------------------------------------------------------------------ *)
 
+(** Classify a patience-diff hunk based on the change ranges it contains. *)
+let classify_hunk_kind ~has_replace ~has_prev ~has_next =
+  if has_replace || (has_prev && has_next) then "replace"
+  else if has_prev then "delete"
+  else if has_next then "insert"
+  else "equal"
+
 (** Run patience diff on two string arrays and return a list of VDict
     hunks.  Each hunk carries kind, a_start/a_end, b_start/b_end, and
     lines_a/lines_b fields as specified in the VDiff envelope.
@@ -45,25 +52,34 @@ let string_hunks ~(mine : string array) ~(other : string array) ~(context : int)
   List.map (fun (h : _ P.Hunk.t) ->
     let a_start = h.prev_start - 1 in  (* 0-based *)
     let b_start = h.next_start - 1 in
-    let lines_a = ref [] and lines_b = ref [] and kind = ref "equal" in
+    let has_replace = ref false in
+    let has_prev = ref false in
+    let has_next = ref false in
+    let lines_a = ref [] and lines_b = ref [] in
     List.iter (fun r ->
       match r with
       | P.Range.Same xs ->
           Array.iter (fun (s, _) -> lines_a := s :: !lines_a; lines_b := s :: !lines_b) xs
       | P.Range.Replace (xs, ys) ->
-          kind := "replace";
+          has_replace := true;
           Array.iter (fun s -> lines_a := s :: !lines_a) xs;
           Array.iter (fun s -> lines_b := s :: !lines_b) ys
       | P.Range.Next ys ->
-          kind := "insert";
+          has_next := true;
           Array.iter (fun s -> lines_b := s :: !lines_b) ys
       | P.Range.Prev xs ->
-          kind := "delete";
+          has_prev := true;
           Array.iter (fun s -> lines_a := s :: !lines_a) xs
       | P.Range.Unified _ -> ()
     ) h.ranges;
+    let kind =
+      classify_hunk_kind
+        ~has_replace:!has_replace
+        ~has_prev:!has_prev
+        ~has_next:!has_next
+    in
     VDict [
-      "kind",    VString !kind;
+      "kind",    VString kind;
       "a_start", VInt a_start;
       "a_end",   VInt (a_start + List.length !lines_a);
       "b_start", VInt b_start;
