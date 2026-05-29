@@ -2328,14 +2328,14 @@ and eval_dot_access_val _env_ref target_val field =
                 if is_noop then
                   VSymbol (Printf.sprintf "<noop:%s>" field)
                 else
-                  VComputedNode {
+                  VComputedNode (resolved_cn {
                     cn_name = field;
                     cn_runtime;
                     cn_path = "<unbuilt>";
                     cn_serializer;
                     cn_class = "Unknown";
                     cn_dependencies;
-                  }
+                  })
             | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)))
   | VBuildLog bl ->
       (match field with

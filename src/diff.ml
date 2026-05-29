@@ -92,23 +92,82 @@ let string_hunks ~(mine : string array) ~(other : string array) ~(context : int)
   ) hunks
 
 (* ------------------------------------------------------------------ *)
+(* Helper: get_unified_diff                                            *)
+(* ------------------------------------------------------------------ *)
+
+let get_unified_diff ~(mine : string array) ~(other : string array) ~(context : int) : string =
+  let module Patience = Patience_diff_lib.Patience_diff in
+  let module P = Patience.String in
+  let hunks =
+    P.get_hunks
+      ~transform:(fun s -> s)
+      ~context
+      ~prev:mine
+      ~next:other
+      ()
+  in
+  let buf = Buffer.create 1024 in
+  List.iter (fun (h : _ Patience.Hunk.t) ->
+    let a_start = h.prev_start in
+    let b_start = h.next_start in
+    let a_len = ref 0 in
+    let b_len = ref 0 in
+    List.iter (fun r ->
+      match r with
+      | Patience.Range.Same xs ->
+          let n = Array.length xs in
+          a_len := !a_len + n;
+          b_len := !b_len + n
+      | Patience.Range.Replace (xs, ys, _) ->
+          a_len := !a_len + Array.length xs;
+          b_len := !b_len + Array.length ys
+      | Patience.Range.Prev (xs, _) ->
+          a_len := !a_len + Array.length xs
+      | Patience.Range.Next (ys, _) ->
+          b_len := !b_len + Array.length ys
+      | _ -> ()
+    ) h.ranges;
+    
+    Buffer.add_string buf (Printf.sprintf "@@ -%d,%d +%d,%d @@\n" a_start !a_len b_start !b_len);
+    
+    List.iter (fun r ->
+      match r with
+      | Patience.Range.Same xs ->
+          Array.iter (fun (s, _) ->
+            Buffer.add_string buf (Printf.sprintf "  %s\n" s)
+          ) xs
+      | Patience.Range.Replace (xs, ys, _) ->
+          Array.iter (fun s -> Buffer.add_string buf (Printf.sprintf "- %s\n" s)) xs;
+          Array.iter (fun s -> Buffer.add_string buf (Printf.sprintf "+ %s\n" s)) ys
+      | Patience.Range.Prev (xs, _) ->
+          Array.iter (fun s -> Buffer.add_string buf (Printf.sprintf "- %s\n" s)) xs
+      | Patience.Range.Next (ys, _) ->
+          Array.iter (fun s -> Buffer.add_string buf (Printf.sprintf "+ %s\n" s)) ys
+      | _ -> ()
+    ) h.ranges
+  ) hunks;
+  Buffer.contents buf
+
+
+(* ------------------------------------------------------------------ *)
 (* Helper: make_vdiff                                                  *)
 (* ------------------------------------------------------------------ *)
 
 (** Assemble the common VDiff envelope. *)
 let make_vdiff ~kind ~node_a ~node_b ~log_a ~log_b
-               ~value_type ~identical ~summary ~detail ~hunks =
+               ~value_type ~identical ~summary ~detail ~hunks ~detailed_summary =
   VDict [
-    "kind",       VString kind;
-    "node_a",     VString node_a;
-    "node_b",     VString node_b;
-    "log_a",      VString log_a;
-    "log_b",      VString log_b;
-    "value_type", VString value_type;
-    "identical",  VBool   identical;
-    "summary",    summary;
-    "detail",     detail;
-    "hunks",      VList (List.map (fun v -> (None, v)) hunks);
+    "kind",             VString kind;
+    "node_a",           VString node_a;
+    "node_b",           VString node_b;
+    "log_a",            VString log_a;
+    "log_b",            VString log_b;
+    "value_type",       VString value_type;
+    "identical",        VBool   identical;
+    "summary",          summary;
+    "detail",           detail;
+    "detailed_summary", VString detailed_summary;
+    "hunks",            VList (List.map (fun v -> (None, v)) hunks);
   ]
 
 (* ------------------------------------------------------------------ *)
@@ -372,6 +431,7 @@ let diff_dataframes
     match b_opt with Some r -> Some (row_to_string r) | None -> None
   ) aligned) in
   let hunks = string_hunks ~mine:str_rows_a ~other:str_rows_b ~context in
+  let detailed_summary = get_unified_diff ~mine:str_rows_a ~other:str_rows_b ~context in
 
   (* 5. Assemble VDiff *)
   let n_added   = List.length !added in
@@ -417,7 +477,7 @@ let diff_dataframes
     ~node_a:node_a_name ~node_b:node_b_name
     ~log_a ~log_b
     ~value_type:"DataFrame"
-    ~identical ~summary ~detail ~hunks
+    ~identical ~summary ~detail ~hunks ~detailed_summary
 
 (* ------------------------------------------------------------------ *)
 (* Model diff                                                          *)
@@ -531,6 +591,7 @@ let diff_models
   let coef_strs_a = Array.of_list (List.map (fun (k, v) -> Printf.sprintf "%s:%.6g" k v) coefs_a) in
   let coef_strs_b = Array.of_list (List.map (fun (k, v) -> Printf.sprintf "%s:%.6g" k v) coefs_b) in
   let hunks = string_hunks ~mine:coef_strs_a ~other:coef_strs_b ~context in
+  let detailed_summary = get_unified_diff ~mine:coef_strs_a ~other:coef_strs_b ~context in
 
   let detail = VDict [
     "coef_diff",      rows_to_dataframe ["term"; "estimate_a"; "estimate_b"; "delta"; "pct_change"] coef_diff_rows;
@@ -546,7 +607,7 @@ let diff_models
     ~node_a:node_a_name ~node_b:node_b_name
     ~log_a ~log_b
     ~value_type:"Model"
-    ~identical ~summary ~detail ~hunks
+    ~identical ~summary ~detail ~hunks ~detailed_summary
 
 (* ------------------------------------------------------------------ *)
 (* Scalar diff                                                         *)
@@ -570,17 +631,16 @@ let diff_scalars
     "changed", VBool changed; "value_a", va; "value_b", vb; "delta", delta
   ] in
   let type_name = Utils.type_name va in
-  let hunks = string_hunks
-    ~mine:[| Utils.value_to_string va |]
-    ~other:[| Utils.value_to_string vb |]
-    ~context:0
-  in
+  let mine = [| Utils.value_to_string va |] in
+  let other = [| Utils.value_to_string vb |] in
+  let hunks = string_hunks ~mine ~other ~context:0 in
+  let detailed_summary = get_unified_diff ~mine ~other ~context:0 in
   make_vdiff
     ~kind:"scalar_diff"
     ~node_a:node_a_name ~node_b:node_b_name
     ~log_a ~log_b
     ~value_type:type_name
-    ~identical:(not changed) ~summary ~detail:summary ~hunks
+    ~identical:(not changed) ~summary ~detail:summary ~hunks ~detailed_summary
 
 (* ------------------------------------------------------------------ *)
 (* Generic diff (fallback)                                             *)
@@ -595,6 +655,7 @@ let diff_generic
   let repr_a = Utils.value_to_string va |> String.split_on_char '\n' |> Array.of_list in
   let repr_b = Utils.value_to_string vb |> String.split_on_char '\n' |> Array.of_list in
   let hunks  = string_hunks ~mine:repr_a ~other:repr_b ~context:3 in
+  let detailed_summary = get_unified_diff ~mine:repr_a ~other:repr_b ~context:3 in
   let summary = VDict ["changed", VBool changed] in
   let detail  = VDict [
     "value_a", va; "value_b", vb;
@@ -605,7 +666,7 @@ let diff_generic
     ~node_a:node_a_name ~node_b:node_b_name
     ~log_a ~log_b
     ~value_type:(Utils.type_name va)
-    ~identical:(not changed) ~summary ~detail ~hunks
+    ~identical:(not changed) ~summary ~detail ~hunks ~detailed_summary
 
 (* ------------------------------------------------------------------ *)
 (* Dispatch                                                            *)
