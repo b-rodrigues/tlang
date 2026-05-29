@@ -181,7 +181,8 @@ from pathlib import Path
 def _bootstrap_tlang():
     try:
         import tlang
-        return tlang
+        if hasattr(tlang, 'diff_artifacts'):
+            return tlang
     except Exception:
         pass
 
@@ -239,7 +240,10 @@ let julia_node_diff_script = {|
 function _bootstrap_tlang()
     try
         @eval using tlang
-        return getfield(Main, :tlang)
+        m = getfield(Main, :tlang)
+        if isdefined(m, :diff_artifacts)
+            return m
+        end
     catch
     end
 

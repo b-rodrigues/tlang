@@ -302,7 +302,7 @@ let diff_preview s =
   in
   let preview_lines, remaining = take diff_preview_line_count [] lines in
   let preview = String.concat "\n" preview_lines in
-  let truncated = remaining <> [] in
+  let truncated = List.exists (fun s -> s <> "") remaining in
   preview, truncated
 
 (** Pretty-print any value for REPL display *)

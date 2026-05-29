@@ -76,7 +76,7 @@ def _parse_unified_diff_hunks(lines: list[str]) -> list[dict[str, Any]]:
         return []
 
     header_indexes = [
-        index for index, line in enumerate(lines) if line.startswith("@@ ") and line.endswith(" @@")
+        index for index, line in enumerate(lines) if line.startswith("@@ ") and line.rstrip("\n").endswith(" @@")
     ]
 
     if not header_indexes:
