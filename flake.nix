@@ -67,6 +67,7 @@
         };
 
         python-with-packages = pkgs.python314.withPackages (p: with p; [
+          deepdiff
           pandas
           pyarrow
           scikit-learn

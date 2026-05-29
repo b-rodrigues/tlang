@@ -167,6 +167,7 @@ let generate_project_flake
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Python environment\n";
   Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
+  Buffer.add_string buf "          deepdiff\n";
   List.iter (fun dep ->
     Printf.bprintf buf "          %s\n" dep
   ) py_deps;

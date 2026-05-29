@@ -13,8 +13,9 @@ def _load_deepdiff() -> Any:
         from deepdiff import DeepDiff
     except ImportError as err:  # pragma: no cover - exercised in integration environments
         raise RuntimeError(
-            "DeepDiff is required for Python object diffs. Install the `tlang` Python package "
-            "with its dependencies so `node_diff()` can compare Python artifacts."
+            "DeepDiff is required for Python object diffs. The `tlang` helper may already be "
+            "importable via PYTHONPATH, but your active Python environment must also include "
+            "`deepdiff` so `node_diff()` can compare Python artifacts."
         ) from err
     return DeepDiff
 
