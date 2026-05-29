@@ -638,10 +638,14 @@ let diff_scalars
     "changed", VBool changed; "value_a", va; "value_b", vb; "delta", delta
   ] in
   let type_name = Utils.type_name va in
-  let mine = [| Utils.value_to_string va |] in
-  let other = [| Utils.value_to_string vb |] in
-  let hunks = string_hunks ~mine ~other ~context:0 in
-  let detailed_summary = get_unified_diff ~mine ~other ~context:0 in
+  let get_lines = function
+    | VString s -> String.split_on_char '\n' s |> Array.of_list
+    | v -> [| Utils.value_to_string v |]
+  in
+  let mine = get_lines va in
+  let other = get_lines vb in
+  let hunks = string_hunks ~mine ~other ~context:3 in
+  let detailed_summary = get_unified_diff ~mine ~other ~context:3 in
   make_vdiff
     ~kind:"scalar_diff"
     ~node_a:node_a_name ~node_b:node_b_name

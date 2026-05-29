@@ -658,6 +658,25 @@ module Utils = struct
     | VEnv _ -> "Environment"
     | VNodeResult { v; _ } -> type_name v
 
+  let escape_string_utf8 s =
+    let buf = Buffer.create (String.length s * 2) in
+    String.iter (fun c ->
+      let code = Char.code c in
+      if code >= 128 then
+        Buffer.add_char buf c
+      else
+        match c with
+        | '\n' -> Buffer.add_string buf "\\n"
+        | '\r' -> Buffer.add_string buf "\\r"
+        | '\t' -> Buffer.add_string buf "\\t"
+        | '\\' -> Buffer.add_string buf "\\\\"
+        | '"'  -> Buffer.add_string buf "\\\""
+        | _ when code < 32 || code = 127 ->
+            Buffer.add_string buf (Printf.sprintf "\\%03d" code)
+        | _ -> Buffer.add_char buf c
+    ) s;
+    Buffer.contents buf
+
   let rec binop_to_string = function
     | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
     | Eq -> "==" | NEq -> "!=" | Gt -> ">" | Lt -> "<" | GtEq -> ">=" | LtEq -> "<="
@@ -785,7 +804,7 @@ module Utils = struct
     | VInt n -> string_of_int n
     | VFloat f -> string_of_float f
     | VBool b -> string_of_bool b
-    | VString s -> "\"" ^ String.escaped s ^ "\""
+    | VString s -> "\"" ^ escape_string_utf8 s ^ "\""
     | VRawCode s -> "<{ " ^ s ^ " }>"
     | VSymbol s -> s
     | VDate days ->
