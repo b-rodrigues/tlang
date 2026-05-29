@@ -10,7 +10,7 @@ Dispatches to a type-appropriate comparison:
 - **DataFrame** → row-/column-level diff with optional key-based alignment
 - **Model (PMML)** → coefficient deltas and fit-stat comparison
 - **Scalar** → before/after with numeric delta
-- **Python-native objects** → artifact deserialization through the bundled `tlang` Python package, then DeepDiff-based structural comparison
+- **Python-native objects** → artifact deserialization through the bundled `tlang` Python package, then stable JSON rendering plus git-like unified diffs
 - **Julia-native objects** → artifact deserialization through the bundled `tlang` Julia package, then DeepDiffs-based structural comparison
 - **R-native objects** → artifact deserialization through the bundled `tlang` R package, then diffobj-based structural comparison
 - **Generic** → structural comparison over string representations

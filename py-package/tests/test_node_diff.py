@@ -55,7 +55,11 @@ class NodeDiffTests(unittest.TestCase):
             self.assertFalse(diff["identical"])
             self.assertEqual(diff["value_type"], "ModelSnapshot")
             self.assertGreater(diff["summary"]["changes"], 0)
-            self.assertIn("values_changed", diff["detail"])
+            self.assertEqual(diff["detail"]["renderer"], "difflib.unified_diff")
+            self.assertIn("@@ ", diff["detailed_summary"])
+            self.assertGreater(len(diff["hunks"]), 0)
+            self.assertGreater(diff["summary"]["lines_added"], 0)
+            self.assertGreater(diff["summary"]["lines_removed"], 0)
 
     def test_diff_artifacts_reports_identical_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -68,6 +72,7 @@ class NodeDiffTests(unittest.TestCase):
             self.assertTrue(diff["identical"])
             self.assertEqual(diff["summary"]["changes"], 0)
             self.assertEqual(diff["detail"], {})
+            self.assertEqual(diff["hunks"], [])
 
 
 if __name__ == "__main__":

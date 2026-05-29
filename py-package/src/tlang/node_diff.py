@@ -1,27 +1,17 @@
 from __future__ import annotations
 
+import difflib
+from dataclasses import asdict, is_dataclass
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 from .read_node import deserialize, read_node
 
 
-def _load_deepdiff() -> Any:
-    """Import DeepDiff lazily so basic package imports still work without it."""
-    try:
-        from deepdiff import DeepDiff
-    except ImportError as err:  # pragma: no cover - exercised in integration environments
-        raise RuntimeError(
-            "DeepDiff is required for Python object diffs. The `tlang` helper may already be "
-            "importable via PYTHONPATH, but your active Python environment must also include "
-            "`deepdiff` so `node_diff()` can compare Python artifacts."
-        ) from err
-    return DeepDiff
-
-
-def _normalize_json(value: Any) -> Any:
-    """Convert DeepDiff output to plain JSON-serializable data."""
+def _stable_json_value(value: Any) -> Any:
+    """Convert Python values to a stable JSON-serializable representation."""
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
 
@@ -31,29 +21,32 @@ def _normalize_json(value: Any) -> Any:
     if isinstance(value, Path):
         return str(value)
 
+    if is_dataclass(value) and not isinstance(value, type):
+        return _stable_json_value(asdict(value))
+
     if isinstance(value, dict):
-        return {str(key): _normalize_json(val) for key, val in value.items()}
+        return {str(key): _stable_json_value(val) for key, val in value.items()}
 
     if isinstance(value, (list, tuple)):
-        return [_normalize_json(item) for item in value]
+        return [_stable_json_value(item) for item in value]
 
     if isinstance(value, (set, frozenset)):
         return sorted(
-            (_normalize_json(item) for item in value),
+            (_stable_json_value(item) for item in value),
             key=lambda item: json.dumps(item, sort_keys=True, default=str),
         )
 
     item = getattr(value, "item", None)
     if callable(item):
         try:
-            return _normalize_json(item())
+            return _stable_json_value(item())
         except Exception:  # noqa: BLE001
             pass
 
     tolist = getattr(value, "tolist", None)
     if callable(tolist):
         try:
-            return _normalize_json(tolist())
+            return _stable_json_value(tolist())
         except Exception:  # noqa: BLE001
             pass
 
@@ -62,23 +55,133 @@ def _normalize_json(value: Any) -> Any:
         try:
             return {
                 "type": type(value).__name__,
-                "shape": _normalize_json(list(shape)),
-                "repr": str(value),
+                "shape": _stable_json_value(list(shape)),
+                "repr": repr(value),
             }
         except Exception:  # noqa: BLE001
             pass
 
-    return str(value)
+    return value
 
 
-def _count_changes(section: Any) -> int:
-    """Count entries in a DeepDiff section."""
-    normalized = _normalize_json(section)
-    if isinstance(normalized, dict):
-        return len(normalized)
-    if isinstance(normalized, list):
-        return len(normalized)
-    return 1
+def _json_lines(obj: Any) -> list[str]:
+    """Render an object as stable pretty-printed JSON lines."""
+    stable = _stable_json_value(obj)
+    return json.dumps(stable, indent=2, sort_keys=True, default=repr).splitlines(keepends=True)
+
+
+def _parse_unified_diff_hunks(lines: list[str]) -> list[dict[str, Any]]:
+    """Convert unified diff lines to coarse VDiff hunks."""
+    if not lines:
+        return []
+
+    header_indexes = [
+        index for index, line in enumerate(lines) if line.startswith("@@ ") and line.endswith(" @@")
+    ]
+
+    if not header_indexes:
+        stripped = [line.removesuffix("\n") for line in lines]
+        return [
+            {
+                "kind": "replace",
+                "a_start": 0,
+                "a_end": len(stripped),
+                "b_start": 0,
+                "b_end": len(stripped),
+                "lines_a": stripped,
+                "lines_b": stripped,
+            }
+        ]
+
+    hunks: list[dict[str, Any]] = []
+    starts = header_indexes
+    ends = header_indexes[1:] + [len(lines)]
+    for start, end in zip(starts, ends):
+        block = lines[start:end]
+        header = block[0]
+        match = re.match(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", header)
+        if match is None:
+            continue
+
+        a_start = int(match.group(1)) - 1
+        a_len = int(match.group(2) or "1")
+        b_start = int(match.group(3)) - 1
+        b_len = int(match.group(4) or "1")
+
+        lines_a: list[str] = []
+        lines_b: list[str] = []
+        has_prev = False
+        has_next = False
+
+        for line in block[1:]:
+            if line.startswith("--- ") or line.startswith("+++ ") or line.startswith("\\"):
+                continue
+            stripped = line[1:].removesuffix("\n") if line else ""
+            if line.startswith("-"):
+                has_prev = True
+                lines_a.append(stripped)
+            elif line.startswith("+"):
+                has_next = True
+                lines_b.append(stripped)
+            elif line.startswith(" "):
+                lines_a.append(stripped)
+                lines_b.append(stripped)
+            else:
+                raw = line.removesuffix("\n")
+                lines_a.append(raw)
+                lines_b.append(raw)
+
+        if has_prev and has_next:
+            kind = "replace"
+        elif has_prev:
+            kind = "delete"
+        elif has_next:
+            kind = "insert"
+        else:
+            kind = "equal"
+
+        hunks.append(
+            {
+                "kind": kind,
+                "a_start": a_start,
+                "a_end": a_start + a_len,
+                "b_start": b_start,
+                "b_end": b_start + b_len,
+                "lines_a": lines_a,
+                "lines_b": lines_b,
+            }
+        )
+
+    return hunks
+
+
+def _render_diff(
+    lines_a: list[str],
+    lines_b: list[str],
+    *,
+    fromfile: str,
+    tofile: str,
+    context: int,
+) -> tuple[str, list[str], list[dict[str, Any]]]:
+    """Render a git-like unified diff for two Python values."""
+    lines = list(
+        difflib.unified_diff(
+            lines_a,
+            lines_b,
+            fromfile=fromfile,
+            tofile=tofile,
+            n=context,
+        )
+    )
+    hunks = _parse_unified_diff_hunks(lines)
+    return "".join(lines), [line.removesuffix("\n") for line in lines], hunks
+
+
+def _diff_line_counts(lines: list[str]) -> tuple[int, int]:
+    """Count added and removed unified diff lines."""
+    lines_added = sum(1 for line in lines if line.startswith("+") and not line.startswith("+++ "))
+    lines_removed = sum(1 for line in lines if line.startswith("-") and not line.startswith("--- "))
+    return lines_added, lines_removed
 
 
 def _shape_info(obj: Any) -> list[int] | None:
@@ -89,7 +192,7 @@ def _shape_info(obj: Any) -> list[int] | None:
     try:
         return [int(dim) for dim in shape]
     except Exception:  # noqa: BLE001
-        normalized = _normalize_json(shape)
+        normalized = _stable_json_value(shape)
         return normalized if isinstance(normalized, list) else None
 
 
@@ -126,20 +229,36 @@ def diff_objects(
     context: int = 3,
 ) -> dict[str, Any]:
     """Diff two Python objects and return a T-compatible VDiff envelope."""
-    del context
+    lines_a = _json_lines(obj_a)
+    lines_b = _json_lines(obj_b)
+    identical_objects = lines_a == lines_b
+    detail: dict[str, Any] = {}
+    detailed_summary = "Objects are identical."
+    hunks: list[dict[str, Any]] = []
+    lines_added = 0
+    lines_removed = 0
 
-    DeepDiff = _load_deepdiff()
-    diff = DeepDiff(obj_a, obj_b, verbose_level=2)
-    normalized_detail = _normalize_json(diff.to_dict())
-    categories = [
-        {"kind": key, "count": _count_changes(section)}
-        for key, section in normalized_detail.items()
-    ]
-    total_changes = sum(category["count"] for category in categories)
+    if not identical_objects:
+        detailed_summary, diff_lines, hunks = _render_diff(
+            lines_a,
+            lines_b,
+            fromfile=f"{node_a}:{log_a}",
+            tofile=f"{node_b}:{log_b}",
+            context=context,
+        )
+        lines_added, lines_removed = _diff_line_counts(diff_lines)
+        detail = {
+            "renderer": "difflib.unified_diff",
+            "format": "json",
+            "fromfile": f"{node_a}:{log_a}",
+            "tofile": f"{node_b}:{log_b}",
+            "lines": diff_lines,
+        }
 
     summary: dict[str, Any] = {
-        "changes": total_changes,
-        "categories": categories,
+        "changes": lines_added + lines_removed,
+        "lines_added": lines_added,
+        "lines_removed": lines_removed,
     }
 
     shape_a = _shape_info(obj_a)
@@ -156,11 +275,6 @@ def diff_objects(
     if dtype_b is not None:
         summary["dtype_b"] = dtype_b
 
-    detailed_summary = "Objects are identical."
-    if normalized_detail:
-        pretty = getattr(diff, "pretty", None)
-        detailed_summary = pretty() if callable(pretty) else json.dumps(normalized_detail, indent=2, sort_keys=True)
-
     return {
         "kind": "python_object_diff",
         "node_a": node_a,
@@ -168,11 +282,11 @@ def diff_objects(
         "log_a": log_a,
         "log_b": log_b,
         "value_type": _value_type(obj_a, obj_b, class_a, class_b),
-        "identical": not normalized_detail,
+        "identical": identical_objects,
         "summary": summary,
-        "detail": normalized_detail,
+        "detail": detail,
         "detailed_summary": detailed_summary,
-        "hunks": [],
+        "hunks": hunks,
     }
 
 
