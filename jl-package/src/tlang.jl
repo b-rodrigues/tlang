@@ -306,7 +306,7 @@ function load_deepdiffs()
         )
     end
 
-    return getfield(@__MODULE__, :DeepDiffs)
+    return Base.invokelatest(getfield, @__MODULE__, :DeepDiffs)
 end
 
 """
@@ -385,7 +385,8 @@ function diff_objects(
     context::Integer = 3
 )
     deepdiffs = load_deepdiffs()
-    diff = deepdiffs.deepdiff(obj_a, obj_b)
+    deepdiff = Base.invokelatest(getfield, deepdiffs, :deepdiff)
+    diff = Base.invokelatest(deepdiff, obj_a, obj_b)
     identical_objects = isequal(obj_a, obj_b)
     rendered = identical_objects ? "Objects are identical." : render_deepdiff(diff)
     lines =
