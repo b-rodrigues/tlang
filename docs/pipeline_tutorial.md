@@ -601,6 +601,25 @@ diff_model = node_diff(p.model_node, p.model_node, log_a = ".*test1.*", log_b = 
 diff_model.detail.coef_diff
 ```
 
+#### Interactive REPL Diffs & Colorization
+
+When working interactively inside the REPL, T provides first-class visual formatting for `VDiff` results:
+- **Automatic Summary & Colorized Diffs**: If you print or evaluate a non-identical `VDiff` envelope (e.g. `diff_df`), the REPL prints the summary metrics followed immediately by a beautifully colorized git-like unified diff (`detailed_summary`) showing added rows in **green**, deleted rows in **red**, and hunk headers in **cyan**.
+- **Direct String Colorization**: Accessing `diff_df.detailed_summary` directly prints the raw, colorized git-like diff as a beautifully readable multiline block.
+- **Key Validation**: When using a custom natural key list (e.g., `key = [$customer_id]`), `node_diff` strictly validates that all requested key columns exist in both schemas. If there is a typo or missing column, it returns a clean, native `ValueError` immediately rather than silently keeping only one row per side.
+
+#### Inspecting Diffs in a Text Editor
+
+For very large diffs, printing to the console may be hard to scroll. You can write the unified diff directly to a text file for inspection using a text editor (e.g., VSCode, Vim, or Emacs) using the standard `write_text` builtin:
+
+```t
+-- 1. Compute the DataFrame diff
+diff_df = node_diff(p3.data, p2.data, key = [$id])
+
+-- 2. Write the detailed unified diff string to a file on disk
+write_text("dataframe_changes.diff", diff_df.detailed_summary)
+```
+
 ---
 
 ## 16. Execution Modes
