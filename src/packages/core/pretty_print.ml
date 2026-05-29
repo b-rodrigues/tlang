@@ -290,7 +290,7 @@ let colorize_diff s =
   ) lines in
   String.concat "\n" colored_lines
 
-let diff_preview_line_count = 10
+let diff_preview_line_count = 12
 
 let diff_preview s =
   let lines = String.split_on_char '\n' s in
