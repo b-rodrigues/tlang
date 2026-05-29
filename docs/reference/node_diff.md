@@ -34,13 +34,6 @@ node_diff(
 - **key** (`List[Symbol]`): For DataFrames: the natural key column(s) used to align rows before diffing. If empty, rows are aligned by position. Default: `[]`.
 - **context** (`Int`): Number of unchanged rows shown above and below each changed hunk. Default: `3`.
 
-### Legacy form
-
-The legacy calling convention is also supported:
-
-```t
-node_diff(p :: Pipeline, node :: String, build_a :: Int = 1, build_b :: Int = 2)
-```
 
 ## Returns
 

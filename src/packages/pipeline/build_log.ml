@@ -453,8 +453,8 @@ let build_log_history_fn named_args _env =
 --#   - Generic → structural comparison over string representations
 --#
 --# @name node_diff
---# @param node_a :: ComputedNode | Pipeline  The "before" node (or a Pipeline for the legacy form).
---# @param node_b :: ComputedNode | String    The "after" node (or a node name String for the legacy form).
+--# @param node_a :: ComputedNode  The "before" node.
+--# @param node_b :: ComputedNode  The "after" node.
 --# @param log_a  :: String | Int  Build log selector for node_a (default "latest"). Accepts a timestamp prefix, regex, or 1-indexed integer.
 --# @param log_b  :: String | Int  Build log selector for node_b (default "latest"). Same format as log_a.
 --# @param key    :: List[Symbol]  For DataFrames: natural key column(s) for row alignment (default []).
@@ -475,7 +475,7 @@ let node_diff_fn named_args _env =
   let named_keys = List.filter_map (fun (k, _) -> k) named_args in
   let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
 
-  (* New form: node_diff(node_a :: ComputedNode, node_b :: ComputedNode, ...) *)
+  (* Form: node_diff(node_a :: ComputedNode, node_b :: ComputedNode, ...) *)
   let (_, first_arg) = get_arg "node_a" 1 (VNA NAGeneric) named_args in
   let (_, second_arg) = get_arg "node_b" 2 (VNA NAGeneric) named_args in
 

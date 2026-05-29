@@ -402,7 +402,7 @@ let diff_dataframes
             let va = List.assoc_opt col row_a in
             let vb = List.assoc_opt col row_b in
             match va, vb with
-            | Some va', Some vb' when va' <> vb' ->
+            | Some va', Some vb' when not (values_equal va' vb') ->
                 Some (col, va', vb')
             | _ -> None
           ) cols_shared
@@ -600,7 +600,8 @@ let diff_models
     "fit_stats_diff", fit_stats_diff stats_a stats_b;
   ] in
 
-  let identical = n_changed = 0 && added_terms = [] && removed_terms = [] in
+  let stats_changed = not (values_equal (VDict stats_a) (VDict stats_b)) in
+  let identical = n_changed = 0 && added_terms = [] && removed_terms = [] && not stats_changed in
 
   make_vdiff
     ~kind:"model_diff"

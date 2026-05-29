@@ -3026,16 +3026,18 @@ hist = build_log_history(p, n = 5)
 
 ---
 
-### `node_diff(p, node, build_a = 1, build_b = 2)`
+### `node_diff(node_a, node_b, log_a = "latest", log_b = "latest", key = [], context = 3)`
 
-Compares the dynamic evaluations or built artifacts of a specific node across two historical builds (defaults to comparing the most recent build `1` against the second most recent `2`).
+Compares the dynamic evaluations or built artifacts of `node_a` and `node_b` across two historical builds (defaults to comparing the latest build of both).
 
 **Parameters:**
 
-- `p` — The Pipeline object.
-- `node` — Name of the node to compare (String).
-- `build_a` (optional) — 1-indexed build rank (Int) or regular expression filename filter (String) for the first build. Default: `1` (latest).
-- `build_b` (optional) — 1-indexed build rank (Int) or regular expression filename filter (String) for the second build. Default: `2`.
+- `node_a` — The ComputedNode to compare.
+- `node_b` — The second ComputedNode to compare.
+- `log_a` (optional) — 1-indexed build rank (Int) or regular expression filename filter (String) or timestamp prefix for `node_a`. Default: `"latest"`.
+- `log_b` (optional) — 1-indexed build rank (Int) or regular expression filename filter (String) or timestamp prefix for `node_b`. Default: `"latest"`.
+- `key` (optional) — List of symbols representing natural key column(s) for DataFrame row alignment. Default: `[]`.
+- `context` (optional) — Number of unchanged rows shown around each hunk for patient diffs. Default: `3`.
 
 **Returns:**
 
@@ -3049,10 +3051,10 @@ Compares the dynamic evaluations or built artifacts of a specific node across tw
 ```t
 p = pipeline { a = 1; b = 2 }
 -- Compare most recent to second most recent
-diff_scalar = node_diff(p, "a")
+diff_scalar = node_diff(p.a, p.a)
 
 -- Compare with explicit 1-indexed ranks or regex patterns
-diff_model = node_diff(p, "model_node", build_a = ".*train1.*", build_b = ".*train2.*")
+diff_model = node_diff(p.model_node, p.model_node, log_a = ".*train1.*", log_b = ".*train2.*")
 ```
 
 ---

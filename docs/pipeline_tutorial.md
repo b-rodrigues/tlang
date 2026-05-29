@@ -542,9 +542,6 @@ d.kind
 d.identical
 d.summary
 d.hunks
-
--- Legacy form is still supported for historical comparisons
-d_legacy = node_diff(p, "clean_data", build_a = 1, build_b = 2)
 ```
 
 Use `pipeline_diff()` when you want to compare pipeline structure rather than artifact contents. It reports added, removed, changed, and rewired nodes, and includes `pipeline_to_frame()` snapshots for both sides.
@@ -590,17 +587,17 @@ The resulting DataFrame is structured with the following columns:
 
 ```t
 -- 1. Compare scalar value shifts between latest and second latest builds
-diff_scalar = node_diff(p, "a")
+diff_scalar = node_diff(p.a, p.a)
 diff_scalar.summary.changed  -- true/false
 diff_scalar.summary.delta    -- numeric shift
 
 -- 2. Compare DataFrame schema and drift metrics
-diff_df = node_diff(p, "my_dataset", 1, 2)
+diff_df = node_diff(p.my_dataset, p.my_dataset, log_a = 1, log_b = 2)
 diff_df.summary.cols_added
 diff_df.detail.changed
 
 -- 3. Compare models across explicit historical builds or regex-matched logs
-diff_model = node_diff(p, "model_node", build_a = ".*test1.*", build_b = ".*test2.*")
+diff_model = node_diff(p.model_node, p.model_node, log_a = ".*test1.*", log_b = ".*test2.*")
 diff_model.detail.coef_diff
 ```
 
