@@ -229,7 +229,36 @@ function _resolve_artifact_path(path_val::String, pipeline_dir::String)
 end
 
 """
-    read_node(name::String; which_log::Union{String, Nothing} = nothing, pipeline_dir::String = "_pipeline", deserializer::Function = Serialization.deserialize, return_path::Bool = false)
+    _auto_deserializer(serializer::String, artifact_path::String)
+
+Pick a deserializer based on the serializer name recorded in the build log.
+
+Supports `"csv"` (loads via CSV.jl + DataFrames.jl when available, falls back to
+reading the raw file as a string), `"json"` (parses with JSON.jl), and everything
+else falls back to `Serialization.deserialize`.
+"""
+function _auto_deserializer(serializer::String, artifact_path::String)
+    s = lowercase(strip(serializer))
+    if s == "csv"
+        # Try CSV.jl + DataFrames.jl; give a clear message if they are not loaded.
+        if !isdefined(Main, :CSV) || !isdefined(Main, :DataFrames)
+            error(
+                "Node artifact is a CSV file but `CSV` and `DataFrames` are not loaded. " *
+                "Run `using CSV, DataFrames` first, then call read_node() again."
+            )
+        end
+        csv_mod = getfield(Main, :CSV)
+        df_mod  = getfield(Main, :DataFrames)
+        return Base.invokelatest(getfield(csv_mod, :read), artifact_path, getfield(df_mod, :DataFrame))
+    elseif s == "json"
+        return JSON.parsefile(artifact_path)
+    else
+        return Serialization.deserialize(artifact_path)
+    end
+end
+
+"""
+    read_node(name::String; which_log::Union{String, Nothing} = nothing, pipeline_dir::String = \"_pipeline\", deserializer::Union{Function, Nothing} = nothing, return_path::Bool = false)
 
 Read a node artifact from a built T pipeline.
 
@@ -238,15 +267,21 @@ When `which_log` is `nothing`, the helper picks the first reverse-alphabetically
 sorted `build_log_*.json` file, which matches T's timestamped log naming and
 therefore resolves to the most recent build.
 
+If no `deserializer` is provided, the serializer recorded in the build log is used
+to pick the right one automatically:
+- `csv`  → `CSV.read(path, DataFrame)` (requires `using CSV, DataFrames`)
+- `json` → `JSON.parsefile(path)`
+- anything else → `Serialization.deserialize(path)`
+
 # Arguments
 - `name::String`: The name of the node to retrieve.
 
 # Keywords
 - `which_log::Union{String, Nothing}`: An optional regex pattern used to select a specific build log file by name.
   If `nothing`, the most recent build log is used.
-- `pipeline_dir::String`: The path to the pipeline directory. Defaults to `"_pipeline"`.
-- `deserializer::Function`: A function to deserialize the node artifact from disk.
-  Defaults to `Serialization.deserialize`.
+- `pipeline_dir::String`: The path to the pipeline directory. Defaults to `\"_pipeline\"`.
+- `deserializer::Union{Function, Nothing}`: A function to deserialize the node artifact from disk.
+  When `nothing` (the default), the serializer field in the build log is used to pick automatically.
 - `return_path::Bool`: If `true`, return the absolute path to the artifact file instead of deserializing it.
   Defaults to `false`.
 
@@ -262,7 +297,7 @@ function read_node(
     name::String;
     which_log::Union{String, Nothing} = nothing,
     pipeline_dir::String = "_pipeline",
-    deserializer::Function = Serialization.deserialize,
+    deserializer::Union{Function, Nothing} = nothing,
     return_path::Bool = false
 )
     if !isdir(pipeline_dir)
@@ -285,8 +320,16 @@ function read_node(
         return artifact_path
     end
     
+    actual_deserializer =
+        if !isnothing(deserializer)
+            (path) -> deserializer(path)
+        else
+            serializer_name = get(node_entry, "serializer", "default")
+            (path) -> _auto_deserializer(serializer_name isa String ? serializer_name : "default", path)
+        end
+
     try
-        return deserializer(artifact_path)
+        return actual_deserializer(artifact_path)
     catch e
         error("Failed to deserialize node `$name` from `$artifact_path`: $e")
     end

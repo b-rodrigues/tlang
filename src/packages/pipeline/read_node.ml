@@ -84,7 +84,7 @@ let register env =
         | Some dep_cn ->
             if dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" then (
               let store_dir = Filename.dirname dep_cn.cn_path in
-              resolved_deps := (dep_name, store_dir) :: !resolved_deps
+              resolved_deps := (dep_name, store_dir, dep_cn.cn_serializer) :: !resolved_deps
             )
         | None -> ()
       ) dependencies;
@@ -101,7 +101,7 @@ let register env =
       );
       if !resolved_deps <> [] then (
         Printf.printf "Upstream dependencies:\n%!";
-        List.iter (fun (name, path) ->
+        List.iter (fun (name, path, _serializer) ->
           Printf.printf "  - %s (Path: %s)\n%!" name path
         ) !resolved_deps;
         Printf.printf "\n%!"
@@ -115,7 +115,9 @@ let register env =
         | None -> None
       in
       let shell_cmd =
-        let clean_deps = List.map (fun (name, _) -> name) !resolved_deps in
+        let clean_deps = List.map (fun (name, _, _) -> name) !resolved_deps in
+        let csv_deps = List.filter_map (fun (name, _, ser) ->
+          if String.lowercase_ascii ser = "csv" then Some name else None) !resolved_deps in
         match String.lowercase_ascii cn.cn_runtime with
         | "python" ->
             Printf.printf "Starting interactive Python REPL...\n%!";
@@ -159,6 +161,8 @@ let register env =
             Printf.printf "Starting interactive Julia REPL...\n%!";
             Printf.printf "Tip: Load upstream dependencies in Julia using:\n%!";
             Printf.printf "  using tlang\n%!";
+            if csv_deps <> [] then
+              Printf.printf "  using CSV, DataFrames  # required for CSV nodes\n%!";
             List.iter (fun dep ->
               Printf.printf "  %s = read_node(\"%s\")\n%!" dep dep
             ) clean_deps;
