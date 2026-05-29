@@ -450,6 +450,9 @@ let build_log_history_fn named_args _env =
 --#   - DataFrame → row-/column-level diff with optional key-based alignment
 --#   - Model (PMML) → coefficient deltas and fit-stat comparison
 --#   - Scalar → before/after with numeric delta
+--#   - Python-native objects → DeepDiff-based structural comparison
+--#   - Julia-native objects → DeepDiffs-based structural comparison
+--#   - R-native objects → diffobj-based structural comparison
 --#   - Generic → structural comparison over string representations
 --#
 --# @name node_diff

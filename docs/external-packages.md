@@ -78,6 +78,9 @@ df = read_node("my_data")
 # Get only the path to the artifact
 path = read_node("my_model", return_path=true)
 
+# Compare Julia-native artifacts across historical builds
+diff = diff_nodes("my_model", "my_model", which_log_a="20260501", which_log_b="latest")
+
 # Inspect the pipeline DAG (returns a Dict)
 nodes = pipeline_nodes()
 ```

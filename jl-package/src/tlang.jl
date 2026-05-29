@@ -3,7 +3,7 @@ module tlang
 using JSON
 using Serialization
 
-export read_node, pipeline_nodes
+export read_node, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects
 
 const FIXTURE_LOGS = ["build_log_ocaml_mock.json", "build_log_legacy_version.json"]
 
@@ -290,6 +290,213 @@ function read_node(
     catch e
         error("Failed to deserialize node `$name` from `$artifact_path`: $e")
     end
+end
+
+"""
+    load_deepdiffs()
+
+Load DeepDiffs lazily so basic package imports still work until diff helpers are used.
+"""
+function load_deepdiffs()
+    try
+        Base.eval(@__MODULE__, :(import DeepDiffs))
+    catch err
+        error(
+            "DeepDiffs is required for Julia object diffs. Instantiate the `tlang` Julia package environment so `node_diff()` can compare Julia artifacts. Original error: $err"
+        )
+    end
+
+    return getfield(@__MODULE__, :DeepDiffs)
+end
+
+"""
+    shape_info(obj)
+
+Return an object's dimensions as an integer vector when available.
+"""
+function shape_info(obj)
+    try
+        dims = size(obj)
+        return isempty(dims) ? nothing : [Int(dim) for dim in dims]
+    catch
+        return nothing
+    end
+end
+
+"""
+    length_info(obj)
+
+Return `length(obj)` when defined.
+"""
+function length_info(obj)
+    try
+        return length(obj)
+    catch
+        return nothing
+    end
+end
+
+"""
+    value_type(obj_a, obj_b; class_a=nothing, class_b=nothing)
+
+Choose the most informative value type label for the diff envelope.
+"""
+function value_type(obj_a, obj_b; class_a=nothing, class_b=nothing)
+    label_a = class_a isa String ? strip(class_a) : ""
+    label_b = class_b isa String ? strip(class_b) : ""
+
+    if !isempty(label_a) && label_a == label_b
+        return label_a
+    end
+
+    if !isempty(label_a) && !isempty(label_b)
+        return string(label_a, " -> ", label_b)
+    end
+
+    type_a = string(typeof(obj_a))
+    type_b = string(typeof(obj_b))
+    return type_a == type_b ? type_a : string(type_a, " -> ", type_b)
+end
+
+"""
+    render_deepdiff(diff)
+
+Render a DeepDiffs diff object to a plain-text summary.
+"""
+function render_deepdiff(diff)
+    rendered = sprint(show, MIME"text/plain"(), diff)
+    return isempty(strip(rendered)) ? sprint(show, diff) : rendered
+end
+
+"""
+    diff_objects(obj_a, obj_b; ...)
+
+Diff two Julia objects and return a T-compatible VDiff envelope.
+"""
+function diff_objects(
+    obj_a,
+    obj_b;
+    node_a::String = "node_a",
+    node_b::String = "node_b",
+    log_a::String = "latest",
+    log_b::String = "latest",
+    class_a = nothing,
+    class_b = nothing,
+    context::Integer = 3
+)
+    deepdiffs = load_deepdiffs()
+    diff = deepdiffs.deepdiff(obj_a, obj_b)
+    identical_objects = isequal(obj_a, obj_b)
+    rendered = identical_objects ? "Objects are identical." : render_deepdiff(diff)
+    lines =
+        identical_objects ? String[] :
+        filter(line -> !isempty(strip(line)), split(rendered, '\n'))
+
+    summary = Dict{String, Any}(
+        "changes" => identical_objects ? 0 : length(lines),
+        "typeof_a" => string(typeof(obj_a)),
+        "typeof_b" => string(typeof(obj_b)),
+    )
+
+    len_a = length_info(obj_a)
+    len_b = length_info(obj_b)
+    if !isnothing(len_a)
+        summary["length_a"] = len_a
+    end
+    if !isnothing(len_b)
+        summary["length_b"] = len_b
+    end
+
+    shape_a = shape_info(obj_a)
+    shape_b = shape_info(obj_b)
+    if !isnothing(shape_a)
+        summary["shape_a"] = shape_a
+    end
+    if !isnothing(shape_b)
+        summary["shape_b"] = shape_b
+    end
+
+    detail =
+        identical_objects ? Dict{String, Any}() :
+        Dict{String, Any}(
+            "renderer" => "DeepDiffs",
+            "lines" => lines,
+        )
+
+    return Dict{String, Any}(
+        "kind" => "julia_object_diff",
+        "node_a" => node_a,
+        "node_b" => node_b,
+        "log_a" => log_a,
+        "log_b" => log_b,
+        "value_type" => value_type(obj_a, obj_b, class_a=class_a, class_b=class_b),
+        "identical" => identical_objects,
+        "summary" => summary,
+        "detail" => detail,
+        "detailed_summary" => rendered,
+        "hunks" => Any[],
+    )
+end
+
+"""
+    diff_artifacts(path_a, path_b; ...)
+
+Deserialize two artifacts and diff the resulting Julia objects.
+"""
+function diff_artifacts(
+    path_a::Union{String, AbstractString},
+    path_b::Union{String, AbstractString};
+    node_a::String = "node_a",
+    node_b::String = "node_b",
+    log_a::String = "latest",
+    log_b::String = "latest",
+    class_a = nothing,
+    class_b = nothing,
+    context::Integer = 3,
+    deserializer::Function = Serialization.deserialize
+)
+    obj_a = deserializer(path_a)
+    obj_b = deserializer(path_b)
+    return diff_objects(
+        obj_a,
+        obj_b,
+        node_a=node_a,
+        node_b=node_b,
+        log_a=log_a,
+        log_b=log_b,
+        class_a=class_a,
+        class_b=class_b,
+        context=context,
+    )
+end
+
+"""
+    diff_nodes(node_a, node_b; ...)
+
+Load two nodes via `read_node()` and diff their deserialized Julia objects.
+"""
+function diff_nodes(
+    node_a::String,
+    node_b::String;
+    which_log_a::Union{String, Nothing} = nothing,
+    which_log_b::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline",
+    context::Integer = 3,
+    deserializer::Function = Serialization.deserialize
+)
+    path_a = read_node(node_a, which_log=which_log_a, pipeline_dir=pipeline_dir, return_path=true)
+    path_b = read_node(node_b, which_log=which_log_b, pipeline_dir=pipeline_dir, return_path=true)
+
+    return diff_artifacts(
+        path_a,
+        path_b,
+        node_a=node_a,
+        node_b=node_b,
+        log_a=isnothing(which_log_a) ? "latest" : which_log_a,
+        log_b=isnothing(which_log_b) ? "latest" : which_log_b,
+        context=context,
+        deserializer=deserializer,
+    )
 end
 
 end # module

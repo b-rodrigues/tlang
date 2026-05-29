@@ -46,4 +46,39 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   report (match get_field "identical" error_diff with Some (Ast.VBool false) -> true | _ -> false)
     "generic diffs handle error values"
     "error generic diff should detect changes";
+  let julia_runtime_missing_or_supported =
+    let make_node path class_name =
+      Ast.VComputedNode {
+        cn_name = "weights";
+        cn_runtime = "Julia";
+        cn_path = path;
+        cn_serializer = "default";
+        cn_class = class_name;
+        cn_description = None;
+      }
+    in
+    let artifact_a = Filename.temp_file "tlang-julia-node-a" ".jls" in
+    let artifact_b = Filename.temp_file "tlang-julia-node-b" ".jls" in
+    Fun.protect
+      ~finally:(fun () ->
+        if Sys.file_exists artifact_a then Sys.remove artifact_a;
+        if Sys.file_exists artifact_b then Sys.remove artifact_b)
+      (fun () ->
+        let value =
+          Diff.node_diff_values
+            ~va:(make_node artifact_a "ModelSnapshot")
+            ~vb:(make_node artifact_b "ModelSnapshot")
+            ~node_a_name:"weights" ~node_b_name:"weights"
+            ~log_a:"build_a" ~log_b:"build_b"
+            ~key:[] ~context:1
+        in
+        match value with
+        | Ast.VDict fields ->
+            List.assoc_opt "kind" fields = Some (Ast.VString "julia_object_diff")
+        | Ast.VError { Ast.code = RuntimeError | FileError; _ } -> true
+        | _ -> false)
+  in
+  report julia_runtime_missing_or_supported
+    "Julia computed nodes route through the Julia object diff path"
+    "Julia computed nodes should produce a Julia diff result or a structured runtime/file error";
   print_newline ()

@@ -248,7 +248,7 @@ p = pipeline {
 - **Package** = reusable library, exports functions, ships tests and docs.
 - **`r-package/`** = companion R package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to `readRDS()` with an overrideable deserializer.
 - **`py-package/`** = companion Python package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to pickle-based deserialization.
-- **`jl-package/`** = companion Julia package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to `Serialization.deserialize`.
+- **`jl-package/`** = companion Julia package (`tlang`) that mirrors built-pipeline `read_node()`, defaults to `Serialization.deserialize`, and now exposes DeepDiffs-based Julia artifact diff helpers.
 
 Typical project files:
 - `tproject.toml`
