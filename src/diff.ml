@@ -362,6 +362,12 @@ let diff_dataframes
       )
     end else begin
       (* Key-based alignment *)
+      List.iter (fun k ->
+        if not (List.mem k cols_a) then
+          invalid_arg (Printf.sprintf "Key column `%s` not found in schema of DataFrame A." k);
+        if not (List.mem k cols_b) then
+          invalid_arg (Printf.sprintf "Key column `%s` not found in schema of DataFrame B." k);
+      ) key;
       let key_of row =
         List.filter_map (fun k ->
           match List.assoc_opt k row with

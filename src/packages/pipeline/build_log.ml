@@ -561,11 +561,14 @@ let node_diff_fn named_args _env =
            match load_artifact cn_a log_a_val "log_a", load_artifact cn_b log_b_val "log_b" with
            | Error e, _ | _, Error e -> e
            | Ok (resolved_a, val_a), Ok (resolved_b, val_b) ->
-               Diff.node_diff_values
-                 ~va:val_a ~vb:val_b
-                 ~node_a_name:cn_a.cn_name ~node_b_name:cn_b.cn_name
-                 ~log_a:resolved_a ~log_b:resolved_b
-                 ~key ~context)
+               (try
+                  Diff.node_diff_values
+                    ~va:val_a ~vb:val_b
+                    ~node_a_name:cn_a.cn_name ~node_b_name:cn_b.cn_name
+                    ~log_a:resolved_a ~log_b:resolved_b
+                    ~key ~context
+                with Invalid_argument msg ->
+                  Error.make_error ValueError msg))
 
   | _ -> Error.type_error "Function `node_diff` expects two ComputedNodes as its first two arguments."
 
