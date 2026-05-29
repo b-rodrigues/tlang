@@ -110,6 +110,45 @@ let make_vdiff ~kind ~node_a ~node_b ~log_a ~log_b
   ]
 
 (* ------------------------------------------------------------------ *)
+(* Value equality helpers                                              *)
+(* ------------------------------------------------------------------ *)
+
+let rec values_equal a b =
+  match a, b with
+  | VBuiltin _, _ | _, VBuiltin _ -> false
+  | VLambda _, _ | _, VLambda _ -> false
+  | VEnv _, _ | _, VEnv _ -> false
+  | VQuo _, _ | _, VQuo _ -> false
+  | VSerializer _, _ | _, VSerializer _ -> false
+  | VFloat fa, VFloat fb ->
+      if Float.is_nan fa && Float.is_nan fb then true else fa = fb
+  | VVector va, VVector vb ->
+      let n = Array.length va in
+      n = Array.length vb &&
+      (try
+         for i = 0 to n - 1 do
+           if not (values_equal va.(i) vb.(i)) then raise Exit
+         done;
+         true
+       with Exit -> false)
+  | VList la, VList lb ->
+      List.length la = List.length lb
+      && List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && values_equal v1 v2) la lb
+  | VDict da, VDict db ->
+      let cmp_key (k1, _) (k2, _) = String.compare k1 k2 in
+      let da' = List.sort cmp_key da in
+      let db' = List.sort cmp_key db in
+      List.length da' = List.length db'
+      && List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && values_equal v1 v2) da' db'
+  | VUnquote a', VUnquote b' -> values_equal a' b'
+  | VUnquoteSplice a', VUnquoteSplice b' -> values_equal a' b'
+  | VDynamicArg (k1, v1), VDynamicArg (k2, v2) -> k1 = k2 && values_equal v1 v2
+  | VPipeline pa, VPipeline pb ->
+      List.length pa.p_nodes = List.length pb.p_nodes
+      && List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && values_equal v1 v2) pa.p_nodes pb.p_nodes
+  | _ -> (try a = b with Invalid_argument _ -> false)
+
+(* ------------------------------------------------------------------ *)
 (* Arrow helpers                                                       *)
 (* ------------------------------------------------------------------ *)
 
@@ -516,7 +555,7 @@ let diff_scalars
     ~(node_a_name : string) ~(node_b_name : string)
     ~(log_a : string) ~(log_b : string)
   : value =
-  let changed = va <> vb in
+  let changed = not (values_equal va vb) in
   let delta =
     match va, vb with
     | VInt a,   VInt b   -> VInt   (b - a)
@@ -550,7 +589,7 @@ let diff_generic
     ~(node_a_name : string) ~(node_b_name : string)
     ~(log_a : string) ~(log_b : string)
   : value =
-  let changed = va <> vb in
+  let changed = not (values_equal va vb) in
   let repr_a = Utils.value_to_string va |> String.split_on_char '\n' |> Array.of_list in
   let repr_b = Utils.value_to_string vb |> String.split_on_char '\n' |> Array.of_list in
   let hunks  = string_hunks ~mine:repr_a ~other:repr_b ~context:3 in
