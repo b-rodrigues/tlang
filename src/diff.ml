@@ -232,6 +232,91 @@ except Exception as exc:
 print(json.dumps(payload))
 |}
 
+let r_node_diff_script = {|
+args <- commandArgs(trailingOnly = TRUE)
+
+bootstrap_tlang <- function() {
+  if (requireNamespace("tlang", quietly = TRUE)) {
+    ns <- asNamespace("tlang")
+    if (exists("diff_artifacts", envir = ns, inherits = FALSE)) {
+      return(ns)
+    }
+  }
+
+  candidates <- character()
+  repo_root <- Sys.getenv("TLANG_REPO_ROOT", unset = "")
+  if (nzchar(repo_root)) {
+    candidates <- c(candidates, file.path(repo_root, "r-package", "R"))
+  }
+
+  current <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
+  parents <- current
+  repeat {
+    parent <- dirname(current)
+    if (identical(parent, current)) {
+      break
+    }
+    parents <- c(parents, parent)
+    current <- parent
+  }
+
+  candidates <- c(candidates, file.path(parents, "r-package", "R"))
+  candidates <- unique(candidates)
+
+  for (candidate in candidates) {
+    if (!file.exists(file.path(candidate, "node_diff.R")) ||
+        !file.exists(file.path(candidate, "read_node.R"))) {
+      next
+    }
+
+    env <- new.env(parent = baseenv())
+    scripts <- sort(list.files(candidate, pattern = "\\.R$", full.names = TRUE))
+    for (script in scripts) {
+      sys.source(script, envir = env)
+    }
+    return(env)
+  }
+
+  stop("Unable to locate the `tlang` R helpers.", call. = FALSE)
+}
+
+if (length(args) != 9L) {
+  stop(sprintf("Expected 9 arguments, got %d.", length(args)), call. = FALSE)
+}
+
+payload <- tryCatch(
+  {
+    tlang <- bootstrap_tlang()
+    tlang$diff_artifacts(
+      args[[1L]],
+      args[[2L]],
+      node_a = args[[3L]],
+      node_b = args[[4L]],
+      log_a = args[[5L]],
+      log_b = args[[6L]],
+      class_a = args[[7L]],
+      class_b = args[[8L]],
+      context = as.integer(args[[9L]])
+    )
+  },
+  error = function(err) {
+    list(
+      type = "VError",
+      code = "RuntimeError",
+      message = conditionMessage(err),
+      na_count = 0L,
+      context = list(
+        runtime_traceback = paste(utils::capture.output(traceback()), collapse = "\n"),
+        node_status = "errored"
+      ),
+      location = NULL
+    )
+  }
+)
+
+cat(jsonlite::toJSON(payload, auto_unbox = TRUE, null = "null"))
+|}
+
 let slurp_channel ic =
   let buf = Buffer.create 1024 in
   (try
@@ -294,6 +379,70 @@ let run_python_node_diff
        with exn ->
          Error.make_error RuntimeError
            (Printf.sprintf "Failed to run Python diff helper: %s" (Printexc.to_string exn)))
+
+let run_r_node_diff
+    ~(cn_a : computed_node)
+    ~(cn_b : computed_node)
+    ~(context : int)
+    ~(node_a_name : string)
+    ~(node_b_name : string)
+    ~(log_a : string)
+    ~(log_b : string)
+  : value =
+  let r_cmd =
+    if Builder_utils.command_exists "Rscript" then Some ("Rscript", false)
+    else if Builder_utils.command_exists "R" then Some ("R", true)
+    else None
+  in
+  match r_cmd with
+  | None ->
+      Error.make_error FileError
+       "R object diffing requires `Rscript` or `R`, but neither is available."
+  | Some (cmd, use_r_shell) ->
+      let argv =
+       if use_r_shell then
+         [|
+           cmd; "--vanilla"; "--slave"; "-e"; r_node_diff_script; "--args";
+           cn_a.cn_path; cn_b.cn_path;
+           node_a_name; node_b_name;
+           log_a; log_b;
+           cn_a.cn_class; cn_b.cn_class;
+           string_of_int context;
+         |]
+       else
+         [|
+           cmd; "-e"; r_node_diff_script; "--args";
+           cn_a.cn_path; cn_b.cn_path;
+           node_a_name; node_b_name;
+           log_a; log_b;
+           cn_a.cn_class; cn_b.cn_class;
+           string_of_int context;
+         |]
+      in
+      (try
+        let ((ic, oc, ec) as proc) =
+          Unix.open_process_args_full cmd argv (Unix.environment ())
+        in
+        close_out_noerr oc;
+        let stdout = slurp_channel ic in
+        let stderr = slurp_channel ec in
+        ignore (Unix.close_process_full proc);
+        if String.trim stdout = "" then
+          Error.make_error RuntimeError
+            (Printf.sprintf "R diff helper returned no output.%s"
+               (if String.trim stderr = "" then "" else " stderr: " ^ String.trim stderr))
+        else
+          try
+            stdout
+            |> Yojson.Safe.from_string
+            |> Serialization.yojson_to_value
+          with exn ->
+            Error.make_error RuntimeError
+              (Printf.sprintf "Failed to decode R diff helper output: %s"
+                 (Printexc.to_string exn))
+       with exn ->
+        Error.make_error RuntimeError
+          (Printf.sprintf "Failed to run R diff helper: %s" (Printexc.to_string exn)))
 
 (* ------------------------------------------------------------------ *)
 (* Value equality helpers                                              *)
@@ -818,6 +967,12 @@ let node_diff_values
     ~(key : string list) ~(context : int)
   : value =
   match va, vb with
+  | VComputedNode cn_a, VComputedNode cn_b
+    when String.lowercase_ascii cn_a.cn_runtime = "r"
+      && String.lowercase_ascii cn_b.cn_runtime = "r" ->
+      run_r_node_diff ~cn_a ~cn_b ~context
+        ~node_a_name ~node_b_name ~log_a ~log_b
+
   | VComputedNode cn_a, VComputedNode cn_b
     when String.lowercase_ascii cn_a.cn_runtime = "python"
       && String.lowercase_ascii cn_b.cn_runtime = "python" ->

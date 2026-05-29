@@ -3046,6 +3046,7 @@ Compares the dynamic evaluations or built artifacts of `node_a` and `node_b` acr
 - **For PMML Models** (`pmml`): `model_type` (String), `coefficients_changed` (Bool), and `coef_diff` (DataFrame comparing regression coefficients and intercept shift deltas). Falls back to generic structural equality diff for non-regression models.
 - **For Text Files** (`text`): `changed` (Bool), `lines_added` (Int), `lines_removed` (Int), and `diff` (String unified diff output).
 - **For Python-native artifacts** (for example pickled NumPy ndarrays): `kind = "python_object_diff"`, DeepDiff summary counts, normalized detail payloads, and shape/dtype metadata when available.
+- **For R-native artifacts** (for example serialized model objects): `kind = "r_object_diff"`, diffobj-rendered summaries, captured diff lines, and class/type metadata when available.
 - **For Generic/Scalars**: `value_a` (Any), `value_b` (Any), `changed` (Bool), and `delta` (Float numeric difference or NA).
 
 **Examples:**

@@ -1,2 +1,5 @@
 export(read_node)
 export(pipeline_nodes)
+export(diff_objects)
+export(diff_artifacts)
+export(diff_nodes)

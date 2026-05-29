@@ -49,6 +49,7 @@
             tidyr
             purrr
             broom
+            diffobj
             jsonlite
             arrow
             lubridate
@@ -265,7 +266,7 @@ chmod +x $out/bin/bisect-ppx-report
         tlang-r = pkgs.rPackages.buildRPackage {
           name = "tlang";
           src = ./r-package;
-          propagatedBuildInputs = with pkgs.rPackages; [ jsonlite ];
+          propagatedBuildInputs = with pkgs.rPackages; [ diffobj jsonlite ];
         };
 
         # Companion Python package
