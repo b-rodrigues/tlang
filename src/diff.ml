@@ -41,15 +41,17 @@ let classify_hunk_kind ~has_replace ~has_prev ~has_next =
 
     Uses Patience_diff from Jane Street. *)
 let string_hunks ~(mine : string array) ~(other : string array) ~(context : int) : value list =
-  let module P = Patience_diff in
+  let module Patience = Patience_diff_lib.Patience_diff in
+  let module P = Patience.String in
   let hunks =
     P.get_hunks
       ~transform:(fun s -> s)
       ~context
       ~prev:mine
       ~next:other
+      ()
   in
-  List.map (fun (h : _ P.Hunk.t) ->
+  List.map (fun (h : _ Patience.Hunk.t) ->
     let a_start = h.prev_start - 1 in  (* 0-based *)
     let b_start = h.next_start - 1 in
     let has_replace = ref false in
@@ -58,19 +60,19 @@ let string_hunks ~(mine : string array) ~(other : string array) ~(context : int)
     let lines_a = ref [] and lines_b = ref [] in
     List.iter (fun r ->
       match r with
-      | P.Range.Same xs ->
+      | Patience.Range.Same xs ->
           Array.iter (fun (s, _) -> lines_a := s :: !lines_a; lines_b := s :: !lines_b) xs
-      | P.Range.Replace (xs, ys) ->
+      | Patience.Range.Replace (xs, ys, _) ->
           has_replace := true;
           Array.iter (fun s -> lines_a := s :: !lines_a) xs;
           Array.iter (fun s -> lines_b := s :: !lines_b) ys
-      | P.Range.Next ys ->
+      | Patience.Range.Next (ys, _) ->
           has_next := true;
           Array.iter (fun s -> lines_b := s :: !lines_b) ys
-      | P.Range.Prev xs ->
+      | Patience.Range.Prev (xs, _) ->
           has_prev := true;
           Array.iter (fun s -> lines_a := s :: !lines_a) xs
-      | P.Range.Unified _ -> ()
+      | Patience.Range.Unified _ -> ()
     ) h.ranges;
     let kind =
       classify_hunk_kind

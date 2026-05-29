@@ -402,6 +402,7 @@ let rec pretty_print_value v =
          | _ -> ());
         let n_hunks = match List.assoc_opt "hunks" pairs with Some (VList h) -> List.length h | _ -> 0 in
         Buffer.add_string buf (Printf.sprintf "\n  hunks: %d (use d.hunks to inspect)\n" n_hunks)
+        end;
       end;
       Buffer.contents buf
   | VDict pairs ->
