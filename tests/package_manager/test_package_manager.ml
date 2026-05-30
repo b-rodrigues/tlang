@@ -1326,6 +1326,115 @@ min_version = "0.51.0"
     List.exists (fun i -> let open Package_doctor in i.level = Error && 
                           String.contains i.message 'D' (* DESCRIPTION *)) issues);
 
+  test_pm "doctor detects missing Julia debug packages from pipeline requirements" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-doctor-julia-debug" in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s && mkdir -p %s/src" (Filename.quote dir) (Filename.quote dir)));
+    let write rel content =
+      let ch = open_out (Filename.concat dir rel) in
+      output_string ch content;
+      close_out ch
+    in
+    write "tproject.toml" {|
+[project]
+name = "doctor-julia-debug"
+description = "doctor test"
+authors = []
+
+[dependencies]
+
+[r-dependencies]
+packages = []
+
+[py-dependencies]
+version = "python313"
+packages = []
+
+[jl-dependencies]
+version = "lts"
+packages = []
+
+[additional-tools]
+packages = []
+
+[latex]
+packages = []
+
+[t]
+min_version = "0.52.0"
+
+[nixpkgs]
+date = ""
+|};
+    write "src/pipeline.t" {|
+p = pipeline {
+  upstream = node(runtime = Julia, command = <{
+    using CSV, DataFrames
+  }>, serializer = ^csv)
+}
+|};
+    let issues = Package_doctor.project_dependency_issues dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    List.exists (fun i -> i.Package_doctor.message = "Missing Julia package `CSV` in `tproject.toml`") issues
+    && List.exists (fun i -> i.Package_doctor.message = "Missing Julia package `DataFrames` in `tproject.toml`") issues
+    && List.for_all (fun i ->
+         match i.Package_doctor.suggestion with
+         | Some s -> String.contains s '['
+         | None -> false) issues);
+
+  test_pm "doctor detects missing Python and R debug packages from pipeline requirements" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-doctor-multi-debug" in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s && mkdir -p %s/src" (Filename.quote dir) (Filename.quote dir)));
+    let write rel content =
+      let ch = open_out (Filename.concat dir rel) in
+      output_string ch content;
+      close_out ch
+    in
+    write "tproject.toml" {|
+[project]
+name = "doctor-multi-debug"
+description = "doctor test"
+authors = []
+
+[dependencies]
+
+[r-dependencies]
+packages = []
+
+[py-dependencies]
+version = "python313"
+packages = []
+
+[jl-dependencies]
+version = "lts"
+packages = ["JSON"]
+
+[additional-tools]
+packages = []
+
+[latex]
+packages = []
+
+[t]
+min_version = "0.52.0"
+
+[nixpkgs]
+date = ""
+|};
+    write "src/pipeline.t" {|
+p = pipeline {
+  py_csv = pyn(command = <{
+    import pandas as pd
+  }>, serializer = ^csv)
+  r_arrow = rn(command = <{
+    library(arrow)
+  }>, serializer = ^arrow)
+}
+|};
+    let issues = Package_doctor.project_dependency_issues dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    List.exists (fun i -> i.Package_doctor.message = "Missing Python package `pandas` in `tproject.toml`") issues
+    && List.exists (fun i -> i.Package_doctor.message = "Missing R package `arrow` in `tproject.toml`") issues);
+
 
   print_newline ();
 

@@ -9,6 +9,14 @@ type issue = {
   suggestion : string option;
 }
 
+type static_node_requirements = {
+  node_name : string;
+  runtime : string;
+  command : Ast.expr;
+  serializer : Ast.expr;
+  deserializer : Ast.expr;
+}
+
 (** Check if a file exists, returning an issue if it doesn't.
     
     @param path The file path to verify.
@@ -157,8 +165,8 @@ let check_julia_version () =
     match status with
     | Unix.WEXITED 0 ->
         let version =
-          match String.split_on_char ' ' line with
-          | _prefix :: v :: _ -> v
+          match List.rev (List.filter (fun token -> String.trim token <> "") (String.split_on_char ' ' line)) with
+          | v :: _ -> v
           | _ -> ""
         in
         begin match parse_major_minor version with
@@ -220,9 +228,350 @@ let check_julia_packages () =
         Some {
           level = Warning;
           message = Printf.sprintf "Missing Julia package `%s`" pkg;
-          suggestion = Some (Printf.sprintf "Install it with Julia Pkg: `julia -e \"import Pkg; Pkg.add(\\\"%s\\\")\"`" pkg);
+          suggestion =
+            Some
+              (Printf.sprintf
+                 "Add `%s` to `[jl-dependencies].packages` in `tproject.toml`, run `t update`, and re-enter `nix develop`."
+                 pkg);
         }
     ) required_packages
+
+let expr_string_value expr =
+  match expr.Ast.node with
+  | Ast.Value (Ast.VString s | Ast.VSymbol s) -> Some s
+  | Ast.Var s -> Some s
+  | _ -> None
+
+let lookup_named_arg name args =
+  List.assoc_opt (Some name) args
+
+let lookup_dict_string keys expr =
+  let rec go = function
+    | [] -> None
+    | key :: rest ->
+        (match expr.Ast.node with
+         | Ast.DictLit pairs ->
+             (match List.assoc_opt key pairs with
+              | Some value ->
+                  (match expr_string_value value with
+                   | Some _ as found -> found
+                   | None -> go rest)
+              | None -> go rest)
+         | _ -> None)
+  in
+  go keys
+
+let default_runtime_for_constructor = function
+  | "pyn" -> "Python"
+  | "rn" -> "R"
+  | "jln" -> "Julia"
+  | "qn" -> "Quarto"
+  | "shn" -> "sh"
+  | _ -> "T"
+
+let runtime_from_path default_runtime path =
+  match Filename.extension path with
+  | ".R" -> "R"
+  | ".py" -> "Python"
+  | ".jl" -> "Julia"
+  | ".qmd" -> "Quarto"
+  | ".sh" -> "sh"
+  | _ -> default_runtime
+
+let default_serializer_expr runtime has_stdout_capture =
+  if has_stdout_capture || runtime = "sh" then Ast.mk_expr (Ast.Var "text")
+  else Ast.mk_expr (Ast.Var "default")
+
+let read_script_expr ~project_root path =
+  let full_path =
+    if Filename.is_relative path then Filename.concat project_root path else path
+  in
+  try
+    let ch = open_in full_path in
+    let raw_text =
+      Fun.protect
+        ~finally:(fun () -> close_in_noerr ch)
+        (fun () -> really_input_string ch (in_channel_length ch))
+    in
+    Ast.mk_expr
+      (Ast.RawCode { raw_text; raw_identifiers = Ast.extract_identifiers raw_text })
+  with Sys_error _ ->
+    Ast.mk_expr (Ast.Value (Ast.VNA Ast.NAGeneric))
+
+let static_requirements_of_node_expr ~project_root node_name expr =
+  match expr.Ast.node with
+  | Ast.Call { fn = { Ast.node = Ast.Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn" as constructor); _ }; args } ->
+      let default_runtime = default_runtime_for_constructor constructor in
+      let explicit_script_path = lookup_named_arg "script" args |> Option.bind expr_string_value in
+      let command = match lookup_named_arg "command" args with
+        | Some command -> command
+        | None ->
+            let arg_path =
+              match lookup_named_arg "args" args with
+              | Some dict_expr -> lookup_dict_string [ "path"; "file"; "qmd_file"; "input" ] dict_expr
+              | None -> None
+            in
+            (match explicit_script_path with
+             | Some path -> read_script_expr ~project_root path
+             | None ->
+                 (match arg_path with
+                  | Some path -> read_script_expr ~project_root path
+                  | None -> Ast.mk_expr (Ast.Value (Ast.VNA Ast.NAGeneric))))
+      in
+      let runtime =
+        match lookup_named_arg "runtime" args |> Option.bind expr_string_value with
+        | Some runtime when String.trim runtime <> "" -> runtime
+        | _ ->
+            (match explicit_script_path with
+             | Some path -> runtime_from_path default_runtime path
+             | None ->
+                 let arg_path =
+                   match lookup_named_arg "args" args with
+                   | Some dict_expr -> lookup_dict_string [ "path"; "file"; "qmd_file"; "input" ] dict_expr
+                   | None -> None
+                 in
+                 match arg_path with
+                 | Some path when lookup_named_arg "command" args = None -> runtime_from_path default_runtime path
+                 | _ -> default_runtime)
+      in
+      let has_stdout_capture =
+        match lookup_named_arg "capture" args with
+        | Some capture_expr ->
+            (match expr_string_value capture_expr with
+             | Some "stdout" -> true
+             | _ -> false)
+        | None -> false
+      in
+      let default_serializer = default_serializer_expr runtime has_stdout_capture in
+      let serializer =
+        match lookup_named_arg "serializer" args with
+        | Some serializer -> serializer
+        | None -> default_serializer
+      in
+      let deserializer =
+        match lookup_named_arg "deserializer" args with
+        | Some deserializer -> deserializer
+        | None -> default_serializer
+      in
+      {
+        node_name;
+        runtime;
+        command;
+        serializer;
+        deserializer;
+      }
+  | _ ->
+      {
+        node_name;
+        runtime = "T";
+        command = expr;
+        serializer = Ast.mk_expr (Ast.Var "default");
+        deserializer = Ast.mk_expr (Ast.Var "default");
+      }
+
+let rec first_pipeline_def_in_expr expr =
+  match expr.Ast.node with
+  | Ast.PipelineDef nodes -> Some nodes
+  | Ast.Call { fn; args } ->
+      (match first_pipeline_def_in_expr fn with
+       | Some _ as found -> found
+       | None ->
+           let rec find_arg = function
+             | [] -> None
+             | (_, arg) :: rest ->
+                 (match first_pipeline_def_in_expr arg with
+                  | Some _ as found -> found
+                  | None -> find_arg rest)
+           in
+           find_arg args)
+  | Ast.IfElse { cond; then_; else_ } ->
+      (match first_pipeline_def_in_expr cond with
+       | Some _ as found -> found
+       | None ->
+           match first_pipeline_def_in_expr then_ with
+           | Some _ as found -> found
+           | None -> first_pipeline_def_in_expr else_)
+  | Ast.Match { scrutinee; cases } ->
+      (match first_pipeline_def_in_expr scrutinee with
+       | Some _ as found -> found
+       | None ->
+           let rec find_case = function
+             | [] -> None
+             | (_, body) :: rest ->
+                 (match first_pipeline_def_in_expr body with
+                  | Some _ as found -> found
+                  | None -> find_case rest)
+           in
+           find_case cases)
+  | Ast.ListLit items ->
+      let rec find_item = function
+        | [] -> None
+        | (_, item) :: rest ->
+            (match first_pipeline_def_in_expr item with
+             | Some _ as found -> found
+             | None -> find_item rest)
+      in
+      find_item items
+  | Ast.DictLit pairs ->
+      let rec find_pair = function
+        | [] -> None
+        | (_, item) :: rest ->
+            (match first_pipeline_def_in_expr item with
+             | Some _ as found -> found
+             | None -> find_pair rest)
+      in
+      find_pair pairs
+  | Ast.BinOp { left; right; _ }
+  | Ast.BroadcastOp { left; right; _ } ->
+      (match first_pipeline_def_in_expr left with
+       | Some _ as found -> found
+       | None -> first_pipeline_def_in_expr right)
+  | Ast.UnOp { operand; _ }
+  | Ast.DotAccess { target = operand; _ }
+  | Ast.Unquote operand
+  | Ast.UnquoteSplice operand
+  | Ast.Lambda { body = operand; _ } ->
+      first_pipeline_def_in_expr operand
+  | Ast.ListComp { expr; clauses } ->
+      (match first_pipeline_def_in_expr expr with
+       | Some _ as found -> found
+       | None ->
+           let rec find_clause = function
+             | [] -> None
+             | Ast.CFor { iter; _ } :: rest
+             | Ast.CFilter iter :: rest ->
+                 (match first_pipeline_def_in_expr iter with
+                  | Some _ as found -> found
+                  | None -> find_clause rest)
+           in
+           find_clause clauses)
+  | Ast.Block stmts ->
+      let rec find_stmt = function
+        | [] -> None
+        | stmt :: rest ->
+            (match stmt.Ast.node with
+             | Ast.Expression expr
+             | Ast.Assignment { expr; _ }
+             | Ast.Reassignment { expr; _ } ->
+                 (match first_pipeline_def_in_expr expr with
+                  | Some _ as found -> found
+                  | None -> find_stmt rest)
+             | Ast.Import _
+             | Ast.ImportPackage _
+             | Ast.ImportFrom _
+             | Ast.ImportFileFrom _ -> find_stmt rest)
+      in
+      find_stmt stmts
+  | Ast.Value _
+  | Ast.Var _
+  | Ast.ColumnRef _
+  | Ast.RawCode _
+  | Ast.IntentDef _
+  | Ast.ShellExpr _ -> None
+
+let first_pipeline_def_in_program program =
+  let rec go = function
+    | [] -> None
+    | stmt :: rest ->
+        let candidate =
+          match stmt.Ast.node with
+          | Ast.Expression expr
+          | Ast.Assignment { expr; _ }
+          | Ast.Reassignment { expr; _ } -> first_pipeline_def_in_expr expr
+          | Ast.Import _
+          | Ast.ImportPackage _
+          | Ast.ImportFrom _
+          | Ast.ImportFileFrom _ -> None
+        in
+        match candidate with
+        | Some _ as found -> found
+        | None -> go rest
+  in
+  go program
+
+let static_pipeline_for_doctor ~project_root nodes =
+  let requirements =
+    List.map (fun (node_name, expr) -> static_requirements_of_node_expr ~project_root node_name expr) nodes
+  in
+  {
+    Ast.p_nodes = [];
+    p_exprs = List.map (fun req -> (req.node_name, req.command)) requirements;
+    p_deps = [];
+    p_imports = [];
+    p_runtimes = List.map (fun req -> (req.node_name, req.runtime)) requirements;
+    p_serializers = List.map (fun req -> (req.node_name, req.serializer)) requirements;
+    p_deserializers = List.map (fun req -> (req.node_name, req.deserializer)) requirements;
+    p_env_vars = [];
+    p_args = [];
+    p_shells = [];
+    p_shell_args = [];
+    p_functions = [];
+    p_includes = [];
+    p_noops = [];
+    p_scripts = [];
+    p_explicit_deps = [];
+    p_node_diagnostics = [];
+  }
+
+let read_file path =
+  try
+    let ch = open_in path in
+    let content =
+      Fun.protect
+        ~finally:(fun () -> close_in_noerr ch)
+        (fun () -> really_input_string ch (in_channel_length ch))
+    in
+    Ok content
+  with Sys_error msg -> Error msg
+
+let parse_program path =
+  match read_file path with
+  | Error msg -> Error (Printf.sprintf "Could not read %s: %s" path msg)
+  | Ok content ->
+      let lexbuf = Lexing.from_string content in
+      lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = path };
+      try Ok (Parser.program Lexer.token lexbuf)
+      with
+      | Lexer.SyntaxError msg -> Error (Printf.sprintf "Could not parse %s: %s" path msg)
+      | Parser.Error -> Error (Printf.sprintf "Could not parse %s" path)
+
+let doctor_issue_for_package ~section ~runtime pkg =
+  {
+    level = Warning;
+    message = Printf.sprintf "Missing %s package `%s` in `tproject.toml`" runtime pkg;
+    suggestion =
+      Some
+        (Printf.sprintf
+           "Add `%s` to `%s.packages` in `tproject.toml`, run `t update`, and re-enter `nix develop`."
+           pkg section);
+  }
+
+let project_dependency_issues dir =
+  let tproject_path = Filename.concat dir "tproject.toml" in
+  let pipeline_path = Filename.concat (Filename.concat dir "src") "pipeline.t" in
+  if not (Sys.file_exists tproject_path) || not (Sys.file_exists pipeline_path) then []
+  else
+    match read_file tproject_path with
+    | Error _ -> []
+    | Ok content ->
+        (match Toml_parser.parse_tproject_toml content with
+         | Error _ -> []
+         | Ok cfg ->
+             match parse_program pipeline_path with
+             | Error _ -> []
+             | Ok program ->
+                 match first_pipeline_def_in_program program with
+                 | None -> []
+                 | Some nodes ->
+                     let pipeline = static_pipeline_for_doctor ~project_root:dir nodes in
+                     let analysis =
+                       Pipeline_dependency_requirements.analyze_missing_requirements pipeline cfg
+                     in
+                     List.concat [
+                       List.map (doctor_issue_for_package ~section:"[r-dependencies]" ~runtime:"R") analysis.missing_r_deps;
+                       List.map (doctor_issue_for_package ~section:"[py-dependencies]" ~runtime:"Python") analysis.missing_py_deps;
+                       List.map (doctor_issue_for_package ~section:"[jl-dependencies]" ~runtime:"Julia") analysis.missing_julia_deps;
+                     ])
 
 (*
 --# Run Package/Project Doctor
@@ -270,9 +619,9 @@ let run_doctor () =
   let julia_issues =
     let base_checks = [ check_julia_binary (); check_julia_version (); check_julia_load_path () ] in
     let base_issues = List.filter_map (fun x -> x) base_checks in
-    base_issues @ check_julia_packages ()
+    base_issues
   in
-  let issues = issues @ julia_issues in
+  let issues = issues @ julia_issues @ project_dependency_issues dir in
 
   if issues = [] then
     Printf.printf "\n✓ Everything looks good!\n"
