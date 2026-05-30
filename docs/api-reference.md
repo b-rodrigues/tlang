@@ -2927,6 +2927,30 @@ read_node(p.model_v1, which_log = "20260221")
 
 ---
 
+### `debug_node(node)`
+
+Launches an interactive guest subshell (Python, R, or Julia REPL) to debug a pipeline node using its exact build state and context.
+
+**Parameters:**
+
+- `node` — The ComputedNode to debug (e.g. `p.node_name`).
+
+**Returns:**
+
+Runs interactively. Control returns to the parent T REPL once the subshell is exited.
+
+**Details:**
+Within the subshell, all upstream build paths and companion library loaders are provided, and custom project-level variables (`p_env_vars`/`un_env_vars`) are propagated directly. To enforce strict reproducibility and prevent configuration drift, all imperative package updates (e.g., `pip`, `install.packages`, `Pkg.add`) are dynamically intercepted and blocked.
+
+**Examples:**
+```t
+p = pipeline { a = 1; b = a + 5 }
+build_pipeline(p)
+debug_node(p.b)
+```
+
+---
+
 ### `inspect_log(which_log = NA)`
 
 View build status and output paths for a pipeline build.
