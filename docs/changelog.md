@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.52.2] - 2026-05-24
+## [0.52.2] - 2026-05-31
 
 This release introduces interactive pipeline node debugging via `debug_node`, native Nix orchestration features for granular rebuild control, job parallelisation, Cachix binary caching, and dry-runs, and the temporal introspection pair `build_log_history` and `node_diff` for tracking how pipeline outputs change across builds.
 
