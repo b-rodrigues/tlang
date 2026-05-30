@@ -528,6 +528,17 @@ EOF
 
             export JULIA_DEPOT_PATH="$julia_depot_dir''${JULIA_DEPOT_PATH:+:$JULIA_DEPOT_PATH}"
 
+            # Create a local R profile directory for sandbox guards
+            r_profile_dir="$TLANG_REPO_ROOT/.t_r_profile"
+            mkdir -p "$r_profile_dir"
+            cat > "$r_profile_dir/.Rprofile" <<'EOF'
+options(prompt='r> ', continue='r+ ')
+install.packages <- function(...) stop("Don't use install.packages() in this T R environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.", call. = FALSE)
+update.packages <- function(...) stop("Don't use update.packages() in this T R environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.", call. = FALSE)
+remove.packages <- function(...) stop("Don't use remove.packages() in this T R environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.", call. = FALSE)
+EOF
+            export R_PROFILE_USER="$r_profile_dir/.Rprofile"
+
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"
             echo "═══════════════════════════════════════════════"

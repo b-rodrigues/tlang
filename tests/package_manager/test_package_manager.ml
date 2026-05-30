@@ -1158,7 +1158,9 @@ min_version = "0.51.0"
     && has "tPackages"
     && has "stats.packages"
     && has "t-lang.url"
-    && has "rstats-on-nix.cachix.org");
+    && has "rstats-on-nix.cachix.org"
+    && has "r_profile_dir"
+    && has "R_PROFILE_USER");
 
   test_pm "generate project flake no deps" (fun () ->
     let flake = Nix_generator.generate_project_flake

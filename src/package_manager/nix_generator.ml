@@ -61,6 +61,19 @@ let julia_depot_sandbox_hook =
    EOF\n\
    \            export JULIA_DEPOT_PATH=\"$julia_depot_dir:''${JULIA_DEPOT_PATH:-}\"\n"
 
+let r_profile_sandbox_hook =
+  "            # Create a local R profile directory for sandbox guards\n\
+   \            r_profile_dir=\"$PWD/.t_r_profile\"\n\
+   \            mkdir -p \"$r_profile_dir\"\n\
+   \            cat > \"$r_profile_dir/.Rprofile\" <<'EOF'\n\
+   options(prompt='r> ', continue='r+ ')\n\
+   install.packages <- function(...) stop(\"Don't use install.packages() in this T R environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\", call. = FALSE)\n\
+   update.packages <- function(...) stop(\"Don't use update.packages() in this T R environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\", call. = FALSE)\n\
+   remove.packages <- function(...) stop(\"Don't use remove.packages() in this T R environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\", call. = FALSE)\n\
+   EOF\n\
+   \            export R_PROFILE_USER=\"$r_profile_dir/.Rprofile\"\n"
+
+
 (** Ensure that the "JSON" dependency is present in the list of Julia dependencies.
     T-Lang's polyglot interop uses JSON serialization for data exchange with Julia. *)
 let ensure_julia_json_dep deps =
@@ -276,6 +289,7 @@ let generate_project_flake
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Buffer.add_string buf julia_depot_sandbox_hook;
+  Buffer.add_string buf r_profile_sandbox_hook;
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Project: %s\"\n" project_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";
@@ -441,6 +455,7 @@ let generate_package_flake
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Buffer.add_string buf julia_depot_sandbox_hook;
+  Buffer.add_string buf r_profile_sandbox_hook;
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Package: %s\"\n" package_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";
