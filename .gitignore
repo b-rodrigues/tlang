@@ -35,3 +35,4 @@ benchmarks/nyc_taxi/results/*.log
 !editors/vscode/t-lang-*.vsix
 node_modules/
 *.tobj
+/.t_julia_depot/

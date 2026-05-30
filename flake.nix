@@ -476,6 +476,59 @@ chmod +x $out/bin/bisect-ppx-report
             export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src''${PYTHONPATH:+:$PYTHONPATH}"
             export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@}"
 
+            # Create a local Julia depot directory for sandbox guards
+            julia_depot_dir="$TLANG_REPO_ROOT/.t_julia_depot"
+            mkdir -p "$julia_depot_dir/config"
+            
+            # Write the custom startup.jl with interactive guards
+            cat > "$julia_depot_dir/config/startup.jl" <<'EOF'
+module _TlangGuardPkg
+  export add, rm, update, develop
+  msg = "Don't use imperative package management in this T Julia environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`."
+  add(args...; kwargs...) = error(msg)
+  rm(args...; kwargs...) = error(msg)
+  update(args...; kwargs...) = error(msg)
+  develop(args...; kwargs...) = error(msg)
+end
+
+const _tlang_pkg_id = Base.PkgId(Base.UUID("44cfe95a-1eb2-52ea-b672-e2afdf69b78f"), "Pkg")
+const _tlang_repl_id = Base.PkgId(Base.UUID("3fa0cd96-eef1-5676-8a61-b3b8758bbffb"), "REPL")
+
+try
+  Base.require(_tlang_pkg_id)
+  _tlang_repl = Base.require(_tlang_repl_id)
+
+  function _tlang_install_packages_hook(pkgs::Vector{Symbol})
+    pkg_str = join(string.(pkgs), ", ")
+    println(" │ Packages [", pkg_str, "] not found, but packages named [", pkg_str, "] are available from")
+    println(" │ a registry.")
+    println(" │ Install packages?")
+    println(" │   (project) pkg> add ", pkg_str)
+    print(" └ (y/n/o) [y]: ")
+    flush(stdout)
+    response = lowercase(strip(readline(stdin)))
+    if response == "" || response == "y" || response == "yes"
+      println("\nDon't use interactive package installation in this T Julia environment.")
+      println("Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\n")
+    end
+    return false
+  end
+
+  empty!(_tlang_repl.install_packages_hooks)
+  push!(_tlang_repl.install_packages_hooks, _tlang_install_packages_hook)
+
+  # Assign to Pkg in loaded_modules
+  Base.loaded_modules[_tlang_pkg_id] = _TlangGuardPkg
+catch err
+  # Suppress any startup errors so Julia doesn't fail to launch
+end
+
+# Also bind Pkg globally in Main so it's directly accessible
+const Pkg = _TlangGuardPkg
+EOF
+
+            export JULIA_DEPOT_PATH="$julia_depot_dir''${JULIA_DEPOT_PATH:+:$JULIA_DEPOT_PATH}"
+
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"
             echo "═══════════════════════════════════════════════"
