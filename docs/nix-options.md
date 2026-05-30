@@ -158,6 +158,32 @@ pipeline_run(p, nix_options = [
 
 The pipeline engine validates that only allowed variables are whitelisted and safely passes them to the Nix builder, keeping all other host details hidden.
 
+### `env_vars` vs `keep_env`
+
+The `env_vars` parameter (on node-level functions) and `keep_env` (in `nix_options`) both inject environment variables into the Nix sandbox, but they serve different purposes:
+
+- **`env_vars`** is a per-node dictionary of key-value pairs set on `node()`, `py()`/`pyn()`, `rn()`, `shn()`, `jln()`, or `qn()`. You provide explicit values for each variable.
+- **`keep_env`** is a pipeline-wide list of variable *names* passed through `nix_options`. It forwards existing host environment variables by name without specifying their values.
+
+| | `env_vars` | `keep_env` |
+| :--- | :--- | :--- |
+| **Scope** | Per-node | Whole pipeline (all nodes) |
+| **Where** | `node()`, `py()`, `rn()`, `shn()`, `jln()`, `qn()` | `nix_options` in `t_make()`, `pipeline_run()`, `pipeline_build()` |
+| **What it does** | Sets env vars to explicit values you provide | Forwards existing host env vars by name |
+| **Type** | Dict (key-value pairs) | String or List of variable names |
+
+```t
+-- env_vars: set explicit values for a specific node
+pipeline {
+  step1 = node(<{ ... }>, env_vars = ["API_URL": "https://example.com", "DEBUG": "1"])
+}
+
+-- keep_env: forward host variables to the entire pipeline build
+t_make(nix_options = [keep_env: ["GITHUB_TOKEN", "DB_CONNECTION_STRING"]])
+```
+
+Use `env_vars` when you want to **define** a variable's value for a specific node, and `keep_env` when you want to **pass through** a variable that is already set in your host shell to the entire pipeline build.
+
 ---
 
 ## 7. Strong Validation

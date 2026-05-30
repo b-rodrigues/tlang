@@ -269,6 +269,70 @@ pipeline_run(p, nix_options = [
 <p>The pipeline engine validates that only allowed variables are
 whitelisted and safely passes them to the Nix builder, keeping all other
 host details hidden.</p>
+<h3 id="env_vars-vs-keep_env"><code>env_vars</code> vs
+<code>keep_env</code></h3>
+<p>The <code>env_vars</code> parameter (on node-level functions) and
+<code>keep_env</code> (in <code>nix_options</code>) both inject
+environment variables into the Nix sandbox, but they serve different
+purposes:</p>
+<ul>
+<li><strong><code>env_vars</code></strong> is a per-node dictionary of
+key-value pairs set on <code>node()</code>, <code>py()</code>/<code>pyn()</code>,
+<code>rn()</code>, <code>shn()</code>, <code>jln()</code>, or
+<code>qn()</code>. You provide explicit values for each variable.</li>
+<li><strong><code>keep_env</code></strong> is a pipeline-wide list of
+variable <em>names</em> passed through <code>nix_options</code>. It
+forwards existing host environment variables by name without specifying
+their values.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: left;"><code>env_vars</code></th>
+<th style="text-align: left;"><code>keep_env</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Scope</strong></td>
+<td style="text-align: left;">Per-node</td>
+<td style="text-align: left;">Whole pipeline (all nodes)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Where</strong></td>
+<td style="text-align: left;"><code>node()</code>, <code>py()</code>,
+<code>rn()</code>, <code>shn()</code>, <code>jln()</code>,
+<code>qn()</code></td>
+<td style="text-align: left;"><code>nix_options</code> in
+<code>t_make()</code>, <code>pipeline_run()</code>,
+<code>pipeline_build()</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>What it does</strong></td>
+<td style="text-align: left;">Sets env vars to explicit values you
+provide</td>
+<td style="text-align: left;">Forwards existing host env vars by
+name</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Type</strong></td>
+<td style="text-align: left;">Dict (key-value pairs)</td>
+<td style="text-align: left;">String or List of variable names</td>
+</tr>
+</tbody>
+</table>
+<pre class="t"><code>-- env_vars: set explicit values for a specific node
+pipeline {
+  step1 = node(&lt;{ ... }&gt;, env_vars = [&quot;API_URL&quot;: &quot;https://example.com&quot;, &quot;DEBUG&quot;: &quot;1&quot;])
+}
+
+-- keep_env: forward host variables to the entire pipeline build
+t_make(nix_options = [keep_env: [&quot;GITHUB_TOKEN&quot;, &quot;DB_CONNECTION_STRING&quot;]])</code></pre>
+<p>Use <code>env_vars</code> when you want to <strong>define</strong> a
+variable's value for a specific node, and <code>keep_env</code> when you
+want to <strong>pass through</strong> a variable that is already set in
+your host shell to the entire pipeline build.</p>
 <hr />
 <h2 id="strong-validation">7. Strong Validation</h2>
 <p>T enforces strict validation at pipeline construction time. Providing
