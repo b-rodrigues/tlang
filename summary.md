@@ -363,12 +363,21 @@ Purpose: descriptive statistics, scaling/normalization, linear models, diagnosti
 Purpose: node construction, pipeline execution, graph inspection, graph rewriting, validation, artifact access, and composition.
 
 - Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `jln(command = ..., script = na(), serializer = ^csv, deserializer = ^csv, functions = [], include = [], noop = false)`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
-- Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `suppress_warnings(node)`, `build_log_history(p, n = na())`, `node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`
+- Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `suppress_warnings(node)`, `build_log_history(p, n = na())`, `node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`, `debug_node(node)`
 - Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_summary(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_dot(p)`
 - Node-level transforms: `filter_node(p, predicate)`, `which_nodes(p, predicate)`, `errored_nodes(p)`,
   `mutate_node(p, ..., where = na())`, `rename_node(p, old_name, new_name)`, `select_node(p, ...)`,
   `arrange_node(p, field, direction = "asc")`
 - Set and DAG operations: `union(p1, p2)`, `difference(p1, p2)`, `intersect(p1, p2)`, `patch(p1, p2)`, `swap(p, name, new_node)`, `rewire(p, name, replace = [])`, `prune(p)`, `upstream_of(p, name)`, `downstream_of(p, name)`, `subgraph(p, name)`, `chain(p1, p2)`, `parallel(p1, p2)`
+
+### Interactive Debugging (`debug_node`) & Introspection Diffs (`node_diff`)
+
+- **Interactive Node Debugging (`debug_node(node)`)**: Drops developers directly from the T REPL into a sandboxed guest REPL (Python, R, or Julia) of a specific computed node. Within this guest REPL, upstream dependencies are automatically loaded to allow interactive testing and debugging of the node's local logic. To maintain strict reproducibility, imperative package installation commands (such as `pip install`, `install.packages()`, `Pkg.add()`, etc.) are actively intercepted and blocked in both the guest REPL subshells and the main `nix develop` developer shell.
+- **Node Output Diffing (`node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`)**: Compares outputs of a specific node across two historical builds (retrieved from build log history). Implements type-sensitive comparison strategies:
+  - *DataFrames*: Summarizes schema changes, reports row/column count shifts, lists column-level mean drift, and ignores unchanged NA/NaN cells.
+  - *PMML Models*: Compares model regression coefficients and intercepts for linear models, falling back to structural tree comparisons for tree-based models.
+  - *Text & Strings*: Computes a colorized, unified diff showing exact line additions and removals.
+  - *Scalars/Generic*: Direct value structural equivalence and numeric difference calculations.
 
 Important LLM rule: when the goal is reproducible execution, prefer generating or editing pipeline nodes rather than a monolithic script.
 
