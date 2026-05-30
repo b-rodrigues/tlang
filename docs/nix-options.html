@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - nix-options</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="nix-build-options-orchestration">Nix Build Options &amp;
+Orchestration</h1>
+<blockquote>
+<p>Passing low-level Nix configuration and arguments directly to the T
+pipeline builders</p>
+</blockquote>
+<p>T integrates declaratively with the Nix ecosystem to compile, build,
+and run pipelines in completely isolated, reproducible sandboxes. To
+offer fine-grained control over Nix builds, T provides a unified
+<code>nix_options</code> dictionary argument.</p>
+<p>This argument is accepted by all primary orchestration and execution
+entry points: - <code>populate_pipeline()</code> -
+<code>build_pipeline()</code> - <code>pipeline_run()</code> -
+<code>t_make()</code></p>
+<hr />
+<h2 id="the-nix_options-dictionary">The <code>nix_options</code>
+Dictionary</h2>
+<p>Instead of cluttering functions with flat parameters, all low-level
+Nix build and resource limits are grouped under a single, optional
+<code>nix_options</code> dictionary:</p>
+<pre class="t"><code>nix_options = [
+  max_jobs: 4,
+  max_cores: 2,
+  dry_run: true,
+  force: true,
+  targets: [&quot;filtered_data&quot;],
+  cache: &quot;rstats-on-nix&quot;,
+  builders: &quot;ssh://builder.example.com&quot;,
+  keep_env: [&quot;API_KEY&quot;, &quot;ACCESS_TOKEN&quot;],
+  sandbox: &quot;relaxed&quot;
+]</code></pre>
+<h3 id="supported-parameters">Supported Parameters</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Parameter</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Command Line Equivalence</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>max_jobs</code></td>
+<td style="text-align: left;"><code>Int</code></td>
+<td style="text-align: left;"><code>--max-jobs &lt;N&gt;</code></td>
+<td style="text-align: left;">The maximum number of build jobs Nix is
+allowed to run in parallel. Must be greater than <code>0</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>max_cores</code></td>
+<td style="text-align: left;"><code>Int</code></td>
+<td style="text-align: left;"><code>--cores &lt;N&gt;</code></td>
+<td style="text-align: left;">The maximum number of CPU cores that Nix
+will assign per build job. Must be greater than <code>0</code> (or
+<code>0</code> to use all available cores).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dry_run</code></td>
+<td style="text-align: left;"><code>Bool</code></td>
+<td style="text-align: left;"><code>--dry-run</code></td>
+<td style="text-align: left;">When <code>true</code>, Nix plans the
+build actions instead of executing them. Returns a planned DataFrame
+(see details below).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>force</code></td>
+<td style="text-align: left;"><code>Bool</code></td>
+<td style="text-align: left;"><code>--check</code></td>
+<td style="text-align: left;">When <code>true</code>, forces Nix to
+rebuild the specified nodes even if they already exist in the
+cache.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>targets</code></td>
+<td style="text-align: left;"><code>String</code> or
+<code>List[String]</code></td>
+<td style="text-align: left;"><code>-A &lt;target&gt;</code></td>
+<td style="text-align: left;">Limits execution or building to specific
+node name(s) and their upstream dependencies.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>cache</code></td>
+<td style="text-align: left;"><code>String</code></td>
+<td
+style="text-align: left;"><code>--option extra-substituters ...</code></td>
+<td style="text-align: left;">Sets a custom Cachix cache repository name
+(e.g. <code>"my-cache"</code> maps to
+<code>https://my-cache.cachix.org</code>).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>builders</code></td>
+<td style="text-align: left;"><code>String</code></td>
+<td style="text-align: left;"><code>--builders &lt;uri&gt;</code></td>
+<td style="text-align: left;">Configures Nix remote build machines
+(e.g. <code>"ssh://builder.example.com"</code>).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>keep_env</code></td>
+<td style="text-align: left;"><code>String</code> or
+<code>List[String]</code></td>
+<td style="text-align: left;"><code>--option keep-env ...</code></td>
+<td style="text-align: left;">Whitelists specific environment variables
+to forward into the Nix sandbox.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>sandbox</code></td>
+<td style="text-align: left;"><code>Bool</code> or
+<code>String</code></td>
+<td
+style="text-align: left;"><code>--option sandbox &lt;strict|relaxed|false&gt;</code></td>
+<td style="text-align: left;">Controls Nix sandboxing mode:
+<code>relaxed</code>, <code>strict</code> (or <code>true</code>),
+<code>none</code> (or <code>false</code>).</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="dry-runs-and-planned-dataframes">1. Dry Runs and planned
+DataFrames</h2>
+<p>Passing <code>dry_run: true</code> instructs Nix to query the
+derivation graph and compute build and binary cache fetch actions
+without actually running any code.</p>
+<p>In T, this is a first-class operation: instead of dumping text to
+stdout, <code>build_pipeline()</code> and <code>pipeline_run()</code> in
+dry-run mode return a structured T <strong>DataFrame</strong> outlining
+the planned build graph:</p>
+<pre class="t"><code>p = pipeline {
+  raw = read_csv(&quot;data.csv&quot;)
+  filtered = raw |&gt; filter($age &gt; 30)
+}
+
+-- Trigger a planned dry-run
+plan_df = build_pipeline(p, nix_options = [dry_run: true])
+print(plan_df)</code></pre>
+<p>The returned DataFrame contains three columns: -
+<strong><code>node</code></strong>: The name of the pipeline node. -
+<strong><code>action</code></strong>: The build action determined by Nix
+(<code>"build"</code>, <code>"fetch"</code> from cache, or
+<code>"noop"</code>). - <strong><code>path</code></strong>: The absolute
+<code>/nix/store/</code> path where the node’s output derivation
+resides.</p>
+<p>This allows you to programmatically inspect build plans, perform
+capacity planning, or check whether specific nodes will be pulled from a
+binary cache before initiating a build.</p>
+<hr />
+<h2 id="targeting-specific-nodes">2. Targeting Specific Nodes</h2>
+<p>For large pipelines with many expensive nodes, you can run and
+materialize only a subset of nodes by defining <code>targets</code>
+inside <code>nix_options</code>:</p>
+<pre class="t"><code>-- Rebuild only the &quot;filtered&quot; node and its upstream dependencies
+build_pipeline(p, nix_options = [
+  targets: [&quot;filtered&quot;],
+  force: true
+])</code></pre>
+<p>The pipeline runner parses <code>targets</code> (which can be a
+single String or a List/Vector of Strings), ensures they match valid
+node identifiers in the DAG, and appends the appropriate <code>-A</code>
+flags during the <code>nix-build</code> invocation.</p>
+<hr />
+<h2 id="high-level-cli-orchestration-via-t_make">3. High-level CLI
+Orchestration via <code>t_make</code></h2>
+<p>The high-level CLI and REPL builder, <code>t_make()</code>, also
+supports the <code>nix_options</code> dictionary, accepting it as either
+a named parameter or as the second positional argument:</p>
+<pre class="t"><code>-- In the REPL: Run the pipeline with parallel execution limits
+t_make(nix_options = [max_jobs: 4, max_cores: 2])
+
+-- Positional signature: t_make(filename, nix_options, verbose, failfast)
+t_make(&quot;src/pipeline.t&quot;, [max_jobs: 8])</code></pre>
+<hr />
+<h2 id="remote-builders-builders">4. Remote Builders
+(<code>builders</code>)</h2>
+<p>Offloading computationally intensive pipeline tasks (such as deep
+learning models or high-dimensional matrix operations) to
+high-performance remote builders or GPU clusters is fully supported
+using standard Nix remote builders:</p>
+<pre class="t"><code>-- Run the pipeline but offload the build derivations to remote machines
+pipeline_run(p, nix_options = [
+  builders: &quot;ssh://gpu-builder.local x86_64-linux /root/.ssh/id_rsa 16 1 kvm,benchmark - -&quot;
+])</code></pre>
+<p>The <code>builders</code> parameter accepts a string formatted
+according to standard Nix remote builders syntax
+(<code>ssh://&lt;host&gt; &lt;system-types&gt; &lt;ssh-key-path&gt; &lt;max-jobs&gt; &lt;features&gt;</code>).
+Multiple builders can be provided by separating them with a newline
+character.</p>
+<hr />
+<h2 id="sandboxing-control-sandbox">5. Sandboxing Control
+(<code>sandbox</code>)</h2>
+<p>By default, Nix runs all build jobs inside highly isolated
+environments. While this guarantees 100% reproducibility, certain legacy
+tasks or developer workflows may require relaxing sandboxing
+constraints:</p>
+<pre class="t"><code>-- Relax sandboxing to allow local resource access for specific nodes
+build_pipeline(p, nix_options = [
+  sandbox: &quot;relaxed&quot;
+])
+
+-- Fully disable sandboxing (not recommended for production)
+pipeline_run(p, nix_options = [
+  sandbox: false -- maps to sandbox: &quot;none&quot;
+])</code></pre>
+<p>Supported values for <code>sandbox</code>: - <code>true</code> or
+<code>"strict"</code>: All build jobs are completely isolated (default).
+- <code>"relaxed"</code>: Relaxes sandboxing rules for derivations that
+request it, allowing paths in the host filesystem to be accessed. -
+<code>false</code> or <code>"none"</code>: Sandboxing is disabled
+entirely.</p>
+<hr />
+<h2 id="environment-whitelisting-keep_env">6. Environment Whitelisting
+(<code>keep_env</code>)</h2>
+<p>To protect the purity and reproducibility of your builds, Nix purges
+all host environment variables by default. If your pipeline steps
+require access to specific host environment variables (such as access
+tokens, private database connection URIs, or licensing keys), you can
+pass-through these variables using <code>keep_env</code>:</p>
+<pre class="t"><code>-- Pass-through specific environment variables into the build sandbox
+t_make(nix_options = [
+  keep_env: [&quot;GITHUB_TOKEN&quot;, &quot;DB_CONNECTION_STRING&quot;]
+])
+
+-- Single variable pass-through
+pipeline_run(p, nix_options = [
+  keep_env: &quot;AWS_ACCESS_KEY_ID&quot;
+])</code></pre>
+<p>The pipeline engine validates that only allowed variables are
+whitelisted and safely passes them to the Nix builder, keeping all other
+host details hidden.</p>
+<hr />
+<h2 id="strong-validation">7. Strong Validation</h2>
+<p>T enforces strict validation at pipeline construction time. Providing
+an unrecognized option or an invalid type inside the
+<code>nix_options</code> dictionary will raise a structured
+<code>TypeError</code> or <code>ValueError</code>:</p>
+<pre class="t"><code>-- ❌ TypeError: t_make: &#39;max_jobs&#39; in nix_options must be an Int
+t_make(nix_options = [max_jobs: &quot;high&quot;])
+
+-- ❌ TypeError: t_make: unknown option &#39;threads&#39; in nix_options
+t_make(nix_options = [threads: 4])
+
+-- ❌ ValueError: sandbox: &#39;invalid_sandbox&#39; is not a valid sandboxing mode
+t_make(nix_options = [sandbox: &quot;invalid_sandbox&quot;])</code></pre>
+<hr />
+<h2 id="low-level-derivation-projection-pipeline_to_drv">8. Low-Level
+Derivation Projection (<code>pipeline_to_drv</code>)</h2>
+<p>For static analysis, auditing, and deep debugging, you can introspect
+the raw Nix store derivation <code>.drv</code> paths generated for each
+node without running the actual build tasks:</p>
+<pre class="t"><code>-- Get raw Nix store derivation paths for all pipeline nodes
+drvs = pipeline_to_drv(p)
+
+-- Returns a dictionary mapping node names to their store paths:
+-- {
+--   &quot;node_a&quot;: &quot;/nix/store/a1b2c3d4...-node_a.drv&quot;,
+--   &quot;node_b&quot;: &quot;/nix/store/x9y8z7w6...-node_b.drv&quot;
+-- }</code></pre>
+<p>By querying the <code>.drv</code> path, developers can perform
+low-level audits, inspect generated Nix environments, or run
+<code>nix derivation show</code> to analyze precise inputs and
+environment configurations.</p>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

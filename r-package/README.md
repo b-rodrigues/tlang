@@ -5,11 +5,9 @@ artifacts from built T pipelines.
 
 ## Installation
 
-From the repository root:
-
-```r
-install.packages("r-package", repos = NULL, type = "source")
-```
+Do not install this helper with `install.packages()`. In a T project, declare
+your R dependencies in `tproject.toml`, run `t update`, and re-enter
+`nix develop`; the `tlang` helper is then available from that project shell.
 
 ## Usage
 
@@ -34,6 +32,20 @@ You can also target a specific historical build log:
 
 ```r
 older_model <- read_node("model", which_log = "20260221")
+```
+
+
+## Diff R artifacts
+
+Use the bundled diffobj-based helpers to compare R-native artifacts such as
+models, lists, or custom S3 objects:
+
+```r
+library(tlang)
+
+diff <- diff_nodes("model", "model", which_log_a = "20260501", which_log_b = "latest")
+print(diff$kind)
+print(diff$summary)
 ```
 
 

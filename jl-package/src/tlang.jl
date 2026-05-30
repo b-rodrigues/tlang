@@ -3,7 +3,7 @@ module tlang
 using JSON
 using Serialization
 
-export read_node, pipeline_nodes
+export read_node, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects
 
 const FIXTURE_LOGS = ["build_log_ocaml_mock.json", "build_log_legacy_version.json"]
 
@@ -229,7 +229,45 @@ function _resolve_artifact_path(path_val::String, pipeline_dir::String)
 end
 
 """
-    read_node(name::String; which_log::Union{String, Nothing} = nothing, pipeline_dir::String = "_pipeline", deserializer::Function = Serialization.deserialize, return_path::Bool = false)
+    _auto_deserializer(serializer::String, artifact_path::String)
+
+Pick a deserializer based on the serializer name recorded in the build log.
+
+Supports `"csv"` (loads via CSV.jl + DataFrames.jl when available, falls back to
+reading the raw file as a string), `"json"` (parses with JSON.jl), and everything
+else falls back to `Serialization.deserialize`.
+"""
+function _auto_deserializer(serializer::String, artifact_path::String)
+    s = lowercase(strip(serializer))
+    if s == "csv"
+        # Try CSV.jl + DataFrames.jl; give a clear message if they are not loaded.
+        if !isdefined(Main, :CSV) || !isdefined(Main, :DataFrames)
+            error(
+                "Node artifact is a CSV file but `CSV` and `DataFrames` are not loaded. " *
+                "Run `using CSV, DataFrames` first, then call read_node() again."
+            )
+        end
+        csv_mod = getfield(Main, :CSV)
+        df_mod  = getfield(Main, :DataFrames)
+        return Base.invokelatest(getfield(csv_mod, :read), artifact_path, getfield(df_mod, :DataFrame))
+    elseif s == "json"
+        return JSON.parsefile(artifact_path)
+    elseif s == "default" || s == "tobj"
+        # Julia-native binary formats — use Julia's own serializer.
+        return Serialization.deserialize(artifact_path)
+    else
+        # Unknown serializer (e.g. pmml, parquet, rds): raise a clear error
+        # consistent with how R and Python read_node behave on formats they
+        # cannot deserialize. Use return_path=true or pass a custom deserializer.
+        error(
+            "read_node: no built-in deserializer for serializer \"$serializer\". " *
+            "Pass a custom `deserializer` function or use `return_path=true` to get the artifact path."
+        )
+    end
+end
+
+"""
+    read_node(name::String; which_log::Union{String, Nothing} = nothing, pipeline_dir::String = \"_pipeline\", deserializer::Union{Function, Nothing} = nothing, return_path::Bool = false)
 
 Read a node artifact from a built T pipeline.
 
@@ -238,15 +276,21 @@ When `which_log` is `nothing`, the helper picks the first reverse-alphabetically
 sorted `build_log_*.json` file, which matches T's timestamped log naming and
 therefore resolves to the most recent build.
 
+If no `deserializer` is provided, the serializer recorded in the build log is used
+to pick the right one automatically:
+- `csv`  → `CSV.read(path, DataFrame)` (requires `using CSV, DataFrames`)
+- `json` → `JSON.parsefile(path)`
+- anything else → `Serialization.deserialize(path)`
+
 # Arguments
 - `name::String`: The name of the node to retrieve.
 
 # Keywords
 - `which_log::Union{String, Nothing}`: An optional regex pattern used to select a specific build log file by name.
   If `nothing`, the most recent build log is used.
-- `pipeline_dir::String`: The path to the pipeline directory. Defaults to `"_pipeline"`.
-- `deserializer::Function`: A function to deserialize the node artifact from disk.
-  Defaults to `Serialization.deserialize`.
+- `pipeline_dir::String`: The path to the pipeline directory. Defaults to `\"_pipeline\"`.
+- `deserializer::Union{Function, Nothing}`: A function to deserialize the node artifact from disk.
+  When `nothing` (the default), the serializer field in the build log is used to pick automatically.
 - `return_path::Bool`: If `true`, return the absolute path to the artifact file instead of deserializing it.
   Defaults to `false`.
 
@@ -262,7 +306,7 @@ function read_node(
     name::String;
     which_log::Union{String, Nothing} = nothing,
     pipeline_dir::String = "_pipeline",
-    deserializer::Function = Serialization.deserialize,
+    deserializer::Union{Function, Nothing} = nothing,
     return_path::Bool = false
 )
     if !isdir(pipeline_dir)
@@ -285,11 +329,228 @@ function read_node(
         return artifact_path
     end
     
+    actual_deserializer =
+        if !isnothing(deserializer)
+            (path) -> deserializer(path)
+        else
+            serializer_name = get(node_entry, "serializer", "default")
+            (path) -> _auto_deserializer(serializer_name isa String ? serializer_name : "default", path)
+        end
+
     try
-        return deserializer(artifact_path)
+        return actual_deserializer(artifact_path)
     catch e
         error("Failed to deserialize node `$name` from `$artifact_path`: $e")
     end
+end
+
+"""
+    load_deepdiffs()
+
+Load DeepDiffs lazily so basic package imports still work until diff helpers are used.
+"""
+function load_deepdiffs()
+    try
+        Base.eval(@__MODULE__, :(import DeepDiffs))
+    catch err
+        error(
+            "DeepDiffs is required for Julia object diffs. Instantiate the `tlang` Julia package environment so `node_diff()` can compare Julia artifacts. Original error: $err"
+        )
+    end
+
+    return Base.invokelatest(getfield, @__MODULE__, :DeepDiffs)
+end
+
+"""
+    shape_info(obj)
+
+Return an object's dimensions as an integer vector when available.
+"""
+function shape_info(obj)
+    try
+        dims = size(obj)
+        return isempty(dims) ? nothing : [Int(dim) for dim in dims]
+    catch
+        return nothing
+    end
+end
+
+"""
+    length_info(obj)
+
+Return `length(obj)` when defined.
+"""
+function length_info(obj)
+    try
+        return length(obj)
+    catch
+        return nothing
+    end
+end
+
+"""
+    value_type(obj_a, obj_b; class_a=nothing, class_b=nothing)
+
+Choose the most informative value type label for the diff envelope.
+"""
+function value_type(obj_a, obj_b; class_a=nothing, class_b=nothing)
+    label_a = class_a isa String ? strip(class_a) : ""
+    label_b = class_b isa String ? strip(class_b) : ""
+
+    if !isempty(label_a) && label_a == label_b
+        return label_a
+    end
+
+    if !isempty(label_a) && !isempty(label_b)
+        return string(label_a, " -> ", label_b)
+    end
+
+    type_a = string(typeof(obj_a))
+    type_b = string(typeof(obj_b))
+    return type_a == type_b ? type_a : string(type_a, " -> ", type_b)
+end
+
+"""
+    render_deepdiff(diff)
+
+Render a DeepDiffs diff object to a plain-text summary.
+"""
+function render_deepdiff(diff)
+    rendered = sprint(show, MIME"text/plain"(), diff)
+    return isempty(strip(rendered)) ? sprint(show, diff) : rendered
+end
+
+"""
+    diff_objects(obj_a, obj_b; ...)
+
+Diff two Julia objects and return a T-compatible VDiff envelope.
+"""
+function diff_objects(
+    obj_a,
+    obj_b;
+    node_a::String = "node_a",
+    node_b::String = "node_b",
+    log_a::String = "latest",
+    log_b::String = "latest",
+    class_a = nothing,
+    class_b = nothing,
+    context::Integer = 3
+)
+    deepdiffs = load_deepdiffs()
+    deepdiff = Base.invokelatest(getfield, deepdiffs, :deepdiff)
+    diff = Base.invokelatest(deepdiff, obj_a, obj_b)
+    identical_objects = isequal(obj_a, obj_b)
+    rendered = identical_objects ? "Objects are identical." : render_deepdiff(diff)
+    lines =
+        identical_objects ? String[] :
+        filter(line -> !isempty(strip(line)), split(rendered, '\n'))
+
+    summary = Dict{String, Any}(
+        "changes" => identical_objects ? 0 : length(lines),
+        "typeof_a" => string(typeof(obj_a)),
+        "typeof_b" => string(typeof(obj_b)),
+    )
+
+    len_a = length_info(obj_a)
+    len_b = length_info(obj_b)
+    if !isnothing(len_a)
+        summary["length_a"] = len_a
+    end
+    if !isnothing(len_b)
+        summary["length_b"] = len_b
+    end
+
+    shape_a = shape_info(obj_a)
+    shape_b = shape_info(obj_b)
+    if !isnothing(shape_a)
+        summary["shape_a"] = shape_a
+    end
+    if !isnothing(shape_b)
+        summary["shape_b"] = shape_b
+    end
+
+    detail =
+        identical_objects ? Dict{String, Any}() :
+        Dict{String, Any}(
+            "renderer" => "DeepDiffs",
+            "lines" => lines,
+        )
+
+    return Dict{String, Any}(
+        "kind" => "julia_object_diff",
+        "node_a" => node_a,
+        "node_b" => node_b,
+        "log_a" => log_a,
+        "log_b" => log_b,
+        "value_type" => value_type(obj_a, obj_b, class_a=class_a, class_b=class_b),
+        "identical" => identical_objects,
+        "summary" => summary,
+        "detail" => detail,
+        "detailed_diff" => rendered,
+        "detailed_summary" => rendered,
+        "hunks" => Any[],
+    )
+end
+
+"""
+    diff_artifacts(path_a, path_b; ...)
+
+Deserialize two artifacts and diff the resulting Julia objects.
+"""
+function diff_artifacts(
+    path_a::Union{String, AbstractString},
+    path_b::Union{String, AbstractString};
+    node_a::String = "node_a",
+    node_b::String = "node_b",
+    log_a::String = "latest",
+    log_b::String = "latest",
+    class_a = nothing,
+    class_b = nothing,
+    context::Integer = 3,
+    deserializer::Function = Serialization.deserialize
+)
+    obj_a = deserializer(path_a)
+    obj_b = deserializer(path_b)
+    return diff_objects(
+        obj_a,
+        obj_b,
+        node_a=node_a,
+        node_b=node_b,
+        log_a=log_a,
+        log_b=log_b,
+        class_a=class_a,
+        class_b=class_b,
+        context=context,
+    )
+end
+
+"""
+    diff_nodes(node_a, node_b; ...)
+
+Load two nodes via `read_node()` and diff their deserialized Julia objects.
+"""
+function diff_nodes(
+    node_a::String,
+    node_b::String;
+    which_log_a::Union{String, Nothing} = nothing,
+    which_log_b::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline",
+    context::Integer = 3,
+    deserializer::Function = Serialization.deserialize
+)
+    path_a = read_node(node_a, which_log=which_log_a, pipeline_dir=pipeline_dir, return_path=true)
+    path_b = read_node(node_b, which_log=which_log_b, pipeline_dir=pipeline_dir, return_path=true)
+
+    return diff_artifacts(
+        path_a,
+        path_b,
+        node_a=node_a,
+        node_b=node_b,
+        log_a=isnothing(which_log_a) ? "latest" : which_log_a,
+        log_b=isnothing(which_log_b) ? "latest" : which_log_b,
+        context=context,
+        deserializer=deserializer,
+    )
 end
 
 end # module

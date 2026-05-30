@@ -17,6 +17,7 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only"
 ]
+dependencies = []
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -124,6 +124,50 @@ min_version = "0.51.0"
        | _ -> false)
     | Error _ -> false);
 
+  print_newline ();
+
+  (* ===================================================== *)
+  Printf.printf "Package Manager — Debug subshell guards:\n";
+
+  test_pm "R debug startup blocks package manager functions" (fun () ->
+    let content = Read_node.r_debug_startup_content () in
+    Test_helpers.contains content "install.packages <- function"
+    && Test_helpers.contains content "update.packages <- function"
+    && Test_helpers.contains content "remove.packages <- function"
+    && Test_helpers.contains content "tproject.toml");
+
+  test_pm "Julia debug startup blocks Pkg mutations" (fun () ->
+    let content = Read_node.julia_debug_startup_content None in
+    Test_helpers.contains content "module _TlangGuardPkg"
+    && Test_helpers.contains content "const Pkg = _TlangGuardPkg"
+    && Test_helpers.contains content "Base.loaded_modules[_tlang_pkg_id] = _TlangGuardPkg"
+    && Test_helpers.contains content "add(args...; kwargs...) = error"
+    && Test_helpers.contains content "rm(args...; kwargs...) = error"
+    && Test_helpers.contains content "update(args...; kwargs...) = error"
+    && Test_helpers.contains content "develop(args...; kwargs...) = error"
+    && Test_helpers.contains content "tproject.toml");
+
+  test_pm "Python debug guard shims are created project-locally" (fun () ->
+    let temp_root =
+      Filename.concat (Filename.get_temp_dir_name ())
+        (Printf.sprintf "tlang-python-guard-%06x" (Random.bits ()))
+    in
+    Unix.mkdir temp_root 0o755;
+    let guards = Read_node.prepare_python_debug_guards temp_root in
+    let expected_shims =
+      List.for_all
+        (fun tool -> Sys.file_exists (Filename.concat guards.bin_dir tool))
+        Read_node.python_package_manager_shim_names
+    in
+    let pip_module = Sys.file_exists (Filename.concat guards.python_dir "pip.py") in
+    let project_local =
+      Test_helpers.contains guards.root_dir temp_root
+      && Test_helpers.contains guards.bin_dir guards.root_dir
+      && Test_helpers.contains guards.python_dir guards.root_dir
+    in
+    Read_node.remove_path_recursively temp_root;
+    expected_shims && pip_module && project_local && not (Sys.file_exists temp_root));
+
   let project_toml = {|
 [project]
 name = "my-project"
@@ -926,6 +970,18 @@ min_version = "0.51.0"
     d
   in
 
+  let with_doctor_project_dir f =
+    match make_temp_dir 8 with
+    | None -> false
+    | Some dir ->
+        Fun.protect
+          ~finally:(fun () -> try remove_path dir with _ -> ())
+          (fun () ->
+             let src_dir = Filename.concat dir "src" in
+             if not (Sys.file_exists src_dir) then Unix.mkdir src_dir 0o755;
+             f dir)
+  in
+
   test_pm "scaffold_package creates directory tree" (fun () ->
     let dir = temp_dir () in
     let opts = { (Package_types.default_options dir) with
@@ -1325,6 +1381,209 @@ min_version = "0.51.0"
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
     List.exists (fun i -> let open Package_doctor in i.level = Error && 
                           String.contains i.message 'D' (* DESCRIPTION *)) issues);
+  test_pm "doctor detects missing Julia debug packages from pipeline requirements" (fun () ->
+    with_doctor_project_dir (fun dir ->
+      let write rel content =
+        let ch = open_out (Filename.concat dir rel) in
+        output_string ch content;
+        close_out ch
+      in
+      write "tproject.toml" {|
+[project]
+name = "doctor-julia-debug"
+description = "doctor test"
+authors = []
+
+[dependencies]
+
+[r-dependencies]
+packages = []
+
+[py-dependencies]
+version = "python313"
+packages = []
+
+[jl-dependencies]
+version = "lts"
+packages = []
+
+[additional-tools]
+packages = []
+
+[latex]
+packages = []
+
+[t]
+min_version = "0.52.0"
+
+[nixpkgs]
+date = ""
+|};
+    write "src/pipeline.t" {|
+p = pipeline {
+  upstream = node(runtime = Julia, command = <{
+    using CSV, DataFrames
+  }>, serializer = ^csv)
+}
+|};
+      let issues = Package_doctor.project_dependency_issues dir in
+      List.exists (fun i -> i.Package_doctor.message = "Missing Julia package `CSV` in `tproject.toml`") issues
+      && List.exists (fun i -> i.Package_doctor.message = "Missing Julia package `DataFrames` in `tproject.toml`") issues
+      && List.for_all (fun i ->
+           match i.Package_doctor.suggestion with
+           | Some s -> String.contains s '['
+           | None -> false) issues));
+
+  test_pm "doctor detects missing Python and R debug packages from pipeline requirements" (fun () ->
+    with_doctor_project_dir (fun dir ->
+      let write rel content =
+        let ch = open_out (Filename.concat dir rel) in
+        output_string ch content;
+        close_out ch
+      in
+      write "tproject.toml" {|
+[project]
+name = "doctor-multi-debug"
+description = "doctor test"
+authors = []
+
+[dependencies]
+
+[r-dependencies]
+packages = []
+
+[py-dependencies]
+version = "python313"
+packages = []
+
+[jl-dependencies]
+version = "lts"
+packages = ["JSON"]
+
+[additional-tools]
+packages = []
+
+[latex]
+packages = []
+
+[t]
+min_version = "0.52.0"
+
+[nixpkgs]
+date = ""
+|};
+    write "src/pipeline.t" {|
+p = pipeline {
+  py_csv = pyn(command = <{
+    import pandas as pd
+  }>, serializer = ^csv)
+  r_arrow = rn(command = <{
+    library(arrow)
+  }>, serializer = ^arrow)
+}
+|};
+      let issues = Package_doctor.project_dependency_issues dir in
+      List.exists (fun i -> i.Package_doctor.message = "Missing Python package `pandas` in `tproject.toml`") issues
+      && List.exists (fun i -> i.Package_doctor.message = "Missing R package `arrow` in `tproject.toml`") issues));
+
+  test_pm "doctor warns when src/pipeline.t is missing" (fun () ->
+    with_doctor_project_dir (fun dir ->
+      let write rel content =
+        let ch = open_out (Filename.concat dir rel) in
+        output_string ch content;
+        close_out ch
+      in
+      let pipeline_path = Filename.concat (Filename.concat dir "src") "pipeline.t" in
+      write "tproject.toml" {|
+[project]
+name = "doctor-missing-pipeline"
+description = "doctor test"
+authors = []
+
+[dependencies]
+
+[py-dependencies]
+version = "python313"
+packages = ["pandas"]
+|};
+      let issues = Package_doctor.project_dependency_issues dir in
+      List.exists
+        (fun i ->
+          i.Package_doctor.level = Package_doctor.Warning
+          && i.Package_doctor.message
+             = Printf.sprintf "No pipeline entrypoint found at `%s`" pipeline_path)
+        issues));
+
+  test_pm "doctor skips missing pipeline warning when runtime dependencies are empty" (fun () ->
+    with_doctor_project_dir (fun dir ->
+      let write rel content =
+        let ch = open_out (Filename.concat dir rel) in
+        output_string ch content;
+        close_out ch
+      in
+      write "tproject.toml" {|
+[project]
+name = "doctor-empty-runtime-deps"
+description = "doctor test"
+authors = []
+
+[dependencies]
+
+[r-dependencies]
+packages = []
+
+[py-dependencies]
+version = "python313"
+packages = []
+
+[jl-dependencies]
+version = "lts"
+packages = []
+|};
+      Package_doctor.project_dependency_issues dir = []));
+
+  test_pm "doctor analyzes all pipeline definitions in a program" (fun () ->
+    with_doctor_project_dir (fun dir ->
+      let write rel content =
+        let ch = open_out (Filename.concat dir rel) in
+        output_string ch content;
+        close_out ch
+      in
+      write "tproject.toml" {|
+[project]
+name = "doctor-all-pipelines"
+description = "doctor test"
+authors = []
+
+[dependencies]
+
+[r-dependencies]
+packages = []
+
+[py-dependencies]
+version = "python313"
+packages = []
+
+[jl-dependencies]
+version = "lts"
+packages = []
+|};
+      write "src/pipeline.t" {|
+first = pipeline {
+  py_csv = pyn(command = <{
+    import pandas as pd
+  }>, serializer = ^csv)
+}
+
+second = pipeline {
+  r_arrow = rn(command = <{
+    library(arrow)
+  }>, serializer = ^arrow)
+}
+|};
+      let issues = Package_doctor.project_dependency_issues dir in
+      List.exists (fun i -> i.Package_doctor.message = "Missing Python package `pandas` in `tproject.toml`") issues
+      && List.exists (fun i -> i.Package_doctor.message = "Missing R package `arrow` in `tproject.toml`") issues));
 
 
   print_newline ();

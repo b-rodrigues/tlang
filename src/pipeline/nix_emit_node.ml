@@ -1309,7 +1309,9 @@ def py_write_onnx(model, path):
         pass
     raise RuntimeError(
         "ONNX export in Python requires 'skl2onnx' (for scikit-learn models) "
-        "or 'torch' (for PyTorch models). Install the appropriate package."
+        "or 'torch' (for PyTorch models). Add the required package to "
+        "[py-dependencies].packages in tproject.toml, run `t update`, and "
+        "re-enter `nix develop`."
     )
 
 def py_read_onnx(path):
@@ -1319,7 +1321,8 @@ def py_read_onnx(path):
     except ImportError:
         raise RuntimeError(
             "ONNX deserialization requires 'onnxruntime'. "
-            "Install it with: pip install onnxruntime"
+            "Add `onnxruntime` to [py-dependencies].packages in "
+            "tproject.toml, run `t update`, and re-enter `nix develop`."
         )
 |} in
 
@@ -2149,7 +2152,7 @@ end
       | "R" -> [ "json", "r_write_json"; "arrow", "r_write_arrow"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; ]
       | "Python" -> [ "json", "py_write_json"; "arrow", "py_write_arrow"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; ]
       | "Julia" -> [ "json", "jl_write_json"; "arrow", "jl_write_arrow"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; ]
-      | _ -> [ "json", "t_write_json"; "arrow", "write_arrow"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; ]
+      | _ -> [ "json", "t_write_json"; "arrow", "write_arrow"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; "text", "write_text"; ]
     in
     match get_format ser_val with
     | Some fmt ->
@@ -2161,6 +2164,12 @@ end
           (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else if runtime = "Julia" then "jl_serialize" else "serialize")
         else
           ser_s
+  in
+  let res1_line =
+    if ser_call = "write_text" then
+      Printf.sprintf "      res1 = write_text(\\\"$out/artifact\\\", %s)" name
+    else
+      Printf.sprintf "      res1 = %s(%s, \\\"$out/artifact\\\")" ser_call name
   in
 
   let is_raw_code = match expr.Ast.node with RawCode _ -> true | _ -> false in
@@ -2402,10 +2411,10 @@ end
         else
           let t_import = shell_single_quote (Printf.sprintf {|      import "%s"|} script_path) in
           Printf.sprintf {|      echo %s >> node_script.t
-      echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
+      echo "%s" >> node_script.t
       echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
       echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} t_import ser_call name name
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} t_import res1_line name
     | None ->
     if runtime = "R" then
       if is_raw_code then
@@ -2579,18 +2588,18 @@ EOF|} set_args cmd
 %s
 EOF
       echo "      }" >> node_script.t
-      echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
+      echo "%s" >> node_script.t
       echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
       echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s_no_imports ser_call name name
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s_no_imports res1_line name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.t
       %s = %s
 EOF
-      echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
+      echo "%s" >> node_script.t
       echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
       echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s ser_call name name
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s res1_line name
   in
 
   let runtime_base_packages =

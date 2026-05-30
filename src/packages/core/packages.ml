@@ -193,8 +193,9 @@ let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
   functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "inspect_log"; "list_logs"; "read_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
-               "pipeline_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings";
-               "build_log"; "build_log_to_frame"; "collect_exceptions";
+               "pipeline_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings"; "pipeline_to_drv";
+               "pipeline_to_store"; "set_nix_defaults"; "pipeline_cache_status"; "pipeline_gc";
+               "build_log"; "build_log_to_frame"; "collect_exceptions"; "build_log_history"; "node_diff"; "pipeline_diff"; "debug_node";
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
                "chain"; "parallel";
@@ -788,6 +789,11 @@ let init_env () =
   let env = Pipeline_copy.register env in
   let env = Trace_nodes.register env in
   let env = Pipeline_to_frame.register env in
+  let env = Pipeline_to_drv.register env in
+  let env = Pipeline_to_store.register env in
+  let env = Set_nix_defaults.register env in
+  let env = Pipeline_cache_status.register env in
+  let env = Pipeline_gc.register env in
   let env = Filter_node.register ~eval_call:Eval.eval_call_immutable env in
   let env = Which_nodes.register ~eval_call:Eval.eval_call_immutable env in
   let env = Mutate_node.register ~eval_call:Eval.eval_call_immutable env in
@@ -802,6 +808,7 @@ let init_env () =
   let env = T_make_mod.register env in
   let env = Pipeline_inspect2.register env in
   let env = Build_log.register env in
+  let env = Pipeline_diff.register env in
   (* Colcraft package *)
   let env = T_select.register env in
   let env = T_filter.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in

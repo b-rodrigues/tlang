@@ -46,6 +46,7 @@
     test_agent_scaffold
     test_coverage_boost
     test_misc_coverage
+    test_dataframe_diff test_model_diff test_scalar_diff test_generic_diff test_pipeline_diff
   )
   (libraries t_lang menhirLib otoml unix str)
 )

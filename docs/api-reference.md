@@ -2807,58 +2807,85 @@ pipeline_node(p, "doubled") -- 20
 
 ---
 
-### `pipeline_run(pipeline)`
+### `pipeline_run(pipeline, nix_options = NA)`
 
-Re-execute a pipeline in-memory.
+Re-execute a pipeline. If `nix_options` is provided, triggers a cache-aware Nix build of the pipeline using the specified options. Otherwise, re-executes the pipeline dynamically in-memory.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
+- `nix_options` (optional) — Dict of Nix build options. Supported keys:
+  - `targets` — String, List, or Vector of specific node names to build.
+  - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
+  - `dry_run` — Bool. If true, returns a planned build actions DataFrame instead of building.
+  - `max_jobs` — Positive Int. Limit parallel build jobs.
+  - `cache` — String. Cachix cache name.
+  - `builders` — String. Remote builder specification (SSH syntax).
+  - `keep_env` — String, List, or Vector of environment variable names to pass into the sandbox.
+  - `sandbox` — Bool or String (`"relaxed"`, `"strict"`, `"none"`). Sandbox policy.
 
 **Returns:**
 
-Pipeline object with updated values
+Pipeline object with updated values (or DataFrame if `dry_run = true`)
 
 **Examples:**
 ```t
 p = pipeline { x = 10; y = x * 2 }
 p2 = pipeline_run(p)
+df = pipeline_run(p, nix_options = [dry_run: true])
 ```
 
 ---
 
-### `populate_pipeline(pipeline, build = false)`
+### `populate_pipeline(pipeline, build = false, verbose = 0, nix_options = NA)`
 
 Prepare pipeline infrastructure in `_pipeline/`.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
 - `build` (optional) — If true, triggers a Nix build of all nodes.
+- `verbose` (optional) — Non-negative Int. Nix build verbosity level.
+- `nix_options` (optional) — Dict of Nix build options. Supported keys:
+  - `targets` — String, List, or Vector of specific node names to build.
+  - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
+  - `dry_run` — Bool. If true, returns a planned build actions DataFrame instead of building.
+  - `max_jobs` — Positive Int. Limit parallel build jobs.
+  - `cache` — String. Cachix cache name.
+  - `builders` — String. Remote builder specification (SSH syntax).
+  - `keep_env` — String, List, or Vector of environment variable names to pass into the sandbox.
+  - `sandbox` — Bool or String (`"relaxed"`, `"strict"`, `"none"`). Sandbox policy.
 
 **Returns:**
 
-Success message or Error.
+Success message, BuildLog, or DataFrame.
 
 **Examples:**
 ```t
 populate_pipeline(p)
 populate_pipeline(p, build = true)
+populate_pipeline(p, build = true, nix_options = [max_jobs: 4, cache: "rstats-on-nix"])
 ```
 
 ---
 
-### `build_pipeline(pipeline, verbose = 0)`
+### `build_pipeline(pipeline, verbose = 0, nix_options = NA)`
 
 Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
 - `verbose` (optional) — Int build verbosity level. Defaults to `0` (quiet/minimalist live-status output without dumping failed node trace logs). Set `verbose = 1` or higher to print detailed node stdout/stderr failures directly to the terminal on build error.
+- `nix_options` (optional) — Dict of Nix build options. Supported keys:
+  - `targets` — String, List, or Vector of specific node names to build.
+  - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
+  - `dry_run` — Bool. If true, returns a planned build actions DataFrame instead of building.
+  - `max_jobs` — Positive Int. Limit parallel build jobs.
+  - `cache` — String. Cachix cache name.
+  - `builders` — String. Remote builder specification (SSH syntax).
+  - `keep_env` — String, List, or Vector of environment variable names to pass into the sandbox.
+  - `sandbox` — Bool or String (`"relaxed"`, `"strict"`, `"none"`). Sandbox policy.
 
 **Returns:**
 
@@ -2867,6 +2894,14 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 - `duration` — total build duration in seconds
 - `failed_nodes` — list of failed/errored node names
 - `out_path` — Nix output path for the build (migration path for previous string-return behavior)
+(or `DataFrame` if `dry_run = true`)
+
+**Examples:**
+```t
+build_pipeline(p)
+build_pipeline(p, nix_options = [dry_run: true])
+build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-nix", force: ["c"]])
+```
 
 ---
 
@@ -2957,6 +2992,79 @@ df = build_log_to_frame(log)
 -- Returns a DataFrame:
 --   name  | status     | duration | path
 --   "a"   | "Errored"  | 0.02     | "/nix/store/..."
+```
+
+---
+
+### `build_log_history(p, n = NA, pattern = NA)`
+
+Returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+- `n` (optional) — Positive Int. Maximum number of historical builds to return.
+- `pattern` (optional) — String. Regular expression pattern to filter log filenames (e.g. `".*test.*"`).
+
+**Returns:**
+
+`DataFrame` — A DataFrame detailing historical builds with columns:
+- `build_id` (1-indexed rank from most recent to oldest)
+- `timestamp` (ISO-8601 UTC string of build time)
+- `duration` (total duration in seconds)
+- `n_nodes` (total number of nodes)
+- `n_failed` (number of failed/errored nodes)
+- `n_warnings` (number of warnings issued)
+- `out_path` (Nix output store path for the build)
+- `hash` (unique content hash of build input signature)
+
+**Examples:**
+```t
+p = pipeline { a = 1; b = 2 }
+hist = build_log_history(p, n = 5)
+```
+
+---
+
+### `node_diff(node_a, node_b, log_a = "latest", log_b = "latest", key = [], context = 3)`
+
+Compares the dynamic evaluations or built artifacts of `node_a` and `node_b` across two historical builds (defaults to comparing the latest build of both).
+
+**Parameters:**
+
+- `node_a` — The ComputedNode to compare.
+- `node_b` — The second ComputedNode to compare.
+- `log_a` (optional) — 1-indexed build rank (Int) or regular expression filename filter (String) or timestamp prefix for `node_a`. Default: `"latest"`.
+- `log_b` (optional) — 1-indexed build rank (Int) or regular expression filename filter (String) or timestamp prefix for `node_b`. Default: `"latest"`.
+- `key` (optional) — List of symbols representing natural key column(s) for DataFrame row alignment. Default: `[]`.
+- `context` (optional) — Number of unchanged rows shown around each hunk for patient diffs. Default: `3`.
+
+**Returns:**
+
+`Dict` — A structured type-sensitive diff dictionary containing:
+- **For DataFrames** (`csv`, `arrow`, `parquet`): `schema_changed` (Bool), `added_columns` (List), `removed_columns` (List), `nrows_a` (Int), `nrows_b` (Int), and `numeric_drift` (DataFrame summarizing column-level mean values and shift percentages).
+- **For PMML Models** (`pmml`): `model_type` (String), `coefficients_changed` (Bool), and `coef_diff` (DataFrame comparing regression coefficients and intercept shift deltas). Falls back to generic structural equality diff for non-regression models.
+- **For Text Files** (`text`): `changed` (Bool), `lines_added` (Int), `lines_removed` (Int), and `diff` (String unified diff output).
+- **For Python-native artifacts** (for example pickled NumPy ndarrays): `kind = "python_object_diff"`, unified diff line counts, rendered git-like diff hunks, and shape/dtype metadata when available.
+- **For Julia-native artifacts** (for example serialized arrays or structs): `kind = "julia_object_diff"`, DeepDiffs-rendered summaries, captured diff lines, and type/shape metadata when available.
+- **For R-native artifacts** (for example serialized model objects): `kind = "r_object_diff"`, diffobj-rendered summaries, captured diff lines, and class/type metadata when available.
+- **For Generic/Scalars**: `value_a` (Any), `value_b` (Any), `changed` (Bool), and `delta` (Float numeric difference or NA).
+
+Native Python, Julia, and R object diffs are preserved only for artifacts using
+the standard `default` or `tobj` serializers. Custom serializer names use the
+normal artifact-loading path instead; use the companion helper package directly
+when a native artifact requires a custom deserializer. Julia-native diffs are
+executed through a fresh Julia helper process per comparison, so repeated large
+diffs will include Julia startup cost.
+
+**Examples:**
+```t
+p = pipeline { a = 1; b = 2 }
+-- Compare most recent to second most recent
+diff_scalar = node_diff(p.a, p.a)
+
+-- Compare with explicit 1-indexed ranks or regex patterns
+diff_model = node_diff(p.model_node, p.model_node, log_a = ".*train1.*", log_b = ".*train2.*")
 ```
 
 ---

@@ -248,7 +248,7 @@ p = pipeline {
 - **Package** = reusable library, exports functions, ships tests and docs.
 - **`r-package/`** = companion R package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to `readRDS()` with an overrideable deserializer.
 - **`py-package/`** = companion Python package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to pickle-based deserialization.
-- **`jl-package/`** = companion Julia package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to `Serialization.deserialize`.
+- **`jl-package/`** = companion Julia package (`tlang`) that mirrors built-pipeline `read_node()`, defaults to `Serialization.deserialize`, and now exposes DeepDiffs-based Julia artifact diff helpers.
 
 Typical project files:
 - `tproject.toml`
@@ -363,7 +363,7 @@ Purpose: descriptive statistics, scaling/normalization, linear models, diagnosti
 Purpose: node construction, pipeline execution, graph inspection, graph rewriting, validation, artifact access, and composition.
 
 - Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `jln(command = ..., script = na(), serializer = ^csv, deserializer = ^csv, functions = [], include = [], noop = false)`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
-- Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `suppress_warnings(node)`
+- Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `suppress_warnings(node)`, `build_log_history(p, n = na())`, `node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`
 - Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_summary(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_dot(p)`
 - Node-level transforms: `filter_node(p, predicate)`, `which_nodes(p, predicate)`, `errored_nodes(p)`,
   `mutate_node(p, ..., where = na())`, `rename_node(p, old_name, new_name)`, `select_node(p, ...)`,

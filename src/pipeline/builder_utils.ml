@@ -1,5 +1,184 @@
 (* src/pipeline/builder_utils.ml *)
 
+type nix_opts = {
+  targets   : Ast.value option;
+  force     : Ast.value option;
+  dry_run   : bool option;
+  max_jobs  : Ast.value option;
+  max_cores : Ast.value option;
+  cache     : Ast.value option;
+  builders  : Ast.value option;
+  keep_env  : Ast.value option;
+  sandbox   : Ast.value option;
+}
+
+let default_nix_opts = {
+  targets = None;
+  force = None;
+  dry_run = None;
+  max_jobs = None;
+  max_cores = None;
+  cache = None;
+  builders = None;
+  keep_env = None;
+  sandbox = None;
+}
+
+let global_nix_defaults = ref default_nix_opts
+
+let merge_nix_opts ~specific ~fallback =
+  {
+    targets   = (match specific.targets   with Some _ as v -> v | None -> fallback.targets);
+    force     = (match specific.force     with Some _ as v -> v | None -> fallback.force);
+    dry_run   = (match specific.dry_run   with Some _ as v -> v | None -> fallback.dry_run);
+    max_jobs  = (match specific.max_jobs  with Some _ as v -> v | None -> fallback.max_jobs);
+    max_cores = (match specific.max_cores with Some _ as v -> v | None -> fallback.max_cores);
+    cache     = (match specific.cache     with Some _ as v -> v | None -> fallback.cache);
+    builders  = (match specific.builders  with Some _ as v -> v | None -> fallback.builders);
+    keep_env  = (match specific.keep_env  with Some _ as v -> v | None -> fallback.keep_env);
+    sandbox   = (match specific.sandbox   with Some _ as v -> v | None -> fallback.sandbox);
+  }
+
+let validate_nix_options func_name pairs =
+  let open Ast in
+  match List.find_opt (fun (k, _) -> not (List.mem k ["targets"; "force"; "dry_run"; "max_jobs"; "max_cores"; "cache"; "builders"; "keep_env"; "sandbox"])) pairs with
+  | Some (k, _) ->
+      Error (Error.type_error (Printf.sprintf "%s: unknown option '%s' in nix_options" func_name k))
+  | None ->
+      let get_opt key pairs =
+        match List.assoc_opt key pairs with
+        | None | Some (VNA _) -> (false, VNA NAGeneric)
+        | Some v -> (true, v)
+      in
+      let (targets_provided, targets_val) = get_opt "targets" pairs in
+      let (force_provided, force_val) = get_opt "force" pairs in
+      let (dry_run_provided, dry_run_val) = get_opt "dry_run" pairs in
+      let (max_jobs_provided, max_jobs_val) = get_opt "max_jobs" pairs in
+      let (max_cores_provided, max_cores_val) = get_opt "max_cores" pairs in
+      let (cache_provided, cache_val) = get_opt "cache" pairs in
+      let (builders_provided, builders_val) = get_opt "builders" pairs in
+      let (keep_env_provided, keep_env_val) = get_opt "keep_env" pairs in
+      let (sandbox_provided, sandbox_val) = get_opt "sandbox" pairs in
+
+      let targets_result =
+        match targets_val with
+        | VString _ -> Ok (Some targets_val)
+        | VList items ->
+            if List.exists (function (_, VString _) -> false | _ -> true) items then
+              Error (Error.type_error (Printf.sprintf "Function `%s` expects `targets` to contain only String values." func_name))
+            else Ok (Some targets_val)
+        | VVector arr ->
+            if Array.exists (function VString _ -> false | _ -> true) arr then
+              Error (Error.type_error (Printf.sprintf "Function `%s` expects `targets` to contain only String values." func_name))
+            else Ok (Some targets_val)
+        | _ when targets_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `targets` to be a String, List, or Vector." func_name))
+        | _ -> Ok None
+      in
+      let force_result =
+        match force_val with
+        | VBool _ | VList _ | VVector _ | VString _ ->
+            (match force_val with
+             | VList items ->
+                 if List.exists (function (_, VString _) -> false | _ -> true) items then
+                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `force` to contain only String values." func_name))
+                 else Ok (Some force_val)
+             | VVector arr ->
+                 if Array.exists (function VString _ -> false | _ -> true) arr then
+                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `force` to contain only String values." func_name))
+                 else Ok (Some force_val)
+             | _ -> Ok (Some force_val))
+        | _ when force_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `force` to be a Bool, String, List, or Vector." func_name))
+        | _ -> Ok None
+      in
+      let dry_run_result =
+        match dry_run_val with
+        | VBool b -> Ok (Some b)
+        | _ when dry_run_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `dry_run` to be a Bool." func_name))
+        | _ -> Ok None
+      in
+      let max_jobs_result =
+        match max_jobs_val with
+        | VInt n when n > 0 -> Ok (Some max_jobs_val)
+        | _ when max_jobs_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `max_jobs` to be a positive Int." func_name))
+        | _ -> Ok None
+      in
+      let max_cores_result =
+        match max_cores_val with
+        | VInt n when n >= 0 -> Ok (Some max_cores_val)
+        | _ when max_cores_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `max_cores` to be a non-negative Int (0 = use all available cores)." func_name))
+        | _ -> Ok None
+      in
+      let cache_result =
+        match cache_val with
+        | VString _ -> Ok (Some cache_val)
+        | _ when cache_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `cache` to be a String." func_name))
+        | _ -> Ok None
+      in
+      let builders_result =
+        match builders_val with
+        | VString _ -> Ok (Some builders_val)
+        | _ when builders_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `builders` to be a String." func_name))
+        | _ -> Ok None
+      in
+      let keep_env_result =
+        match keep_env_val with
+        | VString _ | VList _ | VVector _ ->
+            (match keep_env_val with
+             | VList items ->
+                 if List.exists (function (_, VString _) -> false | _ -> true) items then
+                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `keep_env` to contain only String values." func_name))
+                 else Ok (Some keep_env_val)
+             | VVector arr ->
+                 if Array.exists (function VString _ -> false | _ -> true) arr then
+                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `keep_env` to contain only String values." func_name))
+                 else Ok (Some keep_env_val)
+             | _ -> Ok (Some keep_env_val))
+        | _ when keep_env_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `keep_env` to be a String, List, or Vector of strings." func_name))
+        | _ -> Ok None
+      in
+      let sandbox_result =
+        match sandbox_val with
+        | VBool _ -> Ok (Some sandbox_val)
+        | VString s ->
+            if s = "relaxed" || s = "strict" || s = "none" then Ok (Some sandbox_val)
+            else Error (Error.value_error (Printf.sprintf "Function `%s` expects `sandbox` to be 'relaxed', 'strict', 'none', or a Bool." func_name))
+        | _ when sandbox_provided ->
+            Error (Error.type_error (Printf.sprintf "Function `%s` expects `sandbox` to be a Bool or String." func_name))
+        | _ -> Ok None
+      in
+
+      match targets_result, force_result, dry_run_result, max_jobs_result, max_cores_result, cache_result, builders_result, keep_env_result, sandbox_result with
+      | Error e, _, _, _, _, _, _, _, _
+      | _, Error e, _, _, _, _, _, _, _
+      | _, _, Error e, _, _, _, _, _, _
+      | _, _, _, Error e, _, _, _, _, _
+      | _, _, _, _, Error e, _, _, _, _
+      | _, _, _, _, _, Error e, _, _, _
+      | _, _, _, _, _, _, Error e, _, _
+      | _, _, _, _, _, _, _, Error e, _
+      | _, _, _, _, _, _, _, _, Error e -> Error e
+      | Ok targets, Ok force, Ok dry_run, Ok max_jobs, Ok max_cores, Ok cache, Ok builders, Ok keep_env, Ok sandbox ->
+          let opts = {
+            targets;
+            force;
+            dry_run;
+            max_jobs;
+            max_cores;
+            cache;
+            builders;
+            keep_env;
+            sandbox;
+          } in
+          Ok opts
+
 let pipeline_dir = "_pipeline"
 let pipeline_nix_path = Filename.concat pipeline_dir "pipeline.nix"
 let dag_path = Filename.concat pipeline_dir "dag.json"
@@ -331,3 +510,37 @@ let get_timestamp () =
   Printf.sprintf "%04d%02d%02d_%02d%02d%02d"
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
     tm.tm_hour tm.tm_min tm.tm_sec
+
+let escape_nix_string s =
+  let b = Buffer.create (String.length s + 2) in
+  Buffer.add_char b '"';
+  for i = 0 to String.length s - 1 do
+    match s.[i] with
+    | '"' | '\\' | '$' ->
+        Buffer.add_char b '\\';
+        Buffer.add_char b s.[i]
+    | c -> Buffer.add_char b c
+  done;
+  Buffer.add_char b '"';
+  Buffer.contents b
+
+let eval_node_store_path name : (string, Ast.value) result =
+  let abs_path = Filename.concat (Sys.getcwd ()) pipeline_nix_path in
+  let expr = Printf.sprintf "(import %s {}).%s.outPath" (escape_nix_string abs_path) name in
+  let argv = [| "nix-instantiate"; "--eval"; "--impure"; "--json"; "-E"; expr |] in
+  match run_command_argv_capture argv with
+  | Error msg ->
+      Error (Error.make_error RuntimeError
+        (Printf.sprintf "nix-instantiate failed for node '%s': %s" name msg))
+  | Ok "" ->
+      Error (Error.make_error RuntimeError
+        (Printf.sprintf "nix-instantiate returned empty output for node '%s'" name))
+  | Ok res ->
+      let len = String.length res in
+      let clean =
+        if len >= 2 && res.[0] = '"' && res.[len - 1] = '"' then
+          String.sub res 1 (len - 2)
+        else
+          res
+      in
+      Ok clean

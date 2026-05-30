@@ -5,11 +5,9 @@ artifacts from built T pipelines.
 
 ## Installation
 
-From the repository root:
-
-```bash
-pip install ./py-package
-```
+Do not install this helper with `pip`. In a T project, declare your Python
+dependencies in `tproject.toml`, run `t update`, and re-enter `nix develop`;
+the `tlang` helper is then available from that project shell.
 
 ## Usage
 
@@ -35,6 +33,19 @@ You can also target a specific historical build log:
 
 ```python
 older_model = read_node("model", which_log="20260221")
+```
+
+## Diff Python artifacts
+
+Use the bundled unified-diff helpers to compare Python-native artifacts that do
+not have a direct T equivalent, such as pickled model objects or custom classes:
+
+```python
+from tlang import diff_nodes
+
+diff = diff_nodes("weights", "weights", which_log_a="20260501", which_log_b="latest")
+print(diff["kind"])
+print(diff["summary"])
 ```
 
 

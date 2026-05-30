@@ -503,6 +503,13 @@ infrastructure without necessarily triggering the Nix build
 immediately.</p>
 <pre class="t"><code>populate_pipeline(p)                -- Prepares _pipeline/ only
 populate_pipeline(p, build = true)  -- Same as build_pipeline(p)</code></pre>
+<blockquote>
+<p>[!TIP] For advanced configuration and passing low-level arguments
+directly to the underlying Nix build system (such as concurrency,
+targeted nodes, custom binary caches, dry runs, and force rebuilds), see
+the comprehensive <a href="nix-options.html">Nix Build Options &amp;
+Orchestration</a> guide.</p>
+</blockquote>
 <h3 id="the-_pipeline-directory">The <code>_pipeline/</code>
 directory</h3>
 <p>T maintains a persistent state directory for your pipeline. When you
@@ -1574,6 +1581,108 @@ where data is passed between T, R, and Python nodes through files, and
 for <strong>dynamic access</strong> nodes where the target of a
 retrieval is determined at runtime (e.g.,
 <code>target = "A"; get(node_lens(target))</code>).</p>
+<hr />
+<h2 id="nix-native-orchestration-cachix">40. Nix-Native Orchestration
+&amp; Cachix</h2>
+<p>To optimize large-scale pipelines and manage remote binary caching,
+T-Lang includes native Nix orchestration features in
+<code>build_pipeline</code> and <code>pipeline_run</code>. These
+features map directly to native <code>nix build</code> mechanics,
+allowing granular rebuild control, job parallelization, Cachix
+integration, and dry-runs.</p>
+<h3 id="orchestration-parameters">Orchestration Parameters</h3>
+<p>The functions <code>build_pipeline()</code> and
+<code>pipeline_run()</code> accept the following optional named
+arguments:</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Description</th>
+<th>Nix Command Mapping</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>targets</code></td>
+<td>String/List/Vector</td>
+<td>Specific node(s) or outputs to build (e.g.,
+<code>targets=["model_a"]</code>)</td>
+<td><code>-A &lt;targets&gt;</code></td>
+</tr>
+<tr>
+<td><code>force</code></td>
+<td>Bool/String/List/Vector</td>
+<td>Rebuild nodes even if they already exist in the Nix store. Pass
+<code>true</code> to force-rebuild all nodes, or a string/list of
+specific node names.</td>
+<td><code>--check</code> (rebuilds target)</td>
+</tr>
+<tr>
+<td><code>dry_run</code></td>
+<td>Bool</td>
+<td>Preview build actions without executing them. Returns a structured
+<code>DataFrame</code> of planned actions.</td>
+<td><code>--dry-run</code></td>
+</tr>
+<tr>
+<td><code>max_jobs</code></td>
+<td>Int</td>
+<td>Limit parallel compilation/build jobs.</td>
+<td><code>--max-jobs N</code></td>
+</tr>
+<tr>
+<td><code>cache</code></td>
+<td>String</td>
+<td>A Cachix binary cache name (e.g., <code>"rstats-on-nix"</code>) to
+pull/push built artifacts.</td>
+<td><code>--option extra-substituters ...</code> &amp;
+<code>--option extra-trusted-public-keys ...</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="using-dry_run-for-build-previews">Using <code>dry_run</code> for
+Build Previews</h3>
+<p>If you set <code>dry_run = true</code>, T-Lang will invoke Nix in
+dry-run mode and return a structured <code>DataFrame</code> detailing
+the exact actions Nix plans to take (e.g., fetching from binary caches,
+building derivations):</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Inspect planned build actions without running them
+actions = build_pipeline(p, nix_options = [dry_run: true])
+print(actions)</code></pre>
+<p>The resulting <code>DataFrame</code> contains the columns: -
+<code>node</code>: The name of the pipeline node. - <code>action</code>:
+The action planned (e.g., <code>"build"</code>,
+<code>"substitute"</code>, or <code>"noop"</code>). - <code>path</code>:
+The absolute store path of the Nix derivation or artifact.</p>
+<h3 id="advanced-nix-orchestration-example">Advanced Nix Orchestration
+Example</h3>
+<p>Below is an example showing how to trigger a parallel, cache-backed
+build targeting a specific node:</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = a + 1
+  c = b * 2
+}
+
+-- Rebuild only node 'c', with parallel execution, using a Cachix binary cache
+build_pipeline(p,
+               nix_options = [targets: [&quot;c&quot;],
+                              max_jobs: 4,
+                              cache: &quot;rstats-on-nix&quot;,
+                              force: [&quot;c&quot;]])</code></pre>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you’ve mastered pipelines, learn how to manage reproducible

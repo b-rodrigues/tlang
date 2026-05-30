@@ -196,6 +196,206 @@ let register env =
         else default
   in
 
+  let run_interactive_subshell ?env cn =
+    let cn = !Ast.computed_node_resolver cn in
+    let runtime = String.lowercase_ascii cn.cn_runtime in
+    if runtime <> "python" && runtime <> "r" && runtime <> "julia" then
+      Error.value_error (Printf.sprintf "debug_node: only R, Python, and Julia nodes are supported for interactive debugging. Node '%s' has unsupported runtime '%s'." cn.cn_name cn.cn_runtime)
+    else (
+      let dependencies =
+        if cn.cn_dependencies = [] then
+          (match Builder.latest_logged_computed_node cn.cn_name with
+           | Some logged -> logged.cn_dependencies
+           | None -> [])
+        else cn.cn_dependencies
+      in
+
+      (* Find custom node env vars in evaluated pipelines *)
+      let node_env_vars =
+        match env with
+        | None -> []
+        | Some e ->
+            let bindings = Ast.Env.bindings e in
+            let rec find_in_pipelines = function
+              | [] -> []
+              | (_, Ast.VPipeline p) :: rest ->
+                  (match List.assoc_opt cn.cn_name p.p_env_vars with
+                   | Some vars -> vars
+                   | None -> find_in_pipelines rest)
+              | _ :: rest -> find_in_pipelines rest
+            in
+            find_in_pipelines bindings
+      in
+
+      (* Gather custom environment variables for the subshell *)
+      let printed_env_vars = ref [] in
+      let subshell_env_overrides = ref [] in
+      List.iter (fun (name, v) ->
+        let v_str =
+          match v with
+          | Ast.VString s -> s
+          | Ast.VInt n -> string_of_int n
+          | Ast.VFloat f -> string_of_float f
+          | Ast.VBool b -> string_of_bool b
+          | _ -> Pretty_print.pretty_print_value v
+        in
+        subshell_env_overrides := (name, v_str) :: !subshell_env_overrides;
+        printed_env_vars := (name, v_str) :: !printed_env_vars
+      ) node_env_vars;
+
+      (* Gather upstream dependency information but do NOT set env vars *)
+      let resolved_deps = ref [] in
+      List.iter (fun dep_name ->
+        match Builder.latest_logged_computed_node dep_name with
+        | Some dep_cn ->
+            if dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" then (
+              let store_dir = Filename.dirname dep_cn.cn_path in
+              resolved_deps := (dep_name, store_dir, dep_cn.cn_serializer) :: !resolved_deps
+            )
+        | None -> ()
+      ) dependencies;
+
+      Printf.printf "==================================================\n%!";
+      Printf.printf "Debugging Node: %s (Runtime: %s)\n%!" cn.cn_name cn.cn_runtime;
+      Printf.printf "==================================================\n%!";
+      if !printed_env_vars <> [] then (
+        Printf.printf "Environment variables set for custom node configuration:\n%!";
+        List.iter (fun (name, value) ->
+          Printf.printf "  - %s = %s\n%!" name value
+        ) !printed_env_vars;
+        Printf.printf "\n%!"
+      );
+      if !resolved_deps <> [] then (
+        Printf.printf "Upstream dependencies:\n%!";
+        List.iter (fun (name, path, _serializer) ->
+          Printf.printf "  - %s (Path: %s)\n%!" name path
+        ) !resolved_deps;
+        Printf.printf "\n%!"
+      );
+
+      let julia_package_path =
+        match Diff.detect_repo_root () with
+        | Some root ->
+            let path = Filename.concat (Filename.concat root "jl-package") "Project.toml" in
+            if Sys.file_exists path then Some (Filename.dirname path) else None
+        | None -> None
+      in
+      let cleanup_paths = ref [] in
+      let shell_cmd =
+        let clean_deps = List.map (fun (name, _, _) -> name) !resolved_deps in
+        let csv_deps = List.filter_map (fun (name, _, ser) ->
+          if String.lowercase_ascii ser = "csv" then Some name else None) !resolved_deps in
+        match String.lowercase_ascii cn.cn_runtime with
+        | "python" ->
+            Printf.printf "Starting interactive Python REPL...\n%!";
+            Printf.printf "Tip: Load upstream dependencies in Python using:\n%!";
+            Printf.printf "  import tlang\n%!";
+            List.iter (fun dep ->
+              Printf.printf "  %s = tlang.read_node(\"%s\")\n%!" dep dep
+            ) clean_deps;
+            if clean_deps = [] then
+              Printf.printf "  # No upstream dependencies. You can import tlang: import tlang\n%!";
+
+            (* Write temporary startup file to customize python prompt *)
+            let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.py" in
+            let guard_root = Filename.concat (Sys.getcwd ()) ".t_debug_guard" in
+            (try
+               let guards = prepare_python_debug_guards (Sys.getcwd ()) in
+               write_text_file startup_path "import sys\nsys.ps1 = 'py> '\nsys.ps2 = 'py... '\n";
+               cleanup_paths := startup_path :: guards.root_dir :: !cleanup_paths;
+               let existing_path = try Sys.getenv "PATH" with Not_found -> "" in
+               let existing_pythonpath = try Sys.getenv "PYTHONPATH" with Not_found -> "" in
+               let pythonpath =
+                 if existing_pythonpath = "" then guards.python_dir
+                 else guards.python_dir ^ ":" ^ existing_pythonpath
+               in
+               subshell_env_overrides :=
+                 ("PYTHONSTARTUP", startup_path)
+                 :: ("PATH", guards.bin_dir ^ ":" ^ existing_path)
+                 :: ("PYTHONPATH", pythonpath)
+                 :: !subshell_env_overrides
+             with _ ->
+               (try remove_path_recursively startup_path with _ -> ());
+               (try remove_path_recursively guard_root with _ -> ()));
+
+            "python -i"
+        | "r" ->
+            Printf.printf "Starting interactive R REPL...\n%!";
+            Printf.printf "Tip: Load upstream dependencies in R using:\n%!";
+            Printf.printf "  library(tlang)\n%!";
+            List.iter (fun dep ->
+              Printf.printf "  %s <- read_node(\"%s\")\n%!" dep dep
+            ) clean_deps;
+            if clean_deps = [] then
+              Printf.printf "  # No upstream dependencies. You can load tlang: library(tlang)\n%!";
+
+            (* Write temporary startup file to customize R prompt *)
+            (try
+               let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.R" in
+               write_text_file startup_path (r_debug_startup_content ());
+               cleanup_paths := startup_path :: !cleanup_paths;
+               subshell_env_overrides :=
+                 ("R_PROFILE_USER", startup_path) :: !subshell_env_overrides
+             with _ -> ());
+
+            "R --no-save --quiet"
+        | "julia" ->
+            Printf.printf "Starting interactive Julia REPL...\n%!";
+            Printf.printf "Tip: Load upstream dependencies in Julia using:\n%!";
+            Printf.printf "  using tlang\n%!";
+            if csv_deps <> [] then
+              Printf.printf "  using CSV, DataFrames  # required for CSV nodes\n%!";
+            List.iter (fun dep ->
+              Printf.printf "  %s = read_node(\"%s\")\n%!" dep dep
+            ) clean_deps;
+            if clean_deps = [] then
+             Printf.printf "  # No upstream dependencies. You can load tlang: using tlang\n%!";
+
+            (* Write temporary startup file to customize Julia prompt *)
+            let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.jl" in
+            let startup_ready =
+              try
+                write_text_file startup_path (julia_debug_startup_content julia_package_path);
+                cleanup_paths := startup_path :: !cleanup_paths;
+                true
+              with _ ->
+                (try remove_path_recursively startup_path with _ -> ());
+                false
+            in
+            if startup_ready then
+              Printf.sprintf "julia -i -e %S" (Printf.sprintf "include(%S)" startup_path)
+            else "julia -i"
+        | _ ->
+            Printf.printf "Starting interactive bash subshell...\n%!";
+            "bash"
+      in
+      Printf.printf "Press Ctrl+D or exit to return to T REPL.\n";
+      Printf.printf "==================================================\n\n%!";
+      flush stdout;
+      let status = run_shell_command_with_env shell_cmd !subshell_env_overrides in
+
+      (* Clean up temporary startup files *)
+      List.iter (fun path -> try remove_path_recursively path with _ -> ()) !cleanup_paths;
+
+      Printf.printf "\n==================================================\n%!";
+      Printf.printf "Exited subshell (status: %s). Returning to T REPL.\n%!"
+        (match status with
+         | Unix.WEXITED n -> Printf.sprintf "exit %d" n
+         | Unix.WSIGNALED n -> Printf.sprintf "signaled %d" n
+         | Unix.WSTOPPED n -> Printf.sprintf "stopped %d" n);
+      Printf.printf "==================================================\n%!";
+      flush stdout;
+      VNA NAGeneric
+    )
+  in
+
+  let debug_fn named_args env =
+    match extract_arg "node" 1 (VNA NAGeneric) named_args with
+    | VComputedNode cn ->
+        run_interactive_subshell ~env cn
+    | _ -> Error.type_error "debug_node: expected a ComputedNode."
+  in
+
   let read_fn named_args _env =
 
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
@@ -438,3 +638,4 @@ let register env =
   |> Env.add "inspect_node" (make_builtin_named ~name:"inspect_node" ~unwrap:false ~variadic:true 1 inspect_fn)
   |> Env.add "rebuild_node" (make_builtin_named ~name:"rebuild_node" ~unwrap:false ~variadic:true 1 rebuild_fn)
   |> Env.add "suppress_warnings" (make_builtin ~name:"suppress_warnings" ~unwrap:false 1 suppress_warnings_fn)
+  |> Env.add "debug_node" (make_builtin_named ~name:"debug_node" ~unwrap:false ~variadic:true 1 debug_fn)

@@ -34,19 +34,25 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 **Objective**: Align T's pipeline management with Nix's execution model. Avoid re-implementing what Nix already does (parallelism, caching, partial builds).
 
 ### Ergonomic Nix Build Wrappers
-- [ ] **T-to-Nix flag mapping**: Update `build_pipeline()` and `pipeline_run()` to accept parameters that map directly to `nix build` flags:
-  - `targets = [...]` → Build specific derivations.
-  - `force = [...]` → Pass `--rebuild`.
-  - `dry_run = true` → Pass `--dry-run` and return the plan as a DataFrame.
-  - `max_jobs = N` → Control Nix parallelism.
-- [ ] **Cachix Integration**: Add a `cache` parameter to `build_pipeline()` to automatically configure Nix substituters for binary cache usage.
+- [x] **T-to-Nix flag mapping**: Update `build_pipeline()` and `pipeline_run()` to accept parameters that map directly to `nix build` flags:
+  - [x] `targets = [...]` → Build specific derivations (`-A`).
+  - [x] `force = [...]` → Pass `--check` (force-rebuild).
+  - [x] `dry_run = true` → Pass `--dry-run` and return the plan as a DataFrame.
+  - [x] `max_jobs = N` → Control Nix parallelism (`--max-jobs`).
+- [x] **Cachix Integration**: Add a `cache` parameter to `build_pipeline()` and `pipeline_run()` to automatically configure Nix substituters for binary cache usage (`--option extra-substituters`).
 
 ### Multi-Runtime Interchange
-- [ ] **Automatic Serializer Negotiation**: Implement a compatibility matrix. When `rn()` connects to `pyn()`, T should automatically default to `^arrow` interchange unless overridden.
-- [ ] **Static Format Verification**: The pipeline builder should verify that producer/consumer format types match *before* generating the Nix expression.
+- [ ] **Automatic Serializer Negotiation**: (Rejected: Explicit design choice to avoid silent magic. Users define formats explicitly.)
+- [x] **Static Format Verification**: The pipeline builder should verify that producer/consumer format types match *before* generating the Nix expression (integrated statically in OCaml builder).
 
-### Runtime Isolation
-- [ ] **Per-node Env Overrides**: Allow nodes to specify local package versions (e.g., `env_override = [r_packages: ["MASS@7.3-60"]]`) which T translates into unique Nix derivation environments.
+### Future Nix Orchestration Extensions (Brainstorming)
+- [x] **Remote Builders Integration (`builders`)**: Support offloading computationally intensive pipeline nodes (e.g. large ML models) to external GPU clusters or high-performance remote builders using standard Nix remote builder configurations (`--builders`).
+- [x] **Environment Pass-Through Whitelisting (`keep_env`)**: Explicitly whitelist and forward specific host environment variables (like access tokens or API keys) into the Nix sandbox during developer builds while maintaining strict purity defaults.
+- [x] **Advanced Sandboxing Controls (`sandbox`)**: Introduce fine-grained sandboxing options within `nix_options` (e.g., `sandbox: "relaxed" | "strict" | "none"`) mapping directly to Nix isolation policies for legacy or system-dependent workflow steps.
+- [x] **Low-level Derivation Projection (`pipeline_to_drv`)**: Provide introspection functions that return the raw Nix store derivation `.drv` paths for each node, enabling developers to perform static analysis and debug Nix inputs at the lowest level.
+- [x] **Store Path Introspection (`pipeline_to_store`)**: Provide companion introspection to `pipeline_to_drv` that returns the realised output paths in `/nix/store/` for nodes, evaluated statically via Nix without executing a build.
+- [x] **Global Build Configuration (`set_nix_defaults`)**: Introduce a session-wide global defaults configurer `set_nix_defaults(nix_options = [...])` to establish persistent Nix build options (e.g. Cachix caches, max-jobs, sandboxing, builders) across all subsequent pipeline invocations.
+- [x] **Cache Status Introspection (`pipeline_cache_status`)**: Introduce `pipeline_cache_status(p)` to query Nix cache validity and presence (`nix-store --query --valid`) on each node's derivation, returning a DataFrame with columns `node` (String), `cached` (Bool), and `store_path` (String) to preview cache hits.
 
 ---
 
