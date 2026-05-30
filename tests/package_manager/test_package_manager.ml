@@ -124,6 +124,48 @@ min_version = "0.51.0"
        | _ -> false)
     | Error _ -> false);
 
+  print_newline ();
+
+  (* ===================================================== *)
+  Printf.printf "Package Manager — Debug subshell guards:\n";
+
+  test_pm "R debug startup blocks package manager functions" (fun () ->
+    let content = Read_node.r_debug_startup_content () in
+    Test_helpers.contains content "install.packages <- function"
+    && Test_helpers.contains content "update.packages <- function"
+    && Test_helpers.contains content "remove.packages <- function"
+    && Test_helpers.contains content "tproject.toml");
+
+  test_pm "Julia debug startup blocks Pkg mutations" (fun () ->
+    let content = Read_node.julia_debug_startup_content None in
+    Test_helpers.contains content "module Pkg"
+    && Test_helpers.contains content "add(args...; kwargs...) = error"
+    && Test_helpers.contains content "rm(args...; kwargs...) = error"
+    && Test_helpers.contains content "update(args...; kwargs...) = error"
+    && Test_helpers.contains content "develop(args...; kwargs...) = error"
+    && Test_helpers.contains content "tproject.toml");
+
+  test_pm "Python debug guard shims are created project-locally" (fun () ->
+    let temp_root =
+      Filename.concat (Filename.get_temp_dir_name ())
+        (Printf.sprintf "tlang-python-guard-%06x" (Random.bits ()))
+    in
+    Unix.mkdir temp_root 0o755;
+    let guards = Read_node.prepare_python_debug_guards temp_root in
+    let expected_shims =
+      List.for_all
+        (fun tool -> Sys.file_exists (Filename.concat guards.bin_dir tool))
+        Read_node.python_package_manager_shim_names
+    in
+    let pip_module = Sys.file_exists (Filename.concat guards.python_dir "pip.py") in
+    let project_local =
+      Test_helpers.contains guards.root_dir temp_root
+      && Test_helpers.contains guards.bin_dir guards.root_dir
+      && Test_helpers.contains guards.python_dir guards.root_dir
+    in
+    Read_node.remove_path_recursively temp_root;
+    expected_shims && pip_module && project_local && not (Sys.file_exists temp_root));
+
   let project_toml = {|
 [project]
 name = "my-project"

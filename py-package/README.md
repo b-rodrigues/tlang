@@ -5,11 +5,9 @@ artifacts from built T pipelines.
 
 ## Installation
 
-From the repository root:
-
-```bash
-pip install ./py-package
-```
+Do not install this helper with `pip`. In a T project, declare your Python
+dependencies in `tproject.toml`, run `t update`, and re-enter `nix develop`;
+the `tlang` helper is then available from that project shell.
 
 ## Usage
 

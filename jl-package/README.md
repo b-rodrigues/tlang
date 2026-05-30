@@ -6,12 +6,10 @@ Julia-native node artifacts.
 
 ## Installation
 
-From the Julia REPL:
-
-```julia
-using Pkg
-Pkg.develop(path="jl-package")
-```
+Do not install this helper with `Pkg.add()` or `Pkg.develop()`. In a T project,
+declare your Julia dependencies in `tproject.toml`, run `t update`, and
+re-enter `nix develop`; the `tlang` helper is then available from that project
+shell.
 
 ## Usage
 

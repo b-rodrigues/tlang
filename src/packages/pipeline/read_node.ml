@@ -1,5 +1,136 @@
 open Ast
 
+type python_debug_guards = {
+  root_dir : string;
+  bin_dir : string;
+  python_dir : string;
+}
+
+let debug_subshell_guard_message runtime command =
+  Printf.sprintf
+    "Don't use %s in this T %s debug subshell. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`."
+    command runtime
+
+let write_text_file path content =
+  let ch = open_out path in
+  output_string ch content;
+  close_out ch
+
+let python_package_manager_shim_names =
+  [ "pip"; "pip3"; "uv"; "poetry"; "conda"; "mamba"; "micromamba"; "easy_install" ]
+
+let r_debug_startup_content () =
+  String.concat "\n"
+    [
+      "options(prompt='r> ', continue='r+ ')";
+      Printf.sprintf
+        "install.packages <- function(...) stop(%S, call. = FALSE)"
+        (debug_subshell_guard_message "R" "install.packages()");
+      Printf.sprintf
+        "update.packages <- function(...) stop(%S, call. = FALSE)"
+        (debug_subshell_guard_message "R" "update.packages()");
+      Printf.sprintf
+        "remove.packages <- function(...) stop(%S, call. = FALSE)"
+        (debug_subshell_guard_message "R" "remove.packages()");
+      "";
+    ]
+
+let julia_debug_startup_content julia_package_path =
+  let buf = Buffer.create 512 in
+  Buffer.add_string buf "import UUIDs: UUID\n";
+  Buffer.add_string buf
+    "const _tlang_real_pkg = Base.require(Base.PkgId(UUID(\"44cfe95a-1eb2-52ea-b672-e2afdf69b78f\"), \"Pkg\"))\n";
+  (match julia_package_path with
+   | Some path ->
+       Printf.bprintf buf
+         "const _tlang_project = %S\n\
+          try\n\
+          \  _tlang_real_pkg.activate(; temp=true, io=devnull)\n\
+          \  _tlang_real_pkg.develop(path=_tlang_project, io=devnull)\n\
+          \  _tlang_real_pkg.instantiate(io=devnull)\n\
+          catch err\n\
+          \  @warn \"Failed to prepare repo-local Julia tlang package for debug_node\" exception=(err, catch_backtrace())\n\
+          end\n"
+         path
+   | None -> ());
+  Printf.bprintf buf
+    "module Pkg\n\
+     export add, rm, update, develop\n\
+     add(args...; kwargs...) = error(%S)\n\
+     rm(args...; kwargs...) = error(%S)\n\
+     update(args...; kwargs...) = error(%S)\n\
+     develop(args...; kwargs...) = error(%S)\n\
+     end\n\
+     atreplinit() do repl\n\
+       @async begin\n\
+         sleep(0.1)\n\
+         if isdefined(repl, :interface)\n\
+           repl.interface.modes[1].prompt = \"jl> \"\n\
+         end\n\
+       end\n\
+     end\n"
+    (debug_subshell_guard_message "Julia" "Pkg.add()")
+    (debug_subshell_guard_message "Julia" "Pkg.rm()")
+    (debug_subshell_guard_message "Julia" "Pkg.update()")
+    (debug_subshell_guard_message "Julia" "Pkg.develop()");
+  Buffer.contents buf
+
+let python_guard_shim_script tool =
+  Printf.sprintf "#!/usr/bin/env sh\nprintf '%%s\\n' %S >&2\nexit 1\n"
+    (debug_subshell_guard_message "Python" (tool ^ " install"))
+
+let python_pip_guard_module_content () =
+  Printf.sprintf
+    "raise SystemExit(%S)\n"
+    (debug_subshell_guard_message "Python" "python -m pip")
+
+let prepare_python_debug_guards base_dir =
+  let root_dir = Filename.concat base_dir ".t_debug_guard" in
+  let bin_dir = Filename.concat root_dir "bin" in
+  let python_dir = Filename.concat root_dir "python" in
+  if not (Sys.file_exists root_dir) then Unix.mkdir root_dir 0o755;
+  if not (Sys.file_exists bin_dir) then Unix.mkdir bin_dir 0o755;
+  if not (Sys.file_exists python_dir) then Unix.mkdir python_dir 0o755;
+  List.iter
+    (fun tool ->
+      let path = Filename.concat bin_dir tool in
+      write_text_file path (python_guard_shim_script tool);
+      Unix.chmod path 0o755)
+    python_package_manager_shim_names;
+  write_text_file (Filename.concat python_dir "pip.py") (python_pip_guard_module_content ());
+  { root_dir; bin_dir; python_dir }
+
+let rec remove_path_recursively path =
+  if Sys.file_exists path then
+    if Sys.is_directory path then (
+      Sys.readdir path
+      |> Array.iter (fun entry -> remove_path_recursively (Filename.concat path entry));
+      Unix.rmdir path
+    ) else Sys.remove path
+
+let make_subprocess_env overrides =
+  let tbl = Hashtbl.create 32 in
+  Array.iter
+    (fun entry ->
+      match String.index_opt entry '=' with
+      | None -> ()
+      | Some idx ->
+          let key = String.sub entry 0 idx in
+          let value = String.sub entry (idx + 1) (String.length entry - idx - 1) in
+          Hashtbl.replace tbl key value)
+    (Unix.environment ());
+  List.iter (fun (key, value) -> Hashtbl.replace tbl key value) overrides;
+  Hashtbl.fold (fun key value acc -> (key ^ "=" ^ value) :: acc) tbl []
+  |> List.sort String.compare |> Array.of_list
+
+let run_shell_command_with_env shell_cmd overrides =
+  let envp = make_subprocess_env overrides in
+  let pid =
+    Unix.create_process_env "/bin/sh" [| "/bin/sh"; "-c"; shell_cmd |] envp
+      Unix.stdin Unix.stdout Unix.stderr
+  in
+  snd (Unix.waitpid [] pid)
+
 (* 
 --# Read Pipeline Node Artifact
 --#
@@ -62,8 +193,9 @@ let register env =
             find_in_pipelines bindings
       in
 
-      (* Set and print custom environment variables *)
+      (* Gather custom environment variables for the subshell *)
       let printed_env_vars = ref [] in
+      let subshell_env_overrides = ref [] in
       List.iter (fun (name, v) ->
         let v_str =
           match v with
@@ -73,7 +205,7 @@ let register env =
           | Ast.VBool b -> string_of_bool b
           | _ -> Pretty_print.pretty_print_value v
         in
-        Unix.putenv name v_str;
+        subshell_env_overrides := (name, v_str) :: !subshell_env_overrides;
         printed_env_vars := (name, v_str) :: !printed_env_vars
       ) node_env_vars;
 
@@ -114,6 +246,7 @@ let register env =
             if Sys.file_exists path then Some (Filename.dirname path) else None
         | None -> None
       in
+      let cleanup_paths = ref [] in
       let shell_cmd =
         let clean_deps = List.map (fun (name, _, _) -> name) !resolved_deps in
         let csv_deps = List.filter_map (fun (name, _, ser) ->
@@ -131,10 +264,21 @@ let register env =
 
             (* Write temporary startup file to customize python prompt *)
             (try
-               let ch = open_out ".t_debug_startup.py" in
-               output_string ch "import sys\nsys.ps1 = 'py> '\nsys.ps2 = 'py... '\n";
-               close_out ch;
-               Unix.putenv "PYTHONSTARTUP" ".t_debug_startup.py"
+               let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.py" in
+               let guards = prepare_python_debug_guards (Sys.getcwd ()) in
+               write_text_file startup_path "import sys\nsys.ps1 = 'py> '\nsys.ps2 = 'py... '\n";
+               cleanup_paths := startup_path :: guards.root_dir :: !cleanup_paths;
+               let existing_path = try Sys.getenv "PATH" with Not_found -> "" in
+               let existing_pythonpath = try Sys.getenv "PYTHONPATH" with Not_found -> "" in
+               let pythonpath =
+                 if existing_pythonpath = "" then guards.python_dir
+                 else guards.python_dir ^ ":" ^ existing_pythonpath
+               in
+               subshell_env_overrides :=
+                 ("PYTHONSTARTUP", startup_path)
+                 :: ("PATH", guards.bin_dir ^ ":" ^ existing_path)
+                 :: ("PYTHONPATH", pythonpath)
+                 :: !subshell_env_overrides
              with _ -> ());
 
             "python -i"
@@ -150,10 +294,11 @@ let register env =
 
             (* Write temporary startup file to customize R prompt *)
             (try
-               let ch = open_out ".t_debug_startup.R" in
-               output_string ch "options(prompt='r> ', continue='r+ ')\n";
-               close_out ch;
-               Unix.putenv "R_PROFILE_USER" ".t_debug_startup.R"
+               let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.R" in
+               write_text_file startup_path (r_debug_startup_content ());
+               cleanup_paths := startup_path :: !cleanup_paths;
+               subshell_env_overrides :=
+                 ("R_PROFILE_USER", startup_path) :: !subshell_env_overrides
              with _ -> ());
 
             "R --no-save --quiet"
@@ -171,26 +316,13 @@ let register env =
 
             (* Write temporary startup file to customize Julia prompt *)
             (try
-               let ch = open_out ".t_debug_startup.jl" in
-              (match julia_package_path with
-               | Some path ->
-                   Printf.fprintf ch
-                     "import Pkg\n\
-                      const _tlang_project = %S\n\
-                      try\n\
-                      \  Pkg.activate(; temp=true, io=devnull)\n\
-                      \  Pkg.develop(path=_tlang_project, io=devnull)\n\
-                      \  Pkg.instantiate(io=devnull)\n\
-                      catch err\n\
-                      \  @warn \"Failed to prepare repo-local Julia tlang package for debug_node\" exception=(err, catch_backtrace())\n\
-                      end\n"
-                     path
-               | None -> ());
-              output_string ch "atreplinit() do repl\n  @async begin\n    sleep(0.1)\n    if isdefined(repl, :interface)\n      repl.interface.modes[1].prompt = \"jl> \"\n    end\n  end\nend\n";
-               close_out ch
+               let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.jl" in
+               write_text_file startup_path (julia_debug_startup_content julia_package_path);
+               cleanup_paths := startup_path :: !cleanup_paths
              with _ -> ());
 
-            "julia -i -e 'include(\".t_debug_startup.jl\")'"
+            let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.jl" in
+            Printf.sprintf "julia -i -e %S" (Printf.sprintf "include(%S)" startup_path)
         | _ ->
             Printf.printf "Starting interactive bash subshell...\n%!";
             "bash"
@@ -198,12 +330,10 @@ let register env =
       Printf.printf "Press Ctrl+D or exit to return to T REPL.\n";
       Printf.printf "==================================================\n\n%!";
       flush stdout;
-      let status = Unix.system shell_cmd in
+      let status = run_shell_command_with_env shell_cmd !subshell_env_overrides in
 
       (* Clean up temporary startup files *)
-      (try Sys.remove ".t_debug_startup.py" with _ -> ());
-      (try Sys.remove ".t_debug_startup.R" with _ -> ());
-      (try Sys.remove ".t_debug_startup.jl" with _ -> ());
+      List.iter (fun path -> try remove_path_recursively path with _ -> ()) !cleanup_paths;
 
       Printf.printf "\n==================================================\n%!";
       Printf.printf "Exited subshell (status: %s). Returning to T REPL.\n%!"

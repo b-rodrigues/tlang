@@ -169,7 +169,9 @@ def py_write_onnx(model, path):
 
     raise RuntimeError(
         "ONNX export in Python requires 'skl2onnx' (for scikit-learn models) "
-        "or 'torch' (for PyTorch models). Install the appropriate package."
+        "or 'torch' (for PyTorch models). Add the required package to "
+        "[py-dependencies].packages in tproject.toml, run `t update`, and "
+        "re-enter `nix develop`."
     )
 
 
@@ -181,7 +183,8 @@ def py_read_onnx(path):
     except ImportError:
         raise RuntimeError(
             "ONNX deserialization requires 'onnxruntime'. "
-            "Install it with: pip install onnxruntime"
+            "Add `onnxruntime` to [py-dependencies].packages in "
+            "tproject.toml, run `t update`, and re-enter `nix develop`."
         )
 ```
 
