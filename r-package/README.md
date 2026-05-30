@@ -5,11 +5,9 @@ artifacts from built T pipelines.
 
 ## Installation
 
-From the repository root:
-
-```r
-install.packages("r-package", repos = NULL, type = "source")
-```
+Do not install this helper with `install.packages()`. In a T project, declare
+your R dependencies in `tproject.toml`, run `t update`, and re-enter
+`nix develop`; the `tlang` helper is then available from that project shell.
 
 ## Usage
 

@@ -25,6 +25,29 @@ You can trigger the debugger in two ways:
 1. **From the Terminal (CLI)**: Use `t debug <node>`
 2. **From the T REPL (Interactive)**: Use `debug_node(p.node_name)`
 
+### Debugging Dependencies Live in `tproject.toml`
+Debugging a node uses the project environment declared in `tproject.toml`. If a runtime package needed to deserialize an upstream artifact is missing, the debugger will start in that runtime without the package it needs.
+
+Use `t doctor` to spot missing runtime packages and add them to the relevant dependency section in `tproject.toml`:
+
+- `[r-dependencies].packages` for R packages
+- `[py-dependencies].packages` for Python packages
+- `[jl-dependencies].packages` for Julia packages
+
+After updating `tproject.toml`, run `t update` and re-enter `nix develop` so the debug environment is rebuilt.
+
+Do **not** install these packages manually inside the language package manager if you want reproducible debugging. Add them to `tproject.toml` instead.
+
+Common examples:
+
+- If you debug a **Julia** node that reads an ancestor serialized as **CSV**, add `CSV` and `DataFrames` to `[jl-dependencies].packages`.
+- If you debug a **Julia** node that reads an ancestor serialized as **Arrow/Parquet/Feather**, add `Arrow` and `DataFrames` to `[jl-dependencies].packages`.
+- If you debug a **Julia** node that reads JSON inputs, add `JSON` to `[jl-dependencies].packages`.
+- If you debug a **Python** node that reads CSV inputs, add `pandas` to `[py-dependencies].packages`.
+- If you debug a **Python** node that reads Arrow/Parquet/Feather inputs, add `pandas` and `pyarrow` to `[py-dependencies].packages`.
+- If you debug an **R** node that reads JSON inputs, add `jsonlite` to `[r-dependencies].packages`.
+- If you debug an **R** node that reads Arrow/Parquet/Feather inputs, add `arrow` to `[r-dependencies].packages`.
+
 ---
 
 ## 1. Using the Command Line Interface (CLI)
@@ -127,4 +150,4 @@ Let's say your Python node fails because of a column type mismatch.
 | :--- | :--- | :--- | :--- |
 | **Python** | `python -i` | `py> ` | `import tlang; dep = tlang.read_node(\"dep\")` |
 | **R** | `R --no-save --quiet` | `r> ` | `library(tlang); dep <- read_node(\"dep\")` |
-| **Julia** | `julia -i` | `jl> ` | `using tlang; dep = read_node(\"dep\")` |
+| **Julia** | `julia -i -e 'include(\"/path/to/.t_debug_startup.jl\")'` | `jl> ` | `using tlang; dep = read_node(\"dep\")` |
