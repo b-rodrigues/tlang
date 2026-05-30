@@ -32,14 +32,14 @@ let r_debug_startup_content () =
       Printf.sprintf
         "remove.packages <- function(...) stop(%S, call. = FALSE)"
         (debug_subshell_guard_message "R" "remove.packages()");
-      "";
     ]
 
 let julia_debug_startup_content julia_package_path =
   let buf = Buffer.create 512 in
   Buffer.add_string buf "import UUIDs: UUID\n";
   Buffer.add_string buf
-    "const _tlang_real_pkg = Base.require(Base.PkgId(UUID(\"44cfe95a-1eb2-52ea-b672-e2afdf69b78f\"), \"Pkg\"))\n";
+    "const _tlang_pkg_id = Base.PkgId(UUID(\"44cfe95a-1eb2-52ea-b672-e2afdf69b78f\"), \"Pkg\")\n\
+     const _tlang_real_pkg = Base.require(_tlang_pkg_id)\n";
   (match julia_package_path with
    | Some path ->
        Printf.bprintf buf
@@ -54,13 +54,15 @@ let julia_debug_startup_content julia_package_path =
          path
    | None -> ());
   Printf.bprintf buf
-    "module Pkg\n\
+    "module _TlangGuardPkg\n\
      export add, rm, update, develop\n\
      add(args...; kwargs...) = error(%S)\n\
      rm(args...; kwargs...) = error(%S)\n\
      update(args...; kwargs...) = error(%S)\n\
      develop(args...; kwargs...) = error(%S)\n\
      end\n\
+     const Pkg = _TlangGuardPkg\n\
+     Base.loaded_modules[_tlang_pkg_id] = _TlangGuardPkg\n\
      atreplinit() do repl\n\
        @async begin\n\
          sleep(0.1)\n\
@@ -115,6 +117,7 @@ let make_subprocess_env overrides =
       match String.index_opt entry '=' with
       | None -> ()
       | Some idx ->
+          (* Split on the first '=' so values keep any additional '=' bytes. *)
           let key = String.sub entry 0 idx in
           let value = String.sub entry (idx + 1) (String.length entry - idx - 1) in
           Hashtbl.replace tbl key value)
@@ -263,8 +266,9 @@ let register env =
               Printf.printf "  # No upstream dependencies. You can import tlang: import tlang\n%!";
 
             (* Write temporary startup file to customize python prompt *)
+            let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.py" in
+            let guard_root = Filename.concat (Sys.getcwd ()) ".t_debug_guard" in
             (try
-               let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.py" in
                let guards = prepare_python_debug_guards (Sys.getcwd ()) in
                write_text_file startup_path "import sys\nsys.ps1 = 'py> '\nsys.ps2 = 'py... '\n";
                cleanup_paths := startup_path :: guards.root_dir :: !cleanup_paths;
@@ -279,7 +283,9 @@ let register env =
                  :: ("PATH", guards.bin_dir ^ ":" ^ existing_path)
                  :: ("PYTHONPATH", pythonpath)
                  :: !subshell_env_overrides
-             with _ -> ());
+             with _ ->
+               (try remove_path_recursively startup_path with _ -> ());
+               (try remove_path_recursively guard_root with _ -> ()));
 
             "python -i"
         | "r" ->
@@ -315,14 +321,19 @@ let register env =
              Printf.printf "  # No upstream dependencies. You can load tlang: using tlang\n%!";
 
             (* Write temporary startup file to customize Julia prompt *)
-            (try
-               let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.jl" in
-               write_text_file startup_path (julia_debug_startup_content julia_package_path);
-               cleanup_paths := startup_path :: !cleanup_paths
-             with _ -> ());
-
             let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.jl" in
-            Printf.sprintf "julia -i -e %S" (Printf.sprintf "include(%S)" startup_path)
+            let startup_ready =
+              try
+                write_text_file startup_path (julia_debug_startup_content julia_package_path);
+                cleanup_paths := startup_path :: !cleanup_paths;
+                true
+              with _ ->
+                (try remove_path_recursively startup_path with _ -> ());
+                false
+            in
+            if startup_ready then
+              Printf.sprintf "julia -i -e %S" (Printf.sprintf "include(%S)" startup_path)
+            else "julia -i"
         | _ ->
             Printf.printf "Starting interactive bash subshell...\n%!";
             "bash"

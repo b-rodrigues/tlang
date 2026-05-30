@@ -369,125 +369,62 @@ let static_requirements_of_node_expr ~project_root node_name expr =
         deserializer = Ast.mk_expr (Ast.Var "default");
       }
 
-let rec first_pipeline_def_in_expr expr =
+let rec pipeline_defs_in_expr expr =
   match expr.Ast.node with
-  | Ast.PipelineDef nodes -> Some nodes
+  | Ast.PipelineDef nodes -> [nodes]
   | Ast.Call { fn; args } ->
-      (match first_pipeline_def_in_expr fn with
-       | Some _ as found -> found
-       | None ->
-           let rec find_arg = function
-             | [] -> None
-             | (_, arg) :: rest ->
-                 (match first_pipeline_def_in_expr arg with
-                  | Some _ as found -> found
-                  | None -> find_arg rest)
-           in
-           find_arg args)
+      pipeline_defs_in_expr fn
+      @ List.concat (List.map (fun (_, arg) -> pipeline_defs_in_expr arg) args)
   | Ast.IfElse { cond; then_; else_ } ->
-      (match first_pipeline_def_in_expr cond with
-       | Some _ as found -> found
-       | None ->
-           match first_pipeline_def_in_expr then_ with
-           | Some _ as found -> found
-           | None -> first_pipeline_def_in_expr else_)
+      pipeline_defs_in_expr cond
+      @ pipeline_defs_in_expr then_
+      @ pipeline_defs_in_expr else_
   | Ast.Match { scrutinee; cases } ->
-      (match first_pipeline_def_in_expr scrutinee with
-       | Some _ as found -> found
-       | None ->
-           let rec find_case = function
-             | [] -> None
-             | (_, body) :: rest ->
-                 (match first_pipeline_def_in_expr body with
-                  | Some _ as found -> found
-                  | None -> find_case rest)
-           in
-           find_case cases)
+      pipeline_defs_in_expr scrutinee
+      @ List.concat (List.map (fun (_, body) -> pipeline_defs_in_expr body) cases)
   | Ast.ListLit items ->
-      let rec find_item = function
-        | [] -> None
-        | (_, item) :: rest ->
-            (match first_pipeline_def_in_expr item with
-             | Some _ as found -> found
-             | None -> find_item rest)
-      in
-      find_item items
+      List.concat (List.map (fun (_, item) -> pipeline_defs_in_expr item) items)
   | Ast.DictLit pairs ->
-      let rec find_pair = function
-        | [] -> None
-        | (_, item) :: rest ->
-            (match first_pipeline_def_in_expr item with
-             | Some _ as found -> found
-             | None -> find_pair rest)
-      in
-      find_pair pairs
+      List.concat (List.map (fun (_, item) -> pipeline_defs_in_expr item) pairs)
   | Ast.BinOp { left; right; _ }
   | Ast.BroadcastOp { left; right; _ } ->
-      (match first_pipeline_def_in_expr left with
-       | Some _ as found -> found
-       | None -> first_pipeline_def_in_expr right)
+      pipeline_defs_in_expr left @ pipeline_defs_in_expr right
   | Ast.UnOp { operand; _ }
   | Ast.DotAccess { target = operand; _ }
   | Ast.Unquote operand
   | Ast.UnquoteSplice operand
   | Ast.Lambda { body = operand; _ } ->
-      first_pipeline_def_in_expr operand
+      pipeline_defs_in_expr operand
   | Ast.ListComp { expr; clauses } ->
-      (match first_pipeline_def_in_expr expr with
-       | Some _ as found -> found
-       | None ->
-           let rec find_clause = function
-             | [] -> None
-             | Ast.CFor { iter; _ } :: rest
-             | Ast.CFilter iter :: rest ->
-                 (match first_pipeline_def_in_expr iter with
-                  | Some _ as found -> found
-                  | None -> find_clause rest)
-           in
-           find_clause clauses)
+      pipeline_defs_in_expr expr
+      @ List.concat
+          (List.map
+             (function
+               | Ast.CFor { iter; _ }
+               | Ast.CFilter iter -> pipeline_defs_in_expr iter)
+             clauses)
   | Ast.Block stmts ->
-      let rec find_stmt = function
-        | [] -> None
-        | stmt :: rest ->
-            (match stmt.Ast.node with
-             | Ast.Expression expr
-             | Ast.Assignment { expr; _ }
-             | Ast.Reassignment { expr; _ } ->
-                 (match first_pipeline_def_in_expr expr with
-                  | Some _ as found -> found
-                  | None -> find_stmt rest)
-             | Ast.Import _
-             | Ast.ImportPackage _
-             | Ast.ImportFrom _
-             | Ast.ImportFileFrom _ -> find_stmt rest)
-      in
-      find_stmt stmts
+      pipeline_defs_in_program stmts
   | Ast.Value _
   | Ast.Var _
   | Ast.ColumnRef _
   | Ast.RawCode _
   | Ast.IntentDef _
-  | Ast.ShellExpr _ -> None
+  | Ast.ShellExpr _ -> []
 
-let first_pipeline_def_in_program program =
-  let rec go = function
-    | [] -> None
-    | stmt :: rest ->
-        let candidate =
-          match stmt.Ast.node with
-          | Ast.Expression expr
-          | Ast.Assignment { expr; _ }
-          | Ast.Reassignment { expr; _ } -> first_pipeline_def_in_expr expr
-          | Ast.Import _
-          | Ast.ImportPackage _
-          | Ast.ImportFrom _
-          | Ast.ImportFileFrom _ -> None
-        in
-        match candidate with
-        | Some _ as found -> found
-        | None -> go rest
-  in
-  go program
+and pipeline_defs_in_program program =
+  List.concat
+    (List.map
+       (fun stmt ->
+         match stmt.Ast.node with
+         | Ast.Expression expr
+         | Ast.Assignment { expr; _ }
+         | Ast.Reassignment { expr; _ } -> pipeline_defs_in_expr expr
+         | Ast.Import _
+         | Ast.ImportPackage _
+         | Ast.ImportFrom _
+         | Ast.ImportFileFrom _ -> [])
+       program)
 
 let static_pipeline_for_doctor ~project_root nodes =
   let requirements =
@@ -546,10 +483,23 @@ let doctor_issue_for_package ~section ~runtime pkg =
            pkg section);
   }
 
+let canonical_pipeline_path dir =
+  Filename.concat (Filename.concat dir "src") "pipeline.t"
+
+let missing_pipeline_entrypoint_issue path =
+  {
+    level = Warning;
+    message = Printf.sprintf "No pipeline entrypoint found at `%s`" path;
+    suggestion =
+      Some
+        "Create `src/pipeline.t` to enable project pipeline dependency analysis in `t doctor`.";
+  }
+
 let project_dependency_issues dir =
   let tproject_path = Filename.concat dir "tproject.toml" in
-  let pipeline_path = Filename.concat (Filename.concat dir "src") "pipeline.t" in
-  if not (Sys.file_exists tproject_path) || not (Sys.file_exists pipeline_path) then []
+  let pipeline_path = canonical_pipeline_path dir in
+  if not (Sys.file_exists tproject_path) then []
+  else if not (Sys.file_exists pipeline_path) then [missing_pipeline_entrypoint_issue pipeline_path]
   else
     match read_file tproject_path with
     | Error _ -> []
@@ -560,10 +510,12 @@ let project_dependency_issues dir =
              match parse_program pipeline_path with
              | Error _ -> []
              | Ok program ->
-                 match first_pipeline_def_in_program program with
-                 | None -> []
-                 | Some nodes ->
-                     let pipeline = static_pipeline_for_doctor ~project_root:dir nodes in
+                 match pipeline_defs_in_program program with
+                 | [] -> []
+                 | pipelines ->
+                     let pipeline =
+                       static_pipeline_for_doctor ~project_root:dir (List.concat pipelines)
+                     in
                      let analysis =
                        Pipeline_dependency_requirements.analyze_missing_requirements pipeline cfg
                      in
