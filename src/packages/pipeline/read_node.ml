@@ -47,12 +47,14 @@ let julia_debug_startup_content julia_package_path =
      \  println(\" │ a registry.\")\n\
      \  println(\" │ Install packages?\")\n\
      \  println(\" │   (project) pkg> add \", pkg_str)\n\
-     \  print(\" └ (y/n/o) [y]: \")\n\
+     \  print(\" └ (y/n) [y]: \")\n\
      \  flush(stdout)\n\
      \  response = lowercase(strip(readline(stdin)))\n\
      \  if response == \"\" || response == \"y\" || response == \"yes\"\n\
      \    println(\"\\nDon't use interactive package installation in this T Julia debug subshell.\")\n\
      \    println(\"Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\\n\")\n\
+     \  else\n\
+     \    println(\"Cancelled.\")\n\
      \  end\n\
      \  return false\n\
      end\n\
