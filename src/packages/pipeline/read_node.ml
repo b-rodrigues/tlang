@@ -36,10 +36,28 @@ let r_debug_startup_content () =
 
 let julia_debug_startup_content julia_package_path =
   let buf = Buffer.create 512 in
-  Buffer.add_string buf "import UUIDs: UUID\n";
   Buffer.add_string buf
-    "const _tlang_pkg_id = Base.PkgId(UUID(\"44cfe95a-1eb2-52ea-b672-e2afdf69b78f\"), \"Pkg\")\n\
-     const _tlang_real_pkg = Base.require(_tlang_pkg_id)\n";
+    "const _tlang_pkg_id = Base.PkgId(Base.UUID(\"44cfe95a-1eb2-52ea-b672-e2afdf69b78f\"), \"Pkg\")\n\
+     const _tlang_real_pkg = Base.require(_tlang_pkg_id)\n\
+     const _tlang_repl_id = Base.PkgId(Base.UUID(\"3fa0cd96-eef1-5676-8a61-b3b8758bbffb\"), \"REPL\")\n\
+     const _tlang_repl = Base.require(_tlang_repl_id)\n\
+     function _tlang_install_packages_hook(pkgs::Vector{Symbol})\n\
+     \  pkg_str = join(string.(pkgs), \", \")\n\
+     \  println(\" │ Packages [\", pkg_str, \"] not found, but packages named [\", pkg_str, \"] are available from\")\n\
+     \  println(\" │ a registry.\")\n\
+     \  println(\" │ Install packages?\")\n\
+     \  println(\" │   (project) pkg> add \", pkg_str)\n\
+     \  print(\" └ (y/n/o) [y]: \")\n\
+     \  flush(stdout)\n\
+     \  response = lowercase(strip(readline(stdin)))\n\
+     \  if response == \"\" || response == \"y\" || response == \"yes\"\n\
+     \    println(\"\\nDon't use interactive package installation in this T Julia debug subshell.\")\n\
+     \    println(\"Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\\n\")\n\
+     \  end\n\
+     \  return false\n\
+     end\n\
+     empty!(_tlang_repl.install_packages_hooks)\n\
+     push!(_tlang_repl.install_packages_hooks, _tlang_install_packages_hook)\n";
   (match julia_package_path with
    | Some path ->
        Printf.bprintf buf
