@@ -82,7 +82,7 @@ let python_guard_sandbox_hook =
    \            for tool in pip pip3 uv poetry conda mamba micromamba easy_install; do\n\
    \              cat > \"$python_guard_bin/$tool\" <<EOF\n\
    #!/usr/bin/env sh\n\
-   printf \"Don't use $tool in this T Python environment. Declare packages in tproject.toml, run \\`t update\\`, and re-enter \\`nix develop\\`.\\n\" >&2\n\
+   printf \"Don't use $tool in this T Python environment. Declare packages in tproject.toml, run 't update', and re-enter 'nix develop'.\\n\" >&2\n\
    exit 1\n\
    EOF\n\
    \              chmod +x \"$python_guard_bin/$tool\"\n\

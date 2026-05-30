@@ -549,7 +549,7 @@ EOF
             for tool in pip pip3 uv poetry conda mamba micromamba easy_install; do
               cat > "$python_guard_bin/$tool" <<EOF
 #!/usr/bin/env sh
-printf "Don't use \$tool in this T Python environment. Declare packages in tproject.toml, run \`t update\`, and re-enter \`nix develop\`.\n" >&2
+printf "Don't use \$tool in this T Python environment. Declare packages in tproject.toml, run 't update', and re-enter 'nix develop'.\n" >&2
 exit 1
 EOF
               chmod +x "$python_guard_bin/$tool"
