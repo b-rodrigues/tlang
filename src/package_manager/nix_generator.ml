@@ -56,7 +56,7 @@ let julia_depot_sandbox_hook =
    \  catch err\n\
    \    # Suppress any startup errors so Julia doesn't fail to launch\n\
    \  end\n\n\
-   \  const Pkg = _TlangGuardPkg\n\
+   \  using Pkg\n\
    end # if isinteractive()\n\
    EOF\n\
    \            export JULIA_DEPOT_PATH=\"$julia_depot_dir:''${JULIA_DEPOT_PATH:-}\"\n"

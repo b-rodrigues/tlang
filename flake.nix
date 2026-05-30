@@ -518,14 +518,12 @@ try
   empty!(_tlang_repl.install_packages_hooks)
   push!(_tlang_repl.install_packages_hooks, _tlang_install_packages_hook)
 
-  # Assign to Pkg in loaded_modules
   Base.loaded_modules[_tlang_pkg_id] = _TlangGuardPkg
 catch err
   # Suppress any startup errors so Julia doesn't fail to launch
 end
 
-# Also bind Pkg globally in Main so it's directly accessible
-const Pkg = _TlangGuardPkg
+using Pkg
 EOF
 
             export JULIA_DEPOT_PATH="$julia_depot_dir''${JULIA_DEPOT_PATH:+:$JULIA_DEPOT_PATH}"

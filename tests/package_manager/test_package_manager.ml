@@ -139,7 +139,7 @@ min_version = "0.51.0"
   test_pm "Julia debug startup blocks Pkg mutations" (fun () ->
     let content = Read_node.julia_debug_startup_content None in
     Test_helpers.contains content "module _TlangGuardPkg"
-    && Test_helpers.contains content "const Pkg = _TlangGuardPkg"
+    && Test_helpers.contains content "using Pkg"
     && Test_helpers.contains content "Base.loaded_modules[_tlang_pkg_id] = _TlangGuardPkg"
     && Test_helpers.contains content "add(args...; kwargs...) = error"
     && Test_helpers.contains content "rm(args...; kwargs...) = error"

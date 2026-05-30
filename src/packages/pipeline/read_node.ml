@@ -111,7 +111,7 @@ let julia_debug_startup_content julia_package_path =
          end
        end
      end
-     const Pkg = _TlangGuardPkg
+     using Pkg
      end # if isinteractive()
 |};
   Buffer.contents buf
