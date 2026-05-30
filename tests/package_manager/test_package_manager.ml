@@ -139,7 +139,7 @@ min_version = "0.51.0"
   test_pm "Julia debug startup blocks Pkg mutations" (fun () ->
     let content = Read_node.julia_debug_startup_content None in
     Test_helpers.contains content "module _TlangGuardPkg"
-    && Test_helpers.contains content "const Pkg = _TlangGuardPkg"
+    && Test_helpers.contains content "using Pkg"
     && Test_helpers.contains content "Base.loaded_modules[_tlang_pkg_id] = _TlangGuardPkg"
     && Test_helpers.contains content "add(args...; kwargs...) = error"
     && Test_helpers.contains content "rm(args...; kwargs...) = error"
@@ -1158,7 +1158,11 @@ min_version = "0.51.0"
     && has "tPackages"
     && has "stats.packages"
     && has "t-lang.url"
-    && has "rstats-on-nix.cachix.org");
+    && has "rstats-on-nix.cachix.org"
+    && has "r_profile_dir"
+    && has "R_PROFILE_USER"
+    && has "python_guard_dir"
+    && has "python_guard_bin");
 
   test_pm "generate project flake no deps" (fun () ->
     let flake = Nix_generator.generate_project_flake

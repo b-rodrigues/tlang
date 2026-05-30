@@ -37,29 +37,9 @@ let r_debug_startup_content () =
 let julia_debug_startup_content julia_package_path =
   let buf = Buffer.create 512 in
   Buffer.add_string buf
-    "const _tlang_pkg_id = Base.PkgId(Base.UUID(\"44cfe95a-1eb2-52ea-b672-e2afdf69b78f\"), \"Pkg\")\n\
-     const _tlang_real_pkg = Base.require(_tlang_pkg_id)\n\
-     const _tlang_repl_id = Base.PkgId(Base.UUID(\"3fa0cd96-eef1-5676-8a61-b3b8758bbffb\"), \"REPL\")\n\
-     const _tlang_repl = Base.require(_tlang_repl_id)\n\
-     function _tlang_install_packages_hook(pkgs::Vector{Symbol})\n\
-     \  pkg_str = join(string.(pkgs), \", \")\n\
-     \  println(\" │ Packages [\", pkg_str, \"] not found, but packages named [\", pkg_str, \"] are available from\")\n\
-     \  println(\" │ a registry.\")\n\
-     \  println(\" │ Install packages?\")\n\
-     \  println(\" │   (project) pkg> add \", pkg_str)\n\
-     \  print(\" └ (y/n) [y]: \")\n\
-     \  flush(stdout)\n\
-     \  response = lowercase(strip(readline(stdin)))\n\
-     \  if response == \"\" || response == \"y\" || response == \"yes\"\n\
-     \    println(\"\\nDon't use interactive package installation in this T Julia debug subshell.\")\n\
-     \    println(\"Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\\n\")\n\
-     \  else\n\
-     \    println(\"Cancelled.\")\n\
-     \  end\n\
-     \  return false\n\
-     end\n\
-     empty!(_tlang_repl.install_packages_hooks)\n\
-     push!(_tlang_repl.install_packages_hooks, _tlang_install_packages_hook)\n";
+    {|const _tlang_pkg_id = Base.PkgId(Base.UUID("44cfe95a-1eb2-52ea-b672-e2afdf69b78f"), "Pkg")
+     const _tlang_real_pkg = Base.require(_tlang_pkg_id)
+|};
   (match julia_package_path with
    | Some path ->
        Printf.bprintf buf
@@ -75,26 +55,65 @@ let julia_debug_startup_content julia_package_path =
    | None -> ());
   Printf.bprintf buf
     "module _TlangGuardPkg\n\
+     import Main: _tlang_real_pkg\n\
      export add, rm, update, develop\n\
      add(args...; kwargs...) = error(%S)\n\
      rm(args...; kwargs...) = error(%S)\n\
      update(args...; kwargs...) = error(%S)\n\
      develop(args...; kwargs...) = error(%S)\n\
-     end\n\
-     const Pkg = _TlangGuardPkg\n\
-     Base.loaded_modules[_tlang_pkg_id] = _TlangGuardPkg\n\
-     atreplinit() do repl\n\
-       @async begin\n\
-         sleep(0.1)\n\
-         if isdefined(repl, :interface)\n\
-           repl.interface.modes[1].prompt = \"jl> \"\n\
-         end\n\
-       end\n\
+     # Delegate read-only Pkg operations to the real Pkg module\n\
+     const _real = _tlang_real_pkg\n\
+     status(args...; kwargs...) = _real.status(args...; kwargs...)\n\
+     dependencies(args...; kwargs...) = _real.dependencies(args...; kwargs...)\n\
+     instantiate(args...; kwargs...) = _real.instantiate(args...; kwargs...)\n\
+     activate(args...; kwargs...) = _real.activate(args...; kwargs...)\n\
+     project(args...; kwargs...) = _real.project(args...; kwargs...)\n\
+     compat(args...; kwargs...) = _real.compat(args...; kwargs...)\n\
      end\n"
     (debug_subshell_guard_message "Julia" "Pkg.add()")
     (debug_subshell_guard_message "Julia" "Pkg.rm()")
     (debug_subshell_guard_message "Julia" "Pkg.update()")
     (debug_subshell_guard_message "Julia" "Pkg.develop()");
+  Buffer.add_string buf
+    {|if isinteractive()
+     const _tlang_repl_id = Base.PkgId(Base.UUID("3fa0cd96-eef1-5676-8a61-b3b8758bbffb"), "REPL")
+     try
+       _tlang_repl = Base.require(_tlang_repl_id)
+       function _tlang_install_packages_hook(pkgs::Vector{Symbol})
+         pkg_str = join(string.(pkgs), ", ")
+         println(" │ Packages [", pkg_str, "] not found, but packages named [", pkg_str, "] are available from")
+         println(" │ a registry.")
+         println(" │ Install packages?")
+         println(" │   (project) pkg> add ", pkg_str)
+         print(" └ (y/n) [y]: ")
+         flush(stdout)
+         response = lowercase(strip(readline(stdin)))
+         if response == "" || response == "y" || response == "yes"
+           println("\nDon't use interactive package installation in this T Julia debug subshell.")
+           println("Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\n")
+         else
+           println("Cancelled.")
+         end
+         return false
+       end
+       pushfirst!(_tlang_repl.install_packages_hooks, _tlang_install_packages_hook)
+       
+       # Replace Pkg in loaded_modules with the guard
+       Base.loaded_modules[_tlang_pkg_id] = _TlangGuardPkg
+     catch err
+       # Suppress any startup errors so Julia doesn't fail to launch
+     end
+     atreplinit() do repl
+       @async begin
+         sleep(0.1)
+         if isdefined(repl, :interface)
+           repl.interface.modes[1].prompt = "jl> "
+         end
+       end
+     end
+     using Pkg
+     end # if isinteractive()
+|};
   Buffer.contents buf
 
 let python_guard_shim_script tool =
