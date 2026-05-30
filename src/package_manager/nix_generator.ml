@@ -73,6 +73,27 @@ let r_profile_sandbox_hook =
    EOF\n\
    \            export R_PROFILE_USER=\"$r_profile_dir/.Rprofile\"\n"
 
+let python_guard_sandbox_hook =
+  "            # Create a local Python guard directory\n\
+   \            python_guard_dir=\"$PWD/.t_python_guard\"\n\
+   \            python_guard_bin=\"$python_guard_dir/bin\"\n\
+   \            python_guard_lib=\"$python_guard_dir/python\"\n\
+   \            mkdir -p \"$python_guard_bin\" \"$python_guard_lib\"\n\n\
+   \            for tool in pip pip3 uv poetry conda mamba micromamba easy_install; do\n\
+   \              cat > \"$python_guard_bin/$tool\" <<EOF\n\
+   #!/usr/bin/env sh\n\
+   printf \"Don't use $tool in this T Python environment. Declare packages in tproject.toml, run \\`t update\\`, and re-enter \\`nix develop\\`.\\n\" >&2\n\
+   exit 1\n\
+   EOF\n\
+   \              chmod +x \"$python_guard_bin/$tool\"\n\
+   \            done\n\n\
+   \            cat > \"$python_guard_lib/pip.py\" <<'EOF'\n\
+   raise SystemExit(\"Don't use python -m pip in this T Python environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\")\n\
+   EOF\n\n\
+   \            export PATH=\"$python_guard_bin:$PATH\"\n\
+   \            export PYTHONPATH=\"$python_guard_lib:''${PYTHONPATH:-}\"\n"
+
+
 
 (** Ensure that the "JSON" dependency is present in the list of Julia dependencies.
     T-Lang's polyglot interop uses JSON serialization for data exchange with Julia. *)
@@ -290,6 +311,7 @@ let generate_project_flake
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Buffer.add_string buf julia_depot_sandbox_hook;
   Buffer.add_string buf r_profile_sandbox_hook;
+  Buffer.add_string buf python_guard_sandbox_hook;
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Project: %s\"\n" project_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";
@@ -456,6 +478,7 @@ let generate_package_flake
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Buffer.add_string buf julia_depot_sandbox_hook;
   Buffer.add_string buf r_profile_sandbox_hook;
+  Buffer.add_string buf python_guard_sandbox_hook;
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Package: %s\"\n" package_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";

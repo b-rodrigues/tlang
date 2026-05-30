@@ -539,6 +539,30 @@ remove.packages <- function(...) stop("Don't use remove.packages() in this T R e
 EOF
             export R_PROFILE_USER="$r_profile_dir/.Rprofile"
 
+            # Create a local Python guard directory
+            python_guard_dir="$TLANG_REPO_ROOT/.t_python_guard"
+            python_guard_bin="$python_guard_dir/bin"
+            python_guard_lib="$python_guard_dir/python"
+            mkdir -p "$python_guard_bin" "$python_guard_lib"
+
+            # Create shims for common Python package managers
+            for tool in pip pip3 uv poetry conda mamba micromamba easy_install; do
+              cat > "$python_guard_bin/$tool" <<EOF
+#!/usr/bin/env sh
+printf "Don't use \$tool in this T Python environment. Declare packages in tproject.toml, run \`t update\`, and re-enter \`nix develop\`.\n" >&2
+exit 1
+EOF
+              chmod +x "$python_guard_bin/$tool"
+            done
+
+            # Create pip module guard
+            cat > "$python_guard_lib/pip.py" <<'EOF'
+raise SystemExit("Don't use python -m pip in this T Python environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.")
+EOF
+
+            export PATH="$python_guard_bin:$PATH"
+            export PYTHONPATH="$python_guard_lib''${PYTHONPATH:+:$PYTHONPATH}"
+
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"
             echo "═══════════════════════════════════════════════"
