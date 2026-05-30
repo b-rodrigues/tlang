@@ -1,7 +1,7 @@
 (* tests/test_pipeline_ops.ml *)
 (* Unit tests for Phase 1 and Phase 2 pipeline operations *)
 
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test =
 
   Printf.printf "Phase 1 — pipeline_to_frame:\n";
 
@@ -16,12 +16,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
          incr pass_count; Printf.printf "  ✓ pipeline_to_frame returns one row per node\n"
        end else begin
          incr fail_count;
-         Printf.printf "  ✗ pipeline_to_frame row count\n    Expected: 3\n    Got: %d\n" nrows
+         let msg = Printf.sprintf "  ✗ pipeline_to_frame row count\n    Expected: 3\n    Got: %d\n" nrows in
+         failures := msg :: !failures;
+         Printf.printf "%s" msg
        end
    | other ->
        incr fail_count;
-       Printf.printf "  ✗ pipeline_to_frame should return DataFrame, got: %s\n"
-         (Ast.Utils.value_to_string other));
+       let msg = Printf.sprintf "  ✗ pipeline_to_frame should return DataFrame, got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
 
   (* Column names *)
   let (v, _) = eval_string_env
@@ -33,7 +37,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     incr pass_count; Printf.printf "  ✓ pipeline_to_frame column names correct\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ pipeline_to_frame column names\n    Expected: %s\n    Got: %s\n" expected result
+    let msg = Printf.sprintf "  ✗ pipeline_to_frame column names\n    Expected: %s\n    Got: %s\n" expected result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Depth computation: root nodes have depth 0 *)
@@ -47,7 +53,9 @@ nrow(filter(df, \(row) row.depth == 0))|}
     incr pass_count; Printf.printf "  ✓ pipeline_to_frame depth: root nodes at depth 0\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ pipeline_to_frame depth\n    Expected: 1\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ pipeline_to_frame depth\n    Expected: 1\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Type error: not a pipeline *)
@@ -76,7 +84,9 @@ nrow(filter(df, \(row) row.depth == 0))|}
     incr pass_count; Printf.printf "  ✓ filter_node by runtime\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ filter_node by runtime\n    Expected: [\"b\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ filter_node by runtime\n    Expected: [\"b\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* filter_node by noop *)
@@ -96,7 +106,9 @@ nrow(filter(df, \(row) row.depth == 0))|}
     incr pass_count; Printf.printf "  ✓ filter_node by noop == false\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ filter_node by noop\n    Expected: [\"a\", \"c\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ filter_node by noop\n    Expected: [\"a\", \"c\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* filter_node by depth *)
@@ -112,7 +124,9 @@ nrow(filter(df, \(row) row.depth == 0))|}
     incr pass_count; Printf.printf "  ✓ filter_node by depth == 0\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ filter_node by depth\n    Expected: [\"a\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ filter_node by depth\n    Expected: [\"a\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* filter_node returns empty pipeline when no nodes match *)
@@ -125,7 +139,9 @@ p |> filter_node($runtime == "Python") |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ filter_node returns empty pipeline when no match\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ filter_node no match\n    Expected: []\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ filter_node no match\n    Expected: []\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* filter_node type error *)
@@ -146,7 +162,9 @@ p |> filter_node(!is_na($diagnostics.error)) |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ filter_node can filter on diagnostics errors\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ filter_node diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ filter_node diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   let (v, _) = eval_string_env
@@ -162,7 +180,9 @@ p |> filter_node(is_na($diagnostics.error)) |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ filter_node can keep nodes without diagnostics errors\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ filter_node no-error diagnostics predicate\n    Expected: [\"ok\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ filter_node no-error diagnostics predicate\n    Expected: [\"ok\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   print_newline ();
@@ -182,7 +202,9 @@ which_nodes(p, !is_na(diagnostics.error)) |> map(\(node) node.name)|}
     incr pass_count; Printf.printf "  ✓ which_nodes auto-wraps diagnostics predicates\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ which_nodes diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ which_nodes diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   let (v, _) = eval_string_env
@@ -195,7 +217,9 @@ which_nodes(p, pred) |> map(\(node) node.name)|}
     incr pass_count; Printf.printf "  ✓ which_nodes accepts explicit predicate functions\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ which_nodes explicit predicate\n    Expected: [\"b\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ which_nodes explicit predicate\n    Expected: [\"b\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   let (v, _) = eval_string_env
@@ -207,7 +231,9 @@ errored_nodes(p)|}
     incr pass_count; Printf.printf "  ✓ errored_nodes returns an empty list when nothing failed\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ errored_nodes empty result\n    Expected: []\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ errored_nodes empty result\n    Expected: []\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   let (v, _) = eval_string_env
@@ -223,7 +249,9 @@ errored_nodes(p) |> map(\(node) node.name)|}
     incr pass_count; Printf.printf "  ✓ errored_nodes returns failing node records\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ errored_nodes failing records\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ errored_nodes failing records\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   test "which_nodes rejects non-pipeline"
@@ -253,7 +281,9 @@ pipeline_to_frame(p2) |> filter(\(row) row.noop == true) |> nrow|}
     incr pass_count; Printf.printf "  ✓ mutate_node sets noop on all nodes\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ mutate_node noop=true\n    Expected: 2\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ mutate_node noop=true\n    Expected: 2\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* mutate_node with where clause *)
@@ -273,7 +303,9 @@ pipeline_to_frame(p2) |> filter(\(row) row.noop == true) |> nrow|}
     incr pass_count; Printf.printf "  ✓ mutate_node with where clause scopes changes\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ mutate_node where clause\n    Expected: 1\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ mutate_node where clause\n    Expected: 1\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* mutate_node does not modify original pipeline (immutability) *)
@@ -287,7 +319,9 @@ pipeline_to_frame(p) |> filter(\(row) row.noop == false) |> nrow|}
     incr pass_count; Printf.printf "  ✓ mutate_node returns new pipeline (immutability)\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ mutate_node immutability\n    Expected: 1\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ mutate_node immutability\n    Expected: 1\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* mutate_node type error *)
@@ -315,7 +349,9 @@ pipeline_nodes(p2)|}
     incr pass_count; Printf.printf "  ✓ rename_node renames node\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ rename_node basic\n    Expected: [\"alpha\", \"b\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ rename_node basic\n    Expected: [\"alpha\", \"b\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* rename_node rewires edges *)
@@ -329,7 +365,9 @@ pipeline_deps(p2)|}
     incr pass_count; Printf.printf "  ✓ rename_node rewires dependency edges\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ rename_node edge rewiring\n    Expected: {`alpha`: [], `b`: [\"alpha\"]}\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ rename_node edge rewiring\n    Expected: {`alpha`: [], `b`: [\"alpha\"]}\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* rename_node: missing node *)
@@ -356,7 +394,9 @@ colnames(select_node(p, $name, $runtime))|}
     incr pass_count; Printf.printf "  ✓ select_node returns DataFrame with requested columns\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ select_node columns\n    Expected: [\"name\", \"runtime\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ select_node columns\n    Expected: [\"name\", \"runtime\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* select_node row count *)
@@ -369,7 +409,9 @@ nrow(select_node(p, $name, $depth))|}
     incr pass_count; Printf.printf "  ✓ select_node returns one row per node\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ select_node row count\n    Expected: 3\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ select_node row count\n    Expected: 3\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* select_node: unknown field *)
@@ -396,7 +438,9 @@ p |> arrange_node($name) |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ arrange_node by name ascending\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ arrange_node name asc\n    Expected: [\"a\", \"m\", \"z\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ arrange_node name asc\n    Expected: [\"a\", \"m\", \"z\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* arrange_node by name descending *)
@@ -409,7 +453,9 @@ p |> arrange_node($name, "desc") |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ arrange_node by name descending\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ arrange_node name desc\n    Expected: [\"z\", \"m\", \"a\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ arrange_node name desc\n    Expected: [\"z\", \"m\", \"a\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* arrange_node by depth *)
@@ -422,7 +468,9 @@ p |> arrange_node($depth, "desc") |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ arrange_node by depth descending\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ arrange_node depth desc\n    Expected: [\"c\", \"b\", \"a\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ arrange_node depth desc\n    Expected: [\"c\", \"b\", \"a\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* arrange_node: bad direction *)
@@ -514,7 +562,9 @@ pipeline_to_frame(p2_patched) |> filter(\(row) row.noop == true) |> nrow|}
     incr pass_count; Printf.printf "  ✓ patch updates existing nodes\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ patch updates existing nodes\n    Expected: 1\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ patch updates existing nodes\n    Expected: 1\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* patch: no new nodes from p2 *)
@@ -539,7 +589,9 @@ pipeline_to_frame(p2) |> filter(\(row) row.noop == true) |> nrow|}
     incr pass_count; Printf.printf "  ✓ swap updates node metadata\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ swap updates node metadata\n    Expected: 1\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ swap updates node metadata\n    Expected: 1\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* swap: edges preserved (b still depends on a) *)
@@ -570,7 +622,9 @@ pipeline_deps(p2)|}
     incr pass_count; Printf.printf "  ✓ rewire preserves unchanged deps\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ rewire preserves unchanged deps\n    Expected: {`data`: [], `model`: [\"data\"]}\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ rewire preserves unchanged deps\n    Expected: {`data`: [], `model`: [\"data\"]}\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* rewire: missing node *)
@@ -596,7 +650,9 @@ p |> prune |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ prune removes leaf nodes\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ prune removes leaf nodes\n    Expected: [\"a\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ prune removes leaf nodes\n    Expected: [\"a\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* prune: single node pipeline stays as-is (it's both root and leaf) *)
@@ -621,7 +677,9 @@ p |> upstream_of("c") |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ upstream_of includes node and ancestors\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ upstream_of\n    Expected to contain a, b, c (not d)\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ upstream_of\n    Expected to contain a, b, c (not d)\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* upstream_of: missing node *)
@@ -644,7 +702,9 @@ p |> downstream_of("a") |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ downstream_of includes node and descendants\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ downstream_of\n    Expected to contain a, b, c\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ downstream_of\n    Expected to contain a, b, c\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* downstream_of: leaf node returns just itself *)
@@ -657,7 +717,9 @@ p |> downstream_of("b") |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ downstream_of leaf returns just itself\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ downstream_of leaf\n    Expected: [\"b\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ downstream_of leaf\n    Expected: [\"b\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   print_newline ();
@@ -675,7 +737,9 @@ p |> subgraph("b") |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ subgraph of middle node returns full chain\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ subgraph\n    Expected to contain a, b, c\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ subgraph\n    Expected to contain a, b, c\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* subgraph: missing node *)
@@ -705,7 +769,9 @@ chain(p1, p2) |> pipeline_nodes|}
     incr pass_count; Printf.printf "  ✓ chain merges connected pipelines\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ chain\n    Expected to contain a, b, c\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ chain\n    Expected to contain a, b, c\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* chain: error when no shared deps *)
@@ -754,7 +820,9 @@ pipeline_edges(p)|}
     incr pass_count; Printf.printf "  ✓ pipeline_edges returns dep pairs\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ pipeline_edges\n    Expected: [[\"a\", \"b\"]]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ pipeline_edges\n    Expected: [[\"a\", \"b\"]]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* pipeline_roots *)
@@ -786,7 +854,9 @@ pipeline_edges(p)|}
     incr pass_count; Printf.printf "  ✓ pipeline_summary returns full metadata frame\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ pipeline_summary\n    Expected: 2\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ pipeline_summary\n    Expected: 2\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   print_newline ();
@@ -807,7 +877,9 @@ pipeline_edges(p)|}
     incr pass_count; Printf.printf "  ✓ pipeline_assert returns pipeline when valid\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ pipeline_assert\n    Expected: [\"a\", \"b\"]\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ pipeline_assert\n    Expected: [\"a\", \"b\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   print_newline ();
@@ -823,7 +895,9 @@ pipeline_edges(p)|}
        incr pass_count; Printf.printf "  ✓ pipeline_dot returns DOT string\n"
    | other ->
        incr fail_count;
-       Printf.printf "  ✗ pipeline_dot\n    Expected: DOT string\n    Got: %s\n"
-         (Ast.Utils.value_to_string other));
+       let msg = Printf.sprintf "  ✗ pipeline_dot\n    Expected: DOT string\n    Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
 
   print_newline ()
