@@ -302,7 +302,7 @@ let static_requirements_of_node_expr ~project_root node_name expr =
   match expr.Ast.node with
   | Ast.Call { fn = { Ast.node = Ast.Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn" as constructor); _ }; args } ->
       let default_runtime = default_runtime_for_constructor constructor in
-      let explicit_script_path = lookup_named_arg "script" args |> Option.bind expr_string_value in
+      let explicit_script_path = Option.bind (lookup_named_arg "script" args) expr_string_value in
       let command = match lookup_named_arg "command" args with
         | Some command -> command
         | None ->
@@ -319,7 +319,7 @@ let static_requirements_of_node_expr ~project_root node_name expr =
                   | None -> Ast.mk_expr (Ast.Value (Ast.VNA Ast.NAGeneric))))
       in
       let runtime =
-        match lookup_named_arg "runtime" args |> Option.bind expr_string_value with
+        match Option.bind (lookup_named_arg "runtime" args) expr_string_value with
         | Some runtime when String.trim runtime <> "" -> runtime
         | _ ->
             (match explicit_script_path with
