@@ -29,7 +29,7 @@ let capture_stderr f =
     Unix.close read_fd;
     raise exn
 
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   Printf.printf "NA Edge Cases — Strict Flag Validation:\n";
   test "abs(na_ignore = 1)" "abs(4, na_ignore = 1)" {|Error(TypeError: "Flag `na_ignore` must be Bool, but received Int.")|};
   test "mean(na_rm = \"yes\")" {|mean([1, NA], na_rm = "yes")|} {|Error(TypeError: "Flag `na_rm` must be Bool, but received String.")|};
@@ -52,10 +52,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        (try let _ = Str.search_forward (Str.regexp "warning") (String.lowercase_ascii warn_row) 0 in true with _ -> false) then begin
       incr pass_count; Printf.printf "  ✓ row-wise filter warns on NA\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ row-wise filter warns on NA\n    Result: %s\n    Warning: %s\n" (Ast.Utils.value_to_string v_row) warn_row
+      incr fail_count;
+      let msg = Printf.sprintf "  ✗ row-wise filter warns on NA\n    Result: %s\n    Warning: %s\n" (Ast.Utils.value_to_string v_row) warn_row in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
     end
   with e ->
-    incr fail_count; Printf.printf "  ✗ row-wise filter warns on NA (EXCEPTION: %s)\n" (Printexc.to_string e));
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ row-wise filter warns on NA (EXCEPTION: %s)\n" (Printexc.to_string e) in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg);
 
   (* Vectorized filter compound warning *)
   (try
@@ -68,10 +74,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        (try let _ = Str.search_forward (Str.regexp "excluded 2 rows") (String.lowercase_ascii warn_vec) 0 in true with _ -> false) then begin
       incr pass_count; Printf.printf "  ✓ vectorized filter warns on multiple NA rows (intersected)\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ vectorized filter warns on multiple NA rows (intersected)\n    Warning: %s\n" warn_vec
+      incr fail_count;
+      let msg = Printf.sprintf "  ✗ vectorized filter warns on multiple NA rows (intersected)\n    Warning: %s\n" warn_vec in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
     end
   with e ->
-    incr fail_count; Printf.printf "  ✗ vectorized filter warns on multiple NA (EXCEPTION: %s)\n" (Printexc.to_string e));
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ vectorized filter warns on multiple NA (EXCEPTION: %s)\n" (Printexc.to_string e) in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg);
 
   Eval.show_warnings := show_warnings_before;
   

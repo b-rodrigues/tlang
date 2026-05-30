@@ -1,7 +1,7 @@
 (* tests/test_import_file_from.ml *)
 (* Unit tests for the ImportFileFrom feature: import "file.t"[name] *)
 
-let run_tests pass_count fail_count _failures _eval_string eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env _test =
 
   Printf.printf "ImportFileFrom — Basic selective import:\n";
 
@@ -22,7 +22,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
     Printf.printf "  ✓ single name imported correctly\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ single name imported correctly\n    Expected: 42\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ single name imported correctly\n    Expected: 42\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* The non-imported name should not be in scope *)
@@ -33,7 +35,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
     Printf.printf "  ✓ non-imported name is not in scope\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ non-imported name is not in scope\n    Expected: Error(...)\n    Got: %s\n" r2
+    let msg = Printf.sprintf "  ✗ non-imported name is not in scope\n    Expected: Error(...)\n    Got: %s\n" r2 in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Import multiple names at once *)
@@ -46,7 +50,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
     Printf.printf "  ✓ multiple names imported correctly\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ multiple names imported correctly\n    Expected: 141\n    Got: %s\n" r3
+    let msg = Printf.sprintf "  ✗ multiple names imported correctly\n    Expected: 141\n    Got: %s\n" r3 in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   print_newline ();
@@ -63,7 +69,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
     Printf.printf "  ✓ aliased import bound under alias name\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ aliased import bound under alias name\n    Expected: 42\n    Got: %s\n" r4
+    let msg = Printf.sprintf "  ✗ aliased import bound under alias name\n    Expected: 42\n    Got: %s\n" r4 in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* The original name should not be bound when an alias is used *)
@@ -77,7 +85,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
     Printf.printf "  ✓ original name not in scope when alias used\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ original name not in scope when alias used\n    Expected: Error(...)\n    Got: %s\n" r5b
+    let msg = Printf.sprintf "  ✗ original name not in scope when alias used\n    Expected: Error(...)\n    Got: %s\n" r5b in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   print_newline ();
@@ -94,7 +104,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
     Printf.printf "  ✓ missing name returns error\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ missing name returns error\n    Expected: Error(...)\n    Got: %s\n" r6
+    let msg = Printf.sprintf "  ✗ missing name returns error\n    Expected: Error(...)\n    Got: %s\n" r6 in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Missing file returns FileError *)
@@ -107,7 +119,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
     Printf.printf "  ✓ missing file returns error\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ missing file returns error\n    Expected: Error(...)\n    Got: %s\n" r7
+    let msg = Printf.sprintf "  ✗ missing file returns error\n    Expected: Error(...)\n    Got: %s\n" r7 in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Syntax error in imported file returns parse error *)
@@ -124,7 +138,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
     Printf.printf "  ✓ parse error in imported file returns error\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ parse error in imported file returns error\n    Expected: Error(...)\n    Got: %s\n" r8
+    let msg = Printf.sprintf "  ✗ parse error in imported file returns error\n    Expected: Error(...)\n    Got: %s\n" r8 in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Clean up temporary files *)

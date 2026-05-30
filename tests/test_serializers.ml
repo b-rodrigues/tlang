@@ -151,8 +151,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
        incr pass_count; Printf.printf "  ✓ Static coherence check detects format mismatch\n"
    | other ->
        incr fail_count; 
-       Printf.printf "  ✗ Static coherence check failed to catch mismatch. Got: %s\n" 
-         (Ast.Utils.value_to_string other));
+       let msg = Printf.sprintf "  ✗ Static coherence check failed to catch mismatch. Got: %s\n" 
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
 
   (* 4. Static Coherence Checks - Match *)
   let env_match = Packages.init_env () in
@@ -206,8 +208,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
         Printf.printf "  ✓ Built-in ^onnx serializer does not emit custom strategy warning\n"
     | other ->
         incr fail_count;
-        Printf.printf "  ✗ Built-in ^onnx serializer warning handling failed. Got: %s; warnings: %S\n"
-          (Ast.Utils.value_to_string other) warnings));
+        let msg = Printf.sprintf "  ✗ Built-in ^onnx serializer warning handling failed. Got: %s; warnings: %S\n"
+          (Ast.Utils.value_to_string other) warnings in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg));
 
   (with_empty_dir (fun () ->
     let env_onnx = Packages.init_env () in
@@ -226,8 +230,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
         Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
     | other ->
         incr fail_count;
-        Printf.printf "  ✗ Explicit dependency check failed for ONNX pipeline. Got: %s\n"
-          (Ast.Utils.value_to_string other)));
+        let msg = Printf.sprintf "  ✗ Explicit dependency check failed for ONNX pipeline. Got: %s\n"
+          (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg));
 
   (with_empty_dir (fun () ->
     let env_pmml_deps = Packages.init_env () in
@@ -246,8 +252,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
         Printf.printf "  ✓ Missing PMML dependencies fail statically with explicit pyarrow guidance\n"
     | other ->
          incr fail_count;
-         Printf.printf "  ✗ Explicit dependency check failed for PMML pipeline. Got: %s\n"
-           (Ast.Utils.value_to_string other)));
+         let msg = Printf.sprintf "  ✗ Explicit dependency check failed for PMML pipeline. Got: %s\n"
+           (Ast.Utils.value_to_string other) in
+         failures := msg :: !failures;
+         Printf.printf "%s" msg));
 
   (with_empty_dir (fun () ->
     let env_julia_onnx = Packages.init_env () in
@@ -266,8 +274,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
         Printf.printf "  ✓ Missing Julia ONNX dependencies fail statically with explicit ONNXRunTime guidance\n"
     | other ->
         incr fail_count;
-        Printf.printf "  ✗ Explicit dependency check failed for Julia ONNX pipeline. Got: %s\n"
-          (Ast.Utils.value_to_string other)));
+        let msg = Printf.sprintf "  ✗ Explicit dependency check failed for Julia ONNX pipeline. Got: %s\n"
+          (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg));
 
   (* 4c. Nix emission no longer injects serializer/quarto packages implicitly *)
   let env_emit = Packages.init_env () in
@@ -293,8 +303,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
        end
    | other ->
        incr fail_count;
-       Printf.printf "  ✗ Failed to build pipeline for Nix emission test. Got: %s\n"
-         (Ast.Utils.value_to_string other));
+      let msg = Printf.sprintf "  ✗ Failed to build pipeline for Nix emission test. Got: %s\n"
+        (Ast.Utils.value_to_string other) in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg);
 
   (* 4d. Python PMML reader surfaces a descriptive dependency error *)
   let env_pmml = Packages.init_env () in
@@ -322,8 +334,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
        end
    | other ->
        incr fail_count;
-       Printf.printf "  ✗ Failed to build PMML pipeline for reader emission test. Got: %s\n"
-          (Ast.Utils.value_to_string other));
+      let msg = Printf.sprintf "  ✗ Failed to build PMML pipeline for reader emission test. Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg);
 
   let env_julia_emit = Packages.init_env () in
   let (v, _) = eval_string_env {|
@@ -360,8 +374,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
         end
     | other ->
         incr fail_count;
-        Printf.printf "  ✗ Failed to build Julia diagnostics pipeline for emission test. Got: %s\n"
-          (Ast.Utils.value_to_string other));
+        let msg = Printf.sprintf "  ✗ Failed to build Julia diagnostics pipeline for emission test. Got: %s\n"
+          (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
 
   let env_julia_pmml_emit = Packages.init_env () in
   let (v, _) = eval_string_env {|
@@ -387,8 +403,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
         end
    | other ->
        incr fail_count;
-       Printf.printf "  ✗ Failed to build Julia PMML pipeline for emission test. Got: %s\n"
-         (Ast.Utils.value_to_string other));
+       let msg = Printf.sprintf "  ✗ Failed to build Julia PMML pipeline for emission test. Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
 
   (* 5. Robustness: Placeholder error *)
   let (v, _) = eval_string_env {| (^csv).writer("test.csv", 1) |} (Packages.init_env ()) in

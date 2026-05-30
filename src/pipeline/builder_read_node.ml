@@ -254,15 +254,31 @@ let logged_node_value name cn =
 let pipeline_matches_logged_entries (p : Ast.pipeline_result) entries =
   let pipeline_node_names = List.map fst p.p_nodes in
   let runtimes = p.p_runtimes in
-  let runtime_matches_logged_entry (name, cn) =
-    match List.assoc_opt name runtimes with
-    | Some runtime -> runtime = cn.cn_runtime
-    | None -> true
+  let serializers = p.p_serializers in
+  let serializer_string_of_expr e =
+    match e.Ast.node with
+    | Ast.Value (Ast.VString s) -> s
+    | _ -> Nix_unparse.expr_to_string e
+  in
+  let node_matches_logged_entry (name, cn) =
+    let runtime_ok =
+      match List.assoc_opt name runtimes with
+      | Some runtime -> runtime = cn.cn_runtime
+      | None -> true
+    in
+    let serializer_ok =
+      match List.assoc_opt name serializers with
+      | Some ser_expr ->
+          let s = serializer_string_of_expr ser_expr in
+          s = cn.cn_serializer || s = "default" || cn.cn_serializer = "default"
+      | None -> true
+    in
+    runtime_ok && serializer_ok
   in
   let expected = List.sort String.compare pipeline_node_names in
   let actual = entries |> List.map fst |> List.sort String.compare in
   expected = actual
-  && List.for_all runtime_matches_logged_entry entries
+  && List.for_all node_matches_logged_entry entries
 
 let matching_pipeline_log_entries ?which_log (p : Ast.pipeline_result) =
   let logs = candidate_logs ?which_log () in
