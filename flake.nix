@@ -90,6 +90,7 @@
           "JavaCall"
           "ONNXRunTime"
           "ONNX"
+          "PrecompileTools"
           "StatsModels"
           "Statistics"
           "JSON"
