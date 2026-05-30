@@ -180,8 +180,11 @@ class="sourceCode julia"><code class="sourceCode julia"><span id="cb3-1"><a href
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Get only the path to the artifact</span></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>path <span class="op">=</span> <span class="fu">read_node</span>(<span class="st">&quot;my_model&quot;</span>, return_path<span class="op">=</span><span class="cn">true</span>)</span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect the pipeline DAG (returns a Dict)</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>nodes <span class="op">=</span> <span class="fu">pipeline_nodes</span>()</span></code></pre></div>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare Julia-native artifacts across historical builds</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> <span class="fu">diff_nodes</span>(<span class="st">&quot;my_model&quot;</span>, <span class="st">&quot;my_model&quot;</span>, which_log_a<span class="op">=</span><span class="st">&quot;20260501&quot;</span>, which_log_b<span class="op">=</span><span class="st">&quot;latest&quot;</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect the pipeline DAG (returns a Dict)</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>nodes <span class="op">=</span> <span class="fu">pipeline_nodes</span>()</span></code></pre></div>
 <hr />
 <h2 id="how-it-works">How it Works</h2>
 <p>When you run <code>build_pipeline()</code>, T-Lang generates a
@@ -199,6 +202,14 @@ project root or an absolute Nix store path).</li>
 <code>pickle.load</code> for Python,
 <code>Serialization.deserialize</code> for Julia).</li>
 </ol>
+<p>When T’s <code>node_diff()</code> delegates to these helpers for
+runtime-native object comparisons, it preserves the original native
+artifact only for nodes using the standard <code>default</code> or
+<code>tobj</code> serializers. If you use a custom serializer name, call
+the helper package directly and pass the matching deserializer yourself.
+Julia-native diffs invoked from T currently launch a fresh Julia helper
+process for each comparison, so repeated large diffs will include Julia
+startup cost.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

@@ -603,6 +603,135 @@ val = read_node(p.result)
 val_old = read_node(p.result, which_log = &quot;20260221_143022&quot;)</code></pre>
 <p>This ensures that even as you update your code and data, you can
 always recover and compare results from previous runs.</p>
+<h3 id="temporal-introspection-history-and-diffs">Temporal
+Introspection: History and Diffs</h3>
+<p>To reason about how your pipeline’s outputs have evolved across
+iterative development (like tuning models, updating serializers, or
+changing data sources), T provides <code>build_log_history()</code>,
+<code>node_diff()</code>, and <code>pipeline_diff()</code>.</p>
+<h4 id="comparing-builds">Comparing builds</h4>
+<p>A common workflow is to rebuild the same pipeline after changing a
+node and then compare the new artifact against an earlier build.
+<code>node_diff()</code> returns a structured <code>VDiff</code>
+envelope with <code>kind</code>, <code>identical</code>,
+<code>summary</code>, <code>detail</code>, and <code>hunks</code>, so
+you can inspect both the high-level counts and the raw changed
+regions.</p>
+<pre class="t"><code>-- Compare the same node across two historical builds
+d = node_diff(p.clean_data, p.clean_data,
+      log_a = &quot;20260510_120000&quot;,
+      log_b = &quot;20260515_090000&quot;,
+      key = [$customer_id])
+
+d.kind
+d.identical
+d.summary
+d.hunks</code></pre>
+<p>Use <code>pipeline_diff()</code> when you want to compare pipeline
+structure rather than artifact contents. It reports added, removed,
+changed, and rewired nodes, and includes
+<code>pipeline_to_frame()</code> snapshots for both sides.</p>
+<pre class="t"><code>struct_diff = pipeline_diff(p_before, p_after)
+struct_diff.added_nodes
+struct_diff.changed_nodes
+struct_diff.rewired_edges</code></pre>
+<h4 id="pipeline-build-history-build_log_history">Pipeline Build History
+(<code>build_log_history</code>)</h4>
+<p><code>build_log_history(p, n = NA, pattern = NA)</code> returns a
+summary DataFrame of all historical builds matching the current
+pipeline’s node signature, ordered from most recent to oldest.</p>
+<pre class="t"><code>-- Get full build history for pipeline p
+history = build_log_history(p)
+
+-- Limit history to the last 3 matching builds
+history_limit = build_log_history(p, n = 3)
+
+-- Filter historical builds whose filenames match a regex pattern
+history_filtered = build_log_history(p, pattern = &quot;.*train.*&quot;)</code></pre>
+<p>The resulting DataFrame is structured with the following columns: -
+<code>build_id</code>: 1-indexed rank from most recent to oldest (where
+<code>1</code> is the latest, <code>2</code> is the second latest,
+etc.). - <code>timestamp</code>: UTC ISO-8601 build timestamp string. -
+<code>duration</code>: Total wall-clock duration of the build in
+seconds. - <code>n_nodes</code> / <code>n_failed</code> /
+<code>n_warnings</code>: Summary metrics of node counts, failures, and
+warnings in that build. - <code>out_path</code>: Nix store output root
+path of the build. - <code>hash</code>: Content signature hash.</p>
+<h4 id="type-sensitive-node-diffs-node_diff">Type-Sensitive Node Diffs
+(<code>node_diff</code>)</h4>
+<p><code>node_diff()</code> compares two node artifacts and chooses a
+type-specific diff automatically:</p>
+<ol type="1">
+<li><strong>DataFrames</strong> return row and schema summaries plus
+DataFrame-valued <code>detail</code> sections for added, removed, and
+changed rows.</li>
+<li><strong>Models</strong> return coefficient and fit-stat deltas,
+including a <code>coef_diff</code> DataFrame.</li>
+<li><strong>Scalars</strong> return before/after values and a numeric
+delta when one exists.</li>
+<li><strong>Python-native objects</strong> (for example pickled NumPy
+ndarrays) are loaded through the bundled <code>tlang</code> Python
+package and compared through stable JSON rendering plus a git-like
+unified diff.</li>
+<li><strong>Julia-native objects</strong> (for example
+<code>Serialization.serialize</code>d arrays or structs) are loaded
+through the bundled <code>tlang</code> Julia package and compared with
+DeepDiffs.</li>
+<li><strong>R-native objects</strong> (for example <code>.rds</code>
+artifacts) are loaded through the bundled <code>tlang</code> R package
+and compared with <code>diffobj</code>.</li>
+<li><strong>Generic values</strong> fall back to structural string diffs
+while preserving the original values in <code>detail</code>.</li>
+</ol>
+<p>Native Python, Julia, and R object diffs are preserved only for
+artifacts built with the standard <code>default</code> or
+<code>tobj</code> serializers. If you assign a custom serializer name,
+<code>node_diff()</code> uses the normal artifact-loading path instead;
+call the companion helper package directly when you need a custom
+deserializer for a native object. Julia-native comparisons currently
+start a fresh Julia helper process for each diff, so repeated large
+diffs will include startup cost.</p>
+<pre class="t"><code>-- 1. Compare scalar value shifts between latest and second latest builds
+diff_scalar = node_diff(p.a, p.a)
+diff_scalar.summary.changed  -- true/false
+diff_scalar.summary.delta    -- numeric shift
+
+-- 2. Compare DataFrame schema and drift metrics
+diff_df = node_diff(p.my_dataset, p.my_dataset, log_a = 1, log_b = 2)
+diff_df.summary.cols_added
+diff_df.detail.changed
+
+-- 3. Compare models across explicit historical builds or regex-matched logs
+diff_model = node_diff(p.model_node, p.model_node, log_a = &quot;.*test1.*&quot;, log_b = &quot;.*test2.*&quot;)
+diff_model.detail.coef_diff</code></pre>
+<h4 id="interactive-repl-diffs-colorization">Interactive REPL Diffs
+&amp; Colorization</h4>
+<p>When working interactively inside the REPL, T provides first-class
+visual formatting for <code>VDiff</code> results: - <strong>Automatic
+Summary &amp; Colorized Diff Preview</strong>: If you print or evaluate
+a non-identical <code>VDiff</code> envelope (e.g. <code>diff_df</code>),
+the REPL prints the summary metrics followed by a short, colorized
+git-like preview of the diff, then points you to the full diff string. -
+<strong>Direct String Colorization</strong>: Accessing
+<code>diff_df.detailed_diff</code> directly prints the raw, colorized
+git-like diff as a beautifully readable multiline block. - <strong>Key
+Validation</strong>: When using a custom natural key list (e.g.,
+<code>key = [$customer_id]</code>), <code>node_diff</code> strictly
+validates that all requested key columns exist in both schemas. If there
+is a typo or missing column, it returns a clean, native
+<code>ValueError</code> immediately rather than silently keeping only
+one row per side.</p>
+<h4 id="inspecting-diffs-in-a-text-editor">Inspecting Diffs in a Text
+Editor</h4>
+<p>For very large diffs, printing to the console may be hard to scroll.
+You can write the unified diff directly to a text file for inspection
+using a text editor (e.g., VSCode, Vim, or Emacs) using the standard
+<code>write_text</code> builtin:</p>
+<pre class="t"><code>-- 1. Compute the DataFrame diff
+diff_df = node_diff(p3.data, p2.data, key = [$id])
+
+-- 2. Write the detailed unified diff string to a file on disk
+write_text(&quot;dataframe_changes.diff&quot;, diff_df.detailed_diff)</code></pre>
 <hr />
 <h2 id="execution-modes">16. Execution Modes</h2>
 <p>T enforces a clear separation between interactive and non-interactive
@@ -614,17 +743,17 @@ This ensures that non-interactive execution always produces reproducible
 Nix artifacts. By default, <code>t run</code> operates in
 <strong>resilient mode</strong>, continuing past errors to provide a
 full diagnostic summary. Use <code>--failfast</code> to change this.</p>
-<div class="sourceCode" id="cb36"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
-<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
-<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
-<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
-<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
-<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
 <p>A valid pipeline script looks like:</p>
 <pre class="t"><code>-- my_pipeline.t
 p = pipeline {
@@ -636,14 +765,14 @@ populate_pipeline(p, build = true)</code></pre>
 <h3 id="interactive-repl">Interactive (REPL)</h3>
 <p>The REPL is <strong>unrestricted</strong> — you can run any T code
 line by line, whether or not it involves pipelines:</p>
-<div class="sourceCode" id="cb38"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
-<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
-<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
-<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
-<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
-<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
 <hr />
 <h2 id="using-imports-in-pipelines">17. Using Imports in Pipelines</h2>
 <p>When a pipeline is built with <code>build_pipeline()</code>, each
@@ -1592,8 +1721,8 @@ allowing granular rebuild control, job parallelization, Cachix
 integration, and dry-runs.</p>
 <h3 id="orchestration-parameters">Orchestration Parameters</h3>
 <p>The functions <code>build_pipeline()</code> and
-<code>pipeline_run()</code> accept the following optional named
-arguments:</p>
+<code>pipeline_run()</code> accept an optional <code>nix_options</code>
+dictionary containing the following keys:</p>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -1603,7 +1732,7 @@ arguments:</p>
 </colgroup>
 <thead>
 <tr>
-<th>Argument</th>
+<th>Key</th>
 <th>Type</th>
 <th>Description</th>
 <th>Nix Command Mapping</th>
@@ -1614,7 +1743,7 @@ arguments:</p>
 <td><code>targets</code></td>
 <td>String/List/Vector</td>
 <td>Specific node(s) or outputs to build (e.g.,
-<code>targets=["model_a"]</code>)</td>
+<code>targets: ["model_a"]</code>)</td>
 <td><code>-A &lt;targets&gt;</code></td>
 </tr>
 <tr>
@@ -1646,14 +1775,34 @@ pull/push built artifacts.</td>
 <td><code>--option extra-substituters ...</code> &amp;
 <code>--option extra-trusted-public-keys ...</code></td>
 </tr>
+<tr>
+<td><code>builders</code></td>
+<td>String</td>
+<td>Remote builder specification in SSH syntax.</td>
+<td><code>--builders ...</code></td>
+</tr>
+<tr>
+<td><code>keep_env</code></td>
+<td>String/List/Vector</td>
+<td>Environment variable names to pass into the Nix sandbox.</td>
+<td><code>--option keep-env ...</code></td>
+</tr>
+<tr>
+<td><code>sandbox</code></td>
+<td>Bool/String</td>
+<td>Sandboxing policy: <code>true</code>/<code>"strict"</code>,
+<code>"relaxed"</code>, or <code>false</code>/<code>"none"</code>.</td>
+<td><code>--option sandbox ...</code></td>
+</tr>
 </tbody>
 </table>
 <h3 id="using-dry_run-for-build-previews">Using <code>dry_run</code> for
 Build Previews</h3>
-<p>If you set <code>dry_run = true</code>, T-Lang will invoke Nix in
-dry-run mode and return a structured <code>DataFrame</code> detailing
-the exact actions Nix plans to take (e.g., fetching from binary caches,
-building derivations):</p>
+<p>If you set <code>dry_run: true</code> inside
+<code>nix_options</code>, T-Lang will invoke Nix in dry-run mode and
+return a structured <code>DataFrame</code> detailing the exact actions
+Nix plans to take (e.g., fetching from binary caches, building
+derivations):</p>
 <pre class="t"><code>p = pipeline {
   a = 1
   b = a + 1
@@ -1677,12 +1826,14 @@ build targeting a specific node:</p>
   c = b * 2
 }
 
--- Rebuild only node 'c', with parallel execution, using a Cachix binary cache
+-- Rebuild only node &#39;c&#39;, with parallel execution, using a Cachix binary cache
 build_pipeline(p,
-               nix_options = [targets: [&quot;c&quot;],
-                              max_jobs: 4,
-                              cache: &quot;rstats-on-nix&quot;,
-                              force: [&quot;c&quot;]])</code></pre>
+               nix_options = [
+                 targets: [&quot;c&quot;],
+                 max_jobs: 4,
+                 cache: &quot;rstats-on-nix&quot;,
+                 force: [&quot;c&quot;]
+               ])</code></pre>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you’ve mastered pipelines, learn how to manage reproducible
