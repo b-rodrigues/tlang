@@ -393,6 +393,7 @@ let package_gitignore = {|# Build artifacts
 _build/
 result
 *.exe
+/.t_julia_depot/
 
 # Editor files
 *~
@@ -564,6 +565,7 @@ let project_gitignore = {|# Build artifacts
 _build/
 result
 *.exe
+/.t_julia_depot/
 
 # Generated outputs (regenerated from source)
 outputs/
