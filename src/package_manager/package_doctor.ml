@@ -458,19 +458,19 @@ let read_file path =
         ~finally:(fun () -> close_in_noerr ch)
         (fun () -> really_input_string ch (in_channel_length ch))
     in
-    Ok content
-  with Sys_error msg -> Error msg
+    Result.ok content
+  with Sys_error msg -> Result.error msg
 
 let parse_program path =
   match read_file path with
-  | Error msg -> Error (Printf.sprintf "Could not read %s: %s" path msg)
+  | Error msg -> Result.error (Printf.sprintf "Could not read %s: %s" path msg)
   | Ok content ->
       let lexbuf = Lexing.from_string content in
       lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = path };
-      try Ok (Parser.program Lexer.token lexbuf)
+      try Result.ok (Parser.program Lexer.token lexbuf)
       with
-      | Lexer.SyntaxError msg -> Error (Printf.sprintf "Could not parse %s: %s" path msg)
-      | Parser.Error -> Error (Printf.sprintf "Could not parse %s" path)
+      | Lexer.SyntaxError msg -> Result.error (Printf.sprintf "Could not parse %s: %s" path msg)
+      | Parser.Error -> Result.error (Printf.sprintf "Could not parse %s" path)
 
 let doctor_issue_for_package ~section ~runtime pkg =
   {
