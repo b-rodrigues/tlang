@@ -1,5 +1,169 @@
 open Ast
 
+type python_debug_guards = {
+  root_dir : string;
+  bin_dir : string;
+  python_dir : string;
+}
+
+let debug_subshell_guard_message runtime command =
+  Printf.sprintf
+    "Don't use %s in this T %s debug subshell. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`."
+    command runtime
+
+let write_text_file path content =
+  let ch = open_out path in
+  output_string ch content;
+  close_out ch
+
+let python_package_manager_shim_names =
+  [ "pip"; "pip3"; "uv"; "poetry"; "conda"; "mamba"; "micromamba"; "easy_install" ]
+
+let r_debug_startup_content () =
+  String.concat "\n"
+    [
+      "options(prompt='r> ', continue='r+ ')";
+      Printf.sprintf
+        "install.packages <- function(...) stop(%S, call. = FALSE)"
+        (debug_subshell_guard_message "R" "install.packages()");
+      Printf.sprintf
+        "update.packages <- function(...) stop(%S, call. = FALSE)"
+        (debug_subshell_guard_message "R" "update.packages()");
+      Printf.sprintf
+        "remove.packages <- function(...) stop(%S, call. = FALSE)"
+        (debug_subshell_guard_message "R" "remove.packages()");
+    ]
+
+let julia_debug_startup_content julia_package_path =
+  let buf = Buffer.create 512 in
+  Buffer.add_string buf
+    "if isinteractive()\n\
+     const _tlang_pkg_id = Base.PkgId(Base.UUID(\"44cfe95a-1eb2-52ea-b672-e2afdf69b78f\"), \"Pkg\")\n\
+     const _tlang_real_pkg = Base.require(_tlang_pkg_id)\n\
+     const _tlang_repl_id = Base.PkgId(Base.UUID(\"3fa0cd96-eef1-5676-8a61-b3b8758bbffb\"), \"REPL\")\n\
+     const _tlang_repl = Base.require(_tlang_repl_id)\n\
+     function _tlang_install_packages_hook(pkgs::Vector{Symbol})\n\
+     \  pkg_str = join(string.(pkgs), \", \")\n\
+     \  println(\" │ Packages [\", pkg_str, \"] not found, but packages named [\", pkg_str, \"] are available from\")\n\
+     \  println(\" │ a registry.\")\n\
+     \  println(\" │ Install packages?\")\n\
+     \  println(\" │   (project) pkg> add \", pkg_str)\n\
+     \  print(\" └ (y/n) [y]: \")\n\
+     \  flush(stdout)\n\
+     \  response = lowercase(strip(readline(stdin)))\n\
+     \  if response == \"\" || response == \"y\" || response == \"yes\"\n\
+     \    println(\"\\nDon't use interactive package installation in this T Julia debug subshell.\")\n\
+     \    println(\"Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\\n\")\n\
+     \  else\n\
+     \    println(\"Cancelled.\")\n\
+     \  end\n\
+     \  return false\n\
+     end\n\
+     pushfirst!(_tlang_repl.install_packages_hooks, _tlang_install_packages_hook)\n";
+  (match julia_package_path with
+   | Some path ->
+       Printf.bprintf buf
+         "const _tlang_project = %S\n\
+          try\n\
+          \  _tlang_real_pkg.activate(; temp=true, io=devnull)\n\
+          \  _tlang_real_pkg.develop(path=_tlang_project, io=devnull)\n\
+          \  _tlang_real_pkg.instantiate(io=devnull)\n\
+          catch err\n\
+          \  @warn \"Failed to prepare repo-local Julia tlang package for debug_node\" exception=(err, catch_backtrace())\n\
+          end\n"
+         path
+   | None -> ());
+  Printf.bprintf buf
+    "module _TlangGuardPkg\n\
+     import Main: _tlang_real_pkg\n\
+     export add, rm, update, develop\n\
+     add(args...; kwargs...) = error(%S)\n\
+     rm(args...; kwargs...) = error(%S)\n\
+     update(args...; kwargs...) = error(%S)\n\
+     develop(args...; kwargs...) = error(%S)\n\
+     # Delegate read-only Pkg operations to the real Pkg module\n\
+     const _real = _tlang_real_pkg\n\
+     status(args...; kwargs...) = _real.status(args...; kwargs...)\n\
+     dependencies(args...; kwargs...) = _real.dependencies(args...; kwargs...)\n\
+     instantiate(args...; kwargs...) = _real.instantiate(args...; kwargs...)\n\
+     activate(args...; kwargs...) = _real.activate(args...; kwargs...)\n\
+     project(args...; kwargs...) = _real.project(args...; kwargs...)\n\
+     compat(args...; kwargs...) = _real.compat(args...; kwargs...)\n\
+     end\n\
+     const Pkg = _TlangGuardPkg\n\
+     Base.loaded_modules[_tlang_pkg_id] = _TlangGuardPkg\n\
+     atreplinit() do repl\n\
+       @async begin\n\
+         sleep(0.1)\n\
+         if isdefined(repl, :interface)\n\
+           repl.interface.modes[1].prompt = \"jl> \"\n\
+         end\n\
+       end\n\
+     end\n\
+     end # if isinteractive()\n"
+    (debug_subshell_guard_message "Julia" "Pkg.add()")
+    (debug_subshell_guard_message "Julia" "Pkg.rm()")
+    (debug_subshell_guard_message "Julia" "Pkg.update()")
+    (debug_subshell_guard_message "Julia" "Pkg.develop()");
+  Buffer.contents buf
+
+let python_guard_shim_script tool =
+  Printf.sprintf "#!/usr/bin/env sh\nprintf '%%s\\n' %S >&2\nexit 1\n"
+    (debug_subshell_guard_message "Python" (tool ^ " install"))
+
+let python_pip_guard_module_content () =
+  Printf.sprintf
+    "raise SystemExit(%S)\n"
+    (debug_subshell_guard_message "Python" "python -m pip")
+
+let prepare_python_debug_guards base_dir =
+  let root_dir = Filename.concat base_dir ".t_debug_guard" in
+  let bin_dir = Filename.concat root_dir "bin" in
+  let python_dir = Filename.concat root_dir "python" in
+  if not (Sys.file_exists root_dir) then Unix.mkdir root_dir 0o755;
+  if not (Sys.file_exists bin_dir) then Unix.mkdir bin_dir 0o755;
+  if not (Sys.file_exists python_dir) then Unix.mkdir python_dir 0o755;
+  List.iter
+    (fun tool ->
+      let path = Filename.concat bin_dir tool in
+      write_text_file path (python_guard_shim_script tool);
+      Unix.chmod path 0o755)
+    python_package_manager_shim_names;
+  write_text_file (Filename.concat python_dir "pip.py") (python_pip_guard_module_content ());
+  { root_dir; bin_dir; python_dir }
+
+let rec remove_path_recursively path =
+  if Sys.file_exists path then
+    if Sys.is_directory path then (
+      Sys.readdir path
+      |> Array.iter (fun entry -> remove_path_recursively (Filename.concat path entry));
+      Unix.rmdir path
+    ) else Sys.remove path
+
+let make_subprocess_env overrides =
+  let tbl = Hashtbl.create 32 in
+  Array.iter
+    (fun entry ->
+      match String.index_opt entry '=' with
+      | None -> ()
+      | Some idx ->
+          (* Split on the first '=' so values keep any additional '=' bytes. *)
+          let key = String.sub entry 0 idx in
+          let value = String.sub entry (idx + 1) (String.length entry - idx - 1) in
+          Hashtbl.replace tbl key value)
+    (Unix.environment ());
+  List.iter (fun (key, value) -> Hashtbl.replace tbl key value) overrides;
+  Hashtbl.fold (fun key value acc -> (key ^ "=" ^ value) :: acc) tbl []
+  |> List.sort String.compare |> Array.of_list
+
+let run_shell_command_with_env shell_cmd overrides =
+  let envp = make_subprocess_env overrides in
+  let pid =
+    Unix.create_process_env "/bin/sh" [| "/bin/sh"; "-c"; shell_cmd |] envp
+      Unix.stdin Unix.stdout Unix.stderr
+  in
+  snd (Unix.waitpid [] pid)
+
 (* 
 --# Read Pipeline Node Artifact
 --#
