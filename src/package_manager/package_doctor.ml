@@ -495,17 +495,25 @@ let missing_pipeline_entrypoint_issue path =
         "Create `src/pipeline.t` to enable project pipeline dependency analysis in `t doctor`.";
   }
 
+let has_declared_runtime_dependencies cfg =
+  cfg.Package_types.proj_r_dependencies <> []
+  || cfg.proj_py_dependencies <> []
+  || cfg.proj_julia_dependencies <> []
+
 let project_dependency_issues dir =
   let tproject_path = Filename.concat dir "tproject.toml" in
   let pipeline_path = canonical_pipeline_path dir in
   if not (Sys.file_exists tproject_path) then []
-  else if not (Sys.file_exists pipeline_path) then [missing_pipeline_entrypoint_issue pipeline_path]
   else
     match read_file tproject_path with
     | Error _ -> []
     | Ok content ->
         (match Toml_parser.parse_tproject_toml content with
          | Error _ -> []
+         | Ok cfg when not (Sys.file_exists pipeline_path) ->
+             if has_declared_runtime_dependencies cfg then
+              [missing_pipeline_entrypoint_issue pipeline_path]
+             else []
          | Ok cfg ->
              match parse_program pipeline_path with
              | Error _ -> []

@@ -1501,6 +1501,10 @@ description = "doctor test"
 authors = []
 
 [dependencies]
+
+[py-dependencies]
+version = "python313"
+packages = ["pandas"]
 |};
       let issues = Package_doctor.project_dependency_issues dir in
       List.exists
@@ -1509,6 +1513,34 @@ authors = []
           && i.Package_doctor.message
              = Printf.sprintf "No pipeline entrypoint found at `%s`" pipeline_path)
         issues));
+
+  test_pm "doctor skips missing pipeline warning when runtime dependencies are empty" (fun () ->
+    with_doctor_project_dir (fun dir ->
+      let write rel content =
+        let ch = open_out (Filename.concat dir rel) in
+        output_string ch content;
+        close_out ch
+      in
+      write "tproject.toml" {|
+[project]
+name = "doctor-empty-runtime-deps"
+description = "doctor test"
+authors = []
+
+[dependencies]
+
+[r-dependencies]
+packages = []
+
+[py-dependencies]
+version = "python313"
+packages = []
+
+[jl-dependencies]
+version = "lts"
+packages = []
+|};
+      Package_doctor.project_dependency_issues dir = []));
 
   test_pm "doctor analyzes all pipeline definitions in a program" (fun () ->
     with_doctor_project_dir (fun dir ->
