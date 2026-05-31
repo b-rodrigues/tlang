@@ -2174,35 +2174,81 @@ id="pipeline_nodepipeline-node_name"><code>pipeline_node(pipeline, node_name)</c
 pipeline_node(p, &quot;x&quot;)       -- 10
 pipeline_node(p, &quot;doubled&quot;) -- 20</code></pre>
 <hr />
-<h3 id="pipeline_runpipeline"><code>pipeline_run(pipeline)</code></h3>
-<p>Re-execute a pipeline in-memory.</p>
+<h3
+id="pipeline_runpipeline-nix_options-na"><code>pipeline_run(pipeline, nix_options = NA)</code></h3>
+<p>Re-execute a pipeline. If <code>nix_options</code> is provided,
+triggers a cache-aware Nix build of the pipeline using the specified
+options. Otherwise, re-executes the pipeline dynamically in-memory.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>pipeline</code> — Pipeline object</li>
+<li><code>nix_options</code> (optional) — Dict of Nix build options.
+Supported keys:
+<ul>
+<li><code>targets</code> — String, List, or Vector of specific node
+names to build.</li>
+<li><code>force</code> — Bool, String, List, or Vector of specific nodes
+to force-rebuild.</li>
+<li><code>dry_run</code> — Bool. If true, returns a planned build
+actions DataFrame instead of building.</li>
+<li><code>max_jobs</code> — Positive Int. Limit parallel build
+jobs.</li>
+<li><code>cache</code> — String. Cachix cache name.</li>
+<li><code>builders</code> — String. Remote builder specification (SSH
+syntax).</li>
+<li><code>keep_env</code> — String, List, or Vector of environment
+variable names to pass into the sandbox.</li>
+<li><code>sandbox</code> — Bool or String (<code>"relaxed"</code>,
+<code>"strict"</code>, <code>"none"</code>). Sandbox policy.</li>
+</ul></li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>Pipeline object with updated values</p>
+<p>Pipeline object with updated values (or DataFrame if
+<code>dry_run = true</code>)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { x = 10; y = x * 2 }
-p2 = pipeline_run(p)</code></pre>
+p2 = pipeline_run(p)
+df = pipeline_run(p, nix_options = [dry_run: true])</code></pre>
 <hr />
 <h3
-id="populate_pipelinepipeline-build-false"><code>populate_pipeline(pipeline, build = false)</code></h3>
+id="populate_pipelinepipeline-build-false-verbose-0-nix_options-na"><code>populate_pipeline(pipeline, build = false, verbose = 0, nix_options = NA)</code></h3>
 <p>Prepare pipeline infrastructure in <code>_pipeline/</code>.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>pipeline</code> — Pipeline object</li>
 <li><code>build</code> (optional) — If true, triggers a Nix build of all
 nodes.</li>
+<li><code>verbose</code> (optional) — Non-negative Int. Nix build
+verbosity level.</li>
+<li><code>nix_options</code> (optional) — Dict of Nix build options.
+Supported keys:
+<ul>
+<li><code>targets</code> — String, List, or Vector of specific node
+names to build.</li>
+<li><code>force</code> — Bool, String, List, or Vector of specific nodes
+to force-rebuild.</li>
+<li><code>dry_run</code> — Bool. If true, returns a planned build
+actions DataFrame instead of building.</li>
+<li><code>max_jobs</code> — Positive Int. Limit parallel build
+jobs.</li>
+<li><code>cache</code> — String. Cachix cache name.</li>
+<li><code>builders</code> — String. Remote builder specification (SSH
+syntax).</li>
+<li><code>keep_env</code> — String, List, or Vector of environment
+variable names to pass into the sandbox.</li>
+<li><code>sandbox</code> — Bool or String (<code>"relaxed"</code>,
+<code>"strict"</code>, <code>"none"</code>). Sandbox policy.</li>
+</ul></li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>Success message or Error.</p>
+<p>Success message, BuildLog, or DataFrame.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>populate_pipeline(p)
-populate_pipeline(p, build = true)</code></pre>
+populate_pipeline(p, build = true)
+populate_pipeline(p, build = true, nix_options = [max_jobs: 4, cache: &quot;rstats-on-nix&quot;])</code></pre>
 <hr />
 <h3
-id="build_pipelinepipeline-verbose-0"><code>build_pipeline(pipeline, verbose = 0)</code></h3>
+id="build_pipelinepipeline-verbose-0-nix_options-na"><code>build_pipeline(pipeline, verbose = 0, nix_options = NA)</code></h3>
 <p>Shorthand for <code>populate_pipeline(p, build = true)</code>.
 Recommended for scripts run with <code>t run</code>.</p>
 <p><strong>Parameters:</strong></p>
@@ -2213,13 +2259,37 @@ Defaults to <code>0</code> (quiet/minimalist live-status output without
 dumping failed node trace logs). Set <code>verbose = 1</code> or higher
 to print detailed node stdout/stderr failures directly to the terminal
 on build error.</li>
+<li><code>nix_options</code> (optional) — Dict of Nix build options.
+Supported keys:
+<ul>
+<li><code>targets</code> — String, List, or Vector of specific node
+names to build.</li>
+<li><code>force</code> — Bool, String, List, or Vector of specific nodes
+to force-rebuild.</li>
+<li><code>dry_run</code> — Bool. If true, returns a planned build
+actions DataFrame instead of building.</li>
+<li><code>max_jobs</code> — Positive Int. Limit parallel build
+jobs.</li>
+<li><code>cache</code> — String. Cachix cache name.</li>
+<li><code>builders</code> — String. Remote builder specification (SSH
+syntax).</li>
+<li><code>keep_env</code> — String, List, or Vector of environment
+variable names to pass into the sandbox.</li>
+<li><code>sandbox</code> — Bool or String (<code>"relaxed"</code>,
+<code>"strict"</code>, <code>"none"</code>). Sandbox policy.</li>
+</ul></li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>BuildLog</code> with fields: - <code>nodes</code> — per-node
 status/duration records - <code>duration</code> — total build duration
 in seconds - <code>failed_nodes</code> — list of failed/errored node
 names - <code>out_path</code> — Nix output path for the build (migration
-path for previous string-return behavior)</p>
+path for previous string-return behavior) (or <code>DataFrame</code> if
+<code>dry_run = true</code>)</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>build_pipeline(p)
+build_pipeline(p, nix_options = [dry_run: true])
+build_pipeline(p, nix_options = [targets: [&quot;c&quot;], max_jobs: 4, cache: &quot;rstats-on-nix&quot;, force: [&quot;c&quot;]])</code></pre>
 <hr />
 <h3
 id="read_nodenode-which_log-na-1"><code>read_node(node, which_log = NA)</code></h3>
@@ -2237,6 +2307,30 @@ specific build log. Defaults to latest.</li>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>read_node(p.summary_stats)
 read_node(p.model_v1, which_log = &quot;20260221&quot;)</code></pre>
+<hr />
+<h3 id="debug_nodenode"><code>debug_node(node)</code></h3>
+<p>Launches an interactive guest subshell (Python, R, or Julia REPL) to
+debug a pipeline node using its exact build state and context.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>node</code> — The ComputedNode to debug
+(e.g. <code>p.node_name</code>).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Runs interactively. Control returns to the parent T REPL once the
+subshell is exited.</p>
+<p><strong>Details:</strong> Within the subshell, all upstream build
+paths and companion library loaders are provided, and custom
+project-level variables
+(<code>p_env_vars</code>/<code>un_env_vars</code>) are propagated
+directly. To enforce strict reproducibility and prevent configuration
+drift, all imperative package updates (e.g., <code>pip</code>,
+<code>install.packages</code>, <code>Pkg.add</code>) are dynamically
+intercepted and blocked.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 5 }
+build_pipeline(p)
+debug_node(p.b)</code></pre>
 <hr />
 <h3
 id="inspect_logwhich_log-na"><code>inspect_log(which_log = NA)</code></h3>
@@ -2290,6 +2384,97 @@ df = build_log_to_frame(log)
 -- Returns a DataFrame:
 --   name  | status     | duration | path
 --   &quot;a&quot;   | &quot;Errored&quot;  | 0.02     | &quot;/nix/store/...&quot;</code></pre>
+<hr />
+<h3
+id="build_log_historyp-n-na-pattern-na"><code>build_log_history(p, n = NA, pattern = NA)</code></h3>
+<p>Returns a summary DataFrame of all historical builds matching the
+current pipeline’s node signature, ordered from most recent to
+oldest.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — The Pipeline object.</li>
+<li><code>n</code> (optional) — Positive Int. Maximum number of
+historical builds to return.</li>
+<li><code>pattern</code> (optional) — String. Regular expression pattern
+to filter log filenames (e.g. <code>".*test.*"</code>).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>DataFrame</code> — A DataFrame detailing historical builds with
+columns: - <code>build_id</code> (1-indexed rank from most recent to
+oldest) - <code>timestamp</code> (ISO-8601 UTC string of build time) -
+<code>duration</code> (total duration in seconds) - <code>n_nodes</code>
+(total number of nodes) - <code>n_failed</code> (number of
+failed/errored nodes) - <code>n_warnings</code> (number of warnings
+issued) - <code>out_path</code> (Nix output store path for the build) -
+<code>hash</code> (unique content hash of build input signature)</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>p = pipeline { a = 1; b = 2 }
+hist = build_log_history(p, n = 5)</code></pre>
+<hr />
+<h3
+id="node_diffnode_a-node_b-log_a-latest-log_b-latest-key-context-3"><code>node_diff(node_a, node_b, log_a = "latest", log_b = "latest", key = [], context = 3)</code></h3>
+<p>Compares the dynamic evaluations or built artifacts of
+<code>node_a</code> and <code>node_b</code> across two historical builds
+(defaults to comparing the latest build of both).</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>node_a</code> — The ComputedNode to compare.</li>
+<li><code>node_b</code> — The second ComputedNode to compare.</li>
+<li><code>log_a</code> (optional) — 1-indexed build rank (Int) or
+regular expression filename filter (String) or timestamp prefix for
+<code>node_a</code>. Default: <code>"latest"</code>.</li>
+<li><code>log_b</code> (optional) — 1-indexed build rank (Int) or
+regular expression filename filter (String) or timestamp prefix for
+<code>node_b</code>. Default: <code>"latest"</code>.</li>
+<li><code>key</code> (optional) — List of symbols representing natural
+key column(s) for DataFrame row alignment. Default:
+<code>[]</code>.</li>
+<li><code>context</code> (optional) — Number of unchanged rows shown
+around each hunk for patient diffs. Default: <code>3</code>.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Dict</code> — A structured type-sensitive diff dictionary
+containing: - <strong>For DataFrames</strong> (<code>csv</code>,
+<code>arrow</code>, <code>parquet</code>): <code>schema_changed</code>
+(Bool), <code>added_columns</code> (List), <code>removed_columns</code>
+(List), <code>nrows_a</code> (Int), <code>nrows_b</code> (Int), and
+<code>numeric_drift</code> (DataFrame summarizing column-level mean
+values and shift percentages). - <strong>For PMML Models</strong>
+(<code>pmml</code>): <code>model_type</code> (String),
+<code>coefficients_changed</code> (Bool), and <code>coef_diff</code>
+(DataFrame comparing regression coefficients and intercept shift
+deltas). Falls back to generic structural equality diff for
+non-regression models. - <strong>For Text Files</strong>
+(<code>text</code>): <code>changed</code> (Bool),
+<code>lines_added</code> (Int), <code>lines_removed</code> (Int), and
+<code>diff</code> (String unified diff output). - <strong>For
+Python-native artifacts</strong> (for example pickled NumPy ndarrays):
+<code>kind = "python_object_diff"</code>, unified diff line counts,
+rendered git-like diff hunks, and shape/dtype metadata when available. -
+<strong>For Julia-native artifacts</strong> (for example serialized
+arrays or structs): <code>kind = "julia_object_diff"</code>,
+DeepDiffs-rendered summaries, captured diff lines, and type/shape
+metadata when available. - <strong>For R-native artifacts</strong> (for
+example serialized model objects): <code>kind = "r_object_diff"</code>,
+diffobj-rendered summaries, captured diff lines, and class/type metadata
+when available. - <strong>For Generic/Scalars</strong>:
+<code>value_a</code> (Any), <code>value_b</code> (Any),
+<code>changed</code> (Bool), and <code>delta</code> (Float numeric
+difference or NA).</p>
+<p>Native Python, Julia, and R object diffs are preserved only for
+artifacts using the standard <code>default</code> or <code>tobj</code>
+serializers. Custom serializer names use the normal artifact-loading
+path instead; use the companion helper package directly when a native
+artifact requires a custom deserializer. Julia-native diffs are executed
+through a fresh Julia helper process per comparison, so repeated large
+diffs will include Julia startup cost.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>p = pipeline { a = 1; b = 2 }
+-- Compare most recent to second most recent
+diff_scalar = node_diff(p.a, p.a)
+
+-- Compare with explicit 1-indexed ranks or regex patterns
+diff_model = node_diff(p.model_node, p.model_node, log_a = &quot;.*train1.*&quot;, log_b = &quot;.*train2.*&quot;)</code></pre>
 <hr />
 <h3 id="collect_exceptionsp"><code>collect_exceptions(p)</code></h3>
 <p>Collects all terminal error exceptions and non-terminal warning

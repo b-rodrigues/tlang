@@ -34,7 +34,230 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.52.1] - 2026-05-23</h2>
+<h2 id="section">[0.52.2] - 2026-05-31</h2>
+<p>This release introduces interactive pipeline node debugging via
+<code>debug_node</code>, native Nix orchestration features for granular
+rebuild control, job parallelisation, Cachix binary caching, and
+dry-runs, and the temporal introspection pair
+<code>build_log_history</code> and <code>node_diff</code> for tracking
+how pipeline outputs change across builds.</p>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="interactive-node-debugging">Interactive Node Debugging</h3>
+<ul>
+<li><strong>Interactive Node Shells
+(<code>debug_node(p.node)</code>)</strong>: Introduces a new built-in
+function to drop developers directly from the T REPL into a sandboxed
+guest REPL (Python, R, or Julia) to step through and debug code using
+actual upstream outputs.</li>
+<li><strong>Custom Guest REPL Prompts</strong>: Automatically overrides
+subshell prompts (<code>py&gt;</code>, <code>r&gt;</code>,
+<code>jl&gt;</code>) to cleanly signal that you are in a debugger
+subshell session, returning immediately to the T REPL upon exit.</li>
+<li><strong>Pristine Debugger Environments</strong>: Keeps the subshell
+clean by displaying upstream Nix store paths and companion package
+loading tips on startup rather than polluting the environment with
+dependency paths.</li>
+<li><strong>Node Environment Variable Propagation</strong>: Custom
+environment variables defined inside the node’s configuration block
+(<code>p_env_vars</code>) are programmatically inherited by the subshell
+process.</li>
+<li><strong>R Quiet Launch Mode</strong>: Suppresses default R welcome
+copyright and version info blocks on start, providing an instant, clean
+terminal.</li>
+<li><strong>Target Runtime Safety Guard</strong>: Restricts interactive
+debugging sessions strictly to REPL-capable runtimes (Python, R, Julia),
+raising a descriptive <code>ValueError</code> for unsupported runtimes
+(like Quarto or Bash).</li>
+<li><strong>Workspace-Wide Package Manager Guards (Nix Shell &amp; Debug
+REPLs)</strong>: Imperative package manager guards are now enforced
+globally. In addition to subshells launched via
+<code>debug_node()</code>, running R, Julia, or Python directly inside
+the development shell started via <code>nix develop</code> will
+automatically intercept and block imperative package mutations
+(<code>install.packages()</code>, <code>Pkg.add()</code>,
+<code>pip install</code>, <code>poetry</code>, <code>uv</code>,
+<code>conda</code>, <code>python -m pip</code>, etc.). Running these
+commands displays a helpful instruction directing developers to declare
+dependencies in <code>tproject.toml</code>, run <code>t update</code>,
+and re-enter <code>nix develop</code>, protecting the workspace from
+drift and preserving reproducible Nix derivation footprints.</li>
+</ul>
+<h3 id="pipeline-temporal-introspection">Pipeline Temporal
+Introspection</h3>
+<ul>
+<li><strong>Pipeline History
+(<code>build_log_history(p, n = NA)</code>)</strong>: Exposes the
+historical record of builds matching the current pipeline signature as a
+sorted DataFrame, ordered from most recent to oldest. Uses the 1-indexed
+<code>build_rank</code> convention (where <code>1</code> represents the
+most recent build, <code>2</code> the second most recent, etc.).</li>
+<li><strong>Type-Sensitive Node Diffs
+(<code>node_diff(node_a, node_b, log_a = "latest", log_b = "latest")</code>)</strong>:
+Compares outputs of a specific node across two historical builds
+(defaulting to the most recent vs. second most recent). Implements
+type-sensitive comparison strategies:
+<ul>
+<li><em>DataFrames</em>: Summarizes schema changes, lists added/removed
+columns, reports row count shifts, and evaluates column-level mean drift
+for numeric fields. Note: This highlights high-level summary statistic
+shifts and does not perform full statistical distribution tests.</li>
+<li><em>PMML Models</em>: Parses regression coefficients and intercept
+changes for linear models. For non-linear model formats (e.g. Random
+Forests, Decision Trees), it falls back to a structural equality
+diff.</li>
+<li><em>Text Files</em>: Uses native <code>diff -u</code> to extract
+precise line additions, removals, and diff summaries. Includes a robust
+fallback if system tools are sandboxed or missing.</li>
+<li><em>Scalars/Generic Fallback</em>: Direct value structural
+comparison and numeric delta calculations.</li>
+</ul></li>
+</ul>
+<h3 id="serialization-correctness-fixes">Serialization &amp; Correctness
+Fixes</h3>
+<ul>
+<li><strong>Correctness Fix for
+<code>"default"</code>/<code>"tobj"</code> Deserialization</strong>:
+Fixed a major correctness bug in <code>read_standard_node_value</code>
+where scalar nodes serialized with <code>"default"</code> or
+<code>"tobj"</code> formats were not being deserialized when queried via
+standard readers, returning a fallback <code>VComputedNode</code> token
+instead. Standard readers now correctly deserialize value payloads (like
+<code>VInt</code>, <code>VFloat</code>) using OCaml’s Marshal digestion,
+enabling precise cross-node value and delta comparisons.</li>
+</ul>
+<h3 id="nix-native-orchestration-rebuild-control">Nix-Native
+Orchestration &amp; Rebuild Control</h3>
+<ul>
+<li><strong>Nix Build Flags Integration</strong>: Added full support for
+<code>targets</code>, <code>force</code>, <code>dry_run</code>,
+<code>max_jobs</code>, and <code>cache</code> parameters in
+<code>build_pipeline</code> and <code>pipeline_run</code>.</li>
+<li><strong>Derivation Targets (<code>targets</code>)</strong>: Map
+<code>targets</code> to <code>-A &lt;derivations&gt;</code> in the
+underlying <code>nix build</code> command, allowing specific parts of
+the pipeline to be built selectively.</li>
+<li><strong>Granular Rebuild Control (<code>force</code>)</strong>: Map
+<code>force</code> to native <code>--check</code> flags. Pass
+<code>true</code> to force-rebuild the entire pipeline, or a string/list
+of specific node names to force-rebuild only selected steps.</li>
+<li><strong>Parallel Compilation (<code>max_jobs</code>)</strong>:
+Mapped the <code>max_jobs</code> parameter directly to
+<code>--max-jobs &lt;N&gt;</code>, enabling parallel compilation of
+sandbox environments and derivations.</li>
+<li><strong>Binary Cache Optimization (<code>cache</code>)</strong>:
+Seamless Cachix binary cache integration by dynamically configuring
+<code>extra-substituters</code> and
+<code>extra-trusted-public-keys</code> (prioritizing
+<code>rstats-on-nix</code> as the preferred default cache).</li>
+<li><strong>Dry-Run Preview Mode (<code>dry_run</code>)</strong>:
+Implemented a native dry-run mode that parses
+<code>nix-build --dry-run</code> output into a structured T-Lang
+<code>DataFrame</code> (containing columns <code>node</code>,
+<code>action</code>, <code>path</code>) to inspect build execution plans
+without mutating local store state.</li>
+</ul>
+<h3 id="pipeline-propagation-path-reconciliation">Pipeline Propagation
+&amp; Path Reconciliation</h3>
+<ul>
+<li><strong>Nix Store Path Alignment</strong>: Added a robust post-build
+step (<code>update_pipeline_with_build_paths</code>) that reconciles
+internal <code>ComputedNode</code> paths with the real store paths
+generated by Nix.</li>
+<li><strong>Dynamic Argument List Conversion</strong>: Used dynamically
+parsed array parameters to maintain 100% backward compatibility with
+previous T-Lang CLI and OCaml process invocations.</li>
+</ul>
+<h3 id="t-doctor-pipeline-dependency-analysis"><code>t doctor</code>
+Pipeline Dependency Analysis</h3>
+<ul>
+<li><strong>Static Pipeline Dependency Scanning</strong>:
+<code>t doctor</code> now parses <code>src/pipeline.t</code> and
+statically analyses each node’s <code>command</code> block to detect
+runtime packages (<code>library(...)</code>, <code>import ...</code>,
+<code>using ...</code>) that are referenced but absent from
+<code>tproject.toml</code>. Missing packages are reported as warnings
+with an actionable suggestion to add them to the relevant
+<code>[r-dependencies]</code>, <code>[py-dependencies]</code>, or
+<code>[jl-dependencies]</code> section and run <code>t update</code>.
+All pipeline definitions in the file are scanned, not just the first
+one.</li>
+<li><strong>Scoped Warning</strong>: The missing-pipeline-entrypoint
+warning (no <code>src/pipeline.t</code> found) is only emitted when the
+project has at least one runtime dependency declared, avoiding noise for
+pure R or Julia package projects.</li>
+</ul>
+<h3 id="api-parity-testing">API Parity &amp; Testing</h3>
+<ul>
+<li><strong>Robust Builtin Validation</strong>: Added comprehensive
+type-safety guards for all new orchestration parameters to raise highly
+readable compile-time warnings and TypeErrors instead of silent Nix
+failures.</li>
+<li><strong>High-Coverage Test Harness</strong>: Expanded the unit
+testing suite in <code>test_pipeline.ml</code> to verify dry-run
+DataFrame output, validation guards, and advanced parameter passthroughs
+(2271/2271 tests passing).</li>
+<li><strong>Ecosystem Sync &amp; Docs</strong>: Updated
+<code>docs/pipeline_tutorial.md</code> and
+<code>docs/api-reference.md</code> to formally document the new
+parameters, along with comparative command mapping tables.</li>
+</ul>
+<h3 id="multi-runtime-interchange-early-safety">Multi-Runtime
+Interchange &amp; Early Safety</h3>
+<ul>
+<li><strong>Populate Pipeline Arity Expansion</strong>: Updated
+<code>populate_pipeline()</code> to support all the new Nix
+orchestration arguments (<code>targets</code>, <code>force</code>,
+<code>dry_run</code>, <code>max_jobs</code>, <code>cache</code>) in the
+exact same manner as <code>build_pipeline()</code>.</li>
+<li><strong>Early Target &amp; Force Validation</strong>: Integrated
+compile-time validation of <code>targets</code> and <code>force</code>
+node lists in the OCaml pipeline compiler. T-Lang now instantly detects
+misspelled or nonexistent node targets and raises highly readable
+<code>StructuralError</code> warnings before spawning the Nix
+interpreter.</li>
+<li><strong>Node Name Collision Prevention</strong>: Sorted internal
+name matching patterns by character length in descending order, avoiding
+potential substring collisions where short node names
+(e.g. <code>model</code>) would erroneously match long node name store
+paths (e.g. <code>model_evaluation</code>).</li>
+</ul>
+<h3 id="pipeline-temporal-introspection-node_diff-improvements">Pipeline
+Temporal Introspection — <code>node_diff</code> improvements</h3>
+<ul>
+<li><strong>Line-by-line string diffs</strong>: When comparing
+string-typed node outputs, <code>node_diff</code> now splits the values
+on newlines and produces a proper unified diff with context lines — the
+same colourised format already used for text-file nodes. Calling
+<code>detailed_summary</code> on the result shows added/removed lines
+highlighted in green and red.</li>
+<li><strong>Reliable <code>NaN</code> / <code>NA</code> handling in
+DataFrames</strong>: Cells that contain <code>NaN</code> or
+<code>NA</code> on both sides are no longer incorrectly reported as
+changed.</li>
+<li><strong>Accurate model change detection</strong>: A model whose
+coefficients are identical but whose fit statistics (R², AIC, BIC, …)
+differ is now correctly reported as changed, not identical.</li>
+<li><strong>Helpful error on missing key column</strong>: If you pass a
+<code>key</code> that does not exist in one of the DataFrames,
+<code>node_diff</code> now raises a clear error immediately instead of
+silently producing wrong counts.</li>
+<li><strong><code>node_diff</code> requires <code>ComputedNode</code>
+arguments</strong>: <code>node_diff</code> now enforces that both
+arguments are pipeline node references
+(e.g. <code>node_diff(p.my_node, p.my_node)</code>). Passing a plain
+string or pipeline object raises a descriptive
+<code>TypeError</code>.</li>
+</ul>
+<h3 id="repl-explain-unicode-display">REPL &amp; <code>explain()</code>
+— Unicode display</h3>
+<ul>
+<li><strong>Unicode characters now render correctly</strong>: String
+values containing non-ASCII characters (accented letters, symbols like
+<code>→</code>, emoji, …) are displayed as-is in the REPL and inside
+<code>explain()</code> tree output, instead of being shown as raw byte
+sequences such as <code>\226\134\146</code>.</li>
+</ul>
+<h2 id="section-1">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -388,7 +611,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-1">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-2">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -617,7 +840,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-2">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-3">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -880,7 +1103,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-3">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-4">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -1177,7 +1400,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-4">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-5">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

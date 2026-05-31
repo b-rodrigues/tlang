@@ -208,6 +208,7 @@
 | [node](node.html) | Configure a Pipeline Node |
 | [node_lens](node_lens.html) | Pipeline Node Lens |
 | [node_meta_lens](node_meta_lens.html) | Pipeline Metadata Lens |
+| [node_diff](node_diff.html) | Compare Node Outputs Across Builds |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
@@ -235,6 +236,7 @@
 | [pipeline_cycles](pipeline_cycles.html) | Detect Pipeline Cycles |
 | [pipeline_deps](pipeline_deps.html) | List Node Dependencies |
 | [pipeline_depth](pipeline_depth.html) | Maximum Topological Depth |
+| [pipeline_diff](pipeline_diff.html) | Compare Two Pipeline Structures |
 | [pipeline_dot](pipeline_dot.html) | Export Pipeline as DOT Graph |
 | [pipeline_edges](pipeline_edges.html) | Pipeline Dependency Edges |
 | [pipeline_leaves](pipeline_leaves.html) | Pipeline Leaf Nodes |

@@ -1,7 +1,7 @@
 open Ast
 open Eval
 
-let run_tests pass_count fail_count _failures _eval_string _eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string _eval_string_env _test =
   Printf.printf "\nTesting pipeline comment stripping:\n";
   
   let env_init = Packages.init_env () in
@@ -26,16 +26,22 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
       let deps = match un.un_command.node with RawCode { raw_identifiers; _ } -> raw_identifiers | _ -> [] in
       if List.mem "results" deps then (
         incr fail_count;
-        Printf.printf "  ✗ Error: Found 'results' in dependencies despite comment stripping\n"
+        let msg = Printf.sprintf "  ✗ Error: Found 'results' in dependencies despite comment stripping\n" in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
       ) else (
         incr pass_count;
         Printf.printf "  ✓ comment stripping: 'results' correctly ignored in comment\n"
       )
   | Some _ ->
       incr fail_count;
-      Printf.printf "  ✗ Error: 'res' not bound as a node\n"
+      let msg = Printf.sprintf "  ✗ Error: 'res' not bound as a node\n" in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
   | None ->
       incr fail_count;
-      Printf.printf "  ✗ Error: 'res' not found in environment\n");
+      let msg = Printf.sprintf "  ✗ Error: 'res' not found in environment\n" in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg);
 
   print_newline ()

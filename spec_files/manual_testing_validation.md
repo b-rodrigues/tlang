@@ -1,6 +1,6 @@
-# Manual Validation Checklist: Version 0.52.1
+# Manual Validation Checklist: Version 0.52.2
 
-This document outlines the step-by-step manual validation procedures required to verify the stability, safety safeguards, and observability features of the **v0.52.1** release.
+This document outlines the step-by-step manual validation procedures required to verify the stability, safety safeguards, and observability features of the **v0.52.2** release.
 
 ---
 

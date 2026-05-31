@@ -378,6 +378,9 @@ let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn 
 (** Global hook for storing in-memory evaluated node values *)
 let in_memory_node_values : (string, value) Hashtbl.t = Hashtbl.create 50
 
+(** Global hook for storing mapping from pipeline expressions to build log paths *)
+let pipeline_build_logs : ((string * expr) list, string) Hashtbl.t = Hashtbl.create 10
+
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
     Scans for [a-zA-Z_][a-zA-Z0-9_]* patterns and returns unique results.
@@ -655,6 +658,25 @@ module Utils = struct
     | VEnv _ -> "Environment"
     | VNodeResult { v; _ } -> type_name v
 
+  let escape_string_utf8 s =
+    let buf = Buffer.create (String.length s * 2) in
+    String.iter (fun c ->
+      let code = Char.code c in
+      if code >= 128 then
+        Buffer.add_char buf c
+      else
+        match c with
+        | '\n' -> Buffer.add_string buf "\\n"
+        | '\r' -> Buffer.add_string buf "\\r"
+        | '\t' -> Buffer.add_string buf "\\t"
+        | '\\' -> Buffer.add_string buf "\\\\"
+        | '"'  -> Buffer.add_string buf "\\\""
+        | _ when code < 32 || code = 127 ->
+            Buffer.add_string buf (Printf.sprintf "\\%03d" code)
+        | _ -> Buffer.add_char buf c
+    ) s;
+    Buffer.contents buf
+
   let rec binop_to_string = function
     | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
     | Eq -> "==" | NEq -> "!=" | Gt -> ">" | Lt -> "<" | GtEq -> ">=" | LtEq -> "<="
@@ -782,7 +804,7 @@ module Utils = struct
     | VInt n -> string_of_int n
     | VFloat f -> string_of_float f
     | VBool b -> string_of_bool b
-    | VString s -> "\"" ^ String.escaped s ^ "\""
+    | VString s -> "\"" ^ escape_string_utf8 s ^ "\""
     | VRawCode s -> "<{ " ^ s ^ " }>"
     | VSymbol s -> s
     | VDate days ->

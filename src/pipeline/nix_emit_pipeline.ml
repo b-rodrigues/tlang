@@ -84,7 +84,7 @@ let
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
   pyVersion = pyDeps.version or "python3";
   pyPackagesList = pyDeps.packages or [];
-  py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList));
+  py-env = pkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
 
   juliaDeps = toml.jl-dependencies or {};
   juliaVersion = juliaDeps.version or "lts";

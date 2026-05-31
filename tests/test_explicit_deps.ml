@@ -1,7 +1,7 @@
 (* tests/test_explicit_deps.ml *)
 (* Unit tests for explicit deps argument in nodes *)
 
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   ignore test;
 
   Printf.printf "Pipeline — explicit deps:\n";
@@ -20,7 +20,9 @@ pipeline_deps(p)|}
     incr pass_count; Printf.printf "  ✓ explicit deps with bare identifiers\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ explicit deps with bare identifiers\n    Expected: {`raw_data`: [], `summary`: [\"raw_data\"]}\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ explicit deps with bare identifiers\n    Expected: {`raw_data`: [], `summary`: [\"raw_data\"]}\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Explicit deps with strings *)
@@ -36,7 +38,9 @@ pipeline_deps(p)|}
     incr pass_count; Printf.printf "  ✓ explicit deps with strings\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ explicit deps with strings\n    Expected: {`raw_data`: [], `summary`: [\"raw_data\"]}\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ explicit deps with strings\n    Expected: {`raw_data`: [], `summary`: [\"raw_data\"]}\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Explicit deps with symbols (with ^) *)
@@ -52,7 +56,9 @@ pipeline_deps(p)|}
     incr pass_count; Printf.printf "  ✓ explicit deps with symbols (^raw_data)\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ explicit deps with symbols\n    Expected: {`raw_data`: [], `summary`: [\"raw_data\"]}\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ explicit deps with symbols\n    Expected: {`raw_data`: [], `summary`: [\"raw_data\"]}\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Mixed list *)
@@ -68,7 +74,9 @@ pipeline_deps(p)|}
     incr pass_count; Printf.printf "  ✓ explicit deps with mixed list\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ explicit deps with mixed list\n    Expected: {`a`: [], `b`: [], `c`: [], `d`: [\"a\", \"b\", \"c\"]}\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ explicit deps with mixed list\n    Expected: {`a`: [], `b`: [], `c`: [], `d`: [\"a\", \"b\", \"c\"]}\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Single identifier (not in list) *)
@@ -84,7 +92,9 @@ pipeline_deps(p)|}
     incr pass_count; Printf.printf "  ✓ explicit deps with single identifier\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ explicit deps with single identifier\n    Expected: {`raw_data`: [], `summary`: [\"raw_data\"]}\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ explicit deps with single identifier\n    Expected: {`raw_data`: [], `summary`: [\"raw_data\"]}\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Explicit deps override automatic detection *)
@@ -101,7 +111,9 @@ pipeline_deps(p)|}
     incr pass_count; Printf.printf "  ✓ explicit deps override automatic detection\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ explicit deps override\n    Expected: {`a`: [], `b`: [], `c`: [\"a\"]}\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ explicit deps override\n    Expected: {`a`: [], `b`: [], `c`: [\"a\"]}\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Persistence through mutate_node *)
@@ -118,7 +130,9 @@ pipeline_to_frame(p2) |> filter(\(row) row.name == "b") |> \(df) get(df.deps, 0)
     incr pass_count; Printf.printf "  ✓ explicit deps persist through mutate_node\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ explicit deps persistence (mutate_node)\n    Expected: \"a\"\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ explicit deps persistence (mutate_node)\n    Expected: \"a\"\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   (* Persistence through rename_node *)
@@ -135,7 +149,9 @@ pipeline_deps(p2)|}
     incr pass_count; Printf.printf "  ✓ explicit deps rewired through rename_node\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ explicit deps rewire (rename_node)\n    Expected: {`alpha`: [], `b`: [\"alpha\"]}\n    Got: %s\n" result
+    let msg = Printf.sprintf "  ✗ explicit deps rewire (rename_node)\n    Expected: {`alpha`: [], `b`: [\"alpha\"]}\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end;
 
   print_newline ()

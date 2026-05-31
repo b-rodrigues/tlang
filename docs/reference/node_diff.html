@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Function Reference - node_diff</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav>
+    <a href="../index.html">Home</a>
+    <a href="../getting-started.html">Get Started</a>
+    <a href="../language_overview.html">Overview</a>
+    <a href="../api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="node_diff">node_diff</h1>
+<p>Compare Node Outputs Across Builds</p>
+<p>Compares the artifact produced by a node across two historical builds
+of the same pipeline, or compares two different nodes. Returns a
+structured <code>VDiff</code> dictionary with a consistent envelope.</p>
+<p>Dispatches to a type-appropriate comparison: -
+<strong>DataFrame</strong> → row-/column-level diff with optional
+key-based alignment - <strong>Model (PMML)</strong> → coefficient deltas
+and fit-stat comparison - <strong>Scalar</strong> → before/after with
+numeric delta - <strong>Python-native objects</strong> → artifact
+deserialization through the bundled <code>tlang</code> Python package,
+then stable JSON rendering plus git-like unified diffs -
+<strong>Julia-native objects</strong> → artifact deserialization through
+the bundled <code>tlang</code> Julia package, then DeepDiffs-based
+structural comparison - <strong>R-native objects</strong> → artifact
+deserialization through the bundled <code>tlang</code> R package, then
+diffobj-based structural comparison - <strong>Generic</strong> →
+structural comparison over string representations</p>
+<p>Runtime-native object diffs are preserved only for artifacts using
+the standard <code>default</code> or <code>tobj</code> serializers. If
+you assign a custom serializer name (for example <code>"rds"</code> or
+<code>"pkl"</code>), <code>node_diff()</code> falls back to the normal
+artifact loading path; for those cases, call the companion
+R/Python/Julia helper packages directly with an explicit
+deserializer.</p>
+<p>For Julia-native artifacts, <code>node_diff()</code> launches a fresh
+Julia helper process for each comparison. This keeps the integration
+simple but adds startup cost for repeated or very large diffs.</p>
+<h2 id="signature">Signature</h2>
+<pre class="t"><code>node_diff(
+  node_a    :: ComputedNode,
+  node_b    :: ComputedNode,
+  log_a     :: String = &quot;latest&quot;,
+  log_b     :: String = &quot;latest&quot;,
+  key       :: List[Symbol] = [],
+  context   :: Int = 3
+) :: VDiff</code></pre>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><strong>node_a</strong> (<code>ComputedNode</code>): The “before”
+node, e.g. <code>p.clean_data</code>.</li>
+<li><strong>node_b</strong> (<code>ComputedNode</code>): The “after”
+node, e.g. <code>p.clean_data</code>.</li>
+<li><strong>log_a</strong> (<code>String</code>): Build log selector for
+<code>node_a</code>. Accepts <code>"latest"</code>, a timestamp prefix
+(<code>"20260510_120000"</code>), or a regex matched against filenames
+in <code>_pipeline/</code>. Default: <code>"latest"</code>.</li>
+<li><strong>log_b</strong> (<code>String</code>): Build log selector for
+<code>node_b</code>. Same format as <code>log_a</code>. Default:
+<code>"latest"</code>.</li>
+<li><strong>key</strong> (<code>List[Symbol]</code>): For DataFrames:
+the natural key column(s) used to align rows before diffing. If empty,
+rows are aligned by position. Default: <code>[]</code>.</li>
+<li><strong>context</strong> (<code>Int</code>): Number of unchanged
+rows shown above and below each changed hunk. Default:
+<code>3</code>.</li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p><code>Dict</code>: A <code>VDiff</code> envelope dictionary with the
+following fields:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kind</code></td>
+<td><code>String</code></td>
+<td><code>"dataframe_diff"</code>, <code>"model_diff"</code>,
+<code>"scalar_diff"</code>, <code>"python_object_diff"</code>,
+<code>"julia_object_diff"</code>, <code>"r_object_diff"</code>, or
+<code>"generic_diff"</code></td>
+</tr>
+<tr>
+<td><code>node_a</code></td>
+<td><code>String</code></td>
+<td>Name of the first node</td>
+</tr>
+<tr>
+<td><code>node_b</code></td>
+<td><code>String</code></td>
+<td>Name of the second node</td>
+</tr>
+<tr>
+<td><code>log_a</code></td>
+<td><code>String</code></td>
+<td>Resolved log filename for node_a</td>
+</tr>
+<tr>
+<td><code>log_b</code></td>
+<td><code>String</code></td>
+<td>Resolved log filename for node_b</td>
+</tr>
+<tr>
+<td><code>value_type</code></td>
+<td><code>String</code></td>
+<td>T type name of the diffed values</td>
+</tr>
+<tr>
+<td><code>identical</code></td>
+<td><code>Bool</code></td>
+<td><code>true</code> if no differences were found</td>
+</tr>
+<tr>
+<td><code>summary</code></td>
+<td><code>Dict</code></td>
+<td>Type-specific summary counts</td>
+</tr>
+<tr>
+<td><code>detail</code></td>
+<td><code>Dict</code></td>
+<td>Type-specific detail</td>
+</tr>
+<tr>
+<td><code>hunks</code></td>
+<td><code>List[Dict]</code></td>
+<td>Diff hunks or rendered diff regions when available</td>
+</tr>
+</tbody>
+</table>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>-- Compare the same node across two historical builds
+d = node_diff(p.clean_data, p.clean_data,
+      log_a = &quot;20260510_120000&quot;,
+      log_b = &quot;20260515_090000&quot;)
+
+-- Compare two different nodes in the current build
+d = node_diff(p.clean_data, p.validated_data)
+
+-- Same node, latest vs a named earlier run, keyed on an id column
+d = node_diff(p.customers, p.customers,
+      log_a = &quot;20260501&quot;,
+      log_b = &quot;latest&quot;,
+      key = [$customer_id])
+
+-- Model comparison
+d = node_diff(p.model_v1, p.model_v2)
+
+-- Python-native artifact comparison (for example NumPy ndarrays)
+d = node_diff(p.weights, p.weights, log_a = 1, log_b = 2)
+
+-- Julia-native artifact comparison (for example serialized structs or arrays)
+d = node_diff(p.julia_model, p.julia_model, log_a = 1, log_b = 2)
+
+-- R-native artifact comparison (for example saved model objects)
+d = node_diff(p.r_model, p.r_model, log_a = 1, log_b = 2)</code></pre>
+<h2 id="see-also">See Also</h2>
+<ul>
+<li><code>build_log</code> — retrieve build log for a pipeline</li>
+<li><code>build_log_history</code> — list historical builds</li>
+<li><code>explain</code> — structural explanation of any value,
+including VDiff</li>
+</ul>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

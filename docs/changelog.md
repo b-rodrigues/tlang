@@ -1,6 +1,70 @@
 # Changelog
 
-## [0.52.1] - 2026-05-23
+## [0.52.2] - 2026-05-31
+
+This release introduces interactive pipeline node debugging via `debug_node`, native Nix orchestration features for granular rebuild control, job parallelisation, Cachix binary caching, and dry-runs, and the temporal introspection pair `build_log_history` and `node_diff` for tracking how pipeline outputs change across builds.
+
+**Status**: Beta
+
+### Interactive Node Debugging
+- **Interactive Node Shells (`debug_node(p.node)`)**: Introduces a new built-in function to drop developers directly from the T REPL into a sandboxed guest REPL (Python, R, or Julia) to step through and debug code using actual upstream outputs.
+- **Custom Guest REPL Prompts**: Automatically overrides subshell prompts (`py> `, `r> `, `jl> `) to cleanly signal that you are in a debugger subshell session, returning immediately to the T REPL upon exit.
+- **Pristine Debugger Environments**: Keeps the subshell clean by displaying upstream Nix store paths and companion package loading tips on startup rather than polluting the environment with dependency paths.
+- **Node Environment Variable Propagation**: Custom environment variables defined inside the node's configuration block (`p_env_vars`) are programmatically inherited by the subshell process.
+- **R Quiet Launch Mode**: Suppresses default R welcome copyright and version info blocks on start, providing an instant, clean terminal.
+- **Target Runtime Safety Guard**: Restricts interactive debugging sessions strictly to REPL-capable runtimes (Python, R, Julia), raising a descriptive `ValueError` for unsupported runtimes (like Quarto or Bash).
+- **Workspace-Wide Package Manager Guards (Nix Shell & Debug REPLs)**: Imperative package manager guards are now enforced globally. In addition to subshells launched via `debug_node()`, running R, Julia, or Python directly inside the development shell started via `nix develop` will automatically intercept and block imperative package mutations (`install.packages()`, `Pkg.add()`, `pip install`, `poetry`, `uv`, `conda`, `python -m pip`, etc.). Running these commands displays a helpful instruction directing developers to declare dependencies in `tproject.toml`, run `t update`, and re-enter `nix develop`, protecting the workspace from drift and preserving reproducible Nix derivation footprints.
+
+### Pipeline Temporal Introspection
+- **Pipeline History (`build_log_history(p, n = NA)`)**: Exposes the historical record of builds matching the current pipeline signature as a sorted DataFrame, ordered from most recent to oldest. Uses the 1-indexed `build_rank` convention (where `1` represents the most recent build, `2` the second most recent, etc.).
+- **Type-Sensitive Node Diffs (`node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`)**: Compares outputs of a specific node across two historical builds (defaulting to the most recent vs. second most recent). Implements type-sensitive comparison strategies:
+  - *DataFrames*: Summarizes schema changes, lists added/removed columns, reports row count shifts, and evaluates column-level mean drift for numeric fields. Note: This highlights high-level summary statistic shifts and does not perform full statistical distribution tests.
+  - *PMML Models*: Parses regression coefficients and intercept changes for linear models. For non-linear model formats (e.g. Random Forests, Decision Trees), it falls back to a structural equality diff.
+  - *Text Files*: Uses native `diff -u` to extract precise line additions, removals, and diff summaries. Includes a robust fallback if system tools are sandboxed or missing.
+  - *Scalars/Generic Fallback*: Direct value structural comparison and numeric delta calculations.
+
+### Serialization & Correctness Fixes
+- **Correctness Fix for `"default"`/`"tobj"` Deserialization**: Fixed a major correctness bug in `read_standard_node_value` where scalar nodes serialized with `"default"` or `"tobj"` formats were not being deserialized when queried via standard readers, returning a fallback `VComputedNode` token instead. Standard readers now correctly deserialize value payloads (like `VInt`, `VFloat`) using OCaml's Marshal digestion, enabling precise cross-node value and delta comparisons.
+
+### Nix-Native Orchestration & Rebuild Control
+- **Nix Build Flags Integration**: Added full support for `targets`, `force`, `dry_run`, `max_jobs`, and `cache` parameters in `build_pipeline` and `pipeline_run`.
+- **Derivation Targets (`targets`)**: Map `targets` to `-A <derivations>` in the underlying `nix build` command, allowing specific parts of the pipeline to be built selectively.
+- **Granular Rebuild Control (`force`)**: Map `force` to native `--check` flags. Pass `true` to force-rebuild the entire pipeline, or a string/list of specific node names to force-rebuild only selected steps.
+- **Parallel Compilation (`max_jobs`)**: Mapped the `max_jobs` parameter directly to `--max-jobs <N>`, enabling parallel compilation of sandbox environments and derivations.
+- **Binary Cache Optimization (`cache`)**: Seamless Cachix binary cache integration by dynamically configuring `extra-substituters` and `extra-trusted-public-keys` (prioritizing `rstats-on-nix` as the preferred default cache).
+- **Dry-Run Preview Mode (`dry_run`)**: Implemented a native dry-run mode that parses `nix-build --dry-run` output into a structured T-Lang `DataFrame` (containing columns `node`, `action`, `path`) to inspect build execution plans without mutating local store state.
+
+### Pipeline Propagation & Path Reconciliation
+- **Nix Store Path Alignment**: Added a robust post-build step (`update_pipeline_with_build_paths`) that reconciles internal `ComputedNode` paths with the real store paths generated by Nix.
+- **Dynamic Argument List Conversion**: Used dynamically parsed array parameters to maintain 100% backward compatibility with previous T-Lang CLI and OCaml process invocations.
+
+### `t doctor` Pipeline Dependency Analysis
+- **Static Pipeline Dependency Scanning**: `t doctor` now parses `src/pipeline.t` and statically analyses each node's `command` block to detect runtime packages (`library(...)`, `import ...`, `using ...`) that are referenced but absent from `tproject.toml`. Missing packages are reported as warnings with an actionable suggestion to add them to the relevant `[r-dependencies]`, `[py-dependencies]`, or `[jl-dependencies]` section and run `t update`. All pipeline definitions in the file are scanned, not just the first one.
+- **Scoped Warning**: The missing-pipeline-entrypoint warning (no `src/pipeline.t` found) is only emitted when the project has at least one runtime dependency declared, avoiding noise for pure R or Julia package projects.
+
+### API Parity & Testing
+- **Robust Builtin Validation**: Added comprehensive type-safety guards for all new orchestration parameters to raise highly readable compile-time warnings and TypeErrors instead of silent Nix failures.
+- **High-Coverage Test Harness**: Expanded the unit testing suite in `test_pipeline.ml` to verify dry-run DataFrame output, validation guards, and advanced parameter passthroughs (2271/2271 tests passing).
+- **Ecosystem Sync & Docs**: Updated `docs/pipeline_tutorial.md` and `docs/api-reference.md` to formally document the new parameters, along with comparative command mapping tables.
+
+### Multi-Runtime Interchange & Early Safety
+- **Populate Pipeline Arity Expansion**: Updated `populate_pipeline()` to support all the new Nix orchestration arguments (`targets`, `force`, `dry_run`, `max_jobs`, `cache`) in the exact same manner as `build_pipeline()`.
+- **Early Target & Force Validation**: Integrated compile-time validation of `targets` and `force` node lists in the OCaml pipeline compiler. T-Lang now instantly detects misspelled or nonexistent node targets and raises highly readable `StructuralError` warnings before spawning the Nix interpreter.
+- **Node Name Collision Prevention**: Sorted internal name matching patterns by character length in descending order, avoiding potential substring collisions where short node names (e.g. `model`) would erroneously match long node name store paths (e.g. `model_evaluation`).
+
+### Pipeline Temporal Introspection — `node_diff` improvements
+
+- **Line-by-line string diffs**: When comparing string-typed node outputs, `node_diff` now splits the values on newlines and produces a proper unified diff with context lines — the same colourised format already used for text-file nodes. Calling `detailed_summary` on the result shows added/removed lines highlighted in green and red.
+- **Reliable `NaN` / `NA` handling in DataFrames**: Cells that contain `NaN` or `NA` on both sides are no longer incorrectly reported as changed.
+- **Accurate model change detection**: A model whose coefficients are identical but whose fit statistics (R², AIC, BIC, …) differ is now correctly reported as changed, not identical.
+- **Helpful error on missing key column**: If you pass a `key` that does not exist in one of the DataFrames, `node_diff` now raises a clear error immediately instead of silently producing wrong counts.
+- **`node_diff` requires `ComputedNode` arguments**: `node_diff` now enforces that both arguments are pipeline node references (e.g. `node_diff(p.my_node, p.my_node)`). Passing a plain string or pipeline object raises a descriptive `TypeError`.
+
+### REPL & `explain()` — Unicode display
+
+- **Unicode characters now render correctly**: String values containing non-ASCII characters (accented letters, symbols like `→`, emoji, …) are displayed as-is in the REPL and inside `explain()` tree output, instead of being shown as raw byte sequences such as `\226\134\146`.
+
+## [0.52.1] - 2026-05-22
 
 This release finalizes end-to-end Julia ONNX serialization support, fixes pipeline compiler strategy dictionary parsing issues, strengthens runtime safety by protecting reserved keywords, and completes the migration of pipeline introspection to a strict, node-centric dot-access model.
 

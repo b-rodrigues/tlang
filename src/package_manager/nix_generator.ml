@@ -5,6 +5,96 @@ open Package_types
 
 let companion_package_version = "0.1.0"
 
+let julia_depot_sandbox_hook =
+  "            # Create a local Julia depot directory for sandbox guards\n\
+   \            julia_depot_dir=\"$PWD/.t_julia_depot\"\n\
+   \            mkdir -p \"$julia_depot_dir/config\"\n\
+   \            cat > \"$julia_depot_dir/config/startup.jl\" <<'EOF'\n\
+   const _tlang_pkg_id = Base.PkgId(Base.UUID(\"44cfe95a-1eb2-52ea-b672-e2afdf69b78f\"), \"Pkg\")\n\
+   const _tlang_real_pkg = Base.require(_tlang_pkg_id)\n\n\
+   module _TlangGuardPkg\n\
+   \  import Main: _tlang_real_pkg\n\
+   \  export add, rm, update, develop\n\
+   \  msg = \"Don't use imperative package management in this T Julia environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\"\n\
+   \  add(args...; kwargs...) = error(msg)\n\
+   \  rm(args...; kwargs...) = error(msg)\n\
+   \  update(args...; kwargs...) = error(msg)\n\
+   \  develop(args...; kwargs...) = error(msg)\n\
+   \  # Delegate read-only Pkg operations to the real Pkg module\n\
+   \  const _real = _tlang_real_pkg\n\
+   \  status(args...; kwargs...) = _real.status(args...; kwargs...)\n\
+   \  dependencies(args...; kwargs...) = _real.dependencies(args...; kwargs...)\n\
+   \  instantiate(args...; kwargs...) = _real.instantiate(args...; kwargs...)\n\
+   \  activate(args...; kwargs...) = _real.activate(args...; kwargs...)\n\
+   \  project(args...; kwargs...) = _real.project(args...; kwargs...)\n\
+   \  compat(args...; kwargs...) = _real.compat(args...; kwargs...)\n\
+   end\n\n\
+   if isinteractive()\n\
+   \  const _tlang_repl_id = Base.PkgId(Base.UUID(\"3fa0cd96-eef1-5676-8a61-b3b8758bbffb\"), \"REPL\")\n\
+   \  try\n\
+   \    _tlang_repl = Base.require(_tlang_repl_id)\n\n\
+   \    function _tlang_install_packages_hook(pkgs::Vector{Symbol})\n\
+   \      pkg_str = join(string.(pkgs), \", \")\n\
+   \      println(\" │ Packages [\", pkg_str, \"] not found, but packages named [\", pkg_str, \"] are available from\")\n\
+   \      println(\" │ a registry.\")\n\
+   \      println(\" │ Install packages?\")\n\
+   \      println(\" │   (project) pkg> add \", pkg_str)\n\
+   \      print(\" └ (y/n) [y]: \")\n\
+   \      flush(stdout)\n\
+   \      response = lowercase(strip(readline(stdin)))\n\
+   \      if response == \"\" || response == \"y\" || response == \"yes\"\n\
+   \        println(\"\\nDon't use interactive package installation in this T Julia environment.\")\n\
+   \        println(\"Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\\n\")\n\
+   \      else\n\
+   \        println(\"Cancelled.\")\n\
+   \      end\n\
+   \      return false\n\
+   \    end\n\n\
+   \    pushfirst!(_tlang_repl.install_packages_hooks, _tlang_install_packages_hook)\n\n\
+   \    # Replace Pkg in loaded_modules with the guard\n\
+   \    Base.loaded_modules[_tlang_pkg_id] = _TlangGuardPkg\n\
+   \  catch err\n\
+   \    # Suppress any startup errors so Julia doesn't fail to launch\n\
+   \  end\n\n\
+   \  using Pkg\n\
+   end # if isinteractive()\n\
+   EOF\n\
+   \            export JULIA_DEPOT_PATH=\"$julia_depot_dir:''${JULIA_DEPOT_PATH:-}\"\n"
+
+let r_profile_sandbox_hook =
+  "            # Create a local R profile directory for sandbox guards\n\
+   \            r_profile_dir=\"$PWD/.t_r_profile\"\n\
+   \            mkdir -p \"$r_profile_dir\"\n\
+   \            cat > \"$r_profile_dir/.Rprofile\" <<'EOF'\n\
+   options(prompt='r> ', continue='r+ ')\n\
+   install.packages <- function(...) stop(\"Don't use install.packages() in this T R environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\", call. = FALSE)\n\
+   update.packages <- function(...) stop(\"Don't use update.packages() in this T R environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\", call. = FALSE)\n\
+   remove.packages <- function(...) stop(\"Don't use remove.packages() in this T R environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\", call. = FALSE)\n\
+   EOF\n\
+   \            export R_PROFILE_USER=\"$r_profile_dir/.Rprofile\"\n"
+
+let python_guard_sandbox_hook =
+  "            # Create a local Python guard directory\n\
+   \            python_guard_dir=\"$PWD/.t_python_guard\"\n\
+   \            python_guard_bin=\"$python_guard_dir/bin\"\n\
+   \            python_guard_lib=\"$python_guard_dir/python\"\n\
+   \            mkdir -p \"$python_guard_bin\" \"$python_guard_lib\"\n\n\
+   \            for tool in pip pip3 uv poetry conda mamba micromamba easy_install; do\n\
+   \              cat > \"$python_guard_bin/$tool\" <<EOF\n\
+   #!/usr/bin/env sh\n\
+   printf \"Don't use $tool in this T Python environment. Declare packages in tproject.toml, run 't update', and re-enter 'nix develop'.\\n\" >&2\n\
+   exit 1\n\
+   EOF\n\
+   \              chmod +x \"$python_guard_bin/$tool\"\n\
+   \            done\n\n\
+   \            cat > \"$python_guard_lib/pip.py\" <<'EOF'\n\
+   raise SystemExit(\"Don't use python -m pip in this T Python environment. Declare packages in tproject.toml, run `t update`, and re-enter `nix develop`.\")\n\
+   EOF\n\n\
+   \            export PATH=\"$python_guard_bin:$PATH\"\n\
+   \            export PYTHONPATH=\"$python_guard_lib:''${PYTHONPATH:-}\"\n"
+
+
+
 (** Ensure that the "JSON" dependency is present in the list of Julia dependencies.
     T-Lang's polyglot interop uses JSON serialization for data exchange with Julia. *)
 let ensure_julia_json_dep deps =
@@ -167,6 +257,7 @@ let generate_project_flake
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Python environment\n";
   Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
+  Buffer.add_string buf "          deepdiff\n";
   List.iter (fun dep ->
     Printf.bprintf buf "          %s\n" dep
   ) py_deps;
@@ -218,6 +309,9 @@ let generate_project_flake
   end;
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
+  Buffer.add_string buf julia_depot_sandbox_hook;
+  Buffer.add_string buf r_profile_sandbox_hook;
+  Buffer.add_string buf python_guard_sandbox_hook;
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Project: %s\"\n" project_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";
@@ -382,6 +476,9 @@ let generate_package_flake
   end;
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
+  Buffer.add_string buf julia_depot_sandbox_hook;
+  Buffer.add_string buf r_profile_sandbox_hook;
+  Buffer.add_string buf python_guard_sandbox_hook;
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Package: %s\"\n" package_name;
   Printf.bprintf buf "            echo \"==================================================\"\n";

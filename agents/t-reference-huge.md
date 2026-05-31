@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.52.1 "Kaméhaméha".
+**Status:** Version 0.52.2 "Kaméhaméha".
 
 ---
 
@@ -199,6 +199,7 @@ resolution and deserialization from within those environments.
 - [Performance](performance.html) — Arrow backend and optimization
 - [Performance Analysis](performance_analysis.html) — in-depth analysis of T's performance metrics
 - [Composable Lenses](lens.html) — functional updates for nested structures
+- [Nix Build Options & Orchestration](nix-options.html) — passing low-level nix arguments to the build
 
 ### Developer Resources
 - [Architecture](architecture.html) — language design and implementation
@@ -404,7 +405,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.52.1
+> **Version**: 0.52.2
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -4335,58 +4336,85 @@ pipeline_node(p, "doubled") -- 20
 
 ---
 
-### `pipeline_run(pipeline)`
+### `pipeline_run(pipeline, nix_options = NA)`
 
-Re-execute a pipeline in-memory.
+Re-execute a pipeline. If `nix_options` is provided, triggers a cache-aware Nix build of the pipeline using the specified options. Otherwise, re-executes the pipeline dynamically in-memory.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
+- `nix_options` (optional) — Dict of Nix build options. Supported keys:
+  - `targets` — String, List, or Vector of specific node names to build.
+  - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
+  - `dry_run` — Bool. If true, returns a planned build actions DataFrame instead of building.
+  - `max_jobs` — Positive Int. Limit parallel build jobs.
+  - `cache` — String. Cachix cache name.
+  - `builders` — String. Remote builder specification (SSH syntax).
+  - `keep_env` — String, List, or Vector of environment variable names to pass into the sandbox.
+  - `sandbox` — Bool or String (`"relaxed"`, `"strict"`, `"none"`). Sandbox policy.
 
 **Returns:**
 
-Pipeline object with updated values
+Pipeline object with updated values (or DataFrame if `dry_run = true`)
 
 **Examples:**
 ```t
 p = pipeline { x = 10; y = x * 2 }
 p2 = pipeline_run(p)
+df = pipeline_run(p, nix_options = [dry_run: true])
 ```
 
 ---
 
-### `populate_pipeline(pipeline, build = false)`
+### `populate_pipeline(pipeline, build = false, verbose = 0, nix_options = NA)`
 
 Prepare pipeline infrastructure in `_pipeline/`.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
 - `build` (optional) — If true, triggers a Nix build of all nodes.
+- `verbose` (optional) — Non-negative Int. Nix build verbosity level.
+- `nix_options` (optional) — Dict of Nix build options. Supported keys:
+  - `targets` — String, List, or Vector of specific node names to build.
+  - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
+  - `dry_run` — Bool. If true, returns a planned build actions DataFrame instead of building.
+  - `max_jobs` — Positive Int. Limit parallel build jobs.
+  - `cache` — String. Cachix cache name.
+  - `builders` — String. Remote builder specification (SSH syntax).
+  - `keep_env` — String, List, or Vector of environment variable names to pass into the sandbox.
+  - `sandbox` — Bool or String (`"relaxed"`, `"strict"`, `"none"`). Sandbox policy.
 
 **Returns:**
 
-Success message or Error.
+Success message, BuildLog, or DataFrame.
 
 **Examples:**
 ```t
 populate_pipeline(p)
 populate_pipeline(p, build = true)
+populate_pipeline(p, build = true, nix_options = [max_jobs: 4, cache: "rstats-on-nix"])
 ```
 
 ---
 
-### `build_pipeline(pipeline, verbose = 0)`
+### `build_pipeline(pipeline, verbose = 0, nix_options = NA)`
 
 Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
 
 **Parameters:**
 
-
 - `pipeline` — Pipeline object
 - `verbose` (optional) — Int build verbosity level. Defaults to `0` (quiet/minimalist live-status output without dumping failed node trace logs). Set `verbose = 1` or higher to print detailed node stdout/stderr failures directly to the terminal on build error.
+- `nix_options` (optional) — Dict of Nix build options. Supported keys:
+  - `targets` — String, List, or Vector of specific node names to build.
+  - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
+  - `dry_run` — Bool. If true, returns a planned build actions DataFrame instead of building.
+  - `max_jobs` — Positive Int. Limit parallel build jobs.
+  - `cache` — String. Cachix cache name.
+  - `builders` — String. Remote builder specification (SSH syntax).
+  - `keep_env` — String, List, or Vector of environment variable names to pass into the sandbox.
+  - `sandbox` — Bool or String (`"relaxed"`, `"strict"`, `"none"`). Sandbox policy.
 
 **Returns:**
 
@@ -4395,6 +4423,14 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 - `duration` — total build duration in seconds
 - `failed_nodes` — list of failed/errored node names
 - `out_path` — Nix output path for the build (migration path for previous string-return behavior)
+(or `DataFrame` if `dry_run = true`)
+
+**Examples:**
+```t
+build_pipeline(p)
+build_pipeline(p, nix_options = [dry_run: true])
+build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-nix", force: ["c"]])
+```
 
 ---
 
@@ -4416,6 +4452,30 @@ Deserialized value.
 ```t
 read_node(p.summary_stats)
 read_node(p.model_v1, which_log = "20260221")
+```
+
+---
+
+### `debug_node(node)`
+
+Launches an interactive guest subshell (Python, R, or Julia REPL) to debug a pipeline node using its exact build state and context.
+
+**Parameters:**
+
+- `node` — The ComputedNode to debug (e.g. `p.node_name`).
+
+**Returns:**
+
+Runs interactively. Control returns to the parent T REPL once the subshell is exited.
+
+**Details:**
+Within the subshell, all upstream build paths and companion library loaders are provided, and custom project-level variables (`p_env_vars`/`un_env_vars`) are propagated directly. To enforce strict reproducibility and prevent configuration drift, all imperative package updates (e.g., `pip`, `install.packages`, `Pkg.add`) are dynamically intercepted and blocked.
+
+**Examples:**
+```t
+p = pipeline { a = 1; b = a + 5 }
+build_pipeline(p)
+debug_node(p.b)
 ```
 
 ---
@@ -4485,6 +4545,79 @@ df = build_log_to_frame(log)
 -- Returns a DataFrame:
 --   name  | status     | duration | path
 --   "a"   | "Errored"  | 0.02     | "/nix/store/..."
+```
+
+---
+
+### `build_log_history(p, n = NA, pattern = NA)`
+
+Returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+- `n` (optional) — Positive Int. Maximum number of historical builds to return.
+- `pattern` (optional) — String. Regular expression pattern to filter log filenames (e.g. `".*test.*"`).
+
+**Returns:**
+
+`DataFrame` — A DataFrame detailing historical builds with columns:
+- `build_id` (1-indexed rank from most recent to oldest)
+- `timestamp` (ISO-8601 UTC string of build time)
+- `duration` (total duration in seconds)
+- `n_nodes` (total number of nodes)
+- `n_failed` (number of failed/errored nodes)
+- `n_warnings` (number of warnings issued)
+- `out_path` (Nix output store path for the build)
+- `hash` (unique content hash of build input signature)
+
+**Examples:**
+```t
+p = pipeline { a = 1; b = 2 }
+hist = build_log_history(p, n = 5)
+```
+
+---
+
+### `node_diff(node_a, node_b, log_a = "latest", log_b = "latest", key = [], context = 3)`
+
+Compares the dynamic evaluations or built artifacts of `node_a` and `node_b` across two historical builds (defaults to comparing the latest build of both).
+
+**Parameters:**
+
+- `node_a` — The ComputedNode to compare.
+- `node_b` — The second ComputedNode to compare.
+- `log_a` (optional) — 1-indexed build rank (Int) or regular expression filename filter (String) or timestamp prefix for `node_a`. Default: `"latest"`.
+- `log_b` (optional) — 1-indexed build rank (Int) or regular expression filename filter (String) or timestamp prefix for `node_b`. Default: `"latest"`.
+- `key` (optional) — List of symbols representing natural key column(s) for DataFrame row alignment. Default: `[]`.
+- `context` (optional) — Number of unchanged rows shown around each hunk for patient diffs. Default: `3`.
+
+**Returns:**
+
+`Dict` — A structured type-sensitive diff dictionary containing:
+- **For DataFrames** (`csv`, `arrow`, `parquet`): `schema_changed` (Bool), `added_columns` (List), `removed_columns` (List), `nrows_a` (Int), `nrows_b` (Int), and `numeric_drift` (DataFrame summarizing column-level mean values and shift percentages).
+- **For PMML Models** (`pmml`): `model_type` (String), `coefficients_changed` (Bool), and `coef_diff` (DataFrame comparing regression coefficients and intercept shift deltas). Falls back to generic structural equality diff for non-regression models.
+- **For Text Files** (`text`): `changed` (Bool), `lines_added` (Int), `lines_removed` (Int), and `diff` (String unified diff output).
+- **For Python-native artifacts** (for example pickled NumPy ndarrays): `kind = "python_object_diff"`, unified diff line counts, rendered git-like diff hunks, and shape/dtype metadata when available.
+- **For Julia-native artifacts** (for example serialized arrays or structs): `kind = "julia_object_diff"`, DeepDiffs-rendered summaries, captured diff lines, and type/shape metadata when available.
+- **For R-native artifacts** (for example serialized model objects): `kind = "r_object_diff"`, diffobj-rendered summaries, captured diff lines, and class/type metadata when available.
+- **For Generic/Scalars**: `value_a` (Any), `value_b` (Any), `changed` (Bool), and `delta` (Float numeric difference or NA).
+
+Native Python, Julia, and R object diffs are preserved only for artifacts using
+the standard `default` or `tobj` serializers. Custom serializer names use the
+normal artifact-loading path instead; use the companion helper package directly
+when a native artifact requires a custom deserializer. Julia-native diffs are
+executed through a fresh Julia helper process per comparison, so repeated large
+diffs will include Julia startup cost.
+
+**Examples:**
+```t
+p = pipeline { a = 1; b = 2 }
+-- Compare most recent to second most recent
+diff_scalar = node_diff(p.a, p.a)
+
+-- Compare with explicit 1-indexed ranks or regex patterns
+diff_model = node_diff(p.model_node, p.model_node, log_a = ".*train1.*", log_b = ".*train2.*")
 ```
 
 ---
@@ -6046,7 +6179,71 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.52.1] - 2026-05-23
+## [0.52.2] - 2026-05-31
+
+This release introduces interactive pipeline node debugging via `debug_node`, native Nix orchestration features for granular rebuild control, job parallelisation, Cachix binary caching, and dry-runs, and the temporal introspection pair `build_log_history` and `node_diff` for tracking how pipeline outputs change across builds.
+
+**Status**: Beta
+
+### Interactive Node Debugging
+- **Interactive Node Shells (`debug_node(p.node)`)**: Introduces a new built-in function to drop developers directly from the T REPL into a sandboxed guest REPL (Python, R, or Julia) to step through and debug code using actual upstream outputs.
+- **Custom Guest REPL Prompts**: Automatically overrides subshell prompts (`py> `, `r> `, `jl> `) to cleanly signal that you are in a debugger subshell session, returning immediately to the T REPL upon exit.
+- **Pristine Debugger Environments**: Keeps the subshell clean by displaying upstream Nix store paths and companion package loading tips on startup rather than polluting the environment with dependency paths.
+- **Node Environment Variable Propagation**: Custom environment variables defined inside the node's configuration block (`p_env_vars`) are programmatically inherited by the subshell process.
+- **R Quiet Launch Mode**: Suppresses default R welcome copyright and version info blocks on start, providing an instant, clean terminal.
+- **Target Runtime Safety Guard**: Restricts interactive debugging sessions strictly to REPL-capable runtimes (Python, R, Julia), raising a descriptive `ValueError` for unsupported runtimes (like Quarto or Bash).
+- **Workspace-Wide Package Manager Guards (Nix Shell & Debug REPLs)**: Imperative package manager guards are now enforced globally. In addition to subshells launched via `debug_node()`, running R, Julia, or Python directly inside the development shell started via `nix develop` will automatically intercept and block imperative package mutations (`install.packages()`, `Pkg.add()`, `pip install`, `poetry`, `uv`, `conda`, `python -m pip`, etc.). Running these commands displays a helpful instruction directing developers to declare dependencies in `tproject.toml`, run `t update`, and re-enter `nix develop`, protecting the workspace from drift and preserving reproducible Nix derivation footprints.
+
+### Pipeline Temporal Introspection
+- **Pipeline History (`build_log_history(p, n = NA)`)**: Exposes the historical record of builds matching the current pipeline signature as a sorted DataFrame, ordered from most recent to oldest. Uses the 1-indexed `build_rank` convention (where `1` represents the most recent build, `2` the second most recent, etc.).
+- **Type-Sensitive Node Diffs (`node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`)**: Compares outputs of a specific node across two historical builds (defaulting to the most recent vs. second most recent). Implements type-sensitive comparison strategies:
+  - *DataFrames*: Summarizes schema changes, lists added/removed columns, reports row count shifts, and evaluates column-level mean drift for numeric fields. Note: This highlights high-level summary statistic shifts and does not perform full statistical distribution tests.
+  - *PMML Models*: Parses regression coefficients and intercept changes for linear models. For non-linear model formats (e.g. Random Forests, Decision Trees), it falls back to a structural equality diff.
+  - *Text Files*: Uses native `diff -u` to extract precise line additions, removals, and diff summaries. Includes a robust fallback if system tools are sandboxed or missing.
+  - *Scalars/Generic Fallback*: Direct value structural comparison and numeric delta calculations.
+
+### Serialization & Correctness Fixes
+- **Correctness Fix for `"default"`/`"tobj"` Deserialization**: Fixed a major correctness bug in `read_standard_node_value` where scalar nodes serialized with `"default"` or `"tobj"` formats were not being deserialized when queried via standard readers, returning a fallback `VComputedNode` token instead. Standard readers now correctly deserialize value payloads (like `VInt`, `VFloat`) using OCaml's Marshal digestion, enabling precise cross-node value and delta comparisons.
+
+### Nix-Native Orchestration & Rebuild Control
+- **Nix Build Flags Integration**: Added full support for `targets`, `force`, `dry_run`, `max_jobs`, and `cache` parameters in `build_pipeline` and `pipeline_run`.
+- **Derivation Targets (`targets`)**: Map `targets` to `-A <derivations>` in the underlying `nix build` command, allowing specific parts of the pipeline to be built selectively.
+- **Granular Rebuild Control (`force`)**: Map `force` to native `--check` flags. Pass `true` to force-rebuild the entire pipeline, or a string/list of specific node names to force-rebuild only selected steps.
+- **Parallel Compilation (`max_jobs`)**: Mapped the `max_jobs` parameter directly to `--max-jobs <N>`, enabling parallel compilation of sandbox environments and derivations.
+- **Binary Cache Optimization (`cache`)**: Seamless Cachix binary cache integration by dynamically configuring `extra-substituters` and `extra-trusted-public-keys` (prioritizing `rstats-on-nix` as the preferred default cache).
+- **Dry-Run Preview Mode (`dry_run`)**: Implemented a native dry-run mode that parses `nix-build --dry-run` output into a structured T-Lang `DataFrame` (containing columns `node`, `action`, `path`) to inspect build execution plans without mutating local store state.
+
+### Pipeline Propagation & Path Reconciliation
+- **Nix Store Path Alignment**: Added a robust post-build step (`update_pipeline_with_build_paths`) that reconciles internal `ComputedNode` paths with the real store paths generated by Nix.
+- **Dynamic Argument List Conversion**: Used dynamically parsed array parameters to maintain 100% backward compatibility with previous T-Lang CLI and OCaml process invocations.
+
+### `t doctor` Pipeline Dependency Analysis
+- **Static Pipeline Dependency Scanning**: `t doctor` now parses `src/pipeline.t` and statically analyses each node's `command` block to detect runtime packages (`library(...)`, `import ...`, `using ...`) that are referenced but absent from `tproject.toml`. Missing packages are reported as warnings with an actionable suggestion to add them to the relevant `[r-dependencies]`, `[py-dependencies]`, or `[jl-dependencies]` section and run `t update`. All pipeline definitions in the file are scanned, not just the first one.
+- **Scoped Warning**: The missing-pipeline-entrypoint warning (no `src/pipeline.t` found) is only emitted when the project has at least one runtime dependency declared, avoiding noise for pure R or Julia package projects.
+
+### API Parity & Testing
+- **Robust Builtin Validation**: Added comprehensive type-safety guards for all new orchestration parameters to raise highly readable compile-time warnings and TypeErrors instead of silent Nix failures.
+- **High-Coverage Test Harness**: Expanded the unit testing suite in `test_pipeline.ml` to verify dry-run DataFrame output, validation guards, and advanced parameter passthroughs (2271/2271 tests passing).
+- **Ecosystem Sync & Docs**: Updated `docs/pipeline_tutorial.md` and `docs/api-reference.md` to formally document the new parameters, along with comparative command mapping tables.
+
+### Multi-Runtime Interchange & Early Safety
+- **Populate Pipeline Arity Expansion**: Updated `populate_pipeline()` to support all the new Nix orchestration arguments (`targets`, `force`, `dry_run`, `max_jobs`, `cache`) in the exact same manner as `build_pipeline()`.
+- **Early Target & Force Validation**: Integrated compile-time validation of `targets` and `force` node lists in the OCaml pipeline compiler. T-Lang now instantly detects misspelled or nonexistent node targets and raises highly readable `StructuralError` warnings before spawning the Nix interpreter.
+- **Node Name Collision Prevention**: Sorted internal name matching patterns by character length in descending order, avoiding potential substring collisions where short node names (e.g. `model`) would erroneously match long node name store paths (e.g. `model_evaluation`).
+
+### Pipeline Temporal Introspection — `node_diff` improvements
+
+- **Line-by-line string diffs**: When comparing string-typed node outputs, `node_diff` now splits the values on newlines and produces a proper unified diff with context lines — the same colourised format already used for text-file nodes. Calling `detailed_summary` on the result shows added/removed lines highlighted in green and red.
+- **Reliable `NaN` / `NA` handling in DataFrames**: Cells that contain `NaN` or `NA` on both sides are no longer incorrectly reported as changed.
+- **Accurate model change detection**: A model whose coefficients are identical but whose fit statistics (R², AIC, BIC, …) differ is now correctly reported as changed, not identical.
+- **Helpful error on missing key column**: If you pass a `key` that does not exist in one of the DataFrames, `node_diff` now raises a clear error immediately instead of silently producing wrong counts.
+- **`node_diff` requires `ComputedNode` arguments**: `node_diff` now enforces that both arguments are pipeline node references (e.g. `node_diff(p.my_node, p.my_node)`). Passing a plain string or pipeline object raises a descriptive `TypeError`.
+
+### REPL & `explain()` — Unicode display
+
+- **Unicode characters now render correctly**: String values containing non-ASCII characters (accented letters, symbols like `→`, emoji, …) are displayed as-is in the REPL and inside `explain()` tree output, instead of being shown as raw byte sequences such as `\226\134\146`.
+
+## [0.52.1] - 2026-05-22
 
 This release finalizes end-to-end Julia ONNX serialization support, fixes pipeline compiler strategy dictionary parsing issues, strengthens runtime safety by protecting reserved keywords, and completes the migration of pipeline introspection to a strict, node-centric dot-access model.
 
@@ -8009,6 +8206,163 @@ Now that you've mastered the core data manipulation verbs, explore specialized d
 2. **[String Manipulation](string_manipulation.md)** — Explore powerful functions for text processing and regular expressions.
 3. **[Factors](factors.md)** — Understand categorical variables and level management.
 4. **[API Reference](api-reference.md)** — Explore the full set of functions available in T's standard library.
+
+
+# FILE: docs/debugging.md
+
+# Interactive Pipeline Debugging in T-Lang
+
+T-Lang provides a unified, powerful interactive debugger designed to solve the challenges of debugging polyglot pipeline nodes executing in sandboxed environments (like Nix derivations). 
+
+When a pipeline node fails or behaves unexpectedly, you can spin up an interactive subshell (or language REPL) pre-configured with all upstream dependencies bound as environment variables. This allows you to inspect variables, dry-run functions, and step through your code line-by-line using real execution data.
+
+---
+
+## The Challenge
+
+In data pipelines, code blocks in guest runtimes (like Python, R, or Julia) run inside isolated sandboxes. Upstream dependencies are materialized in the read-only `/nix/store` and passed downstream. 
+
+If a python node like `data_cleanup` crashes:
+1. Nix stdout/stderr logs might only show a generic stack trace.
+2. The exact variables and raw files generated by upstream steps are locked in the store.
+3. Writing mock inputs locally is tedious and error-prone.
+
+---
+
+## The Solution: `t debug`
+
+The T-Lang debugger intercepts the targeted node, resolves all of its upstream dependencies, locates their latest materialized `/nix/store` paths, sets up the environment variables, and launches the runtime's interactive REPL directly.
+
+You can trigger the debugger in two ways:
+1. **From the Terminal (CLI)**: Use `t debug <node>`
+2. **From the T REPL (Interactive)**: Use `debug_node(p.node_name)`
+
+### Debugging Dependencies Live in `tproject.toml`
+Debugging a node uses the project environment declared in `tproject.toml`. If a runtime package needed to deserialize an upstream artifact is missing, the debugger will start in that runtime without the package it needs.
+
+Use `t doctor` to spot missing runtime packages and add them to the relevant dependency section in `tproject.toml`:
+
+- `[r-dependencies].packages` for R packages
+- `[py-dependencies].packages` for Python packages
+- `[jl-dependencies].packages` for Julia packages
+
+After updating `tproject.toml`, run `t update` and re-enter `nix develop` so the debug environment is rebuilt.
+
+Do **not** install these packages manually inside the language package manager if you want reproducible debugging. Add them to `tproject.toml` instead.
+
+Common examples:
+
+- If you debug a **Julia** node that reads an ancestor serialized as **CSV**, add `CSV` and `DataFrames` to `[jl-dependencies].packages`.
+- If you debug a **Julia** node that reads an ancestor serialized as **Arrow/Parquet/Feather**, add `Arrow` and `DataFrames` to `[jl-dependencies].packages`.
+- If you debug a **Julia** node that reads JSON inputs, add `JSON` to `[jl-dependencies].packages`.
+- If you debug a **Python** node that reads CSV inputs, add `pandas` to `[py-dependencies].packages`.
+- If you debug a **Python** node that reads Arrow/Parquet/Feather inputs, add `pandas` and `pyarrow` to `[py-dependencies].packages`.
+- If you debug an **R** node that reads JSON inputs, add `jsonlite` to `[r-dependencies].packages`.
+- If you debug an **R** node that reads Arrow/Parquet/Feather inputs, add `arrow` to `[r-dependencies].packages`.
+
+---
+
+## 1. Using the Command Line Interface (CLI)
+
+To debug a node directly from your shell, run:
+
+```bash
+t debug <node_name>
+```
+*By default, this looks for the pipeline defined in `src/pipeline.t` and targets the specified node.*
+
+If your pipeline is defined in a custom script, specify the file path first:
+
+```bash
+t debug src/my_custom_pipeline.t data_cleanup
+```
+
+### What Happens Next?
+T-Lang will evaluate your script up to the requested node, gather all upstream build paths, set up the environment, and drop you into the corresponding REPL. For example, targeting a Python node will output:
+
+```text
+==================================================
+Debugging Node: Y (Runtime: Python)
+==================================================
+Environment variables set for dependencies:
+  - dataset_np = /nix/store/5fcfj6wfh...-pipeline_output/dataset_np
+
+Starting interactive Python REPL...
+Tip: Load upstream dependencies in Python using:
+  import tlang
+  dataset_np = tlang.read_node("dataset_np")
+Press Ctrl+D or exit to return to T REPL.
+==================================================
+>>>
+```
+
+---
+
+## 2. Using the T REPL
+
+If you are already inside an active interactive T-Lang REPL session, you can debug any node in your pipeline using the `debug_node` function:
+
+```t
+# Assume p is your built pipeline
+debug_node(p.data_cleanup)
+```
+
+This starts the same subshell environment. Once you exit the subshell (using `Ctrl+D`, `exit()`, or `q()`), control is cleanly returned back to your T REPL session.
+
+---
+
+## How It Works (Under the Hood)
+
+### Pristine Environments & Custom Node Variables
+To keep the subshell clean and avoid environment pollution, T-Lang **does not** inject Nix store dependency paths directly as environment variables in the spawned subprocess. Instead, it prints them clearly under the `Upstream dependencies` header on startup, along with language-specific companion package loading tips.
+
+However, if you have configured custom node-specific environment variables in your pipeline (via `p_env_vars` / `un_env_vars`), T-Lang programmatically extracts and propagates these variables directly into the debugger subshell process environment.
+
+### Custom Prompts and R Quiet Mode
+The interactive subshells automatically apply customized prompt configurations so you always know you are in a debugger session:
+* **Python**: Launches with a `py> ` prompt.
+* **R**: Launches quietly (suppressing R's verbose default welcome copyright banner) with a `r> ` prompt.
+* **Julia**: Configures an asynchronous REPL prompt hook to display `jl> `.
+
+### Runtime Safety Validation Guard
+T-Lang interactive debugging is supported exclusively for interactive REPL-capable runtimes (**Python**, **R**, and **Julia**). Attempting to debug any other runtime (such as **Quarto** or **Bash**) will be intercepted immediately and will raise a descriptive `ValueError` instead of dropping you into a raw shell or crashing:
+```text
+T> debug_node(p.report)
+Error(ValueError: "[L1:C1] debug_node: only R, Python, and Julia nodes are supported for interactive debugging. Node 'report' has unsupported runtime 'Quarto'.")
+```
+
+---
+
+## Step-by-Step Debugging Walkthrough
+
+Let's say your Python node fails because of a column type mismatch. 
+
+1. **Launch the Debugger**:
+   ```bash
+   t debug process_features
+   ```
+2. **The Python REPL Opens**:
+   The `py> ` prompt is shown, and all upstream dependencies and their paths are listed.
+3. **Inspect Inputs**:
+   ```python
+   py> import tlang
+   py> df = tlang.read_node("raw_df")
+   py> df.dtypes
+   ```
+4. **Locate the Bug**:
+   You realize a column is parsed as a string instead of a float.
+5. **Exit the Debugger**:
+   Press `Ctrl+D`. You are returned back to your T REPL session, ready to fix the source code!
+
+---
+
+## Reference Table: Runtime Subshells
+
+| Node Runtime | Spawned Subshell | Prompt | Loading Command |
+| :--- | :--- | :--- | :--- |
+| **Python** | `python -i` | `py> ` | `import tlang; dep = tlang.read_node(\"dep\")` |
+| **R** | `R --no-save --quiet` | `r> ` | `library(tlang); dep <- read_node(\"dep\")` |
+| **Julia** | `julia -i -e 'include(\"/path/to/.t_debug_startup.jl\")'` | `jl> ` | `using tlang; dep = read_node(\"dep\")` |
 
 
 # FILE: docs/demos.md
@@ -10809,6 +11163,9 @@ df = read_node("my_data")
 # Get only the path to the artifact
 path = read_node("my_model", return_path=true)
 
+# Compare Julia-native artifacts across historical builds
+diff = diff_nodes("my_model", "my_model", which_log_a="20260501", which_log_b="latest")
+
 # Inspect the pipeline DAG (returns a Dict)
 nodes = pipeline_nodes()
 ```
@@ -10824,6 +11181,13 @@ When you run `build_pipeline()`, T-Lang generates a timestamped build log (e.g.,
 3.  Parse the JSON to find the entry for the requested node.
 4.  Resolve the `path` (which might be relative to the project root or an absolute Nix store path).
 5.  Call the appropriate deserializer (`readRDS` for R, `pickle.load` for Python, `Serialization.deserialize` for Julia).
+
+When T's `node_diff()` delegates to these helpers for runtime-native object
+comparisons, it preserves the original native artifact only for nodes using the
+standard `default` or `tobj` serializers. If you use a custom serializer name,
+call the helper package directly and pass the matching deserializer yourself.
+Julia-native diffs invoked from T currently launch a fresh Julia helper process
+for each comparison, so repeated large diffs will include Julia startup cost.
 
 
 # FILE: docs/factors.md
@@ -13243,6 +13607,206 @@ trusted-users = root @wheel your_username
 Now that Nix is installed, you are ready to [Get Started with T](getting-started.md)!
 
 
+# FILE: docs/nix-options.md
+
+# Nix Build Options & Orchestration
+
+> Passing low-level Nix configuration and arguments directly to the T pipeline builders
+
+T integrates declaratively with the Nix ecosystem to compile, build, and run pipelines in completely isolated, reproducible sandboxes. To offer fine-grained control over Nix builds, T provides a unified `nix_options` dictionary argument. 
+
+This argument is accepted by all primary orchestration and execution entry points:
+- `populate_pipeline()`
+- `build_pipeline()`
+- `pipeline_run()`
+- `t_make()`
+
+---
+
+## The `nix_options` Dictionary
+
+Instead of cluttering functions with flat parameters, all low-level Nix build and resource limits are grouped under a single, optional `nix_options` dictionary:
+
+```t
+nix_options = [
+  max_jobs: 4,
+  max_cores: 2,
+  dry_run: true,
+  force: true,
+  targets: ["filtered_data"],
+  cache: "rstats-on-nix",
+  builders: "ssh://builder.example.com",
+  keep_env: ["API_KEY", "ACCESS_TOKEN"],
+  sandbox: "relaxed"
+]
+```
+
+### Supported Parameters
+
+| Parameter | Type | Command Line Equivalence | Description |
+| :--- | :--- | :--- | :--- |
+| `max_jobs` | `Int` | `--max-jobs <N>` | The maximum number of build jobs Nix is allowed to run in parallel. Must be greater than `0`. |
+| `max_cores` | `Int` | `--cores <N>` | The maximum number of CPU cores that Nix will assign per build job. Use `0` to allow Nix to use all available cores. Supported by all orchestration entry points (`build_pipeline`, `populate_pipeline`, `pipeline_run`, `t_make`). |
+| `dry_run` | `Bool` | `--dry-run` | When `true`, Nix plans the build actions instead of executing them. Returns a planned DataFrame (see details below). |
+| `force` | `Bool` | `--check` | When `true`, forces Nix to rebuild the specified nodes even if they already exist in the cache. |
+| `targets` | `String` or `List[String]` | `-A <target>` | Limits execution or building to specific node name(s) and their upstream dependencies. |
+| `cache` | `String` | `--option extra-substituters ...` | Sets a custom Cachix cache repository name (e.g. `"my-cache"` maps to `https://my-cache.cachix.org`). |
+| `builders` | `String` | `--builders <uri>` | Configures Nix remote build machines (e.g. `"ssh://builder.example.com"`). |
+| `keep_env` | `String` or `List[String]` | `--option keep-env ...` | Whitelists specific environment variables to forward into the Nix sandbox. |
+| `sandbox` | `Bool` or `String` | `--option sandbox <strict|relaxed|false>` | Controls Nix sandboxing mode: `relaxed`, `strict` (or `true`), `none` (or `false`). |
+
+---
+
+## 1. Dry Runs and planned DataFrames
+
+Passing `dry_run: true` instructs Nix to query the derivation graph and compute build and binary cache fetch actions without actually running any code.
+
+In T, this is a first-class operation: instead of dumping text to stdout, `build_pipeline()` and `pipeline_run()` in dry-run mode return a structured T **DataFrame** outlining the planned build graph:
+
+```t
+p = pipeline {
+  raw = read_csv("data.csv")
+  filtered = raw |> filter($age > 30)
+}
+
+-- Trigger a planned dry-run
+plan_df = build_pipeline(p, nix_options = [dry_run: true])
+print(plan_df)
+```
+
+The returned DataFrame contains three columns:
+- **`node`**: The name of the pipeline node.
+- **`action`**: The build action determined by Nix (`"build"`, `"fetch"` from cache, or `"noop"`).
+- **`path`**: The absolute `/nix/store/` path where the node's output derivation resides.
+
+This allows you to programmatically inspect build plans, perform capacity planning, or check whether specific nodes will be pulled from a binary cache before initiating a build.
+
+---
+
+## 2. Targeting Specific Nodes
+
+For large pipelines with many expensive nodes, you can run and materialize only a subset of nodes by defining `targets` inside `nix_options`:
+
+```t
+-- Rebuild only the "filtered" node and its upstream dependencies
+build_pipeline(p, nix_options = [
+  targets: ["filtered"],
+  force: true
+])
+```
+
+The pipeline runner parses `targets` (which can be a single String or a List/Vector of Strings), ensures they match valid node identifiers in the DAG, and appends the appropriate `-A` flags during the `nix-build` invocation.
+
+---
+
+## 3. High-level CLI Orchestration via `t_make`
+
+The high-level CLI and REPL builder, `t_make()`, also supports the `nix_options` dictionary, accepting it as either a named parameter or as the second positional argument:
+
+```t
+-- In the REPL: Run the pipeline with parallel execution limits
+t_make(nix_options = [max_jobs: 4, max_cores: 2])
+
+-- Positional signature: t_make(filename, nix_options, verbose, failfast)
+t_make("src/pipeline.t", [max_jobs: 8])
+```
+
+---
+
+## 4. Remote Builders (`builders`)
+
+Offloading computationally intensive pipeline tasks (such as deep learning models or high-dimensional matrix operations) to high-performance remote builders or GPU clusters is fully supported using standard Nix remote builders:
+
+```t
+-- Run the pipeline but offload the build derivations to remote machines
+pipeline_run(p, nix_options = [
+  builders: "ssh://gpu-builder.local x86_64-linux /root/.ssh/id_rsa 16 1 kvm,benchmark - -"
+])
+```
+
+The `builders` parameter accepts a string formatted according to standard Nix remote builders syntax (`ssh://<host> <system-types> <ssh-key-path> <max-jobs> <features>`). Multiple builders can be provided by separating them with a newline character.
+
+---
+
+## 5. Sandboxing Control (`sandbox`)
+
+By default, Nix runs all build jobs inside highly isolated environments. While this guarantees 100% reproducibility, certain legacy tasks or developer workflows may require relaxing sandboxing constraints:
+
+```t
+-- Relax sandboxing to allow local resource access for specific nodes
+build_pipeline(p, nix_options = [
+  sandbox: "relaxed"
+])
+
+-- Fully disable sandboxing (not recommended for production)
+pipeline_run(p, nix_options = [
+  sandbox: false -- maps to sandbox: "none"
+])
+```
+
+Supported values for `sandbox`:
+- `true` or `"strict"`: All build jobs are completely isolated (default).
+- `"relaxed"`: Relaxes sandboxing rules for derivations that request it, allowing paths in the host filesystem to be accessed.
+- `false` or `"none"`: Sandboxing is disabled entirely.
+
+---
+
+## 6. Environment Whitelisting (`keep_env`)
+
+To protect the purity and reproducibility of your builds, Nix purges all host environment variables by default. If your pipeline steps require access to specific host environment variables (such as access tokens, private database connection URIs, or licensing keys), you can pass-through these variables using `keep_env`:
+
+```t
+-- Pass-through specific environment variables into the build sandbox
+t_make(nix_options = [
+  keep_env: ["GITHUB_TOKEN", "DB_CONNECTION_STRING"]
+])
+
+-- Single variable pass-through
+pipeline_run(p, nix_options = [
+  keep_env: "AWS_ACCESS_KEY_ID"
+])
+```
+
+The pipeline engine validates that only allowed variables are whitelisted and safely passes them to the Nix builder, keeping all other host details hidden.
+
+---
+
+## 7. Strong Validation
+
+T enforces strict validation at pipeline construction time. Providing an unrecognized option or an invalid type inside the `nix_options` dictionary will raise a structured `TypeError` or `ValueError`:
+
+```t
+-- ❌ TypeError: t_make: 'max_jobs' in nix_options must be an Int
+t_make(nix_options = [max_jobs: "high"])
+
+-- ❌ TypeError: t_make: unknown option 'threads' in nix_options
+t_make(nix_options = [threads: 4])
+
+-- ❌ ValueError: sandbox: 'invalid_sandbox' is not a valid sandboxing mode
+t_make(nix_options = [sandbox: "invalid_sandbox"])
+```
+
+---
+
+## 8. Low-Level Derivation Projection (`pipeline_to_drv`)
+
+For static analysis, auditing, and deep debugging, you can introspect the raw Nix store derivation `.drv` paths generated for each node without running the actual build tasks:
+
+```t
+-- Get raw Nix store derivation paths for all pipeline nodes
+drvs = pipeline_to_drv(p)
+
+-- Returns a dictionary mapping node names to their store paths:
+-- {
+--   "node_a": "/nix/store/a1b2c3d4...-node_a.drv",
+--   "node_b": "/nix/store/x9y8z7w6...-node_b.drv"
+-- }
+```
+
+By querying the `.drv` path, developers can perform low-level audits, inspect generated Nix environments, or run `nix derivation show` to analyze precise inputs and environment configurations.
+
+
+
 # FILE: docs/package_development.md
 
 # T Package Development Guide
@@ -14165,6 +14729,9 @@ populate_pipeline(p)                -- Prepares _pipeline/ only
 populate_pipeline(p, build = true)  -- Same as build_pipeline(p)
 ```
 
+> [!TIP]
+> For advanced configuration and passing low-level arguments directly to the underlying Nix build system (such as concurrency, targeted nodes, custom binary caches, dry runs, and force rebuilds), see the comprehensive [Nix Build Options & Orchestration](nix-options.html) guide.
+
 ### The `_pipeline/` directory
 
 T maintains a persistent state directory for your pipeline. When you populate or build, T creates:
@@ -14261,6 +14828,113 @@ val_old = read_node(p.result, which_log = "20260221_143022")
 ```
 
 This ensures that even as you update your code and data, you can always recover and compare results from previous runs.
+
+### Temporal Introspection: History and Diffs
+
+To reason about how your pipeline's outputs have evolved across iterative development (like tuning models, updating serializers, or changing data sources), T provides `build_log_history()`, `node_diff()`, and `pipeline_diff()`.
+
+#### Comparing builds
+
+A common workflow is to rebuild the same pipeline after changing a node and then compare the new artifact against an earlier build. `node_diff()` returns a structured `VDiff` envelope with `kind`, `identical`, `summary`, `detail`, and `hunks`, so you can inspect both the high-level counts and the raw changed regions.
+
+```t
+-- Compare the same node across two historical builds
+d = node_diff(p.clean_data, p.clean_data,
+      log_a = "20260510_120000",
+      log_b = "20260515_090000",
+      key = [$customer_id])
+
+d.kind
+d.identical
+d.summary
+d.hunks
+```
+
+Use `pipeline_diff()` when you want to compare pipeline structure rather than artifact contents. It reports added, removed, changed, and rewired nodes, and includes `pipeline_to_frame()` snapshots for both sides.
+
+```t
+struct_diff = pipeline_diff(p_before, p_after)
+struct_diff.added_nodes
+struct_diff.changed_nodes
+struct_diff.rewired_edges
+```
+
+#### Pipeline Build History (`build_log_history`)
+
+`build_log_history(p, n = NA, pattern = NA)` returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
+
+```t
+-- Get full build history for pipeline p
+history = build_log_history(p)
+
+-- Limit history to the last 3 matching builds
+history_limit = build_log_history(p, n = 3)
+
+-- Filter historical builds whose filenames match a regex pattern
+history_filtered = build_log_history(p, pattern = ".*train.*")
+```
+
+The resulting DataFrame is structured with the following columns:
+- `build_id`: 1-indexed rank from most recent to oldest (where `1` is the latest, `2` is the second latest, etc.).
+- `timestamp`: UTC ISO-8601 build timestamp string.
+- `duration`: Total wall-clock duration of the build in seconds.
+- `n_nodes` / `n_failed` / `n_warnings`: Summary metrics of node counts, failures, and warnings in that build.
+- `out_path`: Nix store output root path of the build.
+- `hash`: Content signature hash.
+
+#### Type-Sensitive Node Diffs (`node_diff`)
+
+`node_diff()` compares two node artifacts and chooses a type-specific diff automatically:
+
+1. **DataFrames** return row and schema summaries plus DataFrame-valued `detail` sections for added, removed, and changed rows.
+2. **Models** return coefficient and fit-stat deltas, including a `coef_diff` DataFrame.
+3. **Scalars** return before/after values and a numeric delta when one exists.
+4. **Python-native objects** (for example pickled NumPy ndarrays) are loaded through the bundled `tlang` Python package and compared through stable JSON rendering plus a git-like unified diff.
+5. **Julia-native objects** (for example `Serialization.serialize`d arrays or structs) are loaded through the bundled `tlang` Julia package and compared with DeepDiffs.
+6. **R-native objects** (for example `.rds` artifacts) are loaded through the bundled `tlang` R package and compared with `diffobj`.
+7. **Generic values** fall back to structural string diffs while preserving the original values in `detail`.
+
+Native Python, Julia, and R object diffs are preserved only for artifacts built
+with the standard `default` or `tobj` serializers. If you assign a custom
+serializer name, `node_diff()` uses the normal artifact-loading path instead;
+call the companion helper package directly when you need a custom deserializer
+for a native object. Julia-native comparisons currently start a fresh Julia
+helper process for each diff, so repeated large diffs will include startup cost.
+
+```t
+-- 1. Compare scalar value shifts between latest and second latest builds
+diff_scalar = node_diff(p.a, p.a)
+diff_scalar.summary.changed  -- true/false
+diff_scalar.summary.delta    -- numeric shift
+
+-- 2. Compare DataFrame schema and drift metrics
+diff_df = node_diff(p.my_dataset, p.my_dataset, log_a = 1, log_b = 2)
+diff_df.summary.cols_added
+diff_df.detail.changed
+
+-- 3. Compare models across explicit historical builds or regex-matched logs
+diff_model = node_diff(p.model_node, p.model_node, log_a = ".*test1.*", log_b = ".*test2.*")
+diff_model.detail.coef_diff
+```
+
+#### Interactive REPL Diffs & Colorization
+
+When working interactively inside the REPL, T provides first-class visual formatting for `VDiff` results:
+- **Automatic Summary & Colorized Diff Preview**: If you print or evaluate a non-identical `VDiff` envelope (e.g. `diff_df`), the REPL prints the summary metrics followed by a short, colorized git-like preview of the diff, then points you to the full diff string.
+- **Direct String Colorization**: Accessing `diff_df.detailed_diff` directly prints the raw, colorized git-like diff as a beautifully readable multiline block.
+- **Key Validation**: When using a custom natural key list (e.g., `key = [$customer_id]`), `node_diff` strictly validates that all requested key columns exist in both schemas. If there is a typo or missing column, it returns a clean, native `ValueError` immediately rather than silently keeping only one row per side.
+
+#### Inspecting Diffs in a Text Editor
+
+For very large diffs, printing to the console may be hard to scroll. You can write the unified diff directly to a text file for inspection using a text editor (e.g., VSCode, Vim, or Emacs) using the standard `write_text` builtin:
+
+```t
+-- 1. Compute the DataFrame diff
+diff_df = node_diff(p3.data, p2.data, key = [$id])
+
+-- 2. Write the detailed unified diff string to a file on disk
+write_text("dataframe_changes.diff", diff_df.detailed_diff)
+```
 
 ---
 
@@ -15259,6 +15933,68 @@ This pattern is essential for **polyglot pipelines** where data is passed betwee
 
 ---
 
+## 40. Nix-Native Orchestration & Cachix
+
+To optimize large-scale pipelines and manage remote binary caching, T-Lang includes native Nix orchestration features in `build_pipeline` and `pipeline_run`. These features map directly to native `nix build` mechanics, allowing granular rebuild control, job parallelization, Cachix integration, and dry-runs.
+
+### Orchestration Parameters
+
+The functions `build_pipeline()` and `pipeline_run()` accept an optional `nix_options` dictionary containing the following keys:
+
+| Key | Type | Description | Nix Command Mapping |
+|---|---|---|---|
+| `targets` | String/List/Vector | Specific node(s) or outputs to build (e.g., `targets: ["model_a"]`) | `-A <targets>` |
+| `force` | Bool/String/List/Vector | Rebuild nodes even if they already exist in the Nix store. Pass `true` to force-rebuild all nodes, or a string/list of specific node names. | `--check` (rebuilds target) |
+| `dry_run` | Bool | Preview build actions without executing them. Returns a structured `DataFrame` of planned actions. | `--dry-run` |
+| `max_jobs` | Int | Limit parallel compilation/build jobs. | `--max-jobs N` |
+| `cache` | String | A Cachix binary cache name (e.g., `"rstats-on-nix"`) to pull/push built artifacts. | `--option extra-substituters ...` & `--option extra-trusted-public-keys ...` |
+| `builders` | String | Remote builder specification in SSH syntax. | `--builders ...` |
+| `keep_env` | String/List/Vector | Environment variable names to pass into the Nix sandbox. | `--option keep-env ...` |
+| `sandbox` | Bool/String | Sandboxing policy: `true`/`"strict"`, `"relaxed"`, or `false`/`"none"`. | `--option sandbox ...` |
+
+### Using `dry_run` for Build Previews
+
+If you set `dry_run: true` inside `nix_options`, T-Lang will invoke Nix in dry-run mode and return a structured `DataFrame` detailing the exact actions Nix plans to take (e.g., fetching from binary caches, building derivations):
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Inspect planned build actions without running them
+actions = build_pipeline(p, nix_options = [dry_run: true])
+print(actions)
+```
+
+The resulting `DataFrame` contains the columns:
+- `node`: The name of the pipeline node.
+- `action`: The action planned (e.g., `"build"`, `"substitute"`, or `"noop"`).
+- `path`: The absolute store path of the Nix derivation or artifact.
+
+### Advanced Nix Orchestration Example
+
+Below is an example showing how to trigger a parallel, cache-backed build targeting a specific node:
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+  c = b * 2
+}
+
+-- Rebuild only node 'c', with parallel execution, using a Cachix binary cache
+build_pipeline(p,
+               nix_options = [
+                 targets: ["c"],
+                 max_jobs: 4,
+                 cache: "rstats-on-nix",
+                 force: ["c"]
+               ])
+```
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:
@@ -15975,7 +16711,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.52.1"
+min_version = "0.52.2"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -19728,6 +20464,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [node](node.html) | Configure a Pipeline Node |
 | [node_lens](node_lens.html) | Pipeline Node Lens |
 | [node_meta_lens](node_meta_lens.html) | Pipeline Metadata Lens |
+| [node_diff](node_diff.html) | Compare Node Outputs Across Builds |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
@@ -19755,6 +20492,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [pipeline_cycles](pipeline_cycles.html) | Detect Pipeline Cycles |
 | [pipeline_deps](pipeline_deps.html) | List Node Dependencies |
 | [pipeline_depth](pipeline_depth.html) | Maximum Topological Depth |
+| [pipeline_diff](pipeline_diff.html) | Compare Two Pipeline Structures |
 | [pipeline_dot](pipeline_dot.html) | Export Pipeline as DOT Graph |
 | [pipeline_edges](pipeline_edges.html) | Pipeline Dependency Edges |
 | [pipeline_leaves](pipeline_leaves.html) | Pipeline Leaf Nodes |
@@ -21466,6 +22204,112 @@ n = nobs(model)
 
 
 
+# FILE: docs/reference/node_diff.md
+
+# node_diff
+
+Compare Node Outputs Across Builds
+
+Compares the artifact produced by a node across two historical builds of the
+same pipeline, or compares two different nodes. Returns a structured `VDiff`
+dictionary with a consistent envelope.
+
+Dispatches to a type-appropriate comparison:
+- **DataFrame** → row-/column-level diff with optional key-based alignment
+- **Model (PMML)** → coefficient deltas and fit-stat comparison
+- **Scalar** → before/after with numeric delta
+- **Python-native objects** → artifact deserialization through the bundled `tlang` Python package, then stable JSON rendering plus git-like unified diffs
+- **Julia-native objects** → artifact deserialization through the bundled `tlang` Julia package, then DeepDiffs-based structural comparison
+- **R-native objects** → artifact deserialization through the bundled `tlang` R package, then diffobj-based structural comparison
+- **Generic** → structural comparison over string representations
+
+Runtime-native object diffs are preserved only for artifacts using the standard
+`default` or `tobj` serializers. If you assign a custom serializer name (for
+example `"rds"` or `"pkl"`), `node_diff()` falls back to the normal artifact
+loading path; for those cases, call the companion R/Python/Julia helper
+packages directly with an explicit deserializer.
+
+For Julia-native artifacts, `node_diff()` launches a fresh Julia helper process
+for each comparison. This keeps the integration simple but adds startup cost for
+repeated or very large diffs.
+
+## Signature
+
+```t
+node_diff(
+  node_a    :: ComputedNode,
+  node_b    :: ComputedNode,
+  log_a     :: String = "latest",
+  log_b     :: String = "latest",
+  key       :: List[Symbol] = [],
+  context   :: Int = 3
+) :: VDiff
+```
+
+## Parameters
+
+- **node_a** (`ComputedNode`): The "before" node, e.g. `p.clean_data`.
+- **node_b** (`ComputedNode`): The "after" node, e.g. `p.clean_data`.
+- **log_a** (`String`): Build log selector for `node_a`. Accepts `"latest"`, a timestamp prefix (`"20260510_120000"`), or a regex matched against filenames in `_pipeline/`. Default: `"latest"`.
+- **log_b** (`String`): Build log selector for `node_b`. Same format as `log_a`. Default: `"latest"`.
+- **key** (`List[Symbol]`): For DataFrames: the natural key column(s) used to align rows before diffing. If empty, rows are aligned by position. Default: `[]`.
+- **context** (`Int`): Number of unchanged rows shown above and below each changed hunk. Default: `3`.
+
+
+## Returns
+
+`Dict`: A `VDiff` envelope dictionary with the following fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | `String` | `"dataframe_diff"`, `"model_diff"`, `"scalar_diff"`, `"python_object_diff"`, `"julia_object_diff"`, `"r_object_diff"`, or `"generic_diff"` |
+| `node_a` | `String` | Name of the first node |
+| `node_b` | `String` | Name of the second node |
+| `log_a` | `String` | Resolved log filename for node_a |
+| `log_b` | `String` | Resolved log filename for node_b |
+| `value_type` | `String` | T type name of the diffed values |
+| `identical` | `Bool` | `true` if no differences were found |
+| `summary` | `Dict` | Type-specific summary counts |
+| `detail` | `Dict` | Type-specific detail |
+| `hunks` | `List[Dict]` | Diff hunks or rendered diff regions when available |
+
+## Examples
+
+```t
+-- Compare the same node across two historical builds
+d = node_diff(p.clean_data, p.clean_data,
+      log_a = "20260510_120000",
+      log_b = "20260515_090000")
+
+-- Compare two different nodes in the current build
+d = node_diff(p.clean_data, p.validated_data)
+
+-- Same node, latest vs a named earlier run, keyed on an id column
+d = node_diff(p.customers, p.customers,
+      log_a = "20260501",
+      log_b = "latest",
+      key = [$customer_id])
+
+-- Model comparison
+d = node_diff(p.model_v1, p.model_v2)
+
+-- Python-native artifact comparison (for example NumPy ndarrays)
+d = node_diff(p.weights, p.weights, log_a = 1, log_b = 2)
+
+-- Julia-native artifact comparison (for example serialized structs or arrays)
+d = node_diff(p.julia_model, p.julia_model, log_a = 1, log_b = 2)
+
+-- R-native artifact comparison (for example saved model objects)
+d = node_diff(p.r_model, p.r_model, log_a = 1, log_b = 2)
+```
+
+## See Also
+
+- `build_log` — retrieve build log for a pipeline
+- `build_log_history` — list historical builds
+- `explain` — structural explanation of any value, including VDiff
+
+
 # FILE: docs/reference/node_lens.md
 
 # node_lens
@@ -22164,6 +23008,66 @@ pipeline_depth(p)
 
 [pipeline_to_frame](pipeline_to_frame.html), [pipeline_roots](pipeline_roots.html)
 
+
+
+# FILE: docs/reference/pipeline_diff.md
+
+# pipeline_diff
+
+Compare Two Pipeline Structures
+
+Compares two `Pipeline` values and returns a structured diff describing
+which nodes were added, removed, changed, or had their edges rewired.
+
+Unlike `node_diff`, which compares node *artifacts* (the values they
+produce), `pipeline_diff` compares pipeline *structure* — the nodes,
+their metadata, and their dependency edges.
+
+## Signature
+
+```t
+pipeline_diff(p_a :: Pipeline, p_b :: Pipeline) :: Dict
+```
+
+## Parameters
+
+- **p_a** (`Pipeline`): The "before" pipeline.
+- **p_b** (`Pipeline`): The "after" pipeline.
+
+## Returns
+
+`Dict`: A pipeline diff dictionary with the following fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | `String` | Always `"pipeline_diff"` |
+| `identical` | `Bool` | `true` if no structural differences were found |
+| `added_nodes` | `List[String]` | Node names present in `p_b` but not `p_a` |
+| `removed_nodes` | `List[String]` | Node names present in `p_a` but not `p_b` |
+| `changed_nodes` | `List[String]` | Shared nodes whose metadata changed |
+| `rewired_edges` | `List[Dict]` | Edges that changed between the two pipelines |
+| `frame_a` | `DataFrame` | `pipeline_to_frame(p_a)` |
+| `frame_b` | `DataFrame` | `pipeline_to_frame(p_b)` |
+
+## Examples
+
+```t
+-- Compare two versions of a pipeline
+d = pipeline_diff(p_v1, p_v2)
+
+-- Check if anything changed
+if (d.identical) {
+  print("Pipelines are identical")
+} else {
+  print("Added nodes: " ++ to_string(d.added_nodes))
+  print("Removed nodes: " ++ to_string(d.removed_nodes))
+}
+```
+
+## See Also
+
+- `node_diff` — compare node artifacts across builds
+- `pipeline_to_frame` — convert pipeline metadata to a DataFrame
 
 
 # FILE: docs/reference/pipeline_dot.md
@@ -25040,15 +25944,48 @@ t_doc("generate")
 
 # t_make
 
-Build Pipeline Internally
+Build and Run a Pipeline File
 
-Builds the `src/pipeline.t` pipeline entrypoint.
+Reads, parses, evaluates, and builds a T pipeline script path. This is a high-level orchestrator often used from the interactive T REPL to trigger full builds.
+
+## Signatures
+
+* **Named Signature**:
+  ```t
+  t_make(filename = "src/pipeline.t", nix_options = [...], verbose = 1, failfast = false)
+  ```
+* **Positional Signature**:
+  ```t
+  t_make(filename, nix_options, verbose, failfast)
+  ```
 
 ## Parameters
 
-- **filename** (`String`): (Optional) The pipeline build script path. Must be `src/pipeline.t`.
+* **filename** (`String`): (Optional) The pipeline build script path. Must be `"src/pipeline.t"`. Defaults to `"src/pipeline.t"`.
+* **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
+  - `max_jobs` (`Int`): The maximum parallel build jobs. Maps to `--max-jobs`.
+  - `max_cores` (`Int`): The maximum number of cores per job. Maps to `--cores`.
+  - `cache` (`String`): Cachix cache name to use as a binary substituter.
+  - `targets` (`String`|`List[String]`): Specific node names to build. Maps to `-A`.
+  - `force` (`Bool`): Force rebuilds even if cached. Maps to `--check`.
+  - `dry_run` (`Bool`): Plan and show what would be built without executing. Maps to `--dry-run`.
+  - `builders` (`String`): Nix remote builders configuration.
+  - `keep_env` (`String`|`List[String]`): Environment variables to pass through to the sandbox.
+  - `sandbox` (`Bool`|`String`): Nix isolation sandbox policy (`"relaxed"`, `"strict"`, `"none"`).
+* **verbose** (`Int`): (Optional) The Nix build verbosity level. `0` is quiet, values `> 0` enable build output and failure diagnostics.
+* **failfast** (`Bool`): (Optional) If `true`, stops immediately on evaluation/build errors. Defaults to `false`.
 
+## Examples
 
+Using named parameters:
+```t
+t_make(nix_options = [max_jobs: 4, dry_run: true])
+```
+
+Using the positional signature:
+```t
+t_make("src/pipeline.t", [max_jobs: 8], 2, true)
+```
 
 
 # FILE: docs/reference/to_array.md
@@ -26380,7 +27317,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.52.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.52.2";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -26501,7 +27438,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.52.1",
+    t_version: "0.52.2",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -26544,7 +27481,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.52.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.52.2";
   };
   
   outputs = { self, nixpkgs, tlang }: {

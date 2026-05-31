@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - debugging</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="interactive-pipeline-debugging-in-t-lang">Interactive Pipeline
+Debugging in T-Lang</h1>
+<p>T-Lang provides a unified, powerful interactive debugger designed to
+solve the challenges of debugging polyglot pipeline nodes executing in
+sandboxed environments (like Nix derivations).</p>
+<p>When a pipeline node fails or behaves unexpectedly, you can spin up
+an interactive subshell (or language REPL) pre-configured with all
+upstream dependencies bound as environment variables. This allows you to
+inspect variables, dry-run functions, and step through your code
+line-by-line using real execution data.</p>
+<hr />
+<h2 id="the-challenge">The Challenge</h2>
+<p>In data pipelines, code blocks in guest runtimes (like Python, R, or
+Julia) run inside isolated sandboxes. Upstream dependencies are
+materialized in the read-only <code>/nix/store</code> and passed
+downstream.</p>
+<p>If a python node like <code>data_cleanup</code> crashes: 1. Nix
+stdout/stderr logs might only show a generic stack trace. 2. The exact
+variables and raw files generated by upstream steps are locked in the
+store. 3. Writing mock inputs locally is tedious and error-prone.</p>
+<hr />
+<h2 id="the-solution-t-debug">The Solution: <code>t debug</code></h2>
+<p>The T-Lang debugger intercepts the targeted node, resolves all of its
+upstream dependencies, locates their latest materialized
+<code>/nix/store</code> paths, sets up the environment variables, and
+launches the runtime’s interactive REPL directly.</p>
+<p>You can trigger the debugger in two ways: 1. <strong>From the
+Terminal (CLI)</strong>: Use <code>t debug &lt;node&gt;</code> 2.
+<strong>From the T REPL (Interactive)</strong>: Use
+<code>debug_node(p.node_name)</code></p>
+<h3 id="debugging-dependencies-live-in-tproject.toml">Debugging
+Dependencies Live in <code>tproject.toml</code></h3>
+<p>Debugging a node uses the project environment declared in
+<code>tproject.toml</code>. If a runtime package needed to deserialize
+an upstream artifact is missing, the debugger will start in that runtime
+without the package it needs.</p>
+<p>Use <code>t doctor</code> to spot missing runtime packages and add
+them to the relevant dependency section in
+<code>tproject.toml</code>:</p>
+<ul>
+<li><code>[r-dependencies].packages</code> for R packages</li>
+<li><code>[py-dependencies].packages</code> for Python packages</li>
+<li><code>[jl-dependencies].packages</code> for Julia packages</li>
+</ul>
+<p>After updating <code>tproject.toml</code>, run <code>t update</code>
+and re-enter <code>nix develop</code> so the debug environment is
+rebuilt.</p>
+<p>Do <strong>not</strong> install these packages manually inside the
+language package manager if you want reproducible debugging. Add them to
+<code>tproject.toml</code> instead.</p>
+<p>Common examples:</p>
+<ul>
+<li>If you debug a <strong>Julia</strong> node that reads an ancestor
+serialized as <strong>CSV</strong>, add <code>CSV</code> and
+<code>DataFrames</code> to <code>[jl-dependencies].packages</code>.</li>
+<li>If you debug a <strong>Julia</strong> node that reads an ancestor
+serialized as <strong>Arrow/Parquet/Feather</strong>, add
+<code>Arrow</code> and <code>DataFrames</code> to
+<code>[jl-dependencies].packages</code>.</li>
+<li>If you debug a <strong>Julia</strong> node that reads JSON inputs,
+add <code>JSON</code> to <code>[jl-dependencies].packages</code>.</li>
+<li>If you debug a <strong>Python</strong> node that reads CSV inputs,
+add <code>pandas</code> to <code>[py-dependencies].packages</code>.</li>
+<li>If you debug a <strong>Python</strong> node that reads
+Arrow/Parquet/Feather inputs, add <code>pandas</code> and
+<code>pyarrow</code> to <code>[py-dependencies].packages</code>.</li>
+<li>If you debug an <strong>R</strong> node that reads JSON inputs, add
+<code>jsonlite</code> to <code>[r-dependencies].packages</code>.</li>
+<li>If you debug an <strong>R</strong> node that reads
+Arrow/Parquet/Feather inputs, add <code>arrow</code> to
+<code>[r-dependencies].packages</code>.</li>
+</ul>
+<hr />
+<h2 id="using-the-command-line-interface-cli">1. Using the Command Line
+Interface (CLI)</h2>
+<p>To debug a node directly from your shell, run:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> debug <span class="op">&lt;</span>node_name<span class="op">&gt;</span></span></code></pre></div>
+<p><em>By default, this looks for the pipeline defined in
+<code>src/pipeline.t</code> and targets the specified node.</em></p>
+<p>If your pipeline is defined in a custom script, specify the file path
+first:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> debug src/my_custom_pipeline.t data_cleanup</span></code></pre></div>
+<h3 id="what-happens-next">What Happens Next?</h3>
+<p>T-Lang will evaluate your script up to the requested node, gather all
+upstream build paths, set up the environment, and drop you into the
+corresponding REPL. For example, targeting a Python node will
+output:</p>
+<pre class="text"><code>==================================================
+Debugging Node: Y (Runtime: Python)
+==================================================
+Environment variables set for dependencies:
+  - dataset_np = /nix/store/5fcfj6wfh...-pipeline_output/dataset_np
+
+Starting interactive Python REPL...
+Tip: Load upstream dependencies in Python using:
+  import tlang
+  dataset_np = tlang.read_node(&quot;dataset_np&quot;)
+Press Ctrl+D or exit to return to T REPL.
+==================================================
+&gt;&gt;&gt;</code></pre>
+<hr />
+<h2 id="using-the-t-repl">2. Using the T REPL</h2>
+<p>If you are already inside an active interactive T-Lang REPL session,
+you can debug any node in your pipeline using the
+<code>debug_node</code> function:</p>
+<pre class="t"><code># Assume p is your built pipeline
+debug_node(p.data_cleanup)</code></pre>
+<p>This starts the same subshell environment. Once you exit the subshell
+(using <code>Ctrl+D</code>, <code>exit()</code>, or <code>q()</code>),
+control is cleanly returned back to your T REPL session.</p>
+<hr />
+<h2 id="how-it-works-under-the-hood">How It Works (Under the Hood)</h2>
+<h3 id="pristine-environments-custom-node-variables">Pristine
+Environments &amp; Custom Node Variables</h3>
+<p>To keep the subshell clean and avoid environment pollution, T-Lang
+<strong>does not</strong> inject Nix store dependency paths directly as
+environment variables in the spawned subprocess. Instead, it prints them
+clearly under the <code>Upstream dependencies</code> header on startup,
+along with language-specific companion package loading tips.</p>
+<p>However, if you have configured custom node-specific environment
+variables in your pipeline (via <code>p_env_vars</code> /
+<code>un_env_vars</code>), T-Lang programmatically extracts and
+propagates these variables directly into the debugger subshell process
+environment.</p>
+<h3 id="custom-prompts-and-r-quiet-mode">Custom Prompts and R Quiet
+Mode</h3>
+<p>The interactive subshells automatically apply customized prompt
+configurations so you always know you are in a debugger session: *
+<strong>Python</strong>: Launches with a <code>py&gt;</code> prompt. *
+<strong>R</strong>: Launches quietly (suppressing R’s verbose default
+welcome copyright banner) with a <code>r&gt;</code> prompt. *
+<strong>Julia</strong>: Configures an asynchronous REPL prompt hook to
+display <code>jl&gt;</code>.</p>
+<h3 id="runtime-safety-validation-guard">Runtime Safety Validation
+Guard</h3>
+<p>T-Lang interactive debugging is supported exclusively for interactive
+REPL-capable runtimes (<strong>Python</strong>, <strong>R</strong>, and
+<strong>Julia</strong>). Attempting to debug any other runtime (such as
+<strong>Quarto</strong> or <strong>Bash</strong>) will be intercepted
+immediately and will raise a descriptive <code>ValueError</code> instead
+of dropping you into a raw shell or crashing:</p>
+<pre class="text"><code>T&gt; debug_node(p.report)
+Error(ValueError: &quot;[L1:C1] debug_node: only R, Python, and Julia nodes are supported for interactive debugging. Node &#39;report&#39; has unsupported runtime &#39;Quarto&#39;.&quot;)</code></pre>
+<hr />
+<h2 id="step-by-step-debugging-walkthrough">Step-by-Step Debugging
+Walkthrough</h2>
+<p>Let’s say your Python node fails because of a column type
+mismatch.</p>
+<ol type="1">
+<li><p><strong>Launch the Debugger</strong>:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> debug process_features</span></code></pre></div></li>
+<li><p><strong>The Python REPL Opens</strong>: The <code>py&gt;</code>
+prompt is shown, and all upstream dependencies and their paths are
+listed.</p></li>
+<li><p><strong>Inspect Inputs</strong>:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>py<span class="op">&gt;</span> <span class="im">import</span> tlang</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>py<span class="op">&gt;</span> df <span class="op">=</span> tlang.read_node(<span class="st">&quot;raw_df&quot;</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>py<span class="op">&gt;</span> df.dtypes</span></code></pre></div></li>
+<li><p><strong>Locate the Bug</strong>: You realize a column is parsed
+as a string instead of a float.</p></li>
+<li><p><strong>Exit the Debugger</strong>: Press <code>Ctrl+D</code>.
+You are returned back to your T REPL session, ready to fix the source
+code!</p></li>
+</ol>
+<hr />
+<h2 id="reference-table-runtime-subshells">Reference Table: Runtime
+Subshells</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Node Runtime</th>
+<th style="text-align: left;">Spawned Subshell</th>
+<th style="text-align: left;">Prompt</th>
+<th style="text-align: left;">Loading Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Python</strong></td>
+<td style="text-align: left;"><code>python -i</code></td>
+<td style="text-align: left;"><code>py&gt;</code></td>
+<td
+style="text-align: left;"><code>import tlang; dep = tlang.read_node(\"dep\")</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>R</strong></td>
+<td style="text-align: left;"><code>R --no-save --quiet</code></td>
+<td style="text-align: left;"><code>r&gt;</code></td>
+<td
+style="text-align: left;"><code>library(tlang); dep &lt;- read_node(\"dep\")</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Julia</strong></td>
+<td
+style="text-align: left;"><code>julia -i -e 'include(\"/path/to/.t_debug_startup.jl\")'</code></td>
+<td style="text-align: left;"><code>jl&gt;</code></td>
+<td
+style="text-align: left;"><code>using tlang; dep = read_node(\"dep\")</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

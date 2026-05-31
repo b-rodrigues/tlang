@@ -2,13 +2,13 @@
 
 [![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.52.1%20%22Kam%C3%A9ham%C3%A9ha%22-blue.svg)](https://tstats-project.org/changelog.html)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.52.2%20%22Kam%C3%A9ham%C3%A9ha%22-blue.svg)](https://tstats-project.org/changelog.html)
 [![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
 [![OCaml](https://img.shields.io/badge/OCaml-5.x-EC6813.svg?logo=ocaml&logoColor=white)](https://ocaml.org)
 
-**T** is an experimental, reproducibility-first DSL for polyglot data science. It provides a functional, immutable language for constructing composable micropipelines—first-class, introspectable computation graphs that coordinate R, Python, and Shell execution within a unified system. Pipelines in T are not configuration artifacts but executable program structures with explicit dataflow, typed nodes, and content-addressed outputs.
+**T** is an experimental, reproducibility-by-design DSL for polyglot data science. It provides a functional, immutable language for constructing composable micropipelines—first-class, introspectable computation graphs that coordinate R, Python, and Shell execution within a unified system. Pipelines in T are not configuration artifacts but executable program structures with explicit dataflow, typed nodes, and content-addressed outputs.
 
 Built on Nix, T integrates declarative environment management and deterministic builds at the language level, enabling reproducible execution across machines without external orchestration layers. The result is a system where workflow structure, dependency resolution, and provenance tracking are intrinsic properties of the language rather than concerns delegated to external tools.
 
@@ -195,7 +195,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 
 ## Status & Missing Features
 
-**Alpha 0.52.1 "Kaméhaméha"** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
+**Alpha 0.52.2 "Kaméhaméha"** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
 
 - **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`, and more — heavily inspired by `dplyr`, `tidyr`, and `forcats`).
 - **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc. — inspired by `lubridate`).

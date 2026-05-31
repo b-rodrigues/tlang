@@ -180,6 +180,80 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|p = pipeline { a = 1 }; pipeline_node(p, "b")|}
     {|Error(KeyError: "Node `b` not found in Pipeline.")|};
 
+  let (v, _) = eval_string_env "p_drv = pipeline { a = 1 }; pipeline_to_drv(p_drv)" env_p3 in
+  let result = Ast.Utils.value_to_string v in
+  if Test_helpers.contains result "a" && Test_helpers.contains result ".drv" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline_to_drv() returns dictionary of drv paths\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pipeline_to_drv() returns dictionary of drv paths\n    Got: %s\n" result
+  end;
+
+  test "pipeline_to_drv on non-pipeline"
+    "pipeline_to_drv(42)"
+    {|Error(TypeError: "Function `pipeline_to_drv` expects a Pipeline as argument.")|};
+
+  let (v_store, _) = eval_string_env "p_store = pipeline { a = 1 }; pipeline_to_store(p_store)" env_p3 in
+  let result_store = Ast.Utils.value_to_string v_store in
+  if Test_helpers.contains result_store "a" && Test_helpers.contains result_store "/nix/store/" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline_to_store() returns dictionary of store paths\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pipeline_to_store() returns dictionary of store paths\n    Got: %s\n" result_store
+  end;
+
+  test "pipeline_to_store on non-pipeline"
+    "pipeline_to_store(42)"
+    {|Error(TypeError: "Function `pipeline_to_store` expects a Pipeline as argument.")|};
+
+  test "set_nix_defaults successful dict"
+    "set_nix_defaults(nix_options = [ max_jobs: 4 ])"
+    {|"Nix defaults updated"|};
+
+  test "set_nix_defaults on non-dict"
+    "set_nix_defaults(nix_options = 42)"
+    {|Error(TypeError: "Function `set_nix_defaults` expects a Dictionary of options.")|};
+
+  test "set_nix_defaults invalid option"
+    "set_nix_defaults(nix_options = [ unknown_opt: 1 ])"
+    {|Error(TypeError: "set_nix_defaults: unknown option 'unknown_opt' in nix_options")|};
+
+  let (v_override, _) =
+    eval_string_env "set_nix_defaults(nix_options = [ dry_run: true ]); p_over = pipeline { a = 1 }; res = populate_pipeline(p_over, build=false, nix_options=[ dry_run: false ]); res" env_p3 in
+  let result_override = Ast.Utils.value_to_string v_override in
+  if Test_helpers.contains result_override "Pipeline populated in" then begin
+    incr pass_count; Printf.printf "  ✓ dry_run call-site false overrides global dry_run true default\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ dry_run call-site false overrides global dry_run true default\n    Got: %s\n" result_override
+  end;
+  Builder_utils.global_nix_defaults := Builder_utils.default_nix_opts;
+
+  let (v_cache, _) = eval_string_env "p_cache = pipeline { a = 1 }; pipeline_cache_status(p_cache)" env_p3 in
+  let result_cache = Ast.Utils.value_to_string v_cache in
+  if Test_helpers.contains result_cache "node" && Test_helpers.contains result_cache "cached" && Test_helpers.contains result_cache "store_path" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline_cache_status() returns DataFrame with correct columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pipeline_cache_status() returns DataFrame with correct columns\n    Got: %s\n" result_cache
+  end;
+
+  test "pipeline_cache_status on non-pipeline"
+    "pipeline_cache_status(42)"
+    {|Error(TypeError: "Function `pipeline_cache_status` expects a Pipeline as argument.")|};
+
+  let (v_gc, _) = eval_string_env "p_gc = pipeline { a = 1 }; pipeline_gc(p_gc, dry_run=true)" env_p3 in
+  let result_gc = Ast.Utils.value_to_string v_gc in
+  if Test_helpers.contains result_gc "node" && Test_helpers.contains result_gc "store_path" && Test_helpers.contains result_gc "deleted" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline_gc() returns DataFrame with correct columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pipeline_gc() returns DataFrame with correct columns\n    Got: %s\n" result_gc
+  end;
+
+  test "pipeline_gc on non-pipeline"
+    "pipeline_gc(42)"
+    {|Error(TypeError: "Function `pipeline_gc` expects a Pipeline.")|};
+
+  test "pipeline_gc invalid dry_run type"
+    "p_gc_invalid = pipeline { a = 1 }; pipeline_gc(p_gc_invalid, dry_run=42)"
+    {|Error(TypeError: "Function `pipeline_gc` expects `dry_run` to be a Bool.")|};
+
   Printf.printf "Phase 3 — Static Interrogations (Roots/Leaves/Cycles):\n";
   test "pipeline_roots"
     "p = pipeline { a = 1; b = a + 1; c = 10 }; pipeline_roots(p)"
@@ -283,6 +357,139 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   test "t_make rejects non-pipeline entry filenames"
     "error_code(t_make(filename=\"script.t\")) == \"ValueError\""
     "true";
+
+  (* nix_options validation and parsing tests *)
+  test "populate_pipeline rejects non-dict nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, nix_options=\"not_a_dict\")) == \"TypeError\""
+    "true";
+
+  test "populate_pipeline rejects unknown option inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, nix_options=[unknown_opt: true])) == \"TypeError\""
+    "true";
+
+  test "populate_pipeline rejects non-positive max_jobs inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, nix_options=[max_jobs: -1])) == \"TypeError\""
+    "true";
+
+  test "populate_pipeline rejects non-string builders inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, nix_options=[builders: 123])) == \"TypeError\""
+    "true";
+  
+  test "populate_pipeline rejects invalid keep_env inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, nix_options=[keep_env: 123])) == \"TypeError\""
+    "true";
+
+  test "populate_pipeline rejects non-string elements in keep_env list"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, nix_options=[keep_env: [\"OK\", 123]])) == \"TypeError\""
+    "true";
+
+  test "populate_pipeline rejects invalid sandbox string inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, nix_options=[sandbox: \"invalid_sandbox\"])) == \"ValueError\""
+    "true";
+
+  test "populate_pipeline accepts valid nix_options dictionary with builders, keep_env, and sandbox"
+    "p = pipeline {\n  a = 1\n}\nres = populate_pipeline(p, build=false, nix_options=[max_jobs: 4, force: true, dry_run: true, cache: \"mycache\", builders: \"ssh://builder.local\", keep_env: [\"API_KEY\", \"TOKEN\"], sandbox: \"relaxed\"])\nstarts_with(res, \"Pipeline populated in\")"
+    "true";
+
+  test "build_pipeline rejects non-dict nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, nix_options=\"not_a_dict\")) == \"TypeError\""
+    "true";
+
+  test "build_pipeline rejects non-string builders inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, nix_options=[builders: 123])) == \"TypeError\""
+    "true";
+
+  test "build_pipeline rejects invalid keep_env inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, nix_options=[keep_env: 123])) == \"TypeError\""
+    "true";
+
+  test "build_pipeline rejects invalid sandbox inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, nix_options=[sandbox: \"invalid_sandbox\"])) == \"ValueError\""
+    "true";
+
+  test "build_pipeline rejects unknown option inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, nix_options=[unknown_opt: true])) == \"TypeError\""
+    "true";
+
+  test "pipeline_run rejects non-dict nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(pipeline_run(p, nix_options=\"not_a_dict\")) == \"TypeError\""
+    "true";
+
+  test "pipeline_run rejects non-string builders inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(pipeline_run(p, nix_options=[builders: 123])) == \"TypeError\""
+    "true";
+
+  test "pipeline_run rejects invalid keep_env inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(pipeline_run(p, nix_options=[keep_env: 123])) == \"TypeError\""
+    "true";
+
+  test "pipeline_run rejects invalid sandbox inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(pipeline_run(p, nix_options=[sandbox: \"invalid_sandbox\"])) == \"ValueError\""
+    "true";
+
+  test "pipeline_run rejects unknown option inside nix_options"
+    "p = pipeline {\n  a = 1\n}\nerror_code(pipeline_run(p, nix_options=[unknown_opt: true])) == \"TypeError\""
+    "true";
+
+  let t_make_nix_options_builders_invalid =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let (v, _) = eval_string_env "t_make(nix_options=[builders: 123])" env in
+        let s = Ast.Utils.value_to_string v in
+        Test_helpers.contains s "TypeError")
+  in
+  if t_make_nix_options_builders_invalid then begin
+    incr pass_count; Printf.printf "  ✓ t_make rejects non-string builders inside nix_options\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make rejects non-string builders inside nix_options\n"
+  end;
+
+  let t_make_nix_options_sandbox_invalid =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let (v, _) = eval_string_env "t_make(nix_options=[sandbox: \"invalid_sandbox\"]) " env in
+        let s = Ast.Utils.value_to_string v in
+        Test_helpers.contains s "TypeError" || Test_helpers.contains s "sandbox")
+  in
+  if t_make_nix_options_sandbox_invalid then begin
+    incr pass_count; Printf.printf "  ✓ t_make rejects invalid sandbox inside nix_options\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make rejects invalid sandbox inside nix_options\n"
+  end;
+
+  let t_make_nix_options_ok =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let (v, _) = eval_string_env "t_make(nix_options=[max_jobs: 2, keep_env: [\"API_KEY\"], sandbox: false])" env in
+        Ast.Utils.value_to_string v = "NA")
+  in
+  if t_make_nix_options_ok then begin
+    incr pass_count; Printf.printf "  ✓ t_make accepts nix_options dictionary\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make accepts nix_options dictionary\n"
+  end;
+
+  let t_make_nix_options_invalid =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let (v, _) = eval_string_env "t_make(nix_options=\"invalid\")" env in
+        let s = Ast.Utils.value_to_string v in
+        Test_helpers.contains s "TypeError")
+  in
+  if t_make_nix_options_invalid then begin
+    incr pass_count; Printf.printf "  ✓ t_make rejects non-dict nix_options\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make rejects non-dict nix_options\n"
+  end;
+
   let t_make_requires_pipeline_action =
     with_temp_pipeline_project
       "p = pipeline {\n  a = 1\n}\n"
@@ -1680,5 +1887,247 @@ p.t_step|}
     end
   in
   test_explain_collect_exceptions ();
+
+  let with_repo_temp_pipeline_project script f =
+    let repo_root = Sys.getcwd () in
+    let rec make_temp_dir attempts =
+      if attempts <= 0 then
+        failwith "failed to create temporary pipeline test directory"
+      else
+        let candidate =
+          Filename.concat
+            repo_root
+            (Printf.sprintf ".tlang-pipeline-%d-%06d" (Unix.getpid ()) (Random.int 1_000_000))
+        in
+        try
+          Unix.mkdir candidate 0o755;
+          candidate
+        with Unix.Unix_error (Unix.EEXIST, _, _) ->
+          make_temp_dir (attempts - 1)
+    in
+    let dir = make_temp_dir 8 in
+    let src_dir = Filename.concat dir "src" in
+    let pipeline_path = Filename.concat src_dir "pipeline.t" in
+    let old_cwd = Sys.getcwd () in
+    Unix.mkdir src_dir 0o755;
+    let oc = open_out pipeline_path in
+    output_string oc script;
+    close_out oc;
+    try
+      Sys.chdir dir;
+      let result = f dir pipeline_path in
+      Sys.chdir old_cwd;
+      remove_path dir;
+      result
+    with exn ->
+      Sys.chdir old_cwd;
+      remove_path dir;
+      raise exn
+  in
+
+  let test_nix_execution_equivalence_golden () =
+    let golden_ok =
+      with_repo_temp_pipeline_project
+        "p = pipeline {\n  golden_node = shn(command = \"echo -n 'golden_value'\", capture = \"stdout\")\n}\n"
+        (fun dir _pipeline_path ->
+          (* Build the pipeline using T OCaml interpreter *)
+          let env = Packages.init_env () in
+          let (_, env) = eval_string_env "p = pipeline { golden_node = shn(command = \"echo -n 'golden_value'\", capture = \"stdout\") }" env in
+          let (_, env) = eval_string_env "build_pipeline(p)" env in
+          (* Verify that the build completed and we can query the built value *)
+          let (v_val, _) = eval_string_env "read_node(p.golden_node)" env in
+          let t_value = match Ast.Utils.unwrap_value v_val with Ast.VString s -> s | _ -> "" in
+          (* Now manually run nix-build on the generated _pipeline/pipeline.nix directly *)
+          let nix_path = Filename.concat (Filename.concat dir "_pipeline") "pipeline.nix" in
+          if Sys.file_exists nix_path then
+            let argv = [| "nix-build"; "--impure"; nix_path; "-A"; "golden_node"; "--no-out-link" |] in
+            match Builder_utils.run_command_argv_capture argv with
+            | Error msg ->
+                Printf.printf "Nix build failed: %s\n" msg;
+                false
+            | Ok out_dir ->
+                let artifact_path = Filename.concat (String.trim out_dir) "artifact" in
+                if Sys.file_exists artifact_path then
+                  let ic = open_in artifact_path in
+                  let nix_value = try input_line ic with _ -> "" in
+                  close_in ic;
+                  let nix_value_trimmed = String.trim nix_value in
+                  let eq = (t_value = nix_value_trimmed && nix_value_trimmed = "golden_value") in
+                  if not eq then
+                    Printf.printf "Values mismatch: t_value=%S, nix_value_trimmed=%S\n" t_value nix_value_trimmed;
+                  eq
+                else begin
+                  Printf.printf "Artifact path %s does not exist\n" artifact_path;
+                  false
+                end
+          else begin
+            Printf.printf "Nix path %s does not exist\n" nix_path;
+            false
+          end
+        )
+    in
+    if golden_ok then begin
+      incr pass_count; Printf.printf "  ✓ Nix execution equivalence golden test matches manual nix-build exactly\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ Nix execution equivalence golden test failed\n"
+    end
+  in
+  test_nix_execution_equivalence_golden ();
+
+  let test_build_log_history_and_node_diff () =
+    let success =
+      with_temp_pipeline_project
+        "pipeline { a = 1; b = 2; df_node = 3; text_node = 4; model_node = 5 }\n"
+        (fun _dir _pipeline_path ->
+           Unix.mkdir "_pipeline" 0o755;
+           
+           (* Mock 3 logs with different mtimes *)
+           let log1 = {|{
+             "timestamp": "2026-05-25T12:00:00Z",
+             "duration": 5.2,
+             "hash": "hash1",
+             "out_path": "/nix/store/abc1",
+             "nodes": [
+               { "node": "a", "path": "node_a_1.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "b", "path": "node_b_1.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "df_node", "path": "df_1.csv", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": [], "success": "true" },
+               { "node": "text_node", "path": "text_1.txt", "runtime": "T", "serializer": "text", "class": "VString", "dependencies": [], "success": "true" },
+               { "node": "model_node", "path": "model_1.pmml", "runtime": "T", "serializer": "pmml", "class": "VComputedNode", "dependencies": [], "success": "true" }
+             ]
+           }|} in
+           let log2 = {|{
+             "timestamp": "2026-05-25T11:00:00Z",
+             "duration": 4.1,
+             "hash": "hash2",
+             "out_path": "/nix/store/abc2",
+             "nodes": [
+               { "node": "a", "path": "node_a_2.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "b", "path": "node_b_2.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "df_node", "path": "df_2.csv", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": [], "success": "true" },
+               { "node": "text_node", "path": "text_2.txt", "runtime": "T", "serializer": "text", "class": "VString", "dependencies": [], "success": "true" },
+               { "node": "model_node", "path": "model_2.pmml", "runtime": "T", "serializer": "pmml", "class": "VComputedNode", "dependencies": [], "success": "true" }
+             ]
+           }|} in
+           let log3 = {|{
+             "timestamp": "2026-05-25T10:00:00Z",
+             "duration": 3.0,
+             "hash": "hash3",
+             "out_path": "/nix/store/abc3",
+             "nodes": [
+               { "node": "a", "path": "node_a_3.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "b", "path": "node_b_3.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+               { "node": "df_node", "path": "df_3.csv", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": [], "success": "true" },
+               { "node": "text_node", "path": "text_3.txt", "runtime": "T", "serializer": "text", "class": "VString", "dependencies": [], "success": "true" },
+               { "node": "model_node", "path": "model_3.pmml", "runtime": "T", "serializer": "pmml", "class": "VComputedNode", "dependencies": [], "success": "true" }
+             ]
+           }|} in
+           let p1 = Filename.concat "_pipeline" "build_log_test1.json" in
+           let p2 = Filename.concat "_pipeline" "build_log_test2.json" in
+           let p3 = Filename.concat "_pipeline" "build_log_test3.json" in
+           
+           let write_file p content =
+             let oc = open_out p in
+             output_string oc content;
+             close_out oc
+           in
+           write_file p1 log1;
+           write_file p2 log2;
+           write_file p3 log3;
+           
+           (* Set explicit mtimes so sorting is 100% deterministic *)
+           Unix.utimes p1 1700000000.0 1700000000.0;
+           Unix.utimes p2 1600000000.0 1600000000.0;
+           Unix.utimes p3 1500000000.0 1500000000.0;
+           
+           (* 1. Scalar nodes values *)
+           ignore (Serialization.serialize_to_file "node_a_1.tobj" (Ast.VInt 10));
+           ignore (Serialization.serialize_to_file "node_a_2.tobj" (Ast.VInt 20));
+           ignore (Serialization.serialize_to_file "node_a_3.tobj" (Ast.VInt 30));
+           
+           (* 2. DataFrame nodes values (using CSV) *)
+           let df1_content = "x,y\n1,2\n3,4\n" in
+           let df2_content = "x,y,z\n1.5,2,5\n3.5,4,6\n" in
+           write_file "df_1.csv" df1_content;
+           write_file "df_2.csv" df2_content;
+
+           (* 3. Text nodes values *)
+           let text1_content = "hello\nworld\n" in
+           let text2_content = "hello\nthere\nworld\n" in
+           write_file "text_1.txt" text1_content;
+           write_file "text_2.txt" text2_content;
+
+           (* 4. PMML nodes values (write blank file, will fail XML parse and use fallback diff) *)
+           write_file "model_1.pmml" "";
+           write_file "model_2.pmml" "";
+
+            Printexc.record_backtrace true;
+            let (res, _) =
+              try
+                eval_string_env
+                  {|
+                  p = pipeline { a = 1; b = 2; df_node = 3; text_node = 4; model_node = 5 }
+                  hist = build_log_history(p)
+                  hist_limit = build_log_history(p, n = 2)
+                  
+                  ok_history = (type(hist) == "DataFrame" && nrow(hist) == 3 && nrow(hist_limit) == 2)
+                  
+                  diff_scalar = node_diff(p.a, p.a, 1, 2)
+                  ok_scalar = (type(diff_scalar) == "Dict" && diff_scalar.kind == "scalar_diff" && diff_scalar.identical == false && diff_scalar.summary.changed == true && diff_scalar.summary.value_a == 10 && diff_scalar.summary.value_b == 20 && diff_scalar.summary.delta == 10)
+                  
+                  diff_df = node_diff(p.df_node, p.df_node, 1, 2)
+                  ok_df = (type(diff_df) == "Dict" && diff_df.kind == "dataframe_diff" && diff_df.value_type == "DataFrame")
+
+                  diff_text = node_diff(p.text_node, p.text_node, 1, 2)
+                  ok_text = (type(diff_text) == "Dict" && diff_text.identical == false)
+
+                  diff_pmml = node_diff(p.model_node, p.model_node, 1, 2)
+                  ok_pmml = (type(diff_pmml) == "Dict" && (diff_pmml.kind == "model_diff" || diff_pmml.kind == "generic_diff"))
+                  
+                  ok_out_of_range = (is_error(node_diff(p.a, p.a, 10, 2)) && error_code(node_diff(p.a, p.a, 10, 2)) == "ValueError")
+
+                  ok_nonexistent = (is_error(p.nonexistent) && error_code(p.nonexistent) == "KeyError")
+
+                  ok_negative = (is_error(node_diff(p.a, p.a, -1, 2)) && error_code(node_diff(p.a, p.a, -1, 2)) == "ValueError")
+
+                  log_test2 = build_log(p, which_log = ".*test2.*")
+                  ok_log_regex = (type(log_test2) == "BuildLog" && log_test2.out_path == "/nix/store/abc2")
+
+                  hist_filtered = build_log_history(p, pattern = ".*test[23].*")
+                  ok_history_regex = (type(hist_filtered) == "DataFrame" && nrow(hist_filtered) == 2)
+
+                  diff_scalar_regex = node_diff(p.a, p.a, log_a = ".*test1.*", log_b = ".*test2.*")
+                  ok_diff_regex = (type(diff_scalar_regex) == "Dict" && diff_scalar_regex.kind == "scalar_diff" && diff_scalar_regex.identical == false && diff_scalar_regex.summary.value_a == 10 && diff_scalar_regex.summary.value_b == 20)
+
+                  ok_no_match = (is_error(node_diff(p.a, p.a, log_a = ".*nomatch.*", log_b = 2)) && error_code(node_diff(p.a, p.a, log_a = ".*nomatch.*", log_b = 2)) == "ValueError")
+
+                  ok_history && ok_scalar && ok_df && ok_text && ok_pmml && ok_out_of_range && ok_nonexistent && ok_negative && ok_log_regex && ok_history_regex && ok_diff_regex && ok_no_match
+                  |} (Packages.init_env ())
+              with e ->
+                Printf.printf "EXCEPTION CAUGHT: %s\n%!" (Printexc.to_string e);
+                Printf.printf "BACKTRACE:\n%s\n%!" (Printexc.get_backtrace ());
+                raise e
+            in
+            res)
+    in
+    if success = Ast.VBool true then begin
+      incr pass_count; Printf.printf "  ✓ build_log_history and node_diff comprehensive test passes\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ build_log_history and node_diff comprehensive test failed, got: %s\n"
+        (Ast.Utils.value_to_string success)
+    end
+  in
+  test_build_log_history_and_node_diff ();
+
+  let classify_hunk_kind_tests =
+    Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:true = "replace"
+    && Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:false = "delete"
+    && Diff.classify_hunk_kind ~has_replace:false ~has_prev:false ~has_next:true = "insert"
+    && Diff.classify_hunk_kind ~has_replace:true ~has_prev:false ~has_next:false = "replace"
+  in
+  if classify_hunk_kind_tests then begin
+    incr pass_count; Printf.printf "  ✓ patience diff hunk kinds classify mixed changes correctly\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ patience diff hunk kinds classify mixed changes correctly\n"
+  end;
 
   print_newline ()

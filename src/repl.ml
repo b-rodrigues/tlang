@@ -262,6 +262,7 @@ let print_help () =
   Printf.printf "  repl              Start the interactive REPL (default)\n";
   Printf.printf "  run <file.t>      Execute a T source file\n";
   Printf.printf "  run --expr <expr> Execute a T expression directly\n";
+  Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
@@ -323,6 +324,46 @@ let cmd_run_expr ?failfast mode expr env =
       Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
   | Ast.(VNA NAGeneric) -> ()
   | v -> print_string (Pretty_print.pretty_print_value v)
+
+let cmd_debug ?(unsafe=false) ?failfast mode filename node_name env =
+  let _ = unsafe in
+  Packages.ensure_docs_loaded ();
+  ensure_file_path filename;
+  let (result, new_env) = run_file ?failfast mode filename env in
+  match result with
+  | Ast.VError _ ->
+      Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
+  | _ ->
+      let find_node_by_name node_name env =
+        let bindings = Ast.Env.bindings env in
+        let rec search_pipelines = function
+          | [] -> None
+          | (_, Ast.VPipeline p) :: rest ->
+              (match List.find_opt (fun (name, _) -> name = node_name) p.p_nodes with
+               | Some (_, node_val) ->
+                   (match node_val with
+                    | Ast.VComputedNode cn -> Some cn
+                    | _ -> search_pipelines rest)
+               | None -> search_pipelines rest)
+          | _ :: rest -> search_pipelines rest
+        in
+        match Ast.Env.find_opt node_name env with
+        | Some (Ast.VComputedNode cn) -> Some cn
+        | _ -> search_pipelines bindings
+      in
+      (match find_node_by_name node_name new_env with
+       | Some cn ->
+           let debug_func =
+             match Ast.Env.find_opt "debug_node" new_env with
+             | Some (Ast.VBuiltin b) -> b.b_func
+             | _ -> exit_with_error "Function `debug_node` not found in pipeline package."
+           in
+           let named_args = [(Some "node", Ast.VComputedNode cn)] in
+           let env_ref = ref new_env in
+           let _ = debug_func named_args env_ref in
+           ()
+       | None ->
+           exit_with_error (Printf.sprintf "Could not find node `%s` in the pipeline defined in '%s'." node_name filename))
 
 let cmd_init_package args =
   match Scaffold.parse_init_flags args with
@@ -463,14 +504,24 @@ let cmd_upgrade () =
 let get_nix_version () =
   try
     let ch = Unix.open_process_in "nix --version" in
-    let line = input_line ch in
-    match Unix.close_process_in ch with
-    | Unix.WEXITED 0 ->
+    let line_result =
+      try `Line (input_line ch)
+      with
+      | End_of_file -> `No_line
+      | exn -> `Read_error exn
+    in
+    let close_result =
+      try `Status (Unix.close_process_in ch)
+      with exn -> `Close_error exn
+    in
+    match (line_result, close_result) with
+    | (`Line line, `Status (Unix.WEXITED 0)) ->
         let parts = String.split_on_char ' ' line in
         let rec last = function [] -> "" | [x] -> x | _ :: xs -> last xs in
-        Some (last parts)
-    | _ -> None
-  with _ -> None
+        last parts
+    | (`Read_error exn, _) -> raise exn
+    | _ -> "unknown"
+  with _ -> "unknown"
 
 let cmd_repl ?failfast mode env =
   Packages.ensure_docs_loaded ();
@@ -479,20 +530,16 @@ let cmd_repl ?failfast mode env =
   let base_keys = Hashtbl.create 200 in
   Ast.Env.iter (fun k _ -> Hashtbl.add base_keys k ()) env;
 
-  match get_nix_version () with
-  | None ->
-      Printf.eprintf "Nix not found! Install Nix to use T!\n";
-      exit 1
-  | Some nix_version ->
-      Printf.printf "T, a reproducibility-first orchestration engine for polyglot\n";
-      Printf.printf "data science and statistical analysis.\n";
-      Printf.printf "Version %s \"%s\" using Nix %s\n" version "Kaméhaméha" nix_version;
-      Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
-      Printf.printf "This software is in beta and is entirely LLM-generated — caveat emptor.\n";
-      Printf.printf "Website: https://tstats-project.org\n";
-      Printf.printf "Contributions are welcome!\n";
-      Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
-      Printf.printf "%s\n\n" (Import_registry.startup_rename_warning_message ());
+  let nix_version = get_nix_version () in
+  Printf.printf "T, a reproducibility-first orchestration engine for polyglot\n";
+  Printf.printf "data science and statistical analysis.\n";
+  Printf.printf "Version %s \"%s\" using Nix %s\n" version "Kaméhaméha" nix_version;
+  Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
+  Printf.printf "This software is in beta and is entirely LLM-generated — caveat emptor.\n";
+  Printf.printf "Website: https://tstats-project.org\n";
+  Printf.printf "Contributions are welcome!\n";
+  Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
+  Printf.printf "%s\n\n" (Import_registry.startup_rename_warning_message ());
 
 
   let scope = Symbol_table.create_scope () in
@@ -850,6 +897,15 @@ let () =
   in
 
   match args with
+  | _ :: "debug" :: [] ->
+      Printf.eprintf "Usage: t debug <node_name> | t debug <file.t> <node_name>\n";
+      exit 1
+  | _ :: "debug" :: node_name :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_debug ~unsafe ~failfast script_mode "src/pipeline.t" node_name env
+  | _ :: "debug" :: filename :: node_name :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_debug ~unsafe ~failfast script_mode filename node_name env
   | _ :: "run" :: [] ->
       Printf.eprintf "Usage: t run <file.t> | t run --expr <expr>\n";
       exit 1
