@@ -241,6 +241,22 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "pipeline_cache_status(42)"
     {|Error(TypeError: "Function `pipeline_cache_status` expects a Pipeline as argument.")|};
 
+  test "export_artifacts on non-pipeline"
+    "export_artifacts(42, \"cache.nar\")"
+    {|Error(TypeError: "Function `export_artifacts` expects a Pipeline as first argument.")|};
+
+  test "export_artifacts invalid archive path type"
+    "p_export = pipeline { a = 1 }; export_artifacts(p_export, 42)"
+    {|Error(TypeError: "Function `export_artifacts` expects `archive_path` to be a String.")|};
+
+  test "import_artifacts on non-pipeline"
+    "import_artifacts(42, \"cache.nar\")"
+    {|Error(TypeError: "Function `import_artifacts` expects a Pipeline as first argument.")|};
+
+  test "import_artifacts invalid archive path type"
+    "p_import = pipeline { a = 1 }; import_artifacts(p_import, 42)"
+    {|Error(TypeError: "Function `import_artifacts` expects `archive_path` to be a String.")|};
+
   let (v_gc, _) = eval_string_env "p_gc = pipeline { a = 1 }; pipeline_gc(p_gc, dry_run=true)" env_p3 in
   let result_gc = Ast.Utils.value_to_string v_gc in
   if Test_helpers.contains result_gc "node" && Test_helpers.contains result_gc "store_path" && Test_helpers.contains result_gc "deleted" then begin
@@ -1976,6 +1992,56 @@ p.t_step|}
     end
   in
   test_nix_execution_equivalence_golden ();
+
+  let test_artifact_export_import_roundtrip () =
+    let archive_ok =
+      with_repo_temp_pipeline_project
+        "p = pipeline {\n  cached_node = shn(command = \"echo -n 'artifact_roundtrip'\", capture = \"stdout\")\n}\n"
+        (fun dir _pipeline_path ->
+          let archive_path = Filename.concat dir "pipeline-cache.nar" in
+          let env = Packages.init_env () in
+          let (_, env) =
+            eval_string_env
+              "p = pipeline { cached_node = shn(command = \"echo -n 'artifact_roundtrip'\", capture = \"stdout\") }"
+              env
+          in
+          let (_, env) = eval_string_env "build_pipeline(p)" env in
+          let (v_export, env) =
+            eval_string_env
+              (Printf.sprintf "export_artifacts(p, %S)" archive_path)
+              env
+          in
+          let export_ok =
+            match Ast.Utils.unwrap_value v_export with
+            | Ast.VString msg -> contains_pattern "Exported" msg && Sys.file_exists archive_path
+            | _ -> false
+          in
+          let (_, env) = eval_string_env "pipeline_gc(p)" env in
+          let (v_import, env) =
+            eval_string_env
+              (Printf.sprintf "import_artifacts(p, %S)" archive_path)
+              env
+          in
+          let import_ok =
+            match Ast.Utils.unwrap_value v_import with
+            | Ast.VString msg -> contains_pattern "Imported" msg
+            | _ -> false
+          in
+          let (v_after, _) =
+            eval_string_env
+              "nrow(filter(pipeline_cache_status(p), $cached == false)) == 0"
+              env
+          in
+          export_ok && import_ok && v_after = Ast.VBool true
+        )
+    in
+    if archive_ok then begin
+      incr pass_count; Printf.printf "  ✓ export_artifacts()/import_artifacts() round-trip pipeline cache\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ export_artifacts()/import_artifacts() round-trip pipeline cache\n"
+    end
+  in
+  test_artifact_export_import_roundtrip ();
 
   let test_build_log_history_and_node_diff () =
     let success =

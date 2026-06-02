@@ -94,6 +94,7 @@
 | [exit](exit.html) | Exit the interpreter |
 | [exp](exp.html) | Exponential function |
 | [expand](expand.html) | Create all combinations of values |
+| [export_artifacts](export_artifacts.html) | Export Pipeline Artifacts |
 | [explain](explain.html) | Explain Value |
 | [explain_json](explain_json.html) | Explain Value as JSON |
 | [expr](expr.html) | Capture an expression |
@@ -139,6 +140,7 @@
 | [ifelse](ifelse.html) | Vectorized If-Else |
 | [index_of](index_of.html) | Find index of substring |
 | [inner_join](inner_join.html) | Join matching rows |
+| [import_artifacts](import_artifacts.html) | Import Pipeline Artifacts |
 | [inspect_node](inspect_node.html) | Inspect Pipeline Node Metadata |
 | [inspect_log](inspect_log.html) | Inspect Pipeline Build Logs |
 | [inspect_pipeline](inspect_pipeline.html) | Static Pipeline DAG Schema Inspection |
