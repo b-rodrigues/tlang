@@ -10,10 +10,11 @@ let find_terminal_nodes (nodes : (string * 'a) list) (deps : (string * string li
   List.filter (fun name -> not (List.mem name all_deps)) (List.map fst nodes)
 
 let find_root_nodes (nodes : (string * 'a) list) (deps : (string * string list) list) : string list =
+  let local_names = List.map fst nodes in
   List.filter (fun name ->
     let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
-    node_deps = []
-  ) (List.map fst nodes)
+    not (List.exists (fun d -> List.mem d local_names) node_deps)
+  ) local_names
 
 let rec bound_vars = function
   | PWildcard | PNA -> []
@@ -123,6 +124,42 @@ let namespace_diagnostics sub_name local_names nd =
   ) nd.nd_upstream_errors in
   { nd with nd_upstream_errors }
 
+let rec find_dot_access_targets (expr : Ast.expr) : string list =
+  match expr.node with
+  | Var _ | Value _ | ColumnRef _ | RawCode _ | ShellExpr _ -> []
+  | ListLit items -> List.concat_map (fun (_, e) -> find_dot_access_targets e) items
+  | DictLit pairs -> List.concat_map (fun (_, e) -> find_dot_access_targets e) pairs
+  | BinOp { left; right; _ } | BroadcastOp { left; right; _ } ->
+      find_dot_access_targets left @ find_dot_access_targets right
+  | UnOp { operand; _ } -> find_dot_access_targets operand
+  | DotAccess { target; _ } ->
+      (match target.node with
+       | Var name -> [name]
+       | _ -> find_dot_access_targets target)
+  | Call { fn; args } ->
+      find_dot_access_targets fn @ List.concat_map (fun (_, e) -> find_dot_access_targets e) args
+  | Lambda l -> find_dot_access_targets l.body
+  | IfElse { cond; then_; else_ } ->
+      find_dot_access_targets cond @ find_dot_access_targets then_ @ find_dot_access_targets else_
+  | Match { scrutinee; cases } ->
+      find_dot_access_targets scrutinee @ List.concat_map (fun (_, body) -> find_dot_access_targets body) cases
+  | Block stmts -> List.concat_map find_dot_access_targets_stmt stmts
+  | PipelineDef nodes | PipelineOfDef nodes | IntentDef nodes ->
+      List.concat_map (fun (_, e) -> find_dot_access_targets e) nodes
+  | Unquote e | UnquoteSplice e -> find_dot_access_targets e
+  | ListComp { expr; clauses } ->
+      find_dot_access_targets expr @ List.concat_map (function
+        | CFor { iter; _ } -> find_dot_access_targets iter
+        | CFilter f -> find_dot_access_targets f
+      ) clauses
+
+and find_dot_access_targets_stmt (stmt : Ast.stmt) : string list =
+  match stmt.node with
+  | Expression e -> find_dot_access_targets e
+  | Assignment { expr; _ } -> find_dot_access_targets expr
+  | Reassignment { expr; _ } -> find_dot_access_targets expr
+  | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> []
+
 let rec flatten_meta (v : value) : pipeline_result =
   match v with
   | VPipeline p -> p
@@ -136,11 +173,17 @@ let rec flatten_meta (v : value) : pipeline_result =
         (sub_name, flat_sub, local_names, ns)
       ) flattened_subs in
       let final_deps = ref [] in
-      List.iter (fun (sub_name, flat_sub, _local_names, ns) ->
+      List.iter (fun (sub_name, flat_sub, local_names, ns) ->
         let sub_deps = List.map (fun (n, deps) ->
-          (ns n, List.map ns deps)
+          (ns n, List.map (fun d -> if List.mem d local_names then ns d else d) deps)
         ) flat_sub.p_deps in
         let dep_sub_names = match List.assoc_opt sub_name mp.mp_deps with Some d -> d | None -> [] in
+        let sub_names = List.map fst mp.mp_pipelines in
+        let inferred_deps =
+          List.concat_map (fun (_, e) -> find_dot_access_targets e) flat_sub.p_exprs
+          |> List.filter (fun target -> List.mem target sub_names && target <> sub_name)
+        in
+        let all_dep_sub_names = List.sort_uniq compare (dep_sub_names @ inferred_deps) in
         let sub_roots = find_root_nodes flat_sub.p_exprs flat_sub.p_deps in
         let updated_sub_deps = List.map (fun (n, deps) ->
           let orig_n = String.sub n (String.length sub_name + 1) (String.length n - String.length sub_name - 1) in
@@ -151,8 +194,9 @@ let rec flatten_meta (v : value) : pipeline_result =
               | Some dep_flat ->
                   let dep_terminals = find_terminal_nodes dep_flat.p_exprs dep_flat.p_deps in
                   List.map (fun term -> dep_sub_name ^ "." ^ term) dep_terminals
-            ) dep_sub_names in
-            (n, deps @ additional_deps)
+            ) all_dep_sub_names in
+            let clean_deps = List.filter (fun d -> not (List.mem d sub_names)) deps in
+            (n, clean_deps @ additional_deps)
           else
             (n, deps)
         ) sub_deps in
