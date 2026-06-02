@@ -2540,7 +2540,7 @@ EOF|} k expr_str
     if runtime = "R" then
       if is_raw_code then
         Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
-      echo "__node_result <- withCallingHandlers({" >> node_script.R
+      echo "node_result <- withCallingHandlers({" >> node_script.R
       echo "  local({" >> node_script.R
       echo "    tryCatch({" >> node_script.R
       cat <<'EOF' >> node_script.R
@@ -2555,21 +2555,21 @@ EOF
       echo "  captured_warns <<- append(captured_warns, conditionMessage(w))" >> node_script.R
       echo "  invokeRestart('muffleWarning')" >> node_script.R
       echo "})" >> node_script.R
-       echo "if (r_is_error(__node_result)) {" >> node_script.R
-       echo "  r_write_error(__node_result, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
+       echo "if (r_is_error(node_result)) {" >> node_script.R
+       echo "  r_write_error(node_result, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
        echo "} else {" >> node_script.R
        cat <<'EOF' >> node_script.R
 %s
 EOF
-       echo "  writeLines(r_visual_class(__node_result), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
+       echo "  writeLines(r_visual_class(node_result), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
        echo "  r_write_warnings(captured_warns, file.path(Sys.getenv('out'), 'warnings'))" >> node_script.R
-       echo "}" >> node_script.R|} expr_s_no_imports (r_emit_artifact "__node_result")
+       echo "}" >> node_script.R|} expr_s_no_imports (r_emit_artifact "node_result")
       else
         Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
       echo "tryCatch({" >> node_script.R
-      echo "  __node_result <- withCallingHandlers({" >> node_script.R
+      echo "  node_result <- withCallingHandlers({" >> node_script.R
       cat <<'EOF' >> node_script.R
-__node_result <- %s
+node_result <- %s
 EOF
       echo "  }, warning = function(w) {" >> node_script.R
       echo "    captured_warns <<- append(captured_warns, conditionMessage(w))" >> node_script.R
@@ -2579,15 +2579,15 @@ EOF
       echo "  r_write_error(e, \"$out/artifact\")" >> node_script.R
       echo "  quit(save = 'no', status = 0)" >> node_script.R
       echo "})" >> node_script.R
-       echo "if (r_is_error(__node_result)) {" >> node_script.R
-       echo "  r_write_error(__node_result, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
+       echo "if (r_is_error(node_result)) {" >> node_script.R
+       echo "  r_write_error(node_result, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
        echo "} else {" >> node_script.R
        cat <<'EOF' >> node_script.R
 %s
 EOF
-       echo "  writeLines(r_visual_class(__node_result), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
+       echo "  writeLines(r_visual_class(node_result), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
        echo "  r_write_warnings(captured_warns, file.path(Sys.getenv('out'), 'warnings'))" >> node_script.R
-       echo "}" >> node_script.R|} expr_s (r_emit_artifact "__node_result")
+       echo "}" >> node_script.R|} expr_s (r_emit_artifact "node_result")
     else if runtime = "Python" then
       if is_raw_code then
         if raw_assigns_to name expr_s then
