@@ -1268,9 +1268,9 @@ pipeline_nodes(p_full)  -- ["raw", "clean", "fit", "report"]
 
 `chain` is stricter than `union`: it requires an *intent* to connect the pipelines, catching accidental merges where no wiring was meant.
 
-### Meta-Pipelines (`pipeline_of` & `meta_flatten`)
+### Meta-Pipelines (`pipeline_of`)
 
-For larger projects, you can compose multiple pipelines into a higher-order DAG using the `pipeline_of` block, and then flatten them into a single executable pipeline with `meta_flatten()`. 
+For larger projects, you can compose multiple pipelines into a higher-order DAG using the `pipeline_of` block. T-Lang natively understands and automatically flattens meta-pipelines at execution time, meaning you can pass them directly to built-in commands like `populate_pipeline()`, `read_node()`, `inspect_node()`, or `inspect_pipeline()`.
 
 #### `pipeline_of` block
 
@@ -1307,17 +1307,22 @@ meta = pipeline_of {
 }
 ```
 
-#### `meta_flatten`
+#### Native Execution & Namespacing
 
-Transforms a meta-pipeline into a single flat pipeline. Node names are automatically namespaced (e.g. `etl.raw`, `etl.clean`, `stats.summary`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
+When a meta-pipeline is populated, queried, or inspected, T-Lang automatically flattens it internally. Node names are automatically namespaced (e.g. `etl.raw`, `etl.clean`, `stats.summary`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
 
 ```t
-flat = meta_flatten(meta)
-pipeline_nodes(flat)
+pipeline_nodes(meta)
 -- ["etl.raw", "etl.clean", "stats.summary"]
 
-pipeline_deps(flat)
+pipeline_deps(meta)
 -- {`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}
+
+-- You can build the entire meta-pipeline directly:
+populate_pipeline(meta, build = true)
+
+-- You can read individual nodes using nested dot notation:
+res = read_node(meta.stats.summary)
 ```
 
 ### Cross-Pipeline Dependency Tracking: T vs. RawCode
