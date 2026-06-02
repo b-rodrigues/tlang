@@ -1534,7 +1534,10 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     let new_node = match expr.node with
       | Var name ->
           if not (List.mem name node_names) && Env.mem name env then
-            Value (Env.find name env)
+            let v = Env.find name env in
+            match v with
+            | VLambda _ | VBuiltin _ -> Var name
+            | _ -> Value v
           else
             Var name
       | Call { fn; args } ->
