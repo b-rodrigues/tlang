@@ -88,7 +88,7 @@ let rec expr_uses_named_scope_fields fields (expr : Ast.expr) : bool =
       ) stmts
   | Lambda _ | Value _ | RawCode _ | ShellExpr _ -> false
   | Unquote e | UnquoteSplice e -> expr_uses_named_scope_fields fields e
-  | PipelineDef _ | IntentDef _ | ListComp _ -> false
+  | PipelineDef _ | PipelineOfDef _ | IntentDef _ | ListComp _ -> false
 
 (** Rewrite bare field names from a scoped predicate to [root.field], while
     leaving all other variables unchanged.
@@ -191,7 +191,7 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
       Ast.mk_expr ?loc (Unquote (desugar_named_scope_expr ~root ~fields e))
   | UnquoteSplice e ->
       Ast.mk_expr ?loc (UnquoteSplice (desugar_named_scope_expr ~root ~fields e))
-  | Lambda _ | Value _ | RawCode _ | ShellExpr _ | ColumnRef _ | PipelineDef _ | IntentDef _ | ListComp _ ->
+  | Lambda _ | Value _ | RawCode _ | ShellExpr _ | ColumnRef _ | PipelineDef _ | PipelineOfDef _ | IntentDef _ | ListComp _ ->
       expr
 
 (** Field names exposed on read-pipeline node records and available for
@@ -1379,6 +1379,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
     | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
     | Block stmts -> eval_block env_ref stmts
     | PipelineDef nodes -> eval_pipeline env_ref nodes
+    | PipelineOfDef nodes -> eval_pipeline_of env_ref nodes
     | IntentDef pairs -> eval_intent env_ref pairs
   in
   attach_expr_location expr result
@@ -1456,6 +1457,7 @@ and free_vars (expr : Ast.expr) : string list =
     | { node = RawCode { raw_identifiers; _ }; _ } -> raw_identifiers  (* Lexically extracted identifiers for dependency detection *)
     | { node = Block stmts; _ } -> List.concat_map (collect_stmt false) stmts
     | { node = PipelineDef _; _ } -> []
+    | { node = PipelineOfDef nodes; _ } -> List.concat_map (fun (name, e) -> if name = "depends" then [] else collect false e) nodes
     | { node = IntentDef pairs; _ } -> List.concat_map (fun (_, e) -> collect false e) pairs
     | { node = Unquote e; _ } | { node = UnquoteSplice e; _ } -> collect false e
     | { node = ShellExpr _; _ } -> []
@@ -1505,6 +1507,71 @@ and topo_sort (nodes : (string * 'a) list) (deps : (string * string list) list) 
   match result with
   | Error name -> Error name
   | Ok () -> Ok (List.rev !order)
+
+and parse_depends_expr expr =
+  match expr.Ast.node with
+  | Ast.ListLit items ->
+      let rec loop acc = function
+        | [] -> Ok (List.rev acc)
+        | (_, item) :: rest ->
+            match item.Ast.node with
+            | Ast.BinOp { op = Ast.FatArrow; left; right } ->
+                (match left.Ast.node, right.Ast.node with
+                 | Ast.Var l_name, Ast.Var r_name ->
+                     loop ((l_name, r_name) :: acc) rest
+                 | _ -> Error (Error.type_error "meta-pipeline depends block must contain pairs like sub_pipeline1 => sub_pipeline2"))
+            | _ -> Error (Error.type_error "meta-pipeline depends block must contain pairs like sub_pipeline1 => sub_pipeline2")
+      in
+      loop [] items
+  | _ -> Error (Error.type_error "meta-pipeline depends block must be a list of dependencies")
+
+and eval_pipeline_of env_ref (nodes : (string * Ast.expr) list) : value =
+  let pipelines = ref [] in
+  let depends_expr = ref None in
+  let error = ref None in
+  List.iter (fun (name, expr) ->
+    if !error <> None then ()
+    else if name = "depends" then
+      depends_expr := Some expr
+    else
+      let v = eval_expr env_ref expr in
+      match v with
+      | VError _ as err -> error := Some err
+      | VPipeline _ | VMetaPipeline _ ->
+          pipelines := (name, v) :: !pipelines
+      | _ -> error := Some (Error.type_error (Printf.sprintf "Expected a Pipeline or MetaPipeline for sub-pipeline '%s'" name))
+  ) nodes;
+  match !error with
+  | Some err -> err
+  | None ->
+      let pipelines = List.rev !pipelines in
+      let sub_pipeline_names = List.map fst pipelines in
+      let deps = List.map (fun name -> (name, [])) sub_pipeline_names in
+      match !depends_expr with
+      | None -> VMetaPipeline { mp_pipelines = pipelines; mp_deps = deps }
+      | Some expr ->
+          match parse_depends_expr expr with
+          | Error err -> err
+          | Ok pairs ->
+              let rec fold_deps acc = function
+                | [] -> Ok acc
+                | (l, r) :: rest ->
+                    if not (List.mem l sub_pipeline_names) then
+                      Error (Error.value_error (Printf.sprintf "Dependency source '%s' is not defined in the meta-pipeline" l))
+                    else if not (List.mem r sub_pipeline_names) then
+                      Error (Error.value_error (Printf.sprintf "Dependency target '%s' is not defined in the meta-pipeline" r))
+                    else
+                      let next_acc =
+                        List.map (fun (name, d) ->
+                          if name = l then (name, r :: d) else (name, d)
+                        ) acc
+                      in
+                      fold_deps next_acc rest
+              in
+              match fold_deps deps pairs with
+              | Error err -> err
+              | Ok final_deps ->
+                  VMetaPipeline { mp_pipelines = pipelines; mp_deps = final_deps }
 
 (** Evaluate a pipeline definition *)
 and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : value =
@@ -2085,6 +2152,7 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
 
   (* ── Named-pair containers ─────────────────────────────────── *)
   | PipelineDef nodes  -> Ast.mk_expr ?loc (PipelineDef (List.map qpair nodes))
+  | PipelineOfDef nodes -> Ast.mk_expr ?loc (PipelineOfDef (List.map qpair nodes))
   | IntentDef fields   -> Ast.mk_expr ?loc (IntentDef (List.map qpair fields))
 
   (* ── List comprehension ────────────────────────────────────── *)
@@ -2500,6 +2568,8 @@ and expand_autoquoted_unquotes (env_ref : environment ref) (expr : Ast.expr) : A
       Ast.mk_expr ?loc (DotAccess { target = expand target; field })
   | PipelineDef nodes ->
       Ast.mk_expr ?loc (PipelineDef (List.map (fun (name, e) -> (name, expand e)) nodes))
+  | PipelineOfDef nodes ->
+      Ast.mk_expr ?loc (PipelineOfDef (List.map (fun (name, e) -> (name, expand e)) nodes))
   | IntentDef pairs ->
       Ast.mk_expr ?loc (IntentDef (List.map (fun (name, e) -> (name, expand e)) pairs))
   | Unquote inner ->
@@ -2878,6 +2948,10 @@ and eval_binop env_ref op left right =
         raw_lhs = left;
         raw_rhs = right;
       }
+  | FatArrow ->
+      let lval = eval_expr env_ref left in
+      let rval = eval_expr env_ref right in
+      VList [ (None, lval); (None, rval) ]
   | Pipe ->
       let lval = eval_expr env_ref left in
       (match lval with

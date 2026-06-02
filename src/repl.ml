@@ -102,7 +102,8 @@ let rec expr_has_build_pipeline = function
   | { Ast.node = Ast.UnOp { operand; _ }; _ } -> expr_has_build_pipeline operand
   | { Ast.node = Ast.DotAccess { target; _ }; _ } -> expr_has_build_pipeline target
   | { Ast.node = Ast.Block stmts; _ } -> List.exists stmt_has_build_pipeline stmts
-  | { Ast.node = Ast.PipelineDef _; _ } -> true
+  | { Ast.node = Ast.PipelineDef _; _ }
+  | { Ast.node = Ast.PipelineOfDef _; _ } -> true
   | { Ast.node = Ast.ListComp { expr; _ }; _ } -> expr_has_build_pipeline expr
   | { Ast.node = Ast.IntentDef pairs; _ } -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs
   | _ -> false

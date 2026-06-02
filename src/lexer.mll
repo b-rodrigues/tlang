@@ -75,6 +75,8 @@ rule token = parse
 
   | "function"  { FUNCTION }
   | "pipeline"  { PIPELINE }
+  | "pipeline_of" { PIPELINE_OF }
+
   | "intent"    { INTENT }
   | "true"      { TRUE }
   | "false"     { FALSE }

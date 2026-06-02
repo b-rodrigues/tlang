@@ -61,7 +61,7 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 **Objective**: Treat pipelines as composable functions.
 
 ### Meta-Pipelines (`pipeline_of`)
-- [ ] **`pipeline_of` block**: Compose multiple pipelines into a higher-order DAG.
+- [x] **`pipeline_of` block**: Compose multiple pipelines into a higher-order DAG.
   ```t
   meta = pipeline_of {
     etl   = p_etl,
@@ -69,7 +69,7 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
     depends = [stats => etl]
   }
   ```
-- [ ] **`meta_flatten(meta)`**: Transform a meta-pipeline into a single flat pipeline with namespaced nodes (`etl.raw_data`).
+- [x] **`meta_flatten(meta)`**: Transform a meta-pipeline into a single flat pipeline with namespaced nodes (`etl.raw_data`).
 
 ### Pipeline Algebra & Templates
 - [ ] **Parameterization via Lambdas**: Instead of new keywords, promote the use of lambdas returning pipelines: `\(input) pipeline { ... }`.

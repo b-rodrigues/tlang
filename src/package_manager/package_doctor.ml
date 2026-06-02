@@ -372,6 +372,8 @@ let static_requirements_of_node_expr ~project_root node_name expr =
 let rec pipeline_defs_in_expr expr =
   match expr.Ast.node with
   | Ast.PipelineDef nodes -> [nodes]
+  | Ast.PipelineOfDef nodes ->
+      List.concat (List.map (fun (_, e) -> pipeline_defs_in_expr e) nodes)
   | Ast.Call { fn; args } ->
       pipeline_defs_in_expr fn
       @ List.concat (List.map (fun (_, arg) -> pipeline_defs_in_expr arg) args)

@@ -122,6 +122,8 @@ and unparse_expr expr =
   | ShellExpr cmd -> "?<{ " ^ cmd ^ " }>"
   | PipelineDef nodes ->
       "pipeline { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
+  | PipelineOfDef nodes ->
+      "pipeline_of { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
   | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
   | ListComp _ -> "[...]"
   | IntentDef _ -> "intent { ... }"

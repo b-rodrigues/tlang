@@ -57,7 +57,7 @@ let with_stmt_loc node pos =
 
 /* TOKENS */
 /* Keywords */
-%token IF ELSE IMPORT FUNCTION PIPELINE INTENT MATCH TRUE FALSE NA
+%token IF ELSE IMPORT FUNCTION PIPELINE PIPELINE_OF INTENT MATCH TRUE FALSE NA
 /* Literals */
 %token <int> INT
 %token <float> FLOAT
@@ -107,6 +107,7 @@ let with_stmt_loc node pos =
 %nonassoc IF_WITHOUT_ELSE
 %nonassoc ELSE
 %left PIPE MAYBE_PIPE
+%left FAT_ARROW
 %left TILDE
 %left OR
 %left AND
@@ -184,8 +185,15 @@ import_name:
   ;
 
 expr:
-  | e = pipe_expr %prec LOWEST { e }
+  | e = arrow_expr %prec LOWEST { e }
   ;
+
+arrow_expr:
+  | e = pipe_expr { e }
+  | left = arrow_expr FAT_ARROW right = pipe_expr
+    { with_loc (BinOp { op = FatArrow; left; right }) $startpos }
+  ;
+
 
 pipe_expr:
   | e = formula_expr { e }
@@ -318,6 +326,7 @@ primary_expr:
   | i = if_expr { i }
   | m = match_expr { m }
   | p = pipeline_expr { p }
+  | p = pipeline_of_expr { p }
   | n = intent_expr { n }
   | b = block_expr { b }
   | raw = RAW_CODE
@@ -475,6 +484,14 @@ pipeline_expr:
   | PIPELINE LBRACE skip_sep nodes = pipeline_nodes rbrace
     { with_loc (PipelineDef nodes) $startpos }
   ;
+
+pipeline_of_expr:
+  | PIPELINE_OF LBRACE skip_sep rbrace
+    { with_loc (PipelineOfDef []) $startpos }
+  | PIPELINE_OF LBRACE skip_sep nodes = pipeline_nodes rbrace
+    { with_loc (PipelineOfDef nodes) $startpos }
+  ;
+
 
 pipeline_nodes:
   | n = pipeline_node { [n] }

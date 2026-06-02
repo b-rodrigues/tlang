@@ -128,6 +128,12 @@ and pipeline_result = {
   p_node_diagnostics : (string * node_diagnostics) list; (* Map node name -> diagnostics *)
 }
 
+and meta_pipeline = {
+  mp_pipelines : (string * value) list;      (* Map sub-pipeline name -> pipeline value (VPipeline) *)
+  mp_deps : (string * string list) list;     (* Map sub-pipeline name -> sub-pipeline names it depends on *)
+}
+
+
 (** Formula specification — captures LHS/RHS of ~ expressions *)
 and formula_spec = {
   response: string list;
@@ -236,6 +242,8 @@ and value =
   | VNDArray of ndarray
   | VDataFrame of dataframe
   | VPipeline of pipeline_result
+  | VMetaPipeline of meta_pipeline
+
   | VLens of lens
   (* Functional Types *)
   | VLambda of lambda
@@ -317,6 +325,8 @@ and expr_node =
   | RawCode of { raw_text : string; raw_identifiers : string list }  (* Foreign code block <{ ... }> *)
   | BroadcastOp of { op : binop; left : expr; right : expr }
   | PipelineDef of (string * expr) list
+  | PipelineOfDef of (string * expr) list
+
   | IntentDef of (string * expr) list
   | Unquote of expr
   | UnquoteSplice of expr
@@ -340,7 +350,7 @@ and import_spec = {
 }
 
 and binop = Plus | Minus | Mul | Div | Mod | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | BitAnd | BitOr
-  | In (* New: membership check *) | Pipe | MaybePipe | Formula
+  | In (* New: membership check *) | Pipe | MaybePipe | Formula | FatArrow
 and unop = Not | Neg
 and comp_clause = CFor of { var : symbol; iter : expr } | CFilter of expr
 
@@ -637,7 +647,7 @@ module Utils = struct
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
     | VList _ -> "List" | VDict _ -> "Dict"
     | VVector _ -> "Vector" | VNDArray _ -> "NDArray" | VDataFrame _ -> "DataFrame"
-    | VPipeline _ -> "Pipeline" | VLens _ -> "Lens"
+    | VPipeline _ -> "Pipeline" | VMetaPipeline _ -> "MetaPipeline" | VLens _ -> "Lens"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
     | VNA _ -> "NA" | VError _ -> "Error"
     | VFactor _ -> "Factor"
@@ -681,7 +691,7 @@ module Utils = struct
     | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
     | Eq -> "==" | NEq -> "!=" | Gt -> ">" | Lt -> "<" | GtEq -> ">=" | LtEq -> "<="
     | And -> "&&" | Or -> "||" | BitAnd -> "&" | BitOr -> "|"
-    | In -> "in" | Pipe -> "|>" | MaybePipe -> "?|>" | Formula -> "~"
+    | In -> "in" | Pipe -> "|>" | MaybePipe -> "?|>" | Formula -> "~" | FatArrow -> "=>"
 
   and unparse_match_pattern = function
     | PWildcard -> "_"
@@ -742,6 +752,9 @@ module Utils = struct
     | RawCode { raw_text; _ } -> "<{ " ^ raw_text ^ " }>"
     | PipelineDef nodes ->
         "pipeline { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
+    | PipelineOfDef nodes ->
+        "pipeline_of { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
+
     | BroadcastOp { op; left; right } ->
         unparse_expr left ^ " ." ^ binop_to_string op ^ " " ^ unparse_expr right
     | Unquote e -> "!!" ^ unparse_expr e
@@ -879,6 +892,10 @@ module Utils = struct
         ) p_nodes in
         if errors = [] then base
         else base ^ "\nErrors:" ^ (String.concat "" errors)
+    | VMetaPipeline { mp_pipelines; _ } ->
+        let count = List.length mp_pipelines in
+        Printf.sprintf "MetaPipeline(%d sub-pipeline(s))" count
+
     | VLambda { params; autoquote_params; variadic; _ } ->
         let dots = if variadic then ", ..." else "" in
         "\\(" ^ String.concat ", " (display_params params autoquote_params) ^ dots ^ ") -> <function>"

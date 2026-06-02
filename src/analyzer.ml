@@ -136,7 +136,7 @@ let rec infer_type scope expr =
   | DotAccess { target; _ } ->
       ignore (infer_type scope target);
       TUnknown
-  | PipelineDef nodes | IntentDef nodes ->
+  | PipelineDef nodes | PipelineOfDef nodes | IntentDef nodes ->
       List.iter (fun (_, e) -> ignore (infer_type scope e)) nodes;
       TUnknown
   | Block stmts ->
