@@ -269,6 +269,8 @@ let print_help () =
   Printf.printf "  explain <expr>    Explain a value or expression\n";
   Printf.printf "  init --package <n>  Create a new T package\n";
   Printf.printf "  init --project <n>  Create a new T project\n";
+  Printf.printf "  export_artifacts <file.t> <archive>  Export a pipeline cache archive\n";
+  Printf.printf "  import_artifacts <file.t> <archive>  Import a pipeline cache archive\n";
   Printf.printf "  test              Run tests in the current directory\n";
   Printf.printf "  update            Update dependencies and nixpkgs date from tproject.toml\n";
   Printf.printf "  upgrade           Upgrade T version and nixpkgs date to today's date\n";
@@ -291,6 +293,103 @@ let ensure_file_path filename =
   match Cli_args.validate_path ~kind:Cli_args.File filename with
   | Ok () -> ()
   | Error msg -> exit_with_error msg
+
+let parse_program_from_file filename =
+  try
+    let ch = open_in filename in
+    let content =
+      Fun.protect
+        ~finally:(fun () -> close_in_noerr ch)
+        (fun () -> really_input_string ch (in_channel_length ch))
+    in
+    let lexbuf = Lexing.from_string content in
+    lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+    try
+      Ok (Parser.program Lexer.token lexbuf)
+    with
+    | Lexer.SyntaxError msg ->
+        let pos = Lexing.lexeme_start_p lexbuf in
+        Error (make_located_error ~file:filename Ast.SyntaxError ("Syntax Error: " ^ msg) pos)
+    | Parser.Error ->
+        let pos = Lexing.lexeme_start_p lexbuf in
+        Error (make_located_error ~file:filename Ast.SyntaxError "Parse Error" pos)
+    | Sys.Break ->
+        Error (interrupt_error ())
+  with
+  | Sys_error msg ->
+      Error (Ast.VError {
+        code = Ast.FileError;
+        message = "File Error: " ^ msg;
+        context = [];
+        location = None;
+        na_count = 0;
+      })
+
+let resolve_pipeline_from_program_result filename (program : Ast.program) result env =
+  let result = !Ast.meta_pipeline_flatten_resolver result in
+  match result with
+  | Ast.VPipeline p -> Ok p
+  | _ ->
+      let pipeline_bindings =
+        Pipeline_script.top_level_assigned_names program
+        |> List.filter_map (fun name ->
+          match Ast.Env.find_opt name env with
+          | Some v ->
+              (match !Ast.meta_pipeline_flatten_resolver v with
+               | Ast.VPipeline p -> Some (name, p)
+               | _ -> None)
+          | None -> None)
+      in
+      match List.assoc_opt "p" pipeline_bindings, pipeline_bindings with
+      | Some p, _ -> Ok p
+      | None, [(_, p)] -> Ok p
+      | None, [] ->
+          Error
+            (Printf.sprintf
+               "No pipeline value was found in `%s`. Return a Pipeline value or bind it to `p` before calling this command."
+               filename)
+      | None, bindings ->
+          Error
+            (Printf.sprintf
+               "Multiple pipeline bindings were found in `%s` (%s). Bind the desired pipeline to `p` before calling this command."
+               filename (String.concat ", " (List.map fst bindings)))
+
+let cmd_artifact_transfer action filename archive_path env =
+  Packages.ensure_docs_loaded ();
+  ensure_file_path filename;
+  match parse_program_from_file filename with
+  | Error err ->
+      Printf.eprintf "%s" (Pretty_print.pretty_print_value err);
+      exit 1
+  | Ok program ->
+      let (result, new_env) = run_file Typecheck.Strict filename env in
+      match result with
+      | Ast.VError _ ->
+          Printf.eprintf "%s" (Pretty_print.pretty_print_value result);
+          exit 1
+      | _ ->
+          (match resolve_pipeline_from_program_result filename program result new_env with
+           | Error msg -> exit_with_error msg
+           | Ok pipeline ->
+               let transfer_result =
+                 match action with
+                 | `Export -> Builder_artifacts.export_artifacts pipeline archive_path
+                 | `Import -> Builder_artifacts.import_artifacts pipeline archive_path
+               in
+               match transfer_result with
+               | Ok message -> Printf.printf "%s\n" message
+               | Error err ->
+                   Printf.eprintf "%s\n"
+                     (Pretty_print.pretty_print_value
+                        (Ast.VError {
+                          code = err.code;
+                          message = err.message;
+                          context = [];
+                          location = None;
+                          na_count = 0;
+                        }));
+                   exit 1)
+
 let cmd_run ?(unsafe=false) ?failfast mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
@@ -937,10 +1036,20 @@ let () =
   | _ :: "update" :: _ -> cmd_update ()
   | _ :: "upgrade" :: _ -> cmd_upgrade ()
   | _ :: "publish" :: _ -> cmd_publish ()
+  | _ :: "export_artifacts" :: [filename; archive_path] ->
+      cmd_artifact_transfer `Export filename archive_path env
+  | _ :: "import_artifacts" :: [filename; archive_path] ->
+      cmd_artifact_transfer `Import filename archive_path env
 
   | _ :: "init" :: _ ->
       Printf.eprintf "Usage: t init --package <name> | t init --project <name> [options]\n";
       Printf.eprintf "Run 't init --package --help' for more information.\n";
+      exit 1
+  | _ :: "export_artifacts" :: _ ->
+      Printf.eprintf "Usage: t export_artifacts <pipeline.t> <archive_path>\n";
+      exit 1
+  | _ :: "import_artifacts" :: _ ->
+      Printf.eprintf "Usage: t import_artifacts <pipeline.t> <archive_path>\n";
       exit 1
   | _ :: "--help" :: _ | _ :: "-h" :: _ -> print_help ()
   | _ :: "--version" :: _ | _ :: "-v" :: _ -> print_version ()
