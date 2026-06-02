@@ -200,7 +200,7 @@ let rec flatten_meta (v : value) : pipeline_result =
           else
             (n, deps)
         ) sub_deps in
-        final_deps := !final_deps @ updated_sub_deps
+        final_deps := List.rev_append updated_sub_deps !final_deps
       ) namespaced_subs;
       let merge_fields select_field combine_field =
         List.fold_left (fun acc (_, flat_sub, local_names, ns) ->
@@ -253,7 +253,7 @@ let rec flatten_meta (v : value) : pipeline_result =
       {
         p_nodes;
         p_exprs;
-        p_deps = !final_deps;
+        p_deps = List.rev !final_deps;
         p_imports;
         p_runtimes;
         p_serializers;

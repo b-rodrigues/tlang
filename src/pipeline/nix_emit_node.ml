@@ -2147,8 +2147,8 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
                   check :: loop current xs
             in
             let init = [
+              "      echo \"class Namespace: pass\" >> node_script.py";
               Printf.sprintf "      echo \"if '%s' not in globals():\" >> node_script.py" first;
-              "      echo \"    class Namespace: pass\" >> node_script.py";
               Printf.sprintf "      echo \"    %s = Namespace()\" >> node_script.py" first;
             ] in
             String.concat "\n" (init @ loop first rest)

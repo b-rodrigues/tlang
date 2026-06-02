@@ -1557,9 +1557,9 @@ and eval_pipeline_of env_ref (nodes : (string * Ast.expr) list) : value =
                 | [] -> Ok acc
                 | (l, r) :: rest ->
                     if not (List.mem l sub_pipeline_names) then
-                      Error (Error.value_error (Printf.sprintf "Dependency source '%s' is not defined in the meta-pipeline" l))
+                      Error (Error.value_error (Printf.sprintf "Dependent sub-pipeline '%s' is not defined in the meta-pipeline" l))
                     else if not (List.mem r sub_pipeline_names) then
-                      Error (Error.value_error (Printf.sprintf "Dependency target '%s' is not defined in the meta-pipeline" r))
+                      Error (Error.value_error (Printf.sprintf "Dependency sub-pipeline '%s' is not defined in the meta-pipeline" r))
                     else
                       let next_acc =
                         List.map (fun (name, d) ->
