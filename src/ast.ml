@@ -385,6 +385,9 @@ let node_resolver : (string -> value option) ref = ref (fun _ -> None)
 (** Global hook for resolving computed node metadata from build logs *)
 let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn -> cn)
 
+(** Global hook for automatically flattening meta-pipelines in built-in argument projections *)
+let meta_pipeline_flatten_resolver : (value -> value) ref = ref (fun v -> v)
+
 (** Global hook for storing in-memory evaluated node values *)
 let in_memory_node_values : (string, value) Hashtbl.t = Hashtbl.create 50
 
@@ -1042,13 +1045,19 @@ let make_error ?location ?(context=[]) ?(na_count=0) code message =
 
 (** Create a builtin function value (wraps func to strip arg names) *)
 let make_builtin ?name ?(variadic=false) ?(unwrap=true) arity func =
-  let arg_proj = if unwrap then (fun (_, v) -> Utils.unwrap_value v) else (fun (_, v) -> v) in
+  let arg_proj =
+    if unwrap then (fun (_, v) -> !meta_pipeline_flatten_resolver (Utils.unwrap_value v))
+    else (fun (_, v) -> !meta_pipeline_flatten_resolver v)
+  in
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
              b_func = (fun named_args env_ref -> func (List.map arg_proj named_args) !env_ref) }
 
 (** Create a builtin function value that receives named args *)
 let make_builtin_named ?name ?(variadic=false) ?(unwrap=true) arity func =
-  let arg_proj = if unwrap then (fun (n, v) -> (n, Utils.unwrap_value v)) else (fun (n, v) -> (n, v)) in
+  let arg_proj =
+    if unwrap then (fun (n, v) -> (n, !meta_pipeline_flatten_resolver (Utils.unwrap_value v)))
+    else (fun (n, v) -> (n, !meta_pipeline_flatten_resolver v))
+  in
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
              b_func = (fun named_args env_ref -> func (List.map arg_proj named_args) !env_ref) }
 

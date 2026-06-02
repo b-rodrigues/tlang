@@ -967,4 +967,44 @@ pipeline_deps(flat)|}
     Printf.printf "%s" msg
   end;
 
+  (* Implicit flattening: passing a MetaPipeline to pipeline_nodes/pipeline_deps *)
+  let (v, _) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 }
+p_stats = pipeline { summary = etl.clean + 2 }
+meta = pipeline_of {
+  etl = p_etl
+  stats = p_stats
+}
+pipeline_nodes(meta)|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["etl.raw", "etl.clean", "stats.summary"]|} then begin
+    incr pass_count; Printf.printf "  ✓ implicit meta-pipeline flattening in built-ins works\n"
+  end else begin
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ implicit meta-pipeline flattening\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
+  end;
+
+  (* Nested/partial dot access: meta.stats.summary *)
+  let (v, _) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 }
+p_stats = pipeline { summary = etl.clean + 2 }
+meta = pipeline_of {
+  etl = p_etl
+  stats = p_stats
+}
+meta.stats.summary.name|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"stats.summary"|} then begin
+    incr pass_count; Printf.printf "  ✓ nested dot-access namespaces on meta-pipeline work\n"
+  end else begin
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ nested dot-access on meta-pipeline\n    Expected: \"stats.summary\"\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
+  end;
+
   print_newline ()

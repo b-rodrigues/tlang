@@ -272,6 +272,11 @@ let rec flatten_meta (v : value) : pipeline_result =
   | _ -> failwith "meta_flatten: expected a MetaPipeline or Pipeline value"
 
 let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> pipeline_result -> value) env =
+  Ast.meta_pipeline_flatten_resolver := (fun v ->
+    match v with
+    | VMetaPipeline _ -> VPipeline (flatten_meta v)
+    | _ -> v
+  );
 
 (*
 --# Chain Two Pipelines

@@ -2260,14 +2260,88 @@ and eval_dot_access_val _env_ref target_val field =
                           String.sub c 0 pfx_len = pfx)
       (Arrow_table.column_names arrow_table)
   in
+  let resolved_cn p cn =
+    match Hashtbl.find_opt Ast.pipeline_build_logs p.p_exprs with
+    | Some log_path ->
+        (match Builder_logs.read_log log_path with
+         | Ok entries ->
+             (match List.assoc_opt cn.cn_name entries with
+              | Some logged_cn ->
+                  let cn_path = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
+                  let cn_class = if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class in
+                  let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
+                  let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
+                  { cn with cn_path; cn_class; cn_runtime; cn_serializer }
+              | None -> !Ast.computed_node_resolver cn)
+         | _ -> !Ast.computed_node_resolver cn)
+    | None -> !Ast.computed_node_resolver cn
+  in
+  let get_pipeline_member p field =
+    match List.assoc_opt field p.p_nodes with
+    | Some (VComputedNode cn) -> Some (VComputedNode (resolved_cn p cn))
+    | Some (VSymbol s) -> Some (VSymbol s)
+    | Some v ->
+        let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
+        let cn_serializer =
+          match List.assoc_opt field p.p_serializers with
+          | Some e -> Nix_unparse.expr_to_string e
+          | None -> "default"
+        in
+        let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
+        let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
+        if is_noop then
+          Some (VSymbol (Printf.sprintf "<noop:%s>" field))
+        else begin
+          let diagnostics =
+            match List.assoc_opt field p.p_node_diagnostics with
+            | Some d -> d
+            | None -> Ast.Utils.empty_node_diagnostics
+          in
+          let wrapped = VNodeResult { v; node_name = field; diagnostics } in
+          Hashtbl.replace Ast.in_memory_node_values field wrapped;
+          Some (VComputedNode (resolved_cn p {
+            cn_name = field;
+            cn_runtime;
+            cn_path = "<unbuilt>";
+            cn_serializer;
+            cn_class = "Unknown";
+            cn_dependencies;
+          }))
+        end
+    | None ->
+        (match List.assoc_opt field p.p_exprs with
+         | Some _ ->
+             let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
+             let cn_serializer =
+               match List.assoc_opt field p.p_serializers with
+               | Some e -> Nix_unparse.expr_to_string e
+               | None -> "default"
+             in
+             let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
+             let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
+             if is_noop then
+               Some (VSymbol (Printf.sprintf "<noop:%s>" field))
+             else
+               Some (VComputedNode (resolved_cn p {
+                 cn_name = field;
+                 cn_runtime;
+                 cn_path = "<unbuilt>";
+                 cn_serializer;
+                 cn_class = "Unknown";
+                 cn_dependencies;
+               }))
+         | None -> None)
+  in
+  let has_node_prefix p prefix =
+    let pfx = prefix ^ "." in
+    List.exists (fun (n, _) -> String.starts_with ~prefix:pfx n) p.p_nodes ||
+    List.exists (fun (n, _) -> String.starts_with ~prefix:pfx n) p.p_exprs
+  in
   match target_val with
   | VDict pairs ->
       (match List.assoc_opt field pairs with
       | Some v -> v
       | None ->
-        (* Check for partial dot-access on a DataFrame (e.g. df.Petal -> df."Petal.Length").
-           Internal keys __partial_dot_df__ and __partial_dot_prefix__ carry the original
-           DataFrame and accumulated prefix through chained dot accesses. *)
         (match List.assoc_opt "__partial_dot_df__" pairs with
          | Some (VDataFrame { arrow_table; _ } as df_val) ->
            let prefix = (match List.assoc_opt "__partial_dot_prefix__" pairs with
@@ -2282,34 +2356,42 @@ and eval_dot_access_val _env_ref target_val field =
               else Error.index_error (0) (0) (* Placeholder as original did not have index info, using KeyError context *)
                   |> fun _ -> Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." compound))
          | _ ->
-           (* Check for partial dot-access on a plain dict with compound keys
-              (e.g. row.Petal.Length where dict has key "Petal.Length").
-              Internal keys __partial_dot_dict__ and __partial_dot_prefix__ carry the
-              original dict pairs and accumulated prefix through chained dot accesses. *)
-           (match List.assoc_opt "__partial_dot_dict__" pairs with
-            | Some (VDict orig_pairs) ->
+           (match List.assoc_opt "__partial_dot_pipeline__" pairs with
+            | Some (VPipeline p as pipe_val) ->
               let prefix = (match List.assoc_opt "__partial_dot_prefix__" pairs with
                             | Some (VString s) -> s | _ -> "") in
-              let compound = if prefix = "" then field else prefix ^ "." ^ field in
-              (match List.assoc_opt compound orig_pairs with
+              let compound = prefix ^ "." ^ field in
+              (match get_pipeline_member p compound with
                | Some v -> v
                | None ->
-                 let cpfx = compound ^ "." in
-                 let cpfx_len = String.length cpfx in
-                 if List.exists (fun (k, _) ->
-                   String.length k > cpfx_len && String.sub k 0 cpfx_len = cpfx) orig_pairs
-                 then VDict [("__partial_dot_dict__", VDict orig_pairs);
-                             ("__partial_dot_prefix__", VString compound)]
-                 else Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." compound))
+                   if has_node_prefix p compound
+                   then VDict [("__partial_dot_pipeline__", pipe_val);
+                               ("__partial_dot_prefix__", VString compound)]
+                   else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." compound))
             | _ ->
-               (* Check if any keys have this field as a dotted prefix *)
-               let pfx = field ^ "." in
-               let pfx_len = String.length pfx in
-               if List.exists (fun (k, _) ->
-                 String.length k > pfx_len && String.sub k 0 pfx_len = pfx) pairs
-               then VDict [("__partial_dot_dict__", VDict pairs);
-                           ("__partial_dot_prefix__", VString field)]
-               else Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." field))))
+              (match List.assoc_opt "__partial_dot_dict__" pairs with
+               | Some (VDict orig_pairs) ->
+                 let prefix = (match List.assoc_opt "__partial_dot_prefix__" pairs with
+                               | Some (VString s) -> s | _ -> "") in
+                 let compound = if prefix = "" then field else prefix ^ "." ^ field in
+                 (match List.assoc_opt compound orig_pairs with
+                  | Some v -> v
+                  | None ->
+                    let cpfx = compound ^ "." in
+                    let cpfx_len = String.length cpfx in
+                    if List.exists (fun (k, _) ->
+                      String.length k > cpfx_len && String.sub k 0 cpfx_len = cpfx) orig_pairs
+                    then VDict [("__partial_dot_dict__", VDict orig_pairs);
+                                ("__partial_dot_prefix__", VString compound)]
+                    else Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." compound))
+               | _ ->
+                  let pfx = field ^ "." in
+                  let pfx_len = String.length pfx in
+                  if List.exists (fun (k, _) ->
+                    String.length k > pfx_len && String.sub k 0 pfx_len = pfx) pairs
+                  then VDict [("__partial_dot_dict__", VDict pairs);
+                              ("__partial_dot_prefix__", VString field)]
+                  else Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." field)))))
   | VSymbol s ->
       (match field with
       | "path" ->
@@ -2323,88 +2405,24 @@ and eval_dot_access_val _env_ref target_val field =
       | Some (_, v) -> v
       | None -> Error.make_error KeyError (Printf.sprintf "List has no named element `%s`." field))
   | VDataFrame ({ arrow_table; _ } as df) ->
-      (* Use column views for efficient access — avoids redundant copies
-         when the column data is already available in the Arrow table. *)
       (match Arrow_column.get_column arrow_table field with
        | Some col_view -> VVector (Array.of_list (Arrow_column.column_view_to_list col_view))
        | None ->
-         (* Column not found — check if there are columns with this prefix (e.g. "Petal.Length")
-            to support R-style dotted column names via chained dot access (df.Petal.Length) *)
          if has_column_prefix arrow_table field
          then VDict [("__partial_dot_df__", VDataFrame df);
                      ("__partial_dot_prefix__", VString field)]
          else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
   | VPipeline p ->
-      let resolved_cn cn =
-        match Hashtbl.find_opt Ast.pipeline_build_logs p.p_exprs with
-        | Some log_path ->
-            (match Builder_logs.read_log log_path with
-             | Ok entries ->
-                 (match List.assoc_opt cn.cn_name entries with
-                  | Some logged_cn ->
-                      let cn_path = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
-                      let cn_class = if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class in
-                      let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
-                      let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
-                      { cn with cn_path; cn_class; cn_runtime; cn_serializer }
-                  | None -> !Ast.computed_node_resolver cn)
-             | _ -> !Ast.computed_node_resolver cn)
-        | None -> !Ast.computed_node_resolver cn
-      in
-      (match List.assoc_opt field p.p_nodes with
-       | Some (VComputedNode cn) -> VComputedNode (resolved_cn cn)
-       | Some (VSymbol s) -> VSymbol s
-       | Some v ->
-           let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
-           let cn_serializer =
-             match List.assoc_opt field p.p_serializers with
-             | Some e -> Nix_unparse.expr_to_string e
-             | None -> "default"
-           in
-           let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
-           let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
-           if is_noop then
-             VSymbol (Printf.sprintf "<noop:%s>" field)
-           else begin
-             let diagnostics =
-               match List.assoc_opt field p.p_node_diagnostics with
-               | Some d -> d
-               | None -> Ast.Utils.empty_node_diagnostics
-             in
-             let wrapped = VNodeResult { v; node_name = field; diagnostics } in
-             Hashtbl.replace Ast.in_memory_node_values field wrapped;
-             VComputedNode (resolved_cn {
-               cn_name = field;
-               cn_runtime;
-               cn_path = "<unbuilt>";
-               cn_serializer;
-               cn_class = "Unknown";
-               cn_dependencies;
-             })
-           end
+      (match get_pipeline_member p field with
+       | Some v -> v
        | None ->
-           (match List.assoc_opt field p.p_exprs with
-            | Some _ ->
-                let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
-                let cn_serializer =
-                  match List.assoc_opt field p.p_serializers with
-                  | Some e -> Nix_unparse.expr_to_string e
-                  | None -> "default"
-                in
-                let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
-                let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
-                if is_noop then
-                  VSymbol (Printf.sprintf "<noop:%s>" field)
-                else
-                  VComputedNode (resolved_cn {
-                    cn_name = field;
-                    cn_runtime;
-                    cn_path = "<unbuilt>";
-                    cn_serializer;
-                    cn_class = "Unknown";
-                    cn_dependencies;
-                  })
-            | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)))
+           if has_node_prefix p field
+           then VDict [("__partial_dot_pipeline__", VPipeline p);
+                       ("__partial_dot_prefix__", VString field)]
+           else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
+  | VMetaPipeline mp ->
+      let flat_p = Pipeline_composition.flatten_meta (VMetaPipeline mp) in
+      eval_dot_access_val _env_ref (VPipeline flat_p) field
   | VBuildLog bl ->
       (match field with
        | "nodes" -> VList (List.map (fun x -> (None, x)) bl.bl_nodes)
@@ -3246,13 +3264,28 @@ and eval_program ?(resilient=true) (program : program) (env : environment) : val
 
 (* --- Built-in Functions --- *)
 
+let flatten_if_meta v =
+  match v with
+  | VMetaPipeline _ -> VPipeline (Pipeline_composition.flatten_meta v)
+  | _ -> v
+
 let make_builtin ?name ?(variadic=false) ?(unwrap=true) arity func =
-  let arg_proj = if unwrap then (fun (_, v) -> Ast.Utils.unwrap_value v) else (fun (_, v) -> v) in
+  let arg_proj =
+    if unwrap then
+      (fun (_, v) -> flatten_if_meta (Ast.Utils.unwrap_value v))
+    else
+      (fun (_, v) -> flatten_if_meta v)
+  in
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
              b_func = (fun named_args env_ref -> func (List.map arg_proj named_args) !env_ref) }
 
 let make_builtin_named ?name ?(variadic=false) ?(unwrap=true) arity func =
-  let arg_proj = if unwrap then (fun (n, v) -> (n, Ast.Utils.unwrap_value v)) else (fun (n, v) -> (n, v)) in
+  let arg_proj =
+    if unwrap then
+      (fun (n, v) -> (n, flatten_if_meta (Ast.Utils.unwrap_value v)))
+    else
+      (fun (n, v) -> (n, flatten_if_meta v))
+  in
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
              b_func = (fun named_args env_ref -> func (List.map arg_proj named_args) !env_ref) }
 
