@@ -34,7 +34,7 @@ let register env =
                    | Error err -> err_opt := Some err
                    | Ok store_path ->
                        arr_store_path.(i) <- Some store_path;
-                       let check_argv = [| "nix-store"; "--query"; "--valid"; store_path |] in
+                       let check_argv = [| "nix-store"; "--verify-path"; store_path |] in
                        let cached =
                          match Builder_utils.run_command_argv_exit check_argv with
                          | Ok 0 -> true

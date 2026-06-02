@@ -111,7 +111,7 @@ let invalid_store_paths node_paths =
   let rec loop acc = function
     | [] -> Ok (List.rev acc)
     | (name, store_path) :: rest ->
-        (match run_command_argv_exit [| "nix-store"; "--query"; "--valid"; store_path |] with
+        (match run_command_argv_exit [| "nix-store"; "--verify-path"; store_path |] with
          | Ok 0 -> loop acc rest
          | Ok _ -> loop (name :: acc) rest
          | Error msg ->
@@ -136,50 +136,50 @@ let export_artifacts (p : Ast.pipeline_result) archive_path =
       (match pipeline_store_paths p with
        | Error _ as err -> err
        | Ok node_paths ->
-           match invalid_store_paths node_paths with
-           | Error _ as err -> err
-           | Ok [] ->
-               (match export_closure_paths node_paths with
-                | Error _ as err -> err
-                | Ok [] ->
-                    error RuntimeError "No pipeline artifacts were found to export."
-                | Ok closure_paths ->
-                    let archive_fd =
-                      try Ok (Unix.openfile archive_path [Unix.O_CREAT; Unix.O_TRUNC; Unix.O_WRONLY] 0o644)
-                      with Unix.Unix_error (err, _, _) ->
-                        error FileError
-                          (Printf.sprintf "Could not open archive path `%s`: %s"
-                             archive_path (Unix.error_message err))
-                    in
-                    (match archive_fd with
-                     | Error _ as err -> err
-                     | Ok archive_fd ->
-                         let result =
-                           Fun.protect
-                             ~finally:(fun () -> close_noerr archive_fd)
-                             (fun () ->
-                               let devnull_fd = Unix.openfile "/dev/null" [Unix.O_RDONLY] 0 in
-                               Fun.protect
-                                 ~finally:(fun () -> close_noerr devnull_fd)
-                                 (fun () ->
-                                   run_process_redirected
-                                     (Array.of_list ("nix-store" :: "--export" :: closure_paths))
-                                     ~stdin_fd:devnull_fd
-                                     ~stdout_fd:archive_fd))
-                         in
-                         (match result with
-                          | Ok () ->
-                              Ok
-                                (Printf.sprintf "Exported %d pipeline artifact(s) to `%s`."
-                                   (List.length node_paths) archive_path)
-                          | Error _ as err ->
-                              (try Sys.remove archive_path with _ -> ());
-                              err))))
-           | Ok missing_nodes ->
-               error RuntimeError
-                 (Printf.sprintf
-                    "Cannot export artifacts because these pipeline nodes are not cached: %s. Build the pipeline first."
-                    (String.concat ", " missing_nodes)))
+           (match invalid_store_paths node_paths with
+            | Error _ as err -> err
+            | Ok (_ :: _ as missing_nodes) ->
+                error RuntimeError
+                  (Printf.sprintf
+                     "Cannot export artifacts because these pipeline nodes are not cached: %s. Build the pipeline first."
+                     (String.concat ", " missing_nodes))
+            | Ok [] ->
+                (match export_closure_paths node_paths with
+                 | Error _ as err -> err
+                 | Ok [] ->
+                     error RuntimeError "No pipeline artifacts were found to export."
+                 | Ok closure_paths ->
+                     let archive_fd =
+                       try Ok (Unix.openfile archive_path [Unix.O_CREAT; Unix.O_TRUNC; Unix.O_WRONLY] 0o644)
+                       with Unix.Unix_error (err, _, _) ->
+                         error FileError
+                           (Printf.sprintf "Could not open archive path `%s`: %s"
+                              archive_path (Unix.error_message err))
+                     in
+                     (match archive_fd with
+                      | Error _ as err -> err
+                      | Ok archive_fd ->
+                          let result =
+                            Fun.protect
+                              ~finally:(fun () -> close_noerr archive_fd)
+                              (fun () ->
+                                let devnull_fd = Unix.openfile "/dev/null" [Unix.O_RDONLY] 0 in
+                                Fun.protect
+                                  ~finally:(fun () -> close_noerr devnull_fd)
+                                  (fun () ->
+                                    run_process_redirected
+                                      (Array.of_list ("nix-store" :: "--export" :: closure_paths))
+                                      ~stdin_fd:devnull_fd
+                                      ~stdout_fd:archive_fd))
+                          in
+                          (match result with
+                           | Ok () ->
+                               Ok
+                                 (Printf.sprintf "Exported %d pipeline artifact(s) to `%s`."
+                                    (List.length node_paths) archive_path)
+                           | Error _ as err ->
+                               (try Sys.remove archive_path with _ -> ());
+                               err)))))
 
 let import_artifacts (p : Ast.pipeline_result) archive_path =
   match ensure_archive_path archive_path with
@@ -199,33 +199,33 @@ let import_artifacts (p : Ast.pipeline_result) archive_path =
                  (Printf.sprintf "Could not open archive path `%s`: %s"
                     archive_path (Unix.error_message err))
            in
-           match archive_fd with
-           | Error _ as err -> err
-           | Ok archive_fd ->
-               let import_result =
-                 Fun.protect
-                   ~finally:(fun () -> close_noerr archive_fd)
-                   (fun () ->
-                     let devnull_fd = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0 in
-                     Fun.protect
-                       ~finally:(fun () -> close_noerr devnull_fd)
-                       (fun () ->
-                         run_process_redirected
-                           [| "nix-store"; "--import" |]
-                           ~stdin_fd:archive_fd
-                           ~stdout_fd:devnull_fd))
-               in
-               (match import_result with
-                | Error _ as err -> err
-                | Ok () ->
-                    match invalid_store_paths node_paths with
-                    | Error _ as err -> err
-                    | Ok [] ->
-                        Ok
-                          (Printf.sprintf "Imported pipeline artifacts from `%s`."
-                             archive_path)
-                    | Ok missing_nodes ->
-                        error RuntimeError
-                          (Printf.sprintf
-                             "Artifact archive `%s` was imported, but these pipeline nodes are still missing from the local store: %s"
-                             archive_path (String.concat ", " missing_nodes))))
+           (match archive_fd with
+            | Error _ as err -> err
+            | Ok archive_fd ->
+                let import_result =
+                  Fun.protect
+                    ~finally:(fun () -> close_noerr archive_fd)
+                    (fun () ->
+                      let devnull_fd = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0 in
+                      Fun.protect
+                        ~finally:(fun () -> close_noerr devnull_fd)
+                        (fun () ->
+                          run_process_redirected
+                            [| "nix-store"; "--import" |]
+                            ~stdin_fd:archive_fd
+                            ~stdout_fd:devnull_fd))
+                in
+                (match import_result with
+                 | Error _ as err -> err
+                 | Ok () ->
+                     (match invalid_store_paths node_paths with
+                      | Error _ as err -> err
+                      | Ok [] ->
+                          Ok
+                            (Printf.sprintf "Imported pipeline artifacts from `%s`."
+                               archive_path)
+                      | Ok missing_nodes ->
+                          error RuntimeError
+                            (Printf.sprintf
+                               "Artifact archive `%s` was imported, but these pipeline nodes are still missing from the local store: %s"
+                               archive_path (String.concat ", " missing_nodes))))))

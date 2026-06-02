@@ -326,6 +326,7 @@ let parse_program_from_file filename =
       })
 
 let resolve_pipeline_from_program_result filename (program : Ast.program) result env =
+  let result = !Ast.meta_pipeline_flatten_resolver result in
   match result with
   | Ast.VPipeline p -> Ok p
   | _ ->
@@ -333,8 +334,11 @@ let resolve_pipeline_from_program_result filename (program : Ast.program) result
         Pipeline_script.top_level_assigned_names program
         |> List.filter_map (fun name ->
           match Ast.Env.find_opt name env with
-          | Some (Ast.VPipeline p) -> Some (name, p)
-          | _ -> None)
+          | Some v ->
+              (match !Ast.meta_pipeline_flatten_resolver v with
+               | Ast.VPipeline p -> Some (name, p)
+               | _ -> None)
+          | None -> None)
       in
       match List.assoc_opt "p" pipeline_bindings, pipeline_bindings with
       | Some p, _ -> Ok p
@@ -384,7 +388,7 @@ let cmd_artifact_transfer action filename archive_path env =
                           location = None;
                           na_count = 0;
                         }));
-                   exit 1
+                   exit 1)
 
 let cmd_run ?(unsafe=false) ?failfast mode filename env =
   Packages.ensure_docs_loaded ();
