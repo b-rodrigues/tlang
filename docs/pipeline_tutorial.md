@@ -1375,6 +1375,26 @@ p_full = p_data |> chain(p_model)
 
 By giving the stub a different name (`data_input = raw_data`), you avoid a self-reference while still creating a T-expression that references `raw_data`. T can parse the right-hand side, detect the cross-pipeline dependency, and allow `chain()` to wire the pipelines together. Note that R/Python code inside the chained node should use the **alias name** (`data_input`) as the variable, not the original (`raw_data`).
 
+### Parameterizing Pipelines (Templates via Lambdas)
+
+Rather than introducing new complex constructs, T-Lang encourages parameterizing pipelines using standard lambdas. Since lambdas return values and pipelines are first-class values in T-Lang, you can define a lambda that takes configuration parameters and returns a pipeline.
+
+#### Example
+
+Here is a template lambda that takes a multiplier parameter and returns a pipeline with two nodes:
+
+```t
+make_pipeline = \(multiplier: Int -> Pipeline) pipeline {
+  raw      = [1, 2, 3]
+  computed = raw * multiplier
+}
+
+p1 = make_pipeline(10)
+p2 = make_pipeline(20)
+```
+
+At execution time, outer variables (like `multiplier`) are substituted with their concrete values (like `10` or `20`) during compilation, resulting in fully independent Nix-reproducible pipelines.
+
 ---
 
 ## 26. Parallel Execution

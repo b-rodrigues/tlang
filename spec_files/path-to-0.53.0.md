@@ -72,7 +72,7 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 - [x] **`meta_flatten(meta)`**: Transform a meta-pipeline into a single flat pipeline with namespaced nodes (`etl.raw_data`).
 
 ### Pipeline Algebra & Templates
-- [ ] **Parameterization via Lambdas**: Instead of new keywords, promote the use of lambdas returning pipelines: `\(input) pipeline { ... }`.
+- [x] **Parameterization via Lambdas**: Instead of new keywords, promote the use of lambdas returning pipelines: `\(input) pipeline { ... }`.
 - [ ] **Artifact Export & Import**: Add capabilities to export/import the build cache of a pipeline to enable sharing artifacts between machines (e.g. building on computer A, exporting, importing on computer B, and skipping builds).
   - **REPL functions**: `export_artifacts(p, archive_path)` and `import_artifacts(p, archive_path)`.
   - **CLI commands**: `t export_artifacts <pipeline.t> <archive_path>` and `t import_artifacts <pipeline.t> <archive_path>`.

@@ -105,6 +105,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   test "pipeline with expressions"
     "pipeline {\n  a = 2 * 3\n  b = a + 4\n}"
     "Pipeline(2 nodes: [a, b])";
+  test "parameterization via lambdas returning pipelines"
+    "f = \\(x: Int -> Pipeline) pipeline { a = x + 1 }; p = f(10); pipeline_nodes(p)"
+    {|["a"]|};
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Node Access:\n";

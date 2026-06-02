@@ -1,5 +1,70 @@
 # Changelog
 
+## [0.52.3] - 2026-06-xx
+
+This release introduces a new meta-pipeline composition feature, `pipeline_of`, providing native support for building hierarchical and graph-structured pipelines. Pipelines are automatically flattened at execution time, handling namespace collisions and automatically wiring inter-pipeline dependencies.
+
+**Status**: Beta
+
+### Meta-Pipeline Composition
+- **`pipeline_of` block**: A new combinator that composes multiple pipelines into a higher-order DAG. It allows you to define relationships between sub-pipelines in a declarative way, enabling complex, multi-stage workflows.
+- **Automatic Dependency Inference**: T-Lang automatically analyzes cross-pipeline references (e.g., referencing `etl.clean` in the `stats` pipeline) to infer the execution order between sub-pipelines. No manual `depends` configuration is required for the flattening engine.
+- **Automatic Flattening**: The `meta_flatten` combinator automatically flattens meta-pipelines at execution time. When a meta-pipeline is populated, queried, or inspected, T-Lang automatically flattens it internally. This flattening is done on-demand, so you don't need to manually flatten meta-pipelines.
+- **Automatic Namespacing**: Node names are automatically namespaced (e.g., `etl.raw`, `etl.clean`, `stats.summary`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
+- **Cross-Pipeline Reference Rewriting**: Internal references to sub-pipeline nodes (e.g., `p_etl.raw`) are automatically rewritten to their namespaced equivalents (e.g., `etl.raw`) during the flattening process.
+
+### Pipeline Parameterization (Templates)
+- **Parameterization via Lambdas**: Standard lambdas returning `pipeline` blocks (e.g., `\(multiplier) pipeline { ... }`) are now fully supported. Outer variables referenced inside the pipeline nodes are automatically substituted with their concrete values during compilation, producing fully independent and Nix-reproducible pipelines.
+
+### Examples
+
+#### Basic Usage
+```t
+# Define multiple pipelines
+p_etl = pipeline { ... }
+p_stats = pipeline { ... }
+
+# Compose into a meta-pipeline
+meta = pipeline_of {
+  etl = p_etl
+  stats = p_stats
+}
+
+# Built-in commands automatically handle meta-pipelines
+populate_pipeline(meta, build = true)
+read_node(meta.stats.summary)
+inspect_pipeline(meta)
+```
+
+#### Graph-Structured Pipeline
+```t
+meta_graph = pipeline_of {
+  raw = pipeline {
+    src = read_csv("raw.csv")
+  }
+
+  cleaned_a = pipeline {
+    a = clean(raw.src)
+  }
+
+  cleaned_b = pipeline {
+    b = clean(raw.src)
+  }
+
+  summary = pipeline {
+    val = summarize(cleaned_a.a, cleaned_b.b)
+  }
+}
+
+# T-Lang automatically infers the execution order:
+# raw -> {cleaned_a, cleaned_b} -> summary
+populate_pipeline(meta_graph, build = true)
+```
+
+### Notes
+- The `meta_flatten` combinator is not exposed as a first-class function in the CLI or T-Lang AST. It is an internal implementation detail of the pipeline engine that is automatically invoked when working with `pipeline_of`.
+
+
 ## [0.52.2] - 2026-05-31
 
 This release introduces interactive pipeline node debugging via `debug_node`, native Nix orchestration features for granular rebuild control, job parallelisation, Cachix binary caching, and dry-runs, and the temporal introspection pair `build_log_history` and `node_diff` for tracking how pipeline outputs change across builds.

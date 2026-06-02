@@ -1110,4 +1110,7 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VExpr _, TExpr -> true
   | VQuo _, TExpr -> true
 
+  | VPipeline _, TCustom "Pipeline" -> true
+  | VMetaPipeline _, TCustom ("Pipeline" | "MetaPipeline") -> true
+
   | _ -> false

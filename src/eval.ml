@@ -1529,6 +1529,55 @@ and eval_pipeline_of env_ref (nodes : (string * Ast.expr) list) : value =
 
 (** Evaluate a pipeline definition *)
 and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : value =
+  let rec substitute_env_vars env node_names expr =
+    let sub = substitute_env_vars env node_names in
+    let new_node = match expr.node with
+      | Var name ->
+          if not (List.mem name node_names) && Env.mem name env then
+            Value (Env.find name env)
+          else
+            Var name
+      | Call { fn; args } ->
+          Call { fn = sub fn; args = List.map (fun (n, e) -> (n, sub e)) args }
+      | ListLit items ->
+          ListLit (List.map (fun (n, e) -> (n, sub e)) items)
+      | DictLit items ->
+          DictLit (List.map (fun (n, e) -> (n, sub e)) items)
+      | BinOp { op; left; right } ->
+          BinOp { op; left = sub left; right = sub right }
+      | BroadcastOp { op; left; right } ->
+          BroadcastOp { op; left = sub left; right = sub right }
+      | UnOp { op; operand } ->
+          UnOp { op; operand = sub operand }
+      | DotAccess { target; field } ->
+          DotAccess { target = sub target; field }
+      | IfElse { cond; then_; else_ } ->
+          IfElse { cond = sub cond; then_ = sub then_; else_ = sub else_ }
+      | Match { scrutinee; cases } ->
+          Match { scrutinee = sub scrutinee; cases = List.map (fun (pat, body) -> (pat, sub body)) cases }
+      | ListComp { expr = c_expr; clauses } ->
+          let clauses' = List.map (function
+            | CFor { var; iter } -> CFor { var; iter = sub iter }
+            | CFilter e -> CFilter (sub e)
+          ) clauses in
+          ListComp { expr = sub c_expr; clauses = clauses' }
+      | Lambda l ->
+          let inner_node_names = l.params @ node_names in
+          Lambda { l with body = substitute_env_vars env inner_node_names l.body }
+      | Block stmts ->
+          let stmts' = List.map (fun stmt ->
+            match stmt.node with
+            | Expression e -> { stmt with node = Expression (sub e) }
+            | Assignment a -> { stmt with node = Assignment { a with expr = sub a.expr } }
+            | Reassignment r -> { stmt with node = Reassignment { r with expr = sub r.expr } }
+            | _ -> stmt
+          ) stmts in
+          Block stmts'
+      | other -> other
+    in
+    { expr with node = new_node }
+  in
+
   let default_un expr = {
     un_command = expr;
     un_script = None;
@@ -1552,6 +1601,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
      we catch it and defer it as an unbuilt node so pipeline topological
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
+    let node_names = List.map fst nodes in
+    let node_expr = substitute_env_vars !env_ref node_names node_expr in
     let is_node_call = match node_expr.node with
       | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
       | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
