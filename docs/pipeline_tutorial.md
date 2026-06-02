@@ -1295,17 +1295,8 @@ meta = pipeline_of {
 
 #### Automatic Dependency Inference
 
-T-Lang automatically analyzes cross-pipeline references in node expressions (such as referencing `etl.clean` in the `stats` pipeline) to infer the execution order between sub-pipelines. You do not need to manually specify a `depends` configuration. The flattening engine will automatically wire the root nodes of a dependent sub-pipeline to depend on the terminal nodes of the pipeline it references.
+T-Lang automatically analyzes cross-pipeline references in node expressions (such as referencing `etl.clean` in the `stats` pipeline) to infer the execution order between sub-pipelines. The flattening engine automatically wires the root nodes of a dependent sub-pipeline to depend on the terminal nodes of the pipeline it references.
 
-Alternatively, if you want to explicitly enforce a dependency order (e.g. for side effects or execution sequencing), you can specify it in the `depends` block:
-
-```t
-meta = pipeline_of {
-  etl   = p_etl
-  stats = p_stats
-  depends = [stats => etl]
-}
-```
 
 #### Native Execution & Namespacing
 

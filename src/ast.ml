@@ -130,7 +130,6 @@ and pipeline_result = {
 
 and meta_pipeline = {
   mp_pipelines : (string * value) list;      (* Map sub-pipeline name -> pipeline value (VPipeline) *)
-  mp_deps : (string * string list) list;     (* Map sub-pipeline name -> sub-pipeline names it depends on *)
 }
 
 

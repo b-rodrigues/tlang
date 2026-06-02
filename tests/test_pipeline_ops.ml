@@ -909,7 +909,6 @@ p_stats = pipeline { summary = 2 }
 meta = pipeline_of {
   etl = p_etl
   stats = p_stats
-  depends = [stats => etl]
 }
 flat = meta_flatten(meta)
 pipeline_nodes(flat)|}
@@ -920,28 +919,6 @@ pipeline_nodes(flat)|}
   end else begin
     incr fail_count;
     let msg = Printf.sprintf "  ✗ meta_flatten nodes\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary\"]\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
-
-  (* meta_flatten: wires inter-sub-pipeline dependencies *)
-  let (v, _) = eval_string_env
-    {|p_etl = pipeline { raw = 1; clean = raw + 1 }
-p_stats = pipeline { summary = 2 }
-meta = pipeline_of {
-  etl = p_etl
-  stats = p_stats
-  depends = [stats => etl]
-}
-flat = meta_flatten(meta)
-pipeline_deps(flat)|}
-    (Packages.init_env ()) in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|{`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}|} then begin
-    incr pass_count; Printf.printf "  ✓ meta_flatten wires dependencies correctly\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ meta_flatten deps\n    Expected: {`etl.raw`: [], `etl.clean`: [\"etl.raw\"], `stats.summary`: [\"etl.clean\"]}\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;

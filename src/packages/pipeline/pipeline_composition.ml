@@ -177,13 +177,12 @@ let rec flatten_meta (v : value) : pipeline_result =
         let sub_deps = List.map (fun (n, deps) ->
           (ns n, List.map (fun d -> if List.mem d local_names then ns d else d) deps)
         ) flat_sub.p_deps in
-        let dep_sub_names = match List.assoc_opt sub_name mp.mp_deps with Some d -> d | None -> [] in
         let sub_names = List.map fst mp.mp_pipelines in
         let inferred_deps =
           List.concat_map (fun (_, e) -> find_dot_access_targets e) flat_sub.p_exprs
           |> List.filter (fun target -> List.mem target sub_names && target <> sub_name)
         in
-        let all_dep_sub_names = List.sort_uniq compare (dep_sub_names @ inferred_deps) in
+        let all_dep_sub_names = List.sort_uniq compare inferred_deps in
         let sub_roots = find_root_nodes flat_sub.p_exprs flat_sub.p_deps in
         let updated_sub_deps = List.map (fun (n, deps) ->
           let orig_n = String.sub n (String.length sub_name + 1) (String.length n - String.length sub_name - 1) in

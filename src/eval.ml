@@ -1457,7 +1457,7 @@ and free_vars (expr : Ast.expr) : string list =
     | { node = RawCode { raw_identifiers; _ }; _ } -> raw_identifiers  (* Lexically extracted identifiers for dependency detection *)
     | { node = Block stmts; _ } -> List.concat_map (collect_stmt false) stmts
     | { node = PipelineDef _; _ } -> []
-    | { node = PipelineOfDef nodes; _ } -> List.concat_map (fun (name, e) -> if name = "depends" then [] else collect false e) nodes
+    | { node = PipelineOfDef nodes; _ } -> List.concat_map (fun (_, e) -> collect false e) nodes
     | { node = IntentDef pairs; _ } -> List.concat_map (fun (_, e) -> collect false e) pairs
     | { node = Unquote e; _ } | { node = UnquoteSplice e; _ } -> collect false e
     | { node = ShellExpr _; _ } -> []
@@ -1508,31 +1508,11 @@ and topo_sort (nodes : (string * 'a) list) (deps : (string * string list) list) 
   | Error name -> Error name
   | Ok () -> Ok (List.rev !order)
 
-and parse_depends_expr expr =
-  match expr.Ast.node with
-  | Ast.ListLit items ->
-      let rec loop acc = function
-        | [] -> Ok (List.rev acc)
-        | (_, item) :: rest ->
-            match item.Ast.node with
-            | Ast.BinOp { op = Ast.FatArrow; left; right } ->
-                (match left.Ast.node, right.Ast.node with
-                 | Ast.Var l_name, Ast.Var r_name ->
-                     loop ((l_name, r_name) :: acc) rest
-                 | _ -> Error (Error.type_error "meta-pipeline depends block must contain pairs like sub_pipeline1 => sub_pipeline2"))
-            | _ -> Error (Error.type_error "meta-pipeline depends block must contain pairs like sub_pipeline1 => sub_pipeline2")
-      in
-      loop [] items
-  | _ -> Error (Error.type_error "meta-pipeline depends block must be a list of dependencies")
-
 and eval_pipeline_of env_ref (nodes : (string * Ast.expr) list) : value =
   let pipelines = ref [] in
-  let depends_expr = ref None in
   let error = ref None in
   List.iter (fun (name, expr) ->
     if !error <> None then ()
-    else if name = "depends" then
-      depends_expr := Some expr
     else
       let v = eval_expr env_ref expr in
       match v with
@@ -1545,33 +1525,7 @@ and eval_pipeline_of env_ref (nodes : (string * Ast.expr) list) : value =
   | Some err -> err
   | None ->
       let pipelines = List.rev !pipelines in
-      let sub_pipeline_names = List.map fst pipelines in
-      let deps = List.map (fun name -> (name, [])) sub_pipeline_names in
-      match !depends_expr with
-      | None -> VMetaPipeline { mp_pipelines = pipelines; mp_deps = deps }
-      | Some expr ->
-          match parse_depends_expr expr with
-          | Error err -> err
-          | Ok pairs ->
-              let rec fold_deps acc = function
-                | [] -> Ok acc
-                | (l, r) :: rest ->
-                    if not (List.mem l sub_pipeline_names) then
-                      Error (Error.value_error (Printf.sprintf "Dependent sub-pipeline '%s' is not defined in the meta-pipeline" l))
-                    else if not (List.mem r sub_pipeline_names) then
-                      Error (Error.value_error (Printf.sprintf "Dependency sub-pipeline '%s' is not defined in the meta-pipeline" r))
-                    else
-                      let next_acc =
-                        List.map (fun (name, d) ->
-                          if name = l then (name, r :: d) else (name, d)
-                        ) acc
-                      in
-                      fold_deps next_acc rest
-              in
-              match fold_deps deps pairs with
-              | Error err -> err
-              | Ok final_deps ->
-                  VMetaPipeline { mp_pipelines = pipelines; mp_deps = final_deps }
+      VMetaPipeline { mp_pipelines = pipelines }
 
 (** Evaluate a pipeline definition *)
 and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : value =
