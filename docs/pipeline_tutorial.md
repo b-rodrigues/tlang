@@ -1739,6 +1739,65 @@ build_pipeline(p,
                ])
 ```
 
+## 21. Meta-Pipelines & Pipeline Composition
+
+As your project grows, writing a single monolithic pipeline can become difficult to maintain. T supports **Pipeline Composition** via `pipeline_of` blocks, allowing you to compose multiple independent sub-pipelines into a higher-order DAG (a **meta-pipeline**).
+
+### Composing Pipelines with `pipeline_of`
+
+You can group multiple pipelines into a single meta-pipeline block. Node names are automatically namespaced with their sub-pipeline name (e.g., `etl.raw`, `stats.summary`), and dependencies between different sub-pipelines are automatically resolved based on the variables they reference.
+
+```t
+p_etl = pipeline {
+  raw = read_csv("data.csv")
+  clean = raw |> filter($value > 0)
+}
+
+p_stats = pipeline {
+  -- Dependencies on nodes in 'etl' are automatically detected!
+  summary = etl.clean |> group_by($category) |> summarize(total = sum($value))
+}
+
+-- Compose them into a higher-order DAG
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+}
+```
+
+### Automatic Dependency Inference
+
+Unlike other pipeline tools, you do not need to manually specify dependencies between sub-pipelines using arrows or ordering arrays. T automatically analyzes the dependencies of each node inside the sub-pipelines. If a node in `stats` references a namespaced node name like `etl.clean`, T automatically wires a dependency edge from `etl.clean` to `stats.summary`.
+
+### Implicit Flattening
+
+You can treat a meta-pipeline exactly like a standard pipeline. Any built-in function that expects a pipeline (like `populate_pipeline`, `pipeline_nodes`, or `pipeline_deps`) will automatically flatten the meta-pipeline internally:
+
+```t
+-- Get all namespaced nodes in the meta-pipeline
+pipeline_nodes(meta)
+-- ["etl.raw", "etl.clean", "stats.summary"]
+
+-- Check dependency structure
+pipeline_deps(meta)
+-- {`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}
+
+-- Build the entire composed DAG in Nix
+populate_pipeline(meta, build = true)
+```
+
+### Nested Dot Access
+
+You can query individual nodes and their computed metadata directly on the meta-pipeline using chained dot-access notation. This makes namespaced sub-pipelines feel like natural nested objects:
+
+```t
+-- Access the computed node name of a sub-pipeline node
+meta.stats.summary.name        -- "stats.summary"
+
+-- Retrieve a materialized artifact after building
+read_node(meta.stats.summary)  -- Returns the summarized DataFrame
+```
+
 ---
 
 ## Next Steps
