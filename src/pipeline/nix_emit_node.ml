@@ -2194,9 +2194,9 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
           | Leaf expr -> expr
           | Node children ->
               let entries = List.map (fun (k, child) ->
-                Printf.sprintf "%s = %s" k (to_t_expr child)
+                Printf.sprintf "%s: %s" k (to_t_expr child)
               ) children in
-              "{\n  " ^ String.concat "\n  " entries ^ "\n}"
+              "[\n  " ^ String.concat ",\n  " entries ^ "\n]"
         in
         let root = ref (Node []) in
         List.iter (fun d ->
