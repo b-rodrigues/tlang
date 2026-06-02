@@ -1262,14 +1262,14 @@ p_cross = pipeline {
         let has_r_json_helpers =
          contains_substring nix "r_write_json <- function" &&
          contains_substring nix "r_read_json <- function" &&
-         contains_substring nix "source <- r_read_json(" &&
-         contains_substring nix "r_write_json(report_r,"
+         contains_substring nix "__dep_source <- r_read_json(" &&
+         contains_substring nix "r_write_json(__node_result,"
        in
         let has_py_arrow_helpers =
           contains_substring nix "def py_write_arrow(df, path):" &&
           contains_substring nix "def py_read_arrow(path):" &&
-          contains_substring nix "source = py_read_arrow(" &&
-          contains_substring nix "py_write_arrow(report_py,"
+          contains_substring nix "__dep_source = py_read_arrow(" &&
+          contains_substring nix "py_write_arrow(__node_result,"
         in
         let omits_old_runtime_prefixed_helpers =
           (not (contains_substring nix "t_read_json(")) &&
@@ -1311,23 +1311,23 @@ p_cross = pipeline {
          contains_substring nix "r_extract_plot_metadata <- function(object)" &&
          contains_substring nix "r_save_viz_metadata <- function(object, path)" &&
          contains_substring nix "file.path(Sys.getenv('out'), 'class')" &&
-         contains_substring nix "r_save_viz_metadata(plot_r, file.path(Sys.getenv('out'), 'viz'))"
+         contains_substring nix "r_save_viz_metadata(__node_result, file.path(Sys.getenv('out'), 'viz'))"
        in
         let has_py_plot_helpers =
           contains_substring nix "def py_extract_plot_metadata(obj):" &&
           contains_substring nix "from plotnine.ggplot import ggplot as PlotnineGGPlot" &&
           contains_substring nix "\"class\": \"plotnine\"" &&
           contains_substring nix "\"backend\": \"Python\"" &&
-          contains_substring nix "py_visual_class(plot_py)" &&
-          contains_substring nix "py_save_viz_metadata(plot_py, os.path.join(os.environ['out'], 'viz'))"
+          contains_substring nix "py_visual_class(__node_result)" &&
+          contains_substring nix "py_save_viz_metadata(__node_result, os.path.join(os.environ['out'], 'viz'))"
         in
         let has_jl_plot_helpers =
           contains_substring nix "function jl_extract_plot_metadata(obj)" &&
           contains_substring nix "\"class\" => \"tidierplots\"" &&
           contains_substring nix "\"class\" => \"plotsjl\"" &&
           contains_substring nix "\"class\" => \"makie\"" &&
-          contains_substring nix "jl_visual_class(plot_jl)" &&
-          contains_substring nix "jl_save_viz_metadata(plot_jl, joinpath(ENV[\"out\"], \"viz\"))"
+          contains_substring nix "jl_visual_class(__node_result)" &&
+          contains_substring nix "jl_save_viz_metadata(__node_result, joinpath(ENV[\"out\"], \"viz\"))"
         in
         if has_r_plot_helpers && has_py_plot_helpers && has_jl_plot_helpers then begin
          incr pass_count; Printf.printf "  ✓ pipeline emits plot metadata helpers for R, Python, and Julia nodes\n"

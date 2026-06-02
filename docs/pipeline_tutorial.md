@@ -1268,6 +1268,58 @@ pipeline_nodes(p_full)  -- ["raw", "clean", "fit", "report"]
 
 `chain` is stricter than `union`: it requires an *intent* to connect the pipelines, catching accidental merges where no wiring was meant.
 
+### Meta-Pipelines (`pipeline_of` & `meta_flatten`)
+
+For larger projects, you can compose multiple pipelines into a higher-order DAG using the `pipeline_of` block, and then flatten them into a single executable pipeline with `meta_flatten()`. 
+
+#### `pipeline_of` block
+
+Defines a group of sub-pipelines. The nodes within the block bind identifiers to pipeline values.
+
+```t
+p_etl = pipeline {
+  raw   = read_csv("data.csv")
+  clean = raw |> filter($value > 0)
+}
+
+p_stats = pipeline {
+  summary = etl.clean |> mean
+}
+
+-- Compose them into a higher-order DAG
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+}
+```
+
+#### Automatic Dependency Inference
+
+T-Lang automatically analyzes cross-pipeline references in node expressions (such as referencing `etl.clean` in the `stats` pipeline) to infer the execution order between sub-pipelines. You do not need to manually specify a `depends` configuration. The flattening engine will automatically wire the root nodes of a dependent sub-pipeline to depend on the terminal nodes of the pipeline it references.
+
+Alternatively, if you want to explicitly enforce a dependency order (e.g. for side effects or execution sequencing), you can specify it in the `depends` block:
+
+```t
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+  depends = [stats => etl]
+}
+```
+
+#### `meta_flatten`
+
+Transforms a meta-pipeline into a single flat pipeline. Node names are automatically namespaced (e.g. `etl.raw`, `etl.clean`, `stats.summary`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
+
+```t
+flat = meta_flatten(meta)
+pipeline_nodes(flat)
+-- ["etl.raw", "etl.clean", "stats.summary"]
+
+pipeline_deps(flat)
+-- {`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}
+```
+
 ### Cross-Pipeline Dependency Tracking: T vs. RawCode
 
 T's dependency tracking works differently depending on the node's runtime. This leads to a specific limitation when using `chain()` with R or Python pipelines.
