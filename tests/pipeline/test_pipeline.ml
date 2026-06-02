@@ -1262,8 +1262,8 @@ p_cross = pipeline {
         let has_r_json_helpers =
          contains_substring nix "r_write_json <- function" &&
          contains_substring nix "r_read_json <- function" &&
-         contains_substring nix "__dep_source <- r_read_json(" &&
-         contains_substring nix "r_write_json(__node_result,"
+         contains_substring nix "dep_source <- r_read_json(" &&
+         contains_substring nix "r_write_json(node_result,"
        in
         let has_py_arrow_helpers =
           contains_substring nix "def py_write_arrow(df, path):" &&
@@ -1311,7 +1311,7 @@ p_cross = pipeline {
          contains_substring nix "r_extract_plot_metadata <- function(object)" &&
          contains_substring nix "r_save_viz_metadata <- function(object, path)" &&
          contains_substring nix "file.path(Sys.getenv('out'), 'class')" &&
-         contains_substring nix "r_save_viz_metadata(__node_result, file.path(Sys.getenv('out'), 'viz'))"
+         contains_substring nix "r_save_viz_metadata(node_result, file.path(Sys.getenv('out'), 'viz'))"
        in
         let has_py_plot_helpers =
           contains_substring nix "def py_extract_plot_metadata(obj):" &&
