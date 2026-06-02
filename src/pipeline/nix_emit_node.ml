@@ -2067,7 +2067,8 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
       ""
     else
       let get_load_stmt dep_name =
-        let safe_var = "dep_" ^ sanitize_env_var_suffix dep_name in
+        let prefix = if runtime = "R" then "dep_" else "__dep_" in
+        let safe_var = prefix ^ sanitize_env_var_suffix dep_name in
         let dep_var = dep_env_var_name dep_name in
         let rec lookup_in_list target = function
           | [] -> None
@@ -2200,7 +2201,7 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
         in
         let root = ref (Node []) in
         List.iter (fun d ->
-          let safe_var = "dep_" ^ sanitize_env_var_suffix d in
+          let safe_var = "__dep_" ^ sanitize_env_var_suffix d in
           let parts = String.split_on_char '.' d in
           root := insert !root parts safe_var
         ) deps;
@@ -2224,12 +2225,12 @@ EOF|} k expr_str
             ) deps
         | "Python" ->
             List.map (fun d ->
-              let safe_var = "dep_" ^ sanitize_env_var_suffix d in
+              let safe_var = "__dep_" ^ sanitize_env_var_suffix d in
               python_namespace_assigns d safe_var
             ) deps
         | "Julia" ->
             List.map (fun d ->
-              let safe_var = "dep_" ^ sanitize_env_var_suffix d in
+              let safe_var = "__dep_" ^ sanitize_env_var_suffix d in
               julia_namespace_assigns d safe_var
             ) deps
         | _ ->
