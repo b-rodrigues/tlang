@@ -297,8 +297,11 @@ let ensure_file_path filename =
 let parse_program_from_file filename =
   try
     let ch = open_in filename in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
+    let content =
+      Fun.protect
+        ~finally:(fun () -> close_in_noerr ch)
+        (fun () -> really_input_string ch (in_channel_length ch))
+    in
     let lexbuf = Lexing.from_string content in
     lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
     try

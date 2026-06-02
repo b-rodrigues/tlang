@@ -154,17 +154,18 @@ let export_artifacts (p : Ast.pipeline_result) archive_path =
                     (match archive_fd with
                      | Error _ as err -> err
                      | Ok archive_fd ->
-                         let devnull_fd = Unix.openfile "/dev/null" [Unix.O_RDONLY] 0 in
                          let result =
                            Fun.protect
-                             ~finally:(fun () ->
-                               Unix.close archive_fd;
-                               Unix.close devnull_fd)
+                             ~finally:(fun () -> close_noerr archive_fd)
                              (fun () ->
-                               run_process_redirected
-                                 (Array.of_list ("nix-store" :: "--export" :: closure_paths))
-                                 ~stdin_fd:devnull_fd
-                                 ~stdout_fd:archive_fd)
+                               let devnull_fd = Unix.openfile "/dev/null" [Unix.O_RDONLY] 0 in
+                               Fun.protect
+                                 ~finally:(fun () -> close_noerr devnull_fd)
+                                 (fun () ->
+                                   run_process_redirected
+                                     (Array.of_list ("nix-store" :: "--export" :: closure_paths))
+                                     ~stdin_fd:devnull_fd
+                                     ~stdout_fd:archive_fd))
                          in
                          (match result with
                           | Ok () ->
@@ -201,17 +202,18 @@ let import_artifacts (p : Ast.pipeline_result) archive_path =
            match archive_fd with
            | Error _ as err -> err
            | Ok archive_fd ->
-               let devnull_fd = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0 in
                let import_result =
                  Fun.protect
-                   ~finally:(fun () ->
-                     Unix.close archive_fd;
-                     Unix.close devnull_fd)
+                   ~finally:(fun () -> close_noerr archive_fd)
                    (fun () ->
-                     run_process_redirected
-                       [| "nix-store"; "--import" |]
-                       ~stdin_fd:archive_fd
-                       ~stdout_fd:devnull_fd)
+                     let devnull_fd = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0 in
+                     Fun.protect
+                       ~finally:(fun () -> close_noerr devnull_fd)
+                       (fun () ->
+                         run_process_redirected
+                           [| "nix-store"; "--import" |]
+                           ~stdin_fd:archive_fd
+                           ~stdout_fd:devnull_fd))
                in
                (match import_result with
                 | Error _ as err -> err
