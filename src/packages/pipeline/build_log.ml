@@ -597,7 +597,7 @@ let node_diff_fn named_args _env =
 let register env =
   let make_builtin_named ?name ?(variadic=false) arity func =
     VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-               b_func = (fun named_args env_ref -> func (List.map (fun (n, v) -> (n, Ast.Utils.unwrap_value v)) named_args) !env_ref) }
+               b_func = (fun named_args env_ref -> func (List.map (fun (n, v) -> (n, !Ast.meta_pipeline_flatten_resolver (Ast.Utils.unwrap_value v))) named_args) !env_ref) }
   in
   let env = Env.add "build_log" (make_builtin_named ~name:"build_log" ~variadic:true 1 build_log_fn) env in
   let env = Env.add "build_log_to_frame" (make_builtin ~name:"build_log_to_frame" 1 build_log_to_frame_fn) env in
