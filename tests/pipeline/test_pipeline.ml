@@ -277,6 +277,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "p_gc_invalid = pipeline { a = 1 }; pipeline_gc(p_gc_invalid, dry_run=42)"
     {|Error(TypeError: "Function `pipeline_gc` expects `dry_run` to be a Bool.")|};
 
+  test "t_gc accepts no arguments and completes successfully"
+    "starts_with(t_gc(), \"Garbage collection completed\")"
+    "true";
+
+  test "populate_pipeline dry_run=true returns a DataFrame with correct columns"
+    "p_dry = pipeline { a = 1 }; res = populate_pipeline(p_dry, dry_run=true); colnames(res)"
+    {|["node", "action", "path"]|};
+
   Printf.printf "Phase 3 — Static Interrogations (Roots/Leaves/Cycles):\n";
   test "pipeline_roots"
     "p = pipeline { a = 1; b = a + 1; c = 10 }; pipeline_roots(p)"
@@ -411,7 +419,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "true";
 
   test "populate_pipeline accepts valid nix_options dictionary with builders, keep_env, and sandbox"
-    "p = pipeline {\n  a = 1\n}\nres = populate_pipeline(p, build=false, nix_options=[max_jobs: 4, force: true, dry_run: true, cache: \"mycache\", builders: \"ssh://builder.local\", keep_env: [\"API_KEY\", \"TOKEN\"], sandbox: \"relaxed\"])\nstarts_with(res, \"Pipeline populated in\")"
+    "p = pipeline {\n  a = 1\n}\nres = populate_pipeline(p, build=false, nix_options=[max_jobs: 4, force: true, dry_run: false, cache: \"mycache\", builders: \"ssh://builder.local\", keep_env: [\"API_KEY\", \"TOKEN\"], sandbox: \"relaxed\"])\nstarts_with(res, \"Pipeline populated in\")"
     "true";
 
   test "build_pipeline rejects non-dict nix_options"
