@@ -161,6 +161,7 @@ resolution and deserialization from within those environments.
 
 ### Getting Started
 - [Getting Started Guide](getting-started.html) — first steps with T
+- [Your First Pipeline](first-pipeline.html) — declare R, Python, and Julia packages, run `t update`, and build a hello-world pipeline
 - [Installation Guide](installation.html) — detailed setup with Nix
 - [Language Overview](language_overview.html) — types, syntax, functions, and standard library
 - [Type System](type-system.html) — detailed guide to T's type hierarchy and semantics
