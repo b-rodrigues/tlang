@@ -900,6 +900,34 @@ pipeline_edges(p)|}
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
+  (* pipeline_to_dot: returns non-empty string *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_dot(p)|}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
+       incr pass_count; Printf.printf "  ✓ pipeline_to_dot returns DOT string\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_dot\n    Expected: DOT string\n    Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* pipeline_to_mermaid: returns non-empty string with graph LR *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_mermaid(p)|}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VString s when String.length s > 10 && String.sub s 0 8 = "graph LR" ->
+       incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid returns Mermaid string\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_mermaid\n    Expected: Mermaid string starting with 'graph LR'\n    Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
   Printf.printf "Phase 4 — meta_flatten:\n";
 
   (* meta_flatten: namespaces nodes correctly *)
