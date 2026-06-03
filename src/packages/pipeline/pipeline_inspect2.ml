@@ -426,8 +426,25 @@ let register env =
       | [VPipeline p] ->
           let buf = Buffer.create 256 in
           Buffer.add_string buf "graph LR\n";
-          let sanitize_id name =
-            String.map (fun c -> if c = '.' || c = '-' then '_' else c) name
+          let sanitized_ids = Hashtbl.create (List.length p.p_exprs) in
+          let used_ids = Hashtbl.create (List.length p.p_exprs) in
+          let get_id name =
+            match Hashtbl.find_opt sanitized_ids name with
+            | Some id -> id
+            | None ->
+                let base = String.map (fun c -> if c = '.' || c = '-' then '_' else c) name in
+                let rec find_unique candidate suffix =
+                  let cand = if suffix = 1 then candidate else Printf.sprintf "%s__%d" candidate suffix in
+                  if Hashtbl.mem used_ids cand then
+                    find_unique candidate (suffix + 1)
+                  else begin
+                    Hashtbl.add used_ids cand true;
+                    cand
+                  end
+                in
+                let unique_id = find_unique base 1 in
+                Hashtbl.add sanitized_ids name unique_id;
+                unique_id
           in
           List.iter (fun (name, _) ->
             let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
@@ -436,14 +453,14 @@ let register env =
               if noop then Printf.sprintf "%s [%s, noop]" name runtime
               else          Printf.sprintf "%s [%s]" name runtime
             in
-            let id = sanitize_id name in
+            let id = get_id name in
             Buffer.add_string buf
               (Printf.sprintf "  %s[\"%s\"];\n" id label)
           ) p.p_exprs;
           List.iter (fun (name, deps) ->
-            let name_id = sanitize_id name in
+            let name_id = get_id name in
             List.iter (fun dep ->
-              let dep_id = sanitize_id dep in
+              let dep_id = get_id dep in
               Buffer.add_string buf
                 (Printf.sprintf "  %s --> %s;\n" dep_id name_id)
             ) deps

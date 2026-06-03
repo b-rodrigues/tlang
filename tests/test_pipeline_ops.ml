@@ -928,6 +928,27 @@ pipeline_edges(p)|}
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
+  (* pipeline_to_mermaid collision avoidance: etl.raw and etl_raw *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { etl_raw = 1; raw = 2 } |> rename_node("raw", "etl.raw"); pipeline_to_mermaid(p)|}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VString s ->
+       let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
+       if contains s "etl_raw[\"etl_raw [" && contains s "etl_raw__2[\"etl.raw [" then begin
+         incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid avoids ID collisions\n"
+       end else begin
+         incr fail_count;
+         let msg = Printf.sprintf "  ✗ pipeline_to_mermaid collision avoidance\n    Expected to find unique IDs etl_raw and etl_raw__2\n    Got: %s\n" s in
+         failures := msg :: !failures;
+         Printf.printf "%s" msg
+       end
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_mermaid collision avoidance type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
   Printf.printf "Phase 4 — meta_flatten:\n";
 
   (* meta_flatten: namespaces nodes correctly *)
