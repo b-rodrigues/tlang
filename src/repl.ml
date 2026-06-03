@@ -373,8 +373,8 @@ let cmd_artifact_transfer action filename archive_path env =
            | Ok pipeline ->
                let transfer_result =
                  match action with
-                 | `Export -> Builder_artifacts.export_artifacts pipeline archive_path
-                 | `Import -> Builder_artifacts.import_artifacts pipeline archive_path
+                 | `Export -> Builder_artifacts.export_artifacts (VPipeline pipeline) archive_path
+                 | `Import -> Builder_artifacts.import_artifacts (VPipeline pipeline) archive_path
                in
                match transfer_result with
                | Ok message -> Printf.printf "%s\n" message

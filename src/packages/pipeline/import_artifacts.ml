@@ -15,16 +15,20 @@ open Ast
 *)
 let register env =
   Env.add "import_artifacts"
-    (make_builtin ~name:"import_artifacts" 2 (fun args _env ->
+    (make_builtin ~name:"import_artifacts" ~variadic:true 2 (fun args _env ->
       match args with
-      | [VPipeline p; VString archive_path] ->
-          (match Builder_artifacts.import_artifacts p archive_path with
+      | [VString archive_path] ->
+          (match Builder_artifacts.import_artifacts_no_verify archive_path with
            | Ok message -> VString message
            | Error err -> Error.make_error err.code err.message)
-      | [VPipeline _; _] ->
-          Error.type_error "Function `import_artifacts` expects `archive_path` to be a String."
+      | [target_val; VString archive_path] ->
+          (match Builder_artifacts.import_artifacts target_val archive_path with
+           | Ok message -> VString message
+           | Error err -> Error.make_error err.code err.message)
       | [_; _] ->
-          Error.type_error "Function `import_artifacts` expects a Pipeline as first argument."
+          Error.type_error "Function `import_artifacts` expects the second argument to be a String."
+      | [_] ->
+          Error.type_error "Function `import_artifacts` expects a String argument."
       | _ ->
           Error.arity_error_named "import_artifacts" 2 (List.length args)
     ))
