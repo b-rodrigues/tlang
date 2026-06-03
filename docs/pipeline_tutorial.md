@@ -1876,6 +1876,48 @@ df
 --   - references: Comma-separated basenames of dependency store paths
 ```
 
+### Cache-Aware Dry Runs
+
+For convenience, you can perform a dry-run check directly using the `dry_run = true` parameter in `populate_pipeline()`. This reports which nodes are already in the Nix cache and which ones require rebuilding or downloading:
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Check cache hit/miss status directly
+plan = populate_pipeline(p, dry_run = true)
+print(plan)
+-- Returns a DataFrame with columns: node, action, and path.
+-- "action" will be one of:
+--   - "cached": path is already built/cached locally
+--   - "build": path must be rebuilt locally
+--   - "fetch": path can be retrieved from remote binary substitutes
+```
+
+### Programmatic Garbage Collection
+
+Over time, your local Nix store can accumulate unused derivations and cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix artifacts directly:
+
+1. **`pipeline_gc(p, dry_run = false)`**: Deletes the store paths of the given pipeline `p`. By default (`dry_run = true`), it queries what would be deleted and returns a DataFrame showing the `node`, `store_path`, and `deleted` status. Set `dry_run = false` to perform the actual deletion.
+2. **`t_gc()`**: Performs a global Nix store garbage collection (`nix-store --gc`), removing all unused derivations and freeing up disk space.
+
+```t
+p = pipeline {
+  a = 1
+}
+
+-- Preview what would be deleted
+plan = pipeline_gc(p, dry_run = true)
+
+-- Perform the deletion of the pipeline's nodes
+pipeline_gc(p, dry_run = false)
+
+-- Perform global garbage collection
+t_gc()
+```
+
 ---
 
 ## Next Steps
