@@ -281,6 +281,8 @@ This gives users an opt-in strict mode without breaking the lazy-by-default cont
 
 - `pipeline_print(p)` — pretty-print node list with runtime, depth, noop status
 - `pipeline_dot(p)` — export pipeline as a DOT graph string for Graphviz visualization
+- `pipeline_to_dot(p)` — alias for `pipeline_dot(p)`
+- `pipeline_to_mermaid(p)` — export pipeline as a Mermaid flowchart string for Markdown/Mermaid visualization
 - Error message quality pass — review all Phase 2 and 3 errors for clarity and actionability
 - Documentation — docstrings and examples for every new function
 
@@ -294,7 +296,7 @@ This gives users an opt-in strict mode without breaking the lazy-by-default cont
 | `pipeline_summary()` | DataFrame view of full pipeline metadata | Stdlib |
 | `pipeline_validate()` / `pipeline_assert()` | Opt-in eager validation | Stdlib/Runtime |
 | `pipeline_print()` | Human-readable node summary | Stdlib |
-| `pipeline_dot()` | DOT graph export for visualization | Stdlib |
+| `pipeline_dot()` / `pipeline_to_dot()` / `pipeline_to_mermaid()` | Export pipeline as DOT or Mermaid graph for visualization | Stdlib |
 | Docs + docstrings | Complete API documentation for all new functions | Docs |
 | End-to-end test suite | Full integration tests across all 4 phases | QA |
 

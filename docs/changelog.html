@@ -34,7 +34,142 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.52.2] - 2026-05-31</h2>
+<h2 id="section">[0.53.0] - 2026-06-03</h2>
+<p>This release introduces new meta-pipeline graph visualization
+capabilities.</p>
+<h3 id="pipeline-visualization">Pipeline Visualization</h3>
+<ul>
+<li><strong><code>pipeline_to_dot(p)</code></strong>: Generates a
+Graphviz DOT representation of the given pipeline or meta-pipeline.</li>
+<li><strong><code>pipeline_to_mermaid(p)</code></strong>: Generates a
+Mermaid flowchart diagram string from the pipeline topology, enabling
+visual rendering in Markdown documents and Mermaid live editors.</li>
+</ul>
+<h2 id="section-1">[0.52.3] - 2026-06-03</h2>
+<p>This release introduces a new meta-pipeline composition feature,
+<code>pipeline_of</code>, providing native support for building
+hierarchical and graph-structured pipelines. It also introduces
+first-class artifact export and import capabilities to share pipeline
+cache files and avoid redundant rebuilds.</p>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="artifact-cache-dry-runs-and-garbage-collection">Artifact Cache,
+Dry Runs, and Garbage Collection</h3>
+<ul>
+<li><strong>Granular <code>export_artifacts</code></strong>: Support
+exporting cached Nix artifacts for individual nodes, sub-pipelines,
+meta-pipelines, or lists/dictionaries of nodes/pipelines.</li>
+<li><strong>Variadic <code>import_artifacts</code></strong>: Support
+both 1-argument <code>import_artifacts(archive_path)</code> (direct Nix
+store import) and 2-argument
+<code>import_artifacts(target_val, archive_path)</code> (import and
+verify paths) calling signatures.</li>
+<li><strong><code>inspect_artifacts(archive_path)</code></strong>:
+Import archive into a temporary, isolated Nix store and return a
+DataFrame containing the included nodes, store paths, hashes, sizes in
+bytes, and reference basenames without affecting the local store.</li>
+<li><strong>Verification &amp; REPL Stability</strong>: Fixed path
+resolution and correctness checks, and updated package registrations in
+the interactive REPL for <code>import_artifacts</code>,
+<code>export_artifacts</code>, and <code>inspect_artifacts</code>.</li>
+<li><strong>Cache-Aware Dry Runs</strong>: Enhanced
+<code>populate_pipeline(p, dry_run = true)</code> to perform a dry run
+via Nix (<code>--dry-run</code>), parsing the plan to report which nodes
+will hit the local cache (<code>"cached"</code>), rebuild
+(<code>"build"</code>), or fetch from remote substituters
+(<code>"fetch"</code>), returning the results as a DataFrame.</li>
+<li><strong>Programmatic Garbage Collection</strong>:
+<ul>
+<li><code>pipeline_gc(p, dry_run = true)</code>: Deletes the store paths
+of the given pipeline <code>p</code> if safe. By default
+(<code>dry_run = true</code>), it returns a DataFrame previewing the
+nodes, store paths, and deletion eligibility status. Set
+<code>dry_run = false</code> to execute the deletion.</li>
+<li><code>t_gc()</code>: Triggers a global Nix garbage collection
+(<code>nix-store --gc</code>) directly from the REPL to safely clean up
+old, detached derivations.</li>
+</ul></li>
+</ul>
+<h3 id="meta-pipeline-composition">Meta-Pipeline Composition</h3>
+<ul>
+<li><strong><code>pipeline_of</code> block</strong>: A new combinator
+that composes multiple pipelines into a higher-order DAG. It allows you
+to define relationships between sub-pipelines in a declarative way,
+enabling complex, multi-stage workflows.</li>
+<li><strong>Automatic Dependency Inference</strong>: T-Lang
+automatically analyzes cross-pipeline references (e.g., referencing
+<code>etl.clean</code> in the <code>stats</code> pipeline) to infer the
+execution order between sub-pipelines. No manual <code>depends</code>
+configuration is required for the flattening engine.</li>
+<li><strong>Automatic Flattening</strong>: The <code>meta_flatten</code>
+combinator automatically flattens meta-pipelines at execution time. When
+a meta-pipeline is populated, queried, or inspected, T-Lang
+automatically flattens it internally. This flattening is done on-demand,
+so you don’t need to manually flatten meta-pipelines.</li>
+<li><strong>Automatic Namespacing</strong>: Node names are automatically
+namespaced (e.g., <code>etl.raw</code>, <code>etl.clean</code>,
+<code>stats.summary</code>) to prevent namespace collisions, and all
+internal variable references are rewritten accordingly.</li>
+<li><strong>Cross-Pipeline Reference Rewriting</strong>: Internal
+references to sub-pipeline nodes (e.g., <code>p_etl.raw</code>) are
+automatically rewritten to their namespaced equivalents (e.g.,
+<code>etl.raw</code>) during the flattening process.</li>
+</ul>
+<h3 id="pipeline-parameterization-templates">Pipeline Parameterization
+(Templates)</h3>
+<ul>
+<li><strong>Parameterization via Lambdas</strong>: Standard lambdas
+returning <code>pipeline</code> blocks (e.g.,
+<code>\(multiplier) pipeline { ... }</code>) are now fully supported.
+Outer variables referenced inside the pipeline nodes are automatically
+substituted with their concrete values during compilation, producing
+fully independent and Nix-reproducible pipelines.</li>
+</ul>
+<h3 id="examples">Examples</h3>
+<h4 id="basic-usage">Basic Usage</h4>
+<pre class="t"><code># Define multiple pipelines
+p_etl = pipeline { ... }
+p_stats = pipeline { ... }
+
+# Compose into a meta-pipeline
+meta = pipeline_of {
+  etl = p_etl
+  stats = p_stats
+}
+
+# Built-in commands automatically handle meta-pipelines
+populate_pipeline(meta, build = true)
+read_node(meta.stats.summary)
+inspect_pipeline(meta)</code></pre>
+<h4 id="graph-structured-pipeline">Graph-Structured Pipeline</h4>
+<pre class="t"><code>meta_graph = pipeline_of {
+  raw = pipeline {
+    src = read_csv(&quot;raw.csv&quot;)
+  }
+
+  cleaned_a = pipeline {
+    a = clean(raw.src)
+  }
+
+  cleaned_b = pipeline {
+    b = clean(raw.src)
+  }
+
+  summary = pipeline {
+    val = summarize(cleaned_a.a, cleaned_b.b)
+  }
+}
+
+# T-Lang automatically infers the execution order:
+# raw -&gt; {cleaned_a, cleaned_b} -&gt; summary
+populate_pipeline(meta_graph, build = true)</code></pre>
+<h3 id="notes">Notes</h3>
+<ul>
+<li>The <code>meta_flatten</code> combinator is not exposed as a
+first-class function in the CLI or T-Lang AST. It is an internal
+implementation detail of the pipeline engine that is automatically
+invoked when working with <code>pipeline_of</code>.</li>
+</ul>
+<h2 id="section-2">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -257,7 +392,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-1">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-3">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -611,7 +746,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-2">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-4">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -840,7 +975,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-3">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-5">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -1103,7 +1238,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-4">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-6">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -1400,7 +1535,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-5">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-7">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

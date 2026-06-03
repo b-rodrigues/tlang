@@ -1507,6 +1507,29 @@ print(dot)
 
 Pipe the output to `dot -Tpng` or paste it into https://dreampuf.github.io/GraphvizOnline/ to render a visual dependency graph.
 
+### `pipeline_to_dot`
+
+Equivalent to `pipeline_dot(p)`. Exports the pipeline as a DOT graph string.
+
+### `pipeline_to_mermaid`
+
+Exports the pipeline as a [Mermaid](https://mermaid.js.org/) flowchart string:
+
+```t
+p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+mermaid = pipeline_to_mermaid(p)
+print(mermaid)
+-- graph LR
+--   a["a [T]"];
+--   b["b [T]"];
+--   c["c [T]"];
+--   a --> b;
+--   b --> c;
+```
+
+Render the Mermaid flowchart directly in markdown files or preview using the online Mermaid live editor.
+
 ---
 
 ## 28. Pipeline Validation
