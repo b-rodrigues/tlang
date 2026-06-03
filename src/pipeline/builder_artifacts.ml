@@ -166,57 +166,61 @@ let rec collect_paths_from_value (v : Ast.value) : (string * string) list =
   | _ -> []
 
 let export_artifacts (target : Ast.value) archive_path =
-  match ensure_archive_path archive_path with
-  | Error _ as err -> err
-  | Ok () ->
-      let node_paths = dedupe_preserve_order (collect_paths_from_value target) in
-      if node_paths = [] then
-        error RuntimeError "No valid pipeline/node artifacts were found to export."
-      else
-        (match invalid_store_paths node_paths with
-         | Error _ as err -> err
-         | Ok (_ :: _ as missing_nodes) ->
-             error RuntimeError
-               (Printf.sprintf
-                  "Cannot export artifacts because these pipeline nodes are not cached: %s. Build the pipeline first."
-                  (String.concat ", " missing_nodes))
-         | Ok [] ->
-             (match export_closure_paths node_paths with
-              | Error _ as err -> err
-              | Ok [] ->
-                  error RuntimeError "No pipeline artifacts were found to export."
-              | Ok closure_paths ->
-                  let archive_fd =
-                    try Ok (Unix.openfile archive_path [Unix.O_CREAT; Unix.O_TRUNC; Unix.O_WRONLY] 0o644)
-                    with Unix.Unix_error (err, _, _) ->
-                      error FileError
-                        (Printf.sprintf "Could not open archive path `%s`: %s"
-                           archive_path (Unix.error_message err))
-                  in
-                  (match archive_fd with
-                   | Error _ as err -> err
-                   | Ok archive_fd ->
-                       let result =
-                         Fun.protect
-                           ~finally:(fun () -> close_noerr archive_fd)
-                           (fun () ->
-                             let devnull_fd = Unix.openfile "/dev/null" [Unix.O_RDONLY] 0 in
+  match target with
+  | VInt _ | VFloat _ | VBool _ | VNA _ | VDate _ | VDatetime _ | VSymbol _ | VFactor _ | VPeriod _ | VDuration _ | VInterval _ ->
+      error TypeError "Function `export_artifacts` expects a Pipeline, MetaPipeline, Node, or collection of pipelines/nodes as first argument."
+  | _ ->
+      match ensure_archive_path archive_path with
+      | Error _ as err -> err
+      | Ok () ->
+          let node_paths = dedupe_preserve_order (collect_paths_from_value target) in
+          if node_paths = [] then
+            error RuntimeError "No valid pipeline/node artifacts were found to export."
+          else
+            (match invalid_store_paths node_paths with
+             | Error _ as err -> err
+             | Ok (_ :: _ as missing_nodes) ->
+                 error RuntimeError
+                   (Printf.sprintf
+                      "Cannot export artifacts because these pipeline nodes are not cached: %s. Build the pipeline first."
+                      (String.concat ", " missing_nodes))
+             | Ok [] ->
+                 (match export_closure_paths node_paths with
+                  | Error _ as err -> err
+                  | Ok [] ->
+                      error RuntimeError "No pipeline artifacts were found to export."
+                  | Ok closure_paths ->
+                      let archive_fd =
+                        try Ok (Unix.openfile archive_path [Unix.O_CREAT; Unix.O_TRUNC; Unix.O_WRONLY] 0o644)
+                        with Unix.Unix_error (err, _, _) ->
+                          error FileError
+                            (Printf.sprintf "Could not open archive path `%s`: %s"
+                               archive_path (Unix.error_message err))
+                      in
+                      (match archive_fd with
+                       | Error _ as err -> err
+                       | Ok archive_fd ->
+                           let result =
                              Fun.protect
-                               ~finally:(fun () -> close_noerr devnull_fd)
+                               ~finally:(fun () -> close_noerr archive_fd)
                                (fun () ->
-                                 run_process_redirected
-                                   (Array.of_list ("nix-store" :: "--export" :: closure_paths))
-                                   ~stdin_fd:devnull_fd
-                                   ~stdout_fd:archive_fd))
-                       in
-                       (match result with
-                        | Ok () ->
-                            Ok
-                              (Printf.sprintf "Exported %d pipeline artifact(s) to `%s`."
-                                 (List.length node_paths) archive_path)
-                        | Error _ as err ->
-                            (try Sys.remove archive_path with _ -> ());
-                            err))))
+                                 let devnull_fd = Unix.openfile "/dev/null" [Unix.O_RDONLY] 0 in
+                                 Fun.protect
+                                   ~finally:(fun () -> close_noerr devnull_fd)
+                                   (fun () ->
+                                     run_process_redirected
+                                       (Array.of_list ("nix-store" :: "--export" :: closure_paths))
+                                       ~stdin_fd:devnull_fd
+                                       ~stdout_fd:archive_fd))
+                           in
+                           (match result with
+                            | Ok () ->
+                                Ok
+                                  (Printf.sprintf "Exported %d pipeline artifact(s) to `%s`."
+                                     (List.length node_paths) archive_path)
+                            | Error _ as err ->
+                                (try Sys.remove archive_path with _ -> ());
+                                err))))
 
 let import_artifacts_no_verify archive_path =
   match ensure_archive_path archive_path with
@@ -255,20 +259,24 @@ let import_artifacts_no_verify archive_path =
                 Ok (Printf.sprintf "Imported pipeline artifacts from `%s`." archive_path)))
 
 let import_artifacts (target : Ast.value) archive_path =
-  match import_artifacts_no_verify archive_path with
-  | Error _ as err -> err
-  | Ok msg ->
-      let node_paths = dedupe_preserve_order (collect_paths_from_value target) in
-      if node_paths = [] then Ok msg
-      else
-        (match invalid_store_paths node_paths with
-         | Error _ as err -> err
-         | Ok [] -> Ok msg
-         | Ok missing_nodes ->
-             error RuntimeError
-               (Printf.sprintf
-                  "Artifact archive `%s` was imported, but these pipeline nodes are still missing from the local store: %s"
-                  archive_path (String.concat ", " missing_nodes)))
+  match target with
+  | VInt _ | VFloat _ | VBool _ | VNA _ | VDate _ | VDatetime _ | VSymbol _ | VFactor _ | VPeriod _ | VDuration _ | VInterval _ ->
+      error TypeError "Function `import_artifacts` expects a Pipeline, MetaPipeline, Node, or collection of pipelines/nodes as first argument."
+  | _ ->
+      match import_artifacts_no_verify archive_path with
+      | Error _ as err -> err
+      | Ok msg ->
+          let node_paths = dedupe_preserve_order (collect_paths_from_value target) in
+          if node_paths = [] then Ok msg
+          else
+            (match invalid_store_paths node_paths with
+             | Error _ as err -> err
+             | Ok [] -> Ok msg
+             | Ok missing_nodes ->
+                 error RuntimeError
+                   (Printf.sprintf
+                      "Artifact archive `%s` was imported, but these pipeline nodes are still missing from the local store: %s"
+                      archive_path (String.concat ", " missing_nodes)))
 
 let inspect_artifacts archive_path =
   match ensure_archive_path archive_path with
@@ -278,12 +286,24 @@ let inspect_artifacts archive_path =
   | Ok () when Sys.is_directory archive_path ->
       error FileError (Printf.sprintf "Expected an archive file but received a directory: %s" archive_path)
   | Ok () ->
-      let temp_store_dir = Filename.concat (Sys.getcwd ()) (".t_inspect_" ^ string_of_int (Random.int 100000000)) in
+      let temp_store_dir =
+        let pid = Unix.getpid () in
+        let () = Random.self_init () in
+        let rand = Random.int 100000000 in
+        Filename.concat (Sys.getcwd ()) (Printf.sprintf ".t_inspect_%d_%d" pid rand)
+      in
+      let cleanup () =
+        if Sys.file_exists temp_store_dir then (
+          let _ = run_command_argv_exit [| "chmod"; "-R"; "+w"; temp_store_dir |] in
+          let _ = run_command_argv_exit [| "rm"; "-rf"; temp_store_dir |] in
+          ()
+        )
+      in
       (try Unix.mkdir temp_store_dir 0o755 with _ -> ());
       let archive_fd =
         try Ok (Unix.openfile archive_path [Unix.O_RDONLY] 0)
         with Unix.Unix_error (err, _, _) ->
-          (try Unix.rmdir temp_store_dir with _ -> ());
+          cleanup ();
           error FileError
             (Printf.sprintf "Could not open archive path `%s`: %s"
                archive_path (Unix.error_message err))
@@ -303,7 +323,11 @@ let inspect_artifacts archive_path =
               in
               Unix.close stdout_write;
               Unix.close stderr_write;
-              let stdout_output = read_all_fd stdout_read in
+              let stdout_output =
+                Fun.protect
+                  ~finally:(fun () -> Unix.close stdout_read)
+                  (fun () -> read_all_fd stdout_read)
+              in
               let stderr_output =
                 Fun.protect
                   ~finally:(fun () -> Unix.close stderr_read)
@@ -329,11 +353,6 @@ let inspect_artifacts archive_path =
               Error (Printexc.to_string exn)
           in
           close_noerr archive_fd;
-          let cleanup () =
-            let _ = run_command_argv_exit [| "chmod"; "-R"; "+w"; temp_store_dir |] in
-            let _ = run_command_argv_exit [| "rm"; "-rf"; temp_store_dir |] in
-            ()
-          in
           match import_res with
           | Error msg ->
               cleanup ();

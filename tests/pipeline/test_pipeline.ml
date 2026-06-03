@@ -243,15 +243,15 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "export_artifacts on non-pipeline"
     "export_artifacts(42, \"cache.nar\")"
-    {|Error(RuntimeError: "No valid pipeline/node artifacts were found to export.")|};
+    {|Error(TypeError: "Function `export_artifacts` expects a Pipeline, MetaPipeline, Node, or collection of pipelines/nodes as first argument.")|};
 
   test "export_artifacts invalid archive path type"
     "p_export = pipeline { a = 1 }; export_artifacts(p_export, 42)"
     {|Error(TypeError: "Function `export_artifacts` expects `archive_path` to be a String.")|};
 
-  test "import_artifacts on non-pipeline with missing file"
+  test "import_artifacts with scalar target"
     "import_artifacts(42, \"nonexistent.nar\")"
-    {|Error(FileError: "Archive not found: nonexistent.nar")|};
+    {|Error(TypeError: "Function `import_artifacts` expects a Pipeline, MetaPipeline, Node, or collection of pipelines/nodes as first argument.")|};
 
   test "import_artifacts invalid archive path type"
     "p_import = pipeline { a = 1 }; import_artifacts(p_import, 42)"
