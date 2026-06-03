@@ -357,33 +357,50 @@ let inspect_artifacts archive_path =
           | Error msg ->
               cleanup ();
               error RuntimeError msg
+          | Ok [] ->
+              cleanup ();
+              Ok []
           | Ok imported_paths ->
-              let results =
-                List.map (fun store_path ->
-                  let basename = Filename.basename store_path in
-                  let hash = if String.length basename >= 32 then String.sub basename 0 32 else "" in
-                  let name =
-                    if String.length basename > 33 && basename.[32] = '-' then
-                      String.sub basename 33 (String.length basename - 33)
-                    else basename
-                  in
-                  let size =
-                    let size_argv = [| "nix-store"; "--query"; "--size"; "--store"; temp_store_dir; store_path |] in
-                    match run_command_argv_capture size_argv with
-                    | Ok sz_str -> (try int_of_string (String.trim sz_str) with _ -> 0)
-                    | Error _ -> 0
-                  in
-                  let refs =
-                    let refs_argv = [| "nix-store"; "--query"; "--references"; "--store"; temp_store_dir; store_path |] in
-                    match run_command_argv_capture refs_argv with
-                    | Ok refs_str ->
-                        let lines = split_non_empty_lines refs_str in
-                        let basenames = List.map Filename.basename lines in
-                        String.concat ", " basenames
-                    | Error _ -> ""
-                  in
-                  (name, store_path, hash, size, refs)
-                ) imported_paths
+              let info_argv = Array.of_list ("nix" :: "path-info" :: "--json" :: "--store" :: temp_store_dir :: imported_paths) in
+              let results_res =
+                match run_command_argv_capture info_argv with
+                | Error msg -> Error msg
+                | Ok json_str ->
+                    try
+                      let json = Yojson.Safe.from_string json_str in
+                      let open Yojson.Safe.Util in
+                      match json with
+                      | `Assoc kvs ->
+                          let res =
+                            List.map (fun (store_path, details) ->
+                              let basename = Filename.basename store_path in
+                              let hash = if String.length basename >= 32 then String.sub basename 0 32 else "" in
+                              let name =
+                                if String.length basename > 33 && basename.[32] = '-' then
+                                  String.sub basename 33 (String.length basename - 33)
+                                else basename
+                              in
+                              let size =
+                                match member "narSize" details with
+                                | `Int sz -> sz
+                                | _ -> 0
+                              in
+                              let refs =
+                                match member "references" details with
+                                | `List refs_list ->
+                                    let ref_paths = List.filter_map (function `String s -> Some (Filename.basename s) | _ -> None) refs_list in
+                                    String.concat ", " ref_paths
+                                | _ -> ""
+                              in
+                              (name, store_path, hash, size, refs)
+                            ) kvs
+                          in
+                          Ok res
+                      | _ -> Error "nix path-info output was not a JSON object"
+                    with exn ->
+                      Error (Printexc.to_string exn)
               in
               cleanup ();
-              Ok results
+              (match results_res with
+               | Ok res -> Ok res
+               | Error msg -> error RuntimeError msg)

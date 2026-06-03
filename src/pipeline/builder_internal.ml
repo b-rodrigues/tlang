@@ -256,7 +256,7 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
       if Sys.file_exists pipeline_nix_path then (
         let expr =
           let assignments =
-            List.map (fun name -> Printf.sprintf "%s = toString p.%s;" name name) node_names
+            List.map (fun name -> Printf.sprintf "\"%s\" = toString p.\"%s\";" name name) node_names
             |> String.concat " "
           in
           Printf.sprintf "let p = import ./%s {}; in { %s }" pipeline_nix_path assignments
@@ -264,7 +264,7 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
         let argv_eval = [| "nix-instantiate"; "--impure"; "--eval"; "--strict"; "--expr"; expr |] in
         match run_command_argv_capture argv_eval with
         | Ok output ->
-            let re = Str.regexp "\\([a-zA-Z0-9_]+\\)[ \t]*=[ \t]*\"\\([^\"]+\\)\"" in
+            let re = Str.regexp "\"?\\([a-zA-Z0-9_.-]+\\)\"?[ \t]*=[ \t]*\"\\([^\"]+\\)\"" in
             let pos = ref 0 in
             (try
                while true do
@@ -276,7 +276,8 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
                done
              with Not_found -> ())
         | Error msg ->
-            Printf.eprintf "[Debug] nix-instantiate eval failed: %s\n%!" msg
+            if verbose > 0 then
+              Printf.eprintf "[Debug] nix-instantiate eval failed: %s\n%!" msg
       )
     in
     if dry_run then begin
