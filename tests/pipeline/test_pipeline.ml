@@ -243,19 +243,23 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "export_artifacts on non-pipeline"
     "export_artifacts(42, \"cache.nar\")"
-    {|Error(TypeError: "Function `export_artifacts` expects a Pipeline as first argument.")|};
+    {|Error(RuntimeError: "No valid pipeline/node artifacts were found to export.")|};
 
   test "export_artifacts invalid archive path type"
     "p_export = pipeline { a = 1 }; export_artifacts(p_export, 42)"
     {|Error(TypeError: "Function `export_artifacts` expects `archive_path` to be a String.")|};
 
-  test "import_artifacts on non-pipeline"
-    "import_artifacts(42, \"cache.nar\")"
-    {|Error(TypeError: "Function `import_artifacts` expects a Pipeline as first argument.")|};
+  test "import_artifacts on non-pipeline with missing file"
+    "import_artifacts(42, \"nonexistent.nar\")"
+    {|Error(FileError: "Archive not found: nonexistent.nar")|};
 
   test "import_artifacts invalid archive path type"
     "p_import = pipeline { a = 1 }; import_artifacts(p_import, 42)"
-    {|Error(TypeError: "Function `import_artifacts` expects `archive_path` to be a String.")|};
+    {|Error(TypeError: "Function `import_artifacts` expects the second argument to be a String.")|};
+
+  test "inspect_artifacts invalid argument type"
+    "inspect_artifacts(42)"
+    {|Error(TypeError: "Function `inspect_artifacts` expects a String argument.")|};
 
   let (v_gc, _) = eval_string_env "p_gc = pipeline { a = 1 }; pipeline_gc(p_gc, dry_run=true)" env_p3 in
   let result_gc = Ast.Utils.value_to_string v_gc in
@@ -2016,10 +2020,38 @@ p.t_step|}
             | Ast.VString msg -> contains_pattern "Exported" msg && Sys.file_exists archive_path
             | _ -> false
           in
+          let (v_inspect, env) =
+            eval_string_env
+              (Printf.sprintf "inspect_artifacts(%S)" archive_path)
+              env
+          in
+          let inspect_ok =
+            match Ast.Utils.unwrap_value v_inspect with
+            | Ast.VDataFrame df ->
+                let col_names = List.map fst df.arrow_table.columns in
+                List.mem "node" col_names &&
+                List.mem "store_path" col_names &&
+                List.mem "hash" col_names &&
+                List.mem "size_bytes" col_names &&
+                List.mem "references" col_names &&
+                df.arrow_table.nrows > 0
+            | _ -> false
+          in
+          let node_archive_path = archive_path ^ ".node" in
+          let (v_export_node, env) =
+            eval_string_env
+              (Printf.sprintf "export_artifacts(p.cached_node, %S)" node_archive_path)
+              env
+          in
+          let export_node_ok =
+            match Ast.Utils.unwrap_value v_export_node with
+            | Ast.VString msg -> contains_pattern "Exported 1" msg && Sys.file_exists node_archive_path
+            | _ -> false
+          in
           let (_, env) = eval_string_env "pipeline_gc(p)" env in
           let (v_import, env) =
             eval_string_env
-              (Printf.sprintf "import_artifacts(p, %S)" archive_path)
+              (Printf.sprintf "import_artifacts(%S)" archive_path)
               env
           in
           let import_ok =
@@ -2032,13 +2064,13 @@ p.t_step|}
               "nrow(filter(pipeline_cache_status(p), $cached == false)) == 0"
               env
           in
-          export_ok && import_ok && v_after = Ast.VBool true
+          export_ok && inspect_ok && export_node_ok && import_ok && v_after = Ast.VBool true
         )
     in
     if archive_ok then begin
-      incr pass_count; Printf.printf "  ✓ export_artifacts()/import_artifacts() round-trip pipeline cache\n"
+      incr pass_count; Printf.printf "  ✓ export_artifacts()/import_artifacts() round-trip pipeline cache with inspection & granular export\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ export_artifacts()/import_artifacts() round-trip pipeline cache\n"
+      incr fail_count; Printf.printf "  ✗ export_artifacts()/import_artifacts() round-trip pipeline cache with inspection & granular export\n"
     end
   in
   test_artifact_export_import_roundtrip ();
