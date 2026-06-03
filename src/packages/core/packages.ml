@@ -201,7 +201,7 @@ let pipeline_package = {
                "chain"; "parallel";
                "pipeline_edges"; "pipeline_roots"; "pipeline_leaves"; "pipeline_depth";
                "pipeline_cycles"; "pipeline_summary"; "pipeline_validate"; "pipeline_assert";
-               "pipeline_print"; "pipeline_dot"];
+               "pipeline_print"; "pipeline_dot"; "pipeline_to_dot"; "pipeline_to_mermaid"];
 }
 
 let explain_package = {

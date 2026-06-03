@@ -387,5 +387,72 @@ let register env =
     ))
     env
   in
+  
+  let env = Env.add "pipeline_to_dot"
+    (make_builtin ~name:"pipeline_to_dot" 1 (fun args _env ->
+      match args with
+      | [VPipeline p] ->
+          let buf = Buffer.create 256 in
+          Buffer.add_string buf "digraph pipeline {\n";
+          Buffer.add_string buf "  rankdir=LR;\n";
+          Buffer.add_string buf "  node [shape=box];\n";
+          List.iter (fun (name, _) ->
+            let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+            let noop    = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
+            let label =
+              if noop then Printf.sprintf "%s\\n[%s, noop]" name runtime
+              else          Printf.sprintf "%s\\n[%s]" name runtime
+            in
+            Buffer.add_string buf
+              (Printf.sprintf "  \"%s\" [label=\"%s\"];\n" name label)
+          ) p.p_exprs;
+          List.iter (fun (name, deps) ->
+            List.iter (fun dep ->
+              Buffer.add_string buf
+                (Printf.sprintf "  \"%s\" -> \"%s\";\n" dep name)
+            ) deps
+          ) p.p_deps;
+          Buffer.add_string buf "}\n";
+          VString (Buffer.contents buf)
+      | [_] -> Error.type_error "Function `pipeline_to_dot` expects a Pipeline."
+      | _ -> Error.arity_error_named "pipeline_to_dot" 1 (List.length args)
+    ))
+    env
+  in
+
+  let env = Env.add "pipeline_to_mermaid"
+    (make_builtin ~name:"pipeline_to_mermaid" 1 (fun args _env ->
+      match args with
+      | [VPipeline p] ->
+          let buf = Buffer.create 256 in
+          Buffer.add_string buf "graph LR\n";
+          let sanitize_id name =
+            String.map (fun c -> if c = '.' || c = '-' then '_' else c) name
+          in
+          List.iter (fun (name, _) ->
+            let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+            let noop    = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
+            let label =
+              if noop then Printf.sprintf "%s [%s, noop]" name runtime
+              else          Printf.sprintf "%s [%s]" name runtime
+            in
+            let id = sanitize_id name in
+            Buffer.add_string buf
+              (Printf.sprintf "  %s[\"%s\"];\n" id label)
+          ) p.p_exprs;
+          List.iter (fun (name, deps) ->
+            let name_id = sanitize_id name in
+            List.iter (fun dep ->
+              let dep_id = sanitize_id dep in
+              Buffer.add_string buf
+                (Printf.sprintf "  %s --> %s;\n" dep_id name_id)
+            ) deps
+          ) p.p_deps;
+          VString (Buffer.contents buf)
+      | [_] -> Error.type_error "Function `pipeline_to_mermaid` expects a Pipeline."
+      | _ -> Error.arity_error_named "pipeline_to_mermaid" 1 (List.length args)
+    ))
+    env
+  in
 
   env
