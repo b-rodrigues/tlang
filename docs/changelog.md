@@ -6,11 +6,11 @@ This release introduces a new meta-pipeline composition feature, `pipeline_of`, 
 
 **Status**: Beta
 
-### Artifact Cache Export & Import
-- **`export_artifacts(p, path)`**: Export pipeline results (Nix build outputs) into a self-contained Nix Archive (`.nar`) file for sharing or caching.
-- **`import_artifacts(path)`**: Import a previously exported `.nar` file into the local Nix store, allowing subsequent pipeline builds to reuse the cached outputs and skip building identical nodes.
-- **Verification Stability**: Fixed path resolution and correctness checks in the OCaml artifacts builder.
-- **REPL Stability**: Fixed function registration for `import_artifacts` in the interactive REPL.
+### Artifact Cache Export, Import & Introspection
+- **Granular `export_artifacts`**: Support exporting cached Nix artifacts for individual nodes, sub-pipelines, meta-pipelines, or lists/dictionaries of nodes/pipelines.
+- **Variadic `import_artifacts`**: Support both 1-argument `import_artifacts(archive_path)` (direct Nix store import) and 2-argument `import_artifacts(target_val, archive_path)` (import and verify paths) calling signatures.
+- **`inspect_artifacts(archive_path)`**: Import archive into a temporary, isolated Nix store and return a DataFrame containing the included nodes, store paths, hashes, sizes in bytes, and reference basenames without affecting the local store.
+- **Verification & REPL Stability**: Fixed path resolution and correctness checks, and updated package registrations in the interactive REPL for `import_artifacts`, `export_artifacts`, and `inspect_artifacts`.
 
 
 ### Meta-Pipeline Composition
