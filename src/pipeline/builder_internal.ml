@@ -256,7 +256,11 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
       if Sys.file_exists pipeline_nix_path then (
         let expr =
           let assignments =
-            List.map (fun name -> Printf.sprintf "\"%s\" = toString p.\"%s\";" name name) node_names
+            List.map (fun name ->
+              let parts = String.split_on_char '.' name in
+              let quoted_path = List.map (fun part -> Printf.sprintf "\"%s\"" part) parts |> String.concat "." in
+              Printf.sprintf "\"%s\" = toString p.%s;" name quoted_path
+            ) node_names
             |> String.concat " "
           in
           Printf.sprintf "let p = import ./%s {}; in { %s }" pipeline_nix_path assignments
