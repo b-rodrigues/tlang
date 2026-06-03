@@ -251,6 +251,34 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
       | _ -> []
     in
     let all_args = !nix_build_args @ (nix_verbosity_args verbose) @ force_args @ max_jobs_args @ max_cores_args @ cache_args @ builders_args @ keep_env_args @ sandbox_args in
+    let node_store_paths = Hashtbl.create (List.length node_names) in
+    let () =
+      if Sys.file_exists pipeline_nix_path then (
+        let expr =
+          let assignments =
+            List.map (fun name -> Printf.sprintf "%s = toString p.%s;" name name) node_names
+            |> String.concat " "
+          in
+          Printf.sprintf "let p = import ./%s {}; in { %s }" pipeline_nix_path assignments
+        in
+        let argv_eval = [| "nix-instantiate"; "--impure"; "--eval"; "--strict"; "--expr"; expr |] in
+        match run_command_argv_capture argv_eval with
+        | Ok output ->
+            let re = Str.regexp "\\([a-zA-Z0-9_]+\\)[ \t]*=[ \t]*\"\\([^\"]+\\)\"" in
+            let pos = ref 0 in
+            (try
+               while true do
+                 let _ = Str.search_forward re output !pos in
+                 let name = Str.matched_group 1 output in
+                 let path = Str.matched_group 2 output in
+                 Hashtbl.replace node_store_paths name path;
+                 pos := Str.match_end ()
+               done
+             with Not_found -> ())
+        | Error msg ->
+            Printf.eprintf "[Debug] nix-instantiate eval failed: %s\n%!" msg
+      )
+    in
     if dry_run then begin
       let lines = ref [] in
       let callback line =
@@ -269,9 +297,9 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
             Error (Printf.sprintf "Dry run failed with exit code %d" exit_code)
           else begin
             let reversed_lines = List.rev !lines in
-            let actions = ref [] in
-            let paths = ref [] in
-            let nodes = ref [] in
+            let dry_builds = Hashtbl.create (List.length node_names) in
+            let dry_fetches = Hashtbl.create (List.length node_names) in
+            let dry_paths = Hashtbl.create (List.length node_names) in
             let current_action = ref "build" in
             List.iter (fun line ->
               let trimmed = String.trim line in
@@ -281,19 +309,38 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
                 current_action := "fetch"
               else if String.starts_with ~prefix:"/nix/store/" trimmed then begin
                 let path = trimmed in
-                let node_name =
-                  match List.find_opt (fun name -> contains_substring path ("-" ^ name ^ ".drv") || contains_substring path ("-" ^ name)) sorted_node_names with
-                  | Some name -> name
-                  | None -> "NA"
-                in
-                actions := !current_action :: !actions;
-                paths := path :: !paths;
-                nodes := node_name :: !nodes
+                match List.find_opt (fun name -> contains_substring path ("-" ^ name ^ ".drv") || contains_substring path ("-" ^ name)) sorted_node_names with
+                | Some name ->
+                    if !current_action = "build" then Hashtbl.replace dry_builds name true
+                    else Hashtbl.replace dry_fetches name true;
+                    Hashtbl.replace dry_paths name path
+                | None -> ()
               end
             ) reversed_lines;
-            let actions_arr = Array.of_list (List.map (fun s -> Some s) (List.rev !actions)) in
-            let paths_arr = Array.of_list (List.map (fun s -> Some s) (List.rev !paths)) in
-            let nodes_arr = Array.of_list (List.map (fun s -> Some s) (List.rev !nodes)) in
+            let final_nodes = ref [] in
+            let final_actions = ref [] in
+            let final_paths = ref [] in
+            List.iter (fun name ->
+              let action =
+                if Hashtbl.mem dry_builds name then "build"
+                else if Hashtbl.mem dry_fetches name then "fetch"
+                else "cached"
+              in
+              let path =
+                match Hashtbl.find_opt dry_paths name with
+                | Some p -> p
+                | None ->
+                    (match Hashtbl.find_opt node_store_paths name with
+                     | Some p -> p
+                     | None -> "")
+              in
+              final_nodes := name :: !final_nodes;
+              final_actions := action :: !final_actions;
+              final_paths := path :: !final_paths
+            ) node_names;
+            let actions_arr = Array.of_list (List.map (fun s -> Some s) (List.rev !final_actions)) in
+            let paths_arr = Array.of_list (List.map (fun s -> Some s) (List.rev !final_paths)) in
+            let nodes_arr = Array.of_list (List.map (fun s -> Some s) (List.rev !final_nodes)) in
             let nrows = Array.length actions_arr in
             let columns = [
               ("node", Arrow_table.StringColumn nodes_arr);
@@ -319,34 +366,6 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
       let node_has_warnings = Hashtbl.create (List.length node_names) in
       let node_start_times = Hashtbl.create (List.length node_names) in
       let node_durations = Hashtbl.create (List.length node_names) in
-      let node_store_paths = Hashtbl.create (List.length node_names) in
-      let () =
-        if Sys.file_exists pipeline_nix_path then (
-          let expr =
-            let assignments =
-              List.map (fun name -> Printf.sprintf "%s = toString p.%s;" name name) node_names
-              |> String.concat " "
-            in
-            Printf.sprintf "let p = import ./%s {}; in { %s }" pipeline_nix_path assignments
-          in
-          let argv_eval = [| "nix-instantiate"; "--impure"; "--eval"; "--strict"; "--expr"; expr |] in
-          match run_command_argv_capture argv_eval with
-          | Ok output ->
-              let re = Str.regexp "\\([a-zA-Z0-9_]+\\)[ \t]*=[ \t]*\"\\([^\"]+\\)\"" in
-              let pos = ref 0 in
-              (try
-                 while true do
-                   let _ = Str.search_forward re output !pos in
-                   let name = Str.matched_group 1 output in
-                   let path = Str.matched_group 2 output in
-                   Hashtbl.replace node_store_paths name path;
-                   pos := Str.match_end ()
-                 done
-               with Not_found -> ())
-          | Error msg ->
-              Printf.eprintf "[Debug] nix-instantiate eval failed: %s\n%!" msg
-        )
-      in
       
       let callback line =
         Buffer.add_string captured_output line;
