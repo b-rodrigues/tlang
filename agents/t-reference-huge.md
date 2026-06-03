@@ -6179,19 +6179,15 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.53.0] - 2026-06-03
+## [0.52.3] - 2026-06-03
 
-This release introduces new meta-pipeline graph visualization capabilities.
+This release introduces a new meta-pipeline composition feature, `pipeline_of`, first-class artifact export/import capabilities, and new meta-pipeline graph visualization functions.
+
+**Status**: Beta
 
 ### Pipeline Visualization
 - **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.
 - **`pipeline_to_mermaid(p)`**: Generates a Mermaid flowchart diagram string from the pipeline topology, enabling visual rendering in Markdown documents and Mermaid live editors.
-
-## [0.52.3] - 2026-06-03
-
-This release introduces a new meta-pipeline composition feature, `pipeline_of`, providing native support for building hierarchical and graph-structured pipelines. It also introduces first-class artifact export and import capabilities to share pipeline cache files and avoid redundant rebuilds.
-
-**Status**: Beta
 
 ### Artifact Cache, Dry Runs, and Garbage Collection
 - **Granular `export_artifacts`**: Support exporting cached Nix artifacts for individual nodes, sub-pipelines, meta-pipelines, or lists/dictionaries of nodes/pipelines.
