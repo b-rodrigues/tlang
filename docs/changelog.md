@@ -1,10 +1,17 @@
 # Changelog
 
-## [0.52.3] - 2026-06-xx
+## [0.52.3] - 2026-06-03
 
-This release introduces a new meta-pipeline composition feature, `pipeline_of`, providing native support for building hierarchical and graph-structured pipelines. Pipelines are automatically flattened at execution time, handling namespace collisions and automatically wiring inter-pipeline dependencies.
+This release introduces a new meta-pipeline composition feature, `pipeline_of`, providing native support for building hierarchical and graph-structured pipelines. It also introduces first-class artifact export and import capabilities to share pipeline cache files and avoid redundant rebuilds.
 
 **Status**: Beta
+
+### Artifact Cache Export & Import
+- **`export_artifacts(p, path)`**: Export pipeline results (Nix build outputs) into a self-contained Nix Archive (`.nar`) file for sharing or caching.
+- **`import_artifacts(path)`**: Import a previously exported `.nar` file into the local Nix store, allowing subsequent pipeline builds to reuse the cached outputs and skip building identical nodes.
+- **Verification Stability**: Fixed path resolution and correctness checks in the OCaml artifacts builder.
+- **REPL Stability**: Fixed function registration for `import_artifacts` in the interactive REPL.
+
 
 ### Meta-Pipeline Composition
 - **`pipeline_of` block**: A new combinator that composes multiple pipelines into a higher-order DAG. It allows you to define relationships between sub-pipelines in a declarative way, enabling complex, multi-stage workflows.
