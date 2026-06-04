@@ -393,6 +393,8 @@ let linreg_multi ?weights (xs_list : float array list) (ys : float array)
   let k = List.length xs_list in  (* number of predictors *)
   let p = k + 1 in  (* total parameters including intercept *)
   if n < p || n < 2 then None
+  else if List.exists (fun xs -> Array.length xs <> n) xs_list then None
+  else if List.length predictor_names <> k then None
   else begin
     let obs_weights =
       match weights with

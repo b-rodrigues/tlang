@@ -15,8 +15,11 @@ let count_impl (named_args : (string option * value) list) _env =
         let arrow_table = Arrow_bridge.table_from_value_columns [(name_val, [|VInt n|])] 1 in
         VDataFrame { arrow_table; group_keys = [] }
       else
-        let grouped = Arrow_compute.group_by_optimized df.arrow_table keys in
-        let agg_table = Arrow_compute.group_aggregate grouped "count" "" in
+        let grouped = Arrow_compute.group_by df.arrow_table keys in
+        let agg_table = match Arrow_compute.group_aggregate grouped "count" "" with
+          | Some t -> t
+          | None -> Arrow_table.empty
+        in
         (* group_aggregate returns "n" as column name for "count". Rename if needed. *)
         let final_table = 
           if name_val <> "n" then Arrow_compute.rename_columns agg_table [(name_val, "n")]

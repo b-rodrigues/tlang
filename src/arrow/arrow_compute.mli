@@ -9,6 +9,8 @@ type grouped_handle
 
 type grouped_table
 
+type comparison_op = Eq | Lt | Gt | Le | Ge
+
 val project : Arrow_table.t -> string list -> Arrow_table.t
 
 val filter : Arrow_table.t -> bool array -> Arrow_table.t
@@ -74,17 +76,21 @@ val subtract_columns_to_table : Arrow_table.t -> string -> string -> string -> A
     Returns [None] if either column is missing or their types are incompatible. *)
 val divide_columns_to_table : Arrow_table.t -> string -> string -> string -> Arrow_table.t option
 
+(** Group a table by key columns.
+    Uses optimized native hash grouping when possible. *)
 val group_by : Arrow_table.t -> string list -> grouped_table
 
-val group_by_optimized : Arrow_table.t -> string list -> grouped_table
-
-val get_ocaml_groups : grouped_table -> (string * int list) list
+(** Get groups of a grouped table.
+    Each group is represented as a tuple of the string key representation and the list of row indices. *)
+val get_groups : grouped_table -> (string * int list) list
 
 val nest : grouped_table -> string list -> (string * Arrow_table.t) list
 
-val ocaml_groups_materialized : grouped_table -> bool
-
-val group_aggregate : grouped_table -> string -> string -> Arrow_table.t
+(** Apply an aggregation to a grouped table.
+    agg_name: "sum", "mean", "count", "min", "max", or "count_distinct"
+    col_name: target column for aggregation (ignored for count)
+    Returns [Some table] with key columns + aggregated value column, or [None] if inputs are invalid. *)
+val group_aggregate : grouped_table -> string -> string -> Arrow_table.t option
 
 val group_multi_aggregate : grouped_table -> (string * string * string) list -> Arrow_table.t option
 
@@ -106,9 +112,13 @@ val min_column : Arrow_table.t -> string -> float option
 
 val max_column : Arrow_table.t -> string -> float option
 
-val count_distinct_column : Arrow_table.t -> string -> float option
+(** Compute the number of distinct values in a named column.
+    Returns [None] if the column doesn't exist. *)
+val count_distinct_column : Arrow_table.t -> string -> int option
 
-val compare_column_scalar : Arrow_table.t -> string -> float -> string -> bool array option
+(** Compare each element of a named numeric column to a scalar.
+    Returns a bool array suitable for use with filter, or [None] if the column is missing/incompatible. *)
+val compare_column_scalar : Arrow_table.t -> string -> float -> comparison_op -> bool array option
 
 val column_null_mask : Arrow_table.t -> string -> bool array option
 

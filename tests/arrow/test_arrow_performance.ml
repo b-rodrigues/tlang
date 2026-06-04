@@ -327,7 +327,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   let cmp_tbl = Arrow_table.create [
     ("x", Arrow_table.FloatColumn [| Some 1.0; Some 5.0; Some 10.0; Some 3.0 |]);
   ] 4 in
-  (match Arrow_compute.compare_column_scalar cmp_tbl "x" 4.0 "gt" with
+  (match Arrow_compute.compare_column_scalar cmp_tbl "x" 4.0 Arrow_compute.Gt with
    | Some mask ->
      if Array.length mask = 4
         && not mask.(0) && mask.(1) && mask.(2) && not mask.(3) then begin
@@ -339,7 +339,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
      incr fail_count; Printf.printf "  ✗ compare_column_scalar 'gt' returned None\n");
 
   (* Test 19: compare_column_scalar "le" *)
-  (match Arrow_compute.compare_column_scalar cmp_tbl "x" 5.0 "le" with
+  (match Arrow_compute.compare_column_scalar cmp_tbl "x" 5.0 Arrow_compute.Le with
    | Some mask ->
      if mask.(0) && mask.(1) && not mask.(2) && mask.(3) then begin
        incr pass_count; Printf.printf "  ✓ compare_column_scalar 'le' 5.0 correct\n"
@@ -350,7 +350,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
      incr fail_count; Printf.printf "  ✗ compare_column_scalar 'le' returned None\n");
 
   (* Test 20: compare_column_scalar "eq" *)
-  (match Arrow_compute.compare_column_scalar cmp_tbl "x" 5.0 "eq" with
+  (match Arrow_compute.compare_column_scalar cmp_tbl "x" 5.0 Arrow_compute.Eq with
    | Some mask ->
      if not mask.(0) && mask.(1) && not mask.(2) && not mask.(3) then begin
        incr pass_count; Printf.printf "  ✓ compare_column_scalar 'eq' 5.0 correct\n"
@@ -364,7 +364,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   let int_cmp_tbl = Arrow_table.create [
     ("n", Arrow_table.IntColumn [| Some 1; Some 5; Some 10 |]);
   ] 3 in
-  (match Arrow_compute.compare_column_scalar int_cmp_tbl "n" 5.0 "ge" with
+  (match Arrow_compute.compare_column_scalar int_cmp_tbl "n" 5.0 Arrow_compute.Ge with
    | Some mask ->
      if not mask.(0) && mask.(1) && mask.(2) then begin
        incr pass_count; Printf.printf "  ✓ compare_column_scalar 'ge' on int column correct\n"
@@ -374,12 +374,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
    | None ->
      incr fail_count; Printf.printf "  ✗ compare_column_scalar 'ge' on int column returned None\n");
 
-  (* Test 22: Invalid comparison op returns None *)
-  (match Arrow_compute.compare_column_scalar cmp_tbl "x" 5.0 "invalid" with
-   | None ->
-     incr pass_count; Printf.printf "  ✓ compare_column_scalar returns None for invalid op\n"
-   | Some _ ->
-     incr fail_count; Printf.printf "  ✗ compare_column_scalar should return None for invalid op\n");
+  (* Test 22 removed: comparison_op is now a closed ADT, invalid ops cannot be constructed *)
   print_newline ();
 
   Printf.printf "Arrow Performance — Large Dataset Operations:\n";
@@ -394,7 +389,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
 
   (* Test 24: Filter on 10k rows *)
   let (t_filt, filt_10k) = time_it (fun () ->
-    match Arrow_compute.compare_column_scalar tbl_10k "value" 50.0 "gt" with
+    match Arrow_compute.compare_column_scalar tbl_10k "value" 50.0 Arrow_compute.Gt with
     | Some mask -> Arrow_compute.filter tbl_10k mask
     | None ->
       (* Fallback: manual filter *)
@@ -425,7 +420,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   let (t_grp, grouped_10k) = time_it (fun () ->
     Arrow_compute.group_by tbl_10k ["group"]
   ) in
-  let n_groups_10k = List.length (Arrow_compute.get_ocaml_groups grouped_10k) in
+  let n_groups_10k = List.length (Arrow_compute.get_groups grouped_10k) in
   if n_groups_10k = 100 then begin
     incr pass_count; Printf.printf "  ✓ Group-by 10k rows → 100 groups (%.4fs)\n" t_grp
   end else begin
@@ -433,14 +428,14 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   end;
 
   (* Test 27: Group aggregate on 10k rows *)
-  let (t_gagg, gagg_10k) = time_it (fun () ->
+  let (t_gagg, gagg_10k_opt) = time_it (fun () ->
     Arrow_compute.group_aggregate grouped_10k "mean" "value"
   ) in
-  if Arrow_table.num_rows gagg_10k = 100 then begin
-    incr pass_count; Printf.printf "  ✓ Group aggregate mean 10k rows → 100 groups (%.4fs)\n" t_gagg
-  end else begin
-    incr fail_count; Printf.printf "  ✗ Group aggregate mean 10k rows failed\n"
-  end;
+  (match gagg_10k_opt with
+   | Some gagg_10k when Arrow_table.num_rows gagg_10k = 100 ->
+     incr pass_count; Printf.printf "  ✓ Group aggregate mean 10k rows → 100 groups (%.4fs)\n" t_gagg
+   | _ ->
+     incr fail_count; Printf.printf "  ✗ Group aggregate mean 10k rows failed\n");
   print_newline ();
 
   Printf.printf "Arrow Performance — 100k Row Tests:\n";
@@ -468,21 +463,21 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   let (t_grp100k, grouped_100k) = time_it (fun () ->
     Arrow_compute.group_by tbl_100k ["group"]
   ) in
-  let n_groups_100k = List.length (Arrow_compute.get_ocaml_groups grouped_100k) in
+  let n_groups_100k = List.length (Arrow_compute.get_groups grouped_100k) in
   if n_groups_100k = 1000 then begin
     incr pass_count; Printf.printf "  ✓ Group-by 100k rows → 1000 groups (%.4fs)\n" t_grp100k
   end else begin
     incr fail_count; Printf.printf "  ✗ Group-by 100k rows: expected 1000 groups, got %d\n" n_groups_100k
   end;
 
-  let (t_gagg100k, gagg_100k) = time_it (fun () ->
+  let (t_gagg100k, gagg_100k_opt) = time_it (fun () ->
     Arrow_compute.group_aggregate grouped_100k "sum" "value"
   ) in
-  if Arrow_table.num_rows gagg_100k = 1000 then begin
-    incr pass_count; Printf.printf "  ✓ Group aggregate sum 100k rows → 1000 groups (%.4fs)\n" t_gagg100k
-  end else begin
-    incr fail_count; Printf.printf "  ✗ Group aggregate sum 100k rows failed\n"
-  end;
+  (match gagg_100k_opt with
+   | Some gagg_100k when Arrow_table.num_rows gagg_100k = 1000 ->
+     incr pass_count; Printf.printf "  ✓ Group aggregate sum 100k rows → 1000 groups (%.4fs)\n" t_gagg100k
+   | _ ->
+     incr fail_count; Printf.printf "  ✗ Group aggregate sum 100k rows failed\n");
   print_newline ();
 
   Printf.printf "Arrow Performance — 1M Row Tests:\n";
@@ -513,17 +508,19 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   let (t_grp1m, grouped_1m) = time_it (fun () ->
     Arrow_compute.group_by tbl_1m ["group"]
   ) in
-  let n_groups_1m = List.length (Arrow_compute.get_ocaml_groups grouped_1m) in
+  let n_groups_1m = List.length (Arrow_compute.get_groups grouped_1m) in
   if n_groups_1m = 10000 then begin
     incr pass_count; Printf.printf "  ✓ Group-by 1M rows → 10000 groups (%.4fs)\n" t_grp1m
   end else begin
     incr fail_count; Printf.printf "  ✗ Group-by 1M rows: expected 10000 groups, got %d\n" n_groups_1m
   end;
 
-  let (t_gagg1m, _) = time_it (fun () ->
+  let (t_gagg1m, gagg_1m_opt) = time_it (fun () ->
     Arrow_compute.group_aggregate grouped_1m "mean" "value"
   ) in
-  incr pass_count; Printf.printf "  ✓ Group aggregate mean 1M rows (%.4fs)\n" t_gagg1m;
+  (match gagg_1m_opt with
+   | Some _ -> incr pass_count; Printf.printf "  ✓ Group aggregate mean 1M rows (%.4fs)\n" t_gagg1m
+   | None   -> incr fail_count; Printf.printf "  ✗ Group aggregate mean 1M rows failed\n");
 
   print_newline ();
 
@@ -551,7 +548,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
 
   (* Test 32: Comparison filter on 100k rows *)
   let (t_cmp100k, cmp_result) = time_it (fun () ->
-    Arrow_compute.compare_column_scalar tbl_100k "value" 50.0 "gt"
+    Arrow_compute.compare_column_scalar tbl_100k "value" 50.0 Arrow_compute.Gt
   ) in
   (match cmp_result with
    | Some mask when Array.length mask = 100000 ->

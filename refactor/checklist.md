@@ -10,7 +10,8 @@
 | `src/arrow/arrow_column.mli` | [x] |
 | `src/arrow/arrow_compute.ml` | [x] |
 | `src/arrow/arrow_compute.mli` | [x] |
-| `src/arrow/arrow_ffi.ml` | [ ] |
+| `src/arrow/arrow_ffi.ml` | [x] |
+| `src/arrow/arrow_ffi.mli` | [x] |
 | `src/arrow/arrow_io.ml` | [ ] |
 | `src/arrow/arrow_owl_bridge.ml` | [ ] |
 | `src/arrow/arrow_table.ml` | [ ] |

@@ -230,7 +230,7 @@ let download_url ?(suffix=".csv") (url : string) : (string, string) result =
   match Sys.command cmd with
   | 0 -> Ok temp_file
   | n -> 
-      let _ = Sys.remove temp_file in
+      let _ = try Sys.remove temp_file with Sys_error _ -> () in
       Error (Printf.sprintf "Download failed with exit code %d" n)
 
 (** Read an Arrow IPC file *)
@@ -308,7 +308,7 @@ let read_csv (path : string) : (Arrow_table.t, string) result =
     match download_url path with
     | Ok temp_path ->
         let result = read_csv_local temp_path in
-        (try Sys.remove temp_path with _ -> ());
+        (try Sys.remove temp_path with Sys_error _ -> ());
         result
     | Error msg -> Error msg
   else
@@ -320,7 +320,7 @@ let read_parquet (path : string) : (Arrow_table.t, string) result =
     match download_url ~suffix:".parquet" path with
     | Ok temp_path ->
         let result = read_parquet_local temp_path in
-        (try Sys.remove temp_path with _ -> ());
+        (try Sys.remove temp_path with Sys_error _ -> ());
         result
     | Error msg -> Error msg
   else
