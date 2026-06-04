@@ -4,7 +4,10 @@
 
 This release introduces a new meta-pipeline composition feature, `pipeline_of`, first-class artifact export/import capabilities, and new meta-pipeline graph visualization functions.
 
-**Status**: Beta
+### Pipeline Soft-Fail & Early-Abort Semantics
+- **Block Evaluation Early Abort**: Blocks (`{ ... }`) now abort immediately on encountering a `VError`, returning the error rather than continuing evaluation of remaining statements. This is a breaking change for code that relied on ignoring intermediate block errors.
+- **Conditional Serialization on soft-fail**: Nodes that soft-fail and return `VError` now conditionally fall back to binary `serialize`/`deserialize` rather than triggering configured custom serializers (like Arrow), preventing crashes.
+- **Failed Node Diagnostics**: Host tools and logs now safely resolve and deserialize binary T error payloads.
 
 ### Pipeline Visualization
 - **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.

@@ -2127,7 +2127,7 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
       echo "else" >> node_script.jl
       echo "    %s = %s(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl
       echo "end" >> node_script.jl|} dep_var dep_var safe_var dep_var safe_var des_fn dep_var
-        | _ ->
+        | "T" | _ ->
             Printf.sprintf {|      echo "if (file_exists(\"$%s/class\") && (read_file(\"$%s/class\") == \"VError\" || read_file(\"$%s/class\") == \"VError\\n\" || read_file(\"$%s/class\") == \"Error\" || read_file(\"$%s/class\") == \"Error\\n\")) {" >> node_script.t
       echo "  %s = deserialize(\"$%s/artifact\")" >> node_script.t
       echo "} else {" >> node_script.t
