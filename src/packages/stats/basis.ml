@@ -48,8 +48,8 @@ let register env =
                     let labels = Array.init n (fun i ->
                       let low = min_x +. (float_of_int i) *. step in
                       let high = if i = n - 1 then max_x else min_x +. (float_of_int (i+1)) *. step in
-                      if n = 1 then Printf.sprintf "[%.2f, %.2f]" min_x max_x
-                      else Printf.sprintf "(%.2f, %.2f]" low high
+                      if n = 1 then Printf.sprintf "[%g,%g]" min_x max_x
+                      else Printf.sprintf "(%g,%g]" low high
                     ) in
                     let res = Array.map (fun v ->
                       let idx = if range = 0.0 then 0 
@@ -63,7 +63,7 @@ let register env =
                   if Array.length b_floats < 2 then Error.value_error "Function `cut` with vector breaks requires at least 2 values."
                   else
                     let labels = Array.init (Array.length b_floats - 1) (fun i ->
-                      Printf.sprintf "(%.2f, %.2f]" b_floats.(i) b_floats.(i+1)
+                      Printf.sprintf "(%g,%g]" b_floats.(i) b_floats.(i+1)
                     ) in
                     let res = Array.map (fun v ->
                       let rec find_bin i =
