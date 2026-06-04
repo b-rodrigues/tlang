@@ -21,7 +21,7 @@
 | `src/diff.ml` | [x] |
 | `src/error.ml` | [x] |
 | `src/eval.ml` | [x] |
-| `src/import_registry.ml` | [ ] |
+| `src/import_registry.ml` | [x] |
 | `src/lexer.mll` | [ ] |
 | `src/lsp_server.ml` | [ ] |
 | `src/package_manager/documentation_manager.ml` | [ ] |
