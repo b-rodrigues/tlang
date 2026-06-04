@@ -20,7 +20,7 @@
 | `src/completion.ml` | [x] |
 | `src/diff.ml` | [x] |
 | `src/error.ml` | [x] |
-| `src/eval.ml` | [ ] |
+| `src/eval.ml` | [x] |
 | `src/import_registry.ml` | [ ] |
 | `src/lexer.mll` | [ ] |
 | `src/lsp_server.ml` | [ ] |

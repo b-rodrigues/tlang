@@ -526,19 +526,19 @@ let eval_scalar_binop op v1 v2 =
 
   | (Div, VInt _, VInt 0) -> Error.division_by_zero ()
   | (Div, VInt a, VInt b) -> VFloat (float_of_int a /. float_of_int b)
-  | (Div, VFloat _, VFloat b) when b = 0.0 -> Error.division_by_zero ()
+  | (Div, VFloat _, VFloat b) when Float.equal b 0.0 -> Error.division_by_zero ()
   | (Div, VFloat a, VFloat b) -> VFloat (a /. b)
-  | (Div, VInt a, VFloat b) -> if b = 0.0 then Error.division_by_zero () else VFloat (float_of_int a /. b)
+  | (Div, VInt a, VFloat b) -> if Float.equal b 0.0 then Error.division_by_zero () else VFloat (float_of_int a /. b)
   | (Div, VFloat a, VInt b) -> if b = 0 then Error.division_by_zero () else VFloat (a /. float_of_int b)
 
   | (Mod, VInt a, VInt b) -> if b = 0 then Error.division_by_zero () else VInt (a mod b)
-  | (Mod, VFloat a, VFloat b) -> if b = 0.0 then Error.division_by_zero () else VFloat (mod_float a b)
-  | (Mod, VInt a, VFloat b) -> if b = 0.0 then Error.division_by_zero () else VFloat (mod_float (float_of_int a) b)
+  | (Mod, VFloat a, VFloat b) -> if Float.equal b 0.0 then Error.division_by_zero () else VFloat (mod_float a b)
+  | (Mod, VInt a, VFloat b) -> if Float.equal b 0.0 then Error.division_by_zero () else VFloat (mod_float (float_of_int a) b)
   | (Mod, VFloat a, VInt b) -> if b = 0 then Error.division_by_zero () else VFloat (mod_float a (float_of_int b))
 
   (* Comparison *)
-  | (Eq, VInt a, VFloat b) -> VBool (float_of_int a = b)
-  | (Eq, VFloat a, VInt b) -> VBool (a = float_of_int b)
+  | (Eq, VInt a, VFloat b) -> VBool (Float.equal (float_of_int a) b)
+  | (Eq, VFloat a, VInt b) -> VBool (Float.equal a (float_of_int b))
   | (Eq, VFactor (idx, levels, _), VString s)
   | (Eq, VString s, VFactor (idx, levels, _)) ->
       (match List.nth_opt levels idx with
@@ -546,8 +546,8 @@ let eval_scalar_binop op v1 v2 =
        | None -> VBool false)
   | (Eq, a, b) -> VBool (a = b)
 
-  | (NEq, VInt a, VFloat b) -> VBool (float_of_int a <> b)
-  | (NEq, VFloat a, VInt b) -> VBool (a <> float_of_int b)
+  | (NEq, VInt a, VFloat b) -> VBool (not (Float.equal (float_of_int a) b))
+  | (NEq, VFloat a, VInt b) -> VBool (not (Float.equal a (float_of_int b)))
   | (NEq, VFactor (idx, levels, _), VString s)
   | (NEq, VString s, VFactor (idx, levels, _)) ->
       (match List.nth_opt levels idx with
