@@ -132,6 +132,34 @@ let pt x df =
   let p = 0.5 *. betai beta_x (0.5 *. df_f) 0.5 in
   if x > 0.0 then 1.0 -. p else p
 
+let t_quantile p df =
+  if p <= 0.0 then Float.neg_infinity
+  else if p >= 1.0 then Float.infinity
+  else if p = 0.5 then 0.0
+  else if p < 0.5 then
+    -. (t_quantile (1.0 -. p) df)
+  else
+    let rec loop lo hi iter =
+      if iter >= 100 || hi -. lo < 1e-15 then
+        0.5 *. (lo +. hi)
+      else
+        let mid = 0.5 *. (lo +. hi) in
+        let val_mid = pt mid df in
+        if val_mid < p then
+          loop mid hi (iter + 1)
+        else
+          loop lo mid (iter + 1)
+    in
+    let rec find_hi hi =
+      if pt hi df >= p then hi
+      else find_hi (hi *. 2.0)
+    in
+    let hi = find_hi 1.0 in
+    loop 0.0 hi 0
+
+let () =
+  Stats.t_quantile_fun := t_quantile
+
 let pf q df1 df2 =
   let df1_f = float_of_int df1 in
   let df2_f = float_of_int df2 in

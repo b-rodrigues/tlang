@@ -9,9 +9,11 @@ external normal_quantile : float -> float = "caml_stats_normal_quantile"
     p: cumulative probability (0 < p < 1), df: degrees of freedom (df > 0). *)
 external t_quantile : float -> int -> float = "caml_stats_t_quantile"
 
+let t_quantile_fun = ref (fun p df -> t_quantile p df)
+
 (** Unified quantile function. Use t-distribution if df is provided, 
     otherwise fall back to normal distribution. *)
 let quantile p df_opt =
   match df_opt with
-  | Some df -> t_quantile p df
+  | Some df -> !t_quantile_fun p df
   | None -> normal_quantile p
