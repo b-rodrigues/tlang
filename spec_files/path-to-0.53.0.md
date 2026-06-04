@@ -78,9 +78,11 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 
 ### Future Composition & Cache Extensions (Brainstorming)
 - [x] **Meta-Pipeline Visualisation**: Add `pipeline_to_dot(p)` or `pipeline_to_mermaid(p)` to generate graph visualizations for understanding complex, flattened meta-pipelines.
+- [x] **Mermaid Browser Visualization**: Enhance `show_plot()` to support detecting Mermaid syntax strings, Pipelines, or Meta-Pipelines, dynamically rendering them to a temporary HTML page with the Mermaid JS client, and opening them in the browser.
 - [x] **Granular Artifact Export**: Support exporting specific sub-pipelines or individual nodes (e.g., `export_artifacts(meta.stats, path)`).
 - [x] **Artifact Archive Introspection**: Introduce `inspect_artifacts(path)` to read `.nar` cache metadata and return a DataFrame of included nodes and statistics without unpacking.
 - [x] **Cache-Aware Dry Runs**: Enhance `populate_pipeline(p, dry_run = true)` to report which nodes would hit the cache and which would actually rebuild based on local or remote substitutes.
+- [x] **Execution Plan Serialization**: Allow `dry_run = true` to return a structured DataFrame with columns `node`, `action` (`rebuild` | `fetch` | `cache_hit`), and `store_path` to enable programmatic execution plan analysis and abort thresholds.
 - [x] **Programmatic Garbage Collection**: Add a `pipeline_gc(p)` or `t_gc()` function to safely clean up old, detached derivations directly from the T-Lang REPL.
 
 ---

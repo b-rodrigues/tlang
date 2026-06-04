@@ -327,9 +327,9 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
             let final_paths = ref [] in
             List.iter (fun name ->
               let action =
-                if Hashtbl.mem dry_builds name then "build"
+                if Hashtbl.mem dry_builds name then "rebuild"
                 else if Hashtbl.mem dry_fetches name then "fetch"
-                else "cached"
+                else "cache_hit"
               in
               let path =
                 match Hashtbl.find_opt dry_paths name with
@@ -350,7 +350,7 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
             let columns = [
               ("node", Arrow_table.StringColumn nodes_arr);
               ("action", Arrow_table.StringColumn actions_arr);
-              ("path", Arrow_table.StringColumn paths_arr);
+              ("store_path", Arrow_table.StringColumn paths_arr);
             ] in
             let arrow_table = Arrow_table.create columns nrows in
             Ok (VDataFrame { arrow_table; group_keys = [] })

@@ -186,6 +186,9 @@ let identical args _env =
     (* Float: NaN == NaN, consistent with ValueHash.equal *)
     | VFloat fa, VFloat fb ->
       if Float.is_nan fa && Float.is_nan fb then true else fa = fb
+    | VFloat fa, VInt ib
+    | VInt ib, VFloat fa ->
+      fa = float_of_int ib
     (* Collections: recurse element-wise to handle nested functional values *)
     | VVector va, VVector vb ->
       let n = Array.length va in
@@ -214,14 +217,15 @@ let identical args _env =
       List.length pa.p_nodes = List.length pb.p_nodes &&
       List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2)
         pa.p_nodes pb.p_nodes
+    | VDataFrame dfa, VDataFrame dfb -> Utils.dataframe_equal dfa dfb
     (* All remaining constructors contain only plain OCaml data with no embedded
        function values, so polymorphic equality is safe. This covers:
        VInt, VBool, VString, VRawCode, VSymbol, VNA, VError, VFactor, VPeriod,
        VDuration, VInterval, VIntent, VFormula, VComputedNode, VNode,
-       VShellResult, VDataFrame, VNDArray.
+       VShellResult, VNDArray.
        (VFloat, VVector, VList, VDict, VUnquote, VUnquoteSplice, VDynamicArg,
-        VPipeline are handled by the explicit arms above; VBuiltin, VLambda,
-        VEnv, VQuo, VSerializer always return false above.)
+        VPipeline, VDataFrame are handled by the explicit arms above; VBuiltin,
+        VLambda, VEnv, VQuo, VSerializer always return false above.)
        The exception catch is a belt-and-suspenders guard against any future
        variant that may slip through. *)
     | _ -> (try a = b with Invalid_argument _ -> false)

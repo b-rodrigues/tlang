@@ -455,6 +455,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
          && contains msg "plotsjl"
          && contains msg "makie"
      | Ok _ -> false);
+  test "show_plot with a mermaid string returns an html path"
+    "path_ext(show_plot('graph TD\n  a --> b'))"
+    {|".html"|};
+  test "show_plot with a pipeline returns an html path"
+    "path_ext(show_plot(pipeline { a = 1 }))"
+    {|".html"|};
   print_newline ();
 
   Printf.printf "Phase 7 — Multi-line: Parser newline tolerance:\n";

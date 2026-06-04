@@ -390,7 +390,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
   let t_json_r_code = {|
 r_write_json <- function(object, path) {
-  jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null")
+  jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null", na = "null", digits = NA)
 }
 r_read_json <- function(path) {
   jsonlite::read_json(path, simplifyVector = TRUE)
@@ -2127,8 +2127,12 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
       echo "else" >> node_script.jl
       echo "    %s = %s(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl
       echo "end" >> node_script.jl|} dep_var dep_var safe_var dep_var safe_var des_fn dep_var
-        | _ ->
-            Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" safe_var des_fn dep_var ext
+        | "T" | _ ->
+            Printf.sprintf {|      echo "if (file_exists(\"$%s/class\") && (read_file(\"$%s/class\") == \"VError\" || read_file(\"$%s/class\") == \"VError\\n\" || read_file(\"$%s/class\") == \"Error\" || read_file(\"$%s/class\") == \"Error\\n\")) {" >> node_script.t
+      echo "  %s = deserialize(\"$%s/artifact\")" >> node_script.t
+      echo "} else {" >> node_script.t
+      echo "  %s = %s(\"$%s/artifact\")" >> node_script.t
+      echo "}" >> node_script.t|} dep_var dep_var dep_var dep_var dep_var safe_var dep_var safe_var des_fn dep_var
       in
 
       let python_namespace_assigns dep_name safe_var =
@@ -2281,9 +2285,9 @@ EOF|} k expr_str
   in
   let res1_line_for val_name =
     if ser_call = "write_text" then
-      Printf.sprintf "      res1 = write_text(\\\"$out/artifact\\\", %s)" val_name
+      Printf.sprintf "      if (is_error(%s)) { res1 = serialize(%s, \\\"$out/artifact\\\") } else { res1 = write_text(\\\"$out/artifact\\\", %s) }" val_name val_name val_name
     else
-      Printf.sprintf "      res1 = %s(%s, \\\"$out/artifact\\\")" ser_call val_name
+      Printf.sprintf "      if (is_error(%s)) { res1 = serialize(%s, \\\"$out/artifact\\\") } else { res1 = %s(%s, \\\"$out/artifact\\\") }" val_name val_name ser_call val_name
   in
 
   let is_raw_code = match expr.Ast.node with RawCode _ -> true | _ -> false in

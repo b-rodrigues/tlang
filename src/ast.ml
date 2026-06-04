@@ -428,6 +428,62 @@ let extract_identifiers text =
 type environment = value Env.t
 
 module Utils = struct
+  let rec arrow_table_equal ta tb =
+    let nrows = Arrow_table.num_rows ta in
+    nrows = Arrow_table.num_rows tb &&
+    let cols_a = Arrow_table.column_names ta in
+    let cols_b = Arrow_table.column_names tb in
+    cols_a = cols_b &&
+    let col_equal ca cb =
+      match ca, cb with
+      | Arrow_table.IntColumn arr_a, Arrow_table.IntColumn arr_b -> arr_a = arr_b
+      | Arrow_table.FloatColumn arr_a, Arrow_table.FloatColumn arr_b ->
+          Array.length arr_a = Array.length arr_b &&
+          (try
+             Array.iteri (fun i va ->
+               let vb = arr_b.(i) in
+               match va, vb with
+               | None, None -> ()
+               | Some fa, Some fb ->
+                   if Float.is_nan fa && Float.is_nan fb then ()
+                   else if fa = fb then ()
+                   else raise Exit
+               | _ -> raise Exit
+             ) arr_a;
+             true
+           with Exit -> false)
+      | Arrow_table.BoolColumn arr_a, Arrow_table.BoolColumn arr_b -> arr_a = arr_b
+      | Arrow_table.StringColumn arr_a, Arrow_table.StringColumn arr_b -> arr_a = arr_b
+      | Arrow_table.DateColumn arr_a, Arrow_table.DateColumn arr_b -> arr_a = arr_b
+      | Arrow_table.DatetimeColumn (arr_a, tz_a), Arrow_table.DatetimeColumn (arr_b, tz_b) ->
+          tz_a = tz_b && arr_a = arr_b
+      | Arrow_table.DictionaryColumn (idx_a, lvl_a, ord_a), Arrow_table.DictionaryColumn (idx_b, lvl_b, ord_b) ->
+          idx_a = idx_b && lvl_a = lvl_b && ord_a = ord_b
+      | Arrow_table.NAColumn n_a, Arrow_table.NAColumn n_b -> n_a = n_b
+      | Arrow_table.ListColumn arr_a, Arrow_table.ListColumn arr_b ->
+          Array.length arr_a = Array.length arr_b &&
+          (try
+             Array.iteri (fun i va ->
+               let vb = arr_b.(i) in
+               match va, vb with
+               | None, None -> ()
+               | Some ta', Some tb' -> if not (arrow_table_equal ta' tb') then raise Exit
+               | _ -> raise Exit
+             ) arr_a;
+             true
+           with Exit -> false)
+      | _ -> false
+    in
+    List.for_all (fun col ->
+      match Arrow_table.get_column ta col, Arrow_table.get_column tb col with
+      | Some ca, Some cb -> col_equal ca cb
+      | _ -> false
+    ) cols_a
+
+  let dataframe_equal dfa dfb =
+    dfa.group_keys = dfb.group_keys &&
+    arrow_table_equal dfa.arrow_table dfb.arrow_table
+
   let empty_node_diagnostics = {
     nd_warnings = [];
     nd_error = None;

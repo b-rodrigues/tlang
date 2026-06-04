@@ -69,7 +69,13 @@ let logged_node_diagnostics ?value name cn =
     | Some value -> node_error_of_logged_value name cn value
     | None ->
         if is_error_class cn.cn_class then
-          match Serialization.read_verror_json cn.cn_path with
+          let read_res =
+            if cn.cn_runtime = "T" then
+              Serialization.deserialize_from_file cn.cn_path
+            else
+              Serialization.read_verror_json cn.cn_path
+          in
+          match read_res with
           | Ok value -> node_error_of_logged_value name cn value
           | Error _ -> Some (generic_logged_node_error name cn)
         else
@@ -217,7 +223,13 @@ let read_logged_node_value name cn =
    fall back to the computed node handle. *)
 let read_env_node_value name cn =
   if is_error_class cn.cn_class then
-    match Serialization.read_verror_json cn.cn_path with
+    let read_res =
+      if cn.cn_runtime = "T" then
+        Serialization.deserialize_from_file cn.cn_path
+      else
+        Serialization.read_verror_json cn.cn_path
+    in
+    match read_res with
     | Ok (VError e) -> VError { e with context = add_node_name_context name e.context }
     | Ok v -> v
     | Error _ -> VComputedNode cn
@@ -239,7 +251,13 @@ let candidate_logs ?which_log () =
 
 let logged_node_value name cn =
   if is_error_class cn.cn_class then
-    (match Serialization.read_verror_json cn.cn_path with
+    let read_res =
+      if cn.cn_runtime = "T" then
+        Serialization.deserialize_from_file cn.cn_path
+      else
+        Serialization.read_verror_json cn.cn_path
+    in
+    (match read_res with
      | Ok (VError e) ->
           VError { e with context = add_node_name_context name e.context }
      | Ok v -> v

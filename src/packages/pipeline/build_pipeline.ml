@@ -32,17 +32,18 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
   let build_fn named_args env =
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
-    match List.find_opt (fun k -> not (List.mem k ["p"; "verbose"; "nix_options"])) named_keys with
+    match List.find_opt (fun k -> not (List.mem k ["p"; "verbose"; "nix_options"; "dry_run"])) named_keys with
     | Some k ->
         Error.type_error (Printf.sprintf "build_pipeline: unknown argument '%s'" k)
-    | None when positional_count > 3 ->
+    | None when positional_count > 4 ->
         Error.make_error ArityError
-          (Printf.sprintf "Function `build_pipeline` accepts at most 3 positional arguments but received %d." positional_count)
+          (Printf.sprintf "Function `build_pipeline` accepts at most 4 positional arguments but received %d." positional_count)
     | None ->
       match get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
         let (verbose_provided, verbose_val) = get_arg "verbose" 2 (VNA NAGeneric) named_args in
         let (_, nix_options_val) = get_arg "nix_options" 3 (VDict []) named_args in
+        let (dry_run_provided, dry_run_val) = get_arg "dry_run" 4 (VNA NAGeneric) named_args in
 
         let verbose_result =
           match verbose_val with
@@ -65,13 +66,32 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
           | _ -> Error (Error.type_error "Function `build_pipeline` expects `nix_options` to be a Dictionary.")
         in
 
-        (match verbose_result, nix_options_result with
-         | Error e, _ | _, Error e -> e
-         | Ok verbose, Ok nix_options ->
+        let dry_run_result =
+          match dry_run_val with
+          | VBool b -> Ok (Some b)
+          | VNA _ -> Ok None
+          | _ when dry_run_provided ->
+              Error (Error.type_error "Function `build_pipeline` expects `dry_run` to be a Bool.")
+          | _ -> Ok None
+        in
+
+        (match verbose_result, nix_options_result, dry_run_result with
+         | Error e, _, _ | _, Error e, _ | _, _, Error e -> e
+         | Ok verbose, Ok nix_options, Ok dry_opt ->
+             let final_nix_options =
+               let base_opts =
+                 match nix_options with
+                 | Some opts -> opts
+                 | None -> Builder_utils.default_nix_opts
+               in
+               match dry_opt with
+               | Some d -> Some { base_opts with dry_run = Some d }
+               | None -> Some base_opts
+             in
              (* Trigger a final resolution pass to catch typos or unresolved cross-pipeline deps *)
              (match rerun_pipeline ?strict:(Some true) ~verbose:false env p with
               | VPipeline p_resolved ->
-                    (match Builder.populate_pipeline ~build:true ?verbose ?nix_options p_resolved with
+                    (match Builder.populate_pipeline ~build:true ?verbose ?nix_options:final_nix_options p_resolved with
                      | Ok (VDataFrame _ as df) -> df
                      | Ok (VString out_path) ->
                          let var_name =

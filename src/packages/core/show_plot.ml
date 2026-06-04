@@ -592,18 +592,136 @@ let render_plot_artifact cn =
                                 | Error _ as err -> err))
                     end)
 
+let is_mermaid_string s =
+  let s_trimmed = String.trim s in
+  String.starts_with ~prefix:"graph " s_trimmed ||
+  String.starts_with ~prefix:"graph\n" s_trimmed ||
+  String.starts_with ~prefix:"graph\r" s_trimmed ||
+  String.starts_with ~prefix:"flowchart " s_trimmed ||
+  String.starts_with ~prefix:"flowchart\n" s_trimmed ||
+  String.starts_with ~prefix:"flowchart\r" s_trimmed ||
+  String.starts_with ~prefix:"sequenceDiagram" s_trimmed ||
+  String.starts_with ~prefix:"gantt" s_trimmed ||
+  String.starts_with ~prefix:"classDiagram" s_trimmed ||
+  String.starts_with ~prefix:"stateDiagram" s_trimmed ||
+  String.starts_with ~prefix:"erDiagram" s_trimmed ||
+  String.starts_with ~prefix:"journey" s_trimmed ||
+  String.starts_with ~prefix:"mindmap" s_trimmed
+
+let render_mermaid_html content =
+  Printf.sprintf
+    {|<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>T-Lang Pipeline Visualizer</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'neutral',
+      securityLevel: 'loose'
+    });
+  </script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 2rem;
+      background: #fdfdfd;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .mermaid {
+      background: white;
+      border: 1px solid #eef;
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      width: 100%%;
+      max-width: 1000px;
+      display: flex;
+      justify-content: center;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>T-Lang Pipeline Dependency Graph</h1>
+  <div class="mermaid">
+%s
+  </div>
+</body>
+</html>
+|}
+    content
+
+let render_and_open_mermaid mermaid_str =
+  let html_content = render_mermaid_html mermaid_str in
+  let project_root = Builder_utils.get_project_root () in
+  Builder_utils.ensure_pipeline_dir ();
+  let filename =
+    Printf.sprintf "show_mermaid_%s_%d.html" (Builder_utils.get_timestamp ()) (Unix.getpid ())
+  in
+  let local_html_path = Filename.concat Builder_utils.pipeline_dir filename in
+  match Builder_utils.write_file local_html_path html_content with
+  | Error msg -> Error ("show_plot: failed to write mermaid html file: " ^ msg)
+  | Ok () ->
+      flush_output_streams ();
+      (match visualization_tool ~project_root () with
+       | Error msg -> Error msg
+       | Ok None -> Ok local_html_path
+       | Ok (Some viewer) ->
+           (match open_rendered_plot viewer local_html_path with
+            | Ok () -> Ok local_html_path
+            | Error msg -> Error msg))
+
+let call_pipeline_to_mermaid p env =
+  match Env.find_opt "pipeline_to_mermaid" env with
+  | Some (VBuiltin builtin) ->
+      let args = [(None, p)] in
+      let env_ref = ref env in
+      (match builtin.b_func args env_ref with
+       | VString s -> Ok s
+       | other -> Error ("pipeline_to_mermaid returned non-string value: " ^ Utils.type_name other))
+  | _ ->
+      Error "pipeline_to_mermaid function not found in environment."
+
 let register env =
-  let show_plot_fn named_args _env =
+  let show_plot_fn named_args env =
     match named_args with
     | [(_, plot)] ->
-        (match resolve_plot_node plot with
-          | Error msg -> Error.make_error ValueError msg
-          | Ok cn ->
-              (match render_plot_artifact cn with
-               | Ok path ->
-                   flush_output_streams ();
-                   VString path
-               | Error msg -> Error.make_error RuntimeError msg))
+        (match plot with
+         | VPipeline _ | VMetaPipeline _ ->
+             (match call_pipeline_to_mermaid plot env with
+              | Ok mermaid_str ->
+                  (match render_and_open_mermaid mermaid_str with
+                   | Ok path ->
+                       flush_output_streams ();
+                       VString path
+                   | Error msg -> Error.make_error RuntimeError msg)
+              | Error msg -> Error.make_error RuntimeError msg)
+         | VString s when is_mermaid_string s ->
+             (match render_and_open_mermaid s with
+              | Ok path ->
+                  flush_output_streams ();
+                  VString path
+              | Error msg -> Error.make_error RuntimeError msg)
+         | _ ->
+             (match resolve_plot_node plot with
+               | Error msg -> Error.make_error ValueError msg
+               | Ok cn ->
+                   (match render_plot_artifact cn with
+                    | Ok path ->
+                        flush_output_streams ();
+                        VString path
+                    | Error msg -> Error.make_error RuntimeError msg)))
     | _ ->
         Error.arity_error_named "show_plot" 1 (List.length named_args)
   in

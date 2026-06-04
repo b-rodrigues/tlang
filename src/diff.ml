@@ -644,6 +644,7 @@ let rec values_equal a b =
   | VPipeline pa, VPipeline pb ->
       List.length pa.p_nodes = List.length pb.p_nodes
       && List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && values_equal v1 v2) pa.p_nodes pb.p_nodes
+  | VDataFrame dfa, VDataFrame dfb -> Ast.Utils.dataframe_equal dfa dfb
   | _ -> (try a = b with Invalid_argument _ -> false)
 
 (* ------------------------------------------------------------------ *)

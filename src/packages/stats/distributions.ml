@@ -36,14 +36,15 @@ let gammp a x =
   else if x < a +. 1.0 then begin
     (* Series representation *)
     let gln = log_gamma a in
-    let rec loop n ap sum =
+    let rec loop n ap term sum =
       let ap = ap +. 1.0 in
-      let del = sum *. x /. ap in
-      let sum = sum +. del in
-      if Float.abs del < Float.abs sum *. 3.0e-12 || n > 100 then sum
-      else loop (n + 1) ap sum
+      let term = term *. x /. ap in
+      let sum = sum +. term in
+      if Float.abs term < Float.abs sum *. 3.0e-12 || n > 100 then sum
+      else loop (n + 1) ap term sum
     in
-    exp (a *. log x -. x -. gln) *. (loop 0 a (1.0 /. a))
+    let initial_term = 1.0 /. a in
+    exp (a *. log x -. x -. gln) *. (loop 0 a initial_term initial_term)
   end else begin
     (* Continued fraction representation (Lentz's method) *)
     let gln = log_gamma a in
@@ -119,11 +120,10 @@ let betai x a b =
 (* --- Statistical Distributions (CDFs) --- *)
 
 let pnorm x =
-  (* Approximation for Normal CDF *)
-  let t = 1.0 /. (1.0 +. 0.2316419 *. (Float.abs x)) in
-  let d = 0.3989423 *. exp (-. x *. x /. 2.0) in
-  let prob = d *. t *. (0.3193815 +. t *. (-0.3565638 +. t *. (1.781478 +. t *. (-1.821256 +. t *. 1.330274)))) in
-  if x > 0.0 then 1.0 -. prob else prob
+  if x < 0.0 then
+    0.5 *. Float.erfc (-. x /. Float.sqrt 2.0)
+  else
+    1.0 -. 0.5 *. Float.erfc (x /. Float.sqrt 2.0)
 
 let pt x df =
   let x2 = x *. x in
@@ -131,6 +131,34 @@ let pt x df =
   let beta_x = df_f /. (df_f +. x2) in
   let p = 0.5 *. betai beta_x (0.5 *. df_f) 0.5 in
   if x > 0.0 then 1.0 -. p else p
+
+let rec t_quantile p df =
+  if p <= 0.0 then Float.neg_infinity
+  else if p >= 1.0 then Float.infinity
+  else if p = 0.5 then 0.0
+  else if p < 0.5 then
+    -. (t_quantile (1.0 -. p) df)
+  else
+    let rec loop lo hi iter =
+      if iter >= 100 || hi -. lo < 1e-15 then
+        0.5 *. (lo +. hi)
+      else
+        let mid = 0.5 *. (lo +. hi) in
+        let val_mid = pt mid df in
+        if val_mid < p then
+          loop mid hi (iter + 1)
+        else
+          loop lo mid (iter + 1)
+    in
+    let rec find_hi hi =
+      if pt hi df >= p then hi
+      else find_hi (hi *. 2.0)
+    in
+    let hi = find_hi 1.0 in
+    loop 0.0 hi 0
+
+let () =
+  Stats.t_quantile_fun := t_quantile
 
 let pf q df1 df2 =
   let df1_f = float_of_int df1 in

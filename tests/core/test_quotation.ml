@@ -55,7 +55,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     "my_f = \\(col: Any -> Any) enquo(col)\nmy_f($sepal_length)"
     "quo($sepal_length)";
   test "enquo captures caller environment"
-    "x = 10\nmy_f = \\(e: Any -> Any) { q = enquo(e)\nx = 99\neval(q) }\nmy_f(1 + x)"
+    "x = 10\nmy_f = \\(e: Any -> Any) { q = enquo(e)\nx := 99\neval(q) }\nmy_f(1 + x)"
     "11";
   test "enquo outside call context gives NameError"
     "enquo(x)"
