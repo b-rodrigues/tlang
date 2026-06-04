@@ -6,7 +6,8 @@
 | `src/analyzer.mli` | [x] |
 | `src/arrow/arrow_bridge.ml` | [x] |
 | `src/arrow/arrow_bridge.mli` | [x] |
-| `src/arrow/arrow_column.ml` | [ ] |
+| `src/arrow/arrow_column.ml` | [x] |
+| `src/arrow/arrow_column.mli` | [x] |
 | `src/arrow/arrow_compute.ml` | [ ] |
 | `src/arrow/arrow_ffi.ml` | [ ] |
 | `src/arrow/arrow_io.ml` | [ ] |
