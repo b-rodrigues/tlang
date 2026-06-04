@@ -33,7 +33,7 @@
 | `src/package_manager/scaffold.ml` | [x] |
 | `src/package_manager/template_engine.ml` | [x] |
 | `src/package_manager/test_discovery.ml` | [x] |
-| `src/package_manager/toml_parser.ml` | [ ] |
+| `src/package_manager/toml_parser.ml` | [x] |
 | `src/package_manager/update_manager.ml` | [ ] |
 | `src/packages/base/deserialize.ml` | [ ] |
 | `src/packages/base/error_mod.ml` | [ ] |
