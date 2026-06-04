@@ -1507,6 +1507,29 @@ print(dot)
 
 Pipe the output to `dot -Tpng` or paste it into https://dreampuf.github.io/GraphvizOnline/ to render a visual dependency graph.
 
+### `pipeline_to_dot`
+
+Equivalent to `pipeline_dot(p)`. Exports the pipeline as a DOT graph string.
+
+### `pipeline_to_mermaid`
+
+Exports the pipeline as a [Mermaid](https://mermaid.js.org/) flowchart string:
+
+```t
+p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+mermaid = pipeline_to_mermaid(p)
+print(mermaid)
+-- graph LR
+--   a["a [T]"];
+--   b["b [T]"];
+--   c["c [T]"];
+--   a --> b;
+--   b --> c;
+```
+
+Render the Mermaid flowchart directly in markdown files or preview using the online Mermaid live editor.
+
 ---
 
 ## 28. Pipeline Validation
@@ -1812,6 +1835,110 @@ meta.stats.summary.name        -- "stats.summary"
 
 -- Retrieve a materialized artifact after building
 read_node(meta.stats.summary)  -- Returns the summarized DataFrame
+```
+
+---
+
+## 26. Granular Artifact Transfer & Archive Introspection
+
+For teams working on large projects, T supports exporting Nix-materialized pipeline cache artifacts into portable archive files (`.nar` format). These archives can be transferred between machines, imported without rebuilding, or inspected without installing.
+
+### Granular Artifact Export
+
+To export cached artifacts, use `export_artifacts()`. In addition to entire pipelines, you can target specific sub-structures:
+
+```t
+p = pipeline {
+  a = shn(command = "echo -n 'hello'", capture = "stdout")
+  b = a |> \(x) x + " world"
+}
+build_pipeline(p)
+
+-- 1. Export the entire pipeline's artifacts
+export_artifacts(p, "full_cache.nar")
+
+-- 2. Granular export: Export a single computed node
+export_artifacts(p.a, "node_a.nar")
+
+-- 3. Export a list or vector of nodes/pipelines
+export_artifacts([p.a, p.b], "subset.nar")
+
+-- 4. Export nested structures/dictionaries
+export_artifacts([first: p.a, second: p.b], "dict_subset.nar")
+```
+
+### Variadic Artifact Import
+
+To restore exported artifacts, use `import_artifacts()`. It is variadic and supports two calling conventions:
+
+1. **Verification Import (2 arguments)**: Imports the archive and verifies that a specific pipeline, node, or value's paths exist in the local store.
+2. **Immediate Store Import (1 argument)**: Unpacks and loads the archive directly into the local Nix store without needing a target object for verification. This is especially useful for setting up an environment prior to loading or parsing a pipeline script.
+
+```t
+-- Convention 1: Import and verify against a pipeline
+import_artifacts(p, "full_cache.nar")
+
+-- Convention 2: Load archive directly into the Nix store
+import_artifacts("full_cache.nar")
+```
+
+### Archive Introspection
+
+You can inspect the contents of an artifact archive file without unpacking it permanently or changing your local store. The `inspect_artifacts()` function imports the archive into a temporary, isolated Nix store, extracts metadata for each path, and returns a DataFrame.
+
+```t
+df = inspect_artifacts("full_cache.nar")
+
+-- View the details of the archive
+df
+-- DataFrame with columns:
+--   - node: The name of the node (if known)
+--   - store_path: The Nix store path of the artifact
+--   - hash: The SHA-256 hash of the store path
+--   - size_bytes: The size of the unpacked artifact in bytes
+--   - references: Comma-separated basenames of dependency store paths
+```
+
+### Cache-Aware Dry Runs
+
+For convenience, you can perform a dry-run check directly using the `dry_run = true` parameter in `populate_pipeline()`. This reports which nodes are already in the Nix cache and which ones require rebuilding or downloading:
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Check cache hit/miss status directly
+plan = populate_pipeline(p, dry_run = true)
+print(plan)
+-- Returns a DataFrame with columns: node, action, and path.
+-- "action" will be one of:
+--   - "cached": path is already built/cached locally
+--   - "build": path must be rebuilt locally
+--   - "fetch": path can be retrieved from remote binary substitutes
+```
+
+### Programmatic Garbage Collection
+
+Over time, your local Nix store can accumulate unused derivations and cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix artifacts directly:
+
+1. **`pipeline_gc(p, dry_run = false)`**: Deletes the store paths of the given pipeline `p`. By default (`dry_run = true`), it queries what would be deleted and returns a DataFrame showing the `node`, `store_path`, and `deleted` status. Set `dry_run = false` to perform the actual deletion.
+2. **`t_gc()`**: Performs a global Nix store garbage collection (`nix-store --gc`), removing all unused derivations and freeing up disk space.
+
+```t
+p = pipeline {
+  a = 1
+}
+
+-- Preview what would be deleted
+plan = pipeline_gc(p, dry_run = true)
+
+-- Perform the deletion of the pipeline's nodes
+pipeline_gc(p, dry_run = false)
+
+-- Perform global garbage collection
+t_gc()
 ```
 
 ---

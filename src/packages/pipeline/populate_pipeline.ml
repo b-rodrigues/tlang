@@ -36,18 +36,19 @@ let register env =
     in
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
-    match List.find_opt (fun k -> not (List.mem k ["p"; "build"; "verbose"; "nix_options"])) named_keys with
+    match List.find_opt (fun k -> not (List.mem k ["p"; "build"; "verbose"; "nix_options"; "dry_run"])) named_keys with
     | Some k ->
         Error.type_error (Printf.sprintf "populate_pipeline: unknown argument '%s'" k)
-    | None when positional_count > 4 ->
+    | None when positional_count > 5 ->
         Error.make_error ArityError
-          (Printf.sprintf "Function `populate_pipeline` accepts at most 4 positional arguments but received %d." positional_count)
+          (Printf.sprintf "Function `populate_pipeline` accepts at most 5 positional arguments but received %d." positional_count)
     | None ->
       match get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
         let (build_provided, build_val) = get_arg "build" 2 (VBool false) named_args in
         let (verbose_provided, verbose_val) = get_arg "verbose" 3 (VNA NAGeneric) named_args in
         let (_, nix_options_val) = get_arg "nix_options" 4 (VDict []) named_args in
+        let (dry_run_provided, dry_run_val) = get_arg "dry_run" 5 (VNA NAGeneric) named_args in
 
         let build_result =
           match build_val with
@@ -76,13 +77,39 @@ let register env =
                | Error e -> Error e)
           | _ -> Error (Error.type_error "Function `populate_pipeline` expects `nix_options` to be a Dictionary.")
         in
+        let dry_run_result =
+          match dry_run_val with
+          | VBool b -> Ok (Some b)
+          | VNA _ -> Ok None
+          | _ when dry_run_provided ->
+              Error (Error.type_error "Function `populate_pipeline` expects `dry_run` to be a Bool.")
+          | _ -> Ok None
+        in
 
-        (match build_result, verbose_result, nix_options_result with
-         | Error e, _, _ | _, Error e, _ | _, _, Error e -> e
-         | Ok build, Ok verbose, Ok nix_options ->
-             (match Builder.populate_pipeline ~build ?verbose ?nix_options p with
+        (match build_result, verbose_result, nix_options_result, dry_run_result with
+         | Error e, _, _, _ | _, Error e, _, _ | _, _, Error e, _ | _, _, _, Error e -> e
+         | Ok build, Ok verbose, Ok nix_options, Ok dry_opt ->
+             let final_nix_options =
+               let base_opts =
+                 match nix_options with
+                 | Some opts -> opts
+                 | None -> Builder_utils.default_nix_opts
+               in
+               match dry_opt with
+               | Some d -> Some { base_opts with dry_run = Some d }
+               | None -> Some base_opts
+             in
+             let final_build =
+               match final_nix_options with
+               | Some opts ->
+                   (match opts.dry_run with
+                    | Some true -> true
+                    | _ -> build)
+               | None -> build
+             in
+             (match Builder.populate_pipeline ~build:final_build ?verbose ?nix_options:final_nix_options p with
               | Ok out ->
-                  if build then (
+                  if final_build && (match final_nix_options with Some opts -> opts.dry_run <> Some true | None -> true) then (
                     let var_name =
                       match Env.fold (fun k val_v acc ->
                         match val_v with

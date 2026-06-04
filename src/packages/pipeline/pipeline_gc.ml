@@ -104,4 +104,29 @@ let register env =
            | _ -> Error.type_error "Function `pipeline_gc` expects `dry_run` to be a Bool.")
       | _ -> Error.type_error "Function `pipeline_gc` expects a Pipeline."
   in
-  Env.add "pipeline_gc" (make_builtin_named ~name:"pipeline_gc" ~variadic:true 1 gc_fn) env
+  let env = Env.add "pipeline_gc" (make_builtin_named ~name:"pipeline_gc" ~variadic:true 1 gc_fn) env in
+  let t_gc_fn named_args _env =
+    let named_keys = List.filter_map (fun (k, _) -> k) named_args in
+    let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
+    match List.find_opt (fun k -> not (List.mem k [])) named_keys with
+    | Some k ->
+        Error.type_error (Printf.sprintf "t_gc: unknown argument '%s'" k)
+    | None when positional_count > 0 ->
+        Error.make_error ArityError
+          (Printf.sprintf "Function `t_gc` accepts at most 0 positional arguments but received %d." positional_count)
+    | None ->
+        if not (Builder_utils.command_exists "nix-store") then
+          Error.make_error ShellError "Nix store commands are not available on this system."
+        else
+          let argv = [| "nix-store"; "--gc" |] in
+          match Builder_utils.run_command_argv_capture argv with
+          | Ok output ->
+              let trimmed = String.trim output in
+              if trimmed = "" then
+                VString "Garbage collection completed. No unused store paths were deleted."
+              else
+                VString ("Garbage collection completed:\n" ^ trimmed)
+          | Error msg ->
+              Error.make_error ShellError ("Failed to run nix-store --gc: " ^ msg)
+  in
+  Env.add "t_gc" (make_builtin_named ~name:"t_gc" ~variadic:true 0 t_gc_fn) env

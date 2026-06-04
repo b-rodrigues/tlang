@@ -6179,6 +6179,86 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
+## [0.52.3] - 2026-06-03
+
+This release introduces a new meta-pipeline composition feature, `pipeline_of`, first-class artifact export/import capabilities, and new meta-pipeline graph visualization functions.
+
+**Status**: Beta
+
+### Pipeline Visualization
+- **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.
+- **`pipeline_to_mermaid(p)`**: Generates a Mermaid flowchart diagram string from the pipeline topology, enabling visual rendering in Markdown documents and Mermaid live editors.
+
+### Artifact Cache, Dry Runs, and Garbage Collection
+- **Granular `export_artifacts`**: Support exporting cached Nix artifacts for individual nodes, sub-pipelines, meta-pipelines, or lists/dictionaries of nodes/pipelines.
+- **Variadic `import_artifacts`**: Support both 1-argument `import_artifacts(archive_path)` (direct Nix store import) and 2-argument `import_artifacts(target_val, archive_path)` (import and verify paths) calling signatures.
+- **`inspect_artifacts(archive_path)`**: Import archive into a temporary, isolated Nix store and return a DataFrame containing the included nodes, store paths, hashes, sizes in bytes, and reference basenames without affecting the local store.
+- **Verification & REPL Stability**: Fixed path resolution and correctness checks, and updated package registrations in the interactive REPL for `import_artifacts`, `export_artifacts`, and `inspect_artifacts`.
+- **Cache-Aware Dry Runs**: Enhanced `populate_pipeline(p, dry_run = true)` to perform a dry run via Nix (`--dry-run`), parsing the plan to report which nodes will hit the local cache (`"cached"`), rebuild (`"build"`), or fetch from remote substituters (`"fetch"`), returning the results as a DataFrame.
+- **Programmatic Garbage Collection**:
+  - `pipeline_gc(p, dry_run = true)`: Deletes the store paths of the given pipeline `p` if safe. By default (`dry_run = true`), it returns a DataFrame previewing the nodes, store paths, and deletion eligibility status. Set `dry_run = false` to execute the deletion.
+  - `t_gc()`: Triggers a global Nix garbage collection (`nix-store --gc`) directly from the REPL to safely clean up old, detached derivations.
+
+
+### Meta-Pipeline Composition
+- **`pipeline_of` block**: A new combinator that composes multiple pipelines into a higher-order DAG. It allows you to define relationships between sub-pipelines in a declarative way, enabling complex, multi-stage workflows.
+- **Automatic Dependency Inference**: T-Lang automatically analyzes cross-pipeline references (e.g., referencing `etl.clean` in the `stats` pipeline) to infer the execution order between sub-pipelines. No manual `depends` configuration is required for the flattening engine.
+- **Automatic Flattening**: The `meta_flatten` combinator automatically flattens meta-pipelines at execution time. When a meta-pipeline is populated, queried, or inspected, T-Lang automatically flattens it internally. This flattening is done on-demand, so you don't need to manually flatten meta-pipelines.
+- **Automatic Namespacing**: Node names are automatically namespaced (e.g., `etl.raw`, `etl.clean`, `stats.summary`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
+- **Cross-Pipeline Reference Rewriting**: Internal references to sub-pipeline nodes (e.g., `p_etl.raw`) are automatically rewritten to their namespaced equivalents (e.g., `etl.raw`) during the flattening process.
+
+### Pipeline Parameterization (Templates)
+- **Parameterization via Lambdas**: Standard lambdas returning `pipeline` blocks (e.g., `\(multiplier) pipeline { ... }`) are now fully supported. Outer variables referenced inside the pipeline nodes are automatically substituted with their concrete values during compilation, producing fully independent and Nix-reproducible pipelines.
+
+### Examples
+
+#### Basic Usage
+```t
+# Define multiple pipelines
+p_etl = pipeline { ... }
+p_stats = pipeline { ... }
+
+# Compose into a meta-pipeline
+meta = pipeline_of {
+  etl = p_etl
+  stats = p_stats
+}
+
+# Built-in commands automatically handle meta-pipelines
+populate_pipeline(meta, build = true)
+read_node(meta.stats.summary)
+inspect_pipeline(meta)
+```
+
+#### Graph-Structured Pipeline
+```t
+meta_graph = pipeline_of {
+  raw = pipeline {
+    src = read_csv("raw.csv")
+  }
+
+  cleaned_a = pipeline {
+    a = clean(raw.src)
+  }
+
+  cleaned_b = pipeline {
+    b = clean(raw.src)
+  }
+
+  summary = pipeline {
+    val = summarize(cleaned_a.a, cleaned_b.b)
+  }
+}
+
+# T-Lang automatically infers the execution order:
+# raw -> {cleaned_a, cleaned_b} -> summary
+populate_pipeline(meta_graph, build = true)
+```
+
+### Notes
+- The `meta_flatten` combinator is not exposed as a first-class function in the CLI or T-Lang AST. It is an internal implementation detail of the pipeline engine that is automatically invoked when working with `pipeline_of`.
+
+
 ## [0.52.2] - 2026-05-31
 
 This release introduces interactive pipeline node debugging via `debug_node`, native Nix orchestration features for granular rebuild control, job parallelisation, Cachix binary caching, and dry-runs, and the temporal introspection pair `build_log_history` and `node_diff` for tracking how pipeline outputs change across builds.
@@ -13769,6 +13849,32 @@ pipeline_run(p, nix_options = [
 
 The pipeline engine validates that only allowed variables are whitelisted and safely passes them to the Nix builder, keeping all other host details hidden.
 
+### `env_vars` vs `keep_env`
+
+The `env_vars` parameter (on node-level functions) and `keep_env` (in `nix_options`) both inject environment variables into the Nix sandbox, but they serve different purposes:
+
+- **`env_vars`** is a per-node dictionary of key-value pairs set on `node()`, `py()`/`pyn()`, `rn()`, `shn()`, `jln()`, or `qn()`. You provide explicit values for each variable.
+- **`keep_env`** is a pipeline-wide list of variable *names* passed through `nix_options`. It forwards existing host environment variables by name without specifying their values.
+
+| | `env_vars` | `keep_env` |
+| :--- | :--- | :--- |
+| **Scope** | Per-node | Whole pipeline (all nodes) |
+| **Where** | `node()`, `py()`, `rn()`, `shn()`, `jln()`, `qn()` | `nix_options` in `t_make()`, `pipeline_run()`, `pipeline_build()` |
+| **What it does** | Sets env vars to explicit values you provide | Forwards existing host env vars by name |
+| **Type** | Dict (key-value pairs) | String or List of variable names |
+
+```t
+-- env_vars: set explicit values for a specific node
+pipeline {
+  step1 = node(<{ ... }>, env_vars = ["API_URL": "https://example.com", "DEBUG": "1"])
+}
+
+-- keep_env: forward host variables to the entire pipeline build
+t_make(nix_options = [keep_env: ["GITHUB_TOKEN", "DB_CONNECTION_STRING"]])
+```
+
+Use `env_vars` when you want to **define** a variable's value for a specific node, and `keep_env` when you want to **pass through** a variable that is already set in your host shell to the entire pipeline build.
+
 ---
 
 ## 7. Strong Validation
@@ -15574,6 +15680,54 @@ pipeline_nodes(p_full)  -- ["raw", "clean", "fit", "report"]
 
 `chain` is stricter than `union`: it requires an *intent* to connect the pipelines, catching accidental merges where no wiring was meant.
 
+### Meta-Pipelines (`pipeline_of`)
+
+For larger projects, you can compose multiple pipelines into a higher-order DAG using the `pipeline_of` block. T-Lang natively understands and automatically flattens meta-pipelines at execution time, meaning you can pass them directly to built-in commands like `populate_pipeline()`, `read_node()`, `inspect_node()`, or `inspect_pipeline()`.
+
+#### `pipeline_of` block
+
+Defines a group of sub-pipelines. The nodes within the block bind identifiers to pipeline values.
+
+```t
+p_etl = pipeline {
+  raw   = read_csv("data.csv")
+  clean = raw |> filter($value > 0)
+}
+
+p_stats = pipeline {
+  summary = etl.clean |> mean
+}
+
+-- Compose them into a higher-order DAG
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+}
+```
+
+#### Automatic Dependency Inference
+
+T-Lang automatically analyzes cross-pipeline references in node expressions (such as referencing `etl.clean` in the `stats` pipeline) to infer the execution order between sub-pipelines. The flattening engine automatically wires the root nodes of a dependent sub-pipeline to depend on the terminal nodes of the pipeline it references.
+
+
+#### Native Execution & Namespacing
+
+When a meta-pipeline is populated, queried, or inspected, T-Lang automatically flattens it internally. Node names are automatically namespaced (e.g. `etl.raw`, `etl.clean`, `stats.summary`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
+
+```t
+pipeline_nodes(meta)
+-- ["etl.raw", "etl.clean", "stats.summary"]
+
+pipeline_deps(meta)
+-- {`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}
+
+-- You can build the entire meta-pipeline directly:
+populate_pipeline(meta, build = true)
+
+-- You can read individual nodes using nested dot notation:
+res = read_node(meta.stats.summary)
+```
+
 ### Cross-Pipeline Dependency Tracking: T vs. RawCode
 
 T's dependency tracking works differently depending on the node's runtime. This leads to a specific limitation when using `chain()` with R or Python pipelines.
@@ -15632,6 +15786,26 @@ p_full = p_data |> chain(p_model)
 ```
 
 By giving the stub a different name (`data_input = raw_data`), you avoid a self-reference while still creating a T-expression that references `raw_data`. T can parse the right-hand side, detect the cross-pipeline dependency, and allow `chain()` to wire the pipelines together. Note that R/Python code inside the chained node should use the **alias name** (`data_input`) as the variable, not the original (`raw_data`).
+
+### Parameterizing Pipelines (Templates via Lambdas)
+
+Rather than introducing new complex constructs, T-Lang encourages parameterizing pipelines using standard lambdas. Since lambdas return values and pipelines are first-class values in T-Lang, you can define a lambda that takes configuration parameters and returns a pipeline.
+
+#### Example
+
+Here is a template lambda that takes a multiplier parameter and returns a pipeline with two nodes:
+
+```t
+make_pipeline = \(multiplier: Int -> Pipeline) pipeline {
+  raw      = [1, 2, 3]
+  computed = raw * multiplier
+}
+
+p1 = make_pipeline(10)
+p2 = make_pipeline(20)
+```
+
+At execution time, outer variables (like `multiplier`) are substituted with their concrete values (like `10` or `20`) during compilation, resulting in fully independent Nix-reproducible pipelines.
 
 ---
 
@@ -15744,6 +15918,29 @@ print(dot)
 ```
 
 Pipe the output to `dot -Tpng` or paste it into https://dreampuf.github.io/GraphvizOnline/ to render a visual dependency graph.
+
+### `pipeline_to_dot`
+
+Equivalent to `pipeline_dot(p)`. Exports the pipeline as a DOT graph string.
+
+### `pipeline_to_mermaid`
+
+Exports the pipeline as a [Mermaid](https://mermaid.js.org/) flowchart string:
+
+```t
+p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+mermaid = pipeline_to_mermaid(p)
+print(mermaid)
+-- graph LR
+--   a["a [T]"];
+--   b["b [T]"];
+--   c["c [T]"];
+--   a --> b;
+--   b --> c;
+```
+
+Render the Mermaid flowchart directly in markdown files or preview using the online Mermaid live editor.
 
 ---
 
@@ -15991,6 +16188,169 @@ build_pipeline(p,
                  cache: "rstats-on-nix",
                  force: ["c"]
                ])
+```
+
+## 21. Meta-Pipelines & Pipeline Composition
+
+As your project grows, writing a single monolithic pipeline can become difficult to maintain. T supports **Pipeline Composition** via `pipeline_of` blocks, allowing you to compose multiple independent sub-pipelines into a higher-order DAG (a **meta-pipeline**).
+
+### Composing Pipelines with `pipeline_of`
+
+You can group multiple pipelines into a single meta-pipeline block. Node names are automatically namespaced with their sub-pipeline name (e.g., `etl.raw`, `stats.summary`), and dependencies between different sub-pipelines are automatically resolved based on the variables they reference.
+
+```t
+p_etl = pipeline {
+  raw = read_csv("data.csv")
+  clean = raw |> filter($value > 0)
+}
+
+p_stats = pipeline {
+  -- Dependencies on nodes in 'etl' are automatically detected!
+  summary = etl.clean |> group_by($category) |> summarize(total = sum($value))
+}
+
+-- Compose them into a higher-order DAG
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+}
+```
+
+### Automatic Dependency Inference
+
+Unlike other pipeline tools, you do not need to manually specify dependencies between sub-pipelines using arrows or ordering arrays. T automatically analyzes the dependencies of each node inside the sub-pipelines. If a node in `stats` references a namespaced node name like `etl.clean`, T automatically wires a dependency edge from `etl.clean` to `stats.summary`.
+
+### Implicit Flattening
+
+You can treat a meta-pipeline exactly like a standard pipeline. Any built-in function that expects a pipeline (like `populate_pipeline`, `pipeline_nodes`, or `pipeline_deps`) will automatically flatten the meta-pipeline internally:
+
+```t
+-- Get all namespaced nodes in the meta-pipeline
+pipeline_nodes(meta)
+-- ["etl.raw", "etl.clean", "stats.summary"]
+
+-- Check dependency structure
+pipeline_deps(meta)
+-- {`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}
+
+-- Build the entire composed DAG in Nix
+populate_pipeline(meta, build = true)
+```
+
+### Nested Dot Access
+
+You can query individual nodes and their computed metadata directly on the meta-pipeline using chained dot-access notation. This makes namespaced sub-pipelines feel like natural nested objects:
+
+```t
+-- Access the computed node name of a sub-pipeline node
+meta.stats.summary.name        -- "stats.summary"
+
+-- Retrieve a materialized artifact after building
+read_node(meta.stats.summary)  -- Returns the summarized DataFrame
+```
+
+---
+
+## 26. Granular Artifact Transfer & Archive Introspection
+
+For teams working on large projects, T supports exporting Nix-materialized pipeline cache artifacts into portable archive files (`.nar` format). These archives can be transferred between machines, imported without rebuilding, or inspected without installing.
+
+### Granular Artifact Export
+
+To export cached artifacts, use `export_artifacts()`. In addition to entire pipelines, you can target specific sub-structures:
+
+```t
+p = pipeline {
+  a = shn(command = "echo -n 'hello'", capture = "stdout")
+  b = a |> \(x) x + " world"
+}
+build_pipeline(p)
+
+-- 1. Export the entire pipeline's artifacts
+export_artifacts(p, "full_cache.nar")
+
+-- 2. Granular export: Export a single computed node
+export_artifacts(p.a, "node_a.nar")
+
+-- 3. Export a list or vector of nodes/pipelines
+export_artifacts([p.a, p.b], "subset.nar")
+
+-- 4. Export nested structures/dictionaries
+export_artifacts([first: p.a, second: p.b], "dict_subset.nar")
+```
+
+### Variadic Artifact Import
+
+To restore exported artifacts, use `import_artifacts()`. It is variadic and supports two calling conventions:
+
+1. **Verification Import (2 arguments)**: Imports the archive and verifies that a specific pipeline, node, or value's paths exist in the local store.
+2. **Immediate Store Import (1 argument)**: Unpacks and loads the archive directly into the local Nix store without needing a target object for verification. This is especially useful for setting up an environment prior to loading or parsing a pipeline script.
+
+```t
+-- Convention 1: Import and verify against a pipeline
+import_artifacts(p, "full_cache.nar")
+
+-- Convention 2: Load archive directly into the Nix store
+import_artifacts("full_cache.nar")
+```
+
+### Archive Introspection
+
+You can inspect the contents of an artifact archive file without unpacking it permanently or changing your local store. The `inspect_artifacts()` function imports the archive into a temporary, isolated Nix store, extracts metadata for each path, and returns a DataFrame.
+
+```t
+df = inspect_artifacts("full_cache.nar")
+
+-- View the details of the archive
+df
+-- DataFrame with columns:
+--   - node: The name of the node (if known)
+--   - store_path: The Nix store path of the artifact
+--   - hash: The SHA-256 hash of the store path
+--   - size_bytes: The size of the unpacked artifact in bytes
+--   - references: Comma-separated basenames of dependency store paths
+```
+
+### Cache-Aware Dry Runs
+
+For convenience, you can perform a dry-run check directly using the `dry_run = true` parameter in `populate_pipeline()`. This reports which nodes are already in the Nix cache and which ones require rebuilding or downloading:
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Check cache hit/miss status directly
+plan = populate_pipeline(p, dry_run = true)
+print(plan)
+-- Returns a DataFrame with columns: node, action, and path.
+-- "action" will be one of:
+--   - "cached": path is already built/cached locally
+--   - "build": path must be rebuilt locally
+--   - "fetch": path can be retrieved from remote binary substitutes
+```
+
+### Programmatic Garbage Collection
+
+Over time, your local Nix store can accumulate unused derivations and cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix artifacts directly:
+
+1. **`pipeline_gc(p, dry_run = false)`**: Deletes the store paths of the given pipeline `p`. By default (`dry_run = true`), it queries what would be deleted and returns a DataFrame showing the `node`, `store_path`, and `deleted` status. Set `dry_run = false` to perform the actual deletion.
+2. **`t_gc()`**: Performs a global Nix store garbage collection (`nix-store --gc`), removing all unused derivations and freeing up disk space.
+
+```t
+p = pipeline {
+  a = 1
+}
+
+-- Preview what would be deleted
+plan = pipeline_gc(p, dry_run = true)
+
+-- Perform the deletion of the pipeline's nodes
+pipeline_gc(p, dry_run = false)
+
+-- Perform global garbage collection
+t_gc()
 ```
 
 ---
@@ -19483,6 +19843,27 @@ exp(1)
 
 
 
+# FILE: docs/reference/export_artifacts.md
+
+# export_artifacts
+
+Export Pipeline Artifacts
+
+Exports the cached Nix artifacts of a pipeline to a portable archive file. All
+pipeline nodes must already exist in the local store.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline whose cached artifacts should be exported.
+
+- **archive_path** (`String`): The destination archive path.
+
+## Returns
+
+A confirmation message describing the exported archive.
+
+
+
 # FILE: docs/reference/fct_c.md
 
 # fct_c
@@ -20252,6 +20633,27 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 
 
 
+# FILE: docs/reference/import_artifacts.md
+
+# import_artifacts
+
+Import Pipeline Artifacts
+
+Imports a previously exported pipeline artifact archive into the local Nix store
+and verifies that the pipeline nodes are now cached locally.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline whose artifacts should be restored.
+
+- **archive_path** (`String`): The source archive path.
+
+## Returns
+
+A confirmation message describing the imported archive.
+
+
+
 # FILE: docs/reference/index.md
 
 # Function Reference
@@ -20350,6 +20752,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [exit](exit.html) | Exit the interpreter |
 | [exp](exp.html) | Exponential function |
 | [expand](expand.html) | Create all combinations of values |
+| [export_artifacts](export_artifacts.html) | Export Pipeline Artifacts |
 | [explain](explain.html) | Explain Value |
 | [explain_json](explain_json.html) | Explain Value as JSON |
 | [expr](expr.html) | Capture an expression |
@@ -20395,6 +20798,7 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 | [ifelse](ifelse.html) | Vectorized If-Else |
 | [index_of](index_of.html) | Find index of substring |
 | [inner_join](inner_join.html) | Join matching rows |
+| [import_artifacts](import_artifacts.html) | Import Pipeline Artifacts |
 | [inspect_node](inspect_node.html) | Inspect Pipeline Node Metadata |
 | [inspect_log](inspect_log.html) | Inspect Pipeline Build Logs |
 | [inspect_pipeline](inspect_pipeline.html) | Static Pipeline DAG Schema Inspection |

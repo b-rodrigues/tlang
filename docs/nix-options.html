@@ -277,15 +277,21 @@ environment variables into the Nix sandbox, but they serve different
 purposes:</p>
 <ul>
 <li><strong><code>env_vars</code></strong> is a per-node dictionary of
-key-value pairs set on <code>node()</code>, <code>py()</code>/<code>pyn()</code>,
-<code>rn()</code>, <code>shn()</code>, <code>jln()</code>, or
-<code>qn()</code>. You provide explicit values for each variable.</li>
+key-value pairs set on <code>node()</code>,
+<code>py()</code>/<code>pyn()</code>, <code>rn()</code>,
+<code>shn()</code>, <code>jln()</code>, or <code>qn()</code>. You
+provide explicit values for each variable.</li>
 <li><strong><code>keep_env</code></strong> is a pipeline-wide list of
 variable <em>names</em> passed through <code>nix_options</code>. It
 forwards existing host environment variables by name without specifying
 their values.</li>
 </ul>
 <table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
 <thead>
 <tr>
 <th style="text-align: left;"></th>
@@ -330,7 +336,7 @@ pipeline {
 -- keep_env: forward host variables to the entire pipeline build
 t_make(nix_options = [keep_env: [&quot;GITHUB_TOKEN&quot;, &quot;DB_CONNECTION_STRING&quot;]])</code></pre>
 <p>Use <code>env_vars</code> when you want to <strong>define</strong> a
-variable's value for a specific node, and <code>keep_env</code> when you
+variable’s value for a specific node, and <code>keep_env</code> when you
 want to <strong>pass through</strong> a variable that is already set in
 your host shell to the entire pipeline build.</p>
 <hr />

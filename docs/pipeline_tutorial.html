@@ -1357,6 +1357,57 @@ pipeline_nodes(p_full)  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;fit&quot;,
 <p><code>chain</code> is stricter than <code>union</code>: it requires
 an <em>intent</em> to connect the pipelines, catching accidental merges
 where no wiring was meant.</p>
+<h3 id="meta-pipelines-pipeline_of">Meta-Pipelines
+(<code>pipeline_of</code>)</h3>
+<p>For larger projects, you can compose multiple pipelines into a
+higher-order DAG using the <code>pipeline_of</code> block. T-Lang
+natively understands and automatically flattens meta-pipelines at
+execution time, meaning you can pass them directly to built-in commands
+like <code>populate_pipeline()</code>, <code>read_node()</code>,
+<code>inspect_node()</code>, or <code>inspect_pipeline()</code>.</p>
+<h4 id="pipeline_of-block"><code>pipeline_of</code> block</h4>
+<p>Defines a group of sub-pipelines. The nodes within the block bind
+identifiers to pipeline values.</p>
+<pre class="t"><code>p_etl = pipeline {
+  raw   = read_csv(&quot;data.csv&quot;)
+  clean = raw |&gt; filter($value &gt; 0)
+}
+
+p_stats = pipeline {
+  summary = etl.clean |&gt; mean
+}
+
+-- Compose them into a higher-order DAG
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+}</code></pre>
+<h4 id="automatic-dependency-inference">Automatic Dependency
+Inference</h4>
+<p>T-Lang automatically analyzes cross-pipeline references in node
+expressions (such as referencing <code>etl.clean</code> in the
+<code>stats</code> pipeline) to infer the execution order between
+sub-pipelines. The flattening engine automatically wires the root nodes
+of a dependent sub-pipeline to depend on the terminal nodes of the
+pipeline it references.</p>
+<h4 id="native-execution-namespacing">Native Execution &amp;
+Namespacing</h4>
+<p>When a meta-pipeline is populated, queried, or inspected, T-Lang
+automatically flattens it internally. Node names are automatically
+namespaced (e.g. <code>etl.raw</code>, <code>etl.clean</code>,
+<code>stats.summary</code>) to prevent namespace collisions, and all
+internal variable references are rewritten accordingly.</p>
+<pre class="t"><code>pipeline_nodes(meta)
+-- [&quot;etl.raw&quot;, &quot;etl.clean&quot;, &quot;stats.summary&quot;]
+
+pipeline_deps(meta)
+-- {`etl.raw`: [], `etl.clean`: [&quot;etl.raw&quot;], `stats.summary`: [&quot;etl.clean&quot;]}
+
+-- You can build the entire meta-pipeline directly:
+populate_pipeline(meta, build = true)
+
+-- You can read individual nodes using nested dot notation:
+res = read_node(meta.stats.summary)</code></pre>
 <h3 id="cross-pipeline-dependency-tracking-t-vs.-rawcode">Cross-Pipeline
 Dependency Tracking: T vs. RawCode</h3>
 <p>T’s dependency tracking works differently depending on the node’s
@@ -1428,6 +1479,26 @@ allow <code>chain()</code> to wire the pipelines together. Note that
 R/Python code inside the chained node should use the <strong>alias
 name</strong> (<code>data_input</code>) as the variable, not the
 original (<code>raw_data</code>).</p>
+<h3 id="parameterizing-pipelines-templates-via-lambdas">Parameterizing
+Pipelines (Templates via Lambdas)</h3>
+<p>Rather than introducing new complex constructs, T-Lang encourages
+parameterizing pipelines using standard lambdas. Since lambdas return
+values and pipelines are first-class values in T-Lang, you can define a
+lambda that takes configuration parameters and returns a pipeline.</p>
+<h4 id="example">Example</h4>
+<p>Here is a template lambda that takes a multiplier parameter and
+returns a pipeline with two nodes:</p>
+<pre class="t"><code>make_pipeline = \(multiplier: Int -&gt; Pipeline) pipeline {
+  raw      = [1, 2, 3]
+  computed = raw * multiplier
+}
+
+p1 = make_pipeline(10)
+p2 = make_pipeline(20)</code></pre>
+<p>At execution time, outer variables (like <code>multiplier</code>) are
+substituted with their concrete values (like <code>10</code> or
+<code>20</code>) during compilation, resulting in fully independent
+Nix-reproducible pipelines.</p>
 <hr />
 <h2 id="parallel-execution">26. Parallel Execution</h2>
 <p>Combines two pipelines that are intended to run independently. No
@@ -1512,6 +1583,24 @@ print(dot)
 <p>Pipe the output to <code>dot -Tpng</code> or paste it into
 https://dreampuf.github.io/GraphvizOnline/ to render a visual dependency
 graph.</p>
+<h3 id="pipeline_to_dot"><code>pipeline_to_dot</code></h3>
+<p>Equivalent to <code>pipeline_dot(p)</code>. Exports the pipeline as a
+DOT graph string.</p>
+<h3 id="pipeline_to_mermaid"><code>pipeline_to_mermaid</code></h3>
+<p>Exports the pipeline as a <a
+href="https://mermaid.js.org/">Mermaid</a> flowchart string:</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+mermaid = pipeline_to_mermaid(p)
+print(mermaid)
+-- graph LR
+--   a[&quot;a [T]&quot;];
+--   b[&quot;b [T]&quot;];
+--   c[&quot;c [T]&quot;];
+--   a --&gt; b;
+--   b --&gt; c;</code></pre>
+<p>Render the Mermaid flowchart directly in markdown files or preview
+using the online Mermaid live editor.</p>
 <hr />
 <h2 id="pipeline-validation">28. Pipeline Validation</h2>
 <p>By design, T uses <strong>lazy validation</strong>: structural errors
@@ -1834,6 +1923,177 @@ build_pipeline(p,
                  cache: &quot;rstats-on-nix&quot;,
                  force: [&quot;c&quot;]
                ])</code></pre>
+<h2 id="meta-pipelines-pipeline-composition">21. Meta-Pipelines &amp;
+Pipeline Composition</h2>
+<p>As your project grows, writing a single monolithic pipeline can
+become difficult to maintain. T supports <strong>Pipeline
+Composition</strong> via <code>pipeline_of</code> blocks, allowing you
+to compose multiple independent sub-pipelines into a higher-order DAG (a
+<strong>meta-pipeline</strong>).</p>
+<h3 id="composing-pipelines-with-pipeline_of">Composing Pipelines with
+<code>pipeline_of</code></h3>
+<p>You can group multiple pipelines into a single meta-pipeline block.
+Node names are automatically namespaced with their sub-pipeline name
+(e.g., <code>etl.raw</code>, <code>stats.summary</code>), and
+dependencies between different sub-pipelines are automatically resolved
+based on the variables they reference.</p>
+<pre class="t"><code>p_etl = pipeline {
+  raw = read_csv(&quot;data.csv&quot;)
+  clean = raw |&gt; filter($value &gt; 0)
+}
+
+p_stats = pipeline {
+  -- Dependencies on nodes in &#39;etl&#39; are automatically detected!
+  summary = etl.clean |&gt; group_by($category) |&gt; summarize(total = sum($value))
+}
+
+-- Compose them into a higher-order DAG
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+}</code></pre>
+<h3 id="automatic-dependency-inference-1">Automatic Dependency
+Inference</h3>
+<p>Unlike other pipeline tools, you do not need to manually specify
+dependencies between sub-pipelines using arrows or ordering arrays. T
+automatically analyzes the dependencies of each node inside the
+sub-pipelines. If a node in <code>stats</code> references a namespaced
+node name like <code>etl.clean</code>, T automatically wires a
+dependency edge from <code>etl.clean</code> to
+<code>stats.summary</code>.</p>
+<h3 id="implicit-flattening">Implicit Flattening</h3>
+<p>You can treat a meta-pipeline exactly like a standard pipeline. Any
+built-in function that expects a pipeline (like
+<code>populate_pipeline</code>, <code>pipeline_nodes</code>, or
+<code>pipeline_deps</code>) will automatically flatten the meta-pipeline
+internally:</p>
+<pre class="t"><code>-- Get all namespaced nodes in the meta-pipeline
+pipeline_nodes(meta)
+-- [&quot;etl.raw&quot;, &quot;etl.clean&quot;, &quot;stats.summary&quot;]
+
+-- Check dependency structure
+pipeline_deps(meta)
+-- {`etl.raw`: [], `etl.clean`: [&quot;etl.raw&quot;], `stats.summary`: [&quot;etl.clean&quot;]}
+
+-- Build the entire composed DAG in Nix
+populate_pipeline(meta, build = true)</code></pre>
+<h3 id="nested-dot-access">Nested Dot Access</h3>
+<p>You can query individual nodes and their computed metadata directly
+on the meta-pipeline using chained dot-access notation. This makes
+namespaced sub-pipelines feel like natural nested objects:</p>
+<pre class="t"><code>-- Access the computed node name of a sub-pipeline node
+meta.stats.summary.name        -- &quot;stats.summary&quot;
+
+-- Retrieve a materialized artifact after building
+read_node(meta.stats.summary)  -- Returns the summarized DataFrame</code></pre>
+<hr />
+<h2 id="granular-artifact-transfer-archive-introspection">26. Granular
+Artifact Transfer &amp; Archive Introspection</h2>
+<p>For teams working on large projects, T supports exporting
+Nix-materialized pipeline cache artifacts into portable archive files
+(<code>.nar</code> format). These archives can be transferred between
+machines, imported without rebuilding, or inspected without
+installing.</p>
+<h3 id="granular-artifact-export">Granular Artifact Export</h3>
+<p>To export cached artifacts, use <code>export_artifacts()</code>. In
+addition to entire pipelines, you can target specific
+sub-structures:</p>
+<pre class="t"><code>p = pipeline {
+  a = shn(command = &quot;echo -n &#39;hello&#39;&quot;, capture = &quot;stdout&quot;)
+  b = a |&gt; \(x) x + &quot; world&quot;
+}
+build_pipeline(p)
+
+-- 1. Export the entire pipeline&#39;s artifacts
+export_artifacts(p, &quot;full_cache.nar&quot;)
+
+-- 2. Granular export: Export a single computed node
+export_artifacts(p.a, &quot;node_a.nar&quot;)
+
+-- 3. Export a list or vector of nodes/pipelines
+export_artifacts([p.a, p.b], &quot;subset.nar&quot;)
+
+-- 4. Export nested structures/dictionaries
+export_artifacts([first: p.a, second: p.b], &quot;dict_subset.nar&quot;)</code></pre>
+<h3 id="variadic-artifact-import">Variadic Artifact Import</h3>
+<p>To restore exported artifacts, use <code>import_artifacts()</code>.
+It is variadic and supports two calling conventions:</p>
+<ol type="1">
+<li><strong>Verification Import (2 arguments)</strong>: Imports the
+archive and verifies that a specific pipeline, node, or value’s paths
+exist in the local store.</li>
+<li><strong>Immediate Store Import (1 argument)</strong>: Unpacks and
+loads the archive directly into the local Nix store without needing a
+target object for verification. This is especially useful for setting up
+an environment prior to loading or parsing a pipeline script.</li>
+</ol>
+<pre class="t"><code>-- Convention 1: Import and verify against a pipeline
+import_artifacts(p, &quot;full_cache.nar&quot;)
+
+-- Convention 2: Load archive directly into the Nix store
+import_artifacts(&quot;full_cache.nar&quot;)</code></pre>
+<h3 id="archive-introspection">Archive Introspection</h3>
+<p>You can inspect the contents of an artifact archive file without
+unpacking it permanently or changing your local store. The
+<code>inspect_artifacts()</code> function imports the archive into a
+temporary, isolated Nix store, extracts metadata for each path, and
+returns a DataFrame.</p>
+<pre class="t"><code>df = inspect_artifacts(&quot;full_cache.nar&quot;)
+
+-- View the details of the archive
+df
+-- DataFrame with columns:
+--   - node: The name of the node (if known)
+--   - store_path: The Nix store path of the artifact
+--   - hash: The SHA-256 hash of the store path
+--   - size_bytes: The size of the unpacked artifact in bytes
+--   - references: Comma-separated basenames of dependency store paths</code></pre>
+<h3 id="cache-aware-dry-runs">Cache-Aware Dry Runs</h3>
+<p>For convenience, you can perform a dry-run check directly using the
+<code>dry_run = true</code> parameter in
+<code>populate_pipeline()</code>. This reports which nodes are already
+in the Nix cache and which ones require rebuilding or downloading:</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Check cache hit/miss status directly
+plan = populate_pipeline(p, dry_run = true)
+print(plan)
+-- Returns a DataFrame with columns: node, action, and path.
+-- &quot;action&quot; will be one of:
+--   - &quot;cached&quot;: path is already built/cached locally
+--   - &quot;build&quot;: path must be rebuilt locally
+--   - &quot;fetch&quot;: path can be retrieved from remote binary substitutes</code></pre>
+<h3 id="programmatic-garbage-collection">Programmatic Garbage
+Collection</h3>
+<p>Over time, your local Nix store can accumulate unused derivations and
+cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix
+artifacts directly:</p>
+<ol type="1">
+<li><strong><code>pipeline_gc(p, dry_run = false)</code></strong>:
+Deletes the store paths of the given pipeline <code>p</code>. By default
+(<code>dry_run = true</code>), it queries what would be deleted and
+returns a DataFrame showing the <code>node</code>,
+<code>store_path</code>, and <code>deleted</code> status. Set
+<code>dry_run = false</code> to perform the actual deletion.</li>
+<li><strong><code>t_gc()</code></strong>: Performs a global Nix store
+garbage collection (<code>nix-store --gc</code>), removing all unused
+derivations and freeing up disk space.</li>
+</ol>
+<pre class="t"><code>p = pipeline {
+  a = 1
+}
+
+-- Preview what would be deleted
+plan = pipeline_gc(p, dry_run = true)
+
+-- Perform the deletion of the pipeline&#39;s nodes
+pipeline_gc(p, dry_run = false)
+
+-- Perform global garbage collection
+t_gc()</code></pre>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you’ve mastered pipelines, learn how to manage reproducible

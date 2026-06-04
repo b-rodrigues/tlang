@@ -197,6 +197,47 @@ build_pipeline(p)
 
 Pipelines are DAGs. Nodes can be declared in any order; dependencies are resolved automatically.
 
+### Meta-Pipelines and Templates
+
+T supports higher-order composition of pipelines:
+- **Meta-Pipelines (`pipeline_of`)**: Composes multiple sub-pipelines into a higher-order DAG.
+  ```t
+  meta = pipeline_of {
+    etl   = p_etl,
+    stats = p_stats,
+    depends = [stats => etl]
+  }
+  ```
+- **Pipeline Flattening (`meta_flatten`)**: Transforms a meta-pipeline into a single flat pipeline where node names are automatically namespaced (e.g. `etl.raw_data`).
+- **Lambda Parameters**: Pipelines can be parameterized using standard lambda functions: `\(input) pipeline { ... }`.
+
+### Nix-Native Orchestration & Build Configuration
+
+T relies directly on Nix as its execution engine. Built-in execution functions (`build_pipeline` and `pipeline_run`) map configurations directly to Nix command-line flags:
+- **Target Selection**: `targets = [p.node1]` targets only specific derivations (via `-A`).
+- **Force Rebuilds**: `force = [p.node1]` forces rebuilding of specific paths (via `--check`).
+- **Dry Runs**: `populate_pipeline(p, dry_run = true)` (or via `nix_options`) performs a dry run, reporting which nodes would hit the local cache (`"cached"`), rebuild (`"build"`), or be downloaded (`"fetch"`), returning the results as a DataFrame.
+- **Programmatic Garbage Collection**:
+  - `pipeline_gc(p, dry_run = false)` deletes the store paths associated with the pipeline's nodes if safe (unreferenced by other profiles/roots).
+  - `t_gc()` executes a global Nix garbage collection (`nix-store --gc`) to safely clean up old, detached derivations directly from the T-Lang REPL.
+- **Concurrency Control**: `max_jobs = N` limits compilation parallelism (via `--max-jobs`).
+- **Cachix Integration**: `cache = "cachix_cache"` registers extra-substituters dynamically.
+- **Remote Builders**: `builders = "builder_config"` offloads computations to remote machines.
+- **Environment Whitelisting**: `keep_env = ["VAR"]` forwards specific host environment variables.
+- **Sandbox Control**: `sandbox = "strict" | "relaxed" | "none"` configures sandboxing isolation.
+- **Derivation & Path Introspection**:
+  - `pipeline_to_drv(p)` returns the raw `.drv` paths for each node.
+  - `pipeline_to_store(p)` returns the statically resolved realized Nix store output paths without executing a build.
+  - `pipeline_cache_status(p)` queries the Nix store to preview which nodes are valid/cached.
+- **Session-Wide Defaults**: `set_nix_defaults(nix_options = [...])` sets persistent build options across all pipeline runs.
+
+### Cache Archiving & Introspection
+
+T enables sharing pipeline artifacts between builders:
+- **Granular Export**: `export_artifacts(target, archive_path)` packages the Nix store paths of a pipeline `p`, a single computed node `p.node`, or a list/dict of nodes/pipelines into a `.nar` archive.
+- **Variadic Import**: `import_artifacts` supports 1-argument unconditional import (`import_artifacts("/path/to.nar")`) or 2-argument verification import (`import_artifacts(p.node1, "/path/to.nar")`) to verify store path signatures.
+- **Archive Introspection**: `inspect_artifacts(archive_path)` extracts and queries `.nar` cache metadata inside an isolated, temporary Nix store. It returns an Arrow DataFrame listing the `node` name, `store_path`, `hash`, `size_bytes`, and `references` of the archived artifacts without modifying the host store.
+
 ### Node constructors and runtimes
 
 - `node(...)` = fully configurable node constructor
@@ -363,12 +404,12 @@ Purpose: descriptive statistics, scaling/normalization, linear models, diagnosti
 Purpose: node construction, pipeline execution, graph inspection, graph rewriting, validation, artifact access, and composition.
 
 - Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `jln(command = ..., script = na(), serializer = ^csv, deserializer = ^csv, functions = [], include = [], noop = false)`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
-- Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `suppress_warnings(node)`, `build_log_history(p, n = na())`, `node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`, `debug_node(node)`
-- Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_summary(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_dot(p)`
+- Execution and artifacts: `populate_pipeline(p, build = false, dry_run = false)`, `build_pipeline(p, targets = na(), force = na(), dry_run = false, max_jobs = na(), cache = na(), builders = na(), keep_env = na(), sandbox = na())`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `suppress_warnings(node)`, `build_log_history(p, n = na())`, `node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`, `debug_node(node)`, `build_log(p)`, `build_log_to_frame(log)`, `collect_errors(p)`, `error_summary(errors)`, `error_chain(err1, err2)`, `pipeline_to_drv(p)`, `pipeline_to_store(p)`, `set_nix_defaults(nix_options)`, `pipeline_cache_status(p)`, `pipeline_gc(p, dry_run = false)`, `t_gc()`, `export_artifacts(target, archive_path)`, `import_artifacts(target_or_archive, archive_path = na())`, `inspect_artifacts(archive_path)`
+- Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_summary(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_dot(p)`, `pipeline_to_dot(p)`, `pipeline_to_mermaid(p)`
 - Node-level transforms: `filter_node(p, predicate)`, `which_nodes(p, predicate)`, `errored_nodes(p)`,
   `mutate_node(p, ..., where = na())`, `rename_node(p, old_name, new_name)`, `select_node(p, ...)`,
   `arrange_node(p, field, direction = "asc")`
-- Set and DAG operations: `union(p1, p2)`, `difference(p1, p2)`, `intersect(p1, p2)`, `patch(p1, p2)`, `swap(p, name, new_node)`, `rewire(p, name, replace = [])`, `prune(p)`, `upstream_of(p, name)`, `downstream_of(p, name)`, `subgraph(p, name)`, `chain(p1, p2)`, `parallel(p1, p2)`
+- Set and DAG operations: `union(p1, p2)`, `difference(p1, p2)`, `intersect(p1, p2)`, `patch(p1, p2)`, `swap(p, name, new_node)`, `rewire(p, name, replace = [])`, `prune(p)`, `upstream_of(p, name)`, `downstream_of(p, name)`, `subgraph(p, name)`, `chain(p1, p2)`, `parallel(p1, p2)`, `pipeline_of { ... }`, `meta_flatten(meta)`
 
 ### Interactive Debugging (`debug_node`) & Introspection Diffs (`node_diff`)
 

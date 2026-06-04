@@ -387,5 +387,95 @@ let register env =
     ))
     env
   in
+  
+  let env = Env.add "pipeline_to_dot"
+    (make_builtin ~name:"pipeline_to_dot" 1 (fun args _env ->
+      let render p =
+        let buf = Buffer.create 256 in
+        Buffer.add_string buf "digraph pipeline {\n";
+        Buffer.add_string buf "  rankdir=LR;\n";
+        Buffer.add_string buf "  node [shape=box];\n";
+        List.iter (fun (name, _) ->
+          let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+          let noop    = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
+          let label =
+            if noop then Printf.sprintf "%s\\n[%s, noop]" name runtime
+            else          Printf.sprintf "%s\\n[%s]" name runtime
+          in
+          Buffer.add_string buf
+            (Printf.sprintf "  \"%s\" [label=\"%s\"];\n" name label)
+        ) p.p_exprs;
+        List.iter (fun (name, deps) ->
+          List.iter (fun dep ->
+            Buffer.add_string buf
+              (Printf.sprintf "  \"%s\" -> \"%s\";\n" dep name)
+          ) deps
+        ) p.p_deps;
+        Buffer.add_string buf "}\n";
+        VString (Buffer.contents buf)
+      in
+      match args with
+      | [VPipeline p] -> render p
+      | [VMetaPipeline _ as v] -> render (Pipeline_composition.flatten_meta v)
+      | [_] -> Error.type_error "Function `pipeline_to_dot` expects a Pipeline or MetaPipeline."
+      | _ -> Error.arity_error_named "pipeline_to_dot" 1 (List.length args)
+    ))
+    env
+  in
+
+  let env = Env.add "pipeline_to_mermaid"
+    (make_builtin ~name:"pipeline_to_mermaid" 1 (fun args _env ->
+      let render p =
+        let buf = Buffer.create 256 in
+        Buffer.add_string buf "graph LR\n";
+        let sanitized_ids = Hashtbl.create (List.length p.p_exprs) in
+        let used_ids = Hashtbl.create (List.length p.p_exprs) in
+        let get_id name =
+          match Hashtbl.find_opt sanitized_ids name with
+          | Some id -> id
+          | None ->
+              let base = String.map (fun c -> if c = '.' || c = '-' then '_' else c) name in
+              let rec find_unique candidate suffix =
+                let cand = if suffix = 1 then candidate else Printf.sprintf "%s__%d" candidate suffix in
+                if Hashtbl.mem used_ids cand then
+                  find_unique candidate (suffix + 1)
+                else begin
+                  Hashtbl.add used_ids cand true;
+                  cand
+                end
+              in
+              let unique_id = find_unique base 1 in
+              Hashtbl.add sanitized_ids name unique_id;
+              unique_id
+        in
+        List.iter (fun (name, _) ->
+          let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+          let noop    = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
+          let label =
+            if noop then Printf.sprintf "%s [%s, noop]" name runtime
+            else          Printf.sprintf "%s [%s]" name runtime
+          in
+          let id = get_id name in
+          Buffer.add_string buf
+            (Printf.sprintf "  %s[\"%s\"];\n" id label)
+        ) p.p_exprs;
+        List.iter (fun (name, deps) ->
+          let name_id = get_id name in
+          List.iter (fun dep ->
+            let dep_id = get_id dep in
+            Buffer.add_string buf
+              (Printf.sprintf "  %s --> %s;\n" dep_id name_id)
+          ) deps
+        ) p.p_deps;
+        VString (Buffer.contents buf)
+      in
+      match args with
+      | [VPipeline p] -> render p
+      | [VMetaPipeline _ as v] -> render (Pipeline_composition.flatten_meta v)
+      | [_] -> Error.type_error "Function `pipeline_to_mermaid` expects a Pipeline or MetaPipeline."
+      | _ -> Error.arity_error_named "pipeline_to_mermaid" 1 (List.length args)
+    ))
+    env
+  in
 
   env

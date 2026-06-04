@@ -900,6 +900,89 @@ pipeline_edges(p)|}
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
+  (* pipeline_to_dot: returns non-empty string *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_dot(p)|}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
+       incr pass_count; Printf.printf "  ✓ pipeline_to_dot returns DOT string\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_dot\n    Expected: DOT string\n    Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* pipeline_to_mermaid: returns non-empty string with graph LR *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_mermaid(p)|}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VString s when String.length s > 10 && String.sub s 0 8 = "graph LR" ->
+       incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid returns Mermaid string\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_mermaid\n    Expected: Mermaid string starting with 'graph LR'\n    Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* pipeline_to_mermaid collision avoidance: etl.raw and etl_raw *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { etl_raw = 1; raw = 2 } |> rename_node("raw", "etl.raw"); pipeline_to_mermaid(p)|}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VString s ->
+       let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
+       if contains s "etl_raw[\"etl_raw [" && contains s "etl_raw__2[\"etl.raw [" then begin
+         incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid avoids ID collisions\n"
+       end else begin
+         incr fail_count;
+         let msg = Printf.sprintf "  ✗ pipeline_to_mermaid collision avoidance\n    Expected to find unique IDs etl_raw and etl_raw__2\n    Got: %s\n" s in
+         failures := msg :: !failures;
+         Printf.printf "%s" msg
+       end
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_mermaid collision avoidance type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* pipeline_to_dot with MetaPipeline *)
+  let (v, _) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+      p_stats = pipeline { summary = 2 };
+      meta = pipeline_of { etl = p_etl; stats = p_stats };
+      pipeline_to_dot(meta)|}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
+       incr pass_count; Printf.printf "  ✓ pipeline_to_dot on MetaPipeline returns DOT string\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_dot on MetaPipeline\n    Expected: DOT string\n    Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* pipeline_to_mermaid with MetaPipeline *)
+  let (v, _) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+      p_stats = pipeline { summary = 2 };
+      meta = pipeline_of { etl = p_etl; stats = p_stats };
+      pipeline_to_mermaid(meta)|}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VString s when String.length s > 10 && String.sub s 0 8 = "graph LR" ->
+       incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid on MetaPipeline returns Mermaid string\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_mermaid on MetaPipeline\n    Expected: Mermaid string starting with 'graph LR'\n    Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
   Printf.printf "Phase 4 — meta_flatten:\n";
 
   (* meta_flatten: namespaces nodes correctly *)
