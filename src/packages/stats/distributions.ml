@@ -132,7 +132,7 @@ let pt x df =
   let p = 0.5 *. betai beta_x (0.5 *. df_f) 0.5 in
   if x > 0.0 then 1.0 -. p else p
 
-let t_quantile p df =
+let rec t_quantile p df =
   if p <= 0.0 then Float.neg_infinity
   else if p >= 1.0 then Float.infinity
   else if p = 0.5 then 0.0
