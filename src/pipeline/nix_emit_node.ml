@@ -2128,7 +2128,11 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
       echo "    %s = %s(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl
       echo "end" >> node_script.jl|} dep_var dep_var safe_var dep_var safe_var des_fn dep_var
         | _ ->
-            Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" safe_var des_fn dep_var ext
+            Printf.sprintf {|      echo "if (file_exists(\"$%s/class\") && (read_file(\"$%s/class\") == \"VError\" || read_file(\"$%s/class\") == \"VError\\n\" || read_file(\"$%s/class\") == \"Error\" || read_file(\"$%s/class\") == \"Error\\n\")) {" >> node_script.t
+      echo "  %s = deserialize(\"$%s/artifact\")" >> node_script.t
+      echo "} else {" >> node_script.t
+      echo "  %s = %s(\"$%s/artifact\")" >> node_script.t
+      echo "}" >> node_script.t|} dep_var dep_var dep_var dep_var dep_var safe_var dep_var safe_var des_fn dep_var
       in
 
       let python_namespace_assigns dep_name safe_var =
@@ -2281,9 +2285,9 @@ EOF|} k expr_str
   in
   let res1_line_for val_name =
     if ser_call = "write_text" then
-      Printf.sprintf "      res1 = write_text(\\\"$out/artifact\\\", %s)" val_name
+      Printf.sprintf "      if (is_error(%s)) { res1 = serialize(%s, \\\"$out/artifact\\\") } else { res1 = write_text(\\\"$out/artifact\\\", %s) }" val_name val_name val_name
     else
-      Printf.sprintf "      res1 = %s(%s, \\\"$out/artifact\\\")" ser_call val_name
+      Printf.sprintf "      if (is_error(%s)) { res1 = serialize(%s, \\\"$out/artifact\\\") } else { res1 = %s(%s, \\\"$out/artifact\\\") }" val_name val_name ser_call val_name
   in
 
   let is_raw_code = match expr.Ast.node with RawCode _ -> true | _ -> false in

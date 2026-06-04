@@ -187,6 +187,11 @@ let collect_exceptions_fn args _env =
                    | `String s -> s
                    | _ -> ""
                  in
+                 let runtime =
+                   match node_json |> member "runtime" with
+                   | `String s -> s
+                   | _ -> ""
+                 in
                  let has_warnings =
                    match node_json |> member "warnings" with
                    | `Bool b -> b
@@ -208,7 +213,13 @@ let collect_exceptions_fn args _env =
                    entries := (name, "Error", err_code, err_message_truncated) :: !entries
                  ) else if status = "SoftFailed" || class_val = "VError" || class_val = "Error" then (
                    if path <> "" && Sys.file_exists path then (
-                     match Serialization.read_verror_json path with
+                     let read_res =
+                       if runtime = "T" then
+                         Serialization.deserialize_from_file path
+                       else
+                         Serialization.read_verror_json path
+                     in
+                     match read_res with
                      | Ok (VError e) ->
                          let msg_truncated = clean_and_truncate_message e.message in
                          entries := (name, "Error", Ast.Utils.error_code_to_string e.code, msg_truncated) :: !entries
