@@ -43,7 +43,7 @@
 | `src/packages/base/serialize.ml` | [x] |
 | `src/packages/base/t_assert.ml` | [x] |
 | `src/packages/base/t_json.ml` | [x] |
-| `src/packages/chrono/chrono.ml` | [ ] |
+| `src/packages/chrono/chrono.ml` | [x] |
 | `src/packages/colcraft/arrange.ml` | [ ] |
 | `src/packages/colcraft/count.ml` | [ ] |
 | `src/packages/colcraft/distinct.ml` | [ ] |
