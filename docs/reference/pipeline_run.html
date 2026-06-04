@@ -35,14 +35,18 @@
 <div class="container">
 <h1 id="pipeline_run">pipeline_run</h1>
 <p>Run Pipeline</p>
-<p>Re-executes a pipeline from start to finish.</p>
+<p>Re-executes a pipeline from start to finish. When any Nix
+orchestration argument is supplied, delegates to a Nix build instead of
+in-memory re-eval.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-run.</li>
+<li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
+run.</p></li>
+<li><p><strong>nix_options</strong> (<code>Dict</code>): (Optional) A
+dictionary of Nix orchestration options:</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The executed pipeline.</p>
+<p>The executed pipeline, or a dry-run plan DataFrame.</p>
 <h2 id="see-also">See Also</h2>
 <p><a href="pipeline_nodes.html">pipeline_nodes</a></p>
 </div>

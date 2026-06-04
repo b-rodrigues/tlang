@@ -37,7 +37,7 @@
 <p>Populate Pipeline</p>
 <p>Generates the <code>_pipeline/</code> directory with
 <code>pipeline.nix</code> and <code>dag.json</code>. Optionally builds
-the pipeline.</p>
+the pipeline with full Nix-native orchestration support.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
@@ -47,9 +47,12 @@ trigger the Nix build immediately. Defaults to false.</p></li>
 <li><p><strong>verbose</strong> (<code>Int</code>): (Optional) Nix build
 verbosity level. <code>0</code> keeps build failures quiet; values above
 <code>0</code> print failed node logs.</p></li>
+<li><p><strong>nix_options</strong> (<code>Dict</code>): (Optional) A
+dictionary of Nix orchestration options:</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A status message or the output path if build=true.</p>
+<p>A status message, structured build log, or dry-run plan
+DataFrame.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

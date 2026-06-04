@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - error_context</title>
+  <title>T Function Reference - pipeline_to_mermaid</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,17 +33,22 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="error_context">error_context</h1>
-<p>Get error context</p>
-<p>Returns a dictionary containing contextual information about where
-and why the error occurred.</p>
+<h1 id="pipeline_to_mermaid">pipeline_to_mermaid</h1>
+<p>Export Pipeline/MetaPipeline as Mermaid Graph</p>
+<p>Returns a string containing a Mermaid JS flowchart representation of
+the pipeline or metapipeline dependency graph, including node names,
+language runtimes, and execution statuses.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>node_or_error</strong> (<code>Error</code>): The error value
-or computed node to inspect.</li>
+<li><strong>p</strong> (<code>Pipeline|MetaPipeline</code>): The
+pipeline or metapipeline.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A dictionary of related context data.</p>
+<p>A Mermaid flowchart string.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>pipeline_to_mermaid(p)</code></pre>
+<h2 id="see-also">See Also</h2>
+<p><a href="pipeline_to_dot.html">pipeline_to_dot</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

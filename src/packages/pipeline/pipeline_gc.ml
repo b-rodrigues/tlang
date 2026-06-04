@@ -105,6 +105,19 @@ let register env =
       | _ -> Error.type_error "Function `pipeline_gc` expects a Pipeline."
   in
   let env = Env.add "pipeline_gc" (make_builtin_named ~name:"pipeline_gc" ~variadic:true 1 gc_fn) env in
+(*
+--# Run System Garbage Collection
+--#
+--# Runs the global Nix garbage collector (nix-store --gc) to delete any unreferenced,
+--# stale, or unused paths from the local Nix store.
+--#
+--# @name t_gc
+--# @return :: String A status message summarizing the deleted store paths.
+--# @example
+--#   t_gc()
+--# @family pipeline
+--# @export
+*)
   let t_gc_fn named_args _env =
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in

@@ -18174,22 +18174,48 @@ body(f)
 
 
 
+# FILE: docs/reference/build_log_history.md
+
+# build_log_history
+
+Retrieve Build Log History for Pipeline
+
+Returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
+
+## Parameters
+
+- **pipeline** (`Pipeline`): The pipeline to retrieve history for.
+
+- **n** (`Int`): (Optional) Limit to last N builds. Defaults to NA (no limit).
+
+- **pattern** (`String`): (Optional) A regex pattern to filter log filenames. Defaults to NA.
+
+
+## Returns
+
+Summary DataFrame of historical builds.
+
+
+
 # FILE: docs/reference/build_log.md
 
 # build_log
 
 Retrieve Build Log for Pipeline
 
-Returns the `BuildLog` of the latest Nix build for the given pipeline. Includes node-level status records, total duration, failed node names, and `out_path`.
+Returns the `BuildLog` of the latest Nix build for the given pipeline. Includes node-level status records, total duration, failed node names, and `out_path`. Use `which_log` to read from a specific historical build ("time travel").
 
 ## Parameters
 
-- **p** (`Pipeline`): The pipeline to retrieve logs for.
+- **pipeline** (`Pipeline`): The pipeline to retrieve logs for.
+
+- **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename.
 
 
 ## Returns
 
-`BuildLog`: Structured build log value with node statuses, duration, failed nodes, and `out_path`.
+
+
 
 
 # FILE: docs/reference/build_log_to_frame.md
@@ -18226,7 +18252,7 @@ Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path 
 
 ## Returns
 
-The output Nix store path or an error string.
+The output Nix store path or the dry-run DataFrame.
 
 
 
@@ -18236,18 +18262,20 @@ The output Nix store path or an error string.
 
 Build Pipeline Artifacts
 
-Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry.
+Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry. Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs.
 
 ## Parameters
 
-- **p** (`Pipeline`): The pipeline to build.
+- **pipeline** (`Pipeline`): The pipeline to build.
 
 - **verbose** (`Int`): (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+
+- **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
 
 
 ## Returns
 
-A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`).
+A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`), or a dry-run DataFrame.
 
 ## See Also
 
@@ -18497,7 +18525,7 @@ Gathers all `VError` values and warning diagnostics from computed nodes of a bui
 
 ## Parameters
 
-- **p** (`Pipeline`): The built pipeline to gather exceptions from.
+- **pipeline** (`Pipeline`): The built pipeline to gather exceptions from.
 
 
 ## Returns
@@ -19175,6 +19203,31 @@ Returns the number of days in the month described by a date, datetime, or explic
 
 
 
+# FILE: docs/reference/debug_node.md
+
+# debug_node
+
+Interactively Debug a Pipeline Node
+
+Spawns an interactive debug subshell (Python, R, or Julia REPL) for the specified ComputedNode. The REPL is pre-configured with the node's environment variables and package environment, and displays instructions for loading upstream dependency artifacts.
+
+## Parameters
+
+- **node** (`ComputedNode`): The ComputedNode object to debug (e.g. `p.node_name`).
+
+
+## Returns
+
+(Generates an interactive console session).
+
+## Examples
+
+```t
+debug_node(p.etl_clean)
+```
+
+
+
 # FILE: docs/reference/dense_rank.md
 
 # dense_rank
@@ -19591,7 +19644,7 @@ Returns the error code as a string (e.g., "TypeError", "ValueError").
 
 ## Parameters
 
-- **x** (`Error`): The error value to inspect.
+- **node_or_error** (`Error`): The error value or computed node to inspect.
 
 
 ## Returns
@@ -19610,7 +19663,7 @@ Returns a dictionary containing contextual information about where and why the e
 
 ## Parameters
 
-- **x** (`Error`): The error value to inspect.
+- **node_or_error** (`Error`): The error value or computed node to inspect.
 
 
 ## Returns
@@ -19690,7 +19743,7 @@ Returns the human-readable message associated with an error.
 
 ## Parameters
 
-- **x** (`Error`): The error value to inspect.
+- **node_or_error** (`Error`): The error value or computed node to inspect.
 
 
 ## Returns
@@ -19849,14 +19902,14 @@ exp(1)
 
 Export Pipeline Artifacts
 
-Exports the cached Nix artifacts of a pipeline to a portable archive file. All
-pipeline nodes must already exist in the local store.
+Exports the cached Nix artifacts of a pipeline to a portable archive file. All pipeline nodes must already exist in the local store.
 
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline whose cached artifacts should be exported.
 
 - **archive_path** (`String`): The destination archive path.
+
 
 ## Returns
 
@@ -20639,14 +20692,14 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 
 Import Pipeline Artifacts
 
-Imports a previously exported pipeline artifact archive into the local Nix store
-and verifies that the pipeline nodes are now cached locally.
+Imports a previously exported pipeline artifact archive into the local Nix store and verifies that the pipeline nodes are now cached locally.
 
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline whose artifacts should be restored.
 
 - **archive_path** (`String`): The source archive path.
+
 
 ## Returns
 
@@ -21089,6 +21142,25 @@ The index of the first occurrence.
 Join matching rows
 
 Joins two DataFrames and keeps only rows whose keys match in both inputs.
+
+
+
+# FILE: docs/reference/inspect_artifacts.md
+
+# inspect_artifacts
+
+Inspect Artifact Archive
+
+Imports a pipeline archive into a temporary Nix store, extracts metadata (node name, store path, hash, size in bytes, and reference basenames) for each path, and returns a DataFrame of the results without modifying the local store.
+
+## Parameters
+
+- **archive_path** (`String`): The path to the artifact archive file.
+
+
+## Returns
+
+A DataFrame with columns `node` (String), `store_path` (String), `hash` (String), `size_bytes` (Int), and `references` (String).
 
 
 
@@ -22102,6 +22174,31 @@ Compute median of numeric values.
 
 
 
+# FILE: docs/reference/meta_flatten.md
+
+# meta_flatten
+
+Flatten MetaPipeline into Standard Pipeline
+
+Takes a MetaPipeline or standard Pipeline and flattens it, resolving all nested namespace relationships (such as dotted node references) into a single flat dependency graph pipeline.
+
+## Parameters
+
+- **mp** (`MetaPipeline|Pipeline`): The metapipeline or pipeline to flatten.
+
+
+## Returns
+
+The flattened standard pipeline.
+
+## Examples
+
+```t
+meta_flatten(mp)
+```
+
+
+
 # FILE: docs/reference/min.md
 
 # min
@@ -22614,104 +22711,27 @@ n = nobs(model)
 
 Compare Node Outputs Across Builds
 
-Compares the artifact produced by a node across two historical builds of the
-same pipeline, or compares two different nodes. Returns a structured `VDiff`
-dictionary with a consistent envelope.
-
-Dispatches to a type-appropriate comparison:
-- **DataFrame** → row-/column-level diff with optional key-based alignment
-- **Model (PMML)** → coefficient deltas and fit-stat comparison
-- **Scalar** → before/after with numeric delta
-- **Python-native objects** → artifact deserialization through the bundled `tlang` Python package, then stable JSON rendering plus git-like unified diffs
-- **Julia-native objects** → artifact deserialization through the bundled `tlang` Julia package, then DeepDiffs-based structural comparison
-- **R-native objects** → artifact deserialization through the bundled `tlang` R package, then diffobj-based structural comparison
-- **Generic** → structural comparison over string representations
-
-Runtime-native object diffs are preserved only for artifacts using the standard
-`default` or `tobj` serializers. If you assign a custom serializer name (for
-example `"rds"` or `"pkl"`), `node_diff()` falls back to the normal artifact
-loading path; for those cases, call the companion R/Python/Julia helper
-packages directly with an explicit deserializer.
-
-For Julia-native artifacts, `node_diff()` launches a fresh Julia helper process
-for each comparison. This keeps the integration simple but adds startup cost for
-repeated or very large diffs.
-
-## Signature
-
-```t
-node_diff(
-  node_a    :: ComputedNode,
-  node_b    :: ComputedNode,
-  log_a     :: String = "latest",
-  log_b     :: String = "latest",
-  key       :: List[Symbol] = [],
-  context   :: Int = 3
-) :: VDiff
-```
+Compares the artifact produced by a named node across two historical builds of the same pipeline.  Returns a structured VDiff dictionary with a consistent envelope (kind, node_a, node_b, log_a, log_b, value_type, identical, summary, detail, hunks).  Dispatches to a type-appropriate comparison: - DataFrame → row-/column-level diff with optional key-based alignment - Model (PMML) → coefficient deltas and fit-stat comparison - Scalar → before/after with numeric delta - Python-native objects → unified_diff-based structural comparison - Julia-native objects → DeepDiffs-based structural comparison - R-native objects → diffobj-based structural comparison - Generic → structural comparison over string representations  Runtime-native object diffs are preserved only for runtime artifacts using the standard `default`/`tobj` serializers. Custom serializer names follow the normal artifact-loading path; use the companion helper packages directly when you need a custom deserializer for native objects.
 
 ## Parameters
 
-- **node_a** (`ComputedNode`): The "before" node, e.g. `p.clean_data`.
-- **node_b** (`ComputedNode`): The "after" node, e.g. `p.clean_data`.
-- **log_a** (`String`): Build log selector for `node_a`. Accepts `"latest"`, a timestamp prefix (`"20260510_120000"`), or a regex matched against filenames in `_pipeline/`. Default: `"latest"`.
-- **log_b** (`String`): Build log selector for `node_b`. Same format as `log_a`. Default: `"latest"`.
-- **key** (`List[Symbol]`): For DataFrames: the natural key column(s) used to align rows before diffing. If empty, rows are aligned by position. Default: `[]`.
-- **context** (`Int`): Number of unchanged rows shown above and below each changed hunk. Default: `3`.
+- **node_a** (`ComputedNode`): The "before" node.
+
+- **node_b** (`ComputedNode`): The "after" node.
+
+- **log_a** (`String`): | Int Build log selector for node_a (default "latest"). Accepts a timestamp prefix, regex, or 1-indexed integer.
+
+- **log_b** (`String`): | Int Build log selector for node_b (default "latest"). Same format as log_a.
+
+- **key** (`List[Symbol]`): For DataFrames: natural key column(s) for row alignment (default []).
+
+- **context** (`Int`): Number of unchanged rows shown around each hunk (default 3).
 
 
 ## Returns
 
-`Dict`: A `VDiff` envelope dictionary with the following fields:
+A VDiff envelope dictionary.
 
-| Field | Type | Description |
-|---|---|---|
-| `kind` | `String` | `"dataframe_diff"`, `"model_diff"`, `"scalar_diff"`, `"python_object_diff"`, `"julia_object_diff"`, `"r_object_diff"`, or `"generic_diff"` |
-| `node_a` | `String` | Name of the first node |
-| `node_b` | `String` | Name of the second node |
-| `log_a` | `String` | Resolved log filename for node_a |
-| `log_b` | `String` | Resolved log filename for node_b |
-| `value_type` | `String` | T type name of the diffed values |
-| `identical` | `Bool` | `true` if no differences were found |
-| `summary` | `Dict` | Type-specific summary counts |
-| `detail` | `Dict` | Type-specific detail |
-| `hunks` | `List[Dict]` | Diff hunks or rendered diff regions when available |
-
-## Examples
-
-```t
--- Compare the same node across two historical builds
-d = node_diff(p.clean_data, p.clean_data,
-      log_a = "20260510_120000",
-      log_b = "20260515_090000")
-
--- Compare two different nodes in the current build
-d = node_diff(p.clean_data, p.validated_data)
-
--- Same node, latest vs a named earlier run, keyed on an id column
-d = node_diff(p.customers, p.customers,
-      log_a = "20260501",
-      log_b = "latest",
-      key = [$customer_id])
-
--- Model comparison
-d = node_diff(p.model_v1, p.model_v2)
-
--- Python-native artifact comparison (for example NumPy ndarrays)
-d = node_diff(p.weights, p.weights, log_a = 1, log_b = 2)
-
--- Julia-native artifact comparison (for example serialized structs or arrays)
-d = node_diff(p.julia_model, p.julia_model, log_a = 1, log_b = 2)
-
--- R-native artifact comparison (for example saved model objects)
-d = node_diff(p.r_model, p.r_model, log_a = 1, log_b = 2)
-```
-
-## See Also
-
-- `build_log` — retrieve build log for a pipeline
-- `build_log_history` — list historical builds
-- `explain` — structural explanation of any value, including VDiff
 
 
 # FILE: docs/reference/node_lens.md
@@ -23308,6 +23328,31 @@ p |> pipeline_assert
 
 
 
+# FILE: docs/reference/pipeline_cache_status.md
+
+# pipeline_cache_status
+
+Check Pipeline Cache Status
+
+Queries local Nix store validity for each node in a pipeline.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to inspect.
+
+
+## Returns
+
+A DataFrame with columns `node` (String), `cached` (Bool), and `store_path` (String).
+
+## Examples
+
+```t
+pipeline_cache_status(p)
+```
+
+
+
 # FILE: docs/reference/pipeline_copy.md
 
 # pipeline_copy
@@ -23418,60 +23463,21 @@ pipeline_depth(p)
 
 # pipeline_diff
 
-Compare Two Pipeline Structures
+Compare Pipeline Structures
 
-Compares two `Pipeline` values and returns a structured diff describing
-which nodes were added, removed, changed, or had their edges rewired.
-
-Unlike `node_diff`, which compares node *artifacts* (the values they
-produce), `pipeline_diff` compares pipeline *structure* — the nodes,
-their metadata, and their dependency edges.
-
-## Signature
-
-```t
-pipeline_diff(p_a :: Pipeline, p_b :: Pipeline) :: Dict
-```
+Compares two `Pipeline` values and returns a structured diff describing which nodes were added, removed, changed, or rewired.  Unlike `node_diff`, which compares node artifacts across builds, `pipeline_diff` compares in-memory pipeline structure.
 
 ## Parameters
 
 - **p_a** (`Pipeline`): The "before" pipeline.
+
 - **p_b** (`Pipeline`): The "after" pipeline.
+
 
 ## Returns
 
-`Dict`: A pipeline diff dictionary with the following fields:
+A structural diff dictionary.
 
-| Field | Type | Description |
-|---|---|---|
-| `kind` | `String` | Always `"pipeline_diff"` |
-| `identical` | `Bool` | `true` if no structural differences were found |
-| `added_nodes` | `List[String]` | Node names present in `p_b` but not `p_a` |
-| `removed_nodes` | `List[String]` | Node names present in `p_a` but not `p_b` |
-| `changed_nodes` | `List[String]` | Shared nodes whose metadata changed |
-| `rewired_edges` | `List[Dict]` | Edges that changed between the two pipelines |
-| `frame_a` | `DataFrame` | `pipeline_to_frame(p_a)` |
-| `frame_b` | `DataFrame` | `pipeline_to_frame(p_b)` |
-
-## Examples
-
-```t
--- Compare two versions of a pipeline
-d = pipeline_diff(p_v1, p_v2)
-
--- Check if anything changed
-if (d.identical) {
-  print("Pipelines are identical")
-} else {
-  print("Added nodes: " ++ to_string(d.added_nodes))
-  print("Removed nodes: " ++ to_string(d.removed_nodes))
-}
-```
-
-## See Also
-
-- `node_diff` — compare node artifacts across builds
-- `pipeline_to_frame` — convert pipeline metadata to a DataFrame
 
 
 # FILE: docs/reference/pipeline_dot.md
@@ -23529,6 +23535,33 @@ pipeline_edges(p)
 ## See Also
 
 [pipeline_leaves](pipeline_leaves.html), [pipeline_roots](pipeline_roots.html), [pipeline_deps](pipeline_deps.html), [pipeline_nodes](pipeline_nodes.html)
+
+
+
+# FILE: docs/reference/pipeline_gc.md
+
+# pipeline_gc
+
+Garbage Collect Pipeline Nodes
+
+Calls nix-store --delete on the store paths of a pipeline's nodes.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to clean up.
+
+- **dry_run** (`Bool`): (Optional) If `true`, only lists what would be deleted without executing the deletion. Defaults to `false`.
+
+
+## Returns
+
+A DataFrame with columns `node` (String), `store_path` (String), and `deleted` (Bool).
+
+## Examples
+
+```t
+pipeline_gc(p, dry_run=true)
+```
 
 
 
@@ -23673,16 +23706,18 @@ pipeline_roots(p)
 
 Run Pipeline
 
-Re-executes a pipeline from start to finish.
+Re-executes a pipeline from start to finish. When any Nix orchestration argument is supplied, delegates to a Nix build instead of in-memory re-eval.
 
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline to run.
 
+- **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
+
 
 ## Returns
 
-The executed pipeline.
+The executed pipeline, or a dry-run plan DataFrame.
 
 ## See Also
 
@@ -23719,6 +23754,63 @@ pipeline_summary(p)
 
 
 
+# FILE: docs/reference/pipeline_to_dot.md
+
+# pipeline_to_dot
+
+Export Pipeline/MetaPipeline as DOT Graph
+
+Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline dependency graph, including node names, language runtimes, and execution statuses.
+
+## Parameters
+
+- **p** (`Pipeline|MetaPipeline`): The pipeline or metapipeline.
+
+
+## Returns
+
+A DOT graph string.
+
+## Examples
+
+```t
+pipeline_to_dot(p)
+```
+
+## See Also
+
+[pipeline_dot](pipeline_dot.html), [pipeline_to_mermaid](pipeline_to_mermaid.html)
+
+
+
+# FILE: docs/reference/pipeline_to_drv.md
+
+# pipeline_to_drv
+
+Introspect Node Derivation Paths
+
+Returns a dictionary mapping each node name to its low-level Nix store derivation (.drv) path.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+
+## Returns
+
+A dictionary of [node_name: drv_path] strings.
+
+## Examples
+
+```t
+p = pipeline {
+a = 1
+}
+pipeline_to_drv(p)
+```
+
+
+
 # FILE: docs/reference/pipeline_to_frame.md
 
 # pipeline_to_frame
@@ -23729,7 +23821,7 @@ Converts a Pipeline to a DataFrame where each row represents a node and each col
 
 ## Parameters
 
-- **p** (`Pipeline`): The pipeline to convert.
+- **pipeline** (`Pipeline`): The pipeline to convert.
 
 
 ## Returns
@@ -23745,6 +23837,63 @@ pipeline_to_frame(p)
 ## See Also
 
 [pipeline_nodes](pipeline_nodes.html), [select_node](select_node.html)
+
+
+
+# FILE: docs/reference/pipeline_to_mermaid.md
+
+# pipeline_to_mermaid
+
+Export Pipeline/MetaPipeline as Mermaid Graph
+
+Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline dependency graph, including node names, language runtimes, and execution statuses.
+
+## Parameters
+
+- **p** (`Pipeline|MetaPipeline`): The pipeline or metapipeline.
+
+
+## Returns
+
+A Mermaid flowchart string.
+
+## Examples
+
+```t
+pipeline_to_mermaid(p)
+```
+
+## See Also
+
+[pipeline_to_dot](pipeline_to_dot.html)
+
+
+
+# FILE: docs/reference/pipeline_to_store.md
+
+# pipeline_to_store
+
+Introspect Node Store Paths
+
+Returns a dictionary mapping each node name to its low-level Nix store output path.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+
+## Returns
+
+A dictionary of [node_name: store_path] strings.
+
+## Examples
+
+```t
+p = pipeline {
+a = 1
+}
+pipeline_to_store(p)
+```
 
 
 
@@ -23910,7 +24059,7 @@ mutate(df, !!!poly($age, 3, raw = true))
 
 Populate Pipeline
 
-Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optionally builds the pipeline.
+Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optionally builds the pipeline with full Nix-native orchestration support.
 
 ## Parameters
 
@@ -23920,10 +24069,12 @@ Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optiona
 
 - **verbose** (`Int`): (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
 
+- **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
+
 
 ## Returns
 
-A status message or the output path if build=true.
+A status message, structured build log, or dry-run plan DataFrame.
 
 
 
@@ -25319,6 +25470,25 @@ The updated structure.
 
 
 
+# FILE: docs/reference/set_nix_defaults.md
+
+# set_nix_defaults
+
+Set Global Nix Orchestration Defaults
+
+Sets persistent session-wide default Nix options.
+
+## Parameters
+
+- **nix_options** (`Dict`): A dictionary of default Nix orchestration options:
+
+
+## Returns
+
+Returns "Nix defaults updated" upon successfully setting the defaults.
+
+
+
 # FILE: docs/reference/shape.md
 
 # shape
@@ -26344,52 +26514,39 @@ t_doc("generate")
 
 
 
+# FILE: docs/reference/t_gc.md
+
+# t_gc
+
+Run System Garbage Collection
+
+Runs the global Nix garbage collector (nix-store --gc) to delete any unreferenced, stale, or unused paths from the local Nix store.
+
+## Returns
+
+A status message summarizing the deleted store paths.
+
+## Examples
+
+```t
+t_gc()
+```
+
+
+
 # FILE: docs/reference/t_make.md
 
 # t_make
 
-Build and Run a Pipeline File
+Build Pipeline Internally
 
-Reads, parses, evaluates, and builds a T pipeline script path. This is a high-level orchestrator often used from the interactive T REPL to trigger full builds.
-
-## Signatures
-
-* **Named Signature**:
-  ```t
-  t_make(filename = "src/pipeline.t", nix_options = [...], verbose = 1, failfast = false)
-  ```
-* **Positional Signature**:
-  ```t
-  t_make(filename, nix_options, verbose, failfast)
-  ```
+Builds the `src/pipeline.t` pipeline entrypoint.
 
 ## Parameters
 
-* **filename** (`String`): (Optional) The pipeline build script path. Must be `"src/pipeline.t"`. Defaults to `"src/pipeline.t"`.
-* **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
-  - `max_jobs` (`Int`): The maximum parallel build jobs. Maps to `--max-jobs`.
-  - `max_cores` (`Int`): The maximum number of cores per job. Maps to `--cores`.
-  - `cache` (`String`): Cachix cache name to use as a binary substituter.
-  - `targets` (`String`|`List[String]`): Specific node names to build. Maps to `-A`.
-  - `force` (`Bool`): Force rebuilds even if cached. Maps to `--check`.
-  - `dry_run` (`Bool`): Plan and show what would be built without executing. Maps to `--dry-run`.
-  - `builders` (`String`): Nix remote builders configuration.
-  - `keep_env` (`String`|`List[String]`): Environment variables to pass through to the sandbox.
-  - `sandbox` (`Bool`|`String`): Nix isolation sandbox policy (`"relaxed"`, `"strict"`, `"none"`).
-* **verbose** (`Int`): (Optional) The Nix build verbosity level. `0` is quiet, values `> 0` enable build output and failure diagnostics.
-* **failfast** (`Bool`): (Optional) If `true`, stops immediately on evaluation/build errors. Defaults to `false`.
+- **filename** (`String`): (Optional) The pipeline build script path. Must be `src/pipeline.t`.
 
-## Examples
 
-Using named parameters:
-```t
-t_make(nix_options = [max_jobs: 4, dry_run: true])
-```
-
-Using the positional signature:
-```t
-t_make("src/pipeline.t", [max_jobs: 8], 2, true)
-```
 
 
 # FILE: docs/reference/to_array.md
@@ -27366,7 +27523,7 @@ Returns the human-readable warning associated with a completed computed node, or
 
 ## Parameters
 
-- **x** (`ComputedNode`): The computed node to inspect.
+- **node** (`ComputedNode`): The computed node to inspect.
 
 
 ## Returns
@@ -27603,12 +27760,13 @@ Writes a flat JSON object mapping node names to artifact paths.
 
 - **path** (`String`): Destination file.
 
-- **entries** (`List[(String, String)]`): Name-path pairs.
+- **entries** (`List[(String,`): String)] Name-path pairs.
 
 
 ## Returns
 
-`String`: Status.
+String] Status.
+
 
 
 # FILE: docs/reference/write_text.md

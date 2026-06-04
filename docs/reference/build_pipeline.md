@@ -2,18 +2,20 @@
 
 Build Pipeline Artifacts
 
-Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry.
+Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry. Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs.
 
 ## Parameters
 
-- **p** (`Pipeline`): The pipeline to build.
+- **pipeline** (`Pipeline`): The pipeline to build.
 
 - **verbose** (`Int`): (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+
+- **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
 
 
 ## Returns
 
-A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`).
+A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`), or a dry-run DataFrame.
 
 ## See Also
 

@@ -6,7 +6,7 @@ Returns a dictionary containing contextual information about where and why the e
 
 ## Parameters
 
-- **x** (`Error`): The error value to inspect.
+- **node_or_error** (`Error`): The error value or computed node to inspect.
 
 
 ## Returns

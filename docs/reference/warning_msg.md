@@ -6,7 +6,7 @@ Returns the human-readable warning associated with a completed computed node, or
 
 ## Parameters
 
-- **x** (`ComputedNode`): The computed node to inspect.
+- **node** (`ComputedNode`): The computed node to inspect.
 
 
 ## Returns

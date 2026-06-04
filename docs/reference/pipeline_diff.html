@@ -34,99 +34,21 @@
 </nav>
 <div class="container">
 <h1 id="pipeline_diff">pipeline_diff</h1>
-<p>Compare Two Pipeline Structures</p>
+<p>Compare Pipeline Structures</p>
 <p>Compares two <code>Pipeline</code> values and returns a structured
-diff describing which nodes were added, removed, changed, or had their
-edges rewired.</p>
-<p>Unlike <code>node_diff</code>, which compares node <em>artifacts</em>
-(the values they produce), <code>pipeline_diff</code> compares pipeline
-<em>structure</em> — the nodes, their metadata, and their dependency
-edges.</p>
-<h2 id="signature">Signature</h2>
-<pre class="t"><code>pipeline_diff(p_a :: Pipeline, p_b :: Pipeline) :: Dict</code></pre>
+diff describing which nodes were added, removed, changed, or rewired.
+Unlike <code>node_diff</code>, which compares node artifacts across
+builds, <code>pipeline_diff</code> compares in-memory pipeline
+structure.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p_a</strong> (<code>Pipeline</code>): The “before”
-pipeline.</li>
-<li><strong>p_b</strong> (<code>Pipeline</code>): The “after”
-pipeline.</li>
+<li><p><strong>p_a</strong> (<code>Pipeline</code>): The “before”
+pipeline.</p></li>
+<li><p><strong>p_b</strong> (<code>Pipeline</code>): The “after”
+pipeline.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p><code>Dict</code>: A pipeline diff dictionary with the following
-fields:</p>
-<table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
-<thead>
-<tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>kind</code></td>
-<td><code>String</code></td>
-<td>Always <code>"pipeline_diff"</code></td>
-</tr>
-<tr>
-<td><code>identical</code></td>
-<td><code>Bool</code></td>
-<td><code>true</code> if no structural differences were found</td>
-</tr>
-<tr>
-<td><code>added_nodes</code></td>
-<td><code>List[String]</code></td>
-<td>Node names present in <code>p_b</code> but not <code>p_a</code></td>
-</tr>
-<tr>
-<td><code>removed_nodes</code></td>
-<td><code>List[String]</code></td>
-<td>Node names present in <code>p_a</code> but not <code>p_b</code></td>
-</tr>
-<tr>
-<td><code>changed_nodes</code></td>
-<td><code>List[String]</code></td>
-<td>Shared nodes whose metadata changed</td>
-</tr>
-<tr>
-<td><code>rewired_edges</code></td>
-<td><code>List[Dict]</code></td>
-<td>Edges that changed between the two pipelines</td>
-</tr>
-<tr>
-<td><code>frame_a</code></td>
-<td><code>DataFrame</code></td>
-<td><code>pipeline_to_frame(p_a)</code></td>
-</tr>
-<tr>
-<td><code>frame_b</code></td>
-<td><code>DataFrame</code></td>
-<td><code>pipeline_to_frame(p_b)</code></td>
-</tr>
-</tbody>
-</table>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>-- Compare two versions of a pipeline
-d = pipeline_diff(p_v1, p_v2)
-
--- Check if anything changed
-if (d.identical) {
-  print(&quot;Pipelines are identical&quot;)
-} else {
-  print(&quot;Added nodes: &quot; ++ to_string(d.added_nodes))
-  print(&quot;Removed nodes: &quot; ++ to_string(d.removed_nodes))
-}</code></pre>
-<h2 id="see-also">See Also</h2>
-<ul>
-<li><code>node_diff</code> — compare node artifacts across builds</li>
-<li><code>pipeline_to_frame</code> — convert pipeline metadata to a
-DataFrame</li>
-</ul>
+<p>A structural diff dictionary.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>
