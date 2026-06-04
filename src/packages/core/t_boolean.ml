@@ -186,6 +186,9 @@ let identical args _env =
     (* Float: NaN == NaN, consistent with ValueHash.equal *)
     | VFloat fa, VFloat fb ->
       if Float.is_nan fa && Float.is_nan fb then true else fa = fb
+    | VFloat fa, VInt ib
+    | VInt ib, VFloat fa ->
+      fa = float_of_int ib
     (* Collections: recurse element-wise to handle nested functional values *)
     | VVector va, VVector vb ->
       let n = Array.length va in

@@ -120,11 +120,10 @@ let betai x a b =
 (* --- Statistical Distributions (CDFs) --- *)
 
 let pnorm x =
-  (* Approximation for Normal CDF *)
-  let t = 1.0 /. (1.0 +. 0.2316419 *. (Float.abs x)) in
-  let d = 0.3989423 *. exp (-. x *. x /. 2.0) in
-  let prob = d *. t *. (0.3193815 +. t *. (-0.3565638 +. t *. (1.781478 +. t *. (-1.821256 +. t *. 1.330274)))) in
-  if x > 0.0 then 1.0 -. prob else prob
+  if x < 0.0 then
+    0.5 *. Float.erfc (-. x /. Float.sqrt 2.0)
+  else
+    1.0 -. 0.5 *. Float.erfc (x /. Float.sqrt 2.0)
 
 let pt x df =
   let x2 = x *. x in
