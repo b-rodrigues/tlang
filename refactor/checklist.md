@@ -51,7 +51,7 @@
 | `src/packages/colcraft/expand.ml` | [x] |
 | `src/packages/colcraft/factors.ml` | [x] |
 | `src/packages/colcraft/fill.ml` | [x] |
-| `src/packages/colcraft/group_by.ml` | [ ] |
+| `src/packages/colcraft/group_by.ml` | [x] |
 | `src/packages/colcraft/joins.ml` | [ ] |
 | `src/packages/colcraft/mutate.ml` | [ ] |
 | `src/packages/colcraft/n.ml` | [ ] |
