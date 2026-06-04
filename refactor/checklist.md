@@ -25,7 +25,7 @@
 | `src/lexer.mll` | [x] |
 | `src/lsp_server.ml` | [x] |
 | `src/package_manager/documentation_manager.ml` | [x] |
-| `src/package_manager/nix_generator.ml` | [ ] |
+| `src/package_manager/nix_generator.ml` | [x] |
 | `src/package_manager/package_doctor.ml` | [ ] |
 | `src/package_manager/package_loader.ml` | [ ] |
 | `src/package_manager/package_types.ml` | [ ] |
