@@ -32,6 +32,127 @@ The pipeline itself displays as:
 Pipeline(3 nodes: [x, y, total])
 ```
 
+### 1.1 The Interactive Development Loop (Build, Inspect, Plot, and Extend)
+
+A common and highly productive way to build T-Lang pipelines is incrementally, using an interactive REPL development loop. By starting small and iteratively building, inspecting, plotting, and extending, you ensure that each step of your data pipeline behaves as expected.
+
+#### Step 1: Start with a Single Node
+
+First, define a pipeline with a single root node. For example, loading some raw data:
+
+```t
+p = pipeline {
+  raw_data = [1, 2, 3, 4, 5]
+}
+```
+
+#### Step 2: Build the Pipeline
+
+Build the pipeline to materialize the raw data node as a Nix artifact:
+
+```t
+build_pipeline(p)
+```
+
+During this build, Nix runs the computation (in this case, just returning the vector `[1, 2, 3, 4, 5]`) and caches it in the Nix store.
+
+#### Step 3: Check, Inspect, and Verify
+
+Once built, verify that the node was evaluated correctly:
+
+- **Check value in-memory**: Access the node directly using dot notation:
+  ```t
+  p.raw_data
+  -- [1, 2, 3, 4, 5]
+  ```
+- **Verify the serialized artifact**: Use `read_node()` to ensure the serialized value can be successfully read from the Nix store cache:
+  ```t
+  read_node(p.raw_data)
+  -- [1, 2, 3, 4, 5]
+  ```
+- **Inspect build logs**: Check the latest build log to see the build execution time and status:
+  ```t
+  inspect_log()
+  -- A DataFrame showing the derivation path and build status of "raw_data"
+  ```
+- **Explain diagnostics**: Call `explain()` to view properties and runtime environment information:
+  ```t
+  explain(p.raw_data)
+  -- { `runtime`: "T", `kind`: "node", `name`: "raw_data", ... }
+  ```
+
+#### Step 4: Plot the DAG
+
+Visualize the current topology of your pipeline. You can convert the dependency graph to Mermaid format to render it in Markdown viewers:
+
+```t
+print(pipeline_to_mermaid(p))
+```
+
+Output:
+```mermaid
+graph TD
+  raw_data
+```
+
+#### Step 5: Add Another Node
+
+Now, extend your pipeline by adding a second node that depends on the first one. For example, calculating the sum of the raw data:
+
+```t
+p = pipeline {
+  raw_data = [1, 2, 3, 4, 5]
+  total = sum(raw_data)
+}
+```
+
+#### Step 6: Build, Verify, and Plot Again
+
+Re-build your extended pipeline:
+
+```t
+build_pipeline(p)
+```
+
+Because `raw_data` was already built and cached, Nix will automatically skip rebuilding it (a cache hit) and only compute the new `total` node! You can verify this cache hit behavior by running a cache-aware dry run first:
+
+```t
+plan = build_pipeline(p, dry_run = true)
+print(plan)
+-- DataFrame(2 rows x 3 cols: [node, action, store_path])
+-- node       action       store_path
+-- raw_data   cache_hit    /nix/store/...-raw_data
+-- total      rebuild      /nix/store/...-total
+```
+
+After building, inspect the new node and dependency layout:
+
+- **Verify the new node**:
+  ```t
+  p.total
+  -- 15
+
+  read_node(p.total)
+  -- 15
+  ```
+- **Inspect the new DAG**: Plot the updated dependency graph to verify the relationship:
+  ```t
+  print(pipeline_to_mermaid(p))
+  ```
+  Output:
+  ```mermaid
+  graph TD
+    raw_data --> total
+  ```
+- **Compare pipeline changes**: If you want to check what changed structurally since your last pipeline definition, you can use `pipeline_diff()`:
+  ```t
+  diff = pipeline_diff(p_old, p)
+  print(diff.added_nodes)
+  -- ["total"]
+  ```
+
+By following this loop—**Build ➔ Verify ➔ Plot ➔ Extend**—you can comfortably build up large, complex, and reliable data pipelines step by step.
+
 ---
 
 ## 2. Explicit Node Configuration

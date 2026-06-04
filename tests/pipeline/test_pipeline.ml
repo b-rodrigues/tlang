@@ -283,7 +283,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "populate_pipeline dry_run=true returns a DataFrame with correct columns"
     "p_dry = pipeline { a = 1 }; res = populate_pipeline(p_dry, dry_run=true); colnames(res)"
-    {|["node", "action", "path"]|};
+    {|["node", "action", "store_path"]|};
 
   Printf.printf "Phase 3 — Static Interrogations (Roots/Leaves/Cycles):\n";
   test "pipeline_roots"
