@@ -68,7 +68,7 @@ let rec infer_type scope expr =
                       in
                       { name; col_typ = TUnknown })
                     names)
-            with _ -> []
+            with Sys_error _ | End_of_file -> []
           in
           Hashtbl.add csv_cache path cols;
           cols
