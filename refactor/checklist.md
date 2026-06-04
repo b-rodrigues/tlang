@@ -4,7 +4,8 @@
 | :--- | :---: |
 | `src/analyzer.ml` | [x] |
 | `src/analyzer.mli` | [x] |
-| `src/arrow/arrow_bridge.ml` | [ ] |
+| `src/arrow/arrow_bridge.ml` | [x] |
+| `src/arrow/arrow_bridge.mli` | [x] |
 | `src/arrow/arrow_column.ml` | [ ] |
 | `src/arrow/arrow_compute.ml` | [ ] |
 | `src/arrow/arrow_ffi.ml` | [ ] |

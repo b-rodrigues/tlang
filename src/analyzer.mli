@@ -10,6 +10,4 @@ type analysis_result = {
 
 val infer_type : Symbol_table.scope -> Ast.expr -> Semantic_type.t
 
-val analyze_stmt : Symbol_table.scope -> Ast.source_location Definition_map.t ref -> Ast.stmt -> unit
-
 val analyze : Ast.stmt list -> Symbol_table.scope -> analysis_result
