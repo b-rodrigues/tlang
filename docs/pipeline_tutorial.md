@@ -83,7 +83,13 @@ Once built, verify that the node was evaluated correctly:
 
 #### Step 4: Plot the DAG
 
-Visualize the current topology of your pipeline. You can convert the dependency graph to Mermaid format to render it in Markdown viewers:
+Visualize the current topology of your pipeline. You can render the DAG directly in your web browser by calling `show_plot()` on the pipeline:
+
+```t
+show_plot(p)
+```
+
+Alternatively, you can convert the dependency graph to a Mermaid string to print or render in Markdown:
 
 ```t
 print(pipeline_to_mermaid(p))
@@ -96,6 +102,12 @@ graph TD
 ```
 
 #### Step 5: Add Another Node
+
+First, save your current pipeline state into `p_old` so you can diff it later:
+
+```t
+p_old = p
+```
 
 Now, extend your pipeline by adding a second node that depends on the first one. For example, calculating the sum of the raw data:
 
@@ -135,7 +147,11 @@ After building, inspect the new node and dependency layout:
   read_node(p.total)
   -- 15
   ```
-- **Inspect the new DAG**: Plot the updated dependency graph to verify the relationship:
+- **Inspect the new DAG**: Plot the updated dependency graph to verify the relationship. You can open it in the browser:
+  ```t
+  show_plot(p)
+  ```
+  Or get the Mermaid source:
   ```t
   print(pipeline_to_mermaid(p))
   ```
@@ -1650,6 +1666,20 @@ print(mermaid)
 ```
 
 Render the Mermaid flowchart directly in markdown files or preview using the online Mermaid live editor.
+
+#### Visualizing Mermaid Graphs in the Browser with `show_plot`
+
+Rather than manually pasting the Mermaid string into an external editor, you can reuse `show_plot()` to visualize Mermaid graphs, pipelines, or meta-pipelines directly in your web browser:
+
+```t
+-- Visualize a pipeline directly:
+show_plot(p)
+
+-- Or visualize a raw Mermaid string:
+show_plot("graph TD\n  Start --> Stop")
+```
+
+When you pass a pipeline, meta-pipeline, or a string starting with a Mermaid keyword (like `graph` or `flowchart`) to `show_plot()`, T dynamically generates a temporary HTML file containing the Mermaid JS engine, renders the graph, and opens it using your configured system viewer/browser.
 
 ---
 

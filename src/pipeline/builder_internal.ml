@@ -328,6 +328,7 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
             List.iter (fun name ->
               let action =
                 if Hashtbl.mem dry_builds name then "rebuild"
+                else if Hashtbl.mem dry_fetches name then "fetch"
                 else "cache_hit"
               in
               let path =
