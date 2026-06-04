@@ -31,7 +31,7 @@
 | `src/package_manager/package_types.ml` | [x] |
 | `src/package_manager/release_manager.ml` | [x] |
 | `src/package_manager/scaffold.ml` | [x] |
-| `src/package_manager/template_engine.ml` | [ ] |
+| `src/package_manager/template_engine.ml` | [x] |
 | `src/package_manager/test_discovery.ml` | [ ] |
 | `src/package_manager/toml_parser.ml` | [ ] |
 | `src/package_manager/update_manager.ml` | [ ] |
