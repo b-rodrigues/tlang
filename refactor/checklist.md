@@ -35,14 +35,14 @@
 | `src/package_manager/test_discovery.ml` | [x] |
 | `src/package_manager/toml_parser.ml` | [x] |
 | `src/package_manager/update_manager.ml` | [x] |
-| `src/packages/base/deserialize.ml` | [ ] |
-| `src/packages/base/error_mod.ml` | [ ] |
-| `src/packages/base/error_utils.ml` | [ ] |
-| `src/packages/base/is_na.ml` | [ ] |
-| `src/packages/base/na.ml` | [ ] |
-| `src/packages/base/serialize.ml` | [ ] |
-| `src/packages/base/t_assert.ml` | [ ] |
-| `src/packages/base/t_json.ml` | [ ] |
+| `src/packages/base/deserialize.ml` | [x] |
+| `src/packages/base/error_mod.ml` | [x] |
+| `src/packages/base/error_utils.ml` | [x] |
+| `src/packages/base/is_na.ml` | [x] |
+| `src/packages/base/na.ml` | [x] |
+| `src/packages/base/serialize.ml` | [x] |
+| `src/packages/base/t_assert.ml` | [x] |
+| `src/packages/base/t_json.ml` | [x] |
 | `src/packages/chrono/chrono.ml` | [ ] |
 | `src/packages/colcraft/arrange.ml` | [ ] |
 | `src/packages/colcraft/count.ml` | [ ] |
