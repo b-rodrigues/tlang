@@ -29,7 +29,7 @@
 | `src/package_manager/package_doctor.ml` | [x] |
 | `src/package_manager/package_loader.ml` | [x] |
 | `src/package_manager/package_types.ml` | [x] |
-| `src/package_manager/release_manager.ml` | [ ] |
+| `src/package_manager/release_manager.ml` | [x] |
 | `src/package_manager/scaffold.ml` | [ ] |
 | `src/package_manager/template_engine.ml` | [ ] |
 | `src/package_manager/test_discovery.ml` | [ ] |
