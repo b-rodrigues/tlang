@@ -882,6 +882,7 @@ CAMLprim value caml_arrow_read_csv(value v_path) {
   if (options) {
     const gchar *null_values[] = {"NA", "na", "N/A", ""};
     garrow_csv_read_options_set_null_values(options, null_values, 4);
+    g_object_set(options, "allow-null-strings", TRUE, NULL);
   }
 
   /* Create CSV reader */
