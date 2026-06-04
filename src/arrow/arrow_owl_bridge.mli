@@ -52,7 +52,7 @@ val arr_mean : float array -> float
 val linreg : float array -> float array -> (float * float * float) option
 
 (** Compute residuals from a linear model *)
-val residuals : float array -> float array -> float -> float -> float array
+val residuals : float array -> float array -> float -> float -> float array option
 
 (** Compute Pearson correlation coefficient between two float arrays.
     Returns [None] if arrays have different lengths, fewer than 2 elements,
