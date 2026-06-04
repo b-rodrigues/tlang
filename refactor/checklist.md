@@ -23,7 +23,7 @@
 | `src/eval.ml` | [x] |
 | `src/import_registry.ml` | [x] |
 | `src/lexer.mll` | [x] |
-| `src/lsp_server.ml` | [ ] |
+| `src/lsp_server.ml` | [x] |
 | `src/package_manager/documentation_manager.ml` | [ ] |
 | `src/package_manager/nix_generator.ml` | [ ] |
 | `src/package_manager/package_doctor.ml` | [ ] |
