@@ -30,9 +30,6 @@ curl --proto '=https' --tlsv1.2 -sSf \
 
 The command above works on most modern Linux distributions (Ubuntu, Fedora, Debian, Arch, etc.).
 
-> [!TIP]
-> **Disk Space**: Nix stores everything in `/nix`. If your root partition is small, you might want to mount `/nix` on a larger partition.
-
 ### macOS
 
 Nix on macOS is highly efficient but has some platform-specific nuances:
@@ -104,10 +101,6 @@ trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDS
 
 Nix and Docker are often seen as alternatives, but they work exceptionally well together. While Docker manages container isolation, Nix handles the environment reproducibility *inside* or *for* those containers.
 
-### 1. Using Nix Inside Docker
-
-You might want to install Nix inside a Docker container for CI/CD pipelines (like GitHub Actions) or to serve applications with a strictly defined environment.
-
 To install Nix inside a `Dockerfile` (e.g., using `ubuntu:latest` as a base), use the Determinate Systems installer with specific flags for container environments:
 
 ```dockerfile
@@ -132,31 +125,6 @@ RUN mkdir -p /root/.config/nix && \
 
 CMD ["nix-shell"]
 ```
-
-### 2. Building Docker Images with Nix
-
-Instead of writing a `Dockerfile`, you can use Nix to **build** a Docker image. This is the ultimate way to achieve reproducibility, as Nix builds the entire image layer by layer from its own store, resulting in extremely lightweight and predictable images.
-
-A simple Nix expression to build a T application image might look like this:
-
-```nix
-{ pkgs ? import <nixpkgs> {} }:
-
-pkgs.dockerTools.buildImage {
-  name = "t-analysis-app";
-  tag = "latest";
-  
-  # Include T and any other required tools
-  contents = [ pkgs.tlang pkgs.bashInteractive ];
-  
-  config = {
-    Cmd = [ "t" "run" "scripts/pipeline.t" ];
-    WorkingDir = "/my-project";
-  };
-}
-```
-
-You can build this image by running `nix-build docker.nix` and then load it into Docker with `docker load < result`.
 
 ---
 

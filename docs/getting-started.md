@@ -31,8 +31,9 @@ long as you stay in that shell.
 
 T provides a built-in scaffolding tool to initialize your workspaces. There are
 two types of workspaces in T:
+
 - **Projects**: Designed for data analysis, scripts, and reproducible pipelines.
-- **Packages**: Designed for creating reusable functions and libraries to share with others.
+- **Packages**: Designed for creating reusable packages to share with others.
 
 ### Creating a Project
 
