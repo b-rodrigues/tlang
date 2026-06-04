@@ -45,7 +45,7 @@
 | `src/packages/base/t_json.ml` | [x] |
 | `src/packages/chrono/chrono.ml` | [x] |
 | `src/packages/colcraft/arrange.ml` | [x] |
-| `src/packages/colcraft/count.ml` | [ ] |
+| `src/packages/colcraft/count.ml` | [x] |
 | `src/packages/colcraft/distinct.ml` | [ ] |
 | `src/packages/colcraft/drop_na.ml` | [ ] |
 | `src/packages/colcraft/expand.ml` | [ ] |
