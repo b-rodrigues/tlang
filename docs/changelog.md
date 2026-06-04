@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.52.3] - 2026-06-03
+## [0.52.3] - 2026-06-xx
 
 This release introduces a new meta-pipeline composition feature, `pipeline_of`, first-class artifact export/import capabilities, and new meta-pipeline graph visualization functions.
 
