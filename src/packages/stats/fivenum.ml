@@ -57,6 +57,29 @@ let mean xs =
   let n = List.length xs in
   if n = 0 then None else Some (List.fold_left ( +. ) 0.0 xs /. float_of_int n)
 
+let fivenum_tukey xs =
+  let arr = Array.of_list xs in
+  Array.sort compare arr;
+  let n = Array.length arr in
+  if n = 0 then None
+  else if n = 1 then Some (arr.(0), arr.(0), arr.(0), arr.(0), arr.(0))
+  else
+    let get_val depth =
+      let floor_d = int_of_float (Float.floor depth) in
+      let ceil_d = int_of_float (Float.ceil depth) in
+      let idx_lo = max 0 (floor_d - 1) in
+      let idx_hi = min (n - 1) (ceil_d - 1) in
+      0.5 *. (arr.(idx_lo) +. arr.(idx_hi))
+    in
+    let d2 = float_of_int (n + 1) /. 2.0 in
+    let d1 = (Float.floor d2 +. 1.0) /. 2.0 in
+    let mn = arr.(0) in
+    let mx = arr.(n - 1) in
+    let med = get_val d2 in
+    let lh = get_val d1 in
+    let uh = get_val (float_of_int (n + 1) -. d1) in
+    Some (mn, lh, med, uh, mx)
+
 let vecf xs = VVector (Array.of_list (List.map (fun x -> VFloat x) xs))
 
 let register env =
@@ -80,16 +103,14 @@ let register env =
                   (match Math_utils.weighted_quantile_array xs ws 0.25,
                          Math_utils.weighted_quantile_array xs ws 0.5,
                          Math_utils.weighted_quantile_array xs ws 0.75 with
-                   | Some q1, Some med, Some q3 -> vecf [mn; q1; med; q3; mx]
-                   | _ -> VNA NAFloat))
+                    | Some q1, Some med, Some q3 -> vecf [mn; q1; med; q3; mx]
+                    | _ -> VNA NAFloat))
          | None ->
              (match numeric_values ~label:"fivenum" ~na_rm x with
               | Error e -> e
               | Ok [] -> VNA NAFloat
               | Ok xs ->
-                  let mn = List.fold_left min infinity xs in
-                  let mx = List.fold_left max neg_infinity xs in
-                  (match quantile xs 0.25, quantile xs 0.5, quantile xs 0.75 with
-                   | Some q1, Some med, Some q3 -> vecf [mn; q1; med; q3; mx]
-                   | _ -> VNA NAFloat)))
+                  (match fivenum_tukey xs with
+                   | Some (mn, lh, med, uh, mx) -> vecf [mn; lh; med; uh; mx]
+                   | None -> VNA NAFloat)))
     | args -> Error.arity_error_named "fivenum" 1 (List.length args))) env

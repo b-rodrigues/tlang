@@ -36,14 +36,15 @@ let gammp a x =
   else if x < a +. 1.0 then begin
     (* Series representation *)
     let gln = log_gamma a in
-    let rec loop n ap sum =
+    let rec loop n ap term sum =
       let ap = ap +. 1.0 in
-      let del = sum *. x /. ap in
-      let sum = sum +. del in
-      if Float.abs del < Float.abs sum *. 3.0e-12 || n > 100 then sum
-      else loop (n + 1) ap sum
+      let term = term *. x /. ap in
+      let sum = sum +. term in
+      if Float.abs term < Float.abs sum *. 3.0e-12 || n > 100 then sum
+      else loop (n + 1) ap term sum
     in
-    exp (a *. log x -. x -. gln) *. (loop 0 a (1.0 /. a))
+    let initial_term = 1.0 /. a in
+    exp (a *. log x -. x -. gln) *. (loop 0 a initial_term initial_term)
   end else begin
     (* Continued fraction representation (Lentz's method) *)
     let gln = log_gamma a in
