@@ -61,7 +61,7 @@
 | `src/packages/colcraft/pivot_wider.ml` | [x] |
 | `src/packages/colcraft/relocate.ml` | [x] |
 | `src/packages/colcraft/rename.ml` | [x] |
-| `src/packages/colcraft/replace_na.ml` | [ ] |
+| `src/packages/colcraft/replace_na.ml` | [x] |
 | `src/packages/colcraft/selection_helpers.ml` | [ ] |
 | `src/packages/colcraft/separate.ml` | [ ] |
 | `src/packages/colcraft/separate_rows.ml` | [ ] |
