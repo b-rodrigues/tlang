@@ -70,7 +70,7 @@ let build_model_value ?weights (result : Arrow_owl_bridge.lm_result)
       let df_resid_f = n_f -. p_f in
       let ss_res = result.deviance in
       if df_resid_f > 1.0 && (1.0 -. hi) > 0.0 then
-        let ss_i = (ss_res *. df_resid_f -. ei *. ei /. (1.0 -. hi)) /. (df_resid_f -. 1.0) in
+        let ss_i = (ss_res -. ei *. ei /. (1.0 -. hi)) /. (df_resid_f -. 1.0) in
         VFloat (sqrt (Float.abs ss_i))
       else VFloat result.sigma
     )));
