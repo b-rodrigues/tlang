@@ -50,7 +50,7 @@
 | `src/packages/colcraft/drop_na.ml` | [x] |
 | `src/packages/colcraft/expand.ml` | [x] |
 | `src/packages/colcraft/factors.ml` | [x] |
-| `src/packages/colcraft/fill.ml` | [ ] |
+| `src/packages/colcraft/fill.ml` | [x] |
 | `src/packages/colcraft/group_by.ml` | [ ] |
 | `src/packages/colcraft/joins.ml` | [ ] |
 | `src/packages/colcraft/mutate.ml` | [ ] |
