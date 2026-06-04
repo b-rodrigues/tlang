@@ -19,7 +19,7 @@
 | `src/cli_args.ml` | [x] |
 | `src/completion.ml` | [x] |
 | `src/diff.ml` | [x] |
-| `src/error.ml` | [ ] |
+| `src/error.ml` | [x] |
 | `src/eval.ml` | [ ] |
 | `src/import_registry.ml` | [ ] |
 | `src/lexer.mll` | [ ] |
