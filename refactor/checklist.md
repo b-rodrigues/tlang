@@ -54,7 +54,7 @@
 | `src/packages/colcraft/group_by.ml` | [x] |
 | `src/packages/colcraft/joins.ml` | [x] |
 | `src/packages/colcraft/mutate.ml` | [x] |
-| `src/packages/colcraft/n.ml` | [ ] |
+| `src/packages/colcraft/n.ml` | [x] |
 | `src/packages/colcraft/n_distinct.ml` | [ ] |
 | `src/packages/colcraft/nest.ml` | [ ] |
 | `src/packages/colcraft/pivot_longer.ml` | [ ] |
