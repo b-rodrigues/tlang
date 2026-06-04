@@ -390,7 +390,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
   let t_json_r_code = {|
 r_write_json <- function(object, path) {
-  jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null")
+  jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null", digits = NA)
 }
 r_read_json <- function(path) {
   jsonlite::read_json(path, simplifyVector = TRUE)
