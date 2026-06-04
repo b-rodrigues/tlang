@@ -1,16 +1,13 @@
 (* src/arrow/arrow_compute.mli *)
 
-type grouped_handle = {
-  ptr : nativeint;
-  mutable freed : bool;
-}
+(** Safe interface to Arrow-based computational kernels and grouping operations.
+    
+    Functions in this module return [option] values when columns are missing or
+    have incompatible type layouts. Callers must handle [None] cases appropriately. *)
 
-type grouped_table = {
-  base_table : Arrow_table.t;
-  group_keys : string list;
-  native_group : grouped_handle option;
-  ocaml_groups : ((string * int list) list) option ref;
-}
+type grouped_handle
+
+type grouped_table
 
 val project : Arrow_table.t -> string list -> Arrow_table.t
 
@@ -24,30 +21,57 @@ val sort_by_indices : Arrow_table.t -> int array -> Arrow_table.t
 
 val rename_columns : Arrow_table.t -> (string * string) list -> Arrow_table.t
 
+(** Sort a table by the values of a column.
+    Returns [None] if the column does not exist or sorting is unsupported for its type. *)
 val sort_by_column : Arrow_table.t -> string -> bool -> Arrow_table.t option
 
 val add_computed_column : Arrow_table.t -> string -> Arrow_table.column_data -> Arrow_table.t
 
+(** Add a float scalar to every element of a numeric column.
+    Returns [None] if the column is missing or is not numeric. *)
 val add_scalar : Arrow_table.t -> string -> float -> Arrow_table.t option
 
+(** Add an integer scalar to every element of a numeric column.
+    Returns [None] if the column is missing or is not numeric. *)
 val add_int_scalar : Arrow_table.t -> string -> int -> Arrow_table.t option
 
+(** Multiply every element of a numeric column by a float scalar.
+    Returns [None] if the column is missing or is not numeric. *)
 val multiply_scalar : Arrow_table.t -> string -> float -> Arrow_table.t option
 
+(** Multiply every element of a numeric column by an integer scalar.
+    Returns [None] if the column is missing or is not numeric. *)
 val multiply_int_scalar : Arrow_table.t -> string -> int -> Arrow_table.t option
 
+(** Subtract a float scalar from every element of a numeric column.
+    Returns [None] if the column is missing or is not numeric. *)
 val subtract_scalar : Arrow_table.t -> string -> float -> Arrow_table.t option
 
+(** Subtract an integer scalar from every element of a numeric column.
+    Returns [None] if the column is missing or is not numeric. *)
 val subtract_int_scalar : Arrow_table.t -> string -> int -> Arrow_table.t option
 
+(** Divide every element of a numeric column by a float scalar.
+    Returns [None] if the column is missing or is not numeric.
+    
+    Note: There is no [divide_int_scalar] because division in T-Lang always promotes
+    integer values to float-pointing values to match standard statistical programming division semantics. *)
 val divide_scalar : Arrow_table.t -> string -> float -> Arrow_table.t option
 
+(** Add two columns element-wise.
+    Returns [None] if either column is missing or their types are incompatible. *)
 val add_columns_to_table : Arrow_table.t -> string -> string -> string -> Arrow_table.t option
 
+(** Multiply two columns element-wise.
+    Returns [None] if either column is missing or their types are incompatible. *)
 val multiply_columns_to_table : Arrow_table.t -> string -> string -> string -> Arrow_table.t option
 
+(** Subtract two columns element-wise.
+    Returns [None] if either column is missing or their types are incompatible. *)
 val subtract_columns_to_table : Arrow_table.t -> string -> string -> string -> Arrow_table.t option
 
+(** Divide two columns element-wise.
+    Returns [None] if either column is missing or their types are incompatible. *)
 val divide_columns_to_table : Arrow_table.t -> string -> string -> string -> Arrow_table.t option
 
 val group_by : Arrow_table.t -> string list -> grouped_table
