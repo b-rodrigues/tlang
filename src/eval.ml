@@ -539,10 +539,20 @@ let eval_scalar_binop op v1 v2 =
   (* Comparison *)
   | (Eq, VInt a, VFloat b) -> VBool (float_of_int a = b)
   | (Eq, VFloat a, VInt b) -> VBool (a = float_of_int b)
+  | (Eq, VFactor (idx, levels, _), VString s)
+  | (Eq, VString s, VFactor (idx, levels, _)) ->
+      (match List.nth_opt levels idx with
+       | Some fs -> VBool (fs = s)
+       | None -> VBool false)
   | (Eq, a, b) -> VBool (a = b)
 
   | (NEq, VInt a, VFloat b) -> VBool (float_of_int a <> b)
   | (NEq, VFloat a, VInt b) -> VBool (a <> float_of_int b)
+  | (NEq, VFactor (idx, levels, _), VString s)
+  | (NEq, VString s, VFactor (idx, levels, _)) ->
+      (match List.nth_opt levels idx with
+       | Some fs -> VBool (fs <> s)
+       | None -> VBool true)
   | (NEq, a, b) -> VBool (a <> b)
 
   | (Lt, VInt a, VInt b) -> VBool (a < b)
