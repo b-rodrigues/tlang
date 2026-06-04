@@ -57,7 +57,7 @@
 | `src/packages/colcraft/n.ml` | [x] |
 | `src/packages/colcraft/n_distinct.ml` | [x] |
 | `src/packages/colcraft/nest.ml` | [x] |
-| `src/packages/colcraft/pivot_longer.ml` | [ ] |
+| `src/packages/colcraft/pivot_longer.ml` | [x] |
 | `src/packages/colcraft/pivot_wider.ml` | [ ] |
 | `src/packages/colcraft/relocate.ml` | [ ] |
 | `src/packages/colcraft/rename.ml` | [ ] |
