@@ -14,7 +14,7 @@
 | `src/arrow/arrow_ffi.mli` | [x] |
 | `src/arrow/arrow_io.ml` | [x] |
 | `src/arrow/arrow_owl_bridge.ml` | [x] |
-| `src/arrow/arrow_table.ml` | [ ] |
+| `src/arrow/arrow_table.ml` | [x] |
 | `src/ast.ml` | [ ] |
 | `src/cli_args.ml` | [ ] |
 | `src/completion.ml` | [ ] |
