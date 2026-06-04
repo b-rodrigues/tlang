@@ -446,7 +446,7 @@ module Utils = struct
                | None, None -> ()
                | Some fa, Some fb ->
                    if Float.is_nan fa && Float.is_nan fb then ()
-                   else if fa = fb then ()
+                   else if Float.equal fa fb then ()
                    else raise Exit
                | _ -> raise Exit
              ) arr_a;
@@ -1032,7 +1032,7 @@ module Utils = struct
     | VRawCode s -> s
     | VShellResult { sr_stdout; _ } -> sr_stdout
     | VFloat f ->
-        if f = floor f then
+        if Float.equal f (floor f) then
           let s = string_of_float f in
           if String.ends_with ~suffix:"." s then String.sub s 0 (String.length s - 1)
           else int_of_float f |> string_of_int

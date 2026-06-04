@@ -15,7 +15,7 @@
 | `src/arrow/arrow_io.ml` | [x] |
 | `src/arrow/arrow_owl_bridge.ml` | [x] |
 | `src/arrow/arrow_table.ml` | [x] |
-| `src/ast.ml` | [ ] |
+| `src/ast.ml` | [x] |
 | `src/cli_args.ml` | [ ] |
 | `src/completion.ml` | [ ] |
 | `src/diff.ml` | [ ] |
