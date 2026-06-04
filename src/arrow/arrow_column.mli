@@ -2,11 +2,8 @@
 
 open Bigarray
 
-type column_view = {
-  backing : Arrow_table.t;
-  column_name : string;
-  data : Arrow_table.column_data;
-}
+(** An opaque handle to a column view. References the backing table to prevent GC collection. *)
+type column_view
 
 type numeric_view =
   | FloatView of (float, float64_elt, c_layout) Array1.t
@@ -22,8 +19,14 @@ val column_data : column_view -> Arrow_table.column_data
 
 val zero_copy_view : column_view -> numeric_view option
 
+(** Access a single element from a column view.
+    This function is bounds-safe and returns [VNA NAGeneric] if the index is out of bounds. *)
 val get_value_at : column_view -> int -> Ast.value
 
+(** Create a slice (sub-view) of a column view.
+    This function is bounds-safe and clamps start/len indices to prevent out-of-bounds exceptions. *)
 val get_slice : column_view -> int -> int -> column_view
 
+(** Convert a column view to a list of T-Lang runtime values.
+    @deprecated This function has O(n) heap allocation cost and loses SIMD layout benefits. Avoid in hot paths. *)
 val column_view_to_list : column_view -> Ast.value list

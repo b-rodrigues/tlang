@@ -4,6 +4,8 @@
 
 open Ast
 
+type row_count = int
+
 (** Convert an Arrow column data structure to an array of T-Lang runtime values.
     
     @param col The Arrow column data.
@@ -35,18 +37,41 @@ let column_to_values (col : Arrow_table.column_data) : value array =
     @param row The 0-indexed row number.
     @return The extracted T-Lang [value]. *)
 let value_at (col : Arrow_table.column_data) (row : int) : value =
+  let in_bounds len = row >= 0 && row < len in
   match col with
-  | Arrow_table.IntColumn a -> (match a.(row) with Some i -> VInt i | None -> VNA NAInt)
-  | Arrow_table.FloatColumn a -> (match a.(row) with Some f -> VFloat f | None -> VNA NAFloat)
-  | Arrow_table.BoolColumn a -> (match a.(row) with Some b -> VBool b | None -> VNA NABool)
-  | Arrow_table.StringColumn a -> (match a.(row) with Some s -> VString s | None -> VNA NAString)
-  | Arrow_table.DateColumn a -> (match a.(row) with Some d -> VDate d | None -> VNA NADate)
-  | Arrow_table.DatetimeColumn (a, tz) -> (match a.(row) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
+  | Arrow_table.IntColumn a ->
+      if in_bounds (Array.length a) then
+        (match a.(row) with Some i -> VInt i | None -> VNA NAInt)
+      else VNA NAInt
+  | Arrow_table.FloatColumn a ->
+      if in_bounds (Array.length a) then
+        (match a.(row) with Some f -> VFloat f | None -> VNA NAFloat)
+      else VNA NAFloat
+  | Arrow_table.BoolColumn a ->
+      if in_bounds (Array.length a) then
+        (match a.(row) with Some b -> VBool b | None -> VNA NABool)
+      else VNA NABool
+  | Arrow_table.StringColumn a ->
+      if in_bounds (Array.length a) then
+        (match a.(row) with Some s -> VString s | None -> VNA NAString)
+      else VNA NAString
+  | Arrow_table.DateColumn a ->
+      if in_bounds (Array.length a) then
+        (match a.(row) with Some d -> VDate d | None -> VNA NADate)
+      else VNA NADate
+  | Arrow_table.DatetimeColumn (a, tz) ->
+      if in_bounds (Array.length a) then
+        (match a.(row) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
+      else VNA NADate
   | Arrow_table.NAColumn _ -> (VNA NAGeneric)
   | Arrow_table.DictionaryColumn (a, levels, ordered) ->
-      (match a.(row) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
+      if in_bounds (Array.length a) then
+        (match a.(row) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
+      else VNA NAGeneric
   | Arrow_table.ListColumn a ->
-      (match a.(row) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric))
+      if in_bounds (Array.length a) then
+        (match a.(row) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric))
+      else VNA NAGeneric
 
 (** Convert an array of T-Lang values into an Arrow column_data structure.
     
@@ -167,34 +192,37 @@ let values_to_column (values : value array) : Arrow_table.column_data =
     @param row_idx The index of the row to extract.
     @return A list of name-value tuples representing the row elements. *)
 let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list =
-  let get_col_data name =
-    match Arrow_table.get_column table name with
-    | Some col -> col
-    | None -> Arrow_table.NAColumn table.nrows
-  in
-  List.map (fun (name, _) ->
-    let col = get_col_data name in
-    let v = match col with
-      | Arrow_table.IntColumn a ->
-          (match a.(row_idx) with Some i -> VInt i | None -> VNA NAInt)
-      | Arrow_table.FloatColumn a ->
-          (match a.(row_idx) with Some f -> VFloat f | None -> VNA NAFloat)
-      | Arrow_table.BoolColumn a ->
-          (match a.(row_idx) with Some b -> VBool b | None -> VNA NABool)
-      | Arrow_table.StringColumn a ->
-          (match a.(row_idx) with Some s -> VString s | None -> VNA NAString)
-      | Arrow_table.DateColumn a ->
-          (match a.(row_idx) with Some d -> VDate d | None -> VNA NADate)
-      | Arrow_table.DatetimeColumn (a, tz) ->
-          (match a.(row_idx) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
-      | Arrow_table.NAColumn _ -> (VNA NAGeneric)
-      | Arrow_table.DictionaryColumn (a, levels, ordered) ->
-          (match a.(row_idx) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
-      | Arrow_table.ListColumn a ->
-          (match a.(row_idx) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric))
+  if row_idx < 0 || row_idx >= table.nrows then
+    List.map (fun (name, _) -> (name, VNA NAGeneric)) table.schema
+  else
+    let get_col_data name =
+      match Arrow_table.get_column table name with
+      | Some col -> col
+      | None -> Arrow_table.NAColumn table.nrows
     in
-    (name, v)
-  ) table.schema
+    List.map (fun (name, _) ->
+      let col = get_col_data name in
+      let v = match col with
+        | Arrow_table.IntColumn a ->
+            (match a.(row_idx) with Some i -> VInt i | None -> VNA NAInt)
+        | Arrow_table.FloatColumn a ->
+            (match a.(row_idx) with Some f -> VFloat f | None -> VNA NAFloat)
+        | Arrow_table.BoolColumn a ->
+            (match a.(row_idx) with Some b -> VBool b | None -> VNA NABool)
+        | Arrow_table.StringColumn a ->
+            (match a.(row_idx) with Some s -> VString s | None -> VNA NAString)
+        | Arrow_table.DateColumn a ->
+            (match a.(row_idx) with Some d -> VDate d | None -> VNA NADate)
+        | Arrow_table.DatetimeColumn (a, tz) ->
+            (match a.(row_idx) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
+        | Arrow_table.NAColumn _ -> (VNA NAGeneric)
+        | Arrow_table.DictionaryColumn (a, levels, ordered) ->
+            (match a.(row_idx) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
+        | Arrow_table.ListColumn a ->
+            (match a.(row_idx) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric))
+      in
+      (name, v)
+    ) table.schema
 
 (** Create an Arrow table from T-Lang value column structures.
     
@@ -202,6 +230,10 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
     @param nrows Total row count of the table.
     @return The constructed and materialized Arrow table. *)
 let table_from_value_columns (columns : (string * value array) list) (nrows : int) : Arrow_table.t =
+  List.iter (fun (name, values) ->
+    if Array.length values <> nrows then
+      raise (Invalid_argument (Printf.sprintf "table_from_value_columns: column '%s' has length %d but expected %d" name (Array.length values) nrows))
+  ) columns;
   let arrow_columns = List.map (fun (name, values) ->
     (name, values_to_column values)
   ) columns in
