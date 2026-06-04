@@ -6,7 +6,7 @@ Gathers all `VError` values and warning diagnostics from computed nodes of a bui
 
 ## Parameters
 
-- **p** (`Pipeline`): The built pipeline to gather exceptions from.
+- **pipeline** (`Pipeline`): The built pipeline to gather exceptions from.
 
 
 ## Returns

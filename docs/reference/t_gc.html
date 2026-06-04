@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - error_context</title>
+  <title>T Function Reference - t_gc</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,17 +33,14 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="error_context">error_context</h1>
-<p>Get error context</p>
-<p>Returns a dictionary containing contextual information about where
-and why the error occurred.</p>
-<h2 id="parameters">Parameters</h2>
-<ul>
-<li><strong>node_or_error</strong> (<code>Error</code>): The error value
-or computed node to inspect.</li>
-</ul>
+<h1 id="t_gc">t_gc</h1>
+<p>Run System Garbage Collection</p>
+<p>Runs the global Nix garbage collector (nix-store –gc) to delete any
+unreferenced, stale, or unused paths from the local Nix store.</p>
 <h2 id="returns">Returns</h2>
-<p>A dictionary of related context data.</p>
+<p>A status message summarizing the deleted store paths.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>t_gc()</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

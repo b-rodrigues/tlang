@@ -11,5 +11,5 @@ Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path 
 
 ## Returns
 
-The output Nix store path or an error string.
+The output Nix store path or the dry-run DataFrame.
 

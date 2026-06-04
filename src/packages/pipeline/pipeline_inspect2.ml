@@ -388,6 +388,21 @@ let register env =
     env
   in
   
+(*
+--# Export Pipeline/MetaPipeline as DOT Graph
+--#
+--# Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline
+--# dependency graph, including node names, language runtimes, and execution statuses.
+--#
+--# @name pipeline_to_dot
+--# @param p :: Pipeline|MetaPipeline The pipeline or metapipeline.
+--# @return :: String A DOT graph string.
+--# @example
+--#   pipeline_to_dot(p)
+--# @family pipeline
+--# @seealso pipeline_to_mermaid, pipeline_dot
+--# @export
+*)
   let env = Env.add "pipeline_to_dot"
     (make_builtin ~name:"pipeline_to_dot" 1 (fun args _env ->
       let render p =
@@ -423,6 +438,21 @@ let register env =
     env
   in
 
+(*
+--# Export Pipeline/MetaPipeline as Mermaid Graph
+--#
+--# Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline
+--# dependency graph, including node names, language runtimes, and execution statuses.
+--#
+--# @name pipeline_to_mermaid
+--# @param p :: Pipeline|MetaPipeline The pipeline or metapipeline.
+--# @return :: String A Mermaid flowchart string.
+--# @example
+--#   pipeline_to_mermaid(p)
+--# @family pipeline
+--# @seealso pipeline_to_dot
+--# @export
+*)
   let env = Env.add "pipeline_to_mermaid"
     (make_builtin ~name:"pipeline_to_mermaid" 1 (fun args _env ->
       let render p =

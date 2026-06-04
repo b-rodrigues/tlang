@@ -37,15 +37,16 @@
 <p>Retrieve Build Log for Pipeline</p>
 <p>Returns the <code>BuildLog</code> of the latest Nix build for the
 given pipeline. Includes node-level status records, total duration,
-failed node names, and <code>out_path</code>.</p>
+failed node names, and <code>out_path</code>. Use <code>which_log</code>
+to read from a specific historical build (“time travel”).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to retrieve
-logs for.</li>
+<li><p><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline
+to retrieve logs for.</p></li>
+<li><p><strong>which_log</strong> (<code>String</code>): (Optional) A
+regex pattern to match a specific build log filename.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p><code>BuildLog</code>: Structured build log value with node statuses,
-duration, failed nodes, and <code>out_path</code>.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

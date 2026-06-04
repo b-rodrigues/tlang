@@ -397,6 +397,21 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
     env
   in
 
+(*
+--# Flatten MetaPipeline into Standard Pipeline
+--#
+--# Takes a MetaPipeline or standard Pipeline and flattens it, resolving all nested
+--# namespace relationships (such as dotted node references) into a single flat
+--# dependency graph pipeline.
+--#
+--# @name meta_flatten
+--# @param mp :: MetaPipeline|Pipeline The metapipeline or pipeline to flatten.
+--# @return :: Pipeline The flattened standard pipeline.
+--# @example
+--#   meta_flatten(mp)
+--# @family pipeline
+--# @export
+*)
   let env = Env.add "meta_flatten"
     (make_builtin ~name:"meta_flatten" 1 (fun args env ->
       match args with

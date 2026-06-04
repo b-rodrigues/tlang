@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - error_context</title>
+  <title>T Function Reference - build_log_history</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,17 +33,22 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="error_context">error_context</h1>
-<p>Get error context</p>
-<p>Returns a dictionary containing contextual information about where
-and why the error occurred.</p>
+<h1 id="build_log_history">build_log_history</h1>
+<p>Retrieve Build Log History for Pipeline</p>
+<p>Returns a summary DataFrame of all historical builds matching the
+current pipeline’s node signature, ordered from most recent to
+oldest.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>node_or_error</strong> (<code>Error</code>): The error value
-or computed node to inspect.</li>
+<li><p><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline
+to retrieve history for.</p></li>
+<li><p><strong>n</strong> (<code>Int</code>): (Optional) Limit to last N
+builds. Defaults to NA (no limit).</p></li>
+<li><p><strong>pattern</strong> (<code>String</code>): (Optional) A
+regex pattern to filter log filenames. Defaults to NA.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A dictionary of related context data.</p>
+<p>Summary DataFrame of historical builds.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

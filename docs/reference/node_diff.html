@@ -35,166 +35,40 @@
 <div class="container">
 <h1 id="node_diff">node_diff</h1>
 <p>Compare Node Outputs Across Builds</p>
-<p>Compares the artifact produced by a node across two historical builds
-of the same pipeline, or compares two different nodes. Returns a
-structured <code>VDiff</code> dictionary with a consistent envelope.</p>
-<p>Dispatches to a type-appropriate comparison: -
-<strong>DataFrame</strong> → row-/column-level diff with optional
-key-based alignment - <strong>Model (PMML)</strong> → coefficient deltas
-and fit-stat comparison - <strong>Scalar</strong> → before/after with
-numeric delta - <strong>Python-native objects</strong> → artifact
-deserialization through the bundled <code>tlang</code> Python package,
-then stable JSON rendering plus git-like unified diffs -
-<strong>Julia-native objects</strong> → artifact deserialization through
-the bundled <code>tlang</code> Julia package, then DeepDiffs-based
-structural comparison - <strong>R-native objects</strong> → artifact
-deserialization through the bundled <code>tlang</code> R package, then
-diffobj-based structural comparison - <strong>Generic</strong> →
-structural comparison over string representations</p>
-<p>Runtime-native object diffs are preserved only for artifacts using
-the standard <code>default</code> or <code>tobj</code> serializers. If
-you assign a custom serializer name (for example <code>"rds"</code> or
-<code>"pkl"</code>), <code>node_diff()</code> falls back to the normal
-artifact loading path; for those cases, call the companion
-R/Python/Julia helper packages directly with an explicit
-deserializer.</p>
-<p>For Julia-native artifacts, <code>node_diff()</code> launches a fresh
-Julia helper process for each comparison. This keeps the integration
-simple but adds startup cost for repeated or very large diffs.</p>
-<h2 id="signature">Signature</h2>
-<pre class="t"><code>node_diff(
-  node_a    :: ComputedNode,
-  node_b    :: ComputedNode,
-  log_a     :: String = &quot;latest&quot;,
-  log_b     :: String = &quot;latest&quot;,
-  key       :: List[Symbol] = [],
-  context   :: Int = 3
-) :: VDiff</code></pre>
+<p>Compares the artifact produced by a named node across two historical
+builds of the same pipeline. Returns a structured VDiff dictionary with
+a consistent envelope (kind, node_a, node_b, log_a, log_b, value_type,
+identical, summary, detail, hunks). Dispatches to a type-appropriate
+comparison: - DataFrame → row-/column-level diff with optional key-based
+alignment - Model (PMML) → coefficient deltas and fit-stat comparison -
+Scalar → before/after with numeric delta - Python-native objects →
+unified_diff-based structural comparison - Julia-native objects →
+DeepDiffs-based structural comparison - R-native objects → diffobj-based
+structural comparison - Generic → structural comparison over string
+representations Runtime-native object diffs are preserved only for
+runtime artifacts using the standard
+<code>default</code>/<code>tobj</code> serializers. Custom serializer
+names follow the normal artifact-loading path; use the companion helper
+packages directly when you need a custom deserializer for native
+objects.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>node_a</strong> (<code>ComputedNode</code>): The “before”
-node, e.g. <code>p.clean_data</code>.</li>
-<li><strong>node_b</strong> (<code>ComputedNode</code>): The “after”
-node, e.g. <code>p.clean_data</code>.</li>
-<li><strong>log_a</strong> (<code>String</code>): Build log selector for
-<code>node_a</code>. Accepts <code>"latest"</code>, a timestamp prefix
-(<code>"20260510_120000"</code>), or a regex matched against filenames
-in <code>_pipeline/</code>. Default: <code>"latest"</code>.</li>
-<li><strong>log_b</strong> (<code>String</code>): Build log selector for
-<code>node_b</code>. Same format as <code>log_a</code>. Default:
-<code>"latest"</code>.</li>
-<li><strong>key</strong> (<code>List[Symbol]</code>): For DataFrames:
-the natural key column(s) used to align rows before diffing. If empty,
-rows are aligned by position. Default: <code>[]</code>.</li>
-<li><strong>context</strong> (<code>Int</code>): Number of unchanged
-rows shown above and below each changed hunk. Default:
-<code>3</code>.</li>
+<li><p><strong>node_a</strong> (<code>ComputedNode</code>): The “before”
+node.</p></li>
+<li><p><strong>node_b</strong> (<code>ComputedNode</code>): The “after”
+node.</p></li>
+<li><p><strong>log_a</strong> (<code>String</code>): | Int Build log
+selector for node_a (default “latest”). Accepts a timestamp prefix,
+regex, or 1-indexed integer.</p></li>
+<li><p><strong>log_b</strong> (<code>String</code>): | Int Build log
+selector for node_b (default “latest”). Same format as log_a.</p></li>
+<li><p><strong>key</strong> (<code>List[Symbol]</code>): For DataFrames:
+natural key column(s) for row alignment (default []).</p></li>
+<li><p><strong>context</strong> (<code>Int</code>): Number of unchanged
+rows shown around each hunk (default 3).</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p><code>Dict</code>: A <code>VDiff</code> envelope dictionary with the
-following fields:</p>
-<table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
-<thead>
-<tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>kind</code></td>
-<td><code>String</code></td>
-<td><code>"dataframe_diff"</code>, <code>"model_diff"</code>,
-<code>"scalar_diff"</code>, <code>"python_object_diff"</code>,
-<code>"julia_object_diff"</code>, <code>"r_object_diff"</code>, or
-<code>"generic_diff"</code></td>
-</tr>
-<tr>
-<td><code>node_a</code></td>
-<td><code>String</code></td>
-<td>Name of the first node</td>
-</tr>
-<tr>
-<td><code>node_b</code></td>
-<td><code>String</code></td>
-<td>Name of the second node</td>
-</tr>
-<tr>
-<td><code>log_a</code></td>
-<td><code>String</code></td>
-<td>Resolved log filename for node_a</td>
-</tr>
-<tr>
-<td><code>log_b</code></td>
-<td><code>String</code></td>
-<td>Resolved log filename for node_b</td>
-</tr>
-<tr>
-<td><code>value_type</code></td>
-<td><code>String</code></td>
-<td>T type name of the diffed values</td>
-</tr>
-<tr>
-<td><code>identical</code></td>
-<td><code>Bool</code></td>
-<td><code>true</code> if no differences were found</td>
-</tr>
-<tr>
-<td><code>summary</code></td>
-<td><code>Dict</code></td>
-<td>Type-specific summary counts</td>
-</tr>
-<tr>
-<td><code>detail</code></td>
-<td><code>Dict</code></td>
-<td>Type-specific detail</td>
-</tr>
-<tr>
-<td><code>hunks</code></td>
-<td><code>List[Dict]</code></td>
-<td>Diff hunks or rendered diff regions when available</td>
-</tr>
-</tbody>
-</table>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>-- Compare the same node across two historical builds
-d = node_diff(p.clean_data, p.clean_data,
-      log_a = &quot;20260510_120000&quot;,
-      log_b = &quot;20260515_090000&quot;)
-
--- Compare two different nodes in the current build
-d = node_diff(p.clean_data, p.validated_data)
-
--- Same node, latest vs a named earlier run, keyed on an id column
-d = node_diff(p.customers, p.customers,
-      log_a = &quot;20260501&quot;,
-      log_b = &quot;latest&quot;,
-      key = [$customer_id])
-
--- Model comparison
-d = node_diff(p.model_v1, p.model_v2)
-
--- Python-native artifact comparison (for example NumPy ndarrays)
-d = node_diff(p.weights, p.weights, log_a = 1, log_b = 2)
-
--- Julia-native artifact comparison (for example serialized structs or arrays)
-d = node_diff(p.julia_model, p.julia_model, log_a = 1, log_b = 2)
-
--- R-native artifact comparison (for example saved model objects)
-d = node_diff(p.r_model, p.r_model, log_a = 1, log_b = 2)</code></pre>
-<h2 id="see-also">See Also</h2>
-<ul>
-<li><code>build_log</code> — retrieve build log for a pipeline</li>
-<li><code>build_log_history</code> — list historical builds</li>
-<li><code>explain</code> — structural explanation of any value,
-including VDiff</li>
-</ul>
+<p>A VDiff envelope dictionary.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

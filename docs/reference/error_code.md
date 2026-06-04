@@ -6,7 +6,7 @@ Returns the error code as a string (e.g., "TypeError", "ValueError").
 
 ## Parameters
 
-- **x** (`Error`): The error value to inspect.
+- **node_or_error** (`Error`): The error value or computed node to inspect.
 
 
 ## Returns

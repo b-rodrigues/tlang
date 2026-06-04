@@ -6,7 +6,7 @@ Converts a Pipeline to a DataFrame where each row represents a node and each col
 
 ## Parameters
 
-- **p** (`Pipeline`): The pipeline to convert.
+- **pipeline** (`Pipeline`): The pipeline to convert.
 
 
 ## Returns

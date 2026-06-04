@@ -397,6 +397,21 @@ let register env =
     )
   in
 
+(*
+--# Interactively Debug a Pipeline Node
+--#
+--# Spawns an interactive debug subshell (Python, R, or Julia REPL) for the specified
+--# ComputedNode. The REPL is pre-configured with the node's environment variables and
+--# package environment, and displays instructions for loading upstream dependency artifacts.
+--#
+--# @name debug_node
+--# @param node :: ComputedNode The ComputedNode object to debug (e.g. `p.node_name`).
+--# @return :: NA (Generates an interactive console session).
+--# @example
+--#   debug_node(p.etl_clean)
+--# @family pipeline
+--# @export
+*)
   let debug_fn named_args env =
     match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
