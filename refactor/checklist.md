@@ -62,7 +62,7 @@
 | `src/packages/colcraft/relocate.ml` | [x] |
 | `src/packages/colcraft/rename.ml` | [x] |
 | `src/packages/colcraft/replace_na.ml` | [x] |
-| `src/packages/colcraft/selection_helpers.ml` | [ ] |
+| `src/packages/colcraft/selection_helpers.ml` | [x] |
 | `src/packages/colcraft/separate.ml` | [ ] |
 | `src/packages/colcraft/separate_rows.ml` | [ ] |
 | `src/packages/colcraft/slice.ml` | [ ] |
