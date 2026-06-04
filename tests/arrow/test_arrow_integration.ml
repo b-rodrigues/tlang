@@ -812,11 +812,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
          (match native_group_tbl.native_handle with
           | Some _ ->
               let native_grouped = Arrow_compute.group_by native_group_tbl ["name"] in
-              if not (false) then begin
-                   incr pass_count; Printf.printf "  ✓ native group_by keeps OCaml groups lazy\n"
-              end else begin
-                incr fail_count; Printf.printf "  ✗ native group_by eagerly materialized OCaml groups\n"
-              end;
+              (* "native group_by keeps OCaml groups lazy" is no longer testable:
+                 grouped_table is now opaque and internal materialization is an
+                 implementation detail. The invariant is enforced by encapsulation. *)
 
               let native_mean_result = match Arrow_compute.group_aggregate native_grouped "mean" "score" with Some t -> t | None -> Arrow_table.empty in
               let mean_ok =
@@ -905,11 +903,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                 incr fail_count; Printf.printf "  ✗ native group_aggregate count_distinct returned incorrect values\n"
               end;
 
-              if not (false) then begin
-                incr pass_count; Printf.printf "  ✓ native group_aggregate avoids forcing OCaml groups\n"
-              end else begin
-                incr fail_count; Printf.printf "  ✗ native group_aggregate unexpectedly forced OCaml groups\n"
-              end;
+              (* "native group_aggregate avoids forcing OCaml groups" is no longer testable:
+                 grouped_table is opaque; lazy materialization is an implementation detail.
+                 The correctness of results is covered by the mean/sum/min/max/count tests above. *)
 
               let native_groups = Arrow_compute.get_groups native_grouped in
               if List.length native_groups = 2 then begin

@@ -1,5 +1,15 @@
 (* src/arrow/arrow_ffi.mli *)
 
+(** Low-level C FFI bindings for the native Arrow backend.
+
+    {b Warning:} Prefer {!Arrow_compute} and {!Arrow_column} for all application code.
+    Direct use of this module requires manual lifetime management of [nativeint] handles.
+    Passing a handle after it has been freed, or passing a handle of the wrong type,
+    will result in a native crash or undefined behavior that OCaml cannot catch.
+
+    This module is exposed so that [Arrow_compute] and [Arrow_io] can depend on it
+    as a library boundary. It is not part of the stable public API. *)
+
 val arrow_available : bool
 
 external arrow_table_free : nativeint -> unit
@@ -89,6 +99,14 @@ external arrow_table_take : nativeint -> int array -> nativeint option
 external arrow_table_sort : nativeint -> string -> bool -> nativeint option
   = "caml_arrow_table_sort"
 
+(** Construct a new Arrow table from OCaml column data.
+
+    {b Warning:} The ['a array] type parameter is polymorphic only to satisfy the OCaml
+    type-checker at the FFI boundary. The C implementation casts this to a typed Arrow
+    array and will produce undefined behavior if the wrong element type is passed.
+    Callers must ensure the array element type is consistent with the [int] type tag
+    in the tuple [(name, type_tag, nullable, data)]. Use {!Arrow_compute.add_computed_column}
+    instead of calling this directly. *)
 external arrow_table_new : (string * int * string option * 'a array) list -> nativeint option
   = "caml_arrow_table_new"
 
