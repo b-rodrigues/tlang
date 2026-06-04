@@ -40,7 +40,7 @@ let register env =
                    let compare_values a b =
                      match (a, b) with
                      | (VInt x, VInt y) -> compare x y
-                     | (VFloat x, VFloat y) -> compare x y
+                     | (VFloat x, VFloat y) -> Float.compare x y
                       | (VString x, VString y) -> String.compare x y
                       | (VBool x, VBool y) -> compare x y
                       | (VDate x, VDate y) -> compare x y
@@ -72,7 +72,7 @@ let register env =
                    let compare_values a b =
                      match (a, b) with
                      | (VInt x, VInt y) -> compare y x
-                     | (VFloat x, VFloat y) -> compare y x
+                     | (VFloat x, VFloat y) -> Float.compare y x
                       | (VString x, VString y) -> String.compare y x
                       | (VBool x, VBool y) -> compare y x
                       | (VDate x, VDate y) -> compare y x
