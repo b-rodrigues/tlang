@@ -48,7 +48,7 @@
 | `src/packages/colcraft/count.ml` | [x] |
 | `src/packages/colcraft/distinct.ml` | [x] |
 | `src/packages/colcraft/drop_na.ml` | [x] |
-| `src/packages/colcraft/expand.ml` | [ ] |
+| `src/packages/colcraft/expand.ml` | [x] |
 | `src/packages/colcraft/factors.ml` | [ ] |
 | `src/packages/colcraft/fill.ml` | [ ] |
 | `src/packages/colcraft/group_by.ml` | [ ] |
