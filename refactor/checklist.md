@@ -18,7 +18,7 @@
 | `src/ast.ml` | [x] |
 | `src/cli_args.ml` | [x] |
 | `src/completion.ml` | [x] |
-| `src/diff.ml` | [ ] |
+| `src/diff.ml` | [x] |
 | `src/error.ml` | [ ] |
 | `src/eval.ml` | [ ] |
 | `src/import_registry.ml` | [ ] |
