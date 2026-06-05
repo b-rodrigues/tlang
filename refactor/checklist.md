@@ -183,16 +183,16 @@
 | `src/packages/stats/basis.ml` | [x] |
 | `src/packages/stats/coef.ml` | [x] |
 | `src/packages/stats/compare.ml` | [ ] |
-| `src/packages/stats/conf_int.ml` | [ ] |
-| `src/packages/stats/cor.ml` | [ ] |
-| `src/packages/stats/cov.ml` | [ ] |
-| `src/packages/stats/cv.ml` | [ ] |
-| `src/packages/stats/deviance.ml` | [ ] |
-| `src/packages/stats/df_residual.ml` | [ ] |
-| `src/packages/stats/dispersion.ml` | [ ] |
-| `src/packages/stats/distributions.ml` | [ ] |
-| `src/packages/stats/fit_stats.ml` | [ ] |
-| `src/packages/stats/fivenum.ml` | [ ] |
+| `src/packages/stats/conf_int.ml` | [x] |
+| `src/packages/stats/cor.ml` | [x] |
+| `src/packages/stats/cov.ml` | [x] |
+| `src/packages/stats/cv.ml` | [x] |
+| `src/packages/stats/deviance.ml` | [x] |
+| `src/packages/stats/df_residual.ml` | [x] |
+| `src/packages/stats/dispersion.ml` | [x] |
+| `src/packages/stats/distributions.ml` | [x] |
+| `src/packages/stats/fit_stats.ml` | [x] |
+| `src/packages/stats/fivenum.ml` | [x] |
 | `src/packages/stats/huber_loss.ml` | [ ] |
 | `src/packages/stats/iqr.ml` | [ ] |
 | `src/packages/stats/kurtosis.ml` | [ ] |
