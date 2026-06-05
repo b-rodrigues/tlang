@@ -118,7 +118,7 @@
 | `src/packages/math/asin.ml` | [x] |
 | `src/packages/math/asinh.ml` | [x] |
 | `src/packages/math/atan.ml` | [x] |
-| `src/packages/math/atan2.ml` | [ ] |
+| `src/packages/math/atan2.ml` | [x] |
 | `src/packages/math/atanh.ml` | [ ] |
 | `src/packages/math/ceiling.ml` | [ ] |
 | `src/packages/math/cos.ml` | [ ] |
