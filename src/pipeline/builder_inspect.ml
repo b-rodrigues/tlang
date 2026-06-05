@@ -24,14 +24,15 @@ let inspect_pipeline ?which_log () =
   | Ok (Some f) ->
       match read_log (Filename.concat pipeline_dir f) with
       | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read log `%s`: %s" f msg)
-      | Ok entries ->
-          let nrows = List.length entries in
-          let arr_derivations = Array.init nrows (fun i -> let (n,_) = List.nth entries i in Some n) in
-          let arr_success = Array.init nrows (fun _ -> Some true) in
-          let arr_path = Array.init nrows (fun i -> let (_,cn) = List.nth entries i in Some cn.cn_path) in
-          let arr_runtime = Array.init nrows (fun i -> let (_,cn) = List.nth entries i in Some cn.cn_runtime) in
-          let arr_class = Array.init nrows (fun i -> let (_,cn) = List.nth entries i in Some cn.cn_class) in
-          let arr_output = Array.init nrows (fun i -> let (n,_) = List.nth entries i in Some n) in
+       | Ok entries ->
+           let entries_arr = Array.of_list entries in
+           let nrows = Array.length entries_arr in
+           let arr_derivations = Array.init nrows (fun i -> let (n,_) = entries_arr.(i) in Some n) in
+           let arr_success = Array.init nrows (fun _ -> Some true) in
+           let arr_path = Array.init nrows (fun i -> let (_,cn) = entries_arr.(i) in Some cn.cn_path) in
+           let arr_runtime = Array.init nrows (fun i -> let (_,cn) = entries_arr.(i) in Some cn.cn_runtime) in
+           let arr_class = Array.init nrows (fun i -> let (_,cn) = entries_arr.(i) in Some cn.cn_class) in
+           let arr_output = Array.init nrows (fun i -> let (n,_) = entries_arr.(i) in Some n) in
           let columns = [
             ("derivation", Arrow_table.StringColumn arr_derivations);
             ("build_success", Arrow_table.BoolColumn arr_success);

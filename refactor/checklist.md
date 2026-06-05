@@ -241,16 +241,16 @@
 | `src/pipeline/builder.ml` | [x] |
 | `src/pipeline/builder_artifacts.ml` | [x] |
 | `src/pipeline/builder_copy.ml` | [x] |
-| `src/pipeline/builder_inspect.ml` | [ ] |
-| `src/pipeline/builder_internal.ml` | [ ] |
-| `src/pipeline/builder_logs.ml` | [ ] |
-| `src/pipeline/builder_nix_store.ml` | [ ] |
-| `src/pipeline/builder_populate.ml` | [ ] |
-| `src/pipeline/builder_read_node.ml` | [ ] |
-| `src/pipeline/builder_utils.ml` | [ ] |
-| `src/pipeline/builder_write_dag.ml` | [ ] |
-| `src/pipeline/nix_emit_node.ml` | [ ] |
-| `src/pipeline/nix_emit_pipeline.ml` | [ ] |
+| `src/pipeline/builder_inspect.ml` | [x] |
+| `src/pipeline/builder_internal.ml` | [x] |
+| `src/pipeline/builder_logs.ml` | [x] |
+| `src/pipeline/builder_nix_store.ml` | [x] |
+| `src/pipeline/builder_populate.ml` | [x] |
+| `src/pipeline/builder_read_node.ml` | [x] |
+| `src/pipeline/builder_utils.ml` | [x] |
+| `src/pipeline/builder_write_dag.ml` | [x] |
+| `src/pipeline/nix_emit_node.ml` | [x] |
+| `src/pipeline/nix_emit_pipeline.ml` | [x] |
 | `src/pipeline/nix_emitter.ml` | [ ] |
 | `src/pipeline/nix_unparse.ml` | [ ] |
 | `src/pipeline/nix_utils.ml` | [ ] |

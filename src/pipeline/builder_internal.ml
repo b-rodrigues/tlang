@@ -74,8 +74,9 @@ let get_failed_node_error_info drv_path =
               (match String.split_on_char ':' last with
                | first :: _ ->
                    let parts = String.split_on_char '.' first in
-                   let last_part = List.nth parts (List.length parts - 1) |> String.trim in
-                   if last_part = "" then "NixError" else last_part
+                   (match List.rev parts with
+                    | last_part :: _ -> String.trim last_part
+                    | [] -> "NixError")
                | _ -> "NixError")
           | [] -> "NixError"
         in
@@ -465,10 +466,9 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
         let hash =
           match out_path_opt with
           | Some path ->
-              (try
-                 let parts = String.split_on_char '-' (Filename.basename path) in
-                 List.hd parts
-               with _ -> "no_hash")
+              (match String.split_on_char '-' (Filename.basename path) with
+               | hd :: _ -> hd
+               | [] -> "no_hash")
           | None -> "no_hash"
         in
         let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
@@ -729,12 +729,13 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
                   if verbose > 0 then "See logs above."
                   else "Use collect_exceptions(p) and explain() for diagnostics."
                 in
-                if root_causes <> [] then
-                  Printf.sprintf "%s (Root cause: %s. Run 'error_msg(p.%s)' and share the traceback with an LLM for help!)"
-                    base_hint
-                    (String.concat ", " root_causes)
-                    (List.hd root_causes)
-                else base_hint
+                match root_causes with
+                | rc :: _ ->
+                    Printf.sprintf "%s (Root cause: %s. Run 'error_msg(p.%s)' and share the traceback with an LLM for help!)"
+                      base_hint
+                      (String.concat ", " root_causes)
+                      rc
+                | [] -> base_hint
               in
               ignore (save_build_log None);
               Error (Printf.sprintf "nix-build failed: %s %s" error_summary hint))
