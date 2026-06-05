@@ -120,7 +120,7 @@
 | `src/packages/math/atan.ml` | [x] |
 | `src/packages/math/atan2.ml` | [x] |
 | `src/packages/math/atanh.ml` | [x] |
-| `src/packages/math/ceiling.ml` | [ ] |
+| `src/packages/math/ceiling.ml` | [x] |
 | `src/packages/math/cos.ml` | [ ] |
 | `src/packages/math/cosh.ml` | [ ] |
 | `src/packages/math/floor.ml` | [ ] |
