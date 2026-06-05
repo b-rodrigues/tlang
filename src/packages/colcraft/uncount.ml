@@ -29,11 +29,11 @@ let uncount_impl (named_args : (string option * value) list) _env =
                        else
                          weight_ints.(i) <- n
                    | (None, VFloat f) ->
-                       if f < 0. then
+                       if Float.compare f 0. < 0 then
                          error := Some (Error.make_error ValueError "Function `uncount` expects non-negative weights.")
                        else
                          let rounded = floor f in
-                         if rounded <> f then
+                         if not (Float.equal rounded f) then
                            error := Some (Error.make_error ValueError "Function `uncount` expects integer weights (whole numbers) when provided as floats.")
                          else
                            weight_ints.(i) <- int_of_float f
