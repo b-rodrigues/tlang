@@ -111,7 +111,7 @@
 | `src/packages/explain/explain_json.ml` | [x] |
 | `src/packages/explain/intent_fields.ml` | [x] |
 | `src/packages/explain/intent_get.ml` | [x] |
-| `src/packages/explain/t_explain.ml` | [ ] |
+| `src/packages/explain/t_explain.ml` | [x] |
 | `src/packages/lens/lens.ml` | [ ] |
 | `src/packages/math/acos.ml` | [ ] |
 | `src/packages/math/acosh.ml` | [ ] |
