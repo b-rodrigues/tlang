@@ -122,7 +122,7 @@
 | `src/packages/math/atanh.ml` | [x] |
 | `src/packages/math/ceiling.ml` | [x] |
 | `src/packages/math/cos.ml` | [x] |
-| `src/packages/math/cosh.ml` | [ ] |
+| `src/packages/math/cosh.ml` | [x] |
 | `src/packages/math/floor.ml` | [ ] |
 | `src/packages/math/math_common.ml` | [ ] |
 | `src/packages/math/ndarray.ml` | [ ] |
