@@ -97,7 +97,7 @@
 | `src/packages/core/t_type.ml` | [x] |
 | `src/packages/core/t_write_text.ml` | [x] |
 | `src/packages/core/tail.ml` | [x] |
-| `src/packages/dataframe/clean_colnames.ml` | [ ] |
+| `src/packages/dataframe/clean_colnames.ml` | [x] |
 | `src/packages/dataframe/colnames.ml` | [ ] |
 | `src/packages/dataframe/glimpse.ml` | [ ] |
 | `src/packages/dataframe/ncol.ml` | [ ] |
