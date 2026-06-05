@@ -261,12 +261,12 @@
 | `src/semantic_type.ml` | [x] |
 | `src/serialization.ml` | [x] |
 | `src/serialization_registry.ml` | [x] |
-| `src/stats.ml` | [ ] |
-| `src/symbol_table.ml` | [ ] |
-| `src/tdoc/tdoc_json.ml` | [ ] |
-| `src/tdoc/tdoc_markdown.ml` | [ ] |
-| `src/tdoc/tdoc_parser.ml` | [ ] |
-| `src/tdoc/tdoc_registry.ml` | [ ] |
-| `src/tdoc/tdoc_types.ml` | [ ] |
-| `src/typecheck.ml` | [ ] |
-| `src/value_hash.ml` | [ ] |
+| `src/stats.ml` | [x] |
+| `src/symbol_table.ml` | [x] |
+| `src/tdoc/tdoc_json.ml` | [x] |
+| `src/tdoc/tdoc_markdown.ml` | [x] |
+| `src/tdoc/tdoc_parser.ml` | [x] |
+| `src/tdoc/tdoc_registry.ml` | [x] |
+| `src/tdoc/tdoc_types.ml` | [x] |
+| `src/typecheck.ml` | [x] |
+| `src/value_hash.ml` | [x] |
