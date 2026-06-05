@@ -526,19 +526,19 @@ let eval_scalar_binop op v1 v2 =
 
   | (Div, VInt _, VInt 0) -> Error.division_by_zero ()
   | (Div, VInt a, VInt b) -> VFloat (float_of_int a /. float_of_int b)
-  | (Div, VFloat _, VFloat b) when b = 0.0 -> Error.division_by_zero ()
+  | (Div, VFloat _, VFloat b) when Float.equal b 0.0 -> Error.division_by_zero ()
   | (Div, VFloat a, VFloat b) -> VFloat (a /. b)
-  | (Div, VInt a, VFloat b) -> if b = 0.0 then Error.division_by_zero () else VFloat (float_of_int a /. b)
+  | (Div, VInt a, VFloat b) -> if Float.equal b 0.0 then Error.division_by_zero () else VFloat (float_of_int a /. b)
   | (Div, VFloat a, VInt b) -> if b = 0 then Error.division_by_zero () else VFloat (a /. float_of_int b)
 
   | (Mod, VInt a, VInt b) -> if b = 0 then Error.division_by_zero () else VInt (a mod b)
-  | (Mod, VFloat a, VFloat b) -> if b = 0.0 then Error.division_by_zero () else VFloat (mod_float a b)
-  | (Mod, VInt a, VFloat b) -> if b = 0.0 then Error.division_by_zero () else VFloat (mod_float (float_of_int a) b)
+  | (Mod, VFloat a, VFloat b) -> if Float.equal b 0.0 then Error.division_by_zero () else VFloat (mod_float a b)
+  | (Mod, VInt a, VFloat b) -> if Float.equal b 0.0 then Error.division_by_zero () else VFloat (mod_float (float_of_int a) b)
   | (Mod, VFloat a, VInt b) -> if b = 0 then Error.division_by_zero () else VFloat (mod_float a (float_of_int b))
 
   (* Comparison *)
-  | (Eq, VInt a, VFloat b) -> VBool (float_of_int a = b)
-  | (Eq, VFloat a, VInt b) -> VBool (a = float_of_int b)
+  | (Eq, VInt a, VFloat b) -> VBool (Float.equal (float_of_int a) b)
+  | (Eq, VFloat a, VInt b) -> VBool (Float.equal a (float_of_int b))
   | (Eq, VFactor (idx, levels, _), VString s)
   | (Eq, VString s, VFactor (idx, levels, _)) ->
       (match List.nth_opt levels idx with
@@ -546,8 +546,8 @@ let eval_scalar_binop op v1 v2 =
        | None -> VBool false)
   | (Eq, a, b) -> VBool (a = b)
 
-  | (NEq, VInt a, VFloat b) -> VBool (float_of_int a <> b)
-  | (NEq, VFloat a, VInt b) -> VBool (a <> float_of_int b)
+  | (NEq, VInt a, VFloat b) -> VBool (not (Float.equal (float_of_int a) b))
+  | (NEq, VFloat a, VInt b) -> VBool (not (Float.equal a (float_of_int b)))
   | (NEq, VFactor (idx, levels, _), VString s)
   | (NEq, VString s, VFactor (idx, levels, _)) ->
       (match List.nth_opt levels idx with
@@ -2441,8 +2441,9 @@ and eval_dot_access_val _env_ref target_val field =
                        ("__partial_dot_prefix__", VString field)]
            else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
   | VMetaPipeline mp ->
-      let flat_p = Pipeline_composition.flatten_meta (VMetaPipeline mp) in
-      eval_dot_access_val _env_ref (VPipeline flat_p) field
+      (match Pipeline_composition.flatten_meta (VMetaPipeline mp) with
+       | VPipeline flat_p -> eval_dot_access_val _env_ref (VPipeline flat_p) field
+       | e -> e)
   | VBuildLog bl ->
       (match field with
        | "nodes" -> VList (List.map (fun x -> (None, x)) bl.bl_nodes)
@@ -3286,7 +3287,7 @@ and eval_program ?(resilient=true) (program : program) (env : environment) : val
 
 let flatten_if_meta v =
   match v with
-  | VMetaPipeline _ -> VPipeline (Pipeline_composition.flatten_meta v)
+  | VMetaPipeline _ -> Pipeline_composition.flatten_meta v
   | _ -> v
 
 let make_builtin ?name ?(variadic=false) ?(unwrap=true) arity func =

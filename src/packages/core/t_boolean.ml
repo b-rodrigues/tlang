@@ -34,7 +34,7 @@ let cast_value target_type v =
   | "Int", VBool b -> VInt (if b then 1 else 0)
   | "Bool", VBool _ -> v
   | "Bool", VInt i -> VBool (i <> 0)
-  | "Bool", VFloat f -> VBool (f <> 0.0)
+  | "Bool", VFloat f -> VBool (not (Float.equal f 0.0))
   | _ -> v (* Return as is if cast not supported or unnecessary *)
 
 (* --- ifelse --- *)
@@ -185,10 +185,10 @@ let identical args _env =
     | VSerializer _, _ | _, VSerializer _ -> false
     (* Float: NaN == NaN, consistent with ValueHash.equal *)
     | VFloat fa, VFloat fb ->
-      if Float.is_nan fa && Float.is_nan fb then true else fa = fb
+      if Float.is_nan fa && Float.is_nan fb then true else Float.equal fa fb
     | VFloat fa, VInt ib
     | VInt ib, VFloat fa ->
-      fa = float_of_int ib
+      Float.equal fa (float_of_int ib)
     (* Collections: recurse element-wise to handle nested functional values *)
     | VVector va, VVector vb ->
       let n = Array.length va in

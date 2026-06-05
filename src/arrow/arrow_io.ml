@@ -62,27 +62,7 @@ let is_na_string (s : string) : bool =
   let trimmed = String.trim s in
   trimmed = "" || trimmed = "NA" || trimmed = "na" || trimmed = "N/A"
 
-(** Column type inference — determines the best Arrow type for a column *)
-let infer_column_type (values : string list) : Arrow_table.arrow_type =
-  let non_na = List.filter (fun s -> not (is_na_string s)) values in
-  if non_na = [] then Arrow_table.ArrowNA
-  else
-    let all_int = List.for_all (fun s ->
-      match int_of_string_opt (String.trim s) with Some _ -> true | None -> false
-    ) non_na in
-    if all_int then Arrow_table.ArrowInt64
-    else
-      let all_float = List.for_all (fun s ->
-        match float_of_string_opt (String.trim s) with Some _ -> true | None -> false
-      ) non_na in
-      if all_float then Arrow_table.ArrowFloat64
-      else
-        let all_bool = List.for_all (fun s ->
-          match String.lowercase_ascii (String.trim s) with
-          | "true" | "false" -> true | _ -> false
-        ) non_na in
-        if all_bool then Arrow_table.ArrowBoolean
-        else Arrow_table.ArrowString
+
 
 (** Parse a string value into a Date (days since epoch).
     
@@ -113,6 +93,38 @@ let parse_datetime_value (s : string) (tz : string option) : int64 option =
     "%Y-%m-%dT%H:%M:%SZ";
     "%Y-%m-%d %H:%M:%SZ";
   ]
+
+(** Column type inference — determines the best Arrow type for a column *)
+let infer_column_type (values : string list) : Arrow_table.arrow_type =
+  let non_na = List.filter (fun s -> not (is_na_string s)) values in
+  if non_na = [] then Arrow_table.ArrowNA
+  else
+    let all_int = List.for_all (fun s ->
+      match int_of_string_opt (String.trim s) with Some _ -> true | None -> false
+    ) non_na in
+    if all_int then Arrow_table.ArrowInt64
+    else
+      let all_float = List.for_all (fun s ->
+        match float_of_string_opt (String.trim s) with Some _ -> true | None -> false
+      ) non_na in
+      if all_float then Arrow_table.ArrowFloat64
+      else
+        let all_bool = List.for_all (fun s ->
+          match String.lowercase_ascii (String.trim s) with
+          | "true" | "false" -> true | _ -> false
+        ) non_na in
+        if all_bool then Arrow_table.ArrowBoolean
+        else
+          let all_date = List.for_all (fun s ->
+            match parse_date_value s with Some _ -> true | None -> false
+          ) non_na in
+          if all_date then Arrow_table.ArrowDate
+          else
+            let all_datetime = List.for_all (fun s ->
+              match parse_datetime_value s None with Some _ -> true | None -> false
+            ) non_na in
+            if all_datetime then Arrow_table.ArrowTimestamp None
+            else Arrow_table.ArrowString
 
 (** Build a typed Arrow column from raw strings *)
 let build_column (values : string array) (col_type : Arrow_table.arrow_type) : Arrow_table.column_data =
@@ -170,10 +182,11 @@ let parse_csv_string (content : string) : (Arrow_table.t, string) result =
           "CSV Error: Row column counts do not match header (expected %d columns)" ncols)
       else
         let rows_arr = Array.of_list valid_rows in
+        let rows_arr_of_arrays = Array.map Array.of_list rows_arr in
         (* Extract raw string values per column *)
         let raw_columns = List.mapi (fun col_idx name ->
           let col_values = Array.init nrows (fun row_idx ->
-            List.nth rows_arr.(row_idx) col_idx
+            rows_arr_of_arrays.(row_idx).(col_idx)
           ) in
           (name, col_values)
         ) headers in
@@ -230,7 +243,7 @@ let download_url ?(suffix=".csv") (url : string) : (string, string) result =
   match Sys.command cmd with
   | 0 -> Ok temp_file
   | n -> 
-      let _ = Sys.remove temp_file in
+      let _ = try Sys.remove temp_file with Sys_error _ -> () in
       Error (Printf.sprintf "Download failed with exit code %d" n)
 
 (** Read an Arrow IPC file *)
@@ -265,7 +278,14 @@ let write_ipc (table : Arrow_table.t) (path : string) : (unit, string) result =
 let read_csv_fallback (path : string) : (Arrow_table.t, string) result =
   try
     let ch = open_in path in
-    let content = really_input_string ch (in_channel_length ch) in
+    let content =
+      try
+        let len = in_channel_length ch in
+        really_input_string ch len
+      with exn ->
+        close_in_noerr ch;
+        raise exn
+    in
     close_in ch;
     parse_csv_string content
   with
@@ -308,7 +328,7 @@ let read_csv (path : string) : (Arrow_table.t, string) result =
     match download_url path with
     | Ok temp_path ->
         let result = read_csv_local temp_path in
-        (try Sys.remove temp_path with _ -> ());
+        (try Sys.remove temp_path with Sys_error _ -> ());
         result
     | Error msg -> Error msg
   else
@@ -320,7 +340,7 @@ let read_parquet (path : string) : (Arrow_table.t, string) result =
     match download_url ~suffix:".parquet" path with
     | Ok temp_path ->
         let result = read_parquet_local temp_path in
-        (try Sys.remove temp_path with _ -> ());
+        (try Sys.remove temp_path with Sys_error _ -> ());
         result
     | Error msg -> Error msg
   else
@@ -367,24 +387,30 @@ let value_to_csv_field ~sep = function
 let write_csv ?(sep=",") (table : Arrow_table.t) (path : string) : (unit, string) result =
   try
     let ch = open_out path in
-    let col_names = Arrow_table.column_names table in
-    let nrows = Arrow_table.num_rows table in
-    
-    (* Write header *)
-    output_string ch (String.concat sep col_names);
-    output_char ch '\n';
-    
-    (* Write data rows *)
-    let value_columns = Arrow_bridge.table_to_value_columns table in
-    for row_idx = 0 to nrows - 1 do
-      let row_values = List.map (fun (_name, col_data) ->
-        value_to_csv_field ~sep col_data.(row_idx)
-      ) value_columns in
-      output_string ch (String.concat sep row_values);
-      output_char ch '\n'
-    done;
-    
+    let res =
+      try
+        let col_names = Arrow_table.column_names table in
+        let nrows = Arrow_table.num_rows table in
+        
+        (* Write header *)
+        output_string ch (String.concat sep col_names);
+        output_char ch '\n';
+        
+        (* Write data rows *)
+        let value_columns = Arrow_bridge.table_to_value_columns table in
+        for row_idx = 0 to nrows - 1 do
+          let row_values = List.map (fun (_name, col_data) ->
+            value_to_csv_field ~sep col_data.(row_idx)
+          ) value_columns in
+          output_string ch (String.concat sep row_values);
+          output_char ch '\n'
+        done;
+        Ok ()
+      with exn ->
+        close_out_noerr ch;
+        raise exn
+    in
     close_out ch;
-    Ok ()
+    res
   with
   | Sys_error msg -> Error ("File Error: " ^ msg)

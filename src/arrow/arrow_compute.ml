@@ -4,6 +4,8 @@
 (* via FFI for zero-copy operations and SIMD acceleration.               *)
 (* Falls back to pure OCaml implementations when no native handle.       *)
 
+type comparison_op = Eq | Lt | Gt | Le | Ge
+
 (** Project (select) columns by name.
     Uses native Arrow projection (zero-copy) when available. *)
 let project (t : Arrow_table.t) (names : string list) : Arrow_table.t =
@@ -367,7 +369,7 @@ let register_group_finalizer (handle : grouped_handle) : unit =
 (** Group a table by key columns.
     Uses native Arrow hash grouping when a native handle is present.
     Falls back to pure OCaml hash-based grouping otherwise. *)
-let rec group_by (t : Arrow_table.t) (keys : string list) : grouped_table =
+let rec group_by_standard (t : Arrow_table.t) (keys : string list) : grouped_table =
   match t.native_handle with
   | Some handle when not handle.Arrow_table.freed ->
        (match Arrow_ffi.arrow_table_group_by handle.ptr keys with
@@ -444,7 +446,7 @@ and build_ocaml_groups (t : Arrow_table.t) (keys : string list) : (string * int 
     The current evaluator uses grouped tables on a single thread, so caching
     this fallback in-place avoids repeated regrouping without extra
     synchronization. *)
-let get_ocaml_groups (grouped : grouped_table) : (string * int list) list =
+let get_groups (grouped : grouped_table) : (string * int list) list =
   match !(grouped.ocaml_groups) with
   | Some groups -> groups
   | None ->
@@ -472,23 +474,18 @@ let nest (grouped : grouped_table) (nest_cols : string list) : (string * Arrow_t
       ) res
   | _ ->
       (* Fallback: use OCaml-side indices and take_rows *)
-      let groups = get_ocaml_groups grouped in
+      let groups = get_groups grouped in
       List.map (fun (key, indices) ->
         let sub = take_rows grouped.base_table indices in
         (key, project sub nest_cols)
       ) groups
 
-(** Whether the OCaml fallback groups have already been materialized. *)
-let ocaml_groups_materialized (grouped : grouped_table) : bool =
-  match !(grouped.ocaml_groups) with
-  | Some _ -> true
-  | None -> false
 
 (** Apply an aggregation to a grouped table.
     agg_name: "sum", "mean", or "count"
     col_name: target column for sum/mean (ignored for count)
-    Returns a new table with key columns + aggregated value column. *)
-let rec group_aggregate (grouped : grouped_table) (agg_name : string) (col_name : string) : Arrow_table.t =
+    Returns Some table with key columns + aggregated value column, or None on error. *)
+let rec group_aggregate (grouped : grouped_table) (agg_name : string) (col_name : string) : Arrow_table.t option =
   match grouped.native_group with
   | Some gh when not gh.freed ->
       let result_ptr = match agg_name with
@@ -504,7 +501,7 @@ let rec group_aggregate (grouped : grouped_table) (agg_name : string) (col_name 
        | Some ptr ->
            let schema = schema_from_native_ptr ptr in
            let nrows = Arrow_ffi.arrow_table_num_rows ptr in
-           Arrow_table.create_from_native ptr schema nrows
+           Some (Arrow_table.create_from_native ptr schema nrows)
        | None ->
            (* Native aggregation failed — fall back to pure OCaml *)
            group_aggregate_ocaml grouped agg_name col_name)
@@ -512,100 +509,110 @@ let rec group_aggregate (grouped : grouped_table) (agg_name : string) (col_name 
       group_aggregate_ocaml grouped agg_name col_name
 
 (** Pure OCaml group aggregation fallback *)
-and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_name : string) : Arrow_table.t =
-  let ocaml_groups = get_ocaml_groups grouped in
+and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_name : string) : Arrow_table.t option =
+  let ocaml_groups = get_groups grouped in
   let n_groups = List.length ocaml_groups in
   let t = grouped.base_table in
-  (* Convert to arrays for O(1) indexed access instead of O(n) List.nth *)
-  let groups_array = Array.of_list ocaml_groups in
-  (* Build key columns *)
-  let key_col_values = List.map (fun k ->
-    match Arrow_table.get_column t k with
-    | Some col -> Arrow_bridge.column_to_values col
-    | None -> Array.make (Arrow_table.num_rows t) Ast.(VNA NAGeneric)
-  ) grouped.group_keys in
-  let key_col_array = Array.of_list key_col_values in
-  let key_result_cols = List.mapi (fun ki k ->
-    let key_vals = key_col_array.(ki) in
-    let col = Array.init n_groups (fun g_idx ->
-      let (_, indices) = groups_array.(g_idx) in
-      match indices with
-      | first :: _ -> key_vals.(first)
-      | [] -> Ast.(VNA NAGeneric)
-    ) in
-    (k, col)
-  ) grouped.group_keys in
-  (* Get target column values for aggregation *)
-  let target_vals = match Arrow_table.get_column t col_name with
-    | Some col -> Arrow_bridge.column_to_values col
-    | None -> Array.make (Arrow_table.num_rows t) Ast.(VNA NAGeneric)
+  let is_valid = match agg_name with
+    | "sum" | "mean" | "count" | "min" | "max" | "count_distinct" -> true
+    | _ -> false
   in
-  (* Compute aggregation per group *)
-  let agg_col_name =
-    match agg_name with
-    | "count" -> "n"
-    | _ -> col_name
-  in
-  let agg_col = Array.init n_groups (fun g_idx ->
-    let (_, indices) = groups_array.(g_idx) in
-    match agg_name with
-    | "sum" ->
-        let sum = List.fold_left (fun acc i ->
-          match target_vals.(i) with
-          | Ast.VFloat f -> acc +. f
-          | Ast.VInt n -> acc +. float_of_int n
-          | _ -> acc
-        ) 0.0 indices in
-        Ast.VFloat sum
-    | "mean" ->
-        let sum = ref 0.0 in
-        let count = ref 0 in
-        List.iter (fun i ->
-          match target_vals.(i) with
-          | Ast.VFloat f -> sum := !sum +. f; incr count
-          | Ast.VInt n -> sum := !sum +. float_of_int n; incr count
-          | _ -> ()
-        ) indices;
-        if !count > 0 then Ast.VFloat (!sum /. float_of_int !count)
-        else Ast.VNA Ast.NAFloat
-    | "count" ->
-        Ast.VInt (List.length indices)
-    | "count_distinct" ->
-        let seen = Value_hash.ValueHash.create (max 1 (min 64 (List.length indices))) in
-        List.iter (fun i -> Value_hash.ValueHash.replace seen target_vals.(i) ()) indices;
-        Ast.VInt (Value_hash.ValueHash.length seen)
-    | "min" ->
-        let m = ref None in
-        List.iter (fun i ->
-          let v = match target_vals.(i) with
-            | Ast.VFloat f -> Some f
-            | Ast.VInt n -> Some (float_of_int n)
-            | _ -> None
-          in
-          match !m, v with
-          | None, Some f -> m := Some f
-          | Some current, Some f -> if f < current then m := Some f
-          | _ -> ()
-        ) indices;
-        (match !m with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat)
-    | "max" ->
-        let m = ref None in
-        List.iter (fun i ->
-          let v = match target_vals.(i) with
-            | Ast.VFloat f -> Some f
-            | Ast.VInt n -> Some (float_of_int n)
-            | _ -> None
-          in
-          match !m, v with
-          | None, Some f -> m := Some f
-          | Some current, Some f -> if f > current then m := Some f
-          | _ -> ()
-        ) indices;
-        (match !m with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat)
-    | _ -> Ast.(VNA NAGeneric)
-  ) in
-  let all_columns = key_result_cols @ [(agg_col_name, agg_col)] in
-  Arrow_bridge.table_from_value_columns all_columns n_groups
+  if not is_valid then None
+  else
+    let col_exists = agg_name = "count" || Option.is_some (Arrow_table.get_column t col_name) in
+    if not col_exists then None
+    else begin
+      (* Convert to arrays for O(1) indexed access instead of O(n) List.nth *)
+      let groups_array = Array.of_list ocaml_groups in
+      (* Build key columns *)
+      let key_col_values = List.map (fun k ->
+        match Arrow_table.get_column t k with
+        | Some col -> Arrow_bridge.column_to_values col
+        | None -> Array.make (Arrow_table.num_rows t) Ast.(VNA NAGeneric)
+      ) grouped.group_keys in
+      let key_col_array = Array.of_list key_col_values in
+      let key_result_cols = List.mapi (fun ki k ->
+        let key_vals = key_col_array.(ki) in
+        let col = Array.init n_groups (fun g_idx ->
+          let (_, indices) = groups_array.(g_idx) in
+          match indices with
+          | first :: _ -> key_vals.(first)
+          | [] -> Ast.(VNA NAGeneric)
+        ) in
+        (k, col)
+      ) grouped.group_keys in
+      (* Get target column values for aggregation *)
+      let target_vals = match Arrow_table.get_column t col_name with
+        | Some col -> Arrow_bridge.column_to_values col
+        | None -> Array.make (Arrow_table.num_rows t) Ast.(VNA NAGeneric)
+      in
+      (* Compute aggregation per group *)
+      let agg_col_name =
+        match agg_name with
+        | "count" -> "n"
+        | _ -> col_name
+      in
+      let agg_col = Array.init n_groups (fun g_idx ->
+        let (_, indices) = groups_array.(g_idx) in
+        match agg_name with
+        | "sum" ->
+            let sum = List.fold_left (fun acc i ->
+              match target_vals.(i) with
+              | Ast.VFloat f -> acc +. f
+              | Ast.VInt n -> acc +. float_of_int n
+              | _ -> acc
+            ) 0.0 indices in
+            Ast.VFloat sum
+        | "mean" ->
+            let sum = ref 0.0 in
+            let count = ref 0 in
+            List.iter (fun i ->
+              match target_vals.(i) with
+              | Ast.VFloat f -> sum := !sum +. f; incr count
+              | Ast.VInt n -> sum := !sum +. float_of_int n; incr count
+              | _ -> ()
+            ) indices;
+            if !count > 0 then Ast.VFloat (!sum /. float_of_int !count)
+            else Ast.VNA Ast.NAFloat
+        | "count" ->
+            Ast.VInt (List.length indices)
+        | "count_distinct" ->
+            let seen = Value_hash.ValueHash.create (max 1 (min 64 (List.length indices))) in
+            List.iter (fun i -> Value_hash.ValueHash.replace seen target_vals.(i) ()) indices;
+            Ast.VInt (Value_hash.ValueHash.length seen)
+        | "min" ->
+            let m = ref None in
+            List.iter (fun i ->
+              let v = match target_vals.(i) with
+                | Ast.VFloat f -> Some f
+                | Ast.VInt n -> Some (float_of_int n)
+                | _ -> None
+              in
+              match !m, v with
+              | None, Some f -> m := Some f
+              | Some current, Some f -> if f < current then m := Some f
+              | _ -> ()
+            ) indices;
+            (match !m with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat)
+        | "max" ->
+            let m = ref None in
+            List.iter (fun i ->
+              let v = match target_vals.(i) with
+                | Ast.VFloat f -> Some f
+                | Ast.VInt n -> Some (float_of_int n)
+                | _ -> None
+              in
+              match !m, v with
+              | None, Some f -> m := Some f
+              | Some current, Some f -> if f > current then m := Some f
+              | _ -> ()
+            ) indices;
+            (match !m with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat)
+        | _ -> Ast.(VNA NAGeneric)
+      ) in
+      let all_columns = key_result_cols @ [(agg_col_name, agg_col)] in
+      Some (Arrow_bridge.table_from_value_columns all_columns n_groups)
+    end
 
 (** Compute multiple aggregations in a single call.
     specs: list of (agg_name, col_name, result_name) triples.
@@ -768,14 +775,14 @@ let max_column (t : Arrow_table.t) (col_name : string) : float option =
        end)
 
 (** Compute the number of distinct values in a named column. *)
-let count_distinct_column (t : Arrow_table.t) (col_name : string) : float option =
+let count_distinct_column (t : Arrow_table.t) (col_name : string) : int option =
   match Arrow_table.get_column t col_name with
   | None -> None
   | Some col ->
       let values = Arrow_bridge.column_to_values col in
       let seen = Value_hash.ValueHash.create (max 1 (min 64 (Array.length values))) in
       Array.iter (fun value -> Value_hash.ValueHash.replace seen value ()) values;
-      Some (float_of_int (Value_hash.ValueHash.length seen))
+      Some (Value_hash.ValueHash.length seen)
 
 (* ===================================================================== *)
 (* Comparison Operations (Phase 5 — Week 1)                              *)
@@ -785,34 +792,32 @@ let count_distinct_column (t : Arrow_table.t) (col_name : string) : float option
     Returns a bool array suitable for use with filter.
     op: "eq", "lt", "gt", "le", "ge" *)
 let compare_column_scalar (t : Arrow_table.t) (col_name : string)
-    (scalar : float) (op : string) : bool array option =
+    (scalar : float) (op : comparison_op) : bool array option =
   let op_code = match op with
-    | "eq" -> 0 | "lt" -> 1 | "gt" -> 2 | "le" -> 3 | "ge" -> 4 | _ -> -1
+    | Eq -> 0 | Lt -> 1 | Gt -> 2 | Le -> 3 | Ge -> 4
   in
-  if op_code < 0 then None
-  else
-    (* Try native Arrow path first *)
-    match t.native_handle with
-    | Some handle when not handle.Arrow_table.freed ->
-      (match Arrow_ffi.arrow_compute_compare_scalar handle.ptr col_name scalar op_code with
-       | Some _ as result -> result
-       | None -> None)
-    | _ ->
-      (* Pure OCaml fallback *)
-      match Arrow_table.get_column t col_name with
-      | None -> None
-      | Some col ->
-        let values = Arrow_bridge.column_to_values col in
-        let cmp_fn = match op with
-          | "eq" -> ( = ) | "lt" -> ( < ) | "gt" -> ( > )
-          | "le" -> ( <= ) | "ge" -> ( >= ) | _ -> ( = )
-        in
-        Some (Array.map (fun v ->
-          match v with
-          | Ast.VFloat f -> cmp_fn f scalar
-          | Ast.VInt i -> cmp_fn (float_of_int i) scalar
-          | _ -> false
-        ) values)
+  (* Try native Arrow path first *)
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+    (match Arrow_ffi.arrow_compute_compare_scalar handle.ptr col_name scalar op_code with
+     | Some _ as result -> result
+     | None -> None)
+  | _ ->
+    (* Pure OCaml fallback *)
+    match Arrow_table.get_column t col_name with
+    | None -> None
+    | Some col ->
+      let values = Arrow_bridge.column_to_values col in
+      let cmp_fn = match op with
+        | Eq -> ( = ) | Lt -> ( < ) | Gt -> ( > )
+        | Le -> ( <= ) | Ge -> ( >= )
+      in
+      Some (Array.map (fun v ->
+        match v with
+        | Ast.VFloat f -> cmp_fn f scalar
+        | Ast.VInt i -> cmp_fn (float_of_int i) scalar
+        | _ -> false
+      ) values)
 
 (** Return a bool array mask where true means the named column value is null/NA.
     Uses native Arrow validity checks when the table is native-backed. *)
@@ -908,7 +913,7 @@ let lead_column (t : Arrow_table.t) (col_name : string) (offset : int) : Arrow_t
     - The table has no native Arrow handle (pure OCaml storage)
     - The native optimized grouping kernel returns None (e.g., unsupported column types)
     Callers can check Arrow_table.is_native_backed to predict which path will be taken. *)
-let group_by_optimized (t : Arrow_table.t) (keys : string list) : grouped_table =
+let group_by (t : Arrow_table.t) (keys : string list) : grouped_table =
   match t.native_handle with
   | Some handle when not handle.Arrow_table.freed ->
        (match Arrow_ffi.arrow_group_by_optimized handle.ptr keys with
@@ -918,6 +923,6 @@ let group_by_optimized (t : Arrow_table.t) (keys : string list) : grouped_table 
             { base_table = t; group_keys = keys;
               native_group = Some gh; ocaml_groups = ref None }
         | None ->
-            group_by t keys)
+            group_by_standard t keys)
   | _ ->
-      group_by t keys
+      group_by_standard t keys

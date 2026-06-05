@@ -49,7 +49,7 @@ let min_array_len a b =
   min (Array.length a) (Array.length b)
 
 let take_bool_array len arr =
-  if Array.length arr = len then arr else Array.init len (fun i -> arr.(i))
+  if Array.length arr = len then arr else Array.init len (fun i -> if i >= 0 && i < Array.length arr then arr.(i) else false)
 
 let false_mask keep na =
   let len = min_array_len keep na in
@@ -62,8 +62,8 @@ let na_indices_of_mask mask =
   ) mask;
   !acc
 
-let vectorized_compare table field scalar op_s =
-  match Arrow_compute.compare_column_scalar table field scalar op_s with
+let vectorized_compare table field scalar op_v =
+  match Arrow_compute.compare_column_scalar table field scalar op_v with
   | None -> None
   | Some keep ->
       let len = Array.length keep in
@@ -88,24 +88,31 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
       | _ -> None
     in
     let try_cmp op left right =
-      let op_name = match op with
-        | Gt -> Some "gt" | Lt -> Some "lt" | GtEq -> Some "ge"
-        | LtEq -> Some "le" | Eq -> Some "eq" | _ -> None
+      let op_variant = match op with
+        | Gt -> Some Arrow_compute.Gt
+        | Lt -> Some Arrow_compute.Lt
+        | GtEq -> Some Arrow_compute.Ge
+        | LtEq -> Some Arrow_compute.Le
+        | Eq -> Some Arrow_compute.Eq
+        | _ -> None
       in
-      match op_name with
+      match op_variant with
       | None -> None
-      | Some op_s ->
+      | Some op_v ->
         (* Pattern: row.field op scalar *)
         (match left.node, right.node with
          | DotAccess { target = { node = Var p; _ }; field }, Value scalar when p = param ->
             (match extract_scalar scalar with
-             | Some sf -> vectorized_compare table field sf op_s
+             | Some sf -> vectorized_compare table field sf op_v
              | None -> None)
          (* Pattern: scalar op row.field → flip comparison *)
          | Value scalar, DotAccess { target = { node = Var p; _ }; field } when p = param ->
-           let flipped_op = match op_s with
-             | "gt" -> "lt" | "lt" -> "gt" | "ge" -> "le" | "le" -> "ge"
-             | other -> other
+           let flipped_op = match op_v with
+             | Arrow_compute.Gt -> Arrow_compute.Lt
+             | Arrow_compute.Lt -> Arrow_compute.Gt
+             | Arrow_compute.Ge -> Arrow_compute.Le
+             | Arrow_compute.Le -> Arrow_compute.Ge
+             | Arrow_compute.Eq -> Arrow_compute.Eq
             in
             (match extract_scalar scalar with
              | Some sf -> vectorized_compare table field sf flipped_op

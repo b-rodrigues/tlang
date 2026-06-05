@@ -593,20 +593,24 @@ let register env =
                  VString (Printf.sprintf "OCaml source not found at `%s`" path)
                else
                  let lines = ref [] in
-                 let chan = open_in path in
                  (try
-                   for _ = 1 to doc.line_number - 1 do
-                     ignore (input_line chan)
-                   done;
-                   (* Read until end of file or a reasonable limit *)
-                   for _ = 1 to 50 do
-                     lines := input_line chan :: !lines
-                   done;
-                   close_in chan;
-                   VString (String.concat "\n" (List.rev !lines))
-                 with End_of_file ->
-                   close_in chan;
-                   VString (String.concat "\n" (List.rev !lines)))
+                   let chan = open_in path in
+                   let res =
+                     try
+                       for _ = 1 to doc.line_number - 1 do
+                         ignore (input_line chan)
+                       done;
+                       for _ = 1 to 50 do
+                         lines := input_line chan :: !lines
+                       done;
+                       String.concat "\n" (List.rev !lines)
+                     with End_of_file ->
+                       String.concat "\n" (List.rev !lines)
+                   in
+                   close_in_noerr chan;
+                   VString res
+                 with exn ->
+                   VString (Printf.sprintf "Error reading source file `%s`: %s" path (Printexc.to_string exn)))
            | None -> VString (Printf.sprintf "No source metadata for `%s`" name))
       | [v] -> Error.type_error (Printf.sprintf "source: expected a Function, got %s." (Utils.type_name v))
       | _ -> Error.arity_error_named "source" 1 (List.length args)

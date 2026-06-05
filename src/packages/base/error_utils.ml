@@ -38,7 +38,9 @@ let find_logged_error node_name =
            match found with
            | Some res -> Some res
            | None -> find_in_logs tail
-         with _ -> find_in_logs tail)
+         with
+         | Out_of_memory | Stack_overflow as exn -> raise exn
+         | Sys_error _ | Yojson.Json_error _ | Yojson.Safe.Util.Type_error _ -> find_in_logs tail)
   in
   find_in_logs logs
 
@@ -86,9 +88,13 @@ let resolve_warning_val = function
            if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
              let warnings_path = Filename.concat (Filename.dirname cn.cn_path) "warnings" in
              if Sys.file_exists warnings_path then (
-               let warns = Builder_read_node.parse_node_warnings warnings_path in
-               let warn_msgs = List.map (fun w -> w.nw_message) warns in
-               if warn_msgs <> [] then Some (String.concat "\n" warn_msgs) else None
+               try
+                 let warns = Builder_read_node.parse_node_warnings warnings_path in
+                 let warn_msgs = List.map (fun w -> w.nw_message) warns in
+                 if warn_msgs <> [] then Some (String.concat "\n" warn_msgs) else None
+               with
+               | Out_of_memory | Stack_overflow as exn -> raise exn
+               | Sys_error _ -> None
              ) else None
            else None)
   | _ -> None

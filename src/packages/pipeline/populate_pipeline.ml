@@ -1,4 +1,5 @@
 open Ast
+open Pipeline_utils
 
 (*
 --# Populate Pipeline
@@ -23,7 +24,7 @@ open Ast
 --#   - **Explicit Dependency Declaration**: Checks serializer/runtime requirements up front and asks to add missing entries to `tproject.toml` instead of injecting packages implicitly.
 --# @family pipeline
 --# @export
-*)
+--*)
 let register env =
   let populate_fn named_args env =
     let get_arg name pos default named_args =
@@ -31,8 +32,9 @@ let register env =
       | Some v -> (true, v)
       | None ->
           let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-          if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
-          else (false, default)
+          match nth_safe (pos - 1) positionals with
+          | Some v -> (true, v)
+          | None -> (false, default)
     in
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in

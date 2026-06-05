@@ -8,6 +8,8 @@ let is_ident_char = function
 
 
 let is_inside_comment_or_string buffer cursor =
+  let len = String.length buffer in
+  let cursor = if cursor < 0 then 0 else if cursor > len then len else cursor in
   let in_string = ref false in
   let string_char = ref '"' in
   let in_comment = ref false in
@@ -27,6 +29,8 @@ let is_inside_comment_or_string buffer cursor =
   !in_string || !in_comment
 
 let extract_prefix buffer cursor =
+  let len = String.length buffer in
+  let cursor = if cursor < 0 then 0 else if cursor > len then len else cursor in
   if is_inside_comment_or_string buffer cursor then ""
   else (
     let pos = ref (cursor - 1) in
@@ -38,6 +42,8 @@ let extract_prefix buffer cursor =
 
 
 let find_surrounding_function buffer cursor =
+  let len = String.length buffer in
+  let cursor = if cursor < 0 then 0 else if cursor > len then len else cursor in
   let rec loop depth i =
     if i < 0 then None
     else match buffer.[i] with
@@ -62,6 +68,8 @@ let collect_all_columns scope cols =
   List.sort_uniq String.compare (df_cols @ observed)
 
 let complete scope ~buffer ~cursor =
+  let len = String.length buffer in
+  let cursor = if cursor < 0 then 0 else if cursor > len then len else cursor in
   if is_inside_comment_or_string buffer cursor then (cursor, [])
   else begin
   (* Scan backwards from cursor to the start of the current identifier *)

@@ -24,7 +24,10 @@ let discover_tests (dir : string) : string list =
   let results = ref [] in
   let rec scan path =
     if Sys.file_exists path && Sys.is_directory path then begin
-      let entries = Sys.readdir path in
+      let entries =
+        try Sys.readdir path
+        with Sys_error _ -> [||]
+      in
       Array.sort String.compare entries;
       Array.iter (fun entry ->
         let full_path = Filename.concat path entry in
@@ -53,9 +56,12 @@ let discover_tests (dir : string) : string list =
 let run_test_file (file : string) : test_result =
   let start = Unix.gettimeofday () in
   try
-    let ch = open_in file in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
+    let content =
+      let ch = open_in file in
+      Fun.protect
+        ~finally:(fun () -> close_in_noerr ch)
+        (fun () -> really_input_string ch (in_channel_length ch))
+    in
     (* Create fresh isolated environment for each test *)
     let env = Packages.init_env () in
 
@@ -63,25 +69,35 @@ let run_test_file (file : string) : test_result =
     let src_dir = Filename.concat (Filename.dirname (Filename.dirname file)) "src" in
     let env =
       if Sys.file_exists src_dir && Sys.is_directory src_dir then begin
-        let entries = Sys.readdir src_dir in
+        let entries =
+          try Sys.readdir src_dir
+          with Sys_error _ -> [||]
+        in
         Array.sort String.compare entries;
         Array.fold_left (fun env entry ->
           if Filename.check_suffix entry ".t" then begin
             let src_file = Filename.concat src_dir entry in
-            let ch = open_in src_file in
-            let src_content = really_input_string ch (in_channel_length ch) in
-            close_in ch;
-            let lexbuf = Lexing.from_string src_content in
             try
-              let program = Parser.program Lexer.token lexbuf in
-              let rec eval_imports env = function
-                | [] -> env
-                | stmt :: rest ->
-                    let (_, new_env) = Eval.eval_statement env stmt in
-                    eval_imports new_env rest
+              let src_content =
+                let ch = open_in src_file in
+                Fun.protect
+                  ~finally:(fun () -> close_in_noerr ch)
+                  (fun () -> really_input_string ch (in_channel_length ch))
               in
-              eval_imports env program
-            with _ -> env (* Ignore errors in src for now, or maybe report? *)
+              let lexbuf = Lexing.from_string src_content in
+              try
+                let program = Parser.program Lexer.token lexbuf in
+                let rec eval_imports env = function
+                  | [] -> env
+                  | stmt :: rest ->
+                      let (_, new_env) = Eval.eval_statement env stmt in
+                      eval_imports new_env rest
+                in
+                eval_imports env program
+              with
+              | Out_of_memory | Stack_overflow as exn -> raise exn
+              | _ -> env (* Ignore errors in src for now, or maybe report? *)
+            with Sys_error _ -> env
           end else env
         ) env entries
       end else env

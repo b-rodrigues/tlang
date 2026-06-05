@@ -164,9 +164,9 @@ let open_rendered_plot viewer path =
          let read_fd, write_fd = Unix.pipe () in
          match Unix.fork () with
          | 0 ->
-             Unix.close read_fd;
-             ignore (Unix.setsid ());
              (try
+                Unix.close read_fd;
+                ignore (Unix.setsid ());
                 let tool_pid = Unix.create_process exec [| exec; path |] devnull devnull devnull in
                 if tool_pid <= 0 then raise (Unix.Unix_error (Unix.ECHILD, "create_process", exec));
                 let ok = Bytes.of_string "OK" in
@@ -174,11 +174,15 @@ let open_rendered_plot viewer path =
                 Unix.close write_fd;
                 Unix.close devnull;
                 Stdlib.exit 0
-              with Unix.Unix_error (child_err, _, _) ->
-                let msg = Bytes.of_string (Unix.error_message child_err) in
-                ignore (Unix.write write_fd msg 0 (Bytes.length msg));
-                Unix.close write_fd;
-                Unix.close devnull;
+              with exn ->
+                let err_msg = match exn with
+                  | Unix.Unix_error (child_err, _, _) -> Unix.error_message child_err
+                  | _ -> Printexc.to_string exn
+                in
+                let msg = Bytes.of_string err_msg in
+                (try ignore (Unix.write write_fd msg 0 (Bytes.length msg)) with Unix.Unix_error _ -> ());
+                (try Unix.close write_fd with Unix.Unix_error _ -> ());
+                (try Unix.close devnull with Unix.Unix_error _ -> ());
                 Stdlib.exit 1)
          | fork_pid ->
              Unix.close write_fd;
@@ -687,9 +691,12 @@ let call_pipeline_to_mermaid p env =
   | Some (VBuiltin builtin) ->
       let args = [(None, p)] in
       let env_ref = ref env in
-      (match builtin.b_func args env_ref with
-       | VString s -> Ok s
-       | other -> Error ("pipeline_to_mermaid returned non-string value: " ^ Utils.type_name other))
+      (try
+         match builtin.b_func args env_ref with
+         | VString s -> Ok s
+         | other -> Error ("pipeline_to_mermaid returned non-string value: " ^ Utils.type_name other)
+       with exn ->
+         Error ("pipeline_to_mermaid raised exception: " ^ Printexc.to_string exn))
   | _ ->
       Error "pipeline_to_mermaid function not found in environment."
 

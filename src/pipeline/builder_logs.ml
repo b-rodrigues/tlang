@@ -97,11 +97,11 @@ let read_log path =
   with exn -> Error (Printexc.to_string exn)
 
 let list_logs () =
-  let logs = get_logs () in
-  let nrows = List.length logs in
-  let arr_filename = Array.init nrows (fun i -> Some (List.nth logs i)) in
+  let logs_arr = Array.of_list (get_logs ()) in
+  let nrows = Array.length logs_arr in
+  let arr_filename = Array.init nrows (fun i -> Some logs_arr.(i)) in
   let arr_mtime = Array.init nrows (fun i ->
-    let f = List.nth logs i in
+    let f = logs_arr.(i) in
     let path = Filename.concat pipeline_dir f in
     let stats = Unix.stat path in
     let tm = Unix.localtime stats.Unix.st_mtime in
@@ -109,7 +109,7 @@ let list_logs () =
       (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min tm.tm_sec)
   ) in
   let arr_size = Array.init nrows (fun i ->
-    let f = List.nth logs i in
+    let f = logs_arr.(i) in
     let path = Filename.concat pipeline_dir f in
     let stats = Unix.stat path in
     let raw_kb = float_of_int stats.Unix.st_size /. 1024.0 in

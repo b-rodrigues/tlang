@@ -236,8 +236,8 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
       let apply_mutation df col_name fn =
         let nrows = Arrow_table.num_rows df.arrow_table in
         if df.group_keys <> [] then
-          let grouped = Arrow_compute.group_by_optimized df.arrow_table df.group_keys in
-          let groups = Arrow_compute.get_ocaml_groups grouped in
+          let grouped = Arrow_compute.group_by df.arrow_table df.group_keys in
+          let groups = Arrow_compute.get_groups grouped in
           let new_col = Array.make nrows (VNA NAGeneric) in
           let had_error = ref None in
           let is_callable = match fn with

@@ -15,35 +15,49 @@ let separate_rows_impl (named_args : (string option * value) list) _env =
        | Some col_name ->
            match Arrow_table.get_column df.arrow_table col_name with
            | Some (StringColumn data) ->
-               let re = Str.regexp sep in
-               let tokens = Array.map (function 
-                 | Some s -> Str.split re s
-                 | None -> [""]
-               ) data in
-               
-               let final_nrows = Array.fold_left (fun acc t -> acc + List.length t) 0 tokens in
-               
-               let expansion_indices = Array.make final_nrows 0 in
-               let sep_values = Array.make final_nrows (VNA NAGeneric) in
-               let curr = ref 0 in
-               Array.iteri (fun i t_list ->
-                 List.iter (fun t ->
-                   expansion_indices.(!curr) <- i;
-                   sep_values.(!curr) <- VString t;
-                   incr curr
-                 ) t_list
-               ) tokens;
-               
-               let new_columns = List.map (fun (name, _) ->
-                 if name = col_name then
-                   (name, Arrow_bridge.values_to_column sep_values)
-                 else
-                   match Arrow_table.get_column df.arrow_table name with
-                   | Some col -> (name, Arrow_table.take_col col expansion_indices final_nrows)
-                   | None -> (name, Arrow_table.NAColumn final_nrows)
-               ) df.arrow_table.schema in
-               
-               VDataFrame { df with arrow_table = { df.arrow_table with columns = new_columns; nrows = final_nrows; native_handle = None } }
+               let re_res =
+                 try Ok (Str.regexp sep)
+                 with Failure msg -> Error (Error.value_error (Printf.sprintf "Function `separate_rows` received an invalid regex: %s" msg))
+               in
+               (match re_res with
+                | Error err -> err
+                | Ok re ->
+                    let tokens_res =
+                      try
+                        Ok (Array.map (function 
+                          | Some s -> Str.split re s
+                          | None -> [""]
+                        ) data)
+                      with Failure msg ->
+                        Error (Error.value_error (Printf.sprintf "Function `separate_rows` failed while splitting values: %s" msg))
+                    in
+                    (match tokens_res with
+                     | Error err -> err
+                     | Ok tokens ->
+                    
+                    let final_nrows = Array.fold_left (fun acc t -> acc + List.length t) 0 tokens in
+                    
+                    let expansion_indices = Array.make final_nrows 0 in
+                    let sep_values = Array.make final_nrows (VNA NAGeneric) in
+                    let curr = ref 0 in
+                    Array.iteri (fun i t_list ->
+                      List.iter (fun t ->
+                        expansion_indices.(!curr) <- i;
+                        sep_values.(!curr) <- VString t;
+                        incr curr
+                      ) t_list
+                    ) tokens;
+                    
+                    let new_columns = List.map (fun (name, _) ->
+                      if name = col_name then
+                        (name, Arrow_bridge.values_to_column sep_values)
+                      else
+                        match Arrow_table.get_column df.arrow_table name with
+                        | Some col -> (name, Arrow_table.take_col col expansion_indices final_nrows)
+                        | None -> (name, Arrow_table.NAColumn final_nrows)
+                    ) df.arrow_table.schema in
+                    
+                    VDataFrame { df with arrow_table = { df.arrow_table with columns = new_columns; nrows = final_nrows; native_handle = None } }))
            | _ -> Error.type_error (Printf.sprintf "Column `%s` is not a String column." col_name))
   | _ :: _ -> Error.type_error "Function `separate_rows` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `separate_rows` requires a DataFrame."

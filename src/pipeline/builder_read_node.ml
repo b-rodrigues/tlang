@@ -534,12 +534,13 @@ let resolve_node_artifact (p : Ast.pipeline_result) (node_name : string)
   ) (get_logs ()) in
   let num_builds = List.length all_matches in
   let resolve_log_path = function
-    | Ast.VString "latest" ->
-        if num_builds = 0 then
-          Error (Error.make_error ValueError
-            (Printf.sprintf "No historical builds found for this pipeline."))
-        else
-          Ok (List.hd all_matches)
+      | Ast.VString "latest" ->
+          (match all_matches with
+           | hd :: _ ->
+               Ok hd
+           | [] ->
+               Error (Error.make_error ValueError
+                 (Printf.sprintf "No historical builds found for this pipeline.")))
     | Ast.VInt idx ->
         if idx <= 0 then
           Error (Error.make_error ValueError
@@ -547,8 +548,12 @@ let resolve_node_artifact (p : Ast.pipeline_result) (node_name : string)
         else if idx > num_builds then
           Error (Error.make_error ValueError
             (Printf.sprintf "%s index %d is out of range. Only %d historical builds match this pipeline." arg_name idx num_builds))
-        else
-          Ok (List.nth all_matches (idx - 1))
+          else
+            (match List.nth_opt all_matches (idx - 1) with
+             | Some p -> Ok p
+             | None ->
+                 Error (Error.make_error ValueError
+                   (Printf.sprintf "Build log index %d is out of range." idx)))
     | Ast.VString pattern ->
         (try
            let re = Str.regexp pattern in

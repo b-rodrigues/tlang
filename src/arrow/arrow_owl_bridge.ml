@@ -96,7 +96,7 @@ let linreg (xs : float array) (ys : float array) : (float * float * float) optio
       sum_xy := !sum_xy +. dx *. (ys.(i) -. mean_y);
       sum_xx := !sum_xx +. dx *. dx
     done;
-    if !sum_xx = 0.0 then None
+    if Float.equal !sum_xx 0.0 then None
     else begin
       let slope = !sum_xy /. !sum_xx in
       let intercept = mean_y -. slope *. mean_x in
@@ -108,14 +108,15 @@ let linreg (xs : float array) (ys : float array) : (float * float * float) optio
         ss_res := !ss_res +. r *. r;
         ss_tot := !ss_tot +. (ys.(i) -. mean_y) *. (ys.(i) -. mean_y)
       done;
-      let r_squared = if !ss_tot = 0.0 then 1.0 else 1.0 -. !ss_res /. !ss_tot in
+      let r_squared = if Float.equal !ss_tot 0.0 then 1.0 else 1.0 -. !ss_res /. !ss_tot in
       Some (intercept, slope, r_squared)
     end
 
 (** Compute residuals from a linear model *)
-let residuals (xs : float array) (ys : float array) (intercept : float) (slope : float) : float array =
-  Array.init (Array.length xs) (fun i ->
-    ys.(i) -. (intercept +. slope *. xs.(i)))
+let residuals (xs : float array) (ys : float array) (intercept : float) (slope : float) : float array option =
+  let n = Array.length xs in
+  if n <> Array.length ys then None
+  else Some (Array.init n (fun i -> ys.(i) -. (intercept +. slope *. xs.(i))))
 
 (** Compute Pearson correlation coefficient between two float arrays.
     Returns None if arrays have different lengths, fewer than 2 elements,
@@ -137,7 +138,7 @@ let pearson_cor (xs : float array) (ys : float array) : float option =
       sum_xx := !sum_xx +. dx *. dx;
       sum_yy := !sum_yy +. dy *. dy
     done;
-    if !sum_xx = 0.0 || !sum_yy = 0.0 then None
+    if Float.equal !sum_xx 0.0 || Float.equal !sum_yy 0.0 then None
     else Some (!sum_xy /. Float.sqrt (!sum_xx *. !sum_yy))
 
 (** Check if a float array has zero variance (i.e. all elements are identical within tolerance).
@@ -393,6 +394,8 @@ let linreg_multi ?weights (xs_list : float array list) (ys : float array)
   let k = List.length xs_list in  (* number of predictors *)
   let p = k + 1 in  (* total parameters including intercept *)
   if n < p || n < 2 then None
+  else if List.exists (fun xs -> Array.length xs <> n) xs_list then None
+  else if List.length predictor_names <> k then None
   else begin
     let obs_weights =
       match weights with
@@ -466,8 +469,8 @@ let linreg_multi ?weights (xs_list : float array list) (ys : float array)
         let sigma2 = if df_resid > 0 then !ss_res /. dff else 0.0 in
         let sigma = sqrt sigma2 in
         (* R² and adjusted R² *)
-        let r_sq = if !ss_tot = 0.0 then 1.0 else 1.0 -. !ss_res /. !ss_tot in
-        let adj_r_sq = if !ss_tot = 0.0 || df_resid = 0 then r_sq
+        let r_sq = if Float.equal !ss_tot 0.0 then 1.0 else 1.0 -. !ss_res /. !ss_tot in
+        let adj_r_sq = if Float.equal !ss_tot 0.0 || df_resid = 0 then r_sq
                        else 1.0 -. (1.0 -. r_sq) *. (nf -. 1.0) /. dff in
         (* Standard errors, t-statistics, p-values *)
         let std_errs = Array.init p (fun j ->

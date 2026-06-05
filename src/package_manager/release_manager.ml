@@ -168,12 +168,18 @@ let get_package_version dir =
   if not (Sys.file_exists desc_path) then
     Error "DESCRIPTION.toml not found"
   else
-    let ch = open_in desc_path in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    match Toml_parser.parse_description_toml content with
-    | Ok config -> Ok config.version
-    | Error msg -> Error ("Failed to parse DESCRIPTION.toml: " ^ msg)
+    try
+      let ch = open_in desc_path in
+      let content =
+        Fun.protect
+          ~finally:(fun () -> close_in_noerr ch)
+          (fun () -> really_input_string ch (in_channel_length ch))
+      in
+      match Toml_parser.parse_description_toml content with
+      | Ok config -> Ok config.version
+      | Error msg -> Error ("Failed to parse DESCRIPTION.toml: " ^ msg)
+    with Sys_error msg ->
+      Error ("Failed to read DESCRIPTION.toml: " ^ msg)
 
 (** Check if CHANGELOG.md contains an entry for the given version *)
 let validate_changelog dir version =
@@ -181,16 +187,22 @@ let validate_changelog dir version =
   if not (Sys.file_exists changelog_path) then
     Error "CHANGELOG.md not found"
   else
-    let ch = open_in changelog_path in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    (* Look for "## [version]" or "## version" *)
-    let pattern = Str.regexp_string version in
     try
-      ignore (Str.search_forward pattern content 0);
-      Ok ()
-    with Not_found ->
-      Error (Printf.sprintf "CHANGELOG.md does not contain an entry for version %s" version)
+      let ch = open_in changelog_path in
+      let content =
+        Fun.protect
+          ~finally:(fun () -> close_in_noerr ch)
+          (fun () -> really_input_string ch (in_channel_length ch))
+      in
+      (* Look for "## [version]" or "## version" *)
+      let pattern = Str.regexp_string version in
+      try
+        ignore (Str.search_forward pattern content 0);
+        Ok ()
+      with Not_found ->
+        Error (Printf.sprintf "CHANGELOG.md does not contain an entry for version %s" version)
+    with Sys_error msg ->
+      Error ("Failed to read CHANGELOG.md: " ^ msg)
 
 (** Create a git tag — uses argv-based execution to prevent shell injection *)
 let create_git_tag version =

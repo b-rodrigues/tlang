@@ -66,14 +66,11 @@ let parse_block lines filename line_num =
         let desc = String.concat " " rest in
         params := { name; type_info = Some type_info; description = desc } :: !params
     | name :: rest ->
-        (* Check if description starts with :: <type> *)
         let desc = String.concat " " rest in
         if starts_with desc ":: " then
-          let type_part = try List.nth (String.split_on_char ' ' desc) 1 with _ -> "" in
-          let real_desc = try 
-            let parts = String.split_on_char ' ' desc in
-            String.concat " " (List.tl (List.tl parts))
-          with _ -> "" in
+          let parts = String.split_on_char ' ' desc |> List.filter (fun s -> s <> "") in
+          let type_part = match parts with _ :: t :: _ -> t | _ -> "" in
+          let real_desc = match parts with _ :: _ :: rest -> String.concat " " rest | _ -> "" in
           params := { name; type_info = Some type_part; description = real_desc } :: !params
         else
           params := { name; type_info = None; description = desc } :: !params
@@ -186,17 +183,16 @@ let parse_file filename =
               prefixes
           in
           if starts_with code_line "let " then
-            try
-              let parts = String.split_on_char ' ' code_line in
-              List.nth parts 1
-            with _ -> "unknown"
+            (match String.split_on_char ' ' code_line with
+             | _ :: name :: _ -> name
+             | _ -> "unknown")
           else if starts_with code_line "fn " then
-            try
-              let parts = String.split_on_char ' ' code_line in
-              let name_part = List.nth parts 1 in
-              (* Handle fn name(...) *)
-              List.hd (String.split_on_char '(' name_part)
-            with _ -> "unknown"
+            (match String.split_on_char ' ' code_line with
+             | _ :: name_part :: _ ->
+               (match String.split_on_char '(' name_part with
+                | hd :: _ -> hd
+                | [] -> "unknown")
+             | _ -> "unknown")
           else "unknown"
         in
         

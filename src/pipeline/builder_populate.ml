@@ -83,8 +83,11 @@ let populate_pipeline ?(build=false) ?verbose ?(nix_options : nix_opts option) (
       if List.length deps >= 2 && not (is_dict_or_list des.Ast.node) then
         let strategy = Nix_unparse.expr_to_string des in
         if strategy <> "default" then
-          Some (Printf.sprintf "Node `%s` has multiple dependencies but uses a single deserializer strategy (\"%s\").\nThis strategy is applied to ALL dependencies, which may cause parse errors if they use different formats (e.g. Arrow vs PMML).\nPlease use a dictionary to specify the deserializer for each dependency, e.g.:\n  deserializer = [ %s: \"...\", %s: \"...\" ]"
-                 name strategy (List.hd deps) (List.nth deps 1))
+          (match deps with
+           | d1 :: d2 :: _ ->
+               Some (Printf.sprintf "Node `%s` has multiple dependencies but uses a single deserializer strategy (\"%s\").\nThis strategy is applied to ALL dependencies, which may cause parse errors if they use different formats (e.g. Arrow vs PMML).\nPlease use a dictionary to specify the deserializer for each dependency, e.g.:\n  deserializer = [ %s: \"...\", %s: \"...\" ]"
+                      name strategy d1 d2)
+           | _ -> None)
         else None
       else None
     ) p.p_exprs

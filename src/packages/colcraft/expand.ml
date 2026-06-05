@@ -15,7 +15,7 @@ let rec cartesian lists =
 let value_compare v1 v2 =
   match v1, v2 with
   | VInt i1, VInt i2 -> compare i1 i2
-  | VFloat f1, VFloat f2 -> compare f1 f2
+  | VFloat f1, VFloat f2 -> Float.compare f1 f2
   | VString s1, VString s2 -> compare s1 s2
   | VBool b1, VBool b2 -> compare b1 b2
   | VNA _, VNA _ -> 0

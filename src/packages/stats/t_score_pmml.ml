@@ -121,7 +121,10 @@ let t_compare_scores_pmml =
                         let col_name = 
                           match List.assoc_opt "target" model_pairs with 
                           | Some (VString s) -> s 
-                          | _ -> List.hd (Arrow_table.column_names df.arrow_table)
+                          | _ ->
+                              match Arrow_table.column_names df.arrow_table with
+                              | name :: _ -> name
+                              | [] -> ""
                         in
                         (match Arrow_table.column_type df.arrow_table col_name with
                          | Some _ ->
