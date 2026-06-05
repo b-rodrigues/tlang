@@ -135,7 +135,7 @@
 | `src/packages/math/t_abs.ml` | [x] |
 | `src/packages/math/t_exp.ml` | [x] |
 | `src/packages/math/t_iota.ml` | [x] |
-| `src/packages/math/t_log.ml` | [ ] |
+| `src/packages/math/t_log.ml` | [x] |
 | `src/packages/math/t_sqrt.ml` | [ ] |
 | `src/packages/math/tan.ml` | [ ] |
 | `src/packages/math/tanh.ml` | [ ] |
