@@ -75,8 +75,7 @@ let docs_loaded : unit Lazy.t =
     match loaded_path with
     | Some path -> (
         try
-          Tdoc_registry.load_from_json path;
-          prerr_endline (Printf.sprintf "Documentation: loaded from %s" path)
+          Tdoc_registry.load_from_json path
         with exn ->
           prerr_endline (Printf.sprintf "Documentation: failed to parse %s: %s" path (Printexc.to_string exn))
       )
