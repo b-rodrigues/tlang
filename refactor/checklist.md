@@ -130,7 +130,7 @@
 | `src/packages/math/round.ml` | [x] |
 | `src/packages/math/sign.ml` | [x] |
 | `src/packages/math/signif.ml` | [x] |
-| `src/packages/math/sin.ml` | [ ] |
+| `src/packages/math/sin.ml` | [x] |
 | `src/packages/math/sinh.ml` | [ ] |
 | `src/packages/math/t_abs.ml` | [ ] |
 | `src/packages/math/t_exp.ml` | [ ] |
