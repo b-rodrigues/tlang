@@ -218,7 +218,7 @@ let register env =
                   match Arrow_io.download_url path with
                   | Ok temp_path ->
                       let c = read_content_from_path temp_path in
-                      (try Sys.remove temp_path with _ -> ());
+                      (try Sys.remove temp_path with Sys_error _ -> ());
                       c
                   | Error msg -> failwith msg
                 else

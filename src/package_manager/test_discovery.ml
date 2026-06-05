@@ -94,8 +94,10 @@ let run_test_file (file : string) : test_result =
                       eval_imports new_env rest
                 in
                 eval_imports env program
-              with _ -> env (* Ignore errors in src for now, or maybe report? *)
-            with _ -> env
+              with
+              | Out_of_memory | Stack_overflow as exn -> raise exn
+              | _ -> env (* Ignore errors in src for now, or maybe report? *)
+            with Sys_error _ -> env
           end else env
         ) env entries
       end else env

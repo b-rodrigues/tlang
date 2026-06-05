@@ -697,11 +697,11 @@ let materialize (t : t) : t =
           | Some ptr -> create_from_native ptr t.schema t.nrows
           | None -> t
         with
-        | Invalid_argument msg ->
-            Printf.eprintf "Warning: Native materialization failed (%s). Keeping OCaml representation.\n%!" msg;
-            t
-        | _ ->
-            Printf.eprintf "Warning: Native materialization failed due to unexpected exception. Keeping OCaml representation.\n%!";
+        | Out_of_memory | Stack_overflow as exn -> raise exn
+        | exn ->
+            Printf.eprintf
+              "Warning: Native materialization failed (%s). Keeping OCaml representation.\n%!"
+              (Printexc.to_string exn);
             t
 
 (** Prepare a table for transfer across processes (e.g. via Marshal).
@@ -933,13 +933,20 @@ let take_rows (t : t) (indices : int list) : t =
 
 (** Reorder rows by index array *)
 let sort_by_indices (t : t) (indices : int array) : t =
-  let valid_indices = Array.of_list (List.filter (fun idx -> idx >= 0 && idx < t.nrows) (Array.to_list indices)) in
+  let invalid_index = Array.find_opt (fun idx -> idx < 0 || idx >= t.nrows) indices in
+  match invalid_index with
+  | Some idx ->
+      Printf.eprintf
+        "Warning: sort_by_indices received out-of-bounds index %d for table with %d rows; leaving row order unchanged.\n%!"
+        idx t.nrows;
+      t
+  | None ->
   match t.native_handle with
   | Some handle when not handle.freed ->
-      (match Arrow_ffi.arrow_table_take handle.ptr valid_indices with
+      (match Arrow_ffi.arrow_table_take handle.ptr indices with
        | Some new_ptr ->
            let schema = schema_from_native_ptr new_ptr in
-           create_from_native new_ptr schema (Array.length valid_indices)
+           create_from_native new_ptr schema (Array.length indices)
        | None -> 
            (* Fallback: Materialize native columns if needed, then sort *)
            let source_columns =
@@ -949,32 +956,32 @@ let sort_by_indices (t : t) (indices : int array) : t =
                | None -> (n, NAColumn t.nrows)
              ) t.schema
            in
-           let n = Array.length valid_indices in
+           let n = Array.length indices in
            let sort_col = function
-             | IntColumn a -> IntColumn (Array.init n (fun i -> a.(valid_indices.(i))))
-             | FloatColumn a -> FloatColumn (Array.init n (fun i -> a.(valid_indices.(i))))
-             | BoolColumn a -> BoolColumn (Array.init n (fun i -> a.(valid_indices.(i))))
-             | StringColumn a -> StringColumn (Array.init n (fun i -> a.(valid_indices.(i))))
-             | DateColumn a -> DateColumn (Array.init n (fun i -> a.(valid_indices.(i))))
-             | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init n (fun i -> a.(valid_indices.(i))), tz)
+             | IntColumn a -> IntColumn (Array.init n (fun i -> a.(indices.(i))))
+             | FloatColumn a -> FloatColumn (Array.init n (fun i -> a.(indices.(i))))
+             | BoolColumn a -> BoolColumn (Array.init n (fun i -> a.(indices.(i))))
+             | StringColumn a -> StringColumn (Array.init n (fun i -> a.(indices.(i))))
+             | DateColumn a -> DateColumn (Array.init n (fun i -> a.(indices.(i))))
+             | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init n (fun i -> a.(indices.(i))), tz)
              | NAColumn _ -> NAColumn n
-             | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(valid_indices.(i))), levels, ordered)
-             | ListColumn a -> ListColumn (Array.init n (fun i -> a.(valid_indices.(i))))
+             | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(indices.(i))), levels, ordered)
+             | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
            in
            let columns = List.map (fun (name, col) -> (name, sort_col col)) source_columns in
            { schema = t.schema; columns; nrows = n; native_handle = None } |> materialize)
   | _ ->
-    let n = Array.length valid_indices in
+    let n = Array.length indices in
     let sort_col = function
-      | IntColumn a -> IntColumn (Array.init n (fun i -> a.(valid_indices.(i))))
-      | FloatColumn a -> FloatColumn (Array.init n (fun i -> a.(valid_indices.(i))))
-      | BoolColumn a -> BoolColumn (Array.init n (fun i -> a.(valid_indices.(i))))
-      | StringColumn a -> StringColumn (Array.init n (fun i -> a.(valid_indices.(i))))
-      | DateColumn a -> DateColumn (Array.init n (fun i -> a.(valid_indices.(i))))
-      | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init n (fun i -> a.(valid_indices.(i))), tz)
+      | IntColumn a -> IntColumn (Array.init n (fun i -> a.(indices.(i))))
+      | FloatColumn a -> FloatColumn (Array.init n (fun i -> a.(indices.(i))))
+      | BoolColumn a -> BoolColumn (Array.init n (fun i -> a.(indices.(i))))
+      | StringColumn a -> StringColumn (Array.init n (fun i -> a.(indices.(i))))
+      | DateColumn a -> DateColumn (Array.init n (fun i -> a.(indices.(i))))
+      | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init n (fun i -> a.(indices.(i))), tz)
       | NAColumn _ -> NAColumn n
-      | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(valid_indices.(i))), levels, ordered)
-      | ListColumn a -> ListColumn (Array.init n (fun i -> a.(valid_indices.(i))))
+      | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(indices.(i))), levels, ordered)
+      | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
     in
     let columns = List.map (fun (name, col) -> (name, sort_col col)) t.columns in
     { schema = t.schema; columns; nrows = n; native_handle = None } |> materialize
