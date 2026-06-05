@@ -162,26 +162,26 @@
 | `src/packages/pipeline/pipeline_node.ml` | [x] |
 | `src/packages/pipeline/pipeline_nodes.ml` | [x] |
 | `src/packages/pipeline/pipeline_run.ml` | [x] |
-| `src/packages/pipeline/pipeline_set_ops.ml` | [ ] |
-| `src/packages/pipeline/pipeline_to_drv.ml` | [ ] |
-| `src/packages/pipeline/pipeline_to_frame.ml` | [ ] |
-| `src/packages/pipeline/pipeline_to_store.ml` | [ ] |
-| `src/packages/pipeline/populate_pipeline.ml` | [ ] |
-| `src/packages/pipeline/pyn_docs.ml` | [ ] |
-| `src/packages/pipeline/qn_docs.ml` | [ ] |
-| `src/packages/pipeline/read_node.ml` | [ ] |
-| `src/packages/pipeline/rename_node.ml` | [ ] |
-| `src/packages/pipeline/rn_docs.ml` | [ ] |
-| `src/packages/pipeline/select_node.ml` | [ ] |
-| `src/packages/pipeline/set_nix_defaults.ml` | [ ] |
-| `src/packages/pipeline/shn_docs.ml` | [ ] |
-| `src/packages/pipeline/t_make_mod.ml` | [ ] |
-| `src/packages/pipeline/trace_nodes.ml` | [ ] |
-| `src/packages/pipeline/which_nodes.ml` | [ ] |
-| `src/packages/stats/add_diagnostics.ml` | [ ] |
-| `src/packages/stats/anova.ml` | [ ] |
-| `src/packages/stats/basis.ml` | [ ] |
-| `src/packages/stats/coef.ml` | [ ] |
+| `src/packages/pipeline/pipeline_set_ops.ml` | [x] |
+| `src/packages/pipeline/pipeline_to_drv.ml` | [x] |
+| `src/packages/pipeline/pipeline_to_frame.ml` | [x] |
+| `src/packages/pipeline/pipeline_to_store.ml` | [x] |
+| `src/packages/pipeline/populate_pipeline.ml` | [x] |
+| `src/packages/pipeline/pyn_docs.ml` | [x] |
+| `src/packages/pipeline/qn_docs.ml` | [x] |
+| `src/packages/pipeline/read_node.ml` | [x] |
+| `src/packages/pipeline/rename_node.ml` | [x] |
+| `src/packages/pipeline/rn_docs.ml` | [x] |
+| `src/packages/pipeline/select_node.ml` | [x] |
+| `src/packages/pipeline/set_nix_defaults.ml` | [x] |
+| `src/packages/pipeline/shn_docs.ml` | [x] |
+| `src/packages/pipeline/t_make_mod.ml` | [x] |
+| `src/packages/pipeline/trace_nodes.ml` | [x] |
+| `src/packages/pipeline/which_nodes.ml` | [x] |
+| `src/packages/stats/add_diagnostics.ml` | [x] |
+| `src/packages/stats/anova.ml` | [x] |
+| `src/packages/stats/basis.ml` | [x] |
+| `src/packages/stats/coef.ml` | [x] |
 | `src/packages/stats/compare.ml` | [ ] |
 | `src/packages/stats/conf_int.ml` | [ ] |
 | `src/packages/stats/cor.ml` | [ ] |

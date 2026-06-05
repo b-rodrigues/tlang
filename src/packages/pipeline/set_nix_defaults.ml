@@ -1,4 +1,5 @@
 open Ast
+open Pipeline_utils
 
 (*
 --# Set Global Nix Orchestration Defaults
@@ -24,8 +25,9 @@ let register env =
     | Some v -> (true, v)
     | None ->
         let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-        if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
-        else (false, default)
+        match nth_safe (pos - 1) positionals with
+        | Some v -> (true, v)
+        | None -> (false, default)
   in
   let set_fn named_args _env =
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
