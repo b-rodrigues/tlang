@@ -100,7 +100,7 @@
 | `src/packages/dataframe/clean_colnames.ml` | [x] |
 | `src/packages/dataframe/colnames.ml` | [x] |
 | `src/packages/dataframe/glimpse.ml` | [x] |
-| `src/packages/dataframe/ncol.ml` | [ ] |
+| `src/packages/dataframe/ncol.ml` | [x] |
 | `src/packages/dataframe/nrow.ml` | [ ] |
 | `src/packages/dataframe/t_dataframe.ml` | [ ] |
 | `src/packages/dataframe/t_read_arrow.ml` | [ ] |
