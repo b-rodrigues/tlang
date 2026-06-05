@@ -251,16 +251,16 @@
 | `src/pipeline/builder_write_dag.ml` | [x] |
 | `src/pipeline/nix_emit_node.ml` | [x] |
 | `src/pipeline/nix_emit_pipeline.ml` | [x] |
-| `src/pipeline/nix_emitter.ml` | [ ] |
-| `src/pipeline/nix_unparse.ml` | [ ] |
-| `src/pipeline/nix_utils.ml` | [ ] |
-| `src/pipeline/pipeline_dependency_requirements.ml` | [ ] |
-| `src/pipeline_script.ml` | [ ] |
-| `src/pmml_utils.ml` | [ ] |
-| `src/repl.ml` | [ ] |
-| `src/semantic_type.ml` | [ ] |
-| `src/serialization.ml` | [ ] |
-| `src/serialization_registry.ml` | [ ] |
+| `src/pipeline/nix_emitter.ml` | [x] |
+| `src/pipeline/nix_unparse.ml` | [x] |
+| `src/pipeline/nix_utils.ml` | [x] |
+| `src/pipeline/pipeline_dependency_requirements.ml` | [x] |
+| `src/pipeline_script.ml` | [x] |
+| `src/pmml_utils.ml` | [x] |
+| `src/repl.ml` | [x] |
+| `src/semantic_type.ml` | [x] |
+| `src/serialization.ml` | [x] |
+| `src/serialization_registry.ml` | [x] |
 | `src/stats.ml` | [ ] |
 | `src/symbol_table.ml` | [ ] |
 | `src/tdoc/tdoc_json.ml` | [ ] |
