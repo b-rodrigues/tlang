@@ -431,7 +431,10 @@ let register env =
       in
       match args with
       | [VPipeline p] -> render p
-      | [VMetaPipeline _ as v] -> render (Pipeline_composition.flatten_meta v)
+      | [VMetaPipeline _ as v] ->
+          (match Pipeline_composition.flatten_meta v with
+           | VPipeline p -> render p
+           | e -> e)
       | [_] -> Error.type_error "Function `pipeline_to_dot` expects a Pipeline or MetaPipeline."
       | _ -> Error.arity_error_named "pipeline_to_dot" 1 (List.length args)
     ))
@@ -501,7 +504,10 @@ let register env =
       in
       match args with
       | [VPipeline p] -> render p
-      | [VMetaPipeline _ as v] -> render (Pipeline_composition.flatten_meta v)
+      | [VMetaPipeline _ as v] ->
+          (match Pipeline_composition.flatten_meta v with
+           | VPipeline p -> render p
+           | e -> e)
       | [_] -> Error.type_error "Function `pipeline_to_mermaid` expects a Pipeline or MetaPipeline."
       | _ -> Error.arity_error_named "pipeline_to_mermaid" 1 (List.length args)
     ))

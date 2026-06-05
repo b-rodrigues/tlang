@@ -160,120 +160,128 @@ and find_dot_access_targets_stmt (stmt : Ast.stmt) : string list =
   | Reassignment { expr; _ } -> find_dot_access_targets expr
   | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> []
 
-let rec flatten_meta (v : value) : pipeline_result =
+let rec flatten_meta (v : value) : value =
   match v with
-  | VPipeline p -> p
+  | VPipeline _ -> v
   | VMetaPipeline mp ->
-      let flattened_subs = List.map (fun (name, sub_val) ->
+      let sub_results = List.map (fun (name, sub_val) ->
         (name, flatten_meta sub_val)
       ) mp.mp_pipelines in
-      let namespaced_subs = List.map (fun (sub_name, flat_sub) ->
-        let local_names = List.map fst flat_sub.p_exprs in
-        let ns n = sub_name ^ "." ^ n in
-        (sub_name, flat_sub, local_names, ns)
-      ) flattened_subs in
-      let final_deps = ref [] in
-      List.iter (fun (sub_name, flat_sub, local_names, ns) ->
-        let sub_deps = List.map (fun (n, deps) ->
-          (ns n, List.map (fun d -> if List.mem d local_names then ns d else d) deps)
-        ) flat_sub.p_deps in
-        let sub_names = List.map fst mp.mp_pipelines in
-        let inferred_deps =
-          List.concat_map (fun (_, e) -> find_dot_access_targets e) flat_sub.p_exprs
-          |> List.filter (fun target -> List.mem target sub_names && target <> sub_name)
-        in
-        let all_dep_sub_names = List.sort_uniq compare inferred_deps in
-        let sub_roots = find_root_nodes flat_sub.p_exprs flat_sub.p_deps in
-        let updated_sub_deps = List.map (fun (n, deps) ->
-          let orig_n = String.sub n (String.length sub_name + 1) (String.length n - String.length sub_name - 1) in
-          if List.mem orig_n sub_roots then
-            let additional_deps = List.concat_map (fun dep_sub_name ->
-              match List.assoc_opt dep_sub_name flattened_subs with
-              | None -> []
-              | Some dep_flat ->
-                  let dep_terminals = find_terminal_nodes dep_flat.p_exprs dep_flat.p_deps in
-                  List.map (fun term -> dep_sub_name ^ "." ^ term) dep_terminals
-            ) all_dep_sub_names in
-            let clean_deps = List.filter (fun d -> not (List.mem d sub_names)) deps in
-            (n, clean_deps @ additional_deps)
-          else
-            (n, deps)
-        ) sub_deps in
-        final_deps := List.rev_append updated_sub_deps !final_deps
-      ) namespaced_subs;
-      let merge_fields select_field combine_field =
-        List.fold_left (fun acc (_, flat_sub, local_names, ns) ->
-          let field_val = select_field flat_sub local_names ns in
-          combine_field acc field_val
-        ) [] namespaced_subs
-      in
-      let p_nodes = merge_fields (fun flat local ns ->
-        let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
-        List.map (fun (n, v) -> (ns n, namespace_value sub_name local v)) flat.p_nodes
-      ) (@) in
-      let p_exprs = merge_fields (fun flat local ns ->
-        let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
-        List.map (fun (n, e) -> (ns n, rewrite_expr sub_name local e)) flat.p_exprs
-      ) (@) in
-      let p_imports = merge_fields (fun flat _ _ -> flat.p_imports) (@) in
-      let p_imports = List.sort_uniq compare p_imports in
-      let p_runtimes = merge_fields (fun flat _ ns -> List.map (fun (n, r) -> (ns n, r)) flat.p_runtimes) (@) in
-      let p_serializers = merge_fields (fun flat local ns ->
-        let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
-        List.map (fun (n, s) -> (ns n, rewrite_expr sub_name local s)) flat.p_serializers
-      ) (@) in
-      let p_deserializers = merge_fields (fun flat local ns ->
-        let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
-        List.map (fun (n, s) -> (ns n, rewrite_expr sub_name local s)) flat.p_deserializers
-      ) (@) in
-      let p_env_vars = merge_fields (fun flat _ ns -> List.map (fun (n, ev) -> (ns n, ev)) flat.p_env_vars) (@) in
-      let p_args = merge_fields (fun flat _ ns -> List.map (fun (n, a) -> (ns n, a)) flat.p_args) (@) in
-      let p_shells = merge_fields (fun flat _ ns -> List.map (fun (n, s) -> (ns n, s)) flat.p_shells) (@) in
-      let p_shell_args = merge_fields (fun flat local ns ->
-        let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
-        List.map (fun (n, sa) -> (ns n, List.map (rewrite_expr sub_name local) sa)) flat.p_shell_args
-      ) (@) in
-      let p_functions = merge_fields (fun flat local ns ->
-        let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
-        List.map (fun (n, f) -> (ns n, List.map (rewrite_expr sub_name local) f)) flat.p_functions
-      ) (@) in
-      let p_includes = merge_fields (fun flat local ns ->
-        let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
-        List.map (fun (n, i) -> (ns n, List.map (rewrite_expr sub_name local) i)) flat.p_includes
-      ) (@) in
-      let p_noops = merge_fields (fun flat _ ns -> List.map (fun (n, no) -> (ns n, no)) flat.p_noops) (@) in
-      let p_scripts = merge_fields (fun flat _ ns -> List.map (fun (n, sc) -> (ns n, sc)) flat.p_scripts) (@) in
-      let p_explicit_deps = merge_fields (fun flat _ ns ->
-        List.map (fun (n, ed) -> (ns n, Option.map (List.map ns) ed)) flat.p_explicit_deps
-      ) (@) in
-      let p_node_diagnostics = merge_fields (fun flat local ns ->
-        List.map (fun (n, nd) -> (ns n, namespace_diagnostics (String.sub (ns "") 0 (String.length (ns "") - 1)) local nd)) flat.p_node_diagnostics
-      ) (@) in
-      {
-        p_nodes;
-        p_exprs;
-        p_deps = List.rev !final_deps;
-        p_imports;
-        p_runtimes;
-        p_serializers;
-        p_deserializers;
-        p_env_vars;
-        p_args;
-        p_shells;
-        p_shell_args;
-        p_functions;
-        p_includes;
-        p_noops;
-        p_scripts;
-        p_explicit_deps;
-        p_node_diagnostics;
-      }
-  | _ -> failwith "meta_flatten: expected a MetaPipeline or Pipeline value"
+      let first_error = List.find_map (fun (_, r) ->
+        match r with VError _ as e -> Some e | _ -> None
+      ) sub_results in
+      (match first_error with
+       | Some e -> e
+       | None ->
+           let flattened_subs = List.filter_map (fun (name, r) ->
+             match r with VPipeline p -> Some (name, p) | _ -> None
+           ) sub_results in
+           let namespaced_subs = List.map (fun (sub_name, flat_sub) ->
+             let local_names = List.map fst flat_sub.p_exprs in
+             let ns n = sub_name ^ "." ^ n in
+             (sub_name, flat_sub, local_names, ns)
+           ) flattened_subs in
+           let final_deps = List.concat (List.map (fun (sub_name, flat_sub, local_names, ns) ->
+             let sub_deps = List.map (fun (n, deps) ->
+               (ns n, List.map (fun d -> if List.mem d local_names then ns d else d) deps)
+             ) flat_sub.p_deps in
+             let sub_names = List.map fst mp.mp_pipelines in
+             let inferred_deps =
+               List.concat_map (fun (_, e) -> find_dot_access_targets e) flat_sub.p_exprs
+               |> List.filter (fun target -> List.mem target sub_names && target <> sub_name)
+             in
+             let all_dep_sub_names = List.sort_uniq compare inferred_deps in
+             let sub_roots = find_root_nodes flat_sub.p_exprs flat_sub.p_deps in
+             List.map (fun (n, deps) ->
+               let orig_n = String.sub n (String.length sub_name + 1) (String.length n - String.length sub_name - 1) in
+               if List.mem orig_n sub_roots then
+                 let additional_deps = List.concat_map (fun dep_sub_name ->
+                   match List.assoc_opt dep_sub_name flattened_subs with
+                   | None -> []
+                   | Some dep_flat ->
+                       let dep_terminals = find_terminal_nodes dep_flat.p_exprs dep_flat.p_deps in
+                       List.map (fun term -> dep_sub_name ^ "." ^ term) dep_terminals
+                 ) all_dep_sub_names in
+                 let clean_deps = List.filter (fun d -> not (List.mem d sub_names)) deps in
+                 (n, clean_deps @ additional_deps)
+               else
+                 (n, deps)
+             ) sub_deps
+           ) namespaced_subs) in
+           let merge_fields select_field combine_field =
+             List.fold_left (fun acc (_, flat_sub, local_names, ns) ->
+               let field_val = select_field flat_sub local_names ns in
+               combine_field acc field_val
+             ) [] namespaced_subs
+           in
+           let p_nodes = merge_fields (fun flat local ns ->
+             let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
+             List.map (fun (n, v) -> (ns n, namespace_value sub_name local v)) flat.p_nodes
+           ) (@) in
+           let p_exprs = merge_fields (fun flat local ns ->
+             let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
+             List.map (fun (n, e) -> (ns n, rewrite_expr sub_name local e)) flat.p_exprs
+           ) (@) in
+           let p_imports = merge_fields (fun flat _ _ -> flat.p_imports) (@) in
+           let p_imports = List.sort_uniq compare p_imports in
+           let p_runtimes = merge_fields (fun flat _ ns -> List.map (fun (n, r) -> (ns n, r)) flat.p_runtimes) (@) in
+           let p_serializers = merge_fields (fun flat local ns ->
+             let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
+             List.map (fun (n, s) -> (ns n, rewrite_expr sub_name local s)) flat.p_serializers
+           ) (@) in
+           let p_deserializers = merge_fields (fun flat local ns ->
+             let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
+             List.map (fun (n, s) -> (ns n, rewrite_expr sub_name local s)) flat.p_deserializers
+           ) (@) in
+           let p_env_vars = merge_fields (fun flat _ ns -> List.map (fun (n, ev) -> (ns n, ev)) flat.p_env_vars) (@) in
+           let p_args = merge_fields (fun flat _ ns -> List.map (fun (n, a) -> (ns n, a)) flat.p_args) (@) in
+           let p_shells = merge_fields (fun flat _ ns -> List.map (fun (n, s) -> (ns n, s)) flat.p_shells) (@) in
+           let p_shell_args = merge_fields (fun flat local ns ->
+             let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
+             List.map (fun (n, sa) -> (ns n, List.map (rewrite_expr sub_name local) sa)) flat.p_shell_args
+           ) (@) in
+           let p_functions = merge_fields (fun flat local ns ->
+             let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
+             List.map (fun (n, f) -> (ns n, List.map (rewrite_expr sub_name local) f)) flat.p_functions
+           ) (@) in
+           let p_includes = merge_fields (fun flat local ns ->
+             let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
+             List.map (fun (n, i) -> (ns n, List.map (rewrite_expr sub_name local) i)) flat.p_includes
+           ) (@) in
+           let p_noops = merge_fields (fun flat _ ns -> List.map (fun (n, no) -> (ns n, no)) flat.p_noops) (@) in
+           let p_scripts = merge_fields (fun flat _ ns -> List.map (fun (n, sc) -> (ns n, sc)) flat.p_scripts) (@) in
+           let p_explicit_deps = merge_fields (fun flat _ ns ->
+             List.map (fun (n, ed) -> (ns n, Option.map (List.map ns) ed)) flat.p_explicit_deps
+           ) (@) in
+           let p_node_diagnostics = merge_fields (fun flat local ns ->
+             List.map (fun (n, nd) -> (ns n, namespace_diagnostics (String.sub (ns "") 0 (String.length (ns "") - 1)) local nd)) flat.p_node_diagnostics
+           ) (@) in
+           VPipeline {
+             p_nodes;
+             p_exprs;
+             p_deps = final_deps;
+             p_imports;
+             p_runtimes;
+             p_serializers;
+             p_deserializers;
+             p_env_vars;
+             p_args;
+             p_shells;
+             p_shell_args;
+             p_functions;
+             p_includes;
+             p_noops;
+             p_scripts;
+             p_explicit_deps;
+             p_node_diagnostics;
+           })
+  | other ->
+      Error.type_error (Printf.sprintf "flatten_meta: expected a MetaPipeline or Pipeline value, got %s." (Utils.type_name other))
 
 let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> pipeline_result -> value) env =
   Ast.meta_pipeline_flatten_resolver := (fun v ->
     match v with
-    | VMetaPipeline _ -> VPipeline (flatten_meta v)
+    | VPipeline _ | VMetaPipeline _ -> flatten_meta v
     | _ -> v
   );
 
@@ -416,12 +424,9 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
     (make_builtin ~name:"meta_flatten" 1 (fun args env ->
       match args with
       | [v] ->
-          (try
-             let flat_p = flatten_meta v in
-             rerun_pipeline ?strict:None env flat_p
-           with
-           | Failure msg -> Error.make_error ValueError msg
-           | _ -> Error.make_error TypeError "meta_flatten expects a MetaPipeline or Pipeline value")
+          (match flatten_meta v with
+           | VPipeline flat_p -> rerun_pipeline ?strict:None env flat_p
+           | e -> e)
       | _ -> Error.arity_error_named "meta_flatten" 1 (List.length args)
     ))
     env

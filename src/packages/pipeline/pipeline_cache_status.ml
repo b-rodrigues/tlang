@@ -52,9 +52,9 @@ let register env =
                        ("cached",     Arrow_table.BoolColumn arr_cached);
                        ("store_path", Arrow_table.StringColumn arr_store_path);
                      ] in
-                     let arrow_table = Arrow_table.create columns nrows in
-                     VDataFrame { arrow_table; group_keys = [] })
+                      let arrow_table = Arrow_table.create columns nrows in
+                      VDataFrame { arrow_table; group_keys = [] }))
       | [_] -> Error.type_error "Function `pipeline_cache_status` expects a Pipeline as argument."
       | _ -> Error.arity_error_named "pipeline_cache_status" 1 (List.length args)
-    ))
+      ))
     env

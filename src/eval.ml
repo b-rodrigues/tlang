@@ -2441,8 +2441,9 @@ and eval_dot_access_val _env_ref target_val field =
                        ("__partial_dot_prefix__", VString field)]
            else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
   | VMetaPipeline mp ->
-      let flat_p = Pipeline_composition.flatten_meta (VMetaPipeline mp) in
-      eval_dot_access_val _env_ref (VPipeline flat_p) field
+      (match Pipeline_composition.flatten_meta (VMetaPipeline mp) with
+       | VPipeline flat_p -> eval_dot_access_val _env_ref (VPipeline flat_p) field
+       | e -> e)
   | VBuildLog bl ->
       (match field with
        | "nodes" -> VList (List.map (fun x -> (None, x)) bl.bl_nodes)
@@ -3286,7 +3287,7 @@ and eval_program ?(resilient=true) (program : program) (env : environment) : val
 
 let flatten_if_meta v =
   match v with
-  | VMetaPipeline _ -> VPipeline (Pipeline_composition.flatten_meta v)
+  | VMetaPipeline _ -> Pipeline_composition.flatten_meta v
   | _ -> v
 
 let make_builtin ?name ?(variadic=false) ?(unwrap=true) arity func =
