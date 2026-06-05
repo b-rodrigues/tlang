@@ -91,7 +91,7 @@
 | `src/packages/core/sum.ml` | [x] |
 | `src/packages/core/t_boolean.ml` | [x] |
 | `src/packages/core/t_get.ml` | [x] |
-| `src/packages/core/t_map.ml` | [ ] |
+| `src/packages/core/t_map.ml` | [x] |
 | `src/packages/core/t_print.ml` | [ ] |
 | `src/packages/core/t_seq.ml` | [ ] |
 | `src/packages/core/t_type.ml` | [ ] |
