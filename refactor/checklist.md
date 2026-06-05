@@ -103,7 +103,7 @@
 | `src/packages/dataframe/ncol.ml` | [x] |
 | `src/packages/dataframe/nrow.ml` | [x] |
 | `src/packages/dataframe/t_dataframe.ml` | [x] |
-| `src/packages/dataframe/t_read_arrow.ml` | [ ] |
+| `src/packages/dataframe/t_read_arrow.ml` | [x] |
 | `src/packages/dataframe/t_read_csv.ml` | [ ] |
 | `src/packages/dataframe/t_read_parquet.ml` | [ ] |
 | `src/packages/dataframe/t_write_arrow.ml` | [ ] |
