@@ -94,7 +94,7 @@
 | `src/packages/core/t_map.ml` | [x] |
 | `src/packages/core/t_print.ml` | [x] |
 | `src/packages/core/t_seq.ml` | [x] |
-| `src/packages/core/t_type.ml` | [ ] |
+| `src/packages/core/t_type.ml` | [x] |
 | `src/packages/core/t_write_text.ml` | [ ] |
 | `src/packages/core/tail.ml` | [ ] |
 | `src/packages/dataframe/clean_colnames.ml` | [ ] |
