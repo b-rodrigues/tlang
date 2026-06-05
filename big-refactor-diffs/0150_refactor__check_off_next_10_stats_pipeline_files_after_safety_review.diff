@@ -1,0 +1,38 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index bd31ce09..02603578 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -182,7 +182,7 @@
+ | `src/packages/stats/anova.ml` | [x] |
+ | `src/packages/stats/basis.ml` | [x] |
+ | `src/packages/stats/coef.ml` | [x] |
+-| `src/packages/stats/compare.ml` | [ ] |
++| `src/packages/stats/compare.ml` | [x] |
+ | `src/packages/stats/conf_int.ml` | [x] |
+ | `src/packages/stats/cor.ml` | [x] |
+ | `src/packages/stats/cov.ml` | [x] |
+@@ -232,15 +232,15 @@
+ | `src/packages/stats/t_score_pmml.ml` | [x] |
+ 
+ | `src/packages/stats/trimmed_mean.ml` | [x] |
+-| `src/packages/stats/var.ml` | [ ] |
+-| `src/packages/stats/vcov.ml` | [ ] |
+-| `src/packages/stats/wald_test.ml` | [ ] |
+-| `src/packages/stats/winsorize.ml` | [ ] |
+-| `src/packages/strcraft/string_ops.ml` | [ ] |
+-| `src/parser.mly` | [ ] |
+-| `src/pipeline/builder.ml` | [ ] |
+-| `src/pipeline/builder_artifacts.ml` | [ ] |
+-| `src/pipeline/builder_copy.ml` | [ ] |
++| `src/packages/stats/var.ml` | [x] |
++| `src/packages/stats/vcov.ml` | [x] |
++| `src/packages/stats/wald_test.ml` | [x] |
++| `src/packages/stats/winsorize.ml` | [x] |
++| `src/packages/strcraft/string_ops.ml` | [x] |
++| `src/parser.mly` | [x] |
++| `src/pipeline/builder.ml` | [x] |
++| `src/pipeline/builder_artifacts.ml` | [x] |
++| `src/pipeline/builder_copy.ml` | [x] |
+ | `src/pipeline/builder_inspect.ml` | [ ] |
+ | `src/pipeline/builder_internal.ml` | [ ] |
+ | `src/pipeline/builder_logs.ml` | [ ] |
