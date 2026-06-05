@@ -89,7 +89,7 @@
 | `src/packages/core/pretty_print.ml` | [x] |
 | `src/packages/core/show_plot.ml` | [x] |
 | `src/packages/core/sum.ml` | [x] |
-| `src/packages/core/t_boolean.ml` | [ ] |
+| `src/packages/core/t_boolean.ml` | [x] |
 | `src/packages/core/t_get.ml` | [ ] |
 | `src/packages/core/t_map.ml` | [ ] |
 | `src/packages/core/t_print.ml` | [ ] |
