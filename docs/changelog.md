@@ -2,7 +2,10 @@
 
 ## [0.52.3] - 2026-06-xx
 
-This release introduces a new meta-pipeline composition feature, `pipeline_of`, first-class artifact export/import capabilities, and new meta-pipeline graph visualization functions.
+This release:
+
+- introduces a new meta-pipeline composition feature, `pipeline_of`, first-class artifact export/import capabilities, and new meta-pipeline graph visualization functions.
+- Refactores the codebase following OCaml best practices and conventions.
 
 ### Pipeline Soft-Fail & Early-Abort Semantics
 - **Block Evaluation Early Abort**: Blocks (`{ ... }`) now abort immediately on encountering a `VError`, returning the error rather than continuing evaluation of remaining statements. This is a breaking change for code that relied on ignoring intermediate block errors.
