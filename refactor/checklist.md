@@ -74,7 +74,7 @@
 | `src/packages/colcraft/uncount.ml` | [x] |
 | `src/packages/colcraft/ungroup.ml` | [x] |
 | `src/packages/colcraft/unite.ml` | [x] |
-| `src/packages/colcraft/unnest.ml` | [ ] |
+| `src/packages/colcraft/unnest.ml` | [x] |
 | `src/packages/colcraft/window_cumulative.ml` | [ ] |
 | `src/packages/colcraft/window_offset.ml` | [ ] |
 | `src/packages/colcraft/window_rank.ml` | [ ] |
