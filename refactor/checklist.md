@@ -72,7 +72,7 @@
 | `src/packages/colcraft/t_filter.ml` | [x] |
 | `src/packages/colcraft/t_select.ml` | [x] |
 | `src/packages/colcraft/uncount.ml` | [x] |
-| `src/packages/colcraft/ungroup.ml` | [ ] |
+| `src/packages/colcraft/ungroup.ml` | [x] |
 | `src/packages/colcraft/unite.ml` | [ ] |
 | `src/packages/colcraft/unnest.ml` | [ ] |
 | `src/packages/colcraft/window_cumulative.ml` | [ ] |
