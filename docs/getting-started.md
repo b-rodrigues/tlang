@@ -170,7 +170,7 @@ t repl
 To execute a script from end-to-end, use:
 
 ```bash
-t run scripts/main.t
+t run src/pipeline.t
 ```
 
 ## Next Steps
