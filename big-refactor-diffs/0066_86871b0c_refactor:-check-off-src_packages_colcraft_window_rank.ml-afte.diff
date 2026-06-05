@@ -1,0 +1,62 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 60ec1def..009d2c64 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -77,7 +77,7 @@
+ | `src/packages/colcraft/unnest.ml` | [x] |
+ | `src/packages/colcraft/window_cumulative.ml` | [x] |
+ | `src/packages/colcraft/window_offset.ml` | [x] |
+-| `src/packages/colcraft/window_rank.ml` | [ ] |
++| `src/packages/colcraft/window_rank.ml` | [x] |
+ | `src/packages/core/args.ml` | [ ] |
+ | `src/packages/core/converters.ml` | [ ] |
+ | `src/packages/core/file_ops.ml` | [ ] |
+diff --git a/src/packages/colcraft/window_rank.ml b/src/packages/colcraft/window_rank.ml
+index 18cc0a7b..d3eda326 100644
+--- a/src/packages/colcraft/window_rank.ml
++++ b/src/packages/colcraft/window_rank.ml
+@@ -44,7 +44,7 @@ let non_na_indices (nums : float option array) : (int * float) array =
+     Returns sorted array of (original_index, float). *)
+ let argsort_pairs (pairs : (int * float) array) : (int * float) array =
+   let copy = Array.copy pairs in
+-  Array.stable_sort (fun (_, a) (_, b) -> compare a b) copy;
++  Array.stable_sort (fun (_, a) (_, b) -> Float.compare a b) copy;
+   copy
+ 
+ let register env =
+@@ -118,7 +118,7 @@ let register env =
+                while !i < m do
+                  let (_, cur_val) = sorted.(!i) in
+                  let start = !i in
+-                 while !i < m && snd sorted.(!i) = cur_val do
++                 while !i < m && Float.equal (snd sorted.(!i)) cur_val do
+                    incr i
+                  done;
+                  for j = start to !i - 1 do
+@@ -168,7 +168,7 @@ let register env =
+                let i = ref 0 in
+                while !i < m do
+                  let (_, cur_val) = sorted.(!i) in
+-                 while !i < m && snd sorted.(!i) = cur_val do
++                 while !i < m && Float.equal (snd sorted.(!i)) cur_val do
+                    let (orig_idx, _) = sorted.(!i) in
+                    result.(orig_idx) <- VInt !cur_rank;
+                    incr i
+@@ -214,7 +214,7 @@ let register env =
+                while !i < m do
+                  let (_, cur_val) = sorted.(!i) in
+                  let start = !i in
+-                 while !i < m && snd sorted.(!i) = cur_val do
++                 while !i < m && Float.equal (snd sorted.(!i)) cur_val do
+                    incr i
+                  done;
+                  let cd = float_of_int !i /. float_of_int m in
+@@ -267,7 +267,7 @@ let register env =
+                while !i < m do
+                  let (_, cur_val) = sorted.(!i) in
+                  let start = !i in
+-                 while !i < m && snd sorted.(!i) = cur_val do
++                 while !i < m && Float.equal (snd sorted.(!i)) cur_val do
+                    incr i
+                  done;
+                  for j = start to !i - 1 do

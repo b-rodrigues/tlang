@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 8f0c09f2..3276f4c0 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -19,7 +19,7 @@
+ | `src/cli_args.ml` | [x] |
+ | `src/completion.ml` | [x] |
+ | `src/diff.ml` | [x] |
+-| `src/error.ml` | [ ] |
++| `src/error.ml` | [x] |
+ | `src/eval.ml` | [ ] |
+ | `src/import_registry.ml` | [ ] |
+ | `src/lexer.mll` | [ ] |

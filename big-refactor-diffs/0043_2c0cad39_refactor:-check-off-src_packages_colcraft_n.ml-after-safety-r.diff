@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 9b21bbab..c61ee0ab 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -54,7 +54,7 @@
+ | `src/packages/colcraft/group_by.ml` | [x] |
+ | `src/packages/colcraft/joins.ml` | [x] |
+ | `src/packages/colcraft/mutate.ml` | [x] |
+-| `src/packages/colcraft/n.ml` | [ ] |
++| `src/packages/colcraft/n.ml` | [x] |
+ | `src/packages/colcraft/n_distinct.ml` | [ ] |
+ | `src/packages/colcraft/nest.ml` | [ ] |
+ | `src/packages/colcraft/pivot_longer.ml` | [ ] |

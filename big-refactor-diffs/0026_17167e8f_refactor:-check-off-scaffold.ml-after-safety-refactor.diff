@@ -1,0 +1,264 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index b0c098e7..0009edc3 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -30,7 +30,7 @@
+ | `src/package_manager/package_loader.ml` | [x] |
+ | `src/package_manager/package_types.ml` | [x] |
+ | `src/package_manager/release_manager.ml` | [x] |
+-| `src/package_manager/scaffold.ml` | [ ] |
++| `src/package_manager/scaffold.ml` | [x] |
+ | `src/package_manager/template_engine.ml` | [ ] |
+ | `src/package_manager/test_discovery.ml` | [ ] |
+ | `src/package_manager/toml_parser.ml` | [ ] |
+diff --git a/src/package_manager/scaffold.ml b/src/package_manager/scaffold.ml
+index f50d6461..554adcea 100644
+--- a/src/package_manager/scaffold.ml
++++ b/src/package_manager/scaffold.ml
+@@ -98,10 +98,12 @@ let copy_agent_files dir is_package context =
+   if agents_ok && ref_ok then begin
+     (* Add reference to .gitignore *)
+     let gitignore_path = Filename.concat dir ".gitignore" in
+-    let out = open_out_gen [Open_append; Open_creat] 0o644 gitignore_path in
+-    output_string out "\n# AI Agent Context Reference\nT-LANGUAGE-REFERENCE.md\n";
+-    close_out out;
+-    true
++    try
++      let out = open_out_gen [Open_append; Open_creat] 0o644 gitignore_path in
++      output_string out "\n# AI Agent Context Reference\nT-LANGUAGE-REFERENCE.md\n";
++      close_out out;
++      true
++    with Sys_error _ -> false
+   end else begin
+     Printf.eprintf "Warning: Could not create AGENTS.md or T-LANGUAGE-REFERENCE.md from installed/local templates.\n";
+     false
+@@ -659,60 +661,62 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
+     (* Check if directory exists *)
+     if Sys.file_exists dir && not opts.force then
+       Error (Printf.sprintf "Directory '%s' already exists. Use --force to overwrite." dir)
+-    else begin
+-      let tlang_tag = resolve_tlang_tag () in
+-      let tlang_version = strip_v_prefix tlang_tag in
+-      let ctx = [
+-        ("tlang_tag", tlang_tag);
+-        ("tlang_version", tlang_version)
+-      ] @ Template_engine.context_of_options opts in
+-      let sub = Template_engine.substitute ctx in
+-      (* Create directory structure *)
+-      create_dir dir;
+-      create_dir (Filename.concat dir "src");
+-      create_dir (Filename.concat dir "tests");
+-      create_dir (Filename.concat dir "examples");
+-      create_dir (Filename.concat dir "docs");
+-      create_dir (Filename.concat dir "docs/reference");
+-      create_dir (Filename.concat dir "help");
+-      (* Write files from templates *)
+-      write_file (Filename.concat dir "DESCRIPTION.toml") (sub package_description_toml);
+-      write_file (Filename.concat dir "flake.nix") (sub package_flake_nix);
+-      write_file (Filename.concat dir "README.md") (sub package_readme);
+-      write_file (Filename.concat dir "CHANGELOG.md") (sub package_changelog);
+-      let _ = write_license_file dir opts.license in
+-      write_file (Filename.concat dir ".gitignore") package_gitignore;
+-      write_file (Filename.concat dir "src/main.t") (sub package_src_example);
+-      write_file (Filename.concat dir (Printf.sprintf "tests/test-%s.t" opts.target_name)) (sub package_test_example);
+-      write_file (Filename.concat dir "docs/index.md") (Printf.sprintf "# %s\n\nPackage documentation.\n" opts.target_name);
+-      (* Agent files *)
+-      let _ = copy_agent_files dir true opts.agent_context in
+-      (* Git init *)
+-      if not opts.no_git then git_init dir;
+-      (* Success message *)
+-      Printf.printf "✓ Package '%s' created successfully!\n\n" opts.target_name;
+-      Printf.printf "  %s/\n" dir;
+-      Printf.printf "  ├── DESCRIPTION.toml\n";
+-      Printf.printf "  ├── flake.nix\n";
+-      Printf.printf "  ├── README.md\n";
+-      Printf.printf "  ├── CHANGELOG.md\n";
+-      Printf.printf "  ├── LICENSE\n";
+-      Printf.printf "  ├── .gitignore\n";
+-      Printf.printf "  ├── src/\n";
+-      Printf.printf "  │   └── main.t\n";
+-      Printf.printf "  ├── tests/\n";
+-      Printf.printf "  │   └── test-%s.t\n" opts.target_name;
+-      Printf.printf "  ├── examples/\n";
+-      Printf.printf "  └── docs/\n";
+-      Printf.printf "      └── index.md\n";
+-      Printf.printf "\nNext steps:\n";
+-      Printf.printf "  cd %s\n" dir;
+-      Printf.printf "  nix develop           # Enter development shell\n";
+-      Printf.printf "  t repl                # Start the REPL\n";
+-      Printf.printf "  t run src/main.t      # Run the example\n";
+-      Printf.printf "  t test                # Run tests\n";
+-      Ok ()
+-    end
++    else
++      try
++        let tlang_tag = resolve_tlang_tag () in
++        let tlang_version = strip_v_prefix tlang_tag in
++        let ctx = [
++          ("tlang_tag", tlang_tag);
++          ("tlang_version", tlang_version)
++        ] @ Template_engine.context_of_options opts in
++        let sub = Template_engine.substitute ctx in
++        (* Create directory structure *)
++        create_dir dir;
++        create_dir (Filename.concat dir "src");
++        create_dir (Filename.concat dir "tests");
++        create_dir (Filename.concat dir "examples");
++        create_dir (Filename.concat dir "docs");
++        create_dir (Filename.concat dir "docs/reference");
++        create_dir (Filename.concat dir "help");
++        (* Write files from templates *)
++        write_file (Filename.concat dir "DESCRIPTION.toml") (sub package_description_toml);
++        write_file (Filename.concat dir "flake.nix") (sub package_flake_nix);
++        write_file (Filename.concat dir "README.md") (sub package_readme);
++        write_file (Filename.concat dir "CHANGELOG.md") (sub package_changelog);
++        let _ = write_license_file dir opts.license in
++        write_file (Filename.concat dir ".gitignore") package_gitignore;
++        write_file (Filename.concat dir "src/main.t") (sub package_src_example);
++        write_file (Filename.concat dir (Printf.sprintf "tests/test-%s.t" opts.target_name)) (sub package_test_example);
++        write_file (Filename.concat dir "docs/index.md") (Printf.sprintf "# %s\n\nPackage documentation.\n" opts.target_name);
++        (* Agent files *)
++        let _ = copy_agent_files dir true opts.agent_context in
++        (* Git init *)
++        if not opts.no_git then git_init dir;
++        (* Success message *)
++        Printf.printf "✓ Package '%s' created successfully!\n\n" opts.target_name;
++        Printf.printf "  %s/\n" dir;
++        Printf.printf "  ├── DESCRIPTION.toml\n";
++        Printf.printf "  ├── flake.nix\n";
++        Printf.printf "  ├── README.md\n";
++        Printf.printf "  ├── CHANGELOG.md\n";
++        Printf.printf "  ├── LICENSE\n";
++        Printf.printf "  ├── .gitignore\n";
++        Printf.printf "  ├── src/\n";
++        Printf.printf "  │   └── main.t\n";
++        Printf.printf "  ├── tests/\n";
++        Printf.printf "  │   └── test-%s.t\n" opts.target_name;
++        Printf.printf "  ├── examples/\n";
++        Printf.printf "  └── docs/\n";
++        Printf.printf "      └── index.md\n";
++        Printf.printf "\nNext steps:\n";
++        Printf.printf "  cd %s\n" dir;
++        Printf.printf "  nix develop           # Enter development shell\n";
++        Printf.printf "  t repl                # Start the REPL\n";
++        Printf.printf "  t run src/main.t      # Run the example\n";
++        Printf.printf "  t test                # Run tests\n";
++        Ok ()
++      with Sys_error msg ->
++        Error ("System file error during scaffolding: " ^ msg)
+ 
+ 
+ 
+@@ -800,58 +804,60 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
+     (* Check if directory exists *)
+     if Sys.file_exists dir && not opts.force then
+       Error (Printf.sprintf "Directory '%s' already exists. Use --force to overwrite." dir)
+-    else begin
+-      let tlang_tag = resolve_tlang_tag () in
+-      let tlang_version = strip_v_prefix tlang_tag in
+-      let ctx = [
+-        ("tlang_tag", tlang_tag);
+-        ("tlang_version", tlang_version)
+-      ] @ Template_engine.context_of_options opts in
+-      let sub = Template_engine.substitute ctx in
+-      (* Create directory structure *)
+-      create_dir dir;
+-      create_dir (Filename.concat dir "src");
+-      create_dir (Filename.concat dir "data");
+-      create_dir (Filename.concat dir "outputs");
+-      create_dir (Filename.concat dir "tests");
+-      (* Write files from templates *)
+-      write_file (Filename.concat dir "tproject.toml") (sub project_tproject_toml);
+-      let flake_content = Nix_generator.generate_project_flake
+-        ~project_name:opts.target_name
+-        ~nixpkgs_date:opts.nixpkgs_date
+-        ~t_version:tlang_version
+-        ~deps:[] () in
+-      write_file (Filename.concat dir "flake.nix") flake_content;
+-      write_file (Filename.concat dir "README.md") (sub project_readme);
+-      let _ = write_license_file dir opts.license in
+-      write_file (Filename.concat dir ".gitignore") project_gitignore;
+-      let _ = write_project_pipeline dir opts sub in
+-      (* Agent files *)
+-      let _ = copy_agent_files dir false opts.agent_context in
+-      (* Git init *)
+-      if not opts.no_git then git_init dir;
+-      (* Success message *)
+-      Printf.printf "✓ Project '%s' created successfully!\n\n" opts.target_name;
+-      Printf.printf "  %s/\n" dir;
+-      Printf.printf "  ├── tproject.toml\n";
+-      Printf.printf "  ├── flake.nix\n";
+-      Printf.printf "  ├── README.md\n";
+-      Printf.printf "  ├── LICENSE\n";
+-      Printf.printf "  ├── .gitignore\n";
+-      Printf.printf "  ├── src/\n";
+-      Printf.printf "  │   └── pipeline.t\n";
+-      Printf.printf "  ├── data/\n";
+-      Printf.printf "  ├── outputs/\n";
+-      Printf.printf "  └── tests/\n";
+-      Printf.printf "\nNext steps:\n";
+-      Printf.printf "  cd %s\n" dir;
+-      Printf.printf "  nix develop           # Enter reproducible environment\n";
+-      Printf.printf "  t repl                # Start the REPL\n";
+-      Printf.printf "  t run src/pipeline.t  # Run the pipeline\n";
+-      Printf.printf "\nEditor Setup:\n";
+-      Printf.printf "  See https://tstats-project.org/editors.html for LSP configuration.\n";
+-      Ok ()
+-    end
++    else
++      try
++        let tlang_tag = resolve_tlang_tag () in
++        let tlang_version = strip_v_prefix tlang_tag in
++        let ctx = [
++          ("tlang_tag", tlang_tag);
++          ("tlang_version", tlang_version)
++        ] @ Template_engine.context_of_options opts in
++        let sub = Template_engine.substitute ctx in
++        (* Create directory structure *)
++        create_dir dir;
++        create_dir (Filename.concat dir "src");
++        create_dir (Filename.concat dir "data");
++        create_dir (Filename.concat dir "outputs");
++        create_dir (Filename.concat dir "tests");
++        (* Write files from templates *)
++        write_file (Filename.concat dir "tproject.toml") (sub project_tproject_toml);
++        let flake_content = Nix_generator.generate_project_flake
++          ~project_name:opts.target_name
++          ~nixpkgs_date:opts.nixpkgs_date
++          ~t_version:tlang_version
++          ~deps:[] () in
++        write_file (Filename.concat dir "flake.nix") flake_content;
++        write_file (Filename.concat dir "README.md") (sub project_readme);
++        let _ = write_license_file dir opts.license in
++        write_file (Filename.concat dir ".gitignore") project_gitignore;
++        let _ = write_project_pipeline dir opts sub in
++        (* Agent files *)
++        let _ = copy_agent_files dir false opts.agent_context in
++        (* Git init *)
++        if not opts.no_git then git_init dir;
++        (* Success message *)
++        Printf.printf "✓ Project '%s' created successfully!\n\n" opts.target_name;
++        Printf.printf "  %s/\n" dir;
++        Printf.printf "  ├── tproject.toml\n";
++        Printf.printf "  ├── flake.nix\n";
++        Printf.printf "  ├── README.md\n";
++        Printf.printf "  ├── LICENSE\n";
++        Printf.printf "  ├── .gitignore\n";
++        Printf.printf "  ├── src/\n";
++        Printf.printf "  │   └── pipeline.t\n";
++        Printf.printf "  ├── data/\n";
++        Printf.printf "  ├── outputs/\n";
++        Printf.printf "  └── tests/\n";
++        Printf.printf "\nNext steps:\n";
++        Printf.printf "  cd %s\n" dir;
++        Printf.printf "  nix develop           # Enter reproducible environment\n";
++        Printf.printf "  t repl                # Start the REPL\n";
++        Printf.printf "  t run src/pipeline.t  # Run the pipeline\n";
++        Printf.printf "\nEditor Setup:\n";
++        Printf.printf "  See https://tstats-project.org/editors.html for LSP configuration.\n";
++        Ok ()
++      with Sys_error msg ->
++        Error ("System file error during scaffolding: " ^ msg)
+ 
+ (** Parse CLI flags for init commands.
+     Returns scaffold_options or an error message. *)

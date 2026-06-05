@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index aafd007c..d0b3199a 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -87,7 +87,7 @@
+ | `src/packages/core/packages.ml` | [x] |
+ | `src/packages/core/path_ops.ml` | [x] |
+ | `src/packages/core/pretty_print.ml` | [x] |
+-| `src/packages/core/show_plot.ml` | [ ] |
++| `src/packages/core/show_plot.ml` | [x] |
+ | `src/packages/core/sum.ml` | [ ] |
+ | `src/packages/core/t_boolean.ml` | [ ] |
+ | `src/packages/core/t_get.ml` | [ ] |

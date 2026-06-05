@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 80b0e2a2..f6229746 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -59,7 +59,7 @@
+ | `src/packages/colcraft/nest.ml` | [x] |
+ | `src/packages/colcraft/pivot_longer.ml` | [x] |
+ | `src/packages/colcraft/pivot_wider.ml` | [x] |
+-| `src/packages/colcraft/relocate.ml` | [ ] |
++| `src/packages/colcraft/relocate.ml` | [x] |
+ | `src/packages/colcraft/rename.ml` | [ ] |
+ | `src/packages/colcraft/replace_na.ml` | [ ] |
+ | `src/packages/colcraft/selection_helpers.ml` | [ ] |

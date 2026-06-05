@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 9bcccbb0..1a148d12 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -80,7 +80,7 @@
+ | `src/packages/colcraft/window_rank.ml` | [x] |
+ | `src/packages/core/args.ml` | [x] |
+ | `src/packages/core/converters.ml` | [x] |
+-| `src/packages/core/file_ops.ml` | [ ] |
++| `src/packages/core/file_ops.ml` | [x] |
+ | `src/packages/core/head.ml` | [ ] |
+ | `src/packages/core/help.ml` | [ ] |
+ | `src/packages/core/is_error.ml` | [ ] |

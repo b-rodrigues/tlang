@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index bdf21297..2fcd8847 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -133,7 +133,7 @@
+ | `src/packages/math/sin.ml` | [x] |
+ | `src/packages/math/sinh.ml` | [x] |
+ | `src/packages/math/t_abs.ml` | [x] |
+-| `src/packages/math/t_exp.ml` | [ ] |
++| `src/packages/math/t_exp.ml` | [x] |
+ | `src/packages/math/t_iota.ml` | [ ] |
+ | `src/packages/math/t_log.ml` | [ ] |
+ | `src/packages/math/t_sqrt.ml` | [ ] |

@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 9a7a9154..c518eb30 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -98,7 +98,7 @@
+ | `src/packages/core/t_write_text.ml` | [x] |
+ | `src/packages/core/tail.ml` | [x] |
+ | `src/packages/dataframe/clean_colnames.ml` | [x] |
+-| `src/packages/dataframe/colnames.ml` | [ ] |
++| `src/packages/dataframe/colnames.ml` | [x] |
+ | `src/packages/dataframe/glimpse.ml` | [ ] |
+ | `src/packages/dataframe/ncol.ml` | [ ] |
+ | `src/packages/dataframe/nrow.ml` | [ ] |

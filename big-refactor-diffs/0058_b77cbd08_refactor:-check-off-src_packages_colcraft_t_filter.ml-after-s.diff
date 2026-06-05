@@ -1,0 +1,26 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index e84283a1..2ed293f7 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -69,7 +69,7 @@
+ | `src/packages/colcraft/slice_min_max.ml` | [x] |
+ | `src/packages/colcraft/summarize.ml` | [x] |
+ | `src/packages/colcraft/t_complete.ml` | [x] |
+-| `src/packages/colcraft/t_filter.ml` | [ ] |
++| `src/packages/colcraft/t_filter.ml` | [x] |
+ | `src/packages/colcraft/t_select.ml` | [ ] |
+ | `src/packages/colcraft/uncount.ml` | [ ] |
+ | `src/packages/colcraft/ungroup.ml` | [ ] |
+diff --git a/src/packages/colcraft/t_filter.ml b/src/packages/colcraft/t_filter.ml
+index 10bf669b..14353a0c 100644
+--- a/src/packages/colcraft/t_filter.ml
++++ b/src/packages/colcraft/t_filter.ml
+@@ -49,7 +49,7 @@ let min_array_len a b =
+   min (Array.length a) (Array.length b)
+ 
+ let take_bool_array len arr =
+-  if Array.length arr = len then arr else Array.init len (fun i -> arr.(i))
++  if Array.length arr = len then arr else Array.init len (fun i -> if i >= 0 && i < Array.length arr then arr.(i) else false)
+ 
+ let false_mask keep na =
+   let len = min_array_len keep na in

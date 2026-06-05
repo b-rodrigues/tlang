@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index f5b7e1d4..487a6406 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -25,7 +25,7 @@
+ | `src/lexer.mll` | [x] |
+ | `src/lsp_server.ml` | [x] |
+ | `src/package_manager/documentation_manager.ml` | [x] |
+-| `src/package_manager/nix_generator.ml` | [ ] |
++| `src/package_manager/nix_generator.ml` | [x] |
+ | `src/package_manager/package_doctor.ml` | [ ] |
+ | `src/package_manager/package_loader.ml` | [ ] |
+ | `src/package_manager/package_types.ml` | [ ] |

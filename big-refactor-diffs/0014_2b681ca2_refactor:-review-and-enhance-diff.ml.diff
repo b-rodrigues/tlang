@@ -1,0 +1,137 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index c8ccca53..8f0c09f2 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -18,7 +18,7 @@
+ | `src/ast.ml` | [x] |
+ | `src/cli_args.ml` | [x] |
+ | `src/completion.ml` | [x] |
+-| `src/diff.ml` | [ ] |
++| `src/diff.ml` | [x] |
+ | `src/error.ml` | [ ] |
+ | `src/eval.ml` | [ ] |
+ | `src/import_registry.ml` | [ ] |
+diff --git a/src/diff.ml b/src/diff.ml
+index 00d5f909..cb3e2bd0 100644
+--- a/src/diff.ml
++++ b/src/diff.ml
+@@ -619,7 +619,7 @@ let rec values_equal a b =
+   | VQuo _, _ | _, VQuo _ -> false
+   | VSerializer _, _ | _, VSerializer _ -> false
+   | VFloat fa, VFloat fb ->
+-      if Float.is_nan fa && Float.is_nan fb then true else fa = fb
++      if Float.is_nan fa && Float.is_nan fb then true else Float.equal fa fb
+   | VVector va, VVector vb ->
+       let n = Array.length va in
+       n = Array.length vb &&
+@@ -786,53 +786,54 @@ let diff_dataframes
+   let nrows_b = Arrow_table.num_rows df_b.arrow_table in
+ 
+   (* 2. Row alignment *)
+-  let all_cols_a = cols_a in
+-  let all_cols_b = cols_b in
+-
+-  let aligned =
+-    if key = [] then begin
+-      (* Positional alignment *)
+-      let len = max nrows_a nrows_b in
+-      List.init len (fun i ->
+-        let a = if i < nrows_a then Some (row_of_table df_a.arrow_table all_cols_a i) else None in
+-        let b = if i < nrows_b then Some (row_of_table df_b.arrow_table all_cols_b i) else None in
+-        (a, b)
+-      )
+-    end else begin
+-      (* Key-based alignment *)
+-      List.iter (fun k ->
+-        if not (List.mem k cols_a) then
+-          invalid_arg (Printf.sprintf "Key column `%s` not found in schema of DataFrame A." k);
+-        if not (List.mem k cols_b) then
+-          invalid_arg (Printf.sprintf "Key column `%s` not found in schema of DataFrame B." k);
+-      ) key;
+-      let key_of row =
+-        List.filter_map (fun k ->
+-          match List.assoc_opt k row with
+-          | Some v -> Some (k, v)
+-          | None -> None
+-        ) key
+-      in
+-      let tbl_a = Hashtbl.create 256 in
+-      for i = 0 to nrows_a - 1 do
+-        let row = row_of_table df_a.arrow_table all_cols_a i in
+-        Hashtbl.replace tbl_a (key_of row) row
+-      done;
+-      let tbl_b = Hashtbl.create 256 in
+-      for i = 0 to nrows_b - 1 do
+-        let row = row_of_table df_b.arrow_table all_cols_b i in
+-        Hashtbl.replace tbl_b (key_of row) row
+-      done;
+-      let all_keys =
+-        let ka = Hashtbl.fold (fun k _ acc -> k :: acc) tbl_a [] in
+-        let kb = Hashtbl.fold (fun k _ acc -> k :: acc) tbl_b [] in
+-        (ka @ kb) |> List.sort_uniq compare
+-      in
+-      List.map (fun k ->
+-        (Hashtbl.find_opt tbl_a k, Hashtbl.find_opt tbl_b k)
+-      ) all_keys
+-    end
+-  in
++  let missing_a = List.filter (fun k -> not (List.mem k cols_a)) key in
++  let missing_b = List.filter (fun k -> not (List.mem k cols_b)) key in
++  if missing_a <> [] then
++    Error.make_error KeyError (Printf.sprintf "Key column `%s` not found in schema of DataFrame A." (List.hd missing_a))
++  else if missing_b <> [] then
++    Error.make_error KeyError (Printf.sprintf "Key column `%s` not found in schema of DataFrame B." (List.hd missing_b))
++  else
++    let all_cols_a = cols_a in
++    let all_cols_b = cols_b in
++
++    let aligned =
++      if key = [] then begin
++        (* Positional alignment *)
++        let len = max nrows_a nrows_b in
++        List.init len (fun i ->
++          let a = if i < nrows_a then Some (row_of_table df_a.arrow_table all_cols_a i) else None in
++          let b = if i < nrows_b then Some (row_of_table df_b.arrow_table all_cols_b i) else None in
++          (a, b)
++        )
++      end else begin
++        (* Key-based alignment *)
++        let key_of row =
++          List.filter_map (fun k ->
++            match List.assoc_opt k row with
++            | Some v -> Some (k, v)
++            | None -> None
++          ) key
++        in
++        let tbl_a = Hashtbl.create 256 in
++        for i = 0 to nrows_a - 1 do
++          let row = row_of_table df_a.arrow_table all_cols_a i in
++          Hashtbl.replace tbl_a (key_of row) row
++        done;
++        let tbl_b = Hashtbl.create 256 in
++        for i = 0 to nrows_b - 1 do
++          let row = row_of_table df_b.arrow_table all_cols_b i in
++          Hashtbl.replace tbl_b (key_of row) row
++        done;
++        let all_keys =
++          let ka = Hashtbl.fold (fun k _ acc -> k :: acc) tbl_a [] in
++          let kb = Hashtbl.fold (fun k _ acc -> k :: acc) tbl_b [] in
++          (ka @ kb) |> List.sort_uniq compare
++        in
++        List.map (fun k ->
++          (Hashtbl.find_opt tbl_a k, Hashtbl.find_opt tbl_b k)
++        ) all_keys
++      end
++    in
+ 
+   (* 3. Classify rows *)
+   let added = ref [] and removed = ref [] and changed = ref [] and unchanged_count = ref 0 in
+@@ -1008,7 +1009,7 @@ let diff_models
+       match a, b with
+       | Some va, Some vb ->
+           let delta = vb -. va in
+-          let pct   = if va <> 0.0 then 100.0 *. delta /. va else Float.infinity in
++          let pct   = if not (Float.equal va 0.0) then 100.0 *. delta /. va else Float.infinity in
+           if Float.abs delta > 1e-10 then
+             Some [("term", VString term); ("estimate_a", VFloat va); ("estimate_b", VFloat vb);
+                   ("delta", VFloat delta); ("pct_change", VFloat pct)]

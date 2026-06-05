@@ -1,0 +1,15 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 2872a875..133755dd 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -123,8 +123,8 @@
+ | `src/packages/math/ceiling.ml` | [x] |
+ | `src/packages/math/cos.ml` | [x] |
+ | `src/packages/math/cosh.ml` | [x] |
+-| `src/packages/math/floor.ml` | [ ] |
+-| `src/packages/math/math_common.ml` | [ ] |
++| `src/packages/math/floor.ml` | [x] |
++| `src/packages/math/math_common.ml` | [x] |
+ | `src/packages/math/ndarray.ml` | [ ] |
+ | `src/packages/math/pow.ml` | [ ] |
+ | `src/packages/math/round.ml` | [ ] |

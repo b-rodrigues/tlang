@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index ca12c140..fd48fd08 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -131,7 +131,7 @@
+ | `src/packages/math/sign.ml` | [x] |
+ | `src/packages/math/signif.ml` | [x] |
+ | `src/packages/math/sin.ml` | [x] |
+-| `src/packages/math/sinh.ml` | [ ] |
++| `src/packages/math/sinh.ml` | [x] |
+ | `src/packages/math/t_abs.ml` | [ ] |
+ | `src/packages/math/t_exp.ml` | [ ] |
+ | `src/packages/math/t_iota.ml` | [ ] |

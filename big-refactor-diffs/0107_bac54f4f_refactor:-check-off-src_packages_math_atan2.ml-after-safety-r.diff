@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 0e467774..5720f967 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -118,7 +118,7 @@
+ | `src/packages/math/asin.ml` | [x] |
+ | `src/packages/math/asinh.ml` | [x] |
+ | `src/packages/math/atan.ml` | [x] |
+-| `src/packages/math/atan2.ml` | [ ] |
++| `src/packages/math/atan2.ml` | [x] |
+ | `src/packages/math/atanh.ml` | [ ] |
+ | `src/packages/math/ceiling.ml` | [ ] |
+ | `src/packages/math/cos.ml` | [ ] |

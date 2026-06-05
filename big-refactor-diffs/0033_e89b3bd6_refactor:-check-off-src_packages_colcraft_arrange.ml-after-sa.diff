@@ -1,0 +1,35 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 2925b384..ae9c017d 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -44,7 +44,7 @@
+ | `src/packages/base/t_assert.ml` | [x] |
+ | `src/packages/base/t_json.ml` | [x] |
+ | `src/packages/chrono/chrono.ml` | [x] |
+-| `src/packages/colcraft/arrange.ml` | [ ] |
++| `src/packages/colcraft/arrange.ml` | [x] |
+ | `src/packages/colcraft/count.ml` | [ ] |
+ | `src/packages/colcraft/distinct.ml` | [ ] |
+ | `src/packages/colcraft/drop_na.ml` | [ ] |
+diff --git a/src/packages/colcraft/arrange.ml b/src/packages/colcraft/arrange.ml
+index e879e612..495e69cf 100644
+--- a/src/packages/colcraft/arrange.ml
++++ b/src/packages/colcraft/arrange.ml
+@@ -40,7 +40,7 @@ let register env =
+                    let compare_values a b =
+                      match (a, b) with
+                      | (VInt x, VInt y) -> compare x y
+-                     | (VFloat x, VFloat y) -> compare x y
++                     | (VFloat x, VFloat y) -> Float.compare x y
+                       | (VString x, VString y) -> String.compare x y
+                       | (VBool x, VBool y) -> compare x y
+                       | (VDate x, VDate y) -> compare x y
+@@ -72,7 +72,7 @@ let register env =
+                    let compare_values a b =
+                      match (a, b) with
+                      | (VInt x, VInt y) -> compare y x
+-                     | (VFloat x, VFloat y) -> compare y x
++                     | (VFloat x, VFloat y) -> Float.compare y x
+                       | (VString x, VString y) -> String.compare y x
+                       | (VBool x, VBool y) -> compare y x
+                       | (VDate x, VDate y) -> compare y x

@@ -1,0 +1,32 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index fc1927b8..818b5e08 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -140,7 +140,7 @@
+ | `src/packages/math/tan.ml` | [x] |
+ | `src/packages/math/tanh.ml` | [x] |
+ | `src/packages/math/trunc.ml` | [x] |
+-| `src/packages/pipeline/arrange_node.ml` | [ ] |
++| `src/packages/pipeline/arrange_node.ml` | [x] |
+ | `src/packages/pipeline/build_log.ml` | [ ] |
+ | `src/packages/pipeline/build_pipeline.ml` | [ ] |
+ | `src/packages/pipeline/export_artifacts.ml` | [ ] |
+diff --git a/src/packages/pipeline/arrange_node.ml b/src/packages/pipeline/arrange_node.ml
+index 273e68b5..19d15c8e 100644
+--- a/src/packages/pipeline/arrange_node.ml
++++ b/src/packages/pipeline/arrange_node.ml
+@@ -36,11 +36,11 @@ let register env =
+         let compare_values a b =
+           match (a, b) with
+           | (VInt x,    VInt y)    -> compare x y
+-          | (VFloat x,  VFloat y)  -> compare x y
++          | (VFloat x,  VFloat y)  -> Float.compare x y
+           | (VString x, VString y) -> String.compare x y
+           | (VBool x,   VBool y)   -> compare x y
+-          | ((VNA NAGeneric), _)             -> 1
+-          | (_, (VNA NAGeneric))             -> -1
++          | (VNA _, _)             -> 1
++          | (_, VNA _)             -> -1
+           | _                      -> 0
+         in
+         let sorted_names =

@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 778e843a..33c2f7f4 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -28,7 +28,7 @@
+ | `src/package_manager/nix_generator.ml` | [x] |
+ | `src/package_manager/package_doctor.ml` | [x] |
+ | `src/package_manager/package_loader.ml` | [x] |
+-| `src/package_manager/package_types.ml` | [ ] |
++| `src/package_manager/package_types.ml` | [x] |
+ | `src/package_manager/release_manager.ml` | [ ] |
+ | `src/package_manager/scaffold.ml` | [ ] |
+ | `src/package_manager/template_engine.ml` | [ ] |

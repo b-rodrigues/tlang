@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 2f7daa55..b6116fd9 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -137,7 +137,7 @@
+ | `src/packages/math/t_iota.ml` | [x] |
+ | `src/packages/math/t_log.ml` | [x] |
+ | `src/packages/math/t_sqrt.ml` | [x] |
+-| `src/packages/math/tan.ml` | [ ] |
++| `src/packages/math/tan.ml` | [x] |
+ | `src/packages/math/tanh.ml` | [ ] |
+ | `src/packages/math/trunc.ml` | [ ] |
+ | `src/packages/pipeline/arrange_node.ml` | [ ] |

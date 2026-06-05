@@ -1,0 +1,33 @@
+diff --git a/src/packages/pipeline/inspect_artifacts.ml b/src/packages/pipeline/inspect_artifacts.ml
+index 72d533c2..ca066501 100644
+--- a/src/packages/pipeline/inspect_artifacts.ml
++++ b/src/packages/pipeline/inspect_artifacts.ml
+@@ -21,20 +21,14 @@ let register env =
+           (match Builder_artifacts.inspect_artifacts archive_path with
+            | Error err -> Error.make_error err.code err.message
+            | Ok results ->
+-               let nrows = List.length results in
+-               let arr_node = Array.make nrows None in
+-               let arr_store_path = Array.make nrows None in
+-               let arr_hash = Array.make nrows None in
+-               let arr_size_bytes = Array.make nrows None in
+-               let arr_references = Array.make nrows None in
+-               List.iteri (fun i (name, store_path, hash, size, refs) ->
+-                 arr_node.(i) <- Some name;
+-                 arr_store_path.(i) <- Some store_path;
+-                 arr_hash.(i) <- Some hash;
+-                 arr_size_bytes.(i) <- Some size;
+-                 arr_references.(i) <- Some refs
+-               ) results;
+-               let columns = [
++                let results_arr = Array.of_list results in
++                let nrows = Array.length results_arr in
++                let arr_node = Array.init nrows (fun i -> let (name, _, _, _, _) = results_arr.(i) in Some name) in
++                let arr_store_path = Array.init nrows (fun i -> let (_, store_path, _, _, _) = results_arr.(i) in Some store_path) in
++                let arr_hash = Array.init nrows (fun i -> let (_, _, hash, _, _) = results_arr.(i) in Some hash) in
++                let arr_size_bytes = Array.init nrows (fun i -> let (_, _, _, size, _) = results_arr.(i) in Some size) in
++                let arr_references = Array.init nrows (fun i -> let (_, _, _, _, refs) = results_arr.(i) in Some refs) in
++                let columns = [
+                  ("node",       Arrow_table.StringColumn arr_node);
+                  ("store_path", Arrow_table.StringColumn arr_store_path);
+                  ("hash",       Arrow_table.StringColumn arr_hash);

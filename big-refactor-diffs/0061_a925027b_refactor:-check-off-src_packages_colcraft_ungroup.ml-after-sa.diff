@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 54dcbb29..7a92f155 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -72,7 +72,7 @@
+ | `src/packages/colcraft/t_filter.ml` | [x] |
+ | `src/packages/colcraft/t_select.ml` | [x] |
+ | `src/packages/colcraft/uncount.ml` | [x] |
+-| `src/packages/colcraft/ungroup.ml` | [ ] |
++| `src/packages/colcraft/ungroup.ml` | [x] |
+ | `src/packages/colcraft/unite.ml` | [ ] |
+ | `src/packages/colcraft/unnest.ml` | [ ] |
+ | `src/packages/colcraft/window_cumulative.ml` | [ ] |

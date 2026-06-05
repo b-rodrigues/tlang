@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index d17ab9ea..eab30937 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -128,7 +128,7 @@
+ | `src/packages/math/ndarray.ml` | [x] |
+ | `src/packages/math/pow.ml` | [x] |
+ | `src/packages/math/round.ml` | [x] |
+-| `src/packages/math/sign.ml` | [ ] |
++| `src/packages/math/sign.ml` | [x] |
+ | `src/packages/math/signif.ml` | [ ] |
+ | `src/packages/math/sin.ml` | [ ] |
+ | `src/packages/math/sinh.ml` | [ ] |

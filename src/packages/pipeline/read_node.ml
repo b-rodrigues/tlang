@@ -1,4 +1,5 @@
 open Ast
+open Pipeline_utils
 
 type python_debug_guards = {
   root_dir : string;
@@ -200,8 +201,9 @@ let register env =
     | Some v -> v
     | None ->
         let positionals = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
-        if List.length positionals >= pos then List.nth positionals (pos - 1)
-        else default
+        match nth_safe (pos - 1) positionals with
+        | Some v -> v
+        | None -> default
   in
 
   let run_interactive_subshell ?env cn =
@@ -428,9 +430,9 @@ let register env =
           | VString _ -> true
           | _ -> false
         in
-        if not which_log_provided && Hashtbl.mem Ast.in_memory_node_values cn.cn_name then
-          Hashtbl.find Ast.in_memory_node_values cn.cn_name
-        else
+        begin match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
+        | Some v when not which_log_provided -> v
+        | _ ->
           let cn_or_err =
             if which_log_provided then
               let log_name = match extract_arg "which_log" 2 (VNA NAGeneric) named_args with VString s -> s | _ -> "" in
@@ -455,7 +457,8 @@ let register env =
                       Error.make_error FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: Sys_error(\"<unbuilt>: No such file or directory\")" cn.cn_name))
                else
                  let raw_val = Builder.logged_node_value cn.cn_name cn in
-                 Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
+                  Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
+        end
     | VString _ ->
         Error.type_error "read_node: expected a ComputedNode for argument 'node', but got String. Use read_node(p.node_name) instead."
     | VSymbol name as other ->

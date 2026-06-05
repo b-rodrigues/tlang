@@ -1,0 +1,398 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 476dabd4..a67e3623 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -8,7 +8,8 @@
+ | `src/arrow/arrow_bridge.mli` | [x] |
+ | `src/arrow/arrow_column.ml` | [x] |
+ | `src/arrow/arrow_column.mli` | [x] |
+-| `src/arrow/arrow_compute.ml` | [ ] |
++| `src/arrow/arrow_compute.ml` | [x] |
++| `src/arrow/arrow_compute.mli` | [x] |
+ | `src/arrow/arrow_ffi.ml` | [ ] |
+ | `src/arrow/arrow_io.ml` | [ ] |
+ | `src/arrow/arrow_owl_bridge.ml` | [ ] |
+diff --git a/refactor/guidelines.md b/refactor/guidelines.md
+new file mode 100644
+index 00000000..fa84e0c8
+--- /dev/null
++++ b/refactor/guidelines.md
+@@ -0,0 +1,58 @@
++## OCaml Code Review Checklist
++
++### Exceptions & Error Handling
++- [ ] No bare `raise` / `failwith` / `invalid_arg` in business logic — should use `Result` or `option` instead
++- [ ] No `List.hd`, `List.tl`, `Array.get` without bounds/pattern guard — these raise on empty/OOB
++- [ ] No `Hashtbl.find` without a `find_opt` alternative — raises `Not_found`
++- [ ] `try/with` blocks are narrow and specific — not wrapping huge chunks of code
++- [ ] `with _ ->` or `with e ->` (catch-all) is a red flag — should match specific exceptions
++- [ ] External/IO operations handle errors explicitly, not silently swallowed
++
++### The Type System — Are You Using It?
++- [ ] No `Obj.magic` anywhere — full stop
++- [ ] No `Bytes.unsafe_*` or `Array.unsafe_*` unless in a hot path with a clear justification comment
++- [ ] `option` values are pattern matched, not passed around and `Option.get`'d later
++- [ ] `Result` values are not ignored — check for `let _ = some_result_returning_fn`
++- [ ] Variant types have exhaustive pattern matches (no wildcard `_` hiding unhandled cases)
++- [ ] No `ignore` on a `Result` or `option` without an explicit comment explaining why
++
++### Mutability
++- [ ] `ref` usage is local and justified — not used as a substitute for functional patterns
++- [ ] Mutable record fields (`mutable`) are minimal and documented
++- [ ] No global mutable state unless it's genuinely necessary (config, caches) and clearly marked
++- [ ] Loops with accumulated `ref` variables — could these be `List.fold` instead?
++
++### Module & Abstraction Hygiene
++- [ ] `.mli` files exist for all significant modules — exposed interface is intentional, not accidental
++- [ ] No leaking of internal types through the public interface
++- [ ] Module signatures use abstract types where appropriate (not exposing the representation)
++- [ ] Functors are used for parameterization, not copy-pasted modules
++
++### Polymorphism & Type Inference Traps
++- [ ] No over-reliance on polymorphic comparison (`=`, `<`, `>`) on complex types — use `compare` from a specific module or `ppx_compare`
++- [ ] No structural equality (`=`) on floats — use `Float.equal` or explicit epsilon comparison
++- [ ] Value restriction surprises — if something is unexpectedly monomorphized, understand why
++
++### Effects & Purity
++- [ ] Functions that perform I/O or mutation are clearly named or documented as such
++- [ ] No hidden side effects inside `lazy` values or inside what looks like a pure computation
++- [ ] `Printf`/logging calls are not scattered through pure business logic
++
++### Warnings
++- [ ] Code compiles with **zero warnings** — especially:
++  - Warning 8: non-exhaustive pattern match
++  - Warning 26/27: unused module binding / unused `open`
++  - Warning 32: unused value declaration
++  - Warning 39: unused functor parameter
++- [ ] `-warn-error +a` (or equivalent in `dune`) is set in CI so warnings are hard errors
++
++### Dependencies & Unsafe FFI
++- [ ] C bindings (`external`) have a clear ownership/memory model documented
++- [ ] No `Gc.compact` or manual GC calls without strong justification
++- [ ] Foreign function calls validate inputs before passing to C
++
++### Style Red Flags That Hide Bugs
++- [ ] No deeply nested `match` inside `match` — extract to named functions
++- [ ] No excessively long functions — hard to reason about control flow
++- [ ] `begin/end` blocks are not masking complex branching logic
++- [ ] `fun _ ->` (ignoring an argument) is intentional, not accidental
+diff --git a/src/arrow/arrow_bridge.ml b/src/arrow/arrow_bridge.ml
+index dfce6e19..c48fdc6d 100644
+--- a/src/arrow/arrow_bridge.ml
++++ b/src/arrow/arrow_bridge.ml
+@@ -4,6 +4,8 @@
+ 
+ open Ast
+ 
++type row_count = int
++
+ (** Convert an Arrow column data structure to an array of T-Lang runtime values.
+     
+     @param col The Arrow column data.
+@@ -35,18 +37,41 @@ let column_to_values (col : Arrow_table.column_data) : value array =
+     @param row The 0-indexed row number.
+     @return The extracted T-Lang [value]. *)
+ let value_at (col : Arrow_table.column_data) (row : int) : value =
++  let in_bounds len = row >= 0 && row < len in
+   match col with
+-  | Arrow_table.IntColumn a -> (match a.(row) with Some i -> VInt i | None -> VNA NAInt)
+-  | Arrow_table.FloatColumn a -> (match a.(row) with Some f -> VFloat f | None -> VNA NAFloat)
+-  | Arrow_table.BoolColumn a -> (match a.(row) with Some b -> VBool b | None -> VNA NABool)
+-  | Arrow_table.StringColumn a -> (match a.(row) with Some s -> VString s | None -> VNA NAString)
+-  | Arrow_table.DateColumn a -> (match a.(row) with Some d -> VDate d | None -> VNA NADate)
+-  | Arrow_table.DatetimeColumn (a, tz) -> (match a.(row) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
++  | Arrow_table.IntColumn a ->
++      if in_bounds (Array.length a) then
++        (match a.(row) with Some i -> VInt i | None -> VNA NAInt)
++      else VNA NAInt
++  | Arrow_table.FloatColumn a ->
++      if in_bounds (Array.length a) then
++        (match a.(row) with Some f -> VFloat f | None -> VNA NAFloat)
++      else VNA NAFloat
++  | Arrow_table.BoolColumn a ->
++      if in_bounds (Array.length a) then
++        (match a.(row) with Some b -> VBool b | None -> VNA NABool)
++      else VNA NABool
++  | Arrow_table.StringColumn a ->
++      if in_bounds (Array.length a) then
++        (match a.(row) with Some s -> VString s | None -> VNA NAString)
++      else VNA NAString
++  | Arrow_table.DateColumn a ->
++      if in_bounds (Array.length a) then
++        (match a.(row) with Some d -> VDate d | None -> VNA NADate)
++      else VNA NADate
++  | Arrow_table.DatetimeColumn (a, tz) ->
++      if in_bounds (Array.length a) then
++        (match a.(row) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
++      else VNA NADate
+   | Arrow_table.NAColumn _ -> (VNA NAGeneric)
+   | Arrow_table.DictionaryColumn (a, levels, ordered) ->
+-      (match a.(row) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
++      if in_bounds (Array.length a) then
++        (match a.(row) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
++      else VNA NAGeneric
+   | Arrow_table.ListColumn a ->
+-      (match a.(row) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric))
++      if in_bounds (Array.length a) then
++        (match a.(row) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric))
++      else VNA NAGeneric
+ 
+ (** Convert an array of T-Lang values into an Arrow column_data structure.
+     
+@@ -167,34 +192,37 @@ let values_to_column (values : value array) : Arrow_table.column_data =
+     @param row_idx The index of the row to extract.
+     @return A list of name-value tuples representing the row elements. *)
+ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list =
+-  let get_col_data name =
+-    match Arrow_table.get_column table name with
+-    | Some col -> col
+-    | None -> Arrow_table.NAColumn table.nrows
+-  in
+-  List.map (fun (name, _) ->
+-    let col = get_col_data name in
+-    let v = match col with
+-      | Arrow_table.IntColumn a ->
+-          (match a.(row_idx) with Some i -> VInt i | None -> VNA NAInt)
+-      | Arrow_table.FloatColumn a ->
+-          (match a.(row_idx) with Some f -> VFloat f | None -> VNA NAFloat)
+-      | Arrow_table.BoolColumn a ->
+-          (match a.(row_idx) with Some b -> VBool b | None -> VNA NABool)
+-      | Arrow_table.StringColumn a ->
+-          (match a.(row_idx) with Some s -> VString s | None -> VNA NAString)
+-      | Arrow_table.DateColumn a ->
+-          (match a.(row_idx) with Some d -> VDate d | None -> VNA NADate)
+-      | Arrow_table.DatetimeColumn (a, tz) ->
+-          (match a.(row_idx) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
+-      | Arrow_table.NAColumn _ -> (VNA NAGeneric)
+-      | Arrow_table.DictionaryColumn (a, levels, ordered) ->
+-          (match a.(row_idx) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
+-      | Arrow_table.ListColumn a ->
+-          (match a.(row_idx) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric))
++  if row_idx < 0 || row_idx >= table.nrows then
++    List.map (fun (name, _) -> (name, VNA NAGeneric)) table.schema
++  else
++    let get_col_data name =
++      match Arrow_table.get_column table name with
++      | Some col -> col
++      | None -> Arrow_table.NAColumn table.nrows
+     in
+-    (name, v)
+-  ) table.schema
++    List.map (fun (name, _) ->
++      let col = get_col_data name in
++      let v = match col with
++        | Arrow_table.IntColumn a ->
++            (match a.(row_idx) with Some i -> VInt i | None -> VNA NAInt)
++        | Arrow_table.FloatColumn a ->
++            (match a.(row_idx) with Some f -> VFloat f | None -> VNA NAFloat)
++        | Arrow_table.BoolColumn a ->
++            (match a.(row_idx) with Some b -> VBool b | None -> VNA NABool)
++        | Arrow_table.StringColumn a ->
++            (match a.(row_idx) with Some s -> VString s | None -> VNA NAString)
++        | Arrow_table.DateColumn a ->
++            (match a.(row_idx) with Some d -> VDate d | None -> VNA NADate)
++        | Arrow_table.DatetimeColumn (a, tz) ->
++            (match a.(row_idx) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
++        | Arrow_table.NAColumn _ -> (VNA NAGeneric)
++        | Arrow_table.DictionaryColumn (a, levels, ordered) ->
++            (match a.(row_idx) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
++        | Arrow_table.ListColumn a ->
++            (match a.(row_idx) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric))
++      in
++      (name, v)
++    ) table.schema
+ 
+ (** Create an Arrow table from T-Lang value column structures.
+     
+@@ -202,6 +230,10 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list
+     @param nrows Total row count of the table.
+     @return The constructed and materialized Arrow table. *)
+ let table_from_value_columns (columns : (string * value array) list) (nrows : int) : Arrow_table.t =
++  List.iter (fun (name, values) ->
++    if Array.length values <> nrows then
++      raise (Invalid_argument (Printf.sprintf "table_from_value_columns: column '%s' has length %d but expected %d" name (Array.length values) nrows))
++  ) columns;
+   let arrow_columns = List.map (fun (name, values) ->
+     (name, values_to_column values)
+   ) columns in
+diff --git a/src/arrow/arrow_bridge.mli b/src/arrow/arrow_bridge.mli
+index 8f0769af..b458ee0f 100644
+--- a/src/arrow/arrow_bridge.mli
++++ b/src/arrow/arrow_bridge.mli
+@@ -1,17 +1,37 @@
+ (* src/arrow/arrow_bridge.mli *)
+ 
++(** Conversion bridge between Arrow columnar storage and T-Lang value representation (Ast.value).
++    
++    Warning: Operations in this module generally involve heap allocations and memory copies.
++    Prefer zero-copy views in Arrow_column for hot paths. *)
++
+ open Ast
+ 
++type row_count = int
++
++(** Convert an entire Arrow column data to an array of T-Lang values.
++    Costly memory copy and allocation: O(n). *)
+ val column_to_values : Arrow_table.column_data -> value array
+ 
++(** Extract a single value from an Arrow column at the specified row index.
++    This function is bounds-safe and returns the appropriate type-specific NA value
++    (e.g., VNA NAInt for IntColumn) if the index is out of bounds. *)
+ val value_at : Arrow_table.column_data -> int -> value
+ 
+ val values_to_column : value array -> Arrow_table.column_data
+ 
++(** Extract a specific row from an Arrow table as an associative dictionary of field names to values.
++    This function is bounds-safe and returns VNA NAGeneric values if the index is out of bounds. *)
+ val row_to_dict : Arrow_table.t -> int -> (string * value) list
+ 
+-val table_from_value_columns : (string * value array) list -> int -> Arrow_table.t
++(** Create an Arrow table from T-Lang value column structures.
++    Validates that all column arrays match the specified [row_count], raising Invalid_argument if not. *)
++val table_from_value_columns : (string * value array) list -> row_count -> Arrow_table.t
+ 
++(** Convert an Arrow table structure back to T-Lang value column arrays.
++    Costly memory copy and allocation. *)
+ val table_to_value_columns : Arrow_table.t -> (string * value array) list
+ 
++(** Recursively prepare a T-Lang value for safe serialization by cleansing native memory pointers
++    (such as native Arrow table pointers) to prevent use-after-free and serialization of invalid memory addresses. *)
+ val prepare_value_for_serialization : value -> value
+diff --git a/src/arrow/arrow_column.mli b/src/arrow/arrow_column.mli
+index 3eaddc8d..374da9e2 100644
+--- a/src/arrow/arrow_column.mli
++++ b/src/arrow/arrow_column.mli
+@@ -2,11 +2,8 @@
+ 
+ open Bigarray
+ 
+-type column_view = {
+-  backing : Arrow_table.t;
+-  column_name : string;
+-  data : Arrow_table.column_data;
+-}
++(** An opaque handle to a column view. References the backing table to prevent GC collection. *)
++type column_view
+ 
+ type numeric_view =
+   | FloatView of (float, float64_elt, c_layout) Array1.t
+@@ -22,8 +19,14 @@ val column_data : column_view -> Arrow_table.column_data
+ 
+ val zero_copy_view : column_view -> numeric_view option
+ 
++(** Access a single element from a column view.
++    This function is bounds-safe and returns [VNA NAGeneric] if the index is out of bounds. *)
+ val get_value_at : column_view -> int -> Ast.value
+ 
++(** Create a slice (sub-view) of a column view.
++    This function is bounds-safe and clamps start/len indices to prevent out-of-bounds exceptions. *)
+ val get_slice : column_view -> int -> int -> column_view
+ 
++(** Convert a column view to a list of T-Lang runtime values.
++    @deprecated This function has O(n) heap allocation cost and loses SIMD layout benefits. Avoid in hot paths. *)
+ val column_view_to_list : column_view -> Ast.value list
+diff --git a/src/arrow/arrow_compute.mli b/src/arrow/arrow_compute.mli
+new file mode 100644
+index 00000000..ae8152ba
+--- /dev/null
++++ b/src/arrow/arrow_compute.mli
+@@ -0,0 +1,99 @@
++(* src/arrow/arrow_compute.mli *)
++
++type grouped_handle = {
++  ptr : nativeint;
++  mutable freed : bool;
++}
++
++type grouped_table = {
++  base_table : Arrow_table.t;
++  group_keys : string list;
++  native_group : grouped_handle option;
++  ocaml_groups : ((string * int list) list) option ref;
++}
++
++val project : Arrow_table.t -> string list -> Arrow_table.t
++
++val filter : Arrow_table.t -> bool array -> Arrow_table.t
++
++val add_column : Arrow_table.t -> string -> Arrow_table.column_data -> Arrow_table.t
++
++val take_rows : Arrow_table.t -> int list -> Arrow_table.t
++
++val sort_by_indices : Arrow_table.t -> int array -> Arrow_table.t
++
++val rename_columns : Arrow_table.t -> (string * string) list -> Arrow_table.t
++
++val sort_by_column : Arrow_table.t -> string -> bool -> Arrow_table.t option
++
++val add_computed_column : Arrow_table.t -> string -> Arrow_table.column_data -> Arrow_table.t
++
++val add_scalar : Arrow_table.t -> string -> float -> Arrow_table.t option
++
++val add_int_scalar : Arrow_table.t -> string -> int -> Arrow_table.t option
++
++val multiply_scalar : Arrow_table.t -> string -> float -> Arrow_table.t option
++
++val multiply_int_scalar : Arrow_table.t -> string -> int -> Arrow_table.t option
++
++val subtract_scalar : Arrow_table.t -> string -> float -> Arrow_table.t option
++
++val subtract_int_scalar : Arrow_table.t -> string -> int -> Arrow_table.t option
++
++val divide_scalar : Arrow_table.t -> string -> float -> Arrow_table.t option
++
++val add_columns_to_table : Arrow_table.t -> string -> string -> string -> Arrow_table.t option
++
++val multiply_columns_to_table : Arrow_table.t -> string -> string -> string -> Arrow_table.t option
++
++val subtract_columns_to_table : Arrow_table.t -> string -> string -> string -> Arrow_table.t option
++
++val divide_columns_to_table : Arrow_table.t -> string -> string -> string -> Arrow_table.t option
++
++val group_by : Arrow_table.t -> string list -> grouped_table
++
++val group_by_optimized : Arrow_table.t -> string list -> grouped_table
++
++val get_ocaml_groups : grouped_table -> (string * int list) list
++
++val nest : grouped_table -> string list -> (string * Arrow_table.t) list
++
++val ocaml_groups_materialized : grouped_table -> bool
++
++val group_aggregate : grouped_table -> string -> string -> Arrow_table.t
++
++val group_multi_aggregate : grouped_table -> (string * string * string) list -> Arrow_table.t option
++
++val sqrt_column : Arrow_table.t -> string -> Arrow_table.t option
++
++val abs_column : Arrow_table.t -> string -> Arrow_table.t option
++
++val log_column : Arrow_table.t -> string -> Arrow_table.t option
++
++val exp_column : Arrow_table.t -> string -> Arrow_table.t option
++
++val pow_column : Arrow_table.t -> string -> float -> Arrow_table.t option
++
++val sum_column : Arrow_table.t -> string -> float option
++
++val mean_column : Arrow_table.t -> string -> float option
++
++val min_column : Arrow_table.t -> string -> float option
++
++val max_column : Arrow_table.t -> string -> float option
++
++val count_distinct_column : Arrow_table.t -> string -> float option
++
++val compare_column_scalar : Arrow_table.t -> string -> float -> string -> bool array option
++
++val column_null_mask : Arrow_table.t -> string -> bool array option
++
++val dense_rank_column : Arrow_table.t -> string -> int option array option
++
++val row_number_column : Arrow_table.t -> string -> int option array option
++
++val min_rank_column : Arrow_table.t -> string -> int option array option
++
++val lag_column : Arrow_table.t -> string -> int -> Arrow_table.t option
++
++val lead_column : Arrow_table.t -> string -> int -> Arrow_table.t option

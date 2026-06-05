@@ -1,0 +1,13 @@
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index fb3b31ab..e3b1a402 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -82,7 +82,7 @@
+ | `src/packages/core/converters.ml` | [x] |
+ | `src/packages/core/file_ops.ml` | [x] |
+ | `src/packages/core/head.ml` | [x] |
+-| `src/packages/core/help.ml` | [ ] |
++| `src/packages/core/help.ml` | [x] |
+ | `src/packages/core/is_error.ml` | [ ] |
+ | `src/packages/core/packages.ml` | [ ] |
+ | `src/packages/core/path_ops.ml` | [ ] |
