@@ -153,7 +153,7 @@ let register_bool env =
       let convert v = match v with
         | VBool b -> VBool b
         | VInt i -> VBool (i <> 0)
-        | VFloat f -> VBool (f <> 0.0)
+        | VFloat f -> VBool (not (Float.equal f 0.0))
         | VString s ->
             let upper = String.uppercase_ascii (String.trim s) in
             (match upper with
