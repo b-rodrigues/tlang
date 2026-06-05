@@ -67,7 +67,7 @@
 | `src/packages/colcraft/separate_rows.ml` | [x] |
 | `src/packages/colcraft/slice.ml` | [x] |
 | `src/packages/colcraft/slice_min_max.ml` | [x] |
-| `src/packages/colcraft/summarize.ml` | [ ] |
+| `src/packages/colcraft/summarize.ml` | [x] |
 | `src/packages/colcraft/t_complete.ml` | [ ] |
 | `src/packages/colcraft/t_filter.ml` | [ ] |
 | `src/packages/colcraft/t_select.ml` | [ ] |
