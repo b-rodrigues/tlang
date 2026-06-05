@@ -16,15 +16,23 @@ open Ast
 --# @family pipeline
 --# @export
 -*)
+let rec nth_safe n = function
+  | h :: _ when n = 0 -> Some h
+  | _ :: t -> nth_safe (n - 1) t
+  | [] -> None
+
 let register env =
   let get_arg name pos default named_args =
     match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
     | Some v -> v
     | None ->
         let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-        if List.length positionals >= pos then List.nth positionals (pos - 1)
-        else default
+        match nth_safe (pos - 1) positionals with
+        | Some v -> v
+        | None -> default
   in
+
+  let (>>=) x f = match x with Ok v -> f v | Error e -> Error e in
 
   let copy_fn named_args _env =
     let parse_string_like field pos default =
@@ -42,20 +50,17 @@ let register env =
                    (Printf.sprintf "Function `pipeline_copy` expects `%s` to be a String." field))
     in
     let run_copy node_name =
-      match parse_string_like "target_dir" 2 (VString "pipeline-output") with
-      | Error err -> err
-      | Ok target_dir ->
-          (match parse_string "dir_mode" 3 (VString "0755") with
-           | Error err -> err
-           | Ok dir_mode ->
-               (match parse_string "file_mode" 4 (VString "0644") with
-                | Error err -> err
-                | Ok file_mode ->
-                    Builder.pipeline_copy ~node_name ~target_dir ~dir_mode ~file_mode ()))
+      parse_string_like "target_dir" 2 (VString "pipeline-output")
+      >>= fun target_dir ->
+      parse_string "dir_mode" 3 (VString "0755")
+      >>= fun dir_mode ->
+      parse_string "file_mode" 4 (VString "0644")
+      >>= fun file_mode ->
+      Ok (Builder.pipeline_copy ~node_name ~target_dir ~dir_mode ~file_mode ())
     in
     match get_arg "node" 1 (VNA NAGeneric) named_args with
-    | VNA _ -> run_copy None
-    | VString node_name | VSymbol node_name -> run_copy (Some node_name)
+    | VNA _ -> (match run_copy None with Ok v -> v | Error e -> e)
+    | VString node_name | VSymbol node_name -> (match run_copy (Some node_name) with Ok v -> v | Error e -> e)
     | _ ->
         Error.type_error "Function `pipeline_copy` expects `node` to be a String, Symbol, or NA."
   in
