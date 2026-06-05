@@ -49,7 +49,7 @@ let min_array_len a b =
   min (Array.length a) (Array.length b)
 
 let take_bool_array len arr =
-  if Array.length arr = len then arr else Array.init len (fun i -> arr.(i))
+  if Array.length arr = len then arr else Array.init len (fun i -> if i >= 0 && i < Array.length arr then arr.(i) else false)
 
 let false_mask keep na =
   let len = min_array_len keep na in
