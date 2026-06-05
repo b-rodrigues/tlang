@@ -36,11 +36,11 @@ let register env =
         let compare_values a b =
           match (a, b) with
           | (VInt x,    VInt y)    -> compare x y
-          | (VFloat x,  VFloat y)  -> compare x y
+          | (VFloat x,  VFloat y)  -> Float.compare x y
           | (VString x, VString y) -> String.compare x y
           | (VBool x,   VBool y)   -> compare x y
-          | ((VNA NAGeneric), _)             -> 1
-          | (_, (VNA NAGeneric))             -> -1
+          | (VNA _, _)             -> 1
+          | (_, VNA _)             -> -1
           | _                      -> 0
         in
         let sorted_names =

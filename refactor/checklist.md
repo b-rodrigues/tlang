@@ -140,7 +140,7 @@
 | `src/packages/math/tan.ml` | [x] |
 | `src/packages/math/tanh.ml` | [x] |
 | `src/packages/math/trunc.ml` | [x] |
-| `src/packages/pipeline/arrange_node.ml` | [ ] |
+| `src/packages/pipeline/arrange_node.ml` | [x] |
 | `src/packages/pipeline/build_log.ml` | [ ] |
 | `src/packages/pipeline/build_pipeline.ml` | [ ] |
 | `src/packages/pipeline/export_artifacts.ml` | [ ] |
