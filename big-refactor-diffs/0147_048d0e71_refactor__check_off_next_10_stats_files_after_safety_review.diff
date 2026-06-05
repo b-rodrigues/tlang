@@ -1,0 +1,257 @@
+From 048d0e711681df686f2f660ebce328381870359c Mon Sep 17 00:00:00 2001
+From: Bruno Rodrigues <brodriguesco@protonmail.com>
+Date: Fri, 5 Jun 2026 16:14:38 +0200
+Subject: [PATCH] refactor: check off next 10 stats files after safety review
+
+---
+ ...ff_next_10_stats_files_after_safety_review.diff | 193 +++++++++++++++++++++
+ refactor/checklist.md                              |  20 +--
+ src/packages/stats/lm.ml                           |   4 +-
+ 3 files changed, 205 insertions(+), 12 deletions(-)
+
+diff --git a/big-refactor-diffs/0146_f9650ada_refactor__check_off_next_10_stats_files_after_safety_review.diff b/big-refactor-diffs/0146_f9650ada_refactor__check_off_next_10_stats_files_after_safety_review.diff
+new file mode 100644
+index 00000000..e5c880a6
+--- /dev/null
++++ b/big-refactor-diffs/0146_f9650ada_refactor__check_off_next_10_stats_files_after_safety_review.diff
+@@ -0,0 +1,193 @@
++From f9650ada93666620fbf1942f54dee331aaa0dafe Mon Sep 17 00:00:00 2001
++From: Bruno Rodrigues <brodriguesco@protonmail.com>
++Date: Fri, 5 Jun 2026 16:11:12 +0200
++Subject: [PATCH] refactor: check off next 10 stats files after safety review
++
++---
++ ...0_pipeline_stats_files_after_safety_review.diff | 146 +++++++++++++++++++++
++ refactor/checklist.md                              |  20 +--
++ 2 files changed, 156 insertions(+), 10 deletions(-)
++
++diff --git a/big-refactor-diffs/0145_4c438340_refactor__check_off_next_10_pipeline_stats_files_after_safety_review.diff b/big-refactor-diffs/0145_4c438340_refactor__check_off_next_10_pipeline_stats_files_after_safety_review.diff
++new file mode 100644
++index 00000000..81d02e7f
++--- /dev/null
+++++ b/big-refactor-diffs/0145_4c438340_refactor__check_off_next_10_pipeline_stats_files_after_safety_review.diff
++@@ -0,0 +1,146 @@
+++From 4c43834046fdca53d0cc1a1e3197a886b3b0468e Mon Sep 17 00:00:00 2001
+++From: Bruno Rodrigues <brodriguesco@protonmail.com>
+++Date: Fri, 5 Jun 2026 16:07:13 +0200
+++Subject: [PATCH] refactor: check off next 10 pipeline/stats files after safety
+++ review
+++
+++---
+++ refactor/checklist.md                     | 40 +++++++++++++++----------------
+++ src/packages/pipeline/select_node.ml      | 11 ++++-----
+++ src/packages/pipeline/set_nix_defaults.ml |  6 +++--
+++ src/packages/pipeline/trace_nodes.ml      |  6 +++--
+++ 4 files changed, 33 insertions(+), 30 deletions(-)
+++
+++diff --git a/refactor/checklist.md b/refactor/checklist.md
+++index 18928d28..1c0b92ee 100644
+++--- a/refactor/checklist.md
++++++ b/refactor/checklist.md
+++@@ -162,26 +162,26 @@
+++ | `src/packages/pipeline/pipeline_node.ml` | [x] |
+++ | `src/packages/pipeline/pipeline_nodes.ml` | [x] |
+++ | `src/packages/pipeline/pipeline_run.ml` | [x] |
+++-| `src/packages/pipeline/pipeline_set_ops.ml` | [ ] |
+++-| `src/packages/pipeline/pipeline_to_drv.ml` | [ ] |
+++-| `src/packages/pipeline/pipeline_to_frame.ml` | [ ] |
+++-| `src/packages/pipeline/pipeline_to_store.ml` | [ ] |
+++-| `src/packages/pipeline/populate_pipeline.ml` | [ ] |
+++-| `src/packages/pipeline/pyn_docs.ml` | [ ] |
+++-| `src/packages/pipeline/qn_docs.ml` | [ ] |
+++-| `src/packages/pipeline/read_node.ml` | [ ] |
+++-| `src/packages/pipeline/rename_node.ml` | [ ] |
+++-| `src/packages/pipeline/rn_docs.ml` | [ ] |
+++-| `src/packages/pipeline/select_node.ml` | [ ] |
+++-| `src/packages/pipeline/set_nix_defaults.ml` | [ ] |
+++-| `src/packages/pipeline/shn_docs.ml` | [ ] |
+++-| `src/packages/pipeline/t_make_mod.ml` | [ ] |
+++-| `src/packages/pipeline/trace_nodes.ml` | [ ] |
+++-| `src/packages/pipeline/which_nodes.ml` | [ ] |
+++-| `src/packages/stats/add_diagnostics.ml` | [ ] |
+++-| `src/packages/stats/anova.ml` | [ ] |
+++-| `src/packages/stats/basis.ml` | [ ] |
+++-| `src/packages/stats/coef.ml` | [ ] |
++++| `src/packages/pipeline/pipeline_set_ops.ml` | [x] |
++++| `src/packages/pipeline/pipeline_to_drv.ml` | [x] |
++++| `src/packages/pipeline/pipeline_to_frame.ml` | [x] |
++++| `src/packages/pipeline/pipeline_to_store.ml` | [x] |
++++| `src/packages/pipeline/populate_pipeline.ml` | [x] |
++++| `src/packages/pipeline/pyn_docs.ml` | [x] |
++++| `src/packages/pipeline/qn_docs.ml` | [x] |
++++| `src/packages/pipeline/read_node.ml` | [x] |
++++| `src/packages/pipeline/rename_node.ml` | [x] |
++++| `src/packages/pipeline/rn_docs.ml` | [x] |
++++| `src/packages/pipeline/select_node.ml` | [x] |
++++| `src/packages/pipeline/set_nix_defaults.ml` | [x] |
++++| `src/packages/pipeline/shn_docs.ml` | [x] |
++++| `src/packages/pipeline/t_make_mod.ml` | [x] |
++++| `src/packages/pipeline/trace_nodes.ml` | [x] |
++++| `src/packages/pipeline/which_nodes.ml` | [x] |
++++| `src/packages/stats/add_diagnostics.ml` | [x] |
++++| `src/packages/stats/anova.ml` | [x] |
++++| `src/packages/stats/basis.ml` | [x] |
++++| `src/packages/stats/coef.ml` | [x] |
+++ | `src/packages/stats/compare.ml` | [ ] |
+++ | `src/packages/stats/conf_int.ml` | [ ] |
+++ | `src/packages/stats/cor.ml` | [ ] |
+++diff --git a/src/packages/pipeline/select_node.ml b/src/packages/pipeline/select_node.ml
+++index 04d7d679..c33732e1 100644
+++--- a/src/packages/pipeline/select_node.ml
++++++ b/src/packages/pipeline/select_node.ml
+++@@ -43,12 +43,11 @@ let register env =
+++             else
+++               (* Build the full frame and project the requested columns *)
+++               let depths = Pipeline_to_frame.compute_depths p.p_deps in
+++-              let node_names = List.map fst p.p_exprs in
+++-              let nrows = List.length node_names in
+++-              (* Helper to build a column by extracting a field from each node's metadata dict *)
++++              let node_names_arr = Array.of_list (List.map fst p.p_exprs) in
++++              let nrows = Array.length node_names_arr in
+++               let get_field field_name =
+++                 Array.init nrows (fun i ->
+++-                  let n = List.nth node_names i in
++++                  let n = node_names_arr.(i) in
+++                   let meta = Pipeline_to_frame.node_metadata_dict n p depths in
+++                   match List.assoc_opt field_name meta with
+++                   | Some (VList items) ->
+++@@ -63,7 +62,7 @@ let register env =
+++               in
+++               let get_int_field field_name =
+++                 Array.init nrows (fun i ->
+++-                  let n = List.nth node_names i in
++++                  let n = node_names_arr.(i) in
+++                   let meta = Pipeline_to_frame.node_metadata_dict n p depths in
+++                   match List.assoc_opt field_name meta with
+++                   | Some (VInt v) -> Some v
+++@@ -72,7 +71,7 @@ let register env =
+++               in
+++               let get_bool_field field_name =
+++                 Array.init nrows (fun i ->
+++-                  let n = List.nth node_names i in
++++                  let n = node_names_arr.(i) in
+++                   let meta = Pipeline_to_frame.node_metadata_dict n p depths in
+++                   match List.assoc_opt field_name meta with
+++                   | Some (VBool v) -> Some v
+++diff --git a/src/packages/pipeline/set_nix_defaults.ml b/src/packages/pipeline/set_nix_defaults.ml
+++index b5e78b0d..227db1a6 100644
+++--- a/src/packages/pipeline/set_nix_defaults.ml
++++++ b/src/packages/pipeline/set_nix_defaults.ml
+++@@ -1,4 +1,5 @@
+++ open Ast
++++open Pipeline_utils
+++ 
+++ (*
+++ --# Set Global Nix Orchestration Defaults
+++@@ -24,8 +25,9 @@ let register env =
+++     | Some v -> (true, v)
+++     | None ->
+++         let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
+++-        if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
+++-        else (false, default)
++++        match nth_safe (pos - 1) positionals with
++++        | Some v -> (true, v)
++++        | None -> (false, default)
+++   in
+++   let set_fn named_args _env =
+++     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
+++diff --git a/src/packages/pipeline/trace_nodes.ml b/src/packages/pipeline/trace_nodes.ml
+++index dd33a05e..ddcfc1e2 100644
+++--- a/src/packages/pipeline/trace_nodes.ml
++++++ b/src/packages/pipeline/trace_nodes.ml
+++@@ -1,4 +1,5 @@
+++ open Ast
++++open Pipeline_utils
+++ 
+++ (*
+++ --# Trace Pipeline Nodes
+++@@ -24,8 +25,9 @@ let register env =
+++       | Some (_, v) -> (true, v)
+++       | None ->
+++           let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
+++-          if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
+++-          else (false, default)
++++          match nth_safe (pos - 1) positionals with
++++          | Some v -> (true, v)
++++          | None -> (false, default)
+++     in
+++     match get_arg "p" 1 (VNA NAGeneric) with
+++     | (_, VPipeline p) ->
++diff --git a/refactor/checklist.md b/refactor/checklist.md
++index 1c0b92ee..928ffbcb 100644
++--- a/refactor/checklist.md
+++++ b/refactor/checklist.md
++@@ -183,16 +183,16 @@
++ | `src/packages/stats/basis.ml` | [x] |
++ | `src/packages/stats/coef.ml` | [x] |
++ | `src/packages/stats/compare.ml` | [ ] |
++-| `src/packages/stats/conf_int.ml` | [ ] |
++-| `src/packages/stats/cor.ml` | [ ] |
++-| `src/packages/stats/cov.ml` | [ ] |
++-| `src/packages/stats/cv.ml` | [ ] |
++-| `src/packages/stats/deviance.ml` | [ ] |
++-| `src/packages/stats/df_residual.ml` | [ ] |
++-| `src/packages/stats/dispersion.ml` | [ ] |
++-| `src/packages/stats/distributions.ml` | [ ] |
++-| `src/packages/stats/fit_stats.ml` | [ ] |
++-| `src/packages/stats/fivenum.ml` | [ ] |
+++| `src/packages/stats/conf_int.ml` | [x] |
+++| `src/packages/stats/cor.ml` | [x] |
+++| `src/packages/stats/cov.ml` | [x] |
+++| `src/packages/stats/cv.ml` | [x] |
+++| `src/packages/stats/deviance.ml` | [x] |
+++| `src/packages/stats/df_residual.ml` | [x] |
+++| `src/packages/stats/dispersion.ml` | [x] |
+++| `src/packages/stats/distributions.ml` | [x] |
+++| `src/packages/stats/fit_stats.ml` | [x] |
+++| `src/packages/stats/fivenum.ml` | [x] |
++ | `src/packages/stats/huber_loss.ml` | [ ] |
++ | `src/packages/stats/iqr.ml` | [ ] |
++ | `src/packages/stats/kurtosis.ml` | [ ] |
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index 928ffbcb..dc6b7512 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -193,16 +193,16 @@
+ | `src/packages/stats/distributions.ml` | [x] |
+ | `src/packages/stats/fit_stats.ml` | [x] |
+ | `src/packages/stats/fivenum.ml` | [x] |
+-| `src/packages/stats/huber_loss.ml` | [ ] |
+-| `src/packages/stats/iqr.ml` | [ ] |
+-| `src/packages/stats/kurtosis.ml` | [ ] |
+-| `src/packages/stats/lm.ml` | [ ] |
+-| `src/packages/stats/mad.ml` | [ ] |
+-| `src/packages/stats/math_utils.ml` | [ ] |
+-| `src/packages/stats/max.ml` | [ ] |
+-| `src/packages/stats/mean.ml` | [ ] |
+-| `src/packages/stats/median.ml` | [ ] |
+-| `src/packages/stats/min.ml` | [ ] |
++| `src/packages/stats/huber_loss.ml` | [x] |
++| `src/packages/stats/iqr.ml` | [x] |
++| `src/packages/stats/kurtosis.ml` | [x] |
++| `src/packages/stats/lm.ml` | [x] |
++| `src/packages/stats/mad.ml` | [x] |
++| `src/packages/stats/math_utils.ml` | [x] |
++| `src/packages/stats/max.ml` | [x] |
++| `src/packages/stats/mean.ml` | [x] |
++| `src/packages/stats/median.ml` | [x] |
++| `src/packages/stats/min.ml` | [x] |
+ | `src/packages/stats/mode.ml` | [ ] |
+ | `src/packages/stats/nobs.ml` | [ ] |
+ | `src/packages/stats/normalize.ml` | [ ] |
+diff --git a/src/packages/stats/lm.ml b/src/packages/stats/lm.ml
+index 3e7d9671..27a952f7 100644
+--- a/src/packages/stats/lm.ml
++++ b/src/packages/stats/lm.ml
+@@ -12,9 +12,9 @@ let build_model_value ?weights (result : Arrow_owl_bridge.lm_result)
+     (formula_v : value) (data_v : value) : value =
+   let p = Array.length result.coefficients in
+   let nrows = p in
+-  (* Build tidy DataFrame columns *)
++  let term_names_arr = Array.of_list result.term_names in
+   let term_col = Arrow_table.StringColumn (
+-    Array.init nrows (fun i -> Some (List.nth result.term_names i))
++    Array.init nrows (fun i -> Some term_names_arr.(i))
+   ) in
+   let estimate_col = Arrow_table.FloatColumn (
+     Array.init nrows (fun i -> Some result.coefficients.(i))

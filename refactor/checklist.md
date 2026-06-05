@@ -203,16 +203,16 @@
 | `src/packages/stats/mean.ml` | [x] |
 | `src/packages/stats/median.ml` | [x] |
 | `src/packages/stats/min.ml` | [x] |
-| `src/packages/stats/mode.ml` | [ ] |
-| `src/packages/stats/nobs.ml` | [ ] |
-| `src/packages/stats/normalize.ml` | [ ] |
-| `src/packages/stats/onnx_ffi.ml` | [ ] |
-| `src/packages/stats/predict.ml` | [ ] |
-| `src/packages/stats/quantile.ml` | [ ] |
-| `src/packages/stats/range.ml` | [ ] |
-| `src/packages/stats/residuals.ml` | [ ] |
-| `src/packages/stats/scale.ml` | [ ] |
-| `src/packages/stats/score.ml` | [ ] |
+| `src/packages/stats/mode.ml` | [x] |
+| `src/packages/stats/nobs.ml` | [x] |
+| `src/packages/stats/normalize.ml` | [x] |
+| `src/packages/stats/onnx_ffi.ml` | [x] |
+| `src/packages/stats/predict.ml` | [x] |
+| `src/packages/stats/quantile.ml` | [x] |
+| `src/packages/stats/range.ml` | [x] |
+| `src/packages/stats/residuals.ml` | [x] |
+| `src/packages/stats/scale.ml` | [x] |
+| `src/packages/stats/score.ml` | [x] |
 | `src/packages/stats/sd.ml` | [ ] |
 | `src/packages/stats/sigma.ml` | [ ] |
 | `src/packages/stats/skewness.ml` | [ ] |
