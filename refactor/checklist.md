@@ -112,7 +112,7 @@
 | `src/packages/explain/intent_fields.ml` | [x] |
 | `src/packages/explain/intent_get.ml` | [x] |
 | `src/packages/explain/t_explain.ml` | [x] |
-| `src/packages/lens/lens.ml` | [ ] |
+| `src/packages/lens/lens.ml` | [x] |
 | `src/packages/math/acos.ml` | [ ] |
 | `src/packages/math/acosh.ml` | [ ] |
 | `src/packages/math/asin.ml` | [ ] |
