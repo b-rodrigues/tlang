@@ -107,7 +107,7 @@
 | `src/packages/dataframe/t_read_csv.ml` | [x] |
 | `src/packages/dataframe/t_read_parquet.ml` | [x] |
 | `src/packages/dataframe/t_write_arrow.ml` | [x] |
-| `src/packages/dataframe/t_write_csv.ml` | [ ] |
+| `src/packages/dataframe/t_write_csv.ml` | [x] |
 | `src/packages/explain/explain_json.ml` | [ ] |
 | `src/packages/explain/intent_fields.ml` | [ ] |
 | `src/packages/explain/intent_get.ml` | [ ] |
