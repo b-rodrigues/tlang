@@ -126,7 +126,7 @@
 | `src/packages/math/floor.ml` | [x] |
 | `src/packages/math/math_common.ml` | [x] |
 | `src/packages/math/ndarray.ml` | [x] |
-| `src/packages/math/pow.ml` | [ ] |
+| `src/packages/math/pow.ml` | [x] |
 | `src/packages/math/round.ml` | [ ] |
 | `src/packages/math/sign.ml` | [ ] |
 | `src/packages/math/signif.ml` | [ ] |
