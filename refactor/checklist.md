@@ -84,7 +84,7 @@
 | `src/packages/core/head.ml` | [x] |
 | `src/packages/core/help.ml` | [x] |
 | `src/packages/core/is_error.ml` | [x] |
-| `src/packages/core/packages.ml` | [ ] |
+| `src/packages/core/packages.ml` | [x] |
 | `src/packages/core/path_ops.ml` | [ ] |
 | `src/packages/core/pretty_print.ml` | [ ] |
 | `src/packages/core/show_plot.ml` | [ ] |
