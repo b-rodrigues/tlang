@@ -18,7 +18,7 @@ let register env =
     (* signif needs a local helper because the transformation depends on the
        caller-supplied number of significant digits. *)
     let signif_f x digits =
-      if x = 0.0 then 0.0
+      if Float.abs x < 1e-15 then 0.0
       else
         let d = float_of_int digits in
         let scale = Float.pow 10.0 (d -. 1.0 -. Float.floor (Float.log10 (Float.abs x))) in
@@ -34,7 +34,7 @@ let register env =
         | [_; VInt _] -> Error.value_error "Function `signif` expects positive integer digits."
         | [x; VFloat d] when d > 0.0 ->
             let digits = int_of_float d in
-            if float_of_int digits = d && digits > 0 then
+            if Float.abs (float_of_int digits -. d) < 1e-9 && digits > 0 then
               Math_common.map_numeric_unary ~fname:"signif" ~na_ignore (fun v -> signif_f v digits) [x]
             else
               Error.value_error "Function `signif` expects positive integer digits."
