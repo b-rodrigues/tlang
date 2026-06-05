@@ -123,8 +123,8 @@
 | `src/packages/math/ceiling.ml` | [x] |
 | `src/packages/math/cos.ml` | [x] |
 | `src/packages/math/cosh.ml` | [x] |
-| `src/packages/math/floor.ml` | [ ] |
-| `src/packages/math/math_common.ml` | [ ] |
+| `src/packages/math/floor.ml` | [x] |
+| `src/packages/math/math_common.ml` | [x] |
 | `src/packages/math/ndarray.ml` | [ ] |
 | `src/packages/math/pow.ml` | [ ] |
 | `src/packages/math/round.ml` | [ ] |
