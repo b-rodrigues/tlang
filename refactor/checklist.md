@@ -78,7 +78,7 @@
 | `src/packages/colcraft/window_cumulative.ml` | [x] |
 | `src/packages/colcraft/window_offset.ml` | [x] |
 | `src/packages/colcraft/window_rank.ml` | [x] |
-| `src/packages/core/args.ml` | [ ] |
+| `src/packages/core/args.ml` | [x] |
 | `src/packages/core/converters.ml` | [ ] |
 | `src/packages/core/file_ops.ml` | [ ] |
 | `src/packages/core/head.ml` | [ ] |
