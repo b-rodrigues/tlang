@@ -4,8 +4,8 @@
 
 This release:
 
-- introduces a new meta-pipeline composition feature, `pipeline_of`, first-class artifact export/import capabilities, and new meta-pipeline graph visualization functions.
-- Refactores the codebase following OCaml best practices and conventions.
+- introduces a new meta-pipeline composition feature (`pipeline_of`), first-class artifact export/import capabilities, meta-pipeline graph visualization, interactive Mermaid browser rendering, and cache-aware dry runs with programmatic garbage collection.
+- Includes comprehensive bug fixes across stats, core, CSV, and pipeline subsystems, and a systematic codebase-wide safety refactoring following OCaml best practices.
 
 ### Pipeline Soft-Fail & Early-Abort Semantics
 - **Block Evaluation Early Abort**: Blocks (`{ ... }`) now abort immediately on encountering a `VError`, returning the error rather than continuing evaluation of remaining statements. This is a breaking change for code that relied on ignoring intermediate block errors.
@@ -15,13 +15,14 @@ This release:
 ### Pipeline Visualization
 - **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.
 - **`pipeline_to_mermaid(p)`**: Generates a Mermaid flowchart diagram string from the pipeline topology, enabling visual rendering in Markdown documents and Mermaid live editors.
+- **Browser Visualization via `show_plot`**: `show_plot(p)` now accepts a pipeline or meta-pipeline directly — it calls `pipeline_to_mermaid` internally, renders the DAG as an interactive HTML page, and opens it in the browser. `show_plot(mermaid_string)` also renders arbitrary Mermaid diagram strings.
 
 ### Artifact Cache, Dry Runs, and Garbage Collection
 - **Granular `export_artifacts`**: Support exporting cached Nix artifacts for individual nodes, sub-pipelines, meta-pipelines, or lists/dictionaries of nodes/pipelines.
 - **Variadic `import_artifacts`**: Support both 1-argument `import_artifacts(archive_path)` (direct Nix store import) and 2-argument `import_artifacts(target_val, archive_path)` (import and verify paths) calling signatures.
 - **`inspect_artifacts(archive_path)`**: Import archive into a temporary, isolated Nix store and return a DataFrame containing the included nodes, store paths, hashes, sizes in bytes, and reference basenames without affecting the local store.
 - **Verification & REPL Stability**: Fixed path resolution and correctness checks, and updated package registrations in the interactive REPL for `import_artifacts`, `export_artifacts`, and `inspect_artifacts`.
-- **Cache-Aware Dry Runs**: Enhanced `populate_pipeline(p, dry_run = true)` to perform a dry run via Nix (`--dry-run`), parsing the plan to report which nodes will hit the local cache (`"cached"`), rebuild (`"build"`), or fetch from remote substituters (`"fetch"`), returning the results as a DataFrame.
+- **Cache-Aware Dry Runs**: `populate_pipeline(p, dry_run = true)` and `build_pipeline(p, dry_run = true)` now perform a dry run via Nix (`--dry-run`), parsing the plan to report which nodes will hit the local cache (`"cached"`), rebuild (`"build"`), or fetch from remote substituters (`"fetch"`), returning the results as a DataFrame.
 - **Programmatic Garbage Collection**:
   - `pipeline_gc(p, dry_run = true)`: Deletes the store paths of the given pipeline `p` if safe. By default (`dry_run = true`), it returns a DataFrame previewing the nodes, store paths, and deletion eligibility status. Set `dry_run = false` to execute the deletion.
   - `t_gc()`: Triggers a global Nix garbage collection (`nix-store --gc`) directly from the REPL to safely clean up old, detached derivations.
@@ -84,6 +85,36 @@ populate_pipeline(meta_graph, build = true)
 
 ### Notes
 - The `meta_flatten` combinator is not exposed as a first-class function in the CLI or T-Lang AST. It is an internal implementation detail of the pipeline engine that is automatically invoked when working with `pipeline_of`.
+
+### Bug Fixes
+
+- **Stats — fivenum alignment with R**: Replaced the defective gammp series computation with a correct implementation and adopted Tukey hinges for `fivenum`, ensuring parity with R's `fivenum()` output.
+- **Stats — high-precision t-quantile**: Replaced the Cornish-Fisher approximation with exact OCaml root-finding on the pt CDF via `Float.erfc`, improving tail accuracy.
+- **Stats — recursive t_quantile**: Made `t_quantile` recursive to handle edge cases in quantile computations correctly.
+- **Stats — ss_res in leave-one-out sigma**: Corrected the `ss_res` formula used in `leave_one_out_sigma` calculation in `lm.ml`.
+- **Stats — cut formatting**: Changed `cut` to output spaces-free labels formatted with `%g` format, matching R's `cut()` label style.
+- **Stats/Core — float/int equality & pnorm accuracy**: Treated float and int values as identical when numerically equal (`3.0 == 3`) and improved `pnorm` accuracy using `Float.erfc`.
+- **Core — VFactor/VString equality**: Extended the evaluator to support direct equality comparison between `VFactor` and `VString` values.
+- **CSV — empty string NA parsing**: Fixed `read_csv` to parse empty strings as `NA` with `allow-null-strings`, and implemented proper dataframe comparison semantics.
+- **Pipeline — JSON float precision**: Configured `jsonlite::write_json` to serialize floats at full precision, preventing rounding-induced mismatches.
+- **Pipeline — R JSON NA handling**: Configured the R JSON serializer to write `NA` values as JSON `null` for correct round-tripping.
+- **Pipeline — Nix dry-run dot-access quoting**: Correctly quote dot-access attributes (e.g., `node.sub.field`) in Nix dry-run evaluation expressions.
+- **Pipeline — mermaid ID collision prevention**: Sanitized node IDs in `pipeline_to_mermaid` to prevent collisions from similar node names.
+- **Pipeline — inspect_artifacts resource leaks**: Resolved file descriptor and directory handle leaks in `inspect_artifacts`, and restored scalar `TypeError` for invalid inputs.
+- **Pipeline — NixError fallback**: Restored original `NixError` fallback behavior for empty trimmed `last_part` in `builder_internal.ml`.
+- **Pipeline — dependency namespace fixes**: Standardized runtime emission helper naming (`__node_result` across all runtimes), fixed R variable naming compatibility (`dep_` prefix), and corrected dependency namespace generation.
+
+### Codebase Safety Refactoring
+
+The entire OCaml codebase underwent a systematic safety review following best practices for ML-family languages:
+
+- **Zero partial functions**: Eliminated all uses of `Option.get`, bare `List.hd` on unvalidated lists, and similar partial operations.
+- **Exhaustive pattern matching**: Every `match` expression across ~100 files was audited and made total, removing partial wildcard patterns where feasible.
+- **No raw exceptions in user paths**: Converted `failwith`, `raise`, and `assert false` in user-facing code to structured `VError` returns.
+- **Float comparison hygiene**: Replaced exact float equality with epsilon-aware comparisons and `Float.compare`.
+- **Abstract type safety**: Added `.mli` interface files with abstract types for `Arrow`, `GroupedTable`, and key FFI modules.
+- **Resource cleanup**: Fixed file descriptor and directory handle leaks in pipeline introspection and inspection code.
+- **Code review checklist**: Added an OCaml Code Review Checklist to `AGENTS.md` as a permanent reference for future contributions.
 
 
 ## [0.52.2] - 2026-05-31

@@ -16,7 +16,7 @@ open Pipeline_utils
 --# @return :: String A success message or Error.
 --# @family pipeline
 --# @export
--*)
+*)
 let register env =
   let get_arg name pos default named_args =
     match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with

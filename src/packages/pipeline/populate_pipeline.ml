@@ -11,10 +11,10 @@ open Pipeline_utils
 --# @param p :: Pipeline The pipeline to populate.
 --# @param build :: Bool (Optional) Whether to trigger the Nix build immediately. Defaults to false.
 --# @param verbose :: Int (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+--# @param dry_run :: Bool (Optional) Perform a dry run via Nix (`--dry-run`), returning a DataFrame of planned actions without executing.
 --# @param nix_options :: Dict (Optional) A dictionary of Nix orchestration options:
 --#   - `targets` :: List[String] Specific node names to build. Maps to `-A <target>` in nix-build.
 --#   - `force` :: Bool|List[String] Force-rebuild nodes even if cached. Maps to `--check`.
---#   - `dry_run` :: Bool Return a planned build DataFrame without executing. Maps to `--dry-run`.
 --#   - `max_jobs` :: Int Maximum parallel build jobs. Maps to `--max-jobs N`.
 --#   - `cache` :: String Cachix cache name to configure as an extra binary substituter.
 --# @return :: String|BuildLog|DataFrame A status message, structured build log, or dry-run plan DataFrame.
@@ -24,7 +24,7 @@ open Pipeline_utils
 --#   - **Explicit Dependency Declaration**: Checks serializer/runtime requirements up front and asks to add missing entries to `tproject.toml` instead of injecting packages implicitly.
 --# @family pipeline
 --# @export
---*)
+*)
 let register env =
   let populate_fn named_args env =
     let get_arg name pos default named_args =

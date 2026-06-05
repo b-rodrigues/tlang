@@ -34,6 +34,14 @@ let count_impl (named_args : (string option * value) list) _env =
 --# Counts rows in a DataFrame, optionally by selected columns or existing group keys.
 --#
 --# @name count
+--# @param df :: DataFrame The input data frame.
+--# @param ... :: Column Columns to group by (bare names or $col references).
+--# @param name :: String = "n" Name for the count column.
+--# @return :: DataFrame A DataFrame with one row per group and a count column.
+--# @example
+--#   count(df)
+--#   count(df, $species)
+--#   count(df, $species, $year, name = "freq")
 --# @family colcraft
 --# @export
 *)

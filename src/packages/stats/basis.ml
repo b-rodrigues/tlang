@@ -14,7 +14,7 @@ let register env =
   --#
   --# @name cut
   --# @param x :: Vector[Number] | List[Number] The vector to discretize.
-  --# @param breaks :: Int | Vector[Number] Number of bins or specific cut points.
+  --# @param breaks :: Int | Vector[Number] | List[Number] Number of bins or specific cut points.
   --# @return :: Vector[String] Vector of interval labels.
   --# @example
   --#   cut([1, 2, 3, 4, 5], 2)

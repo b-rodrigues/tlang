@@ -1,6 +1,26 @@
 # fct_reorder
 
-Order to_factor levels by another vector
+Order factor levels by another vector
 
-Reorders to_factor levels using summary statistics computed from a companion numeric vector.
+Reorders factor levels using summary statistics computed from a companion numeric vector.
+
+## Parameters
+
+- **f** (`Vector[Factor]`): A factor vector.
+
+- **x** (`Vector[Number]`): A numeric vector used to compute order.
+
+- **.desc** (`Bool`): = false Sort in descending order.
+
+
+## Returns
+
+A factor vector with levels reordered by the summary of x.
+
+## Examples
+
+```t
+fct_reorder(fct, values)
+fct_reorder(fct, values, .desc = true)
+```
 

@@ -12,6 +12,8 @@ Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optiona
 
 - **verbose** (`Int`): (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
 
+- **dry_run** (`Bool`): (Optional) Perform a dry run via Nix (`--dry-run`), returning a DataFrame of planned actions without executing.
+
 - **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
 
 

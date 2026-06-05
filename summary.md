@@ -197,26 +197,28 @@ build_pipeline(p)
 
 Pipelines are DAGs. Nodes can be declared in any order; dependencies are resolved automatically.
 
+**Block Evaluation**: Blocks (`{ ... }`) abort immediately on encountering a `VError`, returning the error rather than continuing evaluation of remaining statements. Nodes that soft-fail and return `VError` conditionally fall back to binary serialization rather than triggering custom serializers like Arrow, preventing crashes.
+
 ### Meta-Pipelines and Templates
 
 T supports higher-order composition of pipelines:
-- **Meta-Pipelines (`pipeline_of`)**: Composes multiple sub-pipelines into a higher-order DAG.
+- **Meta-Pipelines (`pipeline_of`)**: Composes multiple sub-pipelines into a higher-order DAG with automatic dependency inference — T analyzes cross-pipeline references to determine execution order, so no manual `depends` declarations are needed.
   ```t
   meta = pipeline_of {
     etl   = p_etl,
-    stats = p_stats,
-    depends = [stats => etl]
+    stats = p_stats
   }
   ```
-- **Pipeline Flattening (`meta_flatten`)**: Transforms a meta-pipeline into a single flat pipeline where node names are automatically namespaced (e.g. `etl.raw_data`).
-- **Lambda Parameters**: Pipelines can be parameterized using standard lambda functions: `\(input) pipeline { ... }`.
+- **Automatic Namespacing & Flattening**: Sub-pipeline node names are automatically namespaced (e.g. `etl.raw_data`, `stats.summary`) and meta-pipelines are flattened transparently on access — `meta_flatten` is an internal implementation detail, not a user-facing function.
+- **Pipeline Visualization**: `pipeline_to_dot(p)` and `pipeline_to_mermaid(p)` generate Graphviz DOT and Mermaid flowchart representations of any pipeline or meta-pipeline topology. `show_plot(p)` renders the DAG as an interactive browser visualization using the Mermaid output.
+- **Lambda Parameters**: Pipelines can be parameterized using standard lambda functions: `\(input) pipeline { ... }`. Outer variables referenced inside the pipeline nodes are automatically substituted with their concrete values during compilation.
 
 ### Nix-Native Orchestration & Build Configuration
 
 T relies directly on Nix as its execution engine. Built-in execution functions (`build_pipeline` and `pipeline_run`) map configurations directly to Nix command-line flags:
 - **Target Selection**: `targets = [p.node1]` targets only specific derivations (via `-A`).
 - **Force Rebuilds**: `force = [p.node1]` forces rebuilding of specific paths (via `--check`).
-- **Dry Runs**: `populate_pipeline(p, dry_run = true)` (or via `nix_options`) performs a dry run, reporting which nodes would hit the local cache (`"cached"`), rebuild (`"build"`), or be downloaded (`"fetch"`), returning the results as a DataFrame.
+- **Dry Runs**: `populate_pipeline(p, dry_run = true)` and `build_pipeline(p, dry_run = true)` perform a dry run via Nix, reporting which nodes would hit the local cache (`"cached"`), rebuild (`"build"`), or be downloaded (`"fetch"`), returning the results as a DataFrame.
 - **Programmatic Garbage Collection**:
   - `pipeline_gc(p, dry_run = false)` deletes the store paths associated with the pipeline's nodes if safe (unreferenced by other profiles/roots).
   - `t_gc()` executes a global Nix garbage collection (`nix-store --gc`) to safely clean up old, detached derivations directly from the T-Lang REPL.

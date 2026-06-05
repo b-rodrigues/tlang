@@ -68,6 +68,13 @@ let separate_rows_impl (named_args : (string option * value) list) _env =
 --# Expands delimited string values into multiple rows while repeating the remaining columns.
 --#
 --# @name separate_rows
+--# @param df :: DataFrame The input data frame.
+--# @param col :: Column The column to split (bare name or $col reference).
+--# @param sep :: String = "[^A-Za-z0-9]+" Regular expression separator pattern.
+--# @return :: DataFrame A DataFrame with the column values split across rows.
+--# @example
+--#   separate_rows(df, $items)
+--#   separate_rows(df, $codes, sep = ",")
 --# @family colcraft
 --# @export
 *)

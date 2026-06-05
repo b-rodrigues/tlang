@@ -695,147 +695,235 @@ let fct_c_impl (args : (string option * value) list) _env =
       VVector (Array.of_list factor_values)
 
 (*
---# Create to_factor values
+--# Create factor values
 --#
---# Converts values to to_factor-encoded vectors with derived or explicit levels.
+--# Converts values to factor-encoded vectors with derived or explicit levels.
 --#
 --# @name to_factor
+--# @param x :: Vector | List | Any The values to convert to factors.
+--# @param levels :: Vector[String] | List[String] (Optional) Explicit level order. Defaults to sorted unique values.
+--# @param ordered :: Bool = false Mark the factor as ordered for ordinal comparisons.
+--# @return :: Vector[Factor] A factor vector.
+--# @example
+--#   to_factor(["a", "b", "a"])
+--#   to_factor(["a", "b", "a"], levels = ["b", "a"], ordered = true)
 --# @family colcraft
 --# @export
 *)
 (*
---# Order to_factor levels by frequency
+--# Order factor levels by frequency
 --#
---# Reorders to_factor levels so that more frequent levels appear first.
+--# Reorders factor levels so that more frequent levels appear first.
 --#
 --# @name fct_infreq
+--# @param x :: Vector[Factor] A factor vector.
+--# @return :: Vector[Factor] A factor vector with levels reordered by descending frequency.
+--# @example
+--#   fct_infreq(fct)
 --# @family colcraft
 --# @export
 *)
 (*
---# Get to_factor levels
+--# Get factor levels
 --#
---# Returns the level labels stored on a to_factor vector.
+--# Returns the level labels stored on a factor vector.
 --#
 --# @name levels
+--# @param x :: Vector[Factor] A factor vector.
+--# @return :: Vector[String] The level labels.
+--# @example
+--#   levels(fct)
 --# @family colcraft
 --# @export
 *)
 (*
---# Reverse to_factor levels
+--# Reverse factor levels
 --#
---# Reverses the order of the levels in a to_factor vector.
+--# Reverses the order of the levels in a factor vector.
 --#
 --# @name fct_rev
+--# @param x :: Vector[Factor] A factor vector.
+--# @return :: Vector[Factor] A factor vector with levels in reverse order.
+--# @example
+--#   fct_rev(fct)
 --# @family colcraft
 --# @export
 *)
 (*
---# Rename to_factor levels
+--# Rename factor levels
 --#
---# Recodes existing to_factor levels using named replacements.
+--# Recodes existing factor levels using named replacements.
 --#
 --# @name fct_recode
+--# @param x :: Vector[Factor] A factor vector.
+--# @param ... Named replacements in the form `new_name = old_name`.
+--# @return :: Vector[Factor] A factor vector with renamed levels.
+--# @example
+--#   fct_recode(fct, high = "H", low = "L")
 --# @family colcraft
 --# @export
 *)
 (*
---# Order to_factor levels by another vector
+--# Order factor levels by another vector
 --#
---# Reorders to_factor levels using summary statistics computed from a companion numeric vector.
+--# Reorders factor levels using summary statistics computed from a companion numeric vector.
 --#
 --# @name fct_reorder
+--# @param f :: Vector[Factor] A factor vector.
+--# @param x :: Vector[Number] A numeric vector used to compute order.
+--# @param .desc :: Bool = false Sort in descending order.
+--# @return :: Vector[Factor] A factor vector with levels reordered by the summary of x.
+--# @example
+--#   fct_reorder(fct, values)
+--#   fct_reorder(fct, values, .desc = true)
 --# @family colcraft
 --# @export
 *)
 (*
---# Keep the most frequent to_factor levels
+--# Keep the most frequent factor levels
 --#
---# Collapses infrequent to_factor levels into an other bucket while keeping the most frequent levels.
+--# Collapses infrequent factor levels into an "Other" bucket while keeping the most frequent levels.
 --#
 --# @name fct_lump_n
+--# @param x :: Vector[Factor] A factor vector.
+--# @param n :: Int = 10 Number of most frequent levels to keep.
+--# @param other_level :: String = "Other" Name for the collapsed catch-all level.
+--# @return :: Vector[Factor] A factor vector with infrequent levels lumped.
+--# @example
+--#   fct_lump_n(fct, n = 5)
+--#   fct_lump_n(fct, n = 3, other_level = "Misc")
 --# @family colcraft
 --# @export
 *)
 (*
---# Lump to_factor levels below a minimum count
+--# Lump factor levels below a minimum count
 --#
---# Collapses to_factor levels whose counts fall below a minimum threshold.
+--# Collapses factor levels whose counts fall below a minimum threshold.
 --#
 --# @name fct_lump_min
+--# @param x :: Vector[Factor] A factor vector.
+--# @param min :: Int Minimum count threshold. Levels below this are lumped.
+--# @param other_level :: String = "Other" Name for the collapsed catch-all level.
+--# @return :: Vector[Factor] A factor vector with rare levels lumped.
+--# @example
+--#   fct_lump_min(fct, min = 5)
 --# @family colcraft
 --# @export
 *)
 (*
---# Lump to_factor levels below a minimum proportion
+--# Lump factor levels below a minimum proportion
 --#
---# Collapses to_factor levels whose frequency falls below a proportion threshold.
+--# Collapses factor levels whose frequency falls below a proportion threshold.
 --#
 --# @name fct_lump_prop
+--# @param x :: Vector[Factor] A factor vector.
+--# @param prop :: Float Minimum proportion threshold. Levels below this are lumped.
+--# @param other_level :: String = "Other" Name for the collapsed catch-all level.
+--# @return :: Vector[Factor] A factor vector with rare levels lumped.
+--# @example
+--#   fct_lump_prop(fct, prop = 0.05)
 --# @family colcraft
 --# @export
 *)
-
 (*
 --# Move selected levels to the front
 --#
---# Explicitly reorders a to_factor by moving named levels ahead of the remaining levels.
+--# Explicitly reorders a factor by moving named levels ahead of the remaining levels.
 --#
 --# @name fct_relevel
+--# @param x :: Vector[Factor] A factor vector.
+--# @param ... Level names to move to the front.
+--# @param after :: Int = 0 Position after which to place the moved levels (0 = front).
+--# @return :: Vector[Factor] A factor vector with selected levels moved.
+--# @example
+--#   fct_relevel(fct, "c", "a")
+--#   fct_relevel(fct, "high", after = 2)
 --# @family colcraft
 --# @export
 *)
 (*
 --# Collapse multiple levels
 --#
---# Merges several existing to_factor levels into new grouped levels.
+--# Merges several existing factor levels into new grouped levels.
 --#
 --# @name fct_collapse
+--# @param x :: Vector[Factor] A factor vector.
+--# @param ... Named lists mapping new level names to vectors of old level names.
+--# @return :: Vector[Factor] A factor vector with collapsed levels.
+--# @example
+--#   fct_collapse(fct, small = ["a", "b"], large = ["c", "d"])
 --# @family colcraft
 --# @export
 *)
 (*
 --# Replace unlisted levels with Other
 --#
---# Keeps selected to_factor levels and maps the rest to an other bucket.
+--# Keeps selected factor levels and maps the rest to an "Other" bucket.
 --#
 --# @name fct_other
+--# @param x :: Vector[Factor] A factor vector.
+--# @param keep :: Vector[String] | List[String] Levels to preserve.
+--# @param drop :: Vector[String] | List[String] Levels to drop (mutually exclusive with keep).
+--# @param other_level :: String = "Other" Name for the catch-all level.
+--# @return :: Vector[Factor] A factor vector with unlisted levels replaced.
+--# @example
+--#   fct_other(fct, keep = ["a", "b"])
+--#   fct_other(fct, drop = ["z"], other_level = "Misc")
 --# @family colcraft
 --# @export
 *)
 (*
---# Drop unused to_factor levels
+--# Drop unused factor levels
 --#
---# Removes levels that are not referenced by any value in the to_factor vector.
+--# Removes levels that are not referenced by any value in the factor vector.
 --#
 --# @name fct_drop
+--# @param x :: Vector[Factor] A factor vector.
+--# @return :: Vector[Factor] A factor vector with unused levels removed.
+--# @example
+--#   fct_drop(fct)
 --# @family colcraft
 --# @export
 *)
 (*
---# Add explicit to_factor levels
+--# Add explicit factor levels
 --#
---# Adds extra levels to a to_factor without changing existing assignments.
+--# Adds extra levels to a factor without changing existing assignments.
 --#
 --# @name fct_expand
+--# @param x :: Vector[Factor] A factor vector.
+--# @param ... New level names to add.
+--# @return :: Vector[Factor] A factor vector with additional levels.
+--# @example
+--#   fct_expand(fct, "new_level")
 --# @family colcraft
 --# @export
 *)
 (*
---# Concatenate to_factor vectors
+--# Concatenate factor vectors
 --#
---# Combines multiple to_factor vectors while reconciling their levels.
+--# Combines multiple factor vectors while reconciling their levels.
 --#
 --# @name fct_c
+--# @param ... Vector[Factor] Factor vectors to concatenate.
+--# @return :: Vector[Factor] A combined factor vector with unified levels.
+--# @example
+--#   fct_c(fct1, fct2)
 --# @family colcraft
 --# @export
 *)
 (*
 --# Create ordered factors
 --#
---# Creates to_factor vectors marked as ordered for ordinal comparisons.
+--# Creates factor vectors marked as ordered for ordinal comparisons.
 --#
 --# @name ordered
+--# @param x :: Vector | List | Any The values to convert to an ordered factor.
+--# @param levels :: Vector[String] | List[String] (Optional) Explicit level order.
+--# @return :: Vector[Factor] An ordered factor vector.
+--# @example
+--#   ordered(["low", "high", "medium"])
+--#   ordered(x, levels = ["low", "medium", "high"])
 --# @family colcraft
 --# @export
 *)

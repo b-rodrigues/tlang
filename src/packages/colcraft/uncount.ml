@@ -89,6 +89,13 @@ let uncount_impl (named_args : (string option * value) list) _env =
 --# Repeats each row according to a count column or weight expression.
 --#
 --# @name uncount
+--# @param df :: DataFrame The input data frame.
+--# @param weights :: Column The column containing integer weights (bare name or $col reference).
+--# @param .remove :: Bool = true Remove the weights column from the result.
+--# @return :: DataFrame A DataFrame with rows expanded according to the weights.
+--# @example
+--#   uncount(df, $count)
+--#   uncount(df, $n, .remove = false)
 --# @family colcraft
 --# @export
 *)
