@@ -138,7 +138,7 @@
 | `src/packages/math/t_log.ml` | [x] |
 | `src/packages/math/t_sqrt.ml` | [x] |
 | `src/packages/math/tan.ml` | [x] |
-| `src/packages/math/tanh.ml` | [ ] |
+| `src/packages/math/tanh.ml` | [x] |
 | `src/packages/math/trunc.ml` | [ ] |
 | `src/packages/pipeline/arrange_node.ml` | [ ] |
 | `src/packages/pipeline/build_log.ml` | [ ] |
