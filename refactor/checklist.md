@@ -213,16 +213,25 @@
 | `src/packages/stats/residuals.ml` | [x] |
 | `src/packages/stats/scale.ml` | [x] |
 | `src/packages/stats/score.ml` | [x] |
-| `src/packages/stats/sd.ml` | [ ] |
-| `src/packages/stats/sigma.ml` | [ ] |
-| `src/packages/stats/skewness.ml` | [ ] |
-| `src/packages/stats/standardize.ml` | [ ] |
-| `src/packages/stats/summary.ml` | [ ] |
-| `src/packages/stats/t_native_scoring.ml` | [ ] |
-| `src/packages/stats/t_read_onnx.ml` | [ ] |
-| `src/packages/stats/t_read_pmml.ml` | [ ] |
-| `src/packages/stats/t_score_pmml.ml` | [ ] |
-| `src/packages/stats/trimmed_mean.ml` | [ ] |
+| `src/packages/stats/sd.ml` | [x] |
+
+| `src/packages/stats/sigma.ml` | [x] |
+
+| `src/packages/stats/skewness.ml` | [x] |
+
+| `src/packages/stats/standardize.ml` | [x] |
+
+| `src/packages/stats/summary.ml` | [x] |
+
+| `src/packages/stats/t_native_scoring.ml` | [x] |
+
+| `src/packages/stats/t_read_onnx.ml` | [x] |
+
+| `src/packages/stats/t_read_pmml.ml` | [x] |
+
+| `src/packages/stats/t_score_pmml.ml` | [x] |
+
+| `src/packages/stats/trimmed_mean.ml` | [x] |
 | `src/packages/stats/var.ml` | [ ] |
 | `src/packages/stats/vcov.ml` | [ ] |
 | `src/packages/stats/wald_test.ml` | [ ] |
