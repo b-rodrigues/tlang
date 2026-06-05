@@ -86,7 +86,7 @@
 | `src/packages/core/is_error.ml` | [x] |
 | `src/packages/core/packages.ml` | [x] |
 | `src/packages/core/path_ops.ml` | [x] |
-| `src/packages/core/pretty_print.ml` | [ ] |
+| `src/packages/core/pretty_print.ml` | [x] |
 | `src/packages/core/show_plot.ml` | [ ] |
 | `src/packages/core/sum.ml` | [ ] |
 | `src/packages/core/t_boolean.ml` | [ ] |
