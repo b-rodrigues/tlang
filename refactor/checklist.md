@@ -110,7 +110,7 @@
 | `src/packages/dataframe/t_write_csv.ml` | [x] |
 | `src/packages/explain/explain_json.ml` | [x] |
 | `src/packages/explain/intent_fields.ml` | [x] |
-| `src/packages/explain/intent_get.ml` | [ ] |
+| `src/packages/explain/intent_get.ml` | [x] |
 | `src/packages/explain/t_explain.ml` | [ ] |
 | `src/packages/lens/lens.ml` | [ ] |
 | `src/packages/math/acos.ml` | [ ] |
