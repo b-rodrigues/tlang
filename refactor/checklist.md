@@ -96,7 +96,7 @@
 | `src/packages/core/t_seq.ml` | [x] |
 | `src/packages/core/t_type.ml` | [x] |
 | `src/packages/core/t_write_text.ml` | [x] |
-| `src/packages/core/tail.ml` | [ ] |
+| `src/packages/core/tail.ml` | [x] |
 | `src/packages/dataframe/clean_colnames.ml` | [ ] |
 | `src/packages/dataframe/colnames.ml` | [ ] |
 | `src/packages/dataframe/glimpse.ml` | [ ] |
