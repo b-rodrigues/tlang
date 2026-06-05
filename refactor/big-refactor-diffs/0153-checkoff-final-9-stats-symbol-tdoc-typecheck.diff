@@ -1,0 +1,112 @@
+diff --git a/refactor/big-refactor-diffs/0152-checkoff-nix-pmml-repl-serial.diff b/refactor/big-refactor-diffs/0152-checkoff-nix-pmml-repl-serial.diff
+new file mode 100644
+index 00000000..42a07c38
+--- /dev/null
++++ b/refactor/big-refactor-diffs/0152-checkoff-nix-pmml-repl-serial.diff
+@@ -0,0 +1,31 @@
++diff --git a/refactor/checklist.md b/refactor/checklist.md
++index ccbada75..df110412 100644
++--- a/refactor/checklist.md
+++++ b/refactor/checklist.md
++@@ -251,16 +251,16 @@
++ | `src/pipeline/builder_write_dag.ml` | [x] |
++ | `src/pipeline/nix_emit_node.ml` | [x] |
++ | `src/pipeline/nix_emit_pipeline.ml` | [x] |
++-| `src/pipeline/nix_emitter.ml` | [ ] |
++-| `src/pipeline/nix_unparse.ml` | [ ] |
++-| `src/pipeline/nix_utils.ml` | [ ] |
++-| `src/pipeline/pipeline_dependency_requirements.ml` | [ ] |
++-| `src/pipeline_script.ml` | [ ] |
++-| `src/pmml_utils.ml` | [ ] |
++-| `src/repl.ml` | [ ] |
++-| `src/semantic_type.ml` | [ ] |
++-| `src/serialization.ml` | [ ] |
++-| `src/serialization_registry.ml` | [ ] |
+++| `src/pipeline/nix_emitter.ml` | [x] |
+++| `src/pipeline/nix_unparse.ml` | [x] |
+++| `src/pipeline/nix_utils.ml` | [x] |
+++| `src/pipeline/pipeline_dependency_requirements.ml` | [x] |
+++| `src/pipeline_script.ml` | [x] |
+++| `src/pmml_utils.ml` | [x] |
+++| `src/repl.ml` | [x] |
+++| `src/semantic_type.ml` | [x] |
+++| `src/serialization.ml` | [x] |
+++| `src/serialization_registry.ml` | [x] |
++ | `src/stats.ml` | [ ] |
++ | `src/symbol_table.ml` | [ ] |
++ | `src/tdoc/tdoc_json.ml` | [ ] |
+diff --git a/refactor/checklist.md b/refactor/checklist.md
+index df110412..6c13c0d4 100644
+--- a/refactor/checklist.md
++++ b/refactor/checklist.md
+@@ -261,12 +261,12 @@
+ | `src/semantic_type.ml` | [x] |
+ | `src/serialization.ml` | [x] |
+ | `src/serialization_registry.ml` | [x] |
+-| `src/stats.ml` | [ ] |
+-| `src/symbol_table.ml` | [ ] |
+-| `src/tdoc/tdoc_json.ml` | [ ] |
+-| `src/tdoc/tdoc_markdown.ml` | [ ] |
+-| `src/tdoc/tdoc_parser.ml` | [ ] |
+-| `src/tdoc/tdoc_registry.ml` | [ ] |
+-| `src/tdoc/tdoc_types.ml` | [ ] |
+-| `src/typecheck.ml` | [ ] |
+-| `src/value_hash.ml` | [ ] |
++| `src/stats.ml` | [x] |
++| `src/symbol_table.ml` | [x] |
++| `src/tdoc/tdoc_json.ml` | [x] |
++| `src/tdoc/tdoc_markdown.ml` | [x] |
++| `src/tdoc/tdoc_parser.ml` | [x] |
++| `src/tdoc/tdoc_registry.ml` | [x] |
++| `src/tdoc/tdoc_types.ml` | [x] |
++| `src/typecheck.ml` | [x] |
++| `src/value_hash.ml` | [x] |
+diff --git a/src/tdoc/tdoc_parser.ml b/src/tdoc/tdoc_parser.ml
+index 3fdc3277..c2d72d1d 100644
+--- a/src/tdoc/tdoc_parser.ml
++++ b/src/tdoc/tdoc_parser.ml
+@@ -66,14 +66,11 @@ let parse_block lines filename line_num =
+         let desc = String.concat " " rest in
+         params := { name; type_info = Some type_info; description = desc } :: !params
+     | name :: rest ->
+-        (* Check if description starts with :: <type> *)
+         let desc = String.concat " " rest in
+         if starts_with desc ":: " then
+-          let type_part = try List.nth (String.split_on_char ' ' desc) 1 with _ -> "" in
+-          let real_desc = try 
+-            let parts = String.split_on_char ' ' desc in
+-            String.concat " " (List.tl (List.tl parts))
+-          with _ -> "" in
++          let parts = String.split_on_char ' ' desc |> List.filter (fun s -> s <> "") in
++          let type_part = match parts with _ :: t :: _ -> t | _ -> "" in
++          let real_desc = match parts with _ :: _ :: rest -> String.concat " " rest | _ -> "" in
+           params := { name; type_info = Some type_part; description = real_desc } :: !params
+         else
+           params := { name; type_info = None; description = desc } :: !params
+@@ -186,17 +183,16 @@ let parse_file filename =
+               prefixes
+           in
+           if starts_with code_line "let " then
+-            try
+-              let parts = String.split_on_char ' ' code_line in
+-              List.nth parts 1
+-            with _ -> "unknown"
++            (match String.split_on_char ' ' code_line with
++             | _ :: name :: _ -> name
++             | _ -> "unknown")
+           else if starts_with code_line "fn " then
+-            try
+-              let parts = String.split_on_char ' ' code_line in
+-              let name_part = List.nth parts 1 in
+-              (* Handle fn name(...) *)
+-              List.hd (String.split_on_char '(' name_part)
+-            with _ -> "unknown"
++            (match String.split_on_char ' ' code_line with
++             | _ :: name_part :: _ ->
++               (match String.split_on_char '(' name_part with
++                | hd :: _ -> hd
++                | [] -> "unknown")
++             | _ -> "unknown")
+           else "unknown"
+         in
+         

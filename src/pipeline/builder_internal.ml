@@ -74,9 +74,11 @@ let get_failed_node_error_info drv_path =
               (match String.split_on_char ':' last with
                | first :: _ ->
                    let parts = String.split_on_char '.' first in
-                   (match List.rev parts with
-                    | last_part :: _ -> String.trim last_part
-                    | [] -> "NixError")
+                    (match List.rev parts with
+                     | last_part :: _ ->
+                         let trimmed = String.trim last_part in
+                         if trimmed = "" then "NixError" else trimmed
+                     | [] -> "NixError")
                | _ -> "NixError")
           | [] -> "NixError"
         in
