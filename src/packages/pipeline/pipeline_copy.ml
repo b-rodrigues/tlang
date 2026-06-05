@@ -1,5 +1,6 @@
 (* src/packages/pipeline/pipeline_copy.ml *)
 open Ast
+open Pipeline_utils
 
 (*
 --# Copy Pipeline Node Artifacts to Local Directory
@@ -16,11 +17,6 @@ open Ast
 --# @family pipeline
 --# @export
 -*)
-let rec nth_safe n = function
-  | h :: _ when n = 0 -> Some h
-  | _ :: t -> nth_safe (n - 1) t
-  | [] -> None
-
 let register env =
   let get_arg name pos default named_args =
     match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
