@@ -119,7 +119,7 @@
 | `src/packages/math/asinh.ml` | [x] |
 | `src/packages/math/atan.ml` | [x] |
 | `src/packages/math/atan2.ml` | [x] |
-| `src/packages/math/atanh.ml` | [ ] |
+| `src/packages/math/atanh.ml` | [x] |
 | `src/packages/math/ceiling.ml` | [ ] |
 | `src/packages/math/cos.ml` | [ ] |
 | `src/packages/math/cosh.ml` | [ ] |
