@@ -144,24 +144,24 @@
 | `src/packages/pipeline/build_log.ml` | [x] |
 | `src/packages/pipeline/build_pipeline.ml` | [x] |
 | `src/packages/pipeline/export_artifacts.ml` | [x] |
-| `src/packages/pipeline/filter_node.ml` | [ ] |
-| `src/packages/pipeline/import_artifacts.ml` | [ ] |
-| `src/packages/pipeline/inspect_artifacts.ml` | [ ] |
-| `src/packages/pipeline/inspect_pipeline.ml` | [ ] |
-| `src/packages/pipeline/jln_docs.ml` | [ ] |
-| `src/packages/pipeline/mutate_node.ml` | [ ] |
-| `src/packages/pipeline/node_docs.ml` | [ ] |
-| `src/packages/pipeline/pipeline_cache_status.ml` | [ ] |
-| `src/packages/pipeline/pipeline_composition.ml` | [ ] |
-| `src/packages/pipeline/pipeline_copy.ml` | [ ] |
-| `src/packages/pipeline/pipeline_dag_ops.ml` | [ ] |
-| `src/packages/pipeline/pipeline_deps.ml` | [ ] |
-| `src/packages/pipeline/pipeline_diff.ml` | [ ] |
-| `src/packages/pipeline/pipeline_gc.ml` | [ ] |
-| `src/packages/pipeline/pipeline_inspect2.ml` | [ ] |
-| `src/packages/pipeline/pipeline_node.ml` | [ ] |
-| `src/packages/pipeline/pipeline_nodes.ml` | [ ] |
-| `src/packages/pipeline/pipeline_run.ml` | [ ] |
+| `src/packages/pipeline/filter_node.ml` | [x] |
+| `src/packages/pipeline/import_artifacts.ml` | [x] |
+| `src/packages/pipeline/inspect_artifacts.ml` | [x] |
+| `src/packages/pipeline/inspect_pipeline.ml` | [x] |
+| `src/packages/pipeline/jln_docs.ml` | [x] |
+| `src/packages/pipeline/mutate_node.ml` | [x] |
+| `src/packages/pipeline/node_docs.ml` | [x] |
+| `src/packages/pipeline/pipeline_cache_status.ml` | [x] |
+| `src/packages/pipeline/pipeline_composition.ml` | [x] |
+| `src/packages/pipeline/pipeline_copy.ml` | [x] |
+| `src/packages/pipeline/pipeline_dag_ops.ml` | [x] |
+| `src/packages/pipeline/pipeline_deps.ml` | [x] |
+| `src/packages/pipeline/pipeline_diff.ml` | [x] |
+| `src/packages/pipeline/pipeline_gc.ml` | [x] |
+| `src/packages/pipeline/pipeline_inspect2.ml` | [x] |
+| `src/packages/pipeline/pipeline_node.ml` | [x] |
+| `src/packages/pipeline/pipeline_nodes.ml` | [x] |
+| `src/packages/pipeline/pipeline_run.ml` | [x] |
 | `src/packages/pipeline/pipeline_set_ops.ml` | [ ] |
 | `src/packages/pipeline/pipeline_to_drv.ml` | [ ] |
 | `src/packages/pipeline/pipeline_to_frame.ml` | [ ] |
