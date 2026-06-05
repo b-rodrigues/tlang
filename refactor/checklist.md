@@ -115,7 +115,7 @@
 | `src/packages/lens/lens.ml` | [x] |
 | `src/packages/math/acos.ml` | [x] |
 | `src/packages/math/acosh.ml` | [x] |
-| `src/packages/math/asin.ml` | [ ] |
+| `src/packages/math/asin.ml` | [x] |
 | `src/packages/math/asinh.ml` | [ ] |
 | `src/packages/math/atan.ml` | [ ] |
 | `src/packages/math/atan2.ml` | [ ] |
