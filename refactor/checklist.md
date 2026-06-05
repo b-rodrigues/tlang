@@ -76,7 +76,7 @@
 | `src/packages/colcraft/unite.ml` | [x] |
 | `src/packages/colcraft/unnest.ml` | [x] |
 | `src/packages/colcraft/window_cumulative.ml` | [x] |
-| `src/packages/colcraft/window_offset.ml` | [ ] |
+| `src/packages/colcraft/window_offset.ml` | [x] |
 | `src/packages/colcraft/window_rank.ml` | [ ] |
 | `src/packages/core/args.ml` | [ ] |
 | `src/packages/core/converters.ml` | [ ] |
