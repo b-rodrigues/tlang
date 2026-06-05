@@ -87,17 +87,25 @@ let register env =
                  | Error err -> err
                  | Ok sep_re ->
                      let n_into = List.length into_cols in
-                     let split_vals = Array.init orig_nrows (fun i ->
-                       match val_to_str values.(i) with
-                       | Some s ->
-                           let parts = Str.split sep_re s in
-                           let n_parts = List.length parts in
-                           if n_parts >= n_into then
-                             List.filteri (fun i _ -> i < n_into) parts
-                           else
-                             parts @ (List.init (n_into - n_parts) (fun _ -> ""))
-                       | None -> List.init n_into (fun _ -> "NA")
-                     ) in
+                     let split_vals_res =
+                       try
+                         Ok (Array.init orig_nrows (fun i ->
+                           match val_to_str values.(i) with
+                           | Some s ->
+                               let parts = Str.split sep_re s in
+                               let n_parts = List.length parts in
+                               if n_parts >= n_into then
+                                 List.filteri (fun i _ -> i < n_into) parts
+                               else
+                                 parts @ (List.init (n_into - n_parts) (fun _ -> ""))
+                           | None -> List.init n_into (fun _ -> "NA")
+                         ))
+                       with Failure msg ->
+                         Error (Error.value_error (Printf.sprintf "Function `separate` failed while splitting values: %s" msg))
+                     in
+                     (match split_vals_res with
+                      | Error err -> err
+                      | Ok split_vals ->
                      
                      (* Create new columns *)
                      let new_cols_data = List.mapi (fun i name ->
@@ -124,6 +132,6 @@ let register env =
                      let final_columns = List.rev !final_columns in
                      
                      let new_schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) final_columns in
-                     VDataFrame { arrow_table = { schema = new_schema; columns = final_columns; nrows = orig_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = df.group_keys })
+                     VDataFrame { arrow_table = { schema = new_schema; columns = final_columns; nrows = orig_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = df.group_keys }))
     ))
     env

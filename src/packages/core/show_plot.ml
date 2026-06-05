@@ -180,9 +180,9 @@ let open_rendered_plot viewer path =
                   | _ -> Printexc.to_string exn
                 in
                 let msg = Bytes.of_string err_msg in
-                (try ignore (Unix.write write_fd msg 0 (Bytes.length msg)) with _ -> ());
-                (try Unix.close write_fd with _ -> ());
-                (try Unix.close devnull with _ -> ());
+                (try ignore (Unix.write write_fd msg 0 (Bytes.length msg)) with Unix.Unix_error _ -> ());
+                (try Unix.close write_fd with Unix.Unix_error _ -> ());
+                (try Unix.close devnull with Unix.Unix_error _ -> ());
                 Stdlib.exit 1)
          | fork_pid ->
              Unix.close write_fd;
