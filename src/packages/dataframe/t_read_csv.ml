@@ -208,9 +208,9 @@ let register env =
             (try
               let read_content_from_path p =
                 let ch = open_in p in
-                let content = really_input_string ch (in_channel_length ch) in
-                close_in ch;
-                content
+                Fun.protect
+                  ~finally:(fun () -> close_in_noerr ch)
+                  (fun () -> really_input_string ch (in_channel_length ch))
               in
 
               let content =
@@ -220,13 +220,13 @@ let register env =
                       let c = read_content_from_path temp_path in
                       (try Sys.remove temp_path with _ -> ());
                       c
-                  | Error msg -> raise (Sys_error msg)
+                  | Error msg -> failwith msg
                 else
                   read_content_from_path path
               in
               parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean content
             with
-            | Sys_error msg -> Error.make_error FileError msg)
+            | e -> Error.make_error FileError (Printexc.to_string e))
       | [VNA _] -> Error.type_error "Function `read_csv` expects a String path, got NA."
       | [_] -> Error.type_error "Function `read_csv` expects a String path."
       | _ -> Error.make_error ArityError "Function `read_csv` takes exactly 1 positional argument (path)."

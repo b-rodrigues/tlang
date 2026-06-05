@@ -12,8 +12,8 @@ let cell_to_string v =
       let tag = Utils.na_type_to_string na_t in
       if tag = "" then "NA" else "NA(" ^ tag ^ ")"
   | VFloat f ->
-      if f = floor f then Printf.sprintf "%.1f" f
-      else if Float.abs f < 0.001 then Printf.sprintf "%.4e" f
+      if Float.equal f (floor f) then Printf.sprintf "%.1f" f
+      else if Float.compare (Float.abs f) 0.001 < 0 then Printf.sprintf "%.4e" f
       else Printf.sprintf "%.4g" f
   | other -> Utils.value_to_string other
 

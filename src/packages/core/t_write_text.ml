@@ -19,9 +19,13 @@ let register env =
       | [VString path; VString content] ->
           (try
             let oc = open_out path in
-            output_string oc content;
-            close_out oc;
-            (VNA NAGeneric)
+            (try
+               output_string oc content;
+               close_out oc;
+               (VNA NAGeneric)
+             with e ->
+               close_out_noerr oc;
+               raise e)
           with e ->
             Error.make_error FileError (Printf.sprintf "Failed to write to file `%s`: %s" path (Printexc.to_string e)))
       | [VString _; _] -> Error.type_error "Function `write_text` expects a string as second argument."
