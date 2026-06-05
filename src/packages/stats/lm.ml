@@ -12,9 +12,9 @@ let build_model_value ?weights (result : Arrow_owl_bridge.lm_result)
     (formula_v : value) (data_v : value) : value =
   let p = Array.length result.coefficients in
   let nrows = p in
-  (* Build tidy DataFrame columns *)
+  let term_names_arr = Array.of_list result.term_names in
   let term_col = Arrow_table.StringColumn (
-    Array.init nrows (fun i -> Some (List.nth result.term_names i))
+    Array.init nrows (fun i -> Some term_names_arr.(i))
   ) in
   let estimate_col = Arrow_table.FloatColumn (
     Array.init nrows (fun i -> Some result.coefficients.(i))

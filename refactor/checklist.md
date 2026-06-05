@@ -193,16 +193,16 @@
 | `src/packages/stats/distributions.ml` | [x] |
 | `src/packages/stats/fit_stats.ml` | [x] |
 | `src/packages/stats/fivenum.ml` | [x] |
-| `src/packages/stats/huber_loss.ml` | [ ] |
-| `src/packages/stats/iqr.ml` | [ ] |
-| `src/packages/stats/kurtosis.ml` | [ ] |
-| `src/packages/stats/lm.ml` | [ ] |
-| `src/packages/stats/mad.ml` | [ ] |
-| `src/packages/stats/math_utils.ml` | [ ] |
-| `src/packages/stats/max.ml` | [ ] |
-| `src/packages/stats/mean.ml` | [ ] |
-| `src/packages/stats/median.ml` | [ ] |
-| `src/packages/stats/min.ml` | [ ] |
+| `src/packages/stats/huber_loss.ml` | [x] |
+| `src/packages/stats/iqr.ml` | [x] |
+| `src/packages/stats/kurtosis.ml` | [x] |
+| `src/packages/stats/lm.ml` | [x] |
+| `src/packages/stats/mad.ml` | [x] |
+| `src/packages/stats/math_utils.ml` | [x] |
+| `src/packages/stats/max.ml` | [x] |
+| `src/packages/stats/mean.ml` | [x] |
+| `src/packages/stats/median.ml` | [x] |
+| `src/packages/stats/min.ml` | [x] |
 | `src/packages/stats/mode.ml` | [ ] |
 | `src/packages/stats/nobs.ml` | [ ] |
 | `src/packages/stats/normalize.ml` | [ ] |
