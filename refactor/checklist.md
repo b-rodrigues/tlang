@@ -131,7 +131,7 @@
 | `src/packages/math/sign.ml` | [x] |
 | `src/packages/math/signif.ml` | [x] |
 | `src/packages/math/sin.ml` | [x] |
-| `src/packages/math/sinh.ml` | [ ] |
+| `src/packages/math/sinh.ml` | [x] |
 | `src/packages/math/t_abs.ml` | [ ] |
 | `src/packages/math/t_exp.ml` | [ ] |
 | `src/packages/math/t_iota.ml` | [ ] |
