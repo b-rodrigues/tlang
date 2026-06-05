@@ -82,7 +82,7 @@
 | `src/packages/core/converters.ml` | [x] |
 | `src/packages/core/file_ops.ml` | [x] |
 | `src/packages/core/head.ml` | [x] |
-| `src/packages/core/help.ml` | [ ] |
+| `src/packages/core/help.ml` | [x] |
 | `src/packages/core/is_error.ml` | [ ] |
 | `src/packages/core/packages.ml` | [ ] |
 | `src/packages/core/path_ops.ml` | [ ] |
