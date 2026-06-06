@@ -1113,6 +1113,9 @@ CAMLprim value caml_arrow_table_filter_mask(value v_ptr, value v_mask) {
   CAMLlocal1(v_result);
 
   GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  if (!Is_block(v_mask)) {
+    CAMLreturn(Val_none);
+  }
   int n = Wosize_val(v_mask);
 
   /* Build boolean array from OCaml bool array */
@@ -1849,8 +1852,21 @@ CAMLprim value caml_arrow_grouped_table_nest(value v_ptr) {
     GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
     GError *error = NULL;
     garrow_int64_array_builder_append_values(builder, gt->group_row_indices[i], gt->group_sizes[i], NULL, 0, &error);
-    GArrowArray *indices_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), NULL);
+    if (error) {
+      g_object_unref(builder);
+      g_error_free(error);
+      continue;
+    }
+    GArrowArray *indices_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
     g_object_unref(builder);
+    if (error) {
+      if (indices_arr) g_object_unref(indices_arr);
+      g_error_free(error);
+      continue;
+    }
+    if (indices_arr == NULL) {
+      continue;
+    }
 
     GArrowTable *sub = garrow_table_take(base_table, indices_arr, NULL, &error);
     g_object_unref(indices_arr);
@@ -2026,7 +2042,8 @@ cell_value_as_string(GArrowTable *table, int col_idx, gint64 row_idx)
 
   gchar *result;
   if (garrow_array_is_null(chunk, offset)) {
-    result = g_strdup("NA");
+    g_object_unref(chunk);
+    return NULL;
   } else if (GARROW_IS_INT64_ARRAY(chunk)) {
     gint64 v = garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset);
     result = g_strdup_printf("%" G_GINT64_FORMAT, v);
@@ -2078,12 +2095,10 @@ compare_group_keys(gconstpointer a, gconstpointer b, gpointer user_data)
     const char *s1 = ctx->group_key_values[g1][k];
     const char *s2 = ctx->group_key_values[g2][k];
 
-    /* Handle NAs (stored as "NA" in key strings) */
-    gboolean is_na1 = (strcmp(s1, "NA") == 0);
-    gboolean is_na2 = (strcmp(s2, "NA") == 0);
-    if (is_na1 && !is_na2) return 1;  /* NAs last */
-    if (!is_na1 && is_na2) return -1;
-    if (is_na1 && is_na2) continue;
+    /* Handle NAs (stored as NULL in key strings) */
+    if (!s1 && s2) return 1;  /* NAs last */
+    if (s1 && !s2) return -1;
+    if (!s1 && !s2) continue;
 
     int type_tag = ctx->key_types[k];
     if (type_tag == 0) { /* Int64 */
@@ -3180,7 +3195,7 @@ CAMLprim value caml_arrow_group_multi_aggregate(
         GARROW_IS_UINT64_DATA_TYPE(dtype)) {
       GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        if (strcmp(gt->group_key_values[g][k], "NA") == 0) {
+        if (gt->group_key_values[g][k] == NULL) {
           garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
         } else {
           gint64 v = g_ascii_strtoll(gt->group_key_values[g][k], NULL, 10);
@@ -3199,7 +3214,7 @@ CAMLprim value caml_arrow_group_multi_aggregate(
     } else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype)) {
       GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        if (strcmp(gt->group_key_values[g][k], "NA") == 0) {
+        if (gt->group_key_values[g][k] == NULL) {
           garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
         } else {
           gdouble v = g_ascii_strtod(gt->group_key_values[g][k], NULL);
@@ -3218,7 +3233,7 @@ CAMLprim value caml_arrow_group_multi_aggregate(
       /* Default to string for key columns */
       GArrowStringArrayBuilder *builder = garrow_string_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        if (strcmp(gt->group_key_values[g][k], "NA") == 0) {
+        if (gt->group_key_values[g][k] == NULL) {
           garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
         } else {
           garrow_string_array_builder_append_string(builder, gt->group_key_values[g][k], &error);
@@ -5430,7 +5445,7 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
       for (int k = 0; k < n_keys; k++) {
         if (k > 0) g_string_append_c(key_buf, '|');
         gchar *cell_str = cell_value_as_string(table, key_indices[k], row);
-        g_string_append(key_buf, cell_str);
+        g_string_append(key_buf, cell_str ? cell_str : "N");
         g_free(cell_str);
       }
     }
