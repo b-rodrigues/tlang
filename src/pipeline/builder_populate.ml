@@ -2,6 +2,7 @@
 open Builder_utils
 open Builder_write_dag
 open Builder_internal
+open Builder_logs
 
 let builtin_pipeline_strategies =
   [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx" ]
@@ -158,5 +159,15 @@ let populate_pipeline ?(build=false) ?verbose ?(nix_options : nix_opts option) (
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () ->
-          if build then build_pipeline_internal ?verbose ?nix_options p
+          if build then
+            match build_pipeline_internal ?verbose ?nix_options p with
+            | Ok (Ast.VString out_path) ->
+                (match find_log_for_out_path out_path with
+                 | Some log_path ->
+                     Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path
+                 | None ->
+                     Printf.eprintf "Warning: build log not found for output path `%s`.\n  Node metadata (path, class) may not resolve until next build.\n%!" out_path);
+                Ok (Ast.VString out_path)
+            | Ok other -> Ok other
+            | Error msg -> Error msg
           else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))

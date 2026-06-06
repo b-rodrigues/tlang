@@ -390,6 +390,18 @@ let latest_logged_computed_node ?log_name_pattern (name : string) =
          | Some entries ->
              (match List.assoc_opt name entries with
               | Some cn -> Some cn
+              | None when name <> "" ->
+                 (* Suffix match: meta-pipelines flatten sub-pipeline node names
+                    as "prefix.name". When the sub-pipeline variable is accessed
+                    directly (e.g. p_etl.raw) the short name "raw" won't match
+                    the logged "etl.raw". Try matching the last component. *)
+                 let dot_name = "." ^ name in
+                 let suffix_matches = List.filter_map (fun (n, cn) ->
+                   if String.ends_with ~suffix:dot_name n then Some cn else None
+                 ) entries in
+                 (match suffix_matches with
+                  | [cn] -> Some cn
+                  | _ -> find_in_logs tail)
               | None -> find_in_logs tail)
          | None -> find_in_logs tail)
   in
