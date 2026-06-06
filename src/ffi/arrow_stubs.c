@@ -1984,7 +1984,7 @@ numeric_chunk_cursor_seek(NumericChunkCursor *cursor, gint64 row_idx, gint64 *of
 }
 
 /* Read a numeric scalar from the current chunk into *value.
-   Supports INT64, INT32, INT16, UINT32, DOUBLE, and FLOAT arrays.
+   Supports all common numeric Arrow types.
    Returns TRUE when the chunk type is supported, FALSE otherwise. */
 static gboolean
 read_numeric_array_value(GArrowArray *chunk, gint64 offset, gdouble *value)
@@ -1998,8 +1998,20 @@ read_numeric_array_value(GArrowArray *chunk, gint64 offset, gdouble *value)
   } else if (GARROW_IS_INT16_ARRAY(chunk)) {
     *value = (gdouble)garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset);
     return TRUE;
+  } else if (GARROW_IS_INT8_ARRAY(chunk)) {
+    *value = (gdouble)garrow_int8_array_get_value(GARROW_INT8_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_UINT64_ARRAY(chunk)) {
+    *value = (gdouble)garrow_uint64_array_get_value(GARROW_UINT64_ARRAY(chunk), offset);
+    return TRUE;
   } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
     *value = (gdouble)garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_UINT16_ARRAY(chunk)) {
+    *value = (gdouble)garrow_uint16_array_get_value(GARROW_UINT16_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_UINT8_ARRAY(chunk)) {
+    *value = (gdouble)garrow_uint8_array_get_value(GARROW_UINT8_ARRAY(chunk), offset);
     return TRUE;
   } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
     *value = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
@@ -2049,9 +2061,21 @@ cell_value_as_string(GArrowTable *table, int col_idx, gint64 row_idx)
   } else if (GARROW_IS_INT16_ARRAY(chunk)) {
     gint16 v = garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset);
     result = g_strdup_printf("%d", v);
+  } else if (GARROW_IS_INT8_ARRAY(chunk)) {
+    gint8 v = garrow_int8_array_get_value(GARROW_INT8_ARRAY(chunk), offset);
+    result = g_strdup_printf("%d", v);
+  } else if (GARROW_IS_UINT64_ARRAY(chunk)) {
+    guint64 v = garrow_uint64_array_get_value(GARROW_UINT64_ARRAY(chunk), offset);
+    result = g_strdup_printf("%" G_GUINT64_FORMAT, v);
   } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
     guint32 v = garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset);
     result = g_strdup_printf("%u", v);
+  } else if (GARROW_IS_UINT16_ARRAY(chunk)) {
+    guint16 v = garrow_uint16_array_get_value(GARROW_UINT16_ARRAY(chunk), offset);
+    result = g_strdup_printf("%u", v);
+  } else if (GARROW_IS_UINT8_ARRAY(chunk)) {
+    guint8 v = garrow_uint8_array_get_value(GARROW_UINT8_ARRAY(chunk), offset);
+    result = g_strdup_printf("%hhu", v);
   } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
     gdouble v = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
     result = g_strdup_printf("%g", v);
@@ -3518,6 +3542,22 @@ apply_unary_math_op(GArrowChunkedArray *chunked, int op_code)
           val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), i);
         } else if (GARROW_IS_INT64_ARRAY(chunk)) {
           val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), i);
+        } else if (GARROW_IS_INT32_ARRAY(chunk)) {
+          val = (gdouble)garrow_int32_array_get_value(GARROW_INT32_ARRAY(chunk), i);
+        } else if (GARROW_IS_INT16_ARRAY(chunk)) {
+          val = (gdouble)garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), i);
+        } else if (GARROW_IS_INT8_ARRAY(chunk)) {
+          val = (gdouble)garrow_int8_array_get_value(GARROW_INT8_ARRAY(chunk), i);
+        } else if (GARROW_IS_UINT64_ARRAY(chunk)) {
+          val = (gdouble)garrow_uint64_array_get_value(GARROW_UINT64_ARRAY(chunk), i);
+        } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
+          val = (gdouble)garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), i);
+        } else if (GARROW_IS_UINT16_ARRAY(chunk)) {
+          val = (gdouble)garrow_uint16_array_get_value(GARROW_UINT16_ARRAY(chunk), i);
+        } else if (GARROW_IS_UINT8_ARRAY(chunk)) {
+          val = (gdouble)garrow_uint8_array_get_value(GARROW_UINT8_ARRAY(chunk), i);
+        } else if (GARROW_IS_FLOAT_ARRAY(chunk)) {
+          val = (gdouble)garrow_float_array_get_value(GARROW_FLOAT_ARRAY(chunk), i);
         } else {
           ok = FALSE;
           break;
