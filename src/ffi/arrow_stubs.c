@@ -70,10 +70,7 @@ static GArrowDataType *create_timestamp_data_type_with_tz_string(
   GArrowDataType *result = NULL;
   GError *error = NULL;
   result = garrow_data_type_import(&schema, &error);
-  if (error) {
-    g_error_free(error);
-    if (schema.release) schema.release(&schema);
-  }
+  if (error) g_error_free(error);
   if (result == NULL) {
     if (schema.release) schema.release(&schema);
     GTimeZone *tz = (tz_str != NULL && tz_str[0] != '\0')
@@ -2257,7 +2254,6 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   if (pre_cols == NULL) {
     for (int k2 = 0; k2 < n_keys; k2++) g_object_unref(key_cols[k2]);
     free(key_cols); free(key_names); free(key_indices); free(key_types);
-    g_object_unref(schema);
     CAMLreturn(Val_none);
   }
   for (int k = 0; k < n_keys; k++) {
