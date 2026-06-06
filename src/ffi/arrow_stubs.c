@@ -379,10 +379,9 @@ CAMLprim value caml_arrow_table_get_column_data_by_name(value v_ptr, value v_col
 
   if (n_chunks == 1) {
     array = garrow_chunked_array_get_chunk(chunked, 0);
-    /* garrow_chunked_array_get_chunk returns a new reference (transfer full)
-       according to some versions, but let's check. If it was double-reffed,
-       it would leak. If it was borrowed, we need this ref.
-       Given the CRITICAL errors, we are unreffing too much somewhere. */
+    /* garrow_chunked_array_get_chunk returns a borrowed reference (transfer none).
+       The explicit g_object_ref keeps the chunk alive after chunked is unreffed
+       below. */
     if (array) g_object_ref(array);
   } else {
     GError *error = NULL;
@@ -1064,22 +1063,19 @@ CAMLprim value caml_arrow_table_project(value v_ptr, value v_names) {
     iter = Field(iter, 1);
   }
 
-  g_object_unref(schema);
-
   /* Build new table with selected columns using Arrow APIs */
   GError *error = NULL;
   GList *fields_list = NULL;
   GArrowChunkedArray **columns_arr = (GArrowChunkedArray **)malloc(sizeof(GArrowChunkedArray *) * n_names);
 
-  GArrowSchema *old_schema = garrow_table_get_schema(table);
   for (int i = 0; i < n_names; i++) {
     guint idx = indices[i];
-    GArrowField *field = garrow_schema_get_field(old_schema, idx);
+    GArrowField *field = garrow_schema_get_field(schema, idx);
     fields_list = g_list_append(fields_list, g_object_ref(field));
     columns_arr[i] = garrow_table_get_column_data(table, idx);
     g_object_unref(field);
   }
-  g_object_unref(old_schema);
+  g_object_unref(schema);
   free(indices);
 
   GArrowSchema *new_schema = garrow_schema_new(fields_list);
@@ -4553,8 +4549,15 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           break;
         }
 
-        /* Lifecycle management: keep buffers and child array alive.
-           Unrefing these here has caused invalid nested reads in practice. */
+        /* KNOWN LEAK: offsets_buf, null_bmp, and struct_arr_obj are intentionally
+           leaked here. Unreffing them causes invalid nested reads (use-after-free)
+           because garrow_list_array_new does not properly increment the GObject
+           ref count on these inputs — it only holds a std::shared_ptr to the
+           underlying Arrow data via a GArrowArray fallback path. The GArrowBuffer
+           / GArrowStructArray can be freed while the list array still references
+           the backing memory. Remove these comments only after verifying Arrow
+           GLib >= 23.0.0 has fixed this: the transfer semantics of the buffers
+           passed to garrow_list_array_new must be fully-owned (transfer full). */
         /* if (null_bmp) g_object_unref(null_bmp); */
         /* g_object_unref(offsets_buf); */
         /* g_object_unref(struct_arr_obj); */
