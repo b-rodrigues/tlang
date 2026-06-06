@@ -74,6 +74,14 @@ static GArrowDataType *create_timestamp_data_type_with_tz_string(
     g_error_free(error);
     if (schema.release) schema.release(&schema);
   }
+  if (result == NULL) {
+    if (schema.release) schema.release(&schema);
+    GTimeZone *tz = (tz_str != NULL && tz_str[0] != '\0')
+      ? g_time_zone_new_identifier(tz_str)
+      : NULL;
+    result = (GArrowDataType *)garrow_timestamp_data_type_new(unit, tz);
+    if (tz) g_time_zone_unref(tz);
+  }
   return result;
 }
 
