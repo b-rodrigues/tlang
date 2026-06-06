@@ -16,7 +16,74 @@
 #include <math.h>
 #include <stdint.h>
 
+/* Arrow C Data Interface struct for creating timestamp types with
+   the correct timezone string, bypassing GLib timezone resolution.
+   See: https://arrow.apache.org/docs/format/CDataInterface.html */
+struct ArrowSchema_ {
+  const char *format;
+  const char *name;
+  const char *metadata;
+  int64_t flags;
+  int64_t n_children;
+  struct ArrowSchema_ **children;
+  struct ArrowSchema_ *dictionary;
+  void (*release)(struct ArrowSchema_ *);
+  void *private_data;
+};
+
+static void release_tmp_arrow_schema(struct ArrowSchema_ *schema) {
+  if (schema->release) {
+    g_free((gchar *)schema->format);
+    g_free((gchar *)schema->name);
+    schema->release = NULL;
+  }
+}
+
+/* Create a GArrowTimestampDataType with the given unit and timezone string.
+   Uses the Arrow C Data Interface to bypass GLib's timezone database
+   (g_time_zone_new_identifier may fall back to UTC for non-UTC timezones
+   when the IANA database is not accessible). */
+static GArrowDataType *create_timestamp_data_type_with_tz_string(
+    GArrowTimeUnit unit, const gchar *tz_str) {
+  const gchar *unit_prefix;
+  switch (unit) {
+    case GARROW_TIME_UNIT_SECOND: unit_prefix = "tss"; break;
+    case GARROW_TIME_UNIT_MILLI:  unit_prefix = "tsm"; break;
+    case GARROW_TIME_UNIT_MICRO:  unit_prefix = "tsu"; break;
+    case GARROW_TIME_UNIT_NANO:   unit_prefix = "tsn"; break;
+    default: return NULL;
+  }
+
+  gchar *format;
+  if (tz_str != NULL && tz_str[0] != '\0') {
+    format = g_strdup_printf("%s:%s", unit_prefix, tz_str);
+  } else {
+    format = g_strdup(unit_prefix);
+  }
+
+  struct ArrowSchema_ schema;
+  memset(&schema, 0, sizeof(schema));
+  schema.format = format;
+  schema.name = g_strdup("");
+  schema.release = release_tmp_arrow_schema;
+
+  GArrowDataType *result = NULL;
+  GError *error = NULL;
+  result = garrow_data_type_import(&schema, &error);
+  if (error) {
+    g_error_free(error);
+    if (schema.release) schema.release(&schema);
+  }
+  return result;
+}
+
+/* Extract the timezone identifier string from a GArrowTimestampDataType.
+   First tries the "time-zone" GObject property (GTimeZone identifier),
+   then falls back to parsing the type's string representation to handle
+   cases where GLib's timezone database is not available. */
 static gchar *extract_arrow_timezone_identifier(GArrowDataType *dtype) {
+  if (!GARROW_IS_TIMESTAMP_DATA_TYPE(dtype)) return NULL;
+
   GTimeZone *time_zone = NULL;
   g_object_get(G_OBJECT(dtype), "time-zone", &time_zone, NULL);
 
@@ -25,23 +92,38 @@ static gchar *extract_arrow_timezone_identifier(GArrowDataType *dtype) {
     identifier = g_time_zone_get_identifier(time_zone);
   }
 
+  if (identifier != NULL && g_utf8_strlen(identifier, -1) > 0) {
+    gchar *result = g_strdup(identifier);
+    if (time_zone != NULL) g_time_zone_unref(time_zone);
+    return result;
+  }
+
+  /* Fallback: parse the type's string representation.
+     Arrow C++ ToString() format examples:
+       timestamp[us]                    — no timezone
+       timestamp[us, Europe/Paris]      — with timezone (Arrow >= 19)
+       timestamp[ms, tz=America/NY]     — with timezone (Arrow < 19) */
   gchar *result = NULL;
-  if (identifier != NULL) {
-    result = g_strdup(identifier);
-  } else {
-    gchar *type_str = garrow_data_type_to_string(dtype);
-    if (type_str != NULL) {
-      const gchar *tz_prefix = "tz=";
-      gchar *start = g_strstr_len(type_str, -1, tz_prefix);
-      if (start != NULL) {
-        start += 3;
-        gchar *end = g_strstr_len(start, -1, "]");
-        if (end != NULL && end >= start) {
-          result = g_strndup(start, end - start);
+  gchar *type_str = garrow_data_type_to_string(dtype);
+  if (type_str != NULL) {
+    gchar *bracket = g_strstr_len(type_str, -1, "[");
+    if (bracket != NULL) {
+      gchar *comma = g_strstr_len(bracket, -1, ", ");
+      if (comma != NULL) {
+        comma += 2;
+        gchar *close = g_strstr_len(comma, -1, "]");
+        if (close != NULL && close > comma) {
+          result = g_strndup(comma, close - comma);
+          /* If result starts with "tz=", strip the prefix */
+          if (g_str_has_prefix(result, "tz=")) {
+            gchar *old = result;
+            result = g_strdup(result + 3);
+            g_free(old);
+          }
         }
       }
-      g_free(type_str);
     }
+    g_free(type_str);
   }
 
   if (time_zone != NULL) {
@@ -4308,12 +4390,13 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
               break;
             }
             case 8: { /* Timestamp */
-              GTimeZone *sub_time_zone = Is_block(v_sub_tz)
-                ? g_time_zone_new_identifier(String_val(Field(v_sub_tz, 0)))
-                : NULL;
+              const gchar *tz_str = NULL;
+              if (Is_block(v_sub_tz))
+                tz_str = String_val(Field(v_sub_tz, 0));
               GArrowTimestampDataType *timestamp_dtype =
-                garrow_timestamp_data_type_new(GARROW_TIME_UNIT_MICRO, sub_time_zone);
-              if (sub_time_zone) g_time_zone_unref(sub_time_zone);
+                GARROW_TIMESTAMP_DATA_TYPE(
+                  create_timestamp_data_type_with_tz_string(
+                    GARROW_TIME_UNIT_MICRO, tz_str));
               sub_dtype = (GArrowDataType *)timestamp_dtype;
               sub_builder = (GArrowArrayBuilder *)garrow_timestamp_array_builder_new(timestamp_dtype);
               for (int j = 0; j < n_total_vals; j++) {
@@ -4504,12 +4587,13 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         }
         break;
       case 8: { // Timestamp (microseconds since epoch)
-        GTimeZone *time_zone = Is_block(v_time_zone)
-          ? g_time_zone_new_identifier(String_val(Field(v_time_zone, 0)))
-          : NULL;
+        const gchar *tz_str = NULL;
+        if (Is_block(v_time_zone))
+          tz_str = String_val(Field(v_time_zone, 0));
         GArrowTimestampDataType *timestamp_dtype =
-          garrow_timestamp_data_type_new(GARROW_TIME_UNIT_MICRO, time_zone);
-        if (time_zone) g_time_zone_unref(time_zone);
+          GARROW_TIMESTAMP_DATA_TYPE(
+            create_timestamp_data_type_with_tz_string(
+              GARROW_TIME_UNIT_MICRO, tz_str));
         dtype = (GArrowDataType *)timestamp_dtype;
         builder = (GArrowArrayBuilder *)garrow_timestamp_array_builder_new(timestamp_dtype);
         for (int i = 0; i < n_rows; i++) {
