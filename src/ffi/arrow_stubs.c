@@ -2345,7 +2345,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
         GArrowArray *chunk = pc->chunks[pc->cur_chunk];
         gint64 offset = r - pc->chunk_starts[pc->cur_chunk];
         if (garrow_array_is_null(chunk, offset)) {
-          cell = g_strdup("NA");
+          cell = NULL;
         } else {
           /* Use pre-determined type tag to avoid per-row GARROW_IS_* checks */
           char stack_buf[32];
@@ -2394,7 +2394,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
         }
       }
       
-      g_string_append(key_buf, cell);
+      g_string_append(key_buf, cell ? cell : "N");
       row_keys[k] = cell; /* ownership transferred to row_keys */
     }
     gchar *key_str = g_string_free(key_buf, FALSE);
@@ -2631,8 +2631,12 @@ build_aggregation_result(GroupedTable *gt, const char *agg_col_name,
     if (GARROW_IS_INT64_DATA_TYPE(dtype)) {
       GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        gint64 v = g_ascii_strtoll(gt->group_key_values[g][k], NULL, 10);
-        garrow_int64_array_builder_append_value(builder, v, &error);
+        if (gt->group_key_values[g][k] == NULL) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          gint64 v = g_ascii_strtoll(gt->group_key_values[g][k], NULL, 10);
+          garrow_int64_array_builder_append_value(builder, v, &error);
+        }
         if (error) { g_error_free(error); error = NULL; }
       }
       GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
@@ -2643,8 +2647,12 @@ build_aggregation_result(GroupedTable *gt, const char *agg_col_name,
     } else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype)) {
       GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        gdouble v = g_ascii_strtod(gt->group_key_values[g][k], NULL);
-        garrow_double_array_builder_append_value(builder, v, &error);
+        if (gt->group_key_values[g][k] == NULL) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          gdouble v = g_ascii_strtod(gt->group_key_values[g][k], NULL);
+          garrow_double_array_builder_append_value(builder, v, &error);
+        }
         if (error) { g_error_free(error); error = NULL; }
       }
       GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
@@ -2656,7 +2664,11 @@ build_aggregation_result(GroupedTable *gt, const char *agg_col_name,
       /* Default to string for key columns */
       GArrowStringArrayBuilder *builder = garrow_string_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        garrow_string_array_builder_append_string(builder, gt->group_key_values[g][k], &error);
+        if (gt->group_key_values[g][k] == NULL) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          garrow_string_array_builder_append_string(builder, gt->group_key_values[g][k], &error);
+        }
         if (error) { g_error_free(error); error = NULL; }
       }
       GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
@@ -3740,44 +3752,8 @@ CAMLprim value caml_arrow_compute_pow_column(value v_ptr, value v_col_name, valu
 }
 
 /* ===================================================================== */
-/* Column-Level Aggregations (Phase 5 — Week 1)                          */
+/* Column-Level Aggregations                                             */
 /* ===================================================================== */
-
-/* Helper: extract numeric value from a chunked array at a row index.
-   Used for aggregation operations. Returns the value and sets *is_null. */
-static gdouble get_chunked_numeric_value(GArrowChunkedArray *chunked,
-                                          gint64 row_idx, gboolean *is_null) {
-  guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
-  gint64 offset = row_idx;
-  for (guint c = 0; c < n_chunks; c++) {
-    GArrowArray *chunk = garrow_chunked_array_get_chunk(chunked, c);
-    gint64 chunk_len = garrow_array_get_length(chunk);
-    if (offset < chunk_len) {
-      if (garrow_array_is_null(chunk, offset)) {
-        *is_null = TRUE;
-        g_object_unref(chunk);
-        return 0.0;
-      }
-      gdouble val = 0.0;
-      if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
-        val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
-      } else if (GARROW_IS_INT64_ARRAY(chunk)) {
-        val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset);
-      } else {
-        *is_null = TRUE;
-        g_object_unref(chunk);
-        return 0.0;
-      }
-      *is_null = FALSE;
-      g_object_unref(chunk);
-      return val;
-    }
-    offset -= chunk_len;
-    g_object_unref(chunk);
-  }
-  *is_null = TRUE;
-  return 0.0;
-}
 
 /* Generic column aggregation: table_ptr, column_name.
    agg_code: 0=sum, 1=mean, 2=min, 3=max.
@@ -4221,7 +4197,6 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         columns = g_list_append(columns, chunked);
         g_object_unref(dtype);
         dtype = NULL;
-        n_rows = 0;
         break;
       }
       case 5: { // List of Structs (ListColumn — nested DataFrames)
@@ -4624,7 +4599,6 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         g_object_unref(list_dtype_obj);
         dtype = NULL;
         builder = NULL;
-        n_rows = 0;
         break;
       }
       case 6: // Null
@@ -5470,6 +5444,7 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
   for (gint64 row = 0; row < nrows; row++) {
     g_string_truncate(key_buf, 0);
 
+    gchar **cell_strs = NULL;
     if (use_numeric_hash && key_cursors != NULL) {
       /* Fast path: use numeric hash bytes directly */
       for (int k = 0; k < n_keys; k++) {
@@ -5484,12 +5459,13 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
         }
       }
     } else {
-      /* Standard path: string-format each key */
+      /* Standard path: string-format each key.
+         Extract values once, reuse for composite key and storage. */
+      cell_strs = (gchar **)malloc(sizeof(gchar *) * n_keys);
       for (int k = 0; k < n_keys; k++) {
         if (k > 0) g_string_append_c(key_buf, '|');
-        gchar *cell_str = cell_value_as_string(table, key_indices[k], row);
-        g_string_append(key_buf, cell_str ? cell_str : "N");
-        g_free(cell_str);
+        cell_strs[k] = cell_value_as_string(table, key_indices[k], row);
+        g_string_append(key_buf, cell_strs[k] ? cell_strs[k] : "N");
       }
     }
 
@@ -5505,12 +5481,27 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
       g_ptr_array_add(group_rows, rows_arr);
 
       /* Store per-group key values */
-      gchar **kv = (gchar **)malloc(sizeof(gchar *) * n_keys);
-      for (int k = 0; k < n_keys; k++) {
-        kv[k] = cell_value_as_string(table, key_indices[k], row);
+      gchar **kv;
+      if (cell_strs != NULL) {
+        /* Standard path: reuse values already extracted */
+        kv = cell_strs;
+        cell_strs = NULL;
+      } else {
+        /* Numeric hash path: extract string values now.
+           Note: first-encounter rows in high-cardinality data still pay
+           the per-key string-formatting cost; the fast path only avoids it
+           for existing-group lookups. */
+        kv = (gchar **)malloc(sizeof(gchar *) * n_keys);
+        for (int k = 0; k < n_keys; k++) {
+          kv[k] = cell_value_as_string(table, key_indices[k], row);
+        }
       }
       g_ptr_array_add(group_key_vals, kv);
     } else {
+      if (cell_strs) {
+        for (int k = 0; k < n_keys; k++) g_free(cell_strs[k]);
+        free(cell_strs);
+      }
       guint group_id = GPOINTER_TO_UINT(existing) - 1;
       GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, group_id);
       g_array_append_val(rows_arr, row);
