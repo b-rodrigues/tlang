@@ -34,11 +34,34 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.52.3] - 2026-06-03</h2>
-<p>This release introduces a new meta-pipeline composition feature,
-<code>pipeline_of</code>, first-class artifact export/import
-capabilities, and new meta-pipeline graph visualization functions.</p>
-<p><strong>Status</strong>: Beta</p>
+<h2 id="section">[0.52.3] - 2026-06-07</h2>
+<p>This release:</p>
+<ul>
+<li>introduces a new meta-pipeline composition feature
+(<code>pipeline_of</code>), first-class artifact export/import
+capabilities, meta-pipeline graph visualization, interactive Mermaid
+browser rendering, and cache-aware dry runs with programmatic garbage
+collection.</li>
+<li>Includes comprehensive bug fixes across stats, core, CSV, and
+pipeline subsystems, and a systematic codebase-wide safety refactoring
+following OCaml best practices.</li>
+</ul>
+<h3 id="pipeline-soft-fail-early-abort-semantics">Pipeline Soft-Fail
+&amp; Early-Abort Semantics</h3>
+<ul>
+<li><strong>Block Evaluation Early Abort</strong>: Blocks
+(<code>{ ... }</code>) now abort immediately on encountering a
+<code>VError</code>, returning the error rather than continuing
+evaluation of remaining statements. This is a breaking change for code
+that relied on ignoring intermediate block errors.</li>
+<li><strong>Conditional Serialization on soft-fail</strong>: Nodes that
+soft-fail and return <code>VError</code> now conditionally fall back to
+binary <code>serialize</code>/<code>deserialize</code> rather than
+triggering configured custom serializers (like Arrow), preventing
+crashes.</li>
+<li><strong>Failed Node Diagnostics</strong>: Host tools and logs now
+safely resolve and deserialize binary T error payloads.</li>
+</ul>
 <h3 id="pipeline-visualization">Pipeline Visualization</h3>
 <ul>
 <li><strong><code>pipeline_to_dot(p)</code></strong>: Generates a
@@ -46,6 +69,12 @@ Graphviz DOT representation of the given pipeline or meta-pipeline.</li>
 <li><strong><code>pipeline_to_mermaid(p)</code></strong>: Generates a
 Mermaid flowchart diagram string from the pipeline topology, enabling
 visual rendering in Markdown documents and Mermaid live editors.</li>
+<li><strong>Browser Visualization via <code>show_plot</code></strong>:
+<code>show_plot(p)</code> now accepts a pipeline or meta-pipeline
+directly — it calls <code>pipeline_to_mermaid</code> internally, renders
+the DAG as an interactive HTML page, and opens it in the browser.
+<code>show_plot(mermaid_string)</code> also renders arbitrary Mermaid
+diagram strings.</li>
 </ul>
 <h3 id="artifact-cache-dry-runs-and-garbage-collection">Artifact Cache,
 Dry Runs, and Garbage Collection</h3>
@@ -66,9 +95,10 @@ bytes, and reference basenames without affecting the local store.</li>
 resolution and correctness checks, and updated package registrations in
 the interactive REPL for <code>import_artifacts</code>,
 <code>export_artifacts</code>, and <code>inspect_artifacts</code>.</li>
-<li><strong>Cache-Aware Dry Runs</strong>: Enhanced
-<code>populate_pipeline(p, dry_run = true)</code> to perform a dry run
-via Nix (<code>--dry-run</code>), parsing the plan to report which nodes
+<li><strong>Cache-Aware Dry Runs</strong>:
+<code>populate_pipeline(p, dry_run = true)</code> and
+<code>build_pipeline(p, dry_run = true)</code> now perform a dry run via
+Nix (<code>--dry-run</code>), parsing the plan to report which nodes
 will hit the local cache (<code>"cached"</code>), rebuild
 (<code>"build"</code>), or fetch from remote substituters
 (<code>"fetch"</code>), returning the results as a DataFrame.</li>
@@ -163,6 +193,85 @@ populate_pipeline(meta_graph, build = true)</code></pre>
 first-class function in the CLI or T-Lang AST. It is an internal
 implementation detail of the pipeline engine that is automatically
 invoked when working with <code>pipeline_of</code>.</li>
+</ul>
+<h3 id="bug-fixes">Bug Fixes</h3>
+<ul>
+<li><strong>Stats — fivenum alignment with R</strong>: Replaced the
+defective gammp series computation with a correct implementation and
+adopted Tukey hinges for <code>fivenum</code>, ensuring parity with R’s
+<code>fivenum()</code> output.</li>
+<li><strong>Stats — high-precision t-quantile</strong>: Replaced the
+Cornish-Fisher approximation with exact OCaml root-finding on the pt CDF
+via <code>Float.erfc</code>, improving tail accuracy.</li>
+<li><strong>Stats — recursive t_quantile</strong>: Made
+<code>t_quantile</code> recursive to handle edge cases in quantile
+computations correctly.</li>
+<li><strong>Stats — ss_res in leave-one-out sigma</strong>: Corrected
+the <code>ss_res</code> formula used in <code>leave_one_out_sigma</code>
+calculation in <code>lm.ml</code>.</li>
+<li><strong>Stats — cut formatting</strong>: Changed <code>cut</code> to
+output spaces-free labels formatted with <code>%g</code> format,
+matching R’s <code>cut()</code> label style.</li>
+<li><strong>Stats/Core — float/int equality &amp; pnorm
+accuracy</strong>: Treated float and int values as identical when
+numerically equal (<code>3.0 == 3</code>) and improved
+<code>pnorm</code> accuracy using <code>Float.erfc</code>.</li>
+<li><strong>Core — VFactor/VString equality</strong>: Extended the
+evaluator to support direct equality comparison between
+<code>VFactor</code> and <code>VString</code> values.</li>
+<li><strong>CSV — empty string NA parsing</strong>: Fixed
+<code>read_csv</code> to parse empty strings as <code>NA</code> with
+<code>allow-null-strings</code>, and implemented proper dataframe
+comparison semantics.</li>
+<li><strong>Pipeline — JSON float precision</strong>: Configured
+<code>jsonlite::write_json</code> to serialize floats at full precision,
+preventing rounding-induced mismatches.</li>
+<li><strong>Pipeline — R JSON NA handling</strong>: Configured the R
+JSON serializer to write <code>NA</code> values as JSON
+<code>null</code> for correct round-tripping.</li>
+<li><strong>Pipeline — Nix dry-run dot-access quoting</strong>:
+Correctly quote dot-access attributes (e.g.,
+<code>node.sub.field</code>) in Nix dry-run evaluation expressions.</li>
+<li><strong>Pipeline — mermaid ID collision prevention</strong>:
+Sanitized node IDs in <code>pipeline_to_mermaid</code> to prevent
+collisions from similar node names.</li>
+<li><strong>Pipeline — inspect_artifacts resource leaks</strong>:
+Resolved file descriptor and directory handle leaks in
+<code>inspect_artifacts</code>, and restored scalar
+<code>TypeError</code> for invalid inputs.</li>
+<li><strong>Pipeline — NixError fallback</strong>: Restored original
+<code>NixError</code> fallback behavior for empty trimmed
+<code>last_part</code> in <code>builder_internal.ml</code>.</li>
+<li><strong>Pipeline — dependency namespace fixes</strong>: Standardized
+runtime emission helper naming (<code>__node_result</code> across all
+runtimes), fixed R variable naming compatibility (<code>dep_</code>
+prefix), and corrected dependency namespace generation.</li>
+</ul>
+<h3 id="codebase-safety-refactoring">Codebase Safety Refactoring</h3>
+<p>The entire OCaml codebase underwent a systematic safety review
+following best practices for ML-family languages:</p>
+<ul>
+<li><strong>Zero partial functions</strong>: Eliminated all uses of
+<code>Option.get</code>, bare <code>List.hd</code> on unvalidated lists,
+and similar partial operations.</li>
+<li><strong>Exhaustive pattern matching</strong>: Every
+<code>match</code> expression across ~100 files was audited and made
+total, removing partial wildcard patterns where feasible.</li>
+<li><strong>No raw exceptions in user paths</strong>: Converted
+<code>failwith</code>, <code>raise</code>, and <code>assert false</code>
+in user-facing code to structured <code>VError</code> returns.</li>
+<li><strong>Float comparison hygiene</strong>: Replaced exact float
+equality with epsilon-aware comparisons and
+<code>Float.compare</code>.</li>
+<li><strong>Abstract type safety</strong>: Added <code>.mli</code>
+interface files with abstract types for <code>Arrow</code>,
+<code>GroupedTable</code>, and key FFI modules.</li>
+<li><strong>Resource cleanup</strong>: Fixed file descriptor and
+directory handle leaks in pipeline introspection and inspection
+code.</li>
+<li><strong>Code review checklist</strong>: Added an OCaml Code Review
+Checklist to <code>AGENTS.md</code> as a permanent reference for future
+contributions.</li>
 </ul>
 <h2 id="section-1">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via

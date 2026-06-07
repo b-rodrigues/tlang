@@ -99,9 +99,58 @@
 </nav>
 <div class="container">
 <h1 id="editor-support-for-t">Editor Support for T</h1>
-<p>This guide describes how to set up syntax highlighting and language
-server (LSP) features for the T programming language in various
-editors.</p>
+<p>This guide explains how to get useful editor support for the T
+programming language: opening <code>.t</code> files, getting syntax
+highlighting, running code in a REPL, enabling the language server, and
+using the bundled tree-sitter grammar where your editor supports it.</p>
+<p>If you are new to this, start with your editor’s section below and
+copy the commands exactly. Replace <code>/absolute/path/to/tlang</code>
+with the full path to your local clone of this repository.</p>
+<hr />
+<h2 id="what-you-can-install">What you can install</h2>
+<p>T editor support has two separate pieces. You do <strong>not</strong>
+always need both.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Feature</th>
+<th>What it does</th>
+<th>Usually needed for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>T editor mode / extension</td>
+<td>Teaches the editor that <code>.t</code> files are T files. Usually
+provides basic highlighting, commands, and keybindings.</td>
+<td>VS Code, Positron, Vim, Neovim, Emacs</td>
+</tr>
+<tr>
+<td>T language server (<code>t-lsp</code>)</td>
+<td>Provides editor features such as completion, diagnostics, hover
+help, and go to definition.</td>
+<td>VS Code, Positron, Vim/Neovim LSP, Emacs eglot</td>
+</tr>
+<tr>
+<td>Tree-sitter grammar</td>
+<td>Provides modern parser-based syntax highlighting and syntax-aware
+editor features when the editor supports local tree-sitter
+grammars.</td>
+<td>Neovim, Emacs 29+, Helix, Zed, and some advanced Vim/VS Code
+setups</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>[!TIP] If you only want to write and run T scripts, install the
+normal editor extension/mode first. Add tree-sitter only if your editor
+supports it or if you specifically want tree-sitter highlighting.</p>
+</blockquote>
 <hr />
 <h2 id="language-server-protocol-lsp">Language Server Protocol
 (LSP)</h2>
@@ -120,134 +169,385 @@ from <strong>within</strong> a <code>nix develop</code> shell, or use a
 tool like <strong><a href="https://direnv.net/">direnv</a></strong> with
 <code>use flake</code> to automatically load the environment.</p>
 </blockquote>
+<p>Check that the language server is visible before debugging editor
+configuration:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">which</span> t-lsp</span></code></pre></div>
+<p>If <code>which t-lsp</code> prints nothing, your editor will not be
+able to start the T language server either.</p>
 <hr />
-<h2 id="editor-configuration">Editor Configuration</h2>
-<h3 id="shared-tree-sitter-grammar">Shared tree-sitter grammar</h3>
-<p>T now ships a reusable tree-sitter grammar in
+<h2
+id="tree-sitter-grammar-build-it-once-then-point-your-editor-at-it">Tree-sitter
+grammar: build it once, then point your editor at it</h2>
+<p>T ships a reusable tree-sitter grammar in
 <code>editors/tree-sitter-t</code>. Only the source grammar, queries,
 metadata, and grammar tests are committed. Generated parser sources are
 expected to be created locally when needed.</p>
-<p>Install prerequisites and generate locally with:</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang/editors/tree-sitter-t</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> tree-sitter-cli generate</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> tree-sitter-cli test</span></code></pre></div>
-<p>If you prefer a global install instead of <code>npx</code>:</p>
+<h3 id="step-1-install-node.js-so-npx-exists">Step 1: install Node.js so
+<code>npx</code> exists</h3>
+<p>The commands below use <code>npx</code>. <code>npx</code> comes with
+Node.js/npm, so install Node.js first if your shell says
+<code>npx: command not found</code>.</p>
+<p>The simplest one-off Nix command is:</p>
 <div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> install <span class="at">--global</span> tree-sitter-cli</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang/editors/tree-sitter-t</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">tree-sitter</span> generate</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ex">tree-sitter</span> test</span></code></pre></div>
-<p>This creates <code>src/parser.c</code>,
-<code>src/grammar.json</code>, <code>src/node-types.json</code>, and
-<code>src/tree_sitter/</code> locally. Those files are ignored by Git
-and should not be committed.</p>
-<h3 id="vs-code-positron">VS Code / Positron</h3>
-<p>You can install the T language extension in two ways:</p>
-<h4 id="option-a-download-the-.vsix-file-recommended">Option A: Download
-the <code>.vsix</code> file (Recommended)</h4>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix-shell</span> <span class="at">-p</span> nodejs</span></code></pre></div>
+<p>That opens a temporary shell with <code>node</code>,
+<code>npm</code>, and <code>npx</code> available. Confirm it worked:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> <span class="at">--version</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> <span class="at">--version</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> <span class="at">--version</span></span></code></pre></div>
+<p>You can also use any normal Node.js installation method for your
+system. Nix is recommended because it avoids system-wide changes.</p>
+<h3 id="step-2-generate-the-parser-files">Step 2: generate the parser
+files</h3>
+<p>Run these commands from your T repository clone:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang/editors/tree-sitter-t</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> tree-sitter-cli generate</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> tree-sitter-cli test</span></code></pre></div>
+<p>When prompted by <code>npx</code> to install
+<code>tree-sitter-cli</code>, answer <code>y</code>.</p>
+<p>This creates these generated files locally:</p>
+<ul>
+<li><code>src/parser.c</code></li>
+<li><code>src/grammar.json</code></li>
+<li><code>src/node-types.json</code></li>
+<li><code>src/tree_sitter/</code></li>
+</ul>
+<p>Those files are ignored by Git and should not be committed.</p>
+<h3 id="step-3-use-the-generated-grammar-in-your-editor">Step 3: use the
+generated grammar in your editor</h3>
+<p>Each editor has a slightly different way to consume a local
+tree-sitter grammar:</p>
+<ul>
+<li><strong>VS Code / Positron</strong>: the recommended T extension
+works without tree-sitter. VS Code-family editors do not automatically
+use local tree-sitter grammars for language highlighting. If you install
+a third-party tree-sitter extension, point that extension at
+<code>editors/tree-sitter-t</code> and reuse the query files in
+<code>editors/tree-sitter-t/queries/</code>.</li>
+<li><strong>Neovim</strong>: configure <code>nvim-treesitter</code> with
+<code>editors/tree-sitter-t</code>, then run
+<code>:TSInstallFromGrammar t</code>.</li>
+<li><strong>Vim</strong>: classic Vim uses the files in
+<code>editors/vim/</code>. Tree-sitter requires an extra Vim tree-sitter
+plugin; if you use one, point it at the same grammar directory.</li>
+<li><strong>Emacs 29+</strong>: add the grammar to
+<code>treesit-language-source-alist</code>, then run
+<code>M-x treesit-install-language-grammar</code>.</li>
+</ul>
+<p>If tree-sitter setup fails, first verify that
+<code>src/parser.c</code> exists:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> /absolute/path/to/tlang/editors/tree-sitter-t/src/parser.c</span></code></pre></div>
+<hr />
+<h2 id="vs-code-positron">VS Code / Positron</h2>
+<p>VS Code and Positron use the same extension format, so these
+instructions apply to both.</p>
+<h3 id="what-this-gives-you">What this gives you</h3>
+<p>The T VS Code extension gives you:</p>
+<ul>
+<li><code>.t</code> file recognition</li>
+<li>T syntax highlighting</li>
+<li>LSP integration through <code>t-lsp</code></li>
+<li>Commands for opening a T REPL and sending code to it</li>
+<li><strong>Cmd+Enter</strong> on macOS or <strong>Ctrl+Enter</strong>
+on Linux/Windows to send the current line or selection to the T
+REPL</li>
+</ul>
+<p>You do <strong>not</strong> need to build the tree-sitter grammar for
+the normal VS Code/Positron extension. The extension uses VS Code’s
+standard grammar system and talks to <code>t-lsp</code> for language
+features.</p>
+<h3 id="option-a-download-the-.vsix-file-recommended">Option A: Download
+the <code>.vsix</code> file (recommended)</h3>
 <ol type="1">
 <li><p>Download the latest release: <a
 href="https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix"><code>t-lang-0.51.0.vsix</code></a>
 (or download from the repository assets).</p></li>
-<li><p>Install the extension using the command line:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> <span class="at">--install-extension</span> /path/to/downloaded/t-lang-0.51.0.vsix</span></code></pre></div>
-<p><em>Alternatively, in VS Code, go to the Extensions view, click the
-<code>...</code> menu, and select <strong>Install from
-VSIX…</strong></em></p></li>
-</ol>
-<h4 id="option-b-from-a-cloned-t-repository">Option B: From a cloned T
-repository</h4>
-<p>If you have already cloned the T repository locally:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> <span class="at">--install-extension</span> editors/vscode/t-lang-0.51.0.vsix</span></code></pre></div>
-<h4 id="launching-the-editor">Launching the Editor</h4>
-<p>Start VS Code or Positron from the same nix shell where you run
-<code>t</code>:</p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> .</span></code></pre></div>
-<p>Once VS Code opens, we recommend opening the main entry point for
-your workspace: - For <strong>projects</strong>: Open
-<code>src/pipeline.t</code> - For <strong>packages</strong>: Open
-<code>src/main.t</code></p>
-<blockquote>
-<p><strong>Tip</strong>: You can use <strong>Cmd+Enter</strong> (macOS)
-or <strong>Ctrl+Enter</strong> (Linux/Windows) to send the current line
-or selection to the T REPL, exactly like in RStudio.</p>
-</blockquote>
-<hr />
-<h3 id="vim-neovim">Vim / Neovim</h3>
-<h4 id="syntax-highlighting">1. Syntax Highlighting</h4>
-<p>Copy the support files into your <code>.vim</code> directory:</p>
+<li><p>Install the extension from the command line:</p>
 <div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Detect .t files</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.vim/ftdetect</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> editors/vim/ftdetect/t.vim ~/.vim/ftdetect/t.vim</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Syntax rules</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.vim/syntax</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> editors/vim/syntax/t.vim ~/.vim/syntax/t.vim</span></code></pre></div>
-<h4 id="lsp-via-coc.nvim-or-nvim-lspconfig">2. LSP (via coc.nvim or
-nvim-lspconfig)</h4>
-<p><strong>For Vim (<code>coc.nvim</code>)</strong>, add this to your
-<code>:CocConfig</code>:</p>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> <span class="at">--install-extension</span> /path/to/downloaded/t-lang-0.51.0.vsix</span></code></pre></div>
+<p>In Positron, use the equivalent <code>positron</code> command if it
+is available:</p>
 <div class="sourceCode" id="cb7"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;languageserver&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;tlang&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;command&quot;</span><span class="fu">:</span> <span class="st">&quot;t-lsp&quot;</span><span class="fu">,</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;filetypes&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;t&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;rootPatterns&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;tproject.toml&quot;</span><span class="ot">,</span> <span class="st">&quot;.git&quot;</span><span class="ot">]</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<p><strong>For Neovim (<code>nvim-lspconfig</code>)</strong>, add this
-to your <code>init.lua</code>:</p>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">positron</span> <span class="at">--install-extension</span> /path/to/downloaded/t-lang-0.51.0.vsix</span></code></pre></div>
+<p>If the command-line launcher is not available, open the editor, go to
+the Extensions view, click the <code>...</code> menu, and choose
+<strong>Install from VSIX…</strong>.</p></li>
+</ol>
+<h3 id="option-b-install-from-a-cloned-t-repository">Option B: Install
+from a cloned T repository</h3>
+<p>If you have already cloned the T repository locally:</p>
 <div class="sourceCode" id="cb8"><pre
-class="sourceCode lua"><code class="sourceCode lua"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">local</span> <span class="va">lspconfig</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&#39;lspconfig&#39;</span><span class="op">)</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">local</span> <span class="va">configs</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&#39;lspconfig.configs&#39;</span><span class="op">)</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> <span class="va">configs</span><span class="op">.</span><span class="va">tlang</span> <span class="cf">then</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="va">configs</span><span class="op">.</span><span class="va">tlang</span> <span class="op">=</span> <span class="op">{</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">default_config</span> <span class="op">=</span> <span class="op">{</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>      <span class="va">cmd</span> <span class="op">=</span> <span class="op">{</span> <span class="st">&quot;t-lsp&quot;</span> <span class="op">},</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>      <span class="va">filetypes</span> <span class="op">=</span> <span class="op">{</span><span class="st">&#39;t&#39;</span><span class="op">},</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>      <span class="va">root_dir</span> <span class="op">=</span> <span class="va">lspconfig</span><span class="op">.</span><span class="va">util</span><span class="op">.</span>root_pattern<span class="op">(</span><span class="st">&#39;tproject.toml&#39;</span><span class="op">,</span> <span class="st">&#39;.git&#39;</span><span class="op">),</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>      <span class="va">settings</span> <span class="op">=</span> <span class="op">{},</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="va">lspconfig</span><span class="op">.</span><span class="va">tlang</span><span class="op">.</span>setup<span class="op">{}</span></span></code></pre></div>
-<h4 id="tree-sitter-highlighting-in-neovim">Tree-sitter highlighting in
-Neovim</h4>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> <span class="at">--install-extension</span> editors/vscode/t-lang-0.51.0.vsix</span></code></pre></div>
+<p>For Positron, replace <code>code</code> with <code>positron</code> if
+that command exists:</p>
 <div class="sourceCode" id="cb9"><pre
-class="sourceCode lua"><code class="sourceCode lua"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">local</span> <span class="va">parser_config</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&#39;nvim-treesitter.parsers&#39;</span><span class="op">).</span>get_parser_configs<span class="op">()</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="va">parser_config</span><span class="op">.</span><span class="va">t</span> <span class="op">=</span> <span class="op">{</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">install_info</span> <span class="op">=</span> <span class="op">{</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">url</span> <span class="op">=</span> <span class="st">&quot;/absolute/path/to/tlang/editors/tree-sitter-t&quot;</span><span class="op">,</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">files</span> <span class="op">=</span> <span class="op">{</span> <span class="st">&quot;src/parser.c&quot;</span> <span class="op">},</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="va">generate_requires_npm</span> <span class="op">=</span> <span class="kw">true</span><span class="op">,</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="va">requires_generate_from_grammar</span> <span class="op">=</span> <span class="kw">true</span><span class="op">,</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  <span class="op">},</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>  <span class="va">filetype</span> <span class="op">=</span> <span class="st">&quot;t&quot;</span><span class="op">,</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="va">vim</span><span class="op">.</span><span class="va">treesitter</span><span class="op">.</span><span class="va">language</span><span class="op">.</span>register<span class="op">(</span><span class="st">&quot;t&quot;</span><span class="op">,</span> <span class="st">&quot;t&quot;</span><span class="op">)</span></span></code></pre></div>
-<p>Then install it with <code>:TSInstallFromGrammar t</code>. Replace
-<code>/absolute/path/to/tlang</code> with your local clone path. If you
-already ran <code>npx tree-sitter-cli generate</code> locally, Neovim
-can reuse the generated <code>src/parser.c</code>.</p>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">positron</span> <span class="at">--install-extension</span> editors/vscode/t-lang-0.51.0.vsix</span></code></pre></div>
+<h3 id="launch-vs-code-or-positron-correctly">Launch VS Code or Positron
+correctly</h3>
+<p>The most common beginner mistake is launching the editor from a
+normal desktop shortcut. That often means the editor cannot find
+<code>t-lsp</code>.</p>
+<p>Do this instead:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/your-t-project</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> .</span></code></pre></div>
+<p>For Positron:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/your-t-project</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ex">positron</span> .</span></code></pre></div>
+<p>Once the editor opens, open a <code>.t</code> file. Recommended entry
+points are:</p>
+<ul>
+<li>For <strong>projects</strong>: open <code>src/pipeline.t</code></li>
+<li>For <strong>packages</strong>: open <code>src/main.t</code></li>
+</ul>
+<h3 id="use-the-extension">Use the extension</h3>
+<ul>
+<li>Open the command palette with <strong>Cmd+Shift+P</strong> on macOS
+or <strong>Ctrl+Shift+P</strong> on Linux/Windows.</li>
+<li>Run <strong>T: Run REPL</strong> to open a T REPL inside the
+editor.</li>
+<li>Put your cursor on a line of T code and press
+<strong>Cmd+Enter</strong> or <strong>Ctrl+Enter</strong> to send that
+line to the REPL.</li>
+<li>Select several lines and press the same shortcut to send the
+selection.</li>
+<li>Save files with the <code>.t</code> extension so the editor knows to
+activate T support.</li>
+</ul>
+<h3 id="optional-tree-sitter-in-vs-code-positron">Optional: tree-sitter
+in VS Code / Positron</h3>
+<p>The built-in T extension does not require tree-sitter. If you have
+installed a separate VS Code tree-sitter extension and it asks for a
+grammar path, use:</p>
+<pre class="text"><code>/absolute/path/to/tlang/editors/tree-sitter-t</code></pre>
+<p>Use these query files if the extension asks for them:</p>
+<pre class="text"><code>/absolute/path/to/tlang/editors/tree-sitter-t/queries/highlights.scm
+/absolute/path/to/tlang/editors/tree-sitter-t/queries/injections.scm
+/absolute/path/to/tlang/editors/tree-sitter-t/queries/locals.scm</code></pre>
+<p>Because third-party tree-sitter extensions differ, the exact setting
+names depend on the extension. If you are unsure, skip this step; the
+official VS Code/Positron extension is the beginner-friendly path.</p>
 <hr />
-<h3 id="emacs">Emacs</h3>
-<h4 id="syntax-highlighting-1">1. Syntax Highlighting</h4>
+<h2 id="vim-neovim">Vim / Neovim</h2>
+<p>Vim and Neovim can use either the classic Vim support files or
+tree-sitter. Beginners should install the classic support files first.
+Neovim users can then add tree-sitter highlighting with
+<code>nvim-treesitter</code>.</p>
+<h3 id="step-1-install-classic-vim-support-files">Step 1: install
+classic Vim support files</h3>
+<p>Run these commands from the T repository root:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Detect .t files</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.vim/ftdetect</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> editors/vim/ftdetect/t.vim ~/.vim/ftdetect/t.vim</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Syntax rules</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.vim/syntax</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> editors/vim/syntax/t.vim ~/.vim/syntax/t.vim</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Filetype plugin: REPL command, send-line/send-region mappings, completion</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.vim/ftplugin</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> editors/vim/ftplugin/t.vim ~/.vim/ftplugin/t.vim</span></code></pre></div>
+<p>Open a T file:</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">vim</span> example.t</span></code></pre></div>
+<p>Inside Vim, verify the filetype:</p>
+<pre class="vim"><code>:set filetype?</code></pre>
+<p>It should print:</p>
+<pre class="text"><code>filetype=t</code></pre>
+<h3 id="step-2-use-t-from-vim">Step 2: use T from Vim</h3>
+<p>With <code>editors/vim/ftplugin/t.vim</code> installed, these
+commands and mappings are available in <code>.t</code> buffers:</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Vim command or key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Start a T REPL terminal</td>
+<td><code>:TRepl</code></td>
+</tr>
+<tr>
+<td>Send the current line to the REPL</td>
+<td><code>&lt;leader&gt;r</code> in normal mode</td>
+</tr>
+<tr>
+<td>Send the selected lines to the REPL</td>
+<td><code>&lt;leader&gt;r</code> in visual mode</td>
+</tr>
+<tr>
+<td>Send the whole buffer to the REPL</td>
+<td><code>&lt;leader&gt;b</code> in normal mode</td>
+</tr>
+<tr>
+<td>Trigger omni-completion</td>
+<td><code>Ctrl-x Ctrl-o</code></td>
+</tr>
+</tbody>
+</table>
+<p>Your <code>&lt;leader&gt;</code> key is usually <code>\</code> unless
+you changed it in your Vim configuration.</p>
+<h3 id="step-3-configure-lsp">Step 3: configure LSP</h3>
+<p>The LSP setup requires <code>t-lsp</code> to be in your
+<code>PATH</code>. Start Vim/Neovim from <code>nix develop</code>, or
+configure your plugin manager to inherit the Nix environment.</p>
+<h4 id="vim-with-coc.nvim">Vim with <code>coc.nvim</code></h4>
+<p>Open <code>:CocConfig</code> and add:</p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;languageserver&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;tlang&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;command&quot;</span><span class="fu">:</span> <span class="st">&quot;t-lsp&quot;</span><span class="fu">,</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;filetypes&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;t&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;rootPatterns&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;tproject.toml&quot;</span><span class="ot">,</span> <span class="st">&quot;.git&quot;</span><span class="ot">]</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Then restart Vim and open a <code>.t</code> file.</p>
+<h4 id="neovim-with-nvim-lspconfig">Neovim with
+<code>nvim-lspconfig</code></h4>
+<p>Add this to your <code>init.lua</code>:</p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode lua"><code class="sourceCode lua"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">local</span> <span class="va">lspconfig</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&#39;lspconfig&#39;</span><span class="op">)</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="kw">local</span> <span class="va">configs</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&#39;lspconfig.configs&#39;</span><span class="op">)</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> <span class="va">configs</span><span class="op">.</span><span class="va">tlang</span> <span class="cf">then</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>  <span class="va">configs</span><span class="op">.</span><span class="va">tlang</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">default_config</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>      <span class="va">cmd</span> <span class="op">=</span> <span class="op">{</span> <span class="st">&quot;t-lsp&quot;</span> <span class="op">},</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>      <span class="va">filetypes</span> <span class="op">=</span> <span class="op">{</span><span class="st">&#39;t&#39;</span><span class="op">},</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>      <span class="va">root_dir</span> <span class="op">=</span> <span class="va">lspconfig</span><span class="op">.</span><span class="va">util</span><span class="op">.</span>root_pattern<span class="op">(</span><span class="st">&#39;tproject.toml&#39;</span><span class="op">,</span> <span class="st">&#39;.git&#39;</span><span class="op">),</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>      <span class="va">settings</span> <span class="op">=</span> <span class="op">{},</span></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a><span class="va">lspconfig</span><span class="op">.</span><span class="va">tlang</span><span class="op">.</span>setup<span class="op">{}</span></span></code></pre></div>
+<p>Start Neovim from a T project shell:</p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/your-t-project</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="ex">nvim</span> src/pipeline.t</span></code></pre></div>
+<h3 id="step-4-tree-sitter-highlighting-in-neovim">Step 4: tree-sitter
+highlighting in Neovim</h3>
+<p>Install and enable <code>nvim-treesitter</code> using your normal
+Neovim plugin manager. Then add this to your <code>init.lua</code> after
+loading <code>nvim-treesitter</code>:</p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode lua"><code class="sourceCode lua"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">local</span> <span class="va">parser_config</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&#39;nvim-treesitter.parsers&#39;</span><span class="op">).</span>get_parser_configs<span class="op">()</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="va">parser_config</span><span class="op">.</span><span class="va">t</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">install_info</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">url</span> <span class="op">=</span> <span class="st">&quot;/absolute/path/to/tlang/editors/tree-sitter-t&quot;</span><span class="op">,</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">files</span> <span class="op">=</span> <span class="op">{</span> <span class="st">&quot;src/parser.c&quot;</span> <span class="op">},</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="va">generate_requires_npm</span> <span class="op">=</span> <span class="kw">true</span><span class="op">,</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    <span class="va">requires_generate_from_grammar</span> <span class="op">=</span> <span class="kw">true</span><span class="op">,</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  <span class="op">},</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>  <span class="va">filetype</span> <span class="op">=</span> <span class="st">&quot;t&quot;</span><span class="op">,</span></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a><span class="va">vim</span><span class="op">.</span><span class="va">treesitter</span><span class="op">.</span><span class="va">language</span><span class="op">.</span>register<span class="op">(</span><span class="st">&quot;t&quot;</span><span class="op">,</span> <span class="st">&quot;t&quot;</span><span class="op">)</span></span></code></pre></div>
+<p>Then run this inside Neovim:</p>
+<pre class="vim"><code>:TSInstallFromGrammar t</code></pre>
+<p>Open a <code>.t</code> file and run:</p>
+<pre class="vim"><code>:InspectTree</code></pre>
+<p>If a syntax tree opens, tree-sitter is working. If
+<code>:TSInstallFromGrammar t</code> fails because it cannot run
+<code>npx</code>, leave Neovim, start a shell with Node.js, and try
+again:</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix-shell</span> <span class="at">-p</span> nodejs</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang/editors/tree-sitter-t</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> tree-sitter-cli generate</span></code></pre></div>
+<p>Then reopen Neovim and run <code>:TSInstallFromGrammar t</code>
+again.</p>
+<h3 id="vim-with-tree-sitter-plugins">Vim with tree-sitter plugins</h3>
+<p>Classic Vim does not include tree-sitter by default. If you use a Vim
+tree-sitter plugin, configure it with:</p>
+<pre class="text"><code>Grammar directory: /absolute/path/to/tlang/editors/tree-sitter-t
+Parser source:     /absolute/path/to/tlang/editors/tree-sitter-t/src/parser.c
+Queries:           /absolute/path/to/tlang/editors/tree-sitter-t/queries/
+Filetype:          t
+File extension:    .t</code></pre>
+<p>Plugin setting names vary, so use the plugin’s documentation for the
+exact syntax.</p>
+<hr />
+<h2 id="emacs">Emacs</h2>
+<p>Emacs support has two layers:</p>
+<ol type="1">
+<li><code>t-mode</code>, the normal major mode for <code>.t</code>
+files.</li>
+<li>Optional tree-sitter support through Emacs 29+
+<code>treesit</code>.</li>
+</ol>
+<p>Install <code>t-mode</code> first. Add tree-sitter afterwards if your
+Emacs version supports it.</p>
+<h3 id="step-1-install-t-mode">Step 1: install <code>t-mode</code></h3>
 <p>Add the <code>editors/emacs/</code> directory to your
 <code>load-path</code> in <code>init.el</code>:</p>
-<pre class="elisp"><code>(add-to-list &#39;load-path &quot;/path/to/tlang/editors/emacs&quot;)
+<pre class="elisp"><code>(add-to-list &#39;load-path &quot;/absolute/path/to/tlang/editors/emacs&quot;)
 (require &#39;t-mode)</code></pre>
-<h4 id="lsp-via-eglot">2. LSP (via eglot)</h4>
+<p>Open a <code>.t</code> file. Emacs should use <code>t-mode</code>
+automatically. To check, run:</p>
+<pre class="text"><code>M-x describe-mode</code></pre>
+<p>You should see <code>T</code> or <code>t-mode</code> in the mode
+description.</p>
+<h3 id="step-2-use-the-t-repl-from-emacs">Step 2: use the T REPL from
+Emacs</h3>
+<p><code>t-mode</code> provides these commands and keybindings:</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Command</th>
+<th>Keybinding</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Start or switch to a T REPL</td>
+<td><code>M-x run-t</code></td>
+<td><code>C-c C-z</code></td>
+</tr>
+<tr>
+<td>Send the whole buffer</td>
+<td><code>M-x t-send-buffer</code></td>
+<td><code>C-c C-c</code></td>
+</tr>
+<tr>
+<td>Send selected region</td>
+<td><code>M-x t-send-region</code></td>
+<td><code>C-c C-r</code></td>
+</tr>
+<tr>
+<td>Send current line</td>
+<td><code>M-x t-send-line</code></td>
+<td><code>C-c C-l</code></td>
+</tr>
+</tbody>
+</table>
+<p>If Emacs cannot find the <code>t</code> executable, start Emacs from
+a T/Nix shell:</p>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/your-t-project</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="ex">emacs</span> .</span></code></pre></div>
+<h3 id="step-3-configure-lsp-with-eglot">Step 3: configure LSP with
+eglot</h3>
 <p>Add the following to your <code>init.el</code>:</p>
 <pre class="elisp"><code>(with-eval-after-load &#39;eglot
   (add-to-list &#39;eglot-server-programs
@@ -255,37 +555,50 @@ can reuse the generated <code>src/parser.c</code>.</p>
 
 ;; Automatically start eglot when opening a .t file
 (add-hook &#39;t-mode-hook &#39;eglot-ensure)</code></pre>
-<h4 id="tree-sitter-parser-emacs-29">3. Tree-sitter parser (Emacs
-29+)</h4>
-<pre class="elisp"><code>(add-to-list &#39;treesit-language-source-alist
-             &#39;(t &quot;/absolute/path/to/tlang/editors/tree-sitter-t&quot;))
-
-(unless (treesit-language-available-p &#39;t)
-  (treesit-install-language-grammar &#39;t))</code></pre>
-<p>Replace <code>/absolute/path/to/tlang</code> with your local clone
-path. Make sure the <code>tree-sitter</code> CLI is installed before
-running <code>treesit-install-language-grammar</code>.</p>
+<p>Again, <code>t-lsp</code> must be visible in Emacs’ environment. If
+LSP does not start, run Emacs from <code>nix develop</code>.</p>
+<h3 id="step-4-tree-sitter-parser-in-emacs-29">Step 4: tree-sitter
+parser in Emacs 29+</h3>
+<p>Emacs 29 introduced built-in tree-sitter support through
+<code>treesit</code>. Add this to your <code>init.el</code>:</p>
+<pre class="elisp"><code>(when (treesit-available-p)
+  (add-to-list &#39;treesit-language-source-alist
+               &#39;(t &quot;/absolute/path/to/tlang/editors/tree-sitter-t&quot;)))</code></pre>
+<p>Then restart Emacs and install the grammar:</p>
+<pre class="text"><code>M-x treesit-install-language-grammar RET t RET</code></pre>
+<p>If Emacs cannot build the grammar because <code>npx</code> or Node.js
+is missing, install Node.js first:</p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix-shell</span> <span class="at">-p</span> nodejs</span></code></pre></div>
+<p>Then regenerate the parser manually:</p>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang/editors/tree-sitter-t</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> tree-sitter-cli generate</span></code></pre></div>
+<p>Finally, restart Emacs and retry:</p>
+<pre class="text"><code>M-x treesit-install-language-grammar RET t RET</code></pre>
 <p>This makes the T parser available to <code>treesit</code>-aware
 packages and any custom <code>t-ts-mode</code> built on top of the
-bundled grammar.</p>
+bundled grammar. The bundled <code>t-mode</code> remains the safe
+default if you do not have a separate tree-sitter-based major mode
+installed.</p>
 <hr />
-<h3 id="quarto">Quarto</h3>
+<h2 id="quarto">Quarto</h2>
 <p>For literate programming with executable <code>{t}</code> chunks, add
 Quarto to your T project tools in <code>tproject.toml</code>:</p>
-<div class="sourceCode" id="cb13"><pre
-class="sourceCode toml"><code class="sourceCode toml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[additional-tools]</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;quarto&quot;</span><span class="op">]</span></span></code></pre></div>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[additional-tools]</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;quarto&quot;</span><span class="op">]</span></span></code></pre></div>
 <p>Then run <code>t update</code> and enter the project with
 <code>nix develop</code>. T will provision
 <code>_extensions/tlang</code> automatically. Enable the
 <code>tlang</code> filter in your document front matter:</p>
-<div class="sourceCode" id="cb14"><pre
-class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">filters</span><span class="kw">:</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> tlang</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span></code></pre></div>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="fu">filters</span><span class="kw">:</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> tlang</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span></code></pre></div>
 <hr />
-<h3 id="other-tree-sitter-editors">Other tree-sitter editors</h3>
+<h2 id="other-tree-sitter-editors">Other tree-sitter editors</h2>
 <p>The same parser package can also be reused by editors that consume
 local tree-sitter grammars, including:</p>
 <ul>
@@ -297,12 +610,63 @@ plugins</li>
 </ul>
 <p>Point those editors at <code>editors/tree-sitter-t</code> and reuse
 the bundled query files from <code>queries/</code>.</p>
+<p>For any editor, the important paths are:</p>
+<pre class="text"><code>Grammar: /absolute/path/to/tlang/editors/tree-sitter-t
+Queries: /absolute/path/to/tlang/editors/tree-sitter-t/queries
+Parser:  /absolute/path/to/tlang/editors/tree-sitter-t/src/parser.c</code></pre>
+<hr />
+<h2 id="troubleshooting-checklist">Troubleshooting checklist</h2>
+<h3 id="npx-command-not-found"><code>npx: command not found</code></h3>
+<p>Install Node.js, then try again:</p>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix-shell</span> <span class="at">-p</span> nodejs</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> <span class="at">--version</span></span></code></pre></div>
+<h3
+id="tree-sitter-command-not-found"><code>tree-sitter: command not found</code></h3>
+<p>Use <code>npx tree-sitter-cli ...</code> instead of
+<code>tree-sitter ...</code>, or install the CLI globally:</p>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> install <span class="at">--global</span> tree-sitter-cli</span></code></pre></div>
+<h3 id="my-editor-cannot-find-t-lsp">My editor cannot find
+<code>t-lsp</code></h3>
+<p>Start the editor from inside <code>nix develop</code>:</p>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/your-t-project</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> .      <span class="co"># VS Code</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="ex">positron</span> .  <span class="co"># Positron</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a><span class="ex">nvim</span> .      <span class="co"># Neovim</span></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a><span class="ex">emacs</span> .     <span class="co"># Emacs</span></span></code></pre></div>
+<p>You can also check from the same shell:</p>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">which</span> t-lsp</span></code></pre></div>
+<h3 id="t-files-are-not-highlighted"><code>.t</code> files are not
+highlighted</h3>
+<p>Check that the editor knows the filetype/language is T:</p>
+<ul>
+<li><strong>VS Code / Positron</strong>: look at the language indicator
+in the bottom-right corner. It should say <code>T</code> or
+<code>tlang</code>. If not, click it and choose T.</li>
+<li><strong>Vim/Neovim</strong>: run <code>:set filetype?</code>. It
+should say <code>filetype=t</code>.</li>
+<li><strong>Emacs</strong>: run <code>M-x describe-mode</code>. It
+should show <code>t-mode</code>.</li>
+</ul>
+<h3 id="tree-sitter-still-does-not-work">Tree-sitter still does not
+work</h3>
+<p>Check the generated parser exists:</p>
+<div class="sourceCode" id="cb42"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> /absolute/path/to/tlang/editors/tree-sitter-t/src/parser.c</span></code></pre></div>
+<p>If it does not exist, regenerate it:</p>
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang/editors/tree-sitter-t</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> tree-sitter-cli generate</span></code></pre></div>
 <hr />
 <h2 id="building-from-source">Building from Source</h2>
 <p>If you are developing T itself, you can rebuild the LSP server
 with:</p>
-<div class="sourceCode" id="cb15"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> build .#default</span></code></pre></div>
+<div class="sourceCode" id="cb44"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> build .#default</span></code></pre></div>
 <p>The binary will be located at <code>result/bin/t-lsp</code>.</p>
 </div>
 <footer>

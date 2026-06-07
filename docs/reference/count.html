@@ -37,6 +37,21 @@
 <p>Count rows by group</p>
 <p>Counts rows in a DataFrame, optionally by selected columns or
 existing group keys.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>df</strong> (<code>DataFrame</code>): The input data
+frame.</p></li>
+<li><p><strong>…</strong> (<code>Column</code>): Columns to group by
+(bare names or $col references).</p></li>
+<li><p><strong>name</strong> (<code>String</code>): = “n” Name for the
+count column.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A DataFrame with one row per group and a count column.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>count(df)
+count(df, $species)
+count(df, $species, $year, name = &quot;freq&quot;)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

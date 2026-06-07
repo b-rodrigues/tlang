@@ -34,8 +34,19 @@
 </nav>
 <div class="container">
 <h1 id="fct_recode">fct_recode</h1>
-<p>Rename to_factor levels</p>
-<p>Recodes existing to_factor levels using named replacements.</p>
+<p>Rename factor levels</p>
+<p>Recodes existing factor levels using named replacements.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>x</strong> (<code>Vector[Factor]</code>): A factor
+vector.</p></li>
+<li><p><strong>…</strong>: Named replacements in the form
+<code>new_name = old_name</code>.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A factor vector with renamed levels.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>fct_recode(fct, high = &quot;H&quot;, low = &quot;L&quot;)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

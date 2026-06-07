@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.52.2 "Kaméhaméha".
+**Status:** Version 0.52.3 "Kaméhaméha".
 
 ---
 
@@ -169,6 +169,7 @@ resolution and deserialization from within those environments.
 
 ### Getting Started
 - [Getting Started Guide](getting-started.html) — first steps with T
+- [Your First Pipeline](first-pipeline.html) — declare R, Python, and Julia packages, run `t update`, and build a hello-world pipeline
 - [Installation Guide](installation.html) — detailed setup with Nix
 - [Language Overview](language_overview.html) — types, syntax, functions, and standard library
 - [Type System](type-system.html) — detailed guide to T's type hierarchy and semantics
@@ -250,8 +251,9 @@ long as you stay in that shell.
 
 T provides a built-in scaffolding tool to initialize your workspaces. There are
 two types of workspaces in T:
+
 - **Projects**: Designed for data analysis, scripts, and reproducible pipelines.
-- **Packages**: Designed for creating reusable functions and libraries to share with others.
+- **Packages**: Designed for creating reusable packages to share with others.
 
 ### Creating a Project
 
@@ -388,24 +390,25 @@ t repl
 To execute a script from end-to-end, use:
 
 ```bash
-t run scripts/main.t
+t run src/pipeline.t
 ```
 
 ## Next Steps
 
-Now that you have your first project set up and understand the folder structure, you are ready to explore the language features and build reproducible data pipelines!
+Now that you have your first project set up and understand the folder structure, the best next step is to run a tiny reproducible pipeline before configuring editor integrations or reading the deeper reference material.
 
-1. **[Configure Editors](editors.md)** — Configure your editor to play well with T.
-2. **[Language Overview](language_overview.md)** — Explore T's syntax, types, and standard library functions.
-3. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows (the core feature of T).
-4. **[Project Development](project_development.md)** — Dive deeper into managing your `tproject.toml` and Nix environments.
+1. **[Your First Pipeline](first-pipeline.md)** — Add R, Python, and Julia packages to `tproject.toml`, run `t update`, and build a small hello-world polyglot pipeline.
+2. **[Configure Editors](editors.md)** — Configure your editor to play well with T.
+3. **[Language Overview](language_overview.md)** — Explore T's syntax, types, and standard library functions.
+4. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows (the core feature of T).
+5. **[Project Development](project_development.md)** — Dive deeper into managing your `tproject.toml` and Nix environments.
 
 
 # FILE: docs/language_overview.md
 
 # T Language Overview
 
-> **Version**: 0.52.2
+> **Version**: 0.52.3
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -463,7 +466,6 @@ T supports the following value types:
 | `Vector`    | Column data              | Typed arrays (from DataFrames)      |
 | `DataFrame` | `read_csv("data.csv")`   | Tabular data (rows × columns)       |
 | `Pipeline`  | `pipeline { ... }`       | DAG-based execution graph           |
-| `jln`   | `jln(...)`           | Julia node wrapper                  |
 | `Function`  | `\(x) x + 1`            | First-class functions               |
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
@@ -567,7 +569,7 @@ For element-wise logical operations on collections, use the designated broadcast
 
 ### REPL
 
-The T REPL (`dune exec src/repl.exe`) supports:
+The T REPL (`t repl` or `t` in a project shell) supports:
 
 - **Readline editing** with arrow keys and history navigation
 - **Persistent history** in `~/.t_history`
@@ -583,6 +585,8 @@ T ships a native LSP server (`t-lsp`) for editor integrations such as VS Code:
 - **Go to definition** for bindings
 - **Hover documentation** sourced from `--#` docstrings
 - **Diagnostics** for parse and type errors
+
+See the [Editor Setup Guide](editors.md) for configuring syntax highlighting, LSP, and tree-sitter support in your editor of choice.
 
 ---
 
@@ -6179,22 +6183,29 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.52.3] - 2026-06-03
+## [0.52.3] - 2026-06-07
 
-This release introduces a new meta-pipeline composition feature, `pipeline_of`, first-class artifact export/import capabilities, and new meta-pipeline graph visualization functions.
+This release:
 
-**Status**: Beta
+- introduces a new meta-pipeline composition feature (`pipeline_of`), first-class artifact export/import capabilities, meta-pipeline graph visualization, interactive Mermaid browser rendering, and cache-aware dry runs with programmatic garbage collection.
+- Includes comprehensive bug fixes across stats, core, CSV, and pipeline subsystems, and a systematic codebase-wide safety refactoring following OCaml best practices.
+
+### Pipeline Soft-Fail & Early-Abort Semantics
+- **Block Evaluation Early Abort**: Blocks (`{ ... }`) now abort immediately on encountering a `VError`, returning the error rather than continuing evaluation of remaining statements. This is a breaking change for code that relied on ignoring intermediate block errors.
+- **Conditional Serialization on soft-fail**: Nodes that soft-fail and return `VError` now conditionally fall back to binary `serialize`/`deserialize` rather than triggering configured custom serializers (like Arrow), preventing crashes.
+- **Failed Node Diagnostics**: Host tools and logs now safely resolve and deserialize binary T error payloads.
 
 ### Pipeline Visualization
 - **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.
 - **`pipeline_to_mermaid(p)`**: Generates a Mermaid flowchart diagram string from the pipeline topology, enabling visual rendering in Markdown documents and Mermaid live editors.
+- **Browser Visualization via `show_plot`**: `show_plot(p)` now accepts a pipeline or meta-pipeline directly — it calls `pipeline_to_mermaid` internally, renders the DAG as an interactive HTML page, and opens it in the browser. `show_plot(mermaid_string)` also renders arbitrary Mermaid diagram strings.
 
 ### Artifact Cache, Dry Runs, and Garbage Collection
 - **Granular `export_artifacts`**: Support exporting cached Nix artifacts for individual nodes, sub-pipelines, meta-pipelines, or lists/dictionaries of nodes/pipelines.
 - **Variadic `import_artifacts`**: Support both 1-argument `import_artifacts(archive_path)` (direct Nix store import) and 2-argument `import_artifacts(target_val, archive_path)` (import and verify paths) calling signatures.
 - **`inspect_artifacts(archive_path)`**: Import archive into a temporary, isolated Nix store and return a DataFrame containing the included nodes, store paths, hashes, sizes in bytes, and reference basenames without affecting the local store.
 - **Verification & REPL Stability**: Fixed path resolution and correctness checks, and updated package registrations in the interactive REPL for `import_artifacts`, `export_artifacts`, and `inspect_artifacts`.
-- **Cache-Aware Dry Runs**: Enhanced `populate_pipeline(p, dry_run = true)` to perform a dry run via Nix (`--dry-run`), parsing the plan to report which nodes will hit the local cache (`"cached"`), rebuild (`"build"`), or fetch from remote substituters (`"fetch"`), returning the results as a DataFrame.
+- **Cache-Aware Dry Runs**: `populate_pipeline(p, dry_run = true)` and `build_pipeline(p, dry_run = true)` now perform a dry run via Nix (`--dry-run`), parsing the plan to report which nodes will hit the local cache (`"cached"`), rebuild (`"build"`), or fetch from remote substituters (`"fetch"`), returning the results as a DataFrame.
 - **Programmatic Garbage Collection**:
   - `pipeline_gc(p, dry_run = true)`: Deletes the store paths of the given pipeline `p` if safe. By default (`dry_run = true`), it returns a DataFrame previewing the nodes, store paths, and deletion eligibility status. Set `dry_run = false` to execute the deletion.
   - `t_gc()`: Triggers a global Nix garbage collection (`nix-store --gc`) directly from the REPL to safely clean up old, detached derivations.
@@ -6257,6 +6268,36 @@ populate_pipeline(meta_graph, build = true)
 
 ### Notes
 - The `meta_flatten` combinator is not exposed as a first-class function in the CLI or T-Lang AST. It is an internal implementation detail of the pipeline engine that is automatically invoked when working with `pipeline_of`.
+
+### Bug Fixes
+
+- **Stats — fivenum alignment with R**: Replaced the defective gammp series computation with a correct implementation and adopted Tukey hinges for `fivenum`, ensuring parity with R's `fivenum()` output.
+- **Stats — high-precision t-quantile**: Replaced the Cornish-Fisher approximation with exact OCaml root-finding on the pt CDF via `Float.erfc`, improving tail accuracy.
+- **Stats — recursive t_quantile**: Made `t_quantile` recursive to handle edge cases in quantile computations correctly.
+- **Stats — ss_res in leave-one-out sigma**: Corrected the `ss_res` formula used in `leave_one_out_sigma` calculation in `lm.ml`.
+- **Stats — cut formatting**: Changed `cut` to output spaces-free labels formatted with `%g` format, matching R's `cut()` label style.
+- **Stats/Core — float/int equality & pnorm accuracy**: Treated float and int values as identical when numerically equal (`3.0 == 3`) and improved `pnorm` accuracy using `Float.erfc`.
+- **Core — VFactor/VString equality**: Extended the evaluator to support direct equality comparison between `VFactor` and `VString` values.
+- **CSV — empty string NA parsing**: Fixed `read_csv` to parse empty strings as `NA` with `allow-null-strings`, and implemented proper dataframe comparison semantics.
+- **Pipeline — JSON float precision**: Configured `jsonlite::write_json` to serialize floats at full precision, preventing rounding-induced mismatches.
+- **Pipeline — R JSON NA handling**: Configured the R JSON serializer to write `NA` values as JSON `null` for correct round-tripping.
+- **Pipeline — Nix dry-run dot-access quoting**: Correctly quote dot-access attributes (e.g., `node.sub.field`) in Nix dry-run evaluation expressions.
+- **Pipeline — mermaid ID collision prevention**: Sanitized node IDs in `pipeline_to_mermaid` to prevent collisions from similar node names.
+- **Pipeline — inspect_artifacts resource leaks**: Resolved file descriptor and directory handle leaks in `inspect_artifacts`, and restored scalar `TypeError` for invalid inputs.
+- **Pipeline — NixError fallback**: Restored original `NixError` fallback behavior for empty trimmed `last_part` in `builder_internal.ml`.
+- **Pipeline — dependency namespace fixes**: Standardized runtime emission helper naming (`__node_result` across all runtimes), fixed R variable naming compatibility (`dep_` prefix), and corrected dependency namespace generation.
+
+### Codebase Safety Refactoring
+
+The entire OCaml codebase underwent a systematic safety review following best practices for ML-family languages:
+
+- **Zero partial functions**: Eliminated all uses of `Option.get`, bare `List.hd` on unvalidated lists, and similar partial operations.
+- **Exhaustive pattern matching**: Every `match` expression across ~100 files was audited and made total, removing partial wildcard patterns where feasible.
+- **No raw exceptions in user paths**: Converted `failwith`, `raise`, and `assert false` in user-facing code to structured `VError` returns.
+- **Float comparison hygiene**: Replaced exact float equality with epsilon-aware comparisons and `Float.compare`.
+- **Abstract type safety**: Added `.mli` interface files with abstract types for `Arrow`, `GroupedTable`, and key FFI modules.
+- **Resource cleanup**: Fixed file descriptor and directory handle leaks in pipeline introspection and inspection code.
+- **Code review checklist**: Added an OCaml Code Review Checklist to `AGENTS.md` as a permanent reference for future contributions.
 
 
 ## [0.52.2] - 2026-05-31
@@ -9292,7 +9333,24 @@ dune build @fmt --auto-promote  # Format check
 
 # Editor Support for T
 
-This guide describes how to set up syntax highlighting and language server (LSP) features for the T programming language in various editors.
+This guide explains how to get useful editor support for the T programming language: opening `.t` files, getting syntax highlighting, running code in a REPL, enabling the language server, and using the bundled tree-sitter grammar where your editor supports it.
+
+If you are new to this, start with your editor's section below and copy the commands exactly. Replace `/absolute/path/to/tlang` with the full path to your local clone of this repository.
+
+---
+
+## What you can install
+
+T editor support has two separate pieces. You do **not** always need both.
+
+| Feature | What it does | Usually needed for |
+| --- | --- | --- |
+| T editor mode / extension | Teaches the editor that `.t` files are T files. Usually provides basic highlighting, commands, and keybindings. | VS Code, Positron, Vim, Neovim, Emacs |
+| T language server (`t-lsp`) | Provides editor features such as completion, diagnostics, hover help, and go to definition. | VS Code, Positron, Vim/Neovim LSP, Emacs eglot |
+| Tree-sitter grammar | Provides modern parser-based syntax highlighting and syntax-aware editor features when the editor supports local tree-sitter grammars. | Neovim, Emacs 29+, Helix, Zed, and some advanced Vim/VS Code setups |
+
+> [!TIP]
+> If you only want to write and run T scripts, install the normal editor extension/mode first. Add tree-sitter only if your editor supports it or if you specifically want tree-sitter highlighting.
 
 ---
 
@@ -9305,17 +9363,46 @@ The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix 
 > [!IMPORTANT]
 > **Launching the LSP**: For your editor to find the `t-lsp` binary, you must either launch your editor from **within** a `nix develop` shell, or use a tool like **[direnv](https://direnv.net/)** with `use flake` to automatically load the environment.
 
+Check that the language server is visible before debugging editor configuration:
+
+```bash
+nix develop
+which t-lsp
+```
+
+If `which t-lsp` prints nothing, your editor will not be able to start the T language server either.
+
 ---
 
-## Editor Configuration
+## Tree-sitter grammar: build it once, then point your editor at it
 
-### Shared tree-sitter grammar
-
-T now ships a reusable tree-sitter grammar in `editors/tree-sitter-t`.
+T ships a reusable tree-sitter grammar in `editors/tree-sitter-t`.
 Only the source grammar, queries, metadata, and grammar tests are committed.
 Generated parser sources are expected to be created locally when needed.
 
-Install prerequisites and generate locally with:
+### Step 1: install Node.js so `npx` exists
+
+The commands below use `npx`. `npx` comes with Node.js/npm, so install Node.js first if your shell says `npx: command not found`.
+
+The simplest one-off Nix command is:
+
+```bash
+nix-shell -p nodejs
+```
+
+That opens a temporary shell with `node`, `npm`, and `npx` available. Confirm it worked:
+
+```bash
+node --version
+npm --version
+npx --version
+```
+
+You can also use any normal Node.js installation method for your system. Nix is recommended because it avoids system-wide changes.
+
+### Step 2: generate the parser files
+
+Run these commands from your T repository clone:
 
 ```bash
 cd /absolute/path/to/tlang/editors/tree-sitter-t
@@ -9323,57 +9410,147 @@ npx tree-sitter-cli generate
 npx tree-sitter-cli test
 ```
 
-If you prefer a global install instead of `npx`:
+When prompted by `npx` to install `tree-sitter-cli`, answer `y`.
+
+This creates these generated files locally:
+
+- `src/parser.c`
+- `src/grammar.json`
+- `src/node-types.json`
+- `src/tree_sitter/`
+
+Those files are ignored by Git and should not be committed.
+
+### Step 3: use the generated grammar in your editor
+
+Each editor has a slightly different way to consume a local tree-sitter grammar:
+
+- **VS Code / Positron**: the recommended T extension works without tree-sitter. VS Code-family editors do not automatically use local tree-sitter grammars for language highlighting. If you install a third-party tree-sitter extension, point that extension at `editors/tree-sitter-t` and reuse the query files in `editors/tree-sitter-t/queries/`.
+- **Neovim**: configure `nvim-treesitter` with `editors/tree-sitter-t`, then run `:TSInstallFromGrammar t`.
+- **Vim**: classic Vim uses the files in `editors/vim/`. Tree-sitter requires an extra Vim tree-sitter plugin; if you use one, point it at the same grammar directory.
+- **Emacs 29+**: add the grammar to `treesit-language-source-alist`, then run `M-x treesit-install-language-grammar`.
+
+If tree-sitter setup fails, first verify that `src/parser.c` exists:
 
 ```bash
-npm install --global tree-sitter-cli
-cd /absolute/path/to/tlang/editors/tree-sitter-t
-tree-sitter generate
-tree-sitter test
+ls /absolute/path/to/tlang/editors/tree-sitter-t/src/parser.c
 ```
 
-This creates `src/parser.c`, `src/grammar.json`, `src/node-types.json`, and
-`src/tree_sitter/` locally. Those files are ignored by Git and should not be
-committed.
+---
 
-### VS Code / Positron
+## VS Code / Positron
 
-You can install the T language extension in two ways:
+VS Code and Positron use the same extension format, so these instructions apply to both.
 
-#### Option A: Download the `.vsix` file (Recommended)
+### What this gives you
+
+The T VS Code extension gives you:
+
+- `.t` file recognition
+- T syntax highlighting
+- LSP integration through `t-lsp`
+- Commands for opening a T REPL and sending code to it
+- **Cmd+Enter** on macOS or **Ctrl+Enter** on Linux/Windows to send the current line or selection to the T REPL
+
+You do **not** need to build the tree-sitter grammar for the normal VS Code/Positron extension. The extension uses VS Code's standard grammar system and talks to `t-lsp` for language features.
+
+### Option A: Download the `.vsix` file (recommended)
+
 1. Download the latest release: [`t-lang-0.51.0.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix) (or download from the repository assets).
-2. Install the extension using the command line:
+2. Install the extension from the command line:
+
    ```bash
    code --install-extension /path/to/downloaded/t-lang-0.51.0.vsix
    ```
-   *Alternatively, in VS Code, go to the Extensions view, click the `...` menu, and select **Install from VSIX...***
 
-#### Option B: From a cloned T repository
+   In Positron, use the equivalent `positron` command if it is available:
+
+   ```bash
+   positron --install-extension /path/to/downloaded/t-lang-0.51.0.vsix
+   ```
+
+   If the command-line launcher is not available, open the editor, go to the Extensions view, click the `...` menu, and choose **Install from VSIX...**.
+
+### Option B: Install from a cloned T repository
+
 If you have already cloned the T repository locally:
+
 ```bash
+cd /absolute/path/to/tlang
 code --install-extension editors/vscode/t-lang-0.51.0.vsix
 ```
 
-#### Launching the Editor
-Start VS Code or Positron from the same nix shell where you run `t`:
+For Positron, replace `code` with `positron` if that command exists:
+
 ```bash
+cd /absolute/path/to/tlang
+positron --install-extension editors/vscode/t-lang-0.51.0.vsix
+```
+
+### Launch VS Code or Positron correctly
+
+The most common beginner mistake is launching the editor from a normal desktop shortcut. That often means the editor cannot find `t-lsp`.
+
+Do this instead:
+
+```bash
+cd /absolute/path/to/your-t-project
 nix develop
 code .
 ```
 
-Once VS Code opens, we recommend opening the main entry point for your workspace:
-- For **projects**: Open `src/pipeline.t`
-- For **packages**: Open `src/main.t`
+For Positron:
 
-> **Tip**: You can use **Cmd+Enter** (macOS) or **Ctrl+Enter** (Linux/Windows) to send the current line or selection to the T REPL, exactly like in RStudio.
+```bash
+cd /absolute/path/to/your-t-project
+nix develop
+positron .
+```
+
+Once the editor opens, open a `.t` file. Recommended entry points are:
+
+- For **projects**: open `src/pipeline.t`
+- For **packages**: open `src/main.t`
+
+### Use the extension
+
+- Open the command palette with **Cmd+Shift+P** on macOS or **Ctrl+Shift+P** on Linux/Windows.
+- Run **T: Run REPL** to open a T REPL inside the editor.
+- Put your cursor on a line of T code and press **Cmd+Enter** or **Ctrl+Enter** to send that line to the REPL.
+- Select several lines and press the same shortcut to send the selection.
+- Save files with the `.t` extension so the editor knows to activate T support.
+
+### Optional: tree-sitter in VS Code / Positron
+
+The built-in T extension does not require tree-sitter. If you have installed a separate VS Code tree-sitter extension and it asks for a grammar path, use:
+
+```text
+/absolute/path/to/tlang/editors/tree-sitter-t
+```
+
+Use these query files if the extension asks for them:
+
+```text
+/absolute/path/to/tlang/editors/tree-sitter-t/queries/highlights.scm
+/absolute/path/to/tlang/editors/tree-sitter-t/queries/injections.scm
+/absolute/path/to/tlang/editors/tree-sitter-t/queries/locals.scm
+```
+
+Because third-party tree-sitter extensions differ, the exact setting names depend on the extension. If you are unsure, skip this step; the official VS Code/Positron extension is the beginner-friendly path.
 
 ---
 
-### Vim / Neovim
+## Vim / Neovim
 
-#### 1. Syntax Highlighting
-Copy the support files into your `.vim` directory:
+Vim and Neovim can use either the classic Vim support files or tree-sitter. Beginners should install the classic support files first. Neovim users can then add tree-sitter highlighting with `nvim-treesitter`.
+
+### Step 1: install classic Vim support files
+
+Run these commands from the T repository root:
+
 ```bash
+cd /absolute/path/to/tlang
+
 # Detect .t files
 mkdir -p ~/.vim/ftdetect
 cp editors/vim/ftdetect/t.vim ~/.vim/ftdetect/t.vim
@@ -9381,11 +9558,52 @@ cp editors/vim/ftdetect/t.vim ~/.vim/ftdetect/t.vim
 # Syntax rules
 mkdir -p ~/.vim/syntax
 cp editors/vim/syntax/t.vim ~/.vim/syntax/t.vim
+
+# Filetype plugin: REPL command, send-line/send-region mappings, completion
+mkdir -p ~/.vim/ftplugin
+cp editors/vim/ftplugin/t.vim ~/.vim/ftplugin/t.vim
 ```
 
-#### 2. LSP (via coc.nvim or nvim-lspconfig)
+Open a T file:
 
-**For Vim (`coc.nvim`)**, add this to your `:CocConfig`:
+```bash
+vim example.t
+```
+
+Inside Vim, verify the filetype:
+
+```vim
+:set filetype?
+```
+
+It should print:
+
+```text
+filetype=t
+```
+
+### Step 2: use T from Vim
+
+With `editors/vim/ftplugin/t.vim` installed, these commands and mappings are available in `.t` buffers:
+
+| Action | Vim command or key |
+| --- | --- |
+| Start a T REPL terminal | `:TRepl` |
+| Send the current line to the REPL | `<leader>r` in normal mode |
+| Send the selected lines to the REPL | `<leader>r` in visual mode |
+| Send the whole buffer to the REPL | `<leader>b` in normal mode |
+| Trigger omni-completion | `Ctrl-x Ctrl-o` |
+
+Your `<leader>` key is usually `\` unless you changed it in your Vim configuration.
+
+### Step 3: configure LSP
+
+The LSP setup requires `t-lsp` to be in your `PATH`. Start Vim/Neovim from `nix develop`, or configure your plugin manager to inherit the Nix environment.
+
+#### Vim with `coc.nvim`
+
+Open `:CocConfig` and add:
+
 ```json
 {
   "languageserver": {
@@ -9398,7 +9616,12 @@ cp editors/vim/syntax/t.vim ~/.vim/syntax/t.vim
 }
 ```
 
-**For Neovim (`nvim-lspconfig`)**, add this to your `init.lua`:
+Then restart Vim and open a `.t` file.
+
+#### Neovim with `nvim-lspconfig`
+
+Add this to your `init.lua`:
+
 ```lua
 local lspconfig = require('lspconfig')
 local configs = require('lspconfig.configs')
@@ -9416,7 +9639,17 @@ end
 lspconfig.tlang.setup{}
 ```
 
-#### Tree-sitter highlighting in Neovim
+Start Neovim from a T project shell:
+
+```bash
+cd /absolute/path/to/your-t-project
+nix develop
+nvim src/pipeline.t
+```
+
+### Step 4: tree-sitter highlighting in Neovim
+
+Install and enable `nvim-treesitter` using your normal Neovim plugin manager. Then add this to your `init.lua` after loading `nvim-treesitter`:
 
 ```lua
 local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
@@ -9434,24 +9667,93 @@ parser_config.t = {
 vim.treesitter.language.register("t", "t")
 ```
 
-Then install it with `:TSInstallFromGrammar t`.
-Replace `/absolute/path/to/tlang` with your local clone path.
-If you already ran `npx tree-sitter-cli generate` locally, Neovim can reuse the
-generated `src/parser.c`.
+Then run this inside Neovim:
+
+```vim
+:TSInstallFromGrammar t
+```
+
+Open a `.t` file and run:
+
+```vim
+:InspectTree
+```
+
+If a syntax tree opens, tree-sitter is working. If `:TSInstallFromGrammar t` fails because it cannot run `npx`, leave Neovim, start a shell with Node.js, and try again:
+
+```bash
+nix-shell -p nodejs
+cd /absolute/path/to/tlang/editors/tree-sitter-t
+npx tree-sitter-cli generate
+```
+
+Then reopen Neovim and run `:TSInstallFromGrammar t` again.
+
+### Vim with tree-sitter plugins
+
+Classic Vim does not include tree-sitter by default. If you use a Vim tree-sitter plugin, configure it with:
+
+```text
+Grammar directory: /absolute/path/to/tlang/editors/tree-sitter-t
+Parser source:     /absolute/path/to/tlang/editors/tree-sitter-t/src/parser.c
+Queries:           /absolute/path/to/tlang/editors/tree-sitter-t/queries/
+Filetype:          t
+File extension:    .t
+```
+
+Plugin setting names vary, so use the plugin's documentation for the exact syntax.
 
 ---
 
-### Emacs
+## Emacs
 
-#### 1. Syntax Highlighting
+Emacs support has two layers:
+
+1. `t-mode`, the normal major mode for `.t` files.
+2. Optional tree-sitter support through Emacs 29+ `treesit`.
+
+Install `t-mode` first. Add tree-sitter afterwards if your Emacs version supports it.
+
+### Step 1: install `t-mode`
+
 Add the `editors/emacs/` directory to your `load-path` in `init.el`:
+
 ```elisp
-(add-to-list 'load-path "/path/to/tlang/editors/emacs")
+(add-to-list 'load-path "/absolute/path/to/tlang/editors/emacs")
 (require 't-mode)
 ```
 
-#### 2. LSP (via eglot)
+Open a `.t` file. Emacs should use `t-mode` automatically. To check, run:
+
+```text
+M-x describe-mode
+```
+
+You should see `T` or `t-mode` in the mode description.
+
+### Step 2: use the T REPL from Emacs
+
+`t-mode` provides these commands and keybindings:
+
+| Action | Command | Keybinding |
+| --- | --- | --- |
+| Start or switch to a T REPL | `M-x run-t` | `C-c C-z` |
+| Send the whole buffer | `M-x t-send-buffer` | `C-c C-c` |
+| Send selected region | `M-x t-send-region` | `C-c C-r` |
+| Send current line | `M-x t-send-line` | `C-c C-l` |
+
+If Emacs cannot find the `t` executable, start Emacs from a T/Nix shell:
+
+```bash
+cd /absolute/path/to/your-t-project
+nix develop
+emacs .
+```
+
+### Step 3: configure LSP with eglot
+
 Add the following to your `init.el`:
+
 ```elisp
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
@@ -9461,25 +9763,48 @@ Add the following to your `init.el`:
 (add-hook 't-mode-hook 'eglot-ensure)
 ```
 
-#### 3. Tree-sitter parser (Emacs 29+)
+Again, `t-lsp` must be visible in Emacs' environment. If LSP does not start, run Emacs from `nix develop`.
+
+### Step 4: tree-sitter parser in Emacs 29+
+
+Emacs 29 introduced built-in tree-sitter support through `treesit`. Add this to your `init.el`:
 
 ```elisp
-(add-to-list 'treesit-language-source-alist
-             '(t "/absolute/path/to/tlang/editors/tree-sitter-t"))
-
-(unless (treesit-language-available-p 't)
-  (treesit-install-language-grammar 't))
+(when (treesit-available-p)
+  (add-to-list 'treesit-language-source-alist
+               '(t "/absolute/path/to/tlang/editors/tree-sitter-t")))
 ```
-Replace `/absolute/path/to/tlang` with your local clone path.
-Make sure the `tree-sitter` CLI is installed before running
-`treesit-install-language-grammar`.
 
-This makes the T parser available to `treesit`-aware packages and any custom
-`t-ts-mode` built on top of the bundled grammar.
+Then restart Emacs and install the grammar:
+
+```text
+M-x treesit-install-language-grammar RET t RET
+```
+
+If Emacs cannot build the grammar because `npx` or Node.js is missing, install Node.js first:
+
+```bash
+nix-shell -p nodejs
+```
+
+Then regenerate the parser manually:
+
+```bash
+cd /absolute/path/to/tlang/editors/tree-sitter-t
+npx tree-sitter-cli generate
+```
+
+Finally, restart Emacs and retry:
+
+```text
+M-x treesit-install-language-grammar RET t RET
+```
+
+This makes the T parser available to `treesit`-aware packages and any custom `t-ts-mode` built on top of the bundled grammar. The bundled `t-mode` remains the safe default if you do not have a separate tree-sitter-based major mode installed.
 
 ---
 
-### Quarto
+## Quarto
 
 For literate programming with executable `{t}` chunks, add Quarto to your T project tools in `tproject.toml`:
 
@@ -9499,27 +9824,98 @@ filters:
 
 ---
 
-### Other tree-sitter editors
+## Other tree-sitter editors
 
-The same parser package can also be reused by editors that consume local
-tree-sitter grammars, including:
+The same parser package can also be reused by editors that consume local tree-sitter grammars, including:
 
 - **Helix**
 - **Zed**
 - **Lapce**
 - **Vim** setups that add tree-sitter through plugins
 
-Point those editors at `editors/tree-sitter-t` and reuse the bundled query
-files from `queries/`.
+Point those editors at `editors/tree-sitter-t` and reuse the bundled query files from `queries/`.
+
+For any editor, the important paths are:
+
+```text
+Grammar: /absolute/path/to/tlang/editors/tree-sitter-t
+Queries: /absolute/path/to/tlang/editors/tree-sitter-t/queries
+Parser:  /absolute/path/to/tlang/editors/tree-sitter-t/src/parser.c
+```
+
+---
+
+## Troubleshooting checklist
+
+### `npx: command not found`
+
+Install Node.js, then try again:
+
+```bash
+nix-shell -p nodejs
+npx --version
+```
+
+### `tree-sitter: command not found`
+
+Use `npx tree-sitter-cli ...` instead of `tree-sitter ...`, or install the CLI globally:
+
+```bash
+npm install --global tree-sitter-cli
+```
+
+### My editor cannot find `t-lsp`
+
+Start the editor from inside `nix develop`:
+
+```bash
+cd /absolute/path/to/your-t-project
+nix develop
+code .      # VS Code
+positron .  # Positron
+nvim .      # Neovim
+emacs .     # Emacs
+```
+
+You can also check from the same shell:
+
+```bash
+which t-lsp
+```
+
+### `.t` files are not highlighted
+
+Check that the editor knows the filetype/language is T:
+
+- **VS Code / Positron**: look at the language indicator in the bottom-right corner. It should say `T` or `tlang`. If not, click it and choose T.
+- **Vim/Neovim**: run `:set filetype?`. It should say `filetype=t`.
+- **Emacs**: run `M-x describe-mode`. It should show `t-mode`.
+
+### Tree-sitter still does not work
+
+Check the generated parser exists:
+
+```bash
+ls /absolute/path/to/tlang/editors/tree-sitter-t/src/parser.c
+```
+
+If it does not exist, regenerate it:
+
+```bash
+cd /absolute/path/to/tlang/editors/tree-sitter-t
+npx tree-sitter-cli generate
+```
 
 ---
 
 ## Building from Source
 
 If you are developing T itself, you can rebuild the LSP server with:
+
 ```bash
 nix build .#default
 ```
+
 The binary will be located at `result/bin/t-lsp`.
 
 
@@ -11520,7 +11916,7 @@ T isn't just another data analysis language; it's a **reproducibility-first** en
 - **LLM-First Developers**: T's functional, immutable, and pipeline-centric design is optimized for high-fidelity code generation by AI.
 
 ### Is T production-ready?
-T is currently in **Beta (v0.52.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R, Python, or Julia nodes.
+T is currently in **Beta (v0.52.3)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R, Python, or Julia nodes.
 
 ---
 
@@ -11639,6 +12035,168 @@ The developer (Bruno Rodrigues) works on T based on community interest and exper
 > [!TIP]
 > **Need help?** Check out the [Getting Started](getting-started.md) guide or join the [GitHub Discussions](https://github.com/b-rodrigues/tlang/discussions).
 
+
+
+# FILE: docs/first-pipeline.md
+
+# Your First Pipeline
+
+> A quick, end-to-end tutorial for declaring R, Python, and Julia dependencies,
+> syncing the reproducible environment, and running a small polyglot pipeline.
+
+This guide assumes you have already completed the [Getting Started](getting-started.md)
+setup and are inside a T project created with `t init --project`.
+
+## 1. Enter the project environment
+
+From the project root, enter the reproducible development shell:
+
+```bash
+nix develop
+```
+
+All commands below should be run inside that shell. This ensures `t`, the
+project-specific runtimes, and the dependency guards are all on `PATH`.
+
+## 2. Declare runtime packages in `tproject.toml`
+
+T projects are explicit: R, Python, and Julia packages belong in
+`tproject.toml`, not in ad hoc `install.packages()`, `pip install`, or
+`Pkg.add()` calls. Open `tproject.toml` and make sure the runtime dependency
+sections contain the packages you plan to use:
+
+```toml
+[r-dependencies]
+packages = ["stringr"]
+
+[py-dependencies]
+version = "python313"
+packages = ["numpy"]
+
+[jl-dependencies]
+version = "lts"
+packages = ["DataFrames"]
+```
+
+A few rules of thumb:
+
+- Add R packages under `[r-dependencies].packages`.
+- Add Python packages under `[py-dependencies].packages` and keep the Python
+  version explicit.
+- Add Julia packages under `[jl-dependencies].packages`; `version = "lts"` is
+  the recommended default unless you need a specific Julia release.
+- If your project was scaffolded with empty lists already present, edit those
+  lists instead of creating duplicate sections.
+
+## 3. Sync the project after editing dependencies
+
+After changing `tproject.toml`, regenerate the project environment:
+
+```bash
+t update
+```
+
+Then re-enter the development shell so the updated package set is active:
+
+```bash
+exit
+nix develop
+```
+
+If T reports that a package used by a pipeline node is missing, add it to the
+matching dependency section, run `t update`, and enter `nix develop` again.
+
+## 4. Write a hello-world polyglot pipeline
+
+Replace `src/pipeline.t` with this small pipeline:
+
+```t
+p = pipeline {
+  r_hello = rn(
+    command = <{
+      library(stringr)
+      str_to_upper("hello from R")
+    }>,
+    serializer = ^text
+  )
+
+  python_hello = pyn(
+    command = <{
+import numpy as np
+f"hello from Python; numpy sum = {np.array([1, 2, 3]).sum()}"
+    }>,
+    serializer = ^text
+  )
+
+  julia_hello = jln(
+    command = <{
+      using DataFrames
+      df = DataFrame(language = ["Julia"], nodes = [1])
+      "hello from $(df.language[1]); rows = $(nrow(df))"
+    }>,
+    serializer = ^text
+  )
+}
+
+build_pipeline(p, verbose = 1)
+
+print(read_node(p.r_hello))
+print(read_node(p.python_hello))
+print(read_node(p.julia_hello))
+```
+
+This file defines three independent nodes:
+
+- `r_hello` runs in R via `rn()` and uses the declared `stringr` package.
+- `python_hello` runs in Python via `pyn()` and uses the declared `numpy`
+  package.
+- `julia_hello` runs in Julia via `jln()` and uses the declared `DataFrames`
+  package.
+
+Each node uses `serializer = ^text`, which is enough for a first hello-world
+pipeline because every node returns a string.
+
+## 5. Run the pipeline
+
+From the project root, run:
+
+```bash
+t run src/pipeline.t
+```
+
+T will materialize the pipeline under `_pipeline/`, build each node in a
+Nix-managed sandbox, and write a timestamped build log. The first run may take
+longer because Nix may need to fetch or build packages; later runs are cached.
+
+## 6. Inspect the result
+
+The final three lines in `src/pipeline.t` read the built artifacts back through
+T and print them:
+
+```t
+print(read_node(p.r_hello))
+print(read_node(p.python_hello))
+print(read_node(p.julia_hello))
+```
+
+Use `read_node(p.node_name)` when you want the value materialized for a specific
+pipeline node — it re-reads the serialized artifact from the Nix store. By contrast,
+`p.node_name` (direct dot access) returns the cached in-memory value. For this
+hello-world pipeline, they produce the same result because the node outputs are
+simple strings. You should see the text values produced by the three runtimes.
+
+## 7. What to read next
+
+Once this quick pipeline works, continue in this order:
+
+1. [Configure Editors](editors.md) — Set up syntax highlighting, LSP support,
+   and formatting conveniences.
+2. [Language Overview](language_overview.md) — Learn T expressions, data types,
+   functions, and pipes.
+3. [Pipeline Tutorial](pipeline_tutorial.md) — Go deeper into dependency graphs,
+   serializers, materialization, error handling, and larger DAGs.
+4. [Project Development](project_development.md) — Learn more about
+   `tproject.toml`, Nix environments, tests, and project structure.
 
 
 # FILE: docs/formulas.md
@@ -11876,12 +12434,11 @@ For detailed instructions on installing Nix on **Linux**, **macOS**, and **Windo
 
 👉 **[Nix Installation Guide](nix-installation.md)**
 
-Once Nix is installed and flakes are enabled, you can proceed to Step 2.
+Once Nix is installed, you can proceed to Step 2.
 
-### Troubleshooting Nix Installation
+## Step 2: Enable Nix Flakes
 
-#### Enabling Experimental Features
-If you're using the standard Nix installer (not the Determinate Systems one), you might see an error that `nix shell` or other commands are not recognized. You can enable the required features by adding them to your Nix configuration or by appending a flag to each command:
+T requires the `nix-command` and `flakes` experimental features. The Determinate Systems installer enables these by default. If you used the standard installer, you may need to enable them:
 
 **Option 1: Add to config (Recommended)**
 ```bash
@@ -11890,16 +12447,16 @@ echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 ```
 
 **Option 2: Use a command flag**
-Append `--extra-experimental-features "nix-command flakes"` to your Nix commands.
+Append `--extra-experimental-features "nix-command flakes"` to each Nix command.
 
-#### Trusted Users and Binary Caches
-If you see warnings like `ignoring untrusted substituter`, it means you need to add yourself as a trusted user so Nix allows you to use the T binary cache. On macOS, you can run the following one-liner:
+### Trusted Users and Binary Caches
+If you see warnings like `ignoring untrusted substituter`, you need to add yourself as a trusted user so Nix allows you to use the T binary cache. On macOS, run:
 
 ```bash
 echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.custom.conf && sudo launchctl kickstart -k system/org.nixos.nix-daemon
 ```
 
-This works for both standard Nix installations and Determinate Nix installations. If you see warnings like `ignoring untrusted substituter`, this means the `trusted-users` configuration is not in place.
+This works for both standard and Determinate Nix installations.
 
 ## Step 3: Clone T Repository
 
@@ -11972,7 +12529,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.52.0 "Kaméhaméha" using Nix <nix-version>
+Version 0.52.3 "Kaméhaméha" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -13538,9 +14095,6 @@ curl --proto '=https' --tlsv1.2 -sSf \
 
 The command above works on most modern Linux distributions (Ubuntu, Fedora, Debian, Arch, etc.).
 
-> [!TIP]
-> **Disk Space**: Nix stores everything in `/nix`. If your root partition is small, you might want to mount `/nix` on a larger partition.
-
 ### macOS
 
 Nix on macOS is highly efficient but has some platform-specific nuances:
@@ -13612,10 +14166,6 @@ trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDS
 
 Nix and Docker are often seen as alternatives, but they work exceptionally well together. While Docker manages container isolation, Nix handles the environment reproducibility *inside* or *for* those containers.
 
-### 1. Using Nix Inside Docker
-
-You might want to install Nix inside a Docker container for CI/CD pipelines (like GitHub Actions) or to serve applications with a strictly defined environment.
-
 To install Nix inside a `Dockerfile` (e.g., using `ubuntu:latest` as a base), use the Determinate Systems installer with specific flags for container environments:
 
 ```dockerfile
@@ -13640,31 +14190,6 @@ RUN mkdir -p /root/.config/nix && \
 
 CMD ["nix-shell"]
 ```
-
-### 2. Building Docker Images with Nix
-
-Instead of writing a `Dockerfile`, you can use Nix to **build** a Docker image. This is the ultimate way to achieve reproducibility, as Nix builds the entire image layer by layer from its own store, resulting in extremely lightweight and predictable images.
-
-A simple Nix expression to build a T application image might look like this:
-
-```nix
-{ pkgs ? import <nixpkgs> {} }:
-
-pkgs.dockerTools.buildImage {
-  name = "t-analysis-app";
-  tag = "latest";
-  
-  # Include T and any other required tools
-  contents = [ pkgs.tlang pkgs.bashInteractive ];
-  
-  config = {
-    Cmd = [ "t" "run" "scripts/pipeline.t" ];
-    WorkingDir = "/my-project";
-  };
-}
-```
-
-You can build this image by running `nix-build docker.nix` and then load it into Docker with `docker load < result`.
 
 ---
 
@@ -14443,6 +14968,143 @@ The pipeline itself displays as:
 ```
 Pipeline(3 nodes: [x, y, total])
 ```
+
+### 1.1 The Interactive Development Loop (Build, Inspect, Plot, and Extend)
+
+A common and highly productive way to build T-Lang pipelines is incrementally, using an interactive REPL development loop. By starting small and iteratively building, inspecting, plotting, and extending, you ensure that each step of your data pipeline behaves as expected.
+
+#### Step 1: Start with a Single Node
+
+First, define a pipeline with a single root node. For example, loading some raw data:
+
+```t
+p = pipeline {
+  raw_data = [1, 2, 3, 4, 5]
+}
+```
+
+#### Step 2: Build the Pipeline
+
+Build the pipeline to materialize the raw data node as a Nix artifact:
+
+```t
+build_pipeline(p)
+```
+
+During this build, Nix runs the computation (in this case, just returning the vector `[1, 2, 3, 4, 5]`) and caches it in the Nix store.
+
+#### Step 3: Check, Inspect, and Verify
+
+Once built, verify that the node was evaluated correctly:
+
+- **Check value in-memory**: Access the node directly using dot notation:
+  ```t
+  p.raw_data
+  -- [1, 2, 3, 4, 5]
+  ```
+- **Verify the serialized artifact**: Use `read_node()` to ensure the serialized value can be successfully read from the Nix store cache:
+  ```t
+  read_node(p.raw_data)
+  -- [1, 2, 3, 4, 5]
+  ```
+- **Inspect build logs**: Check the latest build log to see the build execution time and status:
+  ```t
+  inspect_log()
+  -- A DataFrame showing the derivation path and build status of "raw_data"
+  ```
+- **Explain diagnostics**: Call `explain()` to view properties and runtime environment information:
+  ```t
+  explain(p.raw_data)
+  -- { `runtime`: "T", `kind`: "node", `name`: "raw_data", ... }
+  ```
+
+#### Step 4: Plot the DAG
+
+Visualize the current topology of your pipeline. You can render the DAG directly in your web browser by calling `show_plot()` on the pipeline:
+
+```t
+show_plot(p)
+```
+
+Alternatively, you can convert the dependency graph to a Mermaid string to print or render in Markdown:
+
+```t
+print(pipeline_to_mermaid(p))
+```
+
+Output:
+```mermaid
+graph TD
+  raw_data
+```
+
+#### Step 5: Add Another Node
+
+First, save your current pipeline state into `p_old` so you can diff it later:
+
+```t
+p_old = p
+```
+
+Now, extend your pipeline by adding a second node that depends on the first one. For example, calculating the sum of the raw data:
+
+```t
+p = pipeline {
+  raw_data = [1, 2, 3, 4, 5]
+  total = sum(raw_data)
+}
+```
+
+#### Step 6: Build, Verify, and Plot Again
+
+Re-build your extended pipeline:
+
+```t
+build_pipeline(p)
+```
+
+Because `raw_data` was already built and cached, Nix will automatically skip rebuilding it (a cache hit) and only compute the new `total` node! You can verify this cache hit behavior by running a cache-aware dry run first:
+
+```t
+plan = build_pipeline(p, dry_run = true)
+print(plan)
+-- DataFrame(2 rows x 3 cols: [node, action, store_path])
+-- node       action       store_path
+-- raw_data   cache_hit    /nix/store/...-raw_data
+-- total      rebuild      /nix/store/...-total
+```
+
+After building, inspect the new node and dependency layout:
+
+- **Verify the new node**:
+  ```t
+  p.total
+  -- 15
+
+  read_node(p.total)
+  -- 15
+  ```
+- **Inspect the new DAG**: Plot the updated dependency graph to verify the relationship. You can open it in the browser:
+  ```t
+  show_plot(p)
+  ```
+  Or get the Mermaid source:
+  ```t
+  print(pipeline_to_mermaid(p))
+  ```
+  Output:
+  ```mermaid
+  graph TD
+    raw_data --> total
+  ```
+- **Compare pipeline changes**: If you want to check what changed structurally since your last pipeline definition, you can use `pipeline_diff()`:
+  ```t
+  diff = pipeline_diff(p_old, p)
+  print(diff.added_nodes)
+  -- ["total"]
+  ```
+
+By following this loop—**Build ➔ Verify ➔ Plot ➔ Extend**—you can comfortably build up large, complex, and reliable data pipelines step by step.
 
 ---
 
@@ -15942,6 +16604,20 @@ print(mermaid)
 
 Render the Mermaid flowchart directly in markdown files or preview using the online Mermaid live editor.
 
+#### Visualizing Mermaid Graphs in the Browser with `show_plot`
+
+Rather than manually pasting the Mermaid string into an external editor, you can reuse `show_plot()` to visualize Mermaid graphs, pipelines, or meta-pipelines directly in your web browser:
+
+```t
+-- Visualize a pipeline directly:
+show_plot(p)
+
+-- Or visualize a raw Mermaid string:
+show_plot("graph TD\n  Start --> Stop")
+```
+
+When you pass a pipeline, meta-pipeline, or a string starting with a Mermaid keyword (like `graph` or `flowchart`) to `show_plot()`, T dynamically generates a temporary HTML file containing the Mermaid JS engine, renders the graph, and opens it using your configured system viewer/browser.
+
 ---
 
 ## 28. Pipeline Validation
@@ -17071,7 +17747,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.52.2"
+min_version = "0.52.3"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -17119,7 +17795,7 @@ To upgrade your project to the latest version of T and set the project's nixpkgs
 ```bash
 $ t upgrade
 Checking for new T releases...
-Upgrading project to T 0.52.0 and nixpkgs date 2026-05-08 (today's UTC date)...
+Upgrading project to T 0.52.3 and nixpkgs date 2026-05-08 (today's UTC date)...
 Regenerating flake.nix and updating dependencies...
 Running nix flake update...
 ```
@@ -18813,6 +19489,27 @@ Count rows by group
 
 Counts rows in a DataFrame, optionally by selected columns or existing group keys.
 
+## Parameters
+
+- **df** (`DataFrame`): The input data frame.
+
+- **...** (`Column`): Columns to group by (bare names or $col references).
+
+- **name** (`String`): = "n" Name for the count column.
+
+
+## Returns
+
+A DataFrame with one row per group and a count column.
+
+## Examples
+
+```t
+count(df)
+count(df, $species)
+count(df, $species, $year, name = "freq")
+```
+
 
 
 # FILE: docs/reference/cov.md
@@ -19085,7 +19782,7 @@ Splits a numeric vector into intervals.
 
 - **x** (`Vector[Number]`): | List[Number] The vector to discretize.
 
-- **breaks** (`Int`): | Vector[Number] Number of bins or specific cut points.
+- **breaks** (`Int`): | Vector[Number] | List[Number] Number of bins or specific cut points.
 
 
 ## Returns
@@ -19921,9 +20618,24 @@ A confirmation message describing the exported archive.
 
 # fct_c
 
-Concatenate to_factor vectors
+Concatenate factor vectors
 
-Combines multiple to_factor vectors while reconciling their levels.
+Combines multiple factor vectors while reconciling their levels.
+
+## Parameters
+
+- **...**: Vector[Factor] Factor vectors to concatenate.
+
+
+## Returns
+
+A combined factor vector with unified levels.
+
+## Examples
+
+```t
+fct_c(fct1, fct2)
+```
 
 
 
@@ -19933,7 +20645,24 @@ Combines multiple to_factor vectors while reconciling their levels.
 
 Collapse multiple levels
 
-Merges several existing to_factor levels into new grouped levels.
+Merges several existing factor levels into new grouped levels.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+- **...**: Named lists mapping new level names to vectors of old level names.
+
+
+## Returns
+
+A factor vector with collapsed levels.
+
+## Examples
+
+```t
+fct_collapse(fct, small = ["a", "b"], large = ["c", "d"])
+```
 
 
 
@@ -19941,9 +20670,24 @@ Merges several existing to_factor levels into new grouped levels.
 
 # fct_drop
 
-Drop unused to_factor levels
+Drop unused factor levels
 
-Removes levels that are not referenced by any value in the to_factor vector.
+Removes levels that are not referenced by any value in the factor vector.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+
+## Returns
+
+A factor vector with unused levels removed.
+
+## Examples
+
+```t
+fct_drop(fct)
+```
 
 
 
@@ -19951,9 +20695,26 @@ Removes levels that are not referenced by any value in the to_factor vector.
 
 # fct_expand
 
-Add explicit to_factor levels
+Add explicit factor levels
 
-Adds extra levels to a to_factor without changing existing assignments.
+Adds extra levels to a factor without changing existing assignments.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+- **...**: New level names to add.
+
+
+## Returns
+
+A factor vector with additional levels.
+
+## Examples
+
+```t
+fct_expand(fct, "new_level")
+```
 
 
 
@@ -19961,9 +20722,24 @@ Adds extra levels to a to_factor without changing existing assignments.
 
 # fct_infreq
 
-Order to_factor levels by frequency
+Order factor levels by frequency
 
-Reorders to_factor levels so that more frequent levels appear first.
+Reorders factor levels so that more frequent levels appear first.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+
+## Returns
+
+A factor vector with levels reordered by descending frequency.
+
+## Examples
+
+```t
+fct_infreq(fct)
+```
 
 
 
@@ -19971,9 +20747,28 @@ Reorders to_factor levels so that more frequent levels appear first.
 
 # fct_lump_min
 
-Lump to_factor levels below a minimum count
+Lump factor levels below a minimum count
 
-Collapses to_factor levels whose counts fall below a minimum threshold.
+Collapses factor levels whose counts fall below a minimum threshold.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+- **min** (`Int`): Minimum count threshold. Levels below this are lumped.
+
+- **other_level** (`String`): = "Other" Name for the collapsed catch-all level.
+
+
+## Returns
+
+A factor vector with rare levels lumped.
+
+## Examples
+
+```t
+fct_lump_min(fct, min = 5)
+```
 
 
 
@@ -19981,9 +20776,29 @@ Collapses to_factor levels whose counts fall below a minimum threshold.
 
 # fct_lump_n
 
-Keep the most frequent to_factor levels
+Keep the most frequent factor levels
 
-Collapses infrequent to_factor levels into an other bucket while keeping the most frequent levels.
+Collapses infrequent factor levels into an "Other" bucket while keeping the most frequent levels.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+- **n** (`Int`): = 10 Number of most frequent levels to keep.
+
+- **other_level** (`String`): = "Other" Name for the collapsed catch-all level.
+
+
+## Returns
+
+A factor vector with infrequent levels lumped.
+
+## Examples
+
+```t
+fct_lump_n(fct, n = 5)
+fct_lump_n(fct, n = 3, other_level = "Misc")
+```
 
 
 
@@ -19991,9 +20806,28 @@ Collapses infrequent to_factor levels into an other bucket while keeping the mos
 
 # fct_lump_prop
 
-Lump to_factor levels below a minimum proportion
+Lump factor levels below a minimum proportion
 
-Collapses to_factor levels whose frequency falls below a proportion threshold.
+Collapses factor levels whose frequency falls below a proportion threshold.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+- **prop** (`Float`): Minimum proportion threshold. Levels below this are lumped.
+
+- **other_level** (`String`): = "Other" Name for the collapsed catch-all level.
+
+
+## Returns
+
+A factor vector with rare levels lumped.
+
+## Examples
+
+```t
+fct_lump_prop(fct, prop = 0.05)
+```
 
 
 
@@ -20003,7 +20837,29 @@ Collapses to_factor levels whose frequency falls below a proportion threshold.
 
 Replace unlisted levels with Other
 
-Keeps selected to_factor levels and maps the rest to an other bucket.
+Keeps selected factor levels and maps the rest to an "Other" bucket.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+- **keep** (`Vector[String]`): | List[String] Levels to preserve.
+
+- **drop** (`Vector[String]`): | List[String] Levels to drop (mutually exclusive with keep).
+
+- **other_level** (`String`): = "Other" Name for the catch-all level.
+
+
+## Returns
+
+A factor vector with unlisted levels replaced.
+
+## Examples
+
+```t
+fct_other(fct, keep = ["a", "b"])
+fct_other(fct, drop = ["z"], other_level = "Misc")
+```
 
 
 
@@ -20011,9 +20867,26 @@ Keeps selected to_factor levels and maps the rest to an other bucket.
 
 # fct_recode
 
-Rename to_factor levels
+Rename factor levels
 
-Recodes existing to_factor levels using named replacements.
+Recodes existing factor levels using named replacements.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+- **...**: Named replacements in the form `new_name = old_name`.
+
+
+## Returns
+
+A factor vector with renamed levels.
+
+## Examples
+
+```t
+fct_recode(fct, high = "H", low = "L")
+```
 
 
 
@@ -20023,7 +20896,27 @@ Recodes existing to_factor levels using named replacements.
 
 Move selected levels to the front
 
-Explicitly reorders a to_factor by moving named levels ahead of the remaining levels.
+Explicitly reorders a factor by moving named levels ahead of the remaining levels.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+- **...**: Level names to move to the front.
+
+- **after** (`Int`): = 0 Position after which to place the moved levels (0 = front).
+
+
+## Returns
+
+A factor vector with selected levels moved.
+
+## Examples
+
+```t
+fct_relevel(fct, "c", "a")
+fct_relevel(fct, "high", after = 2)
+```
 
 
 
@@ -20031,9 +20924,29 @@ Explicitly reorders a to_factor by moving named levels ahead of the remaining le
 
 # fct_reorder
 
-Order to_factor levels by another vector
+Order factor levels by another vector
 
-Reorders to_factor levels using summary statistics computed from a companion numeric vector.
+Reorders factor levels using summary statistics computed from a companion numeric vector.
+
+## Parameters
+
+- **f** (`Vector[Factor]`): A factor vector.
+
+- **x** (`Vector[Number]`): A numeric vector used to compute order.
+
+- **.desc** (`Bool`): = false Sort in descending order.
+
+
+## Returns
+
+A factor vector with levels reordered by the summary of x.
+
+## Examples
+
+```t
+fct_reorder(fct, values)
+fct_reorder(fct, values, .desc = true)
+```
 
 
 
@@ -20041,9 +20954,24 @@ Reorders to_factor levels using summary statistics computed from a companion num
 
 # fct_rev
 
-Reverse to_factor levels
+Reverse factor levels
 
-Reverses the order of the levels in a to_factor vector.
+Reverses the order of the levels in a factor vector.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+
+## Returns
+
+A factor vector with levels in reverse order.
+
+## Examples
+
+```t
+fct_rev(fct)
+```
 
 
 
@@ -20692,13 +21620,13 @@ ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 
 Import Pipeline Artifacts
 
-Imports a previously exported pipeline artifact archive into the local Nix store and verifies that the pipeline nodes are now cached locally.
+Imports a previously exported pipeline artifact archive into the local Nix store and verifies that the pipeline nodes are now cached locally. Supports two calling conventions: a 1-argument form for simple imports (`import_artifacts(archive_path)`) and a 2-argument form for verification (`import_artifacts(pipeline, archive_path)`) which verifies store path signatures.
 
 ## Parameters
 
-- **p** (`Pipeline`): The pipeline whose artifacts should be restored.
+- **target_or_archive** (`Pipeline|String`): Either a Pipeline (2-arg form) or an archive path (1-arg form).
 
-- **archive_path** (`String`): The source archive path.
+- **archive_path** (`String`): (Optional) The source archive path. Required in the 2-arg form.
 
 
 ## Returns
@@ -20717,7 +21645,7 @@ A confirmation message describing the imported archive.
 | [abs](abs.html) | Absolute value |
 | [acos](acos.html) | Inverse cosine |
 | [acosh](acosh.html) | Inverse hyperbolic cosine |
-| [add_diagnostics](add_diagnostics.html) | Add Model Diagnostics |
+| [add_diagnostics](add_diagnostics.html) | Augment Data with Model Calculations |
 | [all_of](all_of.html) | Select an explicit set of columns |
 | [am](am.html) | Check whether a time is before noon |
 | [anova](anova.html) | Analysis of Variance (ANOVA) |
@@ -20727,8 +21655,6 @@ A confirmation message describing the imported archive.
 | [args](args.html) | Get function arguments and their types |
 | [arrange](arrange.html) | Arrange rows |
 | [arrange_node](arrange_node.html) | Arrange Pipeline Nodes |
-| [to_date](to_date.html) | Convert values to Date |
-| [to_datetime](to_datetime.html) | Convert values to Datetime |
 | [asin](asin.html) | Inverse sine |
 | [asinh](asinh.html) | Inverse hyperbolic sine |
 | [assert](assert.html) | Assert Condition |
@@ -20739,10 +21665,12 @@ A confirmation message describing the imported archive.
 | [atan](atan.html) | Inverse tangent |
 | [atan2](atan2.html) | Two-argument arctangent |
 | [atanh](atanh.html) | Inverse hyperbolic tangent |
-| [add_diagnostics](add_diagnostics.html) | Augment Data with Model Calculations |
 | [bind_cols](bind_cols.html) | Combine DataFrames by columns |
 | [bind_rows](bind_rows.html) | Stack DataFrames by rows |
 | [body](body.html) | Get function body |
+| [build_log](build_log.html) | Retrieve Build Log for Pipeline |
+| [build_log_history](build_log_history.html) | Retrieve Build Log History for Pipeline |
+| [build_log_to_frame](build_log_to_frame.html) | Tabulate Build Log as DataFrame |
 | [build_pipeline](build_pipeline.html) | Build Pipeline Artifacts |
 | [build_pipeline_internal](build_pipeline_internal.html) | Build Pipeline Internally |
 | [case_when](case_when.html) | Vectorized Case-When |
@@ -20755,6 +21683,7 @@ A confirmation message describing the imported archive.
 | [clean_colnames](clean_colnames.html) | Clean DataFrame Column Names |
 | [coef](coef.html) | Model Coefficients |
 | [col_lens](col_lens.html) | Create a Column Lens |
+| [collect_exceptions](collect_exceptions.html) | Gather Pipeline Node Exceptions and Warnings |
 | [colnames](colnames.html) | Get column names |
 | [compare](compare.html) | Compare Models |
 | [compare_native_vs_pmml_scores](compare_native_vs_pmml_scores.html) | Compare native T scoring vs JPMML scoring |
@@ -20777,9 +21706,9 @@ A confirmation message describing the imported archive.
 | [cumsum](cumsum.html) | Cumulative Sum |
 | [cut](cut.html) | Discretize numeric vector |
 | [cv](cv.html) | Coefficient of variation |
-| [to_dataframe](to_dataframe.html) | Create a DataFrame |
 | [day](day.html) | Extract the day of month |
 | [days_in_month](days_in_month.html) | Get the number of days in a month |
+| [debug_node](debug_node.html) | Interactively Debug a Pipeline Node |
 | [dense_rank](dense_rank.html) | Dense Rank |
 | [deserialize](deserialize.html) | Deserialize Value |
 | [deviance](deviance.html) | Model Deviance |
@@ -20796,34 +21725,32 @@ A confirmation message describing the imported archive.
 | [enquos](enquos.html) | Capture variadic argument expressions (non-standard evaluation) |
 | [env](env.html) | Get environment variable |
 | [error](error.html) | Raise Error |
+| [error_chain](error_chain.html) | Chain errors to preserve provenance |
 | [error_code](error_code.html) | Get error code |
 | [error_context](error_context.html) | Get error context |
-| [error_message](error_message.html) | Get error message |
+| [error_msg](error_msg.html) | Get error message |
 | [errored_nodes](errored_nodes.html) | Get Errored Pipeline Nodes |
 | [eval](eval.html) | Evaluate a quoted expression or quosure |
 | [everything](everything.html) | Select every column |
 | [exit](exit.html) | Exit the interpreter |
 | [exp](exp.html) | Exponential function |
 | [expand](expand.html) | Create all combinations of values |
-| [export_artifacts](export_artifacts.html) | Export Pipeline Artifacts |
 | [explain](explain.html) | Explain Value |
 | [explain_json](explain_json.html) | Explain Value as JSON |
-| [expr](expr.html) | Capture an expression |
-| [exprs](exprs.html) |  |
-| [to_factor](to_factor.html) | Create to_factor values |
-| [fct_c](fct_c.html) | Concatenate to_factor vectors |
+| [export_artifacts](export_artifacts.html) | Export Pipeline Artifacts |
+| [fct_c](fct_c.html) | Concatenate factor vectors |
 | [fct_collapse](fct_collapse.html) | Collapse multiple levels |
-| [fct_drop](fct_drop.html) | Drop unused to_factor levels |
-| [fct_expand](fct_expand.html) | Add explicit to_factor levels |
-| [fct_infreq](fct_infreq.html) | Order to_factor levels by frequency |
-| [fct_lump_min](fct_lump_min.html) | Lump to_factor levels below a minimum count |
-| [fct_lump_n](fct_lump_n.html) | Keep the most frequent to_factor levels |
-| [fct_lump_prop](fct_lump_prop.html) | Lump to_factor levels below a minimum proportion |
+| [fct_drop](fct_drop.html) | Drop unused factor levels |
+| [fct_expand](fct_expand.html) | Add explicit factor levels |
+| [fct_infreq](fct_infreq.html) | Order factor levels by frequency |
+| [fct_lump_min](fct_lump_min.html) | Lump factor levels below a minimum count |
+| [fct_lump_n](fct_lump_n.html) | Keep the most frequent factor levels |
+| [fct_lump_prop](fct_lump_prop.html) | Lump factor levels below a minimum proportion |
 | [fct_other](fct_other.html) | Replace unlisted levels with Other |
-| [fct_recode](fct_recode.html) | Rename to_factor levels |
+| [fct_recode](fct_recode.html) | Rename factor levels |
 | [fct_relevel](fct_relevel.html) | Move selected levels to the front |
-| [fct_reorder](fct_reorder.html) | Order to_factor levels by another vector |
-| [fct_rev](fct_rev.html) | Reverse to_factor levels |
+| [fct_reorder](fct_reorder.html) | Order factor levels by another vector |
+| [fct_rev](fct_rev.html) | Reverse factor levels |
 | [file_exists](file_exists.html) | Check if file exists |
 | [fill](fill.html) | Fill missing values |
 | [filter](filter.html) | Filter rows |
@@ -20849,12 +21776,13 @@ A confirmation message describing the imported archive.
 | [identical](identical.html) | Deep Equality Check |
 | [idx_lens](idx_lens.html) | Index Lens |
 | [ifelse](ifelse.html) | Vectorized If-Else |
+| [import_artifacts](import_artifacts.html) | Import Pipeline Artifacts |
 | [index_of](index_of.html) | Find index of substring |
 | [inner_join](inner_join.html) | Join matching rows |
-| [import_artifacts](import_artifacts.html) | Import Pipeline Artifacts |
+| [inspect_artifacts](inspect_artifacts.html) | Inspect Artifact Archive |
+| [inspect_log](inspect_log.html) | Inspect Pipeline Logs (Dynamic) |
 | [inspect_node](inspect_node.html) | Inspect Pipeline Node Metadata |
-| [inspect_log](inspect_log.html) | Inspect Pipeline Build Logs |
-| [inspect_pipeline](inspect_pipeline.html) | Static Pipeline DAG Schema Inspection |
+| [inspect_pipeline](inspect_pipeline.html) | Inspect Pipeline Schema (Static) |
 | [intent_fields](intent_fields.html) | Get All Intent Fields |
 | [intent_get](intent_get.html) | Get Intent Field |
 | [intersect](intersect.html) | Keep shared pipeline nodes |
@@ -20872,7 +21800,6 @@ A confirmation message describing the imported archive.
 | [is_numeric](is_numeric.html) | Check for numeric columns |
 | [isoweek](isoweek.html) | Extract the ISO week number |
 | [isoyear](isoyear.html) | Extract the ISO week-based year |
-
 | [jln](jln.html) | Configure a Julia Pipeline Node |
 | [kron](kron.html) | Kronecker product |
 | [kurtosis](kurtosis.html) | Excess kurtosis |
@@ -20882,7 +21809,7 @@ A confirmation message describing the imported archive.
 | [left_join](left_join.html) | Join rows from the left table |
 | [length](length.html) | Get length |
 | [lens](lens.html) | Lens Library |
-| [levels](levels.html) | Get to_factor levels |
+| [levels](levels.html) | Get factor levels |
 | [list_files](list_files.html) | List files in directory |
 | [list_logs](list_logs.html) | List Pipeline Logs |
 | [lm](lm.html) | Linear Model |
@@ -20897,6 +21824,7 @@ A confirmation message describing the imported archive.
 | [max](max.html) | Maximum value |
 | [mean](mean.html) | Compute arithmetic mean of numeric values |
 | [median](median.html) | Median |
+| [meta_flatten](meta_flatten.html) | Flatten MetaPipeline into Standard Pipeline |
 | [min](min.html) | Minimum value |
 | [min_rank](min_rank.html) | Minimum Rank |
 | [minute](minute.html) | Extract the minute |
@@ -20919,9 +21847,9 @@ A confirmation message describing the imported archive.
 | [nesting](nesting.html) | Helper to find combinations present in data |
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
+| [node_diff](node_diff.html) | Compare Node Outputs Across Builds |
 | [node_lens](node_lens.html) | Pipeline Node Lens |
 | [node_meta_lens](node_meta_lens.html) | Pipeline Metadata Lens |
-| [node_diff](node_diff.html) | Compare Node Outputs Across Builds |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
@@ -20945,13 +21873,15 @@ A confirmation message describing the imported archive.
 | [percent_rank](percent_rank.html) | Percent Rank |
 | [pf](pf.html) | F distribution CDF |
 | [pipeline_assert](pipeline_assert.html) | Assert Pipeline Validity |
+| [pipeline_cache_status](pipeline_cache_status.html) | Check Pipeline Cache Status |
 | [pipeline_copy](pipeline_copy.html) | Copy Pipeline Node Artifacts to Local Directory |
 | [pipeline_cycles](pipeline_cycles.html) | Detect Pipeline Cycles |
 | [pipeline_deps](pipeline_deps.html) | List Node Dependencies |
 | [pipeline_depth](pipeline_depth.html) | Maximum Topological Depth |
-| [pipeline_diff](pipeline_diff.html) | Compare Two Pipeline Structures |
+| [pipeline_diff](pipeline_diff.html) | Compare Pipeline Structures |
 | [pipeline_dot](pipeline_dot.html) | Export Pipeline as DOT Graph |
 | [pipeline_edges](pipeline_edges.html) | Pipeline Dependency Edges |
+| [pipeline_gc](pipeline_gc.html) | Garbage Collect Pipeline Nodes |
 | [pipeline_leaves](pipeline_leaves.html) | Pipeline Leaf Nodes |
 | [pipeline_node](pipeline_node.html) | Get Pipeline Node |
 | [pipeline_nodes](pipeline_nodes.html) | List Pipeline Nodes |
@@ -20959,7 +21889,11 @@ A confirmation message describing the imported archive.
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |
 | [pipeline_run](pipeline_run.html) | Run Pipeline |
 | [pipeline_summary](pipeline_summary.html) | Pipeline Summary |
+| [pipeline_to_dot](pipeline_to_dot.html) | Export Pipeline/MetaPipeline as DOT Graph |
+| [pipeline_to_drv](pipeline_to_drv.html) | Introspect Node Derivation Paths |
 | [pipeline_to_frame](pipeline_to_frame.html) | Convert Pipeline to DataFrame |
+| [pipeline_to_mermaid](pipeline_to_mermaid.html) | Export Pipeline/MetaPipeline as Mermaid Graph |
+| [pipeline_to_store](pipeline_to_store.html) | Introspect Node Store Paths |
 | [pipeline_validate](pipeline_validate.html) | Validate a Pipeline |
 | [pivot_longer](pivot_longer.html) | Pivot longer |
 | [pivot_wider](pivot_wider.html) | Pivot wider |
@@ -21020,6 +21954,7 @@ A confirmation message describing the imported archive.
 | [seq](seq.html) | Generate a sequence of integers |
 | [serialize](serialize.html) | Serialize Value |
 | [set](set.html) | Set Focused Value |
+| [set_nix_defaults](set_nix_defaults.html) | Set Global Nix Orchestration Defaults |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
 | [show_plot](show_plot.html) | Render a plot node and open it locally |
@@ -21050,7 +21985,6 @@ A confirmation message describing the imported archive.
 | [str_replace](str_replace.html) | Replace all occurrences |
 | [str_split](str_split.html) | Split a string on a delimiter |
 | [str_sprintf](str_sprintf.html) | Format a string |
-| [to_string](to_string.html) | Convert to string |
 | [str_substring](str_substring.html) | Extract substring |
 | [str_trim](str_trim.html) | Trim whitespace |
 | [str_trunc](str_trunc.html) | Truncate strings for display |
@@ -21061,8 +21995,8 @@ A confirmation message describing the imported archive.
 | [summary](summary.html) | Model Summary |
 | [suppress_warnings](suppress_warnings.html) | Suppress Diagnostics for a Node |
 | [swap](swap.html) | Swap a Pipeline Node Implementation |
-| [to_symbol](to_symbol.html) | Convert a string to a Symbol |
 | [t_doc](t_doc.html) | Generate Documentation |
+| [t_gc](t_gc.html) | Run System Garbage Collection |
 | [t_make](t_make.html) | Build Pipeline Internally |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
 | [t_read_onnx](t_read_onnx.html) | Read an ONNX model file |
@@ -21077,9 +22011,18 @@ A confirmation message describing the imported archive.
 | [tan](tan.html) | Tangent |
 | [tanh](tanh.html) | Hyperbolic tangent |
 | [to_array](to_array.html) | Convert to NDArray |
+| [to_bool](to_bool.html) | Convert to Boolean |
+| [to_dataframe](to_dataframe.html) | Create a DataFrame |
+| [to_date](to_date.html) | Convert values to Date |
+| [to_datetime](to_datetime.html) | Convert values to Datetime |
+| [to_expr](to_expr.html) | Capture an expression |
+| [to_exprs](to_exprs.html) |  |
+| [to_factor](to_factor.html) | Create factor values |
 | [to_float](to_float.html) | Convert to Float |
 | [to_integer](to_integer.html) | Convert to Integer |
 | [to_lower](to_lower.html) | Convert to lowercase |
+| [to_string](to_string.html) | Convert to string |
+| [to_symbol](to_symbol.html) | Convert a string to a Symbol |
 | [to_upper](to_upper.html) | Convert to uppercase |
 | [today](today.html) | Get the current date |
 | [trace_nodes](trace_nodes.html) | Trace Pipeline Nodes |
@@ -21101,6 +22044,7 @@ A confirmation message describing the imported archive.
 | [var](var.html) | Variance |
 | [vcov](vcov.html) | Variance-Covariance Matrix |
 | [wald_test](wald_test.html) | Joint Wald Test |
+| [warning_msg](warning_msg.html) | Get warning message |
 | [wday](wday.html) | Extract or label the weekday |
 | [week](week.html) | Extract the week number |
 | [where](where.html) | Select columns by predicate |
@@ -21801,9 +22745,24 @@ Lenses provide a robust way to focus on, retrieve, and update nested data struct
 
 # levels
 
-Get to_factor levels
+Get factor levels
 
-Returns the level labels stored on a to_factor vector.
+Returns the level labels stored on a factor vector.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+
+## Returns
+
+The level labels.
+
+## Examples
+
+```t
+levels(fct)
+```
 
 
 
@@ -22907,7 +23866,25 @@ Bucket indices (1 to n).
 
 Create ordered factors
 
-Creates to_factor vectors marked as ordered for ordinal comparisons.
+Creates factor vectors marked as ordered for ordinal comparisons.
+
+## Parameters
+
+- **x** (`Vector`): | List | Any The values to convert to an ordered factor.
+
+- **levels** (`Vector[String]`): | List[String] (Optional) Explicit level order.
+
+
+## Returns
+
+An ordered factor vector.
+
+## Examples
+
+```t
+ordered(["low", "high", "medium"])
+ordered(x, levels = ["low", "medium", "high"])
+```
 
 
 
@@ -24068,6 +25045,8 @@ Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optiona
 - **build** (`Bool`): (Optional) Whether to trigger the Nix build immediately. Defaults to false.
 
 - **verbose** (`Int`): (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+
+- **dry_run** (`Bool`): (Optional) Perform a dry run via Nix (`--dry-run`), returning a DataFrame of planned actions without executing.
 
 - **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
 
@@ -25367,6 +26346,26 @@ Split delimited values into rows
 
 Expands delimited string values into multiple rows while repeating the remaining columns.
 
+## Parameters
+
+- **df** (`DataFrame`): The input data frame.
+
+- **col** (`Column`): The column to split (bare name or $col reference).
+
+- **sep** (`String`): = "[^A-Za-z0-9]+" Regular expression separator pattern.
+
+
+## Returns
+
+A DataFrame with the column values split across rows.
+
+## Examples
+
+```t
+separate_rows(df, $items)
+separate_rows(df, $codes, sep = ",")
+```
+
 
 
 # FILE: docs/reference/seq.md
@@ -25715,6 +26714,26 @@ Keep rows with the largest values
 
 Returns the rows with the highest values in an ordering column.
 
+## Parameters
+
+- **df** (`DataFrame`): The input data frame.
+
+- **order_by** (`Column`): The column to order by.
+
+- **n** (`Int`): = 1 Number of rows to return.
+
+
+## Returns
+
+A DataFrame with the top n rows by the ordering column.
+
+## Examples
+
+```t
+slice_max(df, $score)
+slice_max(df, $score, n = 5)
+```
+
 
 
 # FILE: docs/reference/slice.md
@@ -25747,6 +26766,26 @@ The extracted substring.
 Keep rows with the smallest values
 
 Returns the rows with the lowest values in an ordering column.
+
+## Parameters
+
+- **df** (`DataFrame`): The input data frame.
+
+- **order_by** (`Column`): The column to order by.
+
+- **n** (`Int`): = 1 Number of rows to return.
+
+
+## Returns
+
+A DataFrame with the bottom n rows by the ordering column.
+
+## Examples
+
+```t
+slice_min(df, $score)
+slice_min(df, $score, n = 5)
+```
 
 
 
@@ -26748,9 +27787,29 @@ to_exprs(1 + 1, x = 2 * 2)
 
 # to_factor
 
-Create to_factor values
+Create factor values
 
-Converts values to to_factor-encoded vectors with derived or explicit levels.
+Converts values to factor-encoded vectors with derived or explicit levels.
+
+## Parameters
+
+- **x** (`Vector`): | List | Any The values to convert to factors.
+
+- **levels** (`Vector[String]`): | List[String] (Optional) Explicit level order. Defaults to sorted unique values.
+
+- **ordered** (`Bool`): = false Mark the factor as ordered for ordinal comparisons.
+
+
+## Returns
+
+A factor vector.
+
+## Examples
+
+```t
+to_factor(["a", "b", "a"])
+to_factor(["a", "b", "a"], levels = ["b", "a"], ordered = true)
+```
 
 
 
@@ -27275,6 +28334,26 @@ Returns the timezone string attached to a Datetime value.
 Expand rows by weight
 
 Repeats each row according to a count column or weight expression.
+
+## Parameters
+
+- **df** (`DataFrame`): The input data frame.
+
+- **weights** (`Column`): The column containing integer weights (bare name or $col reference).
+
+- **.remove** (`Bool`): = true Remove the weights column from the result.
+
+
+## Returns
+
+A DataFrame with rows expanded according to the weights.
+
+## Examples
+
+```t
+uncount(df, $count)
+uncount(df, $n, .remove = false)
+```
 
 
 
@@ -27879,7 +28958,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.52.2";
+    tlang.url = "github:b-rodrigues/tlang/v0.52.3";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -28000,7 +29079,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.52.2",
+    t_version: "0.52.3",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -28043,7 +29122,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.52.2";
+    tlang.url = "github:b-rodrigues/tlang/v0.52.3";
   };
   
   outputs = { self, nixpkgs, tlang }: {

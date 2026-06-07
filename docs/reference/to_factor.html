@@ -34,9 +34,24 @@
 </nav>
 <div class="container">
 <h1 id="to_factor">to_factor</h1>
-<p>Create to_factor values</p>
-<p>Converts values to to_factor-encoded vectors with derived or explicit
+<p>Create factor values</p>
+<p>Converts values to factor-encoded vectors with derived or explicit
 levels.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>x</strong> (<code>Vector</code>): | List | Any The values
+to convert to factors.</p></li>
+<li><p><strong>levels</strong> (<code>Vector[String]</code>): |
+List[String] (Optional) Explicit level order. Defaults to sorted unique
+values.</p></li>
+<li><p><strong>ordered</strong> (<code>Bool</code>): = false Mark the
+factor as ordered for ordinal comparisons.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A factor vector.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>to_factor([&quot;a&quot;, &quot;b&quot;, &quot;a&quot;])
+to_factor([&quot;a&quot;, &quot;b&quot;, &quot;a&quot;], levels = [&quot;b&quot;, &quot;a&quot;], ordered = true)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

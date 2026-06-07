@@ -131,11 +131,6 @@ Notes</h2>
 <h3 id="linux">Linux</h3>
 <p>The command above works on most modern Linux distributions (Ubuntu,
 Fedora, Debian, Arch, etc.).</p>
-<blockquote>
-<p>[!TIP] <strong>Disk Space</strong>: Nix stores everything in
-<code>/nix</code>. If your root partition is small, you might want to
-mount <code>/nix</code> on a larger partition.</p>
-</blockquote>
 <h3 id="macos">macOS</h3>
 <p>Nix on macOS is highly efficient but has some platform-specific
 nuances:</p>
@@ -215,10 +210,6 @@ to edit this file.</p>
 exceptionally well together. While Docker manages container isolation,
 Nix handles the environment reproducibility <em>inside</em> or
 <em>for</em> those containers.</p>
-<h3 id="using-nix-inside-docker">1. Using Nix Inside Docker</h3>
-<p>You might want to install Nix inside a Docker container for CI/CD
-pipelines (like GitHub Actions) or to serve applications with a strictly
-defined environment.</p>
 <p>To install Nix inside a <code>Dockerfile</code> (e.g., using
 <code>ubuntu:latest</code> as a base), use the Determinate Systems
 installer with specific flags for container environments:</p>
@@ -243,40 +234,13 @@ class="sourceCode dockerfile"><code class="sourceCode dockerfile"><span id="cb7-
 <span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span> <span class="op">&gt;&gt;</span> /root/.config/nix/nix.conf</span>
 <span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="kw">CMD</span> [<span class="st">&quot;nix-shell&quot;</span>]</span></code></pre></div>
-<h3 id="building-docker-images-with-nix">2. Building Docker Images with
-Nix</h3>
-<p>Instead of writing a <code>Dockerfile</code>, you can use Nix to
-<strong>build</strong> a Docker image. This is the ultimate way to
-achieve reproducibility, as Nix builds the entire image layer by layer
-from its own store, resulting in extremely lightweight and predictable
-images.</p>
-<p>A simple Nix expression to build a T application image might look
-like this:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode nix"><code class="sourceCode nix"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="op">{</span> <span class="va">pkgs</span> <span class="op">?</span> <span class="bu">import</span> &lt;nixpkgs&gt; <span class="op">{}</span> <span class="op">}</span>:</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>pkgs<span class="op">.</span>dockerTools<span class="op">.</span>buildImage <span class="op">{</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">name</span> <span class="op">=</span> <span class="st">&quot;t-analysis-app&quot;</span><span class="op">;</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="va">tag</span> <span class="op">=</span> <span class="st">&quot;latest&quot;</span><span class="op">;</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Include T and any other required tools</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="va">contents</span> <span class="op">=</span> <span class="op">[</span> pkgs<span class="op">.</span>tlang pkgs<span class="op">.</span>bashInteractive <span class="op">];</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="va">config</span> <span class="op">=</span> <span class="op">{</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="va">Cmd</span> <span class="op">=</span> <span class="op">[</span> <span class="st">&quot;t&quot;</span> <span class="st">&quot;run&quot;</span> <span class="st">&quot;scripts/pipeline.t&quot;</span> <span class="op">];</span></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="va">WorkingDir</span> <span class="op">=</span> <span class="st">&quot;/my-project&quot;</span><span class="op">;</span></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p>You can build this image by running <code>nix-build docker.nix</code>
-and then load it into Docker with
-<code>docker load &lt; result</code>.</p>
 <hr />
 <h2 id="troubleshooting">Troubleshooting</h2>
 <h3 id="command-not-found-nix">“command not found: nix”</h3>
 <p>The installer usually updates your shell profile. Try restarting your
 terminal or running:</p>
-<div class="sourceCode" id="cb9"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh</span></code></pre></div>
 <h3 id="permission-denied">Permission Denied</h3>
 <p>If you encounter permission issues when using Nix, ensure your user
 is in the <code>trusted-users</code> list in

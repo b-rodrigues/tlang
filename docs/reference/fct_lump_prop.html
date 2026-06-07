@@ -34,9 +34,22 @@
 </nav>
 <div class="container">
 <h1 id="fct_lump_prop">fct_lump_prop</h1>
-<p>Lump to_factor levels below a minimum proportion</p>
-<p>Collapses to_factor levels whose frequency falls below a proportion
+<p>Lump factor levels below a minimum proportion</p>
+<p>Collapses factor levels whose frequency falls below a proportion
 threshold.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>x</strong> (<code>Vector[Factor]</code>): A factor
+vector.</p></li>
+<li><p><strong>prop</strong> (<code>Float</code>): Minimum proportion
+threshold. Levels below this are lumped.</p></li>
+<li><p><strong>other_level</strong> (<code>String</code>): = “Other”
+Name for the collapsed catch-all level.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A factor vector with rare levels lumped.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>fct_lump_prop(fct, prop = 0.05)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

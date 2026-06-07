@@ -47,6 +47,9 @@ trigger the Nix build immediately. Defaults to false.</p></li>
 <li><p><strong>verbose</strong> (<code>Int</code>): (Optional) Nix build
 verbosity level. <code>0</code> keeps build failures quiet; values above
 <code>0</code> print failed node logs.</p></li>
+<li><p><strong>dry_run</strong> (<code>Bool</code>): (Optional) Perform
+a dry run via Nix (<code>--dry-run</code>), returning a DataFrame of
+planned actions without executing.</p></li>
 <li><p><strong>nix_options</strong> (<code>Dict</code>): (Optional) A
 dictionary of Nix orchestration options:</p></li>
 </ul>

@@ -37,13 +37,18 @@
 <p>Import Pipeline Artifacts</p>
 <p>Imports a previously exported pipeline artifact archive into the
 local Nix store and verifies that the pipeline nodes are now cached
-locally.</p>
+locally. Supports two calling conventions: a 1-argument form for simple
+imports (<code>import_artifacts(archive_path)</code>) and a 2-argument
+form for verification
+(<code>import_artifacts(pipeline, archive_path)</code>) which verifies
+store path signatures.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline whose
-artifacts should be restored.</p></li>
-<li><p><strong>archive_path</strong> (<code>String</code>): The source
-archive path.</p></li>
+<li><p><strong>target_or_archive</strong>
+(<code>Pipeline|String</code>): Either a Pipeline (2-arg form) or an
+archive path (1-arg form).</p></li>
+<li><p><strong>archive_path</strong> (<code>String</code>): (Optional)
+The source archive path. Required in the 2-arg form.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A confirmation message describing the imported archive.</p>

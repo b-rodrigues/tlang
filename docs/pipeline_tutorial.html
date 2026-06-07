@@ -122,6 +122,110 @@ p.y      -- 20
 p.total  -- 30</code></pre>
 <p>The pipeline itself displays as:</p>
 <pre><code>Pipeline(3 nodes: [x, y, total])</code></pre>
+<h3
+id="the-interactive-development-loop-build-inspect-plot-and-extend">1.1
+The Interactive Development Loop (Build, Inspect, Plot, and Extend)</h3>
+<p>A common and highly productive way to build T-Lang pipelines is
+incrementally, using an interactive REPL development loop. By starting
+small and iteratively building, inspecting, plotting, and extending, you
+ensure that each step of your data pipeline behaves as expected.</p>
+<h4 id="step-1-start-with-a-single-node">Step 1: Start with a Single
+Node</h4>
+<p>First, define a pipeline with a single root node. For example,
+loading some raw data:</p>
+<pre class="t"><code>p = pipeline {
+  raw_data = [1, 2, 3, 4, 5]
+}</code></pre>
+<h4 id="step-2-build-the-pipeline">Step 2: Build the Pipeline</h4>
+<p>Build the pipeline to materialize the raw data node as a Nix
+artifact:</p>
+<pre class="t"><code>build_pipeline(p)</code></pre>
+<p>During this build, Nix runs the computation (in this case, just
+returning the vector <code>[1, 2, 3, 4, 5]</code>) and caches it in the
+Nix store.</p>
+<h4 id="step-3-check-inspect-and-verify">Step 3: Check, Inspect, and
+Verify</h4>
+<p>Once built, verify that the node was evaluated correctly:</p>
+<ul>
+<li><p><strong>Check value in-memory</strong>: Access the node directly
+using dot notation:</p>
+<pre class="t"><code>p.raw_data
+-- [1, 2, 3, 4, 5]</code></pre></li>
+<li><p><strong>Verify the serialized artifact</strong>: Use
+<code>read_node()</code> to ensure the serialized value can be
+successfully read from the Nix store cache:</p>
+<pre class="t"><code>read_node(p.raw_data)
+-- [1, 2, 3, 4, 5]</code></pre></li>
+<li><p><strong>Inspect build logs</strong>: Check the latest build log
+to see the build execution time and status:</p>
+<pre class="t"><code>inspect_log()
+-- A DataFrame showing the derivation path and build status of &quot;raw_data&quot;</code></pre></li>
+<li><p><strong>Explain diagnostics</strong>: Call <code>explain()</code>
+to view properties and runtime environment information:</p>
+<pre class="t"><code>explain(p.raw_data)
+-- { `runtime`: &quot;T&quot;, `kind`: &quot;node&quot;, `name`: &quot;raw_data&quot;, ... }</code></pre></li>
+</ul>
+<h4 id="step-4-plot-the-dag">Step 4: Plot the DAG</h4>
+<p>Visualize the current topology of your pipeline. You can render the
+DAG directly in your web browser by calling <code>show_plot()</code> on
+the pipeline:</p>
+<pre class="t"><code>show_plot(p)</code></pre>
+<p>Alternatively, you can convert the dependency graph to a Mermaid
+string to print or render in Markdown:</p>
+<pre class="t"><code>print(pipeline_to_mermaid(p))</code></pre>
+<p>Output:</p>
+<pre class="mermaid"><code>graph TD
+  raw_data</code></pre>
+<h4 id="step-5-add-another-node">Step 5: Add Another Node</h4>
+<p>First, save your current pipeline state into <code>p_old</code> so
+you can diff it later:</p>
+<pre class="t"><code>p_old = p</code></pre>
+<p>Now, extend your pipeline by adding a second node that depends on the
+first one. For example, calculating the sum of the raw data:</p>
+<pre class="t"><code>p = pipeline {
+  raw_data = [1, 2, 3, 4, 5]
+  total = sum(raw_data)
+}</code></pre>
+<h4 id="step-6-build-verify-and-plot-again">Step 6: Build, Verify, and
+Plot Again</h4>
+<p>Re-build your extended pipeline:</p>
+<pre class="t"><code>build_pipeline(p)</code></pre>
+<p>Because <code>raw_data</code> was already built and cached, Nix will
+automatically skip rebuilding it (a cache hit) and only compute the new
+<code>total</code> node! You can verify this cache hit behavior by
+running a cache-aware dry run first:</p>
+<pre class="t"><code>plan = build_pipeline(p, dry_run = true)
+print(plan)
+-- DataFrame(2 rows x 3 cols: [node, action, store_path])
+-- node       action       store_path
+-- raw_data   cache_hit    /nix/store/...-raw_data
+-- total      rebuild      /nix/store/...-total</code></pre>
+<p>After building, inspect the new node and dependency layout:</p>
+<ul>
+<li><p><strong>Verify the new node</strong>:</p>
+<pre class="t"><code>p.total
+-- 15
+
+read_node(p.total)
+-- 15</code></pre></li>
+<li><p><strong>Inspect the new DAG</strong>: Plot the updated dependency
+graph to verify the relationship. You can open it in the browser:</p>
+<pre class="t"><code>show_plot(p)</code></pre>
+<p>Or get the Mermaid source:</p>
+<pre class="t"><code>print(pipeline_to_mermaid(p))</code></pre>
+<p>Output:</p>
+<pre class="mermaid"><code>graph TD
+  raw_data --&gt; total</code></pre></li>
+<li><p><strong>Compare pipeline changes</strong>: If you want to check
+what changed structurally since your last pipeline definition, you can
+use <code>pipeline_diff()</code>:</p>
+<pre class="t"><code>diff = pipeline_diff(p_old, p)
+print(diff.added_nodes)
+-- [&quot;total&quot;]</code></pre></li>
+</ul>
+<p>By following this loop—<strong>Build ➔ Verify ➔ Plot ➔
+Extend</strong>—you can comfortably build up large, complex, and
+reliable data pipelines step by step.</p>
 <hr />
 <h2 id="explicit-node-configuration">2. Explicit Node Configuration</h2>
 <p>In addition to bare assignments, you can explicitly configure nodes
@@ -439,8 +543,8 @@ nodes succeeded and which failed.</p>
 <p>If you prefer the usual, common behaviour where evaluation stops
 immediately at the first error, you can use the <code>--failfast</code>
 flag:</p>
-<div class="sourceCode" id="cb21"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
 <p>In your T scripts, you can also opt-in to this behavior via
 <code>t_make()</code>:</p>
 <pre class="t"><code>t_make(failfast = true)</code></pre>
@@ -743,17 +847,17 @@ This ensures that non-interactive execution always produces reproducible
 Nix artifacts. By default, <code>t run</code> operates in
 <strong>resilient mode</strong>, continuing past errors to provide a
 full diagnostic summary. Use <code>--failfast</code> to change this.</p>
-<div class="sourceCode" id="cb41"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
-<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
-<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
-<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
-<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
-<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
-<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
-<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
+<div class="sourceCode" id="cb59"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
+<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
+<span id="cb59-3"><a href="#cb59-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb59-4"><a href="#cb59-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
+<span id="cb59-5"><a href="#cb59-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
+<span id="cb59-6"><a href="#cb59-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb59-7"><a href="#cb59-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
+<span id="cb59-8"><a href="#cb59-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
+<span id="cb59-9"><a href="#cb59-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
+<span id="cb59-10"><a href="#cb59-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
 <p>A valid pipeline script looks like:</p>
 <pre class="t"><code>-- my_pipeline.t
 p = pipeline {
@@ -765,14 +869,14 @@ populate_pipeline(p, build = true)</code></pre>
 <h3 id="interactive-repl">Interactive (REPL)</h3>
 <p>The REPL is <strong>unrestricted</strong> — you can run any T code
 line by line, whether or not it involves pipelines:</p>
-<div class="sourceCode" id="cb43"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
-<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
-<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
-<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
-<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
-<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
-<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
+<div class="sourceCode" id="cb61"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb61-2"><a href="#cb61-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
+<span id="cb61-3"><a href="#cb61-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
+<span id="cb61-4"><a href="#cb61-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
+<span id="cb61-5"><a href="#cb61-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
+<span id="cb61-6"><a href="#cb61-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
+<span id="cb61-7"><a href="#cb61-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
 <hr />
 <h2 id="using-imports-in-pipelines">17. Using Imports in Pipelines</h2>
 <p>When a pipeline is built with <code>build_pipeline()</code>, each
@@ -1601,6 +1705,22 @@ print(mermaid)
 --   b --&gt; c;</code></pre>
 <p>Render the Mermaid flowchart directly in markdown files or preview
 using the online Mermaid live editor.</p>
+<h4
+id="visualizing-mermaid-graphs-in-the-browser-with-show_plot">Visualizing
+Mermaid Graphs in the Browser with <code>show_plot</code></h4>
+<p>Rather than manually pasting the Mermaid string into an external
+editor, you can reuse <code>show_plot()</code> to visualize Mermaid
+graphs, pipelines, or meta-pipelines directly in your web browser:</p>
+<pre class="t"><code>-- Visualize a pipeline directly:
+show_plot(p)
+
+-- Or visualize a raw Mermaid string:
+show_plot(&quot;graph TD\n  Start --&gt; Stop&quot;)</code></pre>
+<p>When you pass a pipeline, meta-pipeline, or a string starting with a
+Mermaid keyword (like <code>graph</code> or <code>flowchart</code>) to
+<code>show_plot()</code>, T dynamically generates a temporary HTML file
+containing the Mermaid JS engine, renders the graph, and opens it using
+your configured system viewer/browser.</p>
 <hr />
 <h2 id="pipeline-validation">28. Pipeline Validation</h2>
 <p>By design, T uses <strong>lazy validation</strong>: structural errors
