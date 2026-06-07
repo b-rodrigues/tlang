@@ -1758,7 +1758,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
 
   if validation_errors <> [] then
     Error.make_error StructuralError (List.hd validation_errors)
-  else
+  else begin
+  Hashtbl.clear Ast.in_memory_node_values;
 
   (* Topological sort *)
   match topo_sort desugared_nodes deps with
@@ -1814,6 +1815,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       p_explicit_deps = List.map (fun (name, un) -> (name, un.un_dependencies)) desugared_nodes;
       p_node_diagnostics;
     }
+  end
 
 (** Deserialize dependencies for a node during eager evaluation.
     Resolves deserialization strategy from the node's deserializer expression,
