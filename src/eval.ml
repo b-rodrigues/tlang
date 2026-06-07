@@ -1879,37 +1879,8 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
   | Error cycle_node ->
     Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
-    let rerun_eval_or_defer name un current_env_ref =
+    let rerun_eval_or_defer name un _current_env_ref =
       if un.un_noop then VSymbol (Printf.sprintf "<noop:%s>" name)
-      else if un.un_runtime = "T" then
-        let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
-        let is_unbuilt d =
-          match Env.find_opt d !current_env_ref with
-          | Some (VComputedNode _) -> true
-          | Some _ -> false
-          | None -> true
-        in
-        let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
-        if is_raw || List.exists is_unbuilt node_deps then
-          VComputedNode {
-            cn_name = name;
-            cn_runtime = "T";
-            cn_path = "<unbuilt>";
-            cn_serializer = Nix_unparse.expr_to_string un.un_serializer;
-            cn_class = "Unknown";
-            cn_dependencies = node_deps;
-          }
-        else
-          let env_with_deserialized = deserialize_deps_for_node !current_env_ref ~deserializer:un.un_deserializer ~node_name:name node_deps in
-          let result = eval_expr (ref env_with_deserialized) un.un_command in
-          match result with
-          | VError { code = MissingArtifactError; _ } ->
-              VComputedNode {
-                cn_name = name; cn_runtime = un.un_runtime; cn_path = "<unbuilt>";
-                cn_serializer = Nix_unparse.unparse_expr un.un_serializer; cn_class = "Unknown";
-                cn_dependencies = node_deps;
-              }
-          | _ -> result |> annotate_pipeline_error ~runtime:un.un_runtime name
       else
         let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
         if strict then begin
