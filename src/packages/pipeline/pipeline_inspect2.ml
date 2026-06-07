@@ -501,6 +501,29 @@ let register env =
               (Printf.sprintf "  %s --> %s;\n" dep_id name_id)
           ) deps
         ) p.p_deps;
+        let runtime_fill = function
+          | "r" -> "#246ABF"
+          | "python" -> "#FFD343"
+          | "julia" -> "#9558b2"
+          | "quarto" -> "#4F789E"
+          | "sh" -> "#6e3b03"
+          | _ -> "#ffced0"
+        in
+        let has_error name =
+          match List.assoc_opt name p.p_node_diagnostics with
+          | Some d when d.nd_error <> None -> true
+          | _ -> false
+        in
+        List.iter (fun (name, _) ->
+          let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+          let id = get_id name in
+          let fill = runtime_fill (String.lowercase_ascii runtime) in
+          let stroke = if has_error name then "#ff0000" else "#333" in
+          let stroke_width = if has_error name then 3 else 1 in
+          Buffer.add_string buf
+            (Printf.sprintf "  style %s fill:%s,color:#000000,stroke:%s,stroke-width:%dpx\n"
+               id fill stroke stroke_width)
+        ) p.p_exprs;
         VString (Buffer.contents buf)
       in
       match args with
