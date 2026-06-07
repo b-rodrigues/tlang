@@ -2184,7 +2184,8 @@ and eval_dot_access env_ref target_expr field =
       | _ -> eval_dot_access_val env_ref (Utils.unwrap_value target_val) field)
   | _ -> eval_dot_access_val env_ref target_val field
 
-and eval_dot_access_val _env_ref target_val field =
+and eval_dot_access_val env_ref target_val field =
+  let exception CycleError of string in
   (* Helper: check if any column name in the table starts with the given prefix *)
   let has_column_prefix arrow_table prefix =
     let pfx = prefix ^ "." in
@@ -2209,9 +2210,51 @@ and eval_dot_access_val _env_ref target_val field =
          | _ -> !Ast.computed_node_resolver cn)
     | None -> !Ast.computed_node_resolver cn
   in
-  let get_pipeline_member p field =
+  let rec get_pipeline_member p field visiting =
+    if List.mem field visiting then raise (CycleError field);
+    let visiting = field :: visiting in
     match List.assoc_opt field p.p_nodes with
-    | Some (VComputedNode cn) -> Some (VComputedNode (resolved_cn p cn))
+    | Some (VComputedNode cn) ->
+        begin
+          if cn.cn_path = "<unbuilt>" && not (Hashtbl.mem Ast.in_memory_node_values field) then
+            (match List.assoc_opt field p.p_exprs with
+             | Some expr ->
+                 let runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
+                 if runtime = "T" then
+                   let fvs = free_vars expr in
+                   let node_names = List.map fst p.p_nodes in
+                   let internal_fvs = List.filter (fun v -> List.mem v node_names) fvs in
+                    List.iter (fun dep -> let _ = get_pipeline_member p dep visiting in ()) internal_fvs;
+                   let env_with_deserialized =
+                     List.fold_left (fun acc v ->
+                       if List.mem v node_names then
+                         match Hashtbl.find_opt Ast.in_memory_node_values v with
+                          | Some (VNodeResult { v = vv; _ }) -> Env.add v vv acc
+                         | Some vv -> Env.add v vv acc
+                         | None -> acc
+                       else acc
+                     ) !env_ref fvs
+                   in
+                   let (v, own_warnings) = capture_node_warnings (fun () -> eval_expr (ref env_with_deserialized) expr) in
+                    let is_missing = match v with
+                      | VError { code = MissingArtifactError; _ } -> true
+                      | _ -> false
+                    in
+                    if not is_missing then begin
+                      let diagnostics =
+                        match List.assoc_opt field p.p_node_diagnostics with
+                        | Some d ->
+                            if own_warnings <> [] then
+                              { d with nd_warnings = dedupe_warnings (own_warnings @ d.nd_warnings) }
+                            else d
+                        | None -> Ast.Utils.empty_node_diagnostics
+                      in
+                      let wrapped = VNodeResult { v; node_name = field; diagnostics } in
+                      Hashtbl.replace Ast.in_memory_node_values field wrapped
+                    end
+             | None -> ());
+          Some (VComputedNode (resolved_cn p cn))
+        end
     | Some (VSymbol s) -> Some (VSymbol s)
     | Some _ ->
         let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
@@ -2286,13 +2329,15 @@ and eval_dot_access_val _env_ref target_val field =
               let prefix = (match List.assoc_opt "__partial_dot_prefix__" pairs with
                             | Some (VString s) -> s | _ -> "") in
               let compound = prefix ^ "." ^ field in
-               (match get_pipeline_member p compound with
-                | Some v -> v
-                | None ->
-                    if has_node_prefix p compound
-                    then VDict [("__partial_dot_pipeline__", pipe_val);
-                                ("__partial_dot_prefix__", VString compound)]
-                    else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." compound))
+               (try match get_pipeline_member p compound [] with
+                    | Some v -> v
+                    | None ->
+                        if has_node_prefix p compound
+                        then VDict [("__partial_dot_pipeline__", pipe_val);
+                                    ("__partial_dot_prefix__", VString compound)]
+                        else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." compound)
+               with CycleError node ->
+                 Error.structural_error (Printf.sprintf "Pipeline dependency cycle involving node `%s`." node))
              | _ ->
                (match List.assoc_opt "__partial_dot_dict__" pairs with
                | Some (VDict orig_pairs) ->
@@ -2338,16 +2383,18 @@ and eval_dot_access_val _env_ref target_val field =
                      ("__partial_dot_prefix__", VString field)]
          else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
   | VPipeline p ->
-      (match get_pipeline_member p field with
-       | Some v -> v
-       | None ->
-           if has_node_prefix p field
-           then VDict [("__partial_dot_pipeline__", VPipeline p);
-                       ("__partial_dot_prefix__", VString field)]
-           else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
+      (try match get_pipeline_member p field [] with
+           | Some v -> v
+           | None ->
+               if has_node_prefix p field
+               then VDict [("__partial_dot_pipeline__", VPipeline p);
+                           ("__partial_dot_prefix__", VString field)]
+               else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)
+       with CycleError node ->
+         Error.structural_error (Printf.sprintf "Pipeline dependency cycle involving node `%s`." node))
   | VMetaPipeline mp ->
       (match Pipeline_composition.flatten_meta (VMetaPipeline mp) with
-       | VPipeline flat_p -> eval_dot_access_val _env_ref (VPipeline flat_p) field
+       | VPipeline flat_p -> eval_dot_access_val env_ref (VPipeline flat_p) field
        | e -> e)
   | VBuildLog bl ->
       (match field with
