@@ -2257,6 +2257,7 @@ and eval_dot_access_val env_ref target_val field =
         end
     | Some (VSymbol s) -> Some (VSymbol s)
     | Some _ ->
+        (* unreachable: p_nodes only contains VSymbol and VComputedNode *)
         let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
         let cn_serializer =
           match List.assoc_opt field p.p_serializers with
