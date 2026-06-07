@@ -292,4 +292,4 @@ T is licensed under the [European Union Public License v1.2](LICENSE).
 
 ---
 
-*Built with curiosity, designed for reproducibility.*
+*Architected by Bruno Rodrigues, implemented by LLMs.*
