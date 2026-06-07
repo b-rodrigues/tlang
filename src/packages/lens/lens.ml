@@ -448,14 +448,21 @@ let filter_lens_set_impl p ~eval_call args env =
                    let new_nodes = List.mapi (fun i (name, v) ->
                      if mask.(i) then
                        let new_v = repl_arr.(!repl_idx) in
-                       incr repl_idx; (name, new_v)
+                       incr repl_idx;
+                       Hashtbl.replace Ast.in_memory_node_values name
+                         (Ast.VNodeResult { v = new_v; node_name = name; diagnostics = Ast.Utils.empty_node_diagnostics });
+                       (name, new_v)
                      else (name, v)
                    ) pipe.p_nodes in
                    VPipeline { pipe with p_nodes = new_nodes }
             | val_v ->
                 (* scalar broadcast *)
                 let new_nodes = List.mapi (fun i (name, v) ->
-                  if mask.(i) then (name, val_v) else (name, v)
+                  if mask.(i) then begin
+                    Hashtbl.replace Ast.in_memory_node_values name
+                      (Ast.VNodeResult { v = val_v; node_name = name; diagnostics = Ast.Utils.empty_node_diagnostics });
+                    (name, val_v)
+                  end else (name, v)
                 ) pipe.p_nodes in
                 VPipeline { pipe with p_nodes = new_nodes }))
   | [(_, other); _] ->

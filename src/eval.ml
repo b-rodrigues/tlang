@@ -1817,11 +1817,6 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       p_explicit_deps = List.map (fun (name, un) -> (name, un.un_dependencies)) desugared_nodes;
       p_node_diagnostics;
     } in
-    (* Evaluate all T runtime nodes to populate in-memory cache *)
-    List.iter (fun (name, un) ->
-      if un.un_runtime = "T" && not un.un_noop then
-        let _ = pipeline_get_node_value env_ref (match result with VPipeline p -> p | _ -> assert false) name in ()
-    ) desugared_nodes;
     result
   end
 
@@ -2212,7 +2207,8 @@ and get_pipeline_member env_ref p field visiting =
     | None -> !Ast.computed_node_resolver cn
   in
   match List.assoc_opt field p.p_nodes with
-  | Some (VComputedNode cn) ->
+  | Some (VComputedNode cn_raw) ->
+      let cn = resolved_cn p cn_raw in
       begin
         if cn.cn_path = "<unbuilt>" && not (Hashtbl.mem Ast.in_memory_node_values field) then
           (match List.assoc_opt field p.p_exprs with
@@ -2226,10 +2222,13 @@ and get_pipeline_member env_ref p field visiting =
                  let env_with_deserialized =
                    List.fold_left (fun acc v ->
                      if List.mem v node_names then
-                       match Hashtbl.find_opt Ast.in_memory_node_values v with
-                        | Some (VNodeResult { v = vv; _ }) -> Env.add v vv acc
-                       | Some vv -> Env.add v vv acc
-                       | None -> acc
+                        match Hashtbl.find_opt Ast.in_memory_node_values v with
+                         | Some (VNodeResult { v = vv; _ }) -> Env.add v vv acc
+                        | Some vv -> Env.add v vv acc
+                        | None ->
+                            (match List.assoc_opt v p.p_nodes with
+                             | Some pv -> Env.add v pv acc
+                             | None -> acc)
                      else acc
                    ) !env_ref fvs
                  in
@@ -2257,7 +2256,7 @@ and get_pipeline_member env_ref p field visiting =
                     Hashtbl.replace Ast.in_memory_node_values field wrapped
                   end
            | None -> ());
-        Some (VComputedNode (resolved_cn p cn))
+        Some (VComputedNode cn)
       end
   | Some (VSymbol s) -> Some (VSymbol s)
   | Some _ ->
@@ -2975,6 +2974,7 @@ and eval_binop env_ref op left right =
       VList [ (None, lval); (None, rval) ]
   | Pipe ->
       let lval = eval_expr env_ref left in
+      let lval = Utils.unwrap_value lval in
       (match lval with
        | VError _ as e -> e
        | _ ->
