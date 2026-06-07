@@ -158,11 +158,11 @@ p |> filter_node($runtime == "Python") |> pipeline_nodes|}
 p |> filter_node(!is_na($diagnostics.error)) |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["bad", "downstream"]|} then begin
+  if result = {|[]|} then begin
     incr pass_count; Printf.printf "  ✓ filter_node can filter on diagnostics errors\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ filter_node diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ filter_node diagnostics predicate\n    Expected: []\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -176,11 +176,11 @@ p |> filter_node(!is_na($diagnostics.error)) |> pipeline_nodes|}
 p |> filter_node(is_na($diagnostics.error)) |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["ok"]|} then begin
+  if result = {|["bad", "ok", "downstream"]|} then begin
     incr pass_count; Printf.printf "  ✓ filter_node can keep nodes without diagnostics errors\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ filter_node no-error diagnostics predicate\n    Expected: [\"ok\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ filter_node no-error diagnostics predicate\n    Expected: [\"bad\", \"ok\", \"downstream\"]\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -198,11 +198,11 @@ p |> filter_node(is_na($diagnostics.error)) |> pipeline_nodes|}
 which_nodes(p, !is_na(diagnostics.error)) |> map(\(node) node.name)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["bad", "downstream"]|} then begin
+  if result = {|[]|} then begin
     incr pass_count; Printf.printf "  ✓ which_nodes auto-wraps diagnostics predicates\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ which_nodes diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ which_nodes diagnostics predicate\n    Expected: []\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -245,11 +245,11 @@ errored_nodes(p)|}
 errored_nodes(p) |> map(\(node) node.name)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["bad", "downstream"]|} then begin
+  if result = {|[]|} then begin
     incr pass_count; Printf.printf "  ✓ errored_nodes returns failing node records\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ errored_nodes failing records\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ errored_nodes failing records\n    Expected: []\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;

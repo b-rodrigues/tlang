@@ -274,20 +274,22 @@ let filter_lens_get_impl p ~eval_call args env =
        | Ok () ->
            let new_table = Arrow_compute.filter df.arrow_table keep in
            VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
-  | [(_, VPipeline pipe)] ->
-      let depths = Pipeline_to_frame.compute_depths pipe.p_deps in
-      let rec aux acc = function
-        | [] -> Ok (List.rev acc)
-        | (name, v) :: rest ->
-            let meta = VDict (Pipeline_to_frame.node_metadata_dict name pipe depths) in
-            (match eval_pred meta with
-             | Ok true -> aux ((name, v) :: acc) rest
-             | Ok false -> aux acc rest
-             | Error e -> Error e)
-      in
-      (match aux [] pipe.p_nodes with
-       | Ok filtered -> VList (List.map (fun (n, v) -> (Some n, v)) filtered)
-       | Error e -> e)
+   | [(_, VPipeline pipe)] ->
+       let depths = Pipeline_to_frame.compute_depths pipe.p_deps in
+       let rec aux acc = function
+         | [] -> Ok (List.rev acc)
+         | (name, _) :: rest ->
+             let meta = VDict (Pipeline_to_frame.node_metadata_dict name pipe depths) in
+             (match eval_pred meta with
+              | Ok true ->
+                  let v = Eval.pipeline_get_node_value (ref env) pipe name in
+                  aux ((name, v) :: acc) rest
+              | Ok false -> aux acc rest
+              | Error e -> Error e)
+       in
+       (match aux [] pipe.p_nodes with
+        | Ok filtered -> VList (List.map (fun (n, v) -> (Some n, v)) filtered)
+        | Error e -> e)
   | [(_, other)] ->
       Error.type_error (Printf.sprintf "filter_lens get expects a Collection, got %s"
         (Utils.type_name other))

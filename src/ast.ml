@@ -393,6 +393,10 @@ let in_memory_node_values : (string, value) Hashtbl.t = Hashtbl.create 50
 (** Global hook for storing mapping from pipeline expressions to build log paths *)
 let pipeline_build_logs : ((string * expr) list, string) Hashtbl.t = Hashtbl.create 10
 
+(** Tracks whether a pipeline has been successfully built by Nix.
+    Keyed by pipeline expressions list (same as pipeline_build_logs). *)
+let pipeline_is_built : ((string * expr) list, bool) Hashtbl.t = Hashtbl.create 10
+
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
     Scans for [a-zA-Z_][a-zA-Z0-9_]* patterns and returns unique results.

@@ -2187,9 +2187,7 @@ and eval_dot_access env_ref target_expr field =
       | _ -> eval_dot_access_val env_ref (Utils.unwrap_value target_val) field)
   | _ -> eval_dot_access_val env_ref target_val field
 
-and get_pipeline_member env_ref p field visiting =
-  if List.mem field visiting then raise (CycleError field);
-  let visiting = field :: visiting in
+and get_pipeline_member _env_ref p field _visiting =
   let resolved_cn p cn =
     match Hashtbl.find_opt Ast.pipeline_build_logs p.p_exprs with
     | Some log_path ->
@@ -2207,57 +2205,7 @@ and get_pipeline_member env_ref p field visiting =
     | None -> !Ast.computed_node_resolver cn
   in
   match List.assoc_opt field p.p_nodes with
-  | Some (VComputedNode cn_raw) ->
-      let cn = resolved_cn p cn_raw in
-      begin
-        if cn.cn_path = "<unbuilt>" && not (Hashtbl.mem Ast.in_memory_node_values field) then
-          (match List.assoc_opt field p.p_exprs with
-           | Some expr ->
-               let runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
-               if runtime = "T" then
-                 let fvs = free_vars expr in
-                 let node_names = List.map fst p.p_nodes in
-                 let internal_fvs = List.filter (fun v -> List.mem v node_names) fvs in
-                  List.iter (fun dep -> let _ = get_pipeline_member env_ref p dep visiting in ()) internal_fvs;
-                 let env_with_deserialized =
-                   List.fold_left (fun acc v ->
-                     if List.mem v node_names then
-                        match Hashtbl.find_opt Ast.in_memory_node_values v with
-                         | Some (VNodeResult { v = vv; _ }) -> Env.add v vv acc
-                        | Some vv -> Env.add v vv acc
-                        | None ->
-                            (match List.assoc_opt v p.p_nodes with
-                             | Some pv -> Env.add v pv acc
-                             | None -> acc)
-                     else acc
-                   ) !env_ref fvs
-                 in
-                  let (v, own_warnings) = capture_node_warnings (fun () -> eval_expr (ref env_with_deserialized) expr) in
-                  let v = annotate_pipeline_error field v in
-                  let is_missing = match v with
-                    | VError { code = MissingArtifactError; _ } -> true
-                    | _ -> false
-                  in
-                   if not is_missing then begin
-                    let diagnostics_so_far =
-                      List.filter_map (fun dep ->
-                        match Hashtbl.find_opt Ast.in_memory_node_values dep with
-                        | Some (VNodeResult { diagnostics; _ }) -> Some (dep, diagnostics)
-                        | _ ->
-                            match List.assoc_opt dep p.p_node_diagnostics with
-                            | Some d -> Some (dep, d)
-                            | None -> None
-                      ) internal_fvs
-                    in
-                    let diagnostics =
-                      build_node_diagnostics field internal_fvs own_warnings diagnostics_so_far v
-                    in
-                    let wrapped = VNodeResult { v; node_name = field; diagnostics } in
-                    Hashtbl.replace Ast.in_memory_node_values field wrapped
-                  end
-           | None -> ());
-        Some (VComputedNode cn)
-      end
+  | Some (VComputedNode cn) -> Some (VComputedNode (resolved_cn p cn))
   | Some (VSymbol s) -> Some (VSymbol s)
   | Some _ ->
       (* unreachable: p_nodes only contains VSymbol and VComputedNode *)

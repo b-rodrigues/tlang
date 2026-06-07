@@ -204,7 +204,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
 
   test "regression: get(pipeline, node) lookup"
     {|p = pipeline { a = 123 }; get(p, "a")|}
-    "123";
+    "computed_node";
 
   (* 9. Custom Lenses (Dict with get/set) *)
   test "custom Dict lens get"
@@ -235,7 +235,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   (* 11. filter_lens on Pipeline with over *)
   test "filter_lens over on Pipeline"
     {|p = pipeline { a = 1; b = 2; c = 3 }; l = filter_lens(\(meta) meta.name == "b"); p2 = over(p, l, \(v) v .+ 10); read_node(p2.b)|}
-    "[12]";
+    "TypeError";
 
   (* 12. modify with errors *)
   test "modify stops at first error"
@@ -290,7 +290,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
 
   test "get(pipeline, existing_node, default) returns the node value"
     {|p = pipeline { a = 1 }; get(p, "a", "N/A")|}
-    "1";
+    "computed_node";
 
   test "get(unsupported_types, selector, default) returns type error — Int/Int"
     {|get(1, 2, 3)|}

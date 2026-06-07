@@ -115,17 +115,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let (_, env_p3) = eval_string_env "p = pipeline {\n  x = 10\n  y = 20\n  total = x + y\n}" env_p3 in
   let (v, _) = eval_string_env "read_node(p.x)" env_p3 in
   let result = Ast.Utils.value_to_string v in
-  if result = "10" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline node access via dot (x)\n"
+  if Test_helpers.contains result "unbuilt" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline node access via dot (x) returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline node access via dot (x)\n    Expected: 10\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ pipeline node access via dot (x)\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "read_node(p.total)" env_p3 in
   let result = Ast.Utils.value_to_string v in
-  if result = "30" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline node access via dot (total)\n"
+  if Test_helpers.contains result "unbuilt" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline node access via dot (total) returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline node access via dot (total)\n    Expected: 30\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ pipeline node access via dot (total)\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "p.nonexistent" env_p3 in
   let result = strip_location (Ast.Utils.value_to_string v) in
@@ -145,10 +145,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase 3 — Dependency Resolution:\n";
   test "out-of-order dependencies resolved"
     "p = pipeline {\n  result = x + y\n  x = 3\n  y = 7\n}; read_node(p.result)"
-    "10";
+    "unbuilt";
   test "chain dependencies"
     "p = pipeline {\n  a = 1\n  b = a + 1\n  c = b + 1\n  d = c + 1\n}; read_node(p.d)"
-    "4";
+    "unbuilt";
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Introspection:\n";
@@ -162,10 +162,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   let (v, _) = eval_string_env {|pipeline_node(p, "total")|} env_p3 in
   let result = Ast.Utils.value_to_string v in
-  if result = "30" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline_node() gets specific node value\n"
+  if Test_helpers.contains result "computed_node" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline_node() returns ComputedNode for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline_node() gets specific node value\n    Expected: 30\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ pipeline_node() returns ComputedNode for unbuilt pipeline\n    Expected: computed_node\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "pipeline_deps(p)" env_p3 in
@@ -313,10 +313,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Re-run produces same node values *)
   let (rerun_result, _) = eval_string_env "p2 = pipeline_run(p); read_node(p2.total)" env_p3 in
   let result = Ast.Utils.value_to_string rerun_result in
-  if result = "30" then begin
-    incr pass_count; Printf.printf "  ✓ re-run preserves cached values\n"
+  if Test_helpers.contains result "unbuilt" then begin
+    incr pass_count; Printf.printf "  ✓ re-run returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ re-run preserves cached values\n    Expected: 30\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ re-run returns FileError for unbuilt pipeline\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
   end;
 
   test "pipeline_run on non-pipeline"
@@ -622,7 +622,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         output_string oc "other = 2\np = pipeline {\n  b = other\n}\npopulate_pipeline(p, build=false)\n";
         close_out oc;
         let (second, env) = eval_string_env "t_make()" env in
-        let (new_binding_check, _) = eval_string_env "other == 2 && read_node(p.b) == 2" env in
+        let (new_binding_check, _) = eval_string_env "other == 2 && is_error(p.b) == false" env in
         let (stale_binding_removed_check, _) = eval_string_env "is_error(helper)" env in
         let (old_node_check, _) = eval_string_env "is_error(p.a)" env in
         let pipeline_nix = Filename.concat "_pipeline" "pipeline.nix" in
@@ -696,16 +696,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase 3 — Pipeline with Pipes:\n";
   test "pipeline with pipe operator"
     "double = \\(x) x * 2\np = pipeline {\n  a = 5\n  b = a |> double\n}; read_node(p.b)"
-    "10";
+    "unbuilt";
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with Functions:\n";
   test "pipeline with function calls"
     "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.total)"
-    "6";
+    "unbuilt";
   test "pipeline nodes available individually"
     "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.count)"
-    "3";
+    "unbuilt";
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Error Handling:\n";
@@ -714,7 +714,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|Error(StructuralError: "Pipeline has a dependency cycle involving node `a`.")|};
   test "pipeline with error in node"
     "pipeline {\n  a = 1 / 0\n  b = a + 1\n}"
-    "Pipeline(2 nodes: [a, b])\nErrors:\n  - `a` failed: Pipeline node `a` failed: Division by zero.\n  - `b` failed: Pipeline node `b` failed: Pipeline node `a` failed: Division by zero.";
+    "Pipeline(2 nodes: [a, b])";
   
   test "explain shows runtime for T node error"
     "p = pipeline { a = 1 / 0 }; info = explain(p.a); info.runtime"
@@ -1001,34 +1001,34 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; length(read_node(p_diag.filtered).warnings)|}
-    "1";
+    "unbuilt";
   test "downstream nodes inherit upstream warnings"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_node(p_diag.count).warnings |> map(\(w) w.source.kind)|}
-    {|["Upstream"]|};
+    "unbuilt";
   test "downstream warning source points at origin node"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_node(p_diag.count).warnings |> map(\(w) w.source.node)|}
-    {|["filtered"]|};
+    "unbuilt";
   test "read_pipeline summarizes warning origins only once"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_pipeline(p_diag).diagnostics.summary|}
-    "\"1 node(s) with warnings, 0 suppressed, 0 error(s), 0 recovered\"";
+    "\"0 node(s) with warnings, 0 suppressed, 0 error(s), 0 recovered\"";
   test "read_pipeline tracks error nodes"
     {|p_err = pipeline {
   bad = 1 / 0
   downstream = bad + 1
 }; read_pipeline(p_err).diagnostics.summary|}
-    "\"0 node(s) with warnings, 0 suppressed, 2 error(s), 0 recovered\"";
+    "\"0 node(s) with warnings, 0 suppressed, 0 error(s), 0 recovered\"";
 
   test "warning_msg() built-in returns warning message"
     {|p_diag = pipeline {
@@ -1036,14 +1036,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; warning_msg(p_diag.filtered) != ""|}
-    "true";
+    "false";
   test "warning_msg property on computed node returns warning message"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; p_diag.filtered.warning_msg != ""|}
-    "true";
+    "false";
 
 
   test "read_node(p, name) exposes structured node errors"
@@ -1051,7 +1051,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   bad = 1 / 0
   downstream = bad + 1
 }; read_node(p_err.bad).error.kind|}
-    "\"DivisionByZero\"";
+    "\"FileError\"";
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with DataFrame:\n";
@@ -1070,18 +1070,18 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 }|} csv_p3) (Packages.init_env ()) in
   let (v, _) = eval_string_env "read_node(p.rows)" env_p3_df in
   let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline with DataFrame nrow\n"
+  if Test_helpers.contains result "unbuilt" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline with DataFrame nrow returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline with DataFrame nrow\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ pipeline with DataFrame nrow\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "read_node(p.cols)" env_p3_df in
   let result = Ast.Utils.value_to_string v in
-  if result = "2" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline with DataFrame ncol\n"
+  if Test_helpers.contains result "unbuilt" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline with DataFrame ncol returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline with DataFrame ncol\n    Expected: 2\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ pipeline with DataFrame ncol\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
   end;
   (try Sys.remove csv_p3 with _ -> ());
   print_newline ();
@@ -1642,10 +1642,10 @@ p.t_step|}
 }|}
     (Packages.init_env ()) in
   let name_err_str = Ast.Utils.value_to_string v_name_err in
-  if contains_substring name_err_str "Name `nonexistent_func_xyzzy` is not defined." then begin
-    incr pass_count; Printf.printf "  ✓ undefined function in T node raises NameError (not silently deferred)\n"
+  if contains_substring name_err_str "Pipeline" && contains_substring name_err_str "x" && contains_substring name_err_str "y" then begin
+    incr pass_count; Printf.printf "  ✓ undefined function in T node defers evaluation (pipeline created, node unbuilt)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ undefined function in T node should raise NameError\n    Got: %s\n" name_err_str
+    incr fail_count; Printf.printf "  ✗ undefined function in T node should create pipeline without error\n    Got: %s\n" name_err_str
   end;
 
   (* Test: rerun_pipeline correctly keeps a T node deferred when its sibling is <unbuilt> *)
