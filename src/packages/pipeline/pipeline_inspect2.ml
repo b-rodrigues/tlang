@@ -392,7 +392,7 @@ let register env =
 --# Export Pipeline/MetaPipeline as DOT Graph
 --#
 --# Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline
---# dependency graph, including node names, language runtimes, and execution statuses.
+--# dependency graph, including node names and language runtimes.
 --#
 --# @name pipeline_to_dot
 --# @param p :: Pipeline|MetaPipeline The pipeline or metapipeline.
@@ -445,7 +445,7 @@ let register env =
 --# Export Pipeline/MetaPipeline as Mermaid Graph
 --#
 --# Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline
---# dependency graph, including node names, language runtimes, and execution statuses.
+--# dependency graph, including node names and language runtimes.
 --# You can view the diagram in your browser by passing the result to show_plot().
 --#
 --# @name pipeline_to_mermaid

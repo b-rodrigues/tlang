@@ -1788,44 +1788,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
             cn_dependencies = node_deps;
           }
         else
-          let get_strategy dep_name =
-            let rec lookup_in_list target = function
-              | [] -> None
-              | (Some n, e) :: _ when n = target -> Some e
-              | _ :: rest -> lookup_in_list target rest
-            in
-            let rec lookup_in_dict target = function
-              | [] -> None
-              | (n, e) :: _ when n = target -> Some e
-              | _ :: rest -> lookup_in_dict target rest
-            in
-            let strategy_expr = match un.un_deserializer.node with
-              | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> un.un_deserializer)
-              | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> un.un_deserializer)
-              | _ -> un.un_deserializer
-            in
-            match strategy_expr.node with
-            | Ast.Value (Ast.VString s) -> s
-            | Ast.Var s -> s
-            | _ -> "default"
-          in
-          let env_with_deserialized = List.fold_left (fun acc dname ->
-            let strategy = get_strategy dname in
-            match Env.find_opt dname acc with
-            | Some (VComputedNode cn) when strategy = "json" && cn.cn_serializer = "json" ->
-                (match Serialization.read_json cn.cn_path with
-                 | Ok v -> Env.add dname v acc
-                 | Error msg ->
-                     Printf.eprintf "Warning: Automatic JSON deserialization failed for dependency `%s` of node `%s`: %s\n%!" dname name msg;
-                     acc)
-            | Some (VComputedNode cn) when strategy = "pmml" && cn.cn_serializer = "pmml" ->
-                (match Pmml_utils.read_pmml cn.cn_path with
-                 | Ok v -> Env.add dname (Pmml_utils.attach_source_path cn.cn_path v) acc
-                 | Error msg ->
-                     Printf.eprintf "Warning: Automatic PMML deserialization failed for dependency `%s` of node `%s`: %s\n%!" dname name msg;
-                     acc)
-            | _ -> acc
-          ) !current_env_ref node_deps in
+          let env_with_deserialized = deserialize_deps_for_node !current_env_ref ~deserializer:un.un_deserializer ~node_name:name node_deps in
           let result = eval_expr (ref env_with_deserialized) un.un_command in
           match result with
           | VError { code = MissingArtifactError; _ } ->
@@ -1833,7 +1796,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                 cn_name = name;
                 cn_runtime = un.un_runtime;
                 cn_path = "<unbuilt>";
-                cn_serializer = Nix_unparse.unparse_expr un.un_serializer;
+                cn_serializer = Nix_unparse.expr_to_string un.un_serializer;
                 cn_class = "Unknown";
                 cn_dependencies = node_deps;
               }
@@ -1886,6 +1849,45 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       p_node_diagnostics;
     }
 
+(** Deserialize dependencies for a node during eager evaluation.
+    Resolves deserialization strategy from the node's deserializer expression,
+    then loads artifacts (JSON/PMML) from disk into the environment. *)
+and deserialize_deps_for_node env ~deserializer ~node_name deps =
+  let get_strategy dep_name =
+    let rec lookup_in_list target = function
+      | [] -> None | (Some n, e) :: _ when n = target -> Some e | _ :: rest -> lookup_in_list target rest
+    in
+    let rec lookup_in_dict target = function
+      | [] -> None | (n, e) :: _ when n = target -> Some e | _ :: rest -> lookup_in_dict target rest
+    in
+    let strategy_expr = match deserializer.node with
+      | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> deserializer)
+      | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> deserializer)
+      | _ -> deserializer
+    in
+    match strategy_expr.node with
+    | Ast.Value (Ast.VString s) -> s
+    | Ast.Var s -> s
+    | _ -> "default"
+  in
+  List.fold_left (fun acc dname ->
+    let strategy = get_strategy dname in
+    match Env.find_opt dname acc with
+    | Some (VComputedNode cn) when strategy = "json" && cn.cn_serializer = "json" ->
+        (match Serialization.read_json cn.cn_path with
+         | Ok v -> Env.add dname v acc
+         | Error msg ->
+             Printf.eprintf "Warning: Automatic JSON deserialization failed for dependency `%s` of node `%s`: %s\n%!" dname node_name msg;
+             acc)
+    | Some (VComputedNode cn) when strategy = "pmml" && cn.cn_serializer = "pmml" ->
+        (match Pmml_utils.read_pmml cn.cn_path with
+         | Ok v -> Env.add dname (Pmml_utils.attach_source_path cn.cn_path v) acc
+         | Error msg ->
+             Printf.eprintf "Warning: Automatic PMML deserialization failed for dependency `%s` of node `%s`: %s\n%!" dname node_name msg;
+             acc)
+    | _ -> acc
+  ) env deps
+
 (** Re-run a pipeline *)
 and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_result) : value =
   let node_names = List.map fst prev.p_exprs in
@@ -1922,13 +1924,13 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
            | None ->
               VComputedNode {
                 cn_name = name; cn_runtime = un.un_runtime; cn_path = "<unbuilt>";
-                cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.unparse_expr un.un_serializer);
+                cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.expr_to_string un.un_serializer);
                 cn_class = "Unknown"; cn_dependencies = node_deps;
               }
-        end else
+         end else
           VComputedNode {
             cn_name = name; cn_runtime = un.un_runtime; cn_path = "<unbuilt>";
-            cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.unparse_expr un.un_serializer);
+            cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.expr_to_string un.un_serializer);
             cn_class = "Unknown"; cn_dependencies = node_deps;
           }
     in
