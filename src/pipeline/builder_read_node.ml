@@ -359,18 +359,28 @@ let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
     | VComputedNode cn -> cn.cn_path = "<unbuilt>" || cn.cn_path = ""
     | _ -> false
   in
-  match matching_pipeline_log_entries ?which_log p with
-  | Some entries ->
-      List.map
-        (fun (name, value) ->
-          match value, List.assoc_opt name entries with
-          | _, None -> (name, value)
-          | value, Some cn when should_overlay_value value ->
-              (name, logged_node_value name cn)
-          | _ -> (name, value))
+  let overlay_in_memory pairs =
+    List.map (fun (name, value) ->
+      match Hashtbl.find_opt Ast.in_memory_node_values name with
+      | Some (VNodeResult { v; _ }) -> (name, v)
+      | Some v -> (name, v)
+      | None -> (name, value)
+    ) pairs
+  in
+  overlay_in_memory (
+    match matching_pipeline_log_entries ?which_log p with
+    | Some entries ->
+        List.map
+          (fun (name, value) ->
+            match value, List.assoc_opt name entries with
+            | _, None -> (name, value)
+            | value, Some cn when should_overlay_value value ->
+                (name, logged_node_value name cn)
+            | _ -> (name, value))
+          p.p_nodes
+    | None ->
         p.p_nodes
-  | None ->
-      p.p_nodes
+  )
 
 (** Scans candidate build logs and returns the most recent [ComputedNode]
     entry whose name equals [name]. [log_name_pattern], when provided, is a
@@ -504,24 +514,33 @@ let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline
       nd_upstream_errors = base.nd_upstream_errors;
     }
   in
-  match matching_pipeline_log_entries ?which_log p with
-  | Some entries ->
-      List.map
-        (fun name ->
-          let base =
-            match List.assoc_opt name p.p_node_diagnostics with
-            | Some diagnostics -> diagnostics
-            | None -> Ast.Utils.empty_node_diagnostics
-          in
-          match List.assoc_opt name entries with
-          | Some cn ->
-              let overlay = logged_node_diagnostics name cn in
-              (name, merge_diagnostics base overlay)
-          | None ->
-              (name, base))
-        (List.map fst p.p_nodes)
-  | None ->
-      p.p_node_diagnostics
+  let overlay_in_memory pairs =
+    List.map (fun (name, diagnostics) ->
+      match Hashtbl.find_opt Ast.in_memory_node_values name with
+      | Some (VNodeResult { diagnostics = d; _ }) -> (name, d)
+      | _ -> (name, diagnostics)
+    ) pairs
+  in
+  overlay_in_memory (
+    match matching_pipeline_log_entries ?which_log p with
+    | Some entries ->
+        List.map
+          (fun name ->
+            let base =
+              match List.assoc_opt name p.p_node_diagnostics with
+              | Some diagnostics -> diagnostics
+              | None -> Ast.Utils.empty_node_diagnostics
+            in
+            match List.assoc_opt name entries with
+            | Some cn ->
+                let overlay = logged_node_diagnostics name cn in
+                (name, merge_diagnostics base overlay)
+            | None ->
+                (name, base))
+          (List.map fst p.p_nodes)
+    | None ->
+        p.p_node_diagnostics
+  )
 
 (* ------------------------------------------------------------------ *)
 (* resolve_node_artifact — bridge between node_diff and build logs     *)

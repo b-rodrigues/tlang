@@ -104,13 +104,11 @@ let register ~eval_call env =
                if i < 0 || i >= nrows then Error.index_error i nrows
                else VDict (Arrow_bridge.row_to_dict df.arrow_table i)
            | _ -> Error.type_error (Printf.sprintf "row_lens get expects a DataFrame, got %s" (Utils.type_name d)))
-       | NodeLens name ->
-           (match d with
-            | VPipeline p ->
-                (match List.assoc_opt name p.p_nodes with
-                 | Some v -> v
-                 | None -> (VNA NAGeneric))
-            | _ -> get_node_from_env name)
+        | NodeLens name ->
+            (match d with
+             | VPipeline p ->
+                 Eval.pipeline_get_node_value _env_ref p name
+             | _ -> get_node_from_env name)
       | NodeMetaLens (name, field) ->
           (match d with
            | VPipeline p ->
@@ -227,9 +225,7 @@ let register ~eval_call env =
 
       (* Pipeline Node Lookup (2 args: Pipeline, String/Symbol) *)
       | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
-          (match List.assoc_opt node_name p.p_nodes with
-           | Some v -> v
-           | None -> (VNA NAGeneric))
+          Eval.pipeline_get_node_value (ref env) p node_name
 
       (* Lens Case (2 args: Data, Lens) *)
       | [data; VLens l] ->
@@ -264,7 +260,7 @@ let register ~eval_call env =
           let res = 
             match [target; selector] with
             | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
-                (match List.assoc_opt node_name p.p_nodes with Some v -> v | None -> (VNA NAGeneric))
+                Eval.pipeline_get_node_value (ref env) p node_name
             | [data; VLens l] -> apply_lens l data (ref env)
             | [VList items; VInt i] ->
                 let len = List.length items in

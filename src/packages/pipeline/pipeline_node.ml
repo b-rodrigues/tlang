@@ -17,10 +17,11 @@ let register env =
   Env.add "pipeline_node"
     (make_builtin ~name:"pipeline_node" 2 (fun args _env ->
       match args with
-      | [VPipeline { p_nodes; _ }; VString name] ->
-          (match List.assoc_opt name p_nodes with
-           | Some v -> v
-           | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." name))
+      | [VPipeline p; VString name] ->
+          let v = Eval.pipeline_get_node_value (ref _env) p name in
+          (match v with
+           | VNA _ -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." name)
+           | _ -> v)
       | [VPipeline _; _] -> Error.type_error "Function `pipeline_node` expects a String node name as second argument."
       | [_; _] -> Error.type_error "Function `pipeline_node` expects a Pipeline as first argument."
       | _ -> Error.arity_error_named "pipeline_node" 2 (List.length args)

@@ -515,9 +515,7 @@ let rec apply_lens_get ~eval_call lens data env =
   | NodeLens name ->
       (match data with
        | VPipeline p ->
-           (match List.assoc_opt name p.p_nodes with
-            | Some v -> v
-            | None -> (VNA NAGeneric))
+           Eval.pipeline_get_node_value (ref env) p name
        | _ -> Error.type_error "node_lens get expects a Pipeline")
   | NodeMetaLens (name, field) ->
       (match data with
@@ -596,9 +594,11 @@ let rec apply_lens_set ~eval_call lens data val_v env =
   | ColLens col_name -> col_lens_set_impl col_name ~eval_call [(None, data); (None, val_v)] env
   | IdxLens i -> idx_lens_set_impl i ~eval_call [(None, data); (None, val_v)] env
   | RowLens i -> row_lens_set_impl i ~eval_call [(None, data); (None, val_v)] env
-  | NodeLens node_name ->
+   | NodeLens node_name ->
       (match data with
        | VPipeline p ->
+           Hashtbl.replace Ast.in_memory_node_values node_name
+             (Ast.VNodeResult { v = val_v; node_name; diagnostics = Ast.Utils.empty_node_diagnostics });
            let new_nodes = List.map (fun (n, v) -> if n = node_name then (n, val_v) else (n, v)) p.p_nodes in
            let final_nodes = if List.mem_assoc node_name p.p_nodes then new_nodes else new_nodes @ [(node_name, val_v)] in
            VPipeline { p with p_nodes = final_nodes }

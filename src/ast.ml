@@ -946,7 +946,11 @@ module Utils = struct
         let errors = List.filter_map (fun (name, v) ->
           match v with
           | VError err -> Some (Printf.sprintf "\n  - `%s` failed: %s" name err.message)
-          | _ -> None
+          | _ ->
+            match Hashtbl.find_opt in_memory_node_values name with
+            | Some (VNodeResult { v = VError err; _ }) ->
+                Some (Printf.sprintf "\n  - `%s` failed: %s" name err.message)
+            | _ -> None
         ) p_nodes in
         if errors = [] then base
         else base ^ "\nErrors:" ^ (String.concat "" errors)
