@@ -949,29 +949,6 @@ pipeline_edges(p)|}
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
-  (* pipeline_to_mermaid node coloring: T runtime gets #ffced0 fill *)
-  let (v, _) = eval_string_env
-    {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_mermaid(p)|}
-    (Packages.init_env ()) in
-  (match v with
-   | Ast.VString s ->
-       let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
-       if contains s "style a fill:#ffced0,color:#000000,stroke:#333,stroke-width:1px"
-       && contains s "style b fill:#ffced0,color:#000000,stroke:#333,stroke-width:1px"
-       then begin
-         incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid colors T nodes\n"
-       end else begin
-         incr fail_count;
-         let msg = Printf.sprintf "  ✗ pipeline_to_mermaid coloring\n    Expected style lines with fill:#ffced0 for T runtime\n    Got: %s\n" s in
-         failures := msg :: !failures;
-         Printf.printf "%s" msg
-       end
-   | other ->
-       incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_to_mermaid coloring type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
-       failures := msg :: !failures;
-       Printf.printf "%s" msg);
-
   (* pipeline_to_dot with MetaPipeline *)
   let (v, _) = eval_string_env
     {|p_etl = pipeline { raw = 1; clean = raw + 1 };

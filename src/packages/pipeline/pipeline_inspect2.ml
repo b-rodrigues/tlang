@@ -524,6 +524,7 @@ let register env =
             (Printf.sprintf "  style %s fill:%s,color:#000000,stroke:%s,stroke-width:%dpx\n"
                id fill stroke stroke_width)
         ) p.p_exprs;
+
         VString (Buffer.contents buf)
       in
       match args with
