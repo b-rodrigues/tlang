@@ -34,6 +34,16 @@ let register env =
             let rename_key lst =
               List.map (fun (k, v) -> if k = old_name then (new_name, v) else (k, v)) lst
             in
+            (* Helper: rename a key and update cn_name inside VComputedNode values *)
+            let rename_node_key lst =
+              List.map (fun (k, v) ->
+                if k = old_name then
+                  (new_name, match v with
+                    | VComputedNode cn -> VComputedNode { cn with cn_name = new_name }
+                    | other -> other)
+                else (k, v)
+              ) lst
+            in
             (* Helper: replace old_name with new_name inside dependency lists *)
             let rewire_deps lst =
               List.map (fun (k, deps) ->
@@ -62,7 +72,7 @@ let register env =
                    (k, { diagnostics with nd_warnings = List.map rewire_warning diagnostics.nd_warnings }))
             in
             VPipeline {
-              p_nodes        = rename_key p.p_nodes;
+              p_nodes        = rename_node_key p.p_nodes;
               p_exprs        = rename_key p.p_exprs;
               p_deps         = rewire_deps (rename_key p.p_deps);
               p_imports      = p.p_imports;
