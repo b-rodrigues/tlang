@@ -90,6 +90,7 @@ let read_log path =
         cn_serializer = node_json |> member "serializer" |> to_string;
         cn_class;
         cn_dependencies = node_json |> member "dependencies" |> to_list |> filter_string;
+        cn_p_exprs = None;
       } in
       (name, cn)
     ) nodes in

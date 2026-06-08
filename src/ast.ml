@@ -149,6 +149,7 @@ and computed_node = {
   cn_serializer : string;
   cn_class : string;
   cn_dependencies : string list;
+  cn_p_exprs : ((string * expr) list) option;  (* Pipeline identity for scoped cache lookups *)
 }
 
 (** Metadata for an unbuilt node (first-class value from node() function) *)
@@ -407,6 +408,7 @@ let clear_pipeline_in_memory ~(p_exprs : (string * expr) list) =
   List.iter (fun n -> Hashtbl.remove in_memory_node_values (p_exprs, n)) to_remove
 
 (** Find an in-memory value by node name across all pipelines (fallback).
+    Should only be used when no pipeline identity is available.
     Returns the most recently stored value matching the node name,
     or None if no match is found. *)
 let find_in_memory_node_value_by_name (node_name : string) : value option =
@@ -415,12 +417,15 @@ let find_in_memory_node_value_by_name (node_name : string) : value option =
   ) in_memory_node_values [] in
   match results with [] -> None | v :: _ -> Some v
 
+(** Look up an in-memory node value, preferring scoped lookup when a pipeline identity is available. *)
+let get_in_memory_node_value_for_cn (cn : computed_node) : value option =
+  match cn.cn_p_exprs with
+  | Some p_exprs -> get_in_memory_node_value ~p_exprs ~node_name:cn.cn_name
+  | None -> find_in_memory_node_value_by_name cn.cn_name
+
 (** Global hook for storing mapping from pipeline expressions to build log paths *)
 let pipeline_build_logs : ((string * expr) list, string) Hashtbl.t = Hashtbl.create 10
 
-(** Tracks whether a pipeline has been successfully built by Nix.
-    Keyed by pipeline expressions list (same as pipeline_build_logs). *)
-let pipeline_is_built : ((string * expr) list, bool) Hashtbl.t = Hashtbl.create 10
 
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.

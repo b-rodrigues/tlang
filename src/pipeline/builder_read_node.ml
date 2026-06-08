@@ -360,11 +360,12 @@ let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
     | _ -> false
   in
   let overlay_in_memory pairs =
+    (* Only VNodeResult is ever written to in_memory_node_values (by lens set ops).
+       Non-VNodeResult values would indicate corruption; fall through to log. *)
     List.map (fun (name, value) ->
       match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name with
       | Some (VNodeResult { v; _ }) -> (name, v)
-      | Some v -> (name, v)
-      | None -> (name, value)
+      | _ -> (name, value)
     ) pairs
   in
   overlay_in_memory (
@@ -460,6 +461,7 @@ let read_node ?which_log name =
            );
           cn_class = cls;
           cn_dependencies = [];
+          cn_p_exprs = None;
         } in
         
         let v = read_env_node_value name cn in

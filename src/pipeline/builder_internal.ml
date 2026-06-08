@@ -772,6 +772,7 @@ let update_pipeline_with_build_paths (p : Ast.pipeline_result) out_path =
           cn_serializer;
           cn_class;
           cn_dependencies;
+          cn_p_exprs = None;
         } in
         (name, VComputedNode updated_cn)
       else

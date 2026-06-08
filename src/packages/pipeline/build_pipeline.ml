@@ -117,13 +117,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                             | Some log_path ->
                                 Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path;
                                 Hashtbl.replace Ast.pipeline_build_logs p_resolved.p_exprs log_path;
-                                let build_log_val = Builder.parse_json_log_to_vbuildlog log_path in
-                                (match build_log_val with
-                                 | Ast.VBuildLog _ ->
-                                     Hashtbl.replace Ast.pipeline_is_built p.p_exprs true;
-                                     Hashtbl.replace Ast.pipeline_is_built p_resolved.p_exprs true;
-                                     build_log_val
-                                 | _ -> build_log_val)
+                                Builder.parse_json_log_to_vbuildlog log_path
                            | None ->
                                Error.make_error FileError
                                  (Printf.sprintf

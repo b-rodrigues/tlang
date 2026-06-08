@@ -90,7 +90,7 @@ let register env =
               p_explicit_deps = rewire_deps_opt (rename_key p.p_explicit_deps);
               p_node_diagnostics = rename_diagnostics p.p_node_diagnostics;
             } in
-            let new_p_exprs = rename_key p.p_exprs in
+            let new_p_exprs = match new_pipeline with VPipeline np -> np.p_exprs | _ -> [] in
             begin match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:old_name with
             | Some v ->
                 Hashtbl.remove Ast.in_memory_node_values (p.p_exprs, old_name);

@@ -472,14 +472,15 @@ let computed_node_from_registry node_name =
              Error
                (Printf.sprintf "show_plot: node `%s` has unsupported plot class `%s`." node_name class_name)
            else
-             Ok {
-               cn_name = node_name;
-               cn_runtime = (match runtime_of_plot_class class_name with Some runtime -> runtime | None -> "unknown");
-               cn_path = artifact_path;
-               cn_serializer = "default";
-               cn_class = class_name;
-               cn_dependencies = [];
-             })
+              Ok {
+                cn_name = node_name;
+                cn_runtime = (match runtime_of_plot_class class_name with Some runtime -> runtime | None -> "unknown");
+                cn_path = artifact_path;
+                cn_serializer = "default";
+                cn_class = class_name;
+                cn_dependencies = [];
+                cn_p_exprs = None;
+              })
   | _ ->
       match Builder_logs.get_logs () with
       | [] ->
