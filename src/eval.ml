@@ -2255,14 +2255,11 @@ and get_pipeline_member _env_ref p field _visiting =
 and pipeline_get_node_value env_ref p field =
   try
     match get_pipeline_member env_ref p field [] with
-    | Some (VComputedNode _) ->
+    | Some (VComputedNode _ as resolved) ->
         (match Hashtbl.find_opt Ast.in_memory_node_values field with
          | Some (VNodeResult { v; _ }) -> v
          | Some v -> v
-         | None ->
-             match List.assoc_opt field p.p_nodes with
-             | Some v -> v
-             | None -> VNA NAGeneric)
+         | None -> resolved)
     | Some v -> v
     | None -> VNA NAGeneric
   with CycleError node ->
