@@ -1,16 +1,21 @@
 # Changelog
 
-## [0.52.3] - 2026-06-07
+## [0.52.3] - 2026-06-08
 
 This release:
 
 - introduces a new meta-pipeline composition feature (`pipeline_of`), first-class artifact export/import capabilities, meta-pipeline graph visualization, interactive Mermaid browser rendering, and cache-aware dry runs with programmatic garbage collection.
+- Introduces lazy pipeline evaluation, deferring T node evaluation to build time and eliminating redundant re-evaluation cycles.
 - Includes comprehensive bug fixes across stats, core, CSV, and pipeline subsystems, and a systematic codebase-wide safety refactoring following OCaml best practices.
 
 ### Pipeline Soft-Fail & Early-Abort Semantics
-- **Block Evaluation Early Abort**: Blocks (`{ ... }`) now abort immediately on encountering a `VError`, returning the error rather than continuing evaluation of remaining statements. This is a breaking change for code that relied on ignoring intermediate block errors.
+- **Block Evaluation Error Recovery**: Blocks (`{ ... }`) now continue past `VError` values returned by `Assignment` and `Reassignment` statements, enabling patterns like `{ x = 42 / 0; match(x) { Error { msg } => 0, default => x } }` where the error is captured in a variable and handled by a subsequent match expression. Bare expression errors (standalone function calls that error) still abort the block immediately.
 - **Conditional Serialization on soft-fail**: Nodes that soft-fail and return `VError` now conditionally fall back to binary `serialize`/`deserialize` rather than triggering configured custom serializers (like Arrow), preventing crashes.
 - **Failed Node Diagnostics**: Host tools and logs now safely resolve and deserialize binary T error payloads.
+
+### Lazy Pipeline Evaluation
+- **Deferred T node evaluation**: T nodes are now evaluated lazily — the `get_pipeline_member` function no longer eagerly evaluates T expressions when a pipeline is accessed. Evaluation is deferred to `rerun_pipeline` at build time via `build_pipeline()`. This eliminates redundant re-evaluation cycles, improves performance for large pipelines, and avoids side-effect leakage from unbuilt nodes.
+- **Cross-pipeline dependency resolution**: Dependency detection now uses `p.p_nodes` instead of `p.p_exprs` for identifying resolved nodes from other pipelines, improving accuracy of dependency inference.
 
 ### Pipeline Visualization
 - **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.
@@ -103,6 +108,7 @@ populate_pipeline(meta_graph, build = true)
 - **Pipeline — inspect_artifacts resource leaks**: Resolved file descriptor and directory handle leaks in `inspect_artifacts`, and restored scalar `TypeError` for invalid inputs.
 - **Pipeline — NixError fallback**: Restored original `NixError` fallback behavior for empty trimmed `last_part` in `builder_internal.ml`.
 - **Pipeline — dependency namespace fixes**: Standardized runtime emission helper naming (`__node_result` across all runtimes), fixed R variable naming compatibility (`dep_` prefix), and corrected dependency namespace generation.
+- **Pipeline — rename_node cn_name sync**: Fixed a bug where `rename_node` updated the assoc-list key in `p_nodes` but left `VComputedNode.cn_name` unchanged, causing downstream lookups (`resolved_cn`, `computed_node_resolver`, `read_node`) to search using the stale name and fail with `<unbuilt>` path errors.
 
 ### Codebase Safety Refactoring
 
