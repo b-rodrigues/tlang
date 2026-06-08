@@ -8,8 +8,8 @@ This release:
 - Introduces lazy pipeline evaluation, deferring T node evaluation to build time and eliminating redundant re-evaluation cycles.
 - Includes comprehensive bug fixes across stats, core, CSV, and pipeline subsystems, and a systematic codebase-wide safety refactoring following OCaml best practices.
 
-### Pipeline Soft-Fail & Early-Abort Semantics
-- **Block Evaluation Error Recovery**: Blocks (`{ ... }`) now continue past `VError` values returned by `Assignment` and `Reassignment` statements, enabling patterns like `{ x = 42 / 0; match(x) { Error { msg } => 0, default => x } }` where the error is captured in a variable and handled by a subsequent match expression. Bare expression errors (standalone function calls that error) still abort the block immediately.
+### Pipeline Soft-Fail & Error Recovery
+- **Block Evaluation Error Recovery**: Blocks (`{ ... }`) now abort immediately on encountering a `VError` from a bare expression, preventing silent error accumulation. However, `VError` values from `Assignment` and `Reassignment` statements no longer abort the block — the error is bound to the variable and subsequent statements (typically a `match`) can handle it. This enables patterns like `{ x = 42 / 0; match(x) { Error { msg } => 0, default => x } }` where a risky computation is captured and recovered.
 - **Conditional Serialization on soft-fail**: Nodes that soft-fail and return `VError` now conditionally fall back to binary `serialize`/`deserialize` rather than triggering configured custom serializers (like Arrow), preventing crashes.
 - **Failed Node Diagnostics**: Host tools and logs now safely resolve and deserialize binary T error payloads.
 
