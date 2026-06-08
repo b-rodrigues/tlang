@@ -30,16 +30,18 @@ let register env =
             Error.make_error ValueError
               (Printf.sprintf "A node named `%s` already exists in the Pipeline." new_name)
           else
+            (* Compute renamed p_exprs first (needed by cache migration + cn_p_exprs update) *)
+            let new_p_exprs = List.map (fun (k, v) -> if k = old_name then (new_name, v) else (k, v)) p.p_exprs in
             (* Helper: rename a key in an association list *)
             let rename_key lst =
               List.map (fun (k, v) -> if k = old_name then (new_name, v) else (k, v)) lst
             in
-            (* Helper: rename a key and update cn_name inside VComputedNode values *)
+            (* Helper: rename a key and update cn_name / cn_p_exprs inside VComputedNode values *)
             let rename_node_key lst =
               List.map (fun (k, v) ->
                 if k = old_name then
                   (new_name, match v with
-                    | VComputedNode cn -> VComputedNode { cn with cn_name = new_name }
+                    | VComputedNode cn -> VComputedNode { cn with cn_name = new_name; cn_p_exprs = Some new_p_exprs }
                     | other -> other)
                 else (k, v)
               ) lst
@@ -73,7 +75,7 @@ let register env =
             in
             let new_pipeline = VPipeline {
               p_nodes        = rename_node_key p.p_nodes;
-              p_exprs        = rename_key p.p_exprs;
+               p_exprs        = new_p_exprs;
               p_deps         = rewire_deps (rename_key p.p_deps);
               p_imports      = p.p_imports;
               p_runtimes     = rename_key p.p_runtimes;
@@ -90,7 +92,6 @@ let register env =
               p_explicit_deps = rewire_deps_opt (rename_key p.p_explicit_deps);
               p_node_diagnostics = rename_diagnostics p.p_node_diagnostics;
             } in
-            let new_p_exprs = match new_pipeline with VPipeline np -> np.p_exprs | _ -> [] in
             begin match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:old_name with
             | Some v ->
                 Hashtbl.remove Ast.in_memory_node_values (p.p_exprs, old_name);
