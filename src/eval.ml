@@ -1762,7 +1762,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
   if validation_errors <> [] then
     Error.make_error StructuralError (List.hd validation_errors)
   else begin
-  Hashtbl.clear Ast.in_memory_node_values;
+  let new_p_exprs = List.map (fun (name, un) -> (name, un.un_command)) desugared_nodes in
+  Ast.clear_pipeline_in_memory ~p_exprs:new_p_exprs;
 
   (* Topological sort *)
   match topo_sort desugared_nodes deps with
@@ -1801,7 +1802,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     if verbose then print_pipeline_diagnostics_summary p_node_diagnostics;
     let result = VPipeline {
       p_nodes;
-      p_exprs = List.map (fun (name, un) -> (name, un.un_command)) desugared_nodes;
+      p_exprs = new_p_exprs;
       p_deps = deps;
       p_imports = !current_imports;
       p_runtimes = runtime_mapping;
@@ -2208,27 +2209,9 @@ and get_pipeline_member _env_ref p field _visiting =
   match List.assoc_opt field p.p_nodes with
   | Some (VComputedNode cn) -> Some (VComputedNode (resolved_cn p cn))
   | Some (VSymbol s) -> Some (VSymbol s)
-  | Some _ ->
-      (* unreachable: p_nodes only contains VSymbol and VComputedNode *)
-      let cn_runtime = match List.assoc_opt field p.p_runtimes with Some r -> r | None -> "T" in
-      let cn_serializer =
-        match List.assoc_opt field p.p_serializers with
-        | Some e -> Nix_unparse.expr_to_string e
-        | None -> "default"
-      in
-      let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
-      let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
-      if is_noop then
-        Some (VSymbol (Printf.sprintf "<noop:%s>" field))
-      else
-        Some (VComputedNode (resolved_cn p {
-          cn_name = field;
-          cn_runtime;
-          cn_path = "<unbuilt>";
-          cn_serializer;
-          cn_class = "Unknown";
-          cn_dependencies;
-        }))
+  | Some concrete_val ->
+      (* Concrete value stored by lens operation (e.g. node_lens.set, filter_lens.set) *)
+      Some concrete_val
   | None ->
       (match List.assoc_opt field p.p_exprs with
        | Some _ ->
@@ -2257,7 +2240,7 @@ and pipeline_get_node_value env_ref p field =
   try
     match get_pipeline_member env_ref p field [] with
     | Some (VComputedNode _ as resolved) ->
-        (match Hashtbl.find_opt Ast.in_memory_node_values field with
+        (match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:field with
          | Some (VNodeResult { v; _ }) -> v
          | Some v -> v
          | None -> resolved)
@@ -2391,7 +2374,7 @@ and eval_dot_access_val env_ref target_val field =
       | "class" -> VString cn.cn_class
       | "dependencies" -> VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies)
       | "warning_msg" ->
-          (match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
+          (match Ast.find_in_memory_node_value_by_name cn.cn_name with
            | Some (VNodeResult { diagnostics; _ }) ->
                let warn_msgs = List.map (fun w -> w.nw_message) diagnostics.nd_warnings in
                VString (String.concat "\n" warn_msgs)

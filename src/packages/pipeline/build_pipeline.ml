@@ -113,13 +113,22 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                          Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
                          Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
                          Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name;
-                         (match Builder.find_log_for_out_path out_path with
-                           | Some log_path -> ( Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path; Hashtbl.replace Ast.pipeline_build_logs p_resolved.p_exprs log_path; Hashtbl.replace Ast.pipeline_is_built p.p_exprs true; Hashtbl.replace Ast.pipeline_is_built p_resolved.p_exprs true; Builder.parse_json_log_to_vbuildlog log_path )
-                          | None ->
-                              Error.make_error FileError
-                                (Printf.sprintf
-                                   "No build log matching output path `%s` was found after build completed."
-                                   out_path))
+                          (match Builder.find_log_for_out_path out_path with
+                            | Some log_path ->
+                                Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path;
+                                Hashtbl.replace Ast.pipeline_build_logs p_resolved.p_exprs log_path;
+                                let build_log_val = Builder.parse_json_log_to_vbuildlog log_path in
+                                (match build_log_val with
+                                 | Ast.VBuildLog _ ->
+                                     Hashtbl.replace Ast.pipeline_is_built p.p_exprs true;
+                                     Hashtbl.replace Ast.pipeline_is_built p_resolved.p_exprs true;
+                                     build_log_val
+                                 | _ -> build_log_val)
+                           | None ->
+                               Error.make_error FileError
+                                 (Printf.sprintf
+                                    "No build log matching output path `%s` was found after build completed."
+                                    out_path))
                      | Ok other -> other
                      | Error msg -> Error.make_error StructuralError msg)
               | VError _ as err -> err

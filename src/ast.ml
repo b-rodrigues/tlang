@@ -387,8 +387,33 @@ let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn 
 (** Global hook for automatically flattening meta-pipelines in built-in argument projections *)
 let meta_pipeline_flatten_resolver : (value -> value) ref = ref (fun v -> v)
 
-(** Global hook for storing in-memory evaluated node values *)
-let in_memory_node_values : (string, value) Hashtbl.t = Hashtbl.create 50
+(** Pipeline-scoped in-memory node value cache.
+    Keyed by (pipeline_exprs, node_name) to avoid cross-pipeline contamination. *)
+let in_memory_node_values : ((string * expr) list * string, value) Hashtbl.t = Hashtbl.create 50
+
+(** Store an in-memory node value scoped to a specific pipeline *)
+let set_in_memory_node_value ~(p_exprs : (string * expr) list) ~(node_name : string) (v : value) =
+  Hashtbl.replace in_memory_node_values (p_exprs, node_name) v
+
+(** Look up an in-memory node value for a specific pipeline *)
+let get_in_memory_node_value ~(p_exprs : (string * expr) list) ~(node_name : string) =
+  Hashtbl.find_opt in_memory_node_values (p_exprs, node_name)
+
+(** Remove all in-memory node values for a specific pipeline *)
+let clear_pipeline_in_memory ~(p_exprs : (string * expr) list) =
+  let to_remove = Hashtbl.fold (fun (pe, n) _ acc ->
+    if pe = p_exprs then n :: acc else acc
+  ) in_memory_node_values [] in
+  List.iter (fun n -> Hashtbl.remove in_memory_node_values (p_exprs, n)) to_remove
+
+(** Find an in-memory value by node name across all pipelines (fallback).
+    Returns the most recently stored value matching the node name,
+    or None if no match is found. *)
+let find_in_memory_node_value_by_name (node_name : string) : value option =
+  let results = Hashtbl.fold (fun (_, n) v acc ->
+    if n = node_name then v :: acc else acc
+  ) in_memory_node_values [] in
+  match results with [] -> None | v :: _ -> Some v
 
 (** Global hook for storing mapping from pipeline expressions to build log paths *)
 let pipeline_build_logs : ((string * expr) list, string) Hashtbl.t = Hashtbl.create 10
@@ -943,7 +968,7 @@ module Utils = struct
           (String.concat ", " col_names) in
         if group_keys = [] then base
         else Printf.sprintf "%s grouped by [%s]" base (String.concat ", " group_keys)
-    | VPipeline { p_nodes; _ } ->
+    | VPipeline { p_nodes; p_exprs; _ } ->
         let node_names = List.map fst p_nodes in
         let base = Printf.sprintf "Pipeline(%d nodes: [%s])"
           (List.length p_nodes) (String.concat ", " node_names) in
@@ -951,7 +976,7 @@ module Utils = struct
           match v with
           | VError err -> Some (Printf.sprintf "\n  - `%s` failed: %s" name err.message)
           | _ ->
-            match Hashtbl.find_opt in_memory_node_values name with
+            match get_in_memory_node_value ~p_exprs ~node_name:name with
             | Some (VNodeResult { v = VError err; _ }) ->
                 Some (Printf.sprintf "\n  - `%s` failed: %s" name err.message)
             | _ -> None

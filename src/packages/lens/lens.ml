@@ -447,25 +447,25 @@ let filter_lens_set_impl p ~eval_call args env =
                  else
                    let repl_arr = Array.of_list (List.map snd repl_items) in
                    let repl_idx = ref 0 in
-                   let new_nodes = List.mapi (fun i (name, v) ->
-                     if mask.(i) then
-                       let new_v = repl_arr.(!repl_idx) in
-                       incr repl_idx;
-                       Hashtbl.replace Ast.in_memory_node_values name
-                         (Ast.VNodeResult { v = new_v; node_name = name; diagnostics = Ast.Utils.empty_node_diagnostics });
-                       (name, new_v)
-                     else (name, v)
-                   ) pipe.p_nodes in
-                   VPipeline { pipe with p_nodes = new_nodes }
-            | val_v ->
-                (* scalar broadcast *)
-                let new_nodes = List.mapi (fun i (name, v) ->
-                  if mask.(i) then begin
-                    Hashtbl.replace Ast.in_memory_node_values name
-                      (Ast.VNodeResult { v = val_v; node_name = name; diagnostics = Ast.Utils.empty_node_diagnostics });
-                    (name, val_v)
-                  end else (name, v)
-                ) pipe.p_nodes in
+                    let new_nodes = List.mapi (fun i (name, v) ->
+                      if mask.(i) then
+                        let new_v = repl_arr.(!repl_idx) in
+                        incr repl_idx;
+                        Ast.set_in_memory_node_value ~p_exprs:pipe.p_exprs ~node_name:name
+                          (Ast.VNodeResult { v = new_v; node_name = name; diagnostics = Ast.Utils.empty_node_diagnostics });
+                        (name, new_v)
+                      else (name, v)
+                    ) pipe.p_nodes in
+                    VPipeline { pipe with p_nodes = new_nodes }
+             | val_v ->
+                 (* scalar broadcast *)
+                 let new_nodes = List.mapi (fun i (name, v) ->
+                   if mask.(i) then begin
+                     Ast.set_in_memory_node_value ~p_exprs:pipe.p_exprs ~node_name:name
+                       (Ast.VNodeResult { v = val_v; node_name = name; diagnostics = Ast.Utils.empty_node_diagnostics });
+                     (name, val_v)
+                   end else (name, v)
+                 ) pipe.p_nodes in
                 VPipeline { pipe with p_nodes = new_nodes }))
   | [(_, other); _] ->
       Error.type_error (Printf.sprintf "filter_lens set expects a Collection, got %s"
@@ -603,12 +603,12 @@ let rec apply_lens_set ~eval_call lens data val_v env =
   | ColLens col_name -> col_lens_set_impl col_name ~eval_call [(None, data); (None, val_v)] env
   | IdxLens i -> idx_lens_set_impl i ~eval_call [(None, data); (None, val_v)] env
   | RowLens i -> row_lens_set_impl i ~eval_call [(None, data); (None, val_v)] env
-   | NodeLens node_name ->
-      (match data with
-       | VPipeline p ->
-           Hashtbl.replace Ast.in_memory_node_values node_name
-             (Ast.VNodeResult { v = val_v; node_name; diagnostics = Ast.Utils.empty_node_diagnostics });
-           let new_nodes = List.map (fun (n, v) -> if n = node_name then (n, val_v) else (n, v)) p.p_nodes in
+    | NodeLens node_name ->
+       (match data with
+        | VPipeline p ->
+            Ast.set_in_memory_node_value ~p_exprs:p.p_exprs ~node_name
+              (Ast.VNodeResult { v = val_v; node_name; diagnostics = Ast.Utils.empty_node_diagnostics });
+            let new_nodes = List.map (fun (n, v) -> if n = node_name then (n, val_v) else (n, v)) p.p_nodes in
            let final_nodes = if List.mem_assoc node_name p.p_nodes then new_nodes else new_nodes @ [(node_name, val_v)] in
            VPipeline { p with p_nodes = final_nodes }
        | _ -> Error.type_error "node_lens set expects a Pipeline")

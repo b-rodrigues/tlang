@@ -80,7 +80,7 @@ let resolve_error_val = function
 let resolve_warning_val = function
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
-      (match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
+      (match Ast.find_in_memory_node_value_by_name cn.cn_name with
        | Some (VNodeResult { diagnostics; _ }) ->
            let warn_msgs = List.map (fun w -> w.nw_message) diagnostics.nd_warnings in
            if warn_msgs <> [] then Some (String.concat "\n" warn_msgs) else None

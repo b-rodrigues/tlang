@@ -445,7 +445,8 @@ let register env =
 --# Export Pipeline/MetaPipeline as Mermaid Graph
 --#
 --# Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline
---# dependency graph, including node names and language runtimes.
+--# dependency graph, including node names, language runtimes, and execution error status
+--# (errored nodes are highlighted with a red stroke).
 --# You can view the diagram in your browser by passing the result to show_plot().
 --#
 --# @name pipeline_to_mermaid

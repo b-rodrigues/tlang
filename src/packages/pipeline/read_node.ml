@@ -430,7 +430,7 @@ let register env =
           | VString _ -> true
           | _ -> false
         in
-        begin match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
+        begin match Ast.find_in_memory_node_value_by_name cn.cn_name with
         | Some v when not which_log_provided -> v
         | _ ->
           let cn_or_err =
@@ -451,7 +451,7 @@ let register env =
            | Error err -> err
            | Ok cn ->
                if cn.cn_path = "<unbuilt>" && not which_log_provided then
-                 (match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
+                 (match Ast.find_in_memory_node_value_by_name cn.cn_name with
                   | Some v -> v
                   | None ->
                       Error.make_error FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: Sys_error(\"<unbuilt>: No such file or directory\")" cn.cn_name))

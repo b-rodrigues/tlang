@@ -361,7 +361,7 @@ let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
   in
   let overlay_in_memory pairs =
     List.map (fun (name, value) ->
-      match Hashtbl.find_opt Ast.in_memory_node_values name with
+      match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name with
       | Some (VNodeResult { v; _ }) -> (name, v)
       | Some v -> (name, v)
       | None -> (name, value)
@@ -516,7 +516,7 @@ let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline
   in
   let overlay_in_memory pairs =
     List.map (fun (name, diagnostics) ->
-      match Hashtbl.find_opt Ast.in_memory_node_values name with
+      match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name with
       | Some (VNodeResult { diagnostics = d; _ }) -> (name, d)
       | _ -> (name, diagnostics)
     ) pairs
