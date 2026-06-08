@@ -2926,8 +2926,7 @@ and eval_binop env_ref op left right =
             | VNodeResult _ ->
                 Printf.eprintf "\n\
                   \027[1m\u{1F4A1} Tip:\027[0m `read_node()` returned a first-class error value, but `|>` short-circuits on errors.\n\
-                  \027[1m   Use `?|>` instead:\027[0m  read_node(p.node) ?|> my_function()\n\
-                  \027[2m   (This hint appears only once per REPL session; subsequent uses won't repeat.)\027[0m\n%!";
+                  \027[1m   Use `?|>` instead:\027[0m  read_node(p.node) ?|> my_function()\n%!";
                 e
             | _ -> e)
        | _ ->
