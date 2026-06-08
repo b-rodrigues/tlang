@@ -2918,10 +2918,18 @@ and eval_binop env_ref op left right =
       let rval = eval_expr env_ref right in
       VList [ (None, lval); (None, rval) ]
   | Pipe ->
-      let lval = eval_expr env_ref left in
-      let lval = Utils.unwrap_value lval in
+      let lval_raw = eval_expr env_ref left in
+      let lval = Utils.unwrap_value lval_raw in
       (match lval with
-       | VError _ as e -> e
+       | VError _ as e ->
+           (match lval_raw with
+            | VNodeResult _ ->
+                Printf.eprintf "\n\
+                  \027[1m\u{1F4A1} Tip:\027[0m `read_node()` returned a first-class error value, but `|>` short-circuits on errors.\n\
+                  \027[1m   Use `?|>` instead:\027[0m  read_node(p.node) ?|> my_function()\n\
+                  \027[2m   (This hint appears only once per REPL session; subsequent uses won't repeat.)\027[0m\n%!";
+                e
+            | _ -> e)
        | _ ->
          match right.node with
          | Call { fn; args } ->
