@@ -546,6 +546,24 @@ let eval_scalar_binop op v1 v2 =
       (match List.nth_opt levels idx with
        | Some fs -> VBool (fs = s)
        | None -> VBool false)
+  | (Eq, VComputedNode cna, VComputedNode cnb) ->
+      VBool (
+        cna.cn_name = cnb.cn_name
+        && cna.cn_runtime = cnb.cn_runtime
+        && cna.cn_path = cnb.cn_path
+        && cna.cn_serializer = cnb.cn_serializer
+        && cna.cn_class = cnb.cn_class
+        && cna.cn_dependencies = cnb.cn_dependencies
+      )
+  | (NEq, VComputedNode cna, VComputedNode cnb) ->
+      VBool (not (
+        cna.cn_name = cnb.cn_name
+        && cna.cn_runtime = cnb.cn_runtime
+        && cna.cn_path = cnb.cn_path
+        && cna.cn_serializer = cnb.cn_serializer
+        && cna.cn_class = cnb.cn_class
+        && cna.cn_dependencies = cnb.cn_dependencies
+      ))
   | (Eq, a, b) -> VBool (a = b)
 
   | (NEq, VInt a, VFloat b) -> VBool (not (Float.equal (float_of_int a) b))
