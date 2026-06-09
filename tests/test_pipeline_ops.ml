@@ -845,16 +845,16 @@ pipeline_edges(p)|}
     {|p = pipeline { a = 1; b = a + 1 }; pipeline_cycles(p)|}
     {|[]|};
 
-  (* pipeline_summary: wraps pipeline_to_frame *)
+  (* pipeline_to_frame *)
   let (v, _) = eval_string_env
-    {|p = pipeline { a = 1; b = 2 }; nrow(pipeline_summary(p))|}
+    {|p = pipeline { a = 1; b = 2 }; nrow(pipeline_to_frame(p))|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline_summary returns full metadata frame\n"
+    incr pass_count; Printf.printf "  ✓ pipeline_to_frame returns full metadata frame\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ pipeline_summary\n    Expected: 2\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ pipeline_to_frame\n    Expected: 2\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;

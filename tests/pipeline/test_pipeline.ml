@@ -292,10 +292,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   test "pipeline_leaves"
     "p = pipeline { a = 1; b = a + 1; c = 10 }; pipeline_leaves(p)"
     {|["b", "c"]|};
-  test "pipeline_summary"
-    "p = pipeline { a = 1; b = a + 1 }; nrow(pipeline_summary(p))"
+  test "pipeline_to_frame"
+    "p = pipeline { a = 1; b = a + 1 }; nrow(pipeline_to_frame(p))"
     "2";
-  test "pipeline_summary edge_count"
+  test "pipeline_edges"
     "p = pipeline { a = 1; b = a + 1 }; length(pipeline_edges(p))"
     "1";
 

@@ -240,7 +240,6 @@
 | [pipeline_deps](pipeline_deps.html) | List Node Dependencies |
 | [pipeline_depth](pipeline_depth.html) | Maximum Topological Depth |
 | [pipeline_diff](pipeline_diff.html) | Compare Pipeline Structures |
-| [pipeline_dot](pipeline_dot.html) | Export Pipeline as DOT Graph |
 | [pipeline_edges](pipeline_edges.html) | Pipeline Dependency Edges |
 | [pipeline_gc](pipeline_gc.html) | Garbage Collect Pipeline Nodes |
 | [pipeline_leaves](pipeline_leaves.html) | Pipeline Leaf Nodes |
@@ -249,7 +248,6 @@
 | [pipeline_print](pipeline_print.html) | Pretty-Print a Pipeline |
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |
 | [pipeline_run](pipeline_run.html) | Run Pipeline |
-| [pipeline_summary](pipeline_summary.html) | Pipeline Summary |
 | [pipeline_to_dot](pipeline_to_dot.html) | Export Pipeline/MetaPipeline as DOT Graph |
 | [pipeline_to_drv](pipeline_to_drv.html) | Introspect Node Derivation Paths |
 | [pipeline_to_frame](pipeline_to_frame.html) | Convert Pipeline to DataFrame |

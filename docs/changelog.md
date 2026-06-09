@@ -26,6 +26,7 @@ This release:
 - **`read_past_node(p.node_name, which_log)`**: New NSE-captured function to read a pipeline node from a specific historical build log without the pipeline being in scope. The first argument is captured before evaluation, so `read_past_node(base_p.raw, which_log = "qcfs")` works even when `base_p` is not defined. `which_log` is mandatory — no default.
 - **Simplified `read_node`**: The `which_log` parameter has been removed from `read_node`. Use `read_past_node(p.node_name, which_log = "...")` for historical reads, and `read_node(p.node_name)` for in-scope pipeline reads.
 - **`pipeline_name` on `build_pipeline`**: `build_pipeline(p, pipeline_name = "my_name")` now records the pipeline name in the build log JSON (`"pipeline"` field). `list_logs()` shows a new `pipeline` column for disambiguation.
+- **Removed `pipeline_summary` and `pipeline_dot`**: These convenience aliases have been removed. Use `pipeline_to_frame(p)` instead of `pipeline_summary(p)`, and `pipeline_to_dot(p)` instead of `pipeline_dot(p)`. `pipeline_to_dot` also handles `MetaPipeline`.
 
 ### Pipeline Visualization
 - **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.

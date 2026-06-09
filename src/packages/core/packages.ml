@@ -199,8 +199,8 @@ let pipeline_package = {
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
                "chain"; "parallel";
                "pipeline_edges"; "pipeline_roots"; "pipeline_leaves"; "pipeline_depth";
-               "pipeline_cycles"; "pipeline_summary"; "pipeline_validate"; "pipeline_assert";
-               "pipeline_print"; "pipeline_dot"; "pipeline_to_dot"; "pipeline_to_mermaid"];
+                "pipeline_cycles"; "pipeline_validate"; "pipeline_assert";
+                "pipeline_print"; "pipeline_to_dot"; "pipeline_to_mermaid"];
 }
 
 let explain_package = {

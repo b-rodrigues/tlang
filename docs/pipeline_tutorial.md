@@ -929,15 +929,6 @@ The columns returned are:
 
 `pipeline_to_frame` is the foundation for inspection: you can use T's standard `filter`, `select`, and `arrange` verbs on the resulting DataFrame.
 
-### `pipeline_summary`
-
-`pipeline_summary(p)` is a convenience alias for `pipeline_to_frame(p)`:
-
-```t
-pipeline_summary(p)
--- same output as pipeline_to_frame(p)
-```
-
 ### `select_node`
 
 `select_node` returns a DataFrame with only the columns you request, using NSE `$field` references:
@@ -1621,14 +1612,14 @@ pipeline_print(p)
 --   c                     runtime=T         depth=1  noop=false  deps=[b]
 ```
 
-### `pipeline_dot`
+### `pipeline_to_dot`
 
-Exports the pipeline as a [Graphviz](https://graphviz.org/) DOT string for visualization:
+Exports the pipeline as a [Graphviz](https://graphviz.org/) DOT string for visualization. Works for both `Pipeline` and `MetaPipeline`:
 
 ```t
 p = pipeline { a = 1; b = a + 1; c = b + 1 }
 
-dot = pipeline_dot(p)
+dot = pipeline_to_dot(p)
 print(dot)
 -- digraph pipeline {
 --   rankdir=LR;
@@ -1642,10 +1633,6 @@ print(dot)
 ```
 
 Pipe the output to `dot -Tpng` or paste it into https://dreampuf.github.io/GraphvizOnline/ to render a visual dependency graph.
-
-### `pipeline_to_dot`
-
-Equivalent to `pipeline_dot(p)`. Exports the pipeline as a DOT graph string.
 
 ### `pipeline_to_mermaid`
 
