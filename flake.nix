@@ -585,7 +585,7 @@ EOF
             echo "  dune build src/lsp_server.exe - Build the LSP server"
             echo "  t                    - Run the language (fast path)"
             echo "  t-lsp                - Run the language server"
-            echo "  dune test            - Run tests"
+            echo "  dune runtest            - Run tests"
             echo ""
             echo "Quick start: dune build && t"
             echo ""
