@@ -389,7 +389,15 @@ let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn 
 let meta_pipeline_flatten_resolver : (value -> value) ref = ref (fun v -> v)
 
 (** Pipeline-scoped in-memory node value cache.
-    Keyed by (pipeline_exprs, node_name) to avoid cross-pipeline contamination. *)
+    Keyed by (pipeline_exprs, node_name) to avoid cross-pipeline contamination.
+
+    NOTE: The key uses structural equality on (string * expr) list via the
+    polymorphic `=` operator. This works reliably because p_exprs is always
+    passed by reference (same physical list is used for both writes and lookups).
+    If the list is ever reconstructed from deserialized data or copied, key
+    equality will break, since `expr` records may contain mutable location
+    fields. If that becomes necessary, use a stable key (e.g. a hash or UUID)
+    instead. *)
 let in_memory_node_values : ((string * expr) list * string, value) Hashtbl.t = Hashtbl.create 50
 
 (** Store an in-memory node value scoped to a specific pipeline *)

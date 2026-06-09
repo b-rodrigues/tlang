@@ -232,7 +232,14 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     {|p = pipeline { a = 1 }; p2 = set(p, node_meta_lens("a", "deserializer"), ^arrow); type(get(p2, node_meta_lens("a", "deserializer")))|}
     {|"Expression"|};
 
-  (* 11. filter_lens on Pipeline with over *)
+  (* 11. filter_lens on Pipeline with over
+     Explanation: get(p, filter_lens(...)) on an unbuilt pipeline returns
+     VComputedNode (the raw sentinel). Then f(VComputedNode) = VComputedNode .+ 10
+     → TypeError because .+ doesn't operate on VComputedNode. The get side
+     evaluates the predicate against node metadata, gets the matching node's
+     value via pipeline_get_node_value, which returns VComputedNode (unbuilt).
+     This is not a bug — over on a filter_lens for Pipeline is a lazy
+     lens operation on the structural pipeline, not a runtime evaluation. *)
   test "filter_lens over on Pipeline"
     {|p = pipeline { a = 1; b = 2; c = 3 }; l = filter_lens(\(meta) meta.name == "b"); p2 = over(p, l, \(v) v .+ 10); read_node(p2.b)|}
     "TypeError";

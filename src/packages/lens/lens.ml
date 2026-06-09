@@ -457,12 +457,17 @@ let filter_lens_set_impl p ~eval_call args env =
                     VPipeline pipe
              | val_v ->
                  (* scalar broadcast *)
-                 List.iteri (fun i (name, _v) ->
-                   if mask.(i) then
-                     Ast.set_in_memory_node_value ~p_exprs:pipe.p_exprs ~node_name:name
-                       (Ast.VNodeResult { v = val_v; node_name = name; diagnostics = Ast.Utils.empty_node_diagnostics })
-                 ) pipe.p_nodes;
-                 VPipeline pipe))
+                  List.iteri (fun i (name, _v) ->
+                    if mask.(i) then
+                      Ast.set_in_memory_node_value ~p_exprs:pipe.p_exprs ~node_name:name
+                        (Ast.VNodeResult { v = val_v; node_name = name; diagnostics = Ast.Utils.empty_node_diagnostics })
+                  ) pipe.p_nodes;
+                  (* Returns the same VPipeline record — the observable change is in the
+                     global in_memory_node_values cache, not in pipe's fields. Callers
+                     that compare p == p2 structurally will get true. This is correct
+                     under the lazy model: p_nodes holds structure, the cache holds
+                     live values, and pipeline_get_node_value reconciles them. *)
+                  VPipeline pipe))
   | [(_, other); _] ->
       Error.type_error (Printf.sprintf "filter_lens set expects a Collection, got %s"
         (Utils.type_name other))

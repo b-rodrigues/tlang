@@ -3,8 +3,6 @@
 
 open Ast
 
-exception CycleError of string
-
 (* --- Error Construction Helpers --- *)
 
 (** Create a structured error value *)
@@ -2208,7 +2206,7 @@ and eval_dot_access env_ref target_expr field =
       | _ -> eval_dot_access_val env_ref (Utils.unwrap_value target_val) field)
   | _ -> eval_dot_access_val env_ref target_val field
 
-and get_pipeline_member _env_ref p field _visiting =
+and get_pipeline_member p field =
   let resolved_cn p cn =
     match Hashtbl.find_opt Ast.pipeline_build_logs p.p_exprs with
     | Some log_path ->
@@ -2256,18 +2254,15 @@ and get_pipeline_member _env_ref p field _visiting =
               }))
        | None -> None)
 
-and pipeline_get_node_value env_ref p field =
-  try
-    match get_pipeline_member env_ref p field [] with
-    | Some (VComputedNode _ as resolved) ->
-        (match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:field with
-         | Some (VNodeResult { v; _ }) -> v
-         | Some v -> v
-         | None -> resolved)
-    | Some v -> v
-    | None -> VNA NAGeneric
-  with CycleError node ->
-    Error.structural_error (Printf.sprintf "Pipeline dependency cycle involving node `%s`." node)
+and pipeline_get_node_value _env_ref p field =
+  match get_pipeline_member p field with
+  | Some (VComputedNode _ as resolved) ->
+      (match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:field with
+       | Some (VNodeResult { v; _ }) -> v
+       | Some v -> v
+       | None -> resolved)
+  | Some v -> v
+  | None -> VNA NAGeneric
 
 and eval_dot_access_val env_ref target_val field =
   (* Helper: check if any column name in the table starts with the given prefix *)
@@ -2307,15 +2302,13 @@ and eval_dot_access_val env_ref target_val field =
               let prefix = (match List.assoc_opt "__partial_dot_prefix__" pairs with
                             | Some (VString s) -> s | _ -> "") in
               let compound = prefix ^ "." ^ field in
-                (try match get_pipeline_member env_ref p compound [] with
-                    | Some v -> v
-                    | None ->
-                        if has_node_prefix p compound
-                        then VDict [("__partial_dot_pipeline__", pipe_val);
-                                    ("__partial_dot_prefix__", VString compound)]
-                        else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." compound)
-               with CycleError node ->
-                 Error.structural_error (Printf.sprintf "Pipeline dependency cycle involving node `%s`." node))
+                (match get_pipeline_member p compound with
+                   | Some v -> v
+                   | None ->
+                       if has_node_prefix p compound
+                       then VDict [("__partial_dot_pipeline__", pipe_val);
+                                   ("__partial_dot_prefix__", VString compound)]
+                       else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." compound))
              | _ ->
                (match List.assoc_opt "__partial_dot_dict__" pairs with
                | Some (VDict orig_pairs) ->
@@ -2361,15 +2354,13 @@ and eval_dot_access_val env_ref target_val field =
                      ("__partial_dot_prefix__", VString field)]
          else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
   | VPipeline p ->
-       (try match get_pipeline_member env_ref p field [] with
-           | Some v -> v
-           | None ->
-               if has_node_prefix p field
-               then VDict [("__partial_dot_pipeline__", VPipeline p);
-                           ("__partial_dot_prefix__", VString field)]
-               else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)
-       with CycleError node ->
-         Error.structural_error (Printf.sprintf "Pipeline dependency cycle involving node `%s`." node))
+       (match get_pipeline_member p field with
+        | Some v -> v
+        | None ->
+            if has_node_prefix p field
+            then VDict [("__partial_dot_pipeline__", VPipeline p);
+                        ("__partial_dot_prefix__", VString field)]
+            else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
   | VMetaPipeline mp ->
       (match Pipeline_composition.flatten_meta (VMetaPipeline mp) with
        | VPipeline flat_p -> eval_dot_access_val env_ref (VPipeline flat_p) field
