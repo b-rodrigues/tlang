@@ -1228,12 +1228,11 @@ Pipeline summary: 1 node(s) with warnings, 1 suppressed, 0 error(s)
   ○  filtered — warnings suppressed by caller (1 NAs ignored)
 ```
 
-The `○` symbol indicates a suppressed node. You can still access the underlying warning objects programmatically via `read_node()` or `read_pipeline()`.
+The `○` symbol indicates a suppressed node. You can still access the underlying warning objects programmatically via `warning_msg()` or `read_pipeline()`.
 
 ```t
-res = read_node(p.filtered)
-res.diagnostics.warnings_suppressed  -- true
-res.diagnostics.warnings            -- list of captured warnings
+warning_msg(p.filtered)               -- Returns the warning message string
+read_pipeline(p).diagnostics.summary  -- Summary counts
 ```
 
 ### `difference`

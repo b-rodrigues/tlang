@@ -825,7 +825,7 @@ error_msg(e2)  -- "Division by zero"
 
 ### `warning_msg(node)`
 
-Get the warning message from a completed computed node (if any exists).
+Get the warning message from a completed computed node (if any exists). Downstream nodes automatically inherit warnings from ancestor nodes, with each upstream warning prefixed by its source node name for clear provenance.
 
 **Parameters:**
 
@@ -834,7 +834,7 @@ Get the warning message from a completed computed node (if any exists).
 
 **Returns:**
 
-`String` — Warning message, or an empty string `""` if there are no warnings.
+`String` — Warning message, or an empty string `""` if there are no warnings. Upstream warnings are prefixed with `"Ancestor node '<name>' reported following warning: <message>"`. Multiple warnings are joined with `". Furthermore, "`.
 
 **Examples:**
 ```t

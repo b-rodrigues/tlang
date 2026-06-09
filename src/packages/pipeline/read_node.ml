@@ -183,12 +183,17 @@ let run_shell_command_with_env shell_cmd overrides =
 --# build log.
 --# Use `which_log` to read from a specific historical build ("time travel").
 --#
+--# Note: The `.warnings` field previously returned on the result has been
+--# removed. Use `warning_msg(node)` to inspect a node's own warnings and any
+--# upstream warnings inherited from ancestor nodes. Use `inspect_node(node)`
+--# for structured warning metadata.
+--#
 --# @name read_node
 --# @param node :: ComputedNode The ComputedNode object to read (e.g. `p.node_name`).
 --# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
 --# @return :: Any The deserialized artifact value, or the in-memory value.
 --# @family pipeline
---# @seealso read_pipeline, build_pipeline, inspect_pipeline
+--# @seealso warning_msg, inspect_node, read_pipeline, build_pipeline, inspect_pipeline
 --# @export
 *)
 let register env =
@@ -546,13 +551,15 @@ let register env =
 --# Inspect Pipeline Node Metadata
 --#
 --# Returns a dictionary with metadata about a computed node, including its
---# name, runtime, artifact path, serializer, class, and dependencies.
+--# name, runtime, artifact path, serializer, class, dependencies, and warnings.
+--# The `warnings` key contains a structured list of warning records, each with
+--# `source` ("own" or the ancestor node name) and `message`.
 --#
 --# @name inspect_node
 --# @param node :: ComputedNode A computed node value (e.g. from a built pipeline).
---# @return :: Dict A dictionary with keys = name, runtime, path, serializer, class, dependencies.
+--# @return :: Dict A dictionary with keys = name, runtime, path, serializer, class, dependencies, warnings.
 --# @family pipeline
---# @seealso read_node, rebuild_node
+--# @seealso read_node, rebuild_node, warning_msg
 --# @export
 *)
   let inspect_fn named_args _env =
@@ -669,7 +676,7 @@ let register env =
 --# Suppress Diagnostics for a Node
 --#
 --# Silences all captured warnings for the current node in the console summary.
---# Warnings remain accessible programmatically via `read_node()` or `read_pipeline()`.
+--# Warnings remain accessible programmatically via `warning_msg()` or `read_pipeline()`.
 --# Use this to reduce noise from known warnings during data processing (e.g., NAs in filter).
 --#
 --# @name suppress_warnings
