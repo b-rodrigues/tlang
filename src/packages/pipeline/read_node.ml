@@ -430,34 +430,52 @@ let register env =
           | VString _ -> true
           | _ -> false
         in
-        begin match Ast.get_in_memory_node_value_for_cn cn with
-        | Some v when not which_log_provided -> v
-        | _ ->
-          let cn_or_err =
-            if which_log_provided then
-              let log_name = match extract_arg "which_log" 2 (VNA NAGeneric) named_args with VString s -> s | _ -> "" in
-              (match Builder.latest_logged_computed_node ~log_name_pattern:log_name cn.cn_name with
-               | Some logged_cn ->
-                   let cn_path = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
-                   let cn_class = if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class in
-                   let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
-                   let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
-                   Ok { cn with cn_path; cn_class; cn_runtime; cn_serializer }
-               | None ->
-                   Error (Error.make_error KeyError (Printf.sprintf "Node `%s` not found in BuildLog." cn.cn_name)))
-            else Ok (!Ast.computed_node_resolver cn)
+        begin
+          let resolved_cn = !Ast.computed_node_resolver cn in
+          let is_built = resolved_cn.cn_path <> "" && resolved_cn.cn_path <> "<unbuilt>" in
+          let is_in_memory_placeholder v =
+            match v with
+            | VNodeResult { v = VComputedNode inner; _ } -> inner.cn_path = "" || inner.cn_path = "<unbuilt>"
+            | _ -> false
           in
-          (match cn_or_err with
-           | Error err -> err
-           | Ok cn ->
-               if cn.cn_path = "<unbuilt>" && not which_log_provided then
-                 (match Ast.get_in_memory_node_value_for_cn cn with
-                  | Some v -> v
-                  | None ->
-                      Error.make_error FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: Sys_error(\"<unbuilt>: No such file or directory\")" cn.cn_name))
-               else
-                 let raw_val = Builder.logged_node_value cn.cn_name cn in
-                  Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
+          match Ast.get_in_memory_node_value_for_cn cn with
+          | Some v when not which_log_provided && not is_built && not (is_in_memory_placeholder v) -> v
+          | _ ->
+            let cn_or_err =
+              if which_log_provided then
+                let log_name = match extract_arg "which_log" 2 (VNA NAGeneric) named_args with VString s -> s | _ -> "" in
+                (match Builder.latest_logged_computed_node ~log_name_pattern:log_name cn.cn_name with
+                 | Some logged_cn ->
+                     let cn_path = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
+                     let cn_class = if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class in
+                     let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
+                     let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
+                     Ok { cn with cn_path; cn_class; cn_runtime; cn_serializer }
+                 | None ->
+                     Error (Error.make_error KeyError (Printf.sprintf "Node `%s` not found in BuildLog." cn.cn_name)))
+              else Ok resolved_cn
+            in
+            (match cn_or_err with
+             | Error err -> err
+             | Ok cn ->
+                  if cn.cn_path = "<unbuilt>" && not which_log_provided then
+                    (match Ast.get_in_memory_node_value_for_cn cn with
+                     | Some v when not (is_in_memory_placeholder v) -> v
+                     | _ ->
+                         Error.make_error FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: Sys_error(\"<unbuilt>: No such file or directory\")" cn.cn_name))
+                  else
+                    let raw_val = Builder.logged_node_value cn.cn_name cn in
+                    match Ast.get_in_memory_node_value_for_cn cn with
+                    | Some (VNodeResult { diagnostics = d; _ }) ->
+                        let build_diag = Builder.logged_node_diagnostics ~value:raw_val cn.cn_name cn in
+                        let merged = {
+                          d with
+                          nd_error = build_diag.nd_error;
+                          nd_recovered = build_diag.nd_recovered;
+                        } in
+                        VNodeResult { v = raw_val; node_name = cn.cn_name; diagnostics = merged }
+                    | _ ->
+                        Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
         end
     | VString _ ->
         Error.type_error "read_node: expected a ComputedNode for argument 'node', but got String. Use read_node(p.node_name) instead."

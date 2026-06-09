@@ -60,10 +60,34 @@ let node_error_of_logged_value name cn value =
   else
     None
 
+let latest_logged_computed_node_forward : (string -> computed_node option) ref =
+  ref (fun _ -> None)
+
+let rec collect_upstream_warnings ?(visited : string list = []) (dep_names : string list) : Ast.node_warning list =
+  match dep_names with
+  | [] -> []
+  | dep_name :: rest when List.mem dep_name visited ->
+      collect_upstream_warnings ~visited rest
+  | dep_name :: rest ->
+      let from_this_dep =
+        match !latest_logged_computed_node_forward dep_name with
+        | Some dep_cn when dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" ->
+            let dep_dir = Filename.dirname dep_cn.cn_path in
+            let dep_warnings_path = Filename.concat dep_dir "warnings" in
+            let dep_warnings = parse_node_warnings dep_warnings_path in
+            let marked = List.map (fun w -> { w with Ast.nw_source = Ast.WarningUpstream dep_name }) dep_warnings in
+            let deeper = collect_upstream_warnings ~visited:(dep_name :: visited) dep_cn.cn_dependencies in
+            marked @ deeper
+        | _ -> collect_upstream_warnings ~visited:(dep_name :: visited) rest
+      in
+      from_this_dep @ collect_upstream_warnings ~visited rest
+
 let logged_node_diagnostics ?value name cn =
   let node_dir = Filename.dirname cn.cn_path in
   let warnings_path = Filename.concat node_dir "warnings" in
-  let warnings = parse_node_warnings warnings_path in
+  let own_warnings = parse_node_warnings warnings_path in
+  let upstream_warnings = collect_upstream_warnings cn.cn_dependencies in
+  let all_warnings = own_warnings @ upstream_warnings in
   let error =
     match value with
     | Some value -> node_error_of_logged_value name cn value
@@ -82,7 +106,7 @@ let logged_node_diagnostics ?value name cn =
           None
   in
   {
-    nd_warnings = warnings;
+    nd_warnings = all_warnings;
     nd_error = error;
     nd_warnings_suppressed = false;
     nd_recovered = false;
@@ -437,6 +461,9 @@ let latest_logged_computed_node ?log_name_pattern (name : string) =
       in
       find_in_logs matching_logs
 
+let () = latest_logged_computed_node_forward := (fun name ->
+  latest_logged_computed_node name)
+
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
   match Sys.getenv_opt env_name with
@@ -519,7 +546,7 @@ let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline
   let overlay_in_memory pairs =
     List.map (fun (name, diagnostics) ->
       match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name with
-      | Some (VNodeResult { diagnostics = d; _ }) -> (name, d)
+      | Some (VNodeResult { diagnostics = d; _ }) when d.nd_warnings <> [] || d.nd_error <> None -> (name, d)
       | _ -> (name, diagnostics)
     ) pairs
   in

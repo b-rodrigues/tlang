@@ -204,7 +204,22 @@ let node_record_scope_fields = Ast.Utils.node_record_scope_fields
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
 
-let current_node_warning_emitter : (Ast.node_warning -> unit) option ref = ref None
+(** Global warning accumulator — captures warnings emitted outside pipeline eval
+    (e.g. during standalone `t run` in Nix builds). *)
+let global_warnings : Ast.node_warning list ref = ref []
+
+(** Default warning emitter — accumulates warnings in the global list so they
+    can be flushed to `$out/warnings` after a standalone script run. *)
+let default_warning_emitter warning =
+  global_warnings := warning :: !global_warnings
+
+let current_node_warning_emitter : (Ast.node_warning -> unit) option ref = ref (Some default_warning_emitter)
+
+(** Diagnostics from the most recently evaluated pipeline.  Used by [cmd_run]
+    to flush warnings to [$out/warnings] during Nix builds. *)
+let last_node_diagnostics : (string * Ast.node_diagnostics) list ref = ref []
+let last_pipeline_exprs : (string * Ast.expr) list option ref = ref None
+let last_evaluated_node_name : string option ref = ref None
 let current_node_suppression_requested = ref false
 
 let request_warning_suppression () =
@@ -1817,6 +1832,18 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     let p_nodes = List.rev results in
     let p_node_diagnostics = List.rev diagnostics in
     if verbose then print_pipeline_diagnostics_summary p_node_diagnostics;
+
+    (* Populate in-memory cache with VNodeResult entries so that
+       [warning_msg] and [inspect_node] work during the same session. *)
+    List.iter (fun (name, diag) ->
+      let node_val = match List.assoc_opt name p_nodes with Some v -> v | None -> VNA NAGeneric in
+      Ast.set_in_memory_node_value ~p_exprs:new_p_exprs ~node_name:name
+        (VNodeResult { v = node_val; node_name = name; diagnostics = diag })
+    ) p_node_diagnostics;
+    last_node_diagnostics := p_node_diagnostics;
+    last_pipeline_exprs := Some new_p_exprs;
+    last_evaluated_node_name := (match List.rev exec_order with h :: _ -> Some h | [] -> None);
+
     let result = VPipeline {
       p_nodes;
       p_exprs = new_p_exprs;
@@ -1962,6 +1989,18 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
     ) ([], [], ref !env_ref, []) exec_order in
     let p_node_diagnostics = List.rev diagnostics in
     if verbose then print_pipeline_diagnostics_summary p_node_diagnostics;
+
+    (* Populate in-memory cache with VNodeResult entries for the re-evaluated nodes *)
+    let prev_p_nodes = List.rev results in
+    List.iter (fun (name, diag) ->
+      let node_val = match List.assoc_opt name prev_p_nodes with Some v -> v | None -> VNA NAGeneric in
+      Ast.set_in_memory_node_value ~p_exprs:prev.p_exprs ~node_name:name
+        (VNodeResult { v = node_val; node_name = name; diagnostics = diag })
+    ) p_node_diagnostics;
+    last_node_diagnostics := p_node_diagnostics;
+    last_pipeline_exprs := Some prev.p_exprs;
+    last_evaluated_node_name := (match List.rev exec_order with h :: _ -> Some h | [] -> None);
+
     VPipeline { prev with p_nodes = List.rev results; p_node_diagnostics }
 
 (** Evaluate a splice operand (!!!) and expand its elements as named pairs.

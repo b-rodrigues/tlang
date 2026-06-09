@@ -390,6 +390,38 @@ let cmd_artifact_transfer action filename archive_path env =
                         }));
                    exit 1)
 
+let flush_warnings_to_out () =
+  match Sys.getenv_opt "out" with
+  | Some out_path ->
+      let wrote = ref false in
+      let write_warnings warnings =
+        let warning_values = List.map (fun w -> (None, Ast.Utils.node_warning_to_value w)) warnings in
+        let json = Serialization.value_to_yojson (Ast.VList warning_values) in
+        let warnings_path = Filename.concat out_path "warnings" in
+        (try
+           let ch = open_out warnings_path in
+           output_string ch (Yojson.Safe.to_string ~std:true json);
+           close_out ch
+         with _ -> ())
+      in
+      (* Try pipeline diagnostics first (last evaluated node) *)
+      (match !Eval.last_evaluated_node_name with
+       | Some node_name ->
+           (match List.find_opt (fun (n, _) -> n = node_name) !Eval.last_node_diagnostics with
+            | Some (_, diag) when diag.Ast.nd_warnings <> [] ->
+                write_warnings diag.Ast.nd_warnings; wrote := true
+            | _ -> ())
+       | None -> ());
+      (* Fall back to global warnings (emitted outside pipeline eval) *)
+      if not !wrote then begin
+        let global = List.rev !Eval.global_warnings in
+        if global <> [] then begin
+          write_warnings global;
+          Eval.global_warnings := []
+        end
+      end
+  | None -> ()
+
 let cmd_run ?(unsafe=false) ?failfast mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
@@ -410,6 +442,7 @@ let cmd_run ?(unsafe=false) ?failfast mode filename env =
     with _ -> ()
   end;
   let (result, _env) = run_file ?failfast mode filename env in
+  flush_warnings_to_out ();
   match result with
   | Ast.VError _ ->
       Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
@@ -419,6 +452,7 @@ let cmd_run ?(unsafe=false) ?failfast mode filename env =
 let cmd_run_expr ?failfast mode expr env =
   Packages.ensure_docs_loaded ();
   let (result, _) = parse_and_eval ?failfast mode env expr in
+  flush_warnings_to_out ();
   match result with
   | Ast.VError _ ->
       Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1

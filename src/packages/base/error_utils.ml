@@ -81,21 +81,13 @@ let resolve_warning_val = function
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
       (match Ast.get_in_memory_node_value_for_cn cn with
-       | Some (VNodeResult { diagnostics; _ }) ->
-           let warn_msgs = List.map (fun w -> w.nw_message) diagnostics.nd_warnings in
-           if warn_msgs <> [] then Some (String.concat "\n" warn_msgs) else None
+       | Some (VNodeResult { diagnostics; _ }) when diagnostics.nd_warnings <> [] ->
+           Some (String.concat "\n" (List.map (fun w -> w.nw_message) diagnostics.nd_warnings))
        | _ ->
            if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
-             let warnings_path = Filename.concat (Filename.dirname cn.cn_path) "warnings" in
-             if Sys.file_exists warnings_path then (
-               try
-                 let warns = Builder_read_node.parse_node_warnings warnings_path in
-                 let warn_msgs = List.map (fun w -> w.nw_message) warns in
-                 if warn_msgs <> [] then Some (String.concat "\n" warn_msgs) else None
-               with
-               | Out_of_memory | Stack_overflow as exn -> raise exn
-               | Sys_error _ -> None
-             ) else None
+             let diag = Builder.logged_node_diagnostics cn.cn_name cn in
+             let msgs = List.map (fun w -> w.nw_message) diag.nd_warnings in
+             if msgs <> [] then Some (String.concat "\n" msgs) else None
            else None)
   | _ -> None
 
