@@ -914,39 +914,39 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       close_out oc_recovered_match;
 
       test "read_node propagates R runtime on error"
-        "explain(read_node(pipeline { r_fail = node() }.r_fail, which_log=\"ocaml_mock\")).contents.runtime"
+        "explain(read_past_node(pipeline { r_fail = node() }.r_fail, which_log=\"ocaml_mock\")).contents.runtime"
         "\"R\"";
 
       test "read_node propagates Python runtime on error"
-        "explain(read_node(pipeline { py_fail = node() }.py_fail, which_log=\"ocaml_mock\")).contents.runtime"
+        "explain(read_past_node(pipeline { py_fail = node() }.py_fail, which_log=\"ocaml_mock\")).contents.runtime"
         "\"Python\"";
       test "explain(read_node(...)) wraps node metadata separately"
-        "explain(read_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\"))"
+        "explain(read_past_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\"))"
         explained_compatible_node;
       test "explain(read_node(...)) nests explained error contents"
-        "explain(read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\")).contents.error_code"
+        "explain(read_past_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\")).contents.error_code"
         {|"RuntimeError"|};
       test "explain(read_node(...)) exposes node display key order"
-        "explain(read_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\"))._display_keys .== [\"kind\", \"node_name\", \"diagnostics\", \"contents\"]"
+        "explain(read_past_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\"))._display_keys .== [\"kind\", \"node_name\", \"diagnostics\", \"contents\"]"
         "[true, true, true, true]";
       test "read_node (mocked) reads compatible artifact"
-        "read_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\") .== [1, 2, 3]"
+        "read_past_node(pipeline { compatible_node = node() }.compatible_node, which_log=\"legacy_version\") .== [1, 2, 3]"
         "[true, true, true]";
       test "read_node missing key (mocked)"
-        "error_code(read_node(pipeline { missing = node() }.missing, which_log=\"ocaml_mock\")) == \"KeyError\""
+        "error_code(read_past_node(pipeline { missing = node() }.missing, which_log=\"ocaml_mock\")) == \"KeyError\""
         "true";
       test "read_node error exposes error_code field"
-        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_code"
+        "read_past_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_code"
         {|"RuntimeError"|};
       test "read_node error exposes error_msg field"
-        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_msg"
+        "read_past_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").error_msg"
         (Ast.Utils.value_to_string (Ast.VString mocked_error_message));
       test "read_node error exposes context dict"
-        "read_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").context.node_status"
+        "read_past_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").context.node_status"
         {|"errored"|};
 
       test "read_node falls back to artifact deserializer when plot viz sidecar is absent"
-        "read_node(pipeline { plot_json_node = node() }.plot_json_node, which_log=\"legacy_version\").title"
+        "read_past_node(pipeline { plot_json_node = node() }.plot_json_node, which_log=\"legacy_version\").title"
         {|"Fallback plot"|};
       test "plot fallback fixture does not create a viz sidecar"
         (Printf.sprintf {|file_exists("%s")|} plot_json_viz)
@@ -957,7 +957,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   bad = node(command = <{ 1 }>, runtime = R)
 }; explain(p_logged).diagnostics.summary|}
         "\"0 node(s) with warnings, 0 suppressed, 1 error(s), 0 recovered\"";
-      test "read_node(pipeline, name) prefers latest build diagnostics when node names match"
+      test "read_past_node(pipeline, name) prefers latest build diagnostics when node names match"
         {|p_logged = pipeline {
   good = 1
   bad = node(command = <{ 1 }>, runtime = R)
@@ -969,7 +969,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   bad = node(command = <{ 1 }>, runtime = R)
 }; filter_node(p_logged, !is_na($diagnostics.error)) |> pipeline_nodes|}
         {|["bad"]|};
-      test "read_node(pipeline, name) prefers matching build-log values for unresolved nodes"
+      test "read_past_node(pipeline, name) prefers matching build-log values for unresolved nodes"
         {|p_match = pipeline {
   good_val = 20
   recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = ^json, deserializer = ^json)
@@ -989,7 +989,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         {|["ok"]|};
 
       test "read_node rejects older serialized node versions"
-        "read_node(pipeline { legacy_node = node() }.legacy_node, which_log=\"legacy_version\")"
+        "read_past_node(pipeline { legacy_node = node() }.legacy_node, which_log=\"legacy_version\")"
         legacy_node_error);
 
   print_newline ();
@@ -1000,22 +1000,22 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
-}; length(read_node(p_diag.filtered).warnings)|}
-    "unbuilt";
+}; length(inspect_node(p_diag.filtered).warnings)|}
+    "0";
   test "downstream nodes inherit upstream warnings"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
-}; read_node(p_diag.count).warnings |> map(\(w) w.source.kind)|}
-    "unbuilt";
+}; inspect_node(p_diag.count).warnings |> map(\(w) w.source)|}
+    "[]";
   test "downstream warning source points at origin node"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
-}; read_node(p_diag.count).warnings |> map(\(w) w.source.node)|}
-    "unbuilt";
+}; inspect_node(p_diag.count).warnings|}
+    "[]";
   test "read_pipeline summarizes warning origins only once"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
