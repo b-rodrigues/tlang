@@ -38,7 +38,7 @@ let read_past_node_fn named_args _env =
                 Builder.wrap_with_diagnostics cn.cn_name cn raw_val
             | None ->
                 Error.make_error KeyError
-                  (Printf.sprintf "read_past_node: node '%s' not found in any build log matching '%s'."
+                  (Printf.sprintf "read_past_node: node '%s' not found in any build log matching '%s'. Use list_logs() to inspect available logs."
                      name s))
        | _ ->
            Error.type_error "read_past_node: expected `p.node_name` syntax for the node argument.")
