@@ -281,6 +281,7 @@
 | [read_file](read_file.html) | Read file contents |
 | [read_log](read_log.html) | Read Node Build Log |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
+| [read_past_node](read_past_node.html) | Read Pipeline Node from Past Build |
 | [read_parquet](read_parquet.html) | Read Parquet file |
 | [read_pipeline](read_pipeline.html) | Read Pipeline Metadata |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |

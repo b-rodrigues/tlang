@@ -86,7 +86,7 @@ let get_failed_node_error_info drv_path =
   | Error msg ->
       ("NixError", "Failed to run nix log: " ^ msg)
 
-let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
+let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
   let verbose =
     match verbose with
     | Some level -> level
@@ -543,13 +543,19 @@ let build_pipeline_internal ?verbose ?(nix_options : nix_opts option) (p : Ast.p
             ] @ error_fields)
           ) p.p_exprs
         in
-        let log_json = Serialization.json_dict [
+        let base_pairs = [
           ("timestamp", "\"" ^ timestamp ^ "\"");
           ("hash", "\"" ^ hash ^ "\"");
           ("out_path", "\"" ^ (match out_path_opt with Some op -> op | None -> "") ^ "\"");
           ("duration", Printf.sprintf "%.4f" total_duration);
           ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
-        ] ^ "\n" in
+        ] in
+        let pairs =
+          match pipeline_name with
+          | Some n -> base_pairs @ [("pipeline", "\"" ^ Serialization.json_escape n ^ "\"")]
+          | None -> base_pairs
+        in
+        let log_json = Serialization.json_dict pairs ^ "\n" in
         write_file log_path log_json
       in
 

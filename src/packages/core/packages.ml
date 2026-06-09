@@ -191,7 +191,7 @@ let dataframe_package = {
 let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
-  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "inspect_log"; "list_logs"; "read_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
+  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "inspect_log"; "list_logs"; "read_node"; "read_past_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
                "pipeline_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings"; "pipeline_to_drv";
                "pipeline_to_store"; "set_nix_defaults"; "pipeline_cache_status"; "pipeline_gc"; "t_gc"; "export_artifacts"; "import_artifacts"; "inspect_artifacts";
                "build_log"; "build_log_to_frame"; "collect_exceptions"; "build_log_history"; "node_diff"; "pipeline_diff"; "debug_node";
@@ -789,6 +789,7 @@ let init_env () =
   let env = Populate_pipeline.register env in
   let env = Inspect_pipeline.register env in
   let env = Read_node.register env in
+  let env = Read_past_node.register env in
   let env = Pipeline_copy.register env in
   let env = Trace_nodes.register env in
   let env = Pipeline_to_frame.register env in

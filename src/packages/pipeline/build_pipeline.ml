@@ -32,7 +32,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
   let build_fn named_args env =
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
-    match List.find_opt (fun k -> not (List.mem k ["p"; "verbose"; "nix_options"; "dry_run"])) named_keys with
+    match List.find_opt (fun k -> not (List.mem k ["p"; "verbose"; "nix_options"; "dry_run"; "pipeline_name"])) named_keys with
     | Some k ->
         Error.type_error (Printf.sprintf "build_pipeline: unknown argument '%s'" k)
     | None when positional_count > 4 ->
@@ -74,10 +74,20 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
               Error (Error.type_error "Function `build_pipeline` expects `dry_run` to be a Bool.")
           | _ -> Ok None
         in
+        let (pipeline_name_provided, pipeline_name_val) = get_arg "pipeline_name" 5 (VNA NAGeneric) named_args in
+        let pipeline_name_result =
+          match pipeline_name_val with
+          | VString s -> Ok (Some s)
+          | VSymbol s -> Ok (Some s)
+          | VNA _ -> Ok None
+          | _ when pipeline_name_provided ->
+              Error (Error.type_error "Function `build_pipeline` expects `pipeline_name` to be a String.")
+          | _ -> Ok None
+        in
 
-        (match verbose_result, nix_options_result, dry_run_result with
-         | Error e, _, _ | _, Error e, _ | _, _, Error e -> e
-         | Ok verbose, Ok nix_options, Ok dry_opt ->
+        (match verbose_result, nix_options_result, dry_run_result, pipeline_name_result with
+         | Error e, _, _, _ | _, Error e, _, _ | _, _, Error e, _ | _, _, _, Error e -> e
+         | Ok verbose, Ok nix_options, Ok dry_opt, Ok pipeline_name ->
              let final_nix_options =
                let base_opts =
                  match nix_options with
@@ -91,7 +101,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
              (* Trigger a final resolution pass to catch typos or unresolved cross-pipeline deps *)
              (match rerun_pipeline ?strict:(Some true) ~verbose:false env p with
               | VPipeline p_resolved ->
-                    (match Builder.populate_pipeline ~build:true ?verbose ?nix_options:final_nix_options p_resolved with
+                    (match Builder.populate_pipeline ~build:true ?verbose ?pipeline_name ?nix_options:final_nix_options p_resolved with
                      | Ok (VDataFrame _ as df) -> df
                      | Ok (VString out_path) ->
                          let var_name =

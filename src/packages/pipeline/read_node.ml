@@ -179,21 +179,21 @@ let run_shell_command_with_env shell_cmd overrides =
 --#
 --# Reads and returns the contents of a ComputedNode. For in-memory pipelines,
 --# returns the dynamically computed value directly from the registry. For built
---# pipelines, reads the materialized artifact from the latest (or specified) 
---# build log.
---# Use `which_log` to read from a specific historical build ("time travel").
+--# pipelines, reads the materialized artifact from the latest build log.
 --#
 --# Note: The `.warnings` field previously returned on the result has been
 --# removed. Use `warning_msg(node)` to inspect a node's own warnings and any
 --# upstream warnings inherited from ancestor nodes. Use `inspect_node(node)`
 --# for structured warning metadata.
 --#
+--# Use `read_past_node(p.node_name, which_log = "...")` to read a node from a
+--# specific historical build log without needing the pipeline in scope.
+--#
 --# @name read_node
 --# @param node :: ComputedNode The ComputedNode object to read (e.g. `p.node_name`).
---# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
 --# @return :: Any The deserialized artifact value, or the in-memory value.
 --# @family pipeline
---# @seealso warning_msg, inspect_node, read_pipeline, build_pipeline, inspect_pipeline
+--# @seealso read_past_node, warning_msg, inspect_node, read_pipeline, build_pipeline, inspect_pipeline
 --# @export
 *)
 let register env =
@@ -430,11 +430,6 @@ let register env =
 
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VComputedNode cn ->
-        let which_log_provided =
-          match extract_arg "which_log" 2 (VNA NAGeneric) named_args with
-          | VString _ -> true
-          | _ -> false
-        in
         begin
           let resolved_cn = !Ast.computed_node_resolver cn in
           let is_built = resolved_cn.cn_path <> "" && resolved_cn.cn_path <> "<unbuilt>" in
@@ -444,46 +439,30 @@ let register env =
             | _ -> false
           in
           match Ast.get_in_memory_node_value_for_cn cn with
-          | Some v when not which_log_provided && not is_built && not (is_in_memory_placeholder v) -> v
+          | Some v when not is_built && not (is_in_memory_placeholder v) -> v
           | _ ->
-            let cn_or_err =
-              if which_log_provided then
-                let log_name = match extract_arg "which_log" 2 (VNA NAGeneric) named_args with VString s -> s | _ -> "" in
-                (match Builder.latest_logged_computed_node ~log_name_pattern:log_name cn.cn_name with
-                 | Some logged_cn ->
-                     let cn_path = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
-                     let cn_class = if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class in
-                     let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
-                     let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
-                     Ok { cn with cn_path; cn_class; cn_runtime; cn_serializer }
-                 | None ->
-                     Error (Error.make_error KeyError (Printf.sprintf "Node `%s` not found in BuildLog." cn.cn_name)))
-              else Ok resolved_cn
-            in
-            (match cn_or_err with
-             | Error err -> err
-             | Ok cn ->
-                  if cn.cn_path = "<unbuilt>" && not which_log_provided then
-                    (match Ast.get_in_memory_node_value_for_cn cn with
-                     | Some v when not (is_in_memory_placeholder v) -> v
-                     | _ ->
-                         Error.make_error FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: Sys_error(\"<unbuilt>: No such file or directory\")" cn.cn_name))
-                  else
-                    let raw_val = Builder.logged_node_value cn.cn_name cn in
-                    match Ast.get_in_memory_node_value_for_cn cn with
-                    | Some (VNodeResult { diagnostics = d; _ }) ->
-                        let build_diag = Builder.logged_node_diagnostics ~value:raw_val cn.cn_name cn in
-                        let merged = {
-                          d with
-                          nd_error = build_diag.nd_error;
-                          nd_recovered = build_diag.nd_recovered;
-                        } in
-                        VNodeResult { v = raw_val; node_name = cn.cn_name; diagnostics = merged }
-                    | _ ->
-                        Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
+            (match resolved_cn with
+             | cn when cn.cn_path = "<unbuilt>" ->
+                 (match Ast.get_in_memory_node_value_for_cn cn with
+                  | Some v when not (is_in_memory_placeholder v) -> v
+                  | _ ->
+                      Error.make_error FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: Sys_error(\"<unbuilt>: No such file or directory\")" cn.cn_name))
+             | cn ->
+                 let raw_val = Builder.logged_node_value cn.cn_name cn in
+                 match Ast.get_in_memory_node_value_for_cn cn with
+                 | Some (VNodeResult { diagnostics = d; _ }) ->
+                     let build_diag = Builder.logged_node_diagnostics ~value:raw_val cn.cn_name cn in
+                     let merged = {
+                       d with
+                       nd_error = build_diag.nd_error;
+                       nd_recovered = build_diag.nd_recovered;
+                     } in
+                     VNodeResult { v = raw_val; node_name = cn.cn_name; diagnostics = merged }
+                 | _ ->
+                     Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
         end
     | VString _ ->
-        Error.type_error "read_node: expected a ComputedNode for argument 'node', but got String. Use read_node(p.node_name) instead."
+        Error.type_error "read_node: expected a ComputedNode for argument 'node', but got String. Use read_past_node(p.node_name, which_log = ...) to read from a past build log."
     | VSymbol name as other ->
         let node_name =
           if String.length name > 6 && String.sub name 0 6 = "<noop:" then
