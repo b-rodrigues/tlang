@@ -82,12 +82,13 @@ let resolve_warning_val = function
       let cn = !Ast.computed_node_resolver cn in
       (match Ast.get_in_memory_node_value_for_cn cn with
        | Some (VNodeResult { diagnostics; _ }) when diagnostics.nd_warnings <> [] ->
-           Some (String.concat "\n" (List.map (fun w -> w.nw_message) diagnostics.nd_warnings))
+           let s = Ast.Utils.format_warning_messages diagnostics.nd_warnings in
+           if s <> "" then Some s else None
        | _ ->
            if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
              let diag = Builder.logged_node_diagnostics cn.cn_name cn in
-             let msgs = List.map (fun w -> w.nw_message) diag.nd_warnings in
-             if msgs <> [] then Some (String.concat "\n" msgs) else None
+             let s = Ast.Utils.format_warning_messages diag.nd_warnings in
+             if s <> "" then Some s else None
            else None)
   | _ -> None
 

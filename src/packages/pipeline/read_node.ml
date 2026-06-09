@@ -559,13 +559,25 @@ let register env =
     match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
         let cn = !Ast.computed_node_resolver cn in
+        let diag = Builder.logged_node_diagnostics cn.cn_name cn in
+        let warning_entries =
+          VList (List.map (fun w ->
+            (None, VDict [
+              ("source", VString (match w.Ast.nw_source with
+                | Ast.WarningOwn -> "own"
+                | Ast.WarningUpstream name -> name));
+              ("message", VString w.Ast.nw_message);
+            ])
+          ) diag.Ast.nd_warnings)
+        in
         VDict [
           ("name", VString cn.cn_name);
           ("runtime", VString cn.cn_runtime);
           ("path", VString cn.cn_path);
           ("serializer", VString cn.cn_serializer);
           ("class", VString cn.cn_class);
-          ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies))
+          ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies));
+          ("warnings", warning_entries);
         ]
     | VError err ->
         let node_name =

@@ -2233,10 +2233,6 @@ and eval_dot_access env_ref target_expr field =
   match target_val with
   | VNodeResult { diagnostics; _ } ->
       (match field with
-      | "warnings" ->
-          (match Utils.node_diagnostics_to_value diagnostics with
-           | VDict p -> (match List.assoc_opt "warnings" p with Some v -> v | None -> VNA NAGeneric)
-           | _ -> VNA NAGeneric)
       | "error" ->
           (match Utils.node_diagnostics_to_value diagnostics with
            | VDict p -> (match List.assoc_opt "error" p with Some v -> v | None -> VNA NAGeneric)
@@ -2426,16 +2422,12 @@ and eval_dot_access_val env_ref target_val field =
       | "warning_msg" ->
           (match Ast.get_in_memory_node_value_for_cn cn with
            | Some (VNodeResult { diagnostics; _ }) ->
-               let warn_msgs = List.map (fun w -> w.nw_message) diagnostics.nd_warnings in
-               VString (String.concat "\n" warn_msgs)
+               VString (Ast.Utils.format_warning_messages diagnostics.nd_warnings)
            | _ ->
-               if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then (
-                 let warnings_path = Filename.concat (Filename.dirname cn.cn_path) "warnings" in
-                 if Sys.file_exists warnings_path then
-                   let warns = Builder_read_node.parse_node_warnings warnings_path in
-                   VString (String.concat "\n" (List.map (fun w -> w.nw_message) warns))
-                 else VString ""
-               ) else VString "")
+               if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
+                 let diag = Builder_read_node.logged_node_diagnostics cn.cn_name cn in
+                 VString (Ast.Utils.format_warning_messages diag.nd_warnings)
+               else VString "")
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "ComputedNode has no field `%s`" field))
   | VNode un ->
       (match field with

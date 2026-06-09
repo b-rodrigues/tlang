@@ -534,6 +534,17 @@ module Utils = struct
     nd_upstream_errors = [];
   }
 
+  let format_single_warning_message (w : node_warning) =
+    match w.nw_source with
+    | WarningOwn -> w.nw_message
+    | WarningUpstream name ->
+        Printf.sprintf "Ancestor node '%s' reported following warning: %s" name w.nw_message
+
+  let format_warning_messages (warnings : node_warning list) =
+    match warnings with
+    | [] -> ""
+    | _ -> String.concat ". Furthermore, " (List.map format_single_warning_message warnings)
+
   (** Canonical list of field names exposed on read-pipeline node records
       (as constructed by [which_nodes] and [errored_nodes]). The evaluator
       uses this list to decide when a bare-word expression should be
