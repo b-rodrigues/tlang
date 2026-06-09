@@ -22,6 +22,11 @@ This release:
 - **`inspect_node` now shows warnings**: `inspect_node(node)` returns a `warnings` field with a structured list of dicts (`source` + `message`), showing both own and inherited upstream warnings.
 - **Removed `.warnings` from `read_node()` return**: The `.warnings` field on `read_node()` results has been removed. Use `warning_msg(node)` for a formatted warning message or `inspect_node(node).warnings` for structured warning metadata.
 
+### Historical Node Access & Build Log Identity
+- **`read_past_node(p.node_name, which_log)`**: New NSE-captured function to read a pipeline node from a specific historical build log without the pipeline being in scope. The first argument is captured before evaluation, so `read_past_node(base_p.raw, which_log = "qcfs")` works even when `base_p` is not defined. `which_log` is mandatory — no default.
+- **Simplified `read_node`**: The `which_log` parameter has been removed from `read_node`. Use `read_past_node(p.node_name, which_log = "...")` for historical reads, and `read_node(p.node_name)` for in-scope pipeline reads.
+- **`pipeline_name` on `build_pipeline`**: `build_pipeline(p, pipeline_name = "my_name")` now records the pipeline name in the build log JSON (`"pipeline"` field). `list_logs()` shows a new `pipeline` column for disambiguation.
+
 ### Pipeline Visualization
 - **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.
 - **`pipeline_to_mermaid(p)`**: Generates a Mermaid flowchart diagram string from the pipeline topology, enabling visual rendering in Markdown documents and Mermaid live editors.

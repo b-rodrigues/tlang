@@ -648,14 +648,14 @@ inspect_log(which_log = "20260221_143022")
 
 ### Reading from a specific build
 
-Pass the `which_log` argument to `read_node()` to specify which build to read from. You can pass a regex pattern or a specific filename:
+Use `read_past_node(p.node_name, which_log = "...")` to read from a specific historical build without the pipeline being in scope. Pass a regex pattern or filename to `which_log`:
 
 ```t
--- Read the latest version (default)
+-- Read the latest version (pipeline must be in scope)
 val = read_node(p.result)
 
--- Read from a specific historical build
-val_old = read_node(p.result, which_log = "20260221_143022")
+-- Read from a specific historical build (works cold)
+val_old = read_past_node(p.result, which_log = "20260221_143022")
 ```
 
 This ensures that even as you update your code and data, you can always recover and compare results from previous runs.

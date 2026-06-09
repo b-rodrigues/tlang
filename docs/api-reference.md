@@ -2517,9 +2517,9 @@ Constructs a Pipeline from a Dictionary of named nodes or a List of node records
 
 ---
 
-### `build_pipeline(p, verbose = 0)` / `populate_pipeline(p, build = true)`
+### `build_pipeline(p, verbose = 0, pipeline_name = NA)` / `populate_pipeline(p, build = true)`
 
-Materialize a pipeline to Nix artifacts. `build_pipeline` is the primary entry point for full Nix builds and returns a `BuildLog` value (`nodes`, `duration`, `failed_nodes`, `out_path`). `populate_pipeline` can be used to generate the Nix expression without building (with `build = false`).
+Materialize a pipeline to Nix artifacts. `build_pipeline` is the primary entry point for full Nix builds and returns a `BuildLog` value (`nodes`, `duration`, `failed_nodes`, `out_path`). `populate_pipeline` can be used to generate the Nix expression without building (with `build = false`). Use `pipeline_name` to record a name in the build log for later disambiguation via `list_logs()`.
 
 ---
 
@@ -2529,9 +2529,9 @@ Returns a dictionary with node metadata and diagnostics summary. `inspect_pipeli
 
 ---
 
-### `read_node(node, which_log = NA)`
+### `read_node(node)`
 
-Retrieves the dynamically evaluated or built artifact of a node. Strictly expects a `ComputedNode` object (e.g. `p.node_name`).
+Retrieves the dynamically evaluated or built artifact of a node from an in-scope pipeline. Strictly expects a `ComputedNode` object (e.g. `p.node_name`). For reading from historical build logs without the pipeline in scope, use [`read_past_node(p.node_name, which_log = ...)`](#read_past_node).
 
 ---
 
@@ -2869,7 +2869,7 @@ populate_pipeline(p, build = true, nix_options = [max_jobs: 4, cache: "rstats-on
 
 ---
 
-### `build_pipeline(pipeline, verbose = 0, nix_options = NA)`
+### `build_pipeline(pipeline, verbose = 0, nix_options = NA, pipeline_name = NA)`
 
 Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
 
@@ -2877,6 +2877,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 
 - `pipeline` — Pipeline object
 - `verbose` (optional) — Int build verbosity level. Defaults to `0` (quiet/minimalist live-status output without dumping failed node trace logs). Set `verbose = 1` or higher to print detailed node stdout/stderr failures directly to the terminal on build error.
+- `pipeline_name` (optional) — String or Symbol. Records a human-readable name in the build log JSON (`"pipeline"` field) to help disambiguate logs in `list_logs()`.
 - `nix_options` (optional) — Dict of Nix build options. Supported keys:
   - `targets` — String, List, or Vector of specific node names to build.
   - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
@@ -2905,24 +2906,39 @@ build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-
 
 ---
 
-### `read_node(node, which_log = NA)`
+### `read_node(node)`
 
-Read a dynamically evaluated or materialized artifact from a pipeline build.
+Read a dynamically evaluated or materialized artifact from an in-scope pipeline build.
 
 **Parameters:**
 
 
 - `node` — The ComputedNode to read (e.g. `p.node_name`)
-- `which_log` (optional) — Regex pattern or filename of a specific build log. Defaults to latest.
 
 **Returns:**
 
-Deserialized value.
+Deserialized value, wrapped with diagnostics.
 
 **Examples:**
 ```t
 read_node(p.summary_stats)
-read_node(p.model_v1, which_log = "20260221")
+```
+
+---
+
+### `read_past_node(node, which_log)`
+
+Read a pipeline node from a specific historical build log without the pipeline being in scope. The node argument is NSE-captured from `p.node_name` syntax.
+
+**Parameters:**
+
+
+- `node` — The node to read, written as `p.node_name` (captured before evaluation)
+- `which_log` (required) — Regex pattern matching a specific build log filename
+
+**Examples:**
+```t
+read_past_node(base_p.raw, which_log = "qcfs")
 ```
 
 ---
