@@ -178,6 +178,136 @@ let register env =
   in
 
 (*
+--# Validate a Pipeline
+--#
+--# Checks a pipeline for structural errors without throwing. Returns a list
+--# of error messages. An empty list means the pipeline is valid.
+--#
+--# Checks performed:
+--# - No dependency cycles
+--# - All referenced dependencies exist as nodes in the pipeline
+--#
+--# @name pipeline_validate
+--# @param p :: Pipeline The pipeline to validate.
+--# @return :: List[String] A list of validation error messages (empty = valid).
+--# @example
+--#   pipeline_validate(p)
+--# @family pipeline
+--# @seealso pipeline_assert, pipeline_cycles
+--# @export
+*)
+  let env = Env.add "pipeline_validate"
+    (make_builtin ~name:"pipeline_validate" 1 (fun args _env ->
+      match args with
+      | [VPipeline p] ->
+          let errors = ref [] in
+          let all_names = List.map fst p.p_exprs in
+          (* Check: all deps reference existing nodes *)
+          List.iter (fun (name, deps) ->
+            List.iter (fun dep ->
+              if not (List.mem dep all_names) then
+                errors := Printf.sprintf
+                  "Node `%s` depends on `%s` which does not exist in the pipeline."
+                  name dep :: !errors
+            ) deps
+          ) p.p_deps;
+          (* Check: no cycles *)
+          let cycles = detect_cycles p.p_deps in
+          if cycles <> [] then
+            errors := Printf.sprintf
+              "Pipeline has dependency cycle(s) involving: %s."
+              (String.concat ", " cycles) :: !errors;
+          VList (List.map (fun msg -> (None, VString msg)) (List.rev !errors))
+      | [_] -> Error.type_error "Function `pipeline_validate` expects a Pipeline."
+      | _ -> Error.arity_error_named "pipeline_validate" 1 (List.length args)
+    ))
+    env
+  in
+
+(*
+--# Assert Pipeline Validity
+--#
+--# Validates the pipeline and returns it unchanged if valid. Throws the first
+--# validation error found if the pipeline is invalid.
+--#
+--# @name pipeline_assert
+--# @param p :: Pipeline The pipeline to validate.
+--# @return :: Pipeline The same pipeline if valid.
+--# @example
+--#   p |> pipeline_assert
+--# @family pipeline
+--# @seealso pipeline_validate, pipeline_cycles
+--# @export
+*)
+  let env = Env.add "pipeline_assert"
+    (make_builtin ~name:"pipeline_assert" 1 (fun args _env ->
+      match args with
+      | [VPipeline p as v] ->
+          let all_names = List.map fst p.p_exprs in
+          (* Check: missing deps *)
+          let first_missing = List.find_map (fun (name, deps) ->
+            List.find_map (fun dep ->
+              if not (List.mem dep all_names) then
+                Some (Printf.sprintf
+                  "Node `%s` depends on `%s` which does not exist in the pipeline."
+                  name dep)
+              else None
+            ) deps
+          ) p.p_deps in
+          (match first_missing with
+           | Some msg -> Error.make_error ValueError msg
+           | None ->
+               let cycles = detect_cycles p.p_deps in
+               if cycles <> [] then
+                 Error.make_error ValueError
+                   (Printf.sprintf "Pipeline has dependency cycle(s) involving: %s."
+                      (String.concat ", " cycles))
+               else v)
+      | [_] -> Error.type_error "Function `pipeline_assert` expects a Pipeline."
+      | _ -> Error.arity_error_named "pipeline_assert" 1 (List.length args)
+    ))
+    env
+  in
+
+(*
+--# Pretty-Print a Pipeline
+--#
+--# Prints a human-readable summary of the pipeline nodes to stdout, showing
+--# each node's name, runtime, depth, noop status, and dependencies.
+--#
+--# @name pipeline_print
+--# @param p :: Pipeline The pipeline to print.
+--# @return :: Null
+--# @example
+--#   pipeline_print(p)
+--# @family pipeline
+--# @seealso pipeline_to_frame
+--# @export
+*)
+  let env = Env.add "pipeline_print"
+    (make_builtin ~name:"pipeline_print" 1 (fun args _env ->
+      match args with
+      | [VPipeline p] ->
+          let depths = Pipeline_to_frame.compute_depths p.p_deps in
+          let node_names = List.map fst p.p_exprs in
+          let n = List.length node_names in
+          Printf.printf "Pipeline (%d nodes):\n" n;
+          List.iter (fun name ->
+            let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+            let depth   = match List.assoc_opt name depths with Some d -> d | None -> 0 in
+            let noop    = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
+            let deps    = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+            Printf.printf "  %-20s  runtime=%-8s  depth=%d  noop=%-5b  deps=[%s]\n"
+              name runtime depth noop (String.concat ", " deps)
+          ) node_names;
+          (VNA NAGeneric)
+      | [_] -> Error.type_error "Function `pipeline_print` expects a Pipeline."
+      | _ -> Error.arity_error_named "pipeline_print" 1 (List.length args)
+    ))
+    env
+  in
+
+(*
 --# Export Pipeline/MetaPipeline as DOT Graph
 --#
 --# Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline

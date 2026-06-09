@@ -884,18 +884,18 @@ pipeline_edges(p)|}
 
   print_newline ();
 
-  Printf.printf "Phase 4 — pipeline_dot:\n";
+  Printf.printf "Phase 4 — pipeline_to_dot:\n";
 
-  (* pipeline_dot: returns non-empty string *)
+  (* pipeline_to_dot: returns non-empty string *)
   let (v, _) = eval_string_env
-    {|p = pipeline { a = 1; b = a + 1 }; pipeline_dot(p)|}
+    {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_dot(p)|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
-       incr pass_count; Printf.printf "  ✓ pipeline_dot returns DOT string\n"
+       incr pass_count; Printf.printf "  ✓ pipeline_to_dot returns DOT string\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_dot\n    Expected: DOT string\n    Got: %s\n"
+       let msg = Printf.sprintf "  ✗ pipeline_to_dot\n    Expected: DOT string\n    Got: %s\n"
          (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
