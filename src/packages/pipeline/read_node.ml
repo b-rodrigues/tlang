@@ -423,7 +423,10 @@ let register env =
     match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
         run_interactive_subshell ~env cn
-    | _ -> Error.type_error "debug_node: expected a ComputedNode."
+    | other ->
+        Error.type_error
+          (Printf.sprintf "debug_node: expected a ComputedNode, but got %s."
+             (Utils.type_name other))
   in
 
   let read_fn named_args _env =
@@ -477,7 +480,9 @@ let register env =
              Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got %s." (Utils.type_name other)))
     | VPipeline _ ->
         Error.type_error "read_node: expected a ComputedNode for argument 'node', but got Pipeline. Use read_node(p.node_name) instead."
-    | VNA _ -> Error.make_error ValueError "read_node: requires a ComputedNode object."
+    | VNA _ ->
+        Error.make_error ValueError
+          "read_node: requires a ComputedNode object. Use p.node_name (e.g. read_node(p.clean)) to access a node."
     | other ->
         Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got %s." (Utils.type_name other))
   in
@@ -523,7 +528,10 @@ let register env =
           ("nodes", nodes);
           ("diagnostics", Ast.Utils.pipeline_diagnostics_to_value pipeline_diagnostics);
         ]
-    | _ -> Error.type_error "read_pipeline: expected a Pipeline."
+    | other ->
+        Error.type_error
+          (Printf.sprintf "read_pipeline: expected a Pipeline, but got %s."
+             (Utils.type_name other))
   in
 
 (*
@@ -617,7 +625,10 @@ let register env =
              VComputedNode { cn with cn_path = new_path }
          | Ok (_, output) -> Error.make_error GenericError (Printf.sprintf "rebuild_node failed: %s" output)
          | Error msg -> Error.make_error GenericError (Printf.sprintf "Failed to run nix-build: %s" msg))
-    | _ -> Error.type_error "rebuild_node: expected a ComputedNode."
+    | other ->
+        Error.type_error
+          (Printf.sprintf "rebuild_node: expected a ComputedNode, but got %s."
+             (Utils.type_name other))
   in
 
   let _ = 

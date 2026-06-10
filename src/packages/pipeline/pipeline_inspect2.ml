@@ -64,7 +64,10 @@ let register env =
             ) deps
           ) p_deps in
           VList edges
-      | [_] -> Error.type_error "Function `pipeline_edges` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_edges` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_edges" 1 (List.length args)
     ))
     env
@@ -90,7 +93,10 @@ let register env =
       | [VPipeline { p_deps; _ }] ->
           let roots = root_nodes p_deps in
           VList (List.map (fun n -> (None, VString n)) roots)
-      | [_] -> Error.type_error "Function `pipeline_roots` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_roots` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_roots" 1 (List.length args)
     ))
     env
@@ -116,7 +122,10 @@ let register env =
       | [VPipeline { p_deps; _ }] ->
           let leaves = leaf_nodes p_deps in
           VList (List.map (fun n -> (None, VString n)) leaves)
-      | [_] -> Error.type_error "Function `pipeline_leaves` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_leaves` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_leaves" 1 (List.length args)
     ))
     env
@@ -144,7 +153,10 @@ let register env =
           let depths = Pipeline_to_frame.compute_depths p.p_deps in
           let max_d = List.fold_left (fun acc (_, d) -> max acc d) 0 depths in
           VInt max_d
-      | [_] -> Error.type_error "Function `pipeline_depth` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_depth` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_depth" 1 (List.length args)
     ))
     env
@@ -171,7 +183,10 @@ let register env =
       | [VPipeline p] ->
           let cycles = detect_cycles p.p_deps in
           VList (List.map (fun n -> (None, VString n)) cycles)
-      | [_] -> Error.type_error "Function `pipeline_cycles` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_cycles` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_cycles" 1 (List.length args)
     ))
     env
@@ -218,7 +233,10 @@ let register env =
               "Pipeline has dependency cycle(s) involving: %s."
               (String.concat ", " cycles) :: !errors;
           VList (List.map (fun msg -> (None, VString msg)) (List.rev !errors))
-      | [_] -> Error.type_error "Function `pipeline_validate` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_validate` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_validate" 1 (List.length args)
     ))
     env
@@ -263,7 +281,10 @@ let register env =
                    (Printf.sprintf "Pipeline has dependency cycle(s) involving: %s."
                       (String.concat ", " cycles))
                else v)
-      | [_] -> Error.type_error "Function `pipeline_assert` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_assert` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_assert" 1 (List.length args)
     ))
     env
@@ -301,7 +322,10 @@ let register env =
               name runtime depth noop (String.concat ", " deps)
           ) node_names;
           (VNA NAGeneric)
-      | [_] -> Error.type_error "Function `pipeline_print` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_print` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_print" 1 (List.length args)
     ))
     env
@@ -354,7 +378,10 @@ let register env =
           (match Pipeline_composition.flatten_meta v with
            | VPipeline p -> render p
            | e -> e)
-      | [_] -> Error.type_error "Function `pipeline_to_dot` expects a Pipeline or MetaPipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_to_dot` expects a Pipeline or MetaPipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_to_dot" 1 (List.length args)
     ))
     env
@@ -453,7 +480,10 @@ let register env =
           (match Pipeline_composition.flatten_meta v with
            | VPipeline p -> render p
            | e -> e)
-      | [_] -> Error.type_error "Function `pipeline_to_mermaid` expects a Pipeline or MetaPipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_to_mermaid` expects a Pipeline or MetaPipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_to_mermaid" 1 (List.length args)
     ))
     env

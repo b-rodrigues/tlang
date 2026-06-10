@@ -101,8 +101,8 @@ let register env =
                         ] in
                         let arrow_table = Arrow_table.create columns nrows in
                         VDataFrame { arrow_table; group_keys = [] })
-           | _ -> Error.type_error "Function `pipeline_gc` expects `dry_run` to be a Bool.")
-      | _ -> Error.type_error "Function `pipeline_gc` expects a Pipeline."
+           | other -> Error.type_error (Printf.sprintf "Function `pipeline_gc` expects `dry_run` to be a Bool, but got %s." (Utils.type_name other)))
+      | (_, other) -> Error.type_error (Printf.sprintf "Function `pipeline_gc` expects a Pipeline, but got %s." (Utils.type_name other))
   in
   let env = Env.add "pipeline_gc" (make_builtin_named ~name:"pipeline_gc" ~variadic:true 1 gc_fn) env in
 (*

@@ -40,12 +40,16 @@ let read_past_node_fn named_args _env =
                 Error.make_error KeyError
                   (Printf.sprintf "read_past_node: node '%s' not found in any build log matching '%s'. Use list_logs() to inspect available logs."
                      name s))
-       | _ ->
-           Error.type_error "read_past_node: expected `p.node_name` syntax for the node argument.")
+        | other ->
+            Error.type_error
+              (Printf.sprintf "read_past_node: expected `p.node_name` syntax for the node argument, but got %s."
+                 (Utils.type_name other)))
   | VNA _ ->
       Error.make_error ValueError "read_past_node: `which_log` is required."
-  | _ ->
-      Error.type_error "read_past_node: `which_log` expects a String."
+  | other ->
+      Error.type_error
+        (Printf.sprintf "read_past_node: `which_log` expects a String, but got %s."
+           (Utils.type_name other))
 
 let register env =
   Env.add "read_past_node"

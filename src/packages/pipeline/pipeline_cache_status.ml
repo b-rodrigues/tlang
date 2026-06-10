@@ -54,7 +54,10 @@ let register env =
                      ] in
                       let arrow_table = Arrow_table.create columns nrows in
                       VDataFrame { arrow_table; group_keys = [] }))
-      | [_] -> Error.type_error "Function `pipeline_cache_status` expects a Pipeline as argument."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_cache_status` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_cache_status" 1 (List.length args)
       ))
     env

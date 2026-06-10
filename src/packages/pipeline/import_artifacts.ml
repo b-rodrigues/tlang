@@ -28,10 +28,14 @@ let register env =
           (match Builder_artifacts.import_artifacts target_val archive_path with
            | Ok message -> VString message
            | Error err -> Error.make_error err.code err.message)
-      | [_; _] ->
-          Error.type_error "Function `import_artifacts` expects the second argument to be a String."
-      | [_] ->
-          Error.type_error "Function `import_artifacts` expects a String argument."
+      | [first; second] ->
+          Error.type_error
+            (Printf.sprintf "Function `import_artifacts` expects a Pipeline/String and a String, but got %s and %s."
+               (Utils.type_name first) (Utils.type_name second))
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `import_artifacts` expects a String argument, but got %s."
+               (Utils.type_name other))
       | _ ->
           Error.arity_error_named "import_artifacts" 2 (List.length args)
     ))

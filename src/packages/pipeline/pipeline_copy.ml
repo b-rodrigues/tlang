@@ -57,8 +57,10 @@ let register env =
     match get_arg "node" 1 (VNA NAGeneric) named_args with
     | VNA _ -> (match run_copy None with Ok v -> v | Error e -> e)
     | VString node_name | VSymbol node_name -> (match run_copy (Some node_name) with Ok v -> v | Error e -> e)
-    | _ ->
-        Error.type_error "Function `pipeline_copy` expects `node` to be a String, Symbol, or NA."
+    | other ->
+        Error.type_error
+          (Printf.sprintf "Function `pipeline_copy` expects `node` to be a String, Symbol, or NA, but got %s."
+             (Utils.type_name other))
   in
 
   env

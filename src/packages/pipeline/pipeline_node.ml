@@ -22,8 +22,14 @@ let register env =
           (match v with
            | VNA _ -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." name)
            | _ -> v)
-      | [VPipeline _; _] -> Error.type_error "Function `pipeline_node` expects a String node name as second argument."
-      | [_; _] -> Error.type_error "Function `pipeline_node` expects a Pipeline as first argument."
+      | [VPipeline _; other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_node` expects a String node name as second argument, but got %s."
+               (Utils.type_name other))
+      | [first; _] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_node` expects a Pipeline as first argument, but got %s."
+               (Utils.type_name first))
       | _ -> Error.arity_error_named "pipeline_node" 2 (List.length args)
     ))
     env

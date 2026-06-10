@@ -146,6 +146,9 @@ let register env =
         flush stdout;
         (VNA NAGeneric)
         end
-    | _ -> Error.type_error "Function `trace_nodes` expects a Pipeline as its first argument."
+    | (_, other) ->
+        Error.type_error
+          (Printf.sprintf "Function `trace_nodes` expects a Pipeline as its first argument, but got %s."
+             (Utils.type_name other))
   in
   Env.add "trace_nodes" (make_builtin_named ~name:"trace_nodes" ~variadic:true 1 trace_fn) env

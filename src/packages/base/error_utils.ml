@@ -162,7 +162,10 @@ let register env =
           (match resolve_warning_val v with
            | Some w -> VString w
            | None -> VString "")
-      | [_] -> Error.type_error "Function `warning_msg` expects a ComputedNode."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `warning_msg` expects a ComputedNode, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "warning_msg" 1 (List.length args)
     ))
     env in

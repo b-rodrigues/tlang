@@ -21,8 +21,10 @@ let register env =
           (match Builder_artifacts.export_artifacts target_val archive_path with
            | Ok message -> VString message
            | Error err -> Error.make_error err.code err.message)
-      | [_; _] ->
-          Error.type_error "Function `export_artifacts` expects `archive_path` to be a String."
+      | [first; second] ->
+          Error.type_error
+            (Printf.sprintf "Function `export_artifacts` expects a Pipeline and a String, but got %s and %s."
+               (Utils.type_name first) (Utils.type_name second))
       | _ ->
           Error.arity_error_named "export_artifacts" 2 (List.length args)
     ))

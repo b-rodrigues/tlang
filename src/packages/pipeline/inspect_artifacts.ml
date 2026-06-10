@@ -37,8 +37,10 @@ let register env =
                ] in
                let arrow_table = Arrow_table.create columns nrows in
                VDataFrame { arrow_table; group_keys = [] })
-      | [_] ->
-          Error.type_error "Function `inspect_artifacts` expects a String argument."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `inspect_artifacts` expects a String, but got %s."
+               (Utils.type_name other))
       | _ ->
           Error.arity_error_named "inspect_artifacts" 1 (List.length args)
     ))
