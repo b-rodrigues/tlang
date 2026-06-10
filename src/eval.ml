@@ -2719,8 +2719,10 @@ and eval_call env_ref fn_val raw_args =
           process_args_spliced next_acc (param_index + 1) rest
         else
         let v = match e.node with
-          | _ when current_builtin_name = Some "read_past_node" && param_index = 0 && name = None ->
-              VExpr e
+          | _ when current_builtin_name = Some "read_past_node" && (param_index = 0 && name = None || name = Some "node") ->
+              (match eval_expr env_ref e with
+               | VError _ -> VExpr e
+               | evaluated -> evaluated)
           | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, name_expr); (_, value_expr)] } ->
               let n_val = eval_expr env_ref name_expr in
               (match extract_name_opt n_val with

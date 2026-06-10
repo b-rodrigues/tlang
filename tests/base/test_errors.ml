@@ -9,13 +9,13 @@ let run_tests pass_count fail_count _failures eval_string eval_string_env test =
   test "error_context() empty" "error_context(1 / 0)" "{}";
   test "is_error on constructed error" {|is_error(error("oops"))|} "true";
   test "error_code on type error" {|error_code(error("TypeError", "bad type"))|} {|"TypeError"|};
-  test "error_code on non-error" "error_code(42)" {|Error(TypeError: "Function `error_code` expects an Error value.")|};
-  test "error_msg on non-error" {|error_msg("hello")|} {|Error(TypeError: "Function `error_msg` expects an Error value.")|};
-  test "error_context on non-error" "error_context(42)" {|Error(TypeError: "Function `error_context` expects an Error value.")|};
+  test "error_code on non-error" "error_code(42)" {|Error(TypeError: "[L1:C1] Function `error_code` expects an Error value or node, but got Int.")|};
+  test "error_msg on non-error" {|error_msg("hello")|} {|Error(TypeError: "[L1:C1] Function `error_msg` expects an Error value or node, but got String.")|};
+  test "error_context on non-error" "error_context(42)" {|Error(TypeError: "[L1:C1] Function `error_context` expects an Error value or node, but got Int.")|};
   test "error_code arity error" "error_code()" {|Error(ArityError: "Function `error_code` expects 1 arguments but received 0.")|};
   test "error_msg arity error" "error_msg()" {|Error(ArityError: "Function `error_msg` expects 1 arguments but received 0.")|};
   test "error_context arity error" "error_context()" {|Error(ArityError: "Function `error_context` expects 1 arguments but received 0.")|};
-  test "warning_msg on non-computed node" {|warning_msg("hello")|} {|Error(TypeError: "[L1:C1] Function `warning_msg` expects a ComputedNode, but got String.")|};
+  test "warning_msg on non-computed node" {|warning_msg("hello")|} {|Error(TypeError: "[L1:C1] Function `warning_msg` expects a ComputedNode or NodeResult, but got String.")|};
   test "warning_msg arity error" "warning_msg()" {|Error(ArityError: "Function `warning_msg` expects 1 arguments but received 0.")|};
   let located_error =
     Ast.make_error

@@ -30,8 +30,15 @@ let read_past_node_fn named_args _env =
   let node_expr = extract_arg "node" 1 (VNA NAGeneric) named_args in
   match extract_arg "which_log" 2 (VNA NAGeneric) named_args with
   | VString s ->
-      (match node_expr with
-       | VExpr { node = DotAccess { field = name; _ }; _ } ->
+      let node_name_opt =
+        match node_expr with
+        | VExpr { node = DotAccess { field = name; _ }; _ }
+        | VExpr { node = Var name; _ } -> Some name
+        | VComputedNode cn -> Some cn.cn_name
+        | _ -> None
+      in
+      (match node_name_opt with
+       | Some name ->
            (match Builder.latest_logged_computed_node ~log_name_pattern:s name with
             | Some cn ->
                 let raw_val = Builder.logged_node_value cn.cn_name cn in
@@ -40,10 +47,10 @@ let read_past_node_fn named_args _env =
                 Error.make_error KeyError
                   (Printf.sprintf "read_past_node: node '%s' not found in any build log matching '%s'. Use list_logs() to inspect available logs."
                      name s))
-        | other ->
+       | None ->
             Error.type_error
-              (Printf.sprintf "read_past_node: expected `p.node_name` syntax for the node argument, but got %s."
-                 (Utils.type_name other)))
+              (Printf.sprintf "read_past_node: expected `p.node_name` syntax, a bare node name, or a ComputedNode for the node argument, but got %s."
+                 (Utils.type_name node_expr)))
   | VNA _ ->
       Error.make_error ValueError "read_past_node: `which_log` is required."
   | other ->

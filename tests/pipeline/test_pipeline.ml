@@ -944,6 +944,18 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       test "read_node error exposes context dict"
         "read_past_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").context.node_status"
         {|"errored"|};
+      test "read_past_node with named argument"
+        "read_past_node(node = pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\").context.node_status"
+        {|"errored"|};
+      test "read_past_node with bare node variable"
+        "my_node_var = pipeline { error_node = node() }.error_node; read_past_node(my_node_var, which_log=\"ocaml_mock\").context.node_status"
+        {|"errored"|};
+      test "error_code on read_past_node VNodeResult"
+        "error_code(read_past_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\"))"
+        {|"RuntimeError"|};
+      test "error_msg on read_past_node VNodeResult"
+        "error_msg(read_past_node(pipeline { error_node = node() }.error_node, which_log=\"ocaml_mock\"))"
+        (Ast.Utils.value_to_string (Ast.VString mocked_error_message));
 
       test "read_node falls back to artifact deserializer when plot viz sidecar is absent"
         "read_past_node(pipeline { plot_json_node = node() }.plot_json_node, which_log=\"legacy_version\").title"

@@ -45,6 +45,19 @@ let find_logged_error node_name =
   find_in_logs logs
 
 let resolve_error_val = function
+  | VNodeResult { diagnostics; _ } ->
+      (match diagnostics.nd_error with
+       | Some err ->
+           Some {
+             re_code = err.ne_kind;
+             re_message = err.ne_message;
+             re_context = [
+               ("fn", VString err.ne_fn);
+               ("na_count", VInt err.ne_na_count);
+               ("node_status", VString "errored")
+             ];
+           }
+       | None -> None)
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
       if cn.cn_path = "" || cn.cn_path = "<unbuilt>" then
@@ -78,6 +91,9 @@ let resolve_error_val = function
   | _ -> None
 
 let resolve_warning_val = function
+  | VNodeResult { diagnostics; _ } when diagnostics.nd_warnings <> [] ->
+      let s = Ast.Utils.format_warning_messages diagnostics.nd_warnings in
+      if s <> "" then Some s else None
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
       (match Ast.get_in_memory_node_value_for_cn cn with
@@ -108,11 +124,14 @@ let register env =
     (make_builtin ~name:"error_code" 1 (fun args _env ->
       match args with
       | [VError { code; _ }] -> VString (Utils.error_code_to_string code)
-      | [VComputedNode _ as v] ->
+      | [(VComputedNode _ | VNodeResult _) as v] ->
           (match resolve_error_val v with
            | Some err -> VString err.re_code
            | None -> Error.type_error "Function `error_code` expects an Error value.")
-      | [_] -> Error.type_error "Function `error_code` expects an Error value."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `error_code` expects an Error value or node, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "error_code" 1 (List.length args)
     ))
     env in
@@ -132,11 +151,14 @@ let register env =
     (make_builtin ~name:"error_msg" 1 (fun args _env ->
       match args with
       | [VError { message; _ }] -> VString message
-      | [VComputedNode _ as v] ->
+      | [(VComputedNode _ | VNodeResult _) as v] ->
           (match resolve_error_val v with
            | Some err -> VString err.re_message
            | None -> Error.type_error "Function `error_msg` expects an Error value.")
-      | [_] -> Error.type_error "Function `error_msg` expects an Error value."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `error_msg` expects an Error value or node, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "error_msg" 1 (List.length args)
     ))
     env in
@@ -158,13 +180,13 @@ let register env =
   let env = Env.add "warning_msg"
     (make_builtin ~name:"warning_msg" 1 (fun args _env ->
       match args with
-      | [VComputedNode _ as v] ->
+      | [(VComputedNode _ | VNodeResult _) as v] ->
           (match resolve_warning_val v with
            | Some w -> VString w
            | None -> VString "")
       | [other] ->
           Error.type_error
-            (Printf.sprintf "Function `warning_msg` expects a ComputedNode, but got %s."
+            (Printf.sprintf "Function `warning_msg` expects a ComputedNode or NodeResult, but got %s."
                (Utils.type_name other))
       | _ -> Error.arity_error_named "warning_msg" 1 (List.length args)
     ))
@@ -187,11 +209,14 @@ let register env =
       match args with
       | [VError { context; _ }] ->
           VDict context
-      | [VComputedNode _ as v] ->
+      | [(VComputedNode _ | VNodeResult _) as v] ->
           (match resolve_error_val v with
            | Some err -> VDict err.re_context
            | None -> Error.type_error "Function `error_context` expects an Error value.")
-      | [_] -> Error.type_error "Function `error_context` expects an Error value."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `error_context` expects an Error value or node, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "error_context" 1 (List.length args)
     ))
     env in
