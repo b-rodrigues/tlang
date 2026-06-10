@@ -374,6 +374,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
       let node_has_warnings = Hashtbl.create (List.length node_names) in
       let node_start_times = Hashtbl.create (List.length node_names) in
       let node_durations = Hashtbl.create (List.length node_names) in
+      let node_was_built = Hashtbl.create (List.length node_names) in
       
       let callback line =
         Buffer.add_string captured_output line;
@@ -382,7 +383,8 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         let line = String.trim line in
         if String.starts_with ~prefix:"building '/nix/store/" line then (
           match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
-          | Some name -> 
+          | Some name ->
+              Hashtbl.replace node_was_built name true;
               Hashtbl.replace node_start_times name (Unix.gettimeofday ());
               let drv_path = 
                 try
@@ -603,6 +605,13 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                   let out_path = List.nth store_paths (List.length store_paths - 1) in
                   let reconcile_end_time = Unix.gettimeofday () in
                   
+                  (* Compute cache info before reconciliation overwrites statuses *)
+                  let built_from_nix = Hashtbl.create (List.length node_names) in
+                  Hashtbl.iter (fun k _ -> Hashtbl.replace built_from_nix k true) node_was_built;
+                  let cached_nodes = List.filter (fun n -> not (Hashtbl.mem built_from_nix n)) node_names in
+                  let cached_count = List.length cached_nodes in
+                  let built_count = Hashtbl.length built_from_nix in
+
                   (* Reconcile statuses: if nix-build succeeded, check which nodes were built (cached or otherwise) *)
                   List.iter (fun name ->
                     let node_path = Filename.concat out_path name in
@@ -636,26 +645,56 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                   let completed = List.filter (fun n -> Hashtbl.find statuses n = "Completed") node_names in
                   let soft_failed = List.filter (fun n -> Hashtbl.find statuses n = "SoftFailed") node_names in
                   let with_warnings = List.filter (fun n -> Hashtbl.find_opt node_has_warnings n = Some true) node_names in
-                  let total_built = List.length completed + List.length soft_failed in
+
+                  let summary_parts = ref [] in
+                  if built_count > 0 then
+                    summary_parts := Printf.sprintf "%d built" built_count :: !summary_parts;
+                  if cached_count > 0 then
+                    summary_parts := Printf.sprintf "%d cached" cached_count :: !summary_parts;
+                  let summary_str =
+                    String.concat ", " (List.rev !summary_parts)
+                    ^ Printf.sprintf " / %d nodes" (List.length node_names)
+                  in
                    
                   if List.length soft_failed > 0 || List.length with_warnings > 0 then (
                     let msg = if List.length soft_failed > 0 then "\n✖ Pipeline build captured node errors" else "\n✓ Pipeline build completed" in
-                    Printf.eprintf "%s [%d succeeded, %d captured errors, %d had warnings]\n%!" 
-                      msg (List.length completed) (List.length soft_failed) (List.length with_warnings);
+                    Printf.eprintf "%s [%d succeeded, %d captured errors, %d had warnings%s]\n%!"
+                      msg (List.length completed) (List.length soft_failed) (List.length with_warnings)
+                      (if cached_count > 0 then Printf.sprintf ", %d cached" cached_count else "");
                     List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
                     List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
-                  ) else
-                    Printf.eprintf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
-                      total_built (List.length node_names);
-                  
-                  (match save_build_log (Some out_path) with
-                   | Error msg -> Error ("Failed to write build log: " ^ msg)
-                   | Ok () -> Ok (VString out_path)))
+                  ) else if built_count = 0 then
+                    Printf.eprintf "\n○ All nodes were already cached — nothing to build.\n%!"
+                  else
+                    Printf.eprintf "\n✓ Pipeline build completed [%s]\n%!" summary_str;
+
+                  if cached_count > 0 && built_count > 0 then
+                    Printf.eprintf "  (cached: %s)\n%!" (String.concat ", " cached_nodes);
+
+                  if built_count > 0 then
+                    (match save_build_log (Some out_path) with
+                     | Error msg -> Error ("Failed to write build log: " ^ msg)
+                     | Ok () ->
+                         Ok (VDict [
+                           ("out_path", VString out_path);
+                           ("built", VInt built_count);
+                           ("cached", VInt cached_count);
+                         ]))
+                  else
+                    Ok (VDict [
+                      ("out_path", VString "");
+                      ("built", VInt 0);
+                      ("cached", VInt cached_count);
+                    ]))
            | Unix.WEXITED 0 ->
               ignore (save_build_log None);
               Error "nix-build succeeded but did not return an output path."
            | _ ->
-              List.iter (fun name ->
+               (* Compute cache info before reconciliation overwrites statuses *)
+               let cached_nodes = List.filter (fun n -> not (Hashtbl.mem node_was_built n)) node_names in
+               let cached_count = List.length cached_nodes in
+
+               List.iter (fun name ->
                 match Hashtbl.find_opt node_store_paths name with
                 | Some node_path when node_path <> "" ->
                     if Sys.file_exists node_path then (
@@ -679,6 +718,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                   Printf.sprintf "%d nodes errored: %s" (List.length errored) (String.concat ", " errored)
                 else "General Nix build failure (check dependencies or environment)."
               in
+              let cache_summary = if cached_count > 0 then Printf.sprintf " [%d cached: %s]" cached_count (String.concat ", " cached_nodes) else "" in
               if verbose > 0 then (
                 if errored <> [] then
                   print_failed_node_logs drv_paths errored
@@ -699,11 +739,11 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                     Printf.sprintf " (%d warnings)" (List.length with_warnings)
                   else ""
                 in
-                Printf.eprintf "\n✖ Pipeline build failed [%s]%s%s\n%!" error_summary soft_failed_str warnings_str;
+                Printf.eprintf "\n✖ Pipeline build failed [%s]%s%s%s\n%!" error_summary soft_failed_str warnings_str cache_summary;
                 List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
                 List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
               ) else (
-                Printf.eprintf "\n✖ Pipeline build failed [%s]\n%!" error_summary
+                Printf.eprintf "\n✖ Pipeline build failed [%s]%s\n%!" error_summary cache_summary
               );
 
               let is_failed name =
