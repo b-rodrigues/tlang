@@ -1300,7 +1300,7 @@ p_updated = p_prod |> patch(p_overrides)
 pipeline_nodes(p_full)
 pipeline_deps(p_full)
 pipeline_to_frame(p_full)
-pipeline_dot(p_full)
+pipeline_to_dot(p_full)
 
 pipeline_validate(p_full)
 ```
@@ -2358,7 +2358,7 @@ error_msg(e2)  -- "Division by zero"
 
 ### `warning_msg(node)`
 
-Get the warning message from a completed computed node (if any exists).
+Get the warning message from a completed computed node (if any exists). Downstream nodes automatically inherit warnings from ancestor nodes, with each upstream warning prefixed by its source node name for clear provenance.
 
 **Parameters:**
 
@@ -2367,7 +2367,7 @@ Get the warning message from a completed computed node (if any exists).
 
 **Returns:**
 
-`String` — Warning message, or an empty string `""` if there are no warnings.
+`String` — Warning message, or an empty string `""` if there are no warnings. Upstream warnings are prefixed with `"Ancestor node '<name>' reported following warning: <message>"`. Multiple warnings are joined with `". Furthermore, "`.
 
 **Examples:**
 ```t
@@ -4050,9 +4050,9 @@ Constructs a Pipeline from a Dictionary of named nodes or a List of node records
 
 ---
 
-### `build_pipeline(p, verbose = 0)` / `populate_pipeline(p, build = true)`
+### `build_pipeline(p, verbose = 0, pipeline_name = NA)` / `populate_pipeline(p, build = true)`
 
-Materialize a pipeline to Nix artifacts. `build_pipeline` is the primary entry point for full Nix builds and returns a `BuildLog` value (`nodes`, `duration`, `failed_nodes`, `out_path`). `populate_pipeline` can be used to generate the Nix expression without building (with `build = false`).
+Materialize a pipeline to Nix artifacts. `build_pipeline` is the primary entry point for full Nix builds and returns a `BuildLog` value (`nodes`, `duration`, `failed_nodes`, `out_path`). `populate_pipeline` can be used to generate the Nix expression without building (with `build = false`). Use `pipeline_name` to record a name in the build log for later disambiguation via `list_logs()`.
 
 ---
 
@@ -4062,9 +4062,9 @@ Returns a dictionary with node metadata and diagnostics summary. `inspect_pipeli
 
 ---
 
-### `read_node(node, which_log = NA)`
+### `read_node(node)`
 
-Retrieves the dynamically evaluated or built artifact of a node. Strictly expects a `ComputedNode` object (e.g. `p.node_name`).
+Retrieves the dynamically evaluated or built artifact of a node from an in-scope pipeline. Strictly expects a `ComputedNode` object (e.g. `p.node_name`). For reading from historical build logs without the pipeline in scope, use [`read_past_node(p.node_name, which_log = ...)`](#read_past_node).
 
 ---
 
@@ -4402,7 +4402,7 @@ populate_pipeline(p, build = true, nix_options = [max_jobs: 4, cache: "rstats-on
 
 ---
 
-### `build_pipeline(pipeline, verbose = 0, nix_options = NA)`
+### `build_pipeline(pipeline, verbose = 0, nix_options = NA, pipeline_name = NA)`
 
 Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
 
@@ -4410,6 +4410,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 
 - `pipeline` — Pipeline object
 - `verbose` (optional) — Int build verbosity level. Defaults to `0` (quiet/minimalist live-status output without dumping failed node trace logs). Set `verbose = 1` or higher to print detailed node stdout/stderr failures directly to the terminal on build error.
+- `pipeline_name` (optional) — String or Symbol. Records a human-readable name in the build log JSON (`"pipeline"` field) to help disambiguate logs in `list_logs()`.
 - `nix_options` (optional) — Dict of Nix build options. Supported keys:
   - `targets` — String, List, or Vector of specific node names to build.
   - `force` — Bool, String, List, or Vector of specific nodes to force-rebuild.
@@ -4438,24 +4439,39 @@ build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-
 
 ---
 
-### `read_node(node, which_log = NA)`
+### `read_node(node)`
 
-Read a dynamically evaluated or materialized artifact from a pipeline build.
+Read a dynamically evaluated or materialized artifact from an in-scope pipeline build.
 
 **Parameters:**
 
 
 - `node` — The ComputedNode to read (e.g. `p.node_name`)
-- `which_log` (optional) — Regex pattern or filename of a specific build log. Defaults to latest.
 
 **Returns:**
 
-Deserialized value.
+Deserialized value, wrapped with diagnostics.
 
 **Examples:**
 ```t
 read_node(p.summary_stats)
-read_node(p.model_v1, which_log = "20260221")
+```
+
+---
+
+### `read_past_node(node, which_log)`
+
+Read a pipeline node from a specific historical build log without the pipeline being in scope. The node argument is NSE-captured from `p.node_name` syntax.
+
+**Parameters:**
+
+
+- `node` — The node to read, written as `p.node_name` (captured before evaluation)
+- `which_log` (required) — Regex pattern matching a specific build log filename
+
+**Examples:**
+```t
+read_past_node(base_p.raw, which_log = "qcfs")
 ```
 
 ---
@@ -6183,17 +6199,33 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.52.3] - 2026-06-07
+## [0.52.3] - 2026-06-09
 
 This release:
 
 - introduces a new meta-pipeline composition feature (`pipeline_of`), first-class artifact export/import capabilities, meta-pipeline graph visualization, interactive Mermaid browser rendering, and cache-aware dry runs with programmatic garbage collection.
+- Introduces lazy pipeline evaluation, deferring T node evaluation to build time and eliminating redundant re-evaluation cycles.
 - Includes comprehensive bug fixes across stats, core, CSV, and pipeline subsystems, and a systematic codebase-wide safety refactoring following OCaml best practices.
 
-### Pipeline Soft-Fail & Early-Abort Semantics
-- **Block Evaluation Early Abort**: Blocks (`{ ... }`) now abort immediately on encountering a `VError`, returning the error rather than continuing evaluation of remaining statements. This is a breaking change for code that relied on ignoring intermediate block errors.
+### Pipeline Soft-Fail & Error Recovery
+- **Block Evaluation Error Recovery**: Blocks (`{ ... }`) now abort immediately on encountering a `VError` from a bare expression, preventing silent error accumulation. However, `VError` values from `Assignment` and `Reassignment` statements no longer abort the block — the error is bound to the variable and subsequent statements (typically a `match`) can handle it. This enables patterns like `{ x = 42 / 0; match(x) { Error { msg } => 0, default => x } }` where a risky computation is captured and recovered.
 - **Conditional Serialization on soft-fail**: Nodes that soft-fail and return `VError` now conditionally fall back to binary `serialize`/`deserialize` rather than triggering configured custom serializers (like Arrow), preventing crashes.
 - **Failed Node Diagnostics**: Host tools and logs now safely resolve and deserialize binary T error payloads.
+
+### Lazy Pipeline Evaluation
+- **Deferred T node evaluation**: T nodes are now evaluated lazily — the `get_pipeline_member` function no longer eagerly evaluates T expressions when a pipeline is accessed. Evaluation is deferred to `rerun_pipeline` at build time via `build_pipeline()`. This eliminates redundant re-evaluation cycles, improves performance for large pipelines, and avoids side-effect leakage from unbuilt nodes.
+- **Cross-pipeline dependency resolution**: Dependency detection now uses `p.p_nodes` instead of `p.p_exprs` for identifying resolved nodes from other pipelines, improving accuracy of dependency inference.
+
+### Warning Propagation & Diagnostics
+- **Upstream warning inheritance**: After `build_pipeline(p)`, downstream nodes now automatically inherit warnings from ancestor nodes. `warning_msg(downstream)` shows warnings with source provenance (`"Ancestor node '<name>' reported following warning: <message>"`). Multiple warnings (own + upstream, or from multiple ancestors) are joined with `". Furthermore, "`.
+- **`inspect_node` now shows warnings**: `inspect_node(node)` returns a `warnings` field with a structured list of dicts (`source` + `message`), showing both own and inherited upstream warnings.
+- **Removed `.warnings` from `read_node()` return**: The `.warnings` field on `read_node()` results has been removed. Use `warning_msg(node)` for a formatted warning message or `inspect_node(node).warnings` for structured warning metadata.
+
+### Historical Node Access & Build Log Identity
+- **`read_past_node(p.node_name, which_log)`**: New NSE-captured function to read a pipeline node from a specific historical build log without the pipeline being in scope. The first argument is captured before evaluation, so `read_past_node(base_p.raw, which_log = "qcfs")` works even when `base_p` is not defined. `which_log` is mandatory — no default.
+- **Simplified `read_node`**: The `which_log` parameter has been removed from `read_node`. Use `read_past_node(p.node_name, which_log = "...")` for historical reads, and `read_node(p.node_name)` for in-scope pipeline reads.
+- **`pipeline_name` on `build_pipeline`**: `build_pipeline(p, pipeline_name = "my_name")` now records the pipeline name in the build log JSON (`"pipeline"` field). `list_logs()` shows a new `pipeline` column for disambiguation.
+- **Removed `pipeline_summary` and `pipeline_dot`**: These convenience aliases have been removed. Use `pipeline_to_frame(p)` instead of `pipeline_summary(p)`, and `pipeline_to_dot(p)` instead of `pipeline_dot(p)`. `pipeline_to_dot` also handles `MetaPipeline`.
 
 ### Pipeline Visualization
 - **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.
@@ -6286,6 +6318,7 @@ populate_pipeline(meta_graph, build = true)
 - **Pipeline — inspect_artifacts resource leaks**: Resolved file descriptor and directory handle leaks in `inspect_artifacts`, and restored scalar `TypeError` for invalid inputs.
 - **Pipeline — NixError fallback**: Restored original `NixError` fallback behavior for empty trimmed `last_part` in `builder_internal.ml`.
 - **Pipeline — dependency namespace fixes**: Standardized runtime emission helper naming (`__node_result` across all runtimes), fixed R variable naming compatibility (`dep_` prefix), and corrected dependency namespace generation.
+- **Pipeline — rename_node cn_name sync**: Fixed a bug where `rename_node` updated the assoc-list key in `p_nodes` but left `VComputedNode.cn_name` unchanged, causing downstream lookups (`resolved_cn`, `computed_node_resolver`, `read_node`) to search using the stale name and fail with `<unbuilt>` path errors.
 
 ### Codebase Safety Refactoring
 
@@ -10458,6 +10491,31 @@ After a build, T provides an iconographic summary:
 
 - **`!` (Captured error)**: The node failed, producing a `VError` artifact.
 - **`?` (Warnings)**: The node succeeded, but issued non-terminal diagnostics.
+
+### Upstream Warning Propagation
+
+When a node emits a warning, downstream nodes that depend on it automatically inherit that warning. This ensures that warnings are never silently lost in a pipeline chain.
+
+Use `warning_msg(node)` to inspect a node's own warnings and any warnings inherited from ancestor nodes:
+
+```t
+warning_msg(p.filtered)
+-- "filter() excluded 1 row because the predicate evaluated to NA"
+
+warning_msg(p.count)        -- downstream of `filtered`
+-- "Ancestor node 'filtered' reported following warning: filter() excluded 1 row because the predicate evaluated to NA"
+```
+
+Use `inspect_node(node).warnings` for structured access:
+
+```t
+inspect_node(p.count).warnings
+-- [
+--   { source: "filtered", message: "filter() excluded 1 row because the predicate evaluated to NA" }
+-- ]
+```
+
+The per-node diagnostics in `read_pipeline(p).nodes` carry full warning lists as well. The aggregate `diagnostics.summary` counts only own warnings, so the pipeline-level summary reflects which nodes originally produced warnings without double-counting inherited ones.
 
 ### Investigating with `explain()`
 
@@ -15108,7 +15166,87 @@ By following this loop—**Build ➔ Verify ➔ Plot ➔ Extend**—you can comf
 
 ---
 
-## 2. Explicit Node Configuration
+## 2. Pipeline Function Quick Reference
+
+A consolidated index of all pipeline reading, inspecting, and build-log functions. Use this as a cheatsheet to find the right tool for the job.
+
+### Reading Node Artifacts
+
+| Function | Parameters | Returns | What it does |
+|---|---|---|---|
+| `read_node(node)` | `ComputedNode` | deserialized value + diagnostics | Read in-scope pipeline node artifact |
+| `read_past_node(p.name, which_log)` | NSE-captured node, `String` (required) | deserialized value + diagnostics | Read from historical build log without pipeline in scope |
+| `read_pipeline(p)` | `Pipeline` | `Dict` | Per-node values + diagnostics + aggregated summary |
+| `pipeline_node(p, name)` | `Pipeline`, `String` | `Any` | Value of a specific node by name |
+
+### Build Logs & History
+
+| Function | Parameters | Returns | What it does |
+|---|---|---|---|
+| `build_log(p, which_log?)` | `Pipeline`, optional `String` | `BuildLog` | Structured build log for latest (or specified) build |
+| `build_log_to_frame(log)` | `BuildLog` | `DataFrame` | Build log as DataFrame (name, status, duration, path) |
+| `build_log_history(p, n?, pattern?)` | `Pipeline`, optional `Int`, `String` | `DataFrame` | History of all builds matching pipeline's node signature |
+| `list_logs()` | — | `DataFrame` | All log files in `_pipeline/` (filename, mtime, size, pipeline) |
+| `inspect_log(p?, which_log?)` | optional `Pipeline`, optional `String` | `DataFrame` | Derivation-level build status (derivation, build_success, path) |
+| `read_log(node_name)` | `String` | `String` | Raw Nix build log text for a specific node |
+
+### Node Inspection & Diagnostics
+
+| Function | Parameters | Returns | What it does |
+|---|---|---|---|
+| `inspect_node(node)` | `ComputedNode` | `Dict` | Static metadata (runtime, path, class, deps) + structured warnings |
+| `warning_msg(node)` | `ComputedNode` | `String` | Formatted warning message (own + upstream with source prefix) |
+| `collect_exceptions(p)` | `Pipeline` | `DataFrame` | Structured error/warning DataFrame from built pipeline |
+| `suppress_warnings(val)` | `Any` | original value | Suppress console warnings for a node; still accessible via `warning_msg()` |
+| `debug_node(node)` | `ComputedNode` | `NA` | Interactive REPL subshell pre-configured with node environment |
+| `rebuild_node(node)` | `ComputedNode` | `ComputedNode` | Rebuild a single node and return updated artifact path |
+
+### Pipeline DAG Structure
+
+| Function | Parameters | Returns | What it does |
+|---|---|---|---|
+| `pipeline_to_frame(p)` | `Pipeline` | `DataFrame` | Full node metadata (runtime, serializer, deps, depth, command_type) |
+| `pipeline_nodes(p)` | `Pipeline` | `List[String]` | All node names |
+| `pipeline_deps(p)` | `Pipeline` | `Dict` | Node name → list of dependency names |
+| `pipeline_edges(p)` | `Pipeline` | `List[[from, to]]` | Edge list as dependency pairs |
+| `pipeline_roots(p)` | `Pipeline` | `List[String]` | Nodes with no dependencies |
+| `pipeline_leaves(p)` | `Pipeline` | `List[String]` | Nodes that nothing depends on |
+| `pipeline_depth(p)` | `Pipeline` | `Int` | Maximum topological depth |
+| `pipeline_cycles(p)` | `Pipeline` | `List[String]` | Nodes involved in cycles (empty = valid) |
+| `pipeline_validate(p)` | `Pipeline` | `List[String]` | Validation errors (empty = valid); checks missing deps + cycles |
+| `pipeline_assert(p)` | `Pipeline` | `Pipeline` | Throws first error, or returns pipeline unchanged |
+| `pipeline_print(p)` | `Pipeline` | `NA` | Pretty-print node table to stdout |
+| `pipeline_to_dot(p)` | `Pipeline` \| `MetaPipeline` | `String` | Graphviz DOT representation |
+| `pipeline_to_mermaid(p)` | `Pipeline` \| `MetaPipeline` | `String` | Mermaid flowchart diagram |
+| `trace_nodes(p, name?)` | `Pipeline`, optional `String` | `NA` | Visual dependency tree printer |
+| `pipeline_cache_status(p)` | `Pipeline` | `DataFrame` | Nix store cache hits per node (cached, store_path) |
+| `pipeline_to_drv(p)` | `Pipeline` | `Dict` | Node → derivation (.drv) path mapping |
+| `pipeline_to_store(p)` | `Pipeline` | `Dict` | Node → Nix store output path mapping |
+
+### Node-Level Filtering & Diffs
+
+| Function | Parameters | Returns | What it does |
+|---|---|---|---|
+| `select_node(p, ...)` | `Pipeline`, `Symbol`... | `DataFrame` | Column projection from `pipeline_to_frame` |
+| `which_nodes(p, predicate)` | `Pipeline`, `Function` (NSE) | `List` | Node records from `read_pipeline(p).nodes` matching predicate |
+| `errored_nodes(p)` | `Pipeline` | `List` | Convenience wrapper: nodes with non-NA `diagnostics.error` |
+| `node_diff(a, b, log_a?, log_b?)` | `ComputedNode` ×2, optional `String`/`Int` | `VDict` | Compare node artifacts across builds |
+| `pipeline_diff(a, b)` | `Pipeline` ×2 | `Dict` | Structural diff between two pipeline DAGs |
+
+### Export / Import / GC
+
+| Function | Parameters | Returns | What it does |
+|---|---|---|---|
+| `pipeline_copy(node?, target_dir?)` | optional `String`, `String` | `String` | Copy artifacts from Nix store to local directory |
+| `export_artifacts(p, archive)` | `Pipeline`, `String` | `String` | Export cached artifacts to portable archive |
+| `import_artifacts(target_or_archive, archive?)` | `Pipeline` or `String`, optional `String` | `String` | Import previously exported archive |
+| `inspect_artifacts(archive)` | `String` | `DataFrame` | Preview archive contents without importing |
+| `pipeline_gc(p, dry_run?)` | `Pipeline`, optional `Bool` | `DataFrame` | GC pipeline store paths (dry_run=true previews) |
+| `t_gc()` | — | `String` | Global Nix garbage collection |
+
+---
+
+## 4. Explicit Node Configuration
 
 In addition to bare assignments, you can explicitly configure nodes using the `node()` function. This lets you define the execution environment (like the `runtime`) and custom serialization methods for when a pipeline is materialized by Nix:
 
@@ -15187,7 +15325,7 @@ Shell nodes default to `serializer = text`, which makes them a good fit for repo
 
 ---
 
-## 3. Cross-Language Integration
+## 4. Cross-Language Integration
 
 T is designed to orchestrate code across multiple languages. The pipeline runner manages the serialization and deserialization of data between R, Python, and T using a first-class serializer system. For a deep dive into how T handles data interchange, see the [Serializers Documentation](serializers.md).
 
@@ -15231,7 +15369,7 @@ Setting `deserializer = "pmml"` on the T node tells the pipeline runner to use T
 
 ---
 
-## 4. Automatic Dependency Resolution
+## 5. Automatic Dependency Resolution
 
 Nodes can be declared in **any order**. T automatically resolves dependencies:
 
@@ -15248,7 +15386,7 @@ T builds a dependency graph and executes nodes in topological order, so `x` and 
 
 ---
 
-## 5. Chained Dependencies
+## 6. Chained Dependencies
 
 Nodes can depend on other computed nodes, forming chains:
 
@@ -15264,7 +15402,7 @@ p.d  -- 4
 
 ---
 
-## 6. Pipelines with Functions
+## 7. Pipelines with Functions
 
 Nodes can use any T function, including standard library functions:
 
@@ -15280,7 +15418,7 @@ p.count  -- 5
 
 ---
 
-## 7. Pipelines with Pipe Operators
+## 8. Pipelines with Pipe Operators
 
 The pipe operator `|>` works naturally inside pipelines:
 
@@ -15316,7 +15454,7 @@ Without `?|>`, the error from `raw` would short-circuit at `|>` and never reach 
 
 ---
 
-## 8. Data Pipelines
+## 9. Data Pipelines
 
 Pipelines are most powerful for data analysis workflows. Here's a complete example loading, transforming, and summarizing data:
 
@@ -15348,7 +15486,9 @@ p.summary  -- DataFrame with regional totals
 
 ---
 
-## 9. Pipeline Introspection
+## 10. Pipeline Introspection
+
+> [↩ Quick Reference: Reading Node Artifacts](#2-pipeline-function-quick-reference)
 
 T provides functions to inspect pipeline structure:
 
@@ -15374,7 +15514,7 @@ pipeline_node(p, "total")  -- 30
 
 ---
 
-## 10. Re-running Pipelines
+## 11. Re-running Pipelines
 
 Use `pipeline_run()` to re-execute a pipeline:
 
@@ -15387,7 +15527,7 @@ Re-running produces the same results — T pipelines are deterministic.
 
 ---
 
-## 11. Deterministic Execution
+## 12. Deterministic Execution
 
 Two pipelines with the same definitions always produce the same results:
 
@@ -15399,7 +15539,7 @@ p1.c == p2.c  -- true
 
 ---
 
-## 12. Error Handling & Resilience
+## 13. Error Handling & Resilience
 
 ### Errors are Values
 
@@ -15453,7 +15593,9 @@ p.nonexistent
 
 ---
 
-## 13. Materializing Pipelines
+## 14. Materializing Pipelines
+
+> [↩ Quick Reference: Reading Node Artifacts](#2-pipeline-function-quick-reference)
 
 Defining a pipeline with `pipeline { ... }` evaluates nodes in-memory. To **materialize** them as reproducible Nix artifacts (potentially using R or Python dependencies you've defined in `tproject.toml`), use `populate_pipeline()` with the `build = true` argument:
 
@@ -15488,7 +15630,7 @@ These functions look up the node in the **latest build log** and deserialize the
 
 ---
 
-## 14. Orchestrating with populate_pipeline()
+## 15. Orchestrating with populate_pipeline()
 
 For more control over the build process, T provides `populate_pipeline()`. This function prepares the pipeline infrastructure without necessarily triggering the Nix build immediately.
 
@@ -15510,7 +15652,9 @@ T maintains a persistent state directory for your pipeline. When you populate or
 
 ---
 
-## 15. Build Logs and Time Travel
+## 16. Build Logs and Time Travel
+
+> [↩ Quick Reference: Build Logs & History](#2-pipeline-function-quick-reference)
 
 T keeps a history of your builds in `_pipeline/`. This enables **Time Travel** — the ability to read artifacts from specific past versions of your pipeline.
 
@@ -15585,14 +15729,14 @@ inspect_log(which_log = "20260221_143022")
 
 ### Reading from a specific build
 
-Pass the `which_log` argument to `read_node()` to specify which build to read from. You can pass a regex pattern or a specific filename:
+Use `read_past_node(p.node_name, which_log = "...")` to read from a specific historical build without the pipeline being in scope. Pass a regex pattern or filename to `which_log`:
 
 ```t
--- Read the latest version (default)
+-- Read the latest version (pipeline must be in scope)
 val = read_node(p.result)
 
--- Read from a specific historical build
-val_old = read_node(p.result, which_log = "20260221_143022")
+-- Read from a specific historical build (works cold)
+val_old = read_past_node(p.result, which_log = "20260221_143022")
 ```
 
 This ensures that even as you update your code and data, you can always recover and compare results from previous runs.
@@ -15706,7 +15850,7 @@ write_text("dataframe_changes.diff", diff_df.detailed_diff)
 
 ---
 
-## 16. Execution Modes
+## 17. Execution Modes
 
 T enforces a clear separation between interactive and non-interactive execution:
 
@@ -15755,7 +15899,7 @@ T> p.a
 
 ---
 
-## 17. Using Imports in Pipelines
+## 18. Using Imports in Pipelines
 
 When a pipeline is built with `build_pipeline()`, each node runs inside a **Nix sandbox** — an isolated build environment. Import statements from your script are **automatically propagated** into each sandbox, so imported packages and functions are available to all nodes.
 
@@ -15796,7 +15940,7 @@ All three import forms are supported:
 
 ---
 
-## 18. Using explain() with Pipelines
+## 19. Using explain() with Pipelines
 
 The `explain()` function provides structured metadata about pipelines:
 
@@ -15814,7 +15958,7 @@ e.node_count  -- 3
 
 ---
 
-## 19. Skipping Nodes
+## 20. Skipping Nodes
 
 You can explicitly skip a node (and by extension, all nodes that depend on it) by passing the `noop = true` argument to the `node()` function.
 
@@ -15839,7 +15983,9 @@ In a Nix sandbox context, `noop` generates a lightweight stub instead of a real 
 
 ---
 
-## 20. Node Metadata
+## 21. Node Metadata
+
+> [↩ Quick Reference: Pipeline DAG Structure](#2-pipeline-function-quick-reference)
 
 Every node in a pipeline carries structured metadata that you can query and manipulate. The `pipeline_to_frame()` function converts this metadata into a DataFrame with one row per node.
 
@@ -15866,15 +16012,6 @@ The columns returned are:
 
 `pipeline_to_frame` is the foundation for inspection: you can use T's standard `filter`, `select`, and `arrange` verbs on the resulting DataFrame.
 
-### `pipeline_summary`
-
-`pipeline_summary(p)` is a convenience alias for `pipeline_to_frame(p)`:
-
-```t
-pipeline_summary(p)
--- same output as pipeline_to_frame(p)
-```
-
 ### `select_node`
 
 `select_node` returns a DataFrame with only the columns you request, using NSE `$field` references:
@@ -15896,7 +16033,7 @@ Available fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, 
 
 ---
 
-## 21. Environment Variables
+## 22. Environment Variables
 
 Pipeline nodes can pass environment variables into the Nix build sandbox via the `env_vars` named argument on `node()`, `py()`/`pyn()`, and `rn()`. This allows nodes to configure their build-time execution environment without embedding those values directly into the command body.
 
@@ -15937,7 +16074,7 @@ These variables are automatically threaded into the generated `stdenv.mkDerivati
 
 ---
 
-## 22. Node-Level Operations (`_node` family)
+## 23. Node-Level Operations (`_node` family)
 
 
 T provides a set of colcraft-style verbs for operating on pipeline nodes. These mirror the DataFrame API, using NSE `$field` references for node metadata fields.
@@ -16036,7 +16173,7 @@ Returns a new pipeline with nodes sorted by a metadata field. This affects only 
 
 ---
 
-## 23. Pipeline Manipulation for Data Scientists
+## 24. Pipeline Manipulation for Data Scientists
 
 Beyond basic execution, T allows you to treat a Pipeline as a queryable and mutable data structure. This is powerful for meta-programming, automated reporting, and "surgical" updates to large analysis graphs.
 
@@ -16102,7 +16239,7 @@ p |> arrange_node($depth) |> pipeline_nodes      -- ["a", "b", "c"]
 
 ---
 
-## 23. Set Operations
+## 24. Set Operations
 
 Pipelines can be treated as named sets of nodes. T provides four set operations that combine or subtract pipelines.
 
@@ -16142,7 +16279,7 @@ p_etl |> union(p_model2)
 
 ---
 
-## 24. Diagnostic Suppression
+## 25. Diagnostic Suppression
 
 Nodes that produce large numbers of non-terminal warnings (like those from `filter()` or complex modeling functions) can be silenced using the `suppress_warnings` combinator. This silences the console output for a node while maintaining the warning records for auditability.
 
@@ -16165,12 +16302,11 @@ Pipeline summary: 1 node(s) with warnings, 1 suppressed, 0 error(s)
   ○  filtered — warnings suppressed by caller (1 NAs ignored)
 ```
 
-The `○` symbol indicates a suppressed node. You can still access the underlying warning objects programmatically via `read_node()` or `read_pipeline()`.
+The `○` symbol indicates a suppressed node. You can still access the underlying warning objects programmatically via `warning_msg()` or `read_pipeline()`.
 
 ```t
-res = read_node(p.filtered)
-res.diagnostics.warnings_suppressed  -- true
-res.diagnostics.warnings            -- list of captured warnings
+warning_msg(p.filtered)               -- Returns the warning message string
+read_pipeline(p).diagnostics.summary  -- Summary counts
 ```
 
 ### `difference`
@@ -16216,7 +16352,7 @@ pipeline_nodes(p_updated)  -- ["load", "model"] — "extra" was not added
 
 ---
 
-## 24. DAG-Aware Transformations
+## 25. DAG-Aware Transformations
 
 These operations are structurally aware of the pipeline's dependency graph and are used to replace node implementations, reroute edges, and extract subgraphs.
 
@@ -16316,7 +16452,7 @@ p |> subgraph("b") |> pipeline_nodes  -- ["a", "b", "c"] — d is disconnected
 
 ---
 
-## 25. Pipeline Composition
+## 26. Pipeline Composition
 
 These higher-level operators combine two complete, separately-defined pipelines into one.
 
@@ -16471,7 +16607,7 @@ At execution time, outer variables (like `multiplier`) are substituted with thei
 
 ---
 
-## 26. Parallel Execution
+## 27. Parallel Execution
 
 Combines two pipelines that are intended to run independently. No dependency wiring is performed. Errors on name collision.
 
@@ -16497,7 +16633,9 @@ pipeline_nodes(p_both)  -- ["r_fit", "py_fit"]
 
 ---
 
-## 27. Extended Inspection API
+## 28. Extended Inspection API
+
+> [↩ Quick Reference: Pipeline DAG Structure](#2-pipeline-function-quick-reference)
 
 Beyond `pipeline_nodes` and `pipeline_deps`, T provides a complete structural inspection surface for pipelines.
 
@@ -16559,14 +16697,14 @@ pipeline_print(p)
 --   c                     runtime=T         depth=1  noop=false  deps=[b]
 ```
 
-### `pipeline_dot`
+### `pipeline_to_dot`
 
-Exports the pipeline as a [Graphviz](https://graphviz.org/) DOT string for visualization:
+Exports the pipeline as a [Graphviz](https://graphviz.org/) DOT string for visualization. Works for both `Pipeline` and `MetaPipeline`:
 
 ```t
 p = pipeline { a = 1; b = a + 1; c = b + 1 }
 
-dot = pipeline_dot(p)
+dot = pipeline_to_dot(p)
 print(dot)
 -- digraph pipeline {
 --   rankdir=LR;
@@ -16580,10 +16718,6 @@ print(dot)
 ```
 
 Pipe the output to `dot -Tpng` or paste it into https://dreampuf.github.io/GraphvizOnline/ to render a visual dependency graph.
-
-### `pipeline_to_dot`
-
-Equivalent to `pipeline_dot(p)`. Exports the pipeline as a DOT graph string.
 
 ### `pipeline_to_mermaid`
 
@@ -16620,7 +16754,9 @@ When you pass a pipeline, meta-pipeline, or a string starting with a Mermaid key
 
 ---
 
-## 28. Pipeline Validation
+## 29. Pipeline Validation
+
+> [↩ Quick Reference: Pipeline DAG Structure](#2-pipeline-function-quick-reference)
 
 By design, T uses **lazy validation**: structural errors (missing dependencies, cycles) surface at `build_pipeline` or `pipeline_run` time, not at operation time. This allows you to compose and transform pipelines freely.
 
@@ -16670,7 +16806,7 @@ p_broken |> pipeline_assert
 
 ---
 
-## 29. Handling Ambiguous Dependencies
+## 30. Handling Ambiguous Dependencies
 
 T-Lang uses a lexical analyzer to automatically detect dependencies between nodes by scanning the code for variable names that match other node names. While this is convenient, there are cases where automatic detection is insufficient or may produce false positives.
 
@@ -16767,7 +16903,7 @@ p.ranked        -- DataFrame sorted by score
 
 ---
 
-## 39. Cross-Node Artifact Retrieval
+## 40. Cross-Node Artifact Retrieval
 
 When nodes are executed within a Nix-managed sandbox (via `populate_pipeline(p, build = true)`), they are isolated from each other. However, T provides a built-in mechanism for nodes to access the serialized artifacts of their dependencies.
 
@@ -16806,7 +16942,7 @@ This pattern is essential for **polyglot pipelines** where data is passed betwee
 
 ---
 
-## 40. Nix-Native Orchestration & Cachix
+## 41. Nix-Native Orchestration & Cachix
 
 To optimize large-scale pipelines and manage remote binary caching, T-Lang includes native Nix orchestration features in `build_pipeline` and `pipeline_run`. These features map directly to native `nix build` mechanics, allowing granular rebuild control, job parallelization, Cachix integration, and dry-runs.
 
@@ -16866,7 +17002,7 @@ build_pipeline(p,
                ])
 ```
 
-## 21. Meta-Pipelines & Pipeline Composition
+## 22. Meta-Pipelines & Pipeline Composition
 
 As your project grows, writing a single monolithic pipeline can become difficult to maintain. T supports **Pipeline Composition** via `pipeline_of` blocks, allowing you to compose multiple independent sub-pipelines into a higher-order DAG (a **meta-pipeline**).
 
@@ -16927,7 +17063,7 @@ read_node(meta.stats.summary)  -- Returns the summarized DataFrame
 
 ---
 
-## 26. Granular Artifact Transfer & Archive Introspection
+## 27. Granular Artifact Transfer & Archive Introspection
 
 For teams working on large projects, T supports exporting Nix-materialized pipeline cache artifacts into portable archive files (`.nar` format). These archives can be transferred between machines, imported without rebuilding, or inspected without installing.
 
@@ -21879,7 +22015,6 @@ A confirmation message describing the imported archive.
 | [pipeline_deps](pipeline_deps.html) | List Node Dependencies |
 | [pipeline_depth](pipeline_depth.html) | Maximum Topological Depth |
 | [pipeline_diff](pipeline_diff.html) | Compare Pipeline Structures |
-| [pipeline_dot](pipeline_dot.html) | Export Pipeline as DOT Graph |
 | [pipeline_edges](pipeline_edges.html) | Pipeline Dependency Edges |
 | [pipeline_gc](pipeline_gc.html) | Garbage Collect Pipeline Nodes |
 | [pipeline_leaves](pipeline_leaves.html) | Pipeline Leaf Nodes |
@@ -21888,7 +22023,6 @@ A confirmation message describing the imported archive.
 | [pipeline_print](pipeline_print.html) | Pretty-Print a Pipeline |
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |
 | [pipeline_run](pipeline_run.html) | Run Pipeline |
-| [pipeline_summary](pipeline_summary.html) | Pipeline Summary |
 | [pipeline_to_dot](pipeline_to_dot.html) | Export Pipeline/MetaPipeline as DOT Graph |
 | [pipeline_to_drv](pipeline_to_drv.html) | Introspect Node Derivation Paths |
 | [pipeline_to_frame](pipeline_to_frame.html) | Convert Pipeline to DataFrame |
@@ -21920,6 +22054,7 @@ A confirmation message describing the imported archive.
 | [read_file](read_file.html) | Read file contents |
 | [read_log](read_log.html) | Read Node Build Log |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
+| [read_past_node](read_past_node.html) | Read Pipeline Node from Past Build |
 | [read_parquet](read_parquet.html) | Read Parquet file |
 | [read_pipeline](read_pipeline.html) | Read Pipeline Metadata |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |
@@ -22133,7 +22268,7 @@ A DataFrame with columns = derivation, build_success, path, output.
 
 Inspect Pipeline Node Metadata
 
-Returns a dictionary with metadata about a computed node, including its name, runtime, artifact path, serializer, class, and dependencies.
+Returns a dictionary with metadata about a computed node, including its name, runtime, artifact path, serializer, class, dependencies, and any captured warnings (both own and inherited from upstream ancestors).
 
 ## Parameters
 
@@ -22142,11 +22277,33 @@ Returns a dictionary with metadata about a computed node, including its name, ru
 
 ## Returns
 
-A dictionary with keys = name, runtime, path, serializer, class, dependencies.
+A dictionary with keys = name, runtime, path, serializer, class, dependencies, warnings.
+
+The `warnings` key contains a list of structured warning records, each with:
+
+- `source` (`String`): `"own"` for warnings originating from this node, or the name of the ancestor node for inherited upstream warnings.
+- `message` (`String`): The human-readable warning message.
+
+```t
+inspect_node(p.count)
+-- Returns:
+-- dict
+--   ├── name: "count"
+--   ├── runtime: "T"
+--   ├── path: "/nix/store/...-pipeline_output/count/artifact"
+--   ├── serializer: "default"
+--   ├── class: "Int"
+--   ├── dependencies: ["filtered"]
+--   └── warnings: [
+--       ├── dict
+--       │   ├── source: "filtered"
+--       │   └── message: "filter() excluded 1 row because the predicate evaluated to NA"
+--       ]
+```
 
 ## See Also
 
-[rebuild_node](rebuild_node.html), [read_node](read_node.html)
+[rebuild_node](rebuild_node.html), [read_node](read_node.html), [warning_msg](warning_msg.html)
 
 
 
@@ -24457,35 +24614,6 @@ A structural diff dictionary.
 
 
 
-# FILE: docs/reference/pipeline_dot.md
-
-# pipeline_dot
-
-Export Pipeline as DOT Graph
-
-Returns a string containing a Graphviz DOT representation of the pipeline's dependency graph, suitable for visualization.
-
-## Parameters
-
-- **p** (`Pipeline`): The pipeline.
-
-
-## Returns
-
-A DOT graph string.
-
-## Examples
-
-```t
-pipeline_dot(p)
-```
-
-## See Also
-
-[pipeline_edges](pipeline_edges.html), [pipeline_print](pipeline_print.html)
-
-
-
 # FILE: docs/reference/pipeline_edges.md
 
 # pipeline_edges
@@ -24644,7 +24772,7 @@ pipeline_print(p)
 
 ## See Also
 
-[pipeline_dot](pipeline_dot.html), [pipeline_summary](pipeline_summary.html)
+[pipeline_to_dot](pipeline_to_dot.html)
 
 
 
@@ -24699,35 +24827,6 @@ The executed pipeline, or a dry-run plan DataFrame.
 ## See Also
 
 [pipeline_nodes](pipeline_nodes.html)
-
-
-
-# FILE: docs/reference/pipeline_summary.md
-
-# pipeline_summary
-
-Pipeline Summary
-
-Returns a DataFrame with full metadata for every node in the pipeline. This is a convenience wrapper around `pipeline_to_frame`.
-
-## Parameters
-
-- **p** (`Pipeline`): The pipeline.
-
-
-## Returns
-
-A DataFrame with one row per node and all metadata columns.
-
-## Examples
-
-```t
-pipeline_summary(p)
-```
-
-## See Also
-
-[select_node](select_node.html), [pipeline_to_frame](pipeline_to_frame.html)
 
 
 
@@ -25572,13 +25671,15 @@ The build log content.
 
 Read Pipeline Node Artifact
 
-Reads and returns the contents of a ComputedNode. For in-memory pipelines, returns the dynamically computed value directly from the registry. For built pipelines, reads the materialized artifact from the latest (or specified) build log. Use `which_log` to read from a specific historical build ("time travel").
+Reads and returns the contents of a ComputedNode. For in-memory pipelines, returns the dynamically computed value directly from the registry. For built pipelines, reads the materialized artifact from the latest build log.
+
+> **Note:** The `.warnings` field previously accessible on the result of `read_node()` has been removed. Use [`warning_msg(node)`](warning_msg.html) to inspect warnings. Use [`inspect_node(node)`](inspect_node.html) for structured warning metadata.
+>
+> To read a node from a specific historical build log **without the pipeline being in scope**, use [`read_past_node(p.node_name, which_log = "...")`](read_past_node.html).
 
 ## Parameters
 
 - **node** (`ComputedNode`): The ComputedNode object to read (e.g. `p.node_name`).
-
-- **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename.
 
 
 ## Returns
@@ -25587,7 +25688,7 @@ The deserialized artifact value, or the in-memory value.
 
 ## See Also
 
-[inspect_pipeline](inspect_pipeline.html), [build_pipeline](build_pipeline.html), [read_pipeline](read_pipeline.html)
+[read_past_node](read_past_node.html), [warning_msg](warning_msg.html), [inspect_node](inspect_node.html), [inspect_pipeline](inspect_pipeline.html), [build_pipeline](build_pipeline.html), [read_pipeline](read_pipeline.html)
 
 
 
@@ -25620,13 +25721,50 @@ df = read_parquet("data.parquet")
 
 
 
+# FILE: docs/reference/read_past_node.md
+
+# read_past_node
+
+Read Pipeline Node from a Past Build Run
+
+Reads and returns the contents of a pipeline node from a historical build log, identified by `which_log`. Unlike `read_node`, this works without the pipeline being in scope — the node name is captured via NSE from the `p.node_name` syntax.
+
+## Parameters
+
+- **node** (`ComputedNode`): The node to read, written as `p.node_name` (NSE-captured).
+- **which_log** (`String`, required): A regex pattern matching a specific build log filename.
+
+## Returns
+
+The deserialized artifact value, wrapped with diagnostics.
+
+## Examples
+
+```t
+# Read a node from a specific past build run
+read_past_node(base_p.raw, which_log = "qcfs")
+
+# Use list_logs() to find the right log pattern
+list_logs()
+#   filename                           
+#   build_log_20260609_190157_qcfs71...
+#   build_log_20260609_192734_alnsv7...
+```
+
+## See Also
+
+[read_node](read_node.html), [list_logs](list_logs.html), [build_log](build_log.html)
+
+
 # FILE: docs/reference/read_pipeline.md
 
 # read_pipeline
 
 Read Pipeline Metadata
 
-Returns a dictionary describing a materialized in-memory pipeline, including per-node diagnostics and the aggregated diagnostics summary.
+Returns a dictionary describing a materialized in-memory pipeline, including per-node diagnostics and the aggregated diagnostics summary. The diagnostics summary counts own warnings only (not upstream-inherited ones), so the count reflects which nodes originally produced warnings.
+
+After `build_pipeline(p)`, diagnostics include upstream warnings inherited from ancestor nodes, available via `warning_msg()` or `inspect_node()`.
 
 ## Parameters
 
@@ -25635,11 +25773,11 @@ Returns a dictionary describing a materialized in-memory pipeline, including per
 
 ## Returns
 
-A dictionary with node metadata and diagnostics.
+A dictionary with `nodes` and `diagnostics` keys. The `diagnostics.summary` field gives a high-level count. Use `warning_msg()` on individual nodes for full warning details including upstream provenance.
 
 ## See Also
 
-[explain](explain.html), [read_node](read_node.html)
+[warning_msg](warning_msg.html), [inspect_node](inspect_node.html), [explain](explain.html), [read_node](read_node.html)
 
 
 
@@ -27387,7 +27525,7 @@ sum([1, NA, 3], na_rm = true)
 
 Suppress Diagnostics for a Node
 
-Silences all captured warnings for the current node in the console summary. Warnings remain accessible programmatically via `read_node()` or `read_pipeline()`. Use this to reduce noise from known warnings during data processing (e.g., NAs in filter).
+Silences all captured warnings for the current node in the console summary. Warnings remain accessible programmatically via `warning_msg()` or `read_pipeline()`. Use this to reduce noise from known warnings during data processing (e.g., NAs in filter).
 
 ## Parameters
 
@@ -27397,6 +27535,10 @@ Silences all captured warnings for the current node in the console summary. Warn
 ## Returns
 
 The original value, signaling the evaluator to suppress diagnostic output.
+
+## See Also
+
+[warning_msg](warning_msg.html), [read_pipeline](read_pipeline.html)
 
 
 
@@ -28598,7 +28740,7 @@ wald_test(model, terms = ["wt", "hp"])
 
 Get warning message
 
-Returns the human-readable warning associated with a completed computed node, or an empty string if none.
+Returns the human-readable warning associated with a completed computed node, or an empty string if none. For downstream nodes that inherit warnings from ancestor nodes, each warning is prefixed with its source to make provenance clear.
 
 ## Parameters
 
@@ -28607,7 +28749,31 @@ Returns the human-readable warning associated with a completed computed node, or
 
 ## Returns
 
-The warning message.
+The warning message string. Format depends on the warning source:
+
+- **Own warning**: The raw warning message (e.g. `"filter() excluded 1 row because the predicate evaluated to NA"`).
+- **Upstream warning**: Prefixed with `"Ancestor node '<name>' reported following warning: <message>"`.
+- **Multiple warnings** (own + upstream, or multiple upstream): Joined with `". Furthermore, "`.
+
+### Examples
+
+Node with only an own warning:
+```t
+warning_msg(p.filtered)
+-- "filter() excluded 1 row because the predicate evaluated to NA"
+```
+
+Downstream node that inherits a warning from an ancestor:
+```t
+warning_msg(p.count)
+-- "Ancestor node 'filtered' reported following warning: filter() excluded 1 row because the predicate evaluated to NA"
+```
+
+Node with both an own warning and inherited upstream warnings:
+```t
+warning_msg(p.summary)
+-- "mutate() created NAs. Furthermore, Ancestor node 'filtered' reported following warning: filter() excluded 1 row because the predicate evaluated to NA"
+```
 
 
 

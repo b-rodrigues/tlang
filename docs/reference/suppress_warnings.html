@@ -37,7 +37,7 @@
 <p>Suppress Diagnostics for a Node</p>
 <p>Silences all captured warnings for the current node in the console
 summary. Warnings remain accessible programmatically via
-<code>read_node()</code> or <code>read_pipeline()</code>. Use this to
+<code>warning_msg()</code> or <code>read_pipeline()</code>. Use this to
 reduce noise from known warnings during data processing (e.g., NAs in
 filter).</p>
 <h2 id="parameters">Parameters</h2>
@@ -48,6 +48,9 @@ to wrap. Usually call it at the end of a node definition.</li>
 <h2 id="returns">Returns</h2>
 <p>The original value, signaling the evaluator to suppress diagnostic
 output.</p>
+<h2 id="see-also">See Also</h2>
+<p><a href="warning_msg.html">warning_msg</a>, <a
+href="read_pipeline.html">read_pipeline</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>
