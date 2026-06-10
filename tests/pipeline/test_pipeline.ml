@@ -178,7 +178,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "pipeline_nodes on non-pipeline"
     "pipeline_nodes(42)"
-    {|Error(TypeError: "Function `pipeline_nodes` expects a Pipeline.")|};
+    {|Error(TypeError: "[L1:C1] Function `pipeline_nodes` expects a Pipeline, but got Int.")|};
   test "pipeline_node missing key"
     {|p = pipeline { a = 1 }; pipeline_node(p, "b")|}
     {|Error(KeyError: "Node `b` not found in Pipeline.")|};
@@ -193,7 +193,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "pipeline_to_drv on non-pipeline"
     "pipeline_to_drv(42)"
-    {|Error(TypeError: "Function `pipeline_to_drv` expects a Pipeline as argument.")|};
+    {|Error(TypeError: "[L1:C1] Function `pipeline_to_drv` expects a Pipeline, but got Int.")|};
 
   let (v_store, _) = eval_string_env "p_store = pipeline { a = 1 }; pipeline_to_store(p_store)" env_p3 in
   let result_store = Ast.Utils.value_to_string v_store in
@@ -205,7 +205,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "pipeline_to_store on non-pipeline"
     "pipeline_to_store(42)"
-    {|Error(TypeError: "Function `pipeline_to_store` expects a Pipeline as argument.")|};
+    {|Error(TypeError: "[L1:C1] Function `pipeline_to_store` expects a Pipeline, but got Int.")|};
 
   test "set_nix_defaults successful dict"
     "set_nix_defaults(nix_options = [ max_jobs: 4 ])"
@@ -239,7 +239,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "pipeline_cache_status on non-pipeline"
     "pipeline_cache_status(42)"
-    {|Error(TypeError: "Function `pipeline_cache_status` expects a Pipeline as argument.")|};
+    {|Error(TypeError: "[L1:C1] Function `pipeline_cache_status` expects a Pipeline, but got Int.")|};
 
   test "export_artifacts on non-pipeline"
     "export_artifacts(42, \"cache.nar\")"
@@ -247,7 +247,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "export_artifacts invalid archive path type"
     "p_export = pipeline { a = 1 }; export_artifacts(p_export, 42)"
-    {|Error(TypeError: "Function `export_artifacts` expects `archive_path` to be a String.")|};
+    {|Error(TypeError: "[L1:C32] Function `export_artifacts` expects a Pipeline and a String, but got Pipeline and Int.")|};
 
   test "import_artifacts with scalar target"
     "import_artifacts(42, \"nonexistent.nar\")"
@@ -255,11 +255,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "import_artifacts invalid archive path type"
     "p_import = pipeline { a = 1 }; import_artifacts(p_import, 42)"
-    {|Error(TypeError: "Function `import_artifacts` expects the second argument to be a String.")|};
+    {|Error(TypeError: "[L1:C32] Function `import_artifacts` expects a Pipeline/String and a String, but got Pipeline and Int.")|};
 
   test "inspect_artifacts invalid argument type"
     "inspect_artifacts(42)"
-    {|Error(TypeError: "Function `inspect_artifacts` expects a String argument.")|};
+    {|Error(TypeError: "[L1:C1] Function `inspect_artifacts` expects a String, but got Int.")|};
 
   let (v_gc, _) = eval_string_env "p_gc = pipeline { a = 1 }; pipeline_gc(p_gc, dry_run=true)" env_p3 in
   let result_gc = Ast.Utils.value_to_string v_gc in
@@ -271,11 +271,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "pipeline_gc on non-pipeline"
     "pipeline_gc(42)"
-    {|Error(TypeError: "Function `pipeline_gc` expects a Pipeline.")|};
+    {|Error(TypeError: "[L1:C1] Function `pipeline_gc` expects a Pipeline, but got Int.")|};
 
   test "pipeline_gc invalid dry_run type"
     "p_gc_invalid = pipeline { a = 1 }; pipeline_gc(p_gc_invalid, dry_run=42)"
-    {|Error(TypeError: "Function `pipeline_gc` expects `dry_run` to be a Bool.")|};
+    {|Error(TypeError: "[L1:C36] Function `pipeline_gc` expects `dry_run` to be a Bool, but got Int.")|};
 
   test "t_gc accepts no arguments and completes successfully"
     "starts_with(t_gc(), \"Garbage collection completed\")"
@@ -1529,7 +1529,7 @@ p_cross = pipeline {
 
   test "pipeline_copy validates node type"
     {|pipeline_copy(node = 1)|}
-    {|Error(TypeError: "Function `pipeline_copy` expects `node` to be a String, Symbol, or NA.")|};
+    {|Error(TypeError: "[L1:C1] Function `pipeline_copy` expects `node` to be a String, Symbol, or NA, but got Int.")|};
 
   test "pipeline_copy validates target_dir type"
     {|pipeline_copy(target_dir = 1)|}

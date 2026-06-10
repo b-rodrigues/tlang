@@ -61,7 +61,7 @@ nrow(filter(df, \(row) row.depth == 0))|}
   (* Type error: not a pipeline *)
   test "pipeline_to_frame rejects non-pipeline"
     {|pipeline_to_frame(42)|}
-    {|Error(TypeError: "Function `pipeline_to_frame` expects a Pipeline.")|};
+    {|Error(TypeError: "[L1:C1] Function `pipeline_to_frame` expects a Pipeline, but got Int.")|};
 
   print_newline ();
 
@@ -256,7 +256,7 @@ errored_nodes(p) |> map(\(node) node.name)|}
 
   test "which_nodes rejects non-pipeline"
     {|which_nodes(42, !is_na(diagnostics.error))|}
-    {|Error(TypeError: "Function `which_nodes` expects a Pipeline as first argument.")|};
+    {|Error(TypeError: "[L1:C1] Function `which_nodes` expects a Pipeline as first argument, but got Int.")|};
 
   test "which_nodes errors when predicate does not return Bool"
     {|p = pipeline { a = 1 }; which_nodes(p, name)|}
@@ -264,7 +264,7 @@ errored_nodes(p) |> map(\(node) node.name)|}
 
   test "errored_nodes rejects non-pipeline"
     {|errored_nodes(42)|}
-    {|Error(TypeError: "Function `errored_nodes` expects a Pipeline.")|};
+    {|Error(TypeError: "[L1:C1] Function `errored_nodes` expects a Pipeline, but got Int.")|};
 
   print_newline ();
 
@@ -422,7 +422,7 @@ nrow(select_node(p, $name, $depth))|}
   (* select_node: type error *)
   test "select_node rejects non-pipeline"
     {|select_node(42, $name)|}
-    {|Error(TypeError: "Function `select_node` expects a Pipeline as first argument.")|};
+    {|Error(TypeError: "[L1:C1] Function `select_node` expects a Pipeline as first argument, but got Int.")|};
 
   print_newline ();
 

@@ -107,7 +107,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Golden test: Introspection on non-pipeline *)
   test "golden: pipeline_nodes type error"
     "pipeline_nodes(42)"
-    {|Error(TypeError: "Function `pipeline_nodes` expects a Pipeline.")|};
+    {|Error(TypeError: "[L1:C1] Function `pipeline_nodes` expects a Pipeline, but got Int.")|};
 
   test "golden: pipeline_run type error"
     "pipeline_run(42)"

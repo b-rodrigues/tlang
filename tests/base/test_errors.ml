@@ -15,7 +15,7 @@ let run_tests pass_count fail_count _failures eval_string eval_string_env test =
   test "error_code arity error" "error_code()" {|Error(ArityError: "Function `error_code` expects 1 arguments but received 0.")|};
   test "error_msg arity error" "error_msg()" {|Error(ArityError: "Function `error_msg` expects 1 arguments but received 0.")|};
   test "error_context arity error" "error_context()" {|Error(ArityError: "Function `error_context` expects 1 arguments but received 0.")|};
-  test "warning_msg on non-computed node" {|warning_msg("hello")|} {|Error(TypeError: "Function `warning_msg` expects a ComputedNode.")|};
+  test "warning_msg on non-computed node" {|warning_msg("hello")|} {|Error(TypeError: "[L1:C1] Function `warning_msg` expects a ComputedNode, but got String.")|};
   test "warning_msg arity error" "warning_msg()" {|Error(ArityError: "Function `warning_msg` expects 1 arguments but received 0.")|};
   let located_error =
     Ast.make_error
