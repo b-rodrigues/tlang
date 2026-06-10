@@ -38,12 +38,12 @@ let register env =
     in
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
-    match List.find_opt (fun k -> not (List.mem k ["p"; "build"; "verbose"; "nix_options"; "dry_run"])) named_keys with
+    match List.find_opt (fun k -> not (List.mem k ["p"; "build"; "verbose"; "nix_options"; "dry_run"; "pipeline_name"])) named_keys with
     | Some k ->
         Error.type_error (Printf.sprintf "populate_pipeline: unknown argument '%s'" k)
-    | None when positional_count > 5 ->
+    | None when positional_count > 6 ->
         Error.make_error ArityError
-          (Printf.sprintf "Function `populate_pipeline` accepts at most 5 positional arguments but received %d." positional_count)
+          (Printf.sprintf "Function `populate_pipeline` accepts at most 6 positional arguments but received %d." positional_count)
     | None ->
       match get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
@@ -51,6 +51,7 @@ let register env =
         let (verbose_provided, verbose_val) = get_arg "verbose" 3 (VNA NAGeneric) named_args in
         let (_, nix_options_val) = get_arg "nix_options" 4 (VDict []) named_args in
         let (dry_run_provided, dry_run_val) = get_arg "dry_run" 5 (VNA NAGeneric) named_args in
+        let (pipeline_name_provided, pipeline_name_val) = get_arg "pipeline_name" 6 (VNA NAGeneric) named_args in
 
         let build_result =
           match build_val with
@@ -87,10 +88,19 @@ let register env =
               Error (Error.type_error "Function `populate_pipeline` expects `dry_run` to be a Bool.")
           | _ -> Ok None
         in
+        let pipeline_name_result =
+          match pipeline_name_val with
+          | VString s -> Ok (Some s)
+          | VSymbol s -> Ok (Some s)
+          | VNA _ -> Ok None
+          | _ when pipeline_name_provided ->
+              Error (Error.type_error "Function `populate_pipeline` expects `pipeline_name` to be a String.")
+          | _ -> Ok None
+        in
 
-        (match build_result, verbose_result, nix_options_result, dry_run_result with
-         | Error e, _, _, _ | _, Error e, _, _ | _, _, Error e, _ | _, _, _, Error e -> e
-         | Ok build, Ok verbose, Ok nix_options, Ok dry_opt ->
+        (match build_result, verbose_result, nix_options_result, dry_run_result, pipeline_name_result with
+         | Error e, _, _, _, _ | _, Error e, _, _, _ | _, _, Error e, _, _ | _, _, _, Error e, _ | _, _, _, _, Error e -> e
+         | Ok build, Ok verbose, Ok nix_options, Ok dry_opt, Ok pipeline_name_explicit ->
              let final_nix_options =
                let base_opts =
                  match nix_options with
@@ -109,31 +119,35 @@ let register env =
                     | _ -> build)
                | None -> build
              in
-             (match Builder.populate_pipeline ~build:final_build ?verbose ?nix_options:final_nix_options p with
-              | Ok out ->
-                  if final_build && (match final_nix_options with Some opts -> opts.dry_run <> Some true | None -> true) then (
-                    let var_name =
-                      match Env.fold (fun k val_v acc ->
-                        match val_v with
-                        | VPipeline p' when p'.p_exprs = p.p_exprs -> Some k
-                        | _ -> acc
-                      ) env None with
-                      | Some name -> name
-                      | None -> "p"
-                    in
-                    let first_node =
-                      match p.p_nodes with
-                      | (name, _) :: _ -> name
-                      | [] -> "my_node"
-                    in
-                    Printf.printf "\nPipeline successfully built!\n";
-                    Printf.printf "  - Pipeline saved in variable '%s'\n" var_name;
-                    Printf.printf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
-                    Printf.printf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
-                    Printf.printf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name
-                  );
-                  out
-              | Error msg -> Error.make_error StructuralError msg))
+              let pipeline_name =
+                match pipeline_name_explicit with
+                | Some _ -> pipeline_name_explicit
+                | None ->
+                    match Env.fold (fun k val_v acc ->
+                      match val_v with
+                      | VPipeline p' when p'.p_exprs = p.p_exprs -> Some k
+                      | _ -> acc
+                    ) env None with
+                    | Some name -> Some name
+                    | None -> None
+              in
+              (match Builder.populate_pipeline ~build:final_build ?verbose ?pipeline_name ?nix_options:final_nix_options p with
+               | Ok out ->
+                   if final_build && (match final_nix_options with Some opts -> opts.dry_run <> Some true | None -> true) then (
+                     let var_name = match pipeline_name with Some n -> n | None -> "p" in
+                     let first_node =
+                       match p.p_nodes with
+                       | (name, _) :: _ -> name
+                       | [] -> "my_node"
+                     in
+                     Printf.printf "\nPipeline successfully built!\n";
+                     Printf.printf "  - Pipeline saved in variable '%s'\n" var_name;
+                     Printf.printf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
+                     Printf.printf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
+                     Printf.printf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name
+                   );
+                   out
+               | Error msg -> Error.make_error StructuralError msg))
       | _ ->
           Error.type_error "Function `populate_pipeline` expects a Pipeline."
   in
