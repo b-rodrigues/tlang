@@ -464,6 +464,18 @@ export let helper = 1
        = "match(x) { [head, ..rest] => 1, Error { message } => 2 }"
     && Nix_unparse.unparse_import_stmt import_stmt
        = "import stats[avg=mean, sd]"
+    && Nix_unparse.unparse_expr
+         (locless (BroadcastOp { op = Mul; left = locless (Var "x"); right = locless (Var "y") }))
+       = "(x .* y)"
+    && Nix_unparse.unparse_expr
+         (locless (BroadcastOp { op = Plus; left = locless (Var "x"); right = locless (Var "y") }))
+       = "(x .+ y)"
+    && Nix_unparse.unparse_expr
+         (locless (BinOp { op = Mul; left = locless (Var "x"); right = locless (Var "y") }))
+       = "(x * y)"
+    && Nix_unparse.unparse_expr
+         (locless (BinOp { op = Plus; left = locless (Var "x"); right = locless (Var "y") }))
+       = "(x + y)"
   );
 
   Printf.printf "Coverage — Serialization helpers:\n";
