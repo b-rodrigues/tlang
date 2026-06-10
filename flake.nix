@@ -340,7 +340,9 @@ chmod +x $out/bin/bisect-ppx-report
               "-Wl,-rpath,${pkgs.glib.out}/lib"
               "-Wl,-rpath,${pkgs.onnxruntime}/lib"
             ]
-          );
+           );
+
+          PKG_CONFIG_PATH = "${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:${pkgs.onnxruntime}/lib/pkgconfig";
 
           # These are the packages that will be available in your shell.
           buildInputs = [
