@@ -115,17 +115,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let (_, env_p3) = eval_string_env "p = pipeline {\n  x = 10\n  y = 20\n  total = x + y\n}" env_p3 in
   let (v, _) = eval_string_env "read_node(p.x)" env_p3 in
   let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "unbuilt" then begin
+  if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  ✓ pipeline node access via dot (x) returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline node access via dot (x)\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ pipeline node access via dot (x)\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "read_node(p.total)" env_p3 in
   let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "unbuilt" then begin
+  if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  ✓ pipeline node access via dot (total) returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline node access via dot (total)\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ pipeline node access via dot (total)\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "p.nonexistent" env_p3 in
   let result = strip_location (Ast.Utils.value_to_string v) in
@@ -145,10 +145,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase 3 — Dependency Resolution:\n";
   test "out-of-order dependencies resolved"
     "p = pipeline {\n  result = x + y\n  x = 3\n  y = 7\n}; read_node(p.result)"
-    "unbuilt";
+    "not been built yet";
   test "chain dependencies"
     "p = pipeline {\n  a = 1\n  b = a + 1\n  c = b + 1\n  d = c + 1\n}; read_node(p.d)"
-    "unbuilt";
+    "not been built yet";
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Introspection:\n";
@@ -313,10 +313,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Re-run produces same node values *)
   let (rerun_result, _) = eval_string_env "p2 = pipeline_run(p); read_node(p2.total)" env_p3 in
   let result = Ast.Utils.value_to_string rerun_result in
-  if Test_helpers.contains result "unbuilt" then begin
+  if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  ✓ re-run returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ re-run returns FileError for unbuilt pipeline\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ re-run returns FileError for unbuilt pipeline\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
 
   test "pipeline_run on non-pipeline"
@@ -696,16 +696,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase 3 — Pipeline with Pipes:\n";
   test "pipeline with pipe operator"
     "double = \\(x) x * 2\np = pipeline {\n  a = 5\n  b = a |> double\n}; read_node(p.b)"
-    "unbuilt";
+    "not been built yet";
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with Functions:\n";
   test "pipeline with function calls"
     "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.total)"
-    "unbuilt";
+    "not been built yet";
   test "pipeline nodes available individually"
     "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.count)"
-    "unbuilt";
+    "not been built yet";
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Error Handling:\n";
@@ -1082,18 +1082,18 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 }|} csv_p3) (Packages.init_env ()) in
   let (v, _) = eval_string_env "read_node(p.rows)" env_p3_df in
   let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "unbuilt" then begin
+  if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  ✓ pipeline with DataFrame nrow returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline with DataFrame nrow\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ pipeline with DataFrame nrow\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "read_node(p.cols)" env_p3_df in
   let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "unbuilt" then begin
+  if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  ✓ pipeline with DataFrame ncol returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline with DataFrame ncol\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ pipeline with DataFrame ncol\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
   (try Sys.remove csv_p3 with _ -> ());
   print_newline ();

@@ -447,9 +447,9 @@ let register env =
             (match resolved_cn with
              | cn when cn.cn_path = "<unbuilt>" ->
                  (match Ast.get_in_memory_node_value_for_cn cn with
-                  | Some v when not (is_in_memory_placeholder v) -> v
-                  | _ ->
-                      Error.make_error FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: Sys_error(\"<unbuilt>: No such file or directory\")" cn.cn_name))
+                   | Some v when not (is_in_memory_placeholder v) -> v
+                   | _ ->
+                       Error.make_error FileError (Printf.sprintf "read_node: node `%s` has not been built yet. Build the pipeline first with build_pipeline(p), or use read_past_node(p.%s, which_log = ...) to read from a past build log." cn.cn_name cn.cn_name))
              | cn ->
                  let raw_val = Builder.logged_node_value cn.cn_name cn in
                  match Ast.get_in_memory_node_value_for_cn cn with
@@ -483,6 +483,19 @@ let register env =
     | VNA _ ->
         Error.make_error ValueError
           "read_node: requires a ComputedNode object. Use p.node_name (e.g. read_node(p.clean)) to access a node."
+    | VError err ->
+        let node_name =
+          match List.assoc_opt "node_name" err.context with
+          | Some (VString name) -> Some name
+          | _ -> None
+        in
+        (match node_name with
+         | Some name ->
+             Error.type_error
+               (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got an Error because node `%s` could not be resolved. Build the pipeline first with build_pipeline(p), or use read_past_node(p.%s, which_log = ...) to read from a past build log." name name)
+         | None ->
+             Error.type_error
+               "read_node: expected a ComputedNode for argument 'node', but got an Error value. If you are trying to read a pipeline node, build it first with build_pipeline(p). Use read_past_node(p.node_name, which_log = ...) to read from a past build log.")
     | other ->
         Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got %s." (Utils.type_name other))
   in

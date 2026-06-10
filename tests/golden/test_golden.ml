@@ -8,22 +8,22 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Golden test 1: Simple arithmetic pipeline *)
   test "golden: arithmetic pipeline"
     "p = pipeline {\n  a = 2 + 3\n  b = a * 4\n  c = b - 1\n}; read_node(p.c)"
-    "unbuilt";
+    "not been built yet";
 
   (* Golden test 2: Pipeline with function composition *)
   test "golden: function pipeline"
     "double = \\(n) n * 2\ninc = \\(m) m + 1\np = pipeline {\n  x = 5\n  y = x |> double\n  z = y |> inc\n}; read_node(p.z)"
-    "unbuilt";
+    "not been built yet";
 
   (* Golden test 3: Pipeline with list operations *)
   test "golden: list pipeline"
     "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  count = length(data)\n}; read_node(p.total)"
-    "unbuilt";
+    "not been built yet";
 
   (* Golden test 4: Pipeline node count *)
   test "golden: list pipeline count"
     "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  count = length(data)\n}; read_node(p.count)"
-    "unbuilt";
+    "not been built yet";
 
   (* Golden test 5: Pipeline representation *)
   test "golden: pipeline display format"
@@ -33,12 +33,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Golden test 6: Out-of-order dependency resolution *)
   test "golden: out-of-order deps"
     "p = pipeline {\n  sum = x + y + z\n  x = 10\n  y = 20\n  z = 30\n}; read_node(p.sum)"
-    "unbuilt";
+    "not been built yet";
 
   (* Golden test 7: Chained computation *)
   test "golden: chain computation"
     "p = pipeline {\n  a = 1\n  b = a + 1\n  c = b * 2\n  d = c + b\n  e = d * a\n}; read_node(p.e)"
-    "unbuilt";
+    "not been built yet";
 
   (* Golden test 8: Pipeline introspection - nodes *)
   test "golden: introspection nodes"
@@ -59,16 +59,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Golden test 10: Pipeline re-run preserves values *)
   let (v, _) = eval_string_env "p2 = pipeline_run(p); read_node(p2.c)" env_g in
   let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "unbuilt" then begin
+  if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  ✓ golden: re-run returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: re-run returns FileError for unbuilt pipeline\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ golden: re-run returns FileError for unbuilt pipeline\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
 
   (* Golden test 11: Pipeline determinism *)
   test "golden: deterministic execution"
     "p1 = pipeline {\n  a = 7\n  b = a * 3\n  c = b + 1\n}; p2 = pipeline {\n  a = 7\n  b = a * 3\n  c = b + 1\n}; read_node(p1.c) == read_node(p2.c)"
-    "unbuilt";
+    "not been built yet";
   print_newline ();
 
 
@@ -139,34 +139,34 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   let (v, _) = eval_string_env "read_node(p.rows)" env_gd in
   let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "unbuilt" then begin
+  if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  ✓ golden: data pipeline nrow returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline nrow\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ golden: data pipeline nrow\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "read_node(p.cols)" env_gd in
   let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "unbuilt" then begin
+  if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  ✓ golden: data pipeline ncol returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline ncol\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ golden: data pipeline ncol\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "read_node(p.names)" env_gd in
   let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "unbuilt" then begin
+  if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  ✓ golden: data pipeline colnames returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline colnames\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ golden: data pipeline colnames\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "read_node(p.filtered_count)" env_gd in
   let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "unbuilt" then begin
+  if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  ✓ golden: data pipeline filtered count returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline filtered count\n    Expected: FileError with 'unbuilt'\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ golden: data pipeline filtered count\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
 
   (try Sys.remove csv_golden with _ -> ());
