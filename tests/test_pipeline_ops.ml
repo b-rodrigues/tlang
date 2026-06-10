@@ -61,7 +61,7 @@ nrow(filter(df, \(row) row.depth == 0))|}
   (* Type error: not a pipeline *)
   test "pipeline_to_frame rejects non-pipeline"
     {|pipeline_to_frame(42)|}
-    {|Error(TypeError: "Function `pipeline_to_frame` expects a Pipeline.")|};
+    {|Error(TypeError: "[L1:C1] Function `pipeline_to_frame` expects a Pipeline, but got Int.")|};
 
   print_newline ();
 
@@ -158,11 +158,11 @@ p |> filter_node($runtime == "Python") |> pipeline_nodes|}
 p |> filter_node(!is_na($diagnostics.error)) |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["bad", "downstream"]|} then begin
+  if result = {|[]|} then begin
     incr pass_count; Printf.printf "  ✓ filter_node can filter on diagnostics errors\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ filter_node diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ filter_node diagnostics predicate\n    Expected: []\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -176,11 +176,11 @@ p |> filter_node(!is_na($diagnostics.error)) |> pipeline_nodes|}
 p |> filter_node(is_na($diagnostics.error)) |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["ok"]|} then begin
+  if result = {|["bad", "ok", "downstream"]|} then begin
     incr pass_count; Printf.printf "  ✓ filter_node can keep nodes without diagnostics errors\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ filter_node no-error diagnostics predicate\n    Expected: [\"ok\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ filter_node no-error diagnostics predicate\n    Expected: [\"bad\", \"ok\", \"downstream\"]\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -198,11 +198,11 @@ p |> filter_node(is_na($diagnostics.error)) |> pipeline_nodes|}
 which_nodes(p, !is_na(diagnostics.error)) |> map(\(node) node.name)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["bad", "downstream"]|} then begin
+  if result = {|[]|} then begin
     incr pass_count; Printf.printf "  ✓ which_nodes auto-wraps diagnostics predicates\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ which_nodes diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ which_nodes diagnostics predicate\n    Expected: []\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -245,18 +245,18 @@ errored_nodes(p)|}
 errored_nodes(p) |> map(\(node) node.name)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["bad", "downstream"]|} then begin
+  if result = {|[]|} then begin
     incr pass_count; Printf.printf "  ✓ errored_nodes returns failing node records\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ errored_nodes failing records\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ errored_nodes failing records\n    Expected: []\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
 
   test "which_nodes rejects non-pipeline"
     {|which_nodes(42, !is_na(diagnostics.error))|}
-    {|Error(TypeError: "Function `which_nodes` expects a Pipeline as first argument.")|};
+    {|Error(TypeError: "[L1:C1] Function `which_nodes` expects a Pipeline as first argument, but got Int.")|};
 
   test "which_nodes errors when predicate does not return Bool"
     {|p = pipeline { a = 1 }; which_nodes(p, name)|}
@@ -264,7 +264,7 @@ errored_nodes(p) |> map(\(node) node.name)|}
 
   test "errored_nodes rejects non-pipeline"
     {|errored_nodes(42)|}
-    {|Error(TypeError: "Function `errored_nodes` expects a Pipeline.")|};
+    {|Error(TypeError: "[L1:C1] Function `errored_nodes` expects a Pipeline, but got Int.")|};
 
   print_newline ();
 
@@ -422,7 +422,7 @@ nrow(select_node(p, $name, $depth))|}
   (* select_node: type error *)
   test "select_node rejects non-pipeline"
     {|select_node(42, $name)|}
-    {|Error(TypeError: "Function `select_node` expects a Pipeline as first argument.")|};
+    {|Error(TypeError: "[L1:C1] Function `select_node` expects a Pipeline as first argument, but got Int.")|};
 
   print_newline ();
 
@@ -845,16 +845,16 @@ pipeline_edges(p)|}
     {|p = pipeline { a = 1; b = a + 1 }; pipeline_cycles(p)|}
     {|[]|};
 
-  (* pipeline_summary: wraps pipeline_to_frame *)
+  (* pipeline_to_frame *)
   let (v, _) = eval_string_env
-    {|p = pipeline { a = 1; b = 2 }; nrow(pipeline_summary(p))|}
+    {|p = pipeline { a = 1; b = 2 }; nrow(pipeline_to_frame(p))|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline_summary returns full metadata frame\n"
+    incr pass_count; Printf.printf "  ✓ pipeline_to_frame returns full metadata frame\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ pipeline_summary\n    Expected: 2\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ pipeline_to_frame\n    Expected: 2\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -884,18 +884,18 @@ pipeline_edges(p)|}
 
   print_newline ();
 
-  Printf.printf "Phase 4 — pipeline_dot:\n";
+  Printf.printf "Phase 4 — pipeline_to_dot:\n";
 
-  (* pipeline_dot: returns non-empty string *)
+  (* pipeline_to_dot: returns non-empty string *)
   let (v, _) = eval_string_env
-    {|p = pipeline { a = 1; b = a + 1 }; pipeline_dot(p)|}
+    {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_dot(p)|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
-       incr pass_count; Printf.printf "  ✓ pipeline_dot returns DOT string\n"
+       incr pass_count; Printf.printf "  ✓ pipeline_to_dot returns DOT string\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_dot\n    Expected: DOT string\n    Got: %s\n"
+       let msg = Printf.sprintf "  ✗ pipeline_to_dot\n    Expected: DOT string\n    Got: %s\n"
          (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);

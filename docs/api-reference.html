@@ -630,14 +630,19 @@ error_msg(e2)  -- &quot;Division by zero&quot;</code></pre>
 <hr />
 <h3 id="warning_msgnode"><code>warning_msg(node)</code></h3>
 <p>Get the warning message from a completed computed node (if any
-exists).</p>
+exists). Downstream nodes automatically inherit warnings from ancestor
+nodes, with each upstream warning prefixed by its source node name for
+clear provenance.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>node</code> — ComputedNode value</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>String</code> — Warning message, or an empty string
-<code>""</code> if there are no warnings.</p>
+<code>""</code> if there are no warnings. Upstream warnings are prefixed
+with
+<code>"Ancestor node '&lt;name&gt;' reported following warning: &lt;message&gt;"</code>.
+Multiple warnings are joined with <code>". Furthermore, "</code>.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { a = suppress_warnings(node()) }
 build_pipeline(p)
@@ -1855,25 +1860,28 @@ data structure.</p>
 node records.</p>
 <hr />
 <h3
-id="build_pipelinep-verbose-0-populate_pipelinep-build-true"><code>build_pipeline(p, verbose = 0)</code>
+id="build_pipelinep-verbose-0-pipeline_name-na-populate_pipelinep-build-true"><code>build_pipeline(p, verbose = 0, pipeline_name = NA)</code>
 / <code>populate_pipeline(p, build = true)</code></h3>
 <p>Materialize a pipeline to Nix artifacts. <code>build_pipeline</code>
 is the primary entry point for full Nix builds and returns a
 <code>BuildLog</code> value (<code>nodes</code>, <code>duration</code>,
 <code>failed_nodes</code>, <code>out_path</code>).
 <code>populate_pipeline</code> can be used to generate the Nix
-expression without building (with <code>build = false</code>).</p>
+expression without building (with <code>build = false</code>). Use
+<code>pipeline_name</code> to record a name in the build log for later
+disambiguation via <code>list_logs()</code>.</p>
 <hr />
 <h3 id="read_pipelinep-inspect_pipelinep"><code>read_pipeline(p)</code>
 / <code>inspect_pipeline(p)</code></h3>
 <p>Returns a dictionary with node metadata and diagnostics summary.
 <code>inspect_pipeline</code> focuses on the DAG structure (edges).</p>
 <hr />
-<h3
-id="read_nodenode-which_log-na"><code>read_node(node, which_log = NA)</code></h3>
-<p>Retrieves the dynamically evaluated or built artifact of a node.
-Strictly expects a <code>ComputedNode</code> object
-(e.g. <code>p.node_name</code>).</p>
+<h3 id="read_nodenode"><code>read_node(node)</code></h3>
+<p>Retrieves the dynamically evaluated or built artifact of a node from
+an in-scope pipeline. Strictly expects a <code>ComputedNode</code>
+object (e.g. <code>p.node_name</code>). For reading from historical
+build logs without the pipeline in scope, use <a
+href="#read_past_node"><code>read_past_node(p.node_name, which_log = ...)</code></a>.</p>
 <hr />
 <h3
 id="filter_nodep-predicate-select_nodep-..."><code>filter_node(p, predicate)</code>
@@ -2248,7 +2256,7 @@ populate_pipeline(p, build = true)
 populate_pipeline(p, build = true, nix_options = [max_jobs: 4, cache: &quot;rstats-on-nix&quot;])</code></pre>
 <hr />
 <h3
-id="build_pipelinepipeline-verbose-0-nix_options-na"><code>build_pipeline(pipeline, verbose = 0, nix_options = NA)</code></h3>
+id="build_pipelinepipeline-verbose-0-nix_options-na-pipeline_name-na"><code>build_pipeline(pipeline, verbose = 0, nix_options = NA, pipeline_name = NA)</code></h3>
 <p>Shorthand for <code>populate_pipeline(p, build = true)</code>.
 Recommended for scripts run with <code>t run</code>.</p>
 <p><strong>Parameters:</strong></p>
@@ -2259,6 +2267,9 @@ Defaults to <code>0</code> (quiet/minimalist live-status output without
 dumping failed node trace logs). Set <code>verbose = 1</code> or higher
 to print detailed node stdout/stderr failures directly to the terminal
 on build error.</li>
+<li><code>pipeline_name</code> (optional) — String or Symbol. Records a
+human-readable name in the build log JSON (<code>"pipeline"</code>
+field) to help disambiguate logs in <code>list_logs()</code>.</li>
 <li><code>nix_options</code> (optional) — Dict of Nix build options.
 Supported keys:
 <ul>
@@ -2291,22 +2302,33 @@ path for previous string-return behavior) (or <code>DataFrame</code> if
 build_pipeline(p, nix_options = [dry_run: true])
 build_pipeline(p, nix_options = [targets: [&quot;c&quot;], max_jobs: 4, cache: &quot;rstats-on-nix&quot;, force: [&quot;c&quot;]])</code></pre>
 <hr />
-<h3
-id="read_nodenode-which_log-na-1"><code>read_node(node, which_log = NA)</code></h3>
-<p>Read a dynamically evaluated or materialized artifact from a pipeline
-build.</p>
+<h3 id="read_nodenode-1"><code>read_node(node)</code></h3>
+<p>Read a dynamically evaluated or materialized artifact from an
+in-scope pipeline build.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>node</code> — The ComputedNode to read
 (e.g. <code>p.node_name</code>)</li>
-<li><code>which_log</code> (optional) — Regex pattern or filename of a
-specific build log. Defaults to latest.</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>Deserialized value.</p>
+<p>Deserialized value, wrapped with diagnostics.</p>
 <p><strong>Examples:</strong></p>
-<pre class="t"><code>read_node(p.summary_stats)
-read_node(p.model_v1, which_log = &quot;20260221&quot;)</code></pre>
+<pre class="t"><code>read_node(p.summary_stats)</code></pre>
+<hr />
+<h3
+id="read_past_nodenode-which_log"><code>read_past_node(node, which_log)</code></h3>
+<p>Read a pipeline node from a specific historical build log without the
+pipeline being in scope. The node argument is NSE-captured from
+<code>p.node_name</code> syntax.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>node</code> — The node to read, written as
+<code>p.node_name</code> (captured before evaluation)</li>
+<li><code>which_log</code> (required) — Regex pattern matching a
+specific build log filename</li>
+</ul>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>read_past_node(base_p.raw, which_log = &quot;qcfs&quot;)</code></pre>
 <hr />
 <h3 id="debug_nodenode"><code>debug_node(node)</code></h3>
 <p>Launches an interactive guest subshell (Python, R, or Julia REPL) to

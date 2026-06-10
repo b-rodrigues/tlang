@@ -355,7 +355,7 @@ If tests fail during development, follow this guide to identify and fix common i
 
 ### 2. KeyError: Column not found in DataFrame
 **Symptoms**: `Error(KeyError: "[L1:C50] Column 'node_count' not found in DataFrame.")`
-**Cause**: Many introspection functions like `pipeline_summary(p)` return a **DataFrame** (one row per node) rather than a **Dict**.
+**Cause**: Many introspection functions like `pipeline_to_frame(p)` return a **DataFrame** (one row per node) rather than a **Dict**.
 **Fix**: Use `nrow(res)` to check the node count, or `length(pipeline_edges(p))` for the edge count. Do not attempt to access `.node_count` or `.edge_count` as if they were record fields on the result.
 
 ### 3. Dependency Check Failures

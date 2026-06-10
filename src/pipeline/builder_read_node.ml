@@ -60,10 +60,34 @@ let node_error_of_logged_value name cn value =
   else
     None
 
+let latest_logged_computed_node_forward : (string -> computed_node option) ref =
+  ref (fun _ -> None)
+
+let rec collect_upstream_warnings ?(visited : string list = []) (dep_names : string list) : Ast.node_warning list =
+  match dep_names with
+  | [] -> []
+  | dep_name :: rest when List.mem dep_name visited ->
+      collect_upstream_warnings ~visited rest
+  | dep_name :: rest ->
+      let from_this_dep =
+        match !latest_logged_computed_node_forward dep_name with
+        | Some dep_cn when dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" ->
+            let dep_dir = Filename.dirname dep_cn.cn_path in
+            let dep_warnings_path = Filename.concat dep_dir "warnings" in
+            let dep_warnings = parse_node_warnings dep_warnings_path in
+            let marked = List.map (fun w -> { w with Ast.nw_source = Ast.WarningUpstream dep_name }) dep_warnings in
+            let deeper = collect_upstream_warnings ~visited:(dep_name :: visited) dep_cn.cn_dependencies in
+            marked @ deeper
+        | _ -> collect_upstream_warnings ~visited:(dep_name :: visited) rest
+      in
+      from_this_dep @ collect_upstream_warnings ~visited rest
+
 let logged_node_diagnostics ?value name cn =
   let node_dir = Filename.dirname cn.cn_path in
   let warnings_path = Filename.concat node_dir "warnings" in
-  let warnings = parse_node_warnings warnings_path in
+  let own_warnings = parse_node_warnings warnings_path in
+  let upstream_warnings = collect_upstream_warnings cn.cn_dependencies in
+  let all_warnings = own_warnings @ upstream_warnings in
   let error =
     match value with
     | Some value -> node_error_of_logged_value name cn value
@@ -82,7 +106,7 @@ let logged_node_diagnostics ?value name cn =
           None
   in
   {
-    nd_warnings = warnings;
+    nd_warnings = all_warnings;
     nd_error = error;
     nd_warnings_suppressed = false;
     nd_recovered = false;
@@ -359,18 +383,29 @@ let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
     | VComputedNode cn -> cn.cn_path = "<unbuilt>" || cn.cn_path = ""
     | _ -> false
   in
-  match matching_pipeline_log_entries ?which_log p with
-  | Some entries ->
-      List.map
-        (fun (name, value) ->
-          match value, List.assoc_opt name entries with
-          | _, None -> (name, value)
-          | value, Some cn when should_overlay_value value ->
-              (name, logged_node_value name cn)
-          | _ -> (name, value))
+  let overlay_in_memory pairs =
+    (* Only VNodeResult is ever written to in_memory_node_values (by lens set ops).
+       Non-VNodeResult values would indicate corruption; fall through to log. *)
+    List.map (fun (name, value) ->
+      match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name with
+      | Some (VNodeResult { v; _ }) -> (name, v)
+      | _ -> (name, value)
+    ) pairs
+  in
+  overlay_in_memory (
+    match matching_pipeline_log_entries ?which_log p with
+    | Some entries ->
+        List.map
+          (fun (name, value) ->
+            match value, List.assoc_opt name entries with
+            | _, None -> (name, value)
+            | value, Some cn when should_overlay_value value ->
+                (name, logged_node_value name cn)
+            | _ -> (name, value))
+          p.p_nodes
+    | None ->
         p.p_nodes
-  | None ->
-      p.p_nodes
+  )
 
 (** Scans candidate build logs and returns the most recent [ComputedNode]
     entry whose name equals [name]. [log_name_pattern], when provided, is a
@@ -426,6 +461,9 @@ let latest_logged_computed_node ?log_name_pattern (name : string) =
       in
       find_in_logs matching_logs
 
+let () = latest_logged_computed_node_forward := (fun name ->
+  latest_logged_computed_node name)
+
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
   match Sys.getenv_opt env_name with
@@ -450,6 +488,7 @@ let read_node ?which_log name =
            );
           cn_class = cls;
           cn_dependencies = [];
+          cn_p_exprs = None;
         } in
         
         let v = read_env_node_value name cn in
@@ -504,24 +543,33 @@ let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline
       nd_upstream_errors = base.nd_upstream_errors;
     }
   in
-  match matching_pipeline_log_entries ?which_log p with
-  | Some entries ->
-      List.map
-        (fun name ->
-          let base =
-            match List.assoc_opt name p.p_node_diagnostics with
-            | Some diagnostics -> diagnostics
-            | None -> Ast.Utils.empty_node_diagnostics
-          in
-          match List.assoc_opt name entries with
-          | Some cn ->
-              let overlay = logged_node_diagnostics name cn in
-              (name, merge_diagnostics base overlay)
-          | None ->
-              (name, base))
-        (List.map fst p.p_nodes)
-  | None ->
-      p.p_node_diagnostics
+  let overlay_in_memory pairs =
+    List.map (fun (name, diagnostics) ->
+      match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name with
+      | Some (VNodeResult { diagnostics = d; _ }) when d.nd_warnings <> [] || d.nd_error <> None -> (name, d)
+      | _ -> (name, diagnostics)
+    ) pairs
+  in
+  overlay_in_memory (
+    match matching_pipeline_log_entries ?which_log p with
+    | Some entries ->
+        List.map
+          (fun name ->
+            let base =
+              match List.assoc_opt name p.p_node_diagnostics with
+              | Some diagnostics -> diagnostics
+              | None -> Ast.Utils.empty_node_diagnostics
+            in
+            match List.assoc_opt name entries with
+            | Some cn ->
+                let overlay = logged_node_diagnostics name cn in
+                (name, merge_diagnostics base overlay)
+            | None ->
+                (name, base))
+          (List.map fst p.p_nodes)
+    | None ->
+        p.p_node_diagnostics
+  )
 
 (* ------------------------------------------------------------------ *)
 (* resolve_node_artifact — bridge between node_diff and build logs     *)

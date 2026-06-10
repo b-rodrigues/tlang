@@ -381,7 +381,7 @@ CAMLprim value caml_onnx_session_metadata(value v_session) {
     if (keys) free(keys);
 
     char *producer = NULL, *description = NULL;
-    g_ort->ModelMetadataGetProducerName(metadata, allocator, &producer);
+    CHECK_STATUS_GOTO(g_ort->ModelMetadataGetProducerName(metadata, allocator, &producer));
     if (producer) {
         v_pair = caml_alloc(2, 0);
         Store_field(v_pair, 0, caml_copy_string("producer"));
@@ -392,7 +392,7 @@ CAMLprim value caml_onnx_session_metadata(value v_session) {
         v_res = v_cons;
         allocator->Free(allocator, producer);
     }
-    g_ort->ModelMetadataGetDescription(metadata, allocator, &description);
+    CHECK_STATUS_GOTO(g_ort->ModelMetadataGetDescription(metadata, allocator, &description));
     if (description) {
         v_pair = caml_alloc(2, 0);
         Store_field(v_pair, 0, caml_copy_string("description"));

@@ -90,6 +90,7 @@ let read_log path =
         cn_serializer = node_json |> member "serializer" |> to_string;
         cn_class;
         cn_dependencies = node_json |> member "dependencies" |> to_list |> filter_string;
+        cn_p_exprs = None;
       } in
       (name, cn)
     ) nodes in
@@ -116,10 +117,25 @@ let list_logs () =
     let size_kb = Float.round (raw_kb *. 100.0) /. 100.0 in
     Some size_kb
   ) in
+  let arr_pipeline = Array.init nrows (fun i ->
+    let f = logs_arr.(i) in
+    let path = Filename.concat pipeline_dir f in
+    if Sys.file_exists path then
+      try
+        let json = Yojson.Safe.from_file path in
+        let open Yojson.Safe.Util in
+        match json |> member "pipeline" with
+        | `String s -> Some s
+        | _ -> None
+      with _ -> None
+    else
+      None
+  ) in
   let columns = [
     ("filename", Arrow_table.StringColumn arr_filename);
     ("modification_time", Arrow_table.StringColumn arr_mtime);
     ("size_kb", Arrow_table.FloatColumn arr_size);
+    ("pipeline", Arrow_table.StringColumn arr_pipeline);
   ] in
   let arrow_table = Arrow_table.create columns nrows in
   Ast.VDataFrame { arrow_table; group_keys = [] }

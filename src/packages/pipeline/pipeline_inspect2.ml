@@ -64,7 +64,10 @@ let register env =
             ) deps
           ) p_deps in
           VList edges
-      | [_] -> Error.type_error "Function `pipeline_edges` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_edges` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_edges" 1 (List.length args)
     ))
     env
@@ -90,7 +93,10 @@ let register env =
       | [VPipeline { p_deps; _ }] ->
           let roots = root_nodes p_deps in
           VList (List.map (fun n -> (None, VString n)) roots)
-      | [_] -> Error.type_error "Function `pipeline_roots` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_roots` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_roots" 1 (List.length args)
     ))
     env
@@ -116,7 +122,10 @@ let register env =
       | [VPipeline { p_deps; _ }] ->
           let leaves = leaf_nodes p_deps in
           VList (List.map (fun n -> (None, VString n)) leaves)
-      | [_] -> Error.type_error "Function `pipeline_leaves` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_leaves` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_leaves" 1 (List.length args)
     ))
     env
@@ -144,7 +153,10 @@ let register env =
           let depths = Pipeline_to_frame.compute_depths p.p_deps in
           let max_d = List.fold_left (fun acc (_, d) -> max acc d) 0 depths in
           VInt max_d
-      | [_] -> Error.type_error "Function `pipeline_depth` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_depth` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_depth" 1 (List.length args)
     ))
     env
@@ -171,40 +183,11 @@ let register env =
       | [VPipeline p] ->
           let cycles = detect_cycles p.p_deps in
           VList (List.map (fun n -> (None, VString n)) cycles)
-      | [_] -> Error.type_error "Function `pipeline_cycles` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_cycles` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_cycles" 1 (List.length args)
-    ))
-    env
-  in
-
-(*
---# Pipeline Summary
---#
---# Returns a DataFrame with full metadata for every node in the pipeline.
---# This is a convenience wrapper around `pipeline_to_frame`.
---#
---# @name pipeline_summary
---# @param p :: Pipeline The pipeline.
---# @return :: DataFrame A DataFrame with one row per node and all metadata columns.
---# @example
---#   pipeline_summary(p)
---# @family pipeline
---# @seealso pipeline_to_frame, select_node
---# @export
-*)
-  let env = Env.add "pipeline_summary"
-    (make_builtin ~name:"pipeline_summary" 1 (fun args runtime_env ->
-      match args with
-      | [VPipeline _ as p_val] ->
-          (* Delegate to pipeline_to_frame via the runtime env *)
-          (match Env.find_opt "pipeline_to_frame" runtime_env with
-           | Some fn -> (match fn with
-               | VBuiltin { b_func; _ } ->
-                   b_func [(None, p_val)] (ref runtime_env)
-               | _ -> Error.type_error "pipeline_summary: pipeline_to_frame not a builtin.")
-           | None -> Error.name_error "pipeline_to_frame")
-      | [_] -> Error.type_error "Function `pipeline_summary` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_summary" 1 (List.length args)
     ))
     env
   in
@@ -250,7 +233,10 @@ let register env =
               "Pipeline has dependency cycle(s) involving: %s."
               (String.concat ", " cycles) :: !errors;
           VList (List.map (fun msg -> (None, VString msg)) (List.rev !errors))
-      | [_] -> Error.type_error "Function `pipeline_validate` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_validate` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_validate" 1 (List.length args)
     ))
     env
@@ -295,7 +281,10 @@ let register env =
                    (Printf.sprintf "Pipeline has dependency cycle(s) involving: %s."
                       (String.concat ", " cycles))
                else v)
-      | [_] -> Error.type_error "Function `pipeline_assert` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_assert` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_assert" 1 (List.length args)
     ))
     env
@@ -313,7 +302,7 @@ let register env =
 --# @example
 --#   pipeline_print(p)
 --# @family pipeline
---# @seealso pipeline_summary, pipeline_dot
+--# @seealso pipeline_to_frame
 --# @export
 *)
   let env = Env.add "pipeline_print"
@@ -333,66 +322,20 @@ let register env =
               name runtime depth noop (String.concat ", " deps)
           ) node_names;
           (VNA NAGeneric)
-      | [_] -> Error.type_error "Function `pipeline_print` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_print` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_print" 1 (List.length args)
     ))
     env
   in
 
 (*
---# Export Pipeline as DOT Graph
---#
---# Returns a string containing a Graphviz DOT representation of the pipeline's
---# dependency graph, suitable for visualization.
---#
---# @name pipeline_dot
---# @param p :: Pipeline The pipeline.
---# @return :: String A DOT graph string.
---# @example
---#   pipeline_dot(p)
---# @family pipeline
---# @seealso pipeline_print, pipeline_edges
---# @export
-*)
-  let env = Env.add "pipeline_dot"
-    (make_builtin ~name:"pipeline_dot" 1 (fun args _env ->
-      match args with
-      | [VPipeline p] ->
-          let buf = Buffer.create 256 in
-          Buffer.add_string buf "digraph pipeline {\n";
-          Buffer.add_string buf "  rankdir=LR;\n";
-          Buffer.add_string buf "  node [shape=box];\n";
-          (* Nodes with attributes *)
-          List.iter (fun (name, _) ->
-            let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-            let noop    = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
-            let label =
-              if noop then Printf.sprintf "%s\\n[%s, noop]" name runtime
-              else          Printf.sprintf "%s\\n[%s]" name runtime
-            in
-            Buffer.add_string buf
-              (Printf.sprintf "  \"%s\" [label=\"%s\"];\n" name label)
-          ) p.p_exprs;
-          (* Edges: dep -> name *)
-          List.iter (fun (name, deps) ->
-            List.iter (fun dep ->
-              Buffer.add_string buf
-                (Printf.sprintf "  \"%s\" -> \"%s\";\n" dep name)
-            ) deps
-          ) p.p_deps;
-          Buffer.add_string buf "}\n";
-          VString (Buffer.contents buf)
-      | [_] -> Error.type_error "Function `pipeline_dot` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_dot" 1 (List.length args)
-    ))
-    env
-  in
-  
-(*
 --# Export Pipeline/MetaPipeline as DOT Graph
 --#
 --# Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline
---# dependency graph, including node names, language runtimes, and execution statuses.
+--# dependency graph, including node names and language runtimes.
 --#
 --# @name pipeline_to_dot
 --# @param p :: Pipeline|MetaPipeline The pipeline or metapipeline.
@@ -400,7 +343,7 @@ let register env =
 --# @example
 --#   pipeline_to_dot(p)
 --# @family pipeline
---# @seealso pipeline_to_mermaid, pipeline_dot
+--# @seealso pipeline_to_mermaid
 --# @export
 *)
   let env = Env.add "pipeline_to_dot"
@@ -435,7 +378,10 @@ let register env =
           (match Pipeline_composition.flatten_meta v with
            | VPipeline p -> render p
            | e -> e)
-      | [_] -> Error.type_error "Function `pipeline_to_dot` expects a Pipeline or MetaPipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_to_dot` expects a Pipeline or MetaPipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_to_dot" 1 (List.length args)
     ))
     env
@@ -445,7 +391,8 @@ let register env =
 --# Export Pipeline/MetaPipeline as Mermaid Graph
 --#
 --# Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline
---# dependency graph, including node names, language runtimes, and execution statuses.
+--# dependency graph, including node names, language runtimes, and execution error status
+--# (errored nodes are highlighted with a red stroke).
 --# You can view the diagram in your browser by passing the result to show_plot().
 --#
 --# @name pipeline_to_mermaid
@@ -501,6 +448,30 @@ let register env =
               (Printf.sprintf "  %s --> %s;\n" dep_id name_id)
           ) deps
         ) p.p_deps;
+        let runtime_fill = function
+          | "r" -> "#246ABF"
+          | "python" -> "#FFD343"
+          | "julia" -> "#9558b2"
+          | "quarto" -> "#4F789E"
+          | "sh" -> "#6e3b03"
+          | _ -> "#ffced0"
+        in
+        let has_error name =
+          match List.assoc_opt name p.p_node_diagnostics with
+          | Some d when d.nd_error <> None -> true
+          | _ -> false
+        in
+        List.iter (fun (name, _) ->
+          let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+          let id = get_id name in
+          let fill = runtime_fill (String.lowercase_ascii runtime) in
+          let stroke = if has_error name then "#ff0000" else "#333" in
+          let stroke_width = if has_error name then 3 else 1 in
+          Buffer.add_string buf
+            (Printf.sprintf "  style %s fill:%s,color:#000000,stroke:%s,stroke-width:%dpx\n"
+               id fill stroke stroke_width)
+        ) p.p_exprs;
+
         VString (Buffer.contents buf)
       in
       match args with
@@ -509,7 +480,10 @@ let register env =
           (match Pipeline_composition.flatten_meta v with
            | VPipeline p -> render p
            | e -> e)
-      | [_] -> Error.type_error "Function `pipeline_to_mermaid` expects a Pipeline or MetaPipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_to_mermaid` expects a Pipeline or MetaPipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_to_mermaid" 1 (List.length args)
     ))
     env

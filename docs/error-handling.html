@@ -560,6 +560,28 @@ producing a <code>VError</code> artifact.</li>
 <li><strong><code>?</code> (Warnings)</strong>: The node succeeded, but
 issued non-terminal diagnostics.</li>
 </ul>
+<h3 id="upstream-warning-propagation">Upstream Warning Propagation</h3>
+<p>When a node emits a warning, downstream nodes that depend on it
+automatically inherit that warning. This ensures that warnings are never
+silently lost in a pipeline chain.</p>
+<p>Use <code>warning_msg(node)</code> to inspect a node’s own warnings
+and any warnings inherited from ancestor nodes:</p>
+<pre class="t"><code>warning_msg(p.filtered)
+-- &quot;filter() excluded 1 row because the predicate evaluated to NA&quot;
+
+warning_msg(p.count)        -- downstream of `filtered`
+-- &quot;Ancestor node &#39;filtered&#39; reported following warning: filter() excluded 1 row because the predicate evaluated to NA&quot;</code></pre>
+<p>Use <code>inspect_node(node).warnings</code> for structured
+access:</p>
+<pre class="t"><code>inspect_node(p.count).warnings
+-- [
+--   { source: &quot;filtered&quot;, message: &quot;filter() excluded 1 row because the predicate evaluated to NA&quot; }
+-- ]</code></pre>
+<p>The per-node diagnostics in <code>read_pipeline(p).nodes</code> carry
+full warning lists as well. The aggregate
+<code>diagnostics.summary</code> counts only own warnings, so the
+pipeline-level summary reflects which nodes originally produced warnings
+without double-counting inherited ones.</p>
 <h3 id="investigating-with-explain">Investigating with
 <code>explain()</code></h3>
 <p>When you load a node that soft-failed, you receive a T-Lang Error

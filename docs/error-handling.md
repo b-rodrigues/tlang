@@ -536,6 +536,31 @@ After a build, T provides an iconographic summary:
 - **`!` (Captured error)**: The node failed, producing a `VError` artifact.
 - **`?` (Warnings)**: The node succeeded, but issued non-terminal diagnostics.
 
+### Upstream Warning Propagation
+
+When a node emits a warning, downstream nodes that depend on it automatically inherit that warning. This ensures that warnings are never silently lost in a pipeline chain.
+
+Use `warning_msg(node)` to inspect a node's own warnings and any warnings inherited from ancestor nodes:
+
+```t
+warning_msg(p.filtered)
+-- "filter() excluded 1 row because the predicate evaluated to NA"
+
+warning_msg(p.count)        -- downstream of `filtered`
+-- "Ancestor node 'filtered' reported following warning: filter() excluded 1 row because the predicate evaluated to NA"
+```
+
+Use `inspect_node(node).warnings` for structured access:
+
+```t
+inspect_node(p.count).warnings
+-- [
+--   { source: "filtered", message: "filter() excluded 1 row because the predicate evaluated to NA" }
+-- ]
+```
+
+The per-node diagnostics in `read_pipeline(p).nodes` carry full warning lists as well. The aggregate `diagnostics.summary` counts only own warnings, so the pipeline-level summary reflects which nodes originally produced warnings without double-counting inherited ones.
+
 ### Investigating with `explain()`
 
 When you load a node that soft-failed, you receive a T-Lang Error object. You can use the `explain()` builtin to see the exact cause, including tracebacks from other languages.

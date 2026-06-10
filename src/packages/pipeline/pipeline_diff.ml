@@ -134,6 +134,9 @@ let register env =
             ("frame_a", frame_of_pipeline p_a);
             ("frame_b", frame_of_pipeline p_b);
           ]
-      | [_; _] -> Error.type_error "Function `pipeline_diff` expects two Pipeline values."
+      | [first; second] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_diff` expects two Pipeline values, but got %s and %s."
+               (Utils.type_name first) (Utils.type_name second))
       | _ -> Error.arity_error_named "pipeline_diff" 2 (List.length args)
     )) env

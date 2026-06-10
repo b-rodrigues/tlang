@@ -21,5 +21,5 @@ pipeline_print(p)
 
 ## See Also
 
-[pipeline_dot](pipeline_dot.html), [pipeline_summary](pipeline_summary.html)
+[pipeline_to_dot](pipeline_to_dot.html)
 

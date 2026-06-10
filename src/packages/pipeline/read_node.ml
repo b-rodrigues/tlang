@@ -179,16 +179,21 @@ let run_shell_command_with_env shell_cmd overrides =
 --#
 --# Reads and returns the contents of a ComputedNode. For in-memory pipelines,
 --# returns the dynamically computed value directly from the registry. For built
---# pipelines, reads the materialized artifact from the latest (or specified) 
---# build log.
---# Use `which_log` to read from a specific historical build ("time travel").
+--# pipelines, reads the materialized artifact from the latest build log.
+--#
+--# Note: The `.warnings` field previously returned on the result has been
+--# removed. Use `warning_msg(node)` to inspect a node's own warnings and any
+--# upstream warnings inherited from ancestor nodes. Use `inspect_node(node)`
+--# for structured warning metadata.
+--#
+--# Use `read_past_node(p.node_name, which_log = "...")` to read a node from a
+--# specific historical build log without needing the pipeline in scope.
 --#
 --# @name read_node
 --# @param node :: ComputedNode The ComputedNode object to read (e.g. `p.node_name`).
---# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
 --# @return :: Any The deserialized artifact value, or the in-memory value.
 --# @family pipeline
---# @seealso read_pipeline, build_pipeline, inspect_pipeline
+--# @seealso read_past_node, warning_msg, inspect_node, read_pipeline, build_pipeline, inspect_pipeline
 --# @export
 *)
 let register env =
@@ -418,49 +423,49 @@ let register env =
     match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
         run_interactive_subshell ~env cn
-    | _ -> Error.type_error "debug_node: expected a ComputedNode."
+    | other ->
+        Error.type_error
+          (Printf.sprintf "debug_node: expected a ComputedNode, but got %s."
+             (Utils.type_name other))
   in
 
   let read_fn named_args _env =
 
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VComputedNode cn ->
-        let which_log_provided =
-          match extract_arg "which_log" 2 (VNA NAGeneric) named_args with
-          | VString _ -> true
-          | _ -> false
-        in
-        begin match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
-        | Some v when not which_log_provided -> v
-        | _ ->
-          let cn_or_err =
-            if which_log_provided then
-              let log_name = match extract_arg "which_log" 2 (VNA NAGeneric) named_args with VString s -> s | _ -> "" in
-              (match Builder.latest_logged_computed_node ~log_name_pattern:log_name cn.cn_name with
-               | Some logged_cn ->
-                   let cn_path = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
-                   let cn_class = if cn.cn_class = "Unknown" then logged_cn.cn_class else cn.cn_class in
-                   let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
-                   let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
-                   Ok { cn with cn_path; cn_class; cn_runtime; cn_serializer }
-               | None ->
-                   Error (Error.make_error KeyError (Printf.sprintf "Node `%s` not found in BuildLog." cn.cn_name)))
-            else Ok (!Ast.computed_node_resolver cn)
+        begin
+          let resolved_cn = !Ast.computed_node_resolver cn in
+          let is_built = resolved_cn.cn_path <> "" && resolved_cn.cn_path <> "<unbuilt>" in
+          let is_in_memory_placeholder v =
+            match v with
+            | VNodeResult { v = VComputedNode inner; _ } -> inner.cn_path = "" || inner.cn_path = "<unbuilt>"
+            | _ -> false
           in
-          (match cn_or_err with
-           | Error err -> err
-           | Ok cn ->
-               if cn.cn_path = "<unbuilt>" && not which_log_provided then
-                 (match Hashtbl.find_opt Ast.in_memory_node_values cn.cn_name with
-                  | Some v -> v
-                  | None ->
+          match Ast.get_in_memory_node_value_for_cn cn with
+          | Some v when not is_built && not (is_in_memory_placeholder v) -> v
+          | _ ->
+            (match resolved_cn with
+             | cn when cn.cn_path = "<unbuilt>" ->
+                 (match Ast.get_in_memory_node_value_for_cn cn with
+                  | Some v when not (is_in_memory_placeholder v) -> v
+                  | _ ->
                       Error.make_error FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: Sys_error(\"<unbuilt>: No such file or directory\")" cn.cn_name))
-               else
+             | cn ->
                  let raw_val = Builder.logged_node_value cn.cn_name cn in
-                  Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
+                 match Ast.get_in_memory_node_value_for_cn cn with
+                 | Some (VNodeResult { diagnostics = d; _ }) ->
+                     let build_diag = Builder.logged_node_diagnostics ~value:raw_val cn.cn_name cn in
+                     let merged = {
+                       d with
+                       nd_error = build_diag.nd_error;
+                       nd_recovered = build_diag.nd_recovered;
+                     } in
+                     VNodeResult { v = raw_val; node_name = cn.cn_name; diagnostics = merged }
+                 | _ ->
+                     Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
         end
     | VString _ ->
-        Error.type_error "read_node: expected a ComputedNode for argument 'node', but got String. Use read_node(p.node_name) instead."
+        Error.type_error "read_node: expected a ComputedNode for argument 'node', but got String. Use read_past_node(p.node_name, which_log = ...) to read from a past build log."
     | VSymbol name as other ->
         let node_name =
           if String.length name > 6 && String.sub name 0 6 = "<noop:" then
@@ -475,7 +480,9 @@ let register env =
              Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got %s." (Utils.type_name other)))
     | VPipeline _ ->
         Error.type_error "read_node: expected a ComputedNode for argument 'node', but got Pipeline. Use read_node(p.node_name) instead."
-    | VNA _ -> Error.make_error ValueError "read_node: requires a ComputedNode object."
+    | VNA _ ->
+        Error.make_error ValueError
+          "read_node: requires a ComputedNode object. Use p.node_name (e.g. read_node(p.clean)) to access a node."
     | other ->
         Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got %s." (Utils.type_name other))
   in
@@ -521,33 +528,50 @@ let register env =
           ("nodes", nodes);
           ("diagnostics", Ast.Utils.pipeline_diagnostics_to_value pipeline_diagnostics);
         ]
-    | _ -> Error.type_error "read_pipeline: expected a Pipeline."
+    | other ->
+        Error.type_error
+          (Printf.sprintf "read_pipeline: expected a Pipeline, but got %s."
+             (Utils.type_name other))
   in
 
 (*
 --# Inspect Pipeline Node Metadata
 --#
 --# Returns a dictionary with metadata about a computed node, including its
---# name, runtime, artifact path, serializer, class, and dependencies.
+--# name, runtime, artifact path, serializer, class, dependencies, and warnings.
+--# The `warnings` key contains a structured list of warning records, each with
+--# `source` ("own" or the ancestor node name) and `message`.
 --#
 --# @name inspect_node
 --# @param node :: ComputedNode A computed node value (e.g. from a built pipeline).
---# @return :: Dict A dictionary with keys = name, runtime, path, serializer, class, dependencies.
+--# @return :: Dict A dictionary with keys = name, runtime, path, serializer, class, dependencies, warnings.
 --# @family pipeline
---# @seealso read_node, rebuild_node
+--# @seealso read_node, rebuild_node, warning_msg
 --# @export
 *)
   let inspect_fn named_args _env =
     match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
         let cn = !Ast.computed_node_resolver cn in
+        let diag = Builder.logged_node_diagnostics cn.cn_name cn in
+        let warning_entries =
+          VList (List.map (fun w ->
+            (None, VDict [
+              ("source", VString (match w.Ast.nw_source with
+                | Ast.WarningOwn -> "own"
+                | Ast.WarningUpstream name -> name));
+              ("message", VString w.Ast.nw_message);
+            ])
+          ) diag.Ast.nd_warnings)
+        in
         VDict [
           ("name", VString cn.cn_name);
           ("runtime", VString cn.cn_runtime);
           ("path", VString cn.cn_path);
           ("serializer", VString cn.cn_serializer);
           ("class", VString cn.cn_class);
-          ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies))
+          ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies));
+          ("warnings", warning_entries);
         ]
     | VError err ->
         let node_name =
@@ -601,7 +625,10 @@ let register env =
              VComputedNode { cn with cn_path = new_path }
          | Ok (_, output) -> Error.make_error GenericError (Printf.sprintf "rebuild_node failed: %s" output)
          | Error msg -> Error.make_error GenericError (Printf.sprintf "Failed to run nix-build: %s" msg))
-    | _ -> Error.type_error "rebuild_node: expected a ComputedNode."
+    | other ->
+        Error.type_error
+          (Printf.sprintf "rebuild_node: expected a ComputedNode, but got %s."
+             (Utils.type_name other))
   in
 
   let _ = 
@@ -639,7 +666,7 @@ let register env =
 --# Suppress Diagnostics for a Node
 --#
 --# Silences all captured warnings for the current node in the console summary.
---# Warnings remain accessible programmatically via `read_node()` or `read_pipeline()`.
+--# Warnings remain accessible programmatically via `warning_msg()` or `read_pipeline()`.
 --# Use this to reduce noise from known warnings during data processing (e.g., NAs in filter).
 --#
 --# @name suppress_warnings

@@ -96,8 +96,10 @@ let register env =
         Builder.inspect_pipeline ()
     | VString s ->
         Builder.inspect_pipeline ~which_log:s ()
-    | _ ->
-        Error.type_error "inspect_log: expected String or NA for argument 'which_log'"
+    | other ->
+        Error.type_error
+          (Printf.sprintf "inspect_log: expected String or NA for argument 'which_log', but got %s."
+             (Utils.type_name other))
   in
   let env = Env.add "inspect_log" (make_builtin_named ~name:"inspect_log" ~variadic:true 0 inspect_log_fn) env in
 
@@ -127,6 +129,11 @@ let register env =
   let env = Env.add "read_log" (make_builtin ~name:"read_log" 1 (fun args _env -> 
     match args with
     | [VString s] | [VSymbol s] -> Builder.read_node_log s
-    | _ -> Error.type_error "read_log: expected a String or Symbol node name"
+    | other :: _ ->
+        Error.type_error
+          (Printf.sprintf "read_log: expected a String or Symbol node name, but got %s."
+             (Utils.type_name other))
+    | _ ->
+        Error.type_error "read_log: expected a String or Symbol node name."
   )) env in
   env

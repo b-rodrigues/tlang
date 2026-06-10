@@ -1,16 +1,32 @@
 # Changelog
 
-## [0.52.3] - 2026-06-07
+## [0.52.3] - 2026-06-09
 
 This release:
 
 - introduces a new meta-pipeline composition feature (`pipeline_of`), first-class artifact export/import capabilities, meta-pipeline graph visualization, interactive Mermaid browser rendering, and cache-aware dry runs with programmatic garbage collection.
+- Introduces lazy pipeline evaluation, deferring T node evaluation to build time and eliminating redundant re-evaluation cycles.
 - Includes comprehensive bug fixes across stats, core, CSV, and pipeline subsystems, and a systematic codebase-wide safety refactoring following OCaml best practices.
 
-### Pipeline Soft-Fail & Early-Abort Semantics
-- **Block Evaluation Early Abort**: Blocks (`{ ... }`) now abort immediately on encountering a `VError`, returning the error rather than continuing evaluation of remaining statements. This is a breaking change for code that relied on ignoring intermediate block errors.
+### Pipeline Soft-Fail & Error Recovery
+- **Block Evaluation Error Recovery**: Blocks (`{ ... }`) now abort immediately on encountering a `VError` from a bare expression, preventing silent error accumulation. However, `VError` values from `Assignment` and `Reassignment` statements no longer abort the block — the error is bound to the variable and subsequent statements (typically a `match`) can handle it. This enables patterns like `{ x = 42 / 0; match(x) { Error { msg } => 0, default => x } }` where a risky computation is captured and recovered.
 - **Conditional Serialization on soft-fail**: Nodes that soft-fail and return `VError` now conditionally fall back to binary `serialize`/`deserialize` rather than triggering configured custom serializers (like Arrow), preventing crashes.
 - **Failed Node Diagnostics**: Host tools and logs now safely resolve and deserialize binary T error payloads.
+
+### Lazy Pipeline Evaluation
+- **Deferred T node evaluation**: T nodes are now evaluated lazily — the `get_pipeline_member` function no longer eagerly evaluates T expressions when a pipeline is accessed. Evaluation is deferred to `rerun_pipeline` at build time via `build_pipeline()`. This eliminates redundant re-evaluation cycles, improves performance for large pipelines, and avoids side-effect leakage from unbuilt nodes.
+- **Cross-pipeline dependency resolution**: Dependency detection now uses `p.p_nodes` instead of `p.p_exprs` for identifying resolved nodes from other pipelines, improving accuracy of dependency inference.
+
+### Warning Propagation & Diagnostics
+- **Upstream warning inheritance**: After `build_pipeline(p)`, downstream nodes now automatically inherit warnings from ancestor nodes. `warning_msg(downstream)` shows warnings with source provenance (`"Ancestor node '<name>' reported following warning: <message>"`). Multiple warnings (own + upstream, or from multiple ancestors) are joined with `". Furthermore, "`.
+- **`inspect_node` now shows warnings**: `inspect_node(node)` returns a `warnings` field with a structured list of dicts (`source` + `message`), showing both own and inherited upstream warnings.
+- **Removed `.warnings` from `read_node()` return**: The `.warnings` field on `read_node()` results has been removed. Use `warning_msg(node)` for a formatted warning message or `inspect_node(node).warnings` for structured warning metadata.
+
+### Historical Node Access & Build Log Identity
+- **`read_past_node(p.node_name, which_log)`**: New NSE-captured function to read a pipeline node from a specific historical build log without the pipeline being in scope. The first argument is captured before evaluation, so `read_past_node(base_p.raw, which_log = "qcfs")` works even when `base_p` is not defined. `which_log` is mandatory — no default.
+- **Simplified `read_node`**: The `which_log` parameter has been removed from `read_node`. Use `read_past_node(p.node_name, which_log = "...")` for historical reads, and `read_node(p.node_name)` for in-scope pipeline reads.
+- **`pipeline_name` on `build_pipeline`**: `build_pipeline(p, pipeline_name = "my_name")` now records the pipeline name in the build log JSON (`"pipeline"` field). `list_logs()` shows a new `pipeline` column for disambiguation.
+- **Removed `pipeline_summary` and `pipeline_dot`**: These convenience aliases have been removed. Use `pipeline_to_frame(p)` instead of `pipeline_summary(p)`, and `pipeline_to_dot(p)` instead of `pipeline_dot(p)`. `pipeline_to_dot` also handles `MetaPipeline`.
 
 ### Pipeline Visualization
 - **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.
@@ -103,6 +119,7 @@ populate_pipeline(meta_graph, build = true)
 - **Pipeline — inspect_artifacts resource leaks**: Resolved file descriptor and directory handle leaks in `inspect_artifacts`, and restored scalar `TypeError` for invalid inputs.
 - **Pipeline — NixError fallback**: Restored original `NixError` fallback behavior for empty trimmed `last_part` in `builder_internal.ml`.
 - **Pipeline — dependency namespace fixes**: Standardized runtime emission helper naming (`__node_result` across all runtimes), fixed R variable naming compatibility (`dep_` prefix), and corrected dependency namespace generation.
+- **Pipeline — rename_node cn_name sync**: Fixed a bug where `rename_node` updated the assoc-list key in `p_nodes` but left `VComputedNode.cn_name` unchanged, causing downstream lookups (`resolved_cn`, `computed_node_resolver`, `read_node`) to search using the stale name and fail with `<unbuilt>` path errors.
 
 ### Codebase Safety Refactoring
 

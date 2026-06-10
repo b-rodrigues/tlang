@@ -149,6 +149,7 @@ and computed_node = {
   cn_serializer : string;
   cn_class : string;
   cn_dependencies : string list;
+  cn_p_exprs : ((string * expr) list) option;  (* Pipeline identity for scoped cache lookups *)
 }
 
 (** Metadata for an unbuilt node (first-class value from node() function) *)
@@ -387,11 +388,52 @@ let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn 
 (** Global hook for automatically flattening meta-pipelines in built-in argument projections *)
 let meta_pipeline_flatten_resolver : (value -> value) ref = ref (fun v -> v)
 
-(** Global hook for storing in-memory evaluated node values *)
-let in_memory_node_values : (string, value) Hashtbl.t = Hashtbl.create 50
+(** Pipeline-scoped in-memory node value cache.
+    Keyed by (pipeline_exprs, node_name) to avoid cross-pipeline contamination.
+
+    NOTE: The key uses structural equality on (string * expr) list via the
+    polymorphic `=` operator. This works reliably because p_exprs is always
+    passed by reference (same physical list is used for both writes and lookups).
+    If the list is ever reconstructed from deserialized data or copied, key
+    equality will break, since `expr` records may contain mutable location
+    fields. If that becomes necessary, use a stable key (e.g. a hash or UUID)
+    instead. *)
+let in_memory_node_values : ((string * expr) list * string, value) Hashtbl.t = Hashtbl.create 50
+
+(** Store an in-memory node value scoped to a specific pipeline *)
+let set_in_memory_node_value ~(p_exprs : (string * expr) list) ~(node_name : string) (v : value) =
+  Hashtbl.replace in_memory_node_values (p_exprs, node_name) v
+
+(** Look up an in-memory node value for a specific pipeline *)
+let get_in_memory_node_value ~(p_exprs : (string * expr) list) ~(node_name : string) =
+  Hashtbl.find_opt in_memory_node_values (p_exprs, node_name)
+
+(** Remove all in-memory node values for a specific pipeline *)
+let clear_pipeline_in_memory ~(p_exprs : (string * expr) list) =
+  let to_remove = Hashtbl.fold (fun (pe, n) _ acc ->
+    if pe = p_exprs then n :: acc else acc
+  ) in_memory_node_values [] in
+  List.iter (fun n -> Hashtbl.remove in_memory_node_values (p_exprs, n)) to_remove
+
+(** Find an in-memory value by node name across all pipelines (fallback).
+    Should only be used when no pipeline identity is available.
+    Returns the most recently stored value matching the node name,
+    or None if no match is found. *)
+let find_in_memory_node_value_by_name (node_name : string) : value option =
+  let results = Hashtbl.fold (fun (_, n) v acc ->
+    if n = node_name then v :: acc else acc
+  ) in_memory_node_values [] in
+  match results with [] -> None | v :: _ -> Some v
+
+(** Look up an in-memory node value, preferring scoped lookup when a pipeline identity is available. *)
+let get_in_memory_node_value_for_cn (cn : computed_node) : value option =
+  match cn.cn_p_exprs with
+  | Some p_exprs -> get_in_memory_node_value ~p_exprs ~node_name:cn.cn_name
+  | None -> find_in_memory_node_value_by_name cn.cn_name
 
 (** Global hook for storing mapping from pipeline expressions to build log paths *)
 let pipeline_build_logs : ((string * expr) list, string) Hashtbl.t = Hashtbl.create 10
+
 
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
@@ -491,6 +533,17 @@ module Utils = struct
     nd_recovered = false;
     nd_upstream_errors = [];
   }
+
+  let format_single_warning_message (w : node_warning) =
+    match w.nw_source with
+    | WarningOwn -> w.nw_message
+    | WarningUpstream name ->
+        Printf.sprintf "Ancestor node '%s' reported following warning: %s" name w.nw_message
+
+  let format_warning_messages (warnings : node_warning list) =
+    match warnings with
+    | [] -> ""
+    | _ -> String.concat ". Furthermore, " (List.map format_single_warning_message warnings)
 
   (** Canonical list of field names exposed on read-pipeline node records
       (as constructed by [which_nodes] and [errored_nodes]). The evaluator
@@ -939,14 +992,18 @@ module Utils = struct
           (String.concat ", " col_names) in
         if group_keys = [] then base
         else Printf.sprintf "%s grouped by [%s]" base (String.concat ", " group_keys)
-    | VPipeline { p_nodes; _ } ->
+    | VPipeline { p_nodes; p_exprs; _ } ->
         let node_names = List.map fst p_nodes in
         let base = Printf.sprintf "Pipeline(%d nodes: [%s])"
           (List.length p_nodes) (String.concat ", " node_names) in
         let errors = List.filter_map (fun (name, v) ->
           match v with
           | VError err -> Some (Printf.sprintf "\n  - `%s` failed: %s" name err.message)
-          | _ -> None
+          | _ ->
+            match get_in_memory_node_value ~p_exprs ~node_name:name with
+            | Some (VNodeResult { v = VError err; _ }) ->
+                Some (Printf.sprintf "\n  - `%s` failed: %s" name err.message)
+            | _ -> None
         ) p_nodes in
         if errors = [] then base
         else base ^ "\nErrors:" ^ (String.concat "" errors)

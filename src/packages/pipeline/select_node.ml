@@ -89,7 +89,10 @@ let register env =
       | [VPipeline _] ->
           Error.make_error ArityError
             "Function `select_node` requires at least one `$field` argument."
-      | _ :: _ -> Error.type_error "Function `select_node` expects a Pipeline as first argument."
+      | first :: _ ->
+          Error.type_error
+            (Printf.sprintf "Function `select_node` expects a Pipeline as first argument, but got %s."
+               (Utils.type_name first))
       | [] -> Error.arity_error_named "select_node" 1 0
     ))
     env

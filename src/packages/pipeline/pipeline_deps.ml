@@ -20,7 +20,10 @@ let register env =
           VDict (List.map (fun (name, deps) ->
             (name, VList (List.map (fun d -> (None, VString d)) deps))
           ) p_deps)
-      | [_] -> Error.type_error "Function `pipeline_deps` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_deps` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_deps" 1 (List.length args)
     ))
     env
