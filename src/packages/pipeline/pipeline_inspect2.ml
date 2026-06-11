@@ -457,8 +457,9 @@ let register env =
           | _ -> "#ffced0"
         in
         let has_error name =
-          match List.assoc_opt name p.p_node_diagnostics with
-          | Some d when d.nd_error <> None -> true
+          match List.assoc_opt name p.p_nodes with
+          | Some (VComputedNode cn) -> cn.cn_class = "Error" || cn.cn_class = "VError"
+          | Some (VNodeResult { v = VComputedNode cn; _ }) -> cn.cn_class = "Error" || cn.cn_class = "VError"
           | _ -> false
         in
         List.iter (fun (name, _) ->

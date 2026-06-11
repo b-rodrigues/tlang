@@ -670,6 +670,33 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                     Printf.eprintf "\n✓ Pipeline build completed [%s]\n%!" summary_str
                   end;
 
+                  if List.length soft_failed > 0 then (
+                    let is_failed name =
+                      match Hashtbl.find_opt statuses name with
+                      | Some "Completed" -> false
+                      | _ -> true
+                    in
+                    let root_causes =
+                      List.filter (fun name ->
+                        if not (is_failed name) then false
+                        else
+                          let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+                          not (List.exists is_failed deps)
+                      ) node_names
+                    in
+                    let rec_msg =
+                      if root_causes <> [] then
+                        let lines =
+                          List.map (fun n ->
+                            Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM/Copilot for instant help!)" n n
+                          ) root_causes
+                        in
+                        "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"
+                      else ""
+                    in
+                    if rec_msg <> "" then Printf.eprintf "%s%!" rec_msg
+                  );
+
                   if cached_count > 0 && built_count > 0 then
                     Printf.eprintf "  (cached: %s)\n%!" (String.concat ", " cached_nodes);
 
