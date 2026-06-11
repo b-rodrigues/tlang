@@ -458,8 +458,12 @@ let register env =
         in
         let has_error name =
           match List.assoc_opt name p.p_nodes with
-          | Some (VComputedNode cn) -> cn.cn_class = "Error" || cn.cn_class = "VError"
-          | Some (VNodeResult { v = VComputedNode cn; _ }) -> cn.cn_class = "Error" || cn.cn_class = "VError"
+          | Some (VComputedNode cn) ->
+              let cn = !Ast.computed_node_resolver cn in
+              cn.cn_class = "Error" || cn.cn_class = "VError"
+          | Some (VNodeResult { v = VComputedNode cn; _ }) ->
+              let cn = !Ast.computed_node_resolver cn in
+              cn.cn_class = "Error" || cn.cn_class = "VError"
           | _ -> false
         in
         List.iter (fun (name, _) ->
