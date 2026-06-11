@@ -1147,7 +1147,7 @@ r_is_error <- function(obj) {
 
 r_write_warnings <- function(warns, path) {
   if (length(warns) > 0) {
-    jsonlite::write_json(as.character(warns), path, auto_unbox = TRUE)
+    jsonlite::write_json(as.character(warns), path)
   }
 }
 |} in
