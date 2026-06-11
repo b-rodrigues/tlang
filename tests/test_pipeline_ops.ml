@@ -1099,6 +1099,9 @@ meta.stats.summary.name|}
        Printf.printf "%s" msg);
 
   (* Meta pipeline: name should resolve to its variable name *)
+  (* We call meta_flatten(meta) first to obtain the flattened VPipeline from
+     the VMetaPipeline. This mirrors what make_builtin_named's auto-flattening
+     does before resolve_pipeline_name is called, ensuring p_exprs match. *)
   let env_m = Packages.init_env () in
   let (_, env_m) = eval_string_env
     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
