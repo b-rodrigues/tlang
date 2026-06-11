@@ -135,19 +135,18 @@ let register env =
                              | _ -> 1)  (* fallback: assume built=1 for non-VDict (e.g. dry-run DataFrame) so "all cached" message never fires incorrectly *)
                         | _ -> 1         (* same fallback for unexpected types *)
                       in
-                      if built > 0 then begin
                        let var_name = match pipeline_name with Some n -> n | None -> "p" in
                        let first_node =
                          match p.p_nodes with
                          | (name, _) :: _ -> name
                          | [] -> "my_node"
                        in
-                       Printf.printf "\nPipeline successfully built!\n";
+                       if built > 0 then
+                         Printf.printf "\nPipeline successfully built!\n";
                        Printf.printf "  - Pipeline saved in variable '%s'\n" var_name;
                        Printf.printf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
                        Printf.printf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
                        Printf.printf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name
-                     end
                    );
                    out
                | Error msg -> Error.make_error StructuralError msg))
