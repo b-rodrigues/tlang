@@ -484,18 +484,13 @@ let register env =
         Error.make_error ValueError
           "read_node: requires a ComputedNode object. Use p.node_name (e.g. read_node(p.clean)) to access a node."
     | VError err ->
-        let node_name =
-          match List.assoc_opt "node_name" err.context with
-          | Some (VString name) -> Some name
-          | _ -> None
-        in
-        (match node_name with
-         | Some name ->
+        (match List.assoc_opt "node_name" err.context with
+         | Some (VString name) ->
              Error.type_error
                (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got an Error because node `%s` could not be resolved. Build the pipeline first with build_pipeline(p), or use read_past_node(p.%s, which_log = ...) to read from a past build log." name name)
-         | None ->
+         | _ ->
              Error.type_error
-               "read_node: expected a ComputedNode for argument 'node', but got an Error value. If you are trying to read a pipeline node, build it first with build_pipeline(p). Use read_past_node(p.node_name, which_log = ...) to read from a past build log.")
+               "read_node: expected a ComputedNode for argument 'node', but got an Error value. Build the pipeline first with build_pipeline(p), or use read_past_node(p.node_name, which_log = ...) to read from a past build log.")
     | other ->
         Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got %s." (Utils.type_name other))
   in

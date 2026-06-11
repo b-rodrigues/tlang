@@ -606,11 +606,9 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                   let reconcile_end_time = Unix.gettimeofday () in
                   
                   (* Compute cache info before reconciliation overwrites statuses *)
-                  let built_from_nix = Hashtbl.create (List.length node_names) in
-                  Hashtbl.iter (fun k _ -> Hashtbl.replace built_from_nix k true) node_was_built;
-                  let cached_nodes = List.filter (fun n -> not (Hashtbl.mem built_from_nix n)) node_names in
+                  let cached_nodes = List.filter (fun n -> not (Hashtbl.mem node_was_built n)) node_names in
                   let cached_count = List.length cached_nodes in
-                  let built_count = Hashtbl.length built_from_nix in
+                  let built_count = Hashtbl.length node_was_built in
 
                   (* Reconcile statuses: if nix-build succeeded, check which nodes were built (cached or otherwise) *)
                   List.iter (fun name ->
@@ -646,16 +644,9 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                   let soft_failed = List.filter (fun n -> Hashtbl.find statuses n = "SoftFailed") node_names in
                   let with_warnings = List.filter (fun n -> Hashtbl.find_opt node_has_warnings n = Some true) node_names in
 
-                  let summary_parts = ref [] in
-                  if built_count > 0 then
-                    summary_parts := Printf.sprintf "%d built" built_count :: !summary_parts;
-                  if cached_count > 0 then
-                    summary_parts := Printf.sprintf "%d cached" cached_count :: !summary_parts;
-                  let summary_str =
-                    String.concat ", " (List.rev !summary_parts)
-                    ^ Printf.sprintf " / %d nodes" (List.length node_names)
-                  in
-                   
+                  (* Order: check soft_failed/with_warnings first — built_count = 0 AND
+                     soft_failed > 0 should be impossible (Nix never ran anything),
+                     but if it somehow occurs we want to show errors, not "all cached". *)
                   if List.length soft_failed > 0 || List.length with_warnings > 0 then (
                     let msg = if List.length soft_failed > 0 then "\n✖ Pipeline build captured node errors" else "\n✓ Pipeline build completed" in
                     Printf.eprintf "%s [%d succeeded, %d captured errors, %d had warnings%s]\n%!"
@@ -665,8 +656,16 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                     List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
                   ) else if built_count = 0 then
                     Printf.eprintf "\n○ All nodes were already cached — nothing to build.\n%!"
-                  else
-                    Printf.eprintf "\n✓ Pipeline build completed [%s]\n%!" summary_str;
+                  else begin
+                    let parts =
+                      [Printf.sprintf "%d built" built_count]
+                      @ (if cached_count > 0 then [Printf.sprintf "%d cached" cached_count] else [])
+                    in
+                    let summary_str =
+                      String.concat ", " parts ^ Printf.sprintf " / %d nodes" (List.length node_names)
+                    in
+                    Printf.eprintf "\n✓ Pipeline build completed [%s]\n%!" summary_str
+                  end;
 
                   if cached_count > 0 && built_count > 0 then
                     Printf.eprintf "  (cached: %s)\n%!" (String.concat ", " cached_nodes);

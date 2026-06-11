@@ -115,22 +115,22 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                      in
                      (match Builder.populate_pipeline ~build:true ?verbose ?pipeline_name ?nix_options:final_nix_options p_resolved with
                        | Ok (VDataFrame _ as df) -> df
-                       | Ok (VDict pairs) ->
-                           let out_path =
-                             match List.assoc_opt "out_path" pairs with
-                             | Some (VString s) -> s
-                             | _ -> ""
-                           in
-                           let built =
-                             match List.assoc_opt "built" pairs with
-                             | Some (VInt n) -> n
-                             | _ -> 0
-                           in
-                           let var_name = match pipeline_name with Some n -> n | None -> "p" in
-                           if built = 0 then begin
-                             Printf.eprintf "\n  - All nodes up to date — no build needed.\n%!";
-                             VNA NAGeneric
-                           end else begin
+                        | Ok (VDict pairs as out) ->
+                            let out_path =
+                              match List.assoc_opt "out_path" pairs with
+                              | Some (VString s) -> s
+                              | _ -> ""
+                            in
+                            let built =
+                              match List.assoc_opt "built" pairs with
+                              | Some (VInt n) -> n
+                              | _ -> 0
+                            in
+                            let var_name = match pipeline_name with Some n -> n | None -> "p" in
+                            if built = 0 then begin
+                              Printf.eprintf "\n  - All nodes up to date — no build needed.\n%!";
+                              out
+                            end else begin
                              let first_node =
                                match p_resolved.p_nodes with
                                | (name, _) :: _ -> name

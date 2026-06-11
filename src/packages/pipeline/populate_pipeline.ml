@@ -134,14 +134,14 @@ let register env =
               (match Builder.populate_pipeline ~build:final_build ?verbose ?pipeline_name ?nix_options:final_nix_options p with
                | Ok out ->
                    if final_build && (match final_nix_options with Some opts -> opts.dry_run <> Some true | None -> true) then (
-                     let built =
-                       match out with
-                       | VDict pairs ->
-                           (match List.assoc_opt "built" pairs with
-                            | Some (VInt n) -> n
-                            | _ -> 1)
-                       | _ -> 1
-                     in
+                      let built =
+                        match out with
+                        | VDict pairs ->
+                            (match List.assoc_opt "built" pairs with
+                             | Some (VInt n) -> n
+                             | _ -> 1)  (* fallback: assume built=1 for non-VDict (e.g. dry-run DataFrame) so "all cached" message never fires incorrectly *)
+                        | _ -> 1         (* same fallback for unexpected types *)
+                      in
                      if built = 0 then
                        Printf.printf "\n  - All nodes up to date — no build needed.\n%!"
                      else begin
