@@ -120,11 +120,8 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                               | Some (VInt n) -> n
                               | _ -> 0
                             in
-                            let var_name = match pipeline_name with Some n -> n | None -> "p" in
-                            if built = 0 then begin
-                              Printf.eprintf "\n  - All nodes up to date — no build needed.\n%!";
-                              out
-                            end else begin
+                             let var_name = match pipeline_name with Some n -> n | None -> "p" in
+                             if built > 0 then begin
                              let first_node =
                                match p_resolved.p_nodes with
                                | (name, _) :: _ -> name
@@ -145,8 +142,9 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                                     (Printf.sprintf
                                        "No build log matching output path `%s` was found after build completed."
                                        out_path))
-                           end
-                       | Ok other -> other
+                            end else
+                              out
+                        | Ok other -> other
                      | Error msg -> Error.make_error StructuralError msg)
               | VError _ as err -> err
               | other ->

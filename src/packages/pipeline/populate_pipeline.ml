@@ -135,9 +135,7 @@ let register env =
                              | _ -> 1)  (* fallback: assume built=1 for non-VDict (e.g. dry-run DataFrame) so "all cached" message never fires incorrectly *)
                         | _ -> 1         (* same fallback for unexpected types *)
                       in
-                     if built = 0 then
-                       Printf.printf "\n  - All nodes up to date — no build needed.\n%!"
-                     else begin
+                      if built > 0 then begin
                        let var_name = match pipeline_name with Some n -> n | None -> "p" in
                        let first_node =
                          match p.p_nodes with

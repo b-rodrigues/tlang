@@ -368,13 +368,12 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         (["nix-build"; "--impure"; pipeline_nix_path] @ target_args @ ["--no-out-link"] @ all_args)
       in
       
-      Printf.eprintf "\nStarting pipeline build...\n%!";
-      
       let drv_paths = Hashtbl.create (List.length node_names) in
       let node_has_warnings = Hashtbl.create (List.length node_names) in
       let node_start_times = Hashtbl.create (List.length node_names) in
       let node_durations = Hashtbl.create (List.length node_names) in
       let node_was_built = Hashtbl.create (List.length node_names) in
+      let started_building = ref false in
       
       let callback line =
         Buffer.add_string captured_output line;
@@ -382,6 +381,10 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         
         let line = String.trim line in
         if String.starts_with ~prefix:"building '/nix/store/" line then (
+          if not !started_building then (
+            started_building := true;
+            Printf.eprintf "\nStarting pipeline build...\n%!";
+          );
           match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
           | Some name ->
               Hashtbl.replace node_was_built name true;
