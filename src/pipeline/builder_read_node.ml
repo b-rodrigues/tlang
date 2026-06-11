@@ -31,7 +31,13 @@ let parse_node_warnings path =
               }
           | _ -> None
         ) items
-    | _ -> []
+    | Ok other ->
+        Printf.eprintf "[debug] parse_node_warnings: expected JSON array in %s, got %s\n%!"
+          path (Utils.type_name other);
+        []
+    | Error e ->
+        Printf.eprintf "[debug] parse_node_warnings: failed to read %s: %s\n%!" path e;
+        []
   else []
 
 let is_error_class = function
