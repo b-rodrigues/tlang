@@ -127,22 +127,33 @@ let register env =
               (match Builder.populate_pipeline ~build:final_build ?verbose ?pipeline_name ?nix_options:final_nix_options p with
                | Ok out ->
                    if final_build && (match final_nix_options with Some opts -> opts.dry_run <> Some true | None -> true) then (
-                      let built =
-                        match out with
-                        | VDict pairs ->
-                            (match List.assoc_opt "built" pairs with
-                             | Some (VInt n) -> n
-                             | _ -> 1)  (* fallback: assume built=1 for non-VDict (e.g. dry-run DataFrame) so "all cached" message never fires incorrectly *)
-                        | _ -> 1         (* same fallback for unexpected types *)
-                      in
-                       let var_name = match pipeline_name with Some n -> n | None -> "p" in
-                       let first_node =
-                         match p.p_nodes with
-                         | (name, _) :: _ -> name
-                         | [] -> "my_node"
+                       let built =
+                         match out with
+                         | VDict pairs ->
+                             (match List.assoc_opt "built" pairs with
+                              | Some (VInt n) -> n
+                              | _ -> 1)
+                         | _ -> 1
                        in
-                       if built > 0 then
-                          Printf.eprintf "\nPipeline successfully built!\n";
+                       let soft_failed =
+                         match out with
+                         | VDict pairs ->
+                             (match List.assoc_opt "soft_failed" pairs with
+                              | Some (VList items) -> List.length items
+                              | _ -> 0)
+                         | _ -> 0
+                       in
+                        let var_name = match pipeline_name with Some n -> n | None -> "p" in
+                        let first_node =
+                          match p.p_nodes with
+                          | (name, _) :: _ -> name
+                          | [] -> "my_node"
+                        in
+                        if built > 0 then
+                          if soft_failed > 0 then
+                            Printf.eprintf "\nPipeline built successfully but with errors\n"
+                          else
+                            Printf.eprintf "\nPipeline successfully built!\n";
                         Printf.eprintf "  - Pipeline saved in variable '%s'\n" var_name;
                         Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
                         Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;

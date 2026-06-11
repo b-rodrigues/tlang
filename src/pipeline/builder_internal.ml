@@ -677,17 +677,19 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                     (match save_build_log (Some out_path) with
                      | Error msg -> Error ("Failed to write build log: " ^ msg)
                      | Ok () ->
-                         Ok (VDict [
-                           ("out_path", VString out_path);
-                           ("built", VInt built_count);
-                           ("cached", VInt cached_count);
-                         ]))
-                  else
-                    Ok (VDict [
-                      ("out_path", VString "");
-                      ("built", VInt 0);
-                      ("cached", VInt cached_count);
-                    ]))
+                          Ok (VDict [
+                            ("out_path", VString out_path);
+                            ("built", VInt built_count);
+                            ("cached", VInt cached_count);
+                            ("soft_failed", VList (List.map (fun n -> (None, VString n)) soft_failed));
+                          ]))
+                   else
+                     Ok (VDict [
+                       ("out_path", VString "");
+                       ("built", VInt 0);
+                       ("cached", VInt cached_count);
+                       ("soft_failed", VList (List.map (fun n -> (None, VString n)) soft_failed));
+                     ]))
            | Unix.WEXITED 0 ->
               ignore (save_build_log None);
               Error "nix-build succeeded but did not return an output path."

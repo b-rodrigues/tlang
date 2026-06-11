@@ -115,19 +115,27 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                               | Some (VString s) -> s
                               | _ -> ""
                             in
-                            let built =
-                              match List.assoc_opt "built" pairs with
-                              | Some (VInt n) -> n
-                              | _ -> 0
-                            in
-                             let var_name = match pipeline_name with Some n -> n | None -> "p" in
-                             let first_node =
-                               match p_resolved.p_nodes with
-                               | (name, _) :: _ -> name
-                               | [] -> "my_node"
+                             let built =
+                               match List.assoc_opt "built" pairs with
+                               | Some (VInt n) -> n
+                               | _ -> 0
                              in
-                              if built > 0 then
-                                Printf.eprintf "\nPipeline successfully built!\n";
+                             let soft_failed =
+                               match List.assoc_opt "soft_failed" pairs with
+                               | Some (VList items) -> List.length items
+                               | _ -> 0
+                             in
+                              let var_name = match pipeline_name with Some n -> n | None -> "p" in
+                              let first_node =
+                                match p_resolved.p_nodes with
+                                | (name, _) :: _ -> name
+                                | [] -> "my_node"
+                              in
+                               if built > 0 then
+                                 if soft_failed > 0 then
+                                   Printf.eprintf "\nPipeline built successfully but with errors\n"
+                                 else
+                                   Printf.eprintf "\nPipeline successfully built!\n";
                               Printf.eprintf "  - Pipeline saved in variable '%s'\n" var_name;
                               Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
                               Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
