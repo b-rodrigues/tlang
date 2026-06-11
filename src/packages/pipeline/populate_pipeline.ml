@@ -126,6 +126,10 @@ let register env =
                     match Env.fold (fun k val_v acc ->
                       match val_v with
                       | VPipeline p' when p'.p_exprs = p.p_exprs -> Some k
+                      | VMetaPipeline _ ->
+                          (match Pipeline_composition.flatten_meta val_v with
+                           | VPipeline flat_p when flat_p.p_exprs = p.p_exprs -> Some k
+                           | _ -> acc)
                       | _ -> acc
                     ) env None with
                     | Some name -> Some name
