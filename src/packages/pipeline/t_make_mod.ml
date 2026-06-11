@@ -224,8 +224,25 @@ let register env =
                               Pipeline_script.reload_env_for_pipeline_entry
                                 ~filename:!filename program !env_ref
                             in
-                            (* We print the build header BEFORE evaluation so it's always first. *)
-                            Printf.eprintf "Starting build for project: %s\n%!" !filename;
+                            (* Resolve project name from tproject.toml, fall back to filename *)
+                            let project_name =
+                              let root = Builder_utils.get_project_root () in
+                              let tproject_path = Filename.concat root "tproject.toml" in
+                              if Sys.file_exists tproject_path then
+                                try
+                                  let ic = open_in tproject_path in
+                                  let content =
+                                    Fun.protect
+                                      ~finally:(fun () -> close_in_noerr ic)
+                                      (fun () -> really_input_string ic (in_channel_length ic))
+                                  in
+                                  match Toml_parser.parse_tproject_toml content with
+                                  | Ok cfg -> cfg.proj_name
+                                  | Error _ -> !filename
+                                with _ -> !filename
+                              else !filename
+                            in
+                            Printf.eprintf "Starting build for project: %s\n%!" project_name;
 
                             let prev_warn = !Eval.show_warnings in
                             let (v, new_env) =
