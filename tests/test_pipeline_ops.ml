@@ -1067,4 +1067,87 @@ meta.stats.summary.name|}
     Printf.printf "%s" msg
   end;
 
+  Printf.printf "Phase 4 — resolve_pipeline_name:\n";
+
+  (* Regular pipeline: name should resolve to its variable name *)
+  let env_r = Packages.init_env () in
+  let (_, env_r) = eval_string_env
+    {|my_pipe = pipeline { a = 1; b = a + 1 }|}
+    env_r in
+  let (v_r, _) = eval_string_env
+    {|my_pipe|}
+    env_r in
+  (match v_r with
+   | Ast.VPipeline p ->
+       (match Pipeline_utils.resolve_pipeline_name env_r p with
+        | Some name when name = "my_pipe" ->
+            incr pass_count; Printf.printf "  ✓ resolve_pipeline_name finds regular pipeline\n"
+        | Some name ->
+            incr fail_count;
+            let msg = Printf.sprintf "  ✗ resolve_pipeline_name regular: expected \"my_pipe\", got \"%s\"\n" name in
+            failures := msg :: !failures;
+            Printf.printf "%s" msg
+        | None ->
+            incr fail_count;
+            let msg = "  ✗ resolve_pipeline_name regular: returned None\n" in
+            failures := msg :: !failures;
+            Printf.printf "%s" msg)
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ resolve_pipeline_name regular: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* Meta pipeline: name should resolve to its variable name *)
+  let env_m = Packages.init_env () in
+  let (_, env_m) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+      p_stats = pipeline { summary = 2 };
+      meta = pipeline_of { etl = p_etl; stats = p_stats }|}
+    env_m in
+  let (flat_v, _) = eval_string_env
+    {|meta_flatten(meta)|}
+    env_m in
+  (match flat_v with
+   | Ast.VPipeline p ->
+       (match Pipeline_utils.resolve_pipeline_name env_m p with
+        | Some name when name = "meta" ->
+            incr pass_count; Printf.printf "  ✓ resolve_pipeline_name finds meta pipeline\n"
+        | Some name ->
+            incr fail_count;
+            let msg = Printf.sprintf "  ✗ resolve_pipeline_name meta: expected \"meta\", got \"%s\"\n" name in
+            failures := msg :: !failures;
+            Printf.printf "%s" msg
+        | None ->
+            incr fail_count;
+            let msg = "  ✗ resolve_pipeline_name meta: returned None\n" in
+            failures := msg :: !failures;
+            Printf.printf "%s" msg)
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ resolve_pipeline_name meta: meta_flatten should return VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* Anonymous pipeline (never bound): should return None *)
+  let env_a = Packages.init_env () in
+  let (v_a, _) = eval_string_env
+    {|pipeline { x = 42 }|}
+    env_a in
+  (match v_a with
+   | Ast.VPipeline p ->
+       (match Pipeline_utils.resolve_pipeline_name env_a p with
+        | None ->
+            incr pass_count; Printf.printf "  ✓ resolve_pipeline_name returns None for anonymous pipeline\n"
+        | Some name ->
+            incr fail_count;
+            let msg = Printf.sprintf "  ✗ resolve_pipeline_name anonymous: expected None, got \"%s\"\n" name in
+            failures := msg :: !failures;
+            Printf.printf "%s" msg)
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ resolve_pipeline_name anonymous: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
   print_newline ()
