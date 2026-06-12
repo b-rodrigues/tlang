@@ -42,14 +42,18 @@ language runtimes, and execution statuses.</p>
 <ul>
 <li><strong>p</strong> (<code>Pipeline|MetaPipeline</code>): The
 pipeline or metapipeline.</li>
+<li><strong>title</strong> (<code>Str</code>, optional): Graph title.
+Auto-detected from the project name in <code>tproject.toml</code> if
+omitted. Renders as <code>label=</code> in the <code>digraph</code>
+header.</li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A DOT graph string.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>pipeline_to_dot(p)</code></pre>
+<pre class="t"><code>pipeline_to_dot(p)
+pipeline_to_dot(p, title = &quot;My Graph&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="pipeline_dot.html">pipeline_dot</a>, <a
-href="pipeline_to_mermaid.html">pipeline_to_mermaid</a></p>
+<p><a href="pipeline_to_mermaid.html">pipeline_to_mermaid</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

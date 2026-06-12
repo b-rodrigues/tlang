@@ -29,9 +29,16 @@ This release:
 - **Removed `pipeline_summary` and `pipeline_dot`**: These convenience aliases have been removed. Use `pipeline_to_frame(p)` instead of `pipeline_summary(p)`, and `pipeline_to_dot(p)` instead of `pipeline_dot(p)`. `pipeline_to_dot` also handles `MetaPipeline`.
 
 ### Pipeline Visualization
-- **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.
-- **`pipeline_to_mermaid(p)`**: Generates a Mermaid flowchart diagram string from the pipeline topology, enabling visual rendering in Markdown documents and Mermaid live editors.
+- **`pipeline_to_dot(p, title = na())`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline. New optional `title` parameter auto-detects the project name from `tproject.toml` (fallback: none). Renders as `label=` in the `digraph` header.
+- **`pipeline_to_mermaid(p, title = na(), flatten = false)`**: Generates a Mermaid flowchart diagram string from the pipeline topology. New optional `title` parameter auto-detects from `tproject.toml`; new `flatten` parameter (default `false`) renders meta-pipelines as grouped subgraph blocks — set to `true` for flat output.
+- **Subgraph rendering as default**: Meta-pipeline sub-pipelines now render as grouped subgraph blocks by default in both Mermaid and DOT output.
+- **YAML frontmatter for Mermaid title**: Graph titles are emitted as Mermaid YAML frontmatter (`---\ntlang-title: ...\n---`), visible in the HTML `<h1>` via `show_plot()` but silently ignored by Mermaid.js to avoid in-diagram title duplication.
+- **Default T runtime node colour**: Changed from `#ffced0` to `#859900` (green) for a cleaner visual appearance in generated graphs.
 - **Browser Visualization via `show_plot`**: `show_plot(p)` now accepts a pipeline or meta-pipeline directly — it calls `pipeline_to_mermaid` internally, renders the DAG as an interactive HTML page, and opens it in the browser. `show_plot(mermaid_string)` also renders arbitrary Mermaid diagram strings.
+
+### Diagnostics & Error Messages
+- **`read_node` "Did you mean" hint**: When `read_node` receives a bare symbol (e.g. `read_node(ha)` instead of `read_node(p.ha)`), the error now suggests the correct form: *Did you mean `read_node(p.ha)`?*
+- **Unified `read_node` error messages**: All non-`ComputedNode` argument errors now follow a consistent format guiding the user to build the pipeline first, use dot access, or use `read_past_node` for historical builds.
 
 ### Artifact Cache, Dry Runs, and Garbage Collection
 - **Granular `export_artifacts`**: Support exporting cached Nix artifacts for individual nodes, sub-pipelines, meta-pipelines, or lists/dictionaries of nodes/pipelines.

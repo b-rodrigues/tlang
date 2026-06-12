@@ -49,6 +49,10 @@ structured warning metadata.</p>
 <p>To read a node from a specific historical build log <strong>without
 the pipeline being in scope</strong>, use <a
 href="read_past_node.html"><code>read_past_node(p.node_name, which_log = "...")</code></a>.</p>
+<p><strong>Hint on syntax errors:</strong> If you pass a bare symbol
+(e.g. <code>read_node(ha)</code> instead of
+<code>read_node(p.ha)</code>), T will suggest the correct form: <em>Did
+you mean <code>read_node(p.ha)</code>?</em></p>
 </blockquote>
 <h2 id="parameters">Parameters</h2>
 <ul>

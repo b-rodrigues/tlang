@@ -42,11 +42,20 @@ language runtimes, and execution statuses.</p>
 <ul>
 <li><strong>p</strong> (<code>Pipeline|MetaPipeline</code>): The
 pipeline or metapipeline.</li>
+<li><strong>title</strong> (<code>Str</code>, optional): Graph title.
+Auto-detected from the project name in <code>tproject.toml</code> if
+omitted. Renders as Mermaid YAML frontmatter (<code>tlang-title:</code>
+key).</li>
+<li><strong>flatten</strong> (<code>Bool</code>, default
+<code>false</code>): If <code>true</code>, renders meta-pipelines as a
+flat graph instead of grouping sub-pipelines into subgraph blocks.</li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A Mermaid flowchart string.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>pipeline_to_mermaid(p)</code></pre>
+<pre class="t"><code>pipeline_to_mermaid(p)
+pipeline_to_mermaid(meta, title = &quot;My Graph&quot;)
+pipeline_to_mermaid(meta, flatten = true)</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="pipeline_to_dot.html">pipeline_to_dot</a></p>
 </div>

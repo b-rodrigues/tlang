@@ -6228,9 +6228,16 @@ This release:
 - **Removed `pipeline_summary` and `pipeline_dot`**: These convenience aliases have been removed. Use `pipeline_to_frame(p)` instead of `pipeline_summary(p)`, and `pipeline_to_dot(p)` instead of `pipeline_dot(p)`. `pipeline_to_dot` also handles `MetaPipeline`.
 
 ### Pipeline Visualization
-- **`pipeline_to_dot(p)`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline.
-- **`pipeline_to_mermaid(p)`**: Generates a Mermaid flowchart diagram string from the pipeline topology, enabling visual rendering in Markdown documents and Mermaid live editors.
+- **`pipeline_to_dot(p, title = na())`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline. New optional `title` parameter auto-detects the project name from `tproject.toml` (fallback: none). Renders as `label=` in the `digraph` header.
+- **`pipeline_to_mermaid(p, title = na(), flatten = false)`**: Generates a Mermaid flowchart diagram string from the pipeline topology. New optional `title` parameter auto-detects from `tproject.toml`; new `flatten` parameter (default `false`) renders meta-pipelines as grouped subgraph blocks — set to `true` for flat output.
+- **Subgraph rendering as default**: Meta-pipeline sub-pipelines now render as grouped subgraph blocks by default in both Mermaid and DOT output.
+- **YAML frontmatter for Mermaid title**: Graph titles are emitted as Mermaid YAML frontmatter (`---\ntlang-title: ...\n---`), visible in the HTML `<h1>` via `show_plot()` but silently ignored by Mermaid.js to avoid in-diagram title duplication.
+- **Default T runtime node colour**: Changed from `#ffced0` to `#859900` (green) for a cleaner visual appearance in generated graphs.
 - **Browser Visualization via `show_plot`**: `show_plot(p)` now accepts a pipeline or meta-pipeline directly — it calls `pipeline_to_mermaid` internally, renders the DAG as an interactive HTML page, and opens it in the browser. `show_plot(mermaid_string)` also renders arbitrary Mermaid diagram strings.
+
+### Diagnostics & Error Messages
+- **`read_node` "Did you mean" hint**: When `read_node` receives a bare symbol (e.g. `read_node(ha)` instead of `read_node(p.ha)`), the error now suggests the correct form: *Did you mean `read_node(p.ha)`?*
+- **Unified `read_node` error messages**: All non-`ComputedNode` argument errors now follow a consistent format guiding the user to build the pipeline first, use dot access, or use `read_past_node` for historical builds.
 
 ### Artifact Cache, Dry Runs, and Garbage Collection
 - **Granular `export_artifacts`**: Support exporting cached Nix artifacts for individual nodes, sub-pipelines, meta-pipelines, or lists/dictionaries of nodes/pipelines.
@@ -24841,7 +24848,7 @@ Returns a string containing a Graphviz DOT representation of the pipeline or met
 ## Parameters
 
 - **p** (`Pipeline|MetaPipeline`): The pipeline or metapipeline.
-
+- **title** (`Str`, optional): Graph title. Auto-detected from the project name in `tproject.toml` if omitted. Renders as `label=` in the `digraph` header.
 
 ## Returns
 
@@ -24851,11 +24858,12 @@ A DOT graph string.
 
 ```t
 pipeline_to_dot(p)
+pipeline_to_dot(p, title = "My Graph")
 ```
 
 ## See Also
 
-[pipeline_dot](pipeline_dot.html), [pipeline_to_mermaid](pipeline_to_mermaid.html)
+[pipeline_to_mermaid](pipeline_to_mermaid.html)
 
 
 
@@ -24927,7 +24935,8 @@ Returns a string containing a Mermaid JS flowchart representation of the pipelin
 ## Parameters
 
 - **p** (`Pipeline|MetaPipeline`): The pipeline or metapipeline.
-
+- **title** (`Str`, optional): Graph title. Auto-detected from the project name in `tproject.toml` if omitted. Renders as Mermaid YAML frontmatter (`tlang-title:` key).
+- **flatten** (`Bool`, default `false`): If `true`, renders meta-pipelines as a flat graph instead of grouping sub-pipelines into subgraph blocks.
 
 ## Returns
 
@@ -24937,6 +24946,8 @@ A Mermaid flowchart string.
 
 ```t
 pipeline_to_mermaid(p)
+pipeline_to_mermaid(meta, title = "My Graph")
+pipeline_to_mermaid(meta, flatten = true)
 ```
 
 ## See Also
@@ -25676,6 +25687,8 @@ Reads and returns the contents of a ComputedNode. For in-memory pipelines, retur
 > **Note:** The `.warnings` field previously accessible on the result of `read_node()` has been removed. Use [`warning_msg(node)`](warning_msg.html) to inspect warnings. Use [`inspect_node(node)`](inspect_node.html) for structured warning metadata.
 >
 > To read a node from a specific historical build log **without the pipeline being in scope**, use [`read_past_node(p.node_name, which_log = "...")`](read_past_node.html).
+>
+> **Hint on syntax errors:** If you pass a bare symbol (e.g. `read_node(ha)` instead of `read_node(p.ha)`), T will suggest the correct form: *Did you mean `read_node(p.ha)`?*
 
 ## Parameters
 
@@ -26694,22 +26707,30 @@ A pipeline node configuration object. Must be used as a named binding inside a `
 
 # show_plot
 
-Render a plot node and open it locally
+Render a visualization and open it locally
 
-Builds or reuses an R/Python/Julia plot artifact, renders it into `_pipeline/`, and opens the rendered image with the command configured in `tproject.toml` under `[visualization-tool]`.
+Accepts a pipeline or meta-pipeline (renders the DAG as an interactive Mermaid diagram in the browser), a Mermaid diagram string (renders directly), or a plot-producing node (renders the plot artifact).
 
 ## Parameters
 
-- **plot** (`Any`): A pipeline node, built node, or `read_node()` result for a plot-producing node.
+- **plot** (`Any`): A pipeline node, built node, `read_node()` result for a plot-producing node, a `Pipeline`/`MetaPipeline` (DAG visualization), or a Mermaid string.
 
 
 ## Returns
 
-The local rendered image path.
+The local rendered image path for plot nodes; the Mermaid HTML path for DAG/string inputs.
+
+## Examples
+
+```t
+show_plot(p)                       -- render pipeline as interactive Mermaid DAG
+show_plot(pipeline_to_mermaid(p))  -- render Mermaid string directly
+show_plot(p.my_plot_node)          -- render a plot artifact
+```
 
 ## See Also
 
-[build_pipeline](build_pipeline.html), [read_node](read_node.html)
+[build_pipeline](build_pipeline.html), [pipeline_to_mermaid](pipeline_to_mermaid.html), [read_node](read_node.html)
 
 
 

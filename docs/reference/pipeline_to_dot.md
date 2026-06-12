@@ -7,7 +7,7 @@ Returns a string containing a Graphviz DOT representation of the pipeline or met
 ## Parameters
 
 - **p** (`Pipeline|MetaPipeline`): The pipeline or metapipeline.
-
+- **title** (`Str`, optional): Graph title. Auto-detected from the project name in `tproject.toml` if omitted. Renders as `label=` in the `digraph` header.
 
 ## Returns
 
@@ -17,9 +17,10 @@ A DOT graph string.
 
 ```t
 pipeline_to_dot(p)
+pipeline_to_dot(p, title = "My Graph")
 ```
 
 ## See Also
 
-[pipeline_dot](pipeline_dot.html), [pipeline_to_mermaid](pipeline_to_mermaid.html)
+[pipeline_to_mermaid](pipeline_to_mermaid.html)
 

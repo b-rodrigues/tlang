@@ -137,17 +137,47 @@ also handles <code>MetaPipeline</code>.</li>
 </ul>
 <h3 id="pipeline-visualization">Pipeline Visualization</h3>
 <ul>
-<li><strong><code>pipeline_to_dot(p)</code></strong>: Generates a
-Graphviz DOT representation of the given pipeline or meta-pipeline.</li>
-<li><strong><code>pipeline_to_mermaid(p)</code></strong>: Generates a
-Mermaid flowchart diagram string from the pipeline topology, enabling
-visual rendering in Markdown documents and Mermaid live editors.</li>
+<li><strong><code>pipeline_to_dot(p, title = na())</code></strong>:
+Generates a Graphviz DOT representation of the given pipeline or
+meta-pipeline. New optional <code>title</code> parameter auto-detects
+the project name from <code>tproject.toml</code> (fallback: none).
+Renders as <code>label=</code> in the <code>digraph</code> header.</li>
+<li><strong><code>pipeline_to_mermaid(p, title = na(), flatten = false)</code></strong>:
+Generates a Mermaid flowchart diagram string from the pipeline topology.
+New optional <code>title</code> parameter auto-detects from
+<code>tproject.toml</code>; new <code>flatten</code> parameter (default
+<code>false</code>) renders meta-pipelines as grouped subgraph blocks —
+set to <code>true</code> for flat output.</li>
+<li><strong>Subgraph rendering as default</strong>: Meta-pipeline
+sub-pipelines now render as grouped subgraph blocks by default in both
+Mermaid and DOT output.</li>
+<li><strong>YAML frontmatter for Mermaid title</strong>: Graph titles
+are emitted as Mermaid YAML frontmatter
+(<code>---\ntlang-title: ...\n---</code>), visible in the HTML
+<code>&lt;h1&gt;</code> via <code>show_plot()</code> but silently
+ignored by Mermaid.js to avoid in-diagram title duplication.</li>
+<li><strong>Default T runtime node colour</strong>: Changed from
+<code>#ffced0</code> to <code>#859900</code> (green) for a cleaner
+visual appearance in generated graphs.</li>
 <li><strong>Browser Visualization via <code>show_plot</code></strong>:
 <code>show_plot(p)</code> now accepts a pipeline or meta-pipeline
 directly — it calls <code>pipeline_to_mermaid</code> internally, renders
 the DAG as an interactive HTML page, and opens it in the browser.
 <code>show_plot(mermaid_string)</code> also renders arbitrary Mermaid
 diagram strings.</li>
+</ul>
+<h3 id="diagnostics-error-messages">Diagnostics &amp; Error
+Messages</h3>
+<ul>
+<li><strong><code>read_node</code> “Did you mean” hint</strong>: When
+<code>read_node</code> receives a bare symbol
+(e.g. <code>read_node(ha)</code> instead of
+<code>read_node(p.ha)</code>), the error now suggests the correct form:
+<em>Did you mean <code>read_node(p.ha)</code>?</em></li>
+<li><strong>Unified <code>read_node</code> error messages</strong>: All
+non-<code>ComputedNode</code> argument errors now follow a consistent
+format guiding the user to build the pipeline first, use dot access, or
+use <code>read_past_node</code> for historical builds.</li>
 </ul>
 <h3 id="artifact-cache-dry-runs-and-garbage-collection">Artifact Cache,
 Dry Runs, and Garbage Collection</h3>

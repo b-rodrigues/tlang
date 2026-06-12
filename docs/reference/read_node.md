@@ -7,6 +7,8 @@ Reads and returns the contents of a ComputedNode. For in-memory pipelines, retur
 > **Note:** The `.warnings` field previously accessible on the result of `read_node()` has been removed. Use [`warning_msg(node)`](warning_msg.html) to inspect warnings. Use [`inspect_node(node)`](inspect_node.html) for structured warning metadata.
 >
 > To read a node from a specific historical build log **without the pipeline being in scope**, use [`read_past_node(p.node_name, which_log = "...")`](read_past_node.html).
+>
+> **Hint on syntax errors:** If you pass a bare symbol (e.g. `read_node(ha)` instead of `read_node(p.ha)`), T will suggest the correct form: *Did you mean `read_node(p.ha)`?*
 
 ## Parameters
 
