@@ -466,7 +466,7 @@ let register env =
         end
     | VString _ ->
         Error.type_error "read_node: expected a ComputedNode for argument 'node', but got String. Use read_past_node(p.node_name, which_log = ...) to read from a past build log."
-    | VSymbol name as other ->
+    | VSymbol name ->
         let node_name =
           if String.length name > 6 && String.sub name 0 6 = "<noop:" then
             let len = String.length name in
@@ -477,7 +477,7 @@ let register env =
          | Some real_name ->
              Error.type_error (Printf.sprintf "read_node: cannot read node `%s` because it was skipped (noop=true) or was a downstream dependency of a skipped node." real_name)
          | None ->
-             Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got %s." (Utils.type_name other)))
+             Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got Symbol. Did you mean read_node(p.%s)?" name))
     | VPipeline _ ->
         Error.type_error "read_node: expected a ComputedNode for argument 'node', but got Pipeline. Use read_node(p.node_name) instead."
     | VNA _ ->
