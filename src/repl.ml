@@ -691,6 +691,22 @@ let write_vars_csv env =
           | Ast.VDict _ -> "Dict"
           | Ast.VVector _ -> "Vector"
           | Ast.VNA _ -> "NA"
+          | Ast.VError _ -> "Error"
+          | Ast.VDate _ -> "Date"
+          | Ast.VDatetime _ -> "Datetime"
+          | Ast.VFactor _ -> "Factor"
+          | Ast.VPeriod _ -> "Period"
+          | Ast.VDuration _ -> "Duration"
+          | Ast.VInterval _ -> "Interval"
+          | Ast.VFormula _ -> "Formula"
+          | Ast.VComputedNode _ -> "ComputedNode"
+          | Ast.VNode _ -> "Node"
+          | Ast.VQuo _ -> "Quo"
+          | Ast.VLambda _ -> "Lambda"
+          | Ast.VBuiltin _ -> "Builtin"
+          | Ast.VRawCode _ -> "RawCode"
+          | Ast.VSymbol _ -> "Symbol"
+          | Ast.VIntent _ -> "Intent"
           | _ -> "Unknown"
         in
         let escape s =
@@ -835,6 +851,7 @@ let cmd_repl ?failfast mode env =
             else if String.length trimmed > 0 && trimmed.[0] = '%' then begin
             let (new_env, handled) = handle_magic trimmed env mode base_keys in
             if handled then (
+              write_vars_csv new_env;
               if is_tty then (
                 ignore (LNoise.history_add line);
                 ignore (LNoise.history_save ~filename:history_file)
@@ -876,6 +893,7 @@ let cmd_repl ?failfast mode env =
               ignore (LNoise.history_save ~filename:history_file)
             );
             let (result, new_env) = parse_and_eval ?failfast mode env full_input in
+            write_vars_csv new_env;
             Symbol_table.populate_from_env scope new_env;
             repl_display_value result;
             repl ?failfast new_env true
