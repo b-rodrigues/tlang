@@ -657,12 +657,59 @@ let get_nix_version () =
     | _ -> "unknown"
   with _ -> "unknown"
 
+(* --- Atelier TUI Variable Watcher Helper --- *)
+
+let base_keys_ref = ref None
+
+let write_vars_csv env =
+  let path = "/tmp/atelier-vars.csv" in
+  try
+    let oc = open_out path in
+    output_string oc "name,type,value\n";
+    Ast.Env.iter (fun name value ->
+      let should_show =
+        match value with
+        | Ast.VBuiltin _ -> false
+        | Ast.VLambda _ -> false
+        | _ ->
+            if String.length name >= 2 && String.sub name 0 2 = "__" then false
+            else
+              match !base_keys_ref with
+              | Some bk -> not (Hashtbl.mem bk name)
+              | None -> true
+      in
+      if should_show then begin
+        let val_str = Ast.Utils.value_to_string value in
+        let val_type =
+          match value with
+          | Ast.VInt _ -> "Int"
+          | Ast.VFloat _ -> "Float"
+          | Ast.VBool _ -> "Bool"
+          | Ast.VString _ -> "String"
+          | Ast.VDataFrame _ -> "DataFrame"
+          | Ast.VList _ -> "List"
+          | Ast.VDict _ -> "Dict"
+          | Ast.VVector _ -> "Vector"
+          | Ast.VNA _ -> "NA"
+          | _ -> "Unknown"
+        in
+        let escape s =
+          let escaped = String.concat "\"\"" (String.split_on_char '"' s) in
+          "\"" ^ escaped ^ "\""
+        in
+        Printf.fprintf oc "%s,%s,%s\n" (escape name) (escape val_type) (escape val_str)
+      end
+    ) env;
+    close_out oc
+  with _ -> ()
+
 let cmd_repl ?failfast mode env =
   Packages.ensure_docs_loaded ();
   
   (* Track base environment keys to filter %objects *)
   let base_keys = Hashtbl.create 200 in
   Ast.Env.iter (fun k _ -> Hashtbl.add base_keys k ()) env;
+  base_keys_ref := Some base_keys;
 
   let nix_version = get_nix_version () in
   Printf.printf "T, a reproducibility-first orchestration engine for polyglot\n";
@@ -917,6 +964,14 @@ let () =
              | Sys_error msg ->
                  Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_run failed: %s" msg; context = []; location = None; na_count = 0 })
         | _ -> Ast.VError { code = Ast.TypeError; message = "t_run expects a file path string."; context = []; location = None; na_count = 0 })
+    })
+    env
+  in
+  let env = Ast.Env.add "tui_update"
+    (Ast.VBuiltin { b_name = Some "tui_update"; b_arity = 0; b_variadic = false;
+      b_func = (fun _named_args env_ref ->
+        write_vars_csv !env_ref;
+        Ast.(VNA NAGeneric))
     })
     env
   in
