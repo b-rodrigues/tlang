@@ -925,11 +925,11 @@ pipeline_edges(p)|}
     {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_mermaid(p)|}
     (Packages.init_env ()) in
   (match v with
-   | Ast.VString s when String.length s > 10 && String.sub s 0 8 = "graph LR" ->
-       incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid returns Mermaid string\n"
-   | other ->
-       incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_to_mermaid\n    Expected: Mermaid string starting with 'graph LR'\n    Got: %s\n"
+    | Ast.VString s when String.length s > 10 && contains s "graph LR" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid returns Mermaid string\n"
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid\n    Expected: Mermaid string containing 'graph LR'\n    Got: %s\n"
          (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
@@ -979,11 +979,11 @@ pipeline_edges(p)|}
       pipeline_to_mermaid(meta)|}
     (Packages.init_env ()) in
   (match v with
-   | Ast.VString s when String.length s > 10 && String.sub s 0 8 = "graph LR" ->
-       incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid on MetaPipeline returns Mermaid string\n"
-    | other ->
-        incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid on MetaPipeline\n    Expected: Mermaid string starting with 'graph LR'\n    Got: %s\n"
+    | Ast.VString s when String.length s > 10 && contains s "graph LR" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid on MetaPipeline returns Mermaid string\n"
+     | other ->
+         incr fail_count;
+         let msg = Printf.sprintf "  ✗ pipeline_to_mermaid on MetaPipeline\n    Expected: Mermaid string containing 'graph LR'\n    Got: %s\n"
           (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
@@ -1090,6 +1090,60 @@ pipeline_edges(p)|}
     | other ->
         incr fail_count;
         let msg = Printf.sprintf "  ✗ pipeline_to_mermaid cross-subgraph edge type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_mermaid auto-detects project name from tproject.toml *)
+   let (v, _) = eval_string_env
+     {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_mermaid(p)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "Dependency Graph of Project" && contains s "tlang" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid auto-detects project name\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid auto-detect title\n    Expected project name in title, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid auto-detect title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_mermaid with explicit title argument *)
+   let (v, _) = eval_string_env
+     {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_mermaid(p, title = "Custom Title")|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "title: Custom Title" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid with custom title\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid custom title\n    Expected title, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid custom title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_dot with explicit title argument *)
+   let (v, _) = eval_string_env
+     {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_dot(p, title = "Custom DOT Title")|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "Custom DOT Title" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_dot with custom title\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot custom title\n    Expected title, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot custom title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 

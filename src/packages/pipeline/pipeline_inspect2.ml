@@ -67,7 +67,7 @@ let runtime_fill = function
   | "julia" -> "#9558b2"
   | "quarto" -> "#4F789E"
   | "sh" -> "#6e3b03"
-  | _ -> "#ffced0"
+  | _ -> "#859900"
 
 (** Check whether a pipeline node has an error class. *)
 let has_error p name =
@@ -79,6 +79,24 @@ let has_error p name =
       let cn = !Ast.computed_node_resolver cn in
       cn.cn_class = "Error" || cn.cn_class = "VError"
   | _ -> false
+
+(** Read project name from tproject.toml and build a graph title. *)
+let get_project_title () =
+  try
+    let root = Builder_utils.get_project_root () in
+    let path = Filename.concat root "tproject.toml" in
+    if Sys.file_exists path then
+      let ic = open_in path in
+      let content =
+        Fun.protect ~finally:(fun () -> close_in_noerr ic)
+          (fun () -> really_input_string ic (in_channel_length ic))
+      in
+      match Toml_parser.parse_tproject_toml content with
+      | Ok cfg when String.length cfg.proj_name > 0 ->
+          Some (Printf.sprintf "Dependency Graph of Project '%s'" cfg.proj_name)
+      | _ -> None
+    else None
+  with _ -> None
 
 let register env =
 
@@ -386,10 +404,12 @@ let register env =
 --# @name pipeline_to_dot
 --# @param p :: Pipeline|MetaPipeline The pipeline or metapipeline.
 --# @param flatten :: Bool = false Flatten meta-pipeline subgraphs into a single level.
+--# @param title :: Str = None Optional graph title. Auto-detected from tproject.toml when omitted.
 --# @return :: String A DOT graph string.
 --# @example
 --#   pipeline_to_dot(p)
 --#   pipeline_to_dot(meta, flatten = true)
+--#   pipeline_to_dot(p, title = "My Graph")
 --# @family pipeline
 --# @seealso pipeline_to_mermaid
 --# @export
@@ -401,13 +421,21 @@ let register env =
       match Math_common.get_bool_flag "flatten" false named_args with
       | Error e -> e
       | Ok flatten ->
-      let args = Math_common.positional_args_without ["flatten"] named_args in
+      let title =
+        match Math_common.optional_named_arg "title" named_args with
+        | Some (VString t) when String.length t > 0 -> Some t
+        | _ -> get_project_title ()
+      in
+      let args = Math_common.positional_args_without ["flatten"; "title"] named_args in
       (* DOT output intentionally omits runtime-colour fills and error-node
          styling (unlike Mermaid) because Graphviz users typically apply
          their own stylesheet or theme. *)
       let emit_flat_diagram p =
         let buf = Buffer.create 256 in
         Buffer.add_string buf "digraph pipeline {\n";
+        (match title with
+         | Some t -> Buffer.add_string buf (Printf.sprintf "  label=\"%s\";\n" t)
+         | None -> ());
         Buffer.add_string buf "  rankdir=LR;\n";
         Buffer.add_string buf "  node [shape=box];\n";
         List.iter (fun (name, _) ->
@@ -432,6 +460,9 @@ let register env =
       let emit_subgraph_diagram p sub_names =
         let buf = Buffer.create 256 in
         Buffer.add_string buf "digraph pipeline {\n";
+        (match title with
+         | Some t -> Buffer.add_string buf (Printf.sprintf "  label=\"%s\";\n" t)
+         | None -> ());
         Buffer.add_string buf "  rankdir=LR;\n";
         Buffer.add_string buf "  node [shape=box];\n";
         let subgraph_of name =
@@ -537,10 +568,12 @@ let register env =
 --# @name pipeline_to_mermaid
 --# @param p :: Pipeline|MetaPipeline The pipeline or metapipeline.
 --# @param flatten :: Bool = false Flatten meta-pipeline subgraphs into a single level.
+--# @param title :: Str = None Optional graph title. Auto-detected from tproject.toml when omitted.
 --# @return :: String A Mermaid flowchart string.
 --# @example
 --#   pipeline_to_mermaid(p)
 --#   pipeline_to_mermaid(meta, flatten = true)
+--#   pipeline_to_mermaid(p, title = "My Graph")
 --# @family pipeline
 --# @seealso pipeline_to_dot
 --# @export
@@ -552,9 +585,17 @@ let register env =
       match Math_common.get_bool_flag "flatten" false named_args with
       | Error e -> e
       | Ok flatten ->
-      let args = Math_common.positional_args_without ["flatten"] named_args in
+      let title =
+        match Math_common.optional_named_arg "title" named_args with
+        | Some (VString t) when String.length t > 0 -> Some t
+        | _ -> get_project_title ()
+      in
+      let args = Math_common.positional_args_without ["flatten"; "title"] named_args in
       let emit_flat_diagram p =
         let buf = Buffer.create 256 in
+        (match title with
+         | Some t -> Buffer.add_string buf (Printf.sprintf "---\ntitle: %s\n---\n" t)
+         | None -> ());
         Buffer.add_string buf "graph LR\n";
         let get_id = make_id_allocator () in
         List.iter (fun (name, _) ->
@@ -590,6 +631,9 @@ let register env =
       in
       let emit_subgraph_diagram p sub_names =
         let buf = Buffer.create 256 in
+        (match title with
+         | Some t -> Buffer.add_string buf (Printf.sprintf "---\ntitle: %s\n---\n" t)
+         | None -> ());
         Buffer.add_string buf "graph LR\n";
         let get_id = make_id_allocator () in
         let subgraph_of name =
