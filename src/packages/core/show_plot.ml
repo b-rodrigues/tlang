@@ -164,9 +164,9 @@ let open_rendered_plot viewer path =
          let read_fd, write_fd = Unix.pipe () in
          match Unix.fork () with
          | 0 ->
-             Unix.close read_fd;
-             ignore (Unix.setsid ());
              (try
+                Unix.close read_fd;
+                ignore (Unix.setsid ());
                 let tool_pid = Unix.create_process exec [| exec; path |] devnull devnull devnull in
                 if tool_pid <= 0 then raise (Unix.Unix_error (Unix.ECHILD, "create_process", exec));
                 let ok = Bytes.of_string "OK" in
@@ -174,11 +174,15 @@ let open_rendered_plot viewer path =
                 Unix.close write_fd;
                 Unix.close devnull;
                 Stdlib.exit 0
-              with Unix.Unix_error (child_err, _, _) ->
-                let msg = Bytes.of_string (Unix.error_message child_err) in
-                ignore (Unix.write write_fd msg 0 (Bytes.length msg));
-                Unix.close write_fd;
-                Unix.close devnull;
+              with exn ->
+                let err_msg = match exn with
+                  | Unix.Unix_error (child_err, _, _) -> Unix.error_message child_err
+                  | _ -> Printexc.to_string exn
+                in
+                let msg = Bytes.of_string err_msg in
+                (try ignore (Unix.write write_fd msg 0 (Bytes.length msg)) with Unix.Unix_error _ -> ());
+                (try Unix.close write_fd with Unix.Unix_error _ -> ());
+                (try Unix.close devnull with Unix.Unix_error _ -> ());
                 Stdlib.exit 1)
          | fork_pid ->
              Unix.close write_fd;
@@ -468,14 +472,15 @@ let computed_node_from_registry node_name =
              Error
                (Printf.sprintf "show_plot: node `%s` has unsupported plot class `%s`." node_name class_name)
            else
-             Ok {
-               cn_name = node_name;
-               cn_runtime = (match runtime_of_plot_class class_name with Some runtime -> runtime | None -> "unknown");
-               cn_path = artifact_path;
-               cn_serializer = "default";
-               cn_class = class_name;
-               cn_dependencies = [];
-             })
+              Ok {
+                cn_name = node_name;
+                cn_runtime = (match runtime_of_plot_class class_name with Some runtime -> runtime | None -> "unknown");
+                cn_path = artifact_path;
+                cn_serializer = "default";
+                cn_class = class_name;
+                cn_dependencies = [];
+                cn_p_exprs = None;
+              })
   | _ ->
       match Builder_logs.get_logs () with
       | [] ->
@@ -592,18 +597,173 @@ let render_plot_artifact cn =
                                 | Error _ as err -> err))
                     end)
 
+let is_mermaid_string s =
+  let s_trimmed = String.trim s in
+  String.starts_with ~prefix:"---" s_trimmed ||
+  String.starts_with ~prefix:"%%" s_trimmed ||
+  String.starts_with ~prefix:"graph " s_trimmed ||
+  String.starts_with ~prefix:"graph\n" s_trimmed ||
+  String.starts_with ~prefix:"graph\r" s_trimmed ||
+  String.starts_with ~prefix:"flowchart " s_trimmed ||
+  String.starts_with ~prefix:"flowchart\n" s_trimmed ||
+  String.starts_with ~prefix:"flowchart\r" s_trimmed ||
+  String.starts_with ~prefix:"sequenceDiagram" s_trimmed ||
+  String.starts_with ~prefix:"gantt" s_trimmed ||
+  String.starts_with ~prefix:"classDiagram" s_trimmed ||
+  String.starts_with ~prefix:"stateDiagram" s_trimmed ||
+  String.starts_with ~prefix:"erDiagram" s_trimmed ||
+  String.starts_with ~prefix:"journey" s_trimmed ||
+  String.starts_with ~prefix:"mindmap" s_trimmed
+
+let html_escape s =
+  let buf = Buffer.create (String.length s * 2) in
+  String.iter (fun c ->
+    match c with
+    | '&' -> Buffer.add_string buf "&amp;"
+    | '<' -> Buffer.add_string buf "&lt;"
+    | '>' -> Buffer.add_string buf "&gt;"
+    | c   -> Buffer.add_char buf c
+  ) s;
+  Buffer.contents buf
+
+let extract_mermaid_title content =
+  let s = String.trim content in
+  if not (String.starts_with ~prefix:"---" s) then None
+  else
+    let rest = String.sub s 3 (String.length s - 3) in
+    let lines = String.split_on_char '\n' rest in
+    let rec scan = function
+      | [] -> None
+      | line :: rest_lines ->
+        let trimmed = String.trim line in
+        if trimmed = "---" then None
+        else if String.length trimmed >= 12 && String.sub trimmed 0 12 = "tlang-title:" then
+          Some (String.trim (String.sub trimmed 12 (String.length trimmed - 12)))
+        else scan rest_lines
+    in
+    scan lines
+
+let render_mermaid_html ~title content =
+  Printf.sprintf
+    {|<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>T-Lang Pipeline Visualizer</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'neutral',
+      securityLevel: 'loose'
+    });
+  </script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 2rem;
+      background: #fdfdfd;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .mermaid {
+      background: white;
+      border: 1px solid #eef;
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      width: 100%%;
+      max-width: 1000px;
+      display: flex;
+      justify-content: center;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>%s</h1>
+  <div class="mermaid">
+%s
+  </div>
+</body>
+</html>
+|}
+    (html_escape title) content
+
+let render_and_open_mermaid mermaid_str =
+  let title = match extract_mermaid_title mermaid_str with
+    | Some t -> t
+    | None -> "T-Lang Pipeline Dependency Graph"
+  in
+  let html_content = render_mermaid_html ~title mermaid_str in
+  let project_root = Builder_utils.get_project_root () in
+  Builder_utils.ensure_pipeline_dir ();
+  let filename =
+    Printf.sprintf "show_mermaid_%s_%d.html" (Builder_utils.get_timestamp ()) (Unix.getpid ())
+  in
+  let local_html_path = Filename.concat Builder_utils.pipeline_dir filename in
+  match Builder_utils.write_file local_html_path html_content with
+  | Error msg -> Error ("show_plot: failed to write mermaid html file: " ^ msg)
+  | Ok () ->
+      flush_output_streams ();
+      (match visualization_tool ~project_root () with
+       | Error msg -> Error msg
+       | Ok None -> Ok local_html_path
+       | Ok (Some viewer) ->
+           (match open_rendered_plot viewer local_html_path with
+            | Ok () -> Ok local_html_path
+            | Error msg -> Error msg))
+
+let call_pipeline_to_mermaid p env =
+  match Env.find_opt "pipeline_to_mermaid" env with
+  | Some (VBuiltin builtin) ->
+      let args = [(None, p)] in
+      let env_ref = ref env in
+      (try
+         match builtin.b_func args env_ref with
+         | VString s -> Ok s
+         | other -> Error ("pipeline_to_mermaid returned non-string value: " ^ Utils.type_name other)
+       with exn ->
+         Error ("pipeline_to_mermaid raised exception: " ^ Printexc.to_string exn))
+  | _ ->
+      Error "pipeline_to_mermaid function not found in environment."
+
 let register env =
-  let show_plot_fn named_args _env =
+  let show_plot_fn named_args env =
     match named_args with
     | [(_, plot)] ->
-        (match resolve_plot_node plot with
-          | Error msg -> Error.make_error ValueError msg
-          | Ok cn ->
-              (match render_plot_artifact cn with
-               | Ok path ->
-                   flush_output_streams ();
-                   VString path
-               | Error msg -> Error.make_error RuntimeError msg))
+        (match plot with
+         | VPipeline _ | VMetaPipeline _ ->
+             (match call_pipeline_to_mermaid plot env with
+              | Ok mermaid_str ->
+                  (match render_and_open_mermaid mermaid_str with
+                   | Ok path ->
+                       flush_output_streams ();
+                       VString path
+                   | Error msg -> Error.make_error RuntimeError msg)
+              | Error msg -> Error.make_error RuntimeError msg)
+         | VString s when is_mermaid_string s ->
+             (match render_and_open_mermaid s with
+              | Ok path ->
+                  flush_output_streams ();
+                  VString path
+              | Error msg -> Error.make_error RuntimeError msg)
+         | _ ->
+             (match resolve_plot_node plot with
+               | Error msg -> Error.make_error ValueError msg
+               | Ok cn ->
+                   (match render_plot_artifact cn with
+                    | Ok path ->
+                        flush_output_streams ();
+                        VString path
+                    | Error msg -> Error.make_error RuntimeError msg)))
     | _ ->
         Error.arity_error_named "show_plot" 1 (List.length named_args)
   in

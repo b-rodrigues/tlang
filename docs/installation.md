@@ -25,12 +25,11 @@ For detailed instructions on installing Nix on **Linux**, **macOS**, and **Windo
 
 👉 **[Nix Installation Guide](nix-installation.md)**
 
-Once Nix is installed and flakes are enabled, you can proceed to Step 2.
+Once Nix is installed, you can proceed to Step 2.
 
-### Troubleshooting Nix Installation
+## Step 2: Enable Nix Flakes
 
-#### Enabling Experimental Features
-If you're using the standard Nix installer (not the Determinate Systems one), you might see an error that `nix shell` or other commands are not recognized. You can enable the required features by adding them to your Nix configuration or by appending a flag to each command:
+T requires the `nix-command` and `flakes` experimental features. The Determinate Systems installer enables these by default. If you used the standard installer, you may need to enable them:
 
 **Option 1: Add to config (Recommended)**
 ```bash
@@ -39,16 +38,16 @@ echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 ```
 
 **Option 2: Use a command flag**
-Append `--extra-experimental-features "nix-command flakes"` to your Nix commands.
+Append `--extra-experimental-features "nix-command flakes"` to each Nix command.
 
-#### Trusted Users and Binary Caches
-If you see warnings like `ignoring untrusted substituter`, it means you need to add yourself as a trusted user so Nix allows you to use the T binary cache. On macOS, you can run the following one-liner:
+### Trusted Users and Binary Caches
+If you see warnings like `ignoring untrusted substituter`, you need to add yourself as a trusted user so Nix allows you to use the T binary cache. On macOS, run:
 
 ```bash
 echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.custom.conf && sudo launchctl kickstart -k system/org.nixos.nix-daemon
 ```
 
-This works for both standard Nix installations and Determinate Nix installations. If you see warnings like `ignoring untrusted substituter`, this means the `trusted-users` configuration is not in place.
+This works for both standard and Determinate Nix installations.
 
 ## Step 3: Clone T Repository
 
@@ -121,7 +120,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.52.0 "Kaméhaméha" using Nix <nix-version>
+Version 0.52.3 "Kaméhaméha" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org

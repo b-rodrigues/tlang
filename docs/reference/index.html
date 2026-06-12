@@ -64,7 +64,7 @@
 </tr>
 <tr>
 <td><a href="add_diagnostics.html">add_diagnostics</a></td>
-<td>Add Model Diagnostics</td>
+<td>Augment Data with Model Calculations</td>
 </tr>
 <tr>
 <td><a href="all_of.html">all_of</a></td>
@@ -101,14 +101,6 @@
 <tr>
 <td><a href="arrange_node.html">arrange_node</a></td>
 <td>Arrange Pipeline Nodes</td>
-</tr>
-<tr>
-<td><a href="to_date.html">to_date</a></td>
-<td>Convert values to Date</td>
-</tr>
-<tr>
-<td><a href="to_datetime.html">to_datetime</a></td>
-<td>Convert values to Datetime</td>
 </tr>
 <tr>
 <td><a href="asin.html">asin</a></td>
@@ -151,10 +143,6 @@
 <td>Inverse hyperbolic tangent</td>
 </tr>
 <tr>
-<td><a href="add_diagnostics.html">add_diagnostics</a></td>
-<td>Augment Data with Model Calculations</td>
-</tr>
-<tr>
 <td><a href="bind_cols.html">bind_cols</a></td>
 <td>Combine DataFrames by columns</td>
 </tr>
@@ -165,6 +153,18 @@
 <tr>
 <td><a href="body.html">body</a></td>
 <td>Get function body</td>
+</tr>
+<tr>
+<td><a href="build_log.html">build_log</a></td>
+<td>Retrieve Build Log for Pipeline</td>
+</tr>
+<tr>
+<td><a href="build_log_history.html">build_log_history</a></td>
+<td>Retrieve Build Log History for Pipeline</td>
+</tr>
+<tr>
+<td><a href="build_log_to_frame.html">build_log_to_frame</a></td>
+<td>Tabulate Build Log as DataFrame</td>
 </tr>
 <tr>
 <td><a href="build_pipeline.html">build_pipeline</a></td>
@@ -214,6 +214,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <tr>
 <td><a href="col_lens.html">col_lens</a></td>
 <td>Create a Column Lens</td>
+</tr>
+<tr>
+<td><a href="collect_exceptions.html">collect_exceptions</a></td>
+<td>Gather Pipeline Node Exceptions and Warnings</td>
 </tr>
 <tr>
 <td><a href="colnames.html">colnames</a></td>
@@ -305,16 +309,16 @@ href="compare_native_vs_pmml_scores.html">compare_native_vs_pmml_scores</a></td>
 <td>Coefficient of variation</td>
 </tr>
 <tr>
-<td><a href="to_dataframe.html">to_dataframe</a></td>
-<td>Create a DataFrame</td>
-</tr>
-<tr>
 <td><a href="day.html">day</a></td>
 <td>Extract the day of month</td>
 </tr>
 <tr>
 <td><a href="days_in_month.html">days_in_month</a></td>
 <td>Get the number of days in a month</td>
+</tr>
+<tr>
+<td><a href="debug_node.html">debug_node</a></td>
+<td>Interactively Debug a Pipeline Node</td>
 </tr>
 <tr>
 <td><a href="dense_rank.html">dense_rank</a></td>
@@ -382,6 +386,10 @@ evaluation)</td>
 <td>Raise Error</td>
 </tr>
 <tr>
+<td><a href="error_chain.html">error_chain</a></td>
+<td>Chain errors to preserve provenance</td>
+</tr>
+<tr>
 <td><a href="error_code.html">error_code</a></td>
 <td>Get error code</td>
 </tr>
@@ -390,7 +398,7 @@ evaluation)</td>
 <td>Get error context</td>
 </tr>
 <tr>
-<td><a href="error_message.html">error_message</a></td>
+<td><a href="error_msg.html">error_msg</a></td>
 <td>Get error message</td>
 </tr>
 <tr>
@@ -426,20 +434,12 @@ evaluation)</td>
 <td>Explain Value as JSON</td>
 </tr>
 <tr>
-<td><a href="expr.html">expr</a></td>
-<td>Capture an expression</td>
-</tr>
-<tr>
-<td><a href="exprs.html">exprs</a></td>
-<td></td>
-</tr>
-<tr>
-<td><a href="to_factor.html">to_factor</a></td>
-<td>Create to_factor values</td>
+<td><a href="export_artifacts.html">export_artifacts</a></td>
+<td>Export Pipeline Artifacts</td>
 </tr>
 <tr>
 <td><a href="fct_c.html">fct_c</a></td>
-<td>Concatenate to_factor vectors</td>
+<td>Concatenate factor vectors</td>
 </tr>
 <tr>
 <td><a href="fct_collapse.html">fct_collapse</a></td>
@@ -447,27 +447,27 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="fct_drop.html">fct_drop</a></td>
-<td>Drop unused to_factor levels</td>
+<td>Drop unused factor levels</td>
 </tr>
 <tr>
 <td><a href="fct_expand.html">fct_expand</a></td>
-<td>Add explicit to_factor levels</td>
+<td>Add explicit factor levels</td>
 </tr>
 <tr>
 <td><a href="fct_infreq.html">fct_infreq</a></td>
-<td>Order to_factor levels by frequency</td>
+<td>Order factor levels by frequency</td>
 </tr>
 <tr>
 <td><a href="fct_lump_min.html">fct_lump_min</a></td>
-<td>Lump to_factor levels below a minimum count</td>
+<td>Lump factor levels below a minimum count</td>
 </tr>
 <tr>
 <td><a href="fct_lump_n.html">fct_lump_n</a></td>
-<td>Keep the most frequent to_factor levels</td>
+<td>Keep the most frequent factor levels</td>
 </tr>
 <tr>
 <td><a href="fct_lump_prop.html">fct_lump_prop</a></td>
-<td>Lump to_factor levels below a minimum proportion</td>
+<td>Lump factor levels below a minimum proportion</td>
 </tr>
 <tr>
 <td><a href="fct_other.html">fct_other</a></td>
@@ -475,7 +475,7 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="fct_recode.html">fct_recode</a></td>
-<td>Rename to_factor levels</td>
+<td>Rename factor levels</td>
 </tr>
 <tr>
 <td><a href="fct_relevel.html">fct_relevel</a></td>
@@ -483,11 +483,11 @@ evaluation)</td>
 </tr>
 <tr>
 <td><a href="fct_reorder.html">fct_reorder</a></td>
-<td>Order to_factor levels by another vector</td>
+<td>Order factor levels by another vector</td>
 </tr>
 <tr>
 <td><a href="fct_rev.html">fct_rev</a></td>
-<td>Reverse to_factor levels</td>
+<td>Reverse factor levels</td>
 </tr>
 <tr>
 <td><a href="file_exists.html">file_exists</a></td>
@@ -590,6 +590,10 @@ evaluation)</td>
 <td>Vectorized If-Else</td>
 </tr>
 <tr>
+<td><a href="import_artifacts.html">import_artifacts</a></td>
+<td>Import Pipeline Artifacts</td>
+</tr>
+<tr>
 <td><a href="index_of.html">index_of</a></td>
 <td>Find index of substring</td>
 </tr>
@@ -598,16 +602,20 @@ evaluation)</td>
 <td>Join matching rows</td>
 </tr>
 <tr>
+<td><a href="inspect_artifacts.html">inspect_artifacts</a></td>
+<td>Inspect Artifact Archive</td>
+</tr>
+<tr>
+<td><a href="inspect_log.html">inspect_log</a></td>
+<td>Inspect Pipeline Logs (Dynamic)</td>
+</tr>
+<tr>
 <td><a href="inspect_node.html">inspect_node</a></td>
 <td>Inspect Pipeline Node Metadata</td>
 </tr>
 <tr>
-<td><a href="inspect_log.html">inspect_log</a></td>
-<td>Inspect Pipeline Build Logs</td>
-</tr>
-<tr>
 <td><a href="inspect_pipeline.html">inspect_pipeline</a></td>
-<td>Static Pipeline DAG Schema Inspection</td>
+<td>Inspect Pipeline Schema (Static)</td>
 </tr>
 <tr>
 <td><a href="intent_fields.html">intent_fields</a></td>
@@ -677,339 +685,1029 @@ evaluation)</td>
 <td><a href="isoyear.html">isoyear</a></td>
 <td>Extract the ISO week-based year</td>
 </tr>
+<tr>
+<td><a href="jln.html">jln</a></td>
+<td>Configure a Julia Pipeline Node</td>
+</tr>
+<tr>
+<td><a href="kron.html">kron</a></td>
+<td>Kronecker product</td>
+</tr>
+<tr>
+<td><a href="kurtosis.html">kurtosis</a></td>
+<td>Excess kurtosis</td>
+</tr>
+<tr>
+<td><a href="lag.html">lag</a></td>
+<td>Lag values</td>
+</tr>
+<tr>
+<td><a href="last_index_of.html">last_index_of</a></td>
+<td>Find last index of substring</td>
+</tr>
+<tr>
+<td><a href="lead.html">lead</a></td>
+<td>Lead values</td>
+</tr>
+<tr>
+<td><a href="left_join.html">left_join</a></td>
+<td>Join rows from the left table</td>
+</tr>
+<tr>
+<td><a href="length.html">length</a></td>
+<td>Get length</td>
+</tr>
+<tr>
+<td><a href="lens.html">lens</a></td>
+<td>Lens Library</td>
+</tr>
+<tr>
+<td><a href="levels.html">levels</a></td>
+<td>Get factor levels</td>
+</tr>
+<tr>
+<td><a href="list_files.html">list_files</a></td>
+<td>List files in directory</td>
+</tr>
+<tr>
+<td><a href="list_logs.html">list_logs</a></td>
+<td>List Pipeline Logs</td>
+</tr>
+<tr>
+<td><a href="lm.html">lm</a></td>
+<td>Linear Model</td>
+</tr>
+<tr>
+<td><a href="log.html">log</a></td>
+<td>Natural logarithm</td>
+</tr>
+<tr>
+<td><a href="mad.html">mad</a></td>
+<td>Median absolute deviation</td>
+</tr>
+<tr>
+<td><a href="make_date.html">make_date</a></td>
+<td>Construct a Date value</td>
+</tr>
+<tr>
+<td><a href="make_datetime.html">make_datetime</a></td>
+<td>Construct a Datetime value</td>
+</tr>
+<tr>
+<td><a href="make_period.html">make_period</a></td>
+<td>Create a period value</td>
+</tr>
+<tr>
+<td><a href="map.html">map</a></td>
+<td>Map a function over a list</td>
+</tr>
+<tr>
+<td><a href="matches.html">matches</a></td>
+<td>Match columns by regex</td>
+</tr>
+<tr>
+<td><a href="matmul.html">matmul</a></td>
+<td>Matrix multiplication</td>
+</tr>
+<tr>
+<td><a href="max.html">max</a></td>
+<td>Maximum value</td>
+</tr>
+<tr>
+<td><a href="mean.html">mean</a></td>
+<td>Compute arithmetic mean of numeric values</td>
+</tr>
+<tr>
+<td><a href="median.html">median</a></td>
+<td>Median</td>
+</tr>
+<tr>
+<td><a href="meta_flatten.html">meta_flatten</a></td>
+<td>Flatten MetaPipeline into Standard Pipeline</td>
+</tr>
+<tr>
+<td><a href="min.html">min</a></td>
+<td>Minimum value</td>
+</tr>
+<tr>
+<td><a href="min_rank.html">min_rank</a></td>
+<td>Minimum Rank</td>
+</tr>
+<tr>
+<td><a href="minute.html">minute</a></td>
+<td>Extract the minute</td>
+</tr>
+<tr>
+<td><a href="mode.html">mode</a></td>
+<td>Mode</td>
+</tr>
+<tr>
+<td><a href="modify.html">modify</a></td>
+<td>Multiple Lens Transformations</td>
+</tr>
+<tr>
+<td><a href="month.html">month</a></td>
+<td>Extract or label the month</td>
+</tr>
+<tr>
+<td><a href="mutate.html">mutate</a></td>
+<td>Mutate DataFrame</td>
+</tr>
+<tr>
+<td><a href="mutate_node.html">mutate_node</a></td>
+<td>Mutate Pipeline Node Metadata</td>
+</tr>
+<tr>
+<td><a href="n.html">n</a></td>
+<td>Group size aggregation</td>
+</tr>
+<tr>
+<td><a href="n_distinct.html">n_distinct</a></td>
+<td>Count distinct values</td>
+</tr>
+<tr>
+<td><a href="na.html">na</a></td>
+<td>Generic NA</td>
+</tr>
+<tr>
+<td><a href="na_bool.html">na_bool</a></td>
+<td>Boolean NA</td>
+</tr>
+<tr>
+<td><a href="na_float.html">na_float</a></td>
+<td>Float NA</td>
+</tr>
+<tr>
+<td><a href="na_int.html">na_int</a></td>
+<td>Integer NA</td>
+</tr>
+<tr>
+<td><a href="na_string.html">na_string</a></td>
+<td>String NA</td>
+</tr>
+<tr>
+<td><a href="ncol.html">ncol</a></td>
+<td>Number of columns</td>
+</tr>
+<tr>
+<td><a href="ndarray.html">ndarray</a></td>
+<td>Create an N-dimensional array</td>
+</tr>
+<tr>
+<td><a href="ndarray_data.html">ndarray_data</a></td>
+<td>Get NDArray data</td>
+</tr>
+<tr>
+<td><a href="nest.html">nest</a></td>
+<td>Nest columns into sub-dataframes</td>
+</tr>
+<tr>
+<td><a href="nesting.html">nesting</a></td>
+<td>Helper to find combinations present in data</td>
+</tr>
+<tr>
+<td><a href="nobs.html">nobs</a></td>
+<td>Number of Observations</td>
+</tr>
+<tr>
+<td><a href="node.html">node</a></td>
+<td>Configure a Pipeline Node</td>
+</tr>
+<tr>
+<td><a href="node_diff.html">node_diff</a></td>
+<td>Compare Node Outputs Across Builds</td>
+</tr>
+<tr>
+<td><a href="node_lens.html">node_lens</a></td>
+<td>Pipeline Node Lens</td>
+</tr>
+<tr>
+<td><a href="node_meta_lens.html">node_meta_lens</a></td>
+<td>Pipeline Metadata Lens</td>
+</tr>
+<tr>
+<td><a href="normalize.html">normalize</a></td>
+<td>Normalize values</td>
+</tr>
+<tr>
+<td><a href="now.html">now</a></td>
+<td>Get the current datetime</td>
+</tr>
+<tr>
+<td><a href="nrow.html">nrow</a></td>
+<td>Number of rows</td>
+</tr>
+<tr>
+<td><a href="ntile.html">ntile</a></td>
+<td>N-tiles</td>
+</tr>
+<tr>
+<td><a href="ordered.html">ordered</a></td>
+<td>Create ordered factors</td>
+</tr>
+<tr>
+<td><a href="over.html">over</a></td>
+<td>Transform Focused Value</td>
+</tr>
+<tr>
+<td><a href="package_info.html">package_info</a></td>
+<td>Get package information</td>
+</tr>
+<tr>
+<td><a href="packages.html">packages</a></td>
+<td>List available packages</td>
+</tr>
+<tr>
+<td><a href="parallel.html">parallel</a></td>
+<td>Combine Pipelines in Parallel</td>
+</tr>
+<tr>
+<td><a href="parse_date.html">parse_date</a></td>
+<td>Parse dates from strings</td>
+</tr>
+<tr>
+<td><a href="parse_datetime.html">parse_datetime</a></td>
+<td>Parse datetimes from strings</td>
+</tr>
+<tr>
+<td><a href="parse_file.html">parse_file</a></td>
+<td>Parse T-Doc Comments</td>
+</tr>
+<tr>
+<td><a href="patch.html">patch</a></td>
+<td>Overlay one pipeline onto another</td>
+</tr>
+<tr>
+<td><a href="path_abs.html">path_abs</a></td>
+<td>Resolve relative path to absolute</td>
+</tr>
+<tr>
+<td><a href="path_basename.html">path_basename</a></td>
+<td>Get filename component of a path</td>
+</tr>
+<tr>
+<td><a href="path_dirname.html">path_dirname</a></td>
+<td>Get directory portion of a path</td>
+</tr>
+<tr>
+<td><a href="path_ext.html">path_ext</a></td>
+<td>Get file extension</td>
+</tr>
+<tr>
+<td><a href="path_join.html">path_join</a></td>
+<td>Join multiple path segments</td>
+</tr>
+<tr>
+<td><a href="path_stem.html">path_stem</a></td>
+<td>Get filename without extension</td>
+</tr>
+<tr>
+<td><a href="pchisq.html">pchisq</a></td>
+<td>Chi-squared distribution CDF</td>
+</tr>
+<tr>
+<td><a href="percent_rank.html">percent_rank</a></td>
+<td>Percent Rank</td>
+</tr>
+<tr>
+<td><a href="pf.html">pf</a></td>
+<td>F distribution CDF</td>
+</tr>
+<tr>
+<td><a href="pipeline_assert.html">pipeline_assert</a></td>
+<td>Assert Pipeline Validity</td>
+</tr>
+<tr>
+<td><a href="pipeline_cache_status.html">pipeline_cache_status</a></td>
+<td>Check Pipeline Cache Status</td>
+</tr>
+<tr>
+<td><a href="pipeline_copy.html">pipeline_copy</a></td>
+<td>Copy Pipeline Node Artifacts to Local Directory</td>
+</tr>
+<tr>
+<td><a href="pipeline_cycles.html">pipeline_cycles</a></td>
+<td>Detect Pipeline Cycles</td>
+</tr>
+<tr>
+<td><a href="pipeline_deps.html">pipeline_deps</a></td>
+<td>List Node Dependencies</td>
+</tr>
+<tr>
+<td><a href="pipeline_depth.html">pipeline_depth</a></td>
+<td>Maximum Topological Depth</td>
+</tr>
+<tr>
+<td><a href="pipeline_diff.html">pipeline_diff</a></td>
+<td>Compare Pipeline Structures</td>
+</tr>
+<tr>
+<td><a href="pipeline_edges.html">pipeline_edges</a></td>
+<td>Pipeline Dependency Edges</td>
+</tr>
+<tr>
+<td><a href="pipeline_gc.html">pipeline_gc</a></td>
+<td>Garbage Collect Pipeline Nodes</td>
+</tr>
+<tr>
+<td><a href="pipeline_leaves.html">pipeline_leaves</a></td>
+<td>Pipeline Leaf Nodes</td>
+</tr>
+<tr>
+<td><a href="pipeline_node.html">pipeline_node</a></td>
+<td>Get Pipeline Node</td>
+</tr>
+<tr>
+<td><a href="pipeline_nodes.html">pipeline_nodes</a></td>
+<td>List Pipeline Nodes</td>
+</tr>
+<tr>
+<td><a href="pipeline_print.html">pipeline_print</a></td>
+<td>Pretty-Print a Pipeline</td>
+</tr>
+<tr>
+<td><a href="pipeline_roots.html">pipeline_roots</a></td>
+<td>Pipeline Root Nodes</td>
+</tr>
+<tr>
+<td><a href="pipeline_run.html">pipeline_run</a></td>
+<td>Run Pipeline</td>
+</tr>
+<tr>
+<td><a href="pipeline_to_dot.html">pipeline_to_dot</a></td>
+<td>Export Pipeline/MetaPipeline as DOT Graph</td>
+</tr>
+<tr>
+<td><a href="pipeline_to_drv.html">pipeline_to_drv</a></td>
+<td>Introspect Node Derivation Paths</td>
+</tr>
+<tr>
+<td><a href="pipeline_to_frame.html">pipeline_to_frame</a></td>
+<td>Convert Pipeline to DataFrame</td>
+</tr>
+<tr>
+<td><a href="pipeline_to_mermaid.html">pipeline_to_mermaid</a></td>
+<td>Export Pipeline/MetaPipeline as Mermaid Graph</td>
+</tr>
+<tr>
+<td><a href="pipeline_to_store.html">pipeline_to_store</a></td>
+<td>Introspect Node Store Paths</td>
+</tr>
+<tr>
+<td><a href="pipeline_validate.html">pipeline_validate</a></td>
+<td>Validate a Pipeline</td>
+</tr>
+<tr>
+<td><a href="pivot_longer.html">pivot_longer</a></td>
+<td>Pivot longer</td>
+</tr>
+<tr>
+<td><a href="pivot_wider.html">pivot_wider</a></td>
+<td>Pivot wider</td>
+</tr>
+<tr>
+<td><a href="pm.html">pm</a></td>
+<td>Check whether a time is after noon</td>
+</tr>
+<tr>
+<td><a href="pnorm.html">pnorm</a></td>
+<td>Normal distribution CDF</td>
+</tr>
+<tr>
+<td><a href="poly.html">poly</a></td>
+<td>Polynomial basis expansion</td>
+</tr>
+<tr>
+<td><a href="populate_pipeline.html">populate_pipeline</a></td>
+<td>Populate Pipeline</td>
+</tr>
+<tr>
+<td><a href="pow.html">pow</a></td>
+<td>Power function</td>
+</tr>
+<tr>
+<td><a href="predict.html">predict</a></td>
+<td>Model Prediction</td>
+</tr>
+<tr>
+<td><a href="pretty_print.html">pretty_print</a></td>
+<td>Pretty-print a value</td>
+</tr>
+<tr>
+<td><a href="print.html">print</a></td>
+<td>Print values to standard output</td>
+</tr>
+<tr>
+<td><a href="prune.html">prune</a></td>
+<td>Prune Pipeline Leaf Nodes</td>
+</tr>
+<tr>
+<td><a href="pt.html">pt</a></td>
+<td>Student t distribution CDF</td>
+</tr>
+<tr>
+<td><a href="pull.html">pull</a></td>
+<td>Extract column as vector</td>
+</tr>
+<tr>
+<td><a href="pyn.html">pyn</a></td>
+<td>Configure a Python Pipeline Node</td>
+</tr>
+<tr>
+<td><a href="qn.html">qn</a></td>
+<td>Configure a Quarto Pipeline Node</td>
+</tr>
+<tr>
+<td><a href="quantile.html">quantile</a></td>
+<td>Quantiles</td>
+</tr>
+<tr>
+<td><a href="quarter.html">quarter</a></td>
+<td>Extract the quarter</td>
+</tr>
+<tr>
+<td><a href="quo.html">quo</a></td>
+<td>Capture an expression with its lexical environment (quosure)</td>
+</tr>
+<tr>
+<td><a href="quos.html">quos</a></td>
+<td>Capture multiple expressions with their lexical environment
+(quosures)</td>
+</tr>
+<tr>
+<td><a href="range.html">range</a></td>
+<td>Range</td>
+</tr>
+<tr>
+<td><a href="read_arrow.html">read_arrow</a></td>
+<td>Read an Arrow IPC (Feather) file</td>
+</tr>
+<tr>
+<td><a href="read_csv.html">read_csv</a></td>
+<td>Read CSV file</td>
+</tr>
+<tr>
+<td><a href="read_file.html">read_file</a></td>
+<td>Read file contents</td>
+</tr>
+<tr>
+<td><a href="read_log.html">read_log</a></td>
+<td>Read Node Build Log</td>
+</tr>
+<tr>
+<td><a href="read_node.html">read_node</a></td>
+<td>Read Pipeline Node Artifact</td>
+</tr>
+<tr>
+<td><a href="read_past_node.html">read_past_node</a></td>
+<td>Read Pipeline Node from Past Build</td>
+</tr>
+<tr>
+<td><a href="read_parquet.html">read_parquet</a></td>
+<td>Read Parquet file</td>
+</tr>
+<tr>
+<td><a href="read_pipeline.html">read_pipeline</a></td>
+<td>Read Pipeline Metadata</td>
+</tr>
+<tr>
+<td><a href="rebuild_node.html">rebuild_node</a></td>
+<td>Rebuild a Pipeline Node</td>
+</tr>
+<tr>
+<td><a href="relocate.html">relocate</a></td>
+<td>Move columns to a new position</td>
+</tr>
+<tr>
+<td><a href="rename.html">rename</a></td>
+<td>Rename DataFrame columns</td>
+</tr>
+<tr>
+<td><a href="rename_node.html">rename_node</a></td>
+<td>Rename a Pipeline Node</td>
+</tr>
+<tr>
+<td><a href="replace_first.html">replace_first</a></td>
+<td>Replace first occurrence</td>
+</tr>
+<tr>
+<td><a href="replace_na.html">replace_na</a></td>
+<td>Replace missing values</td>
+</tr>
+<tr>
+<td><a href="reshape.html">reshape</a></td>
+<td>Reshape an NDArray</td>
+</tr>
+<tr>
+<td><a href="residuals.html">residuals</a></td>
+<td>Model Residuals</td>
+</tr>
+<tr>
+<td><a href="rewire.html">rewire</a></td>
+<td>Rewire a Node’s Dependencies</td>
+</tr>
+<tr>
+<td><a href="rm.html">rm</a></td>
+<td>Remove objects from the environment</td>
+</tr>
+<tr>
+<td><a href="rn.html">rn</a></td>
+<td>Configure an R Pipeline Node</td>
+</tr>
+<tr>
+<td><a href="round.html">round</a></td>
+<td>Round values</td>
+</tr>
+<tr>
+<td><a href="round_date.html">round_date</a></td>
+<td>Round dates to the nearest unit</td>
+</tr>
+<tr>
+<td><a href="row_lens.html">row_lens</a></td>
+<td>Row Lens</td>
+</tr>
+<tr>
+<td><a href="row_number.html">row_number</a></td>
+<td>Row Number</td>
+</tr>
+<tr>
+<td><a href="run.html">run</a></td>
+<td>Run a shell command</td>
+</tr>
+<tr>
+<td><a href="run_doctor.html">run_doctor</a></td>
+<td>Run Package/Project Doctor</td>
+</tr>
+<tr>
+<td><a href="scaffold_package.html">scaffold_package</a></td>
+<td>Scaffold a new T package</td>
+</tr>
+<tr>
+<td><a href="scaffold_project.html">scaffold_project</a></td>
+<td>Scaffold a new T project</td>
+</tr>
+<tr>
+<td><a href="scale.html">scale</a></td>
+<td>Scale values</td>
+</tr>
+<tr>
+<td><a href="score.html">score</a></td>
+<td>Model Scoring</td>
+</tr>
+<tr>
+<td><a href="sd.html">sd</a></td>
+<td>Standard Deviation</td>
+</tr>
+<tr>
+<td><a href="second.html">second</a></td>
+<td>Extract the second</td>
+</tr>
+<tr>
+<td><a href="select.html">select</a></td>
+<td>Select columns</td>
+</tr>
+<tr>
+<td><a href="select_node.html">select_node</a></td>
+<td>Select Node Metadata Fields</td>
+</tr>
+<tr>
+<td><a href="semester.html">semester</a></td>
+<td>Extract the semester</td>
+</tr>
+<tr>
+<td><a href="semi_join.html">semi_join</a></td>
+<td>Filter rows using matches in another table</td>
+</tr>
+<tr>
+<td><a href="separate.html">separate</a></td>
+<td>Separate a character column into multiple columns</td>
+</tr>
+<tr>
+<td><a href="separate_rows.html">separate_rows</a></td>
+<td>Split delimited values into rows</td>
+</tr>
+<tr>
+<td><a href="seq.html">seq</a></td>
+<td>Generate a sequence of integers</td>
+</tr>
+<tr>
+<td><a href="serialize.html">serialize</a></td>
+<td>Serialize Value</td>
+</tr>
+<tr>
+<td><a href="set.html">set</a></td>
+<td>Set Focused Value</td>
+</tr>
+<tr>
+<td><a href="set_nix_defaults.html">set_nix_defaults</a></td>
+<td>Set Global Nix Orchestration Defaults</td>
+</tr>
+<tr>
+<td><a href="shape.html">shape</a></td>
+<td>Get NDArray dimensions</td>
+</tr>
+<tr>
+<td><a href="shn.html">shn</a></td>
+<td>Configure a Shell Pipeline Node</td>
+</tr>
+<tr>
+<td><a href="show_plot.html">show_plot</a></td>
+<td>Render a plot node and open it locally</td>
+</tr>
+<tr>
+<td><a href="sigma.html">sigma</a></td>
+<td>Residual Standard Deviation</td>
+</tr>
+<tr>
+<td><a href="sign.html">sign</a></td>
+<td>Sign of number</td>
+</tr>
+<tr>
+<td><a href="signif.html">signif</a></td>
+<td>Significant-digit rounding</td>
+</tr>
+<tr>
+<td><a href="sin.html">sin</a></td>
+<td>Sine</td>
+</tr>
+<tr>
+<td><a href="sinh.html">sinh</a></td>
+<td>Hyperbolic sine</td>
+</tr>
+<tr>
+<td><a href="skewness.html">skewness</a></td>
+<td>Skewness</td>
+</tr>
+<tr>
+<td><a href="slice.html">slice</a></td>
+<td>Extract slice</td>
+</tr>
+<tr>
+<td><a href="slice_max.html">slice_max</a></td>
+<td>Keep rows with the largest values</td>
+</tr>
+<tr>
+<td><a href="slice_min.html">slice_min</a></td>
+<td>Keep rows with the smallest values</td>
+</tr>
+<tr>
+<td><a href="source.html">source</a></td>
+<td>Get function source code</td>
+</tr>
+<tr>
+<td><a href="sqrt.html">sqrt</a></td>
+<td>Square root</td>
+</tr>
+<tr>
+<td><a href="standardize.html">standardize</a></td>
+<td>Standardize values</td>
+</tr>
+<tr>
+<td><a href="starts_with.html">starts_with</a></td>
+<td>Check if string starts with prefix</td>
+</tr>
+<tr>
+<td><a href="str_count.html">str_count</a></td>
+<td>Count regex matches</td>
+</tr>
+<tr>
+<td><a href="str_detect.html">str_detect</a></td>
+<td>Test whether a regex matches</td>
+</tr>
+<tr>
+<td><a href="str_extract.html">str_extract</a></td>
+<td>Extract the first regex match</td>
+</tr>
+<tr>
+<td><a href="str_extract_all.html">str_extract_all</a></td>
+<td>Extract all regex matches</td>
+</tr>
+<tr>
+<td><a href="str_flatten.html">str_flatten</a></td>
+<td>Flatten a collection of strings</td>
+</tr>
+<tr>
+<td><a href="str_format.html">str_format</a></td>
+<td>Named string interpolation</td>
+</tr>
+<tr>
+<td><a href="str_join.html">str_join</a></td>
+<td>Join strings with a separator</td>
+</tr>
+<tr>
+<td><a href="str_lines.html">str_lines</a></td>
+<td>Split string into lines</td>
+</tr>
+<tr>
+<td><a href="str_nchar.html">str_nchar</a></td>
+<td>Get character count</td>
+</tr>
+<tr>
+<td><a href="str_pad.html">str_pad</a></td>
+<td>Pad strings to a target width</td>
+</tr>
+<tr>
+<td><a href="str_repeat.html">str_repeat</a></td>
+<td>Repeat a string</td>
+</tr>
+<tr>
+<td><a href="str_replace.html">str_replace</a></td>
+<td>Replace all occurrences</td>
+</tr>
+<tr>
+<td><a href="str_split.html">str_split</a></td>
+<td>Split a string on a delimiter</td>
+</tr>
+<tr>
+<td><a href="str_sprintf.html">str_sprintf</a></td>
+<td>Format a string</td>
+</tr>
+<tr>
+<td><a href="str_substring.html">str_substring</a></td>
+<td>Extract substring</td>
+</tr>
+<tr>
+<td><a href="str_trim.html">str_trim</a></td>
+<td>Trim whitespace</td>
+</tr>
+<tr>
+<td><a href="str_trunc.html">str_trunc</a></td>
+<td>Truncate strings for display</td>
+</tr>
+<tr>
+<td><a href="str_words.html">str_words</a></td>
+<td>Split string into words</td>
+</tr>
+<tr>
+<td><a href="subgraph.html">subgraph</a></td>
+<td>Extract Connected Subgraph</td>
+</tr>
+<tr>
+<td><a href="sum.html">sum</a></td>
+<td>Sum of numeric values</td>
+</tr>
+<tr>
+<td><a href="summarize.html">summarize</a></td>
+<td>Summarize data</td>
+</tr>
+<tr>
+<td><a href="summary.html">summary</a></td>
+<td>Model Summary</td>
+</tr>
+<tr>
+<td><a href="suppress_warnings.html">suppress_warnings</a></td>
+<td>Suppress Diagnostics for a Node</td>
+</tr>
+<tr>
+<td><a href="swap.html">swap</a></td>
+<td>Swap a Pipeline Node Implementation</td>
+</tr>
+<tr>
+<td><a href="t_doc.html">t_doc</a></td>
+<td>Generate Documentation</td>
+</tr>
+<tr>
+<td><a href="t_gc.html">t_gc</a></td>
+<td>Run System Garbage Collection</td>
+</tr>
+<tr>
+<td><a href="t_make.html">t_make</a></td>
+<td>Build Pipeline Internally</td>
+</tr>
+<tr>
+<td><a href="t_read_json.html">t_read_json</a></td>
+<td>Read Value from JSON</td>
+</tr>
+<tr>
+<td><a href="t_read_onnx.html">t_read_onnx</a></td>
+<td>Read an ONNX model file</td>
+</tr>
+<tr>
+<td><a href="t_read_pmml.html">t_read_pmml</a></td>
+<td>Read a PMML model file</td>
+</tr>
+<tr>
+<td><a href="t_run.html">t_run</a></td>
+<td>Run a T script</td>
+</tr>
+<tr>
+<td><a href="t_score_pmml.html">t_score_pmml</a></td>
+<td>Score a PMML model using JPMML</td>
+</tr>
+<tr>
+<td><a href="t_test.html">t_test</a></td>
+<td>Run tests</td>
+</tr>
+<tr>
+<td><a href="t_write_json.html">t_write_json</a></td>
+<td>Write Value to JSON</td>
+</tr>
+<tr>
+<td><a href="t_write_onnx.html">t_write_onnx</a></td>
+<td>Write an ONNX model file</td>
+</tr>
+<tr>
+<td><a href="t_write_pmml.html">t_write_pmml</a></td>
+<td>Write a PMML model file</td>
+</tr>
+<tr>
+<td><a href="tail.html">tail</a></td>
+<td>Get the last n rows/items</td>
+</tr>
+<tr>
+<td><a href="tan.html">tan</a></td>
+<td>Tangent</td>
+</tr>
+<tr>
+<td><a href="tanh.html">tanh</a></td>
+<td>Hyperbolic tangent</td>
+</tr>
+<tr>
+<td><a href="to_array.html">to_array</a></td>
+<td>Convert to NDArray</td>
+</tr>
+<tr>
+<td><a href="to_bool.html">to_bool</a></td>
+<td>Convert to Boolean</td>
+</tr>
+<tr>
+<td><a href="to_dataframe.html">to_dataframe</a></td>
+<td>Create a DataFrame</td>
+</tr>
+<tr>
+<td><a href="to_date.html">to_date</a></td>
+<td>Convert values to Date</td>
+</tr>
+<tr>
+<td><a href="to_datetime.html">to_datetime</a></td>
+<td>Convert values to Datetime</td>
+</tr>
+<tr>
+<td><a href="to_expr.html">to_expr</a></td>
+<td>Capture an expression</td>
+</tr>
+<tr>
+<td><a href="to_exprs.html">to_exprs</a></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="to_factor.html">to_factor</a></td>
+<td>Create factor values</td>
+</tr>
+<tr>
+<td><a href="to_float.html">to_float</a></td>
+<td>Convert to Float</td>
+</tr>
+<tr>
+<td><a href="to_integer.html">to_integer</a></td>
+<td>Convert to Integer</td>
+</tr>
+<tr>
+<td><a href="to_lower.html">to_lower</a></td>
+<td>Convert to lowercase</td>
+</tr>
+<tr>
+<td><a href="to_string.html">to_string</a></td>
+<td>Convert to string</td>
+</tr>
+<tr>
+<td><a href="to_symbol.html">to_symbol</a></td>
+<td>Convert a string to a Symbol</td>
+</tr>
+<tr>
+<td><a href="to_upper.html">to_upper</a></td>
+<td>Convert to uppercase</td>
+</tr>
+<tr>
+<td><a href="today.html">today</a></td>
+<td>Get the current date</td>
+</tr>
+<tr>
+<td><a href="trace_nodes.html">trace_nodes</a></td>
+<td>Trace Pipeline Nodes</td>
+</tr>
+<tr>
+<td><a href="transpose.html">transpose</a></td>
+<td>Transpose matrix</td>
+</tr>
+<tr>
+<td><a href="trim_end.html">trim_end</a></td>
+<td>Trim trailing whitespace</td>
+</tr>
+<tr>
+<td><a href="trim_start.html">trim_start</a></td>
+<td>Trim leading whitespace</td>
+</tr>
+<tr>
+<td><a href="trimmed_mean.html">trimmed_mean</a></td>
+<td>Trimmed mean</td>
+</tr>
+<tr>
+<td><a href="trunc.html">trunc</a></td>
+<td>Truncate values</td>
+</tr>
+<tr>
+<td><a href="type.html">type</a></td>
+<td>Get the type name of a value</td>
+</tr>
+<tr>
+<td><a href="tz.html">tz</a></td>
+<td>Extract the timezone label</td>
+</tr>
+<tr>
+<td><a href="uncount.html">uncount</a></td>
+<td>Expand rows by weight</td>
+</tr>
+<tr>
+<td><a href="ungroup.html">ungroup</a></td>
+<td>Remove grouping</td>
+</tr>
+<tr>
+<td><a href="union.html">union</a></td>
+<td>Combine two pipelines</td>
+</tr>
+<tr>
+<td><a href="unite.html">unite</a></td>
+<td>Combine multiple columns into one character column</td>
+</tr>
+<tr>
+<td><a href="unknown.html">unknown</a></td>
+<td>Print Failed Node Logs</td>
+</tr>
+<tr>
+<td><a href="unnest.html">unnest</a></td>
+<td>Expand nested columns</td>
+</tr>
+<tr>
+<td><a href="update_flake_lock.html">update_flake_lock</a></td>
+<td>Update Dependencies</td>
+</tr>
+<tr>
+<td><a href="upstream_of.html">upstream_of</a></td>
+<td>Extract Upstream Subgraph</td>
+</tr>
+<tr>
+<td><a href="var.html">var</a></td>
+<td>Variance</td>
+</tr>
+<tr>
+<td><a href="vcov.html">vcov</a></td>
+<td>Variance-Covariance Matrix</td>
+</tr>
+<tr>
+<td><a href="wald_test.html">wald_test</a></td>
+<td>Joint Wald Test</td>
+</tr>
+<tr>
+<td><a href="warning_msg.html">warning_msg</a></td>
+<td>Get warning message</td>
+</tr>
+<tr>
+<td><a href="wday.html">wday</a></td>
+<td>Extract or label the weekday</td>
+</tr>
+<tr>
+<td><a href="week.html">week</a></td>
+<td>Extract the week number</td>
+</tr>
+<tr>
+<td><a href="where.html">where</a></td>
+<td>Select columns by predicate</td>
+</tr>
+<tr>
+<td><a href="which_nodes.html">which_nodes</a></td>
+<td>Filter Readable Pipeline Node Records</td>
+</tr>
+<tr>
+<td><a href="winsorize.html">winsorize</a></td>
+<td>Winsorize values</td>
+</tr>
+<tr>
+<td><a href="with_tz.html">with_tz</a></td>
+<td>Convert a datetime to a new timezone</td>
+</tr>
+<tr>
+<td><a href="write_arrow.html">write_arrow</a></td>
+<td>Write Arrow IPC file</td>
+</tr>
+<tr>
+<td><a href="write_csv.html">write_csv</a></td>
+<td>Write CSV file</td>
+</tr>
+<tr>
+<td><a href="write_text.html">write_text</a></td>
+<td>Write text to a file</td>
+</tr>
+<tr>
+<td><a href="yday.html">yday</a></td>
+<td>Extract the day of year</td>
+</tr>
+<tr>
+<td><a href="year.html">year</a></td>
+<td>Extract the year component</td>
+</tr>
 </tbody>
 </table>
-<div class="line-block"><a href="jln.html">jln</a> | Configure a Julia
-Pipeline Node |<br />
-<a href="kron.html">kron</a> | Kronecker product |<br />
-<a href="kurtosis.html">kurtosis</a> | Excess kurtosis |<br />
-<a href="lag.html">lag</a> | Lag values |<br />
-<a href="last_index_of.html">last_index_of</a> | Find last index of
-substring |<br />
-<a href="lead.html">lead</a> | Lead values |<br />
-<a href="left_join.html">left_join</a> | Join rows from the left table
-|<br />
-<a href="length.html">length</a> | Get length |<br />
-<a href="lens.html">lens</a> | Lens Library |<br />
-<a href="levels.html">levels</a> | Get to_factor levels |<br />
-<a href="list_files.html">list_files</a> | List files in directory
-|<br />
-<a href="list_logs.html">list_logs</a> | List Pipeline Logs |<br />
-<a href="lm.html">lm</a> | Linear Model |<br />
-<a href="log.html">log</a> | Natural logarithm |<br />
-<a href="mad.html">mad</a> | Median absolute deviation |<br />
-<a href="make_date.html">make_date</a> | Construct a Date value |<br />
-<a href="make_datetime.html">make_datetime</a> | Construct a Datetime
-value |<br />
-<a href="make_period.html">make_period</a> | Create a period value
-|<br />
-<a href="map.html">map</a> | Map a function over a list |<br />
-<a href="matches.html">matches</a> | Match columns by regex |<br />
-<a href="matmul.html">matmul</a> | Matrix multiplication |<br />
-<a href="max.html">max</a> | Maximum value |<br />
-<a href="mean.html">mean</a> | Compute arithmetic mean of numeric values
-|<br />
-<a href="median.html">median</a> | Median |<br />
-<a href="min.html">min</a> | Minimum value |<br />
-<a href="min_rank.html">min_rank</a> | Minimum Rank |<br />
-<a href="minute.html">minute</a> | Extract the minute |<br />
-<a href="mode.html">mode</a> | Mode |<br />
-<a href="modify.html">modify</a> | Multiple Lens Transformations |<br />
-<a href="month.html">month</a> | Extract or label the month |<br />
-<a href="mutate.html">mutate</a> | Mutate DataFrame |<br />
-<a href="mutate_node.html">mutate_node</a> | Mutate Pipeline Node
-Metadata |<br />
-<a href="n.html">n</a> | Group size aggregation |<br />
-<a href="n_distinct.html">n_distinct</a> | Count distinct values |<br />
-<a href="na.html">na</a> | Generic NA |<br />
-<a href="na_bool.html">na_bool</a> | Boolean NA |<br />
-<a href="na_float.html">na_float</a> | Float NA |<br />
-<a href="na_int.html">na_int</a> | Integer NA |<br />
-<a href="na_string.html">na_string</a> | String NA |<br />
-<a href="ncol.html">ncol</a> | Number of columns |<br />
-<a href="ndarray.html">ndarray</a> | Create an N-dimensional array
-|<br />
-<a href="ndarray_data.html">ndarray_data</a> | Get NDArray data |<br />
-<a href="nest.html">nest</a> | Nest columns into sub-dataframes |<br />
-<a href="nesting.html">nesting</a> | Helper to find combinations present
-in data |<br />
-<a href="nobs.html">nobs</a> | Number of Observations |<br />
-<a href="node.html">node</a> | Configure a Pipeline Node |<br />
-<a href="node_lens.html">node_lens</a> | Pipeline Node Lens |<br />
-<a href="node_meta_lens.html">node_meta_lens</a> | Pipeline Metadata
-Lens |<br />
-<a href="node_diff.html">node_diff</a> | Compare Node Outputs Across
-Builds |<br />
-<a href="normalize.html">normalize</a> | Normalize values |<br />
-<a href="now.html">now</a> | Get the current datetime |<br />
-<a href="nrow.html">nrow</a> | Number of rows |<br />
-<a href="ntile.html">ntile</a> | N-tiles |<br />
-<a href="ordered.html">ordered</a> | Create ordered factors |<br />
-<a href="over.html">over</a> | Transform Focused Value |<br />
-<a href="package_info.html">package_info</a> | Get package information
-|<br />
-<a href="packages.html">packages</a> | List available packages |<br />
-<a href="parallel.html">parallel</a> | Combine Pipelines in Parallel
-|<br />
-<a href="parse_date.html">parse_date</a> | Parse dates from strings
-|<br />
-<a href="parse_datetime.html">parse_datetime</a> | Parse datetimes from
-strings |<br />
-<a href="parse_file.html">parse_file</a> | Parse T-Doc Comments |<br />
-<a href="patch.html">patch</a> | Overlay one pipeline onto another
-|<br />
-<a href="path_abs.html">path_abs</a> | Resolve relative path to absolute
-|<br />
-<a href="path_basename.html">path_basename</a> | Get filename component
-of a path |<br />
-<a href="path_dirname.html">path_dirname</a> | Get directory portion of
-a path |<br />
-<a href="path_ext.html">path_ext</a> | Get file extension |<br />
-<a href="path_join.html">path_join</a> | Join multiple path segments
-|<br />
-<a href="path_stem.html">path_stem</a> | Get filename without extension
-|<br />
-<a href="pchisq.html">pchisq</a> | Chi-squared distribution CDF |<br />
-<a href="percent_rank.html">percent_rank</a> | Percent Rank |<br />
-<a href="pf.html">pf</a> | F distribution CDF |<br />
-<a href="pipeline_assert.html">pipeline_assert</a> | Assert Pipeline
-Validity |<br />
-<a href="pipeline_copy.html">pipeline_copy</a> | Copy Pipeline Node
-Artifacts to Local Directory |<br />
-<a href="pipeline_cycles.html">pipeline_cycles</a> | Detect Pipeline
-Cycles |<br />
-<a href="pipeline_deps.html">pipeline_deps</a> | List Node Dependencies
-|<br />
-<a href="pipeline_depth.html">pipeline_depth</a> | Maximum Topological
-Depth |<br />
-<a href="pipeline_diff.html">pipeline_diff</a> | Compare Two Pipeline
-Structures |<br />
-<a href="pipeline_dot.html">pipeline_dot</a> | Export Pipeline as DOT
-Graph |<br />
-<a href="pipeline_edges.html">pipeline_edges</a> | Pipeline Dependency
-Edges |<br />
-<a href="pipeline_leaves.html">pipeline_leaves</a> | Pipeline Leaf Nodes
-|<br />
-<a href="pipeline_node.html">pipeline_node</a> | Get Pipeline Node
-|<br />
-<a href="pipeline_nodes.html">pipeline_nodes</a> | List Pipeline Nodes
-|<br />
-<a href="pipeline_print.html">pipeline_print</a> | Pretty-Print a
-Pipeline |<br />
-<a href="pipeline_roots.html">pipeline_roots</a> | Pipeline Root Nodes
-|<br />
-<a href="pipeline_run.html">pipeline_run</a> | Run Pipeline |<br />
-<a href="pipeline_summary.html">pipeline_summary</a> | Pipeline Summary
-|<br />
-<a href="pipeline_to_frame.html">pipeline_to_frame</a> | Convert
-Pipeline to DataFrame |<br />
-<a href="pipeline_validate.html">pipeline_validate</a> | Validate a
-Pipeline |<br />
-<a href="pivot_longer.html">pivot_longer</a> | Pivot longer |<br />
-<a href="pivot_wider.html">pivot_wider</a> | Pivot wider |<br />
-<a href="pm.html">pm</a> | Check whether a time is after noon |<br />
-<a href="pnorm.html">pnorm</a> | Normal distribution CDF |<br />
-<a href="poly.html">poly</a> | Polynomial basis expansion |<br />
-<a href="populate_pipeline.html">populate_pipeline</a> | Populate
-Pipeline |<br />
-<a href="pow.html">pow</a> | Power function |<br />
-<a href="predict.html">predict</a> | Model Prediction |<br />
-<a href="pretty_print.html">pretty_print</a> | Pretty-print a value
-|<br />
-<a href="print.html">print</a> | Print values to standard output |<br />
-<a href="prune.html">prune</a> | Prune Pipeline Leaf Nodes |<br />
-<a href="pt.html">pt</a> | Student t distribution CDF |<br />
-<a href="pull.html">pull</a> | Extract column as vector |<br />
-<a href="pyn.html">pyn</a> | Configure a Python Pipeline Node |<br />
-<a href="qn.html">qn</a> | Configure a Quarto Pipeline Node |<br />
-<a href="quantile.html">quantile</a> | Quantiles |<br />
-<a href="quarter.html">quarter</a> | Extract the quarter |<br />
-<a href="quo.html">quo</a> | Capture an expression with its lexical
-environment (quosure) |<br />
-<a href="quos.html">quos</a> | Capture multiple expressions with their
-lexical environment (quosures) |<br />
-<a href="range.html">range</a> | Range |<br />
-<a href="read_arrow.html">read_arrow</a> | Read an Arrow IPC (Feather)
-file |<br />
-<a href="read_csv.html">read_csv</a> | Read CSV file |<br />
-<a href="read_file.html">read_file</a> | Read file contents |<br />
-<a href="read_log.html">read_log</a> | Read Node Build Log |<br />
-<a href="read_node.html">read_node</a> | Read Pipeline Node Artifact
-|<br />
-<a href="read_parquet.html">read_parquet</a> | Read Parquet file |<br />
-<a href="read_pipeline.html">read_pipeline</a> | Read Pipeline Metadata
-|<br />
-<a href="rebuild_node.html">rebuild_node</a> | Rebuild a Pipeline Node
-|<br />
-<a href="relocate.html">relocate</a> | Move columns to a new position
-|<br />
-<a href="rename.html">rename</a> | Rename DataFrame columns |<br />
-<a href="rename_node.html">rename_node</a> | Rename a Pipeline Node
-|<br />
-<a href="replace_first.html">replace_first</a> | Replace first
-occurrence |<br />
-<a href="replace_na.html">replace_na</a> | Replace missing values
-|<br />
-<a href="reshape.html">reshape</a> | Reshape an NDArray |<br />
-<a href="residuals.html">residuals</a> | Model Residuals |<br />
-<a href="rewire.html">rewire</a> | Rewire a Node’s Dependencies |<br />
-<a href="rm.html">rm</a> | Remove objects from the environment |<br />
-<a href="rn.html">rn</a> | Configure an R Pipeline Node |<br />
-<a href="round.html">round</a> | Round values |<br />
-<a href="round_date.html">round_date</a> | Round dates to the nearest
-unit |<br />
-<a href="row_lens.html">row_lens</a> | Row Lens |<br />
-<a href="row_number.html">row_number</a> | Row Number |<br />
-<a href="run.html">run</a> | Run a shell command |<br />
-<a href="run_doctor.html">run_doctor</a> | Run Package/Project Doctor
-|<br />
-<a href="scaffold_package.html">scaffold_package</a> | Scaffold a new T
-package |<br />
-<a href="scaffold_project.html">scaffold_project</a> | Scaffold a new T
-project |<br />
-<a href="scale.html">scale</a> | Scale values |<br />
-<a href="score.html">score</a> | Model Scoring |<br />
-<a href="sd.html">sd</a> | Standard Deviation |<br />
-<a href="second.html">second</a> | Extract the second |<br />
-<a href="select.html">select</a> | Select columns |<br />
-<a href="select_node.html">select_node</a> | Select Node Metadata Fields
-|<br />
-<a href="semester.html">semester</a> | Extract the semester |<br />
-<a href="semi_join.html">semi_join</a> | Filter rows using matches in
-another table |<br />
-<a href="separate.html">separate</a> | Separate a character column into
-multiple columns |<br />
-<a href="separate_rows.html">separate_rows</a> | Split delimited values
-into rows |<br />
-<a href="seq.html">seq</a> | Generate a sequence of integers |<br />
-<a href="serialize.html">serialize</a> | Serialize Value |<br />
-<a href="set.html">set</a> | Set Focused Value |<br />
-<a href="shape.html">shape</a> | Get NDArray dimensions |<br />
-<a href="shn.html">shn</a> | Configure a Shell Pipeline Node |<br />
-<a href="show_plot.html">show_plot</a> | Render a plot node and open it
-locally |<br />
-<a href="sigma.html">sigma</a> | Residual Standard Deviation |<br />
-<a href="sign.html">sign</a> | Sign of number |<br />
-<a href="signif.html">signif</a> | Significant-digit rounding |<br />
-<a href="sin.html">sin</a> | Sine |<br />
-<a href="sinh.html">sinh</a> | Hyperbolic sine |<br />
-<a href="skewness.html">skewness</a> | Skewness |<br />
-<a href="slice.html">slice</a> | Extract slice |<br />
-<a href="slice_max.html">slice_max</a> | Keep rows with the largest
-values |<br />
-<a href="slice_min.html">slice_min</a> | Keep rows with the smallest
-values |<br />
-<a href="source.html">source</a> | Get function source code |<br />
-<a href="sqrt.html">sqrt</a> | Square root |<br />
-<a href="standardize.html">standardize</a> | Standardize values |<br />
-<a href="starts_with.html">starts_with</a> | Check if string starts with
-prefix |<br />
-<a href="str_count.html">str_count</a> | Count regex matches |<br />
-<a href="str_detect.html">str_detect</a> | Test whether a regex matches
-|<br />
-<a href="str_extract.html">str_extract</a> | Extract the first regex
-match |<br />
-<a href="str_extract_all.html">str_extract_all</a> | Extract all regex
-matches |<br />
-<a href="str_flatten.html">str_flatten</a> | Flatten a collection of
-strings |<br />
-<a href="str_format.html">str_format</a> | Named string interpolation
-|<br />
-<a href="str_join.html">str_join</a> | Join strings with a separator
-|<br />
-<a href="str_lines.html">str_lines</a> | Split string into lines |<br />
-<a href="str_nchar.html">str_nchar</a> | Get character count |<br />
-<a href="str_pad.html">str_pad</a> | Pad strings to a target width
-|<br />
-<a href="str_repeat.html">str_repeat</a> | Repeat a string |<br />
-<a href="str_replace.html">str_replace</a> | Replace all occurrences
-|<br />
-<a href="str_split.html">str_split</a> | Split a string on a delimiter
-|<br />
-<a href="str_sprintf.html">str_sprintf</a> | Format a string |<br />
-<a href="to_string.html">to_string</a> | Convert to string |<br />
-<a href="str_substring.html">str_substring</a> | Extract substring
-|<br />
-<a href="str_trim.html">str_trim</a> | Trim whitespace |<br />
-<a href="str_trunc.html">str_trunc</a> | Truncate strings for display
-|<br />
-<a href="str_words.html">str_words</a> | Split string into words |<br />
-<a href="subgraph.html">subgraph</a> | Extract Connected Subgraph
-|<br />
-<a href="sum.html">sum</a> | Sum of numeric values |<br />
-<a href="summarize.html">summarize</a> | Summarize data |<br />
-<a href="summary.html">summary</a> | Model Summary |<br />
-<a href="suppress_warnings.html">suppress_warnings</a> | Suppress
-Diagnostics for a Node |<br />
-<a href="swap.html">swap</a> | Swap a Pipeline Node Implementation
-|<br />
-<a href="to_symbol.html">to_symbol</a> | Convert a string to a Symbol
-|<br />
-<a href="t_doc.html">t_doc</a> | Generate Documentation |<br />
-<a href="t_make.html">t_make</a> | Build Pipeline Internally |<br />
-<a href="t_read_json.html">t_read_json</a> | Read Value from JSON
-|<br />
-<a href="t_read_onnx.html">t_read_onnx</a> | Read an ONNX model file
-|<br />
-<a href="t_read_pmml.html">t_read_pmml</a> | Read a PMML model file
-|<br />
-<a href="t_run.html">t_run</a> | Run a T script |<br />
-<a href="t_score_pmml.html">t_score_pmml</a> | Score a PMML model using
-JPMML |<br />
-<a href="t_test.html">t_test</a> | Run tests |<br />
-<a href="t_write_json.html">t_write_json</a> | Write Value to JSON
-|<br />
-<a href="t_write_onnx.html">t_write_onnx</a> | Write an ONNX model file
-|<br />
-<a href="t_write_pmml.html">t_write_pmml</a> | Write a PMML model file
-|<br />
-<a href="tail.html">tail</a> | Get the last n rows/items |<br />
-<a href="tan.html">tan</a> | Tangent |<br />
-<a href="tanh.html">tanh</a> | Hyperbolic tangent |<br />
-<a href="to_array.html">to_array</a> | Convert to NDArray |<br />
-<a href="to_float.html">to_float</a> | Convert to Float |<br />
-<a href="to_integer.html">to_integer</a> | Convert to Integer |<br />
-<a href="to_lower.html">to_lower</a> | Convert to lowercase |<br />
-<a href="to_upper.html">to_upper</a> | Convert to uppercase |<br />
-<a href="today.html">today</a> | Get the current date |<br />
-<a href="trace_nodes.html">trace_nodes</a> | Trace Pipeline Nodes
-|<br />
-<a href="transpose.html">transpose</a> | Transpose matrix |<br />
-<a href="trim_end.html">trim_end</a> | Trim trailing whitespace |<br />
-<a href="trim_start.html">trim_start</a> | Trim leading whitespace
-|<br />
-<a href="trimmed_mean.html">trimmed_mean</a> | Trimmed mean |<br />
-<a href="trunc.html">trunc</a> | Truncate values |<br />
-<a href="type.html">type</a> | Get the type name of a value |<br />
-<a href="tz.html">tz</a> | Extract the timezone label |<br />
-<a href="uncount.html">uncount</a> | Expand rows by weight |<br />
-<a href="ungroup.html">ungroup</a> | Remove grouping |<br />
-<a href="union.html">union</a> | Combine two pipelines |<br />
-<a href="unite.html">unite</a> | Combine multiple columns into one
-character column |<br />
-<a href="unknown.html">unknown</a> | Print Failed Node Logs |<br />
-<a href="unnest.html">unnest</a> | Expand nested columns |<br />
-<a href="update_flake_lock.html">update_flake_lock</a> | Update
-Dependencies |<br />
-<a href="upstream_of.html">upstream_of</a> | Extract Upstream Subgraph
-|<br />
-<a href="var.html">var</a> | Variance |<br />
-<a href="vcov.html">vcov</a> | Variance-Covariance Matrix |<br />
-<a href="wald_test.html">wald_test</a> | Joint Wald Test |<br />
-<a href="wday.html">wday</a> | Extract or label the weekday |<br />
-<a href="week.html">week</a> | Extract the week number |<br />
-<a href="where.html">where</a> | Select columns by predicate |<br />
-<a href="which_nodes.html">which_nodes</a> | Filter Readable Pipeline
-Node Records |<br />
-<a href="winsorize.html">winsorize</a> | Winsorize values |<br />
-<a href="with_tz.html">with_tz</a> | Convert a datetime to a new
-timezone |<br />
-<a href="write_arrow.html">write_arrow</a> | Write Arrow IPC file
-|<br />
-<a href="write_csv.html">write_csv</a> | Write CSV file |<br />
-<a href="write_text.html">write_text</a> | Write text to a file |<br />
-<a href="yday.html">yday</a> | Extract the day of year |<br />
-<a href="year.html">year</a> | Extract the year component |</div>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

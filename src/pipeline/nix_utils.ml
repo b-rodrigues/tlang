@@ -20,6 +20,7 @@ let op_to_string = function
   | Pipe -> "|>"
   | MaybePipe -> "?|>"
   | Formula -> "~"
+  | FatArrow -> "=>"
 
 let shell_single_quote s =
   "'" ^ String.concat "'\"\\'\"'" (String.split_on_char '\'' s) ^ "'"

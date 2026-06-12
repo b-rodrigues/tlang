@@ -641,60 +641,68 @@ let materialize (t : t) : t =
         ) t.columns in
       if has_unsupported then t
       else
-        let arrow_int64_tag = 0 in
-        let arrow_float64_tag = 1 in
-        let arrow_boolean_tag = 2 in
-        let arrow_string_tag = 3 in
-        let arrow_dictionary_tag = 4 in
-        let arrow_list_tag = 5 in
-        let arrow_null_tag = 6 in
-        let arrow_date_tag = 7 in
-        let arrow_timestamp_tag = 8 in
-        let arrow_unsupported_tag = 9 in
-        let tag_of = function
-          | ArrowInt64 -> arrow_int64_tag
-          | ArrowFloat64 -> arrow_float64_tag
-          | ArrowBoolean -> arrow_boolean_tag
-          | ArrowString -> arrow_string_tag
-          | ArrowDictionary -> arrow_dictionary_tag
-          | ArrowList _ -> arrow_list_tag
-          | ArrowNA -> arrow_null_tag
-          | ArrowDate -> arrow_date_tag
-          | ArrowTimestamp _ -> arrow_timestamp_tag
-          | ArrowStruct _ -> arrow_unsupported_tag
-        in
-        let ffi_cols = List.map (fun (name, type_) ->
-          let tag = tag_of type_ in
-          let timezone =
-            match type_ with
-            | ArrowTimestamp tz -> tz
-            | _ -> None
+        try
+          let arrow_int64_tag = 0 in
+          let arrow_float64_tag = 1 in
+          let arrow_boolean_tag = 2 in
+          let arrow_string_tag = 3 in
+          let arrow_dictionary_tag = 4 in
+          let arrow_list_tag = 5 in
+          let arrow_null_tag = 6 in
+          let arrow_date_tag = 7 in
+          let arrow_timestamp_tag = 8 in
+          let arrow_unsupported_tag = 9 in
+          let tag_of = function
+            | ArrowInt64 -> arrow_int64_tag
+            | ArrowFloat64 -> arrow_float64_tag
+            | ArrowBoolean -> arrow_boolean_tag
+            | ArrowString -> arrow_string_tag
+            | ArrowDictionary -> arrow_dictionary_tag
+            | ArrowList _ -> arrow_list_tag
+            | ArrowNA -> arrow_null_tag
+            | ArrowDate -> arrow_date_tag
+            | ArrowTimestamp _ -> arrow_timestamp_tag
+            | ArrowStruct _ -> arrow_unsupported_tag
           in
-          let raw_data : Obj.t = match List.assoc_opt name t.columns with
-            | Some (DictionaryColumn (indices, levels, ordered)) ->
-                (* Pack as tuple (int option array, string list, bool) for C FFI.
-                   The C side reads Field(v_arr, 0/1/2) which works on both
-                   OCaml tuples and arrays at the C representation level. *)
-                Obj.repr (indices, levels, ordered)
-            | Some (ListColumn nested) ->
-                (* Pack as tuple (offsets, present, sub_col_specs) for C FFI. *)
-                let schema_hint = list_schema_hint_of_arrow_type type_ in
-                let (offsets, present, sub_cols) = flatten_list_column ?schema_hint nested in
-                Obj.repr (offsets, present, sub_cols)
-            | Some (IntColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
-            | Some (FloatColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
-            | Some (BoolColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
-            | Some (StringColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
-            | Some (DateColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
-            | Some (DatetimeColumn (a, _)) -> Obj.repr (Array.map (Option.map Obj.repr) a)
-            | Some (NAColumn n) -> Obj.repr (Array.make n None)
-            | None -> Obj.repr (Array.make t.nrows None)
-          in
-          (name, tag, timezone, (Obj.obj raw_data : Obj.t array))
-        ) t.schema in
-        match Arrow_ffi.arrow_table_new ffi_cols with
-        | Some ptr -> create_from_native ptr t.schema t.nrows
-        | None -> t
+          let ffi_cols = List.map (fun (name, type_) ->
+            let tag = tag_of type_ in
+            let timezone =
+              match type_ with
+              | ArrowTimestamp tz -> tz
+              | _ -> None
+            in
+            let raw_data : Obj.t = match List.assoc_opt name t.columns with
+              | Some (DictionaryColumn (indices, levels, ordered)) ->
+                  (* Pack as tuple (int option array, string list, bool) for C FFI.
+                     The C side reads Field(v_arr, 0/1/2) which works on both
+                     OCaml tuples and arrays at the C representation level. *)
+                  Obj.repr (indices, levels, ordered)
+              | Some (ListColumn nested) ->
+                  (* Pack as tuple (offsets, present, sub_col_specs) for C FFI. *)
+                  let schema_hint = list_schema_hint_of_arrow_type type_ in
+                  let (offsets, present, sub_cols) = flatten_list_column ?schema_hint nested in
+                  Obj.repr (offsets, present, sub_cols)
+              | Some (IntColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+              | Some (FloatColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+              | Some (BoolColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+              | Some (StringColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+              | Some (DateColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+              | Some (DatetimeColumn (a, _)) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+              | Some (NAColumn n) -> Obj.repr (Array.make n None)
+              | None -> Obj.repr (Array.make t.nrows None)
+            in
+            (name, tag, timezone, (Obj.obj raw_data : Obj.t array))
+          ) t.schema in
+          match Arrow_ffi.arrow_table_new ffi_cols with
+          | Some ptr -> create_from_native ptr t.schema t.nrows
+          | None -> t
+        with
+        | Out_of_memory | Stack_overflow as exn -> raise exn
+        | exn ->
+            Printf.eprintf
+              "Warning: Native materialization failed (%s). Keeping OCaml representation.\n%!"
+              (Printexc.to_string exn);
+            t
 
 (** Prepare a table for transfer across processes (e.g. via Marshal).
     Materializes any native data into OCaml storage and clears the native handle,
@@ -897,13 +905,14 @@ let slice (t : t) (offset : int) (len : int) : t =
 
 (** Take rows by index list *)
 let take_rows (t : t) (indices : int list) : t =
+  let valid_indices = List.filter (fun idx -> idx >= 0 && idx < t.nrows) indices in
   match t.native_handle with
   | Some handle when not handle.freed ->
-      let idx_arr = Array.of_list indices in
+      let idx_arr = Array.of_list valid_indices in
       (match Arrow_ffi.arrow_table_take handle.ptr idx_arr with
        | Some new_ptr ->
            let schema = schema_from_native_ptr new_ptr in
-           let new_nrows = List.length indices in
+           let new_nrows = List.length valid_indices in
            create_from_native new_ptr schema new_nrows
        | None ->
            (* Fallback if native take fails *)
@@ -912,18 +921,26 @@ let take_rows (t : t) (indices : int list) : t =
              | Some data -> (n, data)
              | None -> (n, NAColumn t.nrows)
            ) t.schema in
-           let idx_arr = Array.of_list indices in
-           let new_nrows = List.length indices in
+           let idx_arr = Array.of_list valid_indices in
+           let new_nrows = List.length valid_indices in
            let columns = List.map (fun (name, col) -> (name, take_col col idx_arr new_nrows)) source_columns in
            { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize)
   | _ ->
-      let idx_arr = Array.of_list indices in
-      let new_nrows = List.length indices in
+      let idx_arr = Array.of_list valid_indices in
+      let new_nrows = List.length valid_indices in
       let columns = List.map (fun (name, col) -> (name, take_col col idx_arr new_nrows)) t.columns in
       { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
 
 (** Reorder rows by index array *)
 let sort_by_indices (t : t) (indices : int array) : t =
+  let invalid_index = Array.find_opt (fun idx -> idx < 0 || idx >= t.nrows) indices in
+  match invalid_index with
+  | Some idx ->
+      Printf.eprintf
+        "Warning: sort_by_indices received out-of-bounds index %d for table with %d rows; leaving row order unchanged.\n%!"
+        idx t.nrows;
+      t
+  | None ->
   match t.native_handle with
   | Some handle when not handle.freed ->
       (match Arrow_ffi.arrow_table_take handle.ptr indices with

@@ -43,12 +43,11 @@ let register env =
             else
               (* Build the full frame and project the requested columns *)
               let depths = Pipeline_to_frame.compute_depths p.p_deps in
-              let node_names = List.map fst p.p_exprs in
-              let nrows = List.length node_names in
-              (* Helper to build a column by extracting a field from each node's metadata dict *)
+              let node_names_arr = Array.of_list (List.map fst p.p_exprs) in
+              let nrows = Array.length node_names_arr in
               let get_field field_name =
                 Array.init nrows (fun i ->
-                  let n = List.nth node_names i in
+                  let n = node_names_arr.(i) in
                   let meta = Pipeline_to_frame.node_metadata_dict n p depths in
                   match List.assoc_opt field_name meta with
                   | Some (VList items) ->
@@ -63,7 +62,7 @@ let register env =
               in
               let get_int_field field_name =
                 Array.init nrows (fun i ->
-                  let n = List.nth node_names i in
+                  let n = node_names_arr.(i) in
                   let meta = Pipeline_to_frame.node_metadata_dict n p depths in
                   match List.assoc_opt field_name meta with
                   | Some (VInt v) -> Some v
@@ -72,7 +71,7 @@ let register env =
               in
               let get_bool_field field_name =
                 Array.init nrows (fun i ->
-                  let n = List.nth node_names i in
+                  let n = node_names_arr.(i) in
                   let meta = Pipeline_to_frame.node_metadata_dict n p depths in
                   match List.assoc_opt field_name meta with
                   | Some (VBool v) -> Some v
@@ -90,7 +89,10 @@ let register env =
       | [VPipeline _] ->
           Error.make_error ArityError
             "Function `select_node` requires at least one `$field` argument."
-      | _ :: _ -> Error.type_error "Function `select_node` expects a Pipeline as first argument."
+      | first :: _ ->
+          Error.type_error
+            (Printf.sprintf "Function `select_node` expects a Pipeline as first argument, but got %s."
+               (Utils.type_name first))
       | [] -> Error.arity_error_named "select_node" 1 0
     ))
     env

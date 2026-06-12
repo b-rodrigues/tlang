@@ -35,8 +35,21 @@
 <div class="container">
 <h1 id="fct_relevel">fct_relevel</h1>
 <p>Move selected levels to the front</p>
-<p>Explicitly reorders a to_factor by moving named levels ahead of the
+<p>Explicitly reorders a factor by moving named levels ahead of the
 remaining levels.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>x</strong> (<code>Vector[Factor]</code>): A factor
+vector.</p></li>
+<li><p><strong>…</strong>: Level names to move to the front.</p></li>
+<li><p><strong>after</strong> (<code>Int</code>): = 0 Position after
+which to place the moved levels (0 = front).</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A factor vector with selected levels moved.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>fct_relevel(fct, &quot;c&quot;, &quot;a&quot;)
+fct_relevel(fct, &quot;high&quot;, after = 2)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

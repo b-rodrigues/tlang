@@ -38,19 +38,34 @@
 <p>Reads and returns the contents of a ComputedNode. For in-memory
 pipelines, returns the dynamically computed value directly from the
 registry. For built pipelines, reads the materialized artifact from the
-latest (or specified) build log. Use <code>which_log</code> to read from
-a specific historical build (“time travel”).</p>
+latest build log.</p>
+<blockquote>
+<p><strong>Note:</strong> The <code>.warnings</code> field previously
+accessible on the result of <code>read_node()</code> has been removed.
+Use <a href="warning_msg.html"><code>warning_msg(node)</code></a> to
+inspect warnings. Use <a
+href="inspect_node.html"><code>inspect_node(node)</code></a> for
+structured warning metadata.</p>
+<p>To read a node from a specific historical build log <strong>without
+the pipeline being in scope</strong>, use <a
+href="read_past_node.html"><code>read_past_node(p.node_name, which_log = "...")</code></a>.</p>
+<p><strong>Hint on syntax errors:</strong> If you pass a bare symbol
+(e.g. <code>read_node(ha)</code> instead of
+<code>read_node(p.ha)</code>), T will suggest the correct form: <em>Did
+you mean <code>read_node(p.ha)</code>?</em></p>
+</blockquote>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>node</strong> (<code>ComputedNode</code>): The
-ComputedNode object to read (e.g. <code>p.node_name</code>).</p></li>
-<li><p><strong>which_log</strong> (<code>String</code>): (Optional) A
-regex pattern to match a specific build log filename.</p></li>
+<li><strong>node</strong> (<code>ComputedNode</code>): The ComputedNode
+object to read (e.g. <code>p.node_name</code>).</li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>The deserialized artifact value, or the in-memory value.</p>
 <h2 id="see-also">See Also</h2>
-<p><a href="inspect_pipeline.html">inspect_pipeline</a>, <a
+<p><a href="read_past_node.html">read_past_node</a>, <a
+href="warning_msg.html">warning_msg</a>, <a
+href="inspect_node.html">inspect_node</a>, <a
+href="inspect_pipeline.html">inspect_pipeline</a>, <a
 href="build_pipeline.html">build_pipeline</a>, <a
 href="read_pipeline.html">read_pipeline</a></p>
 </div>

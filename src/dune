@@ -7,11 +7,13 @@
 ; does not always resolve transitive pkg-config dependencies reliably.
 (rule
  (targets arrow_cflags.sexp)
+ (deps (universe))
  (action (with-stdout-to %{targets}
   (bash "if [ -n \"${T_ARROW_CFLAGS:-}\" ]; then raw=\"$T_ARROW_CFLAGS\"; else raw=''; for p in onnxruntime arrow-glib parquet-glib gobject-2.0 glib-2.0 gio-2.0; do f=$(pkg-config --cflags $p 2>/dev/null) && raw=\"$raw $f\"; done; fi; if [ -z \"$raw\" ]; then echo '()'; else echo \"$raw\" | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' ' | sed 's/.*/(&)/'; fi"))))
 
 (rule
  (targets arrow_libs.sexp)
+ (deps (universe))
  (action (with-stdout-to %{targets}
   (bash "if [ -n \"${T_ARROW_LIBS:-}\" ]; then raw=\"$T_ARROW_LIBS\"; else raw=''; for p in onnxruntime arrow-glib parquet-glib gobject-2.0 glib-2.0 gio-2.0; do f=$(pkg-config --libs $p 2>/dev/null) && raw=\"$raw $f\"; done; fi; if [ -z \"$raw\" ]; then echo '()'; else echo \"$raw\" | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' ' | sed 's/.*/(&)/'; fi"))))
 
@@ -45,7 +47,7 @@
        ast lexer parser eval typecheck error serialization serialization_registry pmml_utils semantic_type symbol_table completion analyzer stats import_registry value_hash cli_args diff
     ; pipeline compiler
     nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter pipeline_script
-    builder_utils pipeline_dependency_requirements builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder_copy builder
+    builder_utils pipeline_dependency_requirements builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder_copy builder_artifacts builder
     ; packages/core
     t_print t_type args head tail is_error t_seq t_map sum pretty_print show_plot packages t_get help t_boolean t_write_text converters file_ops path_ops
     ; packages/strcraft
@@ -56,11 +58,11 @@
     chrono
     ; packages/dataframe
    t_read_csv t_read_parquet t_write_csv t_read_arrow t_write_arrow t_dataframe colnames nrow ncol clean_colnames glimpse
-    ; packages/pipeline
-    pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node pipeline_copy
-     pipeline_to_frame filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
-     pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2 t_make_mod build_log pipeline_diff
-     pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc
+     ; packages/pipeline
+      pipeline_utils pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node read_past_node pipeline_copy
+      pipeline_to_frame filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
+      pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2 t_make_mod build_log pipeline_diff
+      pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc export_artifacts import_artifacts inspect_artifacts
     ; packages/colcraft
     t_select t_filter mutate arrange group_by ungroup summarize n n_distinct
     window_rank window_offset window_cumulative pivot_longer pivot_wider t_complete

@@ -129,36 +129,27 @@ Installation</h3>
 (WSL2)</strong>, please see our dedicated:</p>
 <p>👉 <strong><a href="nix-installation.html">Nix Installation
 Guide</a></strong></p>
-<p>Once Nix is installed and flakes are enabled, you can proceed to Step
-2.</p>
-<h3 id="troubleshooting-nix-installation">Troubleshooting Nix
-Installation</h3>
-<h4 id="enabling-experimental-features">Enabling Experimental
-Features</h4>
-<p>If you’re using the standard Nix installer (not the Determinate
-Systems one), you might see an error that <code>nix shell</code> or
-other commands are not recognized. You can enable the required features
-by adding them to your Nix configuration or by appending a flag to each
-command:</p>
+<p>Once Nix is installed, you can proceed to Step 2.</p>
+<h2 id="step-2-enable-nix-flakes">Step 2: Enable Nix Flakes</h2>
+<p>T requires the <code>nix-command</code> and <code>flakes</code>
+experimental features. The Determinate Systems installer enables these
+by default. If you used the standard installer, you may need to enable
+them:</p>
 <p><strong>Option 1: Add to config (Recommended)</strong></p>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.config/nix</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;experimental-features = nix-command flakes&quot;</span> <span class="op">&gt;&gt;</span> ~/.config/nix/nix.conf</span></code></pre></div>
 <p><strong>Option 2: Use a command flag</strong> Append
-<code>--extra-experimental-features "nix-command flakes"</code> to your
-Nix commands.</p>
-<h4 id="trusted-users-and-binary-caches">Trusted Users and Binary
-Caches</h4>
+<code>--extra-experimental-features "nix-command flakes"</code> to each
+Nix command.</p>
+<h3 id="trusted-users-and-binary-caches">Trusted Users and Binary
+Caches</h3>
 <p>If you see warnings like <code>ignoring untrusted substituter</code>,
-it means you need to add yourself as a trusted user so Nix allows you to
-use the T binary cache. On macOS, you can run the following
-one-liner:</p>
+you need to add yourself as a trusted user so Nix allows you to use the
+T binary cache. On macOS, run:</p>
 <div class="sourceCode" id="cb2"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;trusted-users = root </span><span class="va">$USER</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.custom.conf <span class="kw">&amp;&amp;</span> <span class="fu">sudo</span> launchctl kickstart <span class="at">-k</span> system/org.nixos.nix-daemon</span></code></pre></div>
-<p>This works for both standard Nix installations and Determinate Nix
-installations. If you see warnings like
-<code>ignoring untrusted substituter</code>, this means the
-<code>trusted-users</code> configuration is not in place.</p>
+<p>This works for both standard and Determinate Nix installations.</p>
 <h2 id="step-3-clone-t-repository">Step 3: Clone T Repository</h2>
 <div class="sourceCode" id="cb3"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Choose a directory for T (e.g., ~/projects)</span></span>
@@ -200,7 +191,7 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="
 <p>You should see:</p>
 <pre><code>T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.52.0 &quot;Kaméhaméha&quot; using Nix &lt;nix-version&gt;
+Version 0.52.3 &quot;Kaméhaméha&quot; using Nix &lt;nix-version&gt;
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org

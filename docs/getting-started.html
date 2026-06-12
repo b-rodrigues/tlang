@@ -123,10 +123,13 @@ dependencies, and drop you into a temporary shell where the
 shell.</p>
 <h2 id="starting-a-new-workspace">Starting a New Workspace</h2>
 <p>T provides a built-in scaffolding tool to initialize your workspaces.
-There are two types of workspaces in T: - <strong>Projects</strong>:
-Designed for data analysis, scripts, and reproducible pipelines. -
-<strong>Packages</strong>: Designed for creating reusable functions and
-libraries to share with others.</p>
+There are two types of workspaces in T:</p>
+<ul>
+<li><strong>Projects</strong>: Designed for data analysis, scripts, and
+reproducible pipelines.</li>
+<li><strong>Packages</strong>: Designed for creating reusable packages
+to share with others.</li>
+</ul>
 <h3 id="creating-a-project">Creating a Project</h3>
 <p>To start a new data analysis project, navigate to your desired folder
 and run (while in the temporary shell you dropped in before):</p>
@@ -241,12 +244,17 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="
 <p>(or simply <code>t</code>).</p>
 <p>To execute a script from end-to-end, use:</p>
 <div class="sourceCode" id="cb8"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run scripts/main.t</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span></code></pre></div>
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you have your first project set up and understand the folder
-structure, you are ready to explore the language features and build
-reproducible data pipelines!</p>
+structure, the best next step is to run a tiny reproducible pipeline
+before configuring editor integrations or reading the deeper reference
+material.</p>
 <ol type="1">
+<li><strong><a href="first-pipeline.html">Your First Pipeline</a></strong>
+— Add R, Python, and Julia packages to <code>tproject.toml</code>, run
+<code>t update</code>, and build a small hello-world polyglot
+pipeline.</li>
 <li><strong><a href="editors.html">Configure Editors</a></strong> —
 Configure your editor to play well with T.</li>
 <li><strong><a href="language_overview.html">Language

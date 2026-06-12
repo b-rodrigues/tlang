@@ -12,15 +12,15 @@ open Ast
 --# @export
 *)
 let register env =
+  let extract_arg name pos default args =
+    match List.assoc_opt (Some name) args with
+    | Some v -> v
+    | None ->
+        let positionals = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
+        if List.length positionals >= pos then List.nth positionals (pos - 1)
+        else default
+  in
   let inspect_fn named_args env =
-    let extract_arg name pos default args =
-      match List.assoc_opt (Some name) args with
-      | Some v -> v
-      | None ->
-          let positionals = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
-          if List.length positionals >= pos then List.nth positionals (pos - 1)
-          else default
-    in
     let p_val =
       match extract_arg "p" 1 (VNA NAGeneric) named_args with
       | VNA _ ->
@@ -36,26 +36,26 @@ let register env =
     in
     match p_val with
     | VPipeline p ->
-        let nodes_list = p.p_nodes in
-        let nrows = List.length nodes_list in
-        let arr_nodes = Array.init nrows (fun i -> let (name, _) = List.nth nodes_list i in Some name) in
+        let nodes_arr = Array.of_list p.p_nodes in
+        let nrows = Array.length nodes_arr in
+        let arr_nodes = Array.init nrows (fun i -> let (name, _) = nodes_arr.(i) in Some name) in
         let arr_runtimes = Array.init nrows (fun i ->
-          let (name, _) = List.nth nodes_list i in
+          let (name, _) = nodes_arr.(i) in
           Some (match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "Unknown")
         ) in
         let arr_serializers = Array.init nrows (fun i ->
-          let (name, _) = List.nth nodes_list i in
+          let (name, _) = nodes_arr.(i) in
           Some (match List.assoc_opt name p.p_serializers with
                 | Some expr -> Nix_unparse.unparse_expr expr
                 | None -> "Unknown")
         ) in
         let arr_dependencies = Array.init nrows (fun i ->
-          let (name, _) = List.nth nodes_list i in
+          let (name, _) = nodes_arr.(i) in
           let deps = match List.assoc_opt name p.p_deps with Some ds -> ds | None -> [] in
           Some (String.concat ", " deps)
         ) in
         let arr_has_script = Array.init nrows (fun i ->
-          let (name, _) = List.nth nodes_list i in
+          let (name, _) = nodes_arr.(i) in
           let has_sc = match List.assoc_opt name p.p_scripts with Some (Some _) -> true | _ -> false in
           Some has_sc
         ) in
@@ -85,14 +85,6 @@ let register env =
   --# @export
   *)
   let inspect_log_fn named_args _env =
-    let extract_arg name pos default args =
-      match List.assoc_opt (Some name) args with
-      | Some v -> v
-      | None ->
-          let positionals = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
-          if List.length positionals >= pos then List.nth positionals (pos - 1)
-          else default
-    in
     let first_arg = extract_arg "p" 1 (VNA NAGeneric) named_args in
     let (_p_opt, which_log_arg) =
       match first_arg with
@@ -104,8 +96,10 @@ let register env =
         Builder.inspect_pipeline ()
     | VString s ->
         Builder.inspect_pipeline ~which_log:s ()
-    | _ ->
-        Error.type_error "inspect_log: expected String or NA for argument 'which_log'"
+    | other ->
+        Error.type_error
+          (Printf.sprintf "inspect_log: expected String or NA for argument 'which_log', but got %s."
+             (Utils.type_name other))
   in
   let env = Env.add "inspect_log" (make_builtin_named ~name:"inspect_log" ~variadic:true 0 inspect_log_fn) env in
 
@@ -135,6 +129,11 @@ let register env =
   let env = Env.add "read_log" (make_builtin ~name:"read_log" 1 (fun args _env -> 
     match args with
     | [VString s] | [VSymbol s] -> Builder.read_node_log s
-    | _ -> Error.type_error "read_log: expected a String or Symbol node name"
+    | other :: _ ->
+        Error.type_error
+          (Printf.sprintf "read_log: expected a String or Symbol node name, but got %s."
+             (Utils.type_name other))
+    | _ ->
+        Error.type_error "read_log: expected a String or Symbol node name."
   )) env in
   env

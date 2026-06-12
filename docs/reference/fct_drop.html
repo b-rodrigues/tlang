@@ -34,9 +34,18 @@
 </nav>
 <div class="container">
 <h1 id="fct_drop">fct_drop</h1>
-<p>Drop unused to_factor levels</p>
-<p>Removes levels that are not referenced by any value in the to_factor
+<p>Drop unused factor levels</p>
+<p>Removes levels that are not referenced by any value in the factor
 vector.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><strong>x</strong> (<code>Vector[Factor]</code>): A factor
+vector.</li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A factor vector with unused levels removed.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>fct_drop(fct)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

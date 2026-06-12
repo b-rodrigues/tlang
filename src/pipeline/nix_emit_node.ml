@@ -73,6 +73,10 @@ let is_des e f =
 let is_pmml_ser e = is_ser e "pmml"
 let is_pmml_des e = is_des e "pmml"
 
+type tlang_tree =
+  | Leaf of string
+  | Node of (string * tlang_tree) list
+
 let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args =
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
@@ -386,7 +390,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
   let t_json_r_code = {|
 r_write_json <- function(object, path) {
-  jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null")
+  jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null", na = "null", digits = NA)
 }
 r_read_json <- function(path) {
   jsonlite::read_json(path, simplifyVector = TRUE)
@@ -1143,7 +1147,7 @@ r_is_error <- function(obj) {
 
 r_write_warnings <- function(warns, path) {
   if (length(warns) > 0) {
-    jsonlite::write_json(as.character(warns), path, auto_unbox = TRUE)
+    jsonlite::write_json(as.character(warns), path)
   }
 }
 |} in
@@ -2041,6 +2045,12 @@ function jl_save_viz_metadata(obj, path)
     end
     true
 end
+
+mutable struct TlangNamespace
+    dict::Dict{Symbol, Any}
+end
+Base.getproperty(ns::TlangNamespace, sym::Symbol) = getfield(ns, :dict)[sym]
+Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[sym] = val)
 |} in
 
   let visualization_injection =
@@ -2056,7 +2066,10 @@ end
     if runtime = "Quarto" || runtime = "sh" then
       ""
     else
-      let get_des_call dep_name =
+      let get_load_stmt dep_name =
+        let prefix = if runtime = "R" then "dep_" else "__dep_" in
+        let safe_var = prefix ^ sanitize_env_var_suffix dep_name in
+        let dep_var = dep_env_var_name dep_name in
         let rec lookup_in_list target = function
           | [] -> None
           | (Some n, e) :: _ when n = target -> Some e
@@ -2075,7 +2088,6 @@ end
                | Some v -> Ast.mk_expr (Ast.Value v)
                | None -> Ast.mk_expr (Ast.Var "default"))
           | _ -> deserializer
-
         in
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
@@ -2097,32 +2109,138 @@ end
             else
               strategy
         in
-        
-        let dep_var = dep_env_var_name dep_name in
         match runtime with
         | "R" ->
             Printf.sprintf {|      echo "if (file.exists(file.path(\"$%s\", \"class\")) && readLines(file.path(\"$%s\", \"class\"), 1) == \"VError\") {" >> node_script.R
       echo "  %s <- r_read_json(file.path(\"$%s\", \"artifact\"))" >> node_script.R
       echo "} else {" >> node_script.R
       echo "  %s <- %s(file.path(\"$%s\", \"artifact\"))" >> node_script.R
-      echo "}" >> node_script.R|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
+      echo "}" >> node_script.R|} dep_var dep_var safe_var dep_var safe_var des_fn dep_var
         | "Python" ->
             Printf.sprintf {|      echo "if os.path.exists(os.path.join(\"$%s\", \"class\")) and open(os.path.join(\"$%s\", \"class\")).read().strip() == \"VError\":" >> node_script.py
       echo "    %s = py_read_json(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py
       echo "else:" >> node_script.py
-      echo "    %s = %s(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
+      echo "    %s = %s(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py|} dep_var dep_var safe_var dep_var safe_var des_fn dep_var
         | "Julia" ->
             Printf.sprintf {|      echo "if isfile(joinpath(\"$%s\", \"class\")) && readline(joinpath(\"$%s\", \"class\")) == \"VError\"" >> node_script.jl
       echo "    %s = jl_read_json(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl
       echo "else" >> node_script.jl
       echo "    %s = %s(joinpath(\"$%s\", \"artifact\"))" >> node_script.jl
-      echo "end" >> node_script.jl|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
-        | _ ->
-            Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" dep_name des_fn dep_var ext
+      echo "end" >> node_script.jl|} dep_var dep_var safe_var dep_var safe_var des_fn dep_var
+        | "T" | _ ->
+            Printf.sprintf {|      echo "if (file_exists(\"$%s/class\") && (read_file(\"$%s/class\") == \"VError\" || read_file(\"$%s/class\") == \"VError\\n\" || read_file(\"$%s/class\") == \"Error\" || read_file(\"$%s/class\") == \"Error\\n\")) {" >> node_script.t
+      echo "  %s = deserialize(\"$%s/artifact\")" >> node_script.t
+      echo "} else {" >> node_script.t
+      echo "  %s = %s(\"$%s/artifact\")" >> node_script.t
+      echo "}" >> node_script.t|} dep_var dep_var dep_var dep_var dep_var safe_var dep_var safe_var des_fn dep_var
       in
-      deps
-      |> List.map get_des_call
-      |> String.concat "\n"
+
+      let python_namespace_assigns dep_name safe_var =
+        let parts = String.split_on_char '.' dep_name in
+        match parts with
+        | [] -> ""
+        | [single] -> Printf.sprintf "      echo \"%s = %s\" >> node_script.py" single safe_var
+        | first :: rest ->
+            let rec loop prefix = function
+              | [] -> []
+              | [last] ->
+                  [Printf.sprintf "      echo \"%s.%s = %s\" >> node_script.py" prefix last safe_var]
+              | next :: xs ->
+                  let current = prefix ^ "." ^ next in
+                  let check = Printf.sprintf "      echo \"if not hasattr(%s, '%s'): %s.%s = Namespace()\" >> node_script.py" prefix next prefix next in
+                  check :: loop current xs
+            in
+            let init = [
+              "      echo \"class Namespace: pass\" >> node_script.py";
+              Printf.sprintf "      echo \"if '%s' not in globals():\" >> node_script.py" first;
+              Printf.sprintf "      echo \"    %s = Namespace()\" >> node_script.py" first;
+            ] in
+            String.concat "\n" (init @ loop first rest)
+      in
+
+      let julia_namespace_assigns dep_name safe_var =
+        let parts = String.split_on_char '.' dep_name in
+        match parts with
+        | [] -> ""
+        | [single] -> Printf.sprintf "      echo \"%s = %s\" >> node_script.jl" single safe_var
+        | first :: rest ->
+            let rec loop prefix = function
+              | [] -> []
+              | [last] ->
+                  [Printf.sprintf "      echo \"%s.%s = %s\" >> node_script.jl" prefix last safe_var]
+              | next :: xs ->
+                  let current = prefix ^ "." ^ next in
+                  let check = Printf.sprintf "      echo \"if !haskey(getfield(%s, :dict), :%s); %s.dict[:%s] = TlangNamespace(Dict{Symbol, Any}()); end\" >> node_script.jl" prefix next prefix next in
+                  check :: loop current xs
+            in
+            let init = [
+              Printf.sprintf "      echo \"if !@isdefined(%s); %s = TlangNamespace(Dict{Symbol, Any}()); end\" >> node_script.jl" first first;
+            ] in
+            String.concat "\n" (init @ loop first rest)
+      in
+
+      let build_t_assignments deps =
+        let rec insert tree path expr =
+          match path with
+          | [] -> Leaf expr
+          | x :: xs ->
+              match tree with
+              | Leaf _ -> Leaf expr
+              | Node children ->
+                  let child = match List.assoc_opt x children with
+                    | Some c -> c
+                    | None -> Node []
+                  in
+                  let new_child = insert child xs expr in
+                  let new_children = (x, new_child) :: (List.filter (fun (k, _) -> k <> x) children) in
+                  Node new_children
+        in
+        let rec to_t_expr = function
+          | Leaf expr -> expr
+          | Node children ->
+              let entries = List.map (fun (k, child) ->
+                Printf.sprintf "%s: %s" k (to_t_expr child)
+              ) children in
+              "[\n  " ^ String.concat ",\n  " entries ^ "\n]"
+        in
+        let root = ref (Node []) in
+        List.iter (fun d ->
+          let safe_var = "__dep_" ^ sanitize_env_var_suffix d in
+          let parts = String.split_on_char '.' d in
+          root := insert !root parts safe_var
+        ) deps;
+        match !root with
+        | Leaf _ -> []
+        | Node children ->
+            List.map (fun (k, child) ->
+              let expr_str = to_t_expr child in
+              Printf.sprintf {|      cat <<'EOF' >> node_script.t
+%s = %s
+EOF|} k expr_str
+            ) children
+      in
+
+      let load_calls = List.map get_load_stmt deps in
+      let assign_calls = match runtime with
+        | "R" ->
+            List.map (fun d ->
+              let safe_var = "dep_" ^ sanitize_env_var_suffix d in
+              Printf.sprintf "      echo \"%s <- %s\" >> node_script.R" d safe_var
+            ) deps
+        | "Python" ->
+            List.map (fun d ->
+              let safe_var = "__dep_" ^ sanitize_env_var_suffix d in
+              python_namespace_assigns d safe_var
+            ) deps
+        | "Julia" ->
+            List.map (fun d ->
+              let safe_var = "__dep_" ^ sanitize_env_var_suffix d in
+              julia_namespace_assigns d safe_var
+            ) deps
+        | _ ->
+            build_t_assignments deps
+      in
+      String.concat "\n" (load_calls @ assign_calls)
   in
   let quarto_read_node_substitutions =
     match runtime, script with
@@ -2165,11 +2283,11 @@ end
         else
           ser_s
   in
-  let res1_line =
+  let res1_line_for val_name =
     if ser_call = "write_text" then
-      Printf.sprintf "      res1 = write_text(\\\"$out/artifact\\\", %s)" name
+      Printf.sprintf "      if (is_error(%s)) { res1 = serialize(%s, \\\"$out/artifact\\\") } else { res1 = write_text(\\\"$out/artifact\\\", %s) }" val_name val_name val_name
     else
-      Printf.sprintf "      res1 = %s(%s, \\\"$out/artifact\\\")" ser_call name
+      Printf.sprintf "      if (is_error(%s)) { res1 = serialize(%s, \\\"$out/artifact\\\") } else { res1 = %s(%s, \\\"$out/artifact\\\") }" val_name val_name ser_call val_name
   in
 
   let is_raw_code = match expr.Ast.node with RawCode _ -> true | _ -> false in
@@ -2379,6 +2497,10 @@ end
            The script should assign the result to a variable named after the node.
            All pipeline dependencies are already available as variables from deps_script_lines.
            Use shell_single_quote to safely embed the source/exec call in an echo command. *)
+        let orig_name = match String.split_on_char '.' name |> List.rev with
+          | x :: _ -> x
+          | [] -> name
+        in
         if runtime = "sh" then
           let shell_cmd = match shell with Some s -> s | None -> "sh" in
           let script_tokens = shell_cmd :: shell_args_tokens @ [ script_path ] @ sh_cli_args_tokens in
@@ -2387,39 +2509,43 @@ end
         else if runtime = "R" then
           let r_source = shell_single_quote (Printf.sprintf {|source("%s")|} script_path) in
           let r_ser = shell_single_quote (Printf.sprintf {|%s
-  writeLines(r_visual_class(%s), file.path(Sys.getenv('out'), 'class'))|} (r_emit_artifact name) name) in
+  writeLines(r_visual_class(%s), file.path(Sys.getenv('out'), 'class'))|} (r_emit_artifact orig_name) orig_name) in
           Printf.sprintf {|      echo %s >> node_script.R
       echo %s >> node_script.R
 |} r_source r_ser
         else if runtime = "Python" then
           let py_exec = shell_single_quote (Printf.sprintf {|exec(open("%s").read(), globals())|} script_path) in
-          let py_ser = shell_single_quote (Printf.sprintf {|%s
+          let py_ser = shell_single_quote (Printf.sprintf {|__node_result = %s
+%s
     with open(os.path.join(os.environ['out'], 'class'), 'w') as f:
-        f.write(py_visual_class(%s))|} (py_emit_artifact name) name) in
+        f.write(py_visual_class(__node_result))|} orig_name (py_emit_artifact "__node_result")) in
           Printf.sprintf {|      echo %s >> node_script.py
       echo %s >> node_script.py
 |} py_exec py_ser
         else if runtime = "Julia" then
           let jl_include = shell_single_quote (Printf.sprintf {|include("%s")|} script_path) in
-          let jl_ser = shell_single_quote (Printf.sprintf {|%s
+          let jl_ser = shell_single_quote (Printf.sprintf {|__node_result = %s
+%s
     open(joinpath(ENV["out"], "class"), "w") do f
         write(f, %s)
-    end|} (julia_emit_artifact name) (julia_class_expr name)) in
+    end|} orig_name (julia_emit_artifact "__node_result") (julia_class_expr "__node_result")) in
           Printf.sprintf {|      echo %s >> node_script.jl
       echo %s >> node_script.jl
 |} jl_include jl_ser
         else
           let t_import = shell_single_quote (Printf.sprintf {|      import "%s"|} script_path) in
+          let res1_line_local = res1_line_for "__node_result" in
           Printf.sprintf {|      echo %s >> node_script.t
+      echo "      __node_result = %s" >> node_script.t
       echo "%s" >> node_script.t
       echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
-      echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} t_import res1_line name
+      echo "      res2 = write_text(\"$out/class\", type(__node_result))" >> node_script.t
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} t_import orig_name res1_line_local
     | None ->
     if runtime = "R" then
       if is_raw_code then
         Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
-      echo "%s <- withCallingHandlers({" >> node_script.R
+      echo "node_result <- withCallingHandlers({" >> node_script.R
       echo "  local({" >> node_script.R
       echo "    tryCatch({" >> node_script.R
       cat <<'EOF' >> node_script.R
@@ -2434,21 +2560,21 @@ EOF
       echo "  captured_warns <<- append(captured_warns, conditionMessage(w))" >> node_script.R
       echo "  invokeRestart('muffleWarning')" >> node_script.R
       echo "})" >> node_script.R
-       echo "if (r_is_error(%s)) {" >> node_script.R
-       echo "  r_write_error(%s, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
+       echo "if (r_is_error(node_result)) {" >> node_script.R
+       echo "  r_write_error(node_result, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
        echo "} else {" >> node_script.R
        cat <<'EOF' >> node_script.R
 %s
 EOF
-       echo "  writeLines(r_visual_class(%s), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
+       echo "  writeLines(r_visual_class(node_result), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
        echo "  r_write_warnings(captured_warns, file.path(Sys.getenv('out'), 'warnings'))" >> node_script.R
-       echo "}" >> node_script.R|} name expr_s_no_imports name name (r_emit_artifact name) name
+       echo "}" >> node_script.R|} expr_s_no_imports (r_emit_artifact "node_result")
       else
         Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
       echo "tryCatch({" >> node_script.R
-      echo "  %s <- withCallingHandlers({" >> node_script.R
+      echo "  node_result <- withCallingHandlers({" >> node_script.R
       cat <<'EOF' >> node_script.R
-%s <- %s
+node_result <- %s
 EOF
       echo "  }, warning = function(w) {" >> node_script.R
       echo "    captured_warns <<- append(captured_warns, conditionMessage(w))" >> node_script.R
@@ -2458,15 +2584,15 @@ EOF
       echo "  r_write_error(e, \"$out/artifact\")" >> node_script.R
       echo "  quit(save = 'no', status = 0)" >> node_script.R
       echo "})" >> node_script.R
-       echo "if (r_is_error(%s)) {" >> node_script.R
-       echo "  r_write_error(%s, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
+       echo "if (r_is_error(node_result)) {" >> node_script.R
+       echo "  r_write_error(node_result, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
        echo "} else {" >> node_script.R
        cat <<'EOF' >> node_script.R
 %s
 EOF
-       echo "  writeLines(r_visual_class(%s), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
+       echo "  writeLines(r_visual_class(node_result), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
        echo "  r_write_warnings(captured_warns, file.path(Sys.getenv('out'), 'warnings'))" >> node_script.R
-       echo "}" >> node_script.R|} name name expr_s name name (r_emit_artifact name) name
+       echo "}" >> node_script.R|} expr_s (r_emit_artifact "node_result")
     else if runtime = "Python" then
       if is_raw_code then
         if raw_assigns_to name expr_s then
@@ -2478,17 +2604,18 @@ EOF
       cat <<'EOF' >> node_script.py
 %s
 EOF
+      echo "    __node_result = %s" >> node_script.py
       echo "except Exception as e:" >> node_script.py
       echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
-      echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
+      echo "if py_is_error(__node_result):" >> node_script.py
+      echo "    py_write_error(__node_result, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "else:" >> node_script.py
       cat <<'EOF' >> node_script.py
 %s
 EOF
-      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
-      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string expr_s 8) name name (py_emit_artifact name) name
+      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(__node_result))" >> node_script.py
+      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string expr_s 8) name (py_emit_artifact "__node_result")
         else
           let globals_decl =
             if deps = [] then ""
@@ -2503,20 +2630,20 @@ EOF
       echo "    import warnings" >> node_script.py
       echo "    with warnings.catch_warnings(record=True) as captured_warns:" >> node_script.py
       echo "        warnings.simplefilter('always')" >> node_script.py
-      echo "        %s = __node_runner()" >> node_script.py
+      echo "        __node_result = __node_runner()" >> node_script.py
       echo "except Exception as e:" >> node_script.py
       echo "    py_write_error(traceback.format_exc(), os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
-      echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
+      echo "if py_is_error(__node_result):" >> node_script.py
+      echo "    py_write_error(__node_result, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "else:" >> node_script.py
       cat <<'EOF' >> node_script.py
 %s
 EOF
-      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
+      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(__node_result))" >> node_script.py
       echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|}
             (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (shell_single_quote globals_decl))
-            (indent_string expr_s_no_imports 4) name name name (py_emit_artifact name) name
+            (indent_string expr_s_no_imports 4) (py_emit_artifact "__node_result")
       else
         Printf.sprintf {|      echo "import warnings" >> node_script.py
       echo "try:" >> node_script.py
@@ -2528,17 +2655,17 @@ EOF
       echo "except Exception as e:" >> node_script.py
       echo "    py_write_error(traceback.format_exc(), os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
-      echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
+      echo "if py_is_error(__node_result):" >> node_script.py
+      echo "    py_write_error(__node_result, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "else:" >> node_script.py
       cat <<'EOF' >> node_script.py
 %s
 EOF
-      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
-      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name (py_emit_artifact name) name
+      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(__node_result))" >> node_script.py
+      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string (Printf.sprintf "__node_result = %s" expr_s) 8) (py_emit_artifact "__node_result")
     else if runtime = "Julia" then
       let emitted_expr = indent_string expr_s_no_imports 12 in
-      let emitted_artifact = julia_emit_artifact name in
+      let emitted_artifact = julia_emit_artifact "__node_result" in
       String.concat "\n"
         [
           {|      echo "captured_logger = TCaptureLogger()" >> node_script.jl|};
@@ -2548,20 +2675,20 @@ EOF
           emitted_expr;
           {|EOF|};
           {|      echo "    end" >> node_script.jl|};
-          Printf.sprintf {|      echo "    global %s = with_logger(captured_logger) do" >> node_script.jl|} name;
+          {|      echo "    global __node_result = with_logger(captured_logger) do" >> node_script.jl|};
           {|      echo "        Base.invokelatest(__tlang_node_thunk)" >> node_script.jl|};
           {|      echo "    end" >> node_script.jl|};
           {|      echo "catch e" >> node_script.jl|};
           {|      echo "    jl_write_error(e, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl|};
           {|      echo "    exit(0)" >> node_script.jl|};
           {|      echo "end" >> node_script.jl|};
-          Printf.sprintf {|      echo "if jl_is_error(%s)" >> node_script.jl|} name;
-          Printf.sprintf {|      echo "    jl_write_error(%s, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl|} name;
+          {|      echo "if jl_is_error(__node_result)" >> node_script.jl|};
+          {|      echo "    jl_write_error(__node_result, joinpath(ENV[\"out\"], \"artifact\"))" >> node_script.jl|};
           {|      echo "else" >> node_script.jl|};
           {|      cat <<'EOF' >> node_script.jl|};
           emitted_artifact;
           {|EOF|};
-          Printf.sprintf {|      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, %s); end" >> node_script.jl|} (julia_class_expr name);
+          Printf.sprintf {|      echo "    open(joinpath(ENV[\"out\"], \"class\"), \"w\") do f; write(f, %s); end" >> node_script.jl|} (julia_class_expr "__node_result");
           {|      echo "    jl_write_warnings(captured_logger.warnings, joinpath(ENV[\"out\"], \"warnings\"))" >> node_script.jl|};
           {|      echo "end" >> node_script.jl|};
         ]
@@ -2583,23 +2710,25 @@ EOF|} set_args cmd
       | _ -> "      printf '%%s\\n' true >> node_script.sh")
     else (* T runtime *)
       if is_raw_code then
-        Printf.sprintf {|      echo "      %s = {" >> node_script.t
+        let res1_line_local = res1_line_for "__node_result" in
+        Printf.sprintf {|      echo "      __node_result = {" >> node_script.t
       cat <<'EOF' >> node_script.t
 %s
 EOF
       echo "      }" >> node_script.t
       echo "%s" >> node_script.t
       echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
-      echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s_no_imports res1_line name
+      echo "      res2 = write_text(\"$out/class\", type(__node_result))" >> node_script.t
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} expr_s_no_imports res1_line_local
       else
+        let res1_line_local = res1_line_for "__node_result" in
         Printf.sprintf {|      cat <<'EOF' >> node_script.t
-      %s = %s
+      __node_result = %s
 EOF
       echo "%s" >> node_script.t
       echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
-      echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s res1_line name
+      echo "      res2 = write_text(\"$out/class\", type(__node_result))" >> node_script.t
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} expr_s res1_line_local
   in
 
   let runtime_base_packages =

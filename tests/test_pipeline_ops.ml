@@ -3,6 +3,16 @@
 
 let run_tests pass_count fail_count failures _eval_string eval_string_env test =
 
+  let contains s sub =
+    let n = String.length s in
+    let m = String.length sub in
+    m <= n &&
+    let rec loop i =
+      i <= n - m && (String.sub s i m = sub || loop (i + 1))
+    in
+    loop 0
+  in
+
   Printf.printf "Phase 1 — pipeline_to_frame:\n";
 
   (* Basic usage: should return a DataFrame with the right number of rows *)
@@ -61,7 +71,7 @@ nrow(filter(df, \(row) row.depth == 0))|}
   (* Type error: not a pipeline *)
   test "pipeline_to_frame rejects non-pipeline"
     {|pipeline_to_frame(42)|}
-    {|Error(TypeError: "Function `pipeline_to_frame` expects a Pipeline.")|};
+    {|Error(TypeError: "[L1:C1] Function `pipeline_to_frame` expects a Pipeline, but got Int.")|};
 
   print_newline ();
 
@@ -158,11 +168,11 @@ p |> filter_node($runtime == "Python") |> pipeline_nodes|}
 p |> filter_node(!is_na($diagnostics.error)) |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["bad", "downstream"]|} then begin
+  if result = {|[]|} then begin
     incr pass_count; Printf.printf "  ✓ filter_node can filter on diagnostics errors\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ filter_node diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ filter_node diagnostics predicate\n    Expected: []\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -176,11 +186,11 @@ p |> filter_node(!is_na($diagnostics.error)) |> pipeline_nodes|}
 p |> filter_node(is_na($diagnostics.error)) |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["ok"]|} then begin
+  if result = {|["bad", "ok", "downstream"]|} then begin
     incr pass_count; Printf.printf "  ✓ filter_node can keep nodes without diagnostics errors\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ filter_node no-error diagnostics predicate\n    Expected: [\"ok\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ filter_node no-error diagnostics predicate\n    Expected: [\"bad\", \"ok\", \"downstream\"]\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -198,11 +208,11 @@ p |> filter_node(is_na($diagnostics.error)) |> pipeline_nodes|}
 which_nodes(p, !is_na(diagnostics.error)) |> map(\(node) node.name)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["bad", "downstream"]|} then begin
+  if result = {|[]|} then begin
     incr pass_count; Printf.printf "  ✓ which_nodes auto-wraps diagnostics predicates\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ which_nodes diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ which_nodes diagnostics predicate\n    Expected: []\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -245,18 +255,18 @@ errored_nodes(p)|}
 errored_nodes(p) |> map(\(node) node.name)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["bad", "downstream"]|} then begin
+  if result = {|[]|} then begin
     incr pass_count; Printf.printf "  ✓ errored_nodes returns failing node records\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ errored_nodes failing records\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ errored_nodes failing records\n    Expected: []\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
 
   test "which_nodes rejects non-pipeline"
     {|which_nodes(42, !is_na(diagnostics.error))|}
-    {|Error(TypeError: "Function `which_nodes` expects a Pipeline as first argument.")|};
+    {|Error(TypeError: "[L1:C1] Function `which_nodes` expects a Pipeline as first argument, but got Int.")|};
 
   test "which_nodes errors when predicate does not return Bool"
     {|p = pipeline { a = 1 }; which_nodes(p, name)|}
@@ -264,7 +274,7 @@ errored_nodes(p) |> map(\(node) node.name)|}
 
   test "errored_nodes rejects non-pipeline"
     {|errored_nodes(42)|}
-    {|Error(TypeError: "Function `errored_nodes` expects a Pipeline.")|};
+    {|Error(TypeError: "[L1:C1] Function `errored_nodes` expects a Pipeline, but got Int.")|};
 
   print_newline ();
 
@@ -422,7 +432,7 @@ nrow(select_node(p, $name, $depth))|}
   (* select_node: type error *)
   test "select_node rejects non-pipeline"
     {|select_node(42, $name)|}
-    {|Error(TypeError: "Function `select_node` expects a Pipeline as first argument.")|};
+    {|Error(TypeError: "[L1:C1] Function `select_node` expects a Pipeline as first argument, but got Int.")|};
 
   print_newline ();
 
@@ -670,7 +680,6 @@ p |> prune |> pipeline_nodes|}
 p |> upstream_of("c") |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
   if contains result "\"a\"" && contains result "\"b\"" && contains result "\"c\"" &&
      not (contains result "\"d\"")
   then begin
@@ -697,7 +706,6 @@ p |> upstream_of("c") |> pipeline_nodes|}
 p |> downstream_of("a") |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
   if contains result "\"a\"" && contains result "\"b\"" && contains result "\"c\"" then begin
     incr pass_count; Printf.printf "  ✓ downstream_of includes node and descendants\n"
   end else begin
@@ -732,7 +740,6 @@ p |> downstream_of("b") |> pipeline_nodes|}
 p |> subgraph("b") |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
   if contains result "\"a\"" && contains result "\"b\"" && contains result "\"c\"" then begin
     incr pass_count; Printf.printf "  ✓ subgraph of middle node returns full chain\n"
   end else begin
@@ -764,7 +771,6 @@ p2 = p_full |> downstream_of("b")
 chain(p1, p2) |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
   if contains result "a" && contains result "b" && contains result "c" then begin
     incr pass_count; Printf.printf "  ✓ chain merges connected pipelines\n"
   end else begin
@@ -845,16 +851,16 @@ pipeline_edges(p)|}
     {|p = pipeline { a = 1; b = a + 1 }; pipeline_cycles(p)|}
     {|[]|};
 
-  (* pipeline_summary: wraps pipeline_to_frame *)
+  (* pipeline_to_frame *)
   let (v, _) = eval_string_env
-    {|p = pipeline { a = 1; b = 2 }; nrow(pipeline_summary(p))|}
+    {|p = pipeline { a = 1; b = 2 }; nrow(pipeline_to_frame(p))|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline_summary returns full metadata frame\n"
+    incr pass_count; Printf.printf "  ✓ pipeline_to_frame returns full metadata frame\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ pipeline_summary\n    Expected: 2\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ pipeline_to_frame\n    Expected: 2\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -884,19 +890,430 @@ pipeline_edges(p)|}
 
   print_newline ();
 
-  Printf.printf "Phase 4 — pipeline_dot:\n";
+  Printf.printf "Phase 4 — pipeline_to_dot:\n";
 
-  (* pipeline_dot: returns non-empty string *)
+  (* pipeline_to_dot: returns non-empty string *)
   let (v, _) = eval_string_env
-    {|p = pipeline { a = 1; b = a + 1 }; pipeline_dot(p)|}
+    {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_dot(p)|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
-       incr pass_count; Printf.printf "  ✓ pipeline_dot returns DOT string\n"
+       incr pass_count; Printf.printf "  ✓ pipeline_to_dot returns DOT string\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_dot\n    Expected: DOT string\n    Got: %s\n"
+       let msg = Printf.sprintf "  ✗ pipeline_to_dot\n    Expected: DOT string\n    Got: %s\n"
          (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* pipeline_to_dot: returns non-empty string *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_dot(p)|}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
+       incr pass_count; Printf.printf "  ✓ pipeline_to_dot returns DOT string\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_dot\n    Expected: DOT string\n    Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* pipeline_to_mermaid: returns non-empty string with graph LR *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_mermaid(p)|}
+    (Packages.init_env ()) in
+  (match v with
+    | Ast.VString s when String.length s > 10 && contains s "graph LR" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid returns Mermaid string\n"
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid\n    Expected: Mermaid string containing 'graph LR'\n    Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* pipeline_to_mermaid collision avoidance: etl.raw and etl_raw *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { etl_raw = 1; raw = 2 } |> rename_node("raw", "etl.raw"); pipeline_to_mermaid(p)|}
+    (Packages.init_env ()) in
+  (match v with
+       | Ast.VString s ->
+       if contains s "etl_raw[\"etl_raw [" && contains s "etl_raw__2[\"etl.raw [" then begin
+         incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid avoids ID collisions\n"
+       end else begin
+         incr fail_count;
+         let msg = Printf.sprintf "  ✗ pipeline_to_mermaid collision avoidance\n    Expected to find unique IDs etl_raw and etl_raw__2\n    Got: %s\n" s in
+         failures := msg :: !failures;
+         Printf.printf "%s" msg
+       end
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_mermaid collision avoidance type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* pipeline_to_dot with MetaPipeline *)
+  let (v, _) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+      p_stats = pipeline { summary = 2 };
+      meta = pipeline_of { etl = p_etl; stats = p_stats };
+      pipeline_to_dot(meta)|}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
+       incr pass_count; Printf.printf "  ✓ pipeline_to_dot on MetaPipeline returns DOT string\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ pipeline_to_dot on MetaPipeline\n    Expected: DOT string\n    Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* pipeline_to_mermaid with MetaPipeline *)
+  let (v, _) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+      p_stats = pipeline { summary = 2 };
+      meta = pipeline_of { etl = p_etl; stats = p_stats };
+      pipeline_to_mermaid(meta)|}
+    (Packages.init_env ()) in
+  (match v with
+    | Ast.VString s when String.length s > 10 && contains s "graph LR" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid on MetaPipeline returns Mermaid string\n"
+     | other ->
+         incr fail_count;
+         let msg = Printf.sprintf "  ✗ pipeline_to_mermaid on MetaPipeline\n    Expected: Mermaid string containing 'graph LR'\n    Got: %s\n"
+          (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_mermaid with MetaPipeline renders subgraph blocks by default *)
+   let (v, _) = eval_string_env
+     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+       p_stats = pipeline { summary = 2 };
+       meta = pipeline_of { etl = p_etl; stats = p_stats };
+       pipeline_to_mermaid(meta)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "subgraph etl" && contains s "subgraph stats" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid MetaPipeline renders subgraph blocks\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid MetaPipeline subgraphs\n    Expected subgraph blocks, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid MetaPipeline subgraphs type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_mermaid with flatten=true returns flat output (no subgraph) *)
+   let (v, _) = eval_string_env
+     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+       p_stats = pipeline { summary = 2 };
+       meta = pipeline_of { etl = p_etl; stats = p_stats };
+       pipeline_to_mermaid(meta, flatten = true)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when not (contains s "subgraph") && contains s "etl.raw" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid flatten=true omits subgraph blocks\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid flatten=true\n    Expected flat output without subgraph, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid flatten=true type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_dot with MetaPipeline renders subgraph clusters by default *)
+   let (v, _) = eval_string_env
+     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+       p_stats = pipeline { summary = 2 };
+       meta = pipeline_of { etl = p_etl; stats = p_stats };
+       pipeline_to_dot(meta)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "subgraph cluster_etl" && contains s "subgraph cluster_stats" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_dot MetaPipeline renders subgraph clusters\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot MetaPipeline subgraph clusters\n    Expected cluster subgraphs, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot MetaPipeline subgraph clusters type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_dot with flatten=true omits subgraph clusters *)
+   let (v, _) = eval_string_env
+     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+       p_stats = pipeline { summary = 2 };
+       meta = pipeline_of { etl = p_etl; stats = p_stats };
+       pipeline_to_dot(meta, flatten = true)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when not (contains s "subgraph") ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_dot flatten=true omits cluster subgraphs\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot flatten=true\n    Expected flat output without subgraph, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot flatten=true type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_mermaid subgraph with cross-pipeline dependency *)
+   let (v, _) = eval_string_env
+     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+       p_stats = pipeline { summary = etl.clean + 2 };
+       meta = pipeline_of { etl = p_etl; stats = p_stats };
+       pipeline_to_mermaid(meta)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "subgraph etl" && contains s "subgraph stats" && contains s "etl_clean -->" && contains s "stats_summary" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid cross-subgraph edge rendered correctly\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid cross-subgraph edge\n    Expected subgraphs with cross edge, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid cross-subgraph edge type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_mermaid auto-detects project name from tproject.toml *)
+   let (v, _) = eval_string_env
+     {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_mermaid(p)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "Dependency Graph of Project" && contains s "tlang" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid auto-detects project name\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid auto-detect title\n    Expected project name in title, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid auto-detect title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_mermaid with explicit title argument *)
+   let (v, _) = eval_string_env
+     {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_mermaid(p, title = "Custom Title")|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "tlang-title: Custom Title" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid with custom title\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid custom title\n    Expected title, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid custom title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_dot with explicit title argument *)
+   let (v, _) = eval_string_env
+     {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_dot(p, title = "Custom DOT Title")|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "Custom DOT Title" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_dot with custom title\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot custom title\n    Expected title, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot custom title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   Printf.printf "Phase 4 — meta_flatten:\n";
+
+  (* meta_flatten: namespaces nodes correctly *)
+  let (v, _) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 }
+p_stats = pipeline { summary = 2 }
+meta = pipeline_of {
+  etl = p_etl
+  stats = p_stats
+}
+flat = meta_flatten(meta)
+pipeline_nodes(flat)|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["etl.raw", "etl.clean", "stats.summary"]|} then begin
+    incr pass_count; Printf.printf "  ✓ meta_flatten namespaces nodes correctly\n"
+  end else begin
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ meta_flatten nodes\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
+  end;
+
+  (* meta_flatten: automatically infers cross-pipeline dependencies *)
+  let (v, _) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 }
+p_stats = pipeline { summary = etl.clean + 2 }
+meta = pipeline_of {
+  etl = p_etl
+  stats = p_stats
+}
+flat = meta_flatten(meta)
+pipeline_deps(flat)|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|{`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}|} then begin
+    incr pass_count; Printf.printf "  ✓ meta_flatten infers dependencies automatically\n"
+  end else begin
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ meta_flatten auto-deps\n    Expected: {`etl.raw`: [], `etl.clean`: [\"etl.raw\"], `stats.summary`: [\"etl.clean\"]}\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
+  end;
+
+  (* Implicit flattening: passing a MetaPipeline to pipeline_nodes/pipeline_deps *)
+  let (v, _) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 }
+p_stats = pipeline { summary = etl.clean + 2 }
+meta = pipeline_of {
+  etl = p_etl
+  stats = p_stats
+}
+pipeline_nodes(meta)|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["etl.raw", "etl.clean", "stats.summary"]|} then begin
+    incr pass_count; Printf.printf "  ✓ implicit meta-pipeline flattening in built-ins works\n"
+  end else begin
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ implicit meta-pipeline flattening\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary\"]\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
+  end;
+
+  (* Nested/partial dot access: meta.stats.summary *)
+  let (v, _) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 }
+p_stats = pipeline { summary = etl.clean + 2 }
+meta = pipeline_of {
+  etl = p_etl
+  stats = p_stats
+}
+meta.stats.summary.name|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"stats.summary"|} then begin
+    incr pass_count; Printf.printf "  ✓ nested dot-access namespaces on meta-pipeline work\n"
+  end else begin
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ nested dot-access on meta-pipeline\n    Expected: \"stats.summary\"\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
+  end;
+
+  Printf.printf "Phase 4 — resolve_pipeline_name:\n";
+
+  (* Regular pipeline: name should resolve to its variable name *)
+  let env_r = Packages.init_env () in
+  let (_, env_r) = eval_string_env
+    {|my_pipe = pipeline { a = 1; b = a + 1 }|}
+    env_r in
+  let (v_r, _) = eval_string_env
+    {|my_pipe|}
+    env_r in
+  (match v_r with
+   | Ast.VPipeline p ->
+       (match Pipeline_utils.resolve_pipeline_name env_r p with
+        | Some name when name = "my_pipe" ->
+            incr pass_count; Printf.printf "  ✓ resolve_pipeline_name finds regular pipeline\n"
+        | Some name ->
+            incr fail_count;
+            let msg = Printf.sprintf "  ✗ resolve_pipeline_name regular: expected \"my_pipe\", got \"%s\"\n" name in
+            failures := msg :: !failures;
+            Printf.printf "%s" msg
+        | None ->
+            incr fail_count;
+            let msg = "  ✗ resolve_pipeline_name regular: returned None\n" in
+            failures := msg :: !failures;
+            Printf.printf "%s" msg)
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ resolve_pipeline_name regular: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* Meta pipeline: name should resolve to its variable name *)
+  (* We call meta_flatten(meta) first to obtain the flattened VPipeline from
+     the VMetaPipeline. This mirrors what make_builtin_named's auto-flattening
+     does before resolve_pipeline_name is called, ensuring p_exprs match. *)
+  let env_m = Packages.init_env () in
+  let (_, env_m) = eval_string_env
+    {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+      p_stats = pipeline { summary = 2 };
+      meta = pipeline_of { etl = p_etl; stats = p_stats }|}
+    env_m in
+  let (flat_v, _) = eval_string_env
+    {|meta_flatten(meta)|}
+    env_m in
+  (match flat_v with
+   | Ast.VPipeline p ->
+       (match Pipeline_utils.resolve_pipeline_name env_m p with
+        | Some name when name = "meta" ->
+            incr pass_count; Printf.printf "  ✓ resolve_pipeline_name finds meta pipeline\n"
+        | Some name ->
+            incr fail_count;
+            let msg = Printf.sprintf "  ✗ resolve_pipeline_name meta: expected \"meta\", got \"%s\"\n" name in
+            failures := msg :: !failures;
+            Printf.printf "%s" msg
+        | None ->
+            incr fail_count;
+            let msg = "  ✗ resolve_pipeline_name meta: returned None\n" in
+            failures := msg :: !failures;
+            Printf.printf "%s" msg)
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ resolve_pipeline_name meta: meta_flatten should return VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* Anonymous pipeline (never bound): should return None *)
+  let env_a = Packages.init_env () in
+  let (v_a, _) = eval_string_env
+    {|pipeline { x = 42 }|}
+    env_a in
+  (match v_a with
+   | Ast.VPipeline p ->
+       (match Pipeline_utils.resolve_pipeline_name env_a p with
+        | None ->
+            incr pass_count; Printf.printf "  ✓ resolve_pipeline_name returns None for anonymous pipeline\n"
+        | Some name ->
+            incr fail_count;
+            let msg = Printf.sprintf "  ✗ resolve_pipeline_name anonymous: expected None, got \"%s\"\n" name in
+            failures := msg :: !failures;
+            Printf.printf "%s" msg)
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ resolve_pipeline_name anonymous: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 

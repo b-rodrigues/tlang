@@ -128,6 +128,7 @@ let rec analyze_expr_for_pipeline_call expr =
   | UnquoteSplice operand ->
       analyze_expr_for_pipeline_call operand
   | PipelineDef nodes
+  | PipelineOfDef nodes
   | IntentDef nodes ->
       List.fold_left
         (fun acc (_, item) -> combine_t_make_pipeline_contract acc (analyze_expr_for_pipeline_call item))

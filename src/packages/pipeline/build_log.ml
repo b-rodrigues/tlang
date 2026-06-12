@@ -98,7 +98,10 @@ let build_log_fn named_args _env =
          | Error err -> err
          | Ok (Some log_path) -> Builder.parse_json_log_to_vbuildlog log_path
          | Ok None -> Error.make_error FileError "No matching build log found for the pipeline. Run build_pipeline(p) first.")
-    | _ -> Error.type_error "Function `build_log` expects a Pipeline."
+    | (_, other) ->
+        Error.type_error
+          (Printf.sprintf "Function `build_log` expects a Pipeline, but got %s."
+             (Utils.type_name other))
 
 (*
 --# Tabulate Build Log as DataFrame
@@ -140,7 +143,10 @@ let build_log_to_frame_fn args _env =
       ] in
       let arrow_table = Arrow_table.create columns nrows in
       VDataFrame { arrow_table; group_keys = [] }
-  | [_] -> Error.type_error "Function `build_log_to_frame` expects a BuildLog."
+  | [other] ->
+      Error.type_error
+        (Printf.sprintf "Function `build_log_to_frame` expects a BuildLog, but got %s. Use `build_log(p)` to obtain a BuildLog from a pipeline."
+           (Utils.type_name other))
   | _ -> Error.arity_error_named "build_log_to_frame" 1 (List.length args)
 
 (*
@@ -187,6 +193,11 @@ let collect_exceptions_fn args _env =
                    | `String s -> s
                    | _ -> ""
                  in
+                 let runtime =
+                   match node_json |> member "runtime" with
+                   | `String s -> s
+                   | _ -> ""
+                 in
                  let has_warnings =
                    match node_json |> member "warnings" with
                    | `Bool b -> b
@@ -208,7 +219,13 @@ let collect_exceptions_fn args _env =
                    entries := (name, "Error", err_code, err_message_truncated) :: !entries
                  ) else if status = "SoftFailed" || class_val = "VError" || class_val = "Error" then (
                    if path <> "" && Sys.file_exists path then (
-                     match Serialization.read_verror_json path with
+                     let read_res =
+                       if runtime = "T" then
+                         Serialization.deserialize_from_file path
+                       else
+                         Serialization.read_verror_json path
+                     in
+                     match read_res with
                      | Ok (VError e) ->
                          let msg_truncated = clean_and_truncate_message e.message in
                          entries := (name, "Error", Ast.Utils.error_code_to_string e.code, msg_truncated) :: !entries
@@ -251,7 +268,10 @@ let collect_exceptions_fn args _env =
            ] in
            let arrow_table = Arrow_table.create columns nrows in
            VDataFrame { arrow_table; group_keys = [] })
-  | [_] -> Error.type_error "Function `collect_exceptions` expects a Pipeline."
+  | [other] ->
+      Error.type_error
+        (Printf.sprintf "Function `collect_exceptions` expects a Pipeline, but got %s."
+           (Utils.type_name other))
   | _ -> Error.arity_error_named "collect_exceptions" 1 (List.length args)
 
 
@@ -436,7 +456,10 @@ let build_log_history_fn named_args _env =
           let arrow_table = Arrow_table.create columns nrows in
           VDataFrame { arrow_table; group_keys = [] }
           )
-    | _ -> Error.type_error "Function `build_log_history` expects a Pipeline."
+    | (_, other) ->
+        Error.type_error
+          (Printf.sprintf "Function `build_log_history` expects a Pipeline, but got %s."
+             (Utils.type_name other))
 
 (*
 --# Compare Node Outputs Across Builds
@@ -592,12 +615,15 @@ let node_diff_fn named_args _env =
                 with Invalid_argument msg ->
                   Error.make_error ValueError msg))
 
-  | _ -> Error.type_error "Function `node_diff` expects two ComputedNodes as its first two arguments."
+  | first, second ->
+      Error.type_error
+        (Printf.sprintf "Function `node_diff` expects two ComputedNodes as its first two arguments, but got %s and %s."
+           (Utils.type_name first) (Utils.type_name second))
 
 let register env =
   let make_builtin_named ?name ?(variadic=false) arity func =
     VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-               b_func = (fun named_args env_ref -> func (List.map (fun (n, v) -> (n, Ast.Utils.unwrap_value v)) named_args) !env_ref) }
+               b_func = (fun named_args env_ref -> func (List.map (fun (n, v) -> (n, !Ast.meta_pipeline_flatten_resolver (Ast.Utils.unwrap_value v))) named_args) !env_ref) }
   in
   let env = Env.add "build_log" (make_builtin_named ~name:"build_log" ~variadic:true 1 build_log_fn) env in
   let env = Env.add "build_log_to_frame" (make_builtin ~name:"build_log_to_frame" 1 build_log_to_frame_fn) env in

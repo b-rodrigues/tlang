@@ -16,7 +16,79 @@
 #include <math.h>
 #include <stdint.h>
 
+/* Arrow C Data Interface struct for creating timestamp types with
+   the correct timezone string, bypassing GLib timezone resolution.
+   See: https://arrow.apache.org/docs/format/CDataInterface.html */
+struct ArrowSchema_ {
+  const char *format;
+  const char *name;
+  const char *metadata;
+  int64_t flags;
+  int64_t n_children;
+  struct ArrowSchema_ **children;
+  struct ArrowSchema_ *dictionary;
+  void (*release)(struct ArrowSchema_ *);
+  void *private_data;
+};
+
+static void release_tmp_arrow_schema(struct ArrowSchema_ *schema) {
+  if (schema->release) {
+    g_free((gchar *)schema->format);
+    g_free((gchar *)schema->name);
+    schema->release = NULL;
+  }
+}
+
+/* Create a GArrowTimestampDataType with the given unit and timezone string.
+   Uses the Arrow C Data Interface to bypass GLib's timezone database
+   (g_time_zone_new_identifier may fall back to UTC for non-UTC timezones
+   when the IANA database is not accessible). */
+static GArrowDataType *create_timestamp_data_type_with_tz_string(
+    GArrowTimeUnit unit, const gchar *tz_str) {
+  const gchar *unit_prefix;
+  switch (unit) {
+    case GARROW_TIME_UNIT_SECOND: unit_prefix = "tss"; break;
+    case GARROW_TIME_UNIT_MILLI:  unit_prefix = "tsm"; break;
+    case GARROW_TIME_UNIT_MICRO:  unit_prefix = "tsu"; break;
+    case GARROW_TIME_UNIT_NANO:   unit_prefix = "tsn"; break;
+    default: return NULL;
+  }
+
+  gchar *format;
+  if (tz_str != NULL && tz_str[0] != '\0') {
+    format = g_strdup_printf("%s:%s", unit_prefix, tz_str);
+  } else {
+    format = g_strdup(unit_prefix);
+  }
+
+  struct ArrowSchema_ schema;
+  memset(&schema, 0, sizeof(schema));
+  schema.format = format;
+  schema.name = g_strdup("");
+  schema.release = release_tmp_arrow_schema;
+
+  GArrowDataType *result = NULL;
+  GError *error = NULL;
+  result = garrow_data_type_import(&schema, &error);
+  if (error) g_error_free(error);
+  if (result == NULL) {
+    if (schema.release) schema.release(&schema);
+    GTimeZone *tz = (tz_str != NULL && tz_str[0] != '\0')
+      ? g_time_zone_new_identifier(tz_str)
+      : NULL;
+    result = (GArrowDataType *)garrow_timestamp_data_type_new(unit, tz);
+    if (tz) g_time_zone_unref(tz);
+  }
+  return result;
+}
+
+/* Extract the timezone identifier string from a GArrowTimestampDataType.
+   First tries the "time-zone" GObject property (GTimeZone identifier),
+   then falls back to parsing the type's string representation to handle
+   cases where GLib's timezone database is not available. */
 static gchar *extract_arrow_timezone_identifier(GArrowDataType *dtype) {
+  if (!GARROW_IS_TIMESTAMP_DATA_TYPE(dtype)) return NULL;
+
   GTimeZone *time_zone = NULL;
   g_object_get(G_OBJECT(dtype), "time-zone", &time_zone, NULL);
 
@@ -25,23 +97,38 @@ static gchar *extract_arrow_timezone_identifier(GArrowDataType *dtype) {
     identifier = g_time_zone_get_identifier(time_zone);
   }
 
+  if (identifier != NULL && g_utf8_strlen(identifier, -1) > 0) {
+    gchar *result = g_strdup(identifier);
+    if (time_zone != NULL) g_time_zone_unref(time_zone);
+    return result;
+  }
+
+  /* Fallback: parse the type's string representation.
+     Arrow C++ ToString() format examples:
+       timestamp[us]                    — no timezone
+       timestamp[us, Europe/Paris]      — with timezone (Arrow >= 19)
+       timestamp[ms, tz=America/NY]     — with timezone (Arrow < 19) */
   gchar *result = NULL;
-  if (identifier != NULL) {
-    result = g_strdup(identifier);
-  } else {
-    gchar *type_str = garrow_data_type_to_string(dtype);
-    if (type_str != NULL) {
-      const gchar *tz_prefix = "tz=";
-      gchar *start = g_strstr_len(type_str, -1, tz_prefix);
-      if (start != NULL) {
-        start += 3;
-        gchar *end = g_strstr_len(start, -1, "]");
-        if (end != NULL && end >= start) {
-          result = g_strndup(start, end - start);
+  gchar *type_str = garrow_data_type_to_string(dtype);
+  if (type_str != NULL) {
+    gchar *bracket = g_strstr_len(type_str, -1, "[");
+    if (bracket != NULL) {
+      gchar *comma = g_strstr_len(bracket, -1, ", ");
+      if (comma != NULL) {
+        comma += 2;
+        gchar *close = g_strstr_len(comma, -1, "]");
+        if (close != NULL && close > comma) {
+          result = g_strndup(comma, close - comma);
+          /* If result starts with "tz=", strip the prefix */
+          if (g_str_has_prefix(result, "tz=")) {
+            gchar *old = result;
+            result = g_strdup(result + 3);
+            g_free(old);
+          }
         }
       }
-      g_free(type_str);
     }
+    g_free(type_str);
   }
 
   if (time_zone != NULL) {
@@ -292,10 +379,9 @@ CAMLprim value caml_arrow_table_get_column_data_by_name(value v_ptr, value v_col
 
   if (n_chunks == 1) {
     array = garrow_chunked_array_get_chunk(chunked, 0);
-    /* garrow_chunked_array_get_chunk returns a new reference (transfer full)
-       according to some versions, but let's check. If it was double-reffed,
-       it would leak. If it was borrowed, we need this ref.
-       Given the CRITICAL errors, we are unreffing too much somewhere. */
+    /* garrow_chunked_array_get_chunk returns a borrowed reference (transfer none).
+       The explicit g_object_ref keeps the chunk alive after chunked is unreffed
+       below. */
     if (array) g_object_ref(array);
   } else {
     GError *error = NULL;
@@ -882,6 +968,7 @@ CAMLprim value caml_arrow_read_csv(value v_path) {
   if (options) {
     const gchar *null_values[] = {"NA", "na", "N/A", ""};
     garrow_csv_read_options_set_null_values(options, null_values, 4);
+    g_object_set(options, "allow-null-strings", TRUE, NULL);
   }
 
   /* Create CSV reader */
@@ -976,22 +1063,19 @@ CAMLprim value caml_arrow_table_project(value v_ptr, value v_names) {
     iter = Field(iter, 1);
   }
 
-  g_object_unref(schema);
-
   /* Build new table with selected columns using Arrow APIs */
   GError *error = NULL;
   GList *fields_list = NULL;
   GArrowChunkedArray **columns_arr = (GArrowChunkedArray **)malloc(sizeof(GArrowChunkedArray *) * n_names);
 
-  GArrowSchema *old_schema = garrow_table_get_schema(table);
   for (int i = 0; i < n_names; i++) {
     guint idx = indices[i];
-    GArrowField *field = garrow_schema_get_field(old_schema, idx);
+    GArrowField *field = garrow_schema_get_field(schema, idx);
     fields_list = g_list_append(fields_list, g_object_ref(field));
     columns_arr[i] = garrow_table_get_column_data(table, idx);
     g_object_unref(field);
   }
-  g_object_unref(old_schema);
+  g_object_unref(schema);
   free(indices);
 
   GArrowSchema *new_schema = garrow_schema_new(fields_list);
@@ -1025,6 +1109,9 @@ CAMLprim value caml_arrow_table_filter_mask(value v_ptr, value v_mask) {
   CAMLlocal1(v_result);
 
   GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  if (!Is_block(v_mask)) {
+    CAMLreturn(Val_none);
+  }
   int n = Wosize_val(v_mask);
 
   /* Build boolean array from OCaml bool array */
@@ -1761,8 +1848,21 @@ CAMLprim value caml_arrow_grouped_table_nest(value v_ptr) {
     GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
     GError *error = NULL;
     garrow_int64_array_builder_append_values(builder, gt->group_row_indices[i], gt->group_sizes[i], NULL, 0, &error);
-    GArrowArray *indices_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), NULL);
+    if (error) {
+      g_object_unref(builder);
+      g_error_free(error);
+      continue;
+    }
+    GArrowArray *indices_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
     g_object_unref(builder);
+    if (error) {
+      if (indices_arr) g_object_unref(indices_arr);
+      g_error_free(error);
+      continue;
+    }
+    if (indices_arr == NULL) {
+      continue;
+    }
 
     GArrowTable *sub = garrow_table_take(base_table, indices_arr, NULL, &error);
     g_object_unref(indices_arr);
@@ -1884,7 +1984,7 @@ numeric_chunk_cursor_seek(NumericChunkCursor *cursor, gint64 row_idx, gint64 *of
 }
 
 /* Read a numeric scalar from the current chunk into *value.
-   Supports INT64, INT32, INT16, UINT32, DOUBLE, and FLOAT arrays.
+   Supports all common numeric Arrow types.
    Returns TRUE when the chunk type is supported, FALSE otherwise. */
 static gboolean
 read_numeric_array_value(GArrowArray *chunk, gint64 offset, gdouble *value)
@@ -1898,8 +1998,20 @@ read_numeric_array_value(GArrowArray *chunk, gint64 offset, gdouble *value)
   } else if (GARROW_IS_INT16_ARRAY(chunk)) {
     *value = (gdouble)garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset);
     return TRUE;
+  } else if (GARROW_IS_INT8_ARRAY(chunk)) {
+    *value = (gdouble)garrow_int8_array_get_value(GARROW_INT8_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_UINT64_ARRAY(chunk)) {
+    *value = (gdouble)garrow_uint64_array_get_value(GARROW_UINT64_ARRAY(chunk), offset);
+    return TRUE;
   } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
     *value = (gdouble)garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_UINT16_ARRAY(chunk)) {
+    *value = (gdouble)garrow_uint16_array_get_value(GARROW_UINT16_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_UINT8_ARRAY(chunk)) {
+    *value = (gdouble)garrow_uint8_array_get_value(GARROW_UINT8_ARRAY(chunk), offset);
     return TRUE;
   } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
     *value = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
@@ -1938,7 +2050,8 @@ cell_value_as_string(GArrowTable *table, int col_idx, gint64 row_idx)
 
   gchar *result;
   if (garrow_array_is_null(chunk, offset)) {
-    result = g_strdup("NA");
+    g_object_unref(chunk);
+    return NULL;
   } else if (GARROW_IS_INT64_ARRAY(chunk)) {
     gint64 v = garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset);
     result = g_strdup_printf("%" G_GINT64_FORMAT, v);
@@ -1948,9 +2061,21 @@ cell_value_as_string(GArrowTable *table, int col_idx, gint64 row_idx)
   } else if (GARROW_IS_INT16_ARRAY(chunk)) {
     gint16 v = garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset);
     result = g_strdup_printf("%d", v);
+  } else if (GARROW_IS_INT8_ARRAY(chunk)) {
+    gint8 v = garrow_int8_array_get_value(GARROW_INT8_ARRAY(chunk), offset);
+    result = g_strdup_printf("%d", v);
+  } else if (GARROW_IS_UINT64_ARRAY(chunk)) {
+    guint64 v = garrow_uint64_array_get_value(GARROW_UINT64_ARRAY(chunk), offset);
+    result = g_strdup_printf("%" G_GUINT64_FORMAT, v);
   } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
     guint32 v = garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset);
     result = g_strdup_printf("%u", v);
+  } else if (GARROW_IS_UINT16_ARRAY(chunk)) {
+    guint16 v = garrow_uint16_array_get_value(GARROW_UINT16_ARRAY(chunk), offset);
+    result = g_strdup_printf("%u", v);
+  } else if (GARROW_IS_UINT8_ARRAY(chunk)) {
+    guint8 v = garrow_uint8_array_get_value(GARROW_UINT8_ARRAY(chunk), offset);
+    result = g_strdup_printf("%hhu", v);
   } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
     gdouble v = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
     result = g_strdup_printf("%g", v);
@@ -1990,12 +2115,10 @@ compare_group_keys(gconstpointer a, gconstpointer b, gpointer user_data)
     const char *s1 = ctx->group_key_values[g1][k];
     const char *s2 = ctx->group_key_values[g2][k];
 
-    /* Handle NAs (stored as "NA" in key strings) */
-    gboolean is_na1 = (strcmp(s1, "NA") == 0);
-    gboolean is_na2 = (strcmp(s2, "NA") == 0);
-    if (is_na1 && !is_na2) return 1;  /* NAs last */
-    if (!is_na1 && is_na2) return -1;
-    if (is_na1 && is_na2) continue;
+    /* Handle NAs (stored as NULL in key strings) */
+    if (!s1 && s2) return 1;  /* NAs last */
+    if (s1 && !s2) return -1;
+    if (!s1 && !s2) continue;
 
     int type_tag = ctx->key_types[k];
     if (type_tag == 0) { /* Int64 */
@@ -2166,7 +2289,6 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   if (pre_cols == NULL) {
     for (int k2 = 0; k2 < n_keys; k2++) g_object_unref(key_cols[k2]);
     free(key_cols); free(key_names); free(key_indices); free(key_types);
-    g_object_unref(schema);
     CAMLreturn(Val_none);
   }
   for (int k = 0; k < n_keys; k++) {
@@ -2223,7 +2345,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
         GArrowArray *chunk = pc->chunks[pc->cur_chunk];
         gint64 offset = r - pc->chunk_starts[pc->cur_chunk];
         if (garrow_array_is_null(chunk, offset)) {
-          cell = g_strdup("NA");
+          cell = NULL;
         } else {
           /* Use pre-determined type tag to avoid per-row GARROW_IS_* checks */
           char stack_buf[32];
@@ -2272,7 +2394,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
         }
       }
       
-      g_string_append(key_buf, cell);
+      g_string_append(key_buf, cell ? cell : "N");
       row_keys[k] = cell; /* ownership transferred to row_keys */
     }
     gchar *key_str = g_string_free(key_buf, FALSE);
@@ -2509,8 +2631,12 @@ build_aggregation_result(GroupedTable *gt, const char *agg_col_name,
     if (GARROW_IS_INT64_DATA_TYPE(dtype)) {
       GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        gint64 v = g_ascii_strtoll(gt->group_key_values[g][k], NULL, 10);
-        garrow_int64_array_builder_append_value(builder, v, &error);
+        if (gt->group_key_values[g][k] == NULL) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          gint64 v = g_ascii_strtoll(gt->group_key_values[g][k], NULL, 10);
+          garrow_int64_array_builder_append_value(builder, v, &error);
+        }
         if (error) { g_error_free(error); error = NULL; }
       }
       GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
@@ -2521,8 +2647,12 @@ build_aggregation_result(GroupedTable *gt, const char *agg_col_name,
     } else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype)) {
       GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        gdouble v = g_ascii_strtod(gt->group_key_values[g][k], NULL);
-        garrow_double_array_builder_append_value(builder, v, &error);
+        if (gt->group_key_values[g][k] == NULL) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          gdouble v = g_ascii_strtod(gt->group_key_values[g][k], NULL);
+          garrow_double_array_builder_append_value(builder, v, &error);
+        }
         if (error) { g_error_free(error); error = NULL; }
       }
       GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
@@ -2534,7 +2664,11 @@ build_aggregation_result(GroupedTable *gt, const char *agg_col_name,
       /* Default to string for key columns */
       GArrowStringArrayBuilder *builder = garrow_string_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        garrow_string_array_builder_append_string(builder, gt->group_key_values[g][k], &error);
+        if (gt->group_key_values[g][k] == NULL) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          garrow_string_array_builder_append_string(builder, gt->group_key_values[g][k], &error);
+        }
         if (error) { g_error_free(error); error = NULL; }
       }
       GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
@@ -3093,7 +3227,7 @@ CAMLprim value caml_arrow_group_multi_aggregate(
         GARROW_IS_UINT64_DATA_TYPE(dtype)) {
       GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        if (strcmp(gt->group_key_values[g][k], "NA") == 0) {
+        if (gt->group_key_values[g][k] == NULL) {
           garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
         } else {
           gint64 v = g_ascii_strtoll(gt->group_key_values[g][k], NULL, 10);
@@ -3112,7 +3246,7 @@ CAMLprim value caml_arrow_group_multi_aggregate(
     } else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype)) {
       GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        if (strcmp(gt->group_key_values[g][k], "NA") == 0) {
+        if (gt->group_key_values[g][k] == NULL) {
           garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
         } else {
           gdouble v = g_ascii_strtod(gt->group_key_values[g][k], NULL);
@@ -3131,7 +3265,7 @@ CAMLprim value caml_arrow_group_multi_aggregate(
       /* Default to string for key columns */
       GArrowStringArrayBuilder *builder = garrow_string_array_builder_new();
       for (int g = 0; g < gt->n_groups; g++) {
-        if (strcmp(gt->group_key_values[g][k], "NA") == 0) {
+        if (gt->group_key_values[g][k] == NULL) {
           garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
         } else {
           garrow_string_array_builder_append_string(builder, gt->group_key_values[g][k], &error);
@@ -3420,6 +3554,22 @@ apply_unary_math_op(GArrowChunkedArray *chunked, int op_code)
           val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), i);
         } else if (GARROW_IS_INT64_ARRAY(chunk)) {
           val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), i);
+        } else if (GARROW_IS_INT32_ARRAY(chunk)) {
+          val = (gdouble)garrow_int32_array_get_value(GARROW_INT32_ARRAY(chunk), i);
+        } else if (GARROW_IS_INT16_ARRAY(chunk)) {
+          val = (gdouble)garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), i);
+        } else if (GARROW_IS_INT8_ARRAY(chunk)) {
+          val = (gdouble)garrow_int8_array_get_value(GARROW_INT8_ARRAY(chunk), i);
+        } else if (GARROW_IS_UINT64_ARRAY(chunk)) {
+          val = (gdouble)garrow_uint64_array_get_value(GARROW_UINT64_ARRAY(chunk), i);
+        } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
+          val = (gdouble)garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), i);
+        } else if (GARROW_IS_UINT16_ARRAY(chunk)) {
+          val = (gdouble)garrow_uint16_array_get_value(GARROW_UINT16_ARRAY(chunk), i);
+        } else if (GARROW_IS_UINT8_ARRAY(chunk)) {
+          val = (gdouble)garrow_uint8_array_get_value(GARROW_UINT8_ARRAY(chunk), i);
+        } else if (GARROW_IS_FLOAT_ARRAY(chunk)) {
+          val = (gdouble)garrow_float_array_get_value(GARROW_FLOAT_ARRAY(chunk), i);
         } else {
           ok = FALSE;
           break;
@@ -3602,44 +3752,8 @@ CAMLprim value caml_arrow_compute_pow_column(value v_ptr, value v_col_name, valu
 }
 
 /* ===================================================================== */
-/* Column-Level Aggregations (Phase 5 — Week 1)                          */
+/* Column-Level Aggregations                                             */
 /* ===================================================================== */
-
-/* Helper: extract numeric value from a chunked array at a row index.
-   Used for aggregation operations. Returns the value and sets *is_null. */
-static gdouble get_chunked_numeric_value(GArrowChunkedArray *chunked,
-                                          gint64 row_idx, gboolean *is_null) {
-  guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
-  gint64 offset = row_idx;
-  for (guint c = 0; c < n_chunks; c++) {
-    GArrowArray *chunk = garrow_chunked_array_get_chunk(chunked, c);
-    gint64 chunk_len = garrow_array_get_length(chunk);
-    if (offset < chunk_len) {
-      if (garrow_array_is_null(chunk, offset)) {
-        *is_null = TRUE;
-        g_object_unref(chunk);
-        return 0.0;
-      }
-      gdouble val = 0.0;
-      if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
-        val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
-      } else if (GARROW_IS_INT64_ARRAY(chunk)) {
-        val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset);
-      } else {
-        *is_null = TRUE;
-        g_object_unref(chunk);
-        return 0.0;
-      }
-      *is_null = FALSE;
-      g_object_unref(chunk);
-      return val;
-    }
-    offset -= chunk_len;
-    g_object_unref(chunk);
-  }
-  *is_null = TRUE;
-  return 0.0;
-}
 
 /* Generic column aggregation: table_ptr, column_name.
    agg_code: 0=sum, 1=mean, 2=min, 3=max.
@@ -4083,7 +4197,6 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         columns = g_list_append(columns, chunked);
         g_object_unref(dtype);
         dtype = NULL;
-        n_rows = 0;
         break;
       }
       case 5: { // List of Structs (ListColumn — nested DataFrames)
@@ -4307,12 +4420,13 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
               break;
             }
             case 8: { /* Timestamp */
-              GTimeZone *sub_time_zone = Is_block(v_sub_tz)
-                ? g_time_zone_new_identifier(String_val(Field(v_sub_tz, 0)))
-                : NULL;
+              const gchar *tz_str = NULL;
+              if (Is_block(v_sub_tz))
+                tz_str = String_val(Field(v_sub_tz, 0));
               GArrowTimestampDataType *timestamp_dtype =
-                garrow_timestamp_data_type_new(GARROW_TIME_UNIT_MICRO, sub_time_zone);
-              if (sub_time_zone) g_time_zone_unref(sub_time_zone);
+                GARROW_TIMESTAMP_DATA_TYPE(
+                  create_timestamp_data_type_with_tz_string(
+                    GARROW_TIME_UNIT_MICRO, tz_str));
               sub_dtype = (GArrowDataType *)timestamp_dtype;
               sub_builder = (GArrowArrayBuilder *)garrow_timestamp_array_builder_new(timestamp_dtype);
               for (int j = 0; j < n_total_vals; j++) {
@@ -4450,8 +4564,15 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           break;
         }
 
-        /* Lifecycle management: keep buffers and child array alive.
-           Unrefing these here has caused invalid nested reads in practice. */
+        /* KNOWN LEAK: offsets_buf, null_bmp, and struct_arr_obj are intentionally
+           leaked here. Unreffing them causes invalid nested reads (use-after-free)
+           because garrow_list_array_new does not properly increment the GObject
+           ref count on these inputs — it only holds a std::shared_ptr to the
+           underlying Arrow data via a GArrowArray fallback path. The GArrowBuffer
+           / GArrowStructArray can be freed while the list array still references
+           the backing memory. Remove these comments only after verifying Arrow
+           GLib >= 23.0.0 has fixed this: the transfer semantics of the buffers
+           passed to garrow_list_array_new must be fully-owned (transfer full). */
         /* if (null_bmp) g_object_unref(null_bmp); */
         /* g_object_unref(offsets_buf); */
         /* g_object_unref(struct_arr_obj); */
@@ -4478,7 +4599,6 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         g_object_unref(list_dtype_obj);
         dtype = NULL;
         builder = NULL;
-        n_rows = 0;
         break;
       }
       case 6: // Null
@@ -4503,12 +4623,13 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         }
         break;
       case 8: { // Timestamp (microseconds since epoch)
-        GTimeZone *time_zone = Is_block(v_time_zone)
-          ? g_time_zone_new_identifier(String_val(Field(v_time_zone, 0)))
-          : NULL;
+        const gchar *tz_str = NULL;
+        if (Is_block(v_time_zone))
+          tz_str = String_val(Field(v_time_zone, 0));
         GArrowTimestampDataType *timestamp_dtype =
-          garrow_timestamp_data_type_new(GARROW_TIME_UNIT_MICRO, time_zone);
-        if (time_zone) g_time_zone_unref(time_zone);
+          GARROW_TIMESTAMP_DATA_TYPE(
+            create_timestamp_data_type_with_tz_string(
+              GARROW_TIME_UNIT_MICRO, tz_str));
         dtype = (GArrowDataType *)timestamp_dtype;
         builder = (GArrowArrayBuilder *)garrow_timestamp_array_builder_new(timestamp_dtype);
         for (int i = 0; i < n_rows; i++) {
@@ -5323,6 +5444,7 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
   for (gint64 row = 0; row < nrows; row++) {
     g_string_truncate(key_buf, 0);
 
+    gchar **cell_strs = NULL;
     if (use_numeric_hash && key_cursors != NULL) {
       /* Fast path: use numeric hash bytes directly */
       for (int k = 0; k < n_keys; k++) {
@@ -5337,12 +5459,13 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
         }
       }
     } else {
-      /* Standard path: string-format each key */
+      /* Standard path: string-format each key.
+         Extract values once, reuse for composite key and storage. */
+      cell_strs = (gchar **)malloc(sizeof(gchar *) * n_keys);
       for (int k = 0; k < n_keys; k++) {
         if (k > 0) g_string_append_c(key_buf, '|');
-        gchar *cell_str = cell_value_as_string(table, key_indices[k], row);
-        g_string_append(key_buf, cell_str);
-        g_free(cell_str);
+        cell_strs[k] = cell_value_as_string(table, key_indices[k], row);
+        g_string_append(key_buf, cell_strs[k] ? cell_strs[k] : "N");
       }
     }
 
@@ -5358,12 +5481,27 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
       g_ptr_array_add(group_rows, rows_arr);
 
       /* Store per-group key values */
-      gchar **kv = (gchar **)malloc(sizeof(gchar *) * n_keys);
-      for (int k = 0; k < n_keys; k++) {
-        kv[k] = cell_value_as_string(table, key_indices[k], row);
+      gchar **kv;
+      if (cell_strs != NULL) {
+        /* Standard path: reuse values already extracted */
+        kv = cell_strs;
+        cell_strs = NULL;
+      } else {
+        /* Numeric hash path: extract string values now.
+           Note: first-encounter rows in high-cardinality data still pay
+           the per-key string-formatting cost; the fast path only avoids it
+           for existing-group lookups. */
+        kv = (gchar **)malloc(sizeof(gchar *) * n_keys);
+        for (int k = 0; k < n_keys; k++) {
+          kv[k] = cell_value_as_string(table, key_indices[k], row);
+        }
       }
       g_ptr_array_add(group_key_vals, kv);
     } else {
+      if (cell_strs) {
+        for (int k = 0; k < n_keys; k++) g_free(cell_strs[k]);
+        free(cell_strs);
+      }
       guint group_id = GPOINTER_TO_UINT(existing) - 1;
       GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, group_id);
       g_array_append_val(rows_arr, row);

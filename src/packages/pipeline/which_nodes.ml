@@ -77,7 +77,7 @@ let which_nodes_impl ~fn_name ~eval_call args env =
              | Error e -> e)
       in
       aux [] merged_nodes
-  | [_; _] -> Error.type_error (Printf.sprintf "Function `%s` expects a Pipeline as first argument." fn_name)
+  | [first; _] -> Error.type_error (Printf.sprintf "Function `%s` expects a Pipeline as first argument, but got %s." fn_name (Utils.type_name first))
   | _ -> Error.arity_error_named fn_name 2 (List.length args)
 
 (*
@@ -143,5 +143,8 @@ let register ~eval_call env =
        (make_builtin ~name:"errored_nodes" 1 (fun args env ->
            match args with
           | [VPipeline _] -> errored_nodes_impl ~eval_call args env
-          | [_] -> Error.type_error "Function `errored_nodes` expects a Pipeline."
+          | [other] ->
+              Error.type_error
+                (Printf.sprintf "Function `errored_nodes` expects a Pipeline, but got %s."
+                   (Utils.type_name other))
           | _ -> Error.arity_error_named "errored_nodes" 1 (List.length args)))

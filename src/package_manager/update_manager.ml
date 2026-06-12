@@ -887,12 +887,13 @@ let cmd_upgrade () =
               flush stdout;
               let new_cfg = { cfg with proj_min_t_version = latest_version; proj_nixpkgs_date = today } in
               let new_content = Toml_parser.serialize_tproject_toml new_cfg in
-              (try
-                 let oc = open_out tproject_path in
-                 output_string oc new_content;
-                 close_out oc;
-                 Printf.printf "Regenerating flake.nix and updating dependencies...\n";
-                 flush stdout;
-                 update_flake_lock ()
-               with e -> Error (Printf.sprintf "Failed to update tproject.toml: %s" (Printexc.to_string e)))
+              try
+                let oc = open_out tproject_path in
+                Fun.protect
+                  ~finally:(fun () -> close_out_noerr oc)
+                  (fun () -> output_string oc new_content);
+                Printf.printf "Regenerating flake.nix and updating dependencies...\n";
+                flush stdout;
+                update_flake_lock ()
+              with e -> Error (Printf.sprintf "Failed to update tproject.toml: %s" (Printexc.to_string e))
             )

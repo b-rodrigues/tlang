@@ -1,4 +1,5 @@
 open Ast
+open Pipeline_utils
 
 (*
 --# Trace Pipeline Nodes
@@ -24,8 +25,9 @@ let register env =
       | Some (_, v) -> (true, v)
       | None ->
           let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-          if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
-          else (false, default)
+          match nth_safe (pos - 1) positionals with
+          | Some v -> (true, v)
+          | None -> (false, default)
     in
     match get_arg "p" 1 (VNA NAGeneric) with
     | (_, VPipeline p) ->
@@ -144,6 +146,9 @@ let register env =
         flush stdout;
         (VNA NAGeneric)
         end
-    | _ -> Error.type_error "Function `trace_nodes` expects a Pipeline as its first argument."
+    | (_, other) ->
+        Error.type_error
+          (Printf.sprintf "Function `trace_nodes` expects a Pipeline as its first argument, but got %s."
+             (Utils.type_name other))
   in
   Env.add "trace_nodes" (make_builtin_named ~name:"trace_nodes" ~variadic:true 1 trace_fn) env

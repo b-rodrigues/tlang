@@ -18,7 +18,10 @@ let register env =
       match args with
       | [VPipeline { p_nodes; _ }] ->
           VList (List.map (fun (name, _) -> (None, VString name)) p_nodes)
-      | [_] -> Error.type_error "Function `pipeline_nodes` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_nodes` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_nodes" 1 (List.length args)
     ))
     env

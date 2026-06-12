@@ -35,7 +35,7 @@
 <div class="container">
 <h1 id="t-language-overview">T Language Overview</h1>
 <blockquote>
-<p><strong>Version</strong>: 0.52.2</p>
+<p><strong>Version</strong>: 0.52.3</p>
 </blockquote>
 <p>T is a functional programming language designed for declarative,
 tabular data manipulation. It combines the pipeline-driven style of R’s
@@ -133,11 +133,6 @@ seq(1, 10, by = 2)    -- [1, 3, 5, 7, 9]</code></pre>
 <td><code>Pipeline</code></td>
 <td><code>pipeline { ... }</code></td>
 <td>DAG-based execution graph</td>
-</tr>
-<tr>
-<td><code>jln</code></td>
-<td><code>jln(...)</code></td>
-<td>Julia node wrapper</td>
 </tr>
 <tr>
 <td><code>Function</code></td>
@@ -265,7 +260,8 @@ the vectorized <code>.&amp;</code> or <code>.|</code> operators.</p>
 <hr />
 <h2 id="tooling">Tooling</h2>
 <h3 id="repl">REPL</h3>
-<p>The T REPL (<code>dune exec src/repl.exe</code>) supports:</p>
+<p>The T REPL (<code>t repl</code> or <code>t</code> in a project shell)
+supports:</p>
 <ul>
 <li><strong>Readline editing</strong> with arrow keys and history
 navigation</li>
@@ -290,6 +286,9 @@ columns</li>
 docstrings</li>
 <li><strong>Diagnostics</strong> for parse and type errors</li>
 </ul>
+<p>See the <a href="editors.html">Editor Setup Guide</a> for configuring
+syntax highlighting, LSP, and tree-sitter support in your editor of
+choice.</p>
 <hr />
 <h2 id="functions">Functions</h2>
 <h3 id="lambda-syntax">Lambda Syntax</h3>
@@ -986,7 +985,7 @@ p_updated = p_prod |&gt; patch(p_overrides)
 pipeline_nodes(p_full)
 pipeline_deps(p_full)
 pipeline_to_frame(p_full)
-pipeline_dot(p_full)
+pipeline_to_dot(p_full)
 
 pipeline_validate(p_full)</code></pre>
 <hr />

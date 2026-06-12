@@ -61,7 +61,7 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 **Objective**: Treat pipelines as composable functions.
 
 ### Meta-Pipelines (`pipeline_of`)
-- [ ] **`pipeline_of` block**: Compose multiple pipelines into a higher-order DAG.
+- [x] **`pipeline_of` block**: Compose multiple pipelines into a higher-order DAG.
   ```t
   meta = pipeline_of {
     etl   = p_etl,
@@ -69,12 +69,21 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
     depends = [stats => etl]
   }
   ```
-- [ ] **`meta_flatten(meta)`**: Transform a meta-pipeline into a single flat pipeline with namespaced nodes (`etl.raw_data`).
+- [x] **`meta_flatten(meta)`**: Transform a meta-pipeline into a single flat pipeline with namespaced nodes (`etl.raw_data`).
 
 ### Pipeline Algebra & Templates
-- [ ] **Parameterization via Lambdas**: Instead of new keywords, promote the use of lambdas returning pipelines: `\(input) pipeline { ... }`.
-- [ ] **`pipeline_diff(p1, p2)`**: Tabular comparison of two pipeline structures (added/removed nodes, changed dependencies).
-- [ ] **`pipeline_hash(p)`**: Deterministic content hash of a pipeline's static structure for use in CI/CD cache keys.
+- [x] **Parameterization via Lambdas**: Instead of new keywords, promote the use of lambdas returning pipelines: `\(input) pipeline { ... }`.
+- [x] **Artifact Export & Import**: Add capabilities to export/import the build cache of a pipeline to enable sharing artifacts between machines (e.g. building on computer A, exporting, importing on computer B, and skipping builds).
+  - **REPL functions**: `export_artifacts(p, archive_path)` and `import_artifacts(archive_path)`.
+
+### Future Composition & Cache Extensions (Brainstorming)
+- [x] **Meta-Pipeline Visualisation**: Add `pipeline_to_dot(p)` or `pipeline_to_mermaid(p)` to generate graph visualizations for understanding complex, flattened meta-pipelines.
+- [x] **Mermaid Browser Visualization**: Enhance `show_plot()` to support detecting Mermaid syntax strings, Pipelines, or Meta-Pipelines, dynamically rendering them to a temporary HTML page with the Mermaid JS client, and opening them in the browser.
+- [x] **Granular Artifact Export**: Support exporting specific sub-pipelines or individual nodes (e.g., `export_artifacts(meta.stats, path)`).
+- [x] **Artifact Archive Introspection**: Introduce `inspect_artifacts(path)` to read `.nar` cache metadata and return a DataFrame of included nodes and statistics without unpacking.
+- [x] **Cache-Aware Dry Runs**: Enhance `populate_pipeline(p, dry_run = true)` to report which nodes would hit the cache and which would actually rebuild based on local or remote substitutes.
+- [x] **Execution Plan Serialization**: Allow `dry_run = true` to return a structured DataFrame with columns `node`, `action` (`rebuild` | `fetch` | `cache_hit`), and `store_path` to enable programmatic execution plan analysis and abort thresholds.
+- [x] **Programmatic Garbage Collection**: Add a `pipeline_gc(p)` or `t_gc()` function to safely clean up old, detached derivations directly from the T-Lang REPL.
 
 ---
 

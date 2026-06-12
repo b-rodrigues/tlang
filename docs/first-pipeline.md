@@ -139,7 +139,10 @@ print(read_node(p.julia_hello))
 ```
 
 Use `read_node(p.node_name)` when you want the value materialized for a specific
-pipeline node. You should see the text values produced by the three runtimes.
+pipeline node — it re-reads the serialized artifact from the Nix store. By contrast,
+`p.node_name` (direct dot access) returns the cached in-memory value. For this
+hello-world pipeline, they produce the same result because the node outputs are
+simple strings. You should see the text values produced by the three runtimes.
 
 ## 7. What to read next
 

@@ -68,7 +68,7 @@ let rec infer_type scope expr =
                       in
                       { name; col_typ = TUnknown })
                     names)
-            with _ -> []
+            with Sys_error _ | End_of_file -> [] (* path not readable; columns unknown *)
           in
           Hashtbl.add csv_cache path cols;
           cols
@@ -136,7 +136,7 @@ let rec infer_type scope expr =
   | DotAccess { target; _ } ->
       ignore (infer_type scope target);
       TUnknown
-  | PipelineDef nodes | IntentDef nodes ->
+  | PipelineDef nodes | PipelineOfDef nodes | IntentDef nodes ->
       List.iter (fun (_, e) -> ignore (infer_type scope e)) nodes;
       TUnknown
   | Block stmts ->

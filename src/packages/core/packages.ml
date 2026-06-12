@@ -75,8 +75,7 @@ let docs_loaded : unit Lazy.t =
     match loaded_path with
     | Some path -> (
         try
-          Tdoc_registry.load_from_json path;
-          prerr_endline (Printf.sprintf "Documentation: loaded from %s" path)
+          Tdoc_registry.load_from_json path
         with exn ->
           prerr_endline (Printf.sprintf "Documentation: failed to parse %s: %s" path (Printexc.to_string exn))
       )
@@ -192,16 +191,16 @@ let dataframe_package = {
 let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
-  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "inspect_log"; "list_logs"; "read_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
+  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "inspect_log"; "list_logs"; "read_node"; "read_past_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
                "pipeline_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings"; "pipeline_to_drv";
-               "pipeline_to_store"; "set_nix_defaults"; "pipeline_cache_status"; "pipeline_gc";
+               "pipeline_to_store"; "set_nix_defaults"; "pipeline_cache_status"; "pipeline_gc"; "t_gc"; "export_artifacts"; "import_artifacts"; "inspect_artifacts";
                "build_log"; "build_log_to_frame"; "collect_exceptions"; "build_log_history"; "node_diff"; "pipeline_diff"; "debug_node";
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
                "chain"; "parallel";
                "pipeline_edges"; "pipeline_roots"; "pipeline_leaves"; "pipeline_depth";
-               "pipeline_cycles"; "pipeline_summary"; "pipeline_validate"; "pipeline_assert";
-               "pipeline_print"; "pipeline_dot"];
+                "pipeline_cycles"; "pipeline_validate"; "pipeline_assert";
+                "pipeline_print"; "pipeline_to_dot"; "pipeline_to_mermaid"];
 }
 
 let explain_package = {
@@ -593,20 +592,24 @@ let register env =
                  VString (Printf.sprintf "OCaml source not found at `%s`" path)
                else
                  let lines = ref [] in
-                 let chan = open_in path in
                  (try
-                   for _ = 1 to doc.line_number - 1 do
-                     ignore (input_line chan)
-                   done;
-                   (* Read until end of file or a reasonable limit *)
-                   for _ = 1 to 50 do
-                     lines := input_line chan :: !lines
-                   done;
-                   close_in chan;
-                   VString (String.concat "\n" (List.rev !lines))
-                 with End_of_file ->
-                   close_in chan;
-                   VString (String.concat "\n" (List.rev !lines)))
+                   let chan = open_in path in
+                   let res =
+                     try
+                       for _ = 1 to doc.line_number - 1 do
+                         ignore (input_line chan)
+                       done;
+                       for _ = 1 to 50 do
+                         lines := input_line chan :: !lines
+                       done;
+                       String.concat "\n" (List.rev !lines)
+                     with End_of_file ->
+                       String.concat "\n" (List.rev !lines)
+                   in
+                   close_in_noerr chan;
+                   VString res
+                 with exn ->
+                   VString (Printf.sprintf "Error reading source file `%s`: %s" path (Printexc.to_string exn)))
            | None -> VString (Printf.sprintf "No source metadata for `%s`" name))
       | [v] -> Error.type_error (Printf.sprintf "source: expected a Function, got %s." (Utils.type_name v))
       | _ -> Error.arity_error_named "source" 1 (List.length args)
@@ -786,6 +789,7 @@ let init_env () =
   let env = Populate_pipeline.register env in
   let env = Inspect_pipeline.register env in
   let env = Read_node.register env in
+  let env = Read_past_node.register env in
   let env = Pipeline_copy.register env in
   let env = Trace_nodes.register env in
   let env = Pipeline_to_frame.register env in
@@ -794,6 +798,9 @@ let init_env () =
   let env = Set_nix_defaults.register env in
   let env = Pipeline_cache_status.register env in
   let env = Pipeline_gc.register env in
+  let env = Export_artifacts.register env in
+  let env = Import_artifacts.register env in
+  let env = Inspect_artifacts.register env in
   let env = Filter_node.register ~eval_call:Eval.eval_call_immutable env in
   let env = Which_nodes.register ~eval_call:Eval.eval_call_immutable env in
   let env = Mutate_node.register ~eval_call:Eval.eval_call_immutable env in

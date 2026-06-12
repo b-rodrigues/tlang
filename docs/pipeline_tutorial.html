@@ -122,8 +122,507 @@ p.y      -- 20
 p.total  -- 30</code></pre>
 <p>The pipeline itself displays as:</p>
 <pre><code>Pipeline(3 nodes: [x, y, total])</code></pre>
+<h3
+id="the-interactive-development-loop-build-inspect-plot-and-extend">1.1
+The Interactive Development Loop (Build, Inspect, Plot, and Extend)</h3>
+<p>A common and highly productive way to build T-Lang pipelines is
+incrementally, using an interactive REPL development loop. By starting
+small and iteratively building, inspecting, plotting, and extending, you
+ensure that each step of your data pipeline behaves as expected.</p>
+<h4 id="step-1-start-with-a-single-node">Step 1: Start with a Single
+Node</h4>
+<p>First, define a pipeline with a single root node. For example,
+loading some raw data:</p>
+<pre class="t"><code>p = pipeline {
+  raw_data = [1, 2, 3, 4, 5]
+}</code></pre>
+<h4 id="step-2-build-the-pipeline">Step 2: Build the Pipeline</h4>
+<p>Build the pipeline to materialize the raw data node as a Nix
+artifact:</p>
+<pre class="t"><code>build_pipeline(p)</code></pre>
+<p>During this build, Nix runs the computation (in this case, just
+returning the vector <code>[1, 2, 3, 4, 5]</code>) and caches it in the
+Nix store.</p>
+<h4 id="step-3-check-inspect-and-verify">Step 3: Check, Inspect, and
+Verify</h4>
+<p>Once built, verify that the node was evaluated correctly:</p>
+<ul>
+<li><p><strong>Check value in-memory</strong>: Access the node directly
+using dot notation:</p>
+<pre class="t"><code>p.raw_data
+-- [1, 2, 3, 4, 5]</code></pre></li>
+<li><p><strong>Verify the serialized artifact</strong>: Use
+<code>read_node()</code> to ensure the serialized value can be
+successfully read from the Nix store cache:</p>
+<pre class="t"><code>read_node(p.raw_data)
+-- [1, 2, 3, 4, 5]</code></pre></li>
+<li><p><strong>Inspect build logs</strong>: Check the latest build log
+to see the build execution time and status:</p>
+<pre class="t"><code>inspect_log()
+-- A DataFrame showing the derivation path and build status of &quot;raw_data&quot;</code></pre></li>
+<li><p><strong>Explain diagnostics</strong>: Call <code>explain()</code>
+to view properties and runtime environment information:</p>
+<pre class="t"><code>explain(p.raw_data)
+-- { `runtime`: &quot;T&quot;, `kind`: &quot;node&quot;, `name`: &quot;raw_data&quot;, ... }</code></pre></li>
+</ul>
+<h4 id="step-4-plot-the-dag">Step 4: Plot the DAG</h4>
+<p>Visualize the current topology of your pipeline. You can render the
+DAG directly in your web browser by calling <code>show_plot()</code> on
+the pipeline:</p>
+<pre class="t"><code>show_plot(p)</code></pre>
+<p>Alternatively, you can convert the dependency graph to a Mermaid
+string to print or render in Markdown:</p>
+<pre class="t"><code>print(pipeline_to_mermaid(p))</code></pre>
+<p>Output:</p>
+<pre class="mermaid"><code>graph TD
+  raw_data</code></pre>
+<h4 id="step-5-add-another-node">Step 5: Add Another Node</h4>
+<p>First, save your current pipeline state into <code>p_old</code> so
+you can diff it later:</p>
+<pre class="t"><code>p_old = p</code></pre>
+<p>Now, extend your pipeline by adding a second node that depends on the
+first one. For example, calculating the sum of the raw data:</p>
+<pre class="t"><code>p = pipeline {
+  raw_data = [1, 2, 3, 4, 5]
+  total = sum(raw_data)
+}</code></pre>
+<h4 id="step-6-build-verify-and-plot-again">Step 6: Build, Verify, and
+Plot Again</h4>
+<p>Re-build your extended pipeline:</p>
+<pre class="t"><code>build_pipeline(p)</code></pre>
+<p>Because <code>raw_data</code> was already built and cached, Nix will
+automatically skip rebuilding it (a cache hit) and only compute the new
+<code>total</code> node! You can verify this cache hit behavior by
+running a cache-aware dry run first:</p>
+<pre class="t"><code>plan = build_pipeline(p, dry_run = true)
+print(plan)
+-- DataFrame(2 rows x 3 cols: [node, action, store_path])
+-- node       action       store_path
+-- raw_data   cache_hit    /nix/store/...-raw_data
+-- total      rebuild      /nix/store/...-total</code></pre>
+<p>After building, inspect the new node and dependency layout:</p>
+<ul>
+<li><p><strong>Verify the new node</strong>:</p>
+<pre class="t"><code>p.total
+-- 15
+
+read_node(p.total)
+-- 15</code></pre></li>
+<li><p><strong>Inspect the new DAG</strong>: Plot the updated dependency
+graph to verify the relationship. You can open it in the browser:</p>
+<pre class="t"><code>show_plot(p)</code></pre>
+<p>Or get the Mermaid source:</p>
+<pre class="t"><code>print(pipeline_to_mermaid(p))</code></pre>
+<p>Output:</p>
+<pre class="mermaid"><code>graph TD
+  raw_data --&gt; total</code></pre></li>
+<li><p><strong>Compare pipeline changes</strong>: If you want to check
+what changed structurally since your last pipeline definition, you can
+use <code>pipeline_diff()</code>:</p>
+<pre class="t"><code>diff = pipeline_diff(p_old, p)
+print(diff.added_nodes)
+-- [&quot;total&quot;]</code></pre></li>
+</ul>
+<p>By following this loop—<strong>Build ➔ Verify ➔ Plot ➔
+Extend</strong>—you can comfortably build up large, complex, and
+reliable data pipelines step by step.</p>
 <hr />
-<h2 id="explicit-node-configuration">2. Explicit Node Configuration</h2>
+<h2 id="pipeline-function-quick-reference">2. Pipeline Function Quick
+Reference</h2>
+<p>A consolidated index of all pipeline reading, inspecting, and
+build-log functions. Use this as a cheatsheet to find the right tool for
+the job.</p>
+<h3 id="reading-node-artifacts">Reading Node Artifacts</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Parameters</th>
+<th>Returns</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_node(node)</code></td>
+<td><code>ComputedNode</code></td>
+<td>deserialized value + diagnostics</td>
+<td>Read in-scope pipeline node artifact</td>
+</tr>
+<tr>
+<td><code>read_past_node(p.name, which_log)</code></td>
+<td>NSE-captured node, <code>String</code> (required)</td>
+<td>deserialized value + diagnostics</td>
+<td>Read from historical build log without pipeline in scope</td>
+</tr>
+<tr>
+<td><code>read_pipeline(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>Dict</code></td>
+<td>Per-node values + diagnostics + aggregated summary</td>
+</tr>
+<tr>
+<td><code>pipeline_node(p, name)</code></td>
+<td><code>Pipeline</code>, <code>String</code></td>
+<td><code>Any</code></td>
+<td>Value of a specific node by name</td>
+</tr>
+</tbody>
+</table>
+<h3 id="build-logs-history">Build Logs &amp; History</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Parameters</th>
+<th>Returns</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>build_log(p, which_log?)</code></td>
+<td><code>Pipeline</code>, optional <code>String</code></td>
+<td><code>BuildLog</code></td>
+<td>Structured build log for latest (or specified) build</td>
+</tr>
+<tr>
+<td><code>build_log_to_frame(log)</code></td>
+<td><code>BuildLog</code></td>
+<td><code>DataFrame</code></td>
+<td>Build log as DataFrame (name, status, duration, path)</td>
+</tr>
+<tr>
+<td><code>build_log_history(p, n?, pattern?)</code></td>
+<td><code>Pipeline</code>, optional <code>Int</code>,
+<code>String</code></td>
+<td><code>DataFrame</code></td>
+<td>History of all builds matching pipeline’s node signature</td>
+</tr>
+<tr>
+<td><code>list_logs()</code></td>
+<td>—</td>
+<td><code>DataFrame</code></td>
+<td>All log files in <code>_pipeline/</code> (filename, mtime, size,
+pipeline)</td>
+</tr>
+<tr>
+<td><code>inspect_log(p?, which_log?)</code></td>
+<td>optional <code>Pipeline</code>, optional <code>String</code></td>
+<td><code>DataFrame</code></td>
+<td>Derivation-level build status (derivation, build_success, path)</td>
+</tr>
+<tr>
+<td><code>read_log(node_name)</code></td>
+<td><code>String</code></td>
+<td><code>String</code></td>
+<td>Raw Nix build log text for a specific node</td>
+</tr>
+</tbody>
+</table>
+<h3 id="node-inspection-diagnostics">Node Inspection &amp;
+Diagnostics</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Parameters</th>
+<th>Returns</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inspect_node(node)</code></td>
+<td><code>ComputedNode</code></td>
+<td><code>Dict</code></td>
+<td>Static metadata (runtime, path, class, deps) + structured
+warnings</td>
+</tr>
+<tr>
+<td><code>warning_msg(node)</code></td>
+<td><code>ComputedNode</code></td>
+<td><code>String</code></td>
+<td>Formatted warning message (own + upstream with source prefix)</td>
+</tr>
+<tr>
+<td><code>collect_exceptions(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>DataFrame</code></td>
+<td>Structured error/warning DataFrame from built pipeline</td>
+</tr>
+<tr>
+<td><code>suppress_warnings(val)</code></td>
+<td><code>Any</code></td>
+<td>original value</td>
+<td>Suppress console warnings for a node; still accessible via
+<code>warning_msg()</code></td>
+</tr>
+<tr>
+<td><code>debug_node(node)</code></td>
+<td><code>ComputedNode</code></td>
+<td><code>NA</code></td>
+<td>Interactive REPL subshell pre-configured with node environment</td>
+</tr>
+<tr>
+<td><code>rebuild_node(node)</code></td>
+<td><code>ComputedNode</code></td>
+<td><code>ComputedNode</code></td>
+<td>Rebuild a single node and return updated artifact path</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pipeline-dag-structure">Pipeline DAG Structure</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Parameters</th>
+<th>Returns</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pipeline_to_frame(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>DataFrame</code></td>
+<td>Full node metadata (runtime, serializer, deps, depth,
+command_type)</td>
+</tr>
+<tr>
+<td><code>pipeline_nodes(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>List[String]</code></td>
+<td>All node names</td>
+</tr>
+<tr>
+<td><code>pipeline_deps(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>Dict</code></td>
+<td>Node name → list of dependency names</td>
+</tr>
+<tr>
+<td><code>pipeline_edges(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>List[[from, to]]</code></td>
+<td>Edge list as dependency pairs</td>
+</tr>
+<tr>
+<td><code>pipeline_roots(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>List[String]</code></td>
+<td>Nodes with no dependencies</td>
+</tr>
+<tr>
+<td><code>pipeline_leaves(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>List[String]</code></td>
+<td>Nodes that nothing depends on</td>
+</tr>
+<tr>
+<td><code>pipeline_depth(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>Int</code></td>
+<td>Maximum topological depth</td>
+</tr>
+<tr>
+<td><code>pipeline_cycles(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>List[String]</code></td>
+<td>Nodes involved in cycles (empty = valid)</td>
+</tr>
+<tr>
+<td><code>pipeline_validate(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>List[String]</code></td>
+<td>Validation errors (empty = valid); checks missing deps + cycles</td>
+</tr>
+<tr>
+<td><code>pipeline_assert(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>Pipeline</code></td>
+<td>Throws first error, or returns pipeline unchanged</td>
+</tr>
+<tr>
+<td><code>pipeline_print(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>NA</code></td>
+<td>Pretty-print node table to stdout</td>
+</tr>
+<tr>
+<td><code>pipeline_to_dot(p)</code></td>
+<td><code>Pipeline</code> | <code>MetaPipeline</code></td>
+<td><code>String</code></td>
+<td>Graphviz DOT representation</td>
+</tr>
+<tr>
+<td><code>pipeline_to_mermaid(p)</code></td>
+<td><code>Pipeline</code> | <code>MetaPipeline</code></td>
+<td><code>String</code></td>
+<td>Mermaid flowchart diagram</td>
+</tr>
+<tr>
+<td><code>trace_nodes(p, name?)</code></td>
+<td><code>Pipeline</code>, optional <code>String</code></td>
+<td><code>NA</code></td>
+<td>Visual dependency tree printer</td>
+</tr>
+<tr>
+<td><code>pipeline_cache_status(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>DataFrame</code></td>
+<td>Nix store cache hits per node (cached, store_path)</td>
+</tr>
+<tr>
+<td><code>pipeline_to_drv(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>Dict</code></td>
+<td>Node → derivation (.drv) path mapping</td>
+</tr>
+<tr>
+<td><code>pipeline_to_store(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>Dict</code></td>
+<td>Node → Nix store output path mapping</td>
+</tr>
+</tbody>
+</table>
+<h3 id="node-level-filtering-diffs">Node-Level Filtering &amp;
+Diffs</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Parameters</th>
+<th>Returns</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>select_node(p, ...)</code></td>
+<td><code>Pipeline</code>, <code>Symbol</code>…</td>
+<td><code>DataFrame</code></td>
+<td>Column projection from <code>pipeline_to_frame</code></td>
+</tr>
+<tr>
+<td><code>which_nodes(p, predicate)</code></td>
+<td><code>Pipeline</code>, <code>Function</code> (NSE)</td>
+<td><code>List</code></td>
+<td>Node records from <code>read_pipeline(p).nodes</code> matching
+predicate</td>
+</tr>
+<tr>
+<td><code>errored_nodes(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>List</code></td>
+<td>Convenience wrapper: nodes with non-NA
+<code>diagnostics.error</code></td>
+</tr>
+<tr>
+<td><code>node_diff(a, b, log_a?, log_b?)</code></td>
+<td><code>ComputedNode</code> ×2, optional
+<code>String</code>/<code>Int</code></td>
+<td><code>VDict</code></td>
+<td>Compare node artifacts across builds</td>
+</tr>
+<tr>
+<td><code>pipeline_diff(a, b)</code></td>
+<td><code>Pipeline</code> ×2</td>
+<td><code>Dict</code></td>
+<td>Structural diff between two pipeline DAGs</td>
+</tr>
+</tbody>
+</table>
+<h3 id="export-import-gc">Export / Import / GC</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Parameters</th>
+<th>Returns</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pipeline_copy(node?, target_dir?)</code></td>
+<td>optional <code>String</code>, <code>String</code></td>
+<td><code>String</code></td>
+<td>Copy artifacts from Nix store to local directory</td>
+</tr>
+<tr>
+<td><code>export_artifacts(p, archive)</code></td>
+<td><code>Pipeline</code>, <code>String</code></td>
+<td><code>String</code></td>
+<td>Export cached artifacts to portable archive</td>
+</tr>
+<tr>
+<td><code>import_artifacts(target_or_archive, archive?)</code></td>
+<td><code>Pipeline</code> or <code>String</code>, optional
+<code>String</code></td>
+<td><code>String</code></td>
+<td>Import previously exported archive</td>
+</tr>
+<tr>
+<td><code>inspect_artifacts(archive)</code></td>
+<td><code>String</code></td>
+<td><code>DataFrame</code></td>
+<td>Preview archive contents without importing</td>
+</tr>
+<tr>
+<td><code>pipeline_gc(p, dry_run?)</code></td>
+<td><code>Pipeline</code>, optional <code>Bool</code></td>
+<td><code>DataFrame</code></td>
+<td>GC pipeline store paths (dry_run=true previews)</td>
+</tr>
+<tr>
+<td><code>t_gc()</code></td>
+<td>—</td>
+<td><code>String</code></td>
+<td>Global Nix garbage collection</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="explicit-node-configuration">4. Explicit Node Configuration</h2>
 <p>In addition to bare assignments, you can explicitly configure nodes
 using the <code>node()</code> function. This lets you define the
 execution environment (like the <code>runtime</code>) and custom
@@ -227,7 +726,7 @@ and <code>sh</code>, see
 <code>tests/pipeline/polyglot_shell_pipeline.t</code> and
 <code>.github/workflows/polyglot-shell-pipeline.yml</code>.</p>
 <hr />
-<h2 id="cross-language-integration">3. Cross-Language Integration</h2>
+<h2 id="cross-language-integration">4. Cross-Language Integration</h2>
 <p>T is designed to orchestrate code across multiple languages. The
 pipeline runner manages the serialization and deserialization of data
 between R, Python, and T using a first-class serializer system. For a
@@ -305,7 +804,7 @@ to make predictions without leaving the T runtime:</p>
 pipeline runner to use T’s native PMML parser to convert the R model
 into a T model object.</p>
 <hr />
-<h2 id="automatic-dependency-resolution">4. Automatic Dependency
+<h2 id="automatic-dependency-resolution">5. Automatic Dependency
 Resolution</h2>
 <p>Nodes can be declared in <strong>any order</strong>. T automatically
 resolves dependencies:</p>
@@ -319,7 +818,7 @@ p.result  -- 10</code></pre>
 so <code>x</code> and <code>y</code> are computed before
 <code>result</code> regardless of declaration order.</p>
 <hr />
-<h2 id="chained-dependencies">5. Chained Dependencies</h2>
+<h2 id="chained-dependencies">6. Chained Dependencies</h2>
 <p>Nodes can depend on other computed nodes, forming chains:</p>
 <pre class="t"><code>p = pipeline {
   a = 1
@@ -329,7 +828,7 @@ so <code>x</code> and <code>y</code> are computed before
 }
 p.d  -- 4</code></pre>
 <hr />
-<h2 id="pipelines-with-functions">6. Pipelines with Functions</h2>
+<h2 id="pipelines-with-functions">7. Pipelines with Functions</h2>
 <p>Nodes can use any T function, including standard library
 functions:</p>
 <pre class="t"><code>p = pipeline {
@@ -340,7 +839,7 @@ functions:</p>
 p.total  -- 15
 p.count  -- 5</code></pre>
 <hr />
-<h2 id="pipelines-with-pipe-operators">7. Pipelines with Pipe
+<h2 id="pipelines-with-pipe-operators">8. Pipelines with Pipe
 Operators</h2>
 <p>The pipe operator <code>|&gt;</code> works naturally inside
 pipelines:</p>
@@ -371,7 +870,7 @@ short-circuit at <code>|&gt;</code> and never reach
 <code>recovery</code>. The maybe-pipe lets you intercept errors and
 provide fallback values.</p>
 <hr />
-<h2 id="data-pipelines">8. Data Pipelines</h2>
+<h2 id="data-pipelines">9. Data Pipelines</h2>
 <p>Pipelines are most powerful for data analysis workflows. Here’s a
 complete example loading, transforming, and summarizing data:</p>
 <pre class="t"><code>p = pipeline {
@@ -394,7 +893,11 @@ p.names  -- list of column names</code></pre>
 
 p.summary  -- DataFrame with regional totals</code></pre>
 <hr />
-<h2 id="pipeline-introspection">9. Pipeline Introspection</h2>
+<h2 id="pipeline-introspection">10. Pipeline Introspection</h2>
+<blockquote>
+<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+Reading Node Artifacts</a></p>
+</blockquote>
 <p>T provides functions to inspect pipeline structure:</p>
 <h3 id="list-all-nodes">List all nodes</h3>
 <pre class="t"><code>p = pipeline { x = 10; y = 20; total = x + y }
@@ -406,21 +909,21 @@ pipeline_nodes(p)  -- [&quot;x&quot;, &quot;y&quot;, &quot;total&quot;]</code></
 name</h3>
 <pre class="t"><code>pipeline_node(p, &quot;total&quot;)  -- 30</code></pre>
 <hr />
-<h2 id="re-running-pipelines">10. Re-running Pipelines</h2>
+<h2 id="re-running-pipelines">11. Re-running Pipelines</h2>
 <p>Use <code>pipeline_run()</code> to re-execute a pipeline:</p>
 <pre class="t"><code>p2 = pipeline_run(p)
 p2.total  -- 30 (re-computed)</code></pre>
 <p>Re-running produces the same results — T pipelines are
 deterministic.</p>
 <hr />
-<h2 id="deterministic-execution">11. Deterministic Execution</h2>
+<h2 id="deterministic-execution">12. Deterministic Execution</h2>
 <p>Two pipelines with the same definitions always produce the same
 results:</p>
 <pre class="t"><code>p1 = pipeline { a = 5; b = a * 2; c = b + 1 }
 p2 = pipeline { a = 5; b = a * 2; c = b + 1 }
 p1.c == p2.c  -- true</code></pre>
 <hr />
-<h2 id="error-handling-resilience">12. Error Handling &amp;
+<h2 id="error-handling-resilience">13. Error Handling &amp;
 Resilience</h2>
 <h3 id="errors-are-values">Errors are Values</h3>
 <p>In T, errors are <strong>first-class values</strong>. By default,
@@ -439,8 +942,8 @@ nodes succeeded and which failed.</p>
 <p>If you prefer the usual, common behaviour where evaluation stops
 immediately at the first error, you can use the <code>--failfast</code>
 flag:</p>
-<div class="sourceCode" id="cb21"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
 <p>In your T scripts, you can also opt-in to this behavior via
 <code>t_make()</code>:</p>
 <pre class="t"><code>t_make(failfast = true)</code></pre>
@@ -458,7 +961,11 @@ time, before any nodes are executed:</p>
 p.nonexistent
 -- Error(KeyError: &quot;node &#39;nonexistent&#39; not found in Pipeline&quot;)</code></pre>
 <hr />
-<h2 id="materializing-pipelines">13. Materializing Pipelines</h2>
+<h2 id="materializing-pipelines">14. Materializing Pipelines</h2>
+<blockquote>
+<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+Reading Node Artifacts</a></p>
+</blockquote>
 <p>Defining a pipeline with <code>pipeline { ... }</code> evaluates
 nodes in-memory. To <strong>materialize</strong> them as reproducible
 Nix artifacts (potentially using R or Python dependencies you’ve defined
@@ -495,7 +1002,7 @@ values:</p>
 <p>These functions look up the node in the <strong>latest build
 log</strong> and deserialize the artifact.</p>
 <hr />
-<h2 id="orchestrating-with-populate_pipeline">14. Orchestrating with
+<h2 id="orchestrating-with-populate_pipeline">15. Orchestrating with
 populate_pipeline()</h2>
 <p>For more control over the build process, T provides
 <code>populate_pipeline()</code>. This function prepares the pipeline
@@ -523,7 +1030,11 @@ dependency graph of your pipeline.</li>
 previous successful builds.</li>
 </ul>
 <hr />
-<h2 id="build-logs-and-time-travel">15. Build Logs and Time Travel</h2>
+<h2 id="build-logs-and-time-travel">16. Build Logs and Time Travel</h2>
+<blockquote>
+<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+Build Logs &amp; History</a></p>
+</blockquote>
 <p>T keeps a history of your builds in <code>_pipeline/</code>. This
 enables <strong>Time Travel</strong> — the ability to read artifacts
 from specific past versions of your pipeline.</p>
@@ -593,14 +1104,14 @@ pipeline as a DataFrame (defaults to the latest):</p>
 inspect_log(which_log = &quot;20260221_143022&quot;)</code></pre>
 <h3 id="reading-from-a-specific-build">Reading from a specific
 build</h3>
-<p>Pass the <code>which_log</code> argument to <code>read_node()</code>
-to specify which build to read from. You can pass a regex pattern or a
-specific filename:</p>
-<pre class="t"><code>-- Read the latest version (default)
+<p>Use <code>read_past_node(p.node_name, which_log = "...")</code> to
+read from a specific historical build without the pipeline being in
+scope. Pass a regex pattern or filename to <code>which_log</code>:</p>
+<pre class="t"><code>-- Read the latest version (pipeline must be in scope)
 val = read_node(p.result)
 
--- Read from a specific historical build
-val_old = read_node(p.result, which_log = &quot;20260221_143022&quot;)</code></pre>
+-- Read from a specific historical build (works cold)
+val_old = read_past_node(p.result, which_log = &quot;20260221_143022&quot;)</code></pre>
 <p>This ensures that even as you update your code and data, you can
 always recover and compare results from previous runs.</p>
 <h3 id="temporal-introspection-history-and-diffs">Temporal
@@ -733,7 +1244,7 @@ diff_df = node_diff(p3.data, p2.data, key = [$id])
 -- 2. Write the detailed unified diff string to a file on disk
 write_text(&quot;dataframe_changes.diff&quot;, diff_df.detailed_diff)</code></pre>
 <hr />
-<h2 id="execution-modes">16. Execution Modes</h2>
+<h2 id="execution-modes">17. Execution Modes</h2>
 <p>T enforces a clear separation between interactive and non-interactive
 execution:</p>
 <h3 id="non-interactive-t-run">Non-interactive (<code>t run</code>)</h3>
@@ -743,17 +1254,17 @@ This ensures that non-interactive execution always produces reproducible
 Nix artifacts. By default, <code>t run</code> operates in
 <strong>resilient mode</strong>, continuing past errors to provide a
 full diagnostic summary. Use <code>--failfast</code> to change this.</p>
-<div class="sourceCode" id="cb41"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
-<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
-<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
-<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
-<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
-<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
-<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
-<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
+<div class="sourceCode" id="cb59"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
+<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
+<span id="cb59-3"><a href="#cb59-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb59-4"><a href="#cb59-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
+<span id="cb59-5"><a href="#cb59-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
+<span id="cb59-6"><a href="#cb59-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb59-7"><a href="#cb59-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
+<span id="cb59-8"><a href="#cb59-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
+<span id="cb59-9"><a href="#cb59-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
+<span id="cb59-10"><a href="#cb59-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
 <p>A valid pipeline script looks like:</p>
 <pre class="t"><code>-- my_pipeline.t
 p = pipeline {
@@ -765,16 +1276,16 @@ populate_pipeline(p, build = true)</code></pre>
 <h3 id="interactive-repl">Interactive (REPL)</h3>
 <p>The REPL is <strong>unrestricted</strong> — you can run any T code
 line by line, whether or not it involves pipelines:</p>
-<div class="sourceCode" id="cb43"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
-<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
-<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
-<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
-<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
-<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
-<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
+<div class="sourceCode" id="cb61"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb61-2"><a href="#cb61-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
+<span id="cb61-3"><a href="#cb61-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
+<span id="cb61-4"><a href="#cb61-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
+<span id="cb61-5"><a href="#cb61-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
+<span id="cb61-6"><a href="#cb61-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
+<span id="cb61-7"><a href="#cb61-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
 <hr />
-<h2 id="using-imports-in-pipelines">17. Using Imports in Pipelines</h2>
+<h2 id="using-imports-in-pipelines">18. Using Imports in Pipelines</h2>
 <p>When a pipeline is built with <code>build_pipeline()</code>, each
 node runs inside a <strong>Nix sandbox</strong> — an isolated build
 environment. Import statements from your script are
@@ -828,7 +1339,7 @@ serialize(result, &quot;$out/artifact.tobj&quot;)</code></pre>
 </tbody>
 </table>
 <hr />
-<h2 id="using-explain-with-pipelines">18. Using explain() with
+<h2 id="using-explain-with-pipelines">19. Using explain() with
 Pipelines</h2>
 <p>The <code>explain()</code> function provides structured metadata
 about pipelines:</p>
@@ -842,7 +1353,7 @@ e = explain(p)
 e.kind        -- &quot;pipeline&quot;
 e.node_count  -- 3</code></pre>
 <hr />
-<h2 id="skipping-nodes">19. Skipping Nodes</h2>
+<h2 id="skipping-nodes">20. Skipping Nodes</h2>
 <p>You can explicitly skip a node (and by extension, all nodes that
 depend on it) by passing the <code>noop = true</code> argument to the
 <code>node()</code> function.</p>
@@ -863,7 +1374,11 @@ populate_pipeline(p, build = true)</code></pre>
 <p>In a Nix sandbox context, <code>noop</code> generates a lightweight
 stub instead of a real build derivation.</p>
 <hr />
-<h2 id="node-metadata">20. Node Metadata</h2>
+<h2 id="node-metadata">21. Node Metadata</h2>
+<blockquote>
+<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+Pipeline DAG Structure</a></p>
+</blockquote>
 <p>Every node in a pipeline carries structured metadata that you can
 query and manipulate. The <code>pipeline_to_frame()</code> function
 converts this metadata into a DataFrame with one row per node.</p>
@@ -927,11 +1442,6 @@ pipeline_to_frame(p)
 <p><code>pipeline_to_frame</code> is the foundation for inspection: you
 can use T’s standard <code>filter</code>, <code>select</code>, and
 <code>arrange</code> verbs on the resulting DataFrame.</p>
-<h3 id="pipeline_summary"><code>pipeline_summary</code></h3>
-<p><code>pipeline_summary(p)</code> is a convenience alias for
-<code>pipeline_to_frame(p)</code>:</p>
-<pre class="t"><code>pipeline_summary(p)
--- same output as pipeline_to_frame(p)</code></pre>
 <h3 id="select_node"><code>select_node</code></h3>
 <p><code>select_node</code> returns a DataFrame with only the columns
 you request, using NSE <code>$field</code> references:</p>
@@ -950,7 +1460,7 @@ p |&gt; select_node($name, $runtime, $depth)
 <code>$noop</code>, <code>$deps</code>, <code>$depth</code>,
 <code>$command_type</code>.</p>
 <hr />
-<h2 id="environment-variables">21. Environment Variables</h2>
+<h2 id="environment-variables">22. Environment Variables</h2>
 <p>Pipeline nodes can pass environment variables into the Nix build
 sandbox via the <code>env_vars</code> named argument on
 <code>node()</code>, <code>py()</code>/<code>pyn()</code>, and
@@ -1023,7 +1533,7 @@ strings.</p>
 methods (e.g., <code>Sys.getenv()</code> in R or <code>os.environ</code>
 in Python) during the Nix build step.</p>
 <hr />
-<h2 id="node-level-operations-_node-family">22. Node-Level Operations
+<h2 id="node-level-operations-_node-family">23. Node-Level Operations
 (<code>_node</code> family)</h2>
 <p>T provides a set of colcraft-style verbs for operating on pipeline
 nodes. These mirror the DataFrame API, using NSE <code>$field</code>
@@ -1107,7 +1617,7 @@ pipeline_deps(p2)    -- {`alpha`: [], `b`: [&quot;alpha&quot;]}</code></pre>
 affects only display/serialization order — the DAG determines execution
 order.</p>
 <hr />
-<h2 id="pipeline-manipulation-for-data-scientists">23. Pipeline
+<h2 id="pipeline-manipulation-for-data-scientists">24. Pipeline
 Manipulation for Data Scientists</h2>
 <p>Beyond basic execution, T allows you to treat a Pipeline as a
 queryable and mutable data structure. This is powerful for
@@ -1164,7 +1674,7 @@ p |&gt; arrange_node($name, &quot;desc&quot;) |&gt; pipeline_nodes -- [&quot;z&q
 p = pipeline { a = 1; b = a + 1; c = b + 1 }
 p |&gt; arrange_node($depth) |&gt; pipeline_nodes      -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre>
 <hr />
-<h2 id="set-operations">23. Set Operations</h2>
+<h2 id="set-operations">24. Set Operations</h2>
 <p>Pipelines can be treated as named sets of nodes. T provides four set
 operations that combine or subtract pipelines.</p>
 <blockquote>
@@ -1198,7 +1708,7 @@ pipeline_nodes(p_full)  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;fit&quot;,
 p_model2 = p_model |&gt; rename_node(&quot;clean&quot;, &quot;clean_model&quot;)
 p_etl |&gt; union(p_model2)</code></pre>
 <hr />
-<h2 id="diagnostic-suppression">24. Diagnostic Suppression</h2>
+<h2 id="diagnostic-suppression">25. Diagnostic Suppression</h2>
 <p>Nodes that produce large numbers of non-terminal warnings (like those
 from <code>filter()</code> or complex modeling functions) can be
 silenced using the <code>suppress_warnings</code> combinator. This
@@ -1219,10 +1729,9 @@ summary reflects this state:</p>
   ○  filtered — warnings suppressed by caller (1 NAs ignored)</code></pre>
 <p>The <code>○</code> symbol indicates a suppressed node. You can still
 access the underlying warning objects programmatically via
-<code>read_node()</code> or <code>read_pipeline()</code>.</p>
-<pre class="t"><code>res = read_node(p.filtered)
-res.diagnostics.warnings_suppressed  -- true
-res.diagnostics.warnings            -- list of captured warnings</code></pre>
+<code>warning_msg()</code> or <code>read_pipeline()</code>.</p>
+<pre class="t"><code>warning_msg(p.filtered)               -- Returns the warning message string
+read_pipeline(p).diagnostics.summary  -- Summary counts</code></pre>
 <h3 id="difference"><code>difference</code></h3>
 <p>Removes from the first pipeline all nodes whose names appear in the
 second pipeline. Nodes in the second pipeline that don’t exist in the
@@ -1256,7 +1765,7 @@ p_overrides = pipeline {
 p_updated = p_prod |&gt; patch(p_overrides)
 pipeline_nodes(p_updated)  -- [&quot;load&quot;, &quot;model&quot;] — &quot;extra&quot; was not added</code></pre>
 <hr />
-<h2 id="dag-aware-transformations">24. DAG-Aware Transformations</h2>
+<h2 id="dag-aware-transformations">25. DAG-Aware Transformations</h2>
 <p>These operations are structurally aware of the pipeline’s dependency
 graph and are used to replace node implementations, reroute edges, and
 extract subgraphs.</p>
@@ -1333,7 +1842,7 @@ ancestors and descendants.</p>
 -- Everything connected to b (upstream and downstream)
 p |&gt; subgraph(&quot;b&quot;) |&gt; pipeline_nodes  -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;] — d is disconnected</code></pre>
 <hr />
-<h2 id="pipeline-composition">25. Pipeline Composition</h2>
+<h2 id="pipeline-composition">26. Pipeline Composition</h2>
 <p>These higher-level operators combine two complete, separately-defined
 pipelines into one.</p>
 <h3 id="chain"><code>chain</code></h3>
@@ -1357,6 +1866,57 @@ pipeline_nodes(p_full)  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;fit&quot;,
 <p><code>chain</code> is stricter than <code>union</code>: it requires
 an <em>intent</em> to connect the pipelines, catching accidental merges
 where no wiring was meant.</p>
+<h3 id="meta-pipelines-pipeline_of">Meta-Pipelines
+(<code>pipeline_of</code>)</h3>
+<p>For larger projects, you can compose multiple pipelines into a
+higher-order DAG using the <code>pipeline_of</code> block. T-Lang
+natively understands and automatically flattens meta-pipelines at
+execution time, meaning you can pass them directly to built-in commands
+like <code>populate_pipeline()</code>, <code>read_node()</code>,
+<code>inspect_node()</code>, or <code>inspect_pipeline()</code>.</p>
+<h4 id="pipeline_of-block"><code>pipeline_of</code> block</h4>
+<p>Defines a group of sub-pipelines. The nodes within the block bind
+identifiers to pipeline values.</p>
+<pre class="t"><code>p_etl = pipeline {
+  raw   = read_csv(&quot;data.csv&quot;)
+  clean = raw |&gt; filter($value &gt; 0)
+}
+
+p_stats = pipeline {
+  summary = etl.clean |&gt; mean
+}
+
+-- Compose them into a higher-order DAG
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+}</code></pre>
+<h4 id="automatic-dependency-inference">Automatic Dependency
+Inference</h4>
+<p>T-Lang automatically analyzes cross-pipeline references in node
+expressions (such as referencing <code>etl.clean</code> in the
+<code>stats</code> pipeline) to infer the execution order between
+sub-pipelines. The flattening engine automatically wires the root nodes
+of a dependent sub-pipeline to depend on the terminal nodes of the
+pipeline it references.</p>
+<h4 id="native-execution-namespacing">Native Execution &amp;
+Namespacing</h4>
+<p>When a meta-pipeline is populated, queried, or inspected, T-Lang
+automatically flattens it internally. Node names are automatically
+namespaced (e.g. <code>etl.raw</code>, <code>etl.clean</code>,
+<code>stats.summary</code>) to prevent namespace collisions, and all
+internal variable references are rewritten accordingly.</p>
+<pre class="t"><code>pipeline_nodes(meta)
+-- [&quot;etl.raw&quot;, &quot;etl.clean&quot;, &quot;stats.summary&quot;]
+
+pipeline_deps(meta)
+-- {`etl.raw`: [], `etl.clean`: [&quot;etl.raw&quot;], `stats.summary`: [&quot;etl.clean&quot;]}
+
+-- You can build the entire meta-pipeline directly:
+populate_pipeline(meta, build = true)
+
+-- You can read individual nodes using nested dot notation:
+res = read_node(meta.stats.summary)</code></pre>
 <h3 id="cross-pipeline-dependency-tracking-t-vs.-rawcode">Cross-Pipeline
 Dependency Tracking: T vs. RawCode</h3>
 <p>T’s dependency tracking works differently depending on the node’s
@@ -1428,8 +1988,28 @@ allow <code>chain()</code> to wire the pipelines together. Note that
 R/Python code inside the chained node should use the <strong>alias
 name</strong> (<code>data_input</code>) as the variable, not the
 original (<code>raw_data</code>).</p>
+<h3 id="parameterizing-pipelines-templates-via-lambdas">Parameterizing
+Pipelines (Templates via Lambdas)</h3>
+<p>Rather than introducing new complex constructs, T-Lang encourages
+parameterizing pipelines using standard lambdas. Since lambdas return
+values and pipelines are first-class values in T-Lang, you can define a
+lambda that takes configuration parameters and returns a pipeline.</p>
+<h4 id="example">Example</h4>
+<p>Here is a template lambda that takes a multiplier parameter and
+returns a pipeline with two nodes:</p>
+<pre class="t"><code>make_pipeline = \(multiplier: Int -&gt; Pipeline) pipeline {
+  raw      = [1, 2, 3]
+  computed = raw * multiplier
+}
+
+p1 = make_pipeline(10)
+p2 = make_pipeline(20)</code></pre>
+<p>At execution time, outer variables (like <code>multiplier</code>) are
+substituted with their concrete values (like <code>10</code> or
+<code>20</code>) during compilation, resulting in fully independent
+Nix-reproducible pipelines.</p>
 <hr />
-<h2 id="parallel-execution">26. Parallel Execution</h2>
+<h2 id="parallel-execution">27. Parallel Execution</h2>
 <p>Combines two pipelines that are intended to run independently. No
 dependency wiring is performed. Errors on name collision.</p>
 <pre class="t"><code>p_r_model = pipeline {
@@ -1450,7 +2030,11 @@ p_py_model = pipeline {
 p_both = parallel(p_r_model, p_py_model)
 pipeline_nodes(p_both)  -- [&quot;r_fit&quot;, &quot;py_fit&quot;]</code></pre>
 <hr />
-<h2 id="extended-inspection-api">27. Extended Inspection API</h2>
+<h2 id="extended-inspection-api">28. Extended Inspection API</h2>
+<blockquote>
+<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+Pipeline DAG Structure</a></p>
+</blockquote>
 <p>Beyond <code>pipeline_nodes</code> and <code>pipeline_deps</code>, T
 provides a complete structural inspection surface for pipelines.</p>
 <h3 id="boundary-nodes">Boundary Nodes</h3>
@@ -1492,13 +2076,13 @@ pipeline_print(p)
 --   a                     runtime=T         depth=0  noop=false  deps=[]
 --   b                     runtime=R         depth=0  noop=false  deps=[]
 --   c                     runtime=T         depth=1  noop=false  deps=[b]</code></pre>
-<h3 id="pipeline_dot"><code>pipeline_dot</code></h3>
+<h3 id="pipeline_to_dot"><code>pipeline_to_dot</code></h3>
 <p>Exports the pipeline as a <a
-href="https://graphviz.org/">Graphviz</a> DOT string for
-visualization:</p>
+href="https://graphviz.org/">Graphviz</a> DOT string for visualization.
+Works for both <code>Pipeline</code> and <code>MetaPipeline</code>:</p>
 <pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
 
-dot = pipeline_dot(p)
+dot = pipeline_to_dot(p)
 print(dot)
 -- digraph pipeline {
 --   rankdir=LR;
@@ -1512,8 +2096,43 @@ print(dot)
 <p>Pipe the output to <code>dot -Tpng</code> or paste it into
 https://dreampuf.github.io/GraphvizOnline/ to render a visual dependency
 graph.</p>
+<h3 id="pipeline_to_mermaid"><code>pipeline_to_mermaid</code></h3>
+<p>Exports the pipeline as a <a
+href="https://mermaid.js.org/">Mermaid</a> flowchart string:</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+mermaid = pipeline_to_mermaid(p)
+print(mermaid)
+-- graph LR
+--   a[&quot;a [T]&quot;];
+--   b[&quot;b [T]&quot;];
+--   c[&quot;c [T]&quot;];
+--   a --&gt; b;
+--   b --&gt; c;</code></pre>
+<p>Render the Mermaid flowchart directly in markdown files or preview
+using the online Mermaid live editor.</p>
+<h4
+id="visualizing-mermaid-graphs-in-the-browser-with-show_plot">Visualizing
+Mermaid Graphs in the Browser with <code>show_plot</code></h4>
+<p>Rather than manually pasting the Mermaid string into an external
+editor, you can reuse <code>show_plot()</code> to visualize Mermaid
+graphs, pipelines, or meta-pipelines directly in your web browser:</p>
+<pre class="t"><code>-- Visualize a pipeline directly:
+show_plot(p)
+
+-- Or visualize a raw Mermaid string:
+show_plot(&quot;graph TD\n  Start --&gt; Stop&quot;)</code></pre>
+<p>When you pass a pipeline, meta-pipeline, or a string starting with a
+Mermaid keyword (like <code>graph</code> or <code>flowchart</code>) to
+<code>show_plot()</code>, T dynamically generates a temporary HTML file
+containing the Mermaid JS engine, renders the graph, and opens it using
+your configured system viewer/browser.</p>
 <hr />
-<h2 id="pipeline-validation">28. Pipeline Validation</h2>
+<h2 id="pipeline-validation">29. Pipeline Validation</h2>
+<blockquote>
+<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+Pipeline DAG Structure</a></p>
+</blockquote>
 <p>By design, T uses <strong>lazy validation</strong>: structural errors
 (missing dependencies, cycles) surface at <code>build_pipeline</code> or
 <code>pipeline_run</code> time, not at operation time. This allows you
@@ -1552,7 +2171,7 @@ safe_pipeline = pipeline { a = 1; b = a + 1 }
 <pre class="t"><code>p_broken |&gt; pipeline_assert
 -- Error(ValueError: &quot;Node `b` depends on `a` which does not exist in the pipeline.&quot;)</code></pre>
 <hr />
-<h2 id="handling-ambiguous-dependencies">29. Handling Ambiguous
+<h2 id="handling-ambiguous-dependencies">30. Handling Ambiguous
 Dependencies</h2>
 <p>T-Lang uses a lexical analyzer to automatically detect dependencies
 between nodes by scanning the code for variable names that match other
@@ -1664,7 +2283,7 @@ p.team_size     -- number of active engineers
 p.avg_salary    -- mean salary
 p.ranked        -- DataFrame sorted by score</code></pre>
 <hr />
-<h2 id="cross-node-artifact-retrieval">39. Cross-Node Artifact
+<h2 id="cross-node-artifact-retrieval">40. Cross-Node Artifact
 Retrieval</h2>
 <p>When nodes are executed within a Nix-managed sandbox (via
 <code>populate_pipeline(p, build = true)</code>), they are isolated from
@@ -1711,7 +2330,7 @@ for <strong>dynamic access</strong> nodes where the target of a
 retrieval is determined at runtime (e.g.,
 <code>target = "A"; get(node_lens(target))</code>).</p>
 <hr />
-<h2 id="nix-native-orchestration-cachix">40. Nix-Native Orchestration
+<h2 id="nix-native-orchestration-cachix">41. Nix-Native Orchestration
 &amp; Cachix</h2>
 <p>To optimize large-scale pipelines and manage remote binary caching,
 T-Lang includes native Nix orchestration features in
@@ -1834,6 +2453,177 @@ build_pipeline(p,
                  cache: &quot;rstats-on-nix&quot;,
                  force: [&quot;c&quot;]
                ])</code></pre>
+<h2 id="meta-pipelines-pipeline-composition">22. Meta-Pipelines &amp;
+Pipeline Composition</h2>
+<p>As your project grows, writing a single monolithic pipeline can
+become difficult to maintain. T supports <strong>Pipeline
+Composition</strong> via <code>pipeline_of</code> blocks, allowing you
+to compose multiple independent sub-pipelines into a higher-order DAG (a
+<strong>meta-pipeline</strong>).</p>
+<h3 id="composing-pipelines-with-pipeline_of">Composing Pipelines with
+<code>pipeline_of</code></h3>
+<p>You can group multiple pipelines into a single meta-pipeline block.
+Node names are automatically namespaced with their sub-pipeline name
+(e.g., <code>etl.raw</code>, <code>stats.summary</code>), and
+dependencies between different sub-pipelines are automatically resolved
+based on the variables they reference.</p>
+<pre class="t"><code>p_etl = pipeline {
+  raw = read_csv(&quot;data.csv&quot;)
+  clean = raw |&gt; filter($value &gt; 0)
+}
+
+p_stats = pipeline {
+  -- Dependencies on nodes in &#39;etl&#39; are automatically detected!
+  summary = etl.clean |&gt; group_by($category) |&gt; summarize(total = sum($value))
+}
+
+-- Compose them into a higher-order DAG
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+}</code></pre>
+<h3 id="automatic-dependency-inference-1">Automatic Dependency
+Inference</h3>
+<p>Unlike other pipeline tools, you do not need to manually specify
+dependencies between sub-pipelines using arrows or ordering arrays. T
+automatically analyzes the dependencies of each node inside the
+sub-pipelines. If a node in <code>stats</code> references a namespaced
+node name like <code>etl.clean</code>, T automatically wires a
+dependency edge from <code>etl.clean</code> to
+<code>stats.summary</code>.</p>
+<h3 id="implicit-flattening">Implicit Flattening</h3>
+<p>You can treat a meta-pipeline exactly like a standard pipeline. Any
+built-in function that expects a pipeline (like
+<code>populate_pipeline</code>, <code>pipeline_nodes</code>, or
+<code>pipeline_deps</code>) will automatically flatten the meta-pipeline
+internally:</p>
+<pre class="t"><code>-- Get all namespaced nodes in the meta-pipeline
+pipeline_nodes(meta)
+-- [&quot;etl.raw&quot;, &quot;etl.clean&quot;, &quot;stats.summary&quot;]
+
+-- Check dependency structure
+pipeline_deps(meta)
+-- {`etl.raw`: [], `etl.clean`: [&quot;etl.raw&quot;], `stats.summary`: [&quot;etl.clean&quot;]}
+
+-- Build the entire composed DAG in Nix
+populate_pipeline(meta, build = true)</code></pre>
+<h3 id="nested-dot-access">Nested Dot Access</h3>
+<p>You can query individual nodes and their computed metadata directly
+on the meta-pipeline using chained dot-access notation. This makes
+namespaced sub-pipelines feel like natural nested objects:</p>
+<pre class="t"><code>-- Access the computed node name of a sub-pipeline node
+meta.stats.summary.name        -- &quot;stats.summary&quot;
+
+-- Retrieve a materialized artifact after building
+read_node(meta.stats.summary)  -- Returns the summarized DataFrame</code></pre>
+<hr />
+<h2 id="granular-artifact-transfer-archive-introspection">27. Granular
+Artifact Transfer &amp; Archive Introspection</h2>
+<p>For teams working on large projects, T supports exporting
+Nix-materialized pipeline cache artifacts into portable archive files
+(<code>.nar</code> format). These archives can be transferred between
+machines, imported without rebuilding, or inspected without
+installing.</p>
+<h3 id="granular-artifact-export">Granular Artifact Export</h3>
+<p>To export cached artifacts, use <code>export_artifacts()</code>. In
+addition to entire pipelines, you can target specific
+sub-structures:</p>
+<pre class="t"><code>p = pipeline {
+  a = shn(command = &quot;echo -n &#39;hello&#39;&quot;, capture = &quot;stdout&quot;)
+  b = a |&gt; \(x) x + &quot; world&quot;
+}
+build_pipeline(p)
+
+-- 1. Export the entire pipeline&#39;s artifacts
+export_artifacts(p, &quot;full_cache.nar&quot;)
+
+-- 2. Granular export: Export a single computed node
+export_artifacts(p.a, &quot;node_a.nar&quot;)
+
+-- 3. Export a list or vector of nodes/pipelines
+export_artifacts([p.a, p.b], &quot;subset.nar&quot;)
+
+-- 4. Export nested structures/dictionaries
+export_artifacts([first: p.a, second: p.b], &quot;dict_subset.nar&quot;)</code></pre>
+<h3 id="variadic-artifact-import">Variadic Artifact Import</h3>
+<p>To restore exported artifacts, use <code>import_artifacts()</code>.
+It is variadic and supports two calling conventions:</p>
+<ol type="1">
+<li><strong>Verification Import (2 arguments)</strong>: Imports the
+archive and verifies that a specific pipeline, node, or value’s paths
+exist in the local store.</li>
+<li><strong>Immediate Store Import (1 argument)</strong>: Unpacks and
+loads the archive directly into the local Nix store without needing a
+target object for verification. This is especially useful for setting up
+an environment prior to loading or parsing a pipeline script.</li>
+</ol>
+<pre class="t"><code>-- Convention 1: Import and verify against a pipeline
+import_artifacts(p, &quot;full_cache.nar&quot;)
+
+-- Convention 2: Load archive directly into the Nix store
+import_artifacts(&quot;full_cache.nar&quot;)</code></pre>
+<h3 id="archive-introspection">Archive Introspection</h3>
+<p>You can inspect the contents of an artifact archive file without
+unpacking it permanently or changing your local store. The
+<code>inspect_artifacts()</code> function imports the archive into a
+temporary, isolated Nix store, extracts metadata for each path, and
+returns a DataFrame.</p>
+<pre class="t"><code>df = inspect_artifacts(&quot;full_cache.nar&quot;)
+
+-- View the details of the archive
+df
+-- DataFrame with columns:
+--   - node: The name of the node (if known)
+--   - store_path: The Nix store path of the artifact
+--   - hash: The SHA-256 hash of the store path
+--   - size_bytes: The size of the unpacked artifact in bytes
+--   - references: Comma-separated basenames of dependency store paths</code></pre>
+<h3 id="cache-aware-dry-runs">Cache-Aware Dry Runs</h3>
+<p>For convenience, you can perform a dry-run check directly using the
+<code>dry_run = true</code> parameter in
+<code>populate_pipeline()</code>. This reports which nodes are already
+in the Nix cache and which ones require rebuilding or downloading:</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Check cache hit/miss status directly
+plan = populate_pipeline(p, dry_run = true)
+print(plan)
+-- Returns a DataFrame with columns: node, action, and path.
+-- &quot;action&quot; will be one of:
+--   - &quot;cached&quot;: path is already built/cached locally
+--   - &quot;build&quot;: path must be rebuilt locally
+--   - &quot;fetch&quot;: path can be retrieved from remote binary substitutes</code></pre>
+<h3 id="programmatic-garbage-collection">Programmatic Garbage
+Collection</h3>
+<p>Over time, your local Nix store can accumulate unused derivations and
+cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix
+artifacts directly:</p>
+<ol type="1">
+<li><strong><code>pipeline_gc(p, dry_run = false)</code></strong>:
+Deletes the store paths of the given pipeline <code>p</code>. By default
+(<code>dry_run = true</code>), it queries what would be deleted and
+returns a DataFrame showing the <code>node</code>,
+<code>store_path</code>, and <code>deleted</code> status. Set
+<code>dry_run = false</code> to perform the actual deletion.</li>
+<li><strong><code>t_gc()</code></strong>: Performs a global Nix store
+garbage collection (<code>nix-store --gc</code>), removing all unused
+derivations and freeing up disk space.</li>
+</ol>
+<pre class="t"><code>p = pipeline {
+  a = 1
+}
+
+-- Preview what would be deleted
+plan = pipeline_gc(p, dry_run = true)
+
+-- Perform the deletion of the pipeline&#39;s nodes
+pipeline_gc(p, dry_run = false)
+
+-- Perform global garbage collection
+t_gc()</code></pre>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you’ve mastered pipelines, learn how to manage reproducible

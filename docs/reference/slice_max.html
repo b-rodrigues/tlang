@@ -36,6 +36,20 @@
 <h1 id="slice_max">slice_max</h1>
 <p>Keep rows with the largest values</p>
 <p>Returns the rows with the highest values in an ordering column.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>df</strong> (<code>DataFrame</code>): The input data
+frame.</p></li>
+<li><p><strong>order_by</strong> (<code>Column</code>): The column to
+order by.</p></li>
+<li><p><strong>n</strong> (<code>Int</code>): = 1 Number of rows to
+return.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A DataFrame with the top n rows by the ordering column.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>slice_max(df, $score)
+slice_max(df, $score, n = 5)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

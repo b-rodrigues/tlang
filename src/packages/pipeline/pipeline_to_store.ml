@@ -35,7 +35,10 @@ let register env =
                  ) p.p_nodes
                in
                VDict store_pairs)
-      | [_] -> Error.type_error "Function `pipeline_to_store` expects a Pipeline as argument."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_to_store` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_to_store" 1 (List.length args)
     ))
     env

@@ -71,6 +71,14 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ["t"; "run"; "--expr"; "1+1"] with
      | Error msg -> contains msg "run --expr"
      | Ok _ -> false);
+  test_message "validate_cli_flags rejects --unsafe with export_artifacts"
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ["t"; "export_artifacts"; "src/pipeline.t"; "cache.nar"] with
+     | Error msg -> contains msg "--unsafe"
+     | Ok _ -> false);
+  test_message "validate_cli_flags treats export_artifacts as a command"
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:false ~failfast_flag:false ["t"; "export_artifacts"; "src/pipeline.t"; "cache.nar"] with
+     | Ok () -> true
+     | Error _ -> false);
   test_message "validate_cli_flags rejects --mode with test"
     (match Cli_args.validate_cli_flags ~mode_flag:true ~unsafe_flag:false ~failfast_flag:false ["t"; "test"] with
      | Error msg -> contains msg "--mode"
@@ -447,6 +455,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
          && contains msg "plotsjl"
          && contains msg "makie"
      | Ok _ -> false);
+  test "show_plot with a mermaid string returns an html path"
+    "path_ext(show_plot('graph TD\n  a --> b'))"
+    {|".html"|};
+  test "show_plot with a pipeline returns an html path"
+    "path_ext(show_plot(pipeline { a = 1 }))"
+    {|".html"|};
   print_newline ();
 
   Printf.printf "Phase 7 — Multi-line: Parser newline tolerance:\n";

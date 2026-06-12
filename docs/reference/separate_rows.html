@@ -37,6 +37,20 @@
 <p>Split delimited values into rows</p>
 <p>Expands delimited string values into multiple rows while repeating
 the remaining columns.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>df</strong> (<code>DataFrame</code>): The input data
+frame.</p></li>
+<li><p><strong>col</strong> (<code>Column</code>): The column to split
+(bare name or $col reference).</p></li>
+<li><p><strong>sep</strong> (<code>String</code>): = “[^A-Za-z0-9]+”
+Regular expression separator pattern.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A DataFrame with the column values split across rows.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>separate_rows(df, $items)
+separate_rows(df, $codes, sep = &quot;,&quot;)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

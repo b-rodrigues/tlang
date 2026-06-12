@@ -6,7 +6,7 @@
 | [abs](abs.html) | Absolute value |
 | [acos](acos.html) | Inverse cosine |
 | [acosh](acosh.html) | Inverse hyperbolic cosine |
-| [add_diagnostics](add_diagnostics.html) | Add Model Diagnostics |
+| [add_diagnostics](add_diagnostics.html) | Augment Data with Model Calculations |
 | [all_of](all_of.html) | Select an explicit set of columns |
 | [am](am.html) | Check whether a time is before noon |
 | [anova](anova.html) | Analysis of Variance (ANOVA) |
@@ -16,8 +16,6 @@
 | [args](args.html) | Get function arguments and their types |
 | [arrange](arrange.html) | Arrange rows |
 | [arrange_node](arrange_node.html) | Arrange Pipeline Nodes |
-| [to_date](to_date.html) | Convert values to Date |
-| [to_datetime](to_datetime.html) | Convert values to Datetime |
 | [asin](asin.html) | Inverse sine |
 | [asinh](asinh.html) | Inverse hyperbolic sine |
 | [assert](assert.html) | Assert Condition |
@@ -28,10 +26,12 @@
 | [atan](atan.html) | Inverse tangent |
 | [atan2](atan2.html) | Two-argument arctangent |
 | [atanh](atanh.html) | Inverse hyperbolic tangent |
-| [add_diagnostics](add_diagnostics.html) | Augment Data with Model Calculations |
 | [bind_cols](bind_cols.html) | Combine DataFrames by columns |
 | [bind_rows](bind_rows.html) | Stack DataFrames by rows |
 | [body](body.html) | Get function body |
+| [build_log](build_log.html) | Retrieve Build Log for Pipeline |
+| [build_log_history](build_log_history.html) | Retrieve Build Log History for Pipeline |
+| [build_log_to_frame](build_log_to_frame.html) | Tabulate Build Log as DataFrame |
 | [build_pipeline](build_pipeline.html) | Build Pipeline Artifacts |
 | [build_pipeline_internal](build_pipeline_internal.html) | Build Pipeline Internally |
 | [case_when](case_when.html) | Vectorized Case-When |
@@ -44,6 +44,7 @@
 | [clean_colnames](clean_colnames.html) | Clean DataFrame Column Names |
 | [coef](coef.html) | Model Coefficients |
 | [col_lens](col_lens.html) | Create a Column Lens |
+| [collect_exceptions](collect_exceptions.html) | Gather Pipeline Node Exceptions and Warnings |
 | [colnames](colnames.html) | Get column names |
 | [compare](compare.html) | Compare Models |
 | [compare_native_vs_pmml_scores](compare_native_vs_pmml_scores.html) | Compare native T scoring vs JPMML scoring |
@@ -66,9 +67,9 @@
 | [cumsum](cumsum.html) | Cumulative Sum |
 | [cut](cut.html) | Discretize numeric vector |
 | [cv](cv.html) | Coefficient of variation |
-| [to_dataframe](to_dataframe.html) | Create a DataFrame |
 | [day](day.html) | Extract the day of month |
 | [days_in_month](days_in_month.html) | Get the number of days in a month |
+| [debug_node](debug_node.html) | Interactively Debug a Pipeline Node |
 | [dense_rank](dense_rank.html) | Dense Rank |
 | [deserialize](deserialize.html) | Deserialize Value |
 | [deviance](deviance.html) | Model Deviance |
@@ -85,9 +86,10 @@
 | [enquos](enquos.html) | Capture variadic argument expressions (non-standard evaluation) |
 | [env](env.html) | Get environment variable |
 | [error](error.html) | Raise Error |
+| [error_chain](error_chain.html) | Chain errors to preserve provenance |
 | [error_code](error_code.html) | Get error code |
 | [error_context](error_context.html) | Get error context |
-| [error_message](error_message.html) | Get error message |
+| [error_msg](error_msg.html) | Get error message |
 | [errored_nodes](errored_nodes.html) | Get Errored Pipeline Nodes |
 | [eval](eval.html) | Evaluate a quoted expression or quosure |
 | [everything](everything.html) | Select every column |
@@ -96,22 +98,20 @@
 | [expand](expand.html) | Create all combinations of values |
 | [explain](explain.html) | Explain Value |
 | [explain_json](explain_json.html) | Explain Value as JSON |
-| [expr](expr.html) | Capture an expression |
-| [exprs](exprs.html) |  |
-| [to_factor](to_factor.html) | Create to_factor values |
-| [fct_c](fct_c.html) | Concatenate to_factor vectors |
+| [export_artifacts](export_artifacts.html) | Export Pipeline Artifacts |
+| [fct_c](fct_c.html) | Concatenate factor vectors |
 | [fct_collapse](fct_collapse.html) | Collapse multiple levels |
-| [fct_drop](fct_drop.html) | Drop unused to_factor levels |
-| [fct_expand](fct_expand.html) | Add explicit to_factor levels |
-| [fct_infreq](fct_infreq.html) | Order to_factor levels by frequency |
-| [fct_lump_min](fct_lump_min.html) | Lump to_factor levels below a minimum count |
-| [fct_lump_n](fct_lump_n.html) | Keep the most frequent to_factor levels |
-| [fct_lump_prop](fct_lump_prop.html) | Lump to_factor levels below a minimum proportion |
+| [fct_drop](fct_drop.html) | Drop unused factor levels |
+| [fct_expand](fct_expand.html) | Add explicit factor levels |
+| [fct_infreq](fct_infreq.html) | Order factor levels by frequency |
+| [fct_lump_min](fct_lump_min.html) | Lump factor levels below a minimum count |
+| [fct_lump_n](fct_lump_n.html) | Keep the most frequent factor levels |
+| [fct_lump_prop](fct_lump_prop.html) | Lump factor levels below a minimum proportion |
 | [fct_other](fct_other.html) | Replace unlisted levels with Other |
-| [fct_recode](fct_recode.html) | Rename to_factor levels |
+| [fct_recode](fct_recode.html) | Rename factor levels |
 | [fct_relevel](fct_relevel.html) | Move selected levels to the front |
-| [fct_reorder](fct_reorder.html) | Order to_factor levels by another vector |
-| [fct_rev](fct_rev.html) | Reverse to_factor levels |
+| [fct_reorder](fct_reorder.html) | Order factor levels by another vector |
+| [fct_rev](fct_rev.html) | Reverse factor levels |
 | [file_exists](file_exists.html) | Check if file exists |
 | [fill](fill.html) | Fill missing values |
 | [filter](filter.html) | Filter rows |
@@ -137,11 +137,13 @@
 | [identical](identical.html) | Deep Equality Check |
 | [idx_lens](idx_lens.html) | Index Lens |
 | [ifelse](ifelse.html) | Vectorized If-Else |
+| [import_artifacts](import_artifacts.html) | Import Pipeline Artifacts |
 | [index_of](index_of.html) | Find index of substring |
 | [inner_join](inner_join.html) | Join matching rows |
+| [inspect_artifacts](inspect_artifacts.html) | Inspect Artifact Archive |
+| [inspect_log](inspect_log.html) | Inspect Pipeline Logs (Dynamic) |
 | [inspect_node](inspect_node.html) | Inspect Pipeline Node Metadata |
-| [inspect_log](inspect_log.html) | Inspect Pipeline Build Logs |
-| [inspect_pipeline](inspect_pipeline.html) | Static Pipeline DAG Schema Inspection |
+| [inspect_pipeline](inspect_pipeline.html) | Inspect Pipeline Schema (Static) |
 | [intent_fields](intent_fields.html) | Get All Intent Fields |
 | [intent_get](intent_get.html) | Get Intent Field |
 | [intersect](intersect.html) | Keep shared pipeline nodes |
@@ -159,7 +161,6 @@
 | [is_numeric](is_numeric.html) | Check for numeric columns |
 | [isoweek](isoweek.html) | Extract the ISO week number |
 | [isoyear](isoyear.html) | Extract the ISO week-based year |
-
 | [jln](jln.html) | Configure a Julia Pipeline Node |
 | [kron](kron.html) | Kronecker product |
 | [kurtosis](kurtosis.html) | Excess kurtosis |
@@ -169,7 +170,7 @@
 | [left_join](left_join.html) | Join rows from the left table |
 | [length](length.html) | Get length |
 | [lens](lens.html) | Lens Library |
-| [levels](levels.html) | Get to_factor levels |
+| [levels](levels.html) | Get factor levels |
 | [list_files](list_files.html) | List files in directory |
 | [list_logs](list_logs.html) | List Pipeline Logs |
 | [lm](lm.html) | Linear Model |
@@ -184,6 +185,7 @@
 | [max](max.html) | Maximum value |
 | [mean](mean.html) | Compute arithmetic mean of numeric values |
 | [median](median.html) | Median |
+| [meta_flatten](meta_flatten.html) | Flatten MetaPipeline into Standard Pipeline |
 | [min](min.html) | Minimum value |
 | [min_rank](min_rank.html) | Minimum Rank |
 | [minute](minute.html) | Extract the minute |
@@ -206,9 +208,9 @@
 | [nesting](nesting.html) | Helper to find combinations present in data |
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
+| [node_diff](node_diff.html) | Compare Node Outputs Across Builds |
 | [node_lens](node_lens.html) | Pipeline Node Lens |
 | [node_meta_lens](node_meta_lens.html) | Pipeline Metadata Lens |
-| [node_diff](node_diff.html) | Compare Node Outputs Across Builds |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
@@ -232,21 +234,25 @@
 | [percent_rank](percent_rank.html) | Percent Rank |
 | [pf](pf.html) | F distribution CDF |
 | [pipeline_assert](pipeline_assert.html) | Assert Pipeline Validity |
+| [pipeline_cache_status](pipeline_cache_status.html) | Check Pipeline Cache Status |
 | [pipeline_copy](pipeline_copy.html) | Copy Pipeline Node Artifacts to Local Directory |
 | [pipeline_cycles](pipeline_cycles.html) | Detect Pipeline Cycles |
 | [pipeline_deps](pipeline_deps.html) | List Node Dependencies |
 | [pipeline_depth](pipeline_depth.html) | Maximum Topological Depth |
-| [pipeline_diff](pipeline_diff.html) | Compare Two Pipeline Structures |
-| [pipeline_dot](pipeline_dot.html) | Export Pipeline as DOT Graph |
+| [pipeline_diff](pipeline_diff.html) | Compare Pipeline Structures |
 | [pipeline_edges](pipeline_edges.html) | Pipeline Dependency Edges |
+| [pipeline_gc](pipeline_gc.html) | Garbage Collect Pipeline Nodes |
 | [pipeline_leaves](pipeline_leaves.html) | Pipeline Leaf Nodes |
 | [pipeline_node](pipeline_node.html) | Get Pipeline Node |
 | [pipeline_nodes](pipeline_nodes.html) | List Pipeline Nodes |
 | [pipeline_print](pipeline_print.html) | Pretty-Print a Pipeline |
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |
 | [pipeline_run](pipeline_run.html) | Run Pipeline |
-| [pipeline_summary](pipeline_summary.html) | Pipeline Summary |
+| [pipeline_to_dot](pipeline_to_dot.html) | Export Pipeline/MetaPipeline as DOT Graph |
+| [pipeline_to_drv](pipeline_to_drv.html) | Introspect Node Derivation Paths |
 | [pipeline_to_frame](pipeline_to_frame.html) | Convert Pipeline to DataFrame |
+| [pipeline_to_mermaid](pipeline_to_mermaid.html) | Export Pipeline/MetaPipeline as Mermaid Graph |
+| [pipeline_to_store](pipeline_to_store.html) | Introspect Node Store Paths |
 | [pipeline_validate](pipeline_validate.html) | Validate a Pipeline |
 | [pivot_longer](pivot_longer.html) | Pivot longer |
 | [pivot_wider](pivot_wider.html) | Pivot wider |
@@ -273,6 +279,7 @@
 | [read_file](read_file.html) | Read file contents |
 | [read_log](read_log.html) | Read Node Build Log |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
+| [read_past_node](read_past_node.html) | Read Pipeline Node from Past Build |
 | [read_parquet](read_parquet.html) | Read Parquet file |
 | [read_pipeline](read_pipeline.html) | Read Pipeline Metadata |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |
@@ -307,6 +314,7 @@
 | [seq](seq.html) | Generate a sequence of integers |
 | [serialize](serialize.html) | Serialize Value |
 | [set](set.html) | Set Focused Value |
+| [set_nix_defaults](set_nix_defaults.html) | Set Global Nix Orchestration Defaults |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
 | [show_plot](show_plot.html) | Render a plot node and open it locally |
@@ -337,7 +345,6 @@
 | [str_replace](str_replace.html) | Replace all occurrences |
 | [str_split](str_split.html) | Split a string on a delimiter |
 | [str_sprintf](str_sprintf.html) | Format a string |
-| [to_string](to_string.html) | Convert to string |
 | [str_substring](str_substring.html) | Extract substring |
 | [str_trim](str_trim.html) | Trim whitespace |
 | [str_trunc](str_trunc.html) | Truncate strings for display |
@@ -348,8 +355,8 @@
 | [summary](summary.html) | Model Summary |
 | [suppress_warnings](suppress_warnings.html) | Suppress Diagnostics for a Node |
 | [swap](swap.html) | Swap a Pipeline Node Implementation |
-| [to_symbol](to_symbol.html) | Convert a string to a Symbol |
 | [t_doc](t_doc.html) | Generate Documentation |
+| [t_gc](t_gc.html) | Run System Garbage Collection |
 | [t_make](t_make.html) | Build Pipeline Internally |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
 | [t_read_onnx](t_read_onnx.html) | Read an ONNX model file |
@@ -364,9 +371,18 @@
 | [tan](tan.html) | Tangent |
 | [tanh](tanh.html) | Hyperbolic tangent |
 | [to_array](to_array.html) | Convert to NDArray |
+| [to_bool](to_bool.html) | Convert to Boolean |
+| [to_dataframe](to_dataframe.html) | Create a DataFrame |
+| [to_date](to_date.html) | Convert values to Date |
+| [to_datetime](to_datetime.html) | Convert values to Datetime |
+| [to_expr](to_expr.html) | Capture an expression |
+| [to_exprs](to_exprs.html) |  |
+| [to_factor](to_factor.html) | Create factor values |
 | [to_float](to_float.html) | Convert to Float |
 | [to_integer](to_integer.html) | Convert to Integer |
 | [to_lower](to_lower.html) | Convert to lowercase |
+| [to_string](to_string.html) | Convert to string |
+| [to_symbol](to_symbol.html) | Convert a string to a Symbol |
 | [to_upper](to_upper.html) | Convert to uppercase |
 | [today](today.html) | Get the current date |
 | [trace_nodes](trace_nodes.html) | Trace Pipeline Nodes |
@@ -388,6 +404,7 @@
 | [var](var.html) | Variance |
 | [vcov](vcov.html) | Variance-Covariance Matrix |
 | [wald_test](wald_test.html) | Joint Wald Test |
+| [warning_msg](warning_msg.html) | Get warning message |
 | [wday](wday.html) | Extract or label the weekday |
 | [week](week.html) | Extract the week number |
 | [where](where.html) | Select columns by predicate |

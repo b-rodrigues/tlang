@@ -34,9 +34,19 @@
 </nav>
 <div class="container">
 <h1 id="fct_expand">fct_expand</h1>
-<p>Add explicit to_factor levels</p>
-<p>Adds extra levels to a to_factor without changing existing
+<p>Add explicit factor levels</p>
+<p>Adds extra levels to a factor without changing existing
 assignments.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>x</strong> (<code>Vector[Factor]</code>): A factor
+vector.</p></li>
+<li><p><strong>…</strong>: New level names to add.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A factor vector with additional levels.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>fct_expand(fct, &quot;new_level&quot;)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

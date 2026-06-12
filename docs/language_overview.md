@@ -1,6 +1,6 @@
 # T Language Overview
 
-> **Version**: 0.52.2
+> **Version**: 0.52.3
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -58,7 +58,6 @@ T supports the following value types:
 | `Vector`    | Column data              | Typed arrays (from DataFrames)      |
 | `DataFrame` | `read_csv("data.csv")`   | Tabular data (rows × columns)       |
 | `Pipeline`  | `pipeline { ... }`       | DAG-based execution graph           |
-| `jln`   | `jln(...)`           | Julia node wrapper                  |
 | `Function`  | `\(x) x + 1`            | First-class functions               |
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
@@ -162,7 +161,7 @@ For element-wise logical operations on collections, use the designated broadcast
 
 ### REPL
 
-The T REPL (`dune exec src/repl.exe`) supports:
+The T REPL (`t repl` or `t` in a project shell) supports:
 
 - **Readline editing** with arrow keys and history navigation
 - **Persistent history** in `~/.t_history`
@@ -178,6 +177,8 @@ T ships a native LSP server (`t-lsp`) for editor integrations such as VS Code:
 - **Go to definition** for bindings
 - **Hover documentation** sourced from `--#` docstrings
 - **Diagnostics** for parse and type errors
+
+See the [Editor Setup Guide](editors.md) for configuring syntax highlighting, LSP, and tree-sitter support in your editor of choice.
 
 ---
 
@@ -891,7 +892,7 @@ p_updated = p_prod |> patch(p_overrides)
 pipeline_nodes(p_full)
 pipeline_deps(p_full)
 pipeline_to_frame(p_full)
-pipeline_dot(p_full)
+pipeline_to_dot(p_full)
 
 pipeline_validate(p_full)
 ```

@@ -128,6 +128,11 @@ and pipeline_result = {
   p_node_diagnostics : (string * node_diagnostics) list; (* Map node name -> diagnostics *)
 }
 
+and meta_pipeline = {
+  mp_pipelines : (string * value) list;      (* Map sub-pipeline name -> pipeline value (VPipeline) *)
+}
+
+
 (** Formula specification — captures LHS/RHS of ~ expressions *)
 and formula_spec = {
   response: string list;
@@ -144,6 +149,7 @@ and computed_node = {
   cn_serializer : string;
   cn_class : string;
   cn_dependencies : string list;
+  cn_p_exprs : ((string * expr) list) option;  (* Pipeline identity for scoped cache lookups *)
 }
 
 (** Metadata for an unbuilt node (first-class value from node() function) *)
@@ -236,6 +242,8 @@ and value =
   | VNDArray of ndarray
   | VDataFrame of dataframe
   | VPipeline of pipeline_result
+  | VMetaPipeline of meta_pipeline
+
   | VLens of lens
   (* Functional Types *)
   | VLambda of lambda
@@ -317,6 +325,8 @@ and expr_node =
   | RawCode of { raw_text : string; raw_identifiers : string list }  (* Foreign code block <{ ... }> *)
   | BroadcastOp of { op : binop; left : expr; right : expr }
   | PipelineDef of (string * expr) list
+  | PipelineOfDef of (string * expr) list
+
   | IntentDef of (string * expr) list
   | Unquote of expr
   | UnquoteSplice of expr
@@ -340,7 +350,7 @@ and import_spec = {
 }
 
 and binop = Plus | Minus | Mul | Div | Mod | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | BitAnd | BitOr
-  | In (* New: membership check *) | Pipe | MaybePipe | Formula
+  | In (* New: membership check *) | Pipe | MaybePipe | Formula | FatArrow
 and unop = Not | Neg
 and comp_clause = CFor of { var : symbol; iter : expr } | CFilter of expr
 
@@ -375,11 +385,55 @@ let node_resolver : (string -> value option) ref = ref (fun _ -> None)
 (** Global hook for resolving computed node metadata from build logs *)
 let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn -> cn)
 
-(** Global hook for storing in-memory evaluated node values *)
-let in_memory_node_values : (string, value) Hashtbl.t = Hashtbl.create 50
+(** Global hook for automatically flattening meta-pipelines in built-in argument projections *)
+let meta_pipeline_flatten_resolver : (value -> value) ref = ref (fun v -> v)
+
+(** Pipeline-scoped in-memory node value cache.
+    Keyed by (pipeline_exprs, node_name) to avoid cross-pipeline contamination.
+
+    NOTE: The key uses structural equality on (string * expr) list via the
+    polymorphic `=` operator. This works reliably because p_exprs is always
+    passed by reference (same physical list is used for both writes and lookups).
+    If the list is ever reconstructed from deserialized data or copied, key
+    equality will break, since `expr` records may contain mutable location
+    fields. If that becomes necessary, use a stable key (e.g. a hash or UUID)
+    instead. *)
+let in_memory_node_values : ((string * expr) list * string, value) Hashtbl.t = Hashtbl.create 50
+
+(** Store an in-memory node value scoped to a specific pipeline *)
+let set_in_memory_node_value ~(p_exprs : (string * expr) list) ~(node_name : string) (v : value) =
+  Hashtbl.replace in_memory_node_values (p_exprs, node_name) v
+
+(** Look up an in-memory node value for a specific pipeline *)
+let get_in_memory_node_value ~(p_exprs : (string * expr) list) ~(node_name : string) =
+  Hashtbl.find_opt in_memory_node_values (p_exprs, node_name)
+
+(** Remove all in-memory node values for a specific pipeline *)
+let clear_pipeline_in_memory ~(p_exprs : (string * expr) list) =
+  let to_remove = Hashtbl.fold (fun (pe, n) _ acc ->
+    if pe = p_exprs then n :: acc else acc
+  ) in_memory_node_values [] in
+  List.iter (fun n -> Hashtbl.remove in_memory_node_values (p_exprs, n)) to_remove
+
+(** Find an in-memory value by node name across all pipelines (fallback).
+    Should only be used when no pipeline identity is available.
+    Returns the most recently stored value matching the node name,
+    or None if no match is found. *)
+let find_in_memory_node_value_by_name (node_name : string) : value option =
+  let results = Hashtbl.fold (fun (_, n) v acc ->
+    if n = node_name then v :: acc else acc
+  ) in_memory_node_values [] in
+  match results with [] -> None | v :: _ -> Some v
+
+(** Look up an in-memory node value, preferring scoped lookup when a pipeline identity is available. *)
+let get_in_memory_node_value_for_cn (cn : computed_node) : value option =
+  match cn.cn_p_exprs with
+  | Some p_exprs -> get_in_memory_node_value ~p_exprs ~node_name:cn.cn_name
+  | None -> find_in_memory_node_value_by_name cn.cn_name
 
 (** Global hook for storing mapping from pipeline expressions to build log paths *)
 let pipeline_build_logs : ((string * expr) list, string) Hashtbl.t = Hashtbl.create 10
+
 
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
@@ -416,6 +470,62 @@ let extract_identifiers text =
 type environment = value Env.t
 
 module Utils = struct
+  let rec arrow_table_equal ta tb =
+    let nrows = Arrow_table.num_rows ta in
+    nrows = Arrow_table.num_rows tb &&
+    let cols_a = Arrow_table.column_names ta in
+    let cols_b = Arrow_table.column_names tb in
+    cols_a = cols_b &&
+    let col_equal ca cb =
+      match ca, cb with
+      | Arrow_table.IntColumn arr_a, Arrow_table.IntColumn arr_b -> arr_a = arr_b
+      | Arrow_table.FloatColumn arr_a, Arrow_table.FloatColumn arr_b ->
+          Array.length arr_a = Array.length arr_b &&
+          (try
+             Array.iteri (fun i va ->
+               let vb = arr_b.(i) in
+               match va, vb with
+               | None, None -> ()
+               | Some fa, Some fb ->
+                   if Float.is_nan fa && Float.is_nan fb then ()
+                   else if Float.equal fa fb then ()
+                   else raise Exit
+               | _ -> raise Exit
+             ) arr_a;
+             true
+           with Exit -> false)
+      | Arrow_table.BoolColumn arr_a, Arrow_table.BoolColumn arr_b -> arr_a = arr_b
+      | Arrow_table.StringColumn arr_a, Arrow_table.StringColumn arr_b -> arr_a = arr_b
+      | Arrow_table.DateColumn arr_a, Arrow_table.DateColumn arr_b -> arr_a = arr_b
+      | Arrow_table.DatetimeColumn (arr_a, tz_a), Arrow_table.DatetimeColumn (arr_b, tz_b) ->
+          tz_a = tz_b && arr_a = arr_b
+      | Arrow_table.DictionaryColumn (idx_a, lvl_a, ord_a), Arrow_table.DictionaryColumn (idx_b, lvl_b, ord_b) ->
+          idx_a = idx_b && lvl_a = lvl_b && ord_a = ord_b
+      | Arrow_table.NAColumn n_a, Arrow_table.NAColumn n_b -> n_a = n_b
+      | Arrow_table.ListColumn arr_a, Arrow_table.ListColumn arr_b ->
+          Array.length arr_a = Array.length arr_b &&
+          (try
+             Array.iteri (fun i va ->
+               let vb = arr_b.(i) in
+               match va, vb with
+               | None, None -> ()
+               | Some ta', Some tb' -> if not (arrow_table_equal ta' tb') then raise Exit
+               | _ -> raise Exit
+             ) arr_a;
+             true
+           with Exit -> false)
+      | _ -> false
+    in
+    List.for_all (fun col ->
+      match Arrow_table.get_column ta col, Arrow_table.get_column tb col with
+      | Some ca, Some cb -> col_equal ca cb
+      | _ -> false
+    ) cols_a
+
+  let dataframe_equal dfa dfb =
+    dfa.group_keys = dfb.group_keys &&
+    arrow_table_equal dfa.arrow_table dfb.arrow_table
+
   let empty_node_diagnostics = {
     nd_warnings = [];
     nd_error = None;
@@ -423,6 +533,17 @@ module Utils = struct
     nd_recovered = false;
     nd_upstream_errors = [];
   }
+
+  let format_single_warning_message (w : node_warning) =
+    match w.nw_source with
+    | WarningOwn -> w.nw_message
+    | WarningUpstream name ->
+        Printf.sprintf "Ancestor node '%s' reported following warning: %s" name w.nw_message
+
+  let format_warning_messages (warnings : node_warning list) =
+    match warnings with
+    | [] -> ""
+    | _ -> String.concat ". Furthermore, " (List.map format_single_warning_message warnings)
 
   (** Canonical list of field names exposed on read-pipeline node records
       (as constructed by [which_nodes] and [errored_nodes]). The evaluator
@@ -637,7 +758,7 @@ module Utils = struct
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
     | VList _ -> "List" | VDict _ -> "Dict"
     | VVector _ -> "Vector" | VNDArray _ -> "NDArray" | VDataFrame _ -> "DataFrame"
-    | VPipeline _ -> "Pipeline" | VLens _ -> "Lens"
+    | VPipeline _ -> "Pipeline" | VMetaPipeline _ -> "MetaPipeline" | VLens _ -> "Lens"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
     | VNA _ -> "NA" | VError _ -> "Error"
     | VFactor _ -> "Factor"
@@ -681,7 +802,7 @@ module Utils = struct
     | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
     | Eq -> "==" | NEq -> "!=" | Gt -> ">" | Lt -> "<" | GtEq -> ">=" | LtEq -> "<="
     | And -> "&&" | Or -> "||" | BitAnd -> "&" | BitOr -> "|"
-    | In -> "in" | Pipe -> "|>" | MaybePipe -> "?|>" | Formula -> "~"
+    | In -> "in" | Pipe -> "|>" | MaybePipe -> "?|>" | Formula -> "~" | FatArrow -> "=>"
 
   and unparse_match_pattern = function
     | PWildcard -> "_"
@@ -742,6 +863,9 @@ module Utils = struct
     | RawCode { raw_text; _ } -> "<{ " ^ raw_text ^ " }>"
     | PipelineDef nodes ->
         "pipeline { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
+    | PipelineOfDef nodes ->
+        "pipeline_of { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
+
     | BroadcastOp { op; left; right } ->
         unparse_expr left ^ " ." ^ binop_to_string op ^ " " ^ unparse_expr right
     | Unquote e -> "!!" ^ unparse_expr e
@@ -868,17 +992,25 @@ module Utils = struct
           (String.concat ", " col_names) in
         if group_keys = [] then base
         else Printf.sprintf "%s grouped by [%s]" base (String.concat ", " group_keys)
-    | VPipeline { p_nodes; _ } ->
+    | VPipeline { p_nodes; p_exprs; _ } ->
         let node_names = List.map fst p_nodes in
         let base = Printf.sprintf "Pipeline(%d nodes: [%s])"
           (List.length p_nodes) (String.concat ", " node_names) in
         let errors = List.filter_map (fun (name, v) ->
           match v with
           | VError err -> Some (Printf.sprintf "\n  - `%s` failed: %s" name err.message)
-          | _ -> None
+          | _ ->
+            match get_in_memory_node_value ~p_exprs ~node_name:name with
+            | Some (VNodeResult { v = VError err; _ }) ->
+                Some (Printf.sprintf "\n  - `%s` failed: %s" name err.message)
+            | _ -> None
         ) p_nodes in
         if errors = [] then base
         else base ^ "\nErrors:" ^ (String.concat "" errors)
+    | VMetaPipeline { mp_pipelines; _ } ->
+        let count = List.length mp_pipelines in
+        Printf.sprintf "MetaPipeline(%d sub-pipeline(s))" count
+
     | VLambda { params; autoquote_params; variadic; _ } ->
         let dots = if variadic then ", ..." else "" in
         "\\(" ^ String.concat ", " (display_params params autoquote_params) ^ dots ^ ") -> <function>"
@@ -957,7 +1089,7 @@ module Utils = struct
     | VRawCode s -> s
     | VShellResult { sr_stdout; _ } -> sr_stdout
     | VFloat f ->
-        if f = floor f then
+        if Float.equal f (floor f) then
           let s = string_of_float f in
           if String.ends_with ~suffix:"." s then String.sub s 0 (String.length s - 1)
           else int_of_float f |> string_of_int
@@ -1025,13 +1157,19 @@ let make_error ?location ?(context=[]) ?(na_count=0) code message =
 
 (** Create a builtin function value (wraps func to strip arg names) *)
 let make_builtin ?name ?(variadic=false) ?(unwrap=true) arity func =
-  let arg_proj = if unwrap then (fun (_, v) -> Utils.unwrap_value v) else (fun (_, v) -> v) in
+  let arg_proj =
+    if unwrap then (fun (_, v) -> !meta_pipeline_flatten_resolver (Utils.unwrap_value v))
+    else (fun (_, v) -> !meta_pipeline_flatten_resolver v)
+  in
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
              b_func = (fun named_args env_ref -> func (List.map arg_proj named_args) !env_ref) }
 
 (** Create a builtin function value that receives named args *)
 let make_builtin_named ?name ?(variadic=false) ?(unwrap=true) arity func =
-  let arg_proj = if unwrap then (fun (n, v) -> (n, Utils.unwrap_value v)) else (fun (n, v) -> (n, v)) in
+  let arg_proj =
+    if unwrap then (fun (n, v) -> (n, !meta_pipeline_flatten_resolver (Utils.unwrap_value v)))
+    else (fun (n, v) -> (n, !meta_pipeline_flatten_resolver v))
+  in
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
              b_func = (fun named_args env_ref -> func (List.map arg_proj named_args) !env_ref) }
 
@@ -1084,5 +1222,8 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VBuildLog _, TCustom "BuildLog" -> true
   | VExpr _, TExpr -> true
   | VQuo _, TExpr -> true
+
+  | VPipeline _, TCustom "Pipeline" -> true
+  | VMetaPipeline _, TCustom ("Pipeline" | "MetaPipeline") -> true
 
   | _ -> false

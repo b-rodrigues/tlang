@@ -31,7 +31,13 @@ let parse_node_warnings path =
               }
           | _ -> None
         ) items
-    | _ -> []
+    | Ok other ->
+        Printf.eprintf "[debug] parse_node_warnings: expected JSON array in %s, got %s\n%!"
+          path (Utils.type_name other);
+        []
+    | Error e ->
+        Printf.eprintf "[debug] parse_node_warnings: failed to read %s: %s\n%!" path e;
+        []
   else []
 
 let is_error_class = function
@@ -60,23 +66,53 @@ let node_error_of_logged_value name cn value =
   else
     None
 
+let latest_logged_computed_node_forward : (string -> computed_node option) ref =
+  ref (fun _ -> None)
+
+let rec collect_upstream_warnings ?(visited : string list = []) (dep_names : string list) : Ast.node_warning list =
+  match dep_names with
+  | [] -> []
+  | dep_name :: rest when List.mem dep_name visited ->
+      collect_upstream_warnings ~visited rest
+  | dep_name :: rest ->
+      let from_this_dep =
+        match !latest_logged_computed_node_forward dep_name with
+        | Some dep_cn when dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" ->
+            let dep_dir = Filename.dirname dep_cn.cn_path in
+            let dep_warnings_path = Filename.concat dep_dir "warnings" in
+            let dep_warnings = parse_node_warnings dep_warnings_path in
+            let marked = List.map (fun w -> { w with Ast.nw_source = Ast.WarningUpstream dep_name }) dep_warnings in
+            let deeper = collect_upstream_warnings ~visited:(dep_name :: visited) dep_cn.cn_dependencies in
+            marked @ deeper
+        | _ -> collect_upstream_warnings ~visited:(dep_name :: visited) rest
+      in
+      from_this_dep @ collect_upstream_warnings ~visited rest
+
 let logged_node_diagnostics ?value name cn =
   let node_dir = Filename.dirname cn.cn_path in
   let warnings_path = Filename.concat node_dir "warnings" in
-  let warnings = parse_node_warnings warnings_path in
+  let own_warnings = parse_node_warnings warnings_path in
+  let upstream_warnings = collect_upstream_warnings cn.cn_dependencies in
+  let all_warnings = own_warnings @ upstream_warnings in
   let error =
     match value with
     | Some value -> node_error_of_logged_value name cn value
     | None ->
         if is_error_class cn.cn_class then
-          match Serialization.read_verror_json cn.cn_path with
+          let read_res =
+            if cn.cn_runtime = "T" then
+              Serialization.deserialize_from_file cn.cn_path
+            else
+              Serialization.read_verror_json cn.cn_path
+          in
+          match read_res with
           | Ok value -> node_error_of_logged_value name cn value
           | Error _ -> Some (generic_logged_node_error name cn)
         else
           None
   in
   {
-    nd_warnings = warnings;
+    nd_warnings = all_warnings;
     nd_error = error;
     nd_warnings_suppressed = false;
     nd_recovered = false;
@@ -217,7 +253,13 @@ let read_logged_node_value name cn =
    fall back to the computed node handle. *)
 let read_env_node_value name cn =
   if is_error_class cn.cn_class then
-    match Serialization.read_verror_json cn.cn_path with
+    let read_res =
+      if cn.cn_runtime = "T" then
+        Serialization.deserialize_from_file cn.cn_path
+      else
+        Serialization.read_verror_json cn.cn_path
+    in
+    match read_res with
     | Ok (VError e) -> VError { e with context = add_node_name_context name e.context }
     | Ok v -> v
     | Error _ -> VComputedNode cn
@@ -239,7 +281,13 @@ let candidate_logs ?which_log () =
 
 let logged_node_value name cn =
   if is_error_class cn.cn_class then
-    (match Serialization.read_verror_json cn.cn_path with
+    let read_res =
+      if cn.cn_runtime = "T" then
+        Serialization.deserialize_from_file cn.cn_path
+      else
+        Serialization.read_verror_json cn.cn_path
+    in
+    (match read_res with
      | Ok (VError e) ->
           VError { e with context = add_node_name_context name e.context }
      | Ok v -> v
@@ -341,18 +389,29 @@ let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
     | VComputedNode cn -> cn.cn_path = "<unbuilt>" || cn.cn_path = ""
     | _ -> false
   in
-  match matching_pipeline_log_entries ?which_log p with
-  | Some entries ->
-      List.map
-        (fun (name, value) ->
-          match value, List.assoc_opt name entries with
-          | _, None -> (name, value)
-          | value, Some cn when should_overlay_value value ->
-              (name, logged_node_value name cn)
-          | _ -> (name, value))
+  let overlay_in_memory pairs =
+    (* Only VNodeResult is ever written to in_memory_node_values (by lens set ops).
+       Non-VNodeResult values would indicate corruption; fall through to log. *)
+    List.map (fun (name, value) ->
+      match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name with
+      | Some (VNodeResult { v; _ }) -> (name, v)
+      | _ -> (name, value)
+    ) pairs
+  in
+  overlay_in_memory (
+    match matching_pipeline_log_entries ?which_log p with
+    | Some entries ->
+        List.map
+          (fun (name, value) ->
+            match value, List.assoc_opt name entries with
+            | _, None -> (name, value)
+            | value, Some cn when should_overlay_value value ->
+                (name, logged_node_value name cn)
+            | _ -> (name, value))
+          p.p_nodes
+    | None ->
         p.p_nodes
-  | None ->
-      p.p_nodes
+  )
 
 (** Scans candidate build logs and returns the most recent [ComputedNode]
     entry whose name equals [name]. [log_name_pattern], when provided, is a
@@ -372,6 +431,18 @@ let latest_logged_computed_node ?log_name_pattern (name : string) =
          | Some entries ->
              (match List.assoc_opt name entries with
               | Some cn -> Some cn
+              | None when name <> "" ->
+                 (* Suffix match: meta-pipelines flatten sub-pipeline node names
+                    as "prefix.name". When the sub-pipeline variable is accessed
+                    directly (e.g. p_etl.raw) the short name "raw" won't match
+                    the logged "etl.raw". Try matching the last component. *)
+                 let dot_name = "." ^ name in
+                 let suffix_matches = List.filter_map (fun (n, cn) ->
+                   if String.ends_with ~suffix:dot_name n then Some cn else None
+                 ) entries in
+                 (match suffix_matches with
+                  | [cn] -> Some cn
+                  | _ -> find_in_logs tail)
               | None -> find_in_logs tail)
          | None -> find_in_logs tail)
   in
@@ -395,6 +466,9 @@ let latest_logged_computed_node ?log_name_pattern (name : string) =
           []
       in
       find_in_logs matching_logs
+
+let () = latest_logged_computed_node_forward := (fun name ->
+  latest_logged_computed_node name)
 
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
@@ -420,6 +494,7 @@ let read_node ?which_log name =
            );
           cn_class = cls;
           cn_dependencies = [];
+          cn_p_exprs = None;
         } in
         
         let v = read_env_node_value name cn in
@@ -474,24 +549,33 @@ let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline
       nd_upstream_errors = base.nd_upstream_errors;
     }
   in
-  match matching_pipeline_log_entries ?which_log p with
-  | Some entries ->
-      List.map
-        (fun name ->
-          let base =
-            match List.assoc_opt name p.p_node_diagnostics with
-            | Some diagnostics -> diagnostics
-            | None -> Ast.Utils.empty_node_diagnostics
-          in
-          match List.assoc_opt name entries with
-          | Some cn ->
-              let overlay = logged_node_diagnostics name cn in
-              (name, merge_diagnostics base overlay)
-          | None ->
-              (name, base))
-        (List.map fst p.p_nodes)
-  | None ->
-      p.p_node_diagnostics
+  let overlay_in_memory pairs =
+    List.map (fun (name, diagnostics) ->
+      match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name with
+      | Some (VNodeResult { diagnostics = d; _ }) when d.nd_warnings <> [] || d.nd_error <> None -> (name, d)
+      | _ -> (name, diagnostics)
+    ) pairs
+  in
+  overlay_in_memory (
+    match matching_pipeline_log_entries ?which_log p with
+    | Some entries ->
+        List.map
+          (fun name ->
+            let base =
+              match List.assoc_opt name p.p_node_diagnostics with
+              | Some diagnostics -> diagnostics
+              | None -> Ast.Utils.empty_node_diagnostics
+            in
+            match List.assoc_opt name entries with
+            | Some cn ->
+                let overlay = logged_node_diagnostics name cn in
+                (name, merge_diagnostics base overlay)
+            | None ->
+                (name, base))
+          (List.map fst p.p_nodes)
+    | None ->
+        p.p_node_diagnostics
+  )
 
 (* ------------------------------------------------------------------ *)
 (* resolve_node_artifact — bridge between node_diff and build logs     *)
@@ -516,12 +600,13 @@ let resolve_node_artifact (p : Ast.pipeline_result) (node_name : string)
   ) (get_logs ()) in
   let num_builds = List.length all_matches in
   let resolve_log_path = function
-    | Ast.VString "latest" ->
-        if num_builds = 0 then
-          Error (Error.make_error ValueError
-            (Printf.sprintf "No historical builds found for this pipeline."))
-        else
-          Ok (List.hd all_matches)
+      | Ast.VString "latest" ->
+          (match all_matches with
+           | hd :: _ ->
+               Ok hd
+           | [] ->
+               Error (Error.make_error ValueError
+                 (Printf.sprintf "No historical builds found for this pipeline.")))
     | Ast.VInt idx ->
         if idx <= 0 then
           Error (Error.make_error ValueError
@@ -529,8 +614,12 @@ let resolve_node_artifact (p : Ast.pipeline_result) (node_name : string)
         else if idx > num_builds then
           Error (Error.make_error ValueError
             (Printf.sprintf "%s index %d is out of range. Only %d historical builds match this pipeline." arg_name idx num_builds))
-        else
-          Ok (List.nth all_matches (idx - 1))
+          else
+            (match List.nth_opt all_matches (idx - 1) with
+             | Some p -> Ok p
+             | None ->
+                 Error (Error.make_error ValueError
+                   (Printf.sprintf "Build log index %d is out of range." idx)))
     | Ast.VString pattern ->
         (try
            let re = Str.regexp pattern in

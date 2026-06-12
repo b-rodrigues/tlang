@@ -44,7 +44,7 @@ let non_na_indices (nums : float option array) : (int * float) array =
     Returns sorted array of (original_index, float). *)
 let argsort_pairs (pairs : (int * float) array) : (int * float) array =
   let copy = Array.copy pairs in
-  Array.stable_sort (fun (_, a) (_, b) -> compare a b) copy;
+  Array.stable_sort (fun (_, a) (_, b) -> Float.compare a b) copy;
   copy
 
 let register env =
@@ -118,7 +118,7 @@ let register env =
                while !i < m do
                  let (_, cur_val) = sorted.(!i) in
                  let start = !i in
-                 while !i < m && snd sorted.(!i) = cur_val do
+                 while !i < m && Float.equal (snd sorted.(!i)) cur_val do
                    incr i
                  done;
                  for j = start to !i - 1 do
@@ -168,7 +168,7 @@ let register env =
                let i = ref 0 in
                while !i < m do
                  let (_, cur_val) = sorted.(!i) in
-                 while !i < m && snd sorted.(!i) = cur_val do
+                 while !i < m && Float.equal (snd sorted.(!i)) cur_val do
                    let (orig_idx, _) = sorted.(!i) in
                    result.(orig_idx) <- VInt !cur_rank;
                    incr i
@@ -214,7 +214,7 @@ let register env =
                while !i < m do
                  let (_, cur_val) = sorted.(!i) in
                  let start = !i in
-                 while !i < m && snd sorted.(!i) = cur_val do
+                 while !i < m && Float.equal (snd sorted.(!i)) cur_val do
                    incr i
                  done;
                  let cd = float_of_int !i /. float_of_int m in
@@ -267,7 +267,7 @@ let register env =
                while !i < m do
                  let (_, cur_val) = sorted.(!i) in
                  let start = !i in
-                 while !i < m && snd sorted.(!i) = cur_val do
+                 while !i < m && Float.equal (snd sorted.(!i)) cur_val do
                    incr i
                  done;
                  for j = start to !i - 1 do

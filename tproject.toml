@@ -1,11 +1,12 @@
 [project]
 name = "tlang"
 description = ""
+authors = []
 
 [dependencies]
 
 [r-dependencies]
-packages = ["dplyr", "readr", "testthat"]
+packages = ["dplyr", "readr", "testthat", "arrow", "jsonlite"]
 
 [py-dependencies]
 version = "python314"
@@ -26,3 +27,4 @@ min_version = "0.52.0"
 
 [nixpkgs]
 date = ""
+

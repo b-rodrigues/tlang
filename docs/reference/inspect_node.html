@@ -36,8 +36,9 @@
 <h1 id="inspect_node">inspect_node</h1>
 <p>Inspect Pipeline Node Metadata</p>
 <p>Returns a dictionary with metadata about a computed node, including
-its name, runtime, artifact path, serializer, class, and
-dependencies.</p>
+its name, runtime, artifact path, serializer, class, dependencies, and
+any captured warnings (both own and inherited from upstream
+ancestors).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>node</strong> (<code>ComputedNode</code>): A computed node
@@ -45,10 +46,34 @@ value (e.g. from a built pipeline).</li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A dictionary with keys = name, runtime, path, serializer, class,
-dependencies.</p>
+dependencies, warnings.</p>
+<p>The <code>warnings</code> key contains a list of structured warning
+records, each with:</p>
+<ul>
+<li><code>source</code> (<code>String</code>): <code>"own"</code> for
+warnings originating from this node, or the name of the ancestor node
+for inherited upstream warnings.</li>
+<li><code>message</code> (<code>String</code>): The human-readable
+warning message.</li>
+</ul>
+<pre class="t"><code>inspect_node(p.count)
+-- Returns:
+-- dict
+--   ├── name: &quot;count&quot;
+--   ├── runtime: &quot;T&quot;
+--   ├── path: &quot;/nix/store/...-pipeline_output/count/artifact&quot;
+--   ├── serializer: &quot;default&quot;
+--   ├── class: &quot;Int&quot;
+--   ├── dependencies: [&quot;filtered&quot;]
+--   └── warnings: [
+--       ├── dict
+--       │   ├── source: &quot;filtered&quot;
+--       │   └── message: &quot;filter() excluded 1 row because the predicate evaluated to NA&quot;
+--       ]</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="rebuild_node.html">rebuild_node</a>, <a
-href="read_node.html">read_node</a></p>
+href="read_node.html">read_node</a>, <a
+href="warning_msg.html">warning_msg</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

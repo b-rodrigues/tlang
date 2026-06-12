@@ -226,6 +226,8 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       invalid_arg "value_to_yojson: VDataFrame is not supported for JSON serialization"
   | VPipeline _ ->
       invalid_arg "value_to_yojson: VPipeline is not supported for JSON serialization"
+  | VMetaPipeline _ ->
+      invalid_arg "value_to_yojson: VMetaPipeline is not supported for JSON serialization"
   | VLambda _ ->
       invalid_arg "value_to_yojson: VLambda is not supported for JSON serialization"
   | VBuiltin _ ->

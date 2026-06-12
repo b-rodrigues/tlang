@@ -35,8 +35,24 @@
 <div class="container">
 <h1 id="fct_other">fct_other</h1>
 <p>Replace unlisted levels with Other</p>
-<p>Keeps selected to_factor levels and maps the rest to an other
+<p>Keeps selected factor levels and maps the rest to an “Other”
 bucket.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>x</strong> (<code>Vector[Factor]</code>): A factor
+vector.</p></li>
+<li><p><strong>keep</strong> (<code>Vector[String]</code>): |
+List[String] Levels to preserve.</p></li>
+<li><p><strong>drop</strong> (<code>Vector[String]</code>): |
+List[String] Levels to drop (mutually exclusive with keep).</p></li>
+<li><p><strong>other_level</strong> (<code>String</code>): = “Other”
+Name for the catch-all level.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A factor vector with unlisted levels replaced.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>fct_other(fct, keep = [&quot;a&quot;, &quot;b&quot;])
+fct_other(fct, drop = [&quot;z&quot;], other_level = &quot;Misc&quot;)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

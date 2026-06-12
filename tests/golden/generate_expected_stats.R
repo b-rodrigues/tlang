@@ -420,18 +420,13 @@ t_trimmed_mean <- function(x, trim) {
   mean(x)
 }
 
-# T's fivenum uses type 7 quantiles
-t_fivenum <- function(x) {
-  c(min(x), quantile(x, 0.25, type = 7), median(x), quantile(x, 0.75, type = 7), max(x))
-}
-
 specialized_stats <- tibble(
   cv_mpg = cv_manual(mtcars$mpg),
-  fivenum_min = t_fivenum(mtcars$mpg)[1],
-  fivenum_q1 = t_fivenum(mtcars$mpg)[2],
-  fivenum_med = t_fivenum(mtcars$mpg)[3],
-  fivenum_q3 = t_fivenum(mtcars$mpg)[4],
-  fivenum_max = t_fivenum(mtcars$mpg)[5],
+  fivenum_min = fivenum(mtcars$mpg)[1],
+  fivenum_q1 = fivenum(mtcars$mpg)[2],
+  fivenum_med = fivenum(mtcars$mpg)[3],
+  fivenum_q3 = fivenum(mtcars$mpg)[4],
+  fivenum_max = fivenum(mtcars$mpg)[5],
   trimmed_mean_mpg_10 = t_trimmed_mean(mtcars$mpg, 0.1),
   mad_mpg = mad(mtcars$mpg), 
   iqr_mpg = quantile(mtcars$mpg, 0.75, type = 7) - quantile(mtcars$mpg, 0.25, type = 7),

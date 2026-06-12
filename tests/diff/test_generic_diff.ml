@@ -55,6 +55,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
         cn_serializer = "default";
         cn_class = class_name;
         cn_dependencies = [];
+        cn_p_exprs = None;
       }
     in
     let artifact_a = Filename.temp_file "tlang-julia-node-a" ".jls" in
@@ -90,6 +91,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
         cn_serializer = "default";
         cn_class = class_name;
         cn_dependencies = [];
+        cn_p_exprs = None;
       }
     in
     let artifact_a = Filename.temp_file "tlang-r-node-a" ".rds" in

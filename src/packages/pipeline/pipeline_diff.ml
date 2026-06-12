@@ -15,30 +15,31 @@ let frame_of_pipeline (p : pipeline_result) =
   let node_names = node_names p in
   let depths = Pipeline_to_frame.compute_depths p.p_deps in
   let nrows = List.length node_names in
-  let arr_name = Array.init nrows (fun i -> Some (List.nth node_names i)) in
+  let names_arr = Array.of_list node_names in
+  let arr_name = Array.init nrows (fun i -> Some names_arr.(i)) in
   let arr_runtime = Array.init nrows (fun i ->
-    let n = List.nth node_names i in
+    let n = names_arr.(i) in
     Some (match List.assoc_opt n p.p_runtimes with Some r -> r | None -> "T")) in
   let arr_serializer = Array.init nrows (fun i ->
-    let n = List.nth node_names i in
+    let n = names_arr.(i) in
     let e = match List.assoc_opt n p.p_serializers with Some s -> s | None -> Ast.mk_expr (Var "default") in
     Some (Nix_unparse.expr_to_string e)) in
   let arr_deserializer = Array.init nrows (fun i ->
-    let n = List.nth node_names i in
+    let n = names_arr.(i) in
     let e = match List.assoc_opt n p.p_deserializers with Some s -> s | None -> Ast.mk_expr (Var "default") in
     Some (Nix_unparse.expr_to_string e)) in
   let arr_noop = Array.init nrows (fun i ->
-    let n = List.nth node_names i in
+    let n = names_arr.(i) in
     Some (match List.assoc_opt n p.p_noops with Some b -> b | None -> false)) in
   let arr_deps = Array.init nrows (fun i ->
-    let n = List.nth node_names i in
+    let n = names_arr.(i) in
     let deps = match List.assoc_opt n p.p_deps with Some d -> d | None -> [] in
     Some (String.concat ", " deps)) in
   let arr_depth = Array.init nrows (fun i ->
-    let n = List.nth node_names i in
+    let n = names_arr.(i) in
     Some (match List.assoc_opt n depths with Some d -> d | None -> 0)) in
   let arr_cmd_type = Array.init nrows (fun i ->
-    let n = List.nth node_names i in
+    let n = names_arr.(i) in
     Some (match List.assoc_opt n p.p_scripts with Some (Some _) -> "script" | _ -> "command")) in
   let columns = [
     ("name", Arrow_table.StringColumn arr_name);
@@ -133,6 +134,9 @@ let register env =
             ("frame_a", frame_of_pipeline p_a);
             ("frame_b", frame_of_pipeline p_b);
           ]
-      | [_; _] -> Error.type_error "Function `pipeline_diff` expects two Pipeline values."
+      | [first; second] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_diff` expects two Pipeline values, but got %s and %s."
+               (Utils.type_name first) (Utils.type_name second))
       | _ -> Error.arity_error_named "pipeline_diff" 2 (List.length args)
     )) env

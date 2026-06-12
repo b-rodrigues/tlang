@@ -1,4 +1,5 @@
 open Ast
+open Pipeline_utils
 
 (*
 --# Run Pipeline
@@ -18,15 +19,16 @@ open Ast
 --# @family pipeline
 --# @seealso pipeline_nodes
 --# @export
-*)
+--*)
 let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> pipeline_result -> value) env =
   let get_arg name pos default named_args =
     match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
     | Some v -> (true, v)
     | None ->
         let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-        if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
-        else (false, default)
+        match nth_safe (pos - 1) positionals with
+        | Some v -> (true, v)
+        | None -> (false, default)
   in
   let run_fn named_args env =
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in

@@ -36,14 +36,34 @@
 <h1 id="warning_msg">warning_msg</h1>
 <p>Get warning message</p>
 <p>Returns the human-readable warning associated with a completed
-computed node, or an empty string if none.</p>
+computed node, or an empty string if none. For downstream nodes that
+inherit warnings from ancestor nodes, each warning is prefixed with its
+source to make provenance clear.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>x</strong> (<code>ComputedNode</code>): The computed node to
-inspect.</li>
+<li><strong>node</strong> (<code>ComputedNode</code>): The computed node
+to inspect.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The warning message.</p>
+<p>The warning message string. Format depends on the warning source:</p>
+<ul>
+<li><strong>Own warning</strong>: The raw warning message
+(e.g. <code>"filter() excluded 1 row because the predicate evaluated to NA"</code>).</li>
+<li><strong>Upstream warning</strong>: Prefixed with
+<code>"Ancestor node '&lt;name&gt;' reported following warning: &lt;message&gt;"</code>.</li>
+<li><strong>Multiple warnings</strong> (own + upstream, or multiple
+upstream): Joined with <code>". Furthermore, "</code>.</li>
+</ul>
+<h3 id="examples">Examples</h3>
+<p>Node with only an own warning:</p>
+<pre class="t"><code>warning_msg(p.filtered)
+-- &quot;filter() excluded 1 row because the predicate evaluated to NA&quot;</code></pre>
+<p>Downstream node that inherits a warning from an ancestor:</p>
+<pre class="t"><code>warning_msg(p.count)
+-- &quot;Ancestor node &#39;filtered&#39; reported following warning: filter() excluded 1 row because the predicate evaluated to NA&quot;</code></pre>
+<p>Node with both an own warning and inherited upstream warnings:</p>
+<pre class="t"><code>warning_msg(p.summary)
+-- &quot;mutate() created NAs. Furthermore, Ancestor node &#39;filtered&#39; reported following warning: filter() excluded 1 row because the predicate evaluated to NA&quot;</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

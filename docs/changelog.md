@@ -1,5 +1,146 @@
 # Changelog
 
+## [0.52.3] - 2026-06-12
+
+This release:
+
+- introduces a new meta-pipeline composition feature (`pipeline_of`), first-class artifact export/import capabilities, meta-pipeline graph visualization, interactive Mermaid browser rendering, and cache-aware dry runs with programmatic garbage collection.
+- Introduces lazy pipeline evaluation, deferring T node evaluation to build time and eliminating redundant re-evaluation cycles.
+- Includes comprehensive bug fixes across stats, core, CSV, and pipeline subsystems, and a systematic codebase-wide safety refactoring following OCaml best practices.
+
+### Pipeline Soft-Fail & Error Recovery
+- **Block Evaluation Error Recovery**: Blocks (`{ ... }`) now abort immediately on encountering a `VError` from a bare expression, preventing silent error accumulation. However, `VError` values from `Assignment` and `Reassignment` statements no longer abort the block — the error is bound to the variable and subsequent statements (typically a `match`) can handle it. This enables patterns like `{ x = 42 / 0; match(x) { Error { msg } => 0, default => x } }` where a risky computation is captured and recovered.
+- **Conditional Serialization on soft-fail**: Nodes that soft-fail and return `VError` now conditionally fall back to binary `serialize`/`deserialize` rather than triggering configured custom serializers (like Arrow), preventing crashes.
+- **Failed Node Diagnostics**: Host tools and logs now safely resolve and deserialize binary T error payloads.
+
+### Lazy Pipeline Evaluation
+- **Deferred T node evaluation**: T nodes are now evaluated lazily — the `get_pipeline_member` function no longer eagerly evaluates T expressions when a pipeline is accessed. Evaluation is deferred to `rerun_pipeline` at build time via `build_pipeline()`. This eliminates redundant re-evaluation cycles, improves performance for large pipelines, and avoids side-effect leakage from unbuilt nodes.
+- **Cross-pipeline dependency resolution**: Dependency detection now uses `p.p_nodes` instead of `p.p_exprs` for identifying resolved nodes from other pipelines, improving accuracy of dependency inference.
+
+### Warning Propagation & Diagnostics
+- **Upstream warning inheritance**: After `build_pipeline(p)`, downstream nodes now automatically inherit warnings from ancestor nodes. `warning_msg(downstream)` shows warnings with source provenance (`"Ancestor node '<name>' reported following warning: <message>"`). Multiple warnings (own + upstream, or from multiple ancestors) are joined with `". Furthermore, "`.
+- **`inspect_node` now shows warnings**: `inspect_node(node)` returns a `warnings` field with a structured list of dicts (`source` + `message`), showing both own and inherited upstream warnings.
+- **Removed `.warnings` from `read_node()` return**: The `.warnings` field on `read_node()` results has been removed. Use `warning_msg(node)` for a formatted warning message or `inspect_node(node).warnings` for structured warning metadata.
+
+### Historical Node Access & Build Log Identity
+- **`read_past_node(p.node_name, which_log)`**: New NSE-captured function to read a pipeline node from a specific historical build log without the pipeline being in scope. The first argument is captured before evaluation, so `read_past_node(base_p.raw, which_log = "qcfs")` works even when `base_p` is not defined. `which_log` is mandatory — no default.
+- **Simplified `read_node`**: The `which_log` parameter has been removed from `read_node`. Use `read_past_node(p.node_name, which_log = "...")` for historical reads, and `read_node(p.node_name)` for in-scope pipeline reads.
+- **`pipeline_name` on `build_pipeline`**: `build_pipeline(p, pipeline_name = "my_name")` now records the pipeline name in the build log JSON (`"pipeline"` field). `list_logs()` shows a new `pipeline` column for disambiguation.
+- **Removed `pipeline_summary` and `pipeline_dot`**: These convenience aliases have been removed. Use `pipeline_to_frame(p)` instead of `pipeline_summary(p)`, and `pipeline_to_dot(p)` instead of `pipeline_dot(p)`. `pipeline_to_dot` also handles `MetaPipeline`.
+
+### Pipeline Visualization
+- **`pipeline_to_dot(p, title = na())`**: Generates a Graphviz DOT representation of the given pipeline or meta-pipeline. New optional `title` parameter auto-detects the project name from `tproject.toml` (fallback: none). Renders as `label=` in the `digraph` header.
+- **`pipeline_to_mermaid(p, title = na(), flatten = false)`**: Generates a Mermaid flowchart diagram string from the pipeline topology. New optional `title` parameter auto-detects from `tproject.toml`; new `flatten` parameter (default `false`) renders meta-pipelines as grouped subgraph blocks — set to `true` for flat output.
+- **Subgraph rendering as default**: Meta-pipeline sub-pipelines now render as grouped subgraph blocks by default in both Mermaid and DOT output.
+- **YAML frontmatter for Mermaid title**: Graph titles are emitted as Mermaid YAML frontmatter (`---\ntlang-title: ...\n---`), visible in the HTML `<h1>` via `show_plot()` but silently ignored by Mermaid.js to avoid in-diagram title duplication.
+- **Default T runtime node colour**: Changed from `#ffced0` to `#859900` (green) for a cleaner visual appearance in generated graphs.
+- **Browser Visualization via `show_plot`**: `show_plot(p)` now accepts a pipeline or meta-pipeline directly — it calls `pipeline_to_mermaid` internally, renders the DAG as an interactive HTML page, and opens it in the browser. `show_plot(mermaid_string)` also renders arbitrary Mermaid diagram strings.
+
+### Diagnostics & Error Messages
+- **`read_node` "Did you mean" hint**: When `read_node` receives a bare symbol (e.g. `read_node(ha)` instead of `read_node(p.ha)`), the error now suggests the correct form: *Did you mean `read_node(p.ha)`?*
+- **Unified `read_node` error messages**: All non-`ComputedNode` argument errors now follow a consistent format guiding the user to build the pipeline first, use dot access, or use `read_past_node` for historical builds.
+
+### Artifact Cache, Dry Runs, and Garbage Collection
+- **Granular `export_artifacts`**: Support exporting cached Nix artifacts for individual nodes, sub-pipelines, meta-pipelines, or lists/dictionaries of nodes/pipelines.
+- **Variadic `import_artifacts`**: Support both 1-argument `import_artifacts(archive_path)` (direct Nix store import) and 2-argument `import_artifacts(target_val, archive_path)` (import and verify paths) calling signatures.
+- **`inspect_artifacts(archive_path)`**: Import archive into a temporary, isolated Nix store and return a DataFrame containing the included nodes, store paths, hashes, sizes in bytes, and reference basenames without affecting the local store.
+- **Verification & REPL Stability**: Fixed path resolution and correctness checks, and updated package registrations in the interactive REPL for `import_artifacts`, `export_artifacts`, and `inspect_artifacts`.
+- **Cache-Aware Dry Runs**: `populate_pipeline(p, dry_run = true)` and `build_pipeline(p, dry_run = true)` now perform a dry run via Nix (`--dry-run`), parsing the plan to report which nodes will hit the local cache (`"cached"`), rebuild (`"build"`), or fetch from remote substituters (`"fetch"`), returning the results as a DataFrame.
+- **Programmatic Garbage Collection**:
+  - `pipeline_gc(p, dry_run = true)`: Deletes the store paths of the given pipeline `p` if safe. By default (`dry_run = true`), it returns a DataFrame previewing the nodes, store paths, and deletion eligibility status. Set `dry_run = false` to execute the deletion.
+  - `t_gc()`: Triggers a global Nix garbage collection (`nix-store --gc`) directly from the REPL to safely clean up old, detached derivations.
+
+
+### Meta-Pipeline Composition
+- **`pipeline_of` block**: A new combinator that composes multiple pipelines into a higher-order DAG. It allows you to define relationships between sub-pipelines in a declarative way, enabling complex, multi-stage workflows.
+- **Automatic Dependency Inference**: T-Lang automatically analyzes cross-pipeline references (e.g., referencing `etl.clean` in the `stats` pipeline) to infer the execution order between sub-pipelines. No manual `depends` configuration is required for the flattening engine.
+- **Automatic Flattening**: The `meta_flatten` combinator automatically flattens meta-pipelines at execution time. When a meta-pipeline is populated, queried, or inspected, T-Lang automatically flattens it internally. This flattening is done on-demand, so you don't need to manually flatten meta-pipelines.
+- **Automatic Namespacing**: Node names are automatically namespaced (e.g., `etl.raw`, `etl.clean`, `stats.summary`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
+- **Cross-Pipeline Reference Rewriting**: Internal references to sub-pipeline nodes (e.g., `p_etl.raw`) are automatically rewritten to their namespaced equivalents (e.g., `etl.raw`) during the flattening process.
+
+### Pipeline Parameterization (Templates)
+- **Parameterization via Lambdas**: Standard lambdas returning `pipeline` blocks (e.g., `\(multiplier) pipeline { ... }`) are now fully supported. Outer variables referenced inside the pipeline nodes are automatically substituted with their concrete values during compilation, producing fully independent and Nix-reproducible pipelines.
+
+### Examples
+
+#### Basic Usage
+```t
+# Define multiple pipelines
+p_etl = pipeline { ... }
+p_stats = pipeline { ... }
+
+# Compose into a meta-pipeline
+meta = pipeline_of {
+  etl = p_etl
+  stats = p_stats
+}
+
+# Built-in commands automatically handle meta-pipelines
+populate_pipeline(meta, build = true)
+read_node(meta.stats.summary)
+inspect_pipeline(meta)
+```
+
+#### Graph-Structured Pipeline
+```t
+meta_graph = pipeline_of {
+  raw = pipeline {
+    src = read_csv("raw.csv")
+  }
+
+  cleaned_a = pipeline {
+    a = clean(raw.src)
+  }
+
+  cleaned_b = pipeline {
+    b = clean(raw.src)
+  }
+
+  summary = pipeline {
+    val = summarize(cleaned_a.a, cleaned_b.b)
+  }
+}
+
+# T-Lang automatically infers the execution order:
+# raw -> {cleaned_a, cleaned_b} -> summary
+populate_pipeline(meta_graph, build = true)
+```
+
+### Notes
+- The `meta_flatten` combinator is not exposed as a first-class function in the CLI or T-Lang AST. It is an internal implementation detail of the pipeline engine that is automatically invoked when working with `pipeline_of`.
+
+### Bug Fixes
+
+- **Stats — fivenum alignment with R**: Replaced the defective gammp series computation with a correct implementation and adopted Tukey hinges for `fivenum`, ensuring parity with R's `fivenum()` output.
+- **Stats — high-precision t-quantile**: Replaced the Cornish-Fisher approximation with exact OCaml root-finding on the pt CDF via `Float.erfc`, improving tail accuracy.
+- **Stats — recursive t_quantile**: Made `t_quantile` recursive to handle edge cases in quantile computations correctly.
+- **Stats — ss_res in leave-one-out sigma**: Corrected the `ss_res` formula used in `leave_one_out_sigma` calculation in `lm.ml`.
+- **Stats — cut formatting**: Changed `cut` to output spaces-free labels formatted with `%g` format, matching R's `cut()` label style.
+- **Stats/Core — float/int equality & pnorm accuracy**: Treated float and int values as identical when numerically equal (`3.0 == 3`) and improved `pnorm` accuracy using `Float.erfc`.
+- **Core — VFactor/VString equality**: Extended the evaluator to support direct equality comparison between `VFactor` and `VString` values.
+- **CSV — empty string NA parsing**: Fixed `read_csv` to parse empty strings as `NA` with `allow-null-strings`, and implemented proper dataframe comparison semantics.
+- **Pipeline — JSON float precision**: Configured `jsonlite::write_json` to serialize floats at full precision, preventing rounding-induced mismatches.
+- **Pipeline — R JSON NA handling**: Configured the R JSON serializer to write `NA` values as JSON `null` for correct round-tripping.
+- **Pipeline — Nix dry-run dot-access quoting**: Correctly quote dot-access attributes (e.g., `node.sub.field`) in Nix dry-run evaluation expressions.
+- **Pipeline — mermaid ID collision prevention**: Sanitized node IDs in `pipeline_to_mermaid` to prevent collisions from similar node names.
+- **Pipeline — inspect_artifacts resource leaks**: Resolved file descriptor and directory handle leaks in `inspect_artifacts`, and restored scalar `TypeError` for invalid inputs.
+- **Pipeline — NixError fallback**: Restored original `NixError` fallback behavior for empty trimmed `last_part` in `builder_internal.ml`.
+- **Pipeline — dependency namespace fixes**: Standardized runtime emission helper naming (`__node_result` across all runtimes), fixed R variable naming compatibility (`dep_` prefix), and corrected dependency namespace generation.
+- **Pipeline — rename_node cn_name sync**: Fixed a bug where `rename_node` updated the assoc-list key in `p_nodes` but left `VComputedNode.cn_name` unchanged, causing downstream lookups (`resolved_cn`, `computed_node_resolver`, `read_node`) to search using the stale name and fail with `<unbuilt>` path errors.
+
+### Codebase Safety Refactoring
+
+The entire OCaml codebase underwent a systematic safety review following best practices for ML-family languages:
+
+- **Zero partial functions**: Eliminated all uses of `Option.get`, bare `List.hd` on unvalidated lists, and similar partial operations.
+- **Exhaustive pattern matching**: Every `match` expression across ~100 files was audited and made total, removing partial wildcard patterns where feasible.
+- **No raw exceptions in user paths**: Converted `failwith`, `raise`, and `assert false` in user-facing code to structured `VError` returns.
+- **Float comparison hygiene**: Replaced exact float equality with epsilon-aware comparisons and `Float.compare`.
+- **Abstract type safety**: Added `.mli` interface files with abstract types for `Arrow`, `GroupedTable`, and key FFI modules.
+- **Resource cleanup**: Fixed file descriptor and directory handle leaks in pipeline introspection and inspection code.
+- **Code review checklist**: Added an OCaml Code Review Checklist to `AGENTS.md` as a permanent reference for future contributions.
+
+
 ## [0.52.2] - 2026-05-31
 
 This release introduces interactive pipeline node debugging via `debug_node`, native Nix orchestration features for granular rebuild control, job parallelisation, Cachix binary caching, and dry-runs, and the temporal introspection pair `build_log_history` and `node_diff` for tracking how pipeline outputs change across builds.

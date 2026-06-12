@@ -6,7 +6,7 @@ open Builder_internal
 let builtin_pipeline_strategies =
   [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx" ]
 
-let populate_pipeline ?(build=false) ?verbose ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
+let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
   let eval_string_list lst =
     lst
     |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))
@@ -83,8 +83,11 @@ let populate_pipeline ?(build=false) ?verbose ?(nix_options : nix_opts option) (
       if List.length deps >= 2 && not (is_dict_or_list des.Ast.node) then
         let strategy = Nix_unparse.expr_to_string des in
         if strategy <> "default" then
-          Some (Printf.sprintf "Node `%s` has multiple dependencies but uses a single deserializer strategy (\"%s\").\nThis strategy is applied to ALL dependencies, which may cause parse errors if they use different formats (e.g. Arrow vs PMML).\nPlease use a dictionary to specify the deserializer for each dependency, e.g.:\n  deserializer = [ %s: \"...\", %s: \"...\" ]"
-                 name strategy (List.hd deps) (List.nth deps 1))
+          (match deps with
+           | d1 :: d2 :: _ ->
+               Some (Printf.sprintf "Node `%s` has multiple dependencies but uses a single deserializer strategy (\"%s\").\nThis strategy is applied to ALL dependencies, which may cause parse errors if they use different formats (e.g. Arrow vs PMML).\nPlease use a dictionary to specify the deserializer for each dependency, e.g.:\n  deserializer = [ %s: \"...\", %s: \"...\" ]"
+                      name strategy d1 d2)
+           | _ -> None)
         else None
       else None
     ) p.p_exprs
@@ -155,5 +158,8 @@ let populate_pipeline ?(build=false) ?verbose ?(nix_options : nix_opts option) (
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () ->
-          if build then build_pipeline_internal ?verbose ?nix_options p
+          if build then
+            match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
+            | Ok result -> Ok result
+            | Error msg -> Error msg
           else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))

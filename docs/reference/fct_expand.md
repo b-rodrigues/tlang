@@ -1,6 +1,23 @@
 # fct_expand
 
-Add explicit to_factor levels
+Add explicit factor levels
 
-Adds extra levels to a to_factor without changing existing assignments.
+Adds extra levels to a factor without changing existing assignments.
+
+## Parameters
+
+- **x** (`Vector[Factor]`): A factor vector.
+
+- **...**: New level names to add.
+
+
+## Returns
+
+A factor vector with additional levels.
+
+## Examples
+
+```t
+fct_expand(fct, "new_level")
+```
 

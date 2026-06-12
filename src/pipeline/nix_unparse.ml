@@ -109,8 +109,10 @@ and unparse_expr expr =
       |> List.map (fun (k, e) -> Printf.sprintf "%s: %s" k (unparse_expr e))
       |> String.concat ", "
       |> Printf.sprintf "[%s]"
-  | BinOp { op; left; right } | BroadcastOp { op; left; right } ->
+  | BinOp { op; left; right } ->
       Printf.sprintf "(%s %s %s)" (unparse_expr left) (op_to_string op) (unparse_expr right)
+  | BroadcastOp { op; left; right } ->
+      Printf.sprintf "(%s .%s %s)" (unparse_expr left) (op_to_string op) (unparse_expr right)
   | UnOp { op; operand } ->
       let tok = match op with Not -> "!" | Neg -> "-" in
       Printf.sprintf "%s%s" tok (unparse_expr operand)
@@ -122,6 +124,8 @@ and unparse_expr expr =
   | ShellExpr cmd -> "?<{ " ^ cmd ^ " }>"
   | PipelineDef nodes ->
       "pipeline { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
+  | PipelineOfDef nodes ->
+      "pipeline_of { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
   | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
   | ListComp _ -> "[...]"
   | IntentDef _ -> "intent { ... }"

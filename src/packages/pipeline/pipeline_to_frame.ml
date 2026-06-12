@@ -95,30 +95,31 @@ let register env =
           let node_names = List.map fst p.p_exprs in
           let depths = compute_depths p.p_deps in
           let nrows = List.length node_names in
-          let arr_name        = Array.init nrows (fun i -> Some (List.nth node_names i)) in
+          let names_arr = Array.of_list node_names in
+          let arr_name        = Array.init nrows (fun i -> Some names_arr.(i)) in
           let arr_runtime     = Array.init nrows (fun i ->
-            let n = List.nth node_names i in
+            let n = names_arr.(i) in
             Some (match List.assoc_opt n p.p_runtimes with Some r -> r | None -> "T")) in
           let arr_serializer  = Array.init nrows (fun i ->
-            let n = List.nth node_names i in
+            let n = names_arr.(i) in
             let e = match List.assoc_opt n p.p_serializers with Some s -> s | None -> Ast.mk_expr (Var "default") in
             Some (Nix_unparse.expr_to_string e)) in
           let arr_deserializer = Array.init nrows (fun i ->
-            let n = List.nth node_names i in
+            let n = names_arr.(i) in
             let e = match List.assoc_opt n p.p_deserializers with Some s -> s | None -> Ast.mk_expr (Var "default") in
             Some (Nix_unparse.expr_to_string e)) in
           let arr_noop        = Array.init nrows (fun i ->
-            let n = List.nth node_names i in
+            let n = names_arr.(i) in
             Some (match List.assoc_opt n p.p_noops with Some b -> b | None -> false)) in
           let arr_deps        = Array.init nrows (fun i ->
-            let n = List.nth node_names i in
+            let n = names_arr.(i) in
             let deps = match List.assoc_opt n p.p_deps with Some d -> d | None -> [] in
             Some (String.concat ", " deps)) in
           let arr_depth       = Array.init nrows (fun i ->
-            let n = List.nth node_names i in
+            let n = names_arr.(i) in
             Some (match List.assoc_opt n depths with Some d -> d | None -> 0)) in
           let arr_cmd_type    = Array.init nrows (fun i ->
-            let n = List.nth node_names i in
+            let n = names_arr.(i) in
             Some (match List.assoc_opt n p.p_scripts with Some (Some _) -> "script" | _ -> "command")) in
           let columns = [
             ("name",         Arrow_table.StringColumn arr_name);
@@ -132,7 +133,10 @@ let register env =
           ] in
           let arrow_table = Arrow_table.create columns nrows in
           VDataFrame { arrow_table; group_keys = [] }
-      | [_] -> Error.type_error "Function `pipeline_to_frame` expects a Pipeline."
+      | [other] ->
+          Error.type_error
+            (Printf.sprintf "Function `pipeline_to_frame` expects a Pipeline, but got %s."
+               (Utils.type_name other))
       | _ -> Error.arity_error_named "pipeline_to_frame" 1 (List.length args)
     ))
     env

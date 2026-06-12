@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Function Reference - read_past_node</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav>
+    <a href="../index.html">Home</a>
+    <a href="../getting-started.html">Get Started</a>
+    <a href="../language_overview.html">Overview</a>
+    <a href="../api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="read_past_node">read_past_node</h1>
+<p>Read Pipeline Node from a Past Build Run</p>
+<p>Reads and returns the contents of a pipeline node from a historical
+build log, identified by <code>which_log</code>. Unlike
+<code>read_node</code>, this works without the pipeline being in scope —
+the node name is captured via NSE from the <code>p.node_name</code>
+syntax.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><strong>node</strong> (<code>ComputedNode</code>): The node to read,
+written as <code>p.node_name</code> (NSE-captured).</li>
+<li><strong>which_log</strong> (<code>String</code>, required): A regex
+pattern matching a specific build log filename.</li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>The deserialized artifact value, wrapped with diagnostics.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code># Read a node from a specific past build run
+read_past_node(base_p.raw, which_log = &quot;qcfs&quot;)
+
+# Use list_logs() to find the right log pattern
+list_logs()
+#   filename                           
+#   build_log_20260609_190157_qcfs71...
+#   build_log_20260609_192734_alnsv7...</code></pre>
+<h2 id="see-also">See Also</h2>
+<p><a href="read_node.html">read_node</a>, <a
+href="list_logs.html">list_logs</a>, <a
+href="build_log.html">build_log</a></p>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

@@ -36,3 +36,5 @@ benchmarks/nyc_taxi/results/*.log
 node_modules/
 *.tobj
 /.t_julia_depot/
+.t_python_guard/
+.t_r_profile/

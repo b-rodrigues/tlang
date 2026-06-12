@@ -30,45 +30,60 @@ let register ~eval_call env =
   Env.add "filter_node"
     (make_builtin ~name:"filter_node" 2 (fun args env ->
       match args with
-      | [VPipeline p; predicate] ->
-          let p =
-            {
-              p with
-              p_nodes =
-                Builder.merge_pipeline_nodes_with_latest_log p;
-              p_node_diagnostics =
-                Builder.merge_pipeline_node_diagnostics_with_latest_log p;
-            }
-          in
-          let depths = Pipeline_to_frame.compute_depths p.p_deps in
-          let keep = List.filter (fun (name, _) ->
-            let row_dict = VDict (Pipeline_to_frame.node_metadata_dict name p depths) in
-            match eval_call env predicate [(None, Ast.mk_expr (Value row_dict))] with
-            | VBool b -> b
-            | _ -> false
-          ) p.p_exprs in
-          let keep_names = List.map fst keep in
-          let keep_set name = List.mem name keep_names in
-          VPipeline {
-            p_nodes        = List.filter (fun (n, _) -> keep_set n) p.p_nodes;
-            p_exprs        = keep;
-            p_deps         = List.filter (fun (n, _) -> keep_set n) p.p_deps;
-            p_imports      = p.p_imports;
-            p_runtimes     = List.filter (fun (n, _) -> keep_set n) p.p_runtimes;
-            p_serializers  = List.filter (fun (n, _) -> keep_set n) p.p_serializers;
-            p_deserializers = List.filter (fun (n, _) -> keep_set n) p.p_deserializers;
-            p_env_vars     = List.filter (fun (n, _) -> keep_set n) p.p_env_vars;
-            p_args         = List.filter (fun (n, _) -> keep_set n) p.p_args;
-            p_shells       = List.filter (fun (n, _) -> keep_set n) p.p_shells;
-            p_shell_args   = List.filter (fun (n, _) -> keep_set n) p.p_shell_args;
-            p_functions    = List.filter (fun (n, _) -> keep_set n) p.p_functions;
-            p_includes     = List.filter (fun (n, _) -> keep_set n) p.p_includes;
-            p_noops        = List.filter (fun (n, _) -> keep_set n) p.p_noops;
-            p_scripts      = List.filter (fun (n, _) -> keep_set n) p.p_scripts;
-            p_explicit_deps = List.filter (fun (n, _) -> keep_set n) p.p_explicit_deps;
-            p_node_diagnostics = List.filter (fun (n, _) -> keep_set n) p.p_node_diagnostics;
-          }
-      | [_; _] -> Error.type_error "Function `filter_node` expects a Pipeline as first argument."
+      | [first_arg; predicate] ->
+          (match first_arg with
+           | VPipeline p ->
+               let p =
+                 {
+                   p with
+                   p_nodes =
+                     Builder.merge_pipeline_nodes_with_latest_log p;
+                   p_node_diagnostics =
+                     Builder.merge_pipeline_node_diagnostics_with_latest_log p;
+                 }
+               in
+               let depths = Pipeline_to_frame.compute_depths p.p_deps in
+               let results = List.map (fun (name, _) ->
+                 let row_dict = VDict (Pipeline_to_frame.node_metadata_dict name p depths) in
+                 (name, eval_call env predicate [(None, Ast.mk_expr (Value row_dict))])
+               ) p.p_exprs in
+               let errors = List.filter_map (fun (name, v) ->
+                 match v with
+                 | VBool _ -> None
+                 | VError _ as e -> Some e
+                 | other -> Some (Error.type_error (
+                     Printf.sprintf "Function `filter_node`: predicate returned %s for node `%s`, expected Bool."
+                       (Utils.type_name other) name))
+               ) results in
+               (match errors with
+                | e :: _ -> e
+                | [] ->
+                    let keep_names = List.filter_map (fun (name, v) ->
+                      match v with
+                      | VBool true -> Some name
+                      | _ -> None
+                    ) results in
+                    let keep_set name = List.mem name keep_names in
+                    VPipeline {
+                      p_nodes        = List.filter (fun (n, _) -> keep_set n) p.p_nodes;
+                      p_exprs        = List.filter (fun (n, _) -> keep_set n) p.p_exprs;
+                      p_deps         = List.filter (fun (n, _) -> keep_set n) p.p_deps;
+                      p_imports      = p.p_imports;
+                      p_runtimes     = List.filter (fun (n, _) -> keep_set n) p.p_runtimes;
+                      p_serializers  = List.filter (fun (n, _) -> keep_set n) p.p_serializers;
+                      p_deserializers = List.filter (fun (n, _) -> keep_set n) p.p_deserializers;
+                      p_env_vars     = List.filter (fun (n, _) -> keep_set n) p.p_env_vars;
+                      p_args         = List.filter (fun (n, _) -> keep_set n) p.p_args;
+                      p_shells       = List.filter (fun (n, _) -> keep_set n) p.p_shells;
+                      p_shell_args   = List.filter (fun (n, _) -> keep_set n) p.p_shell_args;
+                      p_functions    = List.filter (fun (n, _) -> keep_set n) p.p_functions;
+                      p_includes     = List.filter (fun (n, _) -> keep_set n) p.p_includes;
+                      p_noops        = List.filter (fun (n, _) -> keep_set n) p.p_noops;
+                      p_scripts      = List.filter (fun (n, _) -> keep_set n) p.p_scripts;
+                      p_explicit_deps = List.filter (fun (n, _) -> keep_set n) p.p_explicit_deps;
+                      p_node_diagnostics = List.filter (fun (n, _) -> keep_set n) p.p_node_diagnostics;
+                    })
+           | _ -> Error.type_error "Function `filter_node` expects a Pipeline as first argument.")
       | _ -> Error.arity_error_named "filter_node" 2 (List.length args)
     ))
     env

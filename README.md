@@ -2,7 +2,7 @@
 
 [![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.52.2%20%22Kam%C3%A9ham%C3%A9ha%22-blue.svg)](https://tstats-project.org/changelog.html)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.52.3%20%22Kam%C3%A9ham%C3%A9ha%22-blue.svg)](https://tstats-project.org/changelog.html)
 [![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
@@ -154,6 +154,15 @@ exit
 This creates a new directory (e.g. `my_t_project/`) containing the necessary project files.  
 The most important file is `tproject.toml`. This file declares your project's dependencies. Dependencies must be explicitly listed here, as they are used by the project-specific flake to provide a fully reproducible environment.
 
+Note that `exit` takes you back to your normal shell — `t` is no longer on `PATH`. Don't worry; the next step puts it back.
+
+```bash
+cd my_t_project
+nix develop
+```
+
+This enters your project's reproducible development environment, which provides the `t` command alongside all declared R, Python, and Julia runtimes.
+
 You can now start working on your project by editing `src/pipeline.t`. 
 
 > [!IMPORTANT]
@@ -195,7 +204,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 
 ## Status & Missing Features
 
-**Alpha 0.52.2 "Kaméhaméha"** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
+**Beta 0.52.3 "Kaméhaméha"** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
 
 - **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`, and more — heavily inspired by `dplyr`, `tidyr`, and `forcats`).
 - **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc. — inspired by `lubridate`).
@@ -292,4 +301,4 @@ T is licensed under the [European Union Public License v1.2](LICENSE).
 
 ---
 
-*Built with curiosity, designed for reproducibility.*
+*Architected by Bruno Rodrigues, implemented by LLMs.*

@@ -1,6 +1,21 @@
 # fct_c
 
-Concatenate to_factor vectors
+Concatenate factor vectors
 
-Combines multiple to_factor vectors while reconciling their levels.
+Combines multiple factor vectors while reconciling their levels.
+
+## Parameters
+
+- **...**: Vector[Factor] Factor vectors to concatenate.
+
+
+## Returns
+
+A combined factor vector with unified levels.
+
+## Examples
+
+```t
+fct_c(fct1, fct2)
+```
 

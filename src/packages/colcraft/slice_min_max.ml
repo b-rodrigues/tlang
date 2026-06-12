@@ -19,9 +19,9 @@ let slice_generic ~desc (named_args : (string option * value) list) _env =
                let compare_v (_, v1) (_, v2) =
                  let c = match v1, v2 with
                    | VInt x, VInt y -> compare x y
-                   | VFloat x, VFloat y -> compare x y
-                   | VInt x, VFloat y -> compare (float_of_int x) y
-                   | VFloat x, VInt y -> compare x (float_of_int y)
+                   | VFloat x, VFloat y -> Float.compare x y
+                   | VInt x, VFloat y -> Float.compare (float_of_int x) y
+                   | VFloat x, VInt y -> Float.compare x (float_of_int y)
                    | VString x, VString y -> String.compare x y
                    | VNA _, VNA _ -> 0
                    | VNA _, _ -> -1
@@ -52,6 +52,13 @@ let slice_min_impl = slice_generic ~desc:false
 --# Returns the rows with the highest values in an ordering column.
 --#
 --# @name slice_max
+--# @param df :: DataFrame The input data frame.
+--# @param order_by :: Column The column to order by.
+--# @param n :: Int = 1 Number of rows to return.
+--# @return :: DataFrame A DataFrame with the top n rows by the ordering column.
+--# @example
+--#   slice_max(df, $score)
+--#   slice_max(df, $score, n = 5)
 --# @family colcraft
 --# @export
 *)
@@ -61,6 +68,13 @@ let slice_min_impl = slice_generic ~desc:false
 --# Returns the rows with the lowest values in an ordering column.
 --#
 --# @name slice_min
+--# @param df :: DataFrame The input data frame.
+--# @param order_by :: Column The column to order by.
+--# @param n :: Int = 1 Number of rows to return.
+--# @return :: DataFrame A DataFrame with the bottom n rows by the ordering column.
+--# @example
+--#   slice_min(df, $score)
+--#   slice_min(df, $score, n = 5)
 --# @family colcraft
 --# @export
 *)
