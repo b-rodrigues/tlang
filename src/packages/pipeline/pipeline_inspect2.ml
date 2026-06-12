@@ -593,10 +593,13 @@ let register env =
       let args = Math_common.positional_args_without ["flatten"; "title"] named_args in
       let emit_flat_diagram p =
         let buf = Buffer.create 256 in
-        Buffer.add_string buf "graph LR\n";
         (match title with
-         | Some t -> Buffer.add_string buf (Printf.sprintf "  %% title: %s\n" t)
+         | Some t ->
+             Buffer.add_string buf "---\n";
+             Buffer.add_string buf (Printf.sprintf "title: %s\n" t);
+             Buffer.add_string buf "---\n"
          | None -> ());
+        Buffer.add_string buf "graph LR\n";
         let get_id = make_id_allocator () in
         List.iter (fun (name, _) ->
           let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
@@ -631,10 +634,13 @@ let register env =
       in
       let emit_subgraph_diagram p sub_names =
         let buf = Buffer.create 256 in
-        Buffer.add_string buf "graph LR\n";
         (match title with
-         | Some t -> Buffer.add_string buf (Printf.sprintf "  %% title: %s\n" t)
+         | Some t ->
+             Buffer.add_string buf "---\n";
+             Buffer.add_string buf (Printf.sprintf "title: %s\n" t);
+             Buffer.add_string buf "---\n"
          | None -> ());
+        Buffer.add_string buf "graph LR\n";
         let get_id = make_id_allocator () in
         let subgraph_of name =
           List.find_map (fun sub ->

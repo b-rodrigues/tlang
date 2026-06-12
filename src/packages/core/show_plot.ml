@@ -599,6 +599,8 @@ let render_plot_artifact cn =
 
 let is_mermaid_string s =
   let s_trimmed = String.trim s in
+  String.starts_with ~prefix:"---" s_trimmed ||
+  String.starts_with ~prefix:"%%" s_trimmed ||
   String.starts_with ~prefix:"graph " s_trimmed ||
   String.starts_with ~prefix:"graph\n" s_trimmed ||
   String.starts_with ~prefix:"graph\r" s_trimmed ||
@@ -613,7 +615,25 @@ let is_mermaid_string s =
   String.starts_with ~prefix:"journey" s_trimmed ||
   String.starts_with ~prefix:"mindmap" s_trimmed
 
-let render_mermaid_html content =
+let extract_mermaid_title content =
+  let s = String.trim content in
+  if String.length s < 3 || String.sub s 0 3 <> "---" then None
+  else
+    let after_open = String.trim (String.sub s 3 (String.length s - 3)) in
+    match String.index_from after_open 0 '\n' with
+    | idx ->
+      let line = String.trim (String.sub after_open 0 idx) in
+      let len = String.length line in
+      if len >= 6 && String.sub line 0 6 = "title:" then
+        Some (String.trim (String.sub line 6 (len - 6)))
+      else None
+    | exception Not_found ->
+      let len = String.length after_open in
+      if len >= 6 && String.sub after_open 0 6 = "title:" then
+        Some (String.trim (String.sub after_open 6 (len - 6)))
+      else None
+
+let render_mermaid_html ~title content =
   Printf.sprintf
     {|<!DOCTYPE html>
 <html>
@@ -658,17 +678,21 @@ let render_mermaid_html content =
   </style>
 </head>
 <body>
-  <h1>T-Lang Pipeline Dependency Graph</h1>
+  <h1>%s</h1>
   <div class="mermaid">
 %s
   </div>
 </body>
 </html>
 |}
-    content
+    title content
 
 let render_and_open_mermaid mermaid_str =
-  let html_content = render_mermaid_html mermaid_str in
+  let title = match extract_mermaid_title mermaid_str with
+    | Some t -> t
+    | None -> "T-Lang Pipeline Dependency Graph"
+  in
+  let html_content = render_mermaid_html ~title mermaid_str in
   let project_root = Builder_utils.get_project_root () in
   Builder_utils.ensure_pipeline_dir ();
   let filename =
