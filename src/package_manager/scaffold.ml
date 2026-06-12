@@ -680,7 +680,17 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         create_dir (Filename.concat dir "help");
         (* Write files from templates *)
         write_file (Filename.concat dir "DESCRIPTION.toml") (sub package_description_toml);
-        write_file (Filename.concat dir "flake.nix") (sub package_flake_nix);
+        if opts.use_atelier then begin
+          let flake_content = Nix_generator.generate_package_flake
+            ~package_name:opts.target_name
+            ~package_version:"0.1.0"
+            ~nixpkgs_date:opts.nixpkgs_date
+            ~t_version:tlang_version
+            ~deps:[]
+            ~use_atelier:true () in
+          write_file (Filename.concat dir "flake.nix") flake_content
+        end else
+          write_file (Filename.concat dir "flake.nix") (sub package_flake_nix);
         write_file (Filename.concat dir "README.md") (sub package_readme);
         write_file (Filename.concat dir "CHANGELOG.md") (sub package_changelog);
         let _ = write_license_file dir opts.license in
@@ -714,6 +724,8 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  t repl                # Start the REPL\n";
         Printf.printf "  t run src/main.t      # Run the example\n";
         Printf.printf "  t test                # Run tests\n";
+        if opts.use_atelier then
+          Printf.printf "  atelier               # Launch Atelier IDE\n";
         Ok ()
       with Sys_error msg ->
         Error ("System file error during scaffolding: " ^ msg)
@@ -748,6 +760,8 @@ let interactive_init ?(placeholder="my_package") default_name =
   let nixpkgs_date = prompt_string "Nixpkgs date (rstats-on-nix branch)" Version.nixpkgs_date in
   let agent_context = prompt_string "Agent Context Level [small, medium, full, huge]" "medium" in
   let pipeline_template = prompt_string "Pipeline Template [minimal, full]" "minimal" in
+  let include_atelier = prompt_string "Include Atelier IDE (tmux-based TUI for T)? [y/N]" "N" in
+  let use_atelier = String.lowercase_ascii (String.trim include_atelier) = "y" in
   Printf.printf "\n";
   {
     target_name = name;
@@ -759,6 +773,7 @@ let interactive_init ?(placeholder="my_package") default_name =
     interactive = true;
     agent_context = agent_context;
     pipeline_template = pipeline_template;
+    use_atelier = use_atelier;
   }
 
 (** Copies or downloads the archetypical pipeline template if complete, or writes the default minimal pipeline *)
@@ -825,7 +840,8 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
           ~project_name:opts.target_name
           ~nixpkgs_date:opts.nixpkgs_date
           ~t_version:tlang_version
-          ~deps:[] () in
+          ~deps:[]
+          ~use_atelier:opts.use_atelier () in
         write_file (Filename.concat dir "flake.nix") flake_content;
         write_file (Filename.concat dir "README.md") (sub project_readme);
         let _ = write_license_file dir opts.license in
@@ -853,6 +869,8 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  nix develop           # Enter reproducible environment\n";
         Printf.printf "  t repl                # Start the REPL\n";
         Printf.printf "  t run src/pipeline.t  # Run the pipeline\n";
+        if opts.use_atelier then
+          Printf.printf "  atelier               # Launch Atelier IDE\n";
         Printf.printf "\nEditor Setup:\n";
         Printf.printf "  See https://tstats-project.org/editors.html for LSP configuration.\n";
         Ok ()
@@ -870,6 +888,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
   let force = ref false in
   let agent_context = ref "medium" in
   let pipeline_template = ref "minimal" in
+  let use_atelier = ref false in
   let show_help = ref false in
   let error = ref None in
   let rec parse = function
@@ -880,6 +899,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
     | "--no-git" :: rest -> no_git := true; parse rest
     | "--force" :: rest -> force := true; parse rest
     | "--context" :: v :: rest -> agent_context := v; parse rest
+    | "--include-atelier" :: rest -> use_atelier := true; parse rest
     | "--interactive" :: rest -> parse rest (* Handled in repl.ml mainly, but we can flag it *)
     | "--help" :: _ -> show_help := true
     | arg :: rest ->
@@ -902,6 +922,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
            \  --no-git           Skip git init\n\
            \  --force            Overwrite existing directory\n\
            \  --context <level>  Agent context level (small, medium, full, huge; default: medium)\n\
+           \  --include-atelier  Include Atelier IDE (tmux-based TUI for T) as a flake input\n\
            \  --help             Show this help\n\
            \  --interactive      Prompt for options")
   else match !error with
@@ -919,6 +940,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
         interactive = List.mem "--interactive" args;
         agent_context = !agent_context;
         pipeline_template = !pipeline_template;
+        use_atelier = !use_atelier;
       }
     | None ->
         if List.mem "--interactive" args then
@@ -932,6 +954,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
             interactive = true;
             agent_context = !agent_context;
             pipeline_template = !pipeline_template;
+            use_atelier = !use_atelier;
           }
         else
           Error "Missing name. Usage: t init --package|--project <name>"
