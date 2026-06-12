@@ -680,17 +680,14 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         create_dir (Filename.concat dir "help");
         (* Write files from templates *)
         write_file (Filename.concat dir "DESCRIPTION.toml") (sub package_description_toml);
-        if opts.use_atelier then begin
-          let flake_content = Nix_generator.generate_package_flake
-            ~package_name:opts.target_name
-            ~package_version:"0.1.0"
-            ~nixpkgs_date:opts.nixpkgs_date
-            ~t_version:tlang_version
-            ~deps:[]
-            ~use_atelier:true () in
-          write_file (Filename.concat dir "flake.nix") flake_content
-        end else
-          write_file (Filename.concat dir "flake.nix") (sub package_flake_nix);
+        let flake_content = Nix_generator.generate_package_flake
+          ~package_name:opts.target_name
+          ~package_version:"0.1.0"
+          ~nixpkgs_date:opts.nixpkgs_date
+          ~t_version:tlang_version
+          ~deps:[]
+          ~use_atelier:opts.use_atelier () in
+        write_file (Filename.concat dir "flake.nix") flake_content;
         write_file (Filename.concat dir "README.md") (sub package_readme);
         write_file (Filename.concat dir "CHANGELOG.md") (sub package_changelog);
         let _ = write_license_file dir opts.license in
@@ -761,7 +758,11 @@ let interactive_init ?(placeholder="my_package") default_name =
   let agent_context = prompt_string "Agent Context Level [small, medium, full, huge]" "medium" in
   let pipeline_template = prompt_string "Pipeline Template [minimal, full]" "minimal" in
   let include_atelier = prompt_string "Include Atelier IDE (tmux-based TUI for T)? [y/N]" "N" in
-  let use_atelier = String.lowercase_ascii (String.trim include_atelier) = "y" in
+  let use_atelier =
+    match String.lowercase_ascii (String.trim include_atelier) with
+    | "y" | "yes" -> true
+    | _ -> false
+  in
   Printf.printf "\n";
   {
     target_name = name;

@@ -297,8 +297,8 @@ let generate_project_flake
             Buffer.add_string buf "            py-env\n";
             Buffer.add_string buf "            juliaPkg\n";
             Buffer.add_string buf "            t-lang.packages.${system}.tlang-julia-path\n";
-  if use_atelier then Buffer.add_string buf "            atelier.packages.${system}.default\n";
-  if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
+            if use_atelier then Buffer.add_string buf "            atelier.packages.${system}.default\n";
+            if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   let extra_pkgs = 
     (if additional_tools <> [] then " ++ additionalTools" else "") ^
     (if deps <> [] then " ++ tPackages" else "")
