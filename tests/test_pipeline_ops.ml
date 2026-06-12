@@ -3,6 +3,16 @@
 
 let run_tests pass_count fail_count failures _eval_string eval_string_env test =
 
+  let contains s sub =
+    let n = String.length s in
+    let m = String.length sub in
+    m <= n &&
+    let rec loop i =
+      i <= n - m && (String.sub s i m = sub || loop (i + 1))
+    in
+    loop 0
+  in
+
   Printf.printf "Phase 1 — pipeline_to_frame:\n";
 
   (* Basic usage: should return a DataFrame with the right number of rows *)
@@ -670,7 +680,6 @@ p |> prune |> pipeline_nodes|}
 p |> upstream_of("c") |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
   if contains result "\"a\"" && contains result "\"b\"" && contains result "\"c\"" &&
      not (contains result "\"d\"")
   then begin
@@ -697,7 +706,6 @@ p |> upstream_of("c") |> pipeline_nodes|}
 p |> downstream_of("a") |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
   if contains result "\"a\"" && contains result "\"b\"" && contains result "\"c\"" then begin
     incr pass_count; Printf.printf "  ✓ downstream_of includes node and descendants\n"
   end else begin
@@ -732,7 +740,6 @@ p |> downstream_of("b") |> pipeline_nodes|}
 p |> subgraph("b") |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
   if contains result "\"a\"" && contains result "\"b\"" && contains result "\"c\"" then begin
     incr pass_count; Printf.printf "  ✓ subgraph of middle node returns full chain\n"
   end else begin
@@ -764,7 +771,6 @@ p2 = p_full |> downstream_of("b")
 chain(p1, p2) |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
   if contains result "a" && contains result "b" && contains result "c" then begin
     incr pass_count; Printf.printf "  ✓ chain merges connected pipelines\n"
   end else begin
@@ -933,8 +939,7 @@ pipeline_edges(p)|}
     {|p = pipeline { etl_raw = 1; raw = 2 } |> rename_node("raw", "etl.raw"); pipeline_to_mermaid(p)|}
     (Packages.init_env ()) in
   (match v with
-   | Ast.VString s ->
-       let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
+       | Ast.VString s ->
        if contains s "etl_raw[\"etl_raw [" && contains s "etl_raw__2[\"etl.raw [" then begin
          incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid avoids ID collisions\n"
        end else begin
@@ -976,14 +981,119 @@ pipeline_edges(p)|}
   (match v with
    | Ast.VString s when String.length s > 10 && String.sub s 0 8 = "graph LR" ->
        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid on MetaPipeline returns Mermaid string\n"
-   | other ->
-       incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_to_mermaid on MetaPipeline\n    Expected: Mermaid string starting with 'graph LR'\n    Got: %s\n"
-         (Ast.Utils.value_to_string other) in
-       failures := msg :: !failures;
-       Printf.printf "%s" msg);
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid on MetaPipeline\n    Expected: Mermaid string starting with 'graph LR'\n    Got: %s\n"
+          (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
 
-  Printf.printf "Phase 4 — meta_flatten:\n";
+   (* pipeline_to_mermaid with MetaPipeline renders subgraph blocks by default *)
+   let (v, _) = eval_string_env
+     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+       p_stats = pipeline { summary = 2 };
+       meta = pipeline_of { etl = p_etl; stats = p_stats };
+       pipeline_to_mermaid(meta)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "subgraph etl" && contains s "subgraph stats" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid MetaPipeline renders subgraph blocks\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid MetaPipeline subgraphs\n    Expected subgraph blocks, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid MetaPipeline subgraphs type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_mermaid with flatten=true returns flat output (no subgraph) *)
+   let (v, _) = eval_string_env
+     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+       p_stats = pipeline { summary = 2 };
+       meta = pipeline_of { etl = p_etl; stats = p_stats };
+       pipeline_to_mermaid(meta, flatten = true)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when not (contains s "subgraph") && contains s "etl.raw" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid flatten=true omits subgraph blocks\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid flatten=true\n    Expected flat output without subgraph, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid flatten=true type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_dot with MetaPipeline renders subgraph clusters by default *)
+   let (v, _) = eval_string_env
+     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+       p_stats = pipeline { summary = 2 };
+       meta = pipeline_of { etl = p_etl; stats = p_stats };
+       pipeline_to_dot(meta)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "subgraph cluster_etl" && contains s "subgraph cluster_stats" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_dot MetaPipeline renders subgraph clusters\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot MetaPipeline subgraph clusters\n    Expected cluster subgraphs, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot MetaPipeline subgraph clusters type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_dot with flatten=true omits subgraph clusters *)
+   let (v, _) = eval_string_env
+     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+       p_stats = pipeline { summary = 2 };
+       meta = pipeline_of { etl = p_etl; stats = p_stats };
+       pipeline_to_dot(meta, flatten = true)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when not (contains s "subgraph") ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_dot flatten=true omits cluster subgraphs\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot flatten=true\n    Expected flat output without subgraph, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_dot flatten=true type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   (* pipeline_to_mermaid subgraph with cross-pipeline dependency *)
+   let (v, _) = eval_string_env
+     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+       p_stats = pipeline { summary = etl.clean + 2 };
+       meta = pipeline_of { etl = p_etl; stats = p_stats };
+       pipeline_to_mermaid(meta)|}
+     (Packages.init_env ()) in
+   (match v with
+    | Ast.VString s when contains s "subgraph etl" && contains s "subgraph stats" && contains s "etl_clean -->" && contains s "stats_summary" ->
+        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid cross-subgraph edge rendered correctly\n"
+    | Ast.VString s ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid cross-subgraph edge\n    Expected subgraphs with cross edge, got:\n%s\n" s in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg
+    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid cross-subgraph edge type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+   Printf.printf "Phase 4 — meta_flatten:\n";
 
   (* meta_flatten: namespaces nodes correctly *)
   let (v, _) = eval_string_env
