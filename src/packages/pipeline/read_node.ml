@@ -429,7 +429,14 @@ let register env =
              (Utils.type_name other))
   in
 
-  let read_fn named_args _env =
+let not_computed_node_msg type_name =
+  "read_node: expected a ComputedNode for argument 'node', but got " ^ type_name ^ ".\n\
+  - If the pipeline hasn't been built yet, run build_pipeline(p) first.\n\
+  - If the pipeline is built, use dot access: read_node(p.node_name).\n\
+  - To read from a past build, use read_past_node(p.node_name, which_log = \"...\")."
+in
+
+let read_fn named_args _env =
 
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VComputedNode cn ->
@@ -465,7 +472,7 @@ let register env =
                      Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
         end
     | VString _ ->
-        Error.type_error "read_node: expected a ComputedNode for argument 'node', but got String. Use read_past_node(p.node_name, which_log = ...) to read from a past build log."
+        Error.type_error (not_computed_node_msg "String")
     | VSymbol name ->
         let node_name =
           if String.length name > 6 && String.sub name 0 6 = "<noop:" then
@@ -477,22 +484,19 @@ let register env =
          | Some real_name ->
              Error.type_error (Printf.sprintf "read_node: cannot read node `%s` because it was skipped (noop=true) or was a downstream dependency of a skipped node." real_name)
          | None ->
-             Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got Symbol. Did you mean read_node(p.%s)?" name))
+             Error.type_error (not_computed_node_msg "Symbol" ^ "\n  - Did you mean read_node(p." ^ name ^ ")?"))
     | VPipeline _ ->
-        Error.type_error "read_node: expected a ComputedNode for argument 'node', but got Pipeline. Use read_node(p.node_name) instead."
+        Error.type_error (not_computed_node_msg "Pipeline")
     | VNA _ ->
-        Error.make_error ValueError
-          "read_node: requires a ComputedNode object. Use p.node_name (e.g. read_node(p.clean)) to access a node."
+        Error.make_error ValueError (not_computed_node_msg "NA")
     | VError err ->
-        (match List.assoc_opt "node_name" err.context with
-         | Some (VString name) ->
-             Error.type_error
-               (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got an Error because node `%s` could not be resolved. Build the pipeline first with build_pipeline(p), or use read_past_node(p.%s, which_log = ...) to read from a past build log." name name)
-         | _ ->
-             Error.type_error
-               "read_node: expected a ComputedNode for argument 'node', but got an Error value. Build the pipeline first with build_pipeline(p), or use read_past_node(p.node_name, which_log = ...) to read from a past build log.")
+        let hint = match List.assoc_opt "node_name" err.context with
+          | Some (VString n) -> "\n  - Node `" ^ n ^ "` could not be resolved."
+          | _ -> ""
+        in
+        Error.type_error (not_computed_node_msg "Error" ^ hint)
     | other ->
-        Error.type_error (Printf.sprintf "read_node: expected a ComputedNode for argument 'node', but got %s." (Utils.type_name other))
+        Error.type_error (not_computed_node_msg (Utils.type_name other))
   in
 
 (*
