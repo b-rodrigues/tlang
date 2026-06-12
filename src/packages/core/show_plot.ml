@@ -615,23 +615,33 @@ let is_mermaid_string s =
   String.starts_with ~prefix:"journey" s_trimmed ||
   String.starts_with ~prefix:"mindmap" s_trimmed
 
+let html_escape s =
+  let buf = Buffer.create (String.length s * 2) in
+  String.iter (fun c ->
+    match c with
+    | '&' -> Buffer.add_string buf "&amp;"
+    | '<' -> Buffer.add_string buf "&lt;"
+    | '>' -> Buffer.add_string buf "&gt;"
+    | c   -> Buffer.add_char buf c
+  ) s;
+  Buffer.contents buf
+
 let extract_mermaid_title content =
   let s = String.trim content in
-  if String.length s < 3 || String.sub s 0 3 <> "---" then None
+  if not (String.starts_with ~prefix:"---" s) then None
   else
-    let after_open = String.trim (String.sub s 3 (String.length s - 3)) in
-    match String.index_from after_open 0 '\n' with
-    | idx ->
-      let line = String.trim (String.sub after_open 0 idx) in
-      let len = String.length line in
-      if len >= 6 && String.sub line 0 6 = "title:" then
-        Some (String.trim (String.sub line 6 (len - 6)))
-      else None
-    | exception Not_found ->
-      let len = String.length after_open in
-      if len >= 6 && String.sub after_open 0 6 = "title:" then
-        Some (String.trim (String.sub after_open 6 (len - 6)))
-      else None
+    let rest = String.sub s 3 (String.length s - 3) in
+    let lines = String.split_on_char '\n' rest in
+    let rec scan = function
+      | [] -> None
+      | line :: rest_lines ->
+        let trimmed = String.trim line in
+        if trimmed = "---" then None
+        else if String.length trimmed >= 6 && String.sub trimmed 0 6 = "title:" then
+          Some (String.trim (String.sub trimmed 6 (String.length trimmed - 6)))
+        else scan rest_lines
+    in
+    scan lines
 
 let render_mermaid_html ~title content =
   Printf.sprintf
@@ -685,7 +695,7 @@ let render_mermaid_html ~title content =
 </body>
 </html>
 |}
-    title content
+    (html_escape title) content
 
 let render_and_open_mermaid mermaid_str =
   let title = match extract_mermaid_title mermaid_str with
