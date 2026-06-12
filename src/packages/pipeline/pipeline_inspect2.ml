@@ -596,7 +596,7 @@ let register env =
         (match title with
          | Some t ->
              Buffer.add_string buf "---\n";
-             Buffer.add_string buf (Printf.sprintf "title: %s\n" t);
+             Buffer.add_string buf (Printf.sprintf "tlang-title: %s\n" t);
              Buffer.add_string buf "---\n"
          | None -> ());
         Buffer.add_string buf "graph LR\n";
@@ -637,7 +637,7 @@ let register env =
         (match title with
          | Some t ->
              Buffer.add_string buf "---\n";
-             Buffer.add_string buf (Printf.sprintf "title: %s\n" t);
+             Buffer.add_string buf (Printf.sprintf "tlang-title: %s\n" t);
              Buffer.add_string buf "---\n"
          | None -> ());
         Buffer.add_string buf "graph LR\n";

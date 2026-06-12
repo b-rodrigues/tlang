@@ -637,8 +637,8 @@ let extract_mermaid_title content =
       | line :: rest_lines ->
         let trimmed = String.trim line in
         if trimmed = "---" then None
-        else if String.length trimmed >= 6 && String.sub trimmed 0 6 = "title:" then
-          Some (String.trim (String.sub trimmed 6 (String.length trimmed - 6)))
+        else if String.length trimmed >= 12 && String.sub trimmed 0 12 = "tlang-title:" then
+          Some (String.trim (String.sub trimmed 12 (String.length trimmed - 12)))
         else scan rest_lines
     in
     scan lines

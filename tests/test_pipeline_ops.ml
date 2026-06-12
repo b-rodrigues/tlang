@@ -1116,7 +1116,7 @@ pipeline_edges(p)|}
      {|p = pipeline { a = 1; b = a + 1 }; pipeline_to_mermaid(p, title = "Custom Title")|}
      (Packages.init_env ()) in
    (match v with
-    | Ast.VString s when contains s "title: Custom Title" ->
+    | Ast.VString s when contains s "tlang-title: Custom Title" ->
         incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid with custom title\n"
     | Ast.VString s ->
         incr fail_count;
