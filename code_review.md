@@ -61,5 +61,23 @@ This guarantees at most one rendering thread is active at any time.
 ---
 
 ## Verdict
-
 All recommended fixes have been implemented successfully in both repositories. Both `tlang` and `atelier` compile and build cleanly in their respective Nix/development environments.
+
+---
+
+## Review of commit `5a617e5` (feat: lazy LLM spawn with path prompt, no restart on context change)
+
+This commit transitions the LLM pane (`LlmPane`) to utilize lazy spawning with an interactive project path input prompt on startup, and prevents restarting the LLM/opencode PTY process when the active context changes.
+
+### ✅ What's Good
+
+* **State Machine for Lazy Spawning**: The addition of `LlmState::AwaitingPath` is a clean way to model the interactive setup phase before the PTY is spawned.
+* **Persistent LLM Session (No Process Re-spawning)**: In `push_context_inner`, the code no longer calls `self.spawn_or_refresh(ctx.hash)`. Instead, it updates the context markdown file and writes the new context directly to the running process's stdin (in `"stdin"` context mode). This keeps the session alive, preserving shell history, scrollback, and process state.
+* **Fallback Repository Directory**: Properly defaults to the current working directory of the shell (`std::env::current_dir()`) if no repository path is provided via CLI argument.
+* **Character Input Sanitization**: Standard Unix path characters are correctly validated before being appended to the input buffer, preventing terminal control code injections.
+
+### ⚠️ Minor Suggestions (Status: Resolved / Noted)
+
+* **Cursor indicator in Path prompt**: ✅ Resolved. A blinking block cursor (`▊`) has been added to the end of the path input field to provide visual typing feedback.
+* **`stdin` Context Mode with Interactive Shells**: (Noted) Writing large context buffers directly to PTY stdin while an interactive shell is running could pollute the shell prompt or execute unintended commands if the shell is not actively blocking on a read. This is mitigated because it is a user-configurable option (`context_mode = "stdin"`), but users should be aware.
+
