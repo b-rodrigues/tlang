@@ -233,6 +233,14 @@ The `t-lsp` binary is provided automatically by your project's `nix develop` she
 2.  Launch your editor *inside* the project directory after running `nix develop`.
 3.  Alternatively, use **direnv** to automatically load the environment when you enter the project folder.
 
+### Using the Atelier TUI IDE
+
+T projects also support [Atelier](https://github.com/b-rodrigues/atelier), a
+tmux-based TUI IDE that provides a split-pane environment with an embedded
+editor, REPL, file tree, variable watcher, pipeline diagram, and plot viewer.
+To enable Atelier in a new project, pass `--include-atelier` to `t init`. Once
+inside `nix develop`, simply run `atelier`.
+
 Once active, you will get real-time autocompletion for:
 -   **Package functions**: Suggestions for all imported functions.
 -   **Local variables**: Defined earlier in your script.

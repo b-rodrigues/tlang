@@ -145,7 +145,7 @@ You can now bootstrap a new project:
 t init --project my_t_project
 ```
 
-You will be prompted to enter basic project information, including the **AI Agent Context Level** (Small, Medium, Full, or Huge) which generates tailored reference documentation for LLMs. When finished, leave the temporary shell:
+You will be prompted to enter basic project information, including the **AI Agent Context Level** (Small, Medium, Full, or Huge) which generates tailored reference documentation for LLMs. You can also pass `--include-atelier` to add the [Atelier](https://github.com/b-rodrigues/atelier) TUI IDE to your dev shell. When finished, leave the temporary shell:
 
 ```bash
 exit
@@ -250,7 +250,8 @@ tlang/
 ├── docs/               # Documentation
 ├── examples/           # Example T programs
 ├── tests/              # Test suite
-└── flake.nix           # Nix development environment
+├── flake.nix           # Nix development environment
+└── atelier/            # Atelier IDE (via flake input)
 ```
 
 ### Building from Source

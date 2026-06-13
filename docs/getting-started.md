@@ -47,8 +47,10 @@ t init --project my_analysis
 If you omit the project name (`my_analysis` in the above example), the
 scaffolding tool will prompt you interactively with some questions (your name,
 the license of the project, the Nixpkgs date, the size of the context file for
-LLM agents, and the pipeline template preference) and then will generate a
-reproducible workspace.
+LLM agents, the pipeline template preference, and whether to include the
+**Atelier** TUI IDE) and then will generate a reproducible workspace. You can
+also pass `--include-atelier` to skip the prompt and enable Atelier
+unconditionally.
 
 For your very first T project, we highly recommend selecting the `full` pipeline
 template. Having the self-contained cheatsheet directly in `src/pipeline.t`
