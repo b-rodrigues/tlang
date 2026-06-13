@@ -664,9 +664,10 @@ let base_keys_ref = ref None
 let write_vars_csv env =
   match Sys.getenv_opt "ATELIER_ACTIVE" with
   | Some "1" ->
-      let path = "/tmp/atelier-vars.csv" in
+      let tmp_path = "/tmp/atelier-vars.csv.tmp" in
+      let final_path = "/tmp/atelier-vars.csv" in
       begin try
-        let oc = open_out path in
+        let oc = open_out tmp_path in
         output_string oc "name,type,value\n";
         Ast.Env.iter (fun name value ->
           let should_show =
@@ -712,14 +713,18 @@ let write_vars_csv env =
               | _ -> "Unknown"
             in
             let escape s =
+              let s = String.concat "\\n" (String.split_on_char '\n' s) in
               let escaped = String.concat "\"\"" (String.split_on_char '"' s) in
               "\"" ^ escaped ^ "\""
             in
             Printf.fprintf oc "%s,%s,%s\n" (escape name) (escape val_type) (escape val_str)
           end
         ) env;
-        close_out oc
-      with _ -> () end
+        close_out oc;
+        Sys.rename tmp_path final_path
+      with _ ->
+        begin try Sys.remove tmp_path with _ -> () end
+      end
   | _ -> ()
 
 let cmd_repl ?failfast mode env =
