@@ -664,8 +664,10 @@ let base_keys_ref = ref None
 let write_vars_csv env =
   match Sys.getenv_opt "ATELIER_ACTIVE" with
   | Some "1" ->
-      let tmp_path = "/tmp/atelier-vars.csv.tmp" in
-      let final_path = "/tmp/atelier-vars.csv" in
+      let root = Builder_utils.get_atelier_project_root () in
+      Builder_utils.ensure_atelier_dir root;
+      let tmp_path = Builder_utils.atelier_vars_tmp_path root in
+      let final_path = Builder_utils.atelier_vars_path root in
       begin try
         let oc = open_out tmp_path in
         output_string oc "name,type,value\n";
@@ -702,6 +704,8 @@ let write_vars_csv env =
               | Ast.VDuration _ -> "Duration"
               | Ast.VInterval _ -> "Interval"
               | Ast.VFormula _ -> "Formula"
+              | Ast.VPipeline _ -> "Pipeline"
+              | Ast.VMetaPipeline _ -> "MetaPipeline"
               | Ast.VComputedNode _ -> "ComputedNode"
               | Ast.VNode _ -> "Node"
               | Ast.VQuo _ -> "Quo"

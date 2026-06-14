@@ -1,6 +1,32 @@
 open Ast
 open Pipeline_utils
 
+let write_atelier_diagrams p env =
+  if not (Builder_utils.is_atelier_active ()) then ()
+  else
+    let root = Builder_utils.get_atelier_project_root () in
+    Builder_utils.ensure_atelier_dir root;
+    (match Env.find_opt "pipeline_to_dot" env with
+     | Some (VBuiltin { b_func; _ }) ->
+       let args = [(None, VPipeline p)] in
+       let env_ref = ref env in
+       (try match b_func args env_ref with
+            | VString s ->
+              Builder_utils.write_file (Builder_utils.atelier_dot_path root) s |> ignore
+            | _ -> ()
+        with _ -> ())
+     | _ -> ());
+    (match Env.find_opt "pipeline_to_mermaid" env with
+     | Some (VBuiltin { b_func; _ }) ->
+       let args = [(None, VPipeline p)] in
+       let env_ref = ref env in
+       (try match b_func args env_ref with
+            | VString s ->
+              Builder_utils.write_file (Builder_utils.atelier_mermaid_path root) s |> ignore
+            | _ -> ()
+        with _ -> ())
+     | _ -> ())
+
 (*
 --# Build Pipeline Artifacts
 --#
@@ -107,10 +133,13 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                          | Some _ -> pipeline_name
                          | None -> resolve_pipeline_name env p
                       in
-                     (match Builder.populate_pipeline ~build:true ?verbose ?pipeline_name ?nix_options:final_nix_options p_resolved with
-                       | Ok (VDataFrame _ as df) -> df
-                        | Ok (VDict pairs as out) ->
-                            let out_path =
+                      (match Builder.populate_pipeline ~build:true ?verbose ?pipeline_name ?nix_options:final_nix_options p_resolved with
+                        | Ok (VDataFrame _ as df) ->
+                            write_atelier_diagrams p_resolved env;
+                            df
+                         | Ok (VDict pairs as out) ->
+                            write_atelier_diagrams p_resolved env;
+                             let out_path =
                               match List.assoc_opt "out_path" pairs with
                               | Some (VString s) -> s
                               | _ -> ""

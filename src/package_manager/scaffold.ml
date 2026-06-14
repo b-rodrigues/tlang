@@ -39,6 +39,14 @@ let discover_agents_dir () =
       else if is_existing_dir share_dir then Some share_dir
       else None
 
+let append_to_gitignore dir line =
+  let gitignore_path = Filename.concat dir ".gitignore" in
+  try
+    let out = open_out_gen [Open_append; Open_creat] 0o644 gitignore_path in
+    output_string out (line ^ "\n");
+    close_out out
+  with Sys_error _ -> ()
+
 let copy_text_file src_path dest_path =
   try
     let ic = open_in src_path in
@@ -692,6 +700,8 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         write_file (Filename.concat dir "CHANGELOG.md") (sub package_changelog);
         let _ = write_license_file dir opts.license in
         write_file (Filename.concat dir ".gitignore") package_gitignore;
+        if opts.use_atelier then
+          append_to_gitignore dir "\n# Atelier IDE session data\n_atelier/";
         write_file (Filename.concat dir "src/main.t") (sub package_src_example);
         write_file (Filename.concat dir (Printf.sprintf "tests/test-%s.t" opts.target_name)) (sub package_test_example);
         write_file (Filename.concat dir "docs/index.md") (Printf.sprintf "# %s\n\nPackage documentation.\n" opts.target_name);
@@ -847,6 +857,8 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         write_file (Filename.concat dir "README.md") (sub project_readme);
         let _ = write_license_file dir opts.license in
         write_file (Filename.concat dir ".gitignore") project_gitignore;
+        if opts.use_atelier then
+          append_to_gitignore dir "\n# Atelier IDE session data\n_atelier/";
         let _ = write_project_pipeline dir opts sub in
         (* Agent files *)
         let _ = copy_agent_files dir false opts.agent_context in
