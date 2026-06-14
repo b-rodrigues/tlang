@@ -591,8 +591,11 @@ let render_plot_artifact cn =
                               let atelier_plots = Builder_utils.atelier_plots_dir project_root in
                               Builder_utils.ensure_dir atelier_plots;
                               let plot_name = Printf.sprintf "%s_%s.png" cn.cn_name (Builder_utils.get_timestamp ()) in
-                              let atelier_plot_path = Filename.concat atelier_plots plot_name in
-                              ignore (copy_file rendered_path atelier_plot_path)
+                               let atelier_plot_path = Filename.concat atelier_plots plot_name in
+                               (match copy_file rendered_path atelier_plot_path with
+                                | Error msg ->
+                                  Printf.eprintf "warning: show_plot: failed to copy to %s: %s\n%!" atelier_plot_path msg
+                                | Ok () -> ())
                             end;
                             flush_output_streams ();
                             match visualization_tool ~project_root () with
