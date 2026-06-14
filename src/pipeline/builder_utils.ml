@@ -490,6 +490,33 @@ let rec find_project_root dir =
 let get_project_root () =
   find_project_root (Sys.getcwd ())
 
+(* --- Atelier TUI integration helpers --- *)
+
+let get_atelier_project_root () =
+  match Sys.getenv_opt "TLANG_REPO_ROOT" with
+  | Some root when root <> "" -> root
+  | _ -> get_project_root ()
+
+let atelier_vars_path root = Filename.concat (Filename.concat root "_atelier") "vars.csv"
+let atelier_vars_tmp_path root = Filename.concat (Filename.concat root "_atelier") ".vars.csv.tmp"
+let atelier_dot_path root = Filename.concat (Filename.concat root "_atelier") "pipeline.dot"
+let atelier_mermaid_path root = Filename.concat (Filename.concat root "_atelier") "diagram.mmd"
+let atelier_plots_dir root = Filename.concat (Filename.concat root "_atelier") "plots"
+
+let ensure_dir dir =
+  if not (Sys.file_exists dir) then
+    Unix.mkdir dir 0o755
+
+let ensure_atelier_dir root =
+  let dir = Filename.concat root "_atelier" in
+  if not (Sys.file_exists dir) then
+    Unix.mkdir dir 0o755
+
+let is_atelier_active () =
+  match Sys.getenv_opt "ATELIER_ACTIVE" with
+  | Some "1" -> true
+  | _ -> false
+
 let get_relative_path_to_root () =
   let cwd = try Unix.realpath (Sys.getcwd ()) with _ -> Sys.getcwd () in
   let project_root = find_project_root cwd in

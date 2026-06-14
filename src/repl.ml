@@ -657,12 +657,87 @@ let get_nix_version () =
     | _ -> "unknown"
   with _ -> "unknown"
 
+(* --- Atelier TUI Variable Watcher Helper --- *)
+
+let base_keys_ref = ref None
+
+let write_vars_csv env =
+  match Sys.getenv_opt "ATELIER_ACTIVE" with
+  | Some "1" ->
+      let root = Builder_utils.get_atelier_project_root () in
+      Builder_utils.ensure_atelier_dir root;
+      let tmp_path = Builder_utils.atelier_vars_tmp_path root in
+      let final_path = Builder_utils.atelier_vars_path root in
+      begin try
+        let oc = open_out tmp_path in
+        output_string oc "name,type,value\n";
+        Ast.Env.iter (fun name value ->
+          let should_show =
+            match value with
+            | Ast.VBuiltin _ -> false
+            | Ast.VLambda _ -> false
+            | _ ->
+                if String.length name >= 2 && String.sub name 0 2 = "__" then false
+                else
+                  match !base_keys_ref with
+                  | Some bk -> not (Hashtbl.mem bk name)
+                  | None -> true
+          in
+          if should_show then begin
+            let val_str = Ast.Utils.value_to_string value in
+            let val_type =
+              match value with
+              | Ast.VInt _ -> "Int"
+              | Ast.VFloat _ -> "Float"
+              | Ast.VBool _ -> "Bool"
+              | Ast.VString _ -> "String"
+              | Ast.VDataFrame _ -> "DataFrame"
+              | Ast.VList _ -> "List"
+              | Ast.VDict _ -> "Dict"
+              | Ast.VVector _ -> "Vector"
+              | Ast.VNA _ -> "NA"
+              | Ast.VError _ -> "Error"
+              | Ast.VDate _ -> "Date"
+              | Ast.VDatetime _ -> "Datetime"
+              | Ast.VFactor _ -> "Factor"
+              | Ast.VPeriod _ -> "Period"
+              | Ast.VDuration _ -> "Duration"
+              | Ast.VInterval _ -> "Interval"
+              | Ast.VFormula _ -> "Formula"
+              | Ast.VPipeline _ -> "Pipeline"
+              | Ast.VMetaPipeline _ -> "MetaPipeline"
+              | Ast.VComputedNode _ -> "ComputedNode"
+              | Ast.VNode _ -> "Node"
+              | Ast.VQuo _ -> "Quo"
+              | Ast.VLambda _ -> "Lambda"
+              | Ast.VBuiltin _ -> "Builtin"
+              | Ast.VRawCode _ -> "RawCode"
+              | Ast.VSymbol _ -> "Symbol"
+              | Ast.VIntent _ -> "Intent"
+              | _ -> "Unknown"
+            in
+            let escape s =
+              let s = String.concat "\\n" (String.split_on_char '\n' s) in
+              let escaped = String.concat "\"\"" (String.split_on_char '"' s) in
+              "\"" ^ escaped ^ "\""
+            in
+            Printf.fprintf oc "%s,%s,%s\n" (escape name) (escape val_type) (escape val_str)
+          end
+        ) env;
+        close_out oc;
+        Sys.rename tmp_path final_path
+      with _ ->
+        begin try Sys.remove tmp_path with _ -> () end
+      end
+  | _ -> ()
+
 let cmd_repl ?failfast mode env =
   Packages.ensure_docs_loaded ();
   
   (* Track base environment keys to filter %objects *)
   let base_keys = Hashtbl.create 200 in
   Ast.Env.iter (fun k _ -> Hashtbl.add base_keys k ()) env;
+  base_keys_ref := Some base_keys;
 
   let nix_version = get_nix_version () in
   Printf.printf "T, a reproducibility-first orchestration engine for polyglot\n";
@@ -788,6 +863,7 @@ let cmd_repl ?failfast mode env =
             else if String.length trimmed > 0 && trimmed.[0] = '%' then begin
             let (new_env, handled) = handle_magic trimmed env mode base_keys in
             if handled then (
+              write_vars_csv new_env;
               if is_tty then (
                 ignore (LNoise.history_add line);
                 ignore (LNoise.history_save ~filename:history_file)
@@ -829,6 +905,7 @@ let cmd_repl ?failfast mode env =
               ignore (LNoise.history_save ~filename:history_file)
             );
             let (result, new_env) = parse_and_eval ?failfast mode env full_input in
+            write_vars_csv new_env;
             Symbol_table.populate_from_env scope new_env;
             repl_display_value result;
             repl ?failfast new_env true
@@ -917,6 +994,14 @@ let () =
              | Sys_error msg ->
                  Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_run failed: %s" msg; context = []; location = None; na_count = 0 })
         | _ -> Ast.VError { code = Ast.TypeError; message = "t_run expects a file path string."; context = []; location = None; na_count = 0 })
+    })
+    env
+  in
+  let env = Ast.Env.add "tui_update"
+    (Ast.VBuiltin { b_name = Some "tui_update"; b_arity = 0; b_variadic = false;
+      b_func = (fun _named_args env_ref ->
+        write_vars_csv !env_ref;
+        Ast.(VNA NAGeneric))
     })
     env
   in
