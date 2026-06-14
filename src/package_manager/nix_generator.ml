@@ -193,6 +193,9 @@ let generate_project_flake
     () : string =
   let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
   let jl_deps = ensure_julia_json_dep jl_deps in
+  let has_atelier_in_tools = List.mem "atelier" additional_tools in
+  let effective_use_atelier = use_atelier || has_atelier_in_tools in
+  let additional_tools = List.filter (fun t -> t <> "atelier") additional_tools in
   let has_quarto = List.mem "quarto" additional_tools in
   let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
@@ -200,7 +203,7 @@ let generate_project_flake
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
   let all_output_args =
     ["self"; "nixpkgs"; "flake-utils"; "t-lang"] @
-    (if use_atelier then ["atelier"] else []) @ dep_input_names in
+    (if effective_use_atelier then ["atelier"] else []) @ dep_input_names in
   Buffer.add_string buf "{\n";
   Printf.bprintf buf "  description = \"%s — a T data analysis project\";\n\n"
     project_name;
@@ -209,7 +212,7 @@ let generate_project_flake
     nixpkgs_date;
   Buffer.add_string buf "    flake-utils.url = \"github:numtide/flake-utils\";\n";
   let tlang_url = match Sys.getenv_opt "TLANG_FLAKE_URL" with Some url -> url | None -> Printf.sprintf "github:b-rodrigues/tlang/v%s" t_version in Printf.bprintf buf "    t-lang.url = \"%s\";\n" tlang_url;
-  if use_atelier then begin
+  if effective_use_atelier then begin
     Buffer.add_string buf "    # Atelier IDE (tmux-based TUI for T)\n";
     Buffer.add_string buf "    atelier.url = \"github:b-rodrigues/atelier/main\";\n";
   end;
@@ -297,7 +300,7 @@ let generate_project_flake
             Buffer.add_string buf "            py-env\n";
             Buffer.add_string buf "            juliaPkg\n";
             Buffer.add_string buf "            t-lang.packages.${system}.tlang-julia-path\n";
-            if use_atelier then Buffer.add_string buf "            atelier.packages.${system}.default\n";
+             if effective_use_atelier then Buffer.add_string buf "            atelier.packages.${system}.default\n";
             if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   let extra_pkgs = 
     (if additional_tools <> [] then " ++ additionalTools" else "") ^
@@ -387,11 +390,14 @@ let generate_package_flake
   let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
   let jl_deps = ensure_julia_json_dep [] in
   let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
+  let has_atelier_in_tools = List.mem "atelier" additional_tools in
+  let effective_use_atelier = use_atelier || has_atelier_in_tools in
+  let additional_tools = List.filter (fun t -> t <> "atelier") additional_tools in
   let buf = Buffer.create 2048 in
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
   let all_output_args =
     ["self"; "nixpkgs"; "flake-utils"; "t-lang"] @
-    (if use_atelier then ["atelier"] else []) @ dep_input_names in
+    (if effective_use_atelier then ["atelier"] else []) @ dep_input_names in
   Buffer.add_string buf "{\n";
   Printf.bprintf buf "  description = \"%s — a T package\";\n\n"
     package_name;
@@ -400,7 +406,7 @@ let generate_package_flake
     nixpkgs_date;
   Buffer.add_string buf "    flake-utils.url = \"github:numtide/flake-utils\";\n";
   let tlang_url = match Sys.getenv_opt "TLANG_FLAKE_URL" with Some url -> url | None -> Printf.sprintf "github:b-rodrigues/tlang/v%s" t_version in Printf.bprintf buf "    t-lang.url = \"%s\";\n" tlang_url;
-  if use_atelier then begin
+  if effective_use_atelier then begin
     Buffer.add_string buf "    # Atelier IDE (tmux-based TUI for T)\n";
     Buffer.add_string buf "    atelier.url = \"github:b-rodrigues/atelier/main\";\n";
   end;
@@ -468,7 +474,7 @@ let generate_package_flake
   Buffer.add_string buf "            t-lang.packages.${system}.tlang-julia-path\n";
   Buffer.add_string buf (Printf.sprintf "            (pkgs.%s.withPackages [ %s ])\n"
     "julia-lts" (String.concat " " (List.map (fun p -> "\"" ^ p ^ "\"") jl_deps)));
-  if use_atelier then Buffer.add_string buf "            atelier.packages.${system}.default\n";
+  if effective_use_atelier then Buffer.add_string buf "            atelier.packages.${system}.default\n";
   if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   List.iter (fun dep ->
     Printf.bprintf buf "            %s.packages.${system}.default\n"

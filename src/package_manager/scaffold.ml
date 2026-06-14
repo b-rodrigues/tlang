@@ -490,7 +490,7 @@ command = ""
 # If quarto is listed here, run `t update` and then `nix develop` to
 # provision `_extensions/tlang` automatically from the T flake so Quarto
 # can render `{t}` chunks.
-packages = []
+packages = [{{atelier_additional_tools}}]
 
 [latex]
 # LaTeX packages (starts from scheme-small, add packages here)
@@ -836,7 +836,8 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         let tlang_version = strip_v_prefix tlang_tag in
         let ctx = [
           ("tlang_tag", tlang_tag);
-          ("tlang_version", tlang_version)
+          ("tlang_version", tlang_version);
+          ("atelier_additional_tools", if opts.use_atelier then "\"atelier\"" else "");
         ] @ Template_engine.context_of_options opts in
         let sub = Template_engine.substitute ctx in
         (* Create directory structure *)
