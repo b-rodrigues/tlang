@@ -143,7 +143,8 @@ and classify_node_by_value name p =
   | Some (VComputedNode _) -> Unbuilt
   | Some (VNode _) -> Unbuilt
   | Some (VError _) -> Errored
-  | _ -> Unbuilt
+  | Some _ -> Built
+  | None -> Unbuilt
 
 let node_depth name depths =
   match List.assoc_opt name depths with Some d -> d | None -> 0
@@ -173,17 +174,19 @@ let log_entry_error_message name log_entries_map =
            (match err_msg_opt, err_code_opt with
             | Some msg, Some code when code <> "" -> Some (code ^ ": " ^ msg)
             | Some msg, _ -> Some msg
-            | None, Some code -> Some code
-            | None, None -> None)
+            | None, Some code when code <> "" -> Some code
+            | _ -> None)
        | None -> None)
   | None -> None
 
 let node_error_message name p log_entries_map =
-  match List.assoc_opt name p.p_node_diagnostics with
-  | Some d ->
-      (match d.nd_error with
-       | Some e -> Some (e.ne_kind ^ ": " ^ e.ne_message)
-       | None -> log_entry_error_message name log_entries_map)
+  let err_opt =
+    match List.assoc_opt name p.p_node_diagnostics with
+    | Some d -> d.nd_error
+    | None -> None
+  in
+  match err_opt with
+  | Some e -> Some (e.ne_kind ^ ": " ^ e.ne_message)
   | None -> log_entry_error_message name log_entries_map
 
 let node_warning_messages name p =
