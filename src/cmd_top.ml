@@ -1,5 +1,17 @@
 open Builder_utils
 
+let rec safe_select read write except timeout =
+  try Unix.select read write except timeout
+  with Unix.Unix_error (Unix.EINTR, _, _) -> safe_select read write except timeout
+
+let rec safe_read fd buf ofs len =
+  try Unix.read fd buf ofs len
+  with Unix.Unix_error (Unix.EINTR, _, _) -> safe_read fd buf ofs len
+
+let rec safe_waitpid flags pid =
+  try Unix.waitpid flags pid
+  with Unix.Unix_error (Unix.EINTR, _, _) -> safe_waitpid flags pid
+
 let ansi_reset = "\027[0m"
 let ansi_bold = "\027[1m"
 let ansi_red = "\027[31m"
@@ -19,6 +31,7 @@ type status_data = {
   sd_errored : int;
   sd_soft_failed : int;
   sd_nodes : (string * string * float * string * string list) list;
+  sd_error : string option;
 }
 
 let read_status_file path =
@@ -33,6 +46,7 @@ let read_status_file path =
       let sd_building = match json |> member "building" with `Int i -> i | _ -> 0 in
       let sd_errored = match json |> member "errored" with `Int i -> i | _ -> 0 in
       let sd_soft_failed = match json |> member "soft_failed" with `Int i -> i | _ -> 0 in
+      let sd_error = match json |> member "error" with `String s -> Some s | _ -> None in
       let sd_nodes = match json |> member "nodes" with
         | `Assoc pairs ->
             List.map (fun (name, node_json) ->
@@ -47,7 +61,7 @@ let read_status_file path =
             ) pairs
         | _ -> []
       in
-      Some { sd_done; sd_total; sd_built; sd_building; sd_errored; sd_soft_failed; sd_nodes }
+      Some { sd_done; sd_total; sd_built; sd_building; sd_errored; sd_soft_failed; sd_nodes; sd_error }
   with _ -> None
 
 let node_color = function
@@ -116,13 +130,18 @@ let render_tui data =
     Buffer.add_string buf ansi_reset
   end else begin
     Buffer.add_string buf ansi_bold;
-    if data.sd_errored = 0 && data.sd_soft_failed = 0 then begin
-      Buffer.add_string buf ansi_green;
-      Buffer.add_string buf "\nBuild completed successfully!\n"
-    end else begin
-      Buffer.add_string buf ansi_red;
-      Buffer.add_string buf "\nBuild completed with errors.\n"
-    end;
+    (match data.sd_error with
+     | Some err ->
+         Buffer.add_string buf ansi_red;
+         Printf.ksprintf (Buffer.add_string buf) "\nBuild failed: %s\n" err
+     | None ->
+         if data.sd_errored = 0 && data.sd_soft_failed = 0 then begin
+           Buffer.add_string buf ansi_green;
+           Buffer.add_string buf "\nBuild completed successfully!\n"
+         end else begin
+           Buffer.add_string buf ansi_red;
+           Buffer.add_string buf "\nBuild completed with errors.\n"
+         end);
     Buffer.add_string buf ansi_reset;
     Buffer.add_string buf "Press q to quit.\n"
   end;
@@ -132,8 +151,15 @@ let render_tui data =
 
 let eval_file_and_get_pipeline filename env =
   let ch = open_in filename in
-  let content = really_input_string ch (in_channel_length ch) in
-  close_in ch;
+  let content =
+    try
+      let c = really_input_string ch (in_channel_length ch) in
+      close_in ch;
+      c
+    with exn ->
+      close_in ch;
+      raise exn
+  in
   let lexbuf = Lexing.from_string content in
   lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
   let program = Parser.program Lexer.token lexbuf in
@@ -175,8 +201,6 @@ let cmd_top_run filename env =
       let devnull = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0 in
       Unix.dup2 devnull Unix.stdout;
       Unix.dup2 devnull Unix.stderr;
-      close_out stdout;
-      close_out stderr;
       Unix.close devnull;
       (try
          Packages.ensure_docs_loaded ();
@@ -198,8 +222,15 @@ let cmd_top_run filename env =
           with _ -> ());
          exit 1)
   | child_pid ->
+      let term_attr = try Some (Unix.tcgetattr Unix.stdin) with _ -> None in
+      let restore_term () =
+        match term_attr with
+        | Some attr -> (try Unix.tcsetattr Unix.stdin Unix.TCSADRAIN attr with _ -> ())
+        | None -> ()
+      in
       let _old_sigint = Sys.signal Sys.sigint (Sys.Signal_handle (fun _ ->
         Printf.eprintf "%s" ansi_show_cursor;
+        restore_term ();
         (try Unix.kill child_pid Sys.sigterm with _ -> ());
         exit 0
       )) in
@@ -209,26 +240,29 @@ let cmd_top_run filename env =
         | Some data when data.sd_done ->
             render_tui data;
             let rec wait_key () =
-              match Unix.select [Unix.stdin] [] [] 0.5 with
+              match safe_select [Unix.stdin] [] [] 0.5 with
               | [], _, _ -> wait_key ()
               | _ ->
+                  let buf = Bytes.create 1 in
                   try
-                    let c = input_byte stdin in
-                    if c <> int_of_char 'q' then wait_key ()
+                    let n = safe_read Unix.stdin buf 0 1 in
+                    if n > 0 && Bytes.get buf 0 <> 'q' then wait_key ()
                   with _ -> ()
             in
             wait_key ()
         | Some data ->
             render_tui data;
-            let pid, _ = Unix.waitpid [Unix.WNOHANG] child_pid in
+            let pid, _ = safe_waitpid [Unix.WNOHANG] child_pid in
             if pid = child_pid then (
               match read_status_file spath with
               | Some d -> render_tui d
               | None -> ();
               let rec wait_key () =
-                match Unix.select [Unix.stdin] [] [] 0.5 with
+                match safe_select [Unix.stdin] [] [] 0.5 with
                 | [], _, _ -> wait_key ()
-                | _ -> ignore (try input_char stdin with _ -> '\000')
+                | _ ->
+                    let buf = Bytes.create 1 in
+                    ignore (try safe_read Unix.stdin buf 0 1 with _ -> 0)
               in
               wait_key ()
             ) else (
@@ -236,19 +270,26 @@ let cmd_top_run filename env =
               loop ()
             )
         | None ->
-            let pid, _ = Unix.waitpid [Unix.WNOHANG] child_pid in
+            let pid, _ = safe_waitpid [Unix.WNOHANG] child_pid in
             if pid = child_pid then ()
             else (Unix.sleep 1; loop ())
       in
 
-      (try loop () with exn ->
-        Printf.eprintf "t top error: %s\n" (Printexc.to_string exn);
-        Printf.eprintf "%s" ansi_show_cursor;
-        (try Unix.kill child_pid Sys.sigterm with _ -> ())
+      (try
+         (match term_attr with
+          | Some attr ->
+              let raw = { attr with Unix.c_icanon = false; Unix.c_echo = false } in
+              Unix.tcsetattr Unix.stdin Unix.TCSADRAIN raw
+          | None -> ());
+         loop ()
+       with exn ->
+         Printf.eprintf "t top error: %s\n" (Printexc.to_string exn);
+         (try Unix.kill child_pid Sys.sigterm with _ -> ())
       );
 
-      let _ = Unix.waitpid [] child_pid in
+      let _ = try safe_waitpid [] child_pid with Unix.Unix_error (Unix.ECHILD, _, _) -> (0, Unix.WEXITED 0) in
       (try Sys.remove spath with _ -> ());
+      restore_term ();
       Printf.eprintf "%s" ansi_show_cursor
 
 let print_top_help () =
