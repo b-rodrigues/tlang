@@ -165,24 +165,26 @@ let node_has_warnings name p log_entries_map =
          | None -> false)
     | None -> false
 
+let log_entry_error_message name log_entries_map =
+  match log_entries_map with
+  | Some entries ->
+      (match List.assoc_opt name entries with
+       | Some (_, _, _, err_msg_opt, err_code_opt, _) ->
+           (match err_msg_opt, err_code_opt with
+            | Some msg, Some code when code <> "" -> Some (code ^ ": " ^ msg)
+            | Some msg, _ -> Some msg
+            | None, Some code -> Some code
+            | None, None -> None)
+       | None -> None)
+  | None -> None
+
 let node_error_message name p log_entries_map =
   match List.assoc_opt name p.p_node_diagnostics with
   | Some d ->
       (match d.nd_error with
        | Some e -> Some (e.ne_kind ^ ": " ^ e.ne_message)
-       | None -> None)
-  | None ->
-      match log_entries_map with
-      | Some entries ->
-          (match List.assoc_opt name entries with
-           | Some (_, _, _, err_msg_opt, err_code_opt, _) ->
-               (match err_msg_opt, err_code_opt with
-                | Some msg, Some code when code <> "" -> Some (code ^ ": " ^ msg)
-                | Some msg, _ -> Some msg
-                | None, Some code -> Some code
-                | None, None -> None)
-           | None -> None)
-      | None -> None
+       | None -> log_entry_error_message name log_entries_map)
+  | None -> log_entry_error_message name log_entries_map
 
 let node_warning_messages name p =
   match List.assoc_opt name p.p_node_diagnostics with
