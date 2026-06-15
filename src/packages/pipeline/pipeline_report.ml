@@ -191,10 +191,20 @@ let node_warning_messages name p =
   | Some d -> List.map (fun w -> w.nw_message) d.nd_warnings
   | None -> []
 
-let node_warning_entries name p =
+let node_warning_entries name p log_entries_map =
   match List.assoc_opt name p.p_node_diagnostics with
-  | Some d -> List.map (fun w -> (w.nw_kind, w.nw_message)) d.nd_warnings
-  | None -> []
+  | Some d when d.nd_warnings <> [] ->
+      List.map (fun w -> (w.nw_kind, w.nw_message)) d.nd_warnings
+  | _ ->
+      match log_entries_map with
+      | Some entries ->
+          (match List.assoc_opt name entries with
+           | Some (_, path, has_warnings, _, _, _) when has_warnings && path <> "" ->
+               let warnings_path = Filename.concat (Filename.dirname path) "warnings" in
+               let warns = Builder_read_node.parse_node_warnings warnings_path in
+               List.map (fun w -> (w.nw_kind, w.nw_message)) warns
+           | _ -> [])
+      | None -> []
 
 let get_node_status_str name log_entries_map =
   match log_entries_map with
@@ -379,7 +389,7 @@ let generate_html_report ~total ~built_nodes ~unbuilt_nodes ~errored_nodes ~warn
           Buffer.add_string b (Printf.sprintf "<td>%s</td>" (esc msg))
         end;
         if List.mem "warning" columns then begin
-          let entries = node_warning_entries name p in
+          let entries = node_warning_entries name p log_entries_map in
           let msg = match entries with
             | [(kind, m)] -> truncate_message (kind ^ ": " ^ m)
             | (kind, m) :: _ -> truncate_message (kind ^ ": " ^ m) ^ " (+" ^ string_of_int (List.length entries - 1) ^ " more)"
@@ -642,7 +652,7 @@ let register env =
                         Buffer.add_string buf "| Name | Warning |\n";
                         Buffer.add_string buf "|------|---------|\n";
                         List.iter (fun name ->
-                          let entries = node_warning_entries name p in
+                          let entries = node_warning_entries name p log_entries_map in
                           if entries = [] then
                             Buffer.add_string buf (Printf.sprintf "| %s | Warning flagged in build log. |\n"
                               (escape_markdown_table name))
