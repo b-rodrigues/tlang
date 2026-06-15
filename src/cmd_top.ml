@@ -25,6 +25,38 @@ let ansi_clear = "\027[H\027[J"
 let ansi_hide_cursor = "\027[?25l"
 let ansi_show_cursor = "\027[?25h"
 
+let rec wait_q_key () =
+  match safe_select [Unix.stdin] [] [] 0.5 with
+  | [], _, _ -> wait_q_key ()
+  | _ ->
+      let buf = Bytes.create 1 in
+      try
+        let n = safe_read Unix.stdin buf 0 1 in
+        if n > 0 && Bytes.get buf 0 <> 'q' then wait_q_key ()
+      with _ -> ()
+
+let wait_keypress_raw_q () =
+  let term_attr = try Some (Unix.tcgetattr Unix.stdin) with _ -> None in
+  let restore_term () =
+    match term_attr with
+    | Some attr -> (try Unix.tcsetattr Unix.stdin Unix.TCSADRAIN attr with _ -> ())
+    | None -> ()
+  in
+  let _old_sigint = Sys.signal Sys.sigint (Sys.Signal_handle (fun _ ->
+    Printf.eprintf "%s" ansi_show_cursor;
+    restore_term ();
+    exit 0
+  )) in
+  (try
+     (match term_attr with
+      | Some attr ->
+          let raw = { attr with Unix.c_icanon = false; Unix.c_echo = false } in
+          Unix.tcsetattr Unix.stdin Unix.TCSADRAIN raw
+      | None -> ());
+     wait_q_key ()
+   with _ -> ());
+  restore_term ()
+
 type status_data = {
   sd_done : bool;
   sd_total : int;
@@ -241,17 +273,7 @@ let cmd_top_run filename env =
         match read_status_file spath with
         | Some data when data.sd_done ->
             render_tui data;
-            let rec wait_key () =
-              match safe_select [Unix.stdin] [] [] 0.5 with
-              | [], _, _ -> wait_key ()
-              | _ ->
-                  let buf = Bytes.create 1 in
-                  try
-                    let n = safe_read Unix.stdin buf 0 1 in
-                    if n > 0 && Bytes.get buf 0 <> 'q' then wait_key ()
-                  with _ -> ()
-            in
-            wait_key ()
+            wait_q_key ()
         | Some data ->
             render_tui data;
             let pid, _ = safe_waitpid [Unix.WNOHANG] child_pid in
@@ -259,14 +281,7 @@ let cmd_top_run filename env =
               match read_status_file spath with
               | Some d -> render_tui d
               | None -> ();
-              let rec wait_key () =
-                match safe_select [Unix.stdin] [] [] 0.5 with
-                | [], _, _ -> wait_key ()
-                | _ ->
-                    let buf = Bytes.create 1 in
-                    ignore (try safe_read Unix.stdin buf 0 1 with _ -> 0)
-              in
-              wait_key ()
+              wait_q_key ()
             ) else (
               Unix.sleep 1;
               loop ()
@@ -363,12 +378,8 @@ let cmd_top_monitor _env =
        (match read_status_file spath with
         | Some data when data.sd_done ->
             render_tui data;
-            let rec wait_key () =
-              match safe_select [Unix.stdin] [] [] 0.5 with
-              | [], _, _ -> wait_key ()
-              | _ -> let buf = Bytes.create 1 in ignore (try safe_read Unix.stdin buf 0 1 with _ -> 0)
-            in
-            wait_key ()
+            wait_keypress_raw_q ();
+            Printf.eprintf "%s" ansi_show_cursor
         | _ -> ());
        exit 1);
   flush stdout;
@@ -389,17 +400,7 @@ let cmd_top_monitor _env =
     match read_status_file spath with
     | Some data when data.sd_done ->
         render_tui data;
-        let rec wait_key () =
-          match safe_select [Unix.stdin] [] [] 0.5 with
-          | [], _, _ -> wait_key ()
-          | _ ->
-              let buf = Bytes.create 1 in
-              try
-                let n = safe_read Unix.stdin buf 0 1 in
-                if n > 0 && Bytes.get buf 0 <> 'q' then wait_key ()
-              with _ -> ()
-        in
-        wait_key ()
+        wait_q_key ()
     | Some data ->
         render_tui data;
         let still_alive = match child_pid with
@@ -410,12 +411,7 @@ let cmd_top_monitor _env =
           match read_status_file spath with
           | Some d -> render_tui d
           | None -> ();
-          let rec wait_key () =
-            match safe_select [Unix.stdin] [] [] 0.5 with
-            | [], _, _ -> wait_key ()
-            | _ -> let buf = Bytes.create 1 in ignore (try safe_read Unix.stdin buf 0 1 with _ -> 0)
-          in
-          wait_key ()
+          wait_q_key ()
         ) else (
           Unix.sleep 1;
           loop ()
