@@ -22,6 +22,14 @@ let timestamp_file_suffix () =
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
     tm.tm_hour tm.tm_min tm.tm_sec
 
+let truncate_message msg =
+  let max_len = 100 in
+  let cleaned = String.trim msg in
+  if String.length cleaned > max_len then
+    String.sub cleaned 0 max_len ^ "..."
+  else
+    cleaned
+
 let escape_markdown_table s =
   let buf = Buffer.create (String.length s) in
   String.iter (fun c ->
@@ -179,6 +187,11 @@ let node_error_message name p log_entries_map =
 let node_warning_messages name p =
   match List.assoc_opt name p.p_node_diagnostics with
   | Some d -> List.map (fun w -> w.nw_message) d.nd_warnings
+  | None -> []
+
+let node_warning_entries name p =
+  match List.assoc_opt name p.p_node_diagnostics with
+  | Some d -> List.map (fun w -> (w.nw_kind, w.nw_message)) d.nd_warnings
   | None -> []
 
 let get_node_status_str name log_entries_map =
@@ -346,6 +359,7 @@ let generate_html_report ~total ~built_nodes ~unbuilt_nodes ~errored_nodes ~warn
       if List.mem "depth" columns then Buffer.add_string b "<th>Depth</th>";
       if List.mem "status" columns then Buffer.add_string b "<th>Status</th>";
       if List.mem "error" columns then Buffer.add_string b "<th>Error</th>";
+      if List.mem "warning" columns then Buffer.add_string b "<th>Warning</th>";
       Buffer.add_string b "</tr>\n";
       List.iter (fun name ->
         let row_id = Printf.sprintf "%s-%s" section_class_id name in
@@ -359,7 +373,16 @@ let generate_html_report ~total ~built_nodes ~unbuilt_nodes ~errored_nodes ~warn
           Buffer.add_string b (Printf.sprintf "<td>%s</td>" (esc (get_node_status_str name log_entries_map)));
         if List.mem "error" columns then begin
           let msg = match node_error_message name p log_entries_map with
-            | Some m -> m | None -> "Unknown error" in
+            | Some m -> truncate_message m | None -> "Unknown error" in
+          Buffer.add_string b (Printf.sprintf "<td>%s</td>" (esc msg))
+        end;
+        if List.mem "warning" columns then begin
+          let entries = node_warning_entries name p in
+          let msg = match entries with
+            | [(kind, m)] -> truncate_message (kind ^ ": " ^ m)
+            | (kind, m) :: _ -> truncate_message (kind ^ ": " ^ m) ^ " (+" ^ string_of_int (List.length entries - 1) ^ " more)"
+            | [] -> "Warning flagged in build log."
+          in
           Buffer.add_string b (Printf.sprintf "<td>%s</td>" (esc msg))
         end;
         Buffer.add_string b "</tr>\n"
@@ -377,7 +400,7 @@ let generate_html_report ~total ~built_nodes ~unbuilt_nodes ~errored_nodes ~warn
     if errored_nodes <> [] then
       Buffer.add_string b "<p><em>Use <code>pipeline_report(p, errors = true)</code> to see full error messages.</em></p>\n"
   end;
-  emit_section "Nodes with Warnings" "warned" warned_nodes [] ~empty_msg:"No warnings.";
+  emit_section "Nodes with Warnings" "warned" warned_nodes ["warning"] ~empty_msg:"No warnings.";
 
   (match log_path with
    | Some path ->
@@ -593,7 +616,7 @@ let register env =
                           Buffer.add_string buf "|------|-------|\n";
                           List.iter (fun name ->
                             let msg = match node_error_message name p log_entries_map with
-                              | Some m -> m
+                              | Some m -> truncate_message m
                               | None -> "Unknown error"
                             in
                             Buffer.add_string buf (Printf.sprintf "| %s | %s |\n"
@@ -614,16 +637,19 @@ let register env =
                       if warned_nodes = [] then
                         Buffer.add_string buf "_No warnings._\n\n"
                       else begin
+                        Buffer.add_string buf "| Name | Warning |\n";
+                        Buffer.add_string buf "|------|---------|\n";
                         List.iter (fun name ->
-                          let msgs = node_warning_messages name p in
-                          Buffer.add_string buf (Printf.sprintf "- **%s**: " name);
-                          if msgs = [] then
-                            Buffer.add_string buf "Warning flagged in build log.\n"
+                          let entries = node_warning_entries name p in
+                          if entries = [] then
+                            Buffer.add_string buf (Printf.sprintf "| %s | Warning flagged in build log. |\n"
+                              (escape_markdown_table name))
                           else
-                            List.iter (fun msg ->
-                              Buffer.add_string buf (Printf.sprintf "%s " (escape_markdown_table msg))
-                            ) msgs;
-                          Buffer.add_char buf '\n'
+                            List.iter (fun (kind, msg) ->
+                              let display = truncate_message (kind ^ ": " ^ msg) in
+                              Buffer.add_string buf (Printf.sprintf "| %s | %s |\n"
+                                (escape_markdown_table name) (escape_markdown_table display))
+                            ) entries
                         ) warned_nodes;
                         Buffer.add_char buf '\n'
                       end;
