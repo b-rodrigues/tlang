@@ -90,39 +90,59 @@ let read_build_log_entries log_path =
     ) nodes in
     let duration = match json |> member "duration" with
       | `Float f -> f | `Int i -> float_of_int i | _ -> 0.0 in
-    Some (duration, entries)
-  with _ -> None
+    (Some (duration, entries), None)
+  with
+  | Sys_error msg -> (None, Some (Printf.sprintf "Cannot read build log `%s`: %s" log_path msg))
+  | Yojson.Json_error msg -> (None, Some (Printf.sprintf "Invalid JSON in build log `%s`: %s" log_path msg))
+  | e -> (None, Some (Printf.sprintf "Unexpected error reading build log `%s`: %s" log_path (Printexc.to_string e)))
 
 let find_matching_log_path p which_log =
   let logs = Builder.get_logs () in
-  let matches = match which_log with
-    | None -> logs
+  let matches, pattern_error = match which_log with
+    | None -> (logs, None)
     | Some pattern ->
-        let re = try Some (Str.regexp pattern) with Failure _ -> None in
-        match re with
-        | Some re ->
-            List.filter (fun f ->
-              try let _ = Str.search_forward re f 0 in true
-              with Not_found -> false
-            ) logs
-        | None -> logs
+        (match try Some (Str.regexp pattern) with Failure _ -> None with
+         | Some re ->
+             let filtered = List.filter (fun f ->
+               try let _ = Str.search_forward re f 0 in true
+               with Not_found -> false) logs in
+             (filtered, None)
+         | None -> (logs, Some (Printf.sprintf "Invalid regex pattern `%s`; using all available logs." pattern)))
   in
   let try_log log_file =
     let full_path = Filename.concat Builder.pipeline_dir log_file in
     match Builder.read_log full_path with
     | Ok entries when Builder_read_node.pipeline_matches_logged_entries p entries -> Some full_path
-    | _ -> None
+    | Ok _ -> None
+    | Error _ ->
+        None
   in
-  match which_log with
-  | None ->
-      (match matches with
-       | [] -> None
-       | first :: rest ->
-           (match try_log first with
-            | Some _ as hit -> hit
-            | None -> List.find_map try_log rest))
-  | Some _ ->
-      List.find_map try_log matches
+  match matches with
+  | [] ->
+      let msg = match pattern_error with
+        | Some msg -> msg
+        | None ->
+            match which_log with
+            | Some pat -> Printf.sprintf "No build logs matched pattern `%s` in `_pipeline/`." pat
+            | None -> "No build logs found in `_pipeline/`."
+      in
+      (None, Some msg)
+  | first :: rest when which_log <> None ->
+      (match try_log first with
+       | Some _ as hit -> (hit, pattern_error)
+       | None ->
+           (match List.find_map try_log rest with
+            | Some _ as hit -> (hit, pattern_error)
+             | None -> (None, Some (Printf.sprintf "No build log matching pattern `%s` matches this pipeline's structure."
+                                      (match which_log with Some pat -> pat | None -> "")))))
+  | first :: rest ->
+      (match try_log first with
+       | Some _ as hit -> (hit, None)
+       | None ->
+           (match List.find_map try_log rest with
+            | Some _ as hit -> (hit, None)
+            | None -> (None, Some (Printf.sprintf "None of the %d build logs in `_pipeline/` match this pipeline's structure."
+                                     (List.length matches)))))
 
 type node_kind = Built | Unbuilt | Errored
 
@@ -261,153 +281,182 @@ let register env =
           | VSymbol s when String.length s > 0 -> Some s
           | _ -> None
         in
-        let file_path = match file_val with
-          | VString s when String.length s > 0 -> s
+        let file_path =
+          match file_val with
+          | VString s when String.length s > 0 ->
+              let dir = Filename.dirname s in
+              if dir <> "" && dir <> "." then
+                (try Builder_utils.ensure_dir dir
+                 with e ->
+                   let msg = Printf.sprintf "Cannot create directory `%s` for pipeline report: %s"
+                     dir (Printexc.to_string e) in
+                   raise (Failure msg));
+              s
           | _ ->
               Builder_utils.ensure_pipeline_dir ();
               Filename.concat Builder_utils.pipeline_dir
                 (Printf.sprintf "pipeline_report_%s.md" (timestamp_file_suffix ()))
         in
 
-        let depths = compute_depths p.p_deps in
-        let node_names = List.map fst p.p_exprs in
-        let total = List.length node_names in
+        (try
+          let depths = compute_depths p.p_deps in
+          let node_names = List.map fst p.p_exprs in
+          let total = List.length node_names in
 
-        let log_path = find_matching_log_path p which_log_opt in
-        let log_info = match log_path with
-          | Some path -> read_build_log_entries path
-          | None -> None
-        in
-        let log_entries_map = match log_info with
-          | Some (_, entries) -> Some entries
-          | None -> None
-        in
-        let build_duration = match log_info with
-          | Some (duration, _) -> duration
-          | None -> 0.0
-        in
+          let (log_path, log_search_msg) = find_matching_log_path p which_log_opt in
+          let (log_info, log_parse_msg) = match log_path with
+            | Some path -> read_build_log_entries path
+            | None -> (None, None)
+          in
+          let log_entries_map = match log_info with
+            | Some (_, entries) -> Some entries
+            | None -> None
+          in
+          let build_duration = match log_info with
+            | Some (duration, _) -> duration
+            | None -> 0.0
+          in
 
-        let classify name = classify_node name p log_entries_map in
+          let classify name = classify_node name p log_entries_map in
 
-        let built_nodes = List.filter (fun n -> match classify n with Built -> true | _ -> false) node_names in
-        let unbuilt_nodes = List.filter (fun n -> match classify n with Unbuilt -> true | _ -> false) node_names in
-        let errored_nodes = List.filter (fun n -> match classify n with Errored -> true | _ -> false) node_names in
-        let warned_nodes = List.filter (fun n -> node_has_warnings n p log_entries_map) node_names in
+          let built_nodes = List.filter (fun n -> match classify n with Built -> true | _ -> false) node_names in
+          let unbuilt_nodes = List.filter (fun n -> match classify n with Unbuilt -> true | _ -> false) node_names in
+          let errored_nodes = List.filter (fun n -> match classify n with Errored -> true | _ -> false) node_names in
+          let warned_nodes = List.filter (fun n -> node_has_warnings n p log_entries_map) node_names in
 
-        let buf = Buffer.create 4096 in
+          let buf = Buffer.create 4096 in
 
-        Buffer.add_string buf "# Pipeline Report\n\n";
-        Buffer.add_string buf (Printf.sprintf "**Generated**: %s\n\n" (timestamp_string ()));
+          Buffer.add_string buf "# Pipeline Report\n\n";
+          Buffer.add_string buf (Printf.sprintf "**Generated**: %s\n\n" (timestamp_string ()));
 
-        Buffer.add_string buf "## Overview\n\n";
-        Buffer.add_string buf "| Metric | Count |\n";
-        Buffer.add_string buf "|--------|-------|\n";
-        Buffer.add_string buf (Printf.sprintf "| Total Nodes | %d |\n" total);
-        Buffer.add_string buf (Printf.sprintf "| Built | %d |\n" (List.length built_nodes));
-        Buffer.add_string buf (Printf.sprintf "| Unbuilt | %d |\n" (List.length unbuilt_nodes));
-        Buffer.add_string buf (Printf.sprintf "| Errored | %d |\n" (List.length errored_nodes));
-        Buffer.add_string buf (Printf.sprintf "| Warnings | %d |\n" (List.length warned_nodes));
-        Buffer.add_char buf '\n';
+          Buffer.add_string buf "## Overview\n\n";
+          Buffer.add_string buf "| Metric | Count |\n";
+          Buffer.add_string buf "|--------|-------|\n";
+          Buffer.add_string buf (Printf.sprintf "| Total Nodes | %d |\n" total);
+          Buffer.add_string buf (Printf.sprintf "| Built | %d |\n" (List.length built_nodes));
+          Buffer.add_string buf (Printf.sprintf "| Unbuilt | %d |\n" (List.length unbuilt_nodes));
+          Buffer.add_string buf (Printf.sprintf "| Errored | %d |\n" (List.length errored_nodes));
+          Buffer.add_string buf (Printf.sprintf "| Warnings | %d |\n" (List.length warned_nodes));
+          Buffer.add_char buf '\n';
 
-        Buffer.add_string buf "## Dependency Graph\n\n";
-        Buffer.add_string buf "```mermaid\n";
-        Buffer.add_string buf (generate_mermaid p);
-        Buffer.add_string buf "```\n\n";
+          Buffer.add_string buf "## Dependency Graph\n\n";
+          Buffer.add_string buf "```mermaid\n";
+          Buffer.add_string buf (generate_mermaid p);
+          Buffer.add_string buf "```\n\n";
 
-        Buffer.add_string buf (Printf.sprintf "## Built Nodes (%d)\n\n" (List.length built_nodes));
-        if built_nodes = [] then
-          Buffer.add_string buf "_No nodes built yet._\n\n"
-        else begin
-          Buffer.add_string buf "| Name | Runtime | Depth | Status |\n";
-          Buffer.add_string buf "|------|---------|-------|--------|\n";
-          List.iter (fun name ->
-            let d = node_depth name depths in
-            let rt = node_runtime name p in
-            let st = get_node_status_str name log_entries_map in
-            Buffer.add_string buf (Printf.sprintf "| %s | %s | %d | %s |\n"
-              (escape_markdown_table name) (escape_markdown_table rt) d (escape_markdown_table st))
-          ) built_nodes;
-          Buffer.add_char buf '\n'
-        end;
-
-        Buffer.add_string buf (Printf.sprintf "## Unbuilt Nodes (%d)\n\n" (List.length unbuilt_nodes));
-        if unbuilt_nodes = [] then
-          Buffer.add_string buf "_All nodes have been built._\n\n"
-        else begin
-          Buffer.add_string buf "| Name | Runtime | Depth |\n";
-          Buffer.add_string buf "|------|---------|-------|\n";
-          List.iter (fun name ->
-            let d = node_depth name depths in
-            let rt = node_runtime name p in
-            Buffer.add_string buf (Printf.sprintf "| %s | %s | %d |\n"
-              (escape_markdown_table name) (escape_markdown_table rt) d)
-          ) unbuilt_nodes;
-          Buffer.add_char buf '\n'
-        end;
-
-        Buffer.add_string buf (Printf.sprintf "## Errored Nodes (%d)\n\n" (List.length errored_nodes));
-        if errored_nodes = [] then
-          Buffer.add_string buf "_No errors._\n\n"
-        else begin
-          if errors_flag then begin
-            Buffer.add_string buf "| Name | Error |\n";
-            Buffer.add_string buf "|------|-------|\n";
+          Buffer.add_string buf (Printf.sprintf "## Built Nodes (%d)\n\n" (List.length built_nodes));
+          if built_nodes = [] then
+            Buffer.add_string buf "_No nodes built yet._\n\n"
+          else begin
+            Buffer.add_string buf "| Name | Runtime | Depth | Status |\n";
+            Buffer.add_string buf "|------|---------|-------|--------|\n";
             List.iter (fun name ->
-              let msg = match node_error_message name p log_entries_map with
-                | Some m -> m
-                | None -> "Unknown error"
-              in
-              Buffer.add_string buf (Printf.sprintf "| %s | %s |\n"
-                (escape_markdown_table name) (escape_markdown_table msg))
-            ) errored_nodes
-          end else begin
-            Buffer.add_string buf "| Name |\n";
-            Buffer.add_string buf "|------|\n";
-            List.iter (fun name ->
-              Buffer.add_string buf (Printf.sprintf "| %s |\n" (escape_markdown_table name))
-            ) errored_nodes;
-            Buffer.add_string buf "\n_Use `pipeline_report(p, errors = true)` to see full error messages._\n"
-          end;
-          Buffer.add_char buf '\n'
-        end;
-
-        Buffer.add_string buf (Printf.sprintf "## Nodes with Warnings (%d)\n\n" (List.length warned_nodes));
-        if warned_nodes = [] then
-          Buffer.add_string buf "_No warnings._\n\n"
-        else begin
-          List.iter (fun name ->
-            let msgs = node_warning_messages name p in
-            Buffer.add_string buf (Printf.sprintf "- **%s**: " name);
-            if msgs = [] then
-              Buffer.add_string buf "Warning flagged in build log.\n"
-            else
-              List.iter (fun msg ->
-                Buffer.add_string buf (Printf.sprintf "%s " (escape_markdown_table msg))
-              ) msgs;
+              let d = node_depth name depths in
+              let rt = node_runtime name p in
+              let st = get_node_status_str name log_entries_map in
+              Buffer.add_string buf (Printf.sprintf "| %s | %s | %d | %s |\n"
+                (escape_markdown_table name) (escape_markdown_table rt) d (escape_markdown_table st))
+            ) built_nodes;
             Buffer.add_char buf '\n'
-          ) warned_nodes;
-          Buffer.add_char buf '\n'
-        end;
+          end;
 
-        (match log_path with
-         | Some path ->
-             Buffer.add_string buf "## Build Log\n\n";
-             Buffer.add_string buf (Printf.sprintf "- **Log file**: `%s`\n" (Filename.basename path));
-             Buffer.add_string buf (Printf.sprintf "- **Duration**: %.2fs\n" build_duration);
-             Buffer.add_string buf (Printf.sprintf "- **Failed nodes**: %d\n" (List.length errored_nodes));
-             Buffer.add_char buf '\n'
-         | None ->
-             if which_log_opt <> None then
-               Buffer.add_string buf "> **Note**: No matching build log found for the given pattern.\n\n"
-             else if total > 0 then
-               Buffer.add_string buf "> **Note**: No build log found. Run `build_pipeline(p)` first.\n\n"
-        );
+          Buffer.add_string buf (Printf.sprintf "## Unbuilt Nodes (%d)\n\n" (List.length unbuilt_nodes));
+          if unbuilt_nodes = [] then
+            Buffer.add_string buf "_All nodes have been built._\n\n"
+          else begin
+            Buffer.add_string buf "| Name | Runtime | Depth |\n";
+            Buffer.add_string buf "|------|---------|-------|\n";
+            List.iter (fun name ->
+              let d = node_depth name depths in
+              let rt = node_runtime name p in
+              Buffer.add_string buf (Printf.sprintf "| %s | %s | %d |\n"
+                (escape_markdown_table name) (escape_markdown_table rt) d)
+            ) unbuilt_nodes;
+            Buffer.add_char buf '\n'
+          end;
 
-        (match Builder_utils.write_file file_path (Buffer.contents buf) with
-         | Ok () -> VString file_path
-         | Error msg ->
-             Error.make_error FileError
-               (Printf.sprintf "Failed to write pipeline report to `%s`: %s" file_path msg))
+          Buffer.add_string buf (Printf.sprintf "## Errored Nodes (%d)\n\n" (List.length errored_nodes));
+          if errored_nodes = [] then
+            Buffer.add_string buf "_No errors._\n\n"
+          else begin
+            if errors_flag then begin
+              Buffer.add_string buf "| Name | Error |\n";
+              Buffer.add_string buf "|------|-------|\n";
+              List.iter (fun name ->
+                let msg = match node_error_message name p log_entries_map with
+                  | Some m -> m
+                  | None -> "Unknown error"
+                in
+                Buffer.add_string buf (Printf.sprintf "| %s | %s |\n"
+                  (escape_markdown_table name) (escape_markdown_table msg))
+              ) errored_nodes
+            end else begin
+              Buffer.add_string buf "| Name |\n";
+              Buffer.add_string buf "|------|\n";
+              List.iter (fun name ->
+                Buffer.add_string buf (Printf.sprintf "| %s |\n" (escape_markdown_table name))
+              ) errored_nodes;
+              Buffer.add_string buf "\n_Use `pipeline_report(p, errors = true)` to see full error messages._\n"
+            end;
+            Buffer.add_char buf '\n'
+          end;
+
+          Buffer.add_string buf (Printf.sprintf "## Nodes with Warnings (%d)\n\n" (List.length warned_nodes));
+          if warned_nodes = [] then
+            Buffer.add_string buf "_No warnings._\n\n"
+          else begin
+            List.iter (fun name ->
+              let msgs = node_warning_messages name p in
+              Buffer.add_string buf (Printf.sprintf "- **%s**: " name);
+              if msgs = [] then
+                Buffer.add_string buf "Warning flagged in build log.\n"
+              else
+                List.iter (fun msg ->
+                  Buffer.add_string buf (Printf.sprintf "%s " (escape_markdown_table msg))
+                ) msgs;
+              Buffer.add_char buf '\n'
+            ) warned_nodes;
+            Buffer.add_char buf '\n'
+          end;
+
+          (match log_path with
+           | Some path ->
+               Buffer.add_string buf "## Build Log\n\n";
+               Buffer.add_string buf (Printf.sprintf "- **Log file**: `%s`\n" (Filename.basename path));
+               Buffer.add_string buf (Printf.sprintf "- **Duration**: %.2fs\n" build_duration);
+               Buffer.add_string buf (Printf.sprintf "- **Failed nodes**: %d\n" (List.length errored_nodes));
+               Buffer.add_char buf '\n'
+           | None ->
+               let msg = match log_search_msg with
+                 | Some s -> s
+                 | None ->
+                     if which_log_opt <> None then
+                       "No matching build log found for the given pattern."
+                     else if total > 0 then
+                       "No build log found. Run `build_pipeline(p)` first."
+                     else ""
+               in
+               if msg <> "" then
+                 Buffer.add_string buf (Printf.sprintf "> **Note**: %s\n\n" msg)
+          );
+
+          (match log_parse_msg with
+           | Some msg ->
+               Buffer.add_string buf (Printf.sprintf "> **Warning**: %s\n\n" msg)
+           | None -> ()
+          );
+
+          (match Builder_utils.write_file file_path (Buffer.contents buf) with
+           | Ok () -> VString file_path
+           | Error msg ->
+               Error.make_error FileError
+                 (Printf.sprintf "Failed to write pipeline report to `%s`: %s" file_path msg))
+        with
+        | Failure msg ->
+            Error.make_error FileError msg
+        | e ->
+            Error.make_error RuntimeError
+              (Printf.sprintf "Unexpected error generating pipeline report: %s" (Printexc.to_string e)))
 
       | (_, other) ->
           Error.type_error
