@@ -1,5 +1,7 @@
 open Builder_utils
 
+let pid_path = "_pipeline/top.pid"
+
 let rec safe_select read write except timeout =
   try Unix.select read write except timeout
   with Unix.Unix_error (Unix.EINTR, _, _) -> safe_select read write except timeout
@@ -292,14 +294,173 @@ let cmd_top_run filename env =
       restore_term ();
       Printf.eprintf "%s" ansi_show_cursor
 
+let cmd_top_run_background filename env =
+  ensure_pipeline_dir ();
+  let spath = Filename.concat pipeline_dir "build_status.json" in
+  (try Sys.remove spath with _ -> ());
+
+  match Unix.fork () with
+  | -1 ->
+      Printf.eprintf "fork failed\n";
+      exit 1
+  | 0 ->
+      Sys.set_signal Sys.sigint Sys.Signal_default;
+      Sys.set_signal Sys.sigterm Sys.Signal_default;
+      let devnull = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0 in
+      Unix.dup2 devnull Unix.stdout;
+      Unix.dup2 devnull Unix.stderr;
+      Unix.close devnull;
+      at_exit (fun () -> try Sys.remove pid_path with _ -> ());
+      (try
+         Packages.ensure_docs_loaded ();
+         match eval_file_and_get_pipeline filename env with
+         | Error msg ->
+             let oc = open_out spath in
+             output_string oc (Printf.sprintf "{\"done\": true, \"error\": \"%s\"}\n" (Serialization.json_escape msg));
+             close_out oc;
+             exit 1
+         | Ok p ->
+             ignore (Builder.populate_pipeline ~build:true ~status_file:spath p);
+             exit 0
+       with exn ->
+         let err = Printexc.to_string exn in
+         (try
+            let oc = open_out spath in
+            output_string oc (Printf.sprintf "{\"done\": true, \"error\": \"%s\"}\n" (Serialization.json_escape err));
+            close_out oc
+          with _ -> ());
+         exit 1)
+  | child_pid ->
+      (try
+         let oc = open_out pid_path in
+         output_string oc (string_of_int child_pid ^ "\n");
+         close_out oc
+       with _ -> ());
+      Printf.printf "Build started in background (PID: %d)\n" child_pid;
+      flush stdout;
+      exit 0
+
+let cmd_top_monitor _env =
+  ensure_pipeline_dir ();
+  let spath = Filename.concat pipeline_dir "build_status.json" in
+  let child_pid =
+    try
+      let ic = open_in pid_path in
+      let line = input_line ic in
+      close_in ic;
+      Some (int_of_string line)
+    with _ -> None
+  in
+  (match child_pid with
+   | Some pid ->
+       let alive = (try Unix.kill pid 0; true with _ -> false) in
+       if alive then
+         Printf.printf "Monitoring build (PID: %d)\n" pid
+       else
+         Printf.printf "Build process (PID: %d) has exited.\n" pid
+   | None ->
+       Printf.eprintf "No background build found (no PID file at %s).\n" pid_path;
+       (match read_status_file spath with
+        | Some data when data.sd_done ->
+            render_tui data;
+            let rec wait_key () =
+              match safe_select [Unix.stdin] [] [] 0.5 with
+              | [], _, _ -> wait_key ()
+              | _ -> let buf = Bytes.create 1 in ignore (try safe_read Unix.stdin buf 0 1 with _ -> 0)
+            in
+            wait_key ()
+        | _ -> ());
+       exit 1);
+  flush stdout;
+
+  let term_attr = try Some (Unix.tcgetattr Unix.stdin) with _ -> None in
+  let restore_term () =
+    match term_attr with
+    | Some attr -> (try Unix.tcsetattr Unix.stdin Unix.TCSADRAIN attr with _ -> ())
+    | None -> ()
+  in
+  let _old_sigint = Sys.signal Sys.sigint (Sys.Signal_handle (fun _ ->
+    Printf.eprintf "%s" ansi_show_cursor;
+    restore_term ();
+    exit 0
+  )) in
+
+  let rec loop () =
+    match read_status_file spath with
+    | Some data when data.sd_done ->
+        render_tui data;
+        let rec wait_key () =
+          match safe_select [Unix.stdin] [] [] 0.5 with
+          | [], _, _ -> wait_key ()
+          | _ ->
+              let buf = Bytes.create 1 in
+              try
+                let n = safe_read Unix.stdin buf 0 1 in
+                if n > 0 && Bytes.get buf 0 <> 'q' then wait_key ()
+              with _ -> ()
+        in
+        wait_key ()
+    | Some data ->
+        render_tui data;
+        let still_alive = match child_pid with
+          | Some pid -> (try Unix.kill pid 0; true with _ -> false)
+          | None -> true
+        in
+        if not still_alive then (
+          match read_status_file spath with
+          | Some d -> render_tui d
+          | None -> ();
+          let rec wait_key () =
+            match safe_select [Unix.stdin] [] [] 0.5 with
+            | [], _, _ -> wait_key ()
+            | _ -> let buf = Bytes.create 1 in ignore (try safe_read Unix.stdin buf 0 1 with _ -> 0)
+          in
+          wait_key ()
+        ) else (
+          Unix.sleep 1;
+          loop ()
+        )
+    | None ->
+        let still_alive = match child_pid with
+          | Some pid -> (try Unix.kill pid 0; true with _ -> false)
+          | None -> true
+        in
+        if not still_alive then ()
+        else (Unix.sleep 1; loop ())
+  in
+
+  (try
+     (match term_attr with
+      | Some attr ->
+          let raw = { attr with Unix.c_icanon = false; Unix.c_echo = false } in
+          Unix.tcsetattr Unix.stdin Unix.TCSADRAIN raw
+      | None -> ());
+     loop ()
+   with exn ->
+     Printf.eprintf "t top monitor error: %s\n" (Printexc.to_string exn)
+  );
+
+  restore_term ();
+  Printf.eprintf "%s" ansi_show_cursor
+
 let print_top_help () =
-  Printf.printf "Usage: t top run <file.t>\n";
+  Printf.printf "Usage:\n";
+  Printf.printf "  t top run <file.t>                Build and monitor with live TUI\n";
+  Printf.printf "  t top run --background <file.t>   Build in background (no TUI)\n";
+  Printf.printf "  t top monitor                     Attach to a background build\n";
   Printf.printf "\n";
-  Printf.printf "Build and monitor a pipeline with a live TUI.\n";
-  Printf.printf "Shows real-time node status, durations, and build progress.\n"
+  Printf.printf "Monitor shows real-time node status, durations, and build progress.\n"
 
 let cmd_top args env =
   match args with
+  | "run" :: "--background" :: filename :: [] ->
+      begin
+        match Cli_args.validate_path ~kind:Cli_args.File filename with
+        | Ok () -> cmd_top_run_background filename env
+        | Error msg ->
+            Printf.eprintf "Error: %s\n" msg;
+            exit 1
+      end
   | "run" :: filename :: [] ->
       begin
         match Cli_args.validate_path ~kind:Cli_args.File filename with
@@ -309,8 +470,10 @@ let cmd_top args env =
             exit 1
       end
   | "run" :: _ ->
-      Printf.eprintf "Usage: t top run <file.t>\n";
+      Printf.eprintf "Usage: t top run [--background] <file.t>\n";
       exit 1
+  | "monitor" :: [] ->
+      cmd_top_monitor env
   | ["--help"] | ["-h"] ->
       print_top_help ()
   | _ ->

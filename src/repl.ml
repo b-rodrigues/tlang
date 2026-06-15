@@ -449,6 +449,28 @@ let cmd_run ?(unsafe=false) ?failfast mode filename env =
   | Ast.(VNA NAGeneric) -> ()
   | v -> print_string (Pretty_print.pretty_print_value v)
 
+let cmd_run_background ?(unsafe=false) ?failfast mode filename env =
+  let _ = unsafe in
+  let pid = Unix.fork () in
+  if pid = -1 then begin
+    Printf.eprintf "fork failed\n"; exit 1
+  end else if pid = 0 then begin
+    let devnull = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0 in
+    Unix.dup2 devnull Unix.stdout;
+    Unix.dup2 devnull Unix.stderr;
+    Unix.close devnull;
+    Packages.ensure_docs_loaded ();
+    ensure_file_path filename;
+    let (result, _env) = run_file ?failfast mode filename env in
+    match result with
+    | Ast.VError _ -> exit 1
+    | _ -> exit 0
+  end else begin
+    Printf.printf "Build started in background (PID: %d)\n" pid;
+    flush stdout;
+    exit 0
+  end
+
 let cmd_run_expr ?failfast mode expr env =
   Packages.ensure_docs_loaded ();
   let (result, _) = parse_and_eval ?failfast mode env expr in
@@ -1138,6 +1160,9 @@ let () =
   | _ :: "run" :: "--expr" :: _ ->
       Printf.eprintf "Unexpected arguments after `t run --expr <expr>`.\n";
       exit 1
+  | _ :: "run" :: "--background" :: filename :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_run_background ~unsafe ~failfast script_mode filename env
   | _ :: "run" :: filename :: [] ->
       (* Default to Strict mode for scripts, but allow --mode to override *)
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
