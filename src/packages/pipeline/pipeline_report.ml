@@ -313,7 +313,7 @@ let html_escape s =
   Buffer.contents buf
 
 let generate_html_report ~total ~built_nodes ~unbuilt_nodes ~errored_nodes ~warned_nodes
-    ~depths ~p ~log_entries_map ~errors_flag ~log_path ~log_search_msg ~log_parse_msg
+    ~depths ~p ~log_entries_map ~log_path ~log_search_msg ~log_parse_msg
     ~build_duration ~which_log_opt =
   let b = Buffer.create 4096 in
   let esc = html_escape in
@@ -408,13 +408,7 @@ let generate_html_report ~total ~built_nodes ~unbuilt_nodes ~errored_nodes ~warn
 
   emit_section "Built Nodes" "built" built_nodes ["runtime"; "depth"; "status"] ~empty_msg:"No nodes built yet.";
   emit_section "Unbuilt Nodes" "unbuilt" unbuilt_nodes ["runtime"; "depth"] ~empty_msg:"All nodes have been built.";
-  if errors_flag then
-    emit_section "Errored Nodes" "errored" errored_nodes ["error"] ~empty_msg:"No errors."
-  else begin
-    emit_section "Errored Nodes" "errored" errored_nodes [] ~empty_msg:"No errors.";
-    if errored_nodes <> [] then
-      Buffer.add_string b "<p><em>Use <code>pipeline_report(p, errors = true)</code> to see full error messages.</em></p>\n"
-  end;
+  emit_section "Errored Nodes" "errored" errored_nodes ["error"] ~empty_msg:"No errors.";
   emit_section "Nodes with Warnings" "warned" warned_nodes ["warning"] ~empty_msg:"No warnings.";
 
   (match log_path with
@@ -454,14 +448,12 @@ let generate_html_report ~total ~built_nodes ~unbuilt_nodes ~errored_nodes ~warn
 --#
 --# @name pipeline_report
 --# @param p :: Pipeline The pipeline to report on.
---# @param errors :: Bool = false Include full error messages for errored nodes.
 --# @param which_log :: String (Optional) Regex to select a specific build log.
 --# @param file :: String (Optional) Output file path. Defaults to `_pipeline/pipeline_report_<timestamp>.md` (ssh) or `.html` (web).
 --# @param target :: String = "ssh" Output format. "ssh" for Markdown, "web" for HTML.
 --# @return :: String The path to the generated report file.
 --# @example
 --#   pipeline_report(p)
---#   pipeline_report(p, errors = true)
 --#   pipeline_report(p, target = "web")
 --#   pipeline_report(p, target = "web", file = "report.html")
 --#   pipeline_report(p, which_log = "20260615")
@@ -472,24 +464,19 @@ let register env =
   let report_fn named_args _env =
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
-    match List.find_opt (fun k -> not (List.mem k ["p"; "errors"; "which_log"; "file"; "target"])) named_keys with
+    match List.find_opt (fun k -> not (List.mem k ["p"; "which_log"; "file"; "target"])) named_keys with
     | Some k ->
         Error.type_error (Printf.sprintf "pipeline_report: unknown argument '%s'" k)
-    | None when positional_count > 5 ->
+    | None when positional_count > 4 ->
         Error.make_error ArityError
-          (Printf.sprintf "Function `pipeline_report` accepts at most 5 positional arguments but received %d." positional_count)
+          (Printf.sprintf "Function `pipeline_report` accepts at most 4 positional arguments but received %d." positional_count)
     | None ->
       match get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
-        let (_, errors_val) = get_arg "errors" 2 (VBool false) named_args in
-        let (_, which_log_val) = get_arg "which_log" 3 (VNA NAGeneric) named_args in
-        let (_, file_val) = get_arg "file" 4 (VNA NAGeneric) named_args in
-        let (_, target_val) = get_arg "target" 5 (VString "ssh") named_args in
+        let (_, which_log_val) = get_arg "which_log" 2 (VNA NAGeneric) named_args in
+        let (_, file_val) = get_arg "file" 3 (VNA NAGeneric) named_args in
+        let (_, target_val) = get_arg "target" 4 (VString "ssh") named_args in
 
-        let errors_flag = match errors_val with
-          | VBool b -> b
-          | _ -> false
-        in
         let which_log_opt = match which_log_val with
           | VString s when String.length s > 0 -> Some s
           | VSymbol s when String.length s > 0 -> Some s
@@ -564,7 +551,7 @@ let register env =
                   let result = match target with
                   | "web" ->
                       let html = generate_html_report ~total ~built_nodes ~unbuilt_nodes ~errored_nodes ~warned_nodes
-                        ~depths ~p ~log_entries_map ~errors_flag ~log_path ~log_search_msg ~log_parse_msg
+                        ~depths ~p ~log_entries_map ~log_path ~log_search_msg ~log_parse_msg
                         ~build_duration ~which_log_opt in
                       (match Builder_utils.write_file file_path html with
                        | Ok () -> VString file_path
@@ -626,25 +613,16 @@ let register env =
                       if errored_nodes = [] then
                         Buffer.add_string buf "_No errors._\n\n"
                       else begin
-                        if errors_flag then begin
-                          Buffer.add_string buf "| Name | Error |\n";
-                          Buffer.add_string buf "|------|-------|\n";
-                          List.iter (fun name ->
-                            let msg = match node_error_message name p log_entries_map with
-                              | Some m -> truncate_message m
-                              | None -> "Unknown error"
-                            in
-                            Buffer.add_string buf (Printf.sprintf "| %s | %s |\n"
-                              (escape_markdown_table name) (escape_markdown_table msg))
-                          ) errored_nodes
-                        end else begin
-                          Buffer.add_string buf "| Name |\n";
-                          Buffer.add_string buf "|------|\n";
-                          List.iter (fun name ->
-                            Buffer.add_string buf (Printf.sprintf "| %s |\n" (escape_markdown_table name))
-                          ) errored_nodes;
-                          Buffer.add_string buf "\n_Use `pipeline_report(p, errors = true)` to see full error messages._\n"
-                        end;
+                        Buffer.add_string buf "| Name | Error |\n";
+                        Buffer.add_string buf "|------|-------|\n";
+                        List.iter (fun name ->
+                          let msg = match node_error_message name p log_entries_map with
+                            | Some m -> truncate_message m
+                            | None -> "Unknown error"
+                          in
+                          Buffer.add_string buf (Printf.sprintf "| %s | %s |\n"
+                            (escape_markdown_table name) (escape_markdown_table msg))
+                        ) errored_nodes;
                         Buffer.add_char buf '\n'
                       end;
 
