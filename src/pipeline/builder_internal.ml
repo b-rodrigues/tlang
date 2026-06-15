@@ -86,7 +86,41 @@ let get_failed_node_error_info drv_path =
   | Error msg ->
       ("NixError", "Failed to run nix log: " ^ msg)
 
-let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
+let write_build_status_file ?pipeline_name ?(done_=false) status_file_path p statuses durations =
+  if status_file_path <> "" then
+    let node_names = List.map fst p.p_exprs in
+    let built = ref 0 in
+    let errored = ref 0 in
+    let building = ref 0 in
+    let soft_failed = ref 0 in
+    let node_entries = List.map (fun name ->
+      let status = match Hashtbl.find_opt statuses name with Some s -> s | None -> "Pending" in
+      if status = "Completed" then incr built
+      else if status = "Errored" then incr errored
+      else if status = "Building" then incr building
+      else if status = "SoftFailed" then incr soft_failed;
+      let duration = match Hashtbl.find_opt durations name with Some d -> d | None -> 0.0 in
+      let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+      let deps = match List.assoc_opt name p.p_deps with Some d -> Serialization.json_list d | None -> "[]" in
+      Printf.sprintf "    \"%s\": { \"status\": \"%s\", \"duration\": %.4f, \"runtime\": \"%s\", \"dependencies\": %s }"
+        (Serialization.json_escape name) (Serialization.json_escape status) duration
+        (Serialization.json_escape runtime) deps
+    ) node_names in
+    let json = "{\n" ^
+      (match pipeline_name with Some n -> "  \"pipeline\": \"" ^ Serialization.json_escape n ^ "\",\n" | None -> "") ^
+      "  \"done\": " ^ (if done_ then "true" else "false") ^ ",\n" ^
+      "  \"total\": " ^ string_of_int (List.length node_names) ^ ",\n" ^
+      "  \"built\": " ^ string_of_int !built ^ ",\n" ^
+      "  \"building\": " ^ string_of_int !building ^ ",\n" ^
+      "  \"errored\": " ^ string_of_int !errored ^ ",\n" ^
+      "  \"soft_failed\": " ^ string_of_int !soft_failed ^ ",\n" ^
+      "  \"nodes\": {\n" ^ String.concat ",\n" node_entries ^ "\n  }\n}\n" in
+    let tmp = status_file_path ^ ".tmp" in
+    match write_file tmp json with
+    | Ok () -> (try Sys.rename tmp status_file_path with _ -> ())
+    | Error _ -> ()
+
+let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
   let verbose =
     match verbose with
     | Some level -> level
@@ -405,7 +439,10 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
 
               if Hashtbl.find statuses name = "Pending" then (
                 Hashtbl.replace statuses name "Building";
-                Printf.eprintf "  + %s building\n%!" name
+                Printf.eprintf "  + %s building\n%!" name;
+                (match status_file with
+                 | Some sf -> write_build_status_file ?pipeline_name sf p statuses node_durations
+                 | None -> ())
               )
           | None -> ()
         )
@@ -424,7 +461,10 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                 in
                 Hashtbl.replace node_durations name duration;
                 Hashtbl.replace statuses name "Completed";
-                Printf.eprintf "  ✓ %s built\n%!" name
+                Printf.eprintf "  ✓ %s built\n%!" name;
+                (match status_file with
+                 | Some sf -> write_build_status_file ?pipeline_name sf p statuses node_durations
+                 | None -> ())
               )
           | None -> ()
         )
@@ -459,7 +499,10 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                   if verbose > 0 then
                     Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
                   else
-                    Printf.eprintf "  ✖ %s failed\n%!" name
+                    Printf.eprintf "  ✖ %s failed\n%!" name;
+                  (match status_file with
+                   | Some sf -> write_build_status_file ?pipeline_name sf p statuses node_durations
+                   | None -> ())
                 )
             | None -> ()
           )
@@ -712,10 +755,14 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                     if rec_msg <> "" then Printf.eprintf "%s%!" rec_msg
                   );
 
-                  if cached_count > 0 && built_count > 0 then
+                   if cached_count > 0 && built_count > 0 then
                     Printf.eprintf "  (cached: %s)\n%!" (String.concat ", " cached_nodes);
 
-                  if built_count > 0 then
+                   (match status_file with
+                    | Some sf -> write_build_status_file ?pipeline_name ~done_:true sf p statuses node_durations
+                    | None -> ());
+
+                   if built_count > 0 then
                     (match save_build_log (Some out_path) with
                      | Error msg -> Error ("Failed to write build log: " ^ msg)
                      | Ok () ->
@@ -725,18 +772,21 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                             ("cached", VInt cached_count);
                             ("soft_failed", VList (List.map (fun n -> (None, VString n)) soft_failed));
                           ]))
-                   else
-                     Ok (VDict [
-                       ("out_path", VString "");
-                       ("built", VInt 0);
-                       ("cached", VInt cached_count);
-                       ("soft_failed", VList (List.map (fun n -> (None, VString n)) soft_failed));
-                     ]))
-           | Unix.WEXITED 0 ->
-              ignore (save_build_log None);
-              Error "nix-build succeeded but did not return an output path."
-           | _ ->
-               (* Compute cache info before reconciliation overwrites statuses *)
+                    else
+                      Ok (VDict [
+                        ("out_path", VString "");
+                        ("built", VInt 0);
+                        ("cached", VInt cached_count);
+                        ("soft_failed", VList (List.map (fun n -> (None, VString n)) soft_failed));
+                      ]))
+            | Unix.WEXITED 0 ->
+               (match status_file with
+                | Some sf -> write_build_status_file ?pipeline_name ~done_:true sf p statuses node_durations
+                | None -> ());
+               ignore (save_build_log None);
+               Error "nix-build succeeded but did not return an output path."
+            | _ ->
+                (* Compute cache info before reconciliation overwrites statuses *)
                let cached_nodes = List.filter (fun n -> not (Hashtbl.mem node_was_built n)) node_names in
                let cached_count = List.length cached_nodes in
 
@@ -831,9 +881,15 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                       rc
                 | [] -> base_hint
               in
+              (match status_file with
+               | Some sf -> write_build_status_file ?pipeline_name ~done_:true sf p statuses node_durations
+               | None -> ());
               ignore (save_build_log None);
               Error (Printf.sprintf "nix-build failed: %s %s" error_summary hint))
       | Error msg ->
+          (match status_file with
+           | Some sf -> write_build_status_file ?pipeline_name ~done_:true sf p statuses node_durations
+           | None -> ());
           Error (Printf.sprintf "Failed to run nix-build: %s" msg)
     end
   end

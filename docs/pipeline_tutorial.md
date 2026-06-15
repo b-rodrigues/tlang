@@ -2172,6 +2172,87 @@ t_gc()
 
 ---
 
+---
+
+## 42. Live Pipeline Monitoring with `t top`
+
+> **New in T-Lang**: The `t top` subcommand provides a real-time, full-screen terminal UI for monitoring a pipeline build as it executes.
+
+### Usage
+
+```bash
+t top run my_pipeline.t
+```
+
+This command:
+1. **Evaluates** your `.t` file to extract the `VPipeline` value.
+2. **Forks** a child process that runs `populate_pipeline(p, build = true)`.
+3. **Monitors** the build in real-time via a JSON status file written by the build engine.
+4. **Renders** a live-updating TUI table showing every node's status, duration, runtime, and dependencies.
+5. **Exits** when the build completes and waits for you to press `q`.
+
+### Live TUI Display
+
+While the build is running, the terminal shows:
+
+```
+┌── T Pipeline Monitor 14:30:22 ──────────────────────────────────────────────┐
+│ Total: 5    │ Built: 2      │ Building: 1   │ Errored: 0   │ Warnings: 0   │
+├──────────────┬──────────┬──────────┬───────────┬────────────────────┤
+│ Node         │ Status   │ Duration │ Runtime   │ Dependencies       │
+├──────────────┼──────────┼──────────┼───────────┼────────────────────┤
+│ raw_data     │ ✓ Completed │ 2.3s     │ T         │ —                  │
+│ clean        │ ✓ Completed │ 1.1s     │ T         │ raw_data           │
+│ model        │ ⟳ Building  │ 5.7s     │ R         │ clean              │
+│ predictions  │ · Pending   │ —        │ T         │ model,clean        │
+│ report       │ · Pending   │ —        │ T         │ predictions        │
+└──────────────┴──────────┴──────────┴───────────┴────────────────────┘
+Monitoring (Ctrl-C to quit)
+```
+
+The display updates every second. Completed nodes are shown in **green**, building nodes in **cyan**, errored nodes in **red**, and pending nodes in **gray**.
+
+### How It Works
+
+`t top` uses a **fork + file-based IPC** model:
+
+1. The parent process forks, spawning a child that runs `populate_pipeline(p, build = true)` with a `~status_file` argument pointing to `_pipeline/build_status.json`.
+2. The child redirects stdout/stderr to `/dev/null`, evaluates the `.t` file, extracts the pipeline, and runs the build.
+3. After each node status transition (Pending → Building → Completed/Errored), the build engine writes an atomic JSON status file via a temp-file + rename strategy.
+4. The parent polls this file every second, parses the JSON, and re-renders the TUI.
+
+### Status File Format
+
+The internal JSON status file (`_pipeline/build_status.json`) follows this structure:
+
+```json
+{
+  "pipeline": "my_pipeline",
+  "done": false,
+  "total": 5,
+  "built": 2,
+  "building": 1,
+  "errored": 0,
+  "soft_failed": 0,
+  "nodes": {
+    "raw_data": { "status": "Completed", "duration": 2.3, "runtime": "T", "dependencies": [] },
+    "model": { "status": "Building", "duration": 5.7, "runtime": "R", "dependencies": ["clean"] }
+  }
+}
+```
+
+### Interaction
+
+- **Ctrl-C** during a `t top` session kills the child build process and restores the terminal cursor.
+- **`q`** is pressed after the build completes to exit.
+- **Terminal cursor** is hidden during monitoring and restored on exit or error.
+
+### Requirements
+
+`t top` is a **POSIX-only** feature (uses `Unix.fork`) and currently supports **Linux** environments. It does not require any external TUI library — the display uses standard ANSI escape codes.
+
+
+
 ## Next Steps
 
 Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:

@@ -76,7 +76,7 @@ let parse_mode_args (args : string list) : (mode_parse, string) result =
     @param args The entire CLI arguments list.
     @return [Ok ()] if all flag constraints are met, or [Error message] otherwise. *)
 let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string list) : (unit, string) result =
-  let commands = ["run"; "repl"; "test"; "explain"; "init"; "doc"; "doctor"; "docs"; "update"; "publish"; "export_artifacts"; "import_artifacts"; "--help"; "-h"; "--version"; "-v"] in
+  let commands = ["run"; "repl"; "test"; "explain"; "init"; "doc"; "doctor"; "docs"; "update"; "publish"; "export_artifacts"; "import_artifacts"; "top"; "--help"; "-h"; "--version"; "-v"] in
   let command =
     match args with
     | _ :: "run" :: _ -> Some "run"

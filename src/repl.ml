@@ -1125,6 +1125,7 @@ let () =
   | _ :: "debug" :: filename :: node_name :: [] ->
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       cmd_debug ~unsafe ~failfast script_mode filename node_name env
+  | _ :: "top" :: rest -> Cmd_top.cmd_top rest env
   | _ :: "run" :: [] ->
       Printf.eprintf "Usage: t run <file.t> | t run --expr <expr>\n";
       exit 1
