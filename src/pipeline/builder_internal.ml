@@ -531,6 +531,21 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                       ("error_message", "\"" ^ Serialization.json_escape err_msg ^ "\"")
                     ]
                 | None -> []
+              else if status = "SoftFailed" && artifact_path <> "" && Sys.file_exists artifact_path then
+                let read_res =
+                  if runtime = "T" then
+                    Serialization.deserialize_from_file artifact_path
+                  else
+                    Serialization.read_verror_json artifact_path
+                in
+                (match read_res with
+                 | Ok (VError e) ->
+                     let err_code = Ast.Utils.error_code_to_string e.code in
+                     [
+                       ("error_code", "\"" ^ Serialization.json_escape err_code ^ "\"");
+                       ("error_message", "\"" ^ Serialization.json_escape e.message ^ "\"")
+                     ]
+                 | _ -> [])
               else []
             in
             

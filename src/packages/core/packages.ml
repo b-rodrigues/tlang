@@ -816,6 +816,7 @@ let init_env () =
   let env = Pipeline_inspect2.register env in
   let env = Build_log.register env in
   let env = Pipeline_diff.register env in
+  let env = Pipeline_report.register env in
   (* Colcraft package *)
   let env = T_select.register env in
   let env = T_filter.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
