@@ -86,24 +86,42 @@ let get_failed_node_error_info drv_path =
   | Error msg ->
       ("NixError", "Failed to run nix log: " ^ msg)
 
-let write_build_status_file ?pipeline_name ?(done_=false) status_file_path p statuses durations =
+let write_build_status_file ?pipeline_name ?(done_=false) ?warnings ?node_start_times status_file_path p statuses durations =
   if status_file_path <> "" then
     let node_names = List.map fst p.p_exprs in
     let built = ref 0 in
     let errored = ref 0 in
     let building = ref 0 in
     let soft_failed = ref 0 in
+    let warnings_count = ref 0 in
     let node_entries = List.map (fun name ->
       let status = match Hashtbl.find_opt statuses name with Some s -> s | None -> "Pending" in
+      let status =
+        if status = "Completed" then
+          match warnings with
+          | Some w when Hashtbl.find_opt w name = Some true -> "Completed with warning"
+          | _ -> "Completed"
+        else status
+      in
       if status = "Completed" || status = "Cached" then incr built
+      else if status = "Completed with warning" then (incr built; incr warnings_count)
       else if status = "Errored" then incr errored
       else if status = "Building" || status = "Fetching" then incr building
       else if status = "SoftFailed" then incr soft_failed;
       let duration = match Hashtbl.find_opt durations name with Some d -> d | None -> 0.0 in
+      let start_time_str =
+        match node_start_times with
+        | Some tbl -> (
+            match Hashtbl.find_opt tbl name with
+            | Some t -> Printf.sprintf ", \"start_time\": %.4f" t
+            | None -> ""
+          )
+        | None -> ""
+      in
       let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
       let deps = match List.assoc_opt name p.p_deps with Some d -> Serialization.json_list d | None -> "[]" in
-      Printf.sprintf "    \"%s\": { \"status\": \"%s\", \"duration\": %.4f, \"runtime\": \"%s\", \"dependencies\": %s }"
-        (Serialization.json_escape name) (Serialization.json_escape status) duration
+      Printf.sprintf "    \"%s\": { \"status\": \"%s\", \"duration\": %.4f%s, \"runtime\": \"%s\", \"dependencies\": %s }"
+        (Serialization.json_escape name) (Serialization.json_escape status) duration start_time_str
         (Serialization.json_escape runtime) deps
     ) node_names in
     let json = "{\n" ^
@@ -114,6 +132,7 @@ let write_build_status_file ?pipeline_name ?(done_=false) status_file_path p sta
       "  \"building\": " ^ string_of_int !building ^ ",\n" ^
       "  \"errored\": " ^ string_of_int !errored ^ ",\n" ^
       "  \"soft_failed\": " ^ string_of_int !soft_failed ^ ",\n" ^
+      "  \"warnings\": " ^ string_of_int !warnings_count ^ ",\n" ^
       "  \"nodes\": {\n" ^ String.concat ",\n" node_entries ^ "\n  }\n}\n" in
     let tmp = status_file_path ^ ".tmp" in
     match write_file tmp json with
@@ -399,10 +418,11 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
       
       let captured_output = Buffer.create 1024 in
       let argv = Array.of_list
-        (["nix-build"; "--impure"; pipeline_nix_path] @ target_args @ ["--no-out-link"] @ all_args)
+        (["nix-build"; "--impure"; pipeline_nix_path] @ target_args @ ["--no-out-link"; "--log-format"; "internal-json"] @ all_args)
       in
       
       let drv_paths = Hashtbl.create (List.length node_names) in
+      let nix_id_to_node = Hashtbl.create (List.length node_names) in
       let node_has_warnings = Hashtbl.create (List.length node_names) in
       let node_start_times = Hashtbl.create (List.length node_names) in
       let node_durations = Hashtbl.create (List.length node_names) in
@@ -448,9 +468,9 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
       in
       (match status_file with
        | Some sf ->
-           write_build_status_file ?pipeline_name sf p statuses node_durations;
+           write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations;
            seed_statuses_from_dry_run ();
-           write_build_status_file ?pipeline_name sf p statuses node_durations
+           write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
        | None -> ());
       
       let callback line =
@@ -458,99 +478,174 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
         Buffer.add_char captured_output '\n';
         
         let line = String.trim line in
-        if String.starts_with ~prefix:"building '/nix/store/" line then (
-          if not !started_building then (
-            started_building := true;
-            Printf.eprintf "\nStarting pipeline build...\n%!";
-          );
-          match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
-          | Some name ->
-              Hashtbl.replace node_was_built name true;
-              Hashtbl.replace node_start_times name (Unix.gettimeofday ());
-              let drv_path = 
-                try
-                  let start_idx = contains_substring_idx line "/nix/store/" in
-                  if start_idx >= 0 then
-                    let sub = String.sub line start_idx (String.length line - start_idx) in
-                    let end_idx = try String.index sub '\'' with _ ->
-                                  try String.index sub ' ' with _ ->
-                                  String.length sub in
-                    String.sub sub 0 end_idx
-                  else ""
-                with _ -> ""
-              in
-              if drv_path <> "" then Hashtbl.replace drv_paths name drv_path;
 
-              if Hashtbl.find statuses name = "Pending" || Hashtbl.find statuses name = "Fetching" then (
-                Hashtbl.replace statuses name "Building";
-                Printf.eprintf "  + %s building\n%!" name;
-                (match status_file with
-                 | Some sf -> write_build_status_file ?pipeline_name sf p statuses node_durations
-                 | None -> ())
-              )
-          | None -> ()
-        )
-        else if String.starts_with ~prefix:"/nix/store/" line
-             && not (String.ends_with ~suffix:".drv" line) then (
-          match List.find_opt (fun name -> contains_substring line ("-" ^ name)) sorted_node_names with
-          | Some name ->
-              Hashtbl.replace node_store_paths name line;
-              if Hashtbl.find statuses name <> "Completed" && 
-                 Hashtbl.find statuses name <> "SoftFailed" &&
-                 Hashtbl.find statuses name <> "Errored" then (
-                let duration =
-                  match Hashtbl.find_opt node_start_times name with
-                  | Some t -> Unix.gettimeofday () -. t
-                  | None -> 0.0
-                in
-                Hashtbl.replace node_durations name duration;
-                Hashtbl.replace statuses name "Completed";
-                Printf.eprintf "  ✓ %s built\n%!" name;
-                (match status_file with
-                 | Some sf -> write_build_status_file ?pipeline_name sf p statuses node_durations
-                 | None -> ())
-              )
-          | None -> ()
-        )
-        else (
-          if contains_substring line "error:" || contains_substring line "failed" then (
+        (* Try @nix JSON parsing for Nix internal-json structured log lines *)
+        if String.length line >= 5 && String.sub line 0 5 = "@nix " then begin
+          let json_str = String.sub line 5 (String.length line - 5) in
+          (try
+             let json = Yojson.Safe.from_string json_str in
+             let open Yojson.Safe.Util in
+             let action = match json |> member "action" with `String s -> s | _ -> "" in
+             let id = match json |> member "id" with `Int i -> i | _ -> 0 in
+             let typ = try match json |> member "type" with `Int i -> i | _ -> 0 with _ -> 0 in
+             if action = "start" && typ = 105 then begin
+               (* Nix activity type 105 = actBuild (derivation build) *)
+               let fields = try json |> member "fields" |> to_list with _ -> [] in
+               match fields with
+               | (`String drv_field) :: _ ->
+                   (match List.find_opt (fun name -> contains_substring drv_field ("-" ^ name ^ ".drv")) sorted_node_names with
+                    | Some name ->
+                        Hashtbl.replace nix_id_to_node id name;
+                        Hashtbl.replace node_start_times name (Unix.gettimeofday ());
+                        if drv_field <> "" then Hashtbl.replace drv_paths name drv_field;
+                        if Hashtbl.find statuses name = "Pending" || Hashtbl.find statuses name = "Fetching" then (
+                          Hashtbl.replace statuses name "Building";
+                          Printf.eprintf "  + %s building\n%!" name;
+                          (match status_file with
+                           | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                           | None -> ())
+                        )
+                    | None -> ())
+               | _ -> ()
+             end else if action = "stop" then begin
+               match Hashtbl.find_opt nix_id_to_node id with
+               | Some name ->
+                   if Hashtbl.find statuses name <> "Completed" &&
+                      Hashtbl.find statuses name <> "SoftFailed" &&
+                      Hashtbl.find statuses name <> "Errored" then (
+                     let duration =
+                       match Hashtbl.find_opt node_start_times name with
+                       | Some t -> Unix.gettimeofday () -. t
+                       | None -> 0.0
+                     in
+                     Hashtbl.replace node_durations name duration;
+                     Hashtbl.replace statuses name "Completed";
+                     Printf.eprintf "  ✓ %s built\n%!" name;
+                     (match status_file with
+                      | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                      | None -> ())
+                   )
+               | None -> ()
+             end else if action = "msg" then begin
+               let level = match json |> member "level" with `Int i -> i | _ -> 0 in
+               if level >= 1 then
+                 match Hashtbl.find_opt nix_id_to_node id with
+                 | Some name ->
+                     if Hashtbl.find statuses name <> "Errored" then (
+                       let duration =
+                         match Hashtbl.find_opt node_start_times name with
+                         | Some t -> Unix.gettimeofday () -. t
+                         | None -> 0.0
+                       in
+                       Hashtbl.replace node_durations name duration;
+                       Hashtbl.replace statuses name "Errored";
+                       if verbose > 0 then
+                         Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
+                       else
+                         Printf.eprintf "  ✖ %s failed\n%!" name;
+                       (match status_file with
+                        | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                        | None -> ())
+                     )
+                 | None -> ()
+             end
+           with _ -> ())
+        end else begin
+          (* Fallback parsing for non-@nix lines (stdout store paths, raw stderr text) *)
+          if String.starts_with ~prefix:"building '/nix/store/" line then (
+            if not !started_building then (
+              started_building := true;
+              Printf.eprintf "\nStarting pipeline build...\n%!";
+            );
             match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
             | Some name ->
-                if Hashtbl.find statuses name <> "Errored" then (
+                Hashtbl.replace node_was_built name true;
+                Hashtbl.replace node_start_times name (Unix.gettimeofday ());
+                let drv_path = 
+                  try
+                    let start_idx = contains_substring_idx line "/nix/store/" in
+                    if start_idx >= 0 then
+                      let sub = String.sub line start_idx (String.length line - start_idx) in
+                      let end_idx = try String.index sub '\'' with _ ->
+                                    try String.index sub ' ' with _ ->
+                                    String.length sub in
+                      String.sub sub 0 end_idx
+                    else ""
+                  with _ -> ""
+                in
+                if drv_path <> "" then Hashtbl.replace drv_paths name drv_path;
+
+                if Hashtbl.find statuses name = "Pending" || Hashtbl.find statuses name = "Fetching" then (
+                  Hashtbl.replace statuses name "Building";
+                  Printf.eprintf "  + %s building\n%!" name;
+                  (match status_file with
+                   | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                   | None -> ())
+                )
+            | None -> ()
+          )
+          else if String.starts_with ~prefix:"/nix/store/" line
+               && not (String.ends_with ~suffix:".drv" line) then (
+            match List.find_opt (fun name -> contains_substring line ("-" ^ name)) sorted_node_names with
+            | Some name ->
+                Hashtbl.replace node_store_paths name line;
+                if Hashtbl.find statuses name <> "Completed" && 
+                   Hashtbl.find statuses name <> "SoftFailed" &&
+                   Hashtbl.find statuses name <> "Errored" then (
                   let duration =
                     match Hashtbl.find_opt node_start_times name with
                     | Some t -> Unix.gettimeofday () -. t
                     | None -> 0.0
                   in
                   Hashtbl.replace node_durations name duration;
-                  Hashtbl.replace statuses name "Errored";
-                  let drv_path = 
-                    match Hashtbl.find_opt drv_paths name with
-                    | Some p -> p
-                    | None ->
-                      try
-                        let start_idx = contains_substring_idx line "/nix/store/" in
-                        if start_idx >= 0 then
-                          let sub = String.sub line start_idx (String.length line - start_idx) in
-                          let end_idx = try String.index sub '\'' with _ ->
-                                        try String.index sub ' ' with _ ->
-                                        String.length sub in
-                          String.sub sub 0 end_idx
-                        else "<path>"
-                      with _ -> "<path>"
-                  in
-                  if drv_path <> "" && drv_path <> "<path>" then Hashtbl.replace drv_paths name drv_path;
-                  if verbose > 0 then
-                    Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
-                  else
-                    Printf.eprintf "  ✖ %s failed\n%!" name;
+                  Hashtbl.replace statuses name "Completed";
+                  Printf.eprintf "  ✓ %s built\n%!" name;
                   (match status_file with
-                   | Some sf -> write_build_status_file ?pipeline_name sf p statuses node_durations
+                   | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
                    | None -> ())
                 )
             | None -> ()
           )
-        )
+          else (
+            if contains_substring line "error:" || contains_substring line "failed" then (
+              match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
+              | Some name ->
+                  if Hashtbl.find statuses name <> "Errored" then (
+                    let duration =
+                      match Hashtbl.find_opt node_start_times name with
+                      | Some t -> Unix.gettimeofday () -. t
+                      | None -> 0.0
+                    in
+                    Hashtbl.replace node_durations name duration;
+                    Hashtbl.replace statuses name "Errored";
+                    let drv_path = 
+                      match Hashtbl.find_opt drv_paths name with
+                      | Some p -> p
+                      | None ->
+                        try
+                          let start_idx = contains_substring_idx line "/nix/store/" in
+                          if start_idx >= 0 then
+                            let sub = String.sub line start_idx (String.length line - start_idx) in
+                            let end_idx = try String.index sub '\'' with _ ->
+                                          try String.index sub ' ' with _ ->
+                                          String.length sub in
+                            String.sub sub 0 end_idx
+                          else "<path>"
+                        with _ -> "<path>"
+                    in
+                    if drv_path <> "" && drv_path <> "<path>" then Hashtbl.replace drv_paths name drv_path;
+                    if verbose > 0 then
+                      Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
+                    else
+                      Printf.eprintf "  ✖ %s failed\n%!" name;
+                    (match status_file with
+                     | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                     | None -> ())
+                  )
+              | None -> ()
+            )
+          )
+        end
       in
 
       let timestamp = get_timestamp () in
@@ -803,7 +898,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                     Printf.eprintf "  (cached: %s)\n%!" (String.concat ", " cached_nodes);
 
                    (match status_file with
-                    | Some sf -> write_build_status_file ?pipeline_name ~done_:true sf p statuses node_durations
+                    | Some sf -> write_build_status_file ?pipeline_name ~done_:true ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
                     | None -> ());
 
                    if built_count > 0 then
@@ -825,7 +920,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                       ]))
             | Unix.WEXITED 0 ->
                (match status_file with
-                | Some sf -> write_build_status_file ?pipeline_name ~done_:true sf p statuses node_durations
+                | Some sf -> write_build_status_file ?pipeline_name ~done_:true ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
                 | None -> ());
                ignore (save_build_log None);
                Error "nix-build succeeded but did not return an output path."
@@ -926,13 +1021,13 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                 | [] -> base_hint
               in
               (match status_file with
-               | Some sf -> write_build_status_file ?pipeline_name ~done_:true sf p statuses node_durations
+               | Some sf -> write_build_status_file ?pipeline_name ~done_:true ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
                | None -> ());
               ignore (save_build_log None);
               Error (Printf.sprintf "nix-build failed: %s %s" error_summary hint))
       | Error msg ->
           (match status_file with
-           | Some sf -> write_build_status_file ?pipeline_name ~done_:true sf p statuses node_durations
+           | Some sf -> write_build_status_file ?pipeline_name ~done_:true ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
            | None -> ());
           Error (Printf.sprintf "Failed to run nix-build: %s" msg)
     end

@@ -64,7 +64,8 @@ type status_data = {
   sd_building : int;
   sd_errored : int;
   sd_soft_failed : int;
-  sd_nodes : (string * string * float * string * string list) list;
+  sd_warnings : int;
+  sd_nodes : (string * string * float * float * string * string list) list;
   sd_error : string option;
 }
 
@@ -80,22 +81,24 @@ let read_status_file path =
       let sd_building = match json |> member "building" with `Int i -> i | _ -> 0 in
       let sd_errored = match json |> member "errored" with `Int i -> i | _ -> 0 in
       let sd_soft_failed = match json |> member "soft_failed" with `Int i -> i | _ -> 0 in
+      let sd_warnings = match json |> member "warnings" with `Int i -> i | _ -> 0 in
       let sd_error = match json |> member "error" with `String s -> Some s | _ -> None in
       let sd_nodes = match json |> member "nodes" with
         | `Assoc pairs ->
             List.map (fun (name, node_json) ->
               let status = match node_json |> member "status" with `String s -> s | _ -> "Unknown" in
               let duration = match node_json |> member "duration" with `Float f -> f | `Int i -> float_of_int i | _ -> 0.0 in
+              let start_time = match node_json |> member "start_time" with `Float f -> f | `Int i -> float_of_int i | _ -> 0.0 in
               let runtime = match node_json |> member "runtime" with `String s -> s | _ -> "" in
               let deps = match node_json |> member "dependencies" with
                 | `List items -> List.filter_map (function `String s -> Some s | _ -> None) items
                 | _ -> []
               in
-              (name, status, duration, runtime, deps)
+              (name, status, duration, start_time, runtime, deps)
             ) pairs
         | _ -> []
       in
-      Some { sd_done; sd_total; sd_built; sd_building; sd_errored; sd_soft_failed; sd_nodes; sd_error }
+      Some { sd_done; sd_total; sd_built; sd_building; sd_errored; sd_soft_failed; sd_warnings; sd_nodes; sd_error }
   with _ -> None
 
 let node_color = function
@@ -106,23 +109,52 @@ let node_color = function
   | "Building" -> ansi_cyan
   | "Pending" -> ansi_gray
   | "Errored" -> ansi_red
-  | "SoftFailed" -> ansi_yellow
+  | "SoftFailed" -> ansi_red
   | _ -> ansi_reset
 
+let utf8_len s =
+  let len = String.length s in
+  let count = ref 0 in
+  for i = 0 to len - 1 do
+    let b = Char.code (String.get s i) in
+    if b < 0x80 || b >= 0xC0 then
+      incr count
+  done;
+  !count
+
+let utf8_sub s w =
+  let len = String.length s in
+  let count = ref 0 in
+  let byte_idx = ref 0 in
+  while !byte_idx < len && !count < w do
+    let b = Char.code (String.get s !byte_idx) in
+    if b < 0x80 || b >= 0xC0 then (
+      if !count < w then (
+        incr count;
+        incr byte_idx;
+        while !byte_idx < len && (let b2 = Char.code (String.get s !byte_idx) in b2 >= 0x80 && b2 < 0xC0) do
+          incr byte_idx
+        done
+      )
+    ) else (
+      incr byte_idx
+    )
+  done;
+  String.sub s 0 !byte_idx
 
 let ellipsize width s =
   if width <= 0 then ""
-  else if String.length s <= width then s
+  else if utf8_len s <= width then s
   else if width = 1 then "…"
-  else String.sub s 0 (width - 1) ^ "…"
+  else utf8_sub s (width - 1) ^ "…"
 
 let pad_right width s =
   let clipped = ellipsize width s in
-  clipped ^ String.make (max 0 (width - String.length clipped)) ' '
+  clipped ^ String.make (max 0 (width - utf8_len clipped)) ' '
 
 let pad_left width s =
   let clipped = ellipsize width s in
-  String.make (max 0 (width - String.length clipped)) ' ' ^ clipped
+  String.make (max 0 (width - utf8_len clipped)) ' ' ^ clipped
 
 let node_icon = function
   | "Completed" -> "✓"
@@ -132,7 +164,7 @@ let node_icon = function
   | "Building" -> "⟳"
   | "Pending" -> "·"
   | "Errored" -> "✗"
-  | "SoftFailed" -> "⚠"
+  | "SoftFailed" -> "✗"
   | _ -> "?"
 
 let render_tui data =
@@ -151,20 +183,27 @@ let render_tui data =
     data.sd_total
     ansi_green data.sd_built ansi_reset
     ansi_cyan data.sd_building ansi_reset
-    ansi_red data.sd_errored ansi_reset
-    ansi_yellow data.sd_soft_failed ansi_reset;
+    ansi_red (data.sd_errored + data.sd_soft_failed) ansi_reset
+    ansi_yellow data.sd_warnings ansi_reset;
 
   Buffer.add_string buf "├────────────────────┬────────────────┬──────────┬──────────┬────────────────────────┤\n";
   Buffer.add_string buf "│ Node               │ Status         │ Duration │ Runtime  │ Dependencies           │\n";
   Buffer.add_string buf "├────────────────────┼────────────────┼──────────┼──────────┼────────────────────────┤\n";
 
-  List.iter (fun (name, status, duration, runtime, deps) ->
+  List.iter (fun (name, status, duration, start_time, runtime, deps) ->
     let color = node_color status in
     let icon = node_icon status in
-    let display_status = pad_right 14 (Printf.sprintf "%s %s" icon status) in
+    let status_str = if status = "SoftFailed" then "Errored" else status in
+    let display_status = pad_right 14 (Printf.sprintf "%s %s" icon status_str) in
     let name_cell = pad_right 18 name in
     let duration_str =
-      if duration > 0.0 then Printf.sprintf "%.1fs" duration
+      let effective =
+        if (status = "Building" || status = "Fetching") && start_time > 0.0 then
+          Unix.gettimeofday () -. start_time
+        else
+          duration
+      in
+      if effective > 0.0 then Printf.sprintf "%.1fs" effective
       else "—"
     in
     let duration_cell = pad_left 8 duration_str in
@@ -199,6 +238,33 @@ let render_tui data =
     Buffer.add_string buf "Press q to quit.\n"
   end;
 
+  Buffer.output_buffer stdout buf;
+  flush stdout
+
+let render_loading () =
+  let buf = Buffer.create 1024 in
+  Buffer.add_string buf ansi_clear;
+  Buffer.add_string buf ansi_hide_cursor;
+  let now = Unix.localtime (Unix.time ()) in
+  Printf.ksprintf (Buffer.add_string buf)
+    "%s┌── T Pipeline Monitor %s%02d:%02d:%02d%s                                        ┐\n"
+    ansi_bold ansi_reset now.tm_hour now.tm_min now.tm_sec ansi_bold;
+  Buffer.add_string buf ansi_reset;
+  Buffer.add_string buf "│ Total: 0    │ Built: 0     │ Building: 0     │ Errored: 0     │ Warnings: 0     │\n";
+  Buffer.add_string buf "├────────────────────┬────────────────┬──────────┬──────────┬────────────────────────┤\n";
+  Buffer.add_string buf "│ Node               │ Status         │ Duration │ Runtime  │ Dependencies           │\n";
+  Buffer.add_string buf "├────────────────────┼────────────────┼──────────┼──────────┼────────────────────────┤\n";
+  let name_cell = pad_right 18 "" in
+  let display_status = pad_right 14 "Loading..." in
+  let duration_cell = pad_left 8 "" in
+  let runtime_cell = pad_right 8 "" in
+  let deps_cell = pad_right 22 "" in
+  Printf.ksprintf (Buffer.add_string buf) "│ %s │ %s%s%s │ %s │ %s │ %s │\n"
+    name_cell ansi_cyan display_status ansi_reset duration_cell runtime_cell deps_cell;
+  Buffer.add_string buf "└────────────────────┴────────────────┴──────────┴──────────┴────────────────────────┘\n";
+  Buffer.add_string buf ansi_gray;
+  Buffer.add_string buf "Initializing pipeline build, please wait...\n";
+  Buffer.add_string buf ansi_reset;
   Buffer.output_buffer stdout buf;
   flush stdout
 
@@ -306,6 +372,7 @@ let cmd_top_run filename env =
               loop ()
             )
         | None ->
+            render_loading ();
             let pid, _ = safe_waitpid [Unix.WNOHANG] child_pid in
             if pid = child_pid then ()
             else (Unix.sleep 1; loop ())
@@ -436,6 +503,7 @@ let cmd_top_monitor _env =
           loop ()
         )
     | None ->
+        render_loading ();
         let still_alive = match child_pid with
           | Some pid -> (try Unix.kill pid 0; true with _ -> false)
           | None -> true
