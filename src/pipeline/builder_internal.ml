@@ -95,9 +95,9 @@ let write_build_status_file ?pipeline_name ?(done_=false) status_file_path p sta
     let soft_failed = ref 0 in
     let node_entries = List.map (fun name ->
       let status = match Hashtbl.find_opt statuses name with Some s -> s | None -> "Pending" in
-      if status = "Completed" then incr built
+      if status = "Completed" || status = "Cached" then incr built
       else if status = "Errored" then incr errored
-      else if status = "Building" then incr building
+      else if status = "Building" || status = "Fetching" then incr building
       else if status = "SoftFailed" then incr soft_failed;
       let duration = match Hashtbl.find_opt durations name with Some d -> d | None -> 0.0 in
       let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
@@ -408,6 +408,50 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
       let node_durations = Hashtbl.create (List.length node_names) in
       let node_was_built = Hashtbl.create (List.length node_names) in
       let started_building = ref false in
+
+      let seed_statuses_from_dry_run () =
+        let lines = ref [] in
+        let collect line = lines := line :: !lines in
+        let dry_args = ["--dry-run"] @ all_args in
+        let dry_argv = Array.of_list (["nix-build"; "--impure"; pipeline_nix_path] @ target_args @ ["--no-out-link"] @ dry_args) in
+        match run_command_stream_argv dry_argv collect with
+        | Error _ -> ()
+        | Ok status ->
+            let exit_code =
+              match status with
+              | Unix.WEXITED n -> n
+              | Unix.WSIGNALED n | Unix.WSTOPPED n -> n
+            in
+            if exit_code = 0 then begin
+              let dry_builds = Hashtbl.create (List.length node_names) in
+              let dry_fetches = Hashtbl.create (List.length node_names) in
+              let current_action = ref "build" in
+              List.iter (fun line ->
+                let trimmed = String.trim line in
+                if contains_substring trimmed "will be built:" then
+                  current_action := "build"
+                else if contains_substring trimmed "will be fetched" then
+                  current_action := "fetch"
+                else if String.starts_with ~prefix:"/nix/store/" trimmed then
+                  match List.find_opt (fun name -> contains_substring trimmed ("-" ^ name ^ ".drv") || contains_substring trimmed ("-" ^ name)) sorted_node_names with
+                  | Some name ->
+                      if !current_action = "fetch" then Hashtbl.replace dry_fetches name true
+                      else Hashtbl.replace dry_builds name true
+                  | None -> ()
+              ) (List.rev !lines);
+              List.iter (fun name ->
+                if Hashtbl.mem dry_fetches name then Hashtbl.replace statuses name "Fetching"
+                else if Hashtbl.mem dry_builds name then Hashtbl.replace statuses name "Pending"
+                else Hashtbl.replace statuses name "Cached"
+              ) node_names
+            end
+      in
+      (match status_file with
+       | Some sf ->
+           write_build_status_file ?pipeline_name sf p statuses node_durations;
+           seed_statuses_from_dry_run ();
+           write_build_status_file ?pipeline_name sf p statuses node_durations
+       | None -> ());
       
       let callback line =
         Buffer.add_string captured_output line;
@@ -437,7 +481,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
               in
               if drv_path <> "" then Hashtbl.replace drv_paths name drv_path;
 
-              if Hashtbl.find statuses name = "Pending" then (
+              if Hashtbl.find statuses name = "Pending" || Hashtbl.find statuses name = "Fetching" then (
                 Hashtbl.replace statuses name "Building";
                 Printf.eprintf "  + %s building\n%!" name;
                 (match status_file with

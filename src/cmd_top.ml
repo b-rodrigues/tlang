@@ -101,15 +101,34 @@ let read_status_file path =
 let node_color = function
   | "Completed" -> ansi_green
   | "Completed with warning" -> ansi_yellow
+  | "Cached" -> ansi_green
+  | "Fetching" -> ansi_cyan
   | "Building" -> ansi_cyan
   | "Pending" -> ansi_gray
   | "Errored" -> ansi_red
   | "SoftFailed" -> ansi_yellow
   | _ -> ansi_reset
 
+
+let ellipsize width s =
+  if width <= 0 then ""
+  else if String.length s <= width then s
+  else if width = 1 then "…"
+  else String.sub s 0 (width - 1) ^ "…"
+
+let pad_right width s =
+  let clipped = ellipsize width s in
+  clipped ^ String.make (max 0 (width - String.length clipped)) ' '
+
+let pad_left width s =
+  let clipped = ellipsize width s in
+  String.make (max 0 (width - String.length clipped)) ' ' ^ clipped
+
 let node_icon = function
   | "Completed" -> "✓"
   | "Completed with warning" -> "⚠"
+  | "Cached" -> "✓"
+  | "Fetching" -> "⇣"
   | "Building" -> "⟳"
   | "Pending" -> "·"
   | "Errored" -> "✗"
@@ -135,28 +154,28 @@ let render_tui data =
     ansi_red data.sd_errored ansi_reset
     ansi_yellow data.sd_soft_failed ansi_reset;
 
-  Buffer.add_string buf "├──────────────┬──────────┬──────────┬───────────┬────────────────────┤\n";
-  Buffer.add_string buf "│ Node         │ Status   │ Duration │ Runtime   │ Dependencies       │\n";
-  Buffer.add_string buf "├──────────────┼──────────┼──────────┼───────────┼────────────────────┤\n";
+  Buffer.add_string buf "├────────────────────┬────────────────┬──────────┬──────────┬────────────────────────┤\n";
+  Buffer.add_string buf "│ Node               │ Status         │ Duration │ Runtime  │ Dependencies           │\n";
+  Buffer.add_string buf "├────────────────────┼────────────────┼──────────┼──────────┼────────────────────────┤\n";
 
   List.iter (fun (name, status, duration, runtime, deps) ->
     let color = node_color status in
     let icon = node_icon status in
-    let display_status = Printf.sprintf "%s %s" icon status in
-    let name_trunc =
-      if String.length name > 12 then String.sub name 0 10 ^ ".."
-      else name
-    in
+    let display_status = pad_right 14 (Printf.sprintf "%s %s" icon status) in
+    let name_cell = pad_right 18 name in
     let duration_str =
       if duration > 0.0 then Printf.sprintf "%.1fs" duration
       else "—"
     in
+    let duration_cell = pad_left 8 duration_str in
+    let runtime_cell = pad_right 8 runtime in
     let deps_str = match deps with [] -> "—" | d -> String.concat "," d in
-    Printf.ksprintf (Buffer.add_string buf) "│ %-12s │ %s%-8s%s │ %8s │ %-9s │ %-18s │\n"
-      name_trunc color display_status ansi_reset duration_str runtime deps_str
+    let deps_cell = pad_right 22 deps_str in
+    Printf.ksprintf (Buffer.add_string buf) "│ %s │ %s%s%s │ %s │ %s │ %s │\n"
+      name_cell color display_status ansi_reset duration_cell runtime_cell deps_cell
   ) data.sd_nodes;
 
-  Buffer.add_string buf "└──────────────┴──────────┴──────────┴───────────┴────────────────────┘\n";
+  Buffer.add_string buf "└────────────────────┴────────────────┴──────────┴──────────┴────────────────────────┘\n";
 
   if not data.sd_done then begin
     Buffer.add_string buf ansi_gray;
