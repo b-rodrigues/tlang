@@ -2187,9 +2187,10 @@ t top run my_pipeline.t
 This command:
 1. **Evaluates** your `.t` file to extract the `VPipeline` value.
 2. **Forks** a child process that runs `populate_pipeline(p, build = true)`.
-3. **Monitors** the build in real-time via a JSON status file written by the build engine.
-4. **Renders** a live-updating TUI table showing every node's status, duration, runtime, and dependencies.
-5. **Exits** when the build completes and waits for you to press `q`.
+3. **Seeds** the monitor from Nix dry-run information so the interface appears before the real build starts, with nodes marked as cached, fetching, or pending rebuild work.
+4. **Monitors** the build in real-time via a JSON status file written by the build engine.
+5. **Renders** a live-updating fixed-width TUI table showing every node's status, duration, runtime, and dependencies, trimming long names and dependency lists for readability.
+6. **Exits** when the build completes and waits for you to press `q`.
 
 ### Live TUI Display
 
@@ -2198,19 +2199,19 @@ While the build is running, the terminal shows:
 ```
 ┌── T Pipeline Monitor 14:30:22 ──────────────────────────────────────────────┐
 │ Total: 5    │ Built: 2      │ Building: 1   │ Errored: 0   │ Warnings: 0   │
-├──────────────┬──────────┬──────────┬───────────┬────────────────────┤
-│ Node         │ Status   │ Duration │ Runtime   │ Dependencies       │
-├──────────────┼──────────┼──────────┼───────────┼────────────────────┤
-│ raw_data     │ ✓ Completed │ 2.3s     │ T         │ —                  │
-│ clean        │ ✓ Completed │ 1.1s     │ T         │ raw_data           │
-│ model        │ ⟳ Building  │ 5.7s     │ R         │ clean              │
-│ predictions  │ · Pending   │ —        │ T         │ model,clean        │
-│ report       │ · Pending   │ —        │ T         │ predictions        │
-└──────────────┴──────────┴──────────┴───────────┴────────────────────┘
+├────────────────────┬────────────────┬──────────┬──────────┬────────────────────────┤
+│ Node               │ Status         │ Duration │ Runtime  │ Dependencies           │
+├────────────────────┼────────────────┼──────────┼──────────┼────────────────────────┤
+│ raw_data           │ ✓ Cached       │        — │ T        │ —                      │
+│ clean              │ ✓ Completed    │     1.1s │ T        │ raw_data               │
+│ model              │ ⟳ Building     │     5.7s │ R        │ clean                  │
+│ predictions        │ · Pending      │        — │ T        │ model,clean            │
+│ report             │ · Pending      │        — │ T        │ predictions            │
+└────────────────────┴────────────────┴──────────┴──────────┴────────────────────────┘
 Monitoring (Ctrl-C to quit)
 ```
 
-The display updates every second. Completed nodes are shown in **green**, building nodes in **cyan**, errored nodes in **red**, and pending nodes in **gray**.
+The display updates every second. Completed and cached nodes are shown in **green**, building and fetching nodes in **cyan**, errored nodes in **red**, and pending nodes in **gray**. Long node names, runtimes, and dependency lists are clipped to keep the table columns stable while the build streams.
 
 ### How It Works
 
@@ -2218,8 +2219,9 @@ The display updates every second. Completed nodes are shown in **green**, buildi
 
 1. The parent process forks, spawning a child that runs `populate_pipeline(p, build = true)` with a `~status_file` argument pointing to `_pipeline/build_status.json`.
 2. The child redirects stdout/stderr to `/dev/null`, evaluates the `.t` file, extracts the pipeline, and runs the build.
-3. After each node status transition (Pending → Building → Completed/Errored), the build engine writes an atomic JSON status file via a temp-file + rename strategy.
-4. The parent polls this file every second, parses the JSON, and re-renders the TUI.
+3. Before the real build starts, the build engine runs a Nix dry-run for the same targets and writes an initial atomic JSON status file with `Cached`, `Fetching`, or `Pending` statuses.
+4. After each node status transition (Pending/Fetching → Building → Completed/Errored), the build engine writes an atomic JSON status file via a temp-file + rename strategy.
+5. The parent polls this file every second, parses the JSON, and re-renders the TUI.
 
 ### Status File Format
 

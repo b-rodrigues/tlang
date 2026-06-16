@@ -210,6 +210,7 @@ T supports higher-order composition of pipelines:
   }
   ```
 - **Automatic Namespacing & Flattening**: Sub-pipeline node names are automatically namespaced (e.g. `etl.raw_data`, `stats.summary`) and meta-pipelines are flattened transparently on access — `meta_flatten` is an internal implementation detail, not a user-facing function.
+- **Live Pipeline Monitoring**: `t top run <file.t>` opens an immediate fixed-width terminal monitor seeded from Nix dry-run cache status (`Cached`, `Fetching`, `Pending`) before streaming real-time build updates.
 - **Pipeline Visualization**: `pipeline_to_dot(p, title = na())` and `pipeline_to_mermaid(p, title = na(), flatten = false)` generate Graphviz DOT and Mermaid flowchart representations of any pipeline or meta-pipeline topology. Meta-pipeline sub-pipelines render as grouped subgraph blocks by default (`flatten = true` for flat output). `show_plot(p)` renders the DAG as an interactive browser visualization using the Mermaid output.
 - **Lambda Parameters**: Pipelines can be parameterized using standard lambda functions: `\(input) pipeline { ... }`. Outer variables referenced inside the pipeline nodes are automatically substituted with their concrete values during compilation.
 
