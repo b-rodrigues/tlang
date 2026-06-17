@@ -202,6 +202,17 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
     let total_start_time = Unix.gettimeofday () in
     let node_names = List.map fst p.p_exprs in
     let sorted_node_names = List.sort (fun a b -> compare (String.length b) (String.length a)) node_names in
+    let () =
+      match status_file with
+      | Some sf ->
+          let temp_statuses = Hashtbl.create (List.length node_names) in
+          List.iter (fun n -> Hashtbl.add temp_statuses n "Pending") node_names;
+          let temp_durations = Hashtbl.create (List.length node_names) in
+          let temp_warnings = Hashtbl.create (List.length node_names) in
+          let temp_start_times = Hashtbl.create (List.length node_names) in
+          write_build_status_file ?pipeline_name ~warnings:temp_warnings ~node_start_times:temp_start_times sf p temp_statuses temp_durations
+      | None -> ()
+    in
     let target_args_result =
       match targets with
       | Some lst ->
@@ -425,7 +436,52 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
       let nix_id_to_node = Hashtbl.create (List.length node_names) in
       let node_has_warnings = Hashtbl.create (List.length node_names) in
       let node_start_times = Hashtbl.create (List.length node_names) in
-      let node_durations = Hashtbl.create (List.length node_names) in
+      let node_durations =
+        let durations = Hashtbl.create (List.length node_names) in
+        (try
+           match Builder_logs.get_logs () with
+           | latest_log :: _ ->
+               let path = Filename.concat pipeline_dir latest_log in
+               let json = Yojson.Safe.from_file path in
+               let open Yojson.Safe.Util in
+               (match json |> member "nodes" with
+                | `List nodes ->
+                    List.iter (fun node_json ->
+                      let name = node_json |> member "node" |> to_string in
+                      let duration =
+                        match node_json |> member "duration" with
+                        | `Float f -> f
+                        | `Int i -> float_of_int i
+                        | _ -> 0.0
+                      in
+                      if duration > 0.0 then
+                        Hashtbl.replace durations name duration
+                    ) nodes
+                | _ -> ())
+           | _ -> ()
+         with _ -> ());
+        (match status_file with
+         | Some path when Sys.file_exists path ->
+             (try
+                let json = Yojson.Safe.from_file path in
+                let open Yojson.Safe.Util in
+                match json |> member "nodes" with
+                | `Assoc pairs ->
+                    List.iter (fun (name, node_json) ->
+                      let duration =
+                        match node_json |> member "duration" with
+                        | `Float f -> f
+                        | `Int i -> float_of_int i
+                        | _ -> 0.0
+                      in
+                      if duration > 0.0 then
+                        Hashtbl.replace durations name duration
+                    ) pairs
+                | _ -> ()
+              with _ -> ())
+         | _ -> ());
+        durations
+      in
       let node_was_built = Hashtbl.create (List.length node_names) in
       let started_building = ref false in
 
@@ -496,6 +552,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                    (match List.find_opt (fun name -> contains_substring drv_field ("-" ^ name ^ ".drv")) sorted_node_names with
                     | Some name ->
                         Hashtbl.replace nix_id_to_node id name;
+                        Hashtbl.replace node_was_built name true;
                         Hashtbl.replace node_start_times name (Unix.gettimeofday ());
                         if drv_field <> "" then Hashtbl.replace drv_paths name drv_field;
                         if Hashtbl.find statuses name = "Pending" || Hashtbl.find statuses name = "Fetching" then (
@@ -589,20 +646,37 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
             match List.find_opt (fun name -> contains_substring line ("-" ^ name)) sorted_node_names with
             | Some name ->
                 Hashtbl.replace node_store_paths name line;
-                if Hashtbl.find statuses name <> "Completed" && 
-                   Hashtbl.find statuses name <> "SoftFailed" &&
-                   Hashtbl.find statuses name <> "Errored" then (
+                let class_path = Filename.concat line "class" in
+                let warnings_path = Filename.concat line "warnings" in
+                if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
+                let is_error_class =
+                  if Sys.file_exists class_path then
+                    match read_file_first_line class_path with
+                    | Some "VError" | Some "Error" -> true
+                    | _ -> false
+                  else false
+                in
+                let current_status = Hashtbl.find statuses name in
+                if current_status <> "SoftFailed" && current_status <> "Errored" then (
+                  let new_status =
+                    if is_error_class then "SoftFailed" else "Completed"
+                  in
                   let duration =
                     match Hashtbl.find_opt node_start_times name with
                     | Some t -> Unix.gettimeofday () -. t
                     | None -> 0.0
                   in
                   Hashtbl.replace node_durations name duration;
-                  Hashtbl.replace statuses name "Completed";
-                  Printf.eprintf "  ✓ %s built\n%!" name;
-                  (match status_file with
-                   | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
-                   | None -> ())
+                  if current_status <> new_status then (
+                    Hashtbl.replace statuses name new_status;
+                    if new_status = "SoftFailed" then
+                      Printf.eprintf "  ✖ %s failed\n%!" name
+                    else
+                      Printf.eprintf "  ✓ %s built\n%!" name;
+                    (match status_file with
+                     | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                     | None -> ())
+                  )
                 )
             | None -> ()
           )
@@ -830,12 +904,14 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                            Hashtbl.replace statuses name "SoftFailed"
                       );
 
-                      (* Reconcile durations: if we have a start time, use it to calculate duration *)
-                      (match Hashtbl.find_opt node_start_times name with
-                       | Some t ->
-                           let dur = reconcile_end_time -. t in
-                           Hashtbl.replace node_durations name dur
-                       | None -> ())
+                      (* Reconcile durations: if we have a start time and duration is not already set, use it *)
+                      if not (Hashtbl.mem node_durations name) then (
+                        match Hashtbl.find_opt node_start_times name with
+                        | Some t ->
+                            let dur = reconcile_end_time -. t in
+                            Hashtbl.replace node_durations name dur
+                        | None -> ()
+                      )
                     )
                   ) node_names;
 
@@ -913,7 +989,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                           ]))
                     else
                       Ok (VDict [
-                        ("out_path", VString "");
+                        ("out_path", VString out_path);
                         ("built", VInt 0);
                         ("cached", VInt cached_count);
                         ("soft_failed", VList (List.map (fun n -> (None, VString n)) soft_failed));
