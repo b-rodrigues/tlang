@@ -651,14 +651,25 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                        let status =
                          match Hashtbl.find_opt node_store_paths name with
                          | Some p ->
-                             let class_path = Filename.concat p "class" in
-                             let warnings_path = Filename.concat p "warnings" in
-                             if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
-                             if Sys.file_exists class_path then
-                               match read_file_first_line class_path with
-                               | Some "Error" | Some "VError" -> "SoftFailed"
-                               | _ -> "Completed"
-                             else "Completed"
+                             let rec check_status retries =
+                               let class_path = Filename.concat p "class"
+                               and warnings_path = Filename.concat p "warnings" in
+                               if Sys.file_exists class_path || Sys.file_exists warnings_path || retries <= 0 then
+                                 let () =
+                                   if Sys.file_exists warnings_path then
+                                     Hashtbl.replace node_has_warnings name true
+                                 in
+                                 if Sys.file_exists class_path then
+                                   match read_file_first_line class_path with
+                                   | Some "Error" | Some "VError" -> "SoftFailed"
+                                   | _ -> "Completed"
+                                 else "Completed"
+                               else (
+                                 ignore (Unix.select [] [] [] 0.05); (* sleep 50ms *)
+                                 check_status (retries - 1)
+                               )
+                             in
+                             check_status 15
                          | None -> "Completed"
                        in
                        Hashtbl.replace statuses name status;
