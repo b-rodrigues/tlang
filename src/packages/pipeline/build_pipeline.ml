@@ -133,7 +133,8 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                          | Some _ -> pipeline_name
                          | None -> resolve_pipeline_name env p
                       in
-                      (match Builder.populate_pipeline ~build:true ?verbose ?pipeline_name ?nix_options:final_nix_options p_resolved with
+                      let status_file = Sys.getenv_opt "T_LAYOUT_STATUS_FILE" in
+                      (match Builder.populate_pipeline ~build:true ?verbose ?pipeline_name ?status_file ?nix_options:final_nix_options p_resolved with
                         | Ok (VDataFrame _ as df) ->
                             write_atelier_diagrams p_resolved env;
                             df

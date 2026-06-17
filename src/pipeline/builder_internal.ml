@@ -186,6 +186,22 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
       loop 0
     with _ -> false
   in
+  let parse_line line =
+    let trimmed = String.trim line in
+    if String.length trimmed >= 5 && String.sub trimmed 0 5 = "@nix " then
+      try
+        let json_str = String.sub trimmed 5 (String.length trimmed - 5) in
+        let json = Yojson.Safe.from_string json_str in
+        let open Yojson.Safe.Util in
+        let action = match json |> member "action" with `String s -> s | _ -> "" in
+        if action = "msg" then
+          match json |> member "msg" with
+          | `String msg -> String.trim msg
+          | _ -> ""
+        else ""
+      with _ -> ""
+    else trimmed
+  in
   let contains_substring_idx line pattern =
     let len_p = String.length pattern in
     let len_l = String.length line in
@@ -202,15 +218,67 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
     let total_start_time = Unix.gettimeofday () in
     let node_names = List.map fst p.p_exprs in
     let sorted_node_names = List.sort (fun a b -> compare (String.length b) (String.length a)) node_names in
+    let previous_statuses = Hashtbl.create (List.length node_names) in
+    let previous_warnings = Hashtbl.create (List.length node_names) in
+    let previous_durations =
+      let durations = Hashtbl.create (List.length node_names) in
+      (try
+         match Builder_logs.get_logs () with
+         | latest_log :: _ ->
+             let path = Filename.concat pipeline_dir latest_log in
+             Printf.eprintf "DEBUG: Found latest log file: %s\n%!" path;
+             let json = Yojson.Safe.from_file path in
+             let open Yojson.Safe.Util in
+             (match json |> member "nodes" with
+              | `List nodes ->
+                  List.iter (fun node_json ->
+                    let name =
+                      match node_json |> member "node" with
+                      | `String s -> s
+                      | _ -> ""
+                    in
+                    if name <> "" then (
+                      let duration =
+                        match node_json |> member "duration" with
+                        | `Float f -> f
+                        | `Int i -> float_of_int i
+                        | _ -> 0.0
+                      in
+                      if duration > 0.0 then
+                        Hashtbl.replace durations name duration;
+                      let status =
+                        match node_json |> member "status" with
+                        | `String s -> s
+                        | _ -> ""
+                      in
+                      if status <> "" then (
+                        Hashtbl.replace previous_statuses name status;
+                        Printf.eprintf "DEBUG: Loaded previous status for %s: %s\n%!" name status
+                      );
+                      let has_warn =
+                        match node_json |> member "warnings" with
+                        | `Bool b -> b
+                        | `String "true" -> true
+                        | _ -> false
+                      in
+                      if has_warn then (
+                        Hashtbl.replace previous_warnings name true;
+                        Printf.eprintf "DEBUG: Loaded previous warning for %s\n%!" name
+                      )
+                    )
+                  ) nodes
+              | _ -> ())
+         | _ -> Printf.eprintf "DEBUG: No log files found\n%!"
+       with e -> Printf.eprintf "DEBUG: Exception in get_logs: %s\n%!" (Printexc.to_string e));
+      durations
+    in
     let () =
       match status_file with
       | Some sf ->
           let temp_statuses = Hashtbl.create (List.length node_names) in
           List.iter (fun n -> Hashtbl.add temp_statuses n "Pending") node_names;
-          let temp_durations = Hashtbl.create (List.length node_names) in
-          let temp_warnings = Hashtbl.create (List.length node_names) in
           let temp_start_times = Hashtbl.create (List.length node_names) in
-          write_build_status_file ?pipeline_name ~warnings:temp_warnings ~node_start_times:temp_start_times sf p temp_statuses temp_durations
+          write_build_status_file ?pipeline_name ~warnings:previous_warnings ~node_start_times:temp_start_times sf p temp_statuses previous_durations
       | None -> ()
     in
     let target_args_result =
@@ -374,20 +442,22 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
             let dry_paths = Hashtbl.create (List.length node_names) in
             let current_action = ref "build" in
             List.iter (fun line ->
-              let trimmed = String.trim line in
-              if contains_substring trimmed "will be built:" then
-                current_action := "build"
-              else if contains_substring trimmed "will be fetched" then
-                current_action := "fetch"
-              else if String.starts_with ~prefix:"/nix/store/" trimmed then begin
-                let path = trimmed in
-                match List.find_opt (fun name -> contains_substring path ("-" ^ name ^ ".drv") || contains_substring path ("-" ^ name)) sorted_node_names with
-                | Some name ->
-                    if !current_action = "build" then Hashtbl.replace dry_builds name true
-                    else Hashtbl.replace dry_fetches name true;
-                    Hashtbl.replace dry_paths name path
-                | None -> ()
-              end
+              let parsed = parse_line line in
+              if parsed <> "" then (
+                if contains_substring parsed "will be built:" then
+                  current_action := "build"
+                else if contains_substring parsed "will be fetched" then
+                  current_action := "fetch"
+                else if String.starts_with ~prefix:"/nix/store/" parsed then begin
+                  let path = parsed in
+                  match List.find_opt (fun name -> contains_substring path ("-" ^ name ^ ".drv") || contains_substring path ("-" ^ name)) sorted_node_names with
+                  | Some name ->
+                      if !current_action = "build" then Hashtbl.replace dry_builds name true
+                      else Hashtbl.replace dry_fetches name true;
+                      Hashtbl.replace dry_paths name path
+                  | None -> ()
+                end
+              )
             ) reversed_lines;
             let final_nodes = ref [] in
             let final_actions = ref [] in
@@ -438,90 +508,8 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
       let nix_id_to_node = Hashtbl.create (List.length node_names) in
       let node_has_warnings = Hashtbl.create (List.length node_names) in
       let node_start_times = Hashtbl.create (List.length node_names) in
-      let previous_statuses = Hashtbl.create (List.length node_names) in
-      let previous_warnings = Hashtbl.create (List.length node_names) in
-      let node_durations =
-        let durations = Hashtbl.create (List.length node_names) in
-        (try
-           match Builder_logs.get_logs () with
-           | latest_log :: _ ->
-               let path = Filename.concat pipeline_dir latest_log in
-               Printf.eprintf "DEBUG: Found latest log file: %s\n%!" path;
-               let json = Yojson.Safe.from_file path in
-               let open Yojson.Safe.Util in
-               (match json |> member "nodes" with
-                | `List nodes ->
-                    List.iter (fun node_json ->
-                      let name =
-                        match node_json |> member "node" with
-                        | `String s -> s
-                        | _ -> ""
-                      in
-                      if name <> "" then (
-                        let duration =
-                          match node_json |> member "duration" with
-                          | `Float f -> f
-                          | `Int i -> float_of_int i
-                          | _ -> 0.0
-                        in
-                        if duration > 0.0 then
-                          Hashtbl.replace durations name duration;
-                        let status =
-                          match node_json |> member "status" with
-                          | `String s -> s
-                          | _ -> ""
-                        in
-                        if status <> "" then (
-                          Hashtbl.replace previous_statuses name status;
-                          Printf.eprintf "DEBUG: Loaded previous status for %s: %s\n%!" name status
-                        );
-                        let has_warn =
-                          match node_json |> member "warnings" with
-                          | `Bool b -> b
-                          | `String "true" -> true
-                          | _ -> false
-                        in
-                        if has_warn then (
-                          Hashtbl.replace previous_warnings name true;
-                          Printf.eprintf "DEBUG: Loaded previous warning for %s\n%!" name
-                        )
-                      )
-                    ) nodes
-                | _ -> ())
-           | _ -> Printf.eprintf "DEBUG: No log files found\n%!"
-         with e -> Printf.eprintf "DEBUG: Exception in get_logs: %s\n%!" (Printexc.to_string e));
-        (match status_file with
-         | Some path when Sys.file_exists path ->
-             (try
-                let json = Yojson.Safe.from_file path in
-                let open Yojson.Safe.Util in
-                match json |> member "nodes" with
-                | `Assoc pairs ->
-                    List.iter (fun (name, node_json) ->
-                      let duration =
-                        match node_json |> member "duration" with
-                        | `Float f -> f
-                        | `Int i -> float_of_int i
-                        | _ -> 0.0
-                      in
-                      if duration > 0.0 then
-                        Hashtbl.replace durations name duration;
-                      let status =
-                        match node_json |> member "status" with
-                        | `String s -> s
-                        | _ -> ""
-                      in
-                      if status <> "" then (
-                        Hashtbl.replace previous_statuses name status;
-                        if status = "Completed with warning" then
-                          Hashtbl.replace previous_warnings name true
-                      )
-                    ) pairs
-                | _ -> ()
-              with _ -> ())
-         | _ -> ());
-        durations
-      in
+
+      let node_durations = Hashtbl.create (List.length node_names) in
       let node_was_built = Hashtbl.create (List.length node_names) in
       let started_building = ref false in
 
@@ -541,29 +529,64 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
             if exit_code = 0 then begin
               let current_action = ref "build" in
               List.iter (fun line ->
-                let trimmed = String.trim line in
-                if contains_substring trimmed "will be built:" then
-                  current_action := "build"
-                else if contains_substring trimmed "will be fetched" then
-                  current_action := "fetch"
-                else if String.starts_with ~prefix:"/nix/store/" trimmed then
-                  match List.find_opt (fun name -> contains_substring trimmed ("-" ^ name ^ ".drv") || contains_substring trimmed ("-" ^ name)) sorted_node_names with
-                  | Some name ->
-                      if !current_action = "fetch" then Hashtbl.replace dry_fetches name true
-                      else Hashtbl.replace dry_builds name true
-                  | None -> ()
+                let parsed = parse_line line in
+                if parsed <> "" then (
+                  if contains_substring parsed "will be built:" then
+                    current_action := "build"
+                  else if contains_substring parsed "will be fetched" then
+                    current_action := "fetch"
+                  else if String.starts_with ~prefix:"/nix/store/" parsed then
+                    match List.find_opt (fun name -> contains_substring parsed ("-" ^ name ^ ".drv") || contains_substring parsed ("-" ^ name)) sorted_node_names with
+                    | Some name ->
+                        if !current_action = "fetch" then Hashtbl.replace dry_fetches name true
+                        else Hashtbl.replace dry_builds name true
+                    | None -> ()
+                )
               ) (List.rev !lines);
+              let () = 
+                Printf.eprintf "DEBUG: --- previous_statuses content ---\n%!";
+                Hashtbl.iter (fun k v -> Printf.eprintf "  %s -> %s\n%!" k v) previous_statuses;
+                Printf.eprintf "DEBUG: ---------------------------------\n%!"
+              in
               List.iter (fun name ->
-                if Hashtbl.mem dry_fetches name then (
-                  Hashtbl.replace statuses name "Fetching";
-                  Printf.eprintf "DEBUG: Seeding %s as Fetching\n%!" name
+                let path = match Hashtbl.find_opt node_store_paths name with Some p -> p | None -> "" in
+                let is_cached = path <> "" && Sys.file_exists path in
+                let () = Printf.eprintf "DEBUG: Node %s path from eval: '%s', exists: %b\n%!" name path (if path <> "" then Sys.file_exists path else false) in
+                if is_cached then (
+                  (* Node is cached locally! *)
+                  Hashtbl.remove dry_builds name;
+                  Hashtbl.remove dry_fetches name;
+                  
+                  let prev_status =
+                    match Hashtbl.find_opt previous_statuses name with
+                    | Some s -> s
+                    | None -> "Completed"
+                  in
+                  Hashtbl.replace statuses name prev_status;
+                  
+                  if Hashtbl.find_opt previous_warnings name = Some true then
+                    Hashtbl.replace node_has_warnings name true;
+                  
+                  (match Hashtbl.find_opt previous_durations name with
+                   | Some dur -> Hashtbl.replace node_durations name dur
+                   | None -> ());
+                  
+                  Printf.eprintf "DEBUG: Node %s is cached. Seeding status as %s\n%!" name prev_status
                 ) else (
-                  Hashtbl.replace statuses name "Pending";
-                  Printf.eprintf "DEBUG: Seeding %s as Pending\n%!" name
-                );
-                if Hashtbl.find_opt previous_warnings name = Some true then (
-                  Hashtbl.replace node_has_warnings name true;
-                  Printf.eprintf "DEBUG: Seeded warning for %s\n%!" name
+                  (* Node needs to be built/fetched! *)
+                  Hashtbl.remove node_durations name;
+                  Hashtbl.remove node_has_warnings name;
+                  
+                  if not (Hashtbl.mem dry_builds name) && not (Hashtbl.mem dry_fetches name) then
+                    Hashtbl.replace dry_builds name true;
+                  
+                  if Hashtbl.mem dry_fetches name then (
+                    Hashtbl.replace statuses name "Fetching";
+                    Printf.eprintf "DEBUG: Node %s needs fetch. Seeding status as Fetching\n%!" name
+                  ) else (
+                    Hashtbl.replace statuses name "Pending";
+                    Printf.eprintf "DEBUG: Node %s needs build. Seeding status as Pending\n%!" name
+                  )
                 )
               ) node_names
             end
@@ -625,8 +648,24 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                          | None -> 0.0
                        in
                        Hashtbl.replace node_durations name duration;
-                       Hashtbl.replace statuses name "Completed";
-                       Printf.eprintf "  ✓ %s built\n%!" name;
+                       let status =
+                         match Hashtbl.find_opt node_store_paths name with
+                         | Some p ->
+                             let class_path = Filename.concat p "class" in
+                             let warnings_path = Filename.concat p "warnings" in
+                             if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
+                             if Sys.file_exists class_path then
+                               match read_file_first_line class_path with
+                               | Some "Error" | Some "VError" -> "SoftFailed"
+                               | _ -> "Completed"
+                             else "Completed"
+                         | None -> "Completed"
+                       in
+                       Hashtbl.replace statuses name status;
+                       if status = "SoftFailed" then
+                         Printf.eprintf "  ✖ %s failed\n%!" name
+                       else
+                         Printf.eprintf "  ✓ %s built\n%!" name;
                        (match status_file with
                         | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
                         | None -> ())

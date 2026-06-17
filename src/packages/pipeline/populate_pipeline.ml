@@ -124,7 +124,8 @@ let register env =
                  | Some _ -> pipeline_name_explicit
                  | None -> resolve_pipeline_name env p
                in
-              (match Builder.populate_pipeline ~build:final_build ?verbose ?pipeline_name ?nix_options:final_nix_options p with
+              let status_file = Sys.getenv_opt "T_LAYOUT_STATUS_FILE" in
+              (match Builder.populate_pipeline ~build:final_build ?verbose ?pipeline_name ?status_file ?nix_options:final_nix_options p with
                | Ok out ->
                    if final_build && (match final_nix_options with Some opts -> opts.dry_run <> Some true | None -> true) then (
                        let built =

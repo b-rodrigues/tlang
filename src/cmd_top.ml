@@ -311,6 +311,7 @@ let cmd_top_run filename env =
   ensure_pipeline_dir ();
   let spath = Filename.concat pipeline_dir "build_status.json" in
   (try Sys.remove spath with _ -> ());
+  Unix.putenv "T_LAYOUT_STATUS_FILE" spath;
 
   match Unix.fork () with
   | -1 ->
@@ -320,8 +321,13 @@ let cmd_top_run filename env =
       Sys.set_signal Sys.sigint Sys.Signal_default;
       Sys.set_signal Sys.sigterm Sys.Signal_default;
       let devnull = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0 in
+      let child_stderr = try Some (Unix.openfile "_pipeline/child_stderr.log" [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC] 0o644) with _ -> None in
       Unix.dup2 devnull Unix.stdout;
-      Unix.dup2 devnull Unix.stderr;
+      (match child_stderr with
+       | Some fd ->
+           Unix.dup2 fd Unix.stderr;
+           Unix.close fd
+       | None -> Unix.dup2 devnull Unix.stderr);
       Unix.close devnull;
       (try
          Packages.ensure_docs_loaded ();
@@ -401,6 +407,7 @@ let cmd_top_run_background filename env =
   ensure_pipeline_dir ();
   let spath = Filename.concat pipeline_dir "build_status.json" in
   (try Sys.remove spath with _ -> ());
+  Unix.putenv "T_LAYOUT_STATUS_FILE" spath;
 
   match Unix.fork () with
   | -1 ->
