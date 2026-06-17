@@ -1863,6 +1863,9 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       p_explicit_deps = List.map (fun (name, un) -> (name, un.un_dependencies)) desugared_nodes;
       p_node_diagnostics;
     } in
+    (match result with
+     | VPipeline p -> Hashtbl.replace Ast.pipeline_result_registry p.p_exprs p
+     | _ -> ());
     result
   end
 
@@ -2001,7 +2004,11 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
     last_pipeline_exprs := Some prev.p_exprs;
     last_evaluated_node_name := (match List.rev exec_order with h :: _ -> Some h | [] -> None);
 
-    VPipeline { prev with p_nodes = List.rev results; p_node_diagnostics }
+    let result = VPipeline { prev with p_nodes = List.rev results; p_node_diagnostics } in
+    (match result with
+     | VPipeline p -> Hashtbl.replace Ast.pipeline_result_registry p.p_exprs p
+     | _ -> ());
+    result
 
 (** Evaluate a splice operand (!!!) and expand its elements as named pairs.
     Used by quote_expr in Call args, ListLit items, and DictLit pairs. *)
@@ -2242,6 +2249,7 @@ and eval_dot_access env_ref target_expr field =
   | _ -> eval_dot_access_val env_ref target_val field
 
 and get_pipeline_member p field =
+  let () = Hashtbl.replace Ast.pipeline_result_registry p.p_exprs p in
   let resolved_cn p cn =
     match Hashtbl.find_opt Ast.pipeline_build_logs p.p_exprs with
     | Some log_path ->

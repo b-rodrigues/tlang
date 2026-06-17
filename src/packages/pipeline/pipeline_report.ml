@@ -532,8 +532,17 @@ let register env =
                     | Some path -> read_build_log_entries path
                     | None -> (None, None)
                   in
+                  let expected_paths = Builder.get_expected_store_paths p in
                   let log_entries_map = match log_info with
-                    | Some (_, entries) -> Some entries
+                    | Some (_, entries) ->
+                        let filtered = List.filter (fun (name, (_, path, _, _, _, _)) ->
+                          match Hashtbl.find_opt expected_paths name with
+                          | None -> false
+                          | Some ep ->
+                              if ep = "" || path = "" then false
+                              else String.starts_with ~prefix:ep path || String.starts_with ~prefix:path ep
+                        ) entries in
+                        Some filtered
                     | None -> None
                   in
                   let build_duration = match log_info with

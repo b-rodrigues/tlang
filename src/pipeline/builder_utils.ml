@@ -184,6 +184,8 @@ let pipeline_nix_path = Filename.concat pipeline_dir "pipeline.nix"
 let dag_path = Filename.concat pipeline_dir "dag.json"
 let env_nix_path = Filename.concat pipeline_dir "env.nix"
 
+let get_expected_store_paths_ref : (Ast.pipeline_result -> (string, string) Hashtbl.t) ref = ref (fun _ -> Hashtbl.create 0)
+
 let write_file path content =
   try
     let oc = open_out path in

@@ -651,26 +651,43 @@ let read_fn named_args _env =
     Ast.computed_node_resolver := (fun cn ->
       match Builder.latest_logged_computed_node cn.cn_name with
       | Some logged_cn ->
-          let cn_class =
-            if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class
+          let path_matches =
+            match cn.cn_p_exprs with
+            | None -> true
+            | Some exprs ->
+                match Hashtbl.find_opt Ast.pipeline_result_registry exprs with
+                | None -> true
+                | Some p ->
+                    let expected_paths = !Builder_utils.get_expected_store_paths_ref p in
+                    match Hashtbl.find_opt expected_paths cn.cn_name with
+                    | None -> false
+                    | Some ep ->
+                        if ep = "" || logged_cn.cn_path = "" then false
+                        else String.starts_with ~prefix:ep logged_cn.cn_path || String.starts_with ~prefix:logged_cn.cn_path ep
           in
-          let cn_path =
-            if logged_cn.cn_path = "" then ""
-            else if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
-            then logged_cn.cn_path
-            else cn.cn_path
-          in
-          let cn_runtime =
-            if cn.cn_runtime = "T" || cn.cn_runtime = ""
-            then logged_cn.cn_runtime
-            else cn.cn_runtime
-          in
-          let cn_serializer =
-            if cn.cn_serializer = "default" || cn.cn_serializer = ""
-            then logged_cn.cn_serializer
-            else cn.cn_serializer
-          in
-          { cn with cn_path; cn_class; cn_runtime; cn_serializer }
+          if not path_matches then
+            cn
+          else
+            let cn_class =
+              if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class
+            in
+            let cn_path =
+              if logged_cn.cn_path = "" then ""
+              else if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
+              then logged_cn.cn_path
+              else cn.cn_path
+            in
+            let cn_runtime =
+              if cn.cn_runtime = "T" || cn.cn_runtime = ""
+              then logged_cn.cn_runtime
+              else cn.cn_runtime
+            in
+            let cn_serializer =
+              if cn.cn_serializer = "default" || cn.cn_serializer = ""
+              then logged_cn.cn_serializer
+              else cn.cn_serializer
+            in
+            { cn with cn_path; cn_class; cn_runtime; cn_serializer }
       | None -> cn)
   in
 

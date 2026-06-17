@@ -385,6 +385,8 @@ let node_resolver : (string -> value option) ref = ref (fun _ -> None)
 (** Global hook for resolving computed node metadata from build logs *)
 let computed_node_resolver : (computed_node -> computed_node) ref = ref (fun cn -> cn)
 
+let pipeline_result_registry : ((string * expr) list, pipeline_result) Hashtbl.t = Hashtbl.create 10
+
 (** Global hook for automatically flattening meta-pipelines in built-in argument projections *)
 let meta_pipeline_flatten_resolver : (value -> value) ref = ref (fun v -> v)
 

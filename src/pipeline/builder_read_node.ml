@@ -385,6 +385,15 @@ let matching_pipeline_log_entries ?which_log (p : Ast.pipeline_result) =
        | None -> None)
 
 let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
+  let expected_paths = !get_expected_store_paths_ref p in
+  let path_matches name logged_path =
+    match Hashtbl.find_opt expected_paths name with
+    | None -> false
+    | Some ep ->
+        if ep = "" || logged_path = "" then false
+        else
+          String.starts_with ~prefix:ep logged_path || String.starts_with ~prefix:logged_path ep
+  in
   let should_overlay_value = function
     | VComputedNode cn -> cn.cn_path = "<unbuilt>" || cn.cn_path = ""
     | _ -> false
@@ -406,12 +415,16 @@ let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
             match value, List.assoc_opt name entries with
             | _, None -> (name, value)
             | value, Some cn when should_overlay_value value ->
-                (name, logged_node_value name cn)
+                if path_matches name cn.cn_path then
+                  (name, logged_node_value name cn)
+                else
+                  (name, value)
             | _ -> (name, value))
           p.p_nodes
     | None ->
         p.p_nodes
   )
+
 
 (** Scans candidate build logs and returns the most recent [ComputedNode]
     entry whose name equals [name]. [log_name_pattern], when provided, is a
@@ -536,6 +549,15 @@ let read_node ?which_log name =
                wrap_with_diagnostics name cn v)
 
 let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline_result) =
+  let expected_paths = !get_expected_store_paths_ref p in
+  let path_matches name logged_path =
+    match Hashtbl.find_opt expected_paths name with
+    | None -> false
+    | Some ep ->
+        if ep = "" || logged_path = "" then false
+        else
+          String.starts_with ~prefix:ep logged_path || String.starts_with ~prefix:logged_path ep
+  in
   let merge_diagnostics base overlay =
     {
       nd_warnings =
@@ -567,10 +589,10 @@ let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline
               | None -> Ast.Utils.empty_node_diagnostics
             in
             match List.assoc_opt name entries with
-            | Some cn ->
+            | Some cn when path_matches name cn.cn_path ->
                 let overlay = logged_node_diagnostics name cn in
                 (name, merge_diagnostics base overlay)
-            | None ->
+            | _ ->
                 (name, base))
           (List.map fst p.p_nodes)
     | None ->

@@ -138,6 +138,59 @@ let write_build_status_file ?pipeline_name ?(done_=false) ?warnings ?node_start_
     match write_file tmp json with
     | Ok () -> (try Sys.rename tmp status_file_path with _ -> ())
     | Error _ -> ()
+let resolve_expected_store_paths (p : Ast.pipeline_result) =
+  let node_names = List.map fst p.p_exprs in
+  let node_store_paths = Hashtbl.create (List.length node_names) in
+  ensure_pipeline_dir ();
+  let rel_root = 
+    match get_relative_path_to_root () with
+    | "." -> ".."
+    | r -> "../" ^ r
+  in
+  let nix_content = Nix_emitter.emit_pipeline ~rel_root p in
+  let _ = write_file pipeline_nix_path nix_content in
+  if Sys.file_exists pipeline_nix_path then (
+    let expr =
+      let assignments =
+        List.map (fun name ->
+          let parts = String.split_on_char '.' name in
+          let quoted_path = List.map (fun part -> Printf.sprintf "\"%s\"" part) parts |> String.concat "." in
+          Printf.sprintf "\"%s\" = toString p.%s;" name quoted_path
+        ) node_names
+        |> String.concat " "
+      in
+      Printf.sprintf "let p = import ./%s {}; in { %s }" pipeline_nix_path assignments
+    in
+    let argv_eval = [| "nix-instantiate"; "--impure"; "--eval"; "--strict"; "--expr"; expr |] in
+    match run_command_argv_capture argv_eval with
+    | Ok output ->
+        let re = Str.regexp "\"?\\([a-zA-Z0-9_.-]+\\)\"?[ \t]*=[ \t]*\"\\([^\"]+\\)\"" in
+        let pos = ref 0 in
+        (try
+           while true do
+             let _ = Str.search_forward re output !pos in
+             let name = Str.matched_group 1 output in
+             let path = Str.matched_group 2 output in
+             Hashtbl.replace node_store_paths name path;
+             pos := Str.match_end ()
+           done
+         with Not_found -> ())
+    | Error _ -> ()
+  );
+  node_store_paths
+
+let expected_store_paths_cache = Hashtbl.create 10
+
+let get_expected_store_paths (p : Ast.pipeline_result) =
+  match Hashtbl.find_opt expected_store_paths_cache p.Ast.p_exprs with
+  | Some cache -> cache
+  | None ->
+      let cache = resolve_expected_store_paths p in
+      Hashtbl.replace expected_store_paths_cache p.Ast.p_exprs cache;
+      cache
+
+let () =
+  Builder_utils.get_expected_store_paths_ref := get_expected_store_paths
 
 let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
   let verbose =
@@ -386,39 +439,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
       | _ -> []
     in
     let all_args = !nix_build_args @ (nix_verbosity_args verbose) @ force_args @ max_jobs_args @ max_cores_args @ cache_args @ builders_args @ keep_env_args @ sandbox_args in
-    let node_store_paths = Hashtbl.create (List.length node_names) in
-    let () =
-      if Sys.file_exists pipeline_nix_path then (
-        let expr =
-          let assignments =
-            List.map (fun name ->
-              let parts = String.split_on_char '.' name in
-              let quoted_path = List.map (fun part -> Printf.sprintf "\"%s\"" part) parts |> String.concat "." in
-              Printf.sprintf "\"%s\" = toString p.%s;" name quoted_path
-            ) node_names
-            |> String.concat " "
-          in
-          Printf.sprintf "let p = import ./%s {}; in { %s }" pipeline_nix_path assignments
-        in
-        let argv_eval = [| "nix-instantiate"; "--impure"; "--eval"; "--strict"; "--expr"; expr |] in
-        match run_command_argv_capture argv_eval with
-        | Ok output ->
-            let re = Str.regexp "\"?\\([a-zA-Z0-9_.-]+\\)\"?[ \t]*=[ \t]*\"\\([^\"]+\\)\"" in
-            let pos = ref 0 in
-            (try
-               while true do
-                 let _ = Str.search_forward re output !pos in
-                 let name = Str.matched_group 1 output in
-                 let path = Str.matched_group 2 output in
-                 Hashtbl.replace node_store_paths name path;
-                 pos := Str.match_end ()
-               done
-             with Not_found -> ())
-        | Error msg ->
-            if verbose > 0 then
-              Printf.eprintf "[Debug] nix-instantiate eval failed: %s\n%!" msg
-      )
-    in
+    let node_store_paths = get_expected_store_paths p in
     if dry_run then begin
       let lines = ref [] in
       let callback line =
