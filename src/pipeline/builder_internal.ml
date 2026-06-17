@@ -656,53 +656,60 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                         )
                     | None -> ())
                | _ -> ()
-             end else if action = "stop" then begin
-               match Hashtbl.find_opt nix_id_to_node id with
-               | Some name ->
-                   if Hashtbl.mem dry_builds name || Hashtbl.mem dry_fetches name then (
-                     if Hashtbl.find statuses name <> "Completed" &&
-                        Hashtbl.find statuses name <> "SoftFailed" &&
-                        Hashtbl.find statuses name <> "Errored" then (
-                       let duration =
-                         match Hashtbl.find_opt node_start_times name with
-                         | Some t -> Unix.gettimeofday () -. t
-                         | None -> 0.0
-                       in
-                       Hashtbl.replace node_durations name duration;
-                       let status =
-                         match Hashtbl.find_opt node_store_paths name with
-                         | Some p ->
-                             let rec check_status retries =
-                               let class_path = Filename.concat p "class"
-                               and warnings_path = Filename.concat p "warnings" in
-                               if Sys.file_exists class_path || Sys.file_exists warnings_path || retries <= 0 then
-                                 let () =
-                                   if Sys.file_exists warnings_path then
-                                     Hashtbl.replace node_has_warnings name true
-                                 in
-                                 if Sys.file_exists class_path then
-                                   match read_file_first_line class_path with
-                                   | Some "Error" | Some "VError" -> "SoftFailed"
-                                   | _ -> "Completed"
-                                 else "Completed"
-                               else (
-                                 ignore (Unix.select [] [] [] 0.05); (* sleep 50ms *)
-                                 check_status (retries - 1)
-                               )
-                             in
-                             check_status 15
-                         | None -> "Completed"
-                       in
-                       Hashtbl.replace statuses name status;
-                       if status = "SoftFailed" then
-                         Printf.eprintf "  ✖ %s failed\n%!" name
-                       else
-                         Printf.eprintf "  ✓ %s built\n%!" name;
-                       (match status_file with
-                        | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
-                        | None -> ())
-                     )
-                   ) else (
+              end else if action = "stop" then begin
+                match Hashtbl.find_opt nix_id_to_node id with
+                | Some name ->
+                    if Hashtbl.mem dry_builds name || Hashtbl.mem dry_fetches name then (
+                      if Hashtbl.find statuses name <> "Completed" &&
+                         Hashtbl.find statuses name <> "SoftFailed" &&
+                         Hashtbl.find statuses name <> "Errored" then (
+                        let duration =
+                          match Hashtbl.find_opt node_start_times name with
+                          | Some t -> Unix.gettimeofday () -. t
+                          | None -> 0.0
+                        in
+                        Hashtbl.replace node_durations name duration;
+                        let status_opt =
+                          match Hashtbl.find_opt node_store_paths name with
+                          | Some p ->
+                              let rec check_status retries =
+                                let class_path = Filename.concat p "class"
+                                and warnings_path = Filename.concat p "warnings" in
+                                if Sys.file_exists class_path || Sys.file_exists warnings_path || retries <= 0 then
+                                  let () =
+                                    if Sys.file_exists warnings_path then
+                                      Hashtbl.replace node_has_warnings name true
+                                  in
+                                  if Sys.file_exists class_path then
+                                    match read_file_first_line class_path with
+                                    | Some "Error" | Some "VError" -> Some "SoftFailed"
+                                    | _ -> Some "Completed"
+                                  else None
+                                else (
+                                  ignore (Unix.select [] [] [] 0.05); (* sleep 50ms *)
+                                  check_status (retries - 1)
+                                )
+                              in
+                              check_status 15
+                          | None -> None
+                        in
+                        (match status_opt with
+                         | Some status ->
+                              Hashtbl.replace statuses name status;
+                              if status = "SoftFailed" then
+                                Printf.eprintf "  ✖ %s failed\n%!" name
+                              else
+                                Printf.eprintf "  ✓ %s built\n%!" name;
+                              (match status_file with
+                               | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                               | None -> ())
+                         | None ->
+                             (* Can't determine status yet — class file not found.
+                                Leave current status (e.g. "Building") for end-of-build
+                                reconciliation to resolve correctly. *)
+                             ())
+                      )
+                    ) else (
                      (* Cached node: transition to its previous status! *)
                      let prev_status =
                        match Hashtbl.find_opt previous_statuses name with
@@ -717,14 +724,14 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                      )
                    )
                | None -> ()
-             end else if action = "msg" then begin
-                let level = match json |> member "level" with `Int i -> i | _ -> 0 in
-                let msg_text =
-                  match json |> member "msg" with
-                  | `String s -> s
-                  | _ -> ""
-                in
-                if level = 0 then (
+              end else if action = "msg" then begin
+                 let level = match json |> member "level" with `Int i -> i | _ -> 0 in
+                 let msg_text =
+                   match json |> member "msg" with
+                   | `String s -> s
+                   | _ -> ""
+                 in
+                 if level >= 1 then (
                   let node_to_mark =
                     match Hashtbl.find_opt nix_id_to_node id with
                     | Some name -> Some name
