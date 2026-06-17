@@ -198,7 +198,9 @@ let render_tui data =
     let name_cell = pad_right 18 name in
     let duration_str =
       let effective =
-        if (status = "Building" || status = "Fetching") && start_time > 0.0 then
+        if status = "Pending" then
+          0.0
+        else if (status = "Building" || status = "Fetching") && start_time > 0.0 then
           Unix.gettimeofday () -. start_time
         else
           duration

@@ -426,6 +426,8 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
     end else begin
       let statuses = Hashtbl.create (List.length node_names) in
       List.iter (fun n -> Hashtbl.add statuses n "Pending") node_names;
+      let dry_builds = Hashtbl.create (List.length node_names) in
+      let dry_fetches = Hashtbl.create (List.length node_names) in
       
       let captured_output = Buffer.create 1024 in
       let argv = Array.of_list
@@ -537,8 +539,6 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
               | Unix.WSIGNALED n | Unix.WSTOPPED n -> n
             in
             if exit_code = 0 then begin
-              let dry_builds = Hashtbl.create (List.length node_names) in
-              let dry_fetches = Hashtbl.create (List.length node_names) in
               let current_action = ref "build" in
               List.iter (fun line ->
                 let trimmed = String.trim line in
@@ -553,31 +553,20 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                       else Hashtbl.replace dry_builds name true
                   | None -> ()
               ) (List.rev !lines);
-               List.iter (fun name ->
-                 if Hashtbl.mem dry_fetches name then (
-                   Hashtbl.replace statuses name "Fetching";
-                   Printf.eprintf "DEBUG: Seeding %s as Fetching\n%!" name
-                 ) else if Hashtbl.mem dry_builds name then (
-                   Hashtbl.replace statuses name "Pending";
-                   Printf.eprintf "DEBUG: Seeding %s as Pending\n%!" name
-                 ) else (
-                   let prev_status =
-                     match Hashtbl.find_opt previous_statuses name with
-                     | Some "SoftFailed" -> "SoftFailed"
-                     | Some "Errored" -> "Errored"
-                     | Some "Completed with warning" -> "Completed with warning"
-                     | Some "Completed" -> "Completed"
-                     | _ -> "Completed"
-                   in
-                   Hashtbl.replace statuses name prev_status;
-                   Printf.eprintf "DEBUG: Seeding %s as prev_status: %s\n%!" name prev_status;
-                   if Hashtbl.find_opt previous_warnings name = Some true || prev_status = "Completed with warning" then (
-                     Hashtbl.replace node_has_warnings name true;
-                     Printf.eprintf "DEBUG: Seeded warning for %s\n%!" name
-                   )
-                 )
-               ) node_names
-             end
+              List.iter (fun name ->
+                if Hashtbl.mem dry_fetches name then (
+                  Hashtbl.replace statuses name "Fetching";
+                  Printf.eprintf "DEBUG: Seeding %s as Fetching\n%!" name
+                ) else (
+                  Hashtbl.replace statuses name "Pending";
+                  Printf.eprintf "DEBUG: Seeding %s as Pending\n%!" name
+                );
+                if Hashtbl.find_opt previous_warnings name = Some true then (
+                  Hashtbl.replace node_has_warnings name true;
+                  Printf.eprintf "DEBUG: Seeded warning for %s\n%!" name
+                )
+              ) node_names
+            end
       in
       (match status_file with
        | Some sf ->
@@ -609,35 +598,52 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                    (match List.find_opt (fun name -> contains_substring drv_field ("-" ^ name ^ ".drv")) sorted_node_names with
                     | Some name ->
                         Hashtbl.replace nix_id_to_node id name;
-                        Hashtbl.replace node_was_built name true;
-                        Hashtbl.replace node_start_times name (Unix.gettimeofday ());
-                        if drv_field <> "" then Hashtbl.replace drv_paths name drv_field;
-                        if Hashtbl.find statuses name = "Pending" || Hashtbl.find statuses name = "Fetching" then (
-                          Hashtbl.replace statuses name "Building";
-                          Printf.eprintf "  + %s building\n%!" name;
-                          (match status_file with
-                           | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
-                           | None -> ())
+                        if Hashtbl.mem dry_builds name || Hashtbl.mem dry_fetches name then (
+                          Hashtbl.replace node_was_built name true;
+                          Hashtbl.replace node_start_times name (Unix.gettimeofday ());
+                          if drv_field <> "" then Hashtbl.replace drv_paths name drv_field;
+                          if Hashtbl.find statuses name = "Pending" || Hashtbl.find statuses name = "Fetching" then (
+                            Hashtbl.replace statuses name "Building";
+                            Printf.eprintf "  + %s building\n%!" name;
+                            (match status_file with
+                             | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                             | None -> ())
+                          )
                         )
                     | None -> ())
                | _ -> ()
              end else if action = "stop" then begin
                match Hashtbl.find_opt nix_id_to_node id with
                | Some name ->
-                   if Hashtbl.find statuses name <> "Completed" &&
-                      Hashtbl.find statuses name <> "SoftFailed" &&
-                      Hashtbl.find statuses name <> "Errored" then (
-                     let duration =
-                       match Hashtbl.find_opt node_start_times name with
-                       | Some t -> Unix.gettimeofday () -. t
-                       | None -> 0.0
+                   if Hashtbl.mem dry_builds name || Hashtbl.mem dry_fetches name then (
+                     if Hashtbl.find statuses name <> "Completed" &&
+                        Hashtbl.find statuses name <> "SoftFailed" &&
+                        Hashtbl.find statuses name <> "Errored" then (
+                       let duration =
+                         match Hashtbl.find_opt node_start_times name with
+                         | Some t -> Unix.gettimeofday () -. t
+                         | None -> 0.0
+                       in
+                       Hashtbl.replace node_durations name duration;
+                       Hashtbl.replace statuses name "Completed";
+                       Printf.eprintf "  ✓ %s built\n%!" name;
+                       (match status_file with
+                        | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                        | None -> ())
+                     )
+                   ) else (
+                     (* Cached node: transition to its previous status! *)
+                     let prev_status =
+                       match Hashtbl.find_opt previous_statuses name with
+                       | Some s -> s
+                       | None -> "Completed"
                      in
-                     Hashtbl.replace node_durations name duration;
-                     Hashtbl.replace statuses name "Completed";
-                     Printf.eprintf "  ✓ %s built\n%!" name;
-                     (match status_file with
-                      | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
-                      | None -> ())
+                     if Hashtbl.find statuses name <> prev_status then (
+                       Hashtbl.replace statuses name prev_status;
+                       (match status_file with
+                        | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                        | None -> ())
+                     )
                    )
                | None -> ()
              end else if action = "msg" then begin
@@ -656,22 +662,24 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                   in
                   match node_to_mark with
                   | Some name ->
-                      if Hashtbl.find statuses name <> "Errored" &&
-                         Hashtbl.find statuses name <> "SoftFailed" then (
-                        let duration =
-                          match Hashtbl.find_opt node_start_times name with
-                          | Some t -> Unix.gettimeofday () -. t
-                          | None -> 0.0
-                        in
-                        Hashtbl.replace node_durations name duration;
-                        Hashtbl.replace statuses name "Errored";
-                        if verbose > 0 then
-                          Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
-                        else
-                          Printf.eprintf "  ✖ %s failed\n%!" name;
-                        (match status_file with
-                         | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
-                         | None -> ())
+                      if Hashtbl.mem dry_builds name || Hashtbl.mem dry_fetches name then (
+                        if Hashtbl.find statuses name <> "Errored" &&
+                           Hashtbl.find statuses name <> "SoftFailed" then (
+                          let duration =
+                            match Hashtbl.find_opt node_start_times name with
+                            | Some t -> Unix.gettimeofday () -. t
+                            | None -> 0.0
+                          in
+                          Hashtbl.replace node_durations name duration;
+                          Hashtbl.replace statuses name "Errored";
+                          if verbose > 0 then
+                            Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
+                          else
+                            Printf.eprintf "  ✖ %s failed\n%!" name;
+                          (match status_file with
+                           | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                           | None -> ())
+                        )
                       )
                   | None -> ()
                 )
@@ -686,28 +694,30 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
             );
             match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
             | Some name ->
-                Hashtbl.replace node_was_built name true;
-                Hashtbl.replace node_start_times name (Unix.gettimeofday ());
-                let drv_path = 
-                  try
-                    let start_idx = contains_substring_idx line "/nix/store/" in
-                    if start_idx >= 0 then
-                      let sub = String.sub line start_idx (String.length line - start_idx) in
-                      let end_idx = try String.index sub '\'' with _ ->
-                                    try String.index sub ' ' with _ ->
-                                    String.length sub in
-                      String.sub sub 0 end_idx
-                    else ""
-                  with _ -> ""
-                in
-                if drv_path <> "" then Hashtbl.replace drv_paths name drv_path;
+                if Hashtbl.mem dry_builds name || Hashtbl.mem dry_fetches name then (
+                  Hashtbl.replace node_was_built name true;
+                  Hashtbl.replace node_start_times name (Unix.gettimeofday ());
+                  let drv_path = 
+                    try
+                      let start_idx = contains_substring_idx line "/nix/store/" in
+                      if start_idx >= 0 then
+                        let sub = String.sub line start_idx (String.length line - start_idx) in
+                        let end_idx = try String.index sub '\'' with _ ->
+                                      try String.index sub ' ' with _ ->
+                                      String.length sub in
+                        String.sub sub 0 end_idx
+                      else ""
+                    with _ -> ""
+                  in
+                  if drv_path <> "" then Hashtbl.replace drv_paths name drv_path;
 
-                if Hashtbl.find statuses name = "Pending" || Hashtbl.find statuses name = "Fetching" then (
-                  Hashtbl.replace statuses name "Building";
-                  Printf.eprintf "  + %s building\n%!" name;
-                  (match status_file with
-                   | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
-                   | None -> ())
+                  if Hashtbl.find statuses name = "Pending" || Hashtbl.find statuses name = "Fetching" then (
+                    Hashtbl.replace statuses name "Building";
+                    Printf.eprintf "  + %s building\n%!" name;
+                    (match status_file with
+                     | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                     | None -> ())
+                  )
                 )
             | None -> ()
           )
@@ -715,34 +725,49 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                && not (String.ends_with ~suffix:".drv" line) then (
             match List.find_opt (fun name -> contains_substring line ("-" ^ name)) sorted_node_names with
             | Some name ->
-                Hashtbl.replace node_store_paths name line;
-                let class_path = Filename.concat line "class" in
-                let warnings_path = Filename.concat line "warnings" in
-                if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
-                let is_error_class =
-                  if Sys.file_exists class_path then
-                    match read_file_first_line class_path with
-                    | Some "VError" | Some "Error" -> true
-                    | _ -> false
-                  else false
-                in
-                let current_status = Hashtbl.find statuses name in
-                if current_status <> "SoftFailed" && current_status <> "Errored" then (
-                  let new_status =
-                    if is_error_class then "SoftFailed" else "Completed"
+                if Hashtbl.mem dry_builds name || Hashtbl.mem dry_fetches name then (
+                  Hashtbl.replace node_store_paths name line;
+                  let class_path = Filename.concat line "class" in
+                  let warnings_path = Filename.concat line "warnings" in
+                  if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
+                  let is_error_class =
+                    if Sys.file_exists class_path then
+                      match read_file_first_line class_path with
+                      | Some "VError" | Some "Error" -> true
+                      | _ -> false
+                    else false
                   in
-                  let duration =
-                    match Hashtbl.find_opt node_start_times name with
-                    | Some t -> Unix.gettimeofday () -. t
-                    | None -> 0.0
+                  let current_status = Hashtbl.find statuses name in
+                  if current_status <> "SoftFailed" && current_status <> "Errored" then (
+                    let new_status =
+                      if is_error_class then "SoftFailed" else "Completed"
+                    in
+                    let duration =
+                      match Hashtbl.find_opt node_start_times name with
+                      | Some t -> Unix.gettimeofday () -. t
+                      | None -> 0.0
+                    in
+                    Hashtbl.replace node_durations name duration;
+                    if current_status <> new_status then (
+                      Hashtbl.replace statuses name new_status;
+                      if new_status = "SoftFailed" then
+                        Printf.eprintf "  ✖ %s failed\n%!" name
+                      else
+                        Printf.eprintf "  ✓ %s built\n%!" name;
+                      (match status_file with
+                       | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                       | None -> ())
+                    )
+                  )
+                ) else (
+                  (* Cached node: transition to its previous status! *)
+                  let prev_status =
+                    match Hashtbl.find_opt previous_statuses name with
+                    | Some s -> s
+                    | None -> "Completed"
                   in
-                  Hashtbl.replace node_durations name duration;
-                  if current_status <> new_status then (
-                    Hashtbl.replace statuses name new_status;
-                    if new_status = "SoftFailed" then
-                      Printf.eprintf "  ✖ %s failed\n%!" name
-                    else
-                      Printf.eprintf "  ✓ %s built\n%!" name;
+                  if Hashtbl.find statuses name <> prev_status then (
+                    Hashtbl.replace statuses name prev_status;
                     (match status_file with
                      | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
                      | None -> ())
@@ -754,37 +779,39 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
             if contains_substring line "error:" || contains_substring line "failed" then (
               match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
               | Some name ->
-                  if Hashtbl.find statuses name <> "Errored" then (
-                    let duration =
-                      match Hashtbl.find_opt node_start_times name with
-                      | Some t -> Unix.gettimeofday () -. t
-                      | None -> 0.0
-                    in
-                    Hashtbl.replace node_durations name duration;
-                    Hashtbl.replace statuses name "Errored";
-                    let drv_path = 
-                      match Hashtbl.find_opt drv_paths name with
-                      | Some p -> p
-                      | None ->
-                        try
-                          let start_idx = contains_substring_idx line "/nix/store/" in
-                          if start_idx >= 0 then
-                            let sub = String.sub line start_idx (String.length line - start_idx) in
-                            let end_idx = try String.index sub '\'' with _ ->
-                                          try String.index sub ' ' with _ ->
-                                          String.length sub in
-                            String.sub sub 0 end_idx
-                          else "<path>"
-                        with _ -> "<path>"
-                    in
-                    if drv_path <> "" && drv_path <> "<path>" then Hashtbl.replace drv_paths name drv_path;
-                    if verbose > 0 then
-                      Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
-                    else
-                      Printf.eprintf "  ✖ %s failed\n%!" name;
-                    (match status_file with
-                     | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
-                     | None -> ())
+                  if Hashtbl.mem dry_builds name || Hashtbl.mem dry_fetches name then (
+                    if Hashtbl.find statuses name <> "Errored" then (
+                      let duration =
+                        match Hashtbl.find_opt node_start_times name with
+                        | Some t -> Unix.gettimeofday () -. t
+                        | None -> 0.0
+                      in
+                      Hashtbl.replace node_durations name duration;
+                      Hashtbl.replace statuses name "Errored";
+                      let drv_path = 
+                        match Hashtbl.find_opt drv_paths name with
+                        | Some p -> p
+                        | None ->
+                          try
+                            let start_idx = contains_substring_idx line "/nix/store/" in
+                            if start_idx >= 0 then
+                              let sub = String.sub line start_idx (String.length line - start_idx) in
+                              let end_idx = try String.index sub '\'' with _ ->
+                                            try String.index sub ' ' with _ ->
+                                            String.length sub in
+                              String.sub sub 0 end_idx
+                            else "<path>"
+                          with _ -> "<path>"
+                      in
+                      if drv_path <> "" && drv_path <> "<path>" then Hashtbl.replace drv_paths name drv_path;
+                      if verbose > 0 then
+                        Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
+                      else
+                        Printf.eprintf "  ✖ %s failed\n%!" name;
+                      (match status_file with
+                       | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                       | None -> ())
+                    )
                   )
               | None -> ()
             )
