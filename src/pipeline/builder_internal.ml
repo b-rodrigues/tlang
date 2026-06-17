@@ -1069,15 +1069,14 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                       if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
                       
                       if Hashtbl.find statuses name <> "Completed" && 
-                         Hashtbl.find statuses name <> "SoftFailed" &&
-                         Hashtbl.find statuses name <> "Errored" then (
-                        (match read_file_first_line class_path with
-                         | Some "VError" | Some "Error" -> Hashtbl.replace statuses name "SoftFailed"
-                         | _ -> Hashtbl.replace statuses name "Completed")
-                      ) else if Hashtbl.find statuses name = "Completed" then (
-                        if (match read_file_first_line class_path with Some "VError" | Some "Error" -> true | _ -> false) then
-                           Hashtbl.replace statuses name "SoftFailed"
-                      );
+                          Hashtbl.find statuses name <> "SoftFailed" then (
+                         (match read_file_first_line class_path with
+                          | Some "VError" | Some "Error" -> Hashtbl.replace statuses name "SoftFailed"
+                          | _ -> Hashtbl.replace statuses name "Completed")
+                       ) else if Hashtbl.find statuses name = "Completed" then (
+                         if (match read_file_first_line class_path with Some "VError" | Some "Error" -> true | _ -> false) then
+                            Hashtbl.replace statuses name "SoftFailed"
+                       );
 
                       (* Reconcile durations: if we have a start time and duration is not already set, use it *)
                       if not (Hashtbl.mem node_durations name) then (
