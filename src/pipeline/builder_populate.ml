@@ -3,6 +3,8 @@ open Builder_utils
 open Builder_write_dag
 open Builder_internal
 
+let was_built = ref false
+
 let builtin_pipeline_strategies =
   [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx" ]
 
@@ -160,6 +162,8 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?status_file ?(nix_
       | Ok () ->
           if build then
             match build_pipeline_internal ?verbose ?pipeline_name ?status_file ?nix_options p with
-            | Ok result -> Ok result
+            | Ok result ->
+                was_built := true;
+                Ok result
             | Error msg -> Error msg
           else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))

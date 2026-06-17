@@ -338,7 +338,8 @@ let cmd_top_run filename env =
              close_out oc;
              exit 1
          | Ok p ->
-             ignore (Builder.populate_pipeline ~build:true ~status_file:spath p);
+             if not !Builder.was_built then
+               ignore (Builder.populate_pipeline ~build:true ~status_file:spath p);
              exit 0
        with exn ->
          let err = Printexc.to_string exn in
@@ -430,7 +431,8 @@ let cmd_top_run_background filename env =
              close_out oc;
              exit 1
          | Ok p ->
-             ignore (Builder.populate_pipeline ~build:true ~status_file:spath p);
+             if not !Builder.was_built then
+               ignore (Builder.populate_pipeline ~build:true ~status_file:spath p);
              exit 0
        with exn ->
          let err = Printexc.to_string exn in
