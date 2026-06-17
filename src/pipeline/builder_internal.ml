@@ -429,37 +429,65 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
       
       let captured_output = Buffer.create 1024 in
       let argv = Array.of_list
-        (["nix-build"; "--impure"; pipeline_nix_path] @ target_args @ ["--no-out-link"; "--log-format"; "internal-json"] @ all_args)
+        (["stdbuf"; "-oL"; "-eL"; "nix-build"; "--impure"; pipeline_nix_path] @ target_args @ ["--no-out-link"; "--log-format"; "internal-json"] @ all_args)
       in
       
       let drv_paths = Hashtbl.create (List.length node_names) in
       let nix_id_to_node = Hashtbl.create (List.length node_names) in
       let node_has_warnings = Hashtbl.create (List.length node_names) in
       let node_start_times = Hashtbl.create (List.length node_names) in
+      let previous_statuses = Hashtbl.create (List.length node_names) in
+      let previous_warnings = Hashtbl.create (List.length node_names) in
       let node_durations =
         let durations = Hashtbl.create (List.length node_names) in
         (try
            match Builder_logs.get_logs () with
            | latest_log :: _ ->
                let path = Filename.concat pipeline_dir latest_log in
+               Printf.eprintf "DEBUG: Found latest log file: %s\n%!" path;
                let json = Yojson.Safe.from_file path in
                let open Yojson.Safe.Util in
                (match json |> member "nodes" with
                 | `List nodes ->
                     List.iter (fun node_json ->
-                      let name = node_json |> member "node" |> to_string in
-                      let duration =
-                        match node_json |> member "duration" with
-                        | `Float f -> f
-                        | `Int i -> float_of_int i
-                        | _ -> 0.0
+                      let name =
+                        match node_json |> member "node" with
+                        | `String s -> s
+                        | _ -> ""
                       in
-                      if duration > 0.0 then
-                        Hashtbl.replace durations name duration
+                      if name <> "" then (
+                        let duration =
+                          match node_json |> member "duration" with
+                          | `Float f -> f
+                          | `Int i -> float_of_int i
+                          | _ -> 0.0
+                        in
+                        if duration > 0.0 then
+                          Hashtbl.replace durations name duration;
+                        let status =
+                          match node_json |> member "status" with
+                          | `String s -> s
+                          | _ -> ""
+                        in
+                        if status <> "" then (
+                          Hashtbl.replace previous_statuses name status;
+                          Printf.eprintf "DEBUG: Loaded previous status for %s: %s\n%!" name status
+                        );
+                        let has_warn =
+                          match node_json |> member "warnings" with
+                          | `Bool b -> b
+                          | `String "true" -> true
+                          | _ -> false
+                        in
+                        if has_warn then (
+                          Hashtbl.replace previous_warnings name true;
+                          Printf.eprintf "DEBUG: Loaded previous warning for %s\n%!" name
+                        )
+                      )
                     ) nodes
                 | _ -> ())
-           | _ -> ()
-         with _ -> ());
+           | _ -> Printf.eprintf "DEBUG: No log files found\n%!"
+         with e -> Printf.eprintf "DEBUG: Exception in get_logs: %s\n%!" (Printexc.to_string e));
         (match status_file with
          | Some path when Sys.file_exists path ->
              (try
@@ -475,7 +503,17 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                         | _ -> 0.0
                       in
                       if duration > 0.0 then
-                        Hashtbl.replace durations name duration
+                        Hashtbl.replace durations name duration;
+                      let status =
+                        match node_json |> member "status" with
+                        | `String s -> s
+                        | _ -> ""
+                      in
+                      if status <> "" then (
+                        Hashtbl.replace previous_statuses name status;
+                        if status = "Completed with warning" then
+                          Hashtbl.replace previous_warnings name true
+                      )
                     ) pairs
                 | _ -> ()
               with _ -> ())
@@ -515,12 +553,31 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                       else Hashtbl.replace dry_builds name true
                   | None -> ()
               ) (List.rev !lines);
-              List.iter (fun name ->
-                if Hashtbl.mem dry_fetches name then Hashtbl.replace statuses name "Fetching"
-                else if Hashtbl.mem dry_builds name then Hashtbl.replace statuses name "Pending"
-                else Hashtbl.replace statuses name "Cached"
-              ) node_names
-            end
+               List.iter (fun name ->
+                 if Hashtbl.mem dry_fetches name then (
+                   Hashtbl.replace statuses name "Fetching";
+                   Printf.eprintf "DEBUG: Seeding %s as Fetching\n%!" name
+                 ) else if Hashtbl.mem dry_builds name then (
+                   Hashtbl.replace statuses name "Pending";
+                   Printf.eprintf "DEBUG: Seeding %s as Pending\n%!" name
+                 ) else (
+                   let prev_status =
+                     match Hashtbl.find_opt previous_statuses name with
+                     | Some "SoftFailed" -> "SoftFailed"
+                     | Some "Errored" -> "Errored"
+                     | Some "Completed with warning" -> "Completed with warning"
+                     | Some "Completed" -> "Completed"
+                     | _ -> "Completed"
+                   in
+                   Hashtbl.replace statuses name prev_status;
+                   Printf.eprintf "DEBUG: Seeding %s as prev_status: %s\n%!" name prev_status;
+                   if Hashtbl.find_opt previous_warnings name = Some true || prev_status = "Completed with warning" then (
+                     Hashtbl.replace node_has_warnings name true;
+                     Printf.eprintf "DEBUG: Seeded warning for %s\n%!" name
+                   )
+                 )
+               ) node_names
+             end
       in
       (match status_file with
        | Some sf ->
@@ -584,28 +641,41 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
                    )
                | None -> ()
              end else if action = "msg" then begin
-               let level = match json |> member "level" with `Int i -> i | _ -> 0 in
-               if level >= 1 then
-                 match Hashtbl.find_opt nix_id_to_node id with
-                 | Some name ->
-                     if Hashtbl.find statuses name <> "Errored" then (
-                       let duration =
-                         match Hashtbl.find_opt node_start_times name with
-                         | Some t -> Unix.gettimeofday () -. t
-                         | None -> 0.0
-                       in
-                       Hashtbl.replace node_durations name duration;
-                       Hashtbl.replace statuses name "Errored";
-                       if verbose > 0 then
-                         Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
-                       else
-                         Printf.eprintf "  ✖ %s failed\n%!" name;
-                       (match status_file with
-                        | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
-                        | None -> ())
-                     )
-                 | None -> ()
-             end
+                let level = match json |> member "level" with `Int i -> i | _ -> 0 in
+                let msg_text =
+                  match json |> member "msg" with
+                  | `String s -> s
+                  | _ -> ""
+                in
+                if level = 0 then (
+                  let node_to_mark =
+                    match Hashtbl.find_opt nix_id_to_node id with
+                    | Some name -> Some name
+                    | None ->
+                        List.find_opt (fun name -> contains_substring msg_text ("-" ^ name ^ ".drv")) sorted_node_names
+                  in
+                  match node_to_mark with
+                  | Some name ->
+                      if Hashtbl.find statuses name <> "Errored" &&
+                         Hashtbl.find statuses name <> "SoftFailed" then (
+                        let duration =
+                          match Hashtbl.find_opt node_start_times name with
+                          | Some t -> Unix.gettimeofday () -. t
+                          | None -> 0.0
+                        in
+                        Hashtbl.replace node_durations name duration;
+                        Hashtbl.replace statuses name "Errored";
+                        if verbose > 0 then
+                          Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
+                        else
+                          Printf.eprintf "  ✖ %s failed\n%!" name;
+                        (match status_file with
+                         | Some sf -> write_build_status_file ?pipeline_name ~warnings:node_has_warnings ~node_start_times sf p statuses node_durations
+                         | None -> ())
+                      )
+                  | None -> ()
+                )
+              end
            with _ -> ())
         end else begin
           (* Fallback parsing for non-@nix lines (stdout store paths, raw stderr text) *)

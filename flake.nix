@@ -429,7 +429,7 @@ chmod +x $out/bin/bisect-ppx-report
             julia-with-packages
             tlang-julia-path
 
-            # 6. Local Project Binaries (Wrappers for development)
+            # 6. Local Project Binaries (Wrappers for development use)
             (pkgs.writeShellScriptBin "t" ''
               repo_root="''${TLANG_REPO_ROOT:-$PWD}"
               export TLANG_AGENTS_DIR="''${TLANG_AGENTS_DIR:-$repo_root/agents}"
