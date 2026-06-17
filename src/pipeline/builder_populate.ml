@@ -160,10 +160,7 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?status_file ?(nix_
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () ->
-          if build then
-            match build_pipeline_internal ?verbose ?pipeline_name ?status_file ?nix_options p with
-            | Ok result ->
-                was_built := true;
-                Ok result
-            | Error msg -> Error msg
-          else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))
+          if build then (
+            was_built := true;
+            build_pipeline_internal ?verbose ?pipeline_name ?status_file ?nix_options p
+          ) else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))

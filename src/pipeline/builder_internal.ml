@@ -521,9 +521,9 @@ let build_pipeline_internal ?verbose ?pipeline_name ?status_file ?(nix_options :
       let dry_fetches = Hashtbl.create (List.length node_names) in
       
       let captured_output = Buffer.create 1024 in
-      let argv = Array.of_list
-        (["stdbuf"; "-oL"; "-eL"; "nix-build"; "--impure"; pipeline_nix_path] @ target_args @ ["--no-out-link"; "--log-format"; "internal-json"] @ all_args)
-      in
+      let nix_cmd_args = ["nix-build"; "--impure"; pipeline_nix_path] @ target_args @ ["--no-out-link"; "--log-format"; "internal-json"] @ all_args in
+      let cmd_str = String.concat " " (List.map Filename.quote nix_cmd_args) in
+      let argv = [| "script"; "-q"; "-e"; "-f"; "-c"; cmd_str; "/dev/null" |] in
       
       let drv_paths = Hashtbl.create (List.length node_names) in
       let nix_id_to_node = Hashtbl.create (List.length node_names) in
