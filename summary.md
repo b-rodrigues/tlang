@@ -488,3 +488,5 @@ This command automatically:
 2.  Retrieves today's date for the `rstats-on-nix` nixpkgs fork.
 3.  Updates `tproject.toml` with the new values.
 4.  Regenerates `flake.nix` and runs `nix flake update`.
+
+- **CI/CD Integration**: `pipeline_ci(p)` reuses an existing `_pipeline/pipeline.nix` and generates a standalone CI flake under `_pipeline/ci` that builds with `nix build ./_pipeline/ci#pipeline`, and the repository provides `.github/actions/run-t-pipeline/action.yml` for GitHub Actions with optional Cachix support.

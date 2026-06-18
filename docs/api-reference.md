@@ -3341,3 +3341,9 @@ Now that you've explored the API, learn how to build reproducible data pipelines
 2. **[Data Manipulation Examples](data_manipulation_examples.md)** — Practical examples of data wrangling.
 3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
 4. **[Package Development](package_development.md)** — Create reusable T libraries.
+
+### pipeline_ci
+
+`pipeline_ci(p, output_dir = "_pipeline/ci", workflow = false, cache = na())`
+
+Reuses an existing `_pipeline/pipeline.nix` when available, otherwise generates it, and writes a CI-ready flake at `output_dir/flake.nix` exposing `#pipeline`. Optionally writes a GitHub Actions workflow with Nix and Cachix support.

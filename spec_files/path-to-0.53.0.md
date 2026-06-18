@@ -97,8 +97,8 @@ This document outlines the evolution of the T language from **v0.52.0** to **v0.
 - [ ] **Cross-Runtime Structured Logging**: Implement a shared JSON logging protocol for all runtimes, queryable in T via `read_node(..., which_log = "structured")`.
 
 ### CI/CD Integration
-- [ ] **`pipeline_ci(p)`**: Generate a standalone, T-free Nix flake that can build the entire pipeline in any Nix-enabled CI (GitHub Actions, etc.).
-- [ ] **GitHub Actions Helper**: Official action for running T pipelines with Nix + Cachix support.
+- [x] **`pipeline_ci(p)`**: Generate a standalone, T-free Nix flake that can build the entire pipeline in any Nix-enabled CI (GitHub Actions, etc.).
+- [x] **GitHub Actions Helper**: Official action for running T pipelines with Nix + Cachix support.
 
 ### Static Conditionals
 - [ ] **Static `when()` and `fork()`**: Conditional node inclusion where the condition is evaluated at *pipeline construction time* (preserving Nix's static DAG requirement).

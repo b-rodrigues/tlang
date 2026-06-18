@@ -1,0 +1,36 @@
+name: Run T Pipeline
+description: Build a T pipeline CI flake with Nix and optional Cachix support.
+inputs:
+  flake:
+    description: Path to the generated pipeline_ci flake.
+    required: false
+    default: ./_pipeline/ci
+  cache:
+    description: Optional Cachix cache name.
+    required: false
+    default: ""
+  cachix-auth-token:
+    description: Optional Cachix auth token for pushing build outputs.
+    required: false
+    default: ""
+  target:
+    description: Flake output to build.
+    required: false
+    default: pipeline
+runs:
+  using: composite
+  steps:
+    - name: Install Nix
+      uses: cachix/install-nix-action@v27
+      with:
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+    - name: Configure Cachix
+      if: ${{ inputs.cache != '' }}
+      uses: cachix/cachix-action@v15
+      with:
+        name: ${{ inputs.cache }}
+        authToken: ${{ inputs.cachix-auth-token }}
+    - name: Build T pipeline flake
+      shell: bash
+      run: nix build "${{ inputs.flake }}#${{ inputs.target }}" --accept-flake-config --print-build-logs

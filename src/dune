@@ -62,7 +62,7 @@
       pipeline_utils pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node read_past_node pipeline_copy
       pipeline_to_frame filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
        pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2 t_make_mod build_log pipeline_diff pipeline_report
-      pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc export_artifacts import_artifacts inspect_artifacts
+      pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc pipeline_ci export_artifacts import_artifacts inspect_artifacts
     ; packages/colcraft
     t_select t_filter mutate arrange group_by ungroup summarize n n_distinct
     window_rank window_offset window_cumulative pivot_longer pivot_wider t_complete
