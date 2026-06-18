@@ -116,6 +116,48 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   test "golden: pipeline_node missing key"
     {|p = pipeline { a = 1 }; pipeline_node(p, "z")|}
     {|Error(KeyError: "Node `z` not found in Pipeline.")|};
+
+  (* Golden test: pipeline_to_ga YAML generation *)
+  (try
+    let env_ga = Packages.init_env () in
+    let (v, _) = eval_string_env "p = pipeline { a = 1 }; pipeline_to_ga(p, name = \"test\")" env_ga in
+    let result = Ast.Utils.value_to_string v in
+    let checks = [
+      ("contains workflow name", "name: Demo Test");
+      ("contains checkout action", "actions/checkout@v4");
+      ("contains install-nix-action", "cachix/install-nix-action@v31");
+      ("contains cachix-action", "cachix/cachix-action@v15");
+      ("contains nix develop command", "nix develop --command t run src/pipeline.t");
+      ("contains NAR_ARCHIVE", "NAR_ARCHIVE: test.nar");
+      ("contains t-runs branch", "git push origin HEAD:t-runs --force");
+      ("contains export_artifacts", "t export_artifacts src/pipeline.t $NAR_ARCHIVE");
+    ] in
+    let all_pass = ref true in
+    List.iter (fun (desc, expected) ->
+      if not (Test_helpers.contains result expected) then begin
+        all_pass := false;
+        incr fail_count;
+        Printf.printf "  ✗ golden: pipeline_to_ga — %s\n    Expected to contain: %s\n" desc expected
+      end
+    ) checks;
+    if !all_pass then begin
+      incr pass_count;
+      Printf.printf "  ✓ golden: pipeline_to_ga generates valid workflow YAML\n"
+    end
+  with e ->
+    incr fail_count;
+    Printf.printf "  ✗ golden: pipeline_to_ga — Exception: %s\n" (Printexc.to_string e));
+
+  (* Golden test: pipeline_to_ga type error *)
+  test "golden: pipeline_to_ga type error"
+    "pipeline_to_ga(42)"
+    {|Error(TypeError: "Function `pipeline_to_ga` expects a Pipeline, but got Int.")|};
+
+  (* Golden test: pipeline_to_ga unknown argument *)
+  test "golden: pipeline_to_ga unknown arg"
+    "p = pipeline { a = 1 }; pipeline_to_ga(p, unknown_arg = 1)"
+    {|Error(TypeError: "pipeline_to_ga: unknown argument 'unknown_arg'")|};
+
   print_newline ();
 
   Printf.printf "Phase 8 — Golden: Pipeline with Data:\n";

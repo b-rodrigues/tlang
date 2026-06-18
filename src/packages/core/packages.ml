@@ -198,9 +198,10 @@ let pipeline_package = {
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
                "chain"; "parallel";
-               "pipeline_edges"; "pipeline_roots"; "pipeline_leaves"; "pipeline_depth";
-                "pipeline_cycles"; "pipeline_validate"; "pipeline_assert";
-                "pipeline_print"; "pipeline_to_dot"; "pipeline_to_mermaid"];
+                 "pipeline_edges"; "pipeline_roots"; "pipeline_leaves"; "pipeline_depth";
+                 "pipeline_cycles"; "pipeline_validate"; "pipeline_assert";
+                 "pipeline_print"; "pipeline_to_dot"; "pipeline_to_mermaid";
+                 "pipeline_to_ga"];
 }
 
 let explain_package = {
@@ -814,6 +815,7 @@ let init_env () =
   let env = Pipeline_composition.register ~rerun_pipeline:rerun_pipeline_fn env in
   let env = T_make_mod.register env in
   let env = Pipeline_inspect2.register env in
+  let env = Pipeline_to_ga.register env in
   let env = Build_log.register env in
   let env = Pipeline_diff.register env in
   let env = Pipeline_report.register env in
