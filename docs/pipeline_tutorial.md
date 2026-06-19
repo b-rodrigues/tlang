@@ -2181,15 +2181,15 @@ T can generate a complete GitHub Actions workflow YAML for executing a pipeline 
 3. Exports updated artifacts back to the `t-runs` branch
 
 ```t
--- Print the generated YAML to the console (runs "src/pipeline.t" by default)
-yaml = pipeline_to_ga()
-print(yaml)
+-- Write the generated YAML directly to .github/workflows/<name>.yml (uses "src/pipeline.t" by default)
+pipeline_to_ga()
 
--- Write directly to .github/workflows/ci.yml and specify a custom pipeline script
+-- Write directly to a custom path (e.g. .github/workflows/ci.yml)
 pipeline_to_ga("src/run.t", file = ".github/workflows/ci.yml")
 
--- Override project name and pipeline script path
-pipeline_to_ga("src/run.t", name = "my-project")
+-- Get the generated YAML back as a string instead of writing to disk
+yaml = pipeline_to_ga(file = "")
+print(yaml)
 ```
 
 ### Parameters
@@ -2198,7 +2198,7 @@ pipeline_to_ga("src/run.t", name = "my-project")
 |-----------|------|---------|-------------|
 | `pipeline_script` | `String` | `"src/pipeline.t"` | Path to the pipeline T script. Can be passed as the first positional argument. |
 | `name` | `String` | Auto-detected | Project name from `tproject.toml`. Controls the workflow display name, job ID, and NAR archive filename. |
-| `file` | `String` | (none) | Output file path. When provided, writes the YAML and returns a confirmation string. When omitted, returns the YAML as a string. |
+| `file` | `String` | `".github/workflows/<name>.yml"` | Output file path. Defaults to `.github/workflows/<name>.yml`. Set to an empty string (`""`) to return the YAML workflow as a string without writing to disk. |
 
 The auto-detected project name comes from the `name` field in your project's `tproject.toml`. If neither a `name` argument nor a `tproject.toml` is found, an error is raised prompting you to provide an explicit name.
 

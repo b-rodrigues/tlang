@@ -120,7 +120,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Golden test: pipeline_to_ga YAML generation *)
   (try
     let env_ga = Packages.init_env () in
-    let (v, _) = eval_string_env "pipeline_to_ga(name = \"test\")" env_ga in
+    let (v, _) = eval_string_env "pipeline_to_ga(name = \"test\", file = \"\")" env_ga in
     let result = Ast.Utils.value_to_string v in
     let checks = [
       ("contains workflow name", "name: Demo Test");

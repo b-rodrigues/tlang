@@ -90,8 +90,8 @@ let generate_yaml ~name ~pipeline_script =
 --# @name pipeline_to_ga
 --# @param pipeline_script :: String (Optional) Path to the pipeline T script. Default "src/pipeline.t".
 --# @param name :: String (Optional) Project name. Auto-detected from tproject.toml when omitted.
---# @param file :: String (Optional) Output file path. If omitted, returns the YAML string.
---# @return :: String The YAML workflow content or the output file path.
+--# @param file :: String (Optional) Output file path. Defaults to ".github/workflows/<name>.yml". Pass an empty string ("") to get the YAML back as a string.
+--# @return :: String The YAML workflow content or a confirmation string.
 --# @example
 --#   pipeline_to_ga()
 --#   pipeline_to_ga("src/run.t")
@@ -161,11 +161,9 @@ let register env =
               | Ok name ->
                   let file_res =
                     match get_named "file" (VNA NAGeneric) with
+                    | VString "" -> Ok None
                     | VString s when String.length s > 0 -> Ok (Some s)
-                    | VString "" ->
-                        Error (Error.value_error
-                                 "Argument `file` was an empty string.\nOmit `file` to get the YAML back as a String, or pass a path such as \".github/workflows/ci.yml\".")
-                    | VNA _ -> Ok None
+                    | VNA _ -> Ok (Some (".github/workflows/" ^ name ^ ".yml"))
                     | other ->
                         Error (Error.type_error
                                  (Printf.sprintf "Argument `file` must be a String, but got %s." (Utils.type_name other)))
