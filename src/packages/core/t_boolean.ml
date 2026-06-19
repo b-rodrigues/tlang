@@ -288,32 +288,33 @@ let node_when_fn args _env =
 --# @export
 *)
 let node_fork_fn (named_args : (string option * Ast.value) list) _env =
-  let positional = List.filter_map (function (None, v) -> Some v | _ -> None) named_args in
-  let named = List.filter_map (function (Some k, v) -> Some (k, v) | _ -> None) named_args in
-  (* Error on any unexpected named argument — only .default is allowed *)
-  let stray = List.find_opt (fun (k, _) -> k <> ".default") named in
-  match stray with
-  | Some (k, _) ->
+  let default_val, rest_named =
+    List.fold_left (fun (def, unexpected) (name, value) ->
+      match name with
+      | None -> (def, unexpected)
+      | Some ".default" -> (Some value, unexpected)
+      | Some n -> (def, n :: unexpected)
+    ) (None, []) named_args
+  in
+  match rest_named with
+  | n :: _ ->
       Error.make_error TypeError
-        (Printf.sprintf "Function `node_fork` received unexpected named argument '%s'." k)
-  | None ->
-      let default_val = List.assoc_opt ".default" named in
-      let n = List.length positional in
-      if n mod 2 <> 0 then
-        Error.value_error
-          (Printf.sprintf
-             "Function `node_fork` expects condition-value pairs but received an odd number of \
-              positional arguments (%d)."
-             n)
-      else
-        let rec find_first = function
-          | [] -> (match default_val with Some v -> v | None -> VNullNode)
-          | condition :: value :: rest ->
-              if Ast.Utils.is_truthy condition then value
-              else find_first rest
-          | [_] -> VNullNode (* unreachable: guarded by even-count check above *)
-        in
-        find_first positional
+        (Printf.sprintf "Function `node_fork` received unexpected named argument '%s'." n)
+  | [] ->
+      let positional_args = List.filter_map (function (None, v) -> Some v | _ -> None) named_args in
+      let rec process_pairs = function
+        | [] ->
+            (match default_val with
+             | Some def -> def
+             | None -> VNullNode)
+        | [_] ->
+            Error.make_error TypeError
+              "Function `node_fork` expects an even number of positional arguments (condition-value pairs)."
+        | cond :: value :: rest ->
+            if Ast.Utils.is_truthy cond then value
+            else process_pairs rest
+      in
+      process_pairs positional_args
 
 (*
 --# Vectorized Case-When
