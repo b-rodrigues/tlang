@@ -573,6 +573,7 @@ module Utils = struct
     | VBool false | VInt 0 -> false
     | VError _ -> false
     | VNA _ -> false
+    | VNullNode -> false
     | VNodeResult { v; _ } -> is_truthy v
     | _ -> true
 

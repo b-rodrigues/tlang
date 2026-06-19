@@ -257,6 +257,7 @@ let identical args _env =
 *)
 let node_when_fn args _env =
   match args with
+  | [(VError _ as e); _] -> e
   | [condition; node_value] ->
       if Ast.Utils.is_truthy condition then node_value
       else VNullNode
@@ -310,6 +311,7 @@ let node_fork_fn (named_args : (string option * Ast.value) list) _env =
         | [_] ->
             Error.make_error TypeError
               "Function `node_fork` expects an even number of positional arguments (condition-value pairs)."
+        | (VError _ as e) :: _ -> e
         | cond :: value :: rest ->
             if Ast.Utils.is_truthy cond then value
             else process_pairs rest
