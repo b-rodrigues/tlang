@@ -380,7 +380,7 @@ let register env =
 --# @family pipeline
 --# @export
 *)
-  let env = Env.add "node_fork" (make_builtin_named ~name:"node_fork" ~variadic:true 1 T_boolean.node_fork_fn) env in
+  let env = Env.add "node_fork" (make_builtin_named ~name:"node_fork" ~variadic:true 0 T_boolean.node_fork_fn) env in
 
 (*
 --# Evaluate a quoted expression or quosure

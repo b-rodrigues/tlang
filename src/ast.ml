@@ -771,7 +771,7 @@ module Utils = struct
     | VSerializer _ -> "Serializer"
     | VComputedNode _ -> "ComputedNode"
     | VNode _ -> "Node"
-    | VNullNode -> "Null"
+    | VNullNode -> "NullNode"
     | VExpr _ -> "Expression"
     | VQuo _ -> "Quosure"
     | VShellResult _ -> "ShellResult"
