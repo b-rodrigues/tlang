@@ -1412,7 +1412,7 @@ meta.stats.summary.name|}
          Printf.printf "%s" msg
        end
    | other ->
-       incr fail_count;
+        incr fail_count;
         let msg = Printf.sprintf "  ✗ pipeline_report web: expected VString path, got %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
@@ -1436,6 +1436,14 @@ meta.stats.summary.name|}
       error_code(p)
     |}
     "NameError";
+
+  (* §3: Non-node value raises TypeError *)
+  test "node_when: non-node return value raises TypeError"
+    {|
+      p = pipeline { x = node_when(true, 42) };
+      error_code(p)
+    |}
+    "TypeError";
 
   (* node_when(true, node) includes the node *)
   let (v, _) = eval_string_env
