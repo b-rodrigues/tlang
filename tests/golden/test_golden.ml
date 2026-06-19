@@ -126,11 +126,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       ("contains workflow name", "name: Demo Test");
       ("contains checkout action", "actions/checkout@v4");
       ("contains install-nix-action", "cachix/install-nix-action@v31");
-      ("contains cachix-action", "cachix/cachix-action@v15");
       ("contains nix develop command", "nix develop --command t run src/pipeline.t");
       ("contains NAR_ARCHIVE", "NAR_ARCHIVE: test.nar");
       ("contains t-runs branch", "git push origin HEAD:t-runs --force");
-      ("contains export_artifacts", "t export_artifacts src/pipeline.t $NAR_ARCHIVE");
+      ("contains export_artifacts", "t export_artifacts src/pipeline.t \\\"$NAR_ARCHIVE\\\"");
     ] in
     let all_pass = ref true in
     List.iter (fun (desc, expected) ->

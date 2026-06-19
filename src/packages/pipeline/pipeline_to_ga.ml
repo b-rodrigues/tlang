@@ -33,17 +33,14 @@ let generate_yaml ~name ~pipeline_script =
   let buf = Buffer.create 512 in
   let pf fmt = Printf.ksprintf (fun s -> Buffer.add_string buf s) fmt in
   pf "name: Demo %s\n" dn;
-  pf "\n";
   pf "on:\n";
   pf "  push:\n";
   pf "    branches: [ main, master ]\n";
   pf "  pull_request:\n";
   pf "    branches: [ main, master ]\n";
   pf "  workflow_dispatch:\n";
-  pf "\n";
   pf "env:\n";
   pf "  NAR_ARCHIVE: %s.nar\n" name;
-  pf "\n";
   pf "jobs:\n";
   pf "  %s:\n" dj;
   pf "    runs-on: ubuntu-latest\n";
@@ -59,29 +56,26 @@ let generate_yaml ~name ~pipeline_script =
   pf "            substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org\n";
   pf "            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=\n";
   pf "\n";
-  pf "      - uses: cachix/cachix-action@v15\n";
-  pf "        with:\n";
-  pf "          name: rstats-on-nix\n";
-  pf "\n";
   pf "      - name: Restore cached artifacts\n";
   pf "        run: |\n";
   pf "          git fetch origin t-runs --depth=1 || true\n";
-  pf "          git checkout origin/t-runs -- $NAR_ARCHIVE 2>/dev/null || true\n";
-  pf "          test -f $NAR_ARCHIVE && nix-store --import < $NAR_ARCHIVE || true\n";
+  pf "          git checkout origin/t-runs -- \"$NAR_ARCHIVE\" 2>/dev/null || true\n";
+  pf "          [ -f \"$NAR_ARCHIVE\" ] && nix-store --import < \"$NAR_ARCHIVE\" || true\n";
   pf "\n";
-  pf "      - name: Run Pipeline\n";
+  pf "      - name: Run pipeline\n";
   pf "        run: nix develop --command t run %s\n" pipeline_script;
   pf "\n";
   pf "      - name: Cache artifacts to t-runs branch\n";
   pf "        run: |\n";
-  pf "          t export_artifacts %s $NAR_ARCHIVE\n" pipeline_script;
+  pf "          t export_artifacts %s \"$NAR_ARCHIVE\"\n" pipeline_script;
   pf "          git config user.name \"github-actions[bot]\"\n";
   pf "          git config user.email \"github-actions[bot]@users.noreply.github.com\"\n";
   pf "          git fetch origin t-runs || true\n";
   pf "          git checkout t-runs 2>/dev/null || git checkout --orphan t-runs\n";
-  pf "          cp $NAR_ARCHIVE .\n";
-  pf "          git add $NAR_ARCHIVE\n";
-  pf "          git diff --cached --quiet || (git commit -m \"Update artifacts for %s\" && git push origin HEAD:t-runs --force)\n" name;
+  pf "          cp \"$NAR_ARCHIVE\" .\n";
+  pf "          git add \"$NAR_ARCHIVE\"\n";
+  pf "          git diff --cached --quiet || git commit -m \"Update artifacts for %s\"\n" name;
+  pf "          git diff --cached --quiet || git push origin HEAD:t-runs --force\n";
   Buffer.contents buf
 
 (*
