@@ -1649,19 +1649,20 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
      If a NameError occurs (e.g. `b = a` referencing an undefined sibling `a`), 
      we catch it and defer it as an unbuilt node so pipeline topological
      sorting can resolve it as an internal dependency. *)
-  let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
+  let desugar_node (name, node_expr) : (string * Ast.unbuilt_node option, value) result =
     let node_names = List.map fst nodes in
     let node_expr = substitute_env_vars !env_ref node_names node_expr in
     let is_node_call = match node_expr.node with
-      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
+      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn" | "node_when" | "node_fork"); _ }; _ }
       | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
     if is_node_call then
       match eval_expr env_ref node_expr with
-      | VNode un -> Ok (name, un)
+      | VNode un -> Ok (name, Some un)
+      | VNullNode -> Ok (name, None)
       | VComputedNode cn ->
-          Ok (name, {
+          Ok (name, Some {
             un_command = vexpr (VComputedNode cn);
             un_script = None;
             un_runtime = cn.cn_runtime;
@@ -1676,11 +1677,11 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
             un_noop = false;
             un_dependencies = None;
           })
-      | VError { code = NameError; _ } -> Ok (name, default_un node_expr)
+      | VError { code = NameError; _ } -> Ok (name, Some (default_un node_expr))
       | VError _ as e -> Error e
-      | _ -> Ok (name, default_un node_expr)
+      | _ -> Ok (name, Some (default_un node_expr))
     else
-      Ok (name, default_un node_expr)
+      Ok (name, Some (default_un node_expr))
   in
 
   let rec desugar_all acc = function
@@ -1688,7 +1689,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     | node :: rest ->
         (match desugar_node node with
          | Error err -> Error err
-         | Ok res -> desugar_all (res :: acc) rest)
+         | Ok (name, Some un) -> desugar_all ((name, un) :: acc) rest
+         | Ok (_, None) -> desugar_all acc rest)
   in
 
   match desugar_all [] nodes with

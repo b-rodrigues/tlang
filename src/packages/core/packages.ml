@@ -119,7 +119,7 @@ let core_package = {
   name = "core";
   description = "Core utilities: printing, type inspection, data structures";
   functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get"; "rm";
-               "ifelse"; "identical"; "case_when"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "show_plot"; "to_integer"; "to_float"; "to_string"; "to_bool"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
+                "ifelse"; "identical"; "case_when"; "node_when"; "node_fork"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "show_plot"; "to_integer"; "to_float"; "to_string"; "to_bool"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
                "to_symbol"; "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
 }
 
@@ -357,6 +357,30 @@ let register env =
 --# @export
 *)
   let env = Env.add "case_when" (make_builtin_named ~name:"case_when" ~variadic:true 0 (T_boolean.case_when Eval.eval_expr_immutable)) env in
+
+(*
+--# Static pipeline node conditional
+--#
+--# Evaluated at pipeline construction time. Returns the node value if the condition
+--# is truthy, otherwise returns a null marker that excludes the node from the pipeline.
+--#
+--# @name node_when
+--# @family pipeline
+--# @export
+*)
+  let env = Env.add "node_when" (make_builtin ~name:"node_when" 2 T_boolean.node_when_fn) env in
+
+(*
+--# Static pipeline multi-way branch
+--#
+--# Evaluated at pipeline construction time. Takes condition-value pairs and returns
+--# the value for the first truthy condition. Provide `.default` for a fallback.
+--#
+--# @name node_fork
+--# @family pipeline
+--# @export
+*)
+  let env = Env.add "node_fork" (make_builtin_named ~name:"node_fork" ~variadic:true 1 T_boolean.node_fork_fn) env in
 
 (*
 --# Evaluate a quoted expression or quosure

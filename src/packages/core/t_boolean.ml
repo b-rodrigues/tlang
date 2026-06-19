@@ -235,6 +235,72 @@ let identical args _env =
   | _ -> Error.arity_error_named "identical" 2 (List.length args)
 
 
+(* --- node_when --- *)
+
+(*
+--# Static pipeline node conditional
+--#
+--# Evaluated at pipeline construction time. Returns `value` if `condition` is truthy,
+--# otherwise returns a null marker that causes the pipeline to exclude the node entirely.
+--# This preserves Nix's static DAG requirement — the condition is checked before the build.
+--#
+--# @name node_when
+--# @param condition :: Bool The condition to evaluate.
+--# @param value :: Node The node value to include if condition is true.
+--# @return :: Node | Null The node value or null marker.
+--# @example
+--#   p = pipeline {
+--#     model = node_when(env("CI") == "1", pyn(script = "train.py"))
+--#   }
+--# @family pipeline
+--# @export
+*)
+let node_when_fn args _env =
+  match args with
+  | [condition; node_value] ->
+      if Ast.Utils.is_truthy condition then node_value
+      else VNullNode
+  | _ -> Error.arity_error_named "node_when" 2 (List.length args)
+
+(* --- node_fork --- *)
+
+(*
+--# Static pipeline multi-way branch
+--#
+--# Evaluated at pipeline construction time. Takes condition-value pairs and returns
+--# the value for the first truthy condition. If no condition matches, returns a null
+--# marker (node excluded). Provide `.default` to control the fallback value.
+--# This preserves Nix's static DAG requirement — the condition is checked before the build.
+--#
+--# @name node_fork
+--# @param ... :: Any Pairs of condition-value arguments.
+--# @param .default :: Any (Optional) Fallback value if no condition matches.
+--# @return :: Node | Null The selected node value or null marker.
+--# @example
+--#   p = pipeline {
+--#     model = node_fork(
+--#       env("MODEL_TYPE") == "lm", rn(script = "lm.R"),
+--#       env("MODEL_TYPE") == "nn", pyn(script = "nn.py"),
+--#       .default = rn(script = "baseline.R")
+--#     )
+--#   }
+--# @family pipeline
+--# @export
+*)
+let node_fork_fn (named_args : (string option * Ast.value) list) _env =
+  let rec find_first = function
+    | [] -> VNullNode
+    | (None, condition) :: (None, value) :: rest ->
+        if Ast.Utils.is_truthy condition then value
+        else find_first rest
+    | (Some ".default", value) :: _ -> value
+    | (Some n, _) :: _ ->
+        Error.make_error TypeError
+          (Printf.sprintf "Function `node_fork` received unexpected named argument '%s'." n)
+    | _ -> VNullNode
+  in
+  find_first named_args
+
 (*
 --# Vectorized Case-When
 --#

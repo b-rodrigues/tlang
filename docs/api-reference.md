@@ -291,6 +291,18 @@ Deep equality check. Works for collections and complex objects.
 
 ---
 
+### `node_when(condition, value)`
+
+Static conditional for pipeline nodes. Evaluated at pipeline construction time.
+Returns `value` if `condition` is truthy, otherwise excludes the node from the DAG.
+
+### `node_fork(...condition_value_pairs, .default = NA)`
+
+Static multi-way branch for pipeline nodes. Returns the value for the first
+truthy condition-value pair, or `.default` if none match.
+
+---
+
 ### `eval(expr)` / `to_expr(x)` / `to_exprs(...)`
 ### `quo(x)` / `quos(...)` / `enquo(p)` / `enquos(...)`
 

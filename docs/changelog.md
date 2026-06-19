@@ -5,6 +5,7 @@
 This release:
 
 - Introduces Atelier IDE support. `t init --project` and `t init --package` now accept `--include-atelier` (CLI flag) or prompt interactively. When enabled, the generated `flake.nix` pins `atelier.url = "github:b-rodrigues/atelier/main"` as a flake input and adds `atelier` to the devShell's `buildInputs`, making the tmux-based TUI IDE immediately available via the `atelier` command inside `nix develop`.
+- Introduces static conditionals for pipelines: `node_when(condition, node_value)` and `node_fork(...)` allow conditional node inclusion evaluated at pipeline construction time, preserving Nix's static DAG requirement.
 
 ## [0.52.3] - 2026-06-12
 
