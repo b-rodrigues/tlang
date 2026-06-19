@@ -2174,34 +2174,29 @@ t_gc()
 
 ## 42. CI/CD with GitHub Actions
 
-T can generate a complete GitHub Actions workflow YAML for any pipeline via `pipeline_to_ga()`. The generated workflow:
+T can generate a complete GitHub Actions workflow YAML for executing a pipeline via `pipeline_to_ga()`. The generated workflow:
 
 1. Restores cached Nix artifacts from the `t-runs` branch (via `nix-store --import`)
-2. Runs the pipeline via `nix develop --command t run src/pipeline.t`
+2. Runs the pipeline via `nix develop --command t run <pipeline_script>`
 3. Exports updated artifacts back to the `t-runs` branch
 
 ```t
-p = pipeline {
-  mtcars = read_csv("data/mtcars.csv", separator = "|")
-  summary = mtcars |> group_by($cyl) |> summarise(mean_mpg = mean($mpg))
-}
-
--- Print the generated YAML to the console
-yaml = pipeline_to_ga(p)
+-- Print the generated YAML to the console (runs "src/pipeline.t" by default)
+yaml = pipeline_to_ga()
 print(yaml)
 
--- Write directly to .github/workflows/<name>.yml
-pipeline_to_ga(p, file = ".github/workflows/ci.yml")
+-- Write directly to .github/workflows/ci.yml and specify a custom pipeline script
+pipeline_to_ga("src/run.t", file = ".github/workflows/ci.yml")
 
--- Override project name
-pipeline_to_ga(p, name = "my-project")
+-- Override project name and pipeline script path
+pipeline_to_ga("src/run.t", name = "my-project")
 ```
 
 ### Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `p` | `Pipeline` | (required) | The pipeline to generate a workflow for. |
+| `pipeline_script` | `String` | `"src/pipeline.t"` | Path to the pipeline T script. Can be passed as the first positional argument. |
 | `name` | `String` | Auto-detected | Project name from `tproject.toml`. Controls the workflow display name, job ID, and NAR archive filename. |
 | `file` | `String` | (none) | Output file path. When provided, writes the YAML and returns a confirmation string. When omitted, returns the YAML as a string. |
 

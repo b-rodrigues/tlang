@@ -120,7 +120,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Golden test: pipeline_to_ga YAML generation *)
   (try
     let env_ga = Packages.init_env () in
-    let (v, _) = eval_string_env "p = pipeline { a = 1 }; pipeline_to_ga(p, name = \"test\")" env_ga in
+    let (v, _) = eval_string_env "pipeline_to_ga(name = \"test\")" env_ga in
     let result = Ast.Utils.value_to_string v in
     let checks = [
       ("contains workflow name", "name: Demo Test");
@@ -150,13 +150,13 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Golden test: pipeline_to_ga type error *)
   test "golden: pipeline_to_ga type error"
     "pipeline_to_ga(42)"
-    {|Error(TypeError: "Function `pipeline_to_ga` expects a Pipeline, but got Int.")|};
+    {|Error(TypeError: "Function `pipeline_to_ga` expects a String for `pipeline_script`, but got Int.")|};
 
   (* Golden test: pipeline_to_ga unknown argument *)
   test "golden: pipeline_to_ga unknown arg"
-    "p = pipeline { a = 1 }; pipeline_to_ga(p, unknown_arg = 1)"
+    "pipeline_to_ga(unknown_arg = 1)"
     {|Error(TypeError: "Unknown argument `unknown_arg` for function `pipeline_to_ga`.
-Valid arguments: p (positional, required), name, file.")|};
+Valid arguments: pipeline_script (positional/named), name, file.")|};
 
   print_newline ();
 
