@@ -155,7 +155,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Golden test: pipeline_to_ga unknown argument *)
   test "golden: pipeline_to_ga unknown arg"
     "p = pipeline { a = 1 }; pipeline_to_ga(p, unknown_arg = 1)"
-    {|Error(TypeError: "pipeline_to_ga: unknown argument 'unknown_arg'")|};
+    {|Error(TypeError: "Unknown argument `unknown_arg` for function `pipeline_to_ga`.
+Valid arguments: p (positional, required), name, pipeline_script, file.")|};
 
   print_newline ();
 

@@ -102,8 +102,8 @@ let generate_yaml ~name ~pipeline_script =
 --# @export
 *)
 let register env =
+  let known = ["p"; "name"; "pipeline_script"; "file"] in
   let ga_fn named_args _env =
-    let known = ["p"; "name"; "pipeline_script"; "file"] in
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional = List.filter (fun (k, _) -> k = None) named_args in
     let get_named name default =
@@ -118,19 +118,24 @@ let register env =
     in
     match List.find_opt (fun k -> not (List.mem k known)) named_keys with
     | Some k ->
-        Error.type_error (Printf.sprintf "pipeline_to_ga: unknown argument '%s'" k)
-    | None when List.length positional > 4 ->
-        Error.make_error ArityError
-          (Printf.sprintf "Function `pipeline_to_ga` accepts at most 4 positional arguments but received %d." (List.length positional))
+        Error.type_error
+          (Printf.sprintf
+             "Unknown argument `%s` for function `pipeline_to_ga`.\nValid arguments: p (positional, required), name, pipeline_script, file."
+             k)
+    | None when List.length positional > 1 ->
+        Error.arity_error_named "pipeline_to_ga" 1 (List.length positional)
     | None ->
-    (match List.find_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args with
+    let pipeline_arg = List.find_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
+    (match pipeline_arg with
      | Some (VPipeline _p) ->
          let name_res =
            let n = get_named_str "name" "" in
            if n <> "" then Ok n
            else match get_project_name () with
                 | Some n -> Ok n
-                | None -> Error "could not determine project name. Provide `name = \"...\"` or ensure `tproject.toml` exists with a `[project] name` field."
+                | None ->
+                    Error
+                      "Could not determine project name.\nProvide `name = \"...\"` or ensure `tproject.toml` exists with a `[project] name` field."
          in
          (match name_res with
           | Error msg -> Error.make_error RuntimeError msg
@@ -140,22 +145,30 @@ let register env =
               match get_named "file" (VNA NAGeneric) with
               | VString path when String.length path > 0 ->
                   let dir = Filename.dirname path in
-                  let dir_ok =
+                  let dir_result =
                     if dir <> "" && dir <> "." then
-                      (try Builder_utils.ensure_dir dir; true
-                       with _ -> false)
-                    else true
+                      (try Ok (Builder_utils.ensure_dir dir)
+                       with e -> Error (Printexc.to_string e))
+                    else Ok ()
                   in
-                  if not dir_ok then
-                    Error.make_error FileError
-                      (Printf.sprintf "Cannot create directory `%s`." dir)
-                  else
-                    (match Builder_utils.write_file path yaml with
-                     | Ok () -> VString (Printf.sprintf "Wrote workflow to %s" path)
-                     | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to write workflow to `%s`: %s" path msg))
+                  (match dir_result with
+                   | Error reason ->
+                       Error.make_error FileError
+                         (Printf.sprintf
+                            "Cannot create directory `%s` for output file `%s`.\nReason: %s"
+                            dir path reason)
+                   | Ok () ->
+                       (match Builder_utils.write_file path yaml with
+                        | Ok () -> VString (Printf.sprintf "Wrote workflow to %s" path)
+                        | Error msg ->
+                            Error.make_error FileError
+                              (Printf.sprintf "Failed to write workflow to `%s`.\nReason: %s" path msg)))
+              | VString "" ->
+                  Error.value_error
+                    "Argument `file` was an empty string.\nOmit `file` to get the YAML back as a String, or pass a path such as `\".github/workflows/ci.yml\"`."
               | _ -> VString yaml)
      | Some other ->
-         Error.type_error
+         Error.type_error ~arg_index:1
            (Printf.sprintf "Function `pipeline_to_ga` expects a Pipeline, but got %s." (Utils.type_name other))
      | None ->
          Error.arity_error_named "pipeline_to_ga" 1 (List.length positional))
