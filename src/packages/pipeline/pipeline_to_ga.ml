@@ -27,7 +27,7 @@ let display_name name =
 let job_name name =
   String.map (fun c -> if c = '_' then '-' else c) name
 
-let generate_yaml ~name ~pipeline_script =
+let generate_yaml ~name =
   let dj = job_name name in
   let dn = display_name name in
   let buf = Buffer.create 512 in
@@ -63,11 +63,11 @@ let generate_yaml ~name ~pipeline_script =
   pf "          [ -f \"$NAR_ARCHIVE\" ] && nix-store --import < \"$NAR_ARCHIVE\" || true\n";
   pf "\n";
   pf "      - name: Run pipeline\n";
-  pf "        run: nix develop --command t run %s\n" pipeline_script;
+  pf "        run: nix develop --command t run src/pipeline.t\n";
   pf "\n";
   pf "      - name: Cache artifacts to t-runs branch\n";
   pf "        run: |\n";
-  pf "          t export_artifacts %s \"$NAR_ARCHIVE\"\n" pipeline_script;
+  pf "          t export_artifacts src/pipeline.t \"$NAR_ARCHIVE\"\n";
   pf "          git config user.name \"github-actions[bot]\"\n";
   pf "          git config user.email \"github-actions[bot]@users.noreply.github.com\"\n";
   pf "          git fetch origin t-runs || true\n";
@@ -90,19 +90,17 @@ let generate_yaml ~name ~pipeline_script =
 --# @name pipeline_to_ga
 --# @param p :: Pipeline The pipeline.
 --# @param name :: String (Optional) Project name. Auto-detected from tproject.toml when omitted.
---# @param pipeline_script :: String = "src/pipeline.t" Path to the pipeline T script.
 --# @param file :: String (Optional) Output file path. If omitted, returns the YAML string.
 --# @return :: String The YAML workflow content or the output file path.
 --# @example
 --#   pipeline_to_ga(p)
 --#   pipeline_to_ga(p, name = "my-project")
 --#   pipeline_to_ga(p, file = ".github/workflows/ci.yml")
---#   pipeline_to_ga(p, name = "my-project", pipeline_script = "src/run.t")
 --# @family pipeline
 --# @export
 *)
 let register env =
-  let known = ["p"; "name"; "pipeline_script"; "file"] in
+  let known = ["p"; "name"; "file"] in
   let ga_fn named_args _env =
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional = List.filter (fun (k, _) -> k = None) named_args in
@@ -120,7 +118,7 @@ let register env =
     | Some k ->
         Error.type_error
           (Printf.sprintf
-             "Unknown argument `%s` for function `pipeline_to_ga`.\nValid arguments: p (positional, required), name, pipeline_script, file."
+             "Unknown argument `%s` for function `pipeline_to_ga`.\nValid arguments: p (positional, required), name, file."
              k)
     | None when List.length positional > 1 ->
         Error.arity_error_named "pipeline_to_ga" 1 (List.length positional)
@@ -140,8 +138,7 @@ let register env =
          (match name_res with
           | Error msg -> Error.make_error RuntimeError msg
           | Ok name ->
-              let pipeline_script = get_named_str "pipeline_script" "src/pipeline.t" in
-              let yaml = generate_yaml ~name ~pipeline_script in
+              let yaml = generate_yaml ~name in
               match get_named "file" (VNA NAGeneric) with
               | VString path when String.length path > 0 ->
                   let dir = Filename.dirname path in

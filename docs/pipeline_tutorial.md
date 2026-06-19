@@ -2193,8 +2193,8 @@ print(yaml)
 -- Write directly to .github/workflows/<name>.yml
 pipeline_to_ga(p, file = ".github/workflows/ci.yml")
 
--- Override project name and pipeline script path
-pipeline_to_ga(p, name = "my-project", pipeline_script = "src/run.t")
+-- Override project name
+pipeline_to_ga(p, name = "my-project")
 ```
 
 ### Parameters
@@ -2203,7 +2203,6 @@ pipeline_to_ga(p, name = "my-project", pipeline_script = "src/run.t")
 |-----------|------|---------|-------------|
 | `p` | `Pipeline` | (required) | The pipeline to generate a workflow for. |
 | `name` | `String` | Auto-detected | Project name from `tproject.toml`. Controls the workflow display name, job ID, and NAR archive filename. |
-| `pipeline_script` | `String` | `"src/pipeline.t"` | Path to the pipeline T script. |
 | `file` | `String` | (none) | Output file path. When provided, writes the YAML and returns a confirmation string. When omitted, returns the YAML as a string. |
 
 The auto-detected project name comes from the `name` field in your project's `tproject.toml`. If neither a `name` argument nor a `tproject.toml` is found, an error is raised prompting you to provide an explicit name.
