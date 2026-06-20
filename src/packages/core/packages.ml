@@ -120,7 +120,8 @@ let core_package = {
   description = "Core utilities: printing, type inspection, data structures";
   functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get"; "rm";
                 "ifelse"; "identical"; "case_when"; "node_when"; "node_fork"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "show_plot"; "to_integer"; "to_float"; "to_string"; "to_bool"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
-               "to_symbol"; "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
+                "to_symbol"; "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs";
+                "map_pattern"; "cross_pattern"; "slice_pattern"; "head_pattern"; "tail_pattern"; "sample_pattern"];
 }
 
 let strcraft_package = {
@@ -837,6 +838,7 @@ let init_env () =
   let env = Pipeline_dag_ops.register env in
   (* Phase 4 — Composition & inspection utilities *)
   let env = Pipeline_composition.register ~rerun_pipeline:rerun_pipeline_fn env in
+  let env = Pipeline_expand.register env in
   let env = T_make_mod.register env in
   let env = Pipeline_inspect2.register env in
   let env = Pipeline_to_ga.register env in
@@ -963,6 +965,7 @@ let init_env () =
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in
   let env = Show_plot.register env in
+  let env = T_pattern.register env in
   let env = register env in
   (* Known symbols: bare words that should resolve to VSymbol rather than
      NameError.  These are used as keyword-style arguments in node() and

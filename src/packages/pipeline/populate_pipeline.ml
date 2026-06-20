@@ -27,15 +27,6 @@ open Pipeline_utils
 *)
 let register env =
   let populate_fn named_args env =
-    let get_arg name pos default named_args =
-      match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
-      | Some v -> (true, v)
-      | None ->
-          let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-          match nth_safe (pos - 1) positionals with
-          | Some v -> (true, v)
-          | None -> (false, default)
-    in
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
     match List.find_opt (fun k -> not (List.mem k ["p"; "build"; "verbose"; "nix_options"; "dry_run"; "pipeline_name"])) named_keys with
@@ -45,13 +36,17 @@ let register env =
         Error.make_error ArityError
           (Printf.sprintf "Function `populate_pipeline` accepts at most 6 positional arguments but received %d." positional_count)
     | None ->
-      match get_arg "p" 1 (VNA NAGeneric) named_args with
+      match Pipeline_args.get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
-        let (build_provided, build_val) = get_arg "build" 2 (VBool false) named_args in
-        let (verbose_provided, verbose_val) = get_arg "verbose" 3 (VNA NAGeneric) named_args in
-        let (_, nix_options_val) = get_arg "nix_options" 4 (VDict []) named_args in
-        let (dry_run_provided, dry_run_val) = get_arg "dry_run" 5 (VNA NAGeneric) named_args in
-        let (pipeline_name_provided, pipeline_name_val) = get_arg "pipeline_name" 6 (VNA NAGeneric) named_args in
+          if p.p_has_patterns then
+            Error.make_error StructuralError
+              "Pipeline contains unexpanded dynamic branching patterns. Use expand_pipeline(p) to resolve branches before building. See help(expand_pipeline) for details."
+          else
+            let (build_provided, build_val) = Pipeline_args.get_arg "build" 2 (VBool false) named_args in
+        let (verbose_provided, verbose_val) = Pipeline_args.get_arg "verbose" 3 (VNA NAGeneric) named_args in
+        let (_, nix_options_val) = Pipeline_args.get_arg "nix_options" 4 (VDict []) named_args in
+        let (dry_run_provided, dry_run_val) = Pipeline_args.get_arg "dry_run" 5 (VNA NAGeneric) named_args in
+        let (pipeline_name_provided, pipeline_name_val) = Pipeline_args.get_arg "pipeline_name" 6 (VNA NAGeneric) named_args in
 
         let build_result =
           match build_val with
@@ -98,69 +93,72 @@ let register env =
           | _ -> Ok None
         in
 
-        (match build_result, verbose_result, nix_options_result, dry_run_result, pipeline_name_result with
-         | Error e, _, _, _, _ | _, Error e, _, _, _ | _, _, Error e, _, _ | _, _, _, Error e, _ | _, _, _, _, Error e -> e
-         | Ok build, Ok verbose, Ok nix_options, Ok dry_opt, Ok pipeline_name_explicit ->
-             let final_nix_options =
-               let base_opts =
-                 match nix_options with
-                 | Some opts -> opts
-                 | None -> Builder_utils.default_nix_opts
+        let (let*) x f = match x with Ok v -> f v | Error e -> e in
+        let* build = build_result in
+        let* verbose = verbose_result in
+        let* nix_options = nix_options_result in
+        let* dry_opt = dry_run_result in
+        let* pipeline_name_explicit = pipeline_name_result in
+        let final_nix_options =
+          let base_opts =
+            match nix_options with
+            | Some opts -> opts
+            | None -> Builder_utils.default_nix_opts
+          in
+          match dry_opt with
+          | Some d -> Some { base_opts with dry_run = Some d }
+          | None -> Some base_opts
+        in
+        let final_build =
+          match final_nix_options with
+          | Some opts ->
+              (match opts.dry_run with
+               | Some true -> true
+               | _ -> build)
+          | None -> build
+        in
+        let pipeline_name =
+          match pipeline_name_explicit with
+          | Some _ -> pipeline_name_explicit
+          | None -> resolve_pipeline_name env p
+        in
+        (match Builder.populate_pipeline ~build:final_build ?verbose ?pipeline_name ?nix_options:final_nix_options p with
+         | Ok out ->
+             if final_build && (match final_nix_options with Some opts -> opts.dry_run <> Some true | None -> true) then (
+               let built =
+                 match out with
+                 | VDict pairs ->
+                     (match List.assoc_opt "built" pairs with
+                      | Some (VInt n) -> n
+                      | _ -> 1)
+                 | _ -> 1
                in
-               match dry_opt with
-               | Some d -> Some { base_opts with dry_run = Some d }
-               | None -> Some base_opts
-             in
-             let final_build =
-               match final_nix_options with
-               | Some opts ->
-                   (match opts.dry_run with
-                    | Some true -> true
-                    | _ -> build)
-               | None -> build
-             in
-               let pipeline_name =
-                 match pipeline_name_explicit with
-                 | Some _ -> pipeline_name_explicit
-                 | None -> resolve_pipeline_name env p
+               let soft_failed =
+                 match out with
+                 | VDict pairs ->
+                     (match List.assoc_opt "soft_failed" pairs with
+                      | Some (VList items) -> List.length items
+                      | _ -> 0)
+                 | _ -> 0
                in
-              (match Builder.populate_pipeline ~build:final_build ?verbose ?pipeline_name ?nix_options:final_nix_options p with
-               | Ok out ->
-                   if final_build && (match final_nix_options with Some opts -> opts.dry_run <> Some true | None -> true) then (
-                       let built =
-                         match out with
-                         | VDict pairs ->
-                             (match List.assoc_opt "built" pairs with
-                              | Some (VInt n) -> n
-                              | _ -> 1)
-                         | _ -> 1
-                       in
-                       let soft_failed =
-                         match out with
-                         | VDict pairs ->
-                             (match List.assoc_opt "soft_failed" pairs with
-                              | Some (VList items) -> List.length items
-                              | _ -> 0)
-                         | _ -> 0
-                       in
-                        let var_name = match pipeline_name with Some n -> n | None -> "p" in
-                        let first_node =
-                          match p.p_nodes with
-                          | (name, _) :: _ -> name
-                          | [] -> "my_node"
-                        in
-                        if built > 0 then
-                          if soft_failed > 0 then
-                            Printf.eprintf "\nPipeline built successfully but with errors\n"
-                          else
-                            Printf.eprintf "\nPipeline successfully built!\n";
-                        Printf.eprintf "  - Pipeline saved in variable '%s'\n" var_name;
-                        Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
-                        Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
-                        Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name
-                   );
-                   out
-               | Error msg -> Error.make_error StructuralError msg))
+               let var_name = match pipeline_name with Some n -> n | None -> "p" in
+               let first_node =
+                 match p.p_nodes with
+                 | (name, _) :: _ -> name
+                 | [] -> "my_node"
+               in
+               if built > 0 then
+                 if soft_failed > 0 then
+                   Printf.eprintf "\nPipeline built successfully but with errors\n"
+                 else
+                   Printf.eprintf "\nPipeline successfully built!\n";
+               Printf.eprintf "  - Pipeline saved in variable '%s'\n" var_name;
+               Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
+               Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
+               Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name
+             );
+             out
+         | Error msg -> Error.make_error StructuralError msg)
       | _ ->
           Error.type_error "Function `populate_pipeline` expects a Pipeline."
   in

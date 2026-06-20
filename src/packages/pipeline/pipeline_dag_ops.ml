@@ -59,6 +59,9 @@ let filter_pipeline (names : string list) (p : pipeline_result) : pipeline_resul
     p_scripts      = List.filter (fun (n, _) -> keep n) p.p_scripts;
     p_explicit_deps = List.filter (fun (n, _) -> keep n) p.p_explicit_deps;
     p_node_diagnostics = List.filter (fun (n, _) -> keep n) p.p_node_diagnostics;
+    p_patterns     = List.filter (fun (n, _) -> keep n) p.p_patterns;
+    p_iterations   = List.filter (fun (n, _) -> keep n) p.p_iterations;
+    p_has_patterns = (List.filter (fun (n, _) -> keep n) p.p_patterns <> []);
   }
 
 let register env =

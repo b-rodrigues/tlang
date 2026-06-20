@@ -1,7 +1,5 @@
 (* src/packages/pipeline/pipeline_copy.ml *)
 open Ast
-open Pipeline_utils
-
 (*
 --# Copy Pipeline Node Artifacts to Local Directory
 --#
@@ -18,29 +16,20 @@ open Pipeline_utils
 --# @export
 *)
 let register env =
-  let get_arg name pos default named_args =
-    match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
-    | Some v -> v
-    | None ->
-        let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-        match nth_safe (pos - 1) positionals with
-        | Some v -> v
-        | None -> default
-  in
-
   let (>>=) x f = match x with Ok v -> f v | Error e -> Error e in
 
   let copy_fn named_args _env =
     let parse_string_like field pos default =
-      match get_arg field pos default named_args with
-      | VString s | VSymbol s -> Ok s
+      match Pipeline_args.get_arg field pos default named_args with
+      | (_, VString s) -> Ok s
+      | (_, VSymbol s) -> Ok s
       | _ ->
           Error (Error.type_error
                    (Printf.sprintf "Function `pipeline_copy` expects `%s` to be a String or Symbol." field))
     in
     let parse_string field pos default =
-      match get_arg field pos default named_args with
-      | VString s -> Ok s
+      match Pipeline_args.get_arg field pos default named_args with
+      | (_, VString s) -> Ok s
       | _ ->
           Error (Error.type_error
                    (Printf.sprintf "Function `pipeline_copy` expects `%s` to be a String." field))
@@ -54,10 +43,10 @@ let register env =
       >>= fun file_mode ->
       Ok (Builder.pipeline_copy ~node_name ~target_dir ~dir_mode ~file_mode ())
     in
-    match get_arg "node" 1 (VNA NAGeneric) named_args with
-    | VNA _ -> (match run_copy None with Ok v -> v | Error e -> e)
-    | VString node_name | VSymbol node_name -> (match run_copy (Some node_name) with Ok v -> v | Error e -> e)
-    | other ->
+    match Pipeline_args.get_arg "node" 1 (VNA NAGeneric) named_args with
+    | (_, VNA _) -> (match run_copy None with Ok v -> v | Error e -> e)
+    | (_, VString node_name) | (_, VSymbol node_name) -> (match run_copy (Some node_name) with Ok v -> v | Error e -> e)
+    | (_, other) ->
         Error.type_error
           (Printf.sprintf "Function `pipeline_copy` expects `node` to be a String, Symbol, or NA, but got %s."
              (Utils.type_name other))

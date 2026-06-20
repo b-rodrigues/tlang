@@ -57,6 +57,20 @@ let register env =
               List.map (fun (k, deps_opt) ->
                 (k, Option.map (List.map (fun d -> if d = old_name then new_name else d)) deps_opt)
               ) lst
+             in
+            let rec rewire_pattern_expr = function
+              | PatternMap deps -> PatternMap (List.map (fun d -> if d = old_name then new_name else d) deps)
+              | PatternCross subs -> PatternCross (List.map rewire_pattern_expr subs)
+              | PatternSlice (dep, idxs) -> PatternSlice ((if dep = old_name then new_name else dep), idxs)
+              | PatternHead (dep, n) -> PatternHead ((if dep = old_name then new_name else dep), n)
+              | PatternTail (dep, n) -> PatternTail ((if dep = old_name then new_name else dep), n)
+              | PatternSample (dep, n) -> PatternSample ((if dep = old_name then new_name else dep), n)
+            in
+            let rewire_patterns lst =
+              List.map (fun (k, pat) ->
+                let k' = if k = old_name then new_name else k in
+                (k', rewire_pattern_expr pat)
+              ) lst
             in
             let rewire_warning warning =
               let source =
@@ -75,7 +89,7 @@ let register env =
             in
             let new_pipeline = VPipeline {
               p_nodes        = rename_node_key p.p_nodes;
-               p_exprs        = new_p_exprs;
+              p_exprs        = new_p_exprs;
               p_deps         = rewire_deps (rename_key p.p_deps);
               p_imports      = p.p_imports;
               p_runtimes     = rename_key p.p_runtimes;
@@ -91,6 +105,9 @@ let register env =
               p_scripts      = rename_key p.p_scripts;
               p_explicit_deps = rewire_deps_opt (rename_key p.p_explicit_deps);
               p_node_diagnostics = rename_diagnostics p.p_node_diagnostics;
+              p_has_patterns = p.p_has_patterns;
+              p_patterns     = rewire_patterns p.p_patterns;
+              p_iterations   = rename_key p.p_iterations;
             } in
             begin match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:old_name with
             | Some v ->

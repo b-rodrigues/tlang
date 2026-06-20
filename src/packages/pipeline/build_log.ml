@@ -48,14 +48,6 @@ let find_all_matching_log_paths (p : Ast.pipeline_result) =
 --# @export
 *)
 let build_log_fn named_args _env =
-  let get_arg name pos default named_args =
-    match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
-    | Some v -> (true, v)
-    | None ->
-        let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-        if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
-        else (false, default)
-  in
   let named_keys = List.filter_map (fun (k, _) -> k) named_args in
   let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
   match List.find_opt (fun k -> not (List.mem k ["p"; "which_log"])) named_keys with
@@ -64,9 +56,9 @@ let build_log_fn named_args _env =
       Error.make_error ArityError
         (Printf.sprintf "Function `build_log` accepts at most 2 positional arguments but received %d." positional_count)
   | None ->
-    match get_arg "p" 1 (VNA NAGeneric) named_args with
+    match Pipeline_args.get_arg "p" 1 (VNA NAGeneric) named_args with
     | (_, VPipeline p) ->
-        let (_, which_log_val) = get_arg "which_log" 2 (VNA NAGeneric) named_args in
+        let (_, which_log_val) = Pipeline_args.get_arg "which_log" 2 (VNA NAGeneric) named_args in
         let get_log_path () =
           match which_log_val with
           | VString pattern ->
@@ -290,14 +282,6 @@ let collect_exceptions_fn args _env =
 --# @export
 *)
 let build_log_history_fn named_args _env =
-  let get_arg name pos default named_args =
-    match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
-    | Some v -> (true, v)
-    | None ->
-        let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-        if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
-        else (false, default)
-  in
   let named_keys = List.filter_map (fun (k, _) -> k) named_args in
   let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
   match List.find_opt (fun k -> not (List.mem k ["p"; "n"; "pattern"])) named_keys with
@@ -306,16 +290,16 @@ let build_log_history_fn named_args _env =
       Error.make_error ArityError
         (Printf.sprintf "Function `build_log_history` accepts at most 3 positional arguments but received %d." positional_count)
   | None ->
-    match get_arg "p" 1 (VNA NAGeneric) named_args with
+    match Pipeline_args.get_arg "p" 1 (VNA NAGeneric) named_args with
     | (_, VPipeline p) ->
-        let (n_provided, n_val) = get_arg "n" 2 (VNA NAGeneric) named_args in
+        let (n_provided, n_val) = Pipeline_args.get_arg "n" 2 (VNA NAGeneric) named_args in
         let limit_opt =
           match n_val with
           | VInt limit when limit > 0 -> Some limit
           | VNA _ -> None
           | _ -> None
         in
-        let (pattern_provided, pattern_val) = get_arg "pattern" 3 (VNA NAGeneric) named_args in
+        let (pattern_provided, pattern_val) = Pipeline_args.get_arg "pattern" 3 (VNA NAGeneric) named_args in
         let filter_by_pattern_result =
           match pattern_val with
           | VString pat ->
@@ -495,20 +479,12 @@ let build_log_history_fn named_args _env =
 --# @export
 *)
 let node_diff_fn named_args _env =
-  let get_arg name pos default named_args =
-    match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
-    | Some v -> (true, v)
-    | None ->
-        let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-        if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
-        else (false, default)
-  in
   let named_keys = List.filter_map (fun (k, _) -> k) named_args in
   let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
 
   (* Form: node_diff(node_a :: ComputedNode, node_b :: ComputedNode, ...) *)
-  let (_, first_arg) = get_arg "node_a" 1 (VNA NAGeneric) named_args in
-  let (_, second_arg) = get_arg "node_b" 2 (VNA NAGeneric) named_args in
+  let (_, first_arg) = Pipeline_args.get_arg "node_a" 1 (VNA NAGeneric) named_args in
+  let (_, second_arg) = Pipeline_args.get_arg "node_b" 2 (VNA NAGeneric) named_args in
   let preserve_native_object cn =
     let runtime = String.lowercase_ascii cn.cn_runtime in
     let serializer = String.lowercase_ascii cn.cn_serializer in
@@ -526,10 +502,10 @@ let node_diff_fn named_args _env =
            Error.make_error ArityError
              (Printf.sprintf "Function `node_diff` accepts at most 6 positional arguments but received %d." positional_count)
        | None ->
-           let (_, log_a_val) = get_arg "log_a" 3 (VString "latest") named_args in
-           let (_, log_b_val) = get_arg "log_b" 4 (VString "latest") named_args in
-           let (_, key_val)   = get_arg "key"   5 (VList []) named_args in
-           let (_, ctx_val)   = get_arg "context" 6 (VInt 3) named_args in
+           let (_, log_a_val) = Pipeline_args.get_arg "log_a" 3 (VString "latest") named_args in
+           let (_, log_b_val) = Pipeline_args.get_arg "log_b" 4 (VString "latest") named_args in
+           let (_, key_val)   = Pipeline_args.get_arg "key"   5 (VList []) named_args in
+           let (_, ctx_val)   = Pipeline_args.get_arg "context" 6 (VInt 3) named_args in
            let key = match key_val with
              | VList items -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | VSymbol s -> Some s | _ -> None) items
              | _ -> []
