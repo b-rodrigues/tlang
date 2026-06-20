@@ -1412,9 +1412,114 @@ meta.stats.summary.name|}
          Printf.printf "%s" msg
        end
    | other ->
+        incr fail_count;
+        let msg = Printf.sprintf "  ✗ pipeline_report web: expected VString path, got %s\n" (Ast.Utils.value_to_string other) in
+        failures := msg :: !failures;
+        Printf.printf "%s" msg);
+
+  print_newline ();
+
+  Printf.printf "Phase 12 — node_when / node_fork:\n";
+
+  (* §1: Undefined var in condition should fail immediately at pipeline construction time *)
+  test "node_when: undefined var in condition fails at construction time"
+    {|
+      p = pipeline { flag = node_when(undefined_var == "1", rn(script = "a.R")) };
+      error_code(p)
+    |}
+    "NameError";
+
+  (* §2: node_fork with error condition propagates immediately *)
+  test "node_fork: error condition propagates immediately"
+    {|
+      p = pipeline { m = node_fork(undefined_var == "1", rn(script = "a.R"), .default = rn(script = "b.R")) };
+      error_code(p)
+    |}
+    "NameError";
+
+  (* §3: Non-node value raises TypeError *)
+  test "node_when: non-node return value raises TypeError"
+    {|
+      p = pipeline { x = node_when(true, 42) };
+      error_code(p)
+    |}
+    "TypeError";
+
+  (* node_when(true, node) includes the node *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { flag = node_when(true, rn(script = "a.R")) }; pipeline_nodes(p) |> length |}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VInt n when n >= 1 ->
+       incr pass_count; Printf.printf "  ✓ node_when(true, node) includes node\n"
+   | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_report web: expected VString path, got %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  ✗ node_when(true, node) includes node\n    Expected length >= 1\n    Got: %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
-  print_newline ()
+  (* node_when(false, node) excludes the node *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { flag = node_when(false, rn(script = "a.R")) }; pipeline_nodes(p) |> length |}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VInt 0 ->
+       incr pass_count; Printf.printf "  ✓ node_when(false, node) excludes node\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ node_when(false, node) excludes node\n    Expected length 0\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* node_fork: first truthy condition wins *)
+  let (v, _) = eval_string_env
+    {|p = pipeline {
+        m = node_fork(
+          true, rn(script = "a.R"),
+          false, rn(script = "b.R"),
+          .default = rn(script = "c.R")
+        )
+      }; pipeline_nodes(p) |> length |}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VInt n when n >= 1 ->
+       incr pass_count; Printf.printf "  ✓ node_fork selects first truthy condition\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ node_fork selects first truthy condition\n    Expected length >= 1\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* node_fork: all false, no default → excluded *)
+  let (v, _) = eval_string_env
+    {|p = pipeline { m = node_fork(false, rn(script = "a.R"), false, rn(script = "b.R")) }; pipeline_nodes(p) |> length |}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VInt 0 ->
+       incr pass_count; Printf.printf "  ✓ node_fork all false, no default excludes node\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ node_fork all false, no default excludes node\n    Expected length 0\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* node_fork: all false, with default → included *)
+  let (v, _) = eval_string_env
+    {|p = pipeline {
+        m = node_fork(
+          false, rn(script = "a.R"),
+          false, rn(script = "b.R"),
+          .default = rn(script = "c.R")
+        )
+      }; pipeline_nodes(p) |> length |}
+    (Packages.init_env ()) in
+  (match v with
+   | Ast.VInt n when n >= 1 ->
+       incr pass_count; Printf.printf "  ✓ node_fork with .default includes fallback\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ node_fork with .default includes fallback\n    Expected length >= 1\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+   print_newline ()

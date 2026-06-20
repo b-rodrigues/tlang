@@ -261,6 +261,7 @@ and value =
   | VFormula of formula_spec
   | VComputedNode of computed_node
   | VNode of unbuilt_node
+  | VNullNode
   | VExpr of expr
   (* Quosure: expression captured with its lexical environment (like rlang::quo) *)
   | VQuo of { q_expr: expr; q_env: value Env.t }
@@ -572,6 +573,7 @@ module Utils = struct
     | VBool false | VInt 0 -> false
     | VError _ -> false
     | VNA _ -> false
+    | VNullNode -> false
     | VNodeResult { v; _ } -> is_truthy v
     | _ -> true
 
@@ -770,6 +772,7 @@ module Utils = struct
     | VSerializer _ -> "Serializer"
     | VComputedNode _ -> "ComputedNode"
     | VNode _ -> "Node"
+    | VNullNode -> "NullNode"
     | VExpr _ -> "Expression"
     | VQuo _ -> "Quosure"
     | VShellResult _ -> "ShellResult"
@@ -1075,6 +1078,7 @@ module Utils = struct
         Printf.sprintf "serializer<^%s>" s.s_format
     | VNode un ->
         Printf.sprintf "node<%s>(...)" un.un_runtime
+    | VNullNode -> "<null>"
     | VShellResult { sr_stdout; _ } ->
         (* Display as the raw stdout string so ?<{cmd}> behaves like a string *)
         "\"" ^ String.escaped sr_stdout ^ "\""

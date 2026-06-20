@@ -235,6 +235,96 @@ let identical args _env =
   | _ -> Error.arity_error_named "identical" 2 (List.length args)
 
 
+(* --- node_when --- *)
+
+(*
+--# Static pipeline node conditional
+--#
+--# Evaluated at pipeline construction time. Returns `value` if `condition` is truthy,
+--# otherwise returns a null marker that causes the pipeline to exclude the node entirely.
+--# This preserves Nix's static DAG requirement — the condition is checked before the build.
+--#
+--# `node_when` is only meaningful as the direct value of a node binding inside a
+--# `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.)
+--# is unsupported.
+--#
+--# @name node_when
+--# @param condition :: Bool The condition to evaluate.
+--# @param value :: Node The node value to include if condition is true.
+--# @return :: Node | Null The node value or null marker.
+--# @example
+--#   p = pipeline {
+--#     model = node_when(env("CI") == "1", pyn(script = "train.py"))
+--#   }
+--# @family pipeline
+--# @export
+*)
+let node_when_fn args _env =
+  match args with
+  | [(VError _ as e); _] -> e
+  | [condition; node_value] ->
+      if Ast.Utils.is_truthy condition then node_value
+      else VNullNode
+  | _ -> Error.arity_error_named "node_when" 2 (List.length args)
+
+(* --- node_fork --- *)
+
+(*
+--# Static pipeline multi-way branch
+--#
+--# Evaluated at pipeline construction time. Takes condition-value pairs and returns
+--# the value for the first truthy condition. If no condition matches, returns a null
+--# marker (node excluded). Provide `.default` to control the fallback value.
+--# This preserves Nix's static DAG requirement — the condition is checked before the build.
+--#
+--# `node_fork` is only meaningful as the direct value of a node binding inside a
+--# `pipeline { }` block. Using the result outside that context is unsupported.
+--#
+--# @name node_fork
+--# @param ... :: Any Pairs of condition-value arguments.
+--# @param .default :: Any (Optional) Fallback value if no condition matches.
+--# @return :: Node | Null The selected node value or null marker.
+--# @example
+--#   p = pipeline {
+--#     model = node_fork(
+--#       env("MODEL_TYPE") == "lm", rn(script = "lm.R"),
+--#       env("MODEL_TYPE") == "nn", pyn(script = "nn.py"),
+--#       .default = rn(script = "baseline.R")
+--#     )
+--#   }
+--# @family pipeline
+--# @export
+*)
+let node_fork_fn (named_args : (string option * Ast.value) list) _env =
+  let default_val, rest_named =
+    List.fold_left (fun (def, unexpected) (name, value) ->
+      match name with
+      | None -> (def, unexpected)
+      | Some ".default" -> (Some value, unexpected)
+      | Some n -> (def, n :: unexpected)
+    ) (None, []) named_args
+  in
+  match rest_named with
+  | n :: _ ->
+      Error.make_error TypeError
+        (Printf.sprintf "Function `node_fork` received unexpected named argument '%s'." n)
+  | [] ->
+      let positional_args = List.filter_map (function (None, v) -> Some v | _ -> None) named_args in
+      let rec process_pairs = function
+        | [] ->
+            (match default_val with
+             | Some def -> def
+             | None -> VNullNode)
+        | [_] ->
+            Error.make_error TypeError
+              "Function `node_fork` expects an even number of positional arguments (condition-value pairs)."
+        | (VError _ as e) :: _ -> e
+        | cond :: value :: rest ->
+            if Ast.Utils.is_truthy cond then value
+            else process_pairs rest
+      in
+      process_pairs positional_args
+
 (*
 --# Vectorized Case-When
 --#

@@ -1643,44 +1643,75 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     un_dependencies = None;
   } in
 
+  let wrap_computed_node cn = {
+    un_command = vexpr (VComputedNode cn);
+    un_script = None;
+    un_runtime = cn.cn_runtime;
+    un_serializer = vexpr (VString cn.cn_serializer);
+    un_deserializer = varexpr "default";
+    un_env_vars = [];
+    un_args = [];
+    un_shell = None;
+    un_shell_args = [];
+    un_functions = [];
+    un_includes = [];
+    un_noop = false;
+    un_dependencies = None;
+  } in
+
   (* Desugar nodes into enriched structures with defaults.
      We evaluate potential node expressions early so pre-defined nodes
      (e.g. `p = pipeline { data = data_node }`) are correctly imported.
      If a NameError occurs (e.g. `b = a` referencing an undefined sibling `a`), 
      we catch it and defer it as an unbuilt node so pipeline topological
-     sorting can resolve it as an internal dependency. *)
-  let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
+     sorting can resolve it as an internal dependency.
+
+     node_when/node_fork are handled BEFORE the generic node-call path so
+     that errors in their condition expressions (including NameError from
+     typos in condition references) propagate immediately rather than being
+     misinterpreted as forward-references to sibling nodes. *)
+  let desugar_node (name, node_expr) : (string * Ast.unbuilt_node option, value) result =
     let node_names = List.map fst nodes in
     let node_expr = substitute_env_vars !env_ref node_names node_expr in
-    let is_node_call = match node_expr.node with
-      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
-      | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
-      | _ -> false
+    (* node_when/node_fork — resolve conditions at construction time;
+       any VError (including NameError) propagates immediately. *)
+    let when_fork_fn_name = match node_expr.node with
+      | Call { fn = { node = Var ("node_when" | "node_fork" as n); _ }; _ } -> Some n
+      | _ -> None
     in
-    if is_node_call then
-      match eval_expr env_ref node_expr with
-      | VNode un -> Ok (name, un)
-      | VComputedNode cn ->
-          Ok (name, {
-            un_command = vexpr (VComputedNode cn);
-            un_script = None;
-            un_runtime = cn.cn_runtime;
-            un_serializer = vexpr (VString cn.cn_serializer);
-            un_deserializer = varexpr "default";
-            un_env_vars = [];
-            un_args = [];
-            un_shell = None;
-            un_shell_args = [];
-            un_functions = [];
-            un_includes = [];
-            un_noop = false;
-            un_dependencies = None;
-          })
-      | VError { code = NameError; _ } -> Ok (name, default_un node_expr)
-      | VError _ as e -> Error e
-      | _ -> Ok (name, default_un node_expr)
-    else
-      Ok (name, default_un node_expr)
+    match when_fork_fn_name with
+    | Some fn_name ->
+        (match eval_expr env_ref node_expr with
+         | VNode un -> Ok (name, Some un)
+         | VNullNode -> Ok (name, None)
+         | VComputedNode cn -> Ok (name, Some (wrap_computed_node cn))
+         | VError _ as e ->
+             let annotated = match e with
+               | VError err when not (List.mem_assoc "node_name" err.context) ->
+                   VError { err with context = ("node_name", VString name) :: err.context }
+               | _ -> e
+             in
+             Error annotated
+         | other ->
+             Error (Error.type_error
+               (Printf.sprintf "Function `%s` must return a Node value, got %s."
+                  fn_name (Ast.Utils.type_name other))))
+    | None ->
+        let is_node_call = match node_expr.node with
+          | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
+          | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
+          | _ -> false
+        in
+        if is_node_call then
+          match eval_expr env_ref node_expr with
+          | VNode un -> Ok (name, Some un)
+          | VNullNode -> Ok (name, None)
+          | VComputedNode cn -> Ok (name, Some (wrap_computed_node cn))
+          | VError { code = NameError; _ } -> Ok (name, Some (default_un node_expr))
+          | VError _ as e -> Error e
+          | _ -> Ok (name, Some (default_un node_expr))
+        else
+          Ok (name, Some (default_un node_expr))
   in
 
   let rec desugar_all acc = function
@@ -1688,7 +1719,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     | node :: rest ->
         (match desugar_node node with
          | Error err -> Error err
-         | Ok res -> desugar_all (res :: acc) rest)
+         | Ok (name, Some un) -> desugar_all ((name, un) :: acc) rest
+         | Ok (_, None) -> desugar_all acc rest)
   in
 
   match desugar_all [] nodes with

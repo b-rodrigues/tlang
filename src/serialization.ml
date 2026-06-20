@@ -285,6 +285,7 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       ]
   | VFactor _ | VSerializer _ | VBuildLog _ ->
       invalid_arg "value_to_yojson: VFactor/VSerializer/VBuildLog is not supported for JSON serialization"
+  | VNullNode -> `Null
   | VUnquote _ | VUnquoteSplice _ | VDynamicArg _ | VQuo _ | VEnv _ ->
       invalid_arg "value_to_yojson: metaprogramming intermediate values are not serializable"
   | VLens l ->

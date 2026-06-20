@@ -9,7 +9,7 @@ endif
 syn keyword tKeyword if else import function pipeline intent true false null NA in
 
 " Built-in Functions & Common Verbs
-syn keyword tBuiltin read_csv filter mutate summarize select arrange group_by node rn pyn build_pipeline print mean sqrt predict t_read_pmml 
+syn keyword tBuiltin read_csv filter mutate summarize select arrange group_by node rn pyn node_when node_fork build_pipeline print mean sqrt predict t_read_pmml 
 syn keyword tBuiltin glimpse nrow ncol colnames clean_colnames head tail join split slice arrange group_by
 
 " Comments
