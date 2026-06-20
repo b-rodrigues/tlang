@@ -34,7 +34,25 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.52.3] - 2026-06-09</h2>
+<h2 id="xx-xx">[0.53.0] - 2026-xx-xx</h2>
+<p>This release:</p>
+<ul>
+<li>Introduces Atelier IDE support. <code>t init --project</code> and
+<code>t init --package</code> now accept <code>--include-atelier</code>
+(CLI flag) or prompt interactively. When enabled, the generated
+<code>flake.nix</code> pins
+<code>atelier.url = "github:b-rodrigues/atelier/main"</code> as a flake
+input and adds <code>atelier</code> to the devShell’s
+<code>buildInputs</code>, making the tmux-based TUI IDE immediately
+available via the <code>atelier</code> command inside
+<code>nix develop</code>.</li>
+<li>Introduces static conditionals for pipelines:
+<code>node_when(condition, node_value)</code> and
+<code>node_fork(...)</code> allow conditional node inclusion evaluated
+at pipeline construction time, preserving Nix’s static DAG
+requirement.</li>
+</ul>
+<h2 id="section">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature

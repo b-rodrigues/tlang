@@ -272,6 +272,26 @@ id="case_when...formulas-.default-na"><code>case_when(...formulas, .default = NA
 <h3 id="identicala-b"><code>identical(a, b)</code></h3>
 <p>Deep equality check. Works for collections and complex objects.</p>
 <hr />
+<h3
+id="node_whencondition-value"><code>node_when(condition, value)</code></h3>
+<p>Static conditional for pipeline nodes. Evaluated at pipeline
+construction time. Returns <code>value</code> if <code>condition</code>
+is truthy, otherwise excludes the node from the DAG.</p>
+<p><code>node_when</code> is only meaningful as the direct value of a
+node binding inside a <code>pipeline { }</code> block. Using the result
+outside that context (arithmetic, <code>is_na()</code>, etc.) is
+unsupported.</p>
+<h3
+id="node_fork...condition_value_pairs-.default-..."><code>node_fork(...condition_value_pairs, .default = ...)</code></h3>
+<p>Static multi-way branch for pipeline nodes. Returns the value for the
+first truthy condition-value pair. If no condition matches and
+<code>.default</code> is provided, that value is included in the
+pipeline; if <code>.default</code> is omitted the node is excluded from
+the DAG entirely (null marker behaviour, not <code>NA</code>).</p>
+<p><code>node_fork</code> is only meaningful as the direct value of a
+node binding inside a <code>pipeline { }</code> block. Using the result
+outside that context is unsupported.</p>
+<hr />
 <h3 id="evalexpr-to_exprx-to_exprs..."><code>eval(expr)</code> /
 <code>to_expr(x)</code> / <code>to_exprs(...)</code></h3>
 <h3 id="quox-quos...-enquop-enquos..."><code>quo(x)</code> /
@@ -2138,6 +2158,96 @@ to suppress console warnings for the currently executing node.</p>
     |&gt; filter($amount &gt; 100) 
     |&gt; suppress_warnings
 }</code></pre>
+<hr />
+<h3
+id="pattern-functions-map_pattern-cross_pattern-slice_pattern-head_pattern-tail_pattern-sample_pattern">Pattern
+Functions (<code>map_pattern</code>, <code>cross_pattern</code>,
+<code>slice_pattern</code>, <code>head_pattern</code>,
+<code>tail_pattern</code>, <code>sample_pattern</code>)</h3>
+<p>Pattern functions are used as the <code>pattern</code> argument of
+<code>node()</code> inside a <code>pipeline { ... }</code> block. They
+declare that a node should be expanded into multiple branches — one per
+element or a Cartesian product of its dependencies.</p>
+<p><strong><code>map_pattern(dep1, dep2, ...)</code></strong> — Create
+one branch per element of each dependency. All dependencies must have
+the same length. Each branch receives the element at position
+<code>i</code> from every dependency.</p>
+<p><strong><code>cross_pattern(sub_pattern1, sub_pattern2, ...)</code></strong>
+— Cartesian product of sub-patterns. Each sub-pattern must be a
+<code>map_pattern(...)</code> call. Produces
+<code>len(s1) * len(s2) * ...</code> branches.</p>
+<p><strong><code>slice_pattern(dep, [i, j, ...])</code></strong> —
+Select specific indices from a dependency.</p>
+<p><strong><code>head_pattern(dep, n)</code></strong> — Take the first
+<code>n</code> elements.</p>
+<p><strong><code>tail_pattern(dep, n)</code></strong> — Take the last
+<code>n</code> elements.</p>
+<p><strong><code>sample_pattern(dep, n)</code></strong> — Randomly
+sample <code>n</code> elements.</p>
+<p><strong>Note:</strong> <code>slice_pattern</code>,
+<code>head_pattern</code>, <code>tail_pattern</code>, and
+<code>sample_pattern</code> are parsed and stored on the node, but
+<code>expand_pipeline</code> does not yet implement expansion for them —
+only <code>map_pattern</code> and <code>cross_pattern</code> currently
+expand. Calling <code>expand_pipeline</code> on a node using one of
+these patterns returns an error.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dep</code>, <code>dep1</code>, <code>dep2</code>, … —
+Dependency names (symbols) referring to upstream pipeline nodes.</li>
+<li><code>n</code> — A positive integer count.</li>
+<li><code>[i, j, ...]</code> — A list of integer indices (0-based).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>A pattern object used internally by <code>node()</code>.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>p = pipeline {
+  x = [10, 20, 30]
+  -- One branch per x value:
+  y = node(command = &lt;{ x * 2 }&gt;, pattern = map_pattern(x))
+}
+expanded = expand_pipeline(p)
+-- pipeline_nodes(expanded) == [&quot;x&quot;, &quot;y_branch_1&quot;, &quot;y_branch_2&quot;, &quot;y_branch_3&quot;]
+
+p2 = pipeline {
+  a = [1, 2]
+  b = [10, 20]
+  -- 2 x 2 = 4 branches:
+  c = node(command = &lt;{ a + b }&gt;, pattern = cross_pattern(map_pattern(a), map_pattern(b)))
+}
+expanded2 = expand_pipeline(p2)
+-- pipeline_nodes(expanded2) == [&quot;a&quot;, &quot;b&quot;, &quot;c_branch_1&quot;, &quot;c_branch_2&quot;, &quot;c_branch_3&quot;, &quot;c_branch_4&quot;]</code></pre>
+<p><strong>Note:</strong> Only <code>map_pattern</code> and
+<code>cross_pattern</code> are currently expanded by
+<code>expand_pipeline</code>. Pattern branching into non-T runtime nodes
+is also not yet supported — an error is returned if a patterned node has
+<code>runtime</code> set to anything other than <code>T</code>.</p>
+<hr />
+<h3
+id="expand_pipelinep-to_script-na"><code>expand_pipeline(p, to_script = NA)</code></h3>
+<p>Expand pattern-based branching in a pipeline. Patterned nodes using
+<code>map_pattern(dep)</code> or <code>cross_pattern(...)</code> are
+replaced with N branch copies, where N is the product of the dependency
+lengths.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — Pipeline object to expand.</li>
+<li><code>to_script</code> (optional) — File path to write the expanded
+pipeline script as a T source file.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>A Pipeline with branches in place of patterned nodes. Branches are
+named <code>&lt;original&gt;_branch_&lt;N&gt;</code>.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>p = pipeline {
+  x = [1, 2, 3]
+  y = node(command = &lt;{ x }&gt;, pattern = map_pattern(x))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)  -- [&quot;x&quot;, &quot;y_branch_1&quot;, &quot;y_branch_2&quot;, &quot;y_branch_3&quot;]
+
+-- Write expanded pipeline to a file for inspection:
+expand_pipeline(p, to_script = &quot;expanded.t&quot;)</code></pre>
 <hr />
 <h3
 id="pipeline_nodespipeline"><code>pipeline_nodes(pipeline)</code></h3>

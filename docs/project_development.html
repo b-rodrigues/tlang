@@ -308,6 +308,14 @@ running <code>nix develop</code>.</li>
 <li>Alternatively, use <strong>direnv</strong> to automatically load the
 environment when you enter the project folder.</li>
 </ol>
+<h3 id="using-the-atelier-tui-ide">Using the Atelier TUI IDE</h3>
+<p>T projects also support <a
+href="https://github.com/b-rodrigues/atelier">Atelier</a>, a tmux-based
+TUI IDE that provides a split-pane environment with an embedded editor,
+REPL, file tree, variable watcher, pipeline diagram, and plot viewer. To
+enable Atelier in a new project, pass <code>--include-atelier</code> to
+<code>t init</code>. Once inside <code>nix develop</code>, simply run
+<code>atelier</code>.</p>
 <p>Once active, you will get real-time autocompletion for: -
 <strong>Package functions</strong>: Suggestions for all imported
 functions. - <strong>Local variables</strong>: Defined earlier in your

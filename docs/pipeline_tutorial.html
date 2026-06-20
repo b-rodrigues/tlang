@@ -2625,6 +2625,181 @@ pipeline_gc(p, dry_run = false)
 -- Perform global garbage collection
 t_gc()</code></pre>
 <hr />
+<h2 id="cicd-with-github-actions">42. CI/CD with GitHub Actions</h2>
+<p>T can generate a complete GitHub Actions workflow YAML for executing
+a pipeline via <code>pipeline_to_ga()</code>. The generated
+workflow:</p>
+<ol type="1">
+<li>Restores cached Nix artifacts from the <code>t-runs</code> branch
+(via <code>nix-store --import</code>)</li>
+<li>Runs the pipeline via
+<code>nix develop --command t run &lt;pipeline_script&gt;</code></li>
+<li>Exports updated artifacts back to the <code>t-runs</code>
+branch</li>
+</ol>
+<pre class="t"><code>-- Write the generated YAML directly to .github/workflows/&lt;name&gt;.yml (uses &quot;src/pipeline.t&quot; by default)
+pipeline_to_ga()
+
+-- Write directly to a custom path (e.g. .github/workflows/ci.yml)
+pipeline_to_ga(&quot;src/run.t&quot;, file = &quot;.github/workflows/ci.yml&quot;)
+
+-- Get the generated YAML back as a string instead of writing to disk
+yaml = pipeline_to_ga(file = &quot;&quot;)
+print(yaml)</code></pre>
+<h3 id="parameters">Parameters</h3>
+<table>
+<colgroup>
+<col style="width: 28%" />
+<col style="width: 15%" />
+<col style="width: 23%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pipeline_script</code></td>
+<td><code>String</code></td>
+<td><code>"src/pipeline.t"</code></td>
+<td>Path to the pipeline T script. Can be passed as the first positional
+argument.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td><code>String</code></td>
+<td>Auto-detected</td>
+<td>Project name from <code>tproject.toml</code>. Controls the workflow
+display name, job ID, and NAR archive filename.</td>
+</tr>
+<tr>
+<td><code>file</code></td>
+<td><code>String</code></td>
+<td><code>".github/workflows/&lt;name&gt;.yml"</code></td>
+<td>Output file path. Defaults to
+<code>.github/workflows/&lt;name&gt;.yml</code>. Set to an empty string
+(<code>""</code>) to return the YAML workflow as a string without
+writing to disk.</td>
+</tr>
+</tbody>
+</table>
+<p>The auto-detected project name comes from the <code>name</code> field
+in your project’s <code>tproject.toml</code>. If neither a
+<code>name</code> argument nor a <code>tproject.toml</code> is found, an
+error is raised prompting you to provide an explicit name.</p>
+<hr />
+<h2 id="pattern-based-branching">11. Pattern-Based Branching</h2>
+<p>T lets you dynamically expand a single pipeline node into multiple
+branches using pattern functions. This is useful when you need to run
+the same computation over each element of a list, vector, or data
+frame.</p>
+<h3 id="map_pattern-one-branch-per-element">11.1
+<code>map_pattern</code> — One Branch Per Element</h3>
+<p>Use <code>map_pattern(dep)</code> to create one branch for each
+element of an upstream dependency:</p>
+<pre class="t"><code>p = pipeline {
+  x = [10, 20, 30]
+  y = node(command = &lt;{ x * 2 }&gt;, pattern = map_pattern(x))
+}
+
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- [&quot;x&quot;, &quot;y_branch_1&quot;, &quot;y_branch_2&quot;, &quot;y_branch_3&quot;]
+
+expanded.y_branch_1  -- 20  (10 * 2)
+expanded.y_branch_2  -- 40  (20 * 2)
+expanded.y_branch_3  -- 60  (30 * 2)</code></pre>
+<p>Multiple dependencies can be mapped simultaneously — all must have
+the same length, and branch <code>i</code> receives element
+<code>i</code> from each:</p>
+<pre class="t"><code>p = pipeline {
+  xs = [1, 2, 3]
+  ys = [10, 20, 30]
+  z = node(command = &lt;{ xs + ys }&gt;, pattern = map_pattern(xs, ys))
+}
+expanded = expand_pipeline(p)
+-- z_branch_1 = 11, z_branch_2 = 22, z_branch_3 = 33</code></pre>
+<h3 id="cross_pattern-cartesian-product">11.2 <code>cross_pattern</code>
+— Cartesian Product</h3>
+<p>Use <code>cross_pattern(sub1, sub2, ...)</code> for a Cartesian
+product of multiple <code>map_pattern</code> sub-patterns:</p>
+<pre class="t"><code>p = pipeline {
+  a = [1, 2]
+  b = [10, 20]
+  c = node(command = &lt;{ a + b }&gt;, pattern = cross_pattern(map_pattern(a), map_pattern(b)))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- [&quot;a&quot;, &quot;b&quot;, &quot;c_branch_1&quot;, &quot;c_branch_2&quot;, &quot;c_branch_3&quot;, &quot;c_branch_4&quot;]
+-- Branch order: (a=1,b=10), (a=1,b=20), (a=2,b=10), (a=2,b=20)</code></pre>
+<h3 id="dataframe-row-branching">11.3 DataFrame Row Branching</h3>
+<p>When a dependency is a DataFrame, each row becomes one branch
+element:</p>
+<pre class="t"><code>df = to_dataframe([[x: 10], [x: 20], [x: 30]])
+
+p = pipeline {
+  data = df
+  result = node(command = &lt;{ data }&gt;, pattern = map_pattern(data))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- [&quot;data&quot;, &quot;result_branch_1&quot;, &quot;result_branch_2&quot;, &quot;result_branch_3&quot;]
+-- Each branch receives a 1-row DataFrame</code></pre>
+<h3 id="selector-patterns">11.4 Selector Patterns</h3>
+<p>For finer-grained control, use selector patterns:</p>
+<ul>
+<li><code>slice_pattern(dep, [i, j, ...])</code> — select specific
+indices (0-based)</li>
+<li><code>head_pattern(dep, n)</code> — take the first <code>n</code>
+elements</li>
+<li><code>tail_pattern(dep, n)</code> — take the last <code>n</code>
+elements</li>
+<li><code>sample_pattern(dep, n)</code> — randomly sample <code>n</code>
+elements</li>
+</ul>
+<pre class="t"><code>p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Only branches for indices 0, 2, 4:
+  y = node(command = &lt;{ x }&gt;, pattern = slice_pattern(x, [0, 2, 4]))
+  -- First two elements:
+  z = node(command = &lt;{ x }&gt;, pattern = head_pattern(x, 2))
+}</code></pre>
+<p><strong>Note:</strong> <code>slice_pattern</code>,
+<code>head_pattern</code>, <code>tail_pattern</code>, and
+<code>sample_pattern</code> are parsed and stored on the node, but
+<code>expand_pipeline</code> does not yet expand them — only
+<code>map_pattern</code> and <code>cross_pattern</code> currently work.
+Calling <code>expand_pipeline</code> on a node using a selector pattern
+returns an error. This section documents the intended API for a future
+release.</p>
+<h3 id="non-t-runtime-limitation">11.5 Non-T Runtime Limitation</h3>
+<p>Pattern branching is currently supported only for
+<code>runtime = T</code> (the default). If a patterned node has a non-T
+runtime (<code>R</code>, <code>Python</code>, <code>Julia</code>,
+<code>sh</code>, <code>Quarto</code>), <code>expand_pipeline</code>
+returns an error:</p>
+<pre class="t"><code>p = pipeline {
+  a = [1, 2, 3]
+  b = node(command = &lt;{ a }&gt;, runtime = R, deserializer = ^json, pattern = map_pattern(a))
+}
+expand_pipeline(p)
+-- Error: &quot;pattern branching into non-T runtime nodes (got runtime &#39;R&#39;) is not yet supported for node &#39;b&#39;.&quot;</code></pre>
+<p>Use per-element iteration inside the node’s own code as a workaround,
+or split the work into separate T-runtime nodes that orchestrate the
+cross-runtime calls.</p>
+<h3 id="writing-the-expanded-pipeline-to-a-file">11.6 Writing the
+Expanded Pipeline to a File</h3>
+<p>Pass <code>to_script</code> to write the expanded pipeline as a T
+source file for inspection or debugging:</p>
+<pre class="t"><code>expand_pipeline(p, to_script = &quot;expanded_pipeline.t&quot;)</code></pre>
+<p>The output file contains the full <code>pipeline { ... }</code>
+definition with all branches unrolled.</p>
+<hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you’ve mastered pipelines, learn how to manage reproducible
 projects and develop T packages:</p>
