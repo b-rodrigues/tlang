@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Function Reference - node_when</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav>
+    <a href="../index.html">Home</a>
+    <a href="../getting-started.html">Get Started</a>
+    <a href="../language_overview.html">Overview</a>
+    <a href="../api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="node_when">node_when</h1>
+<p>Static Conditional Pipeline Node Inclusion</p>
+<p>Evaluated at pipeline construction time. Returns <code>value</code>
+if <code>condition</code> is truthy, otherwise excludes the node from
+the DAG entirely (the keyed node will not appear in
+<code>pipeline_nodes()</code> and accessing it produces an
+<code>Error</code>).</p>
+<p><code>node_when</code> is only meaningful as the direct value of a
+node binding inside a <code>pipeline { }</code> block. Using the result
+outside that context (arithmetic, <code>is_na()</code>, etc.) is
+unsupported.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>condition</strong> (<code>Bool</code>): The condition to
+evaluate. Must be deterministic at pipeline-definition time (e.g., a
+variable, not an I/O call).</p></li>
+<li><p><strong>value</strong> (<code>Any</code>): The node value to
+include if condition is truthy. Typically a <code>node()</code>,
+<code>rn()</code>, <code>pyn()</code>, or other pipeline node
+constructor.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>The <code>value</code> if condition is truthy; a null marker that
+excludes the node from the pipeline DAG otherwise.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>include_heavy = false
+
+p = pipeline {
+  data = [1, 2, 3, 4, 5]
+  quick = sum(data)
+  heavy = node_when(include_heavy, node(command = &quot;deep analysis&quot;, runtime = T))
+}
+
+build_pipeline(p)
+
+-- p.heavy is an Error because include_heavy was false
+type(p.heavy) == &quot;Error&quot;</code></pre>
+<pre class="t"><code>-- With an R node
+p = pipeline {
+  data = [1, 2, 3, 4, 5]
+  total = sum(data)
+  r_out = node_when(true, rn(
+    command = &lt;{ list(lang = &quot;R&quot;, val = 42L) }&gt;,
+    serializer = ^json
+  ))
+}
+
+build_pipeline(p)
+read_node(p.r_out)  -- {lang: &quot;R&quot;, val: 42}</code></pre>
+<h2 id="see-also">See Also</h2>
+<p><a href="node_fork.html">node_fork</a>, <a href="node.html">node</a>,
+<a href="rn.html">rn</a>, <a href="pyn.html">pyn</a>, <a
+href="build_pipeline.html">build_pipeline</a></p>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>
