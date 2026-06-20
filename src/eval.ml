@@ -1238,9 +1238,12 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                                Error (Error.type_error "map_pattern expects node name symbols or strings"))
                     in
                     (match extract_deps call_args with
-                     | Ok deps -> Ok (PatternMap deps)
+                     | Ok deps ->
+                         if deps <> [] then Ok (PatternMap deps)
+                         else Error (Error.value_error "map_pattern requires at least one dependency")
                      | Error _ as err -> err)
-                | Call { fn = { node = Var "cross_pattern"; _ }; args = call_args } ->
+
+                 | Call { fn = { node = Var "cross_pattern"; _ }; args = call_args } ->
                     let rec extract_subs = function
                       | [] -> Ok []
                       | (_, arg_expr) :: rest ->
@@ -1252,7 +1255,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                            | Error _ as err -> err)
                     in
                     (match extract_subs call_args with
-                     | Ok subs -> Ok (PatternCross subs)
+                     | Ok subs when List.length subs >= 2 -> Ok (PatternCross subs)
+                     | Ok _ -> Error (Error.value_error "cross_pattern requires at least two sub-patterns")
                      | Error _ as err -> err)
                 | Call { fn = { node = Var "slice_pattern"; _ }; args = call_args } ->
                     (match call_args with
@@ -1272,42 +1276,66 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                               (match list_expr.node with
                                | ListLit items ->
                                    (match extract_ints items with
-                                    | Ok ints -> Ok (PatternSlice (dep, ints))
-                                    | Error _ as err -> err)
+                                   | Ok ints ->
+                                       if ints <> [] then Ok (PatternSlice (dep, ints))
+                                       else Error (Error.value_error "slice_pattern requires at least one index")
+                                   | Error _ as err -> err)
                                | _ -> Error (Error.type_error "slice_pattern expects a list of integer indices as the second argument"))
                           | None -> Error (Error.type_error "slice_pattern expects a dependency name as the first argument"))
                      | _ -> Error (Error.arity_error_named "slice_pattern" 2 (List.length call_args)))
-                | Call { fn = { node = Var "head_pattern"; _ }; args = call_args } ->
-                    (match call_args with
-                     | [ (_, dep_expr); (_, n_expr) ] ->
-                         (match extract_dep_name dep_expr, n_expr.node with
-                          | Some dep, Value (VInt n) -> Ok (PatternHead (dep, n))
-                          | _ -> Error (Error.type_error "head_pattern expects a dependency name and an integer count"))
-                     | _ -> Error (Error.arity_error_named "head_pattern" 2 (List.length call_args)))
-                | Call { fn = { node = Var "tail_pattern"; _ }; args = call_args } ->
-                    (match call_args with
-                     | [ (_, dep_expr); (_, n_expr) ] ->
-                         (match extract_dep_name dep_expr, n_expr.node with
-                          | Some dep, Value (VInt n) -> Ok (PatternTail (dep, n))
-                          | _ -> Error (Error.type_error "tail_pattern expects a dependency name and an integer count"))
-                     | _ -> Error (Error.arity_error_named "tail_pattern" 2 (List.length call_args)))
-                | Call { fn = { node = Var "sample_pattern"; _ }; args = call_args } ->
-                    (match call_args with
-                     | [ (_, dep_expr); (_, n_expr) ] ->
-                         (match extract_dep_name dep_expr, n_expr.node with
-                          | Some dep, Value (VInt n) -> Ok (PatternSample (dep, n))
-                          | _ -> Error (Error.type_error "sample_pattern expects a dependency name and an integer count"))
-                     | _ -> Error (Error.arity_error_named "sample_pattern" 2 (List.length call_args)))
+                 | Call { fn = { node = Var "head_pattern"; _ }; args = call_args } ->
+                     (match call_args with
+                      | [ (_, dep_expr); (_, n_expr) ] ->
+                          (match extract_dep_name dep_expr, n_expr.node with
+                           | Some dep, Value (VInt n) when n > 0 -> Ok (PatternHead (dep, n))
+                           | Some _, Value (VInt n) -> Error (Error.value_error (Printf.sprintf "head_pattern requires a positive count, got %d" n))
+                           | _ -> Error (Error.type_error "head_pattern expects a dependency name and an integer count"))
+                      | _ -> Error (Error.arity_error_named "head_pattern" 2 (List.length call_args)))
+                 | Call { fn = { node = Var "tail_pattern"; _ }; args = call_args } ->
+                     (match call_args with
+                      | [ (_, dep_expr); (_, n_expr) ] ->
+                          (match extract_dep_name dep_expr, n_expr.node with
+                           | Some dep, Value (VInt n) when n > 0 -> Ok (PatternTail (dep, n))
+                           | Some _, Value (VInt n) -> Error (Error.value_error (Printf.sprintf "tail_pattern requires a positive count, got %d" n))
+                           | _ -> Error (Error.type_error "tail_pattern expects a dependency name and an integer count"))
+                      | _ -> Error (Error.arity_error_named "tail_pattern" 2 (List.length call_args)))
+                 | Call { fn = { node = Var "sample_pattern"; _ }; args = call_args } ->
+                     (match call_args with
+                      | [ (_, dep_expr); (_, n_expr) ] ->
+                          (match extract_dep_name dep_expr, n_expr.node with
+                           | Some dep, Value (VInt n) when n > 0 -> Ok (PatternSample (dep, n))
+                           | Some _, Value (VInt n) -> Error (Error.value_error (Printf.sprintf "sample_pattern requires a positive count, got %d" n))
+                           | _ -> Error (Error.type_error "sample_pattern expects a dependency name and an integer count"))
+                      | _ -> Error (Error.arity_error_named "sample_pattern" 2 (List.length call_args)))
                 | other ->
                     Error (Error.type_error
                       (Printf.sprintf "Unsupported pattern= value: expected map_pattern(...), cross_pattern(...), slice_pattern(...), head_pattern(...), tail_pattern(...), or sample_pattern(...), got: %s"
                          (Nix_unparse.expr_to_string (Ast.mk_expr other))))
               in
-              (match parse_pattern pattern_expr_ast with
-               | Ok pat -> Ok (Some pat)
-               | Error _ as err -> err)
-        in
-        let lookup_runtime_args () =
+               (match parse_pattern pattern_expr_ast with
+                | Ok pat -> Ok (Some pat)
+                | Error _ as err -> err)
+         in
+         let lookup_iteration () =
+           match List.assoc_opt (Some "iteration") args with
+           | None -> Ok "vector"
+            | Some { node = Value ((VString ("vector" | "list") | VSymbol ("vector" | "list")) as v); _ } ->
+               Ok (match v with VString s -> s | VSymbol s -> s | _ -> "vector")
+           | Some { node = Value (VString bad | VSymbol bad); _ } ->
+               Error (Error.value_error
+                 (Printf.sprintf "Function `%s` invalid iteration value \"%s\". Expected \"vector\" or \"list\"." fn_name bad))
+           | Some e ->
+               (match eval_expr env_ref e with
+                | (VString ("vector" | "list") | VSymbol ("vector" | "list")) as v ->
+                    Ok (match v with VString s -> s | VSymbol s -> s | _ -> "vector")
+                | VString bad | VSymbol bad ->
+                    Error (Error.value_error
+                      (Printf.sprintf "Function `%s` invalid iteration value \"%s\". Expected \"vector\" or \"list\"." fn_name bad))
+                | other ->
+                    Error (Error.type_error
+                      (Printf.sprintf "Function `%s` expects `iteration` to be a String or Symbol, got %s." fn_name (Ast.Utils.type_name other))))
+         in
+         let lookup_runtime_args () =
           let rec is_arg_value ~allow_list = function
             | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNA _ -> true
             | VList items when allow_list ->
@@ -1365,9 +1393,9 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       in
       let shell_args = lookup_list "shell_args" in
       let command = lookup_arg "command" (vexpr ((VNA NAGeneric))) in
-      (match lookup_env_vars (), lookup_runtime_args (), lookup_dependencies (), lookup_pattern () with
-      | Error err, _, _, _ | _, Error err, _, _ | _, _, Error err, _ | _, _, _, Error err -> err
-      | Ok un_env_vars, Ok un_args, Ok un_dependencies, Ok un_pattern ->
+      (match lookup_env_vars (), lookup_runtime_args (), lookup_dependencies (), lookup_pattern (), lookup_iteration () with
+      | Error err, _, _, _, _ | _, Error err, _, _, _ | _, _, Error err, _, _ | _, _, _, Error err, _ | _, _, _, _, Error err -> err
+      | Ok un_env_vars, Ok un_args, Ok un_dependencies, Ok un_pattern, Ok un_iteration ->
           let arg_path_opt =
             let find_path key =
               match List.assoc_opt key un_args with
@@ -1443,16 +1471,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                     if already_included then base_includes else base_includes @ [vexpr (VString p)]
                 | _ -> base_includes
               in
-              let un_iteration =
-                match List.assoc_opt (Some "iteration") args with
-                | Some { node = Value (VString iter | VSymbol iter); _ } -> iter
-                | Some e ->
-                    (match eval_expr env_ref e with
-                     | VString iter | VSymbol iter -> iter
-                     | _ -> "vector")
-                | None -> "vector"
-              in
-              if runtime = "Quarto" && un_script = None then
+               if runtime = "Quarto" && un_script = None then
                 Error.make_error TypeError
                   "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
               else if runtime <> "T" && runtime <> "Quarto" then
@@ -2061,6 +2080,10 @@ and deserialize_deps_for_node env ~deserializer ~node_name deps =
 
 (** Re-run a pipeline *)
 and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_result) : value =
+  if prev.p_has_patterns then
+    Error.make_error StructuralError
+      "Pipeline contains unexpanded dynamic branching patterns. Use expand_pipeline(p) to resolve branches before rerunning/building. See help(expand_pipeline) for details."
+  else
   let node_names = List.map fst prev.p_exprs in
   let desugared_nodes = List.map (fun (name, expr) ->
     (name, {
