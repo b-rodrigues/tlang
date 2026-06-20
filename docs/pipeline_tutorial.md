@@ -2291,6 +2291,8 @@ p = pipeline {
 }
 ```
 
+**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet expand them — only `map_pattern` and `cross_pattern` currently work. Calling `expand_pipeline` on a node using a selector pattern returns an error. This section documents the intended API for a future release.
+
 ### 11.5 Non-T Runtime Limitation
 
 Pattern branching is currently supported only for `runtime = T` (the default). If a patterned node has a non-T runtime (`R`, `Python`, `Julia`, `sh`, `Quarto`), `expand_pipeline` returns an error:

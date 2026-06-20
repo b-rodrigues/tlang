@@ -2777,6 +2777,8 @@ Pattern functions are used as the `pattern` argument of `node()` inside a `pipel
 
 **`sample_pattern(dep, n)`** — Randomly sample `n` elements.
 
+**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet implement expansion for them — only `map_pattern` and `cross_pattern` currently expand. Calling `expand_pipeline` on a node using one of these patterns returns an error.
+
 **Parameters:**
 
 - `dep`, `dep1`, `dep2`, ... — Dependency names (symbols) referring to upstream pipeline nodes.
@@ -2807,7 +2809,7 @@ expanded2 = expand_pipeline(p2)
 -- pipeline_nodes(expanded2) == ["a", "b", "c_branch_1", "c_branch_2", "c_branch_3", "c_branch_4"]
 ```
 
-**Note:** Pattern branching into non-T runtime nodes is not yet supported. An error is returned if a patterned node has `runtime` set to anything other than `T`.
+**Note:** Only `map_pattern` and `cross_pattern` are currently expanded by `expand_pipeline`. Pattern branching into non-T runtime nodes is also not yet supported — an error is returned if a patterned node has `runtime` set to anything other than `T`.
 
 ---
 
