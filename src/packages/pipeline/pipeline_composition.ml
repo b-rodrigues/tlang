@@ -124,6 +124,21 @@ let namespace_diagnostics sub_name local_names nd =
   ) nd.nd_upstream_errors in
   { nd with nd_upstream_errors }
 
+let rec namespace_pattern_expr sub_name local_names = function
+  | PatternMap deps ->
+      PatternMap (List.map (fun dep -> if List.mem dep local_names then sub_name ^ "." ^ dep else dep) deps)
+  | PatternCross subs ->
+      PatternCross (List.map (namespace_pattern_expr sub_name local_names) subs)
+  | PatternSlice (dep, idxs) ->
+      PatternSlice ((if List.mem dep local_names then sub_name ^ "." ^ dep else dep), idxs)
+  | PatternHead (dep, n) ->
+      PatternHead ((if List.mem dep local_names then sub_name ^ "." ^ dep else dep), n)
+  | PatternTail (dep, n) ->
+      PatternTail ((if List.mem dep local_names then sub_name ^ "." ^ dep else dep), n)
+  | PatternSample (dep, n) ->
+      PatternSample ((if List.mem dep local_names then sub_name ^ "." ^ dep else dep), n)
+
+
 let rec find_dot_access_targets (expr : Ast.expr) : string list =
   match expr.node with
   | Var _ | Value _ | ColumnRef _ | RawCode _ | ShellExpr _ -> []
@@ -256,6 +271,12 @@ let rec flatten_meta (v : value) : value =
            let p_node_diagnostics = merge_fields (fun flat local ns ->
              List.map (fun (n, nd) -> (ns n, namespace_diagnostics (String.sub (ns "") 0 (String.length (ns "") - 1)) local nd)) flat.p_node_diagnostics
            ) (@) in
+           let p_patterns = merge_fields (fun flat local ns ->
+             let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
+             List.map (fun (n, pat) -> (ns n, namespace_pattern_expr sub_name local pat)) flat.p_patterns
+           ) (@) in
+           let p_iterations = merge_fields (fun flat _ ns -> List.map (fun (n, it) -> (ns n, it)) flat.p_iterations) (@) in
+           let p_has_patterns = List.exists (fun (_, flat_sub, _, _) -> flat_sub.p_has_patterns) namespaced_subs in
            VPipeline {
              p_nodes;
              p_exprs;
@@ -274,6 +295,9 @@ let rec flatten_meta (v : value) : value =
              p_scripts;
              p_explicit_deps;
              p_node_diagnostics;
+             p_has_patterns;
+             p_patterns;
+             p_iterations;
            })
   | other ->
       Error.type_error (Printf.sprintf "flatten_meta: expected a MetaPipeline or Pipeline value, got %s." (Utils.type_name other))
@@ -307,8 +331,12 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
     (make_builtin ~name:"chain" 2 (fun args env ->
       match args with
       | [VPipeline p1; VPipeline p2] ->
-          let names1 = List.map fst p1.p_exprs in
-          let names2 = List.map fst p2.p_exprs in
+          if p1.p_has_patterns || p2.p_has_patterns then
+            Error.make_error StructuralError
+              "Function `chain` cannot combine pipelines with unexpanded dynamic branching patterns. Expand the patterns first using `expand_pipeline`."
+          else
+            let names1 = List.map fst p1.p_exprs in
+            let names2 = List.map fst p2.p_exprs in
           (* Check for name collisions (same node in both) *)
           let collisions = List.filter (fun n -> List.mem n names2) names1 in
           if collisions <> [] then
@@ -342,6 +370,9 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                 p_scripts      = merge_new p1.p_scripts p2.p_scripts;
                 p_explicit_deps = merge_new p1.p_explicit_deps p2.p_explicit_deps;
                 p_node_diagnostics = merge_new p1.p_node_diagnostics p2.p_node_diagnostics;
+                p_has_patterns = p1.p_has_patterns || p2.p_has_patterns;
+                p_patterns     = merge_new p1.p_patterns p2.p_patterns;
+                p_iterations   = merge_new p1.p_iterations p2.p_iterations;
               }
           end
       | [_; _] -> Error.type_error "Function `chain` expects two Pipeline arguments."
@@ -371,8 +402,12 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
     (make_builtin ~name:"parallel" 2 (fun args env ->
       match args with
       | [VPipeline p1; VPipeline p2] ->
-          let names1 = List.map fst p1.p_exprs in
-          let names2 = List.map fst p2.p_exprs in
+          if p1.p_has_patterns || p2.p_has_patterns then
+            Error.make_error StructuralError
+              "Function `parallel` cannot combine pipelines with unexpanded dynamic branching patterns. Expand the patterns first using `expand_pipeline`."
+          else
+            let names1 = List.map fst p1.p_exprs in
+            let names2 = List.map fst p2.p_exprs in
           let collisions = List.filter (fun n -> List.mem n names2) names1 in
           if collisions <> [] then
             Error.make_error ValueError
@@ -398,6 +433,9 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
               p_scripts      = merge_new p1.p_scripts p2.p_scripts;
               p_explicit_deps = merge_new p1.p_explicit_deps p2.p_explicit_deps;
               p_node_diagnostics = merge_new p1.p_node_diagnostics p2.p_node_diagnostics;
+              p_has_patterns = p1.p_has_patterns || p2.p_has_patterns;
+              p_patterns     = merge_new p1.p_patterns p2.p_patterns;
+              p_iterations   = merge_new p1.p_iterations p2.p_iterations;
             }
       | [_; _] -> Error.type_error "Function `parallel` expects two Pipeline arguments."
       | _ -> Error.arity_error_named "parallel" 2 (List.length args)

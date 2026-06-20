@@ -2239,6 +2239,95 @@ p.t_step|}
   in
   test_build_log_history_and_node_diff ();
 
+  let test_dynamic_branching_metadata () =
+    Printf.printf "Dynamic Branching Metadata & Guardrails:\n";
+    let env = Packages.init_env () in
+    
+    (* 1. Test parsing a node with pattern map *)
+    let (_, env_p) = eval_string_env
+      "p = pipeline {\n  a = 1\n  b = node(command = <{ a + 1 }>, pattern = map_pattern(a))\n}"
+      env
+    in
+    let v_p = Env.find "p" env_p in
+    (match v_p with
+     | VPipeline p ->
+         if p.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ pipeline has patterns flag is true\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ pipeline has patterns flag should be true\n"
+         end;
+         (match List.assoc_opt "b" p.p_patterns with
+          | Some (PatternMap ["a"]) ->
+              incr pass_count; Printf.printf "  ✓ node b has PatternMap metadata\n"
+          | _ ->
+              incr fail_count; Printf.printf "  ✗ node b should have PatternMap metadata\n")
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ expected a VPipeline, got %s\n" (Ast.Utils.value_to_string v_p));
+
+    (* 2. Test renaming preserves patterns *)
+    let (v_renamed, _) = eval_string_env "rename_node(p, \"b\", \"new_b\")" env_p in
+    (match v_renamed with
+     | VPipeline p_ren ->
+         if p_ren.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ renamed pipeline has patterns flag is true\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ renamed pipeline has patterns flag should be true\n"
+         end;
+         (match List.assoc_opt "new_b" p_ren.p_patterns with
+          | Some (PatternMap ["a"]) ->
+              incr pass_count; Printf.printf "  ✓ renamed node new_b has PatternMap metadata\n"
+          | _ ->
+              incr fail_count; Printf.printf "  ✗ renamed node new_b should have PatternMap metadata\n")
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ expected a VPipeline after rename_node, got %s\n" (Ast.Utils.value_to_string v_renamed));
+
+    (* 3. Test filtering preserves patterns *)
+    let (v_filtered, _) = eval_string_env "filter_node(p, $name == \"b\")" env_p in
+    (match v_filtered with
+     | VPipeline p_fil ->
+         if p_fil.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ filtered pipeline has patterns flag is true\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ filtered pipeline has patterns flag should be true\n"
+         end;
+         (match List.assoc_opt "b" p_fil.p_patterns with
+          | Some (PatternMap ["a"]) ->
+              incr pass_count; Printf.printf "  ✓ filtered node b has PatternMap metadata\n"
+          | _ ->
+              incr fail_count; Printf.printf "  ✗ filtered node b should have PatternMap metadata\n")
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ expected a VPipeline after filter_node, got %s\n" (Ast.Utils.value_to_string v_filtered));
+
+    (* 4. Test building / populating fails with StructuralError *)
+    let (v_build_err, _) = eval_string_env "build_pipeline(p)" env_p in
+    let s_build_err = strip_location (Ast.Utils.value_to_string v_build_err) in
+    if contains_pattern "StructuralError" s_build_err && contains_pattern "unexpanded" s_build_err then begin
+      incr pass_count; Printf.printf "  ✓ build_pipeline fails with StructuralError on unexpanded patterns\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ build_pipeline should fail with StructuralError on unexpanded patterns, got: %s\n" s_build_err
+    end;
+
+    let (v_pop_err, _) = eval_string_env "populate_pipeline(p)" env_p in
+    let s_pop_err = strip_location (Ast.Utils.value_to_string v_pop_err) in
+    if contains_pattern "StructuralError" s_pop_err && contains_pattern "unexpanded" s_pop_err then begin
+      incr pass_count; Printf.printf "  ✓ populate_pipeline fails with StructuralError on unexpanded patterns\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ populate_pipeline should fail with StructuralError on unexpanded patterns, got: %s\n" s_pop_err
+    end;
+
+    (* 5. Test composition fails with StructuralError *)
+    let (v_comp_err, _) = eval_string_env "p2 = pipeline { c = 1 }; chain(p, p2)" env_p in
+    let s_comp_err = strip_location (Ast.Utils.value_to_string v_comp_err) in
+    if contains_pattern "StructuralError" s_comp_err && contains_pattern "unexpanded" s_comp_err then begin
+      incr pass_count; Printf.printf "  ✓ chain fails with StructuralError on unexpanded patterns\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ chain should fail with StructuralError on unexpanded patterns, got: %s\n" s_comp_err
+    end;
+    ()
+  in
+  test_dynamic_branching_metadata ();
+
+
   let classify_hunk_kind_tests =
     Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:true = "replace"
     && Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:false = "delete"

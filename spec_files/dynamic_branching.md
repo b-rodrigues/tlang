@@ -60,7 +60,7 @@ build_pipeline(p)
      Call build_pipeline(expand_pipeline(p)) instead."
 
 expand_pipeline(p)
-  ↓  (evaluates upstream data, generates intermediate script)
+  ↓  (evaluates upstream data, checks for branch name collisions)
   ↓  returns expanded VPipeline (and optionally writes .t file)
   p_expanded = pipeline {
     params = [1, 2, 3]
@@ -106,179 +106,158 @@ and unbuilt_node = {
 }
 ```
 
-#### New field on `pipeline_result`
+#### New fields on `pipeline_result`
+
+Since `pipeline_result` stores node metadata across parallel assoc lists (rather than keeping raw `unbuilt_node` records), we add:
 
 ```ocaml
 and pipeline_result = {
   …
-  p_has_patterns : bool;                (* true if any node has a pattern *)
+  p_has_patterns : bool;                      (* true if any node has a pattern *)
+  p_patterns     : (string * pattern_expr) list; (* Map node name -> pattern *)
+  p_iterations   : (string * string) list;       (* Map node name -> iteration type *)
 }
 ```
 
-This flag lets `build_pipeline` and `rerun_pipeline` quickly detect unexpanded patterns without scanning every node.
+The `p_has_patterns` flag lets `build_pipeline` and `rerun_pipeline` quickly detect unexpanded patterns without scanning every list.
+
+---
 
 ### 2. Evaluator — `src/eval.ml`
 
-#### Handle `pattern` argument in `node()` / `pyn()` / `rn()` / `jln()` / `qn()` / `shn()`
+#### Handle `pattern` and `iteration` arguments in `node()` / `pyn()` / `rn()` / `jln()` / `qn()` / `shn()`
 
-In the special-case dispatch for node functions (around line 1094), add extraction of a `pattern` named argument:
+Because the `pattern` argument (e.g., `pattern = map_pattern(params)`) references upstream node names as bare symbols, **it must not be evaluated normally**. Normal evaluation would try to look up `params` as a variable in scope, resulting in a `NameError` at pipeline definition time.
+
+Instead, the evaluator must inspect the **AST** of the `pattern` argument directly (similar to how `deps` are extracted at line 1176 in `eval.ml`):
 
 ```ocaml
-let pattern_val = lookup_arg "pattern" in
-let un_pattern = match pattern_val with
-  | VPattern p -> Some p
-  | VNA _ | VNullNode -> None
-  | _ -> (* error: expected a pattern value *)
+(* Inside node/pyn/rn/etc. dispatch *)
+let un_pattern =
+  match List.assoc_opt (Some "pattern") args with
+  | None -> None
+  | Some pattern_expr_ast ->
+      (* Inspect AST node directly without evaluation *)
+      let rec parse_pattern ast =
+        match ast.node with
+        | Call { fn = { node = Var "map_pattern"; _ }; args } ->
+            let deps = List.map (function
+              | (_, { node = Var name; _ }) -> name
+              | (_, { node = Value (VString name | VSymbol name); _ }) -> name
+              | _ -> failwith "map_pattern expects node name symbols or strings"
+            ) args in
+            Some (PatternMap deps)
+        | Call { fn = { node = Var "cross_pattern"; _ }; args } ->
+            let sub_patterns = List.filter_map (fun (_, arg) -> parse_pattern arg) args in
+            Some (PatternCross sub_patterns)
+        (* Add cases for PatternSlice, PatternHead, etc. *)
+        | other ->
+            (* Unknown pattern form — fail immediately with a clear error *)
+            Error.make_error TypeError
+              (Printf.sprintf "Unsupported pattern= value: expected map_pattern(...) or cross_pattern(...), got: %s"
+                 (Nix_unparse.expr_to_string (Ast.mk_expr other)))
+            |> ignore;
+            None
+      in
+      parse_pattern pattern_expr_ast
 in
-let un_iteration = match lookup_arg "iteration" with
-  | VString "list" -> "list"
-  | _ -> "vector"   (* default *)
+let un_iteration =
+  match List.assoc_opt (Some "iteration") args with
+  | Some { node = Value (VString iter | VSymbol iter); _ } -> iter
+  | _ -> "vector" (* Default *)
 in
 ```
 
-Store these in the `VNode` record.
+> **Note**: The `_` arm should raise a proper `VError TypeError` and return it early from the node dispatch, not silently return `None`. Returning `None` would cause the pattern to be silently dropped.
 
-#### Handle `VPattern` in `eval_pipeline`
+Store these in the OCaml `VNode` record.
 
-In `eval_pipeline`, during desugaring of nodes (around line 1673), if the desugared node has `un_pattern = Some pattern`, set the `p_has_patterns` flag on the pipeline result:
+#### Handle `VPattern` and `un_iteration` in `eval_pipeline`
 
-```ocaml
-(* Inside eval_pipeline, near the result construction *)
-let has_patterns = List.exists (fun (_, un) -> un.un_pattern <> None) desugared_nodes in
-…
-let result = VPipeline {
-  …
-  p_has_patterns = has_patterns;
-} in
-```
+During desugaring of nodes in `eval_pipeline`, if a desugared node has `un_pattern = Some pattern`, set the `p_has_patterns` flag and collect them into the `p_patterns` and `p_iterations` lists on the final `pipeline_result`.
 
 #### Pattern detection in `rerun_pipeline`
 
-In `rerun_pipeline` (around line 1941), check for patterns and emit an error:
+`rerun_pipeline` reconstructs `unbuilt_node` records from the parallel assoc lists. It must:
+1. Populate `un_pattern` from `p_patterns` and `un_iteration` from `p_iterations` when reconstructing each node.
+2. Check `prev.p_has_patterns` early (before entering the topo-sort/eval loop) and return a `StructuralError`:
 
 ```ocaml
-if prev.p_has_patterns then
-  Error.make_error StructuralError
-    "Pipeline contains unexpanded dynamic branching patterns. \
-     Use expand_pipeline(p) to resolve branches before building. \
-     See help(expand_pipeline) for details."
+and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_result) : value =
+  if prev.p_has_patterns then
+    Error.make_error StructuralError
+      "Pipeline contains unexpanded dynamic branching patterns. \
+       Use expand_pipeline(p) to resolve branches before building. \
+       See help(expand_pipeline) for details."
+  else
+    (* existing reconstruction + topo-sort logic … *)
 ```
 
-### 3. Pattern functions — `src/packages/core/t_pattern.ml` (NEW)
+#### Guard ordering in `build_pipeline`
 
-New file with pattern descriptor functions:
+`build_pipeline` calls `rerun_pipeline` internally (line 129 of `build_pipeline.ml`). To give the user the clearest error message, the `p_has_patterns` check should happen **first**, at the top of `build_fn`, before `rerun_pipeline` is called:
+
+```ocaml
+| (_, VPipeline p) ->
+    if p.p_has_patterns then
+      Error.make_error StructuralError "Pipeline contains unexpanded …"
+    else
+      (* existing: call rerun_pipeline, then Builder.populate_pipeline … *)
+```
+
+The check in `rerun_pipeline` is then defense-in-depth (guards against internal callers that bypass `build_pipeline`).
+
+---
+
+### 3. Serialization — `src/serialization.ml`
+
+Update the serializers and deserializers for `pipeline_result` to correctly preserve the new fields:
+- `p_has_patterns`
+- `p_patterns`
+- `p_iterations`
+
+This ensures that caching, writing pipeline states to files, and IPC/FFI calls properly preserve pattern metadata.
+
+---
+
+### 4. Pattern functions — `src/packages/core/t_pattern.ml` (NEW)
+
+New file registering the pattern descriptor functions. Standardize builtin signatures using `make_builtin` or `make_builtin_named`.
+
+Because `map_pattern` and `cross_pattern` are processed via **AST inspection** at the call site in the node dispatch (not via normal function evaluation), the registered builtins exist primarily for documentation and reflection. They should **not** be callable at runtime and must error clearly if called outside of a `pattern=` argument:
 
 ```ocaml
 (* src/packages/core/t_pattern.ml *)
 
 open Ast
 
-(*
---# Dynamic Map Pattern
---#
---# Creates a map pattern over one or more upstream pipeline nodes.
---# Each branch corresponds to one element tuple from the dependencies.
---# Only meaningful as the value of the `pattern` argument in node().
---#
---# @name map_pattern
---# @param ... :: Node One or more upstream node names to iterate over.
---# @return :: Pattern A pattern descriptor for pipeline expansion.
---# @example
---#   node(command = ..., pattern = map_pattern(fixed_radius, cycling_radius))
---# @family pipeline
---# @export
-*)
-let map_pattern_fn args _env =
-  match args with
-  | [] -> Error.arity_error_named "map_pattern" 1 (List.length args)
-  | _ ->
-      let names = List.filter_map (function
-        | VSymbol s -> Some s
-        | VString s -> Some s
-        | _ -> None
-      ) args in
-      if List.length names <> List.length args then
-        Error.type_error "map_pattern expects node name symbols or strings as arguments."
-      else
-        VPattern (PatternMap names)
+let map_pattern_fn _args _env =
+  (* Not callable at runtime — processed by AST inspection in eval.ml's node dispatch *)
+  Error.make_error TypeError
+    "map_pattern() can only be used as the value of pattern= inside a node() call."
 
-(*
---# Dynamic Cross Pattern
---#
---# Creates a cross pattern: one branch per combination of elements
---# from the given sub-patterns. Each sub-pattern should be a map_pattern(...)
---# or another cross_pattern(...).
---# Only meaningful as the value of the `pattern` argument in node().
---#
---# @name cross_pattern
---# @param ... :: Pattern Sub-patterns to cross.
---# @return :: Pattern A pattern descriptor for pipeline expansion.
---# @example
---#   node(command = ..., pattern = cross_pattern(
---#     map_pattern(fixed_radius),
---#     map_pattern(cycling_radius)
---#   ))
---# @family pipeline
---# @export
-*)
-let cross_pattern_fn (named_args : (string option * Ast.value) list) _env =
-  let patterns = List.filter_map (function
-    | (None, VPattern p) -> Some p
-    | _ -> None
-  ) named_args in
-  if patterns = [] then
-    Error.type_error "cross_pattern expects at least one pattern argument."
-  else
-    VPattern (PatternCross patterns)
+let cross_pattern_fn _args _env =
+  Error.make_error TypeError
+    "cross_pattern() can only be used as the value of pattern= inside a node() call."
 ```
 
-Register in `src/packages/core/packages.ml`:
+Register via `T_pattern.register env` in `src/packages/core/packages.ml` alongside other core registrations.
 
-```ocaml
-let env = T_pattern.register env in
-  (* alongside other core registrations *)
-```
+> **Note**: Do NOT add `map_pattern` or `cross_pattern` to `known_symbols`. That list registers bare words as `VSymbol` values (for keyword-style args like `runtime = R`). These are functions, registered as `VBuiltin` — adding them to `known_symbols` would shadow the function bindings and break calls.
 
-And add `"map_pattern"` and `"cross_pattern"` to the `known_symbols` list.
+---
 
-### 4. Pipeline expansion — `src/packages/pipeline/pipeline_expand.ml` (NEW)
+### 5. Pipeline expansion — `src/packages/pipeline/pipeline_expand.ml` (NEW)
 
 The core of the feature. This function:
 
 1. Takes a `VPipeline` value (that may contain pattern nodes)
 2. Evaluates upstream dependency values (from in-memory cache or built artifacts)
 3. Determines branch counts from upstream data shapes
-4. Generates explicit nodes for each branch
-5. Returns a new `VPipeline` with all branches as regular nodes
-6. Optionally writes a `.t` script representing the expanded pipeline
-
-```ocaml
-(*
---# Expand Pipeline Branches
---#
---# Resolves dynamic branching patterns in a pipeline, producing a new
---# pipeline with all branches as explicit nodes. Upstream data is
---# evaluated (from the in-memory cache or built artifacts) to determine
---# branch counts and parameterize each branch's command.
---#
---# If a pattern refers to upstream data that is not yet available
---# (e.g., an unbuilt foreign-language node), an error is raised
---# suggesting the user build upstream nodes first.
---#
---# @name expand_pipeline
---# @param p :: Pipeline The pipeline with potential dynamic patterns.
---# @param to_script :: String (Optional) If provided, writes the expanded
---#   pipeline as a T script to this file path.
---# @return :: Pipeline The expanded pipeline with all branches as explicit nodes.
---# @example
---#   p_expanded = expand_pipeline(p)
---#   build_pipeline(p_expanded)
---# @family pipeline
---# @export
-*)
-let expand_pipeline_fn (named_args : (string option * Ast.value) list) env =
-  …
-```
+4. Checks for **branch naming collisions** (e.g. if `results_branch_1` already exists as a user-defined node)
+5. Generates explicit nodes for each branch
+6. Returns a new `VPipeline` with all branches as regular nodes
+7. Optionally writes a `.t` script representing the expanded pipeline
 
 #### Expansion logic details
 
@@ -290,125 +269,60 @@ For each node (name, un) in the pipeline:
   
   If un.un_pattern = Some (PatternMap dep_names):
     1. For each dep_name in dep_names:
-       a. Look up the dependency's value from:
-          - In-memory cache (VNodeResult in pipeline_result)
-          - Or the outer environment (Env)
-          - Or built artifact (VComputedNode with cn_path)
-       b. Determine the value's length:
-          - VList items → length
-          - VVector arr → Array.length
-          - VDataFrame → num_rows
-          - VInt/VFloat/VBool/VString → 1 (scalar)
-       c. If any dep is unavailable → error with suggestion
-    2. branch_count = max length across all deps
-       (or the common length if they must match; map semantics)
-    3. For i = 1 .. branch_count:
+       a. Look up the dependency's value from in-memory cache, environment, or built artifact.
+       b. Determine the value's length (VList, VVector, VDataFrame, etc.).
+       c. If any dep is unavailable → error with suggestion.
+    2. Validate that all deps have the same length (like targets' map() semantics).
+       If lengths differ → error: "map_pattern deps must all have equal lengths. Got N1 for 'a', N2 for 'b'."
+    3. branch_count = common length.
+    4. For i = 1 .. branch_count:
        a. branch_name = name ^ "_branch_" ^ string_of_int i
-       b. Slice each dependency at index i-1 to get a scalar/slice
-       c. Create a new node expression with the sliced values inlined
-          as literal values in the command
-       d. This may involve AST manipulation: replacing Var references
-          to the dependency with Value literals
-    4. Return the list of branch nodes.
-
-  If un.un_pattern = Some (PatternCross patterns):
-    1. Recursively resolve each sub-pattern to get its branches
-    2. Compute the cartesian product of all sub-branch lists
-    3. For each combination, create a branch node
-    4. Name pattern: name ^ "_branch_1", name ^ "_branch_2", …
+       b. Check if branch_name already exists in pipeline → raise NameError on collision.
+       c. Slice each dependency at index i-1.
+       d. Create a new node expression with the sliced values inlined as literals.
+    5. Return the list of branch nodes.
 ```
 
-#### Branch command parameterization
+#### Branch command parameterization & AST Unparsing
 
-The tricky part: when we have a node command like `<{ compute(params) }>`, and `params` is a list `[1, 2, 3]`, we need to generate branches where the command is `<{ compute(1) }>`, `<{ compute(2) }>`, `<{ compute(3) }>`.
+To generate the expanded `.t` script when `to_script` is requested, we need a way to turn OCaml AST expressions back into tlang code. We should reuse or extend the AST unparsing logic (e.g., exposing `Nix_unparse.expr_to_string` or a dedicated OCaml expression unparser).
 
-This requires AST-level substitution: replacing `Var "params"` nodes in the command expression with `Value (VInt 1)` (or the appropriate literal).
+---
 
-For simple variable references (the common case), this is straightforward. For more complex expressions like `compute(params[1])`, the substitution is more involved. The initial implementation should handle:
-- Direct variable references: `<{ f(x) }>` → branch has `<{ f(literal) }>`
-- Dot access: `<{ f(x.field) }>` → branch has `<{ f(dataframe_row.field) }>`
+### 6. Error propagation / guards in building and composition
 
-Complex expression rewriting can be added in later iterations.
+#### Build/Populate Guards
+In `build_pipeline.ml`'s `build_fn`, and in `populate_pipeline.ml`, raise a `StructuralError` if `p_has_patterns` is true.
 
-#### Intermediate script generation
+#### Composition Guards
+In `pipeline_composition.ml` (specifically inside functions that manipulate pipeline results like `chain`, `parallel`, `patch`), verify that none of the inputs have `p_has_patterns = true`. If they do, fail early with a `StructuralError`.
 
-When `to_script` is provided:
+---
 
-```ocaml
-let script_content = "p_expanded = pipeline {\n" ^
-  String.concat ";\n" (List.map (fun (name, expr) ->
-    "  " ^ name ^ " = " ^ Ast.Utils.unparse_expr expr
-  ) expanded_nodes) ^
-  "\n}"
-in
-write_file to_script script_content
-```
-
-This lets users inspect, edit, or version-control the expanded pipeline.
-
-### 5. Error propagation — `src/packages/pipeline/build_pipeline.ml`
-
-In `build_pipeline`'s `build_fn`, before calling `rerun_pipeline`, check for patterns:
-
-```ocaml
-| (_, VPipeline p) ->
-    if p.p_has_patterns then
-      Error.make_error StructuralError
-        "Pipeline contains unexpanded dynamic branching patterns. \
-         Use expand_pipeline(p) to resolve branches before building. \
-         See help(expand_pipeline) for details."
-    else
-      (* existing build logic *)
-```
-
-Same check in `populate_pipeline` (`src/packages/pipeline/populate_pipeline.ml`).
-
-### 6. Aggregation and branch access — after expansion
+### 7. Aggregation and branch access
 
 After expansion, all branch access is through the regular pipeline API:
-
 - `read_node(p_expanded.results_branch_1)` — normal node reading
 - `p_expanded.results_branch_1` — normal dot access
 - `pipeline_nodes(p_expanded)` — shows all branch names
 
-A future `combine_branches(p, prefix, iteration = "vector")` function can aggregate branches:
-
-```ocaml
-(* Future: combine branches into a single result *)
-combine_branches(p, "results", iteration = "vector")
-  → combines results_branch_1, results_branch_2, …
-    by row-binding (vector iteration) or wrapping in a list (list iteration)
-```
-
 For v1, auto-aggregation is not implemented; users explicitly reference individual branches.
 
-### 7. Pipeline result integration
-
-The `expand_pipeline` function also updates `p_exprs` (expressions), `p_deps` (dependencies), etc. for the new branch nodes:
-
-```
-Original deps:
-  points → fixed_radius, cycling_radius
-
-Expanded deps:
-  points_branch_1 → fixed_radius, cycling_radius
-  points_branch_2 → fixed_radius, cycling_radius
-  …
-```
-
-The upstream nodes (`fixed_radius`, `cycling_radius`) are kept as-is. Their values are already evaluated and available.
+---
 
 ## Files to modify / create
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/ast.ml` | Modify | Add `pattern_expr` type, `VPattern` value, `un_pattern`/`un_iteration` fields, `p_has_patterns` field |
-| `src/eval.ml` | Modify | Handle `pattern` arg in node dispatch; store pattern in `VNode`; set `p_has_patterns` in eval_pipeline; check in rerun_pipeline |
-| `src/packages/core/packages.ml` | Modify | Register `T_pattern`; add to `known_symbols` |
-| `src/packages/core/t_pattern.ml` | **New** | `map_pattern`, `cross_pattern`, `slice_pattern`, `head_pattern`, `tail_pattern`, `sample_pattern` |
-| `src/packages/pipeline/pipeline_expand.ml` | **New** | `expand_pipeline` function — core expansion logic |
-| `src/packages/pipeline/build_pipeline.ml` | Modify | Pattern detection → error with suggestion |
-| `src/packages/pipeline/populate_pipeline.ml` | Modify | Pattern detection → error with suggestion |
+| `src/ast.ml` | Modify | Add `pattern_expr` type, `VPattern` value, `un_pattern`/`un_iteration` fields, `p_has_patterns`/`p_patterns`/`p_iterations` fields to `pipeline_result` |
+| `src/eval.ml` | Modify | Parse `pattern` and `iteration` AST args in node dispatch; store patterns in parallel lists in `eval_pipeline`; check in `rerun_pipeline` |
+| `src/serialization.ml` | Modify | Add serialization/deserialization logic for the new pattern/iteration lists |
+| `src/packages/core/packages.ml` | Modify | Register `T_pattern`; add pattern names to `known_symbols` |
+| `src/packages/core/t_pattern.ml` | **New** | Register Builtins `map_pattern`, `cross_pattern`, etc. |
+| `src/packages/pipeline/pipeline_expand.ml` | **New** | Core `expand_pipeline` function (with collision checks and value evaluation) |
+| `src/packages/pipeline/pipeline_composition.ml` | Modify | Guard functions (`chain`, `parallel`, `patch`) against pattern pipelines |
+| `src/packages/pipeline/build_pipeline.ml` | Modify | Guard against unexpanded patterns before building |
+| `src/packages/pipeline/populate_pipeline.ml` | Modify | Guard against unexpanded patterns before populating |
 | `tests/test_pipeline_ops.ml` | Modify | New test phase for dynamic branching |
 | `tests/golden/t_scripts/` | Add | Golden test T scripts |
 | `docs/api-reference.md` | Modify | Document `map_pattern`, `cross_pattern`, `expand_pipeline` |
@@ -447,7 +361,7 @@ expand_pipeline(p, to_script = "expanded_pipeline.t")
 --     results_branch_3 = node(command = <{ compute(30) }>)
 --   }
 
--- 5. Cross pattern example:
+-- 5. Cross pattern example (cartesian product):
 p2 = pipeline {
   radii = [1, 2]
   cycles = [3, 4]
@@ -465,10 +379,7 @@ build_pipeline(p2_expanded)
 
 ## Open questions for later iterations
 
-1. **Auto-aggregation**: Should referencing a previously-branched node name (without `_branch_N` suffix) auto-combine all branches? This is how targets works, but requires naming convention awareness in the evaluator.
-
-2. **DataFrame row branching**: For `iteration = "group"`, branching over row groups of a grouped DataFrame (like `tar_group()` in targets). This is more complex but powerful for data analysis pipelines.
-
+1. **Auto-aggregation**: Should referencing a previously-branched node name (without `_branch_N` suffix) auto-combine all branches?
+2. **DataFrame row branching**: For `iteration = "group"`, branching over row groups of a grouped DataFrame (like `tar_group()` in targets).
 3. **Batching**: `tar_rep`-style batching where each branch handles multiple iterations for performance.
-
 4. **Cross-language branching**: Resolving branch counts from upstream foreign-language nodes by reading their build artifacts.

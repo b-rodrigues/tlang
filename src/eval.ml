@@ -1210,6 +1210,103 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                     | Some s -> Ok (Some [s])
                     | None -> deps_type_error ()))
         in
+        let lookup_pattern () =
+          match List.assoc_opt (Some "pattern") args with
+          | None -> Ok None
+          | Some pattern_expr_ast ->
+              let extract_dep_name expr =
+                match expr.node with
+                | Var s -> Some s
+                | Value (VString s) | Value (VSymbol s) ->
+                    if String.starts_with ~prefix:"^" s then
+                      Some (String.sub s 1 (String.length s - 1))
+                    else Some s
+                | _ -> None
+              in
+              let rec parse_pattern ast =
+                match ast.node with
+                | Call { fn = { node = Var "map_pattern"; _ }; args = call_args } ->
+                    let rec extract_deps = function
+                      | [] -> Ok []
+                      | (_, arg_expr) :: rest ->
+                          (match extract_dep_name arg_expr with
+                           | Some name ->
+                               (match extract_deps rest with
+                                | Ok deps -> Ok (name :: deps)
+                                | Error _ as err -> err)
+                           | None ->
+                               Error (Error.type_error "map_pattern expects node name symbols or strings"))
+                    in
+                    (match extract_deps call_args with
+                     | Ok deps -> Ok (PatternMap deps)
+                     | Error _ as err -> err)
+                | Call { fn = { node = Var "cross_pattern"; _ }; args = call_args } ->
+                    let rec extract_subs = function
+                      | [] -> Ok []
+                      | (_, arg_expr) :: rest ->
+                          (match parse_pattern arg_expr with
+                           | Ok sub ->
+                               (match extract_subs rest with
+                                | Ok subs -> Ok (sub :: subs)
+                                | Error _ as err -> err)
+                           | Error _ as err -> err)
+                    in
+                    (match extract_subs call_args with
+                     | Ok subs -> Ok (PatternCross subs)
+                     | Error _ as err -> err)
+                | Call { fn = { node = Var "slice_pattern"; _ }; args = call_args } ->
+                    (match call_args with
+                     | [ (_, dep_expr); (_, list_expr) ] ->
+                         (match extract_dep_name dep_expr with
+                          | Some dep ->
+                              let rec extract_ints = function
+                                | [] -> Ok []
+                                | (_, item_expr) :: rest ->
+                                    (match item_expr.node with
+                                     | Value (VInt i) ->
+                                         (match extract_ints rest with
+                                          | Ok ints -> Ok (i :: ints)
+                                          | Error _ as err -> err)
+                                     | _ -> Error (Error.type_error "slice_pattern expects a list of integer indices"))
+                              in
+                              (match list_expr.node with
+                               | ListLit items ->
+                                   (match extract_ints items with
+                                    | Ok ints -> Ok (PatternSlice (dep, ints))
+                                    | Error _ as err -> err)
+                               | _ -> Error (Error.type_error "slice_pattern expects a list of integer indices as the second argument"))
+                          | None -> Error (Error.type_error "slice_pattern expects a dependency name as the first argument"))
+                     | _ -> Error (Error.arity_error_named "slice_pattern" 2 (List.length call_args)))
+                | Call { fn = { node = Var "head_pattern"; _ }; args = call_args } ->
+                    (match call_args with
+                     | [ (_, dep_expr); (_, n_expr) ] ->
+                         (match extract_dep_name dep_expr, n_expr.node with
+                          | Some dep, Value (VInt n) -> Ok (PatternHead (dep, n))
+                          | _ -> Error (Error.type_error "head_pattern expects a dependency name and an integer count"))
+                     | _ -> Error (Error.arity_error_named "head_pattern" 2 (List.length call_args)))
+                | Call { fn = { node = Var "tail_pattern"; _ }; args = call_args } ->
+                    (match call_args with
+                     | [ (_, dep_expr); (_, n_expr) ] ->
+                         (match extract_dep_name dep_expr, n_expr.node with
+                          | Some dep, Value (VInt n) -> Ok (PatternTail (dep, n))
+                          | _ -> Error (Error.type_error "tail_pattern expects a dependency name and an integer count"))
+                     | _ -> Error (Error.arity_error_named "tail_pattern" 2 (List.length call_args)))
+                | Call { fn = { node = Var "sample_pattern"; _ }; args = call_args } ->
+                    (match call_args with
+                     | [ (_, dep_expr); (_, n_expr) ] ->
+                         (match extract_dep_name dep_expr, n_expr.node with
+                          | Some dep, Value (VInt n) -> Ok (PatternSample (dep, n))
+                          | _ -> Error (Error.type_error "sample_pattern expects a dependency name and an integer count"))
+                     | _ -> Error (Error.arity_error_named "sample_pattern" 2 (List.length call_args)))
+                | other ->
+                    Error (Error.type_error
+                      (Printf.sprintf "Unsupported pattern= value: expected map_pattern(...), cross_pattern(...), slice_pattern(...), head_pattern(...), tail_pattern(...), or sample_pattern(...), got: %s"
+                         (Nix_unparse.expr_to_string (Ast.mk_expr other))))
+              in
+              (match parse_pattern pattern_expr_ast with
+               | Ok pat -> Ok (Some pat)
+               | Error _ as err -> err)
+        in
         let lookup_runtime_args () =
           let rec is_arg_value ~allow_list = function
             | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNA _ -> true
@@ -1268,9 +1365,9 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       in
       let shell_args = lookup_list "shell_args" in
       let command = lookup_arg "command" (vexpr ((VNA NAGeneric))) in
-      (match lookup_env_vars (), lookup_runtime_args (), lookup_dependencies () with
-      | Error err, _, _ | _, Error err, _ | _, _, Error err -> err
-      | Ok un_env_vars, Ok un_args, Ok un_dependencies ->
+      (match lookup_env_vars (), lookup_runtime_args (), lookup_dependencies (), lookup_pattern () with
+      | Error err, _, _, _ | _, Error err, _, _ | _, _, Error err, _ | _, _, _, Error err -> err
+      | Ok un_env_vars, Ok un_args, Ok un_dependencies, Ok un_pattern ->
           let arg_path_opt =
             let find_path key =
               match List.assoc_opt key un_args with
@@ -1346,6 +1443,15 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                     if already_included then base_includes else base_includes @ [vexpr (VString p)]
                 | _ -> base_includes
               in
+              let un_iteration =
+                match List.assoc_opt (Some "iteration") args with
+                | Some { node = Value (VString iter | VSymbol iter); _ } -> iter
+                | Some e ->
+                    (match eval_expr env_ref e with
+                     | VString iter | VSymbol iter -> iter
+                     | _ -> "vector")
+                | None -> "vector"
+              in
               if runtime = "Quarto" && un_script = None then
                 Error.make_error TypeError
                   "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
@@ -1363,6 +1469,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
+                      un_pattern;
+                      un_iteration;
                     }
                 | Value (VString _) | Value (VSymbol _) | Value ((VNA NAGeneric)) when runtime = "sh" ->
                     VNode {
@@ -1376,6 +1484,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
+                      un_pattern;
+                      un_iteration;
                     }
                 | _ when Option.is_some un_script ->
                     VNode {
@@ -1389,6 +1499,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
+                      un_pattern;
+                      un_iteration;
                     }
                 | _ ->
                     let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, .sh, or .qmd file." runtime in
@@ -1405,6 +1517,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_includes;
                   un_noop = eval_bool "noop" false;
                   un_dependencies;
+                  un_pattern;
+                  un_iteration;
                 }
 )
     | Call { fn; args } ->
@@ -1641,6 +1755,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     un_includes = [];
     un_noop = false;
     un_dependencies = None;
+    un_pattern = None;
+    un_iteration = "vector";
   } in
 
   let wrap_computed_node cn = {
@@ -1657,6 +1773,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     un_includes = [];
     un_noop = false;
     un_dependencies = None;
+    un_pattern = None;
+    un_iteration = "vector";
   } in
 
   (* Desugar nodes into enriched structures with defaults.
@@ -1851,7 +1969,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
         { Ast.un_command = Ast.mk_expr (Ast.Value (VNA NAGeneric)); un_script = None; un_runtime = "T";
           un_serializer = Ast.mk_expr (Ast.Var "default"); un_deserializer = Ast.mk_expr (Ast.Var "default");
           un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
-          un_functions = []; un_includes = []; un_noop = false; un_dependencies = None } in
+          un_functions = []; un_includes = []; un_noop = false; un_dependencies = None;
+          un_pattern = None; un_iteration = "vector" } in
       let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
       let (v, own_warnings) = capture_node_warnings (fun () -> eval_or_defer name un current_env_ref) in
       let node_diagnostics =
@@ -1894,6 +2013,9 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       p_scripts = List.map (fun (name, un) -> (name, un.un_script)) desugared_nodes;
       p_explicit_deps = List.map (fun (name, un) -> (name, un.un_dependencies)) desugared_nodes;
       p_node_diagnostics;
+      p_has_patterns = List.exists (fun (_, un) -> Option.is_some un.un_pattern) desugared_nodes;
+      p_patterns = List.filter_map (fun (name, un) -> match un.un_pattern with Some p -> Some (name, p) | None -> None) desugared_nodes;
+      p_iterations = List.map (fun (name, un) -> (name, un.un_iteration)) desugared_nodes;
     } in
     result
   end
@@ -1955,6 +2077,8 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
       un_includes = (match List.assoc_opt name prev.p_includes with Some i -> i | None -> []);
       un_noop = (match List.assoc_opt name prev.p_noops with Some b -> b | None -> false);
       un_dependencies = (match List.assoc_opt name prev.p_explicit_deps with Some d -> d | None -> None);
+      un_pattern = (match List.assoc_opt name prev.p_patterns with Some p -> Some p | None -> None);
+      un_iteration = (match List.assoc_opt name prev.p_iterations with Some it -> it | None -> "vector");
     })
   ) prev.p_exprs in
 
@@ -1988,7 +2112,8 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
         { Ast.un_command = Ast.mk_expr (Ast.Value (VNA NAGeneric)); un_script = None; un_runtime = "T";
           un_serializer = Ast.mk_expr (Ast.Var "default"); un_deserializer = Ast.mk_expr (Ast.Var "default");
           un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
-          un_functions = []; un_includes = []; un_noop = false; un_dependencies = None } in
+          un_functions = []; un_includes = []; un_noop = false; un_dependencies = None;
+          un_pattern = None; un_iteration = "vector" } in
       let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
       let deps_changed = List.exists (fun d -> List.mem d changed) node_deps in
       let fv = free_vars un.un_command in

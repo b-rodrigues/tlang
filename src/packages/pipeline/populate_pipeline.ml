@@ -47,7 +47,11 @@ let register env =
     | None ->
       match get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
-        let (build_provided, build_val) = get_arg "build" 2 (VBool false) named_args in
+          if p.p_has_patterns then
+            Error.make_error StructuralError
+              "Pipeline contains unexpanded dynamic branching patterns. Use expand_pipeline(p) to resolve branches before building. See help(expand_pipeline) for details."
+          else
+            let (build_provided, build_val) = get_arg "build" 2 (VBool false) named_args in
         let (verbose_provided, verbose_val) = get_arg "verbose" 3 (VNA NAGeneric) named_args in
         let (_, nix_options_val) = get_arg "nix_options" 4 (VDict []) named_args in
         let (dry_run_provided, dry_run_val) = get_arg "dry_run" 5 (VNA NAGeneric) named_args in

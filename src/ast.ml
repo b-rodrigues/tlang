@@ -53,6 +53,14 @@ type 'a located = {
   loc : source_location option;
 }
 
+type pattern_expr =
+  | PatternMap of string list         (* map(dep1, dep2, ...) *)
+  | PatternCross of pattern_expr list  (* cross(map(...), map(...), ...) *)
+  | PatternSlice of string * int list  (* slice(dep, [3, 4]) *)
+  | PatternHead of string * int        (* head(dep, n) *)
+  | PatternTail of string * int        (* tail(dep, n) *)
+  | PatternSample of string * int      (* sample(dep, n) *)
+
 (** Structured error information *)
 type error_info = {
   code : error_code;
@@ -126,6 +134,9 @@ and pipeline_result = {
   p_scripts : (string * string option) list; (* Map node name -> optional script path *)
   p_explicit_deps : (string * string list option) list; (* Map node name -> explicit dependencies *)
   p_node_diagnostics : (string * node_diagnostics) list; (* Map node name -> diagnostics *)
+  p_has_patterns : bool;                      (* true if any node has a pattern *)
+  p_patterns     : (string * pattern_expr) list; (* Map node name -> pattern *)
+  p_iterations   : (string * string) list;       (* Map node name -> iteration type *)
 }
 
 and meta_pipeline = {
@@ -167,6 +178,8 @@ and unbuilt_node = {
   un_includes : expr list;
   un_noop : bool;
   un_dependencies : string list option;
+  un_pattern : pattern_expr option;     (* None = no dynamic branching *)
+  un_iteration : string;                (* "vector" | "list" *)
 }
 
 (** Result of a ?<{...}> shell escape — carries stdout, stderr, and exit code.
@@ -262,6 +275,7 @@ and value =
   | VComputedNode of computed_node
   | VNode of unbuilt_node
   | VNullNode
+  | VPattern of pattern_expr
   | VExpr of expr
   (* Quosure: expression captured with its lexical environment (like rlang::quo) *)
   | VQuo of { q_expr: expr; q_env: value Env.t }
@@ -773,6 +787,7 @@ module Utils = struct
     | VComputedNode _ -> "ComputedNode"
     | VNode _ -> "Node"
     | VNullNode -> "NullNode"
+    | VPattern _ -> "Pattern"
     | VExpr _ -> "Expression"
     | VQuo _ -> "Quosure"
     | VShellResult _ -> "ShellResult"
@@ -1079,6 +1094,16 @@ module Utils = struct
     | VNode un ->
         Printf.sprintf "node<%s>(...)" un.un_runtime
     | VNullNode -> "<null>"
+    | VPattern pat ->
+        let rec string_of_pattern = function
+          | PatternMap deps -> "map_pattern(" ^ String.concat ", " deps ^ ")"
+          | PatternCross sub -> "cross_pattern(" ^ String.concat ", " (List.map string_of_pattern sub) ^ ")"
+          | PatternSlice (dep, idxs) -> "slice_pattern(" ^ dep ^ ", [" ^ String.concat ", " (List.map string_of_int idxs) ^ "])"
+          | PatternHead (dep, n) -> "head_pattern(" ^ dep ^ ", " ^ string_of_int n ^ ")"
+          | PatternTail (dep, n) -> "tail_pattern(" ^ dep ^ ", " ^ string_of_int n ^ ")"
+          | PatternSample (dep, n) -> "sample_pattern(" ^ dep ^ ", " ^ string_of_int n ^ ")"
+        in
+        string_of_pattern pat
     | VShellResult { sr_stdout; _ } ->
         (* Display as the raw stdout string so ?<{cmd}> behaves like a string *)
         "\"" ^ String.escaped sr_stdout ^ "\""
