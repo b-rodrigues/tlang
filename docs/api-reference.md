@@ -296,12 +296,19 @@ Deep equality check. Works for collections and complex objects.
 Static conditional for pipeline nodes. Evaluated at pipeline construction time.
 Returns `value` if `condition` is truthy, otherwise excludes the node from the DAG.
 
-### `node_fork(...condition_value_pairs, .default = <excluded>)`
+`node_when` is only meaningful as the direct value of a node binding inside a
+`pipeline { }` block. Using the result outside that context (arithmetic,
+`is_na()`, etc.) is unsupported.
+
+### `node_fork(...condition_value_pairs, .default = ...)`
 
 Static multi-way branch for pipeline nodes. Returns the value for the first
 truthy condition-value pair. If no condition matches and `.default` is provided,
 that value is included in the pipeline; if `.default` is omitted the node is
 excluded from the DAG entirely (null marker behaviour, not `NA`).
+
+`node_fork` is only meaningful as the direct value of a node binding inside a
+`pipeline { }` block. Using the result outside that context is unsupported.
 
 ---
 

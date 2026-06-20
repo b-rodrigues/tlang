@@ -244,6 +244,10 @@ let identical args _env =
 --# otherwise returns a null marker that causes the pipeline to exclude the node entirely.
 --# This preserves Nix's static DAG requirement — the condition is checked before the build.
 --#
+--# `node_when` is only meaningful as the direct value of a node binding inside a
+--# `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.)
+--# is unsupported.
+--#
 --# @name node_when
 --# @param condition :: Bool The condition to evaluate.
 --# @param value :: Node The node value to include if condition is true.
@@ -272,6 +276,9 @@ let node_when_fn args _env =
 --# the value for the first truthy condition. If no condition matches, returns a null
 --# marker (node excluded). Provide `.default` to control the fallback value.
 --# This preserves Nix's static DAG requirement — the condition is checked before the build.
+--#
+--# `node_fork` is only meaningful as the direct value of a node binding inside a
+--# `pipeline { }` block. Using the result outside that context is unsupported.
 --#
 --# @name node_fork
 --# @param ... :: Any Pairs of condition-value arguments.
