@@ -174,7 +174,7 @@ resolution and deserialization from within those environments.
 - [Language Overview](language_overview.html) — types, syntax, functions, and standard library
 - [Type System](type-system.html) — detailed guide to T's type hierarchy and semantics
 - [Numerical Arrays](arrays.html) — tutorial on N-dimensional arrays and linear algebra
-- [Editor Support](editors.html) — setup guide for Vim, Emacs, and VS Code
+- [Editor Support](editors.html) — setup guide for Vim, Emacs, VS Code, and the Atelier TUI IDE
 
 ### User Guides
 - [API Reference](api-reference.html) — complete function reference by package
@@ -267,8 +267,10 @@ t init --project my_analysis
 If you omit the project name (`my_analysis` in the above example), the
 scaffolding tool will prompt you interactively with some questions (your name,
 the license of the project, the Nixpkgs date, the size of the context file for
-LLM agents, and the pipeline template preference) and then will generate a
-reproducible workspace.
+LLM agents, the pipeline template preference, and whether to include the
+**Atelier** TUI IDE) and then will generate a reproducible workspace. You can
+also pass `--include-atelier` to skip the prompt and enable Atelier
+unconditionally.
 
 For your very first T project, we highly recommend selecting the `full` pipeline
 template. Having the self-contained cheatsheet directly in `src/pipeline.t`
@@ -1821,6 +1823,27 @@ Vectorized multi-condition switch. Uses `condition ~ value` formulas.
 ### `identical(a, b)`
 
 Deep equality check. Works for collections and complex objects.
+
+---
+
+### `node_when(condition, value)`
+
+Static conditional for pipeline nodes. Evaluated at pipeline construction time.
+Returns `value` if `condition` is truthy, otherwise excludes the node from the DAG.
+
+`node_when` is only meaningful as the direct value of a node binding inside a
+`pipeline { }` block. Using the result outside that context (arithmetic,
+`is_na()`, etc.) is unsupported.
+
+### `node_fork(...condition_value_pairs, .default = ...)`
+
+Static multi-way branch for pipeline nodes. Returns the value for the first
+truthy condition-value pair. If no condition matches and `.default` is provided,
+that value is included in the pipeline; if `.default` is omitted the node is
+excluded from the DAG entirely (null marker behaviour, not `NA`).
+
+`node_fork` is only meaningful as the direct value of a node binding inside a
+`pipeline { }` block. Using the result outside that context is unsupported.
 
 ---
 
@@ -4273,6 +4296,86 @@ p = pipeline {
 
 ---
 
+### Pattern Functions (`map_pattern`, `cross_pattern`, `slice_pattern`, `head_pattern`, `tail_pattern`, `sample_pattern`)
+
+Pattern functions are used as the `pattern` argument of `node()` inside a `pipeline { ... }` block. They declare that a node should be expanded into multiple branches — one per element or a Cartesian product of its dependencies.
+
+**`map_pattern(dep1, dep2, ...)`** — Create one branch per element of each dependency. All dependencies must have the same length. Each branch receives the element at position `i` from every dependency.
+
+**`cross_pattern(sub_pattern1, sub_pattern2, ...)`** — Cartesian product of sub-patterns. Each sub-pattern must be a `map_pattern(...)` call. Produces `len(s1) * len(s2) * ...` branches.
+
+**`slice_pattern(dep, [i, j, ...])`** — Select specific indices from a dependency.
+
+**`head_pattern(dep, n)`** — Take the first `n` elements.
+
+**`tail_pattern(dep, n)`** — Take the last `n` elements.
+
+**`sample_pattern(dep, n)`** — Randomly sample `n` elements.
+
+**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet implement expansion for them — only `map_pattern` and `cross_pattern` currently expand. Calling `expand_pipeline` on a node using one of these patterns returns an error.
+
+**Parameters:**
+
+- `dep`, `dep1`, `dep2`, ... — Dependency names (symbols) referring to upstream pipeline nodes.
+- `n` — A positive integer count.
+- `[i, j, ...]` — A list of integer indices (0-based).
+
+**Returns:**
+
+A pattern object used internally by `node()`.
+
+**Examples:**
+```t
+p = pipeline {
+  x = [10, 20, 30]
+  -- One branch per x value:
+  y = node(command = <{ x * 2 }>, pattern = map_pattern(x))
+}
+expanded = expand_pipeline(p)
+-- pipeline_nodes(expanded) == ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
+
+p2 = pipeline {
+  a = [1, 2]
+  b = [10, 20]
+  -- 2 x 2 = 4 branches:
+  c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))
+}
+expanded2 = expand_pipeline(p2)
+-- pipeline_nodes(expanded2) == ["a", "b", "c_branch_1", "c_branch_2", "c_branch_3", "c_branch_4"]
+```
+
+**Note:** Only `map_pattern` and `cross_pattern` are currently expanded by `expand_pipeline`. Pattern branching into non-T runtime nodes is also not yet supported — an error is returned if a patterned node has `runtime` set to anything other than `T`.
+
+---
+
+### `expand_pipeline(p, to_script = NA)`
+
+Expand pattern-based branching in a pipeline. Patterned nodes using `map_pattern(dep)` or `cross_pattern(...)` are replaced with N branch copies, where N is the product of the dependency lengths.
+
+**Parameters:**
+
+- `p` — Pipeline object to expand.
+- `to_script` (optional) — File path to write the expanded pipeline script as a T source file.
+
+**Returns:**
+
+A Pipeline with branches in place of patterned nodes. Branches are named `<original>_branch_<N>`.
+
+**Examples:**
+```t
+p = pipeline {
+  x = [1, 2, 3]
+  y = node(command = <{ x }>, pattern = map_pattern(x))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)  -- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
+
+-- Write expanded pipeline to a file for inspection:
+expand_pipeline(p, to_script = "expanded.t")
+```
+
+---
+
 ### `pipeline_nodes(pipeline)`
 
 Get all node names in a pipeline.
@@ -6199,7 +6302,14 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.52.3] - 2026-06-09
+## [0.53.0] - 2026-xx-xx
+
+This release:
+
+- Introduces Atelier IDE support. `t init --project` and `t init --package` now accept `--include-atelier` (CLI flag) or prompt interactively. When enabled, the generated `flake.nix` pins `atelier.url = "github:b-rodrigues/atelier/main"` as a flake input and adds `atelier` to the devShell's `buildInputs`, making the tmux-based TUI IDE immediately available via the `atelier` command inside `nix develop`.
+- Introduces static conditionals for pipelines: `node_when(condition, node_value)` and `node_fork(...)` allow conditional node inclusion evaluated at pipeline construction time, preserving Nix's static DAG requirement.
+
+## [0.52.3] - 2026-06-12
 
 This release:
 
@@ -9841,6 +9951,58 @@ M-x treesit-install-language-grammar RET t RET
 ```
 
 This makes the T parser available to `treesit`-aware packages and any custom `t-ts-mode` built on top of the bundled grammar. The bundled `t-mode` remains the safe default if you do not have a separate tree-sitter-based major mode installed.
+
+---
+
+## Atelier TUI IDE
+
+Atelier is a tmux-based TUI IDE that integrates directly with T projects. It provides a split-pane terminal interface with an embedded editor, REPL, file tree, variable watcher, pipeline diagram, and plot viewer — all within the terminal.
+
+### Enabling Atelier in a T project
+
+When initialising a new project with `t init`, pass `--include-atelier` or answer "yes" when prompted:
+
+```bash
+t init --project my_analysis --include-atelier
+```
+
+This pins `atelier` as a flake input and adds it to the dev shell's `buildInputs`, making the `atelier` command available inside `nix develop`.
+
+### Starting Atelier
+
+From inside a T project's development shell:
+
+```bash
+nix develop
+atelier
+```
+
+### Key features
+
+- **Split-pane terminal UI** with editor, REPL, terminal, file tree, variables, pipeline diagram, and plots
+- **Editor pane** for editing `.t` files with syntax highlighting
+- **REPL pane** for interactive T sessions
+- **Variable watcher** — automatically displays environment variables from the T REPL
+- **Pipeline diagram** — visualises the current pipeline DAG (rendered from `/tmp/atelier-diagram.mmd`)
+- **Plot viewer** — watches a directory and displays new plots as they appear
+- **LLM context pane** — gathers workspace context (cursor position, pipeline state, variables, REPL history) and sends it to an LLM tool
+- **Navigation mode** — keyboard-driven pane switching, file tree browsing, and buffer management
+
+### Keybindings
+
+| Key | Action |
+| --- | --- |
+| `Ctrl-n` | Enter navigation mode |
+| `Ctrl-j/k` | Move focus between panes |
+| `Ctrl-l` | Push context to LLM pane |
+| `Ctrl-Tab` | Switch between terminal and LLM tabs |
+| `e` | Send clipboard content to the REPL |
+| `m` | Maximise/restore focused pane |
+| `?` | Toggle help overlay |
+
+### Configuration
+
+Atelier reads `config.toml` from the project root (or `~/.config/atelier/config.toml`). See the [Atelier repository](https://github.com/b-rodrigues/atelier) for full configuration options.
 
 ---
 
@@ -17174,6 +17336,154 @@ t_gc()
 
 ---
 
+## 42. CI/CD with GitHub Actions
+
+T can generate a complete GitHub Actions workflow YAML for executing a pipeline via `pipeline_to_ga()`. The generated workflow:
+
+1. Restores cached Nix artifacts from the `t-runs` branch (via `nix-store --import`)
+2. Runs the pipeline via `nix develop --command t run <pipeline_script>`
+3. Exports updated artifacts back to the `t-runs` branch
+
+```t
+-- Write the generated YAML directly to .github/workflows/<name>.yml (uses "src/pipeline.t" by default)
+pipeline_to_ga()
+
+-- Write directly to a custom path (e.g. .github/workflows/ci.yml)
+pipeline_to_ga("src/run.t", file = ".github/workflows/ci.yml")
+
+-- Get the generated YAML back as a string instead of writing to disk
+yaml = pipeline_to_ga(file = "")
+print(yaml)
+```
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `pipeline_script` | `String` | `"src/pipeline.t"` | Path to the pipeline T script. Can be passed as the first positional argument. |
+| `name` | `String` | Auto-detected | Project name from `tproject.toml`. Controls the workflow display name, job ID, and NAR archive filename. |
+| `file` | `String` | `".github/workflows/<name>.yml"` | Output file path. Defaults to `.github/workflows/<name>.yml`. Set to an empty string (`""`) to return the YAML workflow as a string without writing to disk. |
+
+The auto-detected project name comes from the `name` field in your project's `tproject.toml`. If neither a `name` argument nor a `tproject.toml` is found, an error is raised prompting you to provide an explicit name.
+
+---
+
+## 11. Pattern-Based Branching
+
+T lets you dynamically expand a single pipeline node into multiple branches using pattern functions. This is useful when you need to run the same computation over each element of a list, vector, or data frame.
+
+### 11.1 `map_pattern` — One Branch Per Element
+
+Use `map_pattern(dep)` to create one branch for each element of an upstream dependency:
+
+```t
+p = pipeline {
+  x = [10, 20, 30]
+  y = node(command = <{ x * 2 }>, pattern = map_pattern(x))
+}
+
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
+
+expanded.y_branch_1  -- 20  (10 * 2)
+expanded.y_branch_2  -- 40  (20 * 2)
+expanded.y_branch_3  -- 60  (30 * 2)
+```
+
+Multiple dependencies can be mapped simultaneously — all must have the same length, and branch `i` receives element `i` from each:
+
+```t
+p = pipeline {
+  xs = [1, 2, 3]
+  ys = [10, 20, 30]
+  z = node(command = <{ xs + ys }>, pattern = map_pattern(xs, ys))
+}
+expanded = expand_pipeline(p)
+-- z_branch_1 = 11, z_branch_2 = 22, z_branch_3 = 33
+```
+
+### 11.2 `cross_pattern` — Cartesian Product
+
+Use `cross_pattern(sub1, sub2, ...)` for a Cartesian product of multiple `map_pattern` sub-patterns:
+
+```t
+p = pipeline {
+  a = [1, 2]
+  b = [10, 20]
+  c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- ["a", "b", "c_branch_1", "c_branch_2", "c_branch_3", "c_branch_4"]
+-- Branch order: (a=1,b=10), (a=1,b=20), (a=2,b=10), (a=2,b=20)
+```
+
+### 11.3 DataFrame Row Branching
+
+When a dependency is a DataFrame, each row becomes one branch element:
+
+```t
+df = to_dataframe([[x: 10], [x: 20], [x: 30]])
+
+p = pipeline {
+  data = df
+  result = node(command = <{ data }>, pattern = map_pattern(data))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- ["data", "result_branch_1", "result_branch_2", "result_branch_3"]
+-- Each branch receives a 1-row DataFrame
+```
+
+### 11.4 Selector Patterns
+
+For finer-grained control, use selector patterns:
+
+- `slice_pattern(dep, [i, j, ...])` — select specific indices (0-based)
+- `head_pattern(dep, n)` — take the first `n` elements
+- `tail_pattern(dep, n)` — take the last `n` elements
+- `sample_pattern(dep, n)` — randomly sample `n` elements
+
+```t
+p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Only branches for indices 0, 2, 4:
+  y = node(command = <{ x }>, pattern = slice_pattern(x, [0, 2, 4]))
+  -- First two elements:
+  z = node(command = <{ x }>, pattern = head_pattern(x, 2))
+}
+```
+
+**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet expand them — only `map_pattern` and `cross_pattern` currently work. Calling `expand_pipeline` on a node using a selector pattern returns an error. This section documents the intended API for a future release.
+
+### 11.5 Non-T Runtime Limitation
+
+Pattern branching is currently supported only for `runtime = T` (the default). If a patterned node has a non-T runtime (`R`, `Python`, `Julia`, `sh`, `Quarto`), `expand_pipeline` returns an error:
+
+```t
+p = pipeline {
+  a = [1, 2, 3]
+  b = node(command = <{ a }>, runtime = R, deserializer = ^json, pattern = map_pattern(a))
+}
+expand_pipeline(p)
+-- Error: "pattern branching into non-T runtime nodes (got runtime 'R') is not yet supported for node 'b'."
+```
+
+Use per-element iteration inside the node's own code as a workaround, or split the work into separate T-runtime nodes that orchestrate the cross-runtime calls.
+
+### 11.6 Writing the Expanded Pipeline to a File
+
+Pass `to_script` to write the expanded pipeline as a T source file for inspection or debugging:
+
+```t
+expand_pipeline(p, to_script = "expanded_pipeline.t")
+```
+
+The output file contains the full `pipeline { ... }` definition with all branches unrolled.
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:
@@ -18058,6 +18368,14 @@ The `t-lsp` binary is provided automatically by your project's `nix develop` she
 1.  Configure your editor (Vim, Emacs, or VS Code) once following the [Editor Support Guide](editors.md).
 2.  Launch your editor *inside* the project directory after running `nix develop`.
 3.  Alternatively, use **direnv** to automatically load the environment when you enter the project folder.
+
+### Using the Atelier TUI IDE
+
+T projects also support [Atelier](https://github.com/b-rodrigues/atelier), a
+tmux-based TUI IDE that provides a split-pane environment with an embedded
+editor, REPL, file tree, variable watcher, pipeline diagram, and plot viewer.
+To enable Atelier in a new project, pass `--include-atelier` to `t init`. Once
+inside `nix develop`, simply run `atelier`.
 
 Once active, you will get real-time autocompletion for:
 -   **Package functions**: Suggestions for all imported functions.
@@ -21991,8 +22309,10 @@ A confirmation message describing the imported archive.
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
 | [node_diff](node_diff.html) | Compare Node Outputs Across Builds |
+| [node_fork](node_fork.html) | Static Multi-Way Branch for Pipeline Nodes |
 | [node_lens](node_lens.html) | Pipeline Node Lens |
 | [node_meta_lens](node_meta_lens.html) | Pipeline Metadata Lens |
+| [node_when](node_when.html) | Static Conditional Pipeline Node Inclusion |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
@@ -23857,6 +24177,65 @@ A VDiff envelope dictionary.
 
 
 
+# FILE: docs/reference/node_fork.md
+
+# node_fork
+
+Static Multi-Way Branch for Pipeline Nodes
+
+Evaluated at pipeline construction time. Takes condition-value pairs and returns the value for the first truthy condition. If no condition matches and `.default` is provided, that value is used; if `.default` is omitted, the node is excluded from the DAG entirely.
+
+`node_fork` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context is unsupported.
+
+## Parameters
+
+- **...** (`Any`): Pairs of `condition, value` arguments. Conditions are evaluated in order; the first truthy condition's corresponding value is elected.
+
+- **.default** (`Any`): (Optional) Fallback value if no condition matches. When omitted and no condition matches, the node is excluded from the DAG.
+
+## Returns
+
+The value for the first truthy condition, the `.default` value, or a null marker that excludes the node from the DAG.
+
+## Examples
+
+```t
+env_mode = "production"
+
+p = pipeline {
+  config = node_fork(
+    env_mode == "development", node(command = "dev", runtime = T),
+    env_mode == "staging",     node(command = "stg", runtime = T),
+    env_mode == "production",  node(command = "prd", runtime = T),
+    .default = node(command = "fallback", runtime = T)
+  )
+}
+
+build_pipeline(p)
+read_node(p.config)  -- "prd"
+```
+
+```t
+-- Fork between R, Python, and T fallback
+model_lang = "python"
+
+p = pipeline {
+  result = node_fork(
+    model_lang == "R",      rn(command = <{ list(lang = "R") }>, serializer = ^json),
+    model_lang == "python", pyn(command = <{ {"lang": "py"} }>, serializer = ^json),
+    .default = node(command = "t_fallback", runtime = T)
+  )
+}
+
+build_pipeline(p)
+read_node(p.result)  -- {lang: "py"}
+```
+
+## See Also
+
+[node_when](node_when.html), [node](node.html), [rn](rn.html), [pyn](pyn.html), [build_pipeline](build_pipeline.html)
+
+
 # FILE: docs/reference/node_lens.md
 
 # node_lens
@@ -23930,6 +24309,63 @@ Targets a specific metadata field of a pipeline node. Supported fields: "runtime
 
 A lens for the specified metadata field.
 
+
+
+# FILE: docs/reference/node_when.md
+
+# node_when
+
+Static Conditional Pipeline Node Inclusion
+
+Evaluated at pipeline construction time. Returns `value` if `condition` is truthy, otherwise excludes the node from the DAG entirely (the keyed node will not appear in `pipeline_nodes()` and accessing it produces an `Error`).
+
+`node_when` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
+
+## Parameters
+
+- **condition** (`Bool`): The condition to evaluate. Must be deterministic at pipeline-definition time (e.g., a variable, not an I/O call).
+
+- **value** (`Any`): The node value to include if condition is truthy. Typically a `node()`, `rn()`, `pyn()`, or other pipeline node constructor.
+
+## Returns
+
+The `value` if condition is truthy; a null marker that excludes the node from the pipeline DAG otherwise.
+
+## Examples
+
+```t
+include_heavy = false
+
+p = pipeline {
+  data = [1, 2, 3, 4, 5]
+  quick = sum(data)
+  heavy = node_when(include_heavy, node(command = "deep analysis", runtime = T))
+}
+
+build_pipeline(p)
+
+-- "heavy" does not appear in the pipeline at all when include_heavy is false
+"heavy" in pipeline_nodes(p)  -- false
+```
+
+```t
+-- With an R node
+p = pipeline {
+  data = [1, 2, 3, 4, 5]
+  total = sum(data)
+  r_out = node_when(true, rn(
+    command = <{ list(lang = "R", val = 42L) }>,
+    serializer = ^json
+  ))
+}
+
+build_pipeline(p)
+read_node(p.r_out)  -- {lang: "R", val: 42}
+```
+
+## See Also
+
+[node_fork](node_fork.html), [node](node.html), [rn](rn.html), [pyn](pyn.html), [build_pipeline](build_pipeline.html)
 
 
 # FILE: docs/reference/normalize.md
