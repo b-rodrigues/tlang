@@ -2,13 +2,7 @@ open Ast
 
 let compute_depths = Pipeline_to_frame.compute_depths
 
-let get_arg name pos default named_args =
-  match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
-  | Some v -> (true, v)
-  | None ->
-      let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-      if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
-      else (false, default)
+let get_arg = Pipeline_args.get_arg
 
 let timestamp_string () =
   let tm = Unix.localtime (Unix.time ()) in
