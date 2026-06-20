@@ -12369,7 +12369,7 @@
       },
       "examples": [
         "node_fork(env_mode == \"dev\", node(command = \"dev\"), env_mode == \"prd\", node(command = \"prd\"), .default = node(command = \"fallback\"))",
-        "node_fork(model_lang == \"R\", rn(...), model_lang == \"python\", pyn(...), .default = node(...))"
+        "node_fork(model_lang == \"R\", rn(command = <{ list(lang = \"R\") }>, serializer = ^json), model_lang == \"python\", pyn(command = <{ {\"lang\": \"py\"} }>, serializer = ^json), .default = node(command = \"t_fallback\", runtime = T))"
       ],
       "see_also": [
         "node_when",
