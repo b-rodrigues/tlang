@@ -208,11 +208,11 @@
 | [nesting](nesting.html) | Helper to find combinations present in data |
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
-| [node_fork](node_fork.html) | Static Multi-Way Branch for Pipeline Nodes |
-| [node_when](node_when.html) | Static Conditional Pipeline Node Inclusion |
 | [node_diff](node_diff.html) | Compare Node Outputs Across Builds |
+| [node_fork](node_fork.html) | Static Multi-Way Branch for Pipeline Nodes |
 | [node_lens](node_lens.html) | Pipeline Node Lens |
 | [node_meta_lens](node_meta_lens.html) | Pipeline Metadata Lens |
+| [node_when](node_when.html) | Static Conditional Pipeline Node Inclusion |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |

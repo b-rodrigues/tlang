@@ -68,8 +68,8 @@ p = pipeline {
 
 build_pipeline(p)
 
--- p.heavy is an Error because include_heavy was false
-type(p.heavy) == &quot;Error&quot;</code></pre>
+-- &quot;heavy&quot; does not appear in the pipeline at all when include_heavy is false
+&quot;heavy&quot; in pipeline_nodes(p)  -- false</code></pre>
 <pre class="t"><code>-- With an R node
 p = pipeline {
   data = [1, 2, 3, 4, 5]

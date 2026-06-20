@@ -29,8 +29,8 @@ p = pipeline {
 
 build_pipeline(p)
 
--- p.heavy is an Error because include_heavy was false
-type(p.heavy) == "Error"
+-- "heavy" does not appear in the pipeline at all when include_heavy is false
+"heavy" in pipeline_nodes(p)  -- false
 ```
 
 ```t
