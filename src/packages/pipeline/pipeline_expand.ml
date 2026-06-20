@@ -17,6 +17,11 @@ let slice_value (v : value) (index : int) : value =
       if index >= 0 && index < Array.length items then
         Array.get items index
       else VNA NAGeneric
+  | VDataFrame df ->
+      let n = Arrow_table.num_rows df.arrow_table in
+      if index >= 0 && index < n then
+        VDataFrame { df with arrow_table = Arrow_table.slice df.arrow_table index 1 }
+      else VNA NAGeneric
   | _ -> v
 
 let value_to_literal (v : value) : string =
@@ -169,10 +174,14 @@ let process_map
       | Some command_expr ->
           let substs = List.combine dep_names dep_values in
           let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-          Ok (List.init branch_count (fun i ->
-            let substituted_command = substitute_vars_in_expr substs i runtime command_expr in
-            make_branch name name i substituted_command
-          ))
+          if runtime <> "T" then
+            Error (Error.type_error
+              (Printf.sprintf "expand_pipeline: pattern branching into non-T runtime nodes (got runtime '%s') is not yet supported for node '%s'." runtime name))
+          else
+            Ok (List.init branch_count (fun i ->
+              let substituted_command = substitute_vars_in_expr substs i runtime command_expr in
+              make_branch name name i substituted_command
+            ))
       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name))
 
 let compute_cross_element_indices (sub_lengths : int list) (_total_branches : int) (branch_idx : int) : int list =
@@ -216,16 +225,20 @@ let process_cross
       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name))
       | Some command_expr ->
           let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-          Ok (List.init total_branches (fun i ->
-            let indices = compute_cross_element_indices sub_lengths total_branches i in
-            let substs = List.concat (List.map2 (fun (dep_names, dep_values, _) elem_idx ->
-              List.map2 (fun dep_name dep_value ->
-                (dep_name, slice_value dep_value elem_idx)
-              ) dep_names dep_values
-            ) resolved_subs indices) in
-            let substituted_command = substitute_vars_in_expr substs 0 runtime command_expr in
-            make_branch name name i substituted_command
-          ))
+          if runtime <> "T" then
+            Error (Error.type_error
+              (Printf.sprintf "expand_pipeline: pattern branching into non-T runtime nodes (got runtime '%s') is not yet supported for node '%s'." runtime name))
+          else
+            Ok (List.init total_branches (fun i ->
+              let indices = compute_cross_element_indices sub_lengths total_branches i in
+              let substs = List.concat (List.map2 (fun (dep_names, dep_values, _) elem_idx ->
+                List.map2 (fun dep_name dep_value ->
+                  (dep_name, slice_value dep_value elem_idx)
+                ) dep_names dep_values
+              ) resolved_subs indices) in
+              let substituted_command = substitute_vars_in_expr substs 0 runtime command_expr in
+              make_branch name name i substituted_command
+            ))
 
 let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_script : string option) : value =
   if not p.p_has_patterns then
