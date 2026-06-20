@@ -2204,6 +2204,120 @@ The auto-detected project name comes from the `name` field in your project's `tp
 
 ---
 
+## 11. Pattern-Based Branching
+
+T lets you dynamically expand a single pipeline node into multiple branches using pattern functions. This is useful when you need to run the same computation over each element of a list, vector, or data frame.
+
+### 11.1 `map_pattern` — One Branch Per Element
+
+Use `map_pattern(dep)` to create one branch for each element of an upstream dependency:
+
+```t
+p = pipeline {
+  x = [10, 20, 30]
+  y = node(command = <{ x * 2 }>, pattern = map_pattern(x))
+}
+
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
+
+expanded.y_branch_1  -- 20  (10 * 2)
+expanded.y_branch_2  -- 40  (20 * 2)
+expanded.y_branch_3  -- 60  (30 * 2)
+```
+
+Multiple dependencies can be mapped simultaneously — all must have the same length, and branch `i` receives element `i` from each:
+
+```t
+p = pipeline {
+  xs = [1, 2, 3]
+  ys = [10, 20, 30]
+  z = node(command = <{ xs + ys }>, pattern = map_pattern(xs, ys))
+}
+expanded = expand_pipeline(p)
+-- z_branch_1 = 11, z_branch_2 = 22, z_branch_3 = 33
+```
+
+### 11.2 `cross_pattern` — Cartesian Product
+
+Use `cross_pattern(sub1, sub2, ...)` for a Cartesian product of multiple `map_pattern` sub-patterns:
+
+```t
+p = pipeline {
+  a = [1, 2]
+  b = [10, 20]
+  c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- ["a", "b", "c_branch_1", "c_branch_2", "c_branch_3", "c_branch_4"]
+-- Branch order: (a=1,b=10), (a=1,b=20), (a=2,b=10), (a=2,b=20)
+```
+
+### 11.3 DataFrame Row Branching
+
+When a dependency is a DataFrame, each row becomes one branch element:
+
+```t
+df = to_dataframe([[x: 10], [x: 20], [x: 30]])
+
+p = pipeline {
+  data = df
+  result = node(command = <{ data }>, pattern = map_pattern(data))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- ["data", "result_branch_1", "result_branch_2", "result_branch_3"]
+-- Each branch receives a 1-row DataFrame
+```
+
+### 11.4 Selector Patterns
+
+For finer-grained control, use selector patterns:
+
+- `slice_pattern(dep, [i, j, ...])` — select specific indices (0-based)
+- `head_pattern(dep, n)` — take the first `n` elements
+- `tail_pattern(dep, n)` — take the last `n` elements
+- `sample_pattern(dep, n)` — randomly sample `n` elements
+
+```t
+p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Only branches for indices 0, 2, 4:
+  y = node(command = <{ x }>, pattern = slice_pattern(x, [0, 2, 4]))
+  -- First two elements:
+  z = node(command = <{ x }>, pattern = head_pattern(x, 2))
+}
+```
+
+### 11.5 Non-T Runtime Limitation
+
+Pattern branching is currently supported only for `runtime = T` (the default). If a patterned node has a non-T runtime (`R`, `Python`, `Julia`, `sh`, `Quarto`), `expand_pipeline` returns an error:
+
+```t
+p = pipeline {
+  a = [1, 2, 3]
+  b = node(command = <{ a }>, runtime = R, deserializer = ^json, pattern = map_pattern(a))
+}
+expand_pipeline(p)
+-- Error: "pattern branching into non-T runtime nodes (got runtime 'R') is not yet supported for node 'b'."
+```
+
+Use per-element iteration inside the node's own code as a workaround, or split the work into separate T-runtime nodes that orchestrate the cross-runtime calls.
+
+### 11.6 Writing the Expanded Pipeline to a File
+
+Pass `to_script` to write the expanded pipeline as a T source file for inspection or debugging:
+
+```t
+expand_pipeline(p, to_script = "expanded_pipeline.t")
+```
+
+The output file contains the full `pipeline { ... }` definition with all branches unrolled.
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:

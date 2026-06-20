@@ -2761,6 +2761,84 @@ p = pipeline {
 
 ---
 
+### Pattern Functions (`map_pattern`, `cross_pattern`, `slice_pattern`, `head_pattern`, `tail_pattern`, `sample_pattern`)
+
+Pattern functions are used as the `pattern` argument of `node()` inside a `pipeline { ... }` block. They declare that a node should be expanded into multiple branches — one per element or a Cartesian product of its dependencies.
+
+**`map_pattern(dep1, dep2, ...)`** — Create one branch per element of each dependency. All dependencies must have the same length. Each branch receives the element at position `i` from every dependency.
+
+**`cross_pattern(sub_pattern1, sub_pattern2, ...)`** — Cartesian product of sub-patterns. Each sub-pattern must be a `map_pattern(...)` call. Produces `len(s1) * len(s2) * ...` branches.
+
+**`slice_pattern(dep, [i, j, ...])`** — Select specific indices from a dependency.
+
+**`head_pattern(dep, n)`** — Take the first `n` elements.
+
+**`tail_pattern(dep, n)`** — Take the last `n` elements.
+
+**`sample_pattern(dep, n)`** — Randomly sample `n` elements.
+
+**Parameters:**
+
+- `dep`, `dep1`, `dep2`, ... — Dependency names (symbols) referring to upstream pipeline nodes.
+- `n` — A positive integer count.
+- `[i, j, ...]` — A list of integer indices (0-based).
+
+**Returns:**
+
+A pattern object used internally by `node()`.
+
+**Examples:**
+```t
+p = pipeline {
+  x = [10, 20, 30]
+  -- One branch per x value:
+  y = node(command = <{ x * 2 }>, pattern = map_pattern(x))
+}
+expanded = expand_pipeline(p)
+-- pipeline_nodes(expanded) == ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
+
+p2 = pipeline {
+  a = [1, 2]
+  b = [10, 20]
+  -- 2 x 2 = 4 branches:
+  c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))
+}
+expanded2 = expand_pipeline(p2)
+-- pipeline_nodes(expanded2) == ["a", "b", "c_branch_1", "c_branch_2", "c_branch_3", "c_branch_4"]
+```
+
+**Note:** Pattern branching into non-T runtime nodes is not yet supported. An error is returned if a patterned node has `runtime` set to anything other than `T`.
+
+---
+
+### `expand_pipeline(p, to_script = NA)`
+
+Expand pattern-based branching in a pipeline. Patterned nodes using `map_pattern(dep)` or `cross_pattern(...)` are replaced with N branch copies, where N is the product of the dependency lengths.
+
+**Parameters:**
+
+- `p` — Pipeline object to expand.
+- `to_script` (optional) — File path to write the expanded pipeline script as a T source file.
+
+**Returns:**
+
+A Pipeline with branches in place of patterned nodes. Branches are named `<original>_branch_<N>`.
+
+**Examples:**
+```t
+p = pipeline {
+  x = [1, 2, 3]
+  y = node(command = <{ x }>, pattern = map_pattern(x))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)  -- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
+
+-- Write expanded pipeline to a file for inspection:
+expand_pipeline(p, to_script = "expanded.t")
+```
+
+---
+
 ### `pipeline_nodes(pipeline)`
 
 Get all node names in a pipeline.

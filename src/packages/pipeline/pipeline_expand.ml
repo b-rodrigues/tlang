@@ -1,3 +1,21 @@
+(*
+--# Expand pattern-based branching in a pipeline.
+--#
+--# Patterned nodes using `map_pattern(dep)` or `cross_pattern(...)` are
+--# replaced with N branch copies, where N is the product of the dependency
+--# lengths. Supports List, Vector, and DataFrame dependencies.
+--#
+--# @param p :: Pipeline The pipeline to expand.
+--# @param to_script :: String | NA = NA Optional file path to write the expanded pipeline script.
+--# @return :: Pipeline The expanded pipeline with branches in place of patterned nodes.
+--# @example
+--#   p = pipeline { x = [1, 2, 3]; y = node(command = <{ x }>, pattern = map_pattern(x)) }
+--#   expanded = expand_pipeline(p)
+--#   pipeline_nodes(expanded)  -- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
+--# @family pipeline
+--# @export
+*)
+
 open Ast
 
 let value_length (v : value) : int =
