@@ -2,7 +2,7 @@
 
 [![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.52.3%20%22Kam%C3%A9ham%C3%A9ha%22-blue.svg)](https://tstats-project.org/changelog.html)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.53.0%20%22L%27Initiation%22-blue.svg)](https://tstats-project.org/changelog.html)
 [![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
@@ -121,6 +121,12 @@ T provides two types of pipes to manage complex data flows and error states:
 - **Standard Pipe (`|>`)**: Designed for linear transformations. If the input is an **Error** value, `|>` **short-circuits** and skips the function call, automatically propagating the error forward. This prevents crashing and ensures that your functions only process valid data.
 - **Maybe-Pipe (`?|>`)**: Designed for **error recovery**. Unlike the standard pipe, `?|>` **always forwards** the value—including Errors—to the next function. This allows you to write custom handlers that can inspect Errors and potentially recover from them.
 
+### Dynamic Pattern Branching
+Pipeline nodes can be dynamically expanded into multiple branches using `map_pattern(dep)` or `cross_pattern(...)`. Supports List, Vector, and DataFrame dependencies, auto-expansion on `build_pipeline`/`populate_pipeline`/composition builtins, and cross-runtime branch execution (T/R/Python/Julia) with JSON interchange. See the [Pipeline Tutorial](docs/pipeline_tutorial.md#11-pattern-based-branching) for details.
+
+### Static DAG Conditionals
+`node_when(condition, node_value)` includes or excludes a node from the DAG at pipeline construction time if the condition is falsy. `node_fork(cond1, val1, cond2, val2, ..., .default = ...)` selects the first matching branch. Both preserve Nix's acyclic build requirement.
+
 ### Introspection with `explain()`
 T values and pipelines are highly introspectable. The **`explain`** package provides the `explain()` function, which can be called on any object to get a detailed summary of its structure, metadata, and status. It is the recommended way to "look inside" your data and nodes in the REPL.
 
@@ -204,7 +210,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 
 ## Status & Missing Features
 
-**Beta 0.52.3 "Kaméhaméha"** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
+**Beta 0.53.0 "L'Initiation"** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
 
 - **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`, and more — heavily inspired by `dplyr`, `tidyr`, and `forcats`).
 - **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc. — inspired by `lubridate`).
