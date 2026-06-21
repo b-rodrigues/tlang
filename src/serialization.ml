@@ -222,8 +222,16 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
   | VDict pairs -> `Assoc (List.map (fun (k, v) -> (k, value_to_yojson v)) pairs)
   | VVector arr -> `List (Array.to_list arr |> List.map value_to_yojson)
   | VSymbol _ as to_symbol -> `String (Ast.Utils.value_to_string to_symbol)
-  | VDataFrame _ ->
-      invalid_arg "value_to_yojson: VDataFrame is not supported for JSON serialization"
+  | VDataFrame df ->
+      let names = Arrow_table.column_names df.arrow_table in
+      let nrows = Arrow_table.num_rows df.arrow_table in
+      `List (Array.to_list (Array.init nrows (fun row ->
+        `Assoc (List.filter_map (fun name ->
+          match Arrow_table.get_column df.arrow_table name with
+          | None -> None
+          | Some col -> Option.map (fun v -> (name, v)) (column_data_to_yojson col row)
+        ) names)
+      )))
   | VPipeline _ ->
       invalid_arg "value_to_yojson: VPipeline is not supported for JSON serialization"
   | VMetaPipeline _ ->
@@ -301,6 +309,24 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       in
       `Assoc [("class", `String "VLens"); ("data", lens_to_yojson l)]
   | VNodeResult { v; _ } -> value_to_yojson v
+
+and column_data_to_yojson (col : Arrow_table.column_data) (row : int) : Yojson.Safe.t option =
+  match col with
+  | Arrow_table.IntColumn a -> Option.map (fun v -> `Int v) a.(row)
+  | Arrow_table.FloatColumn a -> Option.map (fun v -> `Float v) a.(row)
+  | Arrow_table.BoolColumn a -> Option.map (fun v -> `Bool v) a.(row)
+  | Arrow_table.StringColumn a -> Option.map (fun v -> `String v) a.(row)
+  | Arrow_table.DateColumn a -> Option.map (fun v -> `String (json_date_string v)) a.(row)
+  | Arrow_table.DatetimeColumn (a, tz) ->
+      Option.map (fun v -> `String (json_datetime_string v tz)) a.(row)
+  | Arrow_table.NAColumn _ -> None
+  | Arrow_table.DictionaryColumn (a, levels, _) ->
+      Option.bind a.(row) (fun idx ->
+        Option.map (fun v -> `String v) (List.nth_opt levels idx))
+  | Arrow_table.ListColumn a ->
+      Option.bind a.(row) (fun nested_table ->
+        let df = { Ast.arrow_table = nested_table; Ast.group_keys = [] } in
+        Some (value_to_yojson (Ast.VDataFrame df)))
 
 let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   match j with

@@ -4344,7 +4344,7 @@ expanded2 = expand_pipeline(p2)
 -- pipeline_nodes(expanded2) == ["a", "b", "c_branch_1", "c_branch_2", "c_branch_3", "c_branch_4"]
 ```
 
-**Note:** Only `map_pattern` and `cross_pattern` are currently expanded by `expand_pipeline`. Pattern branching into non-T runtime nodes is also not yet supported — an error is returned if a patterned node has `runtime` set to anything other than `T`.
+**Note:** Only `map_pattern` and `cross_pattern` are currently expanded by `expand_pipeline` (selector patterns are parsed but not yet expanded). Non-T runtime branching is supported — see §11.5 of the pipeline tutorial for serializer/deserializer requirements.
 
 ---
 
@@ -6308,6 +6308,7 @@ This release:
 
 - Introduces Atelier IDE support. `t init --project` and `t init --package` now accept `--include-atelier` (CLI flag) or prompt interactively. When enabled, the generated `flake.nix` pins `atelier.url = "github:b-rodrigues/atelier/main"` as a flake input and adds `atelier` to the devShell's `buildInputs`, making the tmux-based TUI IDE immediately available via the `atelier` command inside `nix develop`.
 - Introduces static conditionals for pipelines: `node_when(condition, node_value)` and `node_fork(...)` allow conditional node inclusion evaluated at pipeline construction time, preserving Nix's static DAG requirement.
+- **VDataFrame JSON serialization**: NAColumn entries are now omitted from JSON output (field absent) rather than serialized as null, so downstream readers see no key rather than an NA/null value.
 
 ## [0.52.3] - 2026-06-12
 
@@ -17372,6 +17373,8 @@ The auto-detected project name comes from the `name` field in your project's `tp
 
 T lets you dynamically expand a single pipeline node into multiple branches using pattern functions. This is useful when you need to run the same computation over each element of a list, vector, or data frame.
 
+Patterns are **automatically expanded** when you call `populate_pipeline()` or `build_pipeline()` — you do not need to call `expand_pipeline()` explicitly. The explicit function is available if you want to inspect the expanded structure before building.
+
 ### 11.1 `map_pattern` — One Branch Per Element
 
 Use `map_pattern(dep)` to create one branch for each element of an upstream dependency:
@@ -17382,6 +17385,10 @@ p = pipeline {
   y = node(command = <{ x * 2 }>, pattern = map_pattern(x))
 }
 
+-- Auto-expansion happens inside build_pipeline:
+build_pipeline(p)
+
+-- Or inspect the expanded structure explicitly:
 expanded = expand_pipeline(p)
 pipeline_nodes(expanded)
 -- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
@@ -17399,8 +17406,7 @@ p = pipeline {
   ys = [10, 20, 30]
   z = node(command = <{ xs + ys }>, pattern = map_pattern(xs, ys))
 }
-expanded = expand_pipeline(p)
--- z_branch_1 = 11, z_branch_2 = 22, z_branch_3 = 33
+-- build_pipeline(p) auto-expands before building
 ```
 
 ### 11.2 `cross_pattern` — Cartesian Product
@@ -17455,22 +17461,31 @@ p = pipeline {
 }
 ```
 
-**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet expand them — only `map_pattern` and `cross_pattern` currently work. Calling `expand_pipeline` on a node using a selector pattern returns an error. This section documents the intended API for a future release.
+**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet expand them — only `map_pattern` and `cross_pattern` currently work. Calling `expand_pipeline` on a node using a selector pattern returns an error, and the same error surfaces if you try to `build_pipeline` or `populate_pipeline` on such a pipeline. This section documents the intended API for a future release.
 
-### 11.5 Non-T Runtime Limitation
+### 11.5 Pattern Branching with Non-T Runtimes
 
-Pattern branching is currently supported only for `runtime = T` (the default). If a patterned node has a non-T runtime (`R`, `Python`, `Julia`, `sh`, `Quarto`), `expand_pipeline` returns an error:
+Pattern branching works with non-T runtimes (`R`, `Python`, `Julia`, etc.), but requires explicit `serializer` and `deserializer` configuration so cross-runtime data interchange works correctly. Each branch runs under the same runtime as the original patterned node:
 
 ```t
 p = pipeline {
   a = [1, 2, 3]
-  b = node(command = <{ a }>, runtime = R, deserializer = ^json, pattern = map_pattern(a))
+  b = node(
+    command = <{ a }>,
+    runtime = R,
+    serializer = ^json,
+    deserializer = ^json,
+    pattern = map_pattern(a)
+  )
 }
-expand_pipeline(p)
--- Error: "pattern branching into non-T runtime nodes (got runtime 'R') is not yet supported for node 'b'."
+
+build_pipeline(p)
+-- Each branch (b_branch_1, b_branch_2, b_branch_3) runs in R
 ```
 
-Use per-element iteration inside the node's own code as a workaround, or split the work into separate T-runtime nodes that orchestrate the cross-runtime calls.
+The serializer/deserializer symbols (`^json` in the example) must match a supported interchange format on both sides of the runtime boundary. If serializer and deserializer are omitted, expansion succeeds but the build will fail — the default serializer cannot produce runtime-specific artifacts for cross-runtime data interchange.
+
+See §11.8 for a complete polyglot example using `cross_pattern` and `map_pattern` with R `ggplot2`.
 
 ### 11.6 Writing the Expanded Pipeline to a File
 
@@ -17481,6 +17496,139 @@ expand_pipeline(p, to_script = "expanded_pipeline.t")
 ```
 
 The output file contains the full `pipeline { ... }` definition with all branches unrolled.
+
+### 11.7 Build and Composition Auto-Expand
+
+`populate_pipeline()`, `build_pipeline()`, `chain()`, `parallel()`, `union()`, `intersect()`, `difference()`, and `patch()` all automatically expand any unexpanded patterns in their pipeline inputs before proceeding. You only need to call `expand_pipeline()` explicitly when you want to inspect the branch structure before building.
+
+### 11.8 Complete Example: Polyglot Dynamic Branching Pipeline
+
+This demo (from `t_demos/dynamic_branching_t`) combines `cross_pattern`, `map_pattern`, and cross-runtime (T ↔ R) serialization into a single end-to-end pipeline. It generates spirograph data points in T and plots them with R `ggplot2` — one plot per parameter combination.
+
+#### Problem
+
+You have a list of radii `[3, 5, 8]` and `[2, 4, 6]`. You want all 9 combinations of spirograph curves drawn as ggplot2 faceted plots. Writing 9 nodes by hand is tedious — use pattern branching instead.
+
+#### Pipeline Definition
+
+```t
+p = pipeline {
+  fixed_radii = [3, 5, 8]
+  cycling_radii = [2, 4, 6]
+
+  points = node(
+    command = <{
+      import "src/spirograph.t"
+      spirograph_points(fixed_radii, cycling_radii)
+    }>,
+    pattern = cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii)),
+    runtime = T,
+    serializer = ^json
+  )
+
+  single_plot = node(
+    command = <{ plot_spirographs(points) }>,
+    pattern = map_pattern(points),
+    functions = ["src/spirograph.R"],
+    runtime = R,
+    deserializer = ^json
+  )
+}
+```
+
+#### How It Works
+
+1. **`cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii))`** — takes the Cartesian product of both lists (3 × 3 = 9). Each branch calls `spirograph_points(r_fixed, r_cycling)` from `src/spirograph.t` with one specific radius pair, returning a DataFrame of x, y coordinates.
+
+2. **`serializer = ^json`** — the `points` node uses the `^json` symbol serializer to write each branch's DataFrame as a JSON array of records. Without this, the R node downstream cannot read the data.
+
+3. **`map_pattern(points)`** — creates one branch per `points` output (9 branches total). Each branch calls `plot_spirographs()` from `src/spirograph.R`.
+
+4. **`deserializer = ^json`** — Tells the pipeline runner to read the R node's JSON artifact back so it can be cached and inspected.
+
+5. **`^json` symbol syntax** — required for serializer/deserializer values in cross-runtime pipelines (string literals like `"json"` are not accepted). This is the canonical way to declare interchange formats.
+
+#### The Helper Code
+
+**`src/spirograph.t`** — a parametric spirograph function called by each data branch:
+
+```t
+spirograph_points = \(fixed_radius, cycling_radius) {
+  num_points = 10000
+  max_t = 30 * pi
+  t_values = float_seq(0, max_t, num_points)
+  diff = fixed_radius - cycling_radius
+  ratio = diff / cycling_radius
+  xs = t_values |> map(\(t) diff * cos(t) + cos(t * ratio))
+  ys = t_values |> map(\(t) diff * sin(t) - sin(t * ratio))
+  to_dataframe([x: xs, y: ys,
+    fixed_radius: fixed_radius,
+    cycling_radius: cycling_radius])
+}
+```
+
+**`src/spirograph.R`** — renders a faceted ggplot for one parameter combination:
+
+```r
+library(ggplot2)
+
+plot_spirographs <- function(points) {
+  label <- "fixed_radius = %s, cycling_radius = %s"
+  points$parameters <- sprintf(label, points$fixed_radius, points$cycling_radius)
+  ggplot(points) +
+    geom_point(aes(x = x, y = y, color = parameters), size = 0.1) +
+    facet_wrap(~parameters) +
+    theme_gray(16) +
+    guides(color = "none")
+}
+```
+
+Note the `functions = ["src/spirograph.R"]` argument on the R node — this propagates the script into the Nix sandbox so it is available at build time.
+
+#### Building
+
+When you run `build_pipeline(p, verbose = 1)`, T automatically expands the patterns before building:
+
+```
++ points_branch_1 building
++ points_branch_2 building
+...
++ points_branch_9 building
++ single_plot_branch_3 building
++ single_plot_branch_5 building
+...
++ single_plot_branch_1 building
+
+✓ Pipeline build completed [20 built / 20 nodes]
+```
+
+20 nodes total: 2 root (`fixed_radii`, `cycling_radii`), 9 data branches, 9 plot branches.
+
+#### Post-Build Verification
+
+Since `build_pipeline` does not modify the original pipeline variable `p`, expanded branch nodes are only visible in the build log. Use `build_log_to_frame()` to inspect them:
+
+```t
+res = build_pipeline(p, verbose = 1)
+
+node_frame = build_log_to_frame(res)
+points_branches = filter(node_frame, \(r) starts_with(r.name, "points"))
+plot_branches = filter(node_frame, \(r) starts_with(r.name, "single_plot"))
+
+assert(nrow(points_branches) == 9, "Expected 9 points branches")
+assert(nrow(plot_branches) == 9, "Expected 9 single_plot branches")
+assert(length(res.failed_nodes) == 0, "All nodes should succeed")
+```
+
+This pattern — `build_log_to_frame(res)` + `filter` with a lambda — is the recommended way to verify branched pipeline builds when you need to inspect individual expanded nodes.
+
+#### Key Takeaways
+
+- **`cross_pattern(map_pattern(...), map_pattern(...))`** generates a Cartesian product of branches.
+- **Chaining patterns** (`cross_pattern` → `map_pattern`) lets you build multi-phase branched pipelines.
+- **`^json` serializer/deserializer** enables cross-runtime data interchange between T and R nodes.
+- **Expanded nodes exist only in the build log**, not in the original pipeline variable. Use `build_log_to_frame()` for post-build queries.
+- **Patterns work with non-T runtimes downstream** — a `map_pattern` node can depend on T data branches and run in R (or Python or Julia), as long as serialization is configured correctly.
 
 ---
 
@@ -19399,7 +19547,7 @@ The output Nix store path or the dry-run DataFrame.
 
 Build Pipeline Artifacts
 
-Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry. Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs.
+Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry. Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs. If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before building.
 
 ## Parameters
 
@@ -20967,6 +21115,29 @@ expand(df, nesting($type, $size))
 expand(df, $type, 2010:2012)
 ```
 
+
+
+# FILE: docs/reference/expand_pipeline.md
+
+# expand_pipeline
+
+Expand Pattern-Based Branching
+
+Expands `map_pattern` and `cross_pattern` nodes into individual branch nodes. Each branch is named `<original>_branch_<N>`. Supports List, Vector, and DataFrame dependencies.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to expand.
+
+- **to_script** (`String`): (Optional) File path to write the expanded pipeline script as a T source file.
+
+## Returns
+
+A Pipeline with branches in place of patterned nodes. `p_has_patterns` is set to `false`.
+
+## See Also
+
+[pipeline_nodes](pipeline_nodes.html), [populate_pipeline](populate_pipeline.html), [build_pipeline](build_pipeline.html)
 
 
 # FILE: docs/reference/explain_json.md
@@ -25582,7 +25753,7 @@ mutate(df, !!!poly($age, 3, raw = true))
 
 Populate Pipeline
 
-Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optionally builds the pipeline with full Nix-native orchestration support.
+Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optionally builds the pipeline with full Nix-native orchestration support. If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before population.
 
 ## Parameters
 

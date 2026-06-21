@@ -2809,7 +2809,7 @@ expanded2 = expand_pipeline(p2)
 -- pipeline_nodes(expanded2) == ["a", "b", "c_branch_1", "c_branch_2", "c_branch_3", "c_branch_4"]
 ```
 
-**Note:** Only `map_pattern` and `cross_pattern` are currently expanded by `expand_pipeline`. Pattern branching into non-T runtime nodes is also not yet supported — an error is returned if a patterned node has `runtime` set to anything other than `T`.
+**Note:** Only `map_pattern` and `cross_pattern` are currently expanded by `expand_pipeline` (selector patterns are parsed but not yet expanded). Non-T runtime branching is supported — see §11.5 of the pipeline tutorial for serializer/deserializer requirements.
 
 ---
 

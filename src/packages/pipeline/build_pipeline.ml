@@ -33,13 +33,16 @@ let write_atelier_diagrams p env =
 --# Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry.
 --# Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs.
 --#
+--# If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`,
+--# `cross_pattern`), they are automatically expanded before building.
+--#
 --# @name build_pipeline
 --# @param pipeline :: Pipeline The pipeline to build.
 --# @param verbose :: Int (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+--# @param dry_run :: Bool (Optional) Return a planned build DataFrame without executing. Maps to `--dry-run`.
 --# @param nix_options :: Dict (Optional) A dictionary of Nix orchestration options:
 --#   - `targets` :: List[String] Specific node names to build. Maps to `-A <target>` in nix-build.
 --#   - `force` :: Bool|List[String] Force-rebuild nodes even if cached. Maps to `--check`.
---#   - `dry_run` :: Bool Return a planned build DataFrame without executing. Maps to `--dry-run`.
 --#   - `max_jobs` :: Int Maximum parallel build jobs. Maps to `--max-jobs N`.
 --#   - `cache` :: String Cachix cache name to configure as an extra binary substituter.
 --# @return :: BuildLog|DataFrame A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`), or a dry-run DataFrame.
@@ -60,10 +63,9 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
     | None ->
       match Pipeline_args.get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
-          if p.p_has_patterns then
-            Error.make_error StructuralError
-              "Pipeline contains unexpanded dynamic branching patterns. Use expand_pipeline(p) to resolve branches before building. See help(expand_pipeline) for details."
-          else
+          (match Pipeline_expand.expand_pipeline_for_build p env with
+           | Error e -> e
+           | Ok p ->
             let (verbose_provided, verbose_val) = Pipeline_args.get_arg "verbose" 2 (VNA NAGeneric) named_args in
         let (_, nix_options_val) = Pipeline_args.get_arg "nix_options" 3 (VDict []) named_args in
         let (dry_run_provided, dry_run_val) = Pipeline_args.get_arg "dry_run" 4 (VNA NAGeneric) named_args in
@@ -185,7 +187,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
          | other ->
              Error.make_error RuntimeError
                ("build_pipeline expected pipeline resolution to return a Pipeline or Error, but got: "
-                ^ Utils.value_to_string other))
-      | _ -> Error.type_error "Function `build_pipeline` expects a Pipeline."
+                 ^ Utils.value_to_string other)))
+       | _ -> Error.type_error "Function `build_pipeline` expects a Pipeline."
   in
   Env.add "build_pipeline" (make_builtin_named ~name:"build_pipeline" ~variadic:true 1 build_fn) env

@@ -2698,6 +2698,11 @@ error is raised prompting you to provide an explicit name.</p>
 branches using pattern functions. This is useful when you need to run
 the same computation over each element of a list, vector, or data
 frame.</p>
+<p>Patterns are <strong>automatically expanded</strong> when you call
+<code>populate_pipeline()</code> or <code>build_pipeline()</code> — you
+do not need to call <code>expand_pipeline()</code> explicitly. The
+explicit function is available if you want to inspect the expanded
+structure before building.</p>
 <h3 id="map_pattern-one-branch-per-element">11.1
 <code>map_pattern</code> — One Branch Per Element</h3>
 <p>Use <code>map_pattern(dep)</code> to create one branch for each
@@ -2707,6 +2712,10 @@ element of an upstream dependency:</p>
   y = node(command = &lt;{ x * 2 }&gt;, pattern = map_pattern(x))
 }
 
+-- Auto-expansion happens inside build_pipeline:
+build_pipeline(p)
+
+-- Or inspect the expanded structure explicitly:
 expanded = expand_pipeline(p)
 pipeline_nodes(expanded)
 -- [&quot;x&quot;, &quot;y_branch_1&quot;, &quot;y_branch_2&quot;, &quot;y_branch_3&quot;]
@@ -2722,8 +2731,7 @@ the same length, and branch <code>i</code> receives element
   ys = [10, 20, 30]
   z = node(command = &lt;{ xs + ys }&gt;, pattern = map_pattern(xs, ys))
 }
-expanded = expand_pipeline(p)
--- z_branch_1 = 11, z_branch_2 = 22, z_branch_3 = 33</code></pre>
+-- build_pipeline(p) auto-expands before building</code></pre>
 <h3 id="cross_pattern-cartesian-product">11.2 <code>cross_pattern</code>
 — Cartesian Product</h3>
 <p>Use <code>cross_pattern(sub1, sub2, ...)</code> for a Cartesian
@@ -2775,23 +2783,38 @@ elements</li>
 <code>expand_pipeline</code> does not yet expand them — only
 <code>map_pattern</code> and <code>cross_pattern</code> currently work.
 Calling <code>expand_pipeline</code> on a node using a selector pattern
-returns an error. This section documents the intended API for a future
+returns an error, and the same error surfaces if you try to
+<code>build_pipeline</code> or <code>populate_pipeline</code> on such a
+pipeline. This section documents the intended API for a future
 release.</p>
-<h3 id="non-t-runtime-limitation">11.5 Non-T Runtime Limitation</h3>
-<p>Pattern branching is currently supported only for
-<code>runtime = T</code> (the default). If a patterned node has a non-T
-runtime (<code>R</code>, <code>Python</code>, <code>Julia</code>,
-<code>sh</code>, <code>Quarto</code>), <code>expand_pipeline</code>
-returns an error:</p>
+<h3 id="pattern-branching-with-non-t-runtimes">11.5 Pattern Branching
+with Non-T Runtimes</h3>
+<p>Pattern branching works with non-T runtimes (<code>R</code>,
+<code>Python</code>, <code>Julia</code>, etc.), but requires explicit
+<code>serializer</code> and <code>deserializer</code> configuration so
+cross-runtime data interchange works correctly. Each branch runs under
+the same runtime as the original patterned node:</p>
 <pre class="t"><code>p = pipeline {
   a = [1, 2, 3]
-  b = node(command = &lt;{ a }&gt;, runtime = R, deserializer = ^json, pattern = map_pattern(a))
+  b = node(
+    command = &lt;{ a }&gt;,
+    runtime = R,
+    serializer = ^json,
+    deserializer = ^json,
+    pattern = map_pattern(a)
+  )
 }
-expand_pipeline(p)
--- Error: &quot;pattern branching into non-T runtime nodes (got runtime &#39;R&#39;) is not yet supported for node &#39;b&#39;.&quot;</code></pre>
-<p>Use per-element iteration inside the node’s own code as a workaround,
-or split the work into separate T-runtime nodes that orchestrate the
-cross-runtime calls.</p>
+
+build_pipeline(p)
+-- Each branch (b_branch_1, b_branch_2, b_branch_3) runs in R</code></pre>
+<p>The serializer/deserializer symbols (<code>^json</code> in the
+example) must match a supported interchange format on both sides of the
+runtime boundary. If serializer and deserializer are omitted, expansion
+succeeds but the build will fail — the default serializer cannot produce
+runtime-specific artifacts for cross-runtime data interchange.</p>
+<p>See §11.8 for a complete polyglot example using
+<code>cross_pattern</code> and <code>map_pattern</code> with R
+<code>ggplot2</code>.</p>
 <h3 id="writing-the-expanded-pipeline-to-a-file">11.6 Writing the
 Expanded Pipeline to a File</h3>
 <p>Pass <code>to_script</code> to write the expanded pipeline as a T
@@ -2799,6 +2822,155 @@ source file for inspection or debugging:</p>
 <pre class="t"><code>expand_pipeline(p, to_script = &quot;expanded_pipeline.t&quot;)</code></pre>
 <p>The output file contains the full <code>pipeline { ... }</code>
 definition with all branches unrolled.</p>
+<h3 id="build-and-composition-auto-expand">11.7 Build and Composition
+Auto-Expand</h3>
+<p><code>populate_pipeline()</code>, <code>build_pipeline()</code>,
+<code>chain()</code>, <code>parallel()</code>, <code>union()</code>,
+<code>intersect()</code>, <code>difference()</code>, and
+<code>patch()</code> all automatically expand any unexpanded patterns in
+their pipeline inputs before proceeding. You only need to call
+<code>expand_pipeline()</code> explicitly when you want to inspect the
+branch structure before building.</p>
+<h3 id="complete-example-polyglot-dynamic-branching-pipeline">11.8
+Complete Example: Polyglot Dynamic Branching Pipeline</h3>
+<p>This demo (from <code>t_demos/dynamic_branching_t</code>) combines
+<code>cross_pattern</code>, <code>map_pattern</code>, and cross-runtime
+(T ↔︎ R) serialization into a single end-to-end pipeline. It generates
+spirograph data points in T and plots them with R <code>ggplot2</code> —
+one plot per parameter combination.</p>
+<h4 id="problem">Problem</h4>
+<p>You have a list of radii <code>[3, 5, 8]</code> and
+<code>[2, 4, 6]</code>. You want all 9 combinations of spirograph curves
+drawn as ggplot2 faceted plots. Writing 9 nodes by hand is tedious — use
+pattern branching instead.</p>
+<h4 id="pipeline-definition">Pipeline Definition</h4>
+<pre class="t"><code>p = pipeline {
+  fixed_radii = [3, 5, 8]
+  cycling_radii = [2, 4, 6]
+
+  points = node(
+    command = &lt;{
+      import &quot;src/spirograph.t&quot;
+      spirograph_points(fixed_radii, cycling_radii)
+    }&gt;,
+    pattern = cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii)),
+    runtime = T,
+    serializer = ^json
+  )
+
+  single_plot = node(
+    command = &lt;{ plot_spirographs(points) }&gt;,
+    pattern = map_pattern(points),
+    functions = [&quot;src/spirograph.R&quot;],
+    runtime = R,
+    deserializer = ^json
+  )
+}</code></pre>
+<h4 id="how-it-works">How It Works</h4>
+<ol type="1">
+<li><p><strong><code>cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii))</code></strong>
+— takes the Cartesian product of both lists (3 × 3 = 9). Each branch
+calls <code>spirograph_points(r_fixed, r_cycling)</code> from
+<code>src/spirograph.t</code> with one specific radius pair, returning a
+DataFrame of x, y coordinates.</p></li>
+<li><p><strong><code>serializer = ^json</code></strong> — the
+<code>points</code> node uses the <code>^json</code> symbol serializer
+to write each branch’s DataFrame as a JSON array of records. Without
+this, the R node downstream cannot read the data.</p></li>
+<li><p><strong><code>map_pattern(points)</code></strong> — creates one
+branch per <code>points</code> output (9 branches total). Each branch
+calls <code>plot_spirographs()</code> from
+<code>src/spirograph.R</code>.</p></li>
+<li><p><strong><code>deserializer = ^json</code></strong> — Tells the
+pipeline runner to read the R node’s JSON artifact back so it can be
+cached and inspected.</p></li>
+<li><p><strong><code>^json</code> symbol syntax</strong> — required for
+serializer/deserializer values in cross-runtime pipelines (string
+literals like <code>"json"</code> are not accepted). This is the
+canonical way to declare interchange formats.</p></li>
+</ol>
+<h4 id="the-helper-code">The Helper Code</h4>
+<p><strong><code>src/spirograph.t</code></strong> — a parametric
+spirograph function called by each data branch:</p>
+<pre class="t"><code>spirograph_points = \(fixed_radius, cycling_radius) {
+  num_points = 10000
+  max_t = 30 * pi
+  t_values = float_seq(0, max_t, num_points)
+  diff = fixed_radius - cycling_radius
+  ratio = diff / cycling_radius
+  xs = t_values |&gt; map(\(t) diff * cos(t) + cos(t * ratio))
+  ys = t_values |&gt; map(\(t) diff * sin(t) - sin(t * ratio))
+  to_dataframe([x: xs, y: ys,
+    fixed_radius: fixed_radius,
+    cycling_radius: cycling_radius])
+}</code></pre>
+<p><strong><code>src/spirograph.R</code></strong> — renders a faceted
+ggplot for one parameter combination:</p>
+<div class="sourceCode" id="cb137"><pre
+class="sourceCode r"><code class="sourceCode r"><span id="cb137-1"><a href="#cb137-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb137-2"><a href="#cb137-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb137-3"><a href="#cb137-3" aria-hidden="true" tabindex="-1"></a>plot_spirographs <span class="ot">&lt;-</span> <span class="cf">function</span>(points) {</span>
+<span id="cb137-4"><a href="#cb137-4" aria-hidden="true" tabindex="-1"></a>  label <span class="ot">&lt;-</span> <span class="st">&quot;fixed_radius = %s, cycling_radius = %s&quot;</span></span>
+<span id="cb137-5"><a href="#cb137-5" aria-hidden="true" tabindex="-1"></a>  points<span class="sc">$</span>parameters <span class="ot">&lt;-</span> <span class="fu">sprintf</span>(label, points<span class="sc">$</span>fixed_radius, points<span class="sc">$</span>cycling_radius)</span>
+<span id="cb137-6"><a href="#cb137-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(points) <span class="sc">+</span></span>
+<span id="cb137-7"><a href="#cb137-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">x =</span> x, <span class="at">y =</span> y, <span class="at">color =</span> parameters), <span class="at">size =</span> <span class="fl">0.1</span>) <span class="sc">+</span></span>
+<span id="cb137-8"><a href="#cb137-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_wrap</span>(<span class="sc">~</span>parameters) <span class="sc">+</span></span>
+<span id="cb137-9"><a href="#cb137-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_gray</span>(<span class="dv">16</span>) <span class="sc">+</span></span>
+<span id="cb137-10"><a href="#cb137-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">color =</span> <span class="st">&quot;none&quot;</span>)</span>
+<span id="cb137-11"><a href="#cb137-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>Note the <code>functions = ["src/spirograph.R"]</code> argument on
+the R node — this propagates the script into the Nix sandbox so it is
+available at build time.</p>
+<h4 id="building">Building</h4>
+<p>When you run <code>build_pipeline(p, verbose = 1)</code>, T
+automatically expands the patterns before building:</p>
+<pre><code>+ points_branch_1 building
++ points_branch_2 building
+...
++ points_branch_9 building
++ single_plot_branch_3 building
++ single_plot_branch_5 building
+...
++ single_plot_branch_1 building
+
+✓ Pipeline build completed [20 built / 20 nodes]</code></pre>
+<p>20 nodes total: 2 root (<code>fixed_radii</code>,
+<code>cycling_radii</code>), 9 data branches, 9 plot branches.</p>
+<h4 id="post-build-verification">Post-Build Verification</h4>
+<p>Since <code>build_pipeline</code> does not modify the original
+pipeline variable <code>p</code>, expanded branch nodes are only visible
+in the build log. Use <code>build_log_to_frame()</code> to inspect
+them:</p>
+<pre class="t"><code>res = build_pipeline(p, verbose = 1)
+
+node_frame = build_log_to_frame(res)
+points_branches = filter(node_frame, \(r) starts_with(r.name, &quot;points&quot;))
+plot_branches = filter(node_frame, \(r) starts_with(r.name, &quot;single_plot&quot;))
+
+assert(nrow(points_branches) == 9, &quot;Expected 9 points branches&quot;)
+assert(nrow(plot_branches) == 9, &quot;Expected 9 single_plot branches&quot;)
+assert(length(res.failed_nodes) == 0, &quot;All nodes should succeed&quot;)</code></pre>
+<p>This pattern — <code>build_log_to_frame(res)</code> +
+<code>filter</code> with a lambda — is the recommended way to verify
+branched pipeline builds when you need to inspect individual expanded
+nodes.</p>
+<h4 id="key-takeaways">Key Takeaways</h4>
+<ul>
+<li><strong><code>cross_pattern(map_pattern(...), map_pattern(...))</code></strong>
+generates a Cartesian product of branches.</li>
+<li><strong>Chaining patterns</strong> (<code>cross_pattern</code> →
+<code>map_pattern</code>) lets you build multi-phase branched
+pipelines.</li>
+<li><strong><code>^json</code> serializer/deserializer</strong> enables
+cross-runtime data interchange between T and R nodes.</li>
+<li><strong>Expanded nodes exist only in the build log</strong>, not in
+the original pipeline variable. Use <code>build_log_to_frame()</code>
+for post-build queries.</li>
+<li><strong>Patterns work with non-T runtimes downstream</strong> — a
+<code>map_pattern</code> node can depend on T data branches and run in R
+(or Python or Julia), as long as serialization is configured
+correctly.</li>
+</ul>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you’ve mastered pipelines, learn how to manage reproducible

@@ -2298,34 +2298,70 @@ p.t_step|}
      | _ ->
          incr fail_count; Printf.printf "  ✗ expected a VPipeline after filter_node, got %s\n" (Ast.Utils.value_to_string v_filtered));
 
-    (* 4. Test building / populating fails with StructuralError *)
-    let (v_build_err, _) = eval_string_env "build_pipeline(p)" env_p in
-    let s_build_err = strip_location (Ast.Utils.value_to_string v_build_err) in
-    if contains_pattern "StructuralError" s_build_err && contains_pattern "unexpanded" s_build_err then begin
-      incr pass_count; Printf.printf "  ✓ build_pipeline fails with StructuralError on unexpanded patterns\n"
+    (* 4. Test auto-expansion: build_pipeline and populate_pipeline succeed (no StructuralError) *)
+    let (v_build, _) = eval_string_env "build_pipeline(p)" env_p in
+    let s_build = strip_location (Ast.Utils.value_to_string v_build) in
+    if not (contains_pattern "StructuralError" s_build) then begin
+      incr pass_count; Printf.printf "  ✓ build_pipeline auto-expands and succeeds (no StructuralError)\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ build_pipeline should fail with StructuralError on unexpanded patterns, got: %s\n" s_build_err
+      incr fail_count; Printf.printf "  ✗ build_pipeline should auto-expand, got: %s\n" s_build
     end;
 
-    let (v_pop_err, _) = eval_string_env "populate_pipeline(p)" env_p in
-    let s_pop_err = strip_location (Ast.Utils.value_to_string v_pop_err) in
-    if contains_pattern "StructuralError" s_pop_err && contains_pattern "unexpanded" s_pop_err then begin
-      incr pass_count; Printf.printf "  ✓ populate_pipeline fails with StructuralError on unexpanded patterns\n"
+    let (v_pop, _) = eval_string_env "populate_pipeline(p)" env_p in
+    let s_pop = strip_location (Ast.Utils.value_to_string v_pop) in
+    if not (contains_pattern "StructuralError" s_pop) then begin
+      incr pass_count; Printf.printf "  ✓ populate_pipeline auto-expands and succeeds (no StructuralError)\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ populate_pipeline should fail with StructuralError on unexpanded patterns, got: %s\n" s_pop_err
+      incr fail_count; Printf.printf "  ✗ populate_pipeline should auto-expand, got: %s\n" s_pop
     end;
 
-    (* 5. Test composition fails with StructuralError *)
-    let (v_comp_err, _) = eval_string_env "p2 = pipeline { c = 1 }; chain(p, p2)" env_p in
-    let s_comp_err = strip_location (Ast.Utils.value_to_string v_comp_err) in
-    if contains_pattern "StructuralError" s_comp_err && contains_pattern "unexpanded" s_comp_err then begin
-      incr pass_count; Printf.printf "  ✓ chain fails with StructuralError on unexpanded patterns\n"
+    (* 5. Test chain auto-expands (p2 references 'a' which exists after expansion) *)
+    let (v_chain, _) = eval_string_env "p2 = pipeline { d = a + 1 }; chain(p, p2)" env_p in
+    let s_chain = strip_location (Ast.Utils.value_to_string v_chain) in
+    if not (contains_pattern "StructuralError" s_chain) then begin
+      incr pass_count; Printf.printf "  ✓ chain auto-expands and succeeds (no StructuralError)\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ chain should fail with StructuralError on unexpanded patterns, got: %s\n" s_comp_err
+      incr fail_count; Printf.printf "  ✗ chain should auto-expand, got: %s\n" s_chain
+    end;
+    (* Verify chain result contains expanded branch names *)
+    let (v_nodes, _) = eval_string_env "pipeline_nodes(chain(p, pipeline { d = a + 1 }))" env_p in
+    let s_nodes = Ast.Utils.value_to_string v_nodes in
+    if contains_pattern "b_branch_1" s_nodes then begin
+      incr pass_count; Printf.printf "  ✓ chain result includes expanded branch 'b_branch_1'\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ chain result should include expanded branch 'b_branch_1', got: %s\n" s_nodes
     end;
     ()
   in
   test_dynamic_branching_metadata ();
+
+  let test_composition_ref_wiring () =
+    Printf.printf "Composition Ref Wiring:\n";
+    let env = Packages.init_env () in
+    let (_, env_p) = eval_string_env
+      "p = pipeline { a = [1, 2, 3]; b = node(pattern = map_pattern(a)) }"
+      env
+    in
+    let ops = [
+      ("chain", "chain(p, pipeline { d = a + 1 })");
+      ("parallel", "parallel(p, pipeline { d = a + 1 })");
+      ("union", "union(p, pipeline { d = a + 1 })");
+      ("difference", "difference(p, pipeline { d = a + 1 })");
+      ("intersect", "intersect(p, pipeline { d = a + 1 })");
+      ("patch", "patch(p, pipeline { d = a + 1 })");
+    ] in
+    let all_wired = List.for_all (fun (_, op) ->
+      let (v, _) = eval_string_env op env_p in
+      let s = strip_location (Ast.Utils.value_to_string v) in
+      not (contains_pattern "expander not yet installed" s)
+    ) ops in
+    if all_wired then begin
+      incr pass_count; Printf.printf "  ✓ all composition/set-op builtins have wired expander\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ some composition/set-op builtins returned expander-not-wired error\n"
+    end
+  in
+  test_composition_ref_wiring ();
 
   let test_dynamic_branching_expansion () =
     Printf.printf "Dynamic Branching Expansion:\n";
@@ -2450,7 +2486,7 @@ p.t_step|}
          incr fail_count; Printf.printf "  ✗ expand_pipeline with dataframe should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
-    (* 8. Test expand_pipeline errors on non-T runtime node *)
+    (* 8. Test expand_pipeline with non-T runtime creates branches with correct runtime *)
     let (_, env_rt) = eval_string_env
       "p = pipeline {\n\
          a = [1, 2, 3]\n\
@@ -2458,17 +2494,191 @@ p.t_step|}
        }"
       env
     in
-    let (v_rt_err, _) = eval_string_env "expand_pipeline(p)" env_rt in
-    let s_rt_err = strip_location (Ast.Utils.value_to_string v_rt_err) in
-    if contains_pattern "not yet supported" s_rt_err then begin
-      incr pass_count; Printf.printf "  ✓ expand_pipeline errors on non-T runtime node\n"
-    end else begin
-      incr fail_count; Printf.printf "  ✗ expand_pipeline should error on non-T runtime, got: %s\n" s_rt_err
-    end;
+    let (v_rt_result, _) = eval_string_env "expand_pipeline(p)" env_rt in
+    (match v_rt_result with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_a = List.mem "a" node_names in
+         let has_b1 = List.mem "b_branch_1" node_names in
+         let has_b2 = List.mem "b_branch_2" node_names in
+         let has_b3 = List.mem "b_branch_3" node_names in
+         let has_b_orig = List.mem "b" node_names in
+         let branch_runtimes = List.filter (fun (n, _) ->
+           String.starts_with ~prefix:"b_branch" n
+         ) pe.p_runtimes in
+         let all_r_runtime = branch_runtimes <> [] && List.for_all (fun (_, r) -> r = "R") branch_runtimes in
+         if has_a && has_b1 && has_b2 && has_b3 && not has_b_orig && all_r_runtime then begin
+           incr pass_count; Printf.printf "  ✓ expand_pipeline works with non-T runtime, creates 3 R branches\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expand_pipeline with non-T runtime: a=%b b1=%b b2=%b b3=%b b_orig=%b all_R=%b\n"
+             has_a has_b1 has_b2 has_b3 has_b_orig all_r_runtime
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline with non-T runtime should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
 
     ()
   in
   test_dynamic_branching_expansion ();
+
+  let test_cross_pattern_expansion () =
+    Printf.printf "Cross-Pattern & Chained Pattern Expansion:\n";
+    let env = Packages.init_env () in
+
+    (* 1. Test cross_pattern produces correct number of branches *)
+    let (_, env_cross) = eval_string_env
+      "p = pipeline {\n\
+         a = [1, 2]\n\
+         b = [10, 20, 30]\n\
+         c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))\n\
+       }"
+      env
+    in
+    let (v_exp, _) = eval_string_env "expand_pipeline(p)" env_cross in
+    (match v_exp with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_a = List.mem "a" node_names in
+         let has_b = List.mem "b" node_names in
+         let has_c1 = List.mem "c_branch_1" node_names in
+         let has_c6 = List.mem "c_branch_6" node_names in
+         let has_c_orig = List.mem "c" node_names in
+         if has_a && has_b && has_c1 && has_c6 && not has_c_orig && List.length pe.p_nodes = 8 then begin
+           incr pass_count; Printf.printf "  ✓ cross_pattern with 2x3 creates 6 branches (8 total nodes)\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ cross_pattern: a=%b b=%b c1=%b c6=%b c_orig=%b nodes=%d\n"
+             has_a has_b has_c1 has_c6 has_c_orig (List.length pe.p_nodes)
+         end;
+         if not pe.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ cross_pattern expanded pipeline has patterns flag false\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ cross_pattern expanded pipeline should have patterns flag false\n"
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline cross_pattern should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    (* 2. Test chained patterns: cross_pattern supplies downstream map_pattern,
+          verifying that dependencies are rewired to individual branches *)
+    let (_, env_chain) = eval_string_env
+      "p = pipeline {\n\
+         a = [1, 2]\n\
+         b = [10, 20]\n\
+         c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))\n\
+         d = node(command = <{ c }>, pattern = map_pattern(c))\n\
+       }"
+      env
+    in
+    let (v_chain_exp, _) = eval_string_env "expand_pipeline(p)" env_chain in
+    (match v_chain_exp with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_d1 = List.mem "d_branch_1" node_names in
+         let has_d4 = List.mem "d_branch_4" node_names in
+         let has_d_orig = List.mem "d" node_names in
+         let has_c_orig = List.mem "c" node_names in
+         let d1_deps_opt = List.find_opt (fun (n, _) -> n = "d_branch_1") pe.p_deps in
+         let deps_rewired = match d1_deps_opt with
+           | Some (_, deps) -> List.mem "c_branch_1" deps
+           | None -> false
+         in
+         let all_d_have_correct_deps = List.for_all (fun i ->
+           let d_name = "d_branch_" ^ string_of_int i in
+           let c_name = "c_branch_" ^ string_of_int i in
+           match List.find_opt (fun (n, _) -> n = d_name) pe.p_deps with
+           | Some (_, deps) -> List.mem c_name deps
+           | None -> false
+         ) (List.init 4 (fun i -> i + 1)) in
+         if has_d1 && has_d4 && not has_d_orig && not has_c_orig && deps_rewired && all_d_have_correct_deps then begin
+           incr pass_count; Printf.printf "  ✓ chained cross->map creates 4 d branches, deps rewired correctly\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ chained cross->map: d1=%b d4=%b d_orig=%b c_orig=%b deps_rewired=%b all_correct=%b\n"
+             has_d1 has_d4 has_d_orig has_c_orig deps_rewired all_d_have_correct_deps
+         end;
+         if not pe.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ chained expanded pipeline has patterns flag false\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ chained expanded pipeline should have patterns flag false\n"
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline chained cross->map should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    (* 3. Test raw-code substitution: exact string equality and word-boundary regex *)
+    let (_, env_raw) = eval_string_env
+      "p = pipeline {\n\
+         a = [10, 20]\n\
+         b = node(command = <{ a * 2 }>, runtime = R, serializer = ^json, deserializer = ^json, pattern = map_pattern(a))\n\
+       }"
+      env
+    in
+    let (v_raw_exp, _) = eval_string_env "expand_pipeline(p)" env_raw in
+    (match v_raw_exp with
+     | VPipeline pe ->
+         let cmd_of_node name =
+           match List.assoc_opt name pe.p_nodes with
+           | Some (Ast.VNode un) -> Some un.un_command
+           | _ -> None
+         in
+         let b1_text = match cmd_of_node "b_branch_1" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
+         in
+         let b2_text = match cmd_of_node "b_branch_2" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
+         in
+         let exact_ok = b1_text = Some "10 * 2" && b2_text = Some "20 * 2" in
+         if exact_ok then begin
+           incr pass_count; Printf.printf "  ✓ non-T raw-code exact substitution correct (10 * 2, 20 * 2)\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ non-T raw-code exact substitution: b1=%s b2=%s\n"
+             (match b1_text with Some s -> s | None -> "N/A")
+             (match b2_text with Some s -> s | None -> "N/A")
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline non-T raw-code should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    (* 4. Test word-boundary regex: only standalone identifier is substituted *)
+    let (_, env_wb) = eval_string_env
+      "p = pipeline {\n\
+         a = [10, 20]\n\
+         c = node(command = <{ aa + a + a_b }>, pattern = map_pattern(a))\n\
+       }"
+      env
+    in
+    let (v_wb_exp, _) = eval_string_env "expand_pipeline(p)" env_wb in
+    (match v_wb_exp with
+     | VPipeline pe ->
+         let cmd_of_node name =
+           match List.assoc_opt name pe.p_nodes with
+           | Some (Ast.VNode un) -> Some un.un_command
+           | _ -> None
+         in
+         let c1_text = match cmd_of_node "c_branch_1" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
+         in
+         let c2_text = match cmd_of_node "c_branch_2" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
+         in
+         let wb_ok = c1_text = Some "aa + 10 + a_b" && c2_text = Some "aa + 20 + a_b" in
+         if wb_ok then begin
+           incr pass_count; Printf.printf "  ✓ word-boundary regex: only 'a' replaced, 'aa' and 'a_b' untouched\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ word-boundary regex: c1=%s c2=%s (expected 'aa + 10 + a_b', 'aa + 20 + a_b')\n"
+             (match c1_text with Some s -> s | None -> "N/A")
+             (match c2_text with Some s -> s | None -> "N/A")
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline word-boundary should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    ()
+  in
+  test_cross_pattern_expansion ();
 
   let classify_hunk_kind_tests =
     Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:true = "replace"

@@ -1,5 +1,17 @@
 open Ast
 
+(* Forward reference for auto-expansion — set by Pipeline_expand's top-level init code.
+   WARNING: expand_for_build MUST be set before any pipeline composition builtin
+   (chain, parallel) is invoked at runtime. The default placeholder fails loudly to
+   catch any module-load-order violations. Pipeline_expand's `let () = ...` wiring at
+   the bottom of pipeline_expand.ml runs before any user code executes, which
+   guarantees the ref is live before it is called. *)
+let expand_for_build : (pipeline_result -> value Env.t -> (pipeline_result, value) Result.t) ref =
+  ref (fun p _ ->
+    if not p.p_has_patterns then Ok p
+    else Error (Error.type_error "expand_pipeline: internal error — expander not yet installed")
+  )
+
 (** Merge: lst1 entries first, then lst2 entries whose keys are new to lst1. *)
 let merge_new lst1 lst2 =
   let keys1 = List.map fst lst1 in
@@ -331,13 +343,15 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
     (make_builtin ~name:"chain" 2 (fun args env ->
       match args with
       | [VPipeline p1; VPipeline p2] ->
-          if p1.p_has_patterns || p2.p_has_patterns then
-            Error.make_error StructuralError
-              "Function `chain` cannot combine pipelines with unexpanded dynamic branching patterns. Expand the patterns first using `expand_pipeline`."
-          else
-            let names1 = List.map fst p1.p_exprs in
-            let names2 = List.map fst p2.p_exprs in
-          (* Check for name collisions (same node in both) *)
+           (match !expand_for_build p1 env with
+            | Error e -> e
+            | Ok p1' ->
+            match !expand_for_build p2 env with
+            | Error e -> e
+            | Ok p2' ->
+              let names1 = List.map fst p1'.p_exprs in
+              let names2 = List.map fst p2'.p_exprs in
+           (* Check for name collisions (same node in both) *)
           let collisions = List.filter (fun n -> List.mem n names2) names1 in
           if collisions <> [] then
             Error.make_error ValueError
@@ -345,37 +359,37 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                  "Function `chain`: name collision(s) detected: %s. Use `rename_node` to resolve."
                  (String.concat ", " collisions))
           else begin
-            (* Find shared references: node names from p1 that appear as deps in p2 *)
-            let p2_all_deps = List.concat_map snd p2.p_deps in
+             (* Find shared references: node names from p1 that appear as deps in p2 *)
+             let p2_all_deps = List.concat_map snd p2'.p_deps in
             let shared = List.filter (fun n -> List.mem n p2_all_deps) names1 in
             if shared = [] then
               Error.make_error ValueError
                 "Function `chain`: no shared dependency names found between the two pipelines."
             else
               rerun_pipeline ?strict:None env {
-                p_nodes        = merge_new p1.p_nodes p2.p_nodes;
-                p_exprs        = merge_new p1.p_exprs p2.p_exprs;
-                p_deps         = merge_new p1.p_deps p2.p_deps;
-                p_imports      = p1.p_imports @ p2.p_imports;
-                p_runtimes     = merge_new p1.p_runtimes p2.p_runtimes;
-                p_serializers  = merge_new p1.p_serializers p2.p_serializers;
-                p_deserializers = merge_new p1.p_deserializers p2.p_deserializers;
-                p_env_vars     = merge_new p1.p_env_vars p2.p_env_vars;
-                p_args         = merge_new p1.p_args p2.p_args;
-                p_shells       = merge_new p1.p_shells p2.p_shells;
-                p_shell_args   = merge_new p1.p_shell_args p2.p_shell_args;
-                p_functions    = merge_new p1.p_functions p2.p_functions;
-                p_includes     = merge_new p1.p_includes p2.p_includes;
-                p_noops        = merge_new p1.p_noops p2.p_noops;
-                p_scripts      = merge_new p1.p_scripts p2.p_scripts;
-                p_explicit_deps = merge_new p1.p_explicit_deps p2.p_explicit_deps;
-                p_node_diagnostics = merge_new p1.p_node_diagnostics p2.p_node_diagnostics;
-                p_has_patterns = p1.p_has_patterns || p2.p_has_patterns;
-                p_patterns     = merge_new p1.p_patterns p2.p_patterns;
-                p_iterations   = merge_new p1.p_iterations p2.p_iterations;
-              }
-          end
-      | [_; _] -> Error.type_error "Function `chain` expects two Pipeline arguments."
+                 p_nodes        = merge_new p1'.p_nodes p2'.p_nodes;
+                 p_exprs        = merge_new p1'.p_exprs p2'.p_exprs;
+                 p_deps         = merge_new p1'.p_deps p2'.p_deps;
+                 p_imports      = p1'.p_imports @ p2'.p_imports;
+                 p_runtimes     = merge_new p1'.p_runtimes p2'.p_runtimes;
+                 p_serializers  = merge_new p1'.p_serializers p2'.p_serializers;
+                 p_deserializers = merge_new p1'.p_deserializers p2'.p_deserializers;
+                 p_env_vars     = merge_new p1'.p_env_vars p2'.p_env_vars;
+                 p_args         = merge_new p1'.p_args p2'.p_args;
+                 p_shells       = merge_new p1'.p_shells p2'.p_shells;
+                 p_shell_args   = merge_new p1'.p_shell_args p2'.p_shell_args;
+                 p_functions    = merge_new p1'.p_functions p2'.p_functions;
+                 p_includes     = merge_new p1'.p_includes p2'.p_includes;
+                 p_noops        = merge_new p1'.p_noops p2'.p_noops;
+                 p_scripts      = merge_new p1'.p_scripts p2'.p_scripts;
+                 p_explicit_deps = merge_new p1'.p_explicit_deps p2'.p_explicit_deps;
+                 p_node_diagnostics = merge_new p1'.p_node_diagnostics p2'.p_node_diagnostics;
+                 p_has_patterns = p1'.p_has_patterns || p2'.p_has_patterns;
+                 p_patterns     = merge_new p1'.p_patterns p2'.p_patterns;
+                 p_iterations   = merge_new p1'.p_iterations p2'.p_iterations;
+                }
+           end)
+       | [_; _] -> Error.type_error "Function `chain` expects two Pipeline arguments."
       | _ -> Error.arity_error_named "chain" 2 (List.length args)
     ))
     env
@@ -402,41 +416,44 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
     (make_builtin ~name:"parallel" 2 (fun args env ->
       match args with
       | [VPipeline p1; VPipeline p2] ->
-          if p1.p_has_patterns || p2.p_has_patterns then
-            Error.make_error StructuralError
-              "Function `parallel` cannot combine pipelines with unexpanded dynamic branching patterns. Expand the patterns first using `expand_pipeline`."
-          else
-            let names1 = List.map fst p1.p_exprs in
-            let names2 = List.map fst p2.p_exprs in
-          let collisions = List.filter (fun n -> List.mem n names2) names1 in
-          if collisions <> [] then
-            Error.make_error ValueError
-              (Printf.sprintf
-                 "Function `parallel`: name collision(s) detected: %s. Use `rename_node` to resolve."
-                 (String.concat ", " collisions))
-          else
-            rerun_pipeline ?strict:None env {
-              p_nodes        = merge_new p1.p_nodes p2.p_nodes;
-              p_exprs        = merge_new p1.p_exprs p2.p_exprs;
-              p_deps         = merge_new p1.p_deps p2.p_deps;
-              p_imports      = p1.p_imports @ p2.p_imports;
-              p_runtimes     = merge_new p1.p_runtimes p2.p_runtimes;
-              p_serializers  = merge_new p1.p_serializers p2.p_serializers;
-              p_deserializers = merge_new p1.p_deserializers p2.p_deserializers;
-              p_env_vars     = merge_new p1.p_env_vars p2.p_env_vars;
-              p_args         = merge_new p1.p_args p2.p_args;
-              p_shells       = merge_new p1.p_shells p2.p_shells;
-              p_shell_args   = merge_new p1.p_shell_args p2.p_shell_args;
-              p_functions    = merge_new p1.p_functions p2.p_functions;
-              p_includes     = merge_new p1.p_includes p2.p_includes;
-              p_noops        = merge_new p1.p_noops p2.p_noops;
-              p_scripts      = merge_new p1.p_scripts p2.p_scripts;
-              p_explicit_deps = merge_new p1.p_explicit_deps p2.p_explicit_deps;
-              p_node_diagnostics = merge_new p1.p_node_diagnostics p2.p_node_diagnostics;
-              p_has_patterns = p1.p_has_patterns || p2.p_has_patterns;
-              p_patterns     = merge_new p1.p_patterns p2.p_patterns;
-              p_iterations   = merge_new p1.p_iterations p2.p_iterations;
-            }
+           (match !expand_for_build p1 env with
+            | Error e -> e
+            | Ok p1' ->
+            match !expand_for_build p2 env with
+            | Error e -> e
+            | Ok p2' ->
+              let names1 = List.map fst p1'.p_exprs in
+              let names2 = List.map fst p2'.p_exprs in
+            let collisions = List.filter (fun n -> List.mem n names2) names1 in
+            if collisions <> [] then
+              Error.make_error ValueError
+                (Printf.sprintf
+                   "Function `parallel`: name collision(s) detected: %s. Use `rename_node` to resolve."
+                   (String.concat ", " collisions))
+            else
+              rerun_pipeline ?strict:None env {
+                p_nodes        = merge_new p1'.p_nodes p2'.p_nodes;
+                p_exprs        = merge_new p1'.p_exprs p2'.p_exprs;
+                p_deps         = merge_new p1'.p_deps p2'.p_deps;
+                p_imports      = p1'.p_imports @ p2'.p_imports;
+                p_runtimes     = merge_new p1'.p_runtimes p2'.p_runtimes;
+                p_serializers  = merge_new p1'.p_serializers p2'.p_serializers;
+                p_deserializers = merge_new p1'.p_deserializers p2'.p_deserializers;
+                p_env_vars     = merge_new p1'.p_env_vars p2'.p_env_vars;
+                p_args         = merge_new p1'.p_args p2'.p_args;
+                p_shells       = merge_new p1'.p_shells p2'.p_shells;
+                p_shell_args   = merge_new p1'.p_shell_args p2'.p_shell_args;
+                p_functions    = merge_new p1'.p_functions p2'.p_functions;
+                p_includes     = merge_new p1'.p_includes p2'.p_includes;
+                p_noops        = merge_new p1'.p_noops p2'.p_noops;
+                p_scripts      = merge_new p1'.p_scripts p2'.p_scripts;
+                p_explicit_deps = merge_new p1'.p_explicit_deps p2'.p_explicit_deps;
+                p_node_diagnostics = merge_new p1'.p_node_diagnostics p2'.p_node_diagnostics;
+                p_has_patterns = p1'.p_has_patterns || p2'.p_has_patterns;
+                p_patterns     = merge_new p1'.p_patterns p2'.p_patterns;
+                p_iterations   = merge_new p1'.p_iterations p2'.p_iterations;
+              }
+           )
       | [_; _] -> Error.type_error "Function `parallel` expects two Pipeline arguments."
       | _ -> Error.arity_error_named "parallel" 2 (List.length args)
     ))

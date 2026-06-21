@@ -5,6 +5,10 @@
 --# replaced with N branch copies, where N is the product of the dependency
 --# lengths. Supports List, Vector, and DataFrame dependencies.
 --#
+--# `populate_pipeline(p)`, `build_pipeline(p)`, and pipeline composition
+--# functions (`chain`, `parallel`, `union`, ...) now call this function
+--# automatically when they detect unexpanded patterns.
+--#
 --# @param p :: Pipeline The pipeline to expand.
 --# @param to_script :: String | NA = NA Optional file path to write the expanded pipeline script.
 --# @return :: Pipeline The expanded pipeline with branches in place of patterned nodes.
@@ -58,10 +62,9 @@ let value_to_literal (v : value) : string =
 let rec substitute_vars_in_expr
     (substs : (string * value) list)
     (index : int)
-    (runtime : string)
     (expr : Ast.expr)
     : Ast.expr =
-  let subst = substitute_vars_in_expr substs index runtime in
+  let subst = substitute_vars_in_expr substs index in
   match expr.node with
   | Var s ->
       (match List.find_opt (fun (name, _) -> name = s) substs with
@@ -94,23 +97,26 @@ let rec substitute_vars_in_expr
   | Unquote e -> Ast.mk_expr (Ast.Unquote (subst e))
   | UnquoteSplice e -> Ast.mk_expr (Ast.UnquoteSplice (subst e))
   | RawCode { raw_text; raw_identifiers } ->
-      if runtime <> "T" then expr
-      else
-        let new_text = List.fold_left (fun text (dep_name, dep_value) ->
-          if List.mem dep_name raw_identifiers then
-            let literal_str = value_to_literal (slice_value dep_value index) in
-            Str.global_replace
-              (Str.regexp ("\\b" ^ Str.quote dep_name ^ "\\b"))
-              literal_str
-              text
-          else text
-        ) raw_text substs in
-        Ast.mk_expr (Ast.RawCode { raw_text = new_text; raw_identifiers })
+      (* Runtime-agnostic: identifier substitution via raw_identifiers list and
+         \bname\b word-boundary regex is safe across all runtimes (R, Python,
+         Julia, sh, etc.) — only identifiers explicitly detected by the parser
+         are replaced. *)
+      let new_text = List.fold_left (fun text (dep_name, dep_value) ->
+        if List.mem dep_name raw_identifiers then
+          let literal_str = value_to_literal (slice_value dep_value index) in
+          Str.global_replace
+            (Str.regexp ("\\b" ^ Str.quote dep_name ^ "\\b"))
+            literal_str
+            text
+        else text
+      ) raw_text substs in
+      Ast.mk_expr (Ast.RawCode { raw_text = new_text; raw_identifiers })
   | _ -> expr
 
 type branch_info = {
   branch_name : string;
   orig_name : string;
+  branch_index : int;
   branch_un : unbuilt_node;
 }
 
@@ -144,9 +150,16 @@ let resolve_dep_value (p : pipeline_result) (env : value Env.t) (dep_name : stri
           (match v with VComputedNode _ -> try_eval () | _ -> v)
       | None -> try_eval ()
 
-let resolve_map_deps (p : pipeline_result) (env : value Env.t) (name : string) (dep_names : string list) :
+let resolve_map_deps
+    ?(expanded_map : (string * string list) list = [])
+    (p : pipeline_result) (env : value Env.t) (name : string) (dep_names : string list) :
     (value list * int, value) Result.t =
-  let dep_values = List.map (resolve_dep_value p env) dep_names in
+  let dep_values = List.map (fun dep_name ->
+    match List.find_opt (fun (orig, _) -> orig = dep_name) expanded_map with
+    | Some (_, branches) ->
+        VVector (Array.of_list (List.map (fun b -> VSymbol b) branches))
+    | None -> resolve_dep_value p env dep_name
+  ) dep_names in
   let has_missing = List.exists (fun v -> match v with VNA _ -> true | _ -> false) dep_values in
   if has_missing then
     Error (Error.type_error (Printf.sprintf "expand_pipeline: dependency value not found for node '%s'." name))
@@ -164,7 +177,7 @@ let resolve_map_deps (p : pipeline_result) (env : value Env.t) (name : string) (
 
 let make_branch (name : string) (orig_name : string) (i : int) (command_expr : Ast.expr) : branch_info =
   let branch_name = name ^ "_branch_" ^ string_of_int (i + 1) in
-  { branch_name; orig_name; branch_un = {
+  { branch_name; orig_name; branch_index = i; branch_un = {
     un_command = command_expr;
     un_script = None;
     un_runtime = "T";
@@ -183,23 +196,19 @@ let make_branch (name : string) (orig_name : string) (i : int) (command_expr : A
   }}
 
 let process_map
+    ?(expanded_map : (string * string list) list = [])
     (p : pipeline_result) (env : value Env.t) (name : string) (dep_names : string list)
     : (branch_info list, value) Result.t =
-  match resolve_map_deps p env name dep_names with
+  match resolve_map_deps ~expanded_map p env name dep_names with
   | Error _ as e -> e
   | Ok (dep_values, branch_count) ->
       match get_node_command p name with
       | Some command_expr ->
           let substs = List.combine dep_names dep_values in
-          let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-          if runtime <> "T" then
-            Error (Error.type_error
-              (Printf.sprintf "expand_pipeline: pattern branching into non-T runtime nodes (got runtime '%s') is not yet supported for node '%s'." runtime name))
-          else
-            Ok (List.init branch_count (fun i ->
-              let substituted_command = substitute_vars_in_expr substs i runtime command_expr in
-              make_branch name name i substituted_command
-            ))
+          Ok (List.init branch_count (fun i ->
+            let substituted_command = substitute_vars_in_expr substs i command_expr in
+            make_branch name name i substituted_command
+          ))
       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name))
 
 let compute_cross_element_indices (sub_lengths : int list) (_total_branches : int) (branch_idx : int) : int list =
@@ -214,6 +223,7 @@ let compute_cross_element_indices (sub_lengths : int list) (_total_branches : in
   go branch_idx sub_lengths []
 
 let process_cross
+    ?(expanded_map : (string * string list) list = [])
     (p : pipeline_result) (env : value Env.t) (name : string) (sub_patterns : pattern_expr list)
     : (branch_info list, value) Result.t =
   let resolved_subs_result =
@@ -223,7 +233,7 @@ let process_cross
       | Ok subs ->
           (match sub with
            | PatternMap dep_names ->
-               (match resolve_map_deps p env name dep_names with
+               (match resolve_map_deps ~expanded_map p env name dep_names with
                 | Ok (dep_values, branch_count) -> Ok (subs @ [(dep_names, dep_values, branch_count)])
                 | Error _ as e -> e)
            | PatternCross _ ->
@@ -242,50 +252,110 @@ let process_cross
       match get_node_command p name with
       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name))
       | Some command_expr ->
-          let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-          if runtime <> "T" then
-            Error (Error.type_error
-              (Printf.sprintf "expand_pipeline: pattern branching into non-T runtime nodes (got runtime '%s') is not yet supported for node '%s'." runtime name))
-          else
-            Ok (List.init total_branches (fun i ->
-              let indices = compute_cross_element_indices sub_lengths total_branches i in
-              let substs = List.concat (List.map2 (fun (dep_names, dep_values, _) elem_idx ->
-                List.map2 (fun dep_name dep_value ->
-                  (dep_name, slice_value dep_value elem_idx)
-                ) dep_names dep_values
-              ) resolved_subs indices) in
-              let substituted_command = substitute_vars_in_expr substs 0 runtime command_expr in
-              make_branch name name i substituted_command
-            ))
+          Ok (List.init total_branches (fun i ->
+            let indices = compute_cross_element_indices sub_lengths total_branches i in
+            let substs = List.concat (List.map2 (fun (dep_names, dep_values, _) elem_idx ->
+              List.map2 (fun dep_name dep_value ->
+                (dep_name, slice_value dep_value elem_idx)
+              ) dep_names dep_values
+            ) resolved_subs indices) in
+            let substituted_command = substitute_vars_in_expr substs 0 command_expr in
+            make_branch name name i substituted_command
+          ))
 
 let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_script : string option) : value =
   if not p.p_has_patterns then
     VPipeline p
   else
     let existing_names = List.map fst p.p_exprs in
+    let patterned_node_names = List.map fst p.p_patterns in
 
-    let branches_result : (branch_info list, value) Result.t =
-      List.fold_left (fun acc (name, pattern) ->
-        let ( let* ) = Result.bind in
-        let* branches_sofar = acc in
-        match pattern with
-        | PatternMap deps ->
-            (match process_map p env name deps with
-             | Ok bs -> Ok (branches_sofar @ bs)
-             | Error _ as e -> e)
-        | PatternCross subs ->
-            (match process_cross p env name subs with
-             | Ok bs -> Ok (branches_sofar @ bs)
-             | Error _ as e -> e)
-        | PatternSlice _ | PatternHead _ | PatternTail _ | PatternSample _ ->
-            Error (Error.type_error
-              (Printf.sprintf "expand_pipeline: this pattern type is not yet implemented for node '%s'. Only `map_pattern` and `cross_pattern` are supported in this release." name))
-      ) (Ok []) p.p_patterns
+    (* Build dependency graph among patterned nodes for topological sort *)
+    let pattern_dep_names (name : string) : string list =
+      match List.assoc_opt name p.p_patterns with
+      | Some (PatternMap deps) ->
+          List.filter (fun d -> List.mem d patterned_node_names) deps
+      | Some (PatternCross subs) ->
+          let all_deps = List.concat_map (function
+            | PatternMap deps -> deps
+            | _ -> []
+          ) subs in
+          List.filter (fun d -> List.mem d patterned_node_names) all_deps
+      | _ -> []
     in
 
-    match branches_result with
+    (* Kahn's algorithm for topological sort — deps before dependents *)
+    let sorted_patterns =
+      let in_degree : (string, int) Hashtbl.t = Hashtbl.create 16 in
+      let dependents : (string, string list) Hashtbl.t = Hashtbl.create 16 in
+      List.iter (fun (name, _) ->
+        Hashtbl.replace in_degree name 0;
+        Hashtbl.replace dependents name []
+      ) p.p_patterns;
+      List.iter (fun (name, _) ->
+        let deps = pattern_dep_names name in
+        Hashtbl.replace in_degree name (List.length deps);
+        List.iter (fun dep ->
+          Hashtbl.replace dependents dep (name :: Hashtbl.find dependents dep)
+        ) deps
+      ) p.p_patterns;
+      let queue = Queue.create () in
+      Hashtbl.iter (fun name deg ->
+        if deg = 0 then Queue.push name queue
+      ) in_degree;
+      let result = ref [] in
+      while Queue.length queue > 0 do
+        let name = Queue.pop queue in
+        result := name :: !result;
+        List.iter (fun dependent ->
+          let new_deg = Hashtbl.find in_degree dependent - 1 in
+          Hashtbl.replace in_degree dependent new_deg;
+          if new_deg = 0 then Queue.push dependent queue
+        ) (Hashtbl.find dependents name)
+      done;
+      if List.length !result <> List.length p.p_patterns then
+        Error (Error.make_error StructuralError
+          "expand_pipeline: circular dependency detected among patterned nodes.")
+      else
+        let sorted_names = List.rev !result in
+        Ok (List.filter_map (fun name ->
+          List.find_opt (fun (n, _) -> n = name) p.p_patterns
+        ) sorted_names)
+    in
+
+    match sorted_patterns with
     | Error err -> err
-    | Ok branches ->
+    | Ok sorted_patterns ->
+
+    let all_branches = ref [] in
+    let expanded_map = ref [] in
+
+    let result = List.fold_left (fun acc (name, pattern) ->
+      match acc with
+      | Error _ -> acc
+      | Ok () ->
+          let branch_result = match pattern with
+            | PatternMap deps ->
+                process_map ~expanded_map:!expanded_map p env name deps
+            | PatternCross subs ->
+                process_cross ~expanded_map:!expanded_map p env name subs
+            | PatternSlice _ | PatternHead _ | PatternTail _ | PatternSample _ ->
+                Error (Error.type_error
+                  (Printf.sprintf "expand_pipeline: this pattern type is not yet implemented for node '%s'. Only `map_pattern` and `cross_pattern` are supported in this release." name))
+          in
+          match branch_result with
+          | Error e -> Error e
+          | Ok new_branches ->
+              all_branches := !all_branches @ new_branches;
+              let branch_names = List.map (fun b -> b.branch_name) new_branches in
+              expanded_map := (name, branch_names) :: !expanded_map;
+              Ok ()
+    ) (Ok ()) sorted_patterns in
+
+    match result with
+    | Error err -> err
+    | Ok () ->
+        let branches = !all_branches in
         let branch_names = List.map (fun b -> b.branch_name) branches in
         let collisions = List.filter (fun bn -> List.mem bn existing_names) branch_names in
         if collisions <> [] then
@@ -293,8 +363,7 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
             (Printf.sprintf "expand_pipeline: branch name collision — node(s) already exist: %s. Rename the conflicting nodes or remove them before expansion."
                (String.concat ", " collisions))
         else
-          let patterned_names = List.map fst p.p_patterns in
-          let is_removed n = List.mem n patterned_names in
+          let is_removed n = List.mem n patterned_node_names in
 
           let branch_nodes = List.map (fun b -> (b.branch_name, VNode b.branch_un)) branches in
           let branch_exprs = List.map (fun b -> (b.branch_name, b.branch_un.un_command)) branches in
@@ -311,11 +380,39 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
               | None -> None
             ) branches
           in
+          let make_branch_deps entries =
+            List.filter_map (fun b ->
+              match List.assoc_opt b.orig_name entries with
+              | Some deps ->
+                  let updated = List.map (fun dep ->
+                    match List.find_opt (fun (orig, _) -> orig = dep) !expanded_map with
+                    | Some (_, branch_names) -> List.nth branch_names b.branch_index
+                    | None -> dep
+                  ) deps in
+                  Some (b.branch_name, updated)
+              | None -> None
+            ) branches
+          in
+          let make_branch_explicit_deps entries =
+            List.filter_map (fun b ->
+              match List.assoc_opt b.orig_name entries with
+              | Some deps_opt ->
+                  let updated = Option.map (fun deps ->
+                    List.map (fun dep ->
+                      match List.find_opt (fun (orig, _) -> orig = dep) !expanded_map with
+                      | Some (_, branch_names) -> List.nth branch_names b.branch_index
+                      | None -> dep
+                    ) deps
+                  ) deps_opt in
+                  Some (b.branch_name, updated)
+              | None -> None
+            ) branches
+          in
 
           let expanded = {
             p_nodes          = List.filter (fun (n, _) -> not (is_removed n)) p.p_nodes @ branch_nodes;
             p_exprs          = List.filter (fun (n, _) -> not (is_removed n)) p.p_exprs @ branch_exprs;
-            p_deps           = List.filter (fun (n, _) -> not (is_removed n)) p.p_deps @ make_branch_entries p.p_deps;
+            p_deps           = List.filter (fun (n, _) -> not (is_removed n)) p.p_deps @ make_branch_deps p.p_deps;
             p_imports        = p.p_imports;
             p_runtimes       = List.filter (fun (n, _) -> not (is_removed n)) p.p_runtimes @ make_branch_entries p.p_runtimes;
             p_serializers    = List.filter (fun (n, _) -> not (is_removed n)) p.p_serializers @ make_branch_entries p.p_serializers;
@@ -328,7 +425,7 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
             p_includes       = List.filter (fun (n, _) -> not (is_removed n)) p.p_includes @ make_branch_entries p.p_includes;
             p_noops          = List.filter (fun (n, _) -> not (is_removed n)) p.p_noops @ make_branch_entries p.p_noops;
             p_scripts        = List.filter (fun (n, _) -> not (is_removed n)) p.p_scripts @ make_branch_entries p.p_scripts;
-            p_explicit_deps  = List.filter (fun (n, _) -> not (is_removed n)) p.p_explicit_deps @ make_branch_entries p.p_explicit_deps;
+            p_explicit_deps  = List.filter (fun (n, _) -> not (is_removed n)) p.p_explicit_deps @ make_branch_explicit_deps p.p_explicit_deps;
             p_node_diagnostics = List.filter (fun (n, _) -> not (is_removed n)) p.p_node_diagnostics @
               List.map (fun b -> (b.branch_name, Utils.empty_node_diagnostics)) branches;
             p_has_patterns   = false;
@@ -352,6 +449,20 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                 with e ->
                   Error.make_error RuntimeError
                     (Printf.sprintf "expand_pipeline: could not write script to %s: %s" path (Printexc.to_string e))))
+
+let expand_pipeline_for_build (p : pipeline_result) (env : value Env.t) : (pipeline_result, value) Result.t =
+  if not p.p_has_patterns then Ok p
+  else
+    match expand_pipeline_internal p env None with
+    | VPipeline p' -> Ok p'
+    | VError _ as err -> Error err
+    | other -> Error (Error.type_error
+      (Printf.sprintf "expand_pipeline: internal error — expected VPipeline, got %s" (Utils.value_to_string other)))
+
+(* Wire up auto-expansion callbacks for composition and set-op modules *)
+let () =
+  Pipeline_composition.expand_for_build := expand_pipeline_for_build;
+  Pipeline_set_ops.expand_for_build := expand_pipeline_for_build
 
 let register env =
   let expand_fn named_args env =
