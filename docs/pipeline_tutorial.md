@@ -2298,20 +2298,27 @@ p = pipeline {
 
 **Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet expand them — only `map_pattern` and `cross_pattern` currently work. Calling `expand_pipeline` on a node using a selector pattern returns an error, and the same error surfaces if you try to `build_pipeline` or `populate_pipeline` on such a pipeline. This section documents the intended API for a future release.
 
-### 11.5 Non-T Runtime Limitation
+### 11.5 Pattern Branching with Non-T Runtimes
 
-Pattern branching is currently supported only for `runtime = T` (the default). If a patterned node has a non-T runtime (`R`, `Python`, `Julia`, `sh`, `Quarto`), expansion fails with an error — whether called explicitly or via auto-expansion from `build_pipeline`:
+Pattern branching works with non-T runtimes (`R`, `Python`, `Julia`, etc.), but requires explicit `serializer` and `deserializer` configuration so cross-runtime data interchange works correctly. Each branch runs under the same runtime as the original patterned node:
 
 ```t
 p = pipeline {
   a = [1, 2, 3]
-  b = node(command = <{ a }>, runtime = R, deserializer = ^json, pattern = map_pattern(a))
+  b = node(
+    command = <{ a }>,
+    runtime = R,
+    serializer = ^json,
+    deserializer = ^json,
+    pattern = map_pattern(a)
+  )
 }
+
 build_pipeline(p)
--- Error: "pattern branching into non-T runtime nodes (got runtime 'R') is not yet supported for node 'b'."
+-- Each branch (b_branch_1, b_branch_2, b_branch_3) runs in R
 ```
 
-Use per-element iteration inside the node's own code as a workaround, or split the work into separate T-runtime nodes that orchestrate the cross-runtime calls.
+The serializer/deserializer symbols (`^json` in the example) must match a supported interchange format on both sides of the runtime boundary. See §11.8 for a complete polyglot example using `cross_pattern` and `map_pattern` with R `ggplot2`.
 
 ### 11.6 Writing the Expanded Pipeline to a File
 

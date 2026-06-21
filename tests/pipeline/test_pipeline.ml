@@ -2458,7 +2458,7 @@ p.t_step|}
          incr fail_count; Printf.printf "  ✗ expand_pipeline with dataframe should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
-    (* 8. Test expand_pipeline errors on non-T runtime node *)
+    (* 8. Test expand_pipeline with non-T runtime creates branches with correct runtime *)
     let (_, env_rt) = eval_string_env
       "p = pipeline {\n\
          a = [1, 2, 3]\n\
@@ -2466,13 +2466,28 @@ p.t_step|}
        }"
       env
     in
-    let (v_rt_err, _) = eval_string_env "expand_pipeline(p)" env_rt in
-    let s_rt_err = strip_location (Ast.Utils.value_to_string v_rt_err) in
-    if contains_pattern "not yet supported" s_rt_err then begin
-      incr pass_count; Printf.printf "  ✓ expand_pipeline errors on non-T runtime node\n"
-    end else begin
-      incr fail_count; Printf.printf "  ✗ expand_pipeline should error on non-T runtime, got: %s\n" s_rt_err
-    end;
+    let (v_rt_result, _) = eval_string_env "expand_pipeline(p)" env_rt in
+    (match v_rt_result with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_a = List.mem "a" node_names in
+         let has_b1 = List.mem "b_branch_1" node_names in
+         let has_b2 = List.mem "b_branch_2" node_names in
+         let has_b3 = List.mem "b_branch_3" node_names in
+         let has_b_orig = List.mem "b" node_names in
+         let branch_runtimes = List.filter (fun (n, _) ->
+           String.starts_with ~prefix:"b_branch" n
+         ) pe.p_runtimes in
+         let all_r_runtime = branch_runtimes <> [] && List.for_all (fun (_, r) -> r = "R") branch_runtimes in
+         if has_a && has_b1 && has_b2 && has_b3 && not has_b_orig && all_r_runtime then begin
+           incr pass_count; Printf.printf "  ✓ expand_pipeline works with non-T runtime, creates 3 R branches\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expand_pipeline with non-T runtime: a=%b b1=%b b2=%b b3=%b b_orig=%b all_R=%b\n"
+             has_a has_b1 has_b2 has_b3 has_b_orig all_r_runtime
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline with non-T runtime should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
 
     ()
   in
