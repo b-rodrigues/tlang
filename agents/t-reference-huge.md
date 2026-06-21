@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.52.3 "Kaméhaméha".
+**Status:** Version 0.53.0 "L'Initiation".
 
 ---
 
@@ -410,7 +410,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.52.3
+> **Version**: 0.53.0
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -12144,7 +12144,7 @@ T isn't just another data analysis language; it's a **reproducibility-first** en
 - **LLM-First Developers**: T's functional, immutable, and pipeline-centric design is optimized for high-fidelity code generation by AI.
 
 ### Is T production-ready?
-T is currently in **Beta (v0.52.3)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R, Python, or Julia nodes.
+T is currently in **Beta (v0.53.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R, Python, or Julia nodes.
 
 ---
 
@@ -12757,7 +12757,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.52.3 "Kaméhaméha" using Nix <nix-version>
+Version 0.53.0 "L'Initiation" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -18348,7 +18348,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.52.3"
+min_version = "0.53.0"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -18396,7 +18396,7 @@ To upgrade your project to the latest version of T and set the project's nixpkgs
 ```bash
 $ t upgrade
 Checking for new T releases...
-Upgrading project to T 0.52.3 and nixpkgs date 2026-05-08 (today's UTC date)...
+Upgrading project to T 0.53.0 and nixpkgs date 2026-05-08 (today's UTC date)...
 Regenerating flake.nix and updating dependencies...
 Running nix flake update...
 ```
@@ -29752,7 +29752,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.52.3";
+    tlang.url = "github:b-rodrigues/tlang/v0.53.0";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -29873,7 +29873,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.52.3",
+    t_version: "0.53.0",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -29916,7 +29916,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.52.3";
+    tlang.url = "github:b-rodrigues/tlang/v0.53.0";
   };
   
   outputs = { self, nixpkgs, tlang }: {

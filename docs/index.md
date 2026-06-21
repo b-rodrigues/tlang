@@ -22,7 +22,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.52.3 "Kaméhaméha".
+**Status:** Version 0.53.0 "L'Initiation".
 
 ---
 

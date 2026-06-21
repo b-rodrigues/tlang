@@ -64,7 +64,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.52.3"
+min_version = "0.53.0"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -112,7 +112,7 @@ To upgrade your project to the latest version of T and set the project's nixpkgs
 ```bash
 $ t upgrade
 Checking for new T releases...
-Upgrading project to T 0.52.3 and nixpkgs date 2026-05-08 (today's UTC date)...
+Upgrading project to T 0.53.0 and nixpkgs date 2026-05-08 (today's UTC date)...
 Regenerating flake.nix and updating dependencies...
 Running nix flake update...
 ```
