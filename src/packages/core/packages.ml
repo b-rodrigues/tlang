@@ -734,6 +734,7 @@ let init_env () =
   let env = Tail.register env in
   let env = Is_error.register env in
   let env = T_seq.register env in
+  let env = T_float_seq.register env in
   let env = T_map.register ~eval_call:Eval.eval_call_immutable env in
   let env = Sum.register env in
   let env = T_get.register ~eval_call:Eval.eval_call_immutable env in
