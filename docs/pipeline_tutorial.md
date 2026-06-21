@@ -2327,6 +2327,135 @@ The output file contains the full `pipeline { ... }` definition with all branche
 
 `populate_pipeline()`, `build_pipeline()`, `chain()`, `parallel()`, `union()`, `intersect()`, `difference()`, and `patch()` all automatically expand any unexpanded patterns in their pipeline inputs before proceeding. You only need to call `expand_pipeline()` explicitly when you want to inspect the branch structure before building.
 
+### 11.8 Complete Example: Polyglot Dynamic Branching Pipeline
+
+This demo (from `t_demos/dynamic_branching_t`) combines `cross_pattern`, `map_pattern`, and cross-runtime (T ↔ R) serialization into a single end-to-end pipeline. It generates spirograph data points in T and plots them with R `ggplot2` — one plot per parameter combination.
+
+#### Problem
+
+You have a list of radii `[3, 5, 8]` and `[2, 4, 6]`. You want all 9 combinations of spirograph curves drawn as ggplot2 faceted plots. Writing 9 nodes by hand is tedious — use pattern branching instead.
+
+#### Pipeline Definition
+
+```t
+p = pipeline {
+  fixed_radii = [3, 5, 8]
+  cycling_radii = [2, 4, 6]
+
+  points = node(
+    command = <{
+      import "src/spirograph.t"
+      spirograph_points(fixed_radii, cycling_radii)
+    }>,
+    pattern = cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii)),
+    runtime = T,
+    serializer = ^json
+  )
+
+  single_plot = node(
+    command = <{ plot_spirographs(points) }>,
+    pattern = map_pattern(points),
+    functions = ["src/spirograph.R"],
+    runtime = R,
+    deserializer = ^json
+  )
+}
+```
+
+#### How It Works
+
+1. **`cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii))`** — takes the Cartesian product of both lists (3 × 3 = 9). Each branch calls `spirograph_points(r_fixed, r_cycling)` from `src/spirograph.t` with one specific radius pair, returning a DataFrame of x, y coordinates.
+
+2. **`serializer = ^json`** — the `points` node uses the `^json` symbol serializer to write each branch's DataFrame as a JSON array of records. Without this, the R node downstream cannot read the data.
+
+3. **`map_pattern(points)`** — creates one branch per `points` output (9 branches total). Each branch calls `plot_spirographs()` from `src/spirograph.R`.
+
+4. **`deserializer = ^json`** — Tells the pipeline runner to read the R node's JSON artifact back so it can be cached and inspected.
+
+5. **`^json` symbol syntax** — required for serializer/deserializer values in cross-runtime pipelines (string literals like `"json"` are not accepted). This is the canonical way to declare interchange formats.
+
+#### The Helper Code
+
+**`src/spirograph.t`** — a parametric spirograph function called by each data branch:
+
+```t
+spirograph_points = \(fixed_radius, cycling_radius) {
+  num_points = 10000
+  max_t = 30 * pi
+  t_values = float_seq(0, max_t, num_points)
+  diff = fixed_radius - cycling_radius
+  ratio = diff / cycling_radius
+  xs = t_values |> map(\(t) diff * cos(t) + cos(t * ratio))
+  ys = t_values |> map(\(t) diff * sin(t) - sin(t * ratio))
+  to_dataframe([x: xs, y: ys,
+    fixed_radius: fixed_radius,
+    cycling_radius: cycling_radius])
+}
+```
+
+**`src/spirograph.R`** — renders a faceted ggplot for one parameter combination:
+
+```r
+library(ggplot2)
+
+plot_spirographs <- function(points) {
+  label <- "fixed_radius = %s, cycling_radius = %s"
+  points$parameters <- sprintf(label, points$fixed_radius, points$cycling_radius)
+  ggplot(points) +
+    geom_point(aes(x = x, y = y, color = parameters), size = 0.1) +
+    facet_wrap(~parameters) +
+    theme_gray(16) +
+    guides(color = "none")
+}
+```
+
+Note the `functions = ["src/spirograph.R"]` argument on the R node — this propagates the script into the Nix sandbox so it is available at build time.
+
+#### Building
+
+When you run `build_pipeline(p, verbose = 1)`, T automatically expands the patterns before building:
+
+```
++ points_branch_1 building
++ points_branch_2 building
+...
++ points_branch_9 building
++ single_plot_branch_3 building
++ single_plot_branch_5 building
+...
++ single_plot_branch_1 building
+
+✓ Pipeline build completed [20 built / 20 nodes]
+```
+
+20 nodes total: 2 root (`fixed_radii`, `cycling_radii`), 9 data branches, 9 plot branches.
+
+#### Post-Build Verification
+
+Since `build_pipeline` does not modify the original pipeline variable `p`, expanded branch nodes are only visible in the build log. Use `build_log_to_frame()` to inspect them:
+
+```t
+res = build_pipeline(p, verbose = 1)
+
+node_frame = build_log_to_frame(res)
+points_branches = filter(node_frame, \(r) starts_with(r.name, "points"))
+plot_branches = filter(node_frame, \(r) starts_with(r.name, "single_plot"))
+
+assert(nrow(points_branches) == 9, "Expected 9 points branches")
+assert(nrow(plot_branches) == 9, "Expected 9 single_plot branches")
+assert(length(res.failed_nodes) == 0, "All nodes should succeed")
+```
+
+This pattern — `build_log_to_frame(res)` + `filter` with a lambda — is the recommended way to verify branched pipeline builds when you need to inspect individual expanded nodes.
+
+#### Key Takeaways
+
+- **`cross_pattern(map_pattern(...), map_pattern(...))`** generates a Cartesian product of branches.
+- **Chaining patterns** (`cross_pattern` → `map_pattern`) lets you build multi-phase branched pipelines.
+- **`^json` serializer/deserializer** enables cross-runtime data interchange between T and R nodes.
+- **Expanded nodes exist only in the build log**, not in the original pipeline variable. Use `build_log_to_frame()` for post-build queries.
+- **Patterns work with non-T runtimes downstream** — a `map_pattern` node can depend on T data branches and run in R (or Python or Julia), as long as serialization is configured correctly.
+
 ---
 
 ## Next Steps
