@@ -2604,7 +2604,7 @@ p.t_step|}
          incr fail_count; Printf.printf "  ✗ expand_pipeline chained cross->map should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
-    (* 3. Test raw-code substitution byte-for-byte for non-T runtime branches *)
+    (* 3. Test raw-code substitution: exact string equality and word-boundary regex *)
     let (_, env_raw) = eval_string_env
       "p = pipeline {\n\
          a = [10, 20]\n\
@@ -2620,31 +2620,60 @@ p.t_step|}
            | Some (Ast.VNode un) -> Some un.un_command
            | _ -> None
          in
-         let b1_ok = match cmd_of_node "b_branch_1" with
-           | Some cmd -> (match cmd.node with
-               | Ast.RawCode { raw_text; _ } ->
-                   contains_pattern "10" raw_text
-                   && contains_pattern "2" raw_text
-                   && not (contains_pattern "20" raw_text)
-               | _ -> false)
-           | None -> false
+         let b1_text = match cmd_of_node "b_branch_1" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
          in
-         let b2_ok = match cmd_of_node "b_branch_2" with
-           | Some cmd -> (match cmd.node with
-               | Ast.RawCode { raw_text; _ } ->
-                   contains_pattern "20" raw_text
-                   && contains_pattern "2" raw_text
-                   && not (contains_pattern "10" raw_text)
-               | _ -> false)
-           | None -> false
+         let b2_text = match cmd_of_node "b_branch_2" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
          in
-         if b1_ok && b2_ok then begin
-           incr pass_count; Printf.printf "  ✓ non-T raw-code substitution correct byte-for-byte\n"
+         let exact_ok = b1_text = Some "10 * 2" && b2_text = Some "20 * 2" in
+         if exact_ok then begin
+           incr pass_count; Printf.printf "  ✓ non-T raw-code exact substitution correct (10 * 2, 20 * 2)\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ non-T raw-code substitution: b1_ok=%b b2_ok=%b\n" b1_ok b2_ok
+           incr fail_count; Printf.printf "  ✗ non-T raw-code exact substitution: b1=%s b2=%s\n"
+             (match b1_text with Some s -> s | None -> "N/A")
+             (match b2_text with Some s -> s | None -> "N/A")
          end
      | other ->
          incr fail_count; Printf.printf "  ✗ expand_pipeline non-T raw-code should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    (* 4. Test word-boundary regex: only standalone identifier is substituted *)
+    let (_, env_wb) = eval_string_env
+      "p = pipeline {\n\
+         a = [10, 20]\n\
+         c = node(command = <{ aa + a + a_b }>, pattern = map_pattern(a))\n\
+       }"
+      env
+    in
+    let (v_wb_exp, _) = eval_string_env "expand_pipeline(p)" env_wb in
+    (match v_wb_exp with
+     | VPipeline pe ->
+         let cmd_of_node name =
+           match List.assoc_opt name pe.p_nodes with
+           | Some (Ast.VNode un) -> Some un.un_command
+           | _ -> None
+         in
+         let c1_text = match cmd_of_node "c_branch_1" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
+         in
+         let c2_text = match cmd_of_node "c_branch_2" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
+         in
+         let wb_ok = c1_text = Some "aa + 10 + a_b" && c2_text = Some "aa + 20 + a_b" in
+         if wb_ok then begin
+           incr pass_count; Printf.printf "  ✓ word-boundary regex: only 'a' replaced, 'aa' and 'a_b' untouched\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ word-boundary regex: c1=%s c2=%s (expected 'aa + 10 + a_b', 'aa + 20 + a_b')\n"
+             (match c1_text with Some s -> s | None -> "N/A")
+             (match c2_text with Some s -> s | None -> "N/A")
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline word-boundary should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
     ()
