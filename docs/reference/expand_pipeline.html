@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - populate_pipeline</title>
+  <title>T Function Reference - expand_pipeline</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,32 +33,26 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="populate_pipeline">populate_pipeline</h1>
-<p>Populate Pipeline</p>
-<p>Generates the <code>_pipeline/</code> directory with
-<code>pipeline.nix</code> and <code>dag.json</code>. Optionally builds
-the pipeline with full Nix-native orchestration support. If the pipeline
-contains unexpanded dynamic branching patterns
-(<code>map_pattern</code>, <code>cross_pattern</code>), they are
-automatically expanded before population.</p>
+<h1 id="expand_pipeline">expand_pipeline</h1>
+<p>Expand Pattern-Based Branching</p>
+<p>Expands <code>map_pattern</code> and <code>cross_pattern</code> nodes
+into individual branch nodes. Each branch is named
+<code>&lt;original&gt;_branch_&lt;N&gt;</code>. Supports List, Vector,
+and DataFrame dependencies.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-populate.</p></li>
-<li><p><strong>build</strong> (<code>Bool</code>): (Optional) Whether to
-trigger the Nix build immediately. Defaults to false.</p></li>
-<li><p><strong>verbose</strong> (<code>Int</code>): (Optional) Nix build
-verbosity level. <code>0</code> keeps build failures quiet; values above
-<code>0</code> print failed node logs.</p></li>
-<li><p><strong>dry_run</strong> (<code>Bool</code>): (Optional) Perform
-a dry run via Nix (<code>--dry-run</code>), returning a DataFrame of
-planned actions without executing.</p></li>
-<li><p><strong>nix_options</strong> (<code>Dict</code>): (Optional) A
-dictionary of Nix orchestration options:</p></li>
+expand.</p></li>
+<li><p><strong>to_script</strong> (<code>String</code>): (Optional) File
+path to write the expanded pipeline script as a T source file.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A status message, structured build log, or dry-run plan
-DataFrame.</p>
+<p>A Pipeline with branches in place of patterned nodes.
+<code>p_has_patterns</code> is set to <code>false</code>.</p>
+<h2 id="see-also">See Also</h2>
+<p><a href="pipeline_nodes.html">pipeline_nodes</a>, <a
+href="populate_pipeline.html">populate_pipeline</a>, <a
+href="build_pipeline.html">build_pipeline</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

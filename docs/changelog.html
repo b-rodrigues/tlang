@@ -51,6 +51,10 @@ available via the <code>atelier</code> command inside
 <code>node_fork(...)</code> allow conditional node inclusion evaluated
 at pipeline construction time, preserving Nix’s static DAG
 requirement.</li>
+<li><strong>VDataFrame JSON serialization</strong>: NAColumn entries are
+now omitted from JSON output (field absent) rather than serialized as
+null, so downstream readers see no key rather than an NA/null
+value.</li>
 </ul>
 <h2 id="section">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>

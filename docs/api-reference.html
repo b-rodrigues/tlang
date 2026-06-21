@@ -2219,9 +2219,9 @@ expanded2 = expand_pipeline(p2)
 -- pipeline_nodes(expanded2) == [&quot;a&quot;, &quot;b&quot;, &quot;c_branch_1&quot;, &quot;c_branch_2&quot;, &quot;c_branch_3&quot;, &quot;c_branch_4&quot;]</code></pre>
 <p><strong>Note:</strong> Only <code>map_pattern</code> and
 <code>cross_pattern</code> are currently expanded by
-<code>expand_pipeline</code>. Pattern branching into non-T runtime nodes
-is also not yet supported — an error is returned if a patterned node has
-<code>runtime</code> set to anything other than <code>T</code>.</p>
+<code>expand_pipeline</code> (selector patterns are parsed but not yet
+expanded). Non-T runtime branching is supported — see §11.5 of the
+pipeline tutorial for serializer/deserializer requirements.</p>
 <hr />
 <h3
 id="expand_pipelinep-to_script-na"><code>expand_pipeline(p, to_script = NA)</code></h3>

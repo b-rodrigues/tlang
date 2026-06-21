@@ -37,7 +37,10 @@
 <p>Build Pipeline Artifacts</p>
 <p>Builds a pipeline to <code>pipeline.nix</code> and records node
 artifacts in a local registry. Supports Nix-native orchestration flags
-for targeted builds, cache usage, and dry-runs.</p>
+for targeted builds, cache usage, and dry-runs. If the pipeline contains
+unexpanded dynamic branching patterns (<code>map_pattern</code>,
+<code>cross_pattern</code>), they are automatically expanded before
+building.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline
