@@ -1,7 +1,6 @@
 # T Orchestration Engine
 
 [![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
-> **Version codenames** are taken from the French edition of *Dragon Ball* by Glénat.
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
 [![Status: Beta](https://img.shields.io/badge/Status-Beta%200.53.0%20%22L%27Initiation%22-blue.svg)](https://tstats-project.org/changelog.html)
 [![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
@@ -306,6 +305,8 @@ We welcome contributions! Please see our [Contributing Guide](docs/contributing.
 - Testing requirements
 
 T is licensed under the [European Union Public License v1.2](LICENSE).
+
+> **Version codenames** are taken from the French edition of *Dragon Ball* by Glénat.
 
 ---
 
