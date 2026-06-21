@@ -2817,7 +2817,21 @@ p.t_step|}
          else
            (incr fail_count; Printf.printf "  ✗ sample_pattern: y1=%b y2=%b y3=%b y_orig=%b branch_count=%d\n"
               has_y1 has_y2 has_y3 has_y_orig (List.length branch_names))
-     | _ -> incr fail_count; Printf.printf "  ✗ sample_pattern should return VPipeline\n");
+      | _ -> incr fail_count; Printf.printf "  ✗ sample_pattern should return VPipeline\n");
+
+    (* 7. sample_pattern determinism — two expansions of the same pipeline agree *)
+    let (v_samp1, _) = eval_string_env "expand_pipeline(p)" env_samp in
+    let (v_samp2, _) = eval_string_env "expand_pipeline(p)" env_samp in
+    (match v_samp1, v_samp2 with
+     | VPipeline p1, VPipeline p2 ->
+         let names1 = List.map fst p1.p_nodes in
+         let names2 = List.map fst p2.p_nodes in
+         if names1 = names2 then
+           (incr pass_count; Printf.printf "  ✓ sample_pattern is deterministic (two expansions produce same branches)\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ sample_pattern should be deterministic, got diff: %s vs %s\n"
+              (String.concat ", " names1) (String.concat ", " names2))
+     | _ -> incr fail_count; Printf.printf "  ✗ sample_pattern determinism: expand_pipeline should return VPipeline\n");
 
     ()
   in

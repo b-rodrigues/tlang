@@ -24,8 +24,6 @@
 
 open Ast
 
-let () = Random.self_init ()
-
 let value_length (v : value) : int =
   match v with
   | VList items -> List.length items
@@ -287,7 +285,7 @@ let process_slice
                make_branch name name branch_idx substituted_command
              ) indices)
          | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
-  | _ -> assert false
+  | _ -> Error (Error.make_error RuntimeError "expand_pipeline: internal error — resolve_map_deps invariant violated")
 
 let process_head
     ?(expanded_map : (string * string list) list = [])
@@ -303,8 +301,8 @@ let process_head
              let substituted_command = substitute_vars_in_expr [(dep, dep_value)] i command_expr in
              make_branch name name i substituted_command
            ))
-       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
-  | _ -> assert false
+        | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
+  | _ -> Error (Error.make_error RuntimeError "expand_pipeline: internal error — resolve_map_deps invariant violated")
 
 let process_tail
     ?(expanded_map : (string * string list) list = [])
@@ -322,8 +320,8 @@ let process_tail
              let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
              make_branch name name i substituted_command
            ))
-       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
-  | _ -> assert false
+        | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
+  | _ -> Error (Error.make_error RuntimeError "expand_pipeline: internal error — resolve_map_deps invariant violated")
 
 let process_sample
     ?(expanded_map : (string * string list) list = [])
@@ -333,9 +331,10 @@ let process_sample
   | Error _ as e -> e
   | Ok ([dep_value], total_length) ->
       let actual_n = min n total_length in
+      let state = Random.State.make [| Hashtbl.hash name |] in
       let pool = Array.init total_length (fun i -> i) in
       for i = 0 to actual_n - 1 do
-        let j = i + Random.int (total_length - i) in
+        let j = i + Random.State.int state (total_length - i) in
         let tmp = pool.(i) in pool.(i) <- pool.(j); pool.(j) <- tmp
       done;
       let chosen = Array.to_list (Array.sub pool 0 actual_n) in
@@ -345,8 +344,8 @@ let process_sample
              let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
              make_branch name name branch_idx substituted_command
            ) chosen)
-       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
-  | _ -> assert false
+               | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
+  | _ -> Error (Error.make_error RuntimeError "expand_pipeline: internal error — resolve_map_deps invariant violated")
 
 let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_script : string option) : value =
   if not p.p_has_patterns then

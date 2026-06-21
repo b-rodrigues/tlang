@@ -2342,9 +2342,10 @@ p = pipeline {
 #### 11.4.4 `sample_pattern(dep, n)` — Randomly Select N Elements
 
 Randomly select `n` elements from the dependency (without replacement — no duplicate
-branches). Uses a Fisher-Yates partial shuffle seeded at module load time, so
-repeated expansions of the same pipeline in the same session produce the same random
-draw. As with the other selectors, n is capped to the dependency length.
+branches). Uses a Fisher-Yates partial shuffle seeded deterministically from the
+node name (`Hashtbl.hash name`), so repeated expansions of the same pipeline always
+produce the same random draw. Different node names produce different draws.
+As with the other selectors, n is capped to the dependency length.
 
 ```t
 p = pipeline {
@@ -2353,8 +2354,8 @@ p = pipeline {
   y = node(command = <{ x }>, pattern = sample_pattern(x, 2))
 }
 -- y produces 2 branches with randomly chosen values from x.
--- Each run of expand_pipeline on the same pipeline in the same session
--- produces the same random selection (deterministic within a session).
+-- The selection is deterministic: calling expand_pipeline(p) again on
+-- the same pipeline always picks the same two indices.
 ```
 
 #### Selector Patterns Summary
