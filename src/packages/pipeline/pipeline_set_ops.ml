@@ -4,6 +4,13 @@
 
 open Ast
 
+(* Forward reference for auto-expansion — set by pipeline_expand at registration time *)
+let expand_for_build : (pipeline_result -> value Env.t -> (pipeline_result, value) Result.t) ref =
+  ref (fun p _ ->
+    if not p.p_has_patterns then Ok p
+    else Error (Error.type_error "expand_pipeline: internal error — expander not yet installed")
+  )
+
 let filter_node_set keep_set p =
   VPipeline {
     p_nodes        = List.filter (fun (n, _) -> keep_set n) p.p_nodes;
@@ -139,42 +146,54 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
   let env = Env.add "union" (make_builtin ~name:"union" 2 (fun args env ->
     match args with
     | [VPipeline p1; VPipeline p2] -> 
-        if p1.p_has_patterns || p2.p_has_patterns then
-          Error.make_error StructuralError "Function `union` cannot combine pipelines with unexpanded dynamic branching patterns. Expand the patterns first using `expand_pipeline`."
-        else
-          (match union p1 p2 with
-          | Ok (VPipeline p) -> rerun_pipeline ?strict:None env p
-          | Ok _ -> Error.make_error RuntimeError "Function `union` internal error: unexpected non-Pipeline result."
-          | Error e -> e)
+        (match !expand_for_build p1 env with
+         | Error e -> e
+         | Ok p1' ->
+         match !expand_for_build p2 env with
+         | Error e -> e
+         | Ok p2' ->
+           (match union p1' p2' with
+           | Ok (VPipeline p) -> rerun_pipeline ?strict:None env p
+           | Ok _ -> Error.make_error RuntimeError "Function `union` internal error: unexpected non-Pipeline result."
+           | Error e -> e))
     | _ -> Error.type_error "Function `union` expects two Pipeline arguments."
   )) env in
-  let env = Env.add "difference" (make_builtin ~name:"difference" 2 (fun args _ ->
+  let env = Env.add "difference" (make_builtin ~name:"difference" 2 (fun args env ->
     match args with
     | [VPipeline p1; VPipeline p2] ->
-        if p1.p_has_patterns || p2.p_has_patterns then
-          Error.make_error StructuralError "Function `difference` cannot combine pipelines with unexpanded dynamic branching patterns. Expand the patterns first using `expand_pipeline`."
-        else
-          difference p1 p2
+        (match !expand_for_build p1 env with
+         | Error e -> e
+         | Ok p1' ->
+         match !expand_for_build p2 env with
+         | Error e -> e
+         | Ok p2' ->
+           difference p1' p2')
     | _ -> Error.type_error "Function `difference` expects two Pipeline arguments."
   )) env in
-  let env = Env.add "intersect" (make_builtin ~name:"intersect" 2 (fun args _ ->
+  let env = Env.add "intersect" (make_builtin ~name:"intersect" 2 (fun args env ->
     match args with
     | [VPipeline p1; VPipeline p2] ->
-        if p1.p_has_patterns || p2.p_has_patterns then
-          Error.make_error StructuralError "Function `intersect` cannot combine pipelines with unexpanded dynamic branching patterns. Expand the patterns first using `expand_pipeline`."
-        else
-          intersect p1 p2
+        (match !expand_for_build p1 env with
+         | Error e -> e
+         | Ok p1' ->
+         match !expand_for_build p2 env with
+         | Error e -> e
+         | Ok p2' ->
+           intersect p1' p2')
     | _ -> Error.type_error "Function `intersect` expects two Pipeline arguments."
   )) env in
   let env = Env.add "patch" (make_builtin ~name:"patch" 2 (fun args env ->
     match args with
     | [VPipeline p1; VPipeline p2] -> 
-        if p1.p_has_patterns || p2.p_has_patterns then
-          Error.make_error StructuralError "Function `patch` cannot combine pipelines with unexpanded dynamic branching patterns. Expand the patterns first using `expand_pipeline`."
-        else
-          (match patch p1 p2 with 
-          | VPipeline p -> rerun_pipeline ?strict:None env p
-          | _ -> Error.make_error RuntimeError "Function `patch` internal error: unexpected non-Pipeline result.")
+        (match !expand_for_build p1 env with
+         | Error e -> e
+         | Ok p1' ->
+         match !expand_for_build p2 env with
+         | Error e -> e
+         | Ok p2' ->
+           (match patch p1' p2' with 
+           | VPipeline p -> rerun_pipeline ?strict:None env p
+           | _ -> Error.make_error RuntimeError "Function `patch` internal error: unexpected non-Pipeline result."))
     | _ -> Error.type_error "Function `patch` expects two Pipeline arguments."
   )) env in
   env

@@ -7,6 +7,9 @@ open Pipeline_utils
 --# Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`.
 --# Optionally builds the pipeline with full Nix-native orchestration support.
 --#
+--# If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`,
+--# `cross_pattern`), they are automatically expanded before population.
+--#
 --# @name populate_pipeline
 --# @param p :: Pipeline The pipeline to populate.
 --# @param build :: Bool (Optional) Whether to trigger the Nix build immediately. Defaults to false.
@@ -22,6 +25,7 @@ open Pipeline_utils
 --#   - **File Existence**: Verifies that all files specified in `functions` or `include` arguments of any node actually exist on the file system.
 --#   - **Custom Function Warning**: Issues a warning to `stderr` if a node uses a custom `serializer` or `deserializer` but does not provide any companion `functions` files.
 --#   - **Explicit Dependency Declaration**: Checks serializer/runtime requirements up front and asks to add missing entries to `tproject.toml` instead of injecting packages implicitly.
+--#   - **Auto-Expansion**: Pipelines with `map_pattern` or `cross_pattern` are expanded automatically before building.
 --# @family pipeline
 --# @export
 *)
@@ -38,10 +42,9 @@ let register env =
     | None ->
       match Pipeline_args.get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
-          if p.p_has_patterns then
-            Error.make_error StructuralError
-              "Pipeline contains unexpanded dynamic branching patterns. Use expand_pipeline(p) to resolve branches before building. See help(expand_pipeline) for details."
-          else
+          (match Pipeline_expand.expand_pipeline_for_build p env with
+           | Error e -> e
+           | Ok p ->
             let (build_provided, build_val) = Pipeline_args.get_arg "build" 2 (VBool false) named_args in
         let (verbose_provided, verbose_val) = Pipeline_args.get_arg "verbose" 3 (VNA NAGeneric) named_args in
         let (_, nix_options_val) = Pipeline_args.get_arg "nix_options" 4 (VDict []) named_args in
@@ -157,9 +160,9 @@ let register env =
                Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
                Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name
              );
-             out
-         | Error msg -> Error.make_error StructuralError msg)
-      | _ ->
+              out
+          | Error msg -> Error.make_error StructuralError msg))
+       | _ ->
           Error.type_error "Function `populate_pipeline` expects a Pipeline."
   in
   Env.add "populate_pipeline" (make_builtin_named ~name:"populate_pipeline" ~variadic:true 1 populate_fn) env

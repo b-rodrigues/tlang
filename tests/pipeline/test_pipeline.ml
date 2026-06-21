@@ -2298,30 +2298,30 @@ p.t_step|}
      | _ ->
          incr fail_count; Printf.printf "  ✗ expected a VPipeline after filter_node, got %s\n" (Ast.Utils.value_to_string v_filtered));
 
-    (* 4. Test building / populating fails with StructuralError *)
-    let (v_build_err, _) = eval_string_env "build_pipeline(p)" env_p in
-    let s_build_err = strip_location (Ast.Utils.value_to_string v_build_err) in
-    if contains_pattern "StructuralError" s_build_err && contains_pattern "unexpanded" s_build_err then begin
-      incr pass_count; Printf.printf "  ✓ build_pipeline fails with StructuralError on unexpanded patterns\n"
+    (* 4. Test auto-expansion: build_pipeline and populate_pipeline succeed (no StructuralError) *)
+    let (v_build, _) = eval_string_env "build_pipeline(p)" env_p in
+    let s_build = strip_location (Ast.Utils.value_to_string v_build) in
+    if not (contains_pattern "StructuralError" s_build) then begin
+      incr pass_count; Printf.printf "  ✓ build_pipeline auto-expands and succeeds (no StructuralError)\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ build_pipeline should fail with StructuralError on unexpanded patterns, got: %s\n" s_build_err
+      incr fail_count; Printf.printf "  ✗ build_pipeline should auto-expand, got: %s\n" s_build
     end;
 
-    let (v_pop_err, _) = eval_string_env "populate_pipeline(p)" env_p in
-    let s_pop_err = strip_location (Ast.Utils.value_to_string v_pop_err) in
-    if contains_pattern "StructuralError" s_pop_err && contains_pattern "unexpanded" s_pop_err then begin
-      incr pass_count; Printf.printf "  ✓ populate_pipeline fails with StructuralError on unexpanded patterns\n"
+    let (v_pop, _) = eval_string_env "populate_pipeline(p)" env_p in
+    let s_pop = strip_location (Ast.Utils.value_to_string v_pop) in
+    if not (contains_pattern "StructuralError" s_pop) then begin
+      incr pass_count; Printf.printf "  ✓ populate_pipeline auto-expands and succeeds (no StructuralError)\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ populate_pipeline should fail with StructuralError on unexpanded patterns, got: %s\n" s_pop_err
+      incr fail_count; Printf.printf "  ✗ populate_pipeline should auto-expand, got: %s\n" s_pop
     end;
 
-    (* 5. Test composition fails with StructuralError *)
-    let (v_comp_err, _) = eval_string_env "p2 = pipeline { c = 1 }; chain(p, p2)" env_p in
-    let s_comp_err = strip_location (Ast.Utils.value_to_string v_comp_err) in
-    if contains_pattern "StructuralError" s_comp_err && contains_pattern "unexpanded" s_comp_err then begin
-      incr pass_count; Printf.printf "  ✓ chain fails with StructuralError on unexpanded patterns\n"
+    (* 5. Test chain auto-expands (p2 references 'a' which exists after expansion) *)
+    let (v_chain, _) = eval_string_env "p2 = pipeline { d = a + 1 }; chain(p, p2)" env_p in
+    let s_chain = strip_location (Ast.Utils.value_to_string v_chain) in
+    if not (contains_pattern "StructuralError" s_chain) then begin
+      incr pass_count; Printf.printf "  ✓ chain auto-expands and succeeds (no StructuralError)\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ chain should fail with StructuralError on unexpanded patterns, got: %s\n" s_comp_err
+      incr fail_count; Printf.printf "  ✗ chain should auto-expand, got: %s\n" s_chain
     end;
     ()
   in

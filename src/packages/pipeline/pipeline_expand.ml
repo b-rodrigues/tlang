@@ -5,6 +5,10 @@
 --# replaced with N branch copies, where N is the product of the dependency
 --# lengths. Supports List, Vector, and DataFrame dependencies.
 --#
+--# `populate_pipeline(p)`, `build_pipeline(p)`, and pipeline composition
+--# functions (`chain`, `parallel`, `union`, ...) now call this function
+--# automatically when they detect unexpanded patterns.
+--#
 --# @param p :: Pipeline The pipeline to expand.
 --# @param to_script :: String | NA = NA Optional file path to write the expanded pipeline script.
 --# @return :: Pipeline The expanded pipeline with branches in place of patterned nodes.
@@ -352,6 +356,20 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                 with e ->
                   Error.make_error RuntimeError
                     (Printf.sprintf "expand_pipeline: could not write script to %s: %s" path (Printexc.to_string e))))
+
+let expand_pipeline_for_build (p : pipeline_result) (env : value Env.t) : (pipeline_result, value) Result.t =
+  if not p.p_has_patterns then Ok p
+  else
+    match expand_pipeline_internal p env None with
+    | VPipeline p' -> Ok p'
+    | VError _ as err -> Error err
+    | other -> Error (Error.type_error
+      (Printf.sprintf "expand_pipeline: internal error — expected VPipeline, got %s" (Utils.value_to_string other)))
+
+(* Wire up auto-expansion callbacks for composition and set-op modules *)
+let () =
+  Pipeline_composition.expand_for_build := expand_pipeline_for_build;
+  Pipeline_set_ops.expand_for_build := expand_pipeline_for_build
 
 let register env =
   let expand_fn named_args env =

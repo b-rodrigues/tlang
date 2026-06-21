@@ -2208,6 +2208,8 @@ The auto-detected project name comes from the `name` field in your project's `tp
 
 T lets you dynamically expand a single pipeline node into multiple branches using pattern functions. This is useful when you need to run the same computation over each element of a list, vector, or data frame.
 
+Patterns are **automatically expanded** when you call `populate_pipeline()` or `build_pipeline()` — you do not need to call `expand_pipeline()` explicitly. The explicit function is available if you want to inspect the expanded structure before building.
+
 ### 11.1 `map_pattern` — One Branch Per Element
 
 Use `map_pattern(dep)` to create one branch for each element of an upstream dependency:
@@ -2218,6 +2220,10 @@ p = pipeline {
   y = node(command = <{ x * 2 }>, pattern = map_pattern(x))
 }
 
+-- Auto-expansion happens inside build_pipeline:
+build_pipeline(p)
+
+-- Or inspect the expanded structure explicitly:
 expanded = expand_pipeline(p)
 pipeline_nodes(expanded)
 -- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
@@ -2235,8 +2241,7 @@ p = pipeline {
   ys = [10, 20, 30]
   z = node(command = <{ xs + ys }>, pattern = map_pattern(xs, ys))
 }
-expanded = expand_pipeline(p)
--- z_branch_1 = 11, z_branch_2 = 22, z_branch_3 = 33
+-- build_pipeline(p) auto-expands before building
 ```
 
 ### 11.2 `cross_pattern` — Cartesian Product
@@ -2291,18 +2296,18 @@ p = pipeline {
 }
 ```
 
-**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet expand them — only `map_pattern` and `cross_pattern` currently work. Calling `expand_pipeline` on a node using a selector pattern returns an error. This section documents the intended API for a future release.
+**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet expand them — only `map_pattern` and `cross_pattern` currently work. Calling `expand_pipeline` on a node using a selector pattern returns an error, and the same error surfaces if you try to `build_pipeline` or `populate_pipeline` on such a pipeline. This section documents the intended API for a future release.
 
 ### 11.5 Non-T Runtime Limitation
 
-Pattern branching is currently supported only for `runtime = T` (the default). If a patterned node has a non-T runtime (`R`, `Python`, `Julia`, `sh`, `Quarto`), `expand_pipeline` returns an error:
+Pattern branching is currently supported only for `runtime = T` (the default). If a patterned node has a non-T runtime (`R`, `Python`, `Julia`, `sh`, `Quarto`), expansion fails with an error — whether called explicitly or via auto-expansion from `build_pipeline`:
 
 ```t
 p = pipeline {
   a = [1, 2, 3]
   b = node(command = <{ a }>, runtime = R, deserializer = ^json, pattern = map_pattern(a))
 }
-expand_pipeline(p)
+build_pipeline(p)
 -- Error: "pattern branching into non-T runtime nodes (got runtime 'R') is not yet supported for node 'b'."
 ```
 
@@ -2317,6 +2322,10 @@ expand_pipeline(p, to_script = "expanded_pipeline.t")
 ```
 
 The output file contains the full `pipeline { ... }` definition with all branches unrolled.
+
+### 11.7 Build and Composition Auto-Expand
+
+`populate_pipeline()`, `build_pipeline()`, `chain()`, `parallel()`, `union()`, `intersect()`, `difference()`, and `patch()` all automatically expand any unexpanded patterns in their pipeline inputs before proceeding. You only need to call `expand_pipeline()` explicitly when you want to inspect the branch structure before building.
 
 ---
 
