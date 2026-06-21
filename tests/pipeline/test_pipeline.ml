@@ -2335,6 +2335,34 @@ p.t_step|}
   in
   test_dynamic_branching_metadata ();
 
+  let test_composition_ref_wiring () =
+    Printf.printf "Composition Ref Wiring:\n";
+    let env = Packages.init_env () in
+    let (_, env_p) = eval_string_env
+      "p = pipeline { a = [1, 2, 3]; b = node(pattern = map_pattern(a)) }"
+      env
+    in
+    let ops = [
+      ("chain", "chain(p, pipeline { d = a + 1 })");
+      ("parallel", "parallel(p, pipeline { d = a + 1 })");
+      ("union", "union(p, pipeline { d = a + 1 })");
+      ("difference", "difference(p, pipeline { d = a + 1 })");
+      ("intersect", "intersect(p, pipeline { d = a + 1 })");
+      ("patch", "patch(p, pipeline { d = a + 1 })");
+    ] in
+    let all_wired = List.for_all (fun (_, op) ->
+      let (v, _) = eval_string_env op env_p in
+      let s = strip_location (Ast.Utils.value_to_string v) in
+      not (contains_pattern "expander not yet installed" s)
+    ) ops in
+    if all_wired then begin
+      incr pass_count; Printf.printf "  ✓ all composition/set-op builtins have wired expander\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ some composition/set-op builtins returned expander-not-wired error\n"
+    end
+  in
+  test_composition_ref_wiring ();
+
   let test_dynamic_branching_expansion () =
     Printf.printf "Dynamic Branching Expansion:\n";
     let env = Packages.init_env () in
@@ -2492,6 +2520,93 @@ p.t_step|}
     ()
   in
   test_dynamic_branching_expansion ();
+
+  let test_cross_pattern_expansion () =
+    Printf.printf "Cross-Pattern & Chained Pattern Expansion:\n";
+    let env = Packages.init_env () in
+
+    (* 1. Test cross_pattern produces correct number of branches *)
+    let (_, env_cross) = eval_string_env
+      "p = pipeline {\n\
+         a = [1, 2]\n\
+         b = [10, 20, 30]\n\
+         c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))\n\
+       }"
+      env
+    in
+    let (v_exp, _) = eval_string_env "expand_pipeline(p)" env_cross in
+    (match v_exp with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_a = List.mem "a" node_names in
+         let has_b = List.mem "b" node_names in
+         let has_c1 = List.mem "c_branch_1" node_names in
+         let has_c6 = List.mem "c_branch_6" node_names in
+         let has_c_orig = List.mem "c" node_names in
+         if has_a && has_b && has_c1 && has_c6 && not has_c_orig && List.length pe.p_nodes = 8 then begin
+           incr pass_count; Printf.printf "  ✓ cross_pattern with 2x3 creates 6 branches (8 total nodes)\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ cross_pattern: a=%b b=%b c1=%b c6=%b c_orig=%b nodes=%d\n"
+             has_a has_b has_c1 has_c6 has_c_orig (List.length pe.p_nodes)
+         end;
+         if not pe.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ cross_pattern expanded pipeline has patterns flag false\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ cross_pattern expanded pipeline should have patterns flag false\n"
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline cross_pattern should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    (* 2. Test chained patterns: cross_pattern supplies downstream map_pattern,
+          verifying that dependencies are rewired to individual branches *)
+    let (_, env_chain) = eval_string_env
+      "p = pipeline {\n\
+         a = [1, 2]\n\
+         b = [10, 20]\n\
+         c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))\n\
+         d = node(command = <{ c }>, pattern = map_pattern(c))\n\
+       }"
+      env
+    in
+    let (v_chain_exp, _) = eval_string_env "expand_pipeline(p)" env_chain in
+    (match v_chain_exp with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_d1 = List.mem "d_branch_1" node_names in
+         let has_d4 = List.mem "d_branch_4" node_names in
+         let has_d_orig = List.mem "d" node_names in
+         let has_c_orig = List.mem "c" node_names in
+         let d1_deps_opt = List.find_opt (fun (n, _) -> n = "d_branch_1") pe.p_deps in
+         let deps_rewired = match d1_deps_opt with
+           | Some (_, deps) -> List.mem "c_branch_1" deps
+           | None -> false
+         in
+         let all_d_have_correct_deps = List.for_all (fun i ->
+           let d_name = "d_branch_" ^ string_of_int i in
+           let c_name = "c_branch_" ^ string_of_int i in
+           match List.find_opt (fun (n, _) -> n = d_name) pe.p_deps with
+           | Some (_, deps) -> List.mem c_name deps
+           | None -> false
+         ) (List.init 4 (fun i -> i + 1)) in
+         if has_d1 && has_d4 && not has_d_orig && not has_c_orig && deps_rewired && all_d_have_correct_deps then begin
+           incr pass_count; Printf.printf "  ✓ chained cross->map creates 4 d branches, deps rewired correctly\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ chained cross->map: d1=%b d4=%b d_orig=%b c_orig=%b deps_rewired=%b all_correct=%b\n"
+             has_d1 has_d4 has_d_orig has_c_orig deps_rewired all_d_have_correct_deps
+         end;
+         if not pe.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ chained expanded pipeline has patterns flag false\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ chained expanded pipeline should have patterns flag false\n"
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline chained cross->map should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    ()
+  in
+  test_cross_pattern_expansion ();
 
   let classify_hunk_kind_tests =
     Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:true = "replace"

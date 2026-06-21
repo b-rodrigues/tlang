@@ -2318,7 +2318,9 @@ build_pipeline(p)
 -- Each branch (b_branch_1, b_branch_2, b_branch_3) runs in R
 ```
 
-The serializer/deserializer symbols (`^json` in the example) must match a supported interchange format on both sides of the runtime boundary. See §11.8 for a complete polyglot example using `cross_pattern` and `map_pattern` with R `ggplot2`.
+The serializer/deserializer symbols (`^json` in the example) must match a supported interchange format on both sides of the runtime boundary. If serializer and deserializer are omitted, expansion succeeds but the build will fail — the default serializer cannot produce runtime-specific artifacts for cross-runtime data interchange.
+
+See §11.8 for a complete polyglot example using `cross_pattern` and `map_pattern` with R `ggplot2`.
 
 ### 11.6 Writing the Expanded Pipeline to a File
 

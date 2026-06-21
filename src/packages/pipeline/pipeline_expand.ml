@@ -97,6 +97,10 @@ let rec substitute_vars_in_expr
   | Unquote e -> Ast.mk_expr (Ast.Unquote (subst e))
   | UnquoteSplice e -> Ast.mk_expr (Ast.UnquoteSplice (subst e))
   | RawCode { raw_text; raw_identifiers } ->
+      (* Runtime-agnostic: identifier substitution via raw_identifiers list and
+         \bname\b word-boundary regex is safe across all runtimes (R, Python,
+         Julia, sh, etc.) — only identifiers explicitly detected by the parser
+         are replaced. *)
       let new_text = List.fold_left (fun text (dep_name, dep_value) ->
         if List.mem dep_name raw_identifiers then
           let literal_str = value_to_literal (slice_value dep_value index) in
