@@ -2831,7 +2831,23 @@ p.t_step|}
          else
            (incr fail_count; Printf.printf "  ✗ sample_pattern should be deterministic, got diff: %s vs %s\n"
               (String.concat ", " names1) (String.concat ", " names2))
-     | _ -> incr fail_count; Printf.printf "  ✗ sample_pattern determinism: expand_pipeline should return VPipeline\n");
+      | _ -> incr fail_count; Printf.printf "  ✗ sample_pattern determinism: expand_pipeline should return VPipeline\n");
+
+    (* 8. cross_pattern rejects selector sub-patterns *)
+    let (_, env_cross_rej) = eval_string_env
+      "p = pipeline {\n\
+         a = [1, 2, 3]\n\
+         b = [10, 20, 30]\n\
+         c = node(command = <{ a + b }>, pattern = cross_pattern(slice_pattern(a, [0]), map_pattern(b)))\n\
+       }"
+      env
+    in
+    let (v_rej, _) = eval_string_env "expand_pipeline(p)" env_cross_rej in
+    let s_rej = strip_location (Ast.Utils.value_to_string v_rej) in
+    if contains_pattern "only map_pattern is supported inside cross_pattern" s_rej then
+      (incr pass_count; Printf.printf "  ✓ cross_pattern rejects slice_pattern as sub-pattern\n")
+    else
+      (incr fail_count; Printf.printf "  ✗ cross_pattern should reject selector, got: %s\n" s_rej);
 
     ()
   in
