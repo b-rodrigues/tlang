@@ -2279,24 +2279,97 @@ pipeline_nodes(expanded)
 
 ### 11.4 Selector Patterns
 
-For finer-grained control, use selector patterns:
+For finer-grained control over which elements produce branches, use selector patterns.
+All four take exactly one dependency and an integer parameter, and produce N branches
+where N is determined by the parameter.
 
-- `slice_pattern(dep, [i, j, ...])` — select specific indices (0-based)
-- `head_pattern(dep, n)` — take the first `n` elements
-- `tail_pattern(dep, n)` — take the last `n` elements
-- `sample_pattern(dep, n)` — randomly sample `n` elements
+#### 11.4.1 `slice_pattern(dep, [i, j, ...])` — Branch on Specific Indices
+
+Select specific indices (0-based) from the dependency. Each index in the list becomes one
+branch. This is useful when you want to recompute only a subset of values, or when you
+want to reorder branches.
 
 ```t
 p = pipeline {
   x = [10, 20, 30, 40, 50]
   -- Only branches for indices 0, 2, 4:
   y = node(command = <{ x }>, pattern = slice_pattern(x, [0, 2, 4]))
-  -- First two elements:
-  z = node(command = <{ x }>, pattern = head_pattern(x, 2))
 }
+-- expand_pipeline(p) produces:
+--   y_branch_1 with x = 10  (index 0)
+--   y_branch_2 with x = 30  (index 2)
+--   y_branch_3 with x = 50  (index 4)
 ```
 
-**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet expand them — only `map_pattern` and `cross_pattern` currently work. Calling `expand_pipeline` on a node using a selector pattern returns an error, and the same error surfaces if you try to `build_pipeline` or `populate_pipeline` on such a pipeline. This section documents the intended API for a future release.
+Indices must be within the dependency's bounds (0 ≤ i < length). Out-of-range indices
+return an error at expansion time.
+
+#### 11.4.2 `head_pattern(dep, n)` — Branch on First N Elements
+
+Take the first `n` elements of the dependency. Each of the first N elements becomes
+one branch. If `n` exceeds the dependency length, it is silently capped — you get at
+most `length(dep)` branches.
+
+```t
+p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- First two elements:
+  y = node(command = <{ x }>, pattern = head_pattern(x, 2))
+  -- First ten (capped at 5):
+  z = node(command = <{ x }>, pattern = head_pattern(x, 10))
+}
+-- y produces 2 branches: y_branch_1 (x=10), y_branch_2 (x=20)
+-- z produces 5 branches (one per element, since 10 > 5)
+```
+
+#### 11.4.3 `tail_pattern(dep, n)` — Branch on Last N Elements
+
+Take the last `n` elements of the dependency. Branches are indexed from the end —
+element at `length - n` becomes `branch_1`, and so on. Like `head_pattern`, n is
+capped to the dependency length if it exceeds it.
+
+```t
+p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Last two elements:
+  y = node(command = <{ x }>, pattern = tail_pattern(x, 2))
+}
+-- y produces 2 branches:
+--   y_branch_1 with x = 40  (index 3)
+--   y_branch_2 with x = 50  (index 4)
+```
+
+#### 11.4.4 `sample_pattern(dep, n)` — Randomly Select N Elements
+
+Randomly select `n` elements from the dependency (without replacement — no duplicate
+branches). Uses a Fisher-Yates partial shuffle seeded at module load time, so
+repeated expansions of the same pipeline in the same session produce the same random
+draw. As with the other selectors, n is capped to the dependency length.
+
+```t
+p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Randomly pick 2 elements:
+  y = node(command = <{ x }>, pattern = sample_pattern(x, 2))
+}
+-- y produces 2 branches with randomly chosen values from x.
+-- Each run of expand_pipeline on the same pipeline in the same session
+-- produces the same random selection (deterministic within a session).
+```
+
+#### Selector Patterns Summary
+
+| Pattern | Branch count | Branches from |
+|---|---|---|
+| `slice_pattern(dep, [i, j, ...])` | `len(indices)` | Values at given indices |
+| `head_pattern(dep, n)` | `min(n, length(dep))` | First n elements |
+| `tail_pattern(dep, n)` | `min(n, length(dep))` | Last n elements |
+| `sample_pattern(dep, n)` | `min(n, length(dep))` | Random n elements |
+
+All four patterns are automatically expanded on `build_pipeline`, `populate_pipeline`,
+and composition builtins (`chain`, `parallel`, `union`, etc.), just like `map_pattern`
+and `cross_pattern`. They cannot be nested inside `cross_pattern()` — only
+`map_pattern` is supported as a sub-pattern of `cross_pattern`.
 
 ### 11.5 Pattern Branching with Non-T Runtimes
 

@@ -2680,6 +2680,149 @@ p.t_step|}
   in
   test_cross_pattern_expansion ();
 
+  let test_selector_pattern_expansion () =
+    Printf.printf "Selector Pattern Expansion:\n";
+    let env = Packages.init_env () in
+
+    (* 1. slice_pattern with 2 indices from 5-element list --- 2 branches *)
+    let (_, env_s) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30, 40, 50]\n\
+         y = node(command = <{ x }>, pattern = slice_pattern(x, [0, 2, 4]))\n\
+       }"
+      env
+    in
+    let (v_s, _) = eval_string_env "expand_pipeline(p)" env_s in
+    (match v_s with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let has_y1 = List.mem "y_branch_1" names in
+         let has_y2 = List.mem "y_branch_2" names in
+         let has_y3 = List.mem "y_branch_3" names in
+         let has_y_orig = List.mem "y" names in
+         if has_y1 && has_y2 && has_y3 && not has_y_orig && List.length pe.p_nodes = 4 then
+           (incr pass_count; Printf.printf "  ✓ slice_pattern with 3 indices creates 3 branches (4 total nodes)\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ slice_pattern: y1=%b y2=%b y3=%b y_orig=%b nodes=%d\n"
+              has_y1 has_y2 has_y3 has_y_orig (List.length pe.p_nodes))
+     | _ -> incr fail_count; Printf.printf "  ✗ slice_pattern should return VPipeline\n");
+
+    (* 2. slice_pattern with single index --- 1 branch *)
+    let (_, env_s1) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30]\n\
+         y = node(command = <{ x }>, pattern = slice_pattern(x, [1]))\n\
+       }"
+      env
+    in
+    let (v_s1, _) = eval_string_env "expand_pipeline(p)" env_s1 in
+    (match v_s1 with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let has_y1 = List.mem "y_branch_1" names in
+         let has_y_orig = List.mem "y" names in
+         if has_y1 && not has_y_orig && List.length pe.p_nodes = 2 then
+           (incr pass_count; Printf.printf "  ✓ slice_pattern with single index creates 1 branch\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ slice_pattern single: y1=%b y_orig=%b nodes=%d\n"
+              has_y1 has_y_orig (List.length pe.p_nodes))
+     | _ -> incr fail_count; Printf.printf "  ✗ slice_pattern single should return VPipeline\n");
+
+    (* 3. head_pattern with n=3 from 5 elements --- 3 branches *)
+    let (_, env_h) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30, 40, 50]\n\
+         y = node(command = <{ x }>, pattern = head_pattern(x, 3))\n\
+       }"
+      env
+    in
+    let (v_h, _) = eval_string_env "expand_pipeline(p)" env_h in
+    (match v_h with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let has_y1 = List.mem "y_branch_1" names in
+         let has_y3 = List.mem "y_branch_3" names in
+         let has_y4 = List.mem "y_branch_4" names in
+         let has_y_orig = List.mem "y" names in
+         if has_y1 && has_y3 && not has_y4 && not has_y_orig && List.length pe.p_nodes = 4 then
+           (incr pass_count; Printf.printf "  ✓ head_pattern(n=3) creates 3 branches (4 total nodes)\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ head_pattern: y1=%b y3=%b y4=%b y_orig=%b nodes=%d\n"
+              has_y1 has_y3 has_y4 has_y_orig (List.length pe.p_nodes))
+     | _ -> incr fail_count; Printf.printf "  ✗ head_pattern should return VPipeline\n");
+
+    (* 4. head_pattern with n exceeding length --- capped *)
+    let (_, env_hcap) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30]\n\
+         y = node(command = <{ x }>, pattern = head_pattern(x, 10))\n\
+       }"
+      env
+    in
+    let (v_hcap, _) = eval_string_env "expand_pipeline(p)" env_hcap in
+    (match v_hcap with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let has_y3 = List.mem "y_branch_3" names in
+         let has_y4 = List.mem "y_branch_4" names in
+         if has_y3 && not has_y4 && List.length pe.p_nodes = 4 then
+           (incr pass_count; Printf.printf "  ✓ head_pattern(n=10 on 3 items) caps to 3 branches\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ head_pattern cap: y3=%b y4=%b nodes=%d\n"
+              has_y3 has_y4 (List.length pe.p_nodes))
+     | _ -> incr fail_count; Printf.printf "  ✗ head_pattern cap should return VPipeline\n");
+
+    (* 5. tail_pattern with n=2 from 5 elements --- 2 branches (last 2) *)
+    let (_, env_t) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30, 40, 50]\n\
+         y = node(command = <{ x }>, pattern = tail_pattern(x, 2))\n\
+       }"
+      env
+    in
+    let (v_t, _) = eval_string_env "expand_pipeline(p)" env_t in
+    (match v_t with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let has_y1 = List.mem "y_branch_1" names in
+         let has_y2 = List.mem "y_branch_2" names in
+         let has_y3 = List.mem "y_branch_3" names in
+         let has_y_orig = List.mem "y" names in
+         if has_y1 && has_y2 && not has_y3 && not has_y_orig && List.length pe.p_nodes = 3 then
+           (incr pass_count; Printf.printf "  ✓ tail_pattern(n=2) creates 2 branches (3 total nodes)\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ tail_pattern: y1=%b y2=%b y3=%b y_orig=%b nodes=%d\n"
+              has_y1 has_y2 has_y3 has_y_orig (List.length pe.p_nodes))
+     | _ -> incr fail_count; Printf.printf "  ✗ tail_pattern should return VPipeline\n");
+
+    (* 6. sample_pattern with n=2 from 5 elements --- 2 branches *)
+    let (_, env_samp) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30, 40, 50]\n\
+         y = node(command = <{ x }>, pattern = sample_pattern(x, 2))\n\
+       }"
+      env
+    in
+    let (v_samp, _) = eval_string_env "expand_pipeline(p)" env_samp in
+    (match v_samp with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let branch_names = List.filter (fun n -> String.starts_with ~prefix:"y_branch" n) names in
+         let has_y1 = List.mem "y_branch_1" names in
+         let has_y2 = List.mem "y_branch_2" names in
+         let has_y3 = List.mem "y_branch_3" names in
+         let has_y_orig = List.mem "y" names in
+         if has_y1 && has_y2 && not has_y3 && not has_y_orig && List.length branch_names = 2 then
+           (incr pass_count; Printf.printf "  ✓ sample_pattern(n=2) creates 2 random branches\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ sample_pattern: y1=%b y2=%b y3=%b y_orig=%b branch_count=%d\n"
+              has_y1 has_y2 has_y3 has_y_orig (List.length branch_names))
+     | _ -> incr fail_count; Printf.printf "  ✗ sample_pattern should return VPipeline\n");
+
+    ()
+  in
+  test_selector_pattern_expansion ();
+
   let classify_hunk_kind_tests =
     Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:true = "replace"
     && Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:false = "delete"

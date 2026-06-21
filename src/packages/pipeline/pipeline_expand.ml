@@ -1,9 +1,11 @@
 (*
 --# Expand pattern-based branching in a pipeline.
 --#
---# Patterned nodes using `map_pattern(dep)` or `cross_pattern(...)` are
---# replaced with N branch copies, where N is the product of the dependency
---# lengths. Supports List, Vector, and DataFrame dependencies.
+--# Patterned nodes using `map_pattern(dep)`, `cross_pattern(...)`,
+--# `slice_pattern(dep, [i1, i2, ...])`, `head_pattern(dep, n)`,
+--# `tail_pattern(dep, n)`, or `sample_pattern(dep, n)` are
+--# replaced with N branch copies, where N depends on the pattern type.
+--# Supports List, Vector, and DataFrame dependencies.
 --#
 --# `populate_pipeline(p)`, `build_pipeline(p)`, and pipeline composition
 --# functions (`chain`, `parallel`, `union`, ...) now call this function
@@ -21,6 +23,8 @@
 *)
 
 open Ast
+
+let () = Random.self_init ()
 
 let value_length (v : value) : int =
   match v with
@@ -263,6 +267,87 @@ let process_cross
             make_branch name name i substituted_command
           ))
 
+let process_slice
+    ?(expanded_map : (string * string list) list = [])
+    (p : pipeline_result) (env : value Env.t) (name : string) (dep : string) (indices : int list)
+    : (branch_info list, value) Result.t =
+  match resolve_map_deps ~expanded_map p env name [dep] with
+  | Error _ as e -> e
+  | Ok ([dep_value], total_length) ->
+      let invalid = List.filter (fun i -> i < 0 || i >= total_length) indices in
+      if invalid <> [] then
+        Error (Error.value_error
+          (Printf.sprintf "expand_pipeline: slice_pattern for node '%s' has out-of-range index(es) %s (dependency '%s' length = %d)."
+            name (String.concat ", " (List.map string_of_int invalid)) dep total_length))
+      else
+        (match get_node_command p name with
+         | Some command_expr ->
+             Ok (List.mapi (fun branch_idx value_idx ->
+               let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+               make_branch name name branch_idx substituted_command
+             ) indices)
+         | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
+  | _ -> assert false
+
+let process_head
+    ?(expanded_map : (string * string list) list = [])
+    (p : pipeline_result) (env : value Env.t) (name : string) (dep : string) (n : int)
+    : (branch_info list, value) Result.t =
+  match resolve_map_deps ~expanded_map p env name [dep] with
+  | Error _ as e -> e
+  | Ok ([dep_value], total_length) ->
+      let actual_n = min n total_length in
+      (match get_node_command p name with
+       | Some command_expr ->
+           Ok (List.init actual_n (fun i ->
+             let substituted_command = substitute_vars_in_expr [(dep, dep_value)] i command_expr in
+             make_branch name name i substituted_command
+           ))
+       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
+  | _ -> assert false
+
+let process_tail
+    ?(expanded_map : (string * string list) list = [])
+    (p : pipeline_result) (env : value Env.t) (name : string) (dep : string) (n : int)
+    : (branch_info list, value) Result.t =
+  match resolve_map_deps ~expanded_map p env name [dep] with
+  | Error _ as e -> e
+  | Ok ([dep_value], total_length) ->
+      let actual_n = min n total_length in
+      let start = total_length - actual_n in
+      (match get_node_command p name with
+       | Some command_expr ->
+           Ok (List.init actual_n (fun i ->
+             let value_idx = start + i in
+             let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+             make_branch name name i substituted_command
+           ))
+       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
+  | _ -> assert false
+
+let process_sample
+    ?(expanded_map : (string * string list) list = [])
+    (p : pipeline_result) (env : value Env.t) (name : string) (dep : string) (n : int)
+    : (branch_info list, value) Result.t =
+  match resolve_map_deps ~expanded_map p env name [dep] with
+  | Error _ as e -> e
+  | Ok ([dep_value], total_length) ->
+      let actual_n = min n total_length in
+      let pool = Array.init total_length (fun i -> i) in
+      for i = 0 to actual_n - 1 do
+        let j = i + Random.int (total_length - i) in
+        let tmp = pool.(i) in pool.(i) <- pool.(j); pool.(j) <- tmp
+      done;
+      let chosen = Array.to_list (Array.sub pool 0 actual_n) in
+      (match get_node_command p name with
+       | Some command_expr ->
+           Ok (List.mapi (fun branch_idx value_idx ->
+             let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+             make_branch name name branch_idx substituted_command
+           ) chosen)
+       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
+  | _ -> assert false
+
 let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_script : string option) : value =
   if not p.p_has_patterns then
     VPipeline p
@@ -281,6 +366,8 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
             | _ -> []
           ) subs in
           List.filter (fun d -> List.mem d patterned_node_names) all_deps
+      | Some (PatternSlice (dep, _) | PatternHead (dep, _) | PatternTail (dep, _) | PatternSample (dep, _)) ->
+          if List.mem dep patterned_node_names then [dep] else []
       | _ -> []
     in
 
@@ -339,9 +426,14 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                 process_map ~expanded_map:!expanded_map p env name deps
             | PatternCross subs ->
                 process_cross ~expanded_map:!expanded_map p env name subs
-            | PatternSlice _ | PatternHead _ | PatternTail _ | PatternSample _ ->
-                Error (Error.type_error
-                  (Printf.sprintf "expand_pipeline: this pattern type is not yet implemented for node '%s'. Only `map_pattern` and `cross_pattern` are supported in this release." name))
+            | PatternSlice (dep, indices) ->
+                process_slice ~expanded_map:!expanded_map p env name dep indices
+            | PatternHead (dep, n) ->
+                process_head ~expanded_map:!expanded_map p env name dep n
+            | PatternTail (dep, n) ->
+                process_tail ~expanded_map:!expanded_map p env name dep n
+            | PatternSample (dep, n) ->
+                process_sample ~expanded_map:!expanded_map p env name dep n
           in
           match branch_result with
           | Error e -> Error e
