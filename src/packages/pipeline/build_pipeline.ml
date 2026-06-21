@@ -39,6 +39,7 @@ let write_atelier_diagrams p env =
 --# @name build_pipeline
 --# @param pipeline :: Pipeline The pipeline to build.
 --# @param verbose :: Int (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+--# @param dry_run :: Bool (Optional) Return a planned build DataFrame without executing. Maps to `--dry-run`.
 --# @param nix_options :: Dict (Optional) A dictionary of Nix orchestration options:
 --#   - `targets` :: List[String] Specific node names to build. Maps to `-A <target>` in nix-build.
 --#   - `force` :: Bool|List[String] Force-rebuild nodes even if cached. Maps to `--check`.

@@ -2323,6 +2323,14 @@ p.t_step|}
     end else begin
       incr fail_count; Printf.printf "  ✗ chain should auto-expand, got: %s\n" s_chain
     end;
+    (* Verify chain result contains expanded branch names *)
+    let (v_nodes, _) = eval_string_env "pipeline_nodes(chain(p, pipeline { d = a + 1 }))" env_p in
+    let s_nodes = Ast.Utils.value_to_string v_nodes in
+    if contains_pattern "b_branch_1" s_nodes then begin
+      incr pass_count; Printf.printf "  ✓ chain result includes expanded branch 'b_branch_1'\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ chain result should include expanded branch 'b_branch_1', got: %s\n" s_nodes
+    end;
     ()
   in
   test_dynamic_branching_metadata ();

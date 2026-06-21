@@ -1,6 +1,11 @@
 open Ast
 
-(* Forward reference for auto-expansion — set by pipeline_expand at registration time *)
+(* Forward reference for auto-expansion — set by Pipeline_expand's top-level init code.
+   WARNING: expand_for_build MUST be set before any pipeline composition builtin
+   (chain, parallel) is invoked at runtime. The default placeholder fails loudly to
+   catch any module-load-order violations. Pipeline_expand's `let () = ...` wiring at
+   the bottom of pipeline_expand.ml runs before any user code executes, which
+   guarantees the ref is live before it is called. *)
 let expand_for_build : (pipeline_result -> value Env.t -> (pipeline_result, value) Result.t) ref =
   ref (fun p _ ->
     if not p.p_has_patterns then Ok p
