@@ -2543,6 +2543,9 @@ and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field 
                      validate_deps [dep] (offset + branch_num - 1)
                  | _ -> None)
             | Ast.PatternSample (dep, n) ->
+                (* Note: positional index (branch_num - 1), not Fisher-Yates shuffle.
+                   The actual sampled value on expansion may differ — that's fine for
+                   validation/display; the full shuffle happens in pipeline_expand.ml. *)
                 (match eval_dep_len dep with
                  | Some len when branch_num <= min n len ->
                      validate_deps [dep] (branch_num - 1)
