@@ -1561,7 +1561,45 @@ The output file contains the full `pipeline { ... }` definition with all branche
 
 `populate_pipeline()`, `build_pipeline()`, `chain()`, `parallel()`, `union()`, `intersect()`, `difference()`, and `patch()` all automatically expand any unexpanded patterns in their pipeline inputs before proceeding. You only need to call `expand_pipeline()` explicitly when you want to inspect the branch structure before building.
 
-### 11.8 Complete Example: Polyglot Dynamic Branching Pipeline
+### 11.8 Lazy Branch Access
+
+Even before calling `expand_pipeline()`, you can inspect and interact with the branch structure of a patterned pipeline directly:
+
+**List branch names** with `pipeline_nodes(p)`:
+
+```t
+p = pipeline {
+  a = [10, 20, 30]
+  b = map_pattern(a) ~> a * 2
+}
+pipeline_nodes(p)
+-- Result: ["a", "b_branch_1", "b_branch_2", "b_branch_3"]
+```
+
+**Inspect branch structure** with `inspect_pipeline(p)`:
+
+```t
+inspect_pipeline(p)
+-- DataFrame with one row per branch, including auto-generated branch names
+```
+
+**Access a branch by name** with dot notation — `p.b_branch_1` lazily synthesizes a `VComputedNode` without triggering expansion:
+
+```t
+b1 = p.b_branch_1
+-- b1 is a computed node that will be resolved when built
+```
+
+**Helpful error on the parent node**: if you try `read_node(p.b)` on a patterned node before building, instead of a generic "not built yet" error you get a message listing the available branches:
+
+```
+Error(ValueError): Node `b` has a pattern and expands into b_branch_1, b_branch_2, b_branch_3.
+  Use read_node(p.<branch_name>) to access individual branches directly.
+```
+
+**Reserved naming**: node names ending in `_branch_N` (e.g. `x_branch_1`) are reserved for auto-generated branch nodes. Using such a name at pipeline construction produces a `NameError`.
+
+### 11.9 Complete Example: Polyglot Dynamic Branching Pipeline
 
 This demo (from `t_demos/dynamic_branching_t`) combines `cross_pattern`, `map_pattern`, and cross-runtime (T ↔ R) serialization into a single end-to-end pipeline. It generates spirograph data points in T and plots them with R `ggplot2` — one plot per parameter combination.
 
