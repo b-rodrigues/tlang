@@ -415,6 +415,7 @@ Safe changes (no approval needed):
 ## Commit and PR Workflow
 
 1. **Branch Management**: NEVER push straight to `main` unless explicitly told otherwise. Always push to a new branch or the currently checked-out branch if it is different from `main`. In case of doubt, ALWAYS ask before pushing!
+2. **No Merging**: NEVER merge a branch into `main` or any other branch unless explicitly told to do so. Only the human maintainer merges.
 2. Make changes in a focused branch.
 2. Run `dune build` and `dune runtest` — all tests must pass.
 3. Run `make golden-quick` if your change touches any statistical or data-manipulation function.

@@ -2777,7 +2777,7 @@ Pattern functions are used as the `pattern` argument of `node()` inside a `pipel
 
 **`sample_pattern(dep, n)`** — Randomly sample `n` elements.
 
-**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are parsed and stored on the node, but `expand_pipeline` does not yet implement expansion for them — only `map_pattern` and `cross_pattern` currently expand. Calling `expand_pipeline` on a node using one of these patterns returns an error.
+**Note:** `slice_pattern`, `head_pattern`, `tail_pattern`, and `sample_pattern` are fully supported and expanded by `expand_pipeline`.
 
 **Parameters:**
 
@@ -2809,13 +2809,13 @@ expanded2 = expand_pipeline(p2)
 -- pipeline_nodes(expanded2) == ["a", "b", "c_branch_1", "c_branch_2", "c_branch_3", "c_branch_4"]
 ```
 
-**Note:** Only `map_pattern` and `cross_pattern` are currently expanded by `expand_pipeline` (selector patterns are parsed but not yet expanded). Non-T runtime branching is supported — see §11.5 of the pipeline tutorial for serializer/deserializer requirements.
+**Note:** Non-T runtime branching is supported — see the advanced pipeline tutorial for serializer/deserializer requirements.
 
 ---
 
 ### `expand_pipeline(p, to_script = NA)`
 
-Expand pattern-based branching in a pipeline. Patterned nodes using `map_pattern(dep)` or `cross_pattern(...)` are replaced with N branch copies, where N is the product of the dependency lengths.
+Expand pattern-based branching in a pipeline. Patterned nodes (using `map_pattern`, `cross_pattern`, `slice_pattern`, `head_pattern`, `tail_pattern`, or `sample_pattern`) are replaced with branch copies.
 
 **Parameters:**
 

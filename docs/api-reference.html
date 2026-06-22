@@ -2186,11 +2186,8 @@ Select specific indices from a dependency.</p>
 sample <code>n</code> elements.</p>
 <p><strong>Note:</strong> <code>slice_pattern</code>,
 <code>head_pattern</code>, <code>tail_pattern</code>, and
-<code>sample_pattern</code> are parsed and stored on the node, but
-<code>expand_pipeline</code> does not yet implement expansion for them —
-only <code>map_pattern</code> and <code>cross_pattern</code> currently
-expand. Calling <code>expand_pipeline</code> on a node using one of
-these patterns returns an error.</p>
+<code>sample_pattern</code> are fully supported and expanded by
+<code>expand_pipeline</code>.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>dep</code>, <code>dep1</code>, <code>dep2</code>, … —
@@ -2217,18 +2214,16 @@ p2 = pipeline {
 }
 expanded2 = expand_pipeline(p2)
 -- pipeline_nodes(expanded2) == [&quot;a&quot;, &quot;b&quot;, &quot;c_branch_1&quot;, &quot;c_branch_2&quot;, &quot;c_branch_3&quot;, &quot;c_branch_4&quot;]</code></pre>
-<p><strong>Note:</strong> Only <code>map_pattern</code> and
-<code>cross_pattern</code> are currently expanded by
-<code>expand_pipeline</code> (selector patterns are parsed but not yet
-expanded). Non-T runtime branching is supported — see §11.5 of the
-pipeline tutorial for serializer/deserializer requirements.</p>
+<p><strong>Note:</strong> Non-T runtime branching is supported — see the
+advanced pipeline tutorial for serializer/deserializer requirements.</p>
 <hr />
 <h3
 id="expand_pipelinep-to_script-na"><code>expand_pipeline(p, to_script = NA)</code></h3>
-<p>Expand pattern-based branching in a pipeline. Patterned nodes using
-<code>map_pattern(dep)</code> or <code>cross_pattern(...)</code> are
-replaced with N branch copies, where N is the product of the dependency
-lengths.</p>
+<p>Expand pattern-based branching in a pipeline. Patterned nodes (using
+<code>map_pattern</code>, <code>cross_pattern</code>,
+<code>slice_pattern</code>, <code>head_pattern</code>,
+<code>tail_pattern</code>, or <code>sample_pattern</code>) are replaced
+with branch copies.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>p</code> — Pipeline object to expand.</li>
