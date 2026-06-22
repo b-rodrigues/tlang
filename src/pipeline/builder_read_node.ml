@@ -470,6 +470,19 @@ let latest_logged_computed_node ?log_name_pattern (name : string) =
 let () = latest_logged_computed_node_forward := (fun name ->
   latest_logged_computed_node name)
 
+let branch_names_in_latest_log prefix =
+  let branch_prefix = prefix ^ "_branch_" in
+  match candidate_logs () with
+  | [] -> []
+  | log_file :: _ ->
+      match read_log (Filename.concat pipeline_dir log_file) with
+      | Ok entries ->
+          entries |> List.filter_map (fun (name, _) ->
+            if String.starts_with ~prefix:branch_prefix name then Some name
+            else None
+          ) |> List.sort String.compare
+      | Error _ -> []
+
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
   match Sys.getenv_opt env_name with

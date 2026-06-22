@@ -198,6 +198,13 @@ let make_branch (name : string) (orig_name : string) (i : int) (dep_indices : (s
     un_iteration = "vector";
   }}
 
+let value_length (v : value) : int =
+  match v with
+  | VList items -> List.length items
+  | VVector arr -> Array.length arr
+  | VDataFrame df -> Arrow_table.num_rows df.arrow_table
+  | _ -> 1
+
 let process_map
     ?(expanded_map : (string * string list) list = [])
     (p : pipeline_result) (env : value Env.t) (name : string) (dep_names : string list)

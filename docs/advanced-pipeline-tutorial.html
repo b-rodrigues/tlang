@@ -1779,7 +1779,38 @@ Auto-Expand</h3>
 their pipeline inputs before proceeding. You only need to call
 <code>expand_pipeline()</code> explicitly when you want to inspect the
 branch structure before building.</p>
-<h3 id="complete-example-polyglot-dynamic-branching-pipeline">11.8
+<h3 id="lazy-branch-access">11.8 Lazy Branch Access</h3>
+<p>Even before calling <code>expand_pipeline()</code>, you can inspect
+and interact with the branch structure of a patterned pipeline
+directly:</p>
+<p><strong>List branch names</strong> with
+<code>pipeline_nodes(p)</code>:</p>
+<pre class="t"><code>p = pipeline {
+  a = [10, 20, 30]
+  b = map_pattern(a) ~&gt; a * 2
+}
+pipeline_nodes(p)
+-- Result: [&quot;a&quot;, &quot;b_branch_1&quot;, &quot;b_branch_2&quot;, &quot;b_branch_3&quot;]</code></pre>
+<p><strong>Inspect branch structure</strong> with
+<code>inspect_pipeline(p)</code>:</p>
+<pre class="t"><code>inspect_pipeline(p)
+-- DataFrame with one row per branch, including auto-generated branch names</code></pre>
+<p><strong>Access a branch by name</strong> with dot notation —
+<code>p.b_branch_1</code> lazily synthesizes a
+<code>VComputedNode</code> without triggering expansion:</p>
+<pre class="t"><code>b1 = p.b_branch_1
+-- b1 is a computed node that will be resolved when built</code></pre>
+<p><strong>Helpful error on the parent node</strong>: if you try
+<code>read_node(p.b)</code> on a patterned node before building, instead
+of a generic “not built yet” error you get a message listing the
+available branches:</p>
+<pre><code>Error(ValueError): Node `b` has a pattern and expands into b_branch_1, b_branch_2, b_branch_3.
+  Use read_node(p.&lt;branch_name&gt;) to access individual branches directly.</code></pre>
+<p><strong>Reserved naming</strong>: node names ending in
+<code>_branch_N</code> (e.g. <code>x_branch_1</code>) are reserved for
+auto-generated branch nodes. Using such a name at pipeline construction
+produces a <code>NameError</code>.</p>
+<h3 id="complete-example-polyglot-dynamic-branching-pipeline">11.9
 Complete Example: Polyglot Dynamic Branching Pipeline</h3>
 <p>This demo (from <code>t_demos/dynamic_branching_t</code>) combines
 <code>cross_pattern</code>, <code>map_pattern</code>, and cross-runtime
@@ -1854,17 +1885,17 @@ spirograph function called by each data branch:</p>
 }</code></pre>
 <p><strong><code>src/spirograph.R</code></strong> — renders a faceted
 ggplot for one parameter combination:</p>
-<div class="sourceCode" id="cb82"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb82-1"><a href="#cb82-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
-<span id="cb82-2"><a href="#cb82-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb82-3"><a href="#cb82-3" aria-hidden="true" tabindex="-1"></a>plot_spirographs <span class="ot">&lt;-</span> <span class="cf">function</span>(points) {</span>
-<span id="cb82-4"><a href="#cb82-4" aria-hidden="true" tabindex="-1"></a>  label <span class="ot">&lt;-</span> <span class="st">&quot;fixed_radius = %s, cycling_radius = %s&quot;</span></span>
-<span id="cb82-5"><a href="#cb82-5" aria-hidden="true" tabindex="-1"></a>  points<span class="sc">$</span>parameters <span class="ot">&lt;-</span> <span class="fu">sprintf</span>(label, points<span class="sc">$</span>fixed_radius, points<span class="sc">$</span>cycling_radius)</span>
-<span id="cb82-6"><a href="#cb82-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(points) <span class="sc">+</span></span>
-<span id="cb82-7"><a href="#cb82-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">x =</span> x, <span class="at">y =</span> y, <span class="at">color =</span> parameters), <span class="at">size =</span> <span class="fl">0.1</span>) <span class="sc">+</span></span>
-<span id="cb82-8"><a href="#cb82-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_wrap</span>(<span class="sc">~</span>parameters) <span class="sc">+</span></span>
-<span id="cb82-9"><a href="#cb82-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_gray</span>(<span class="dv">16</span>) <span class="sc">+</span></span>
-<span id="cb82-10"><a href="#cb82-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">color =</span> <span class="st">&quot;none&quot;</span>)</span>
-<span id="cb82-11"><a href="#cb82-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<div class="sourceCode" id="cb86"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb86-2"><a href="#cb86-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb86-3"><a href="#cb86-3" aria-hidden="true" tabindex="-1"></a>plot_spirographs <span class="ot">&lt;-</span> <span class="cf">function</span>(points) {</span>
+<span id="cb86-4"><a href="#cb86-4" aria-hidden="true" tabindex="-1"></a>  label <span class="ot">&lt;-</span> <span class="st">&quot;fixed_radius = %s, cycling_radius = %s&quot;</span></span>
+<span id="cb86-5"><a href="#cb86-5" aria-hidden="true" tabindex="-1"></a>  points<span class="sc">$</span>parameters <span class="ot">&lt;-</span> <span class="fu">sprintf</span>(label, points<span class="sc">$</span>fixed_radius, points<span class="sc">$</span>cycling_radius)</span>
+<span id="cb86-6"><a href="#cb86-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(points) <span class="sc">+</span></span>
+<span id="cb86-7"><a href="#cb86-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">x =</span> x, <span class="at">y =</span> y, <span class="at">color =</span> parameters), <span class="at">size =</span> <span class="fl">0.1</span>) <span class="sc">+</span></span>
+<span id="cb86-8"><a href="#cb86-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_wrap</span>(<span class="sc">~</span>parameters) <span class="sc">+</span></span>
+<span id="cb86-9"><a href="#cb86-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_gray</span>(<span class="dv">16</span>) <span class="sc">+</span></span>
+<span id="cb86-10"><a href="#cb86-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">color =</span> <span class="st">&quot;none&quot;</span>)</span>
+<span id="cb86-11"><a href="#cb86-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 <p>Note the <code>functions = ["src/spirograph.R"]</code> argument on
 the R node — this propagates the script into the Nix sandbox so it is
 available at build time.</p>

@@ -452,11 +452,20 @@ let read_fn named_args _env =
           | Some v when not is_built && not (is_in_memory_placeholder v) -> v
           | _ ->
             (match resolved_cn with
-             | cn when cn.cn_path = "<unbuilt>" ->
-                 (match Ast.get_in_memory_node_value_for_cn cn with
-                   | Some v when not (is_in_memory_placeholder v) -> v
-                   | _ ->
-                       Error.make_error FileError (Printf.sprintf "read_node: node `%s` has not been built yet. Build the pipeline first with build_pipeline(p), or use read_past_node(p.%s, which_log = ...) to read from a past build log." cn.cn_name cn.cn_name))
+              | cn when cn.cn_path = "<unbuilt>" ->
+                  (match Ast.get_in_memory_node_value_for_cn cn with
+                    | Some v when not (is_in_memory_placeholder v) -> v
+                    | _ ->
+                        let branch_names = Builder.branch_names_in_latest_log cn.cn_name in
+                        (match branch_names with
+                         | [] ->
+                             Error.make_error FileError (Printf.sprintf "read_node: node `%s` has not been built yet. Build the pipeline first with build_pipeline(p), or use read_past_node(p.%s, which_log = ...) to read from a past build log." cn.cn_name cn.cn_name)
+                         | _ ->
+                             let branches_str = String.concat ", " branch_names in
+                             Error.make_error ValueError
+                               (Printf.sprintf "Node `%s` has a pattern and expands into %s.\n\
+                                 Use read_node(p.<branch_name>) to access individual branches directly."
+                                cn.cn_name branches_str)))
              | cn ->
                  let raw_val = Builder.logged_node_value cn.cn_name cn in
                  match Ast.get_in_memory_node_value_for_cn cn with
