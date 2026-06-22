@@ -1568,9 +1568,12 @@ and eval_block env_ref stmts =
         env_ref := new_env;
         v
     | stmt :: rest ->
-        let (v, new_env) = eval_statement !env_ref stmt in
+        let old_env = !env_ref in
+        let (v, new_env) = eval_statement old_env stmt in
         env_ref := new_env;
         (match stmt.node, v with
+          | (Assignment _ | Reassignment _), VError _ when new_env == old_env -> v
+          | (Assignment _ | Reassignment _), VError _ -> loop () rest
           | _, VError _ -> v
           | _ -> loop () rest)
   in
@@ -3288,10 +3291,10 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
           let env_ref = ref env in
           let v = eval_expr env_ref expr in
           let new_env = Env.add name v !env_ref in
-          (match v with
-           | VError _ -> (v, new_env)
-           | _ -> ((VNA NAGeneric), new_env))
-    | Reassignment { name; expr } ->
+            (match v with
+             | VError _ -> (v, new_env)
+             | _ -> ((VNA NAGeneric), new_env))
+     | Reassignment { name; expr } ->
         if Import_registry.find_origin env name = Some Import_registry.Builtin then
           let msg = Printf.sprintf "Cannot overwrite %s: it's a reserved keyword!" name in
           (make_error NameError msg, env)
@@ -3306,10 +3309,10 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
             flush stderr
           end;
           let new_env = Env.add name v !env_ref in
-          (match v with
-           | VError _ -> (v, new_env)
-           | _ -> ((VNA NAGeneric), new_env))
-    | Import filename ->
+            (match v with
+             | VError _ -> (v, new_env)
+             | _ -> ((VNA NAGeneric), new_env))
+     | Import filename ->
         (try
           let ch = open_in filename in
           let content = really_input_string ch (in_channel_length ch) in
