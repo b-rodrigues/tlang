@@ -13,30 +13,60 @@ open Ast
 --# @export
 *)
 
-let eval_dep_len env exprs dep_name =
-  match List.assoc_opt dep_name exprs with
-  | Some expr ->
-      (try
-         match Eval.eval_expr (ref env) expr with
-         | VList items -> Some (List.length items)
-         | VVector arr -> Some (Array.length arr)
-         | VDataFrame df -> Some (Arrow_table.num_rows df.arrow_table)
-         | _ -> None
-       with _ -> None)
-  | None -> None
+let rec eval_dep_len env exprs patterns dep_name =
+  let from_expr =
+    match List.assoc_opt dep_name exprs with
+    | Some expr ->
+        (try
+           match Eval.eval_expr (ref env) expr with
+           | VList items -> Some (List.length items)
+           | VVector arr -> Some (Array.length arr)
+           | VDataFrame df -> Some (Arrow_table.num_rows df.arrow_table)
+           | _ -> None
+         with _ -> None)
+    | None -> None
+  in
+  match from_expr with
+  | Some _ -> from_expr
+  | None ->
+      (match List.assoc_opt dep_name patterns with
+       | Some pattern ->
+           (match pattern with
+            | PatternMap deps ->
+                (match deps with
+                 | _ :: _ ->
+                     let lens = List.filter_map (eval_dep_len env exprs patterns) deps in
+                     (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                 | _ -> None)
+            | PatternCross subs ->
+                let sub_lengths = List.filter_map (fun sub ->
+                  match sub with
+                  | PatternMap sub_deps ->
+                      let lens = List.filter_map (eval_dep_len env exprs patterns) sub_deps in
+                      (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                  | _ -> None
+                ) subs in
+                if List.length sub_lengths <> List.length subs then None
+                else Some (List.fold_left ( * ) 1 sub_lengths)
+            | PatternSlice (_, indices) -> Some (List.length indices)
+            | PatternHead (d, n) | PatternTail (d, n) | PatternSample (d, n) ->
+                (match eval_dep_len env exprs patterns d with
+                 | Some len -> Some (min n len)
+                 | None -> None))
+       | None -> None)
 
 let compute_branch_names env p =
   List.concat_map (fun (name, pattern) ->
     let count_opt = match pattern with
       | PatternMap deps ->
           (match deps with
-           | [dep] -> eval_dep_len env p.p_exprs dep
+           | [dep] -> eval_dep_len env p.p_exprs p.p_patterns dep
            | _ -> None)
       | PatternCross subs ->
           let sub_lengths = List.filter_map (fun sub ->
             match sub with
             | PatternMap deps ->
-                let lens = List.filter_map (eval_dep_len env p.p_exprs) deps in
+                let lens = List.filter_map (eval_dep_len env p.p_exprs p.p_patterns) deps in
                 (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
             | _ -> None
           ) subs in
@@ -44,7 +74,7 @@ let compute_branch_names env p =
           else Some (List.fold_left ( * ) 1 sub_lengths)
       | PatternSlice (_, indices) -> Some (List.length indices)
       | PatternHead (dep, n) | PatternTail (dep, n) | PatternSample (dep, n) ->
-          (match eval_dep_len env p.p_exprs dep with
+          (match eval_dep_len env p.p_exprs p.p_patterns dep with
            | Some len -> Some (min n len)
            | None -> None)
     in

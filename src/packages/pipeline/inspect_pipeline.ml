@@ -54,10 +54,40 @@ let register env =
             | _ -> None
           with _ -> None
         in
-        let eval_dep_len dep =
-          match List.assoc_opt dep p.p_exprs with
-          | Some expr -> eval_dep_len_expr expr
-          | None -> None
+        let rec eval_dep_len dep =
+          let from_expr =
+            match List.assoc_opt dep p.p_exprs with
+            | Some expr -> eval_dep_len_expr expr
+            | None -> None
+          in
+          match from_expr with
+          | Some _ -> from_expr
+          | None ->
+              (match List.assoc_opt dep p.p_patterns with
+               | Some pattern ->
+                   (match pattern with
+                    | PatternMap deps ->
+                        (match deps with
+                         | _ :: _ ->
+                             let lens = List.filter_map eval_dep_len deps in
+                             (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                         | _ -> None)
+                    | PatternCross subs ->
+                        let sub_lengths = List.filter_map (fun sub ->
+                          match sub with
+                          | PatternMap sub_deps ->
+                              let lens = List.filter_map eval_dep_len sub_deps in
+                              (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                          | _ -> None
+                        ) subs in
+                        if List.length sub_lengths <> List.length subs then None
+                        else Some (List.fold_left ( * ) 1 sub_lengths)
+                    | PatternSlice (_, indices) -> Some (List.length indices)
+                    | PatternHead (d, n) | PatternTail (d, n) | PatternSample (d, n) ->
+                        (match eval_dep_len d with
+                         | Some len -> Some (min n len)
+                         | None -> None))
+               | None -> None)
         in
         let branch_entries = List.concat_map (fun (name, pattern) ->
           let count_opt = match pattern with

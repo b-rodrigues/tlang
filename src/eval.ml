@@ -2460,17 +2460,47 @@ and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field 
     in
     find_marker (s_len - bm_len)
   in
-  let eval_dep_len dep =
-    match List.assoc_opt dep p.Ast.p_exprs with
-    | Some expr ->
-        (try
-           match eval_expr (ref env) expr with
-           | Ast.VList items -> Some (List.length items)
-           | Ast.VVector arr -> Some (Array.length arr)
-           | Ast.VDataFrame df -> Some (Arrow_table.num_rows df.Ast.arrow_table)
-           | _ -> None
-         with _ -> None)
-    | None -> None
+  let rec eval_dep_len dep =
+    let from_expr =
+      match List.assoc_opt dep p.Ast.p_exprs with
+      | Some expr ->
+          (try
+             match eval_expr (ref env) expr with
+             | Ast.VList items -> Some (List.length items)
+             | Ast.VVector arr -> Some (Array.length arr)
+             | Ast.VDataFrame df -> Some (Arrow_table.num_rows df.Ast.arrow_table)
+             | _ -> None
+           with _ -> None)
+      | None -> None
+    in
+    match from_expr with
+    | Some _ -> from_expr
+    | None ->
+        (match List.assoc_opt dep p.Ast.p_patterns with
+         | Some pattern ->
+             (match pattern with
+              | Ast.PatternMap deps ->
+                  (match deps with
+                   | _ :: _ ->
+                       let lens = List.filter_map eval_dep_len deps in
+                       (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                   | _ -> None)
+              | Ast.PatternCross subs ->
+                  let sub_lengths = List.filter_map (fun sub ->
+                    match sub with
+                    | Ast.PatternMap sub_deps ->
+                        let lens = List.filter_map eval_dep_len sub_deps in
+                        (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                    | _ -> None
+                  ) subs in
+                  if List.length sub_lengths <> List.length subs then None
+                  else Some (List.fold_left ( * ) 1 sub_lengths)
+              | Ast.PatternSlice (_, indices) -> Some (List.length indices)
+              | Ast.PatternHead (d, n) | Ast.PatternTail (d, n) | Ast.PatternSample (d, n) ->
+                  (match eval_dep_len d with
+                   | Some len -> Some (min n len)
+                   | None -> None))
+         | None -> None)
   in
   let eval_dep_at_index dep index =
     match List.assoc_opt dep p.Ast.p_exprs with
@@ -2512,10 +2542,11 @@ and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field 
   | Some (orig_name, branch_num) ->
       (match List.assoc_opt orig_name p.Ast.p_patterns with
        | Some pattern ->
-           let validate_deps deps index =
-             let dep_values = List.map (fun dep -> eval_dep_at_index dep index) deps in
-             if List.exists (fun v -> match v with Ast.VNA _ -> true | _ -> false) dep_values then None
-             else mk_cn orig_name
+            let validate_deps deps index =
+              let concrete = List.filter (fun d -> List.mem_assoc d p.Ast.p_exprs) deps in
+              let dep_values = List.map (fun dep -> eval_dep_at_index dep index) concrete in
+              if List.exists (fun v -> match v with Ast.VNA _ -> true | _ -> false) dep_values then None
+              else mk_cn orig_name
            in
            (match pattern with
             | Ast.PatternMap deps ->
@@ -2565,17 +2596,47 @@ and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field 
   | _ -> None
 
 and pattern_branch_names_for_error p field pattern =
-  let eval_dep_len dep =
-    match List.assoc_opt dep p.Ast.p_exprs with
-    | Some expr ->
-        (try
-           match eval_expr (ref Ast.Env.empty) expr with
-           | Ast.VList items -> Some (List.length items)
-           | Ast.VVector arr -> Some (Array.length arr)
-           | Ast.VDataFrame df -> Some (Arrow_table.num_rows df.Ast.arrow_table)
-           | _ -> None
-         with _ -> None)
-    | None -> None
+  let rec eval_dep_len dep =
+    let from_expr =
+      match List.assoc_opt dep p.Ast.p_exprs with
+      | Some expr ->
+          (try
+             match eval_expr (ref Ast.Env.empty) expr with
+             | Ast.VList items -> Some (List.length items)
+             | Ast.VVector arr -> Some (Array.length arr)
+             | Ast.VDataFrame df -> Some (Arrow_table.num_rows df.Ast.arrow_table)
+             | _ -> None
+           with _ -> None)
+      | None -> None
+    in
+    match from_expr with
+    | Some _ -> from_expr
+    | None ->
+        (match List.assoc_opt dep p.Ast.p_patterns with
+         | Some pattern ->
+             (match pattern with
+              | Ast.PatternMap deps ->
+                  (match deps with
+                   | _ :: _ ->
+                       let lens = List.filter_map eval_dep_len deps in
+                       (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                   | _ -> None)
+              | Ast.PatternCross subs ->
+                  let sub_lengths = List.filter_map (fun sub ->
+                    match sub with
+                    | Ast.PatternMap sub_deps ->
+                        let lens = List.filter_map eval_dep_len sub_deps in
+                        (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                    | _ -> None
+                  ) subs in
+                  if List.length sub_lengths <> List.length subs then None
+                  else Some (List.fold_left ( * ) 1 sub_lengths)
+              | Ast.PatternSlice (_, indices) -> Some (List.length indices)
+              | Ast.PatternHead (d, n) | Ast.PatternTail (d, n) | Ast.PatternSample (d, n) ->
+                  (match eval_dep_len d with
+                   | Some len -> Some (min n len)
+                   | None -> None))
+         | None -> None)
   in
   let branch_count =
     match pattern with
