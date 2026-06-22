@@ -2,7 +2,7 @@
 
 Expand Pattern-Based Branching
 
-Expands `map_pattern` and `cross_pattern` nodes into individual branch nodes. Each branch is named `<original>_branch_<N>`. Supports List, Vector, and DataFrame dependencies.
+Expands patterned nodes (using `map_pattern`, `cross_pattern`, `slice_pattern`, `head_pattern`, `tail_pattern`, or `sample_pattern`) into individual branch nodes. Each branch is named `<original>_branch_<N>`. Supports List, Vector, and DataFrame dependencies.
 
 ## Parameters
 

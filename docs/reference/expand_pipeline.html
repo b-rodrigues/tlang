@@ -35,10 +35,12 @@
 <div class="container">
 <h1 id="expand_pipeline">expand_pipeline</h1>
 <p>Expand Pattern-Based Branching</p>
-<p>Expands <code>map_pattern</code> and <code>cross_pattern</code> nodes
-into individual branch nodes. Each branch is named
-<code>&lt;original&gt;_branch_&lt;N&gt;</code>. Supports List, Vector,
-and DataFrame dependencies.</p>
+<p>Expands patterned nodes (using <code>map_pattern</code>,
+<code>cross_pattern</code>, <code>slice_pattern</code>,
+<code>head_pattern</code>, <code>tail_pattern</code>, or
+<code>sample_pattern</code>) into individual branch nodes. Each branch
+is named <code>&lt;original&gt;_branch_&lt;N&gt;</code>. Supports List,
+Vector, and DataFrame dependencies.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
