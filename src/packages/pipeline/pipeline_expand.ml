@@ -119,6 +119,7 @@ type branch_info = {
   branch_name : string;
   orig_name : string;
   branch_index : int;
+  branch_dep_indices : (string * int) list;
   branch_un : unbuilt_node;
 }
 
@@ -177,9 +178,9 @@ let resolve_map_deps
     else
       Ok (dep_values, branch_count)
 
-let make_branch (name : string) (orig_name : string) (i : int) (command_expr : Ast.expr) : branch_info =
+let make_branch (name : string) (orig_name : string) (i : int) (dep_indices : (string * int) list) (command_expr : Ast.expr) : branch_info =
   let branch_name = name ^ "_branch_" ^ string_of_int (i + 1) in
-  { branch_name; orig_name; branch_index = i; branch_un = {
+  { branch_name; orig_name; branch_index = i; branch_dep_indices = dep_indices; branch_un = {
     un_command = command_expr;
     un_script = None;
     un_runtime = "T";
@@ -208,8 +209,9 @@ let process_map
       | Some command_expr ->
           let substs = List.combine dep_names dep_values in
           Ok (List.init branch_count (fun i ->
+            let dep_indices = List.map (fun d -> (d, i)) dep_names in
             let substituted_command = substitute_vars_in_expr substs i command_expr in
-            make_branch name name i substituted_command
+            make_branch name name i dep_indices substituted_command
           ))
       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name))
 
@@ -261,8 +263,11 @@ let process_cross
                 (dep_name, slice_value dep_value elem_idx)
               ) dep_names dep_values
             ) resolved_subs indices) in
+            let dep_indices = List.concat (List.map2 (fun (dep_names, _, _) elem_idx ->
+              List.map (fun dep_name -> (dep_name, elem_idx)) dep_names
+            ) resolved_subs indices) in
             let substituted_command = substitute_vars_in_expr substs 0 command_expr in
-            make_branch name name i substituted_command
+            make_branch name name i dep_indices substituted_command
           ))
 
 let process_slice
@@ -281,9 +286,9 @@ let process_slice
         (match get_node_command p name with
          | Some command_expr ->
              Ok (List.mapi (fun branch_idx value_idx ->
-               let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
-               make_branch name name branch_idx substituted_command
-             ) indices)
+                let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+                make_branch name name branch_idx [(dep, value_idx)] substituted_command
+              ) indices)
          | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
   | _ -> Error (Error.make_error RuntimeError "expand_pipeline: internal error — resolve_map_deps invariant violated")
 
@@ -297,10 +302,10 @@ let process_head
       let actual_n = min n total_length in
       (match get_node_command p name with
        | Some command_expr ->
-           Ok (List.init actual_n (fun i ->
-             let substituted_command = substitute_vars_in_expr [(dep, dep_value)] i command_expr in
-             make_branch name name i substituted_command
-           ))
+            Ok (List.init actual_n (fun i ->
+              let substituted_command = substitute_vars_in_expr [(dep, dep_value)] i command_expr in
+              make_branch name name i [(dep, i)] substituted_command
+            ))
         | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
   | _ -> Error (Error.make_error RuntimeError "expand_pipeline: internal error — resolve_map_deps invariant violated")
 
@@ -315,11 +320,11 @@ let process_tail
       let start = total_length - actual_n in
       (match get_node_command p name with
        | Some command_expr ->
-           Ok (List.init actual_n (fun i ->
-             let value_idx = start + i in
-             let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
-             make_branch name name i substituted_command
-           ))
+            Ok (List.init actual_n (fun i ->
+              let value_idx = start + i in
+              let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+              make_branch name name i [(dep, value_idx)] substituted_command
+            ))
         | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
   | _ -> Error (Error.make_error RuntimeError "expand_pipeline: internal error — resolve_map_deps invariant violated")
 
@@ -340,10 +345,10 @@ let process_sample
       let chosen = Array.to_list (Array.sub pool 0 actual_n) in
       (match get_node_command p name with
        | Some command_expr ->
-           Ok (List.mapi (fun branch_idx value_idx ->
-             let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
-             make_branch name name branch_idx substituted_command
-           ) chosen)
+            Ok (List.mapi (fun branch_idx value_idx ->
+              let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+              make_branch name name branch_idx [(dep, value_idx)] substituted_command
+            ) chosen)
                | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
   | _ -> Error (Error.make_error RuntimeError "expand_pipeline: internal error — resolve_map_deps invariant violated")
 
@@ -471,13 +476,18 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
               | None -> None
             ) branches
           in
+          let dep_index_for_branch (b : branch_info) (dep : string) : int =
+            match List.assoc_opt dep b.branch_dep_indices with
+            | Some idx -> idx
+            | None -> b.branch_index
+          in
           let make_branch_deps entries =
             List.filter_map (fun b ->
               match List.assoc_opt b.orig_name entries with
               | Some deps ->
                   let updated = List.map (fun dep ->
                     match List.find_opt (fun (orig, _) -> orig = dep) !expanded_map with
-                    | Some (_, branch_names) -> List.nth branch_names b.branch_index
+                    | Some (_, branch_names) -> List.nth branch_names (dep_index_for_branch b dep)
                     | None -> dep
                   ) deps in
                   Some (b.branch_name, updated)
@@ -491,7 +501,7 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                   let updated = Option.map (fun deps ->
                     List.map (fun dep ->
                       match List.find_opt (fun (orig, _) -> orig = dep) !expanded_map with
-                      | Some (_, branch_names) -> List.nth branch_names b.branch_index
+                      | Some (_, branch_names) -> List.nth branch_names (dep_index_for_branch b dep)
                       | None -> dep
                     ) deps
                   ) deps_opt in
