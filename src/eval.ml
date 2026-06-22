@@ -1571,9 +1571,8 @@ and eval_block env_ref stmts =
         let (v, new_env) = eval_statement !env_ref stmt in
         env_ref := new_env;
         (match stmt.node, v with
-         | (Assignment _ | Reassignment _), VError _ -> loop () rest
-         | _, VError _ -> v
-         | _ -> loop () rest)
+          | _, VError _ -> v
+          | _ -> loop () rest)
   in
   loop () stmts
 
