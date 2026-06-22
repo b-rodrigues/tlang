@@ -63,7 +63,16 @@ let register env =
           let count_opt = match pattern with
             | PatternMap deps ->
                 (match deps with [dep] -> eval_dep_len dep | _ -> None)
-            | PatternCross _ -> None
+            | PatternCross subs ->
+                let sub_lengths = List.filter_map (fun sub ->
+                  match sub with
+                  | PatternMap deps ->
+                      let lens = List.filter_map eval_dep_len deps in
+                      (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                  | _ -> None
+                ) subs in
+                if List.length sub_lengths <> List.length subs then None
+                else Some (List.fold_left ( * ) 1 sub_lengths)
             | PatternSlice (_, indices) -> Some (List.length indices)
             | PatternHead (dep, n) | PatternTail (dep, n) | PatternSample (dep, n) ->
                 (match eval_dep_len dep with Some len -> Some (min n len) | None -> None)

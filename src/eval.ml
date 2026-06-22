@@ -2526,7 +2526,18 @@ and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field 
                           validate_deps deps (branch_num - 1)
                       | _ -> None)
                  | _ -> None)
-            | Ast.PatternCross _ -> None
+            | Ast.PatternCross subs ->
+                let sub_lengths = List.filter_map (fun sub ->
+                  match sub with
+                  | Ast.PatternMap deps ->
+                      let lens = List.filter_map eval_dep_len deps in
+                      (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                  | _ -> None
+                ) subs in
+                if List.length sub_lengths <> List.length subs then None
+                else
+                  let total = List.fold_left ( * ) 1 sub_lengths in
+                  if branch_num <= total then mk_cn orig_name else None
             | Ast.PatternSlice (dep, indices) ->
                 if branch_num <= List.length indices then
                   validate_deps [dep] (List.nth indices (branch_num - 1))
@@ -2572,7 +2583,16 @@ and pattern_branch_names_for_error p field pattern =
         (match deps with
          | [dep] -> eval_dep_len dep
          | _ -> None)
-    | Ast.PatternCross _ -> None
+    | Ast.PatternCross subs ->
+        let sub_lengths = List.filter_map (fun sub ->
+          match sub with
+          | Ast.PatternMap deps ->
+              let lens = List.filter_map eval_dep_len deps in
+              (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+          | _ -> None
+        ) subs in
+        if List.length sub_lengths <> List.length subs then None
+        else Some (List.fold_left ( * ) 1 sub_lengths)
     | Ast.PatternSlice (_, indices) -> Some (List.length indices)
     | Ast.PatternHead (dep, n) | Ast.PatternTail (dep, n) | Ast.PatternSample (dep, n) ->
         (match eval_dep_len dep with

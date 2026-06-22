@@ -32,7 +32,16 @@ let compute_branch_names env p =
           (match deps with
            | [dep] -> eval_dep_len env p.p_exprs dep
            | _ -> None)
-      | PatternCross _ -> None
+      | PatternCross subs ->
+          let sub_lengths = List.filter_map (fun sub ->
+            match sub with
+            | PatternMap deps ->
+                let lens = List.filter_map (eval_dep_len env p.p_exprs) deps in
+                (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+            | _ -> None
+          ) subs in
+          if List.length sub_lengths <> List.length subs then None
+          else Some (List.fold_left ( * ) 1 sub_lengths)
       | PatternSlice (_, indices) -> Some (List.length indices)
       | PatternHead (dep, n) | PatternTail (dep, n) | PatternSample (dep, n) ->
           (match eval_dep_len env p.p_exprs dep with
