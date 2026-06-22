@@ -22,7 +22,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.52.3 "Kaméhaméha".
+**Status:** Version 0.53.0 "L'Initiation".
 
 ---
 
@@ -166,7 +166,7 @@ resolution and deserialization from within those environments.
 - [Language Overview](language_overview.html) — types, syntax, functions, and standard library
 - [Type System](type-system.html) — detailed guide to T's type hierarchy and semantics
 - [Numerical Arrays](arrays.html) — tutorial on N-dimensional arrays and linear algebra
-- [Editor Support](editors.html) — setup guide for Vim, Emacs, and VS Code
+- [Editor Support](editors.html) — setup guide for Vim, Emacs, VS Code, and the Atelier TUI IDE
 
 ### User Guides
 - [API Reference](api-reference.html) — complete function reference by package

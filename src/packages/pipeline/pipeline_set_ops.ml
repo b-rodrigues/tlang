@@ -4,6 +4,18 @@
 
 open Ast
 
+(* Forward reference for auto-expansion — set by Pipeline_expand's top-level init code.
+   WARNING: expand_for_build MUST be set before any pipeline set-op builtin
+   (union, difference, intersect, patch) is invoked at runtime. The default placeholder
+   fails loudly to catch any module-load-order violations. Pipeline_expand's
+   `let () = ...` wiring at the bottom of pipeline_expand.ml runs before any user code
+   executes, which guarantees the ref is live before it is called. *)
+let expand_for_build : (pipeline_result -> value Env.t -> (pipeline_result, value) Result.t) ref =
+  ref (fun p _ ->
+    if not p.p_has_patterns then Ok p
+    else Error (Error.type_error "expand_pipeline: internal error — expander not yet installed")
+  )
+
 let filter_node_set keep_set p =
   VPipeline {
     p_nodes        = List.filter (fun (n, _) -> keep_set n) p.p_nodes;
@@ -23,6 +35,9 @@ let filter_node_set keep_set p =
     p_scripts      = List.filter (fun (n, _) -> keep_set n) p.p_scripts;
     p_explicit_deps = List.filter (fun (n, _) -> keep_set n) p.p_explicit_deps;
     p_node_diagnostics = List.filter (fun (n, _) -> keep_set n) p.p_node_diagnostics;
+    p_patterns     = List.filter (fun (n, _) -> keep_set n) p.p_patterns;
+    p_iterations   = List.filter (fun (n, _) -> keep_set n) p.p_iterations;
+    p_has_patterns = (List.filter (fun (n, _) -> keep_set n) p.p_patterns <> []);
   }
 
 let union p1 p2 =
@@ -51,6 +66,9 @@ let union p1 p2 =
       p_scripts      = p1.p_scripts @ p2.p_scripts;
       p_explicit_deps = p1.p_explicit_deps @ p2.p_explicit_deps;
       p_node_diagnostics = p1.p_node_diagnostics @ p2.p_node_diagnostics;
+      p_patterns     = p1.p_patterns @ p2.p_patterns;
+      p_iterations   = p1.p_iterations @ p2.p_iterations;
+      p_has_patterns = p1.p_has_patterns || p2.p_has_patterns;
     })
 
 let intersect p1 p2 =
@@ -88,6 +106,9 @@ let patch p1 p2 =
     p_scripts      = p1_filtered.p_scripts @ p2_filtered.p_scripts;
     p_explicit_deps = p1_filtered.p_explicit_deps @ p2_filtered.p_explicit_deps;
     p_node_diagnostics = p1_filtered.p_node_diagnostics @ p2_filtered.p_node_diagnostics;
+    p_patterns     = p1_filtered.p_patterns @ p2_filtered.p_patterns;
+    p_iterations   = p1_filtered.p_iterations @ p2_filtered.p_iterations;
+    p_has_patterns = p1_filtered.p_has_patterns || p2_filtered.p_has_patterns;
   }
 
 (*
@@ -130,28 +151,54 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
   let env = Env.add "union" (make_builtin ~name:"union" 2 (fun args env ->
     match args with
     | [VPipeline p1; VPipeline p2] -> 
-        (match union p1 p2 with
-        | Ok (VPipeline p) -> rerun_pipeline ?strict:None env p
-        | Ok _ -> Error.make_error RuntimeError "Function `union` internal error: unexpected non-Pipeline result."
-        | Error e -> e)
+        (match !expand_for_build p1 env with
+         | Error e -> e
+         | Ok p1' ->
+         match !expand_for_build p2 env with
+         | Error e -> e
+         | Ok p2' ->
+           (match union p1' p2' with
+           | Ok (VPipeline p) -> rerun_pipeline ?strict:None env p
+           | Ok _ -> Error.make_error RuntimeError "Function `union` internal error: unexpected non-Pipeline result."
+           | Error e -> e))
     | _ -> Error.type_error "Function `union` expects two Pipeline arguments."
   )) env in
-  let env = Env.add "difference" (make_builtin ~name:"difference" 2 (fun args _ ->
+  let env = Env.add "difference" (make_builtin ~name:"difference" 2 (fun args env ->
     match args with
-    | [VPipeline p1; VPipeline p2] -> difference p1 p2
+    | [VPipeline p1; VPipeline p2] ->
+        (match !expand_for_build p1 env with
+         | Error e -> e
+         | Ok p1' ->
+         match !expand_for_build p2 env with
+         | Error e -> e
+         | Ok p2' ->
+           difference p1' p2')
     | _ -> Error.type_error "Function `difference` expects two Pipeline arguments."
   )) env in
-  let env = Env.add "intersect" (make_builtin ~name:"intersect" 2 (fun args _ ->
+  let env = Env.add "intersect" (make_builtin ~name:"intersect" 2 (fun args env ->
     match args with
-    | [VPipeline p1; VPipeline p2] -> intersect p1 p2
+    | [VPipeline p1; VPipeline p2] ->
+        (match !expand_for_build p1 env with
+         | Error e -> e
+         | Ok p1' ->
+         match !expand_for_build p2 env with
+         | Error e -> e
+         | Ok p2' ->
+           intersect p1' p2')
     | _ -> Error.type_error "Function `intersect` expects two Pipeline arguments."
   )) env in
   let env = Env.add "patch" (make_builtin ~name:"patch" 2 (fun args env ->
     match args with
     | [VPipeline p1; VPipeline p2] -> 
-        (match patch p1 p2 with 
-        | VPipeline p -> rerun_pipeline ?strict:None env p
-        | _ -> Error.make_error RuntimeError "Function `patch` internal error: unexpected non-Pipeline result.")
+        (match !expand_for_build p1 env with
+         | Error e -> e
+         | Ok p1' ->
+         match !expand_for_build p2 env with
+         | Error e -> e
+         | Ok p2' ->
+           (match patch p1' p2' with 
+           | VPipeline p -> rerun_pipeline ?strict:None env p
+           | _ -> Error.make_error RuntimeError "Function `patch` internal error: unexpected non-Pipeline result."))
     | _ -> Error.type_error "Function `patch` expects two Pipeline arguments."
   )) env in
   env

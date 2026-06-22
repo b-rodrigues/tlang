@@ -53,6 +53,7 @@ type scaffold_options = {
   interactive : bool;
   agent_context : string;
   pipeline_template : string;
+  use_atelier : bool;
 }
 
 (** Default scaffold options *)
@@ -69,6 +70,7 @@ let default_options name =
     interactive = false;
     agent_context = "medium";
     pipeline_template = "minimal";
+    use_atelier = false;
   }
 
 (** Default package config *)

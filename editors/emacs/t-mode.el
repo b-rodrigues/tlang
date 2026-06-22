@@ -26,7 +26,7 @@
   '("if" "else" "import" "function" "pipeline" "intent" "true" "false" "null" "NA" "in"))
 
 (defconst t-builtins
-  '("read_csv" "filter" "mutate" "summarize" "select" "arrange" "group_by" "node" "rn" "pyn" "build_pipeline" "print" "mean" "sqrt" "predict" "t_read_pmml"))
+  '("read_csv" "filter" "mutate" "summarize" "select" "arrange" "group_by" "node" "rn" "pyn" "node_when" "node_fork" "build_pipeline" "print" "mean" "sqrt" "predict" "t_read_pmml"))
 
 (defconst t-font-lock-keywords
   (let* ((keyword-regexp (regexp-opt t-keywords 'words))

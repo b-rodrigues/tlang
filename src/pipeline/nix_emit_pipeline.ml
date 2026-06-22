@@ -102,7 +102,7 @@ let
   latexCombined = if latexPkgs == [] then null 
                   else pkgs.texlive.combine (builtins.listToAttrs (builtins.map (name: { name = name; value = pkgs.texlive.${name}; }) (["scheme-small"] ++ latexPkgs)));
                   
-  globalBuildInputs = (builtins.map (p: pkgs.${p}) additionalTools)%s
+  globalBuildInputs = (builtins.map (p: pkgs.${p}) (builtins.filter (p: p != "atelier") additionalTools))%s
                       ++ (if latexCombined == null then [] else [ latexCombined ]);
 in
 rec {

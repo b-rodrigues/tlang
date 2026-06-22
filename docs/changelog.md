@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.53.0] - 2026-06-22
+
+This release:
+
+- **Atelier TUI IDE Integration**: This release introduces full support for the Atelier tmux-based TUI IDE. `t init --project` and `t init --package` now accept `--include-atelier` (CLI flag) to configure the IDE in the project environment. When running inside an active Atelier session, the REPL automatically updates variables, writes diagrams/plots to the `_atelier/` directory, and runs a protected variables watcher via the new `tui_update` builtin. Atelier can also be declared as a project dependency via `[additional-tools]` in `tproject.toml`.
+- Introduces static conditionals for pipelines: `node_when(condition, node_value)` and `node_fork(...)` allow conditional node inclusion evaluated at pipeline construction time, preserving Nix's static DAG requirement.
+- **VDataFrame JSON serialization**: NAColumn entries are now omitted from JSON output (field absent) rather than serialized as null, so downstream readers see no key rather than an NA/null value.
+
+### Dynamic Branching & Pattern Expansion
+- **Pattern-based Branching**: Pipelines can now dynamically expand a single node into multiple branch nodes using pattern functions:
+  - `map_pattern(dependency)`: Maps a node over each element of a List, Vector, or DataFrame dependency.
+  - `cross_pattern(sub_pattern1, sub_pattern2, ...)`: Generates a Cartesian product of multiple `map_pattern` sub-patterns.
+  - `slice_pattern(dependency, indices)`: Creates branches selecting specific element indices.
+  - `head_pattern(dependency, n)` / `tail_pattern(dependency, n)`: Restricts branches to the first or last `n` elements.
+  - `sample_pattern(dependency, n)`: Randomly samples `n` elements from a dependency (with deterministic seed behavior).
+- **`expand_pipeline`**: Adds the built-in function `expand_pipeline(p)` to manually expand dynamic patterns into separate `<node>_branch_<N>` nodes.
+- **Auto-Expansion & Guardrails**: Branch expansion is performed automatically before pipeline compilation in `build_pipeline()` and `populate_pipeline()`. Attempting to build/populate a pipeline containing unexpanded patterns raises a compile-time `StructuralError`.
+- **Lazy Branch Expansion**: Implemented lazy branch expansion for chained or computed dependencies with patterns, resolving branch dependencies across complex DAGs.
+- **Branch Naming & Verification**: Node names containing the suffix `_branch_N` are strictly forbidden in manual definitions to prevent namespace clashes. Duplicate node detection and branch-aware `read_node` errors assist in identifying naming conflicts.
+
+### GitHub Actions Integration
+- **`pipeline_to_ga`**: Adds `pipeline_to_ga(p, ...)` to generate a complete GitHub Actions CI workflow YAML. The generated workflow automates Nix-based pipeline runs on push/PR events.
+- **Nix Caching in CI**: Integrates with Cachix (defaulting to the `rstats-on-nix` cache) and automatically manages the caching of built Nix artifacts using a repository's `t-runs` branch (archived as `.nar` files).
+- **Optional File Output**: Accepts an optional `file` parameter to write the workflow YAML directly to `.github/workflows/<name>.yml` (defaulting to auto-detected project names).
+
+### Pipeline Execution Reporting
+- **`pipeline_report`**: Introduces `pipeline_report(p, ...)` to generate structured Markdown (`target = "ssh"`) or HTML (`target = "web"`) execution reports.
+- **Detailed Run Metrics**: Reports include built/unbuilt/errored node statuses, depth indicators, runtimes, warning summaries, Mermaid dependency graph visualization, and truncated build error tracebacks.
+- **Log Targeting**: Supports the `which_log` regex parameter to report on historical run records.
+
+### Core Language Features & Fixes
+- **`float_seq`**: Adds the `float_seq(start, end, n)` built-in function to generate a List of `n` evenly-spaced floats.
+- **Assignment Error Propagation**: Blocks (`{ ... }`) no longer silently swallow errors occurring inside assignment/reassignment statements. The error is bound to the variable and propagated correctly, enabling robust recovery patterns via subsequent `match` blocks.
+
 ## [0.52.3] - 2026-06-12
 
 This release:

@@ -34,16 +34,31 @@
 </nav>
 <div class="container">
 <h1 id="unknown">unknown</h1>
-<p>Print Failed Node Logs</p>
-<p>Prints stderr log sections for each failed node by resolving its
-derivation path through <code>nix log</code>.</p>
+<p>Expand pattern-based branching in a pipeline.</p>
+<p>Patterned nodes using <code>map_pattern(dep)</code>,
+<code>cross_pattern(...)</code>,
+<code>slice_pattern(dep, [i1, i2, ...])</code>,
+<code>head_pattern(dep, n)</code>, <code>tail_pattern(dep, n)</code>, or
+<code>sample_pattern(dep, n)</code> are replaced with N branch copies,
+where N depends on the pattern type. Supports List, Vector, and
+DataFrame dependencies. <code>populate_pipeline(p)</code>,
+<code>build_pipeline(p)</code>, and pipeline composition functions
+(<code>chain</code>, <code>parallel</code>, <code>union</code>, …) now
+call this function automatically when they detect unexpanded
+patterns.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>drv_paths</strong> (<code>Hashtbl</code>): Captured
-derivation paths keyed by node name.</p></li>
-<li><p><strong>errored</strong> (<code>List[String]</code>): Node names
-that failed during the build.</p></li>
+<li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
+expand.</p></li>
+<li><p><strong>to_script</strong> (<code>String</code>): | NA = NA
+Optional file path to write the expanded pipeline script.</p></li>
 </ul>
+<h2 id="returns">Returns</h2>
+<p>The expanded pipeline with branches in place of patterned nodes.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>p = pipeline { x = [1, 2, 3]; y = node(command = &lt;{ x }&gt;, pattern = map_pattern(x)) }
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)  -- [&quot;x&quot;, &quot;y_branch_1&quot;, &quot;y_branch_2&quot;, &quot;y_branch_3&quot;]</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

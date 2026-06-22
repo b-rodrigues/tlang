@@ -2,7 +2,7 @@
 
 Populate Pipeline
 
-Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optionally builds the pipeline with full Nix-native orchestration support.
+Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optionally builds the pipeline with full Nix-native orchestration support.  If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before population.
 
 ## Parameters
 

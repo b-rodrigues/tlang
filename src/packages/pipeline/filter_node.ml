@@ -82,6 +82,9 @@ let register ~eval_call env =
                       p_scripts      = List.filter (fun (n, _) -> keep_set n) p.p_scripts;
                       p_explicit_deps = List.filter (fun (n, _) -> keep_set n) p.p_explicit_deps;
                       p_node_diagnostics = List.filter (fun (n, _) -> keep_set n) p.p_node_diagnostics;
+                      p_patterns     = List.filter (fun (n, _) -> keep_set n) p.p_patterns;
+                      p_iterations   = List.filter (fun (n, _) -> keep_set n) p.p_iterations;
+                      p_has_patterns = (List.filter (fun (n, _) -> keep_set n) p.p_patterns <> []);
                     })
            | _ -> Error.type_error "Function `filter_node` expects a Pipeline as first argument.")
       | _ -> Error.arity_error_named "filter_node" 2 (List.length args)

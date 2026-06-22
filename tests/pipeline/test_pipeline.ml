@@ -182,6 +182,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   test "pipeline_node missing key"
     {|p = pipeline { a = 1 }; pipeline_node(p, "b")|}
     {|Error(KeyError: "Node `b` not found in Pipeline.")|};
+  test "reserved _branch_N node name rejected"
+    {|pipeline { a_branch_1 = 1 }|}
+    {|Error(NameError: "Node name `a_branch_1` ends with `_branch_N` which is reserved for auto-generated branch nodes from pattern expansion. Choose a different name.")|};
+  test "duplicate node name rejected"
+    {|pipeline { a = 1; a = 2 }|}
+    {|Error(NameError: "Duplicate node name `a` in pipeline.")|};
 
   let (v, _) = eval_string_env "p_drv = pipeline { a = 1 }; pipeline_to_drv(p_drv)" env_p3 in
   let result = Ast.Utils.value_to_string v in
@@ -2238,6 +2244,620 @@ p.t_step|}
     end
   in
   test_build_log_history_and_node_diff ();
+
+  let test_dynamic_branching_metadata () =
+    Printf.printf "Dynamic Branching Metadata & Guardrails:\n";
+    let env = Packages.init_env () in
+    
+    (* 1. Test parsing a node with pattern map *)
+    let (_, env_p) = eval_string_env
+      "p = pipeline {\n  a = 1\n  b = node(command = <{ a + 1 }>, pattern = map_pattern(a))\n}"
+      env
+    in
+    let v_p = Ast.Env.find "p" env_p in
+    (match v_p with
+     | VPipeline p ->
+         if p.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ pipeline has patterns flag is true\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ pipeline has patterns flag should be true\n"
+         end;
+         (match List.assoc_opt "b" p.p_patterns with
+          | Some (PatternMap ["a"]) ->
+              incr pass_count; Printf.printf "  ✓ node b has PatternMap metadata\n"
+          | _ ->
+              incr fail_count; Printf.printf "  ✗ node b should have PatternMap metadata\n")
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ expected a VPipeline, got %s\n" (Ast.Utils.value_to_string v_p));
+
+    (* 2. Test renaming preserves patterns *)
+    let (v_renamed, _) = eval_string_env "rename_node(p, \"b\", \"new_b\")" env_p in
+    (match v_renamed with
+     | VPipeline p_ren ->
+         if p_ren.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ renamed pipeline has patterns flag is true\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ renamed pipeline has patterns flag should be true\n"
+         end;
+         (match List.assoc_opt "new_b" p_ren.p_patterns with
+          | Some (PatternMap ["a"]) ->
+              incr pass_count; Printf.printf "  ✓ renamed node new_b has PatternMap metadata\n"
+          | _ ->
+              incr fail_count; Printf.printf "  ✗ renamed node new_b should have PatternMap metadata\n")
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ expected a VPipeline after rename_node, got %s\n" (Ast.Utils.value_to_string v_renamed));
+
+    (* 3. Test filtering preserves patterns *)
+    let (v_filtered, _) = eval_string_env "filter_node(p, $name == \"b\")" env_p in
+    (match v_filtered with
+     | VPipeline p_fil ->
+         if p_fil.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ filtered pipeline has patterns flag is true\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ filtered pipeline has patterns flag should be true\n"
+         end;
+         (match List.assoc_opt "b" p_fil.p_patterns with
+          | Some (PatternMap ["a"]) ->
+              incr pass_count; Printf.printf "  ✓ filtered node b has PatternMap metadata\n"
+          | _ ->
+              incr fail_count; Printf.printf "  ✗ filtered node b should have PatternMap metadata\n")
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ expected a VPipeline after filter_node, got %s\n" (Ast.Utils.value_to_string v_filtered));
+
+    (* 4. Test auto-expansion: build_pipeline and populate_pipeline succeed (no StructuralError) *)
+    let (v_build, _) = eval_string_env "build_pipeline(p)" env_p in
+    let s_build = strip_location (Ast.Utils.value_to_string v_build) in
+    if not (contains_pattern "StructuralError" s_build) then begin
+      incr pass_count; Printf.printf "  ✓ build_pipeline auto-expands and succeeds (no StructuralError)\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ build_pipeline should auto-expand, got: %s\n" s_build
+    end;
+
+    let (v_pop, _) = eval_string_env "populate_pipeline(p)" env_p in
+    let s_pop = strip_location (Ast.Utils.value_to_string v_pop) in
+    if not (contains_pattern "StructuralError" s_pop) then begin
+      incr pass_count; Printf.printf "  ✓ populate_pipeline auto-expands and succeeds (no StructuralError)\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ populate_pipeline should auto-expand, got: %s\n" s_pop
+    end;
+
+    (* 5. Test chain auto-expands (p2 references 'a' which exists after expansion) *)
+    let (v_chain, _) = eval_string_env "p2 = pipeline { d = a + 1 }; chain(p, p2)" env_p in
+    let s_chain = strip_location (Ast.Utils.value_to_string v_chain) in
+    if not (contains_pattern "StructuralError" s_chain) then begin
+      incr pass_count; Printf.printf "  ✓ chain auto-expands and succeeds (no StructuralError)\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ chain should auto-expand, got: %s\n" s_chain
+    end;
+    (* Verify chain result contains expanded branch names *)
+    let (v_nodes, _) = eval_string_env "pipeline_nodes(chain(p, pipeline { d = a + 1 }))" env_p in
+    let s_nodes = Ast.Utils.value_to_string v_nodes in
+    if contains_pattern "b_branch_1" s_nodes then begin
+      incr pass_count; Printf.printf "  ✓ chain result includes expanded branch 'b_branch_1'\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ chain result should include expanded branch 'b_branch_1', got: %s\n" s_nodes
+    end;
+    ()
+  in
+  test_dynamic_branching_metadata ();
+
+  let test_composition_ref_wiring () =
+    Printf.printf "Composition Ref Wiring:\n";
+    let env = Packages.init_env () in
+    let (_, env_p) = eval_string_env
+      "p = pipeline { a = [1, 2, 3]; b = node(pattern = map_pattern(a)) }"
+      env
+    in
+    let ops = [
+      ("chain", "chain(p, pipeline { d = a + 1 })");
+      ("parallel", "parallel(p, pipeline { d = a + 1 })");
+      ("union", "union(p, pipeline { d = a + 1 })");
+      ("difference", "difference(p, pipeline { d = a + 1 })");
+      ("intersect", "intersect(p, pipeline { d = a + 1 })");
+      ("patch", "patch(p, pipeline { d = a + 1 })");
+    ] in
+    let all_wired = List.for_all (fun (_, op) ->
+      let (v, _) = eval_string_env op env_p in
+      let s = strip_location (Ast.Utils.value_to_string v) in
+      not (contains_pattern "expander not yet installed" s)
+    ) ops in
+    if all_wired then begin
+      incr pass_count; Printf.printf "  ✓ all composition/set-op builtins have wired expander\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ some composition/set-op builtins returned expander-not-wired error\n"
+    end
+  in
+  test_composition_ref_wiring ();
+
+  let test_dynamic_branching_expansion () =
+    Printf.printf "Dynamic Branching Expansion:\n";
+    let env = Packages.init_env () in
+
+    (* 1. Test expand_pipeline on pipeline without patterns — returns unchanged *)
+    let (_, env_nop) = eval_string_env "p = pipeline { a = 1 }" env in
+    let (v_no_pat, _) = eval_string_env "expand_pipeline(p)" env_nop in
+    (match v_no_pat with
+     | VPipeline p_no ->
+         if p_no.p_has_patterns then begin
+           incr fail_count; Printf.printf "  ✗ expand_pipeline on non-pattern pipeline should mark no patterns\n"
+         end else if List.length p_no.p_nodes = 1 then begin
+           incr pass_count; Printf.printf "  ✓ expand_pipeline on non-pattern pipeline returns unchanged\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expand_pipeline on non-pattern pipeline should have 1 node\n"
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline on non-pattern pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+
+    (* 2. Test expand_pipeline with PatternMap produces correct branches *)
+    let (_, env_p) = eval_string_env
+      "p = pipeline {\n  a = [10, 20, 30]\n  b = node(command = <{ a + 1 }>, pattern = map_pattern(a))\n}"
+      env
+    in
+    let (v_exp, _) = eval_string_env "expand_pipeline(p)" env_p in
+    (match v_exp with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_a = List.mem "a" node_names in
+         let has_b1 = List.mem "b_branch_1" node_names in
+         let has_b2 = List.mem "b_branch_2" node_names in
+         let has_b3 = List.mem "b_branch_3" node_names in
+         let has_b_orig = List.mem "b" node_names in
+         if has_a && has_b1 && has_b2 && has_b3 && not has_b_orig then begin
+           incr pass_count; Printf.printf "  ✓ expand_pipeline with 3-value list creates 3 branches, removes original\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expand_pipeline with 3-value list: a=%b b1=%b b2=%b b3=%b b_orig=%b\n"
+             has_a has_b1 has_b2 has_b3 has_b_orig
+         end;
+         if not pe.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ expanded pipeline has patterns flag is false\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expanded pipeline should have patterns flag false\n"
+         end;
+         if List.length pe.p_nodes = 4 then begin
+           incr pass_count; Printf.printf "  ✓ expanded pipeline has 4 total nodes (a + 3 branches)\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expanded pipeline should have 4 nodes, got %d\n" (List.length pe.p_nodes)
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+
+    (* 3. Test expand_pipeline with single value (length 1) — creates 1 branch *)
+    let (_, env_single) = eval_string_env
+      "p = pipeline {\n  a = 42\n  b = node(command = <{ a }>, pattern = map_pattern(a))\n}"
+      env
+    in
+    let (v_single, _) = eval_string_env "expand_pipeline(p)" env_single in
+    (match v_single with
+     | VPipeline ps ->
+         let has_b1 = List.mem "b_branch_1" (List.map fst ps.p_nodes) in
+         let has_b_orig = List.mem "b" (List.map fst ps.p_nodes) in
+         if has_b1 && not has_b_orig then begin
+           incr pass_count; Printf.printf "  ✓ expand_pipeline with single value creates 1 branch\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expand_pipeline with single value: b1=%b b_orig=%b\n" has_b1 has_b_orig
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline with single value should succeed\n");
+
+    (* 4. Test expand_pipeline error on non-pipeline first arg *)
+    let (v_err_type, _) = eval_string_env "expand_pipeline(42)" env in
+    (match v_err_type with
+     | VError _ ->
+         incr pass_count; Printf.printf "  ✓ expand_pipeline errors on non-pipeline first arg\n"
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline should error on non-pipeline arg\n");
+
+    (* 5. Test expand_pipeline error on unknown named arg *)
+    let (v_unknown, _) = eval_string_env "expand_pipeline(p, unknown = 1)" env_nop in
+    (match v_unknown with
+     | VError _ ->
+         incr pass_count; Printf.printf "  ✓ expand_pipeline errors on unknown named arg\n"
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline should error on unknown named arg\n");
+
+    (* 6. Test build_pipeline succeeds after expand_pipeline *)
+    let (v_build, _) = eval_string_env "build_pipeline(expand_pipeline(p))" env_p in
+    let s_build = strip_location (Ast.Utils.value_to_string v_build) in
+    if not (contains_pattern "StructuralError" s_build) then begin
+      incr pass_count; Printf.printf "  ✓ build_pipeline succeeds after expand_pipeline (no StructuralError)\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ build_pipeline after expand_pipeline should succeed, got: %s\n" s_build
+    end;
+
+    (* 7. Test expand_pipeline with VDataFrame dependency — branches = num_rows *)
+    let (_, env_df) = eval_string_env
+      "df = to_dataframe([[x: 10], [x: 20], [x: 30]])\n\
+       p = pipeline {\n\
+         a = df\n\
+         b = node(command = <{ a }>, pattern = map_pattern(a))\n\
+       }"
+      env
+    in
+    let (v_df_exp, _) = eval_string_env "expand_pipeline(p)" env_df in
+    (match v_df_exp with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_a = List.mem "a" node_names in
+         let has_b1 = List.mem "b_branch_1" node_names in
+         let has_b2 = List.mem "b_branch_2" node_names in
+         let has_b3 = List.mem "b_branch_3" node_names in
+         let has_b_orig = List.mem "b" node_names in
+         if has_a && has_b1 && has_b2 && has_b3 && not has_b_orig then begin
+           incr pass_count; Printf.printf "  ✓ expand_pipeline with 3-row dataframe creates 3 branches\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expand_pipeline with 3-row dataframe: a=%b b1=%b b2=%b b3=%b b_orig=%b\n"
+             has_a has_b1 has_b2 has_b3 has_b_orig
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline with dataframe should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    (* 8. Test expand_pipeline with non-T runtime creates branches with correct runtime *)
+    let (_, env_rt) = eval_string_env
+      "p = pipeline {\n\
+         a = [1, 2, 3]\n\
+         b = node(command = <{ a }>, runtime = R, deserializer = ^json, pattern = map_pattern(a))\n\
+       }"
+      env
+    in
+    let (v_rt_result, _) = eval_string_env "expand_pipeline(p)" env_rt in
+    (match v_rt_result with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_a = List.mem "a" node_names in
+         let has_b1 = List.mem "b_branch_1" node_names in
+         let has_b2 = List.mem "b_branch_2" node_names in
+         let has_b3 = List.mem "b_branch_3" node_names in
+         let has_b_orig = List.mem "b" node_names in
+         let branch_runtimes = List.filter (fun (n, _) ->
+           String.starts_with ~prefix:"b_branch" n
+         ) pe.p_runtimes in
+         let all_r_runtime = branch_runtimes <> [] && List.for_all (fun (_, r) -> r = "R") branch_runtimes in
+         if has_a && has_b1 && has_b2 && has_b3 && not has_b_orig && all_r_runtime then begin
+           incr pass_count; Printf.printf "  ✓ expand_pipeline works with non-T runtime, creates 3 R branches\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expand_pipeline with non-T runtime: a=%b b1=%b b2=%b b3=%b b_orig=%b all_R=%b\n"
+             has_a has_b1 has_b2 has_b3 has_b_orig all_r_runtime
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline with non-T runtime should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    ()
+  in
+  test_dynamic_branching_expansion ();
+
+  let test_cross_pattern_expansion () =
+    Printf.printf "Cross-Pattern & Chained Pattern Expansion:\n";
+    let env = Packages.init_env () in
+
+    (* 1. Test cross_pattern produces correct number of branches *)
+    let (_, env_cross) = eval_string_env
+      "p = pipeline {\n\
+         a = [1, 2]\n\
+         b = [10, 20, 30]\n\
+         c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))\n\
+       }"
+      env
+    in
+    let (v_exp, _) = eval_string_env "expand_pipeline(p)" env_cross in
+    (match v_exp with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_a = List.mem "a" node_names in
+         let has_b = List.mem "b" node_names in
+         let has_c1 = List.mem "c_branch_1" node_names in
+         let has_c6 = List.mem "c_branch_6" node_names in
+         let has_c_orig = List.mem "c" node_names in
+         if has_a && has_b && has_c1 && has_c6 && not has_c_orig && List.length pe.p_nodes = 8 then begin
+           incr pass_count; Printf.printf "  ✓ cross_pattern with 2x3 creates 6 branches (8 total nodes)\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ cross_pattern: a=%b b=%b c1=%b c6=%b c_orig=%b nodes=%d\n"
+             has_a has_b has_c1 has_c6 has_c_orig (List.length pe.p_nodes)
+         end;
+         if not pe.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ cross_pattern expanded pipeline has patterns flag false\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ cross_pattern expanded pipeline should have patterns flag false\n"
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline cross_pattern should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    (* 2. Test chained patterns: cross_pattern supplies downstream map_pattern,
+          verifying that dependencies are rewired to individual branches *)
+    let (_, env_chain) = eval_string_env
+      "p = pipeline {\n\
+         a = [1, 2]\n\
+         b = [10, 20]\n\
+         c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))\n\
+         d = node(command = <{ c }>, pattern = map_pattern(c))\n\
+       }"
+      env
+    in
+    let (v_chain_exp, _) = eval_string_env "expand_pipeline(p)" env_chain in
+    (match v_chain_exp with
+     | VPipeline pe ->
+         let node_names = List.map fst pe.p_nodes in
+         let has_d1 = List.mem "d_branch_1" node_names in
+         let has_d4 = List.mem "d_branch_4" node_names in
+         let has_d_orig = List.mem "d" node_names in
+         let has_c_orig = List.mem "c" node_names in
+         let d1_deps_opt = List.find_opt (fun (n, _) -> n = "d_branch_1") pe.p_deps in
+         let deps_rewired = match d1_deps_opt with
+           | Some (_, deps) -> List.mem "c_branch_1" deps
+           | None -> false
+         in
+         let all_d_have_correct_deps = List.for_all (fun i ->
+           let d_name = "d_branch_" ^ string_of_int i in
+           let c_name = "c_branch_" ^ string_of_int i in
+           match List.find_opt (fun (n, _) -> n = d_name) pe.p_deps with
+           | Some (_, deps) -> List.mem c_name deps
+           | None -> false
+         ) (List.init 4 (fun i -> i + 1)) in
+         if has_d1 && has_d4 && not has_d_orig && not has_c_orig && deps_rewired && all_d_have_correct_deps then begin
+           incr pass_count; Printf.printf "  ✓ chained cross->map creates 4 d branches, deps rewired correctly\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ chained cross->map: d1=%b d4=%b d_orig=%b c_orig=%b deps_rewired=%b all_correct=%b\n"
+             has_d1 has_d4 has_d_orig has_c_orig deps_rewired all_d_have_correct_deps
+         end;
+         if not pe.p_has_patterns then begin
+           incr pass_count; Printf.printf "  ✓ chained expanded pipeline has patterns flag false\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ chained expanded pipeline should have patterns flag false\n"
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline chained cross->map should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    (* 3. Test raw-code substitution: exact string equality and word-boundary regex *)
+    let (_, env_raw) = eval_string_env
+      "p = pipeline {\n\
+         a = [10, 20]\n\
+         b = node(command = <{ a * 2 }>, runtime = R, serializer = ^json, deserializer = ^json, pattern = map_pattern(a))\n\
+       }"
+      env
+    in
+    let (v_raw_exp, _) = eval_string_env "expand_pipeline(p)" env_raw in
+    (match v_raw_exp with
+     | VPipeline pe ->
+         let cmd_of_node name =
+           match List.assoc_opt name pe.p_nodes with
+           | Some (Ast.VNode un) -> Some un.un_command
+           | _ -> None
+         in
+         let b1_text = match cmd_of_node "b_branch_1" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
+         in
+         let b2_text = match cmd_of_node "b_branch_2" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
+         in
+         let exact_ok = b1_text = Some "10 * 2" && b2_text = Some "20 * 2" in
+         if exact_ok then begin
+           incr pass_count; Printf.printf "  ✓ non-T raw-code exact substitution correct (10 * 2, 20 * 2)\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ non-T raw-code exact substitution: b1=%s b2=%s\n"
+             (match b1_text with Some s -> s | None -> "N/A")
+             (match b2_text with Some s -> s | None -> "N/A")
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline non-T raw-code should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    (* 4. Test word-boundary regex: only standalone identifier is substituted *)
+    let (_, env_wb) = eval_string_env
+      "p = pipeline {\n\
+         a = [10, 20]\n\
+         c = node(command = <{ aa + a + a_b }>, pattern = map_pattern(a))\n\
+       }"
+      env
+    in
+    let (v_wb_exp, _) = eval_string_env "expand_pipeline(p)" env_wb in
+    (match v_wb_exp with
+     | VPipeline pe ->
+         let cmd_of_node name =
+           match List.assoc_opt name pe.p_nodes with
+           | Some (Ast.VNode un) -> Some un.un_command
+           | _ -> None
+         in
+         let c1_text = match cmd_of_node "c_branch_1" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
+         in
+         let c2_text = match cmd_of_node "c_branch_2" with
+           | Some { node = Ast.RawCode { raw_text; _ }; _ } -> Some raw_text
+           | _ -> None
+         in
+         let wb_ok = c1_text = Some "aa + 10 + a_b" && c2_text = Some "aa + 20 + a_b" in
+         if wb_ok then begin
+           incr pass_count; Printf.printf "  ✓ word-boundary regex: only 'a' replaced, 'aa' and 'a_b' untouched\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ word-boundary regex: c1=%s c2=%s (expected 'aa + 10 + a_b', 'aa + 20 + a_b')\n"
+             (match c1_text with Some s -> s | None -> "N/A")
+             (match c2_text with Some s -> s | None -> "N/A")
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline word-boundary should return VPipeline, got %s\n"
+           (Ast.Utils.value_to_string other));
+
+    ()
+  in
+  test_cross_pattern_expansion ();
+
+  let test_selector_pattern_expansion () =
+    Printf.printf "Selector Pattern Expansion:\n";
+    let env = Packages.init_env () in
+
+    (* 1. slice_pattern with 2 indices from 5-element list --- 2 branches *)
+    let (_, env_s) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30, 40, 50]\n\
+         y = node(command = <{ x }>, pattern = slice_pattern(x, [0, 2, 4]))\n\
+       }"
+      env
+    in
+    let (v_s, _) = eval_string_env "expand_pipeline(p)" env_s in
+    (match v_s with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let has_y1 = List.mem "y_branch_1" names in
+         let has_y2 = List.mem "y_branch_2" names in
+         let has_y3 = List.mem "y_branch_3" names in
+         let has_y_orig = List.mem "y" names in
+         if has_y1 && has_y2 && has_y3 && not has_y_orig && List.length pe.p_nodes = 4 then
+           (incr pass_count; Printf.printf "  ✓ slice_pattern with 3 indices creates 3 branches (4 total nodes)\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ slice_pattern: y1=%b y2=%b y3=%b y_orig=%b nodes=%d\n"
+              has_y1 has_y2 has_y3 has_y_orig (List.length pe.p_nodes))
+     | _ -> incr fail_count; Printf.printf "  ✗ slice_pattern should return VPipeline\n");
+
+    (* 2. slice_pattern with single index --- 1 branch *)
+    let (_, env_s1) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30]\n\
+         y = node(command = <{ x }>, pattern = slice_pattern(x, [1]))\n\
+       }"
+      env
+    in
+    let (v_s1, _) = eval_string_env "expand_pipeline(p)" env_s1 in
+    (match v_s1 with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let has_y1 = List.mem "y_branch_1" names in
+         let has_y_orig = List.mem "y" names in
+         if has_y1 && not has_y_orig && List.length pe.p_nodes = 2 then
+           (incr pass_count; Printf.printf "  ✓ slice_pattern with single index creates 1 branch\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ slice_pattern single: y1=%b y_orig=%b nodes=%d\n"
+              has_y1 has_y_orig (List.length pe.p_nodes))
+     | _ -> incr fail_count; Printf.printf "  ✗ slice_pattern single should return VPipeline\n");
+
+    (* 3. head_pattern with n=3 from 5 elements --- 3 branches *)
+    let (_, env_h) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30, 40, 50]\n\
+         y = node(command = <{ x }>, pattern = head_pattern(x, 3))\n\
+       }"
+      env
+    in
+    let (v_h, _) = eval_string_env "expand_pipeline(p)" env_h in
+    (match v_h with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let has_y1 = List.mem "y_branch_1" names in
+         let has_y3 = List.mem "y_branch_3" names in
+         let has_y4 = List.mem "y_branch_4" names in
+         let has_y_orig = List.mem "y" names in
+         if has_y1 && has_y3 && not has_y4 && not has_y_orig && List.length pe.p_nodes = 4 then
+           (incr pass_count; Printf.printf "  ✓ head_pattern(n=3) creates 3 branches (4 total nodes)\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ head_pattern: y1=%b y3=%b y4=%b y_orig=%b nodes=%d\n"
+              has_y1 has_y3 has_y4 has_y_orig (List.length pe.p_nodes))
+     | _ -> incr fail_count; Printf.printf "  ✗ head_pattern should return VPipeline\n");
+
+    (* 4. head_pattern with n exceeding length --- capped *)
+    let (_, env_hcap) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30]\n\
+         y = node(command = <{ x }>, pattern = head_pattern(x, 10))\n\
+       }"
+      env
+    in
+    let (v_hcap, _) = eval_string_env "expand_pipeline(p)" env_hcap in
+    (match v_hcap with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let has_y3 = List.mem "y_branch_3" names in
+         let has_y4 = List.mem "y_branch_4" names in
+         if has_y3 && not has_y4 && List.length pe.p_nodes = 4 then
+           (incr pass_count; Printf.printf "  ✓ head_pattern(n=10 on 3 items) caps to 3 branches\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ head_pattern cap: y3=%b y4=%b nodes=%d\n"
+              has_y3 has_y4 (List.length pe.p_nodes))
+     | _ -> incr fail_count; Printf.printf "  ✗ head_pattern cap should return VPipeline\n");
+
+    (* 5. tail_pattern with n=2 from 5 elements --- 2 branches (last 2) *)
+    let (_, env_t) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30, 40, 50]\n\
+         y = node(command = <{ x }>, pattern = tail_pattern(x, 2))\n\
+       }"
+      env
+    in
+    let (v_t, _) = eval_string_env "expand_pipeline(p)" env_t in
+    (match v_t with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let has_y1 = List.mem "y_branch_1" names in
+         let has_y2 = List.mem "y_branch_2" names in
+         let has_y3 = List.mem "y_branch_3" names in
+         let has_y_orig = List.mem "y" names in
+         if has_y1 && has_y2 && not has_y3 && not has_y_orig && List.length pe.p_nodes = 3 then
+           (incr pass_count; Printf.printf "  ✓ tail_pattern(n=2) creates 2 branches (3 total nodes)\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ tail_pattern: y1=%b y2=%b y3=%b y_orig=%b nodes=%d\n"
+              has_y1 has_y2 has_y3 has_y_orig (List.length pe.p_nodes))
+     | _ -> incr fail_count; Printf.printf "  ✗ tail_pattern should return VPipeline\n");
+
+    (* 6. sample_pattern with n=2 from 5 elements --- 2 branches *)
+    let (_, env_samp) = eval_string_env
+      "p = pipeline {\n\
+         x = [10, 20, 30, 40, 50]\n\
+         y = node(command = <{ x }>, pattern = sample_pattern(x, 2))\n\
+       }"
+      env
+    in
+    let (v_samp, _) = eval_string_env "expand_pipeline(p)" env_samp in
+    (match v_samp with
+     | VPipeline pe ->
+         let names = List.map fst pe.p_nodes in
+         let branch_names = List.filter (fun n -> String.starts_with ~prefix:"y_branch" n) names in
+         let has_y1 = List.mem "y_branch_1" names in
+         let has_y2 = List.mem "y_branch_2" names in
+         let has_y3 = List.mem "y_branch_3" names in
+         let has_y_orig = List.mem "y" names in
+         if has_y1 && has_y2 && not has_y3 && not has_y_orig && List.length branch_names = 2 then
+           (incr pass_count; Printf.printf "  ✓ sample_pattern(n=2) creates 2 random branches\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ sample_pattern: y1=%b y2=%b y3=%b y_orig=%b branch_count=%d\n"
+              has_y1 has_y2 has_y3 has_y_orig (List.length branch_names))
+      | _ -> incr fail_count; Printf.printf "  ✗ sample_pattern should return VPipeline\n");
+
+    (* 7. sample_pattern determinism — two expansions of the same pipeline agree *)
+    let (v_samp1, _) = eval_string_env "expand_pipeline(p)" env_samp in
+    let (v_samp2, _) = eval_string_env "expand_pipeline(p)" env_samp in
+    (match v_samp1, v_samp2 with
+     | VPipeline p1, VPipeline p2 ->
+         let names1 = List.map fst p1.p_nodes in
+         let names2 = List.map fst p2.p_nodes in
+         if names1 = names2 then
+           (incr pass_count; Printf.printf "  ✓ sample_pattern is deterministic (two expansions produce same branches)\n")
+         else
+           (incr fail_count; Printf.printf "  ✗ sample_pattern should be deterministic, got diff: %s vs %s\n"
+              (String.concat ", " names1) (String.concat ", " names2))
+      | _ -> incr fail_count; Printf.printf "  ✗ sample_pattern determinism: expand_pipeline should return VPipeline\n");
+
+    (* 8. cross_pattern rejects selector sub-patterns *)
+    let (_, env_cross_rej) = eval_string_env
+      "p = pipeline {\n\
+         a = [1, 2, 3]\n\
+         b = [10, 20, 30]\n\
+         c = node(command = <{ a + b }>, pattern = cross_pattern(slice_pattern(a, [0]), map_pattern(b)))\n\
+       }"
+      env
+    in
+    let (v_rej, _) = eval_string_env "expand_pipeline(p)" env_cross_rej in
+    let s_rej = strip_location (Ast.Utils.value_to_string v_rej) in
+    if contains_pattern "only map_pattern is supported inside cross_pattern" s_rej then
+      (incr pass_count; Printf.printf "  ✓ cross_pattern rejects slice_pattern as sub-pattern\n")
+    else
+      (incr fail_count; Printf.printf "  ✗ cross_pattern should reject selector, got: %s\n" s_rej);
+
+    ()
+  in
+  test_selector_pattern_expansion ();
 
   let classify_hunk_kind_tests =
     Diff.classify_hunk_kind ~has_replace:false ~has_prev:true ~has_next:true = "replace"

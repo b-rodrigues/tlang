@@ -188,17 +188,22 @@ let generate_project_flake
     ?(jl_version : string = "lts")
     ?(additional_tools : string list = [])
     ?(latex_pkgs : string list = [])
+    ?(use_atelier : bool = false)
     ?(warn_invalid_pkg_names : bool = true)
     () : string =
   let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
   let jl_deps = ensure_julia_json_dep jl_deps in
+  let has_atelier_in_tools = List.mem "atelier" additional_tools in
+  let effective_use_atelier = use_atelier || has_atelier_in_tools in
+  let additional_tools = List.filter (fun t -> t <> "atelier") additional_tools in
   let has_quarto = List.mem "quarto" additional_tools in
   let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
   (* Inputs section *)
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
   let all_output_args =
-    ["self"; "nixpkgs"; "flake-utils"; "t-lang"] @ dep_input_names in
+    ["self"; "nixpkgs"; "flake-utils"; "t-lang"] @
+    (if effective_use_atelier then ["atelier"] else []) @ dep_input_names in
   Buffer.add_string buf "{\n";
   Printf.bprintf buf "  description = \"%s — a T data analysis project\";\n\n"
     project_name;
@@ -207,6 +212,10 @@ let generate_project_flake
     nixpkgs_date;
   Buffer.add_string buf "    flake-utils.url = \"github:numtide/flake-utils\";\n";
   let tlang_url = match Sys.getenv_opt "TLANG_FLAKE_URL" with Some url -> url | None -> Printf.sprintf "github:b-rodrigues/tlang/v%s" t_version in Printf.bprintf buf "    t-lang.url = \"%s\";\n" tlang_url;
+  if effective_use_atelier then begin
+    Buffer.add_string buf "    # Atelier IDE (tmux-based TUI for T)\n";
+    Buffer.add_string buf "    atelier.url = \"github:b-rodrigues/atelier/main\";\n";
+  end;
   if deps <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "    # T packages — synced from tproject.toml by 't update'\n";
@@ -291,7 +300,8 @@ let generate_project_flake
             Buffer.add_string buf "            py-env\n";
             Buffer.add_string buf "            juliaPkg\n";
             Buffer.add_string buf "            t-lang.packages.${system}.tlang-julia-path\n";
-  if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
+             if effective_use_atelier then Buffer.add_string buf "            atelier.packages.${system}.default\n";
+            if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   let extra_pkgs = 
     (if additional_tools <> [] then " ++ additionalTools" else "") ^
     (if deps <> [] then " ++ tPackages" else "")
@@ -374,15 +384,20 @@ let generate_package_flake
     ~(deps : dependency list)
     ?(additional_tools : string list = [])
     ?(latex_pkgs : string list = [])
+    ?(use_atelier : bool = false)
     ?(warn_invalid_pkg_names : bool = true)
     () : string =
   let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
   let jl_deps = ensure_julia_json_dep [] in
   let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
+  let has_atelier_in_tools = List.mem "atelier" additional_tools in
+  let effective_use_atelier = use_atelier || has_atelier_in_tools in
+  let additional_tools = List.filter (fun t -> t <> "atelier") additional_tools in
   let buf = Buffer.create 2048 in
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
   let all_output_args =
-    ["self"; "nixpkgs"; "flake-utils"; "t-lang"] @ dep_input_names in
+    ["self"; "nixpkgs"; "flake-utils"; "t-lang"] @
+    (if effective_use_atelier then ["atelier"] else []) @ dep_input_names in
   Buffer.add_string buf "{\n";
   Printf.bprintf buf "  description = \"%s — a T package\";\n\n"
     package_name;
@@ -391,6 +406,10 @@ let generate_package_flake
     nixpkgs_date;
   Buffer.add_string buf "    flake-utils.url = \"github:numtide/flake-utils\";\n";
   let tlang_url = match Sys.getenv_opt "TLANG_FLAKE_URL" with Some url -> url | None -> Printf.sprintf "github:b-rodrigues/tlang/v%s" t_version in Printf.bprintf buf "    t-lang.url = \"%s\";\n" tlang_url;
+  if effective_use_atelier then begin
+    Buffer.add_string buf "    # Atelier IDE (tmux-based TUI for T)\n";
+    Buffer.add_string buf "    atelier.url = \"github:b-rodrigues/atelier/main\";\n";
+  end;
   if deps <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "    # Package dependencies — synced from DESCRIPTION.toml by 't update'\n";
@@ -455,6 +474,7 @@ let generate_package_flake
   Buffer.add_string buf "            t-lang.packages.${system}.tlang-julia-path\n";
   Buffer.add_string buf (Printf.sprintf "            (pkgs.%s.withPackages [ %s ])\n"
     "julia-lts" (String.concat " " (List.map (fun p -> "\"" ^ p ^ "\"") jl_deps)));
+  if effective_use_atelier then Buffer.add_string buf "            atelier.packages.${system}.default\n";
   if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   List.iter (fun dep ->
     Printf.bprintf buf "            %s.packages.${system}.default\n"
@@ -524,16 +544,17 @@ let install_flake
     ?(jl_version : string = "lts")
     ?(additional_tools : string list = [])
     ?(latex_pkgs : string list = [])
+    ?(use_atelier : bool = false)
     ~(dir : string)
     ~(dry_run : bool)
     () : (string, string) result =
   let flake_path = Filename.concat dir "flake.nix" in
   let content = match kind with
     | Project ->
-      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ()
+      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
-        ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ()
+        ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ~use_atelier ()
   in
   if dry_run then begin
     Printf.printf "=== Dry run: flake.nix would be written to %s ===\n\n" flake_path;

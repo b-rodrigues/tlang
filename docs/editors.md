@@ -471,6 +471,58 @@ This makes the T parser available to `treesit`-aware packages and any custom `t-
 
 ---
 
+## Atelier TUI IDE
+
+Atelier is a tmux-based TUI IDE that integrates directly with T projects. It provides a split-pane terminal interface with an embedded editor, REPL, file tree, variable watcher, pipeline diagram, and plot viewer — all within the terminal.
+
+### Enabling Atelier in a T project
+
+When initialising a new project with `t init`, pass `--include-atelier` or answer "yes" when prompted:
+
+```bash
+t init --project my_analysis --include-atelier
+```
+
+This pins `atelier` as a flake input and adds it to the dev shell's `buildInputs`, making the `atelier` command available inside `nix develop`.
+
+### Starting Atelier
+
+From inside a T project's development shell:
+
+```bash
+nix develop
+atelier
+```
+
+### Key features
+
+- **Split-pane terminal UI** with editor, REPL, terminal, file tree, variables, pipeline diagram, and plots
+- **Editor pane** for editing `.t` files with syntax highlighting
+- **REPL pane** for interactive T sessions
+- **Variable watcher** — automatically displays environment variables from the T REPL
+- **Pipeline diagram** — visualises the current pipeline DAG (rendered from `/tmp/atelier-diagram.mmd`)
+- **Plot viewer** — watches a directory and displays new plots as they appear
+- **LLM context pane** — gathers workspace context (cursor position, pipeline state, variables, REPL history) and sends it to an LLM tool
+- **Navigation mode** — keyboard-driven pane switching, file tree browsing, and buffer management
+
+### Keybindings
+
+| Key | Action |
+| --- | --- |
+| `Ctrl-n` | Enter navigation mode |
+| `Ctrl-j/k` | Move focus between panes |
+| `Ctrl-l` | Push context to LLM pane |
+| `Ctrl-Tab` | Switch between terminal and LLM tabs |
+| `e` | Send clipboard content to the REPL |
+| `m` | Maximise/restore focused pane |
+| `?` | Toggle help overlay |
+
+### Configuration
+
+Atelier reads `config.toml` from the project root (or `~/.config/atelier/config.toml`). See the [Atelier repository](https://github.com/b-rodrigues/atelier) for full configuration options.
+
+---
+
 ## Quarto
 
 For literate programming with executable `{t}` chunks, add Quarto to your T project tools in `tproject.toml`:

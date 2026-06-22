@@ -64,7 +64,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.52.3"
+min_version = "0.53.0"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -112,7 +112,7 @@ To upgrade your project to the latest version of T and set the project's nixpkgs
 ```bash
 $ t upgrade
 Checking for new T releases...
-Upgrading project to T 0.52.3 and nixpkgs date 2026-05-08 (today's UTC date)...
+Upgrading project to T 0.53.0 and nixpkgs date 2026-05-08 (today's UTC date)...
 Regenerating flake.nix and updating dependencies...
 Running nix flake update...
 ```
@@ -232,6 +232,14 @@ The `t-lsp` binary is provided automatically by your project's `nix develop` she
 1.  Configure your editor (Vim, Emacs, or VS Code) once following the [Editor Support Guide](editors.md).
 2.  Launch your editor *inside* the project directory after running `nix develop`.
 3.  Alternatively, use **direnv** to automatically load the environment when you enter the project folder.
+
+### Using the Atelier TUI IDE
+
+T projects also support [Atelier](https://github.com/b-rodrigues/atelier), a
+tmux-based TUI IDE that provides a split-pane environment with an embedded
+editor, REPL, file tree, variable watcher, pipeline diagram, and plot viewer.
+To enable Atelier in a new project, pass `--include-atelier` to `t init`. Once
+inside `nix develop`, simply run `atelier`.
 
 Once active, you will get real-time autocompletion for:
 -   **Package functions**: Suggestions for all imported functions.

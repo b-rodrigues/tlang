@@ -36,29 +36,97 @@ let register env =
     in
     match p_val with
     | VPipeline p ->
-        let nodes_arr = Array.of_list p.p_nodes in
-        let nrows = Array.length nodes_arr in
-        let arr_nodes = Array.init nrows (fun i -> let (name, _) = nodes_arr.(i) in Some name) in
-        let arr_runtimes = Array.init nrows (fun i ->
-          let (name, _) = nodes_arr.(i) in
-          Some (match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "Unknown")
-        ) in
-        let arr_serializers = Array.init nrows (fun i ->
-          let (name, _) = nodes_arr.(i) in
-          Some (match List.assoc_opt name p.p_serializers with
-                | Some expr -> Nix_unparse.unparse_expr expr
-                | None -> "Unknown")
-        ) in
-        let arr_dependencies = Array.init nrows (fun i ->
-          let (name, _) = nodes_arr.(i) in
-          let deps = match List.assoc_opt name p.p_deps with Some ds -> ds | None -> [] in
-          Some (String.concat ", " deps)
-        ) in
-        let arr_has_script = Array.init nrows (fun i ->
-          let (name, _) = nodes_arr.(i) in
+        let base_entries = List.map (fun (name, _) ->
+          let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "Unknown" in
+          let serializer_str = match List.assoc_opt name p.p_serializers with
+            | Some expr -> Nix_unparse.unparse_expr expr | None -> "Unknown"
+          in
+          let deps_str = match List.assoc_opt name p.p_deps with Some ds -> String.concat ", " ds | None -> "" in
           let has_sc = match List.assoc_opt name p.p_scripts with Some (Some _) -> true | _ -> false in
-          Some has_sc
-        ) in
+          (name, runtime, serializer_str, deps_str, has_sc)
+        ) p.p_nodes in
+        let eval_dep_len_expr expr =
+          try
+            match Eval.eval_expr (ref env) expr with
+            | VList items -> Some (List.length items)
+            | VVector arr -> Some (Array.length arr)
+            | VDataFrame df -> Some (Arrow_table.num_rows df.arrow_table)
+            | _ -> None
+          with _ -> None
+        in
+        let rec eval_dep_len dep =
+          let from_expr =
+            match List.assoc_opt dep p.p_exprs with
+            | Some expr -> eval_dep_len_expr expr
+            | None -> None
+          in
+          match from_expr with
+          | Some _ -> from_expr
+          | None ->
+              (match List.assoc_opt dep p.p_patterns with
+               | Some pattern ->
+                   (match pattern with
+                    | PatternMap deps ->
+                        (match deps with
+                         | _ :: _ ->
+                             let lens = List.filter_map eval_dep_len deps in
+                             (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                         | _ -> None)
+                    | PatternCross subs ->
+                        let sub_lengths = List.filter_map (fun sub ->
+                          match sub with
+                          | PatternMap sub_deps ->
+                              let lens = List.filter_map eval_dep_len sub_deps in
+                              (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                          | _ -> None
+                        ) subs in
+                        if List.length sub_lengths <> List.length subs then None
+                        else Some (List.fold_left ( * ) 1 sub_lengths)
+                    | PatternSlice (_, indices) -> Some (List.length indices)
+                    | PatternHead (d, n) | PatternTail (d, n) | PatternSample (d, n) ->
+                        (match eval_dep_len d with
+                         | Some len -> Some (min n len)
+                         | None -> None))
+               | None -> None)
+        in
+        let branch_entries = List.concat_map (fun (name, pattern) ->
+          let count_opt = match pattern with
+            | PatternMap deps ->
+                (match deps with [dep] -> eval_dep_len dep | _ -> None)
+            | PatternCross subs ->
+                let sub_lengths = List.filter_map (fun sub ->
+                  match sub with
+                  | PatternMap deps ->
+                      let lens = List.filter_map eval_dep_len deps in
+                      (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                  | _ -> None
+                ) subs in
+                if List.length sub_lengths <> List.length subs then None
+                else Some (List.fold_left ( * ) 1 sub_lengths)
+            | PatternSlice (_, indices) -> Some (List.length indices)
+            | PatternHead (dep, n) | PatternTail (dep, n) | PatternSample (dep, n) ->
+                (match eval_dep_len dep with Some len -> Some (min n len) | None -> None)
+          in
+          let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "Unknown" in
+          let serializer_str = match List.assoc_opt name p.p_serializers with
+            | Some expr -> Nix_unparse.unparse_expr expr | None -> "Unknown"
+          in
+          let deps_str = match List.assoc_opt name p.p_deps with Some ds -> String.concat ", " ds | None -> "" in
+          match count_opt with
+          | Some n when n > 0 ->
+              List.init n (fun i ->
+                let branch_name = name ^ "_branch_" ^ string_of_int (i + 1) in
+                (branch_name, runtime, serializer_str, deps_str, false))
+          | _ -> []
+        ) p.p_patterns in
+        let all_entries = base_entries @ branch_entries in
+        let nrows = List.length all_entries in
+        let entries_arr = Array.of_list all_entries in
+        let arr_nodes = Array.init nrows (fun i -> let (name, _, _, _, _) = entries_arr.(i) in Some name) in
+        let arr_runtimes = Array.init nrows (fun i -> let (_, r, _, _, _) = entries_arr.(i) in Some r) in
+        let arr_serializers = Array.init nrows (fun i -> let (_, _, s, _, _) = entries_arr.(i) in Some s) in
+        let arr_dependencies = Array.init nrows (fun i -> let (_, _, _, d, _) = entries_arr.(i) in Some d) in
+        let arr_has_script = Array.init nrows (fun i -> let (_, _, _, _, h) = entries_arr.(i) in Some h) in
         let columns = [
           ("node", Arrow_table.StringColumn arr_nodes);
           ("runtime", Arrow_table.StringColumn arr_runtimes);

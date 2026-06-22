@@ -49,7 +49,7 @@
     nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter pipeline_script
     builder_utils pipeline_dependency_requirements builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder_copy builder_artifacts builder
     ; packages/core
-    t_print t_type args head tail is_error t_seq t_map sum pretty_print show_plot packages t_get help t_boolean t_write_text converters file_ops path_ops
+    t_print t_type args head tail is_error t_seq t_float_seq t_map sum pretty_print show_plot packages t_get help t_boolean t_pattern t_write_text converters file_ops path_ops
     ; packages/strcraft
     string_ops
     ; packages/base
@@ -58,10 +58,10 @@
     chrono
     ; packages/dataframe
    t_read_csv t_read_parquet t_write_csv t_read_arrow t_write_arrow t_dataframe colnames nrow ncol clean_colnames glimpse
-     ; packages/pipeline
-      pipeline_utils pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node read_past_node pipeline_copy
+      ; packages/pipeline
+       pipeline_utils pipeline_args pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node read_past_node pipeline_copy
       pipeline_to_frame filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
-      pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2 t_make_mod build_log pipeline_diff
+       pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_expand pipeline_inspect2 pipeline_to_ga t_make_mod build_log pipeline_diff pipeline_report
       pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc export_artifacts import_artifacts inspect_artifacts
     ; packages/colcraft
     t_select t_filter mutate arrange group_by ungroup summarize n n_distinct

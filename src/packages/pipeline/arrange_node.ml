@@ -71,6 +71,9 @@ let register env =
           p_scripts      = reorder p.p_scripts;
           p_explicit_deps = reorder p.p_explicit_deps;
           p_node_diagnostics = reorder p.p_node_diagnostics;
+          p_patterns     = reorder p.p_patterns;
+          p_iterations   = reorder p.p_iterations;
+          p_has_patterns = p.p_has_patterns;
         }
       in
       match args with

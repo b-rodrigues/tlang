@@ -1,6 +1,4 @@
 open Ast
-open Pipeline_utils
-
 (*
 --# Trace Pipeline Nodes
 --#
@@ -20,19 +18,11 @@ open Pipeline_utils
 *)
 let register env =
   let trace_fn named_args _env =
-    let get_arg arg_name pos default =
-      match List.find_opt (fun (k, _) -> k = Some arg_name) named_args with
-      | Some (_, v) -> (true, v)
-      | None ->
-          let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-          match nth_safe (pos - 1) positionals with
-          | Some v -> (true, v)
-          | None -> (false, default)
-    in
-    match get_arg "p" 1 (VNA NAGeneric) with
+    let get_arg = Pipeline_args.get_arg in
+    match get_arg "p" 1 (VNA NAGeneric) named_args with
     | (_, VPipeline p) ->
-        let (_, target_val) = get_arg "name" 2 (VNA NAGeneric) in
-        let (_, trans_val) = get_arg "transitive" 3 (VBool true) in
+        let (_, target_val) = get_arg "name" 2 (VNA NAGeneric) named_args in
+        let (_, trans_val) = get_arg "transitive" 3 (VBool true) named_args in
         
         let target_res = match target_val with 
           | VString s -> Ok (Some s) 

@@ -119,8 +119,9 @@ let core_package = {
   name = "core";
   description = "Core utilities: printing, type inspection, data structures";
   functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get"; "rm";
-               "ifelse"; "identical"; "case_when"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "show_plot"; "to_integer"; "to_float"; "to_string"; "to_bool"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
-               "to_symbol"; "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
+                "ifelse"; "identical"; "case_when"; "node_when"; "node_fork"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "show_plot"; "to_integer"; "to_float"; "to_string"; "to_bool"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
+                "to_symbol"; "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs";
+                "map_pattern"; "cross_pattern"; "slice_pattern"; "head_pattern"; "tail_pattern"; "sample_pattern"];
 }
 
 let strcraft_package = {
@@ -198,9 +199,10 @@ let pipeline_package = {
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
                "chain"; "parallel";
-               "pipeline_edges"; "pipeline_roots"; "pipeline_leaves"; "pipeline_depth";
-                "pipeline_cycles"; "pipeline_validate"; "pipeline_assert";
-                "pipeline_print"; "pipeline_to_dot"; "pipeline_to_mermaid"];
+                 "pipeline_edges"; "pipeline_roots"; "pipeline_leaves"; "pipeline_depth";
+                 "pipeline_cycles"; "pipeline_validate"; "pipeline_assert";
+                 "pipeline_print"; "pipeline_to_dot"; "pipeline_to_mermaid";
+                 "pipeline_to_ga"];
 }
 
 let explain_package = {
@@ -356,6 +358,30 @@ let register env =
 --# @export
 *)
   let env = Env.add "case_when" (make_builtin_named ~name:"case_when" ~variadic:true 0 (T_boolean.case_when Eval.eval_expr_immutable)) env in
+
+(*
+--# Static pipeline node conditional
+--#
+--# Evaluated at pipeline construction time. Returns the node value if the condition
+--# is truthy, otherwise returns a null marker that excludes the node from the pipeline.
+--#
+--# @name node_when
+--# @family pipeline
+--# @export
+*)
+  let env = Env.add "node_when" (make_builtin ~name:"node_when" 2 T_boolean.node_when_fn) env in
+
+(*
+--# Static pipeline multi-way branch
+--#
+--# Evaluated at pipeline construction time. Takes condition-value pairs and returns
+--# the value for the first truthy condition. Provide `.default` for a fallback.
+--#
+--# @name node_fork
+--# @family pipeline
+--# @export
+*)
+  let env = Env.add "node_fork" (make_builtin_named ~name:"node_fork" ~variadic:true 0 T_boolean.node_fork_fn) env in
 
 (*
 --# Evaluate a quoted expression or quosure
@@ -708,6 +734,7 @@ let init_env () =
   let env = Tail.register env in
   let env = Is_error.register env in
   let env = T_seq.register env in
+  let env = T_float_seq.register env in
   let env = T_map.register ~eval_call:Eval.eval_call_immutable env in
   let env = Sum.register env in
   let env = T_get.register ~eval_call:Eval.eval_call_immutable env in
@@ -812,10 +839,13 @@ let init_env () =
   let env = Pipeline_dag_ops.register env in
   (* Phase 4 — Composition & inspection utilities *)
   let env = Pipeline_composition.register ~rerun_pipeline:rerun_pipeline_fn env in
+  let env = Pipeline_expand.register env in
   let env = T_make_mod.register env in
   let env = Pipeline_inspect2.register env in
+  let env = Pipeline_to_ga.register env in
   let env = Build_log.register env in
   let env = Pipeline_diff.register env in
+  let env = Pipeline_report.register env in
   (* Colcraft package *)
   let env = T_select.register env in
   let env = T_filter.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
@@ -936,6 +966,7 @@ let init_env () =
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in
   let env = Show_plot.register env in
+  let env = T_pattern.register env in
   let env = register env in
   (* Known symbols: bare words that should resolve to VSymbol rather than
      NameError.  These are used as keyword-style arguments in node() and

@@ -34,7 +34,109 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.52.3] - 2026-06-09</h2>
+<h2 id="xx-xx">[0.53.0] - 2026-xx-xx</h2>
+<p>This release:</p>
+<ul>
+<li><strong>Atelier TUI IDE Integration</strong>: This release
+introduces full support for the Atelier tmux-based TUI IDE.
+<code>t init --project</code> and <code>t init --package</code> now
+accept <code>--include-atelier</code> (CLI flag) to configure the IDE in
+the project environment. When running inside an active Atelier session,
+the REPL automatically updates variables, writes diagrams/plots to the
+<code>_atelier/</code> directory, and runs a protected variables watcher
+via the new <code>tui_update</code> builtin. Atelier can also be
+declared as a project dependency via <code>[additional-tools]</code> in
+<code>tproject.toml</code>.</li>
+<li>Introduces static conditionals for pipelines:
+<code>node_when(condition, node_value)</code> and
+<code>node_fork(...)</code> allow conditional node inclusion evaluated
+at pipeline construction time, preserving Nix’s static DAG
+requirement.</li>
+<li><strong>VDataFrame JSON serialization</strong>: NAColumn entries are
+now omitted from JSON output (field absent) rather than serialized as
+null, so downstream readers see no key rather than an NA/null
+value.</li>
+</ul>
+<h3 id="dynamic-branching-pattern-expansion">Dynamic Branching &amp;
+Pattern Expansion</h3>
+<ul>
+<li><strong>Pattern-based Branching</strong>: Pipelines can now
+dynamically expand a single node into multiple branch nodes using
+pattern functions:
+<ul>
+<li><code>map_pattern(dependency)</code>: Maps a node over each element
+of a List, Vector, or DataFrame dependency.</li>
+<li><code>cross_pattern(sub_pattern1, sub_pattern2, ...)</code>:
+Generates a Cartesian product of multiple <code>map_pattern</code>
+sub-patterns.</li>
+<li><code>slice_pattern(dependency, indices)</code>: Creates branches
+selecting specific element indices.</li>
+<li><code>head_pattern(dependency, n)</code> /
+<code>tail_pattern(dependency, n)</code>: Restricts branches to the
+first or last <code>n</code> elements.</li>
+<li><code>sample_pattern(dependency, n)</code>: Randomly samples
+<code>n</code> elements from a dependency (with deterministic seed
+behavior).</li>
+</ul></li>
+<li><strong><code>expand_pipeline</code></strong>: Adds the built-in
+function <code>expand_pipeline(p)</code> to manually expand dynamic
+patterns into separate <code>&lt;node&gt;_branch_&lt;N&gt;</code>
+nodes.</li>
+<li><strong>Auto-Expansion &amp; Guardrails</strong>: Branch expansion
+is performed automatically before pipeline compilation in
+<code>build_pipeline()</code> and <code>populate_pipeline()</code>.
+Attempting to build/populate a pipeline containing unexpanded patterns
+raises a compile-time <code>StructuralError</code>.</li>
+<li><strong>Lazy Branch Expansion</strong>: Implemented lazy branch
+expansion for chained or computed dependencies with patterns, resolving
+branch dependencies across complex DAGs.</li>
+<li><strong>Branch Naming &amp; Verification</strong>: Node names
+containing the suffix <code>_branch_N</code> are strictly forbidden in
+manual definitions to prevent namespace clashes. Duplicate node
+detection and branch-aware <code>read_node</code> errors assist in
+identifying naming conflicts.</li>
+</ul>
+<h3 id="github-actions-integration">GitHub Actions Integration</h3>
+<ul>
+<li><strong><code>pipeline_to_ga</code></strong>: Adds
+<code>pipeline_to_ga(p, ...)</code> to generate a complete GitHub
+Actions CI workflow YAML. The generated workflow automates Nix-based
+pipeline runs on push/PR events.</li>
+<li><strong>Nix Caching in CI</strong>: Integrates with Cachix
+(defaulting to the <code>rstats-on-nix</code> cache) and automatically
+manages the caching of built Nix artifacts using a repository’s
+<code>t-runs</code> branch (archived as <code>.nar</code> files).</li>
+<li><strong>Optional File Output</strong>: Accepts an optional
+<code>file</code> parameter to write the workflow YAML directly to
+<code>.github/workflows/&lt;name&gt;.yml</code> (defaulting to
+auto-detected project names).</li>
+</ul>
+<h3 id="pipeline-execution-reporting">Pipeline Execution Reporting</h3>
+<ul>
+<li><strong><code>pipeline_report</code></strong>: Introduces
+<code>pipeline_report(p, ...)</code> to generate structured Markdown
+(<code>target = "ssh"</code>) or HTML (<code>target = "web"</code>)
+execution reports.</li>
+<li><strong>Detailed Run Metrics</strong>: Reports include
+built/unbuilt/errored node statuses, depth indicators, runtimes, warning
+summaries, Mermaid dependency graph visualization, and truncated build
+error tracebacks.</li>
+<li><strong>Log Targeting</strong>: Supports the <code>which_log</code>
+regex parameter to report on historical run records.</li>
+</ul>
+<h3 id="core-language-features-fixes">Core Language Features &amp;
+Fixes</h3>
+<ul>
+<li><strong><code>float_seq</code></strong>: Adds the
+<code>float_seq(start, end, n)</code> built-in function to generate a
+List of <code>n</code> evenly-spaced floats.</li>
+<li><strong>Assignment Error Propagation</strong>: Blocks
+(<code>{ ... }</code>) no longer silently swallow errors occurring
+inside assignment/reassignment statements. The error is bound to the
+variable and propagated correctly, enabling robust recovery patterns via
+subsequent <code>match</code> blocks.</li>
+</ul>
+<h2 id="section">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature

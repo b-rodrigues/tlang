@@ -1,6 +1,4 @@
 open Ast
-open Pipeline_utils
-
 (*
 --# Run Pipeline
 --#
@@ -21,15 +19,6 @@ open Pipeline_utils
 --# @export
 --*)
 let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> pipeline_result -> value) env =
-  let get_arg name pos default named_args =
-    match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
-    | Some v -> (true, v)
-    | None ->
-        let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-        match nth_safe (pos - 1) positionals with
-        | Some v -> (true, v)
-        | None -> (false, default)
-  in
   let run_fn named_args env =
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
@@ -40,9 +29,9 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
         Error.make_error ArityError
           (Printf.sprintf "Function `pipeline_run` accepts at most 2 positional arguments but received %d." positional_count)
     | None ->
-      match get_arg "p" 1 (VNA NAGeneric) named_args with
+      match Pipeline_args.get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
-        let (_, nix_options_val) = get_arg "nix_options" 2 (VDict []) named_args in
+        let (_, nix_options_val) = Pipeline_args.get_arg "nix_options" 2 (VDict []) named_args in
 
         let nix_options_result =
           match nix_options_val with

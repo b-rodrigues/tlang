@@ -120,7 +120,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.52.3 "Kaméhaméha" using Nix <nix-version>
+Version 0.53.0 "L'Initiation" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org

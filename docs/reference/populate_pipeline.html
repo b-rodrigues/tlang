@@ -37,7 +37,10 @@
 <p>Populate Pipeline</p>
 <p>Generates the <code>_pipeline/</code> directory with
 <code>pipeline.nix</code> and <code>dag.json</code>. Optionally builds
-the pipeline with full Nix-native orchestration support.</p>
+the pipeline with full Nix-native orchestration support. If the pipeline
+contains unexpanded dynamic branching patterns
+(<code>map_pattern</code>, <code>cross_pattern</code>), they are
+automatically expanded before population.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to

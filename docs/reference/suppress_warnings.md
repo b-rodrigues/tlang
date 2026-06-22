@@ -13,7 +13,3 @@ Silences all captured warnings for the current node in the console summary. Warn
 
 The original value, signaling the evaluator to suppress diagnostic output.
 
-## See Also
-
-[warning_msg](warning_msg.html), [read_pipeline](read_pipeline.html)
-

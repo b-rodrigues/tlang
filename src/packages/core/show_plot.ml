@@ -521,6 +521,9 @@ let build_ephemeral_plot_node node_name (un : unbuilt_node) =
       p_scripts = [ (node_name, un.un_script) ];
       p_explicit_deps = [ (node_name, un.un_dependencies) ];
       p_node_diagnostics = [ (node_name, Utils.empty_node_diagnostics) ];
+      p_has_patterns = Option.is_some un.un_pattern;
+      p_patterns = (match un.un_pattern with Some p -> [ (node_name, p) ] | None -> []);
+      p_iterations = [ (node_name, un.un_iteration) ];
     }
   in
   match Builder.populate_pipeline ~build:true pipeline with
@@ -583,12 +586,22 @@ let render_plot_artifact cn =
                    if not (Sys.file_exists rendered_path) then
                      Error
                        (Printf.sprintf "show_plot: render succeeded but `%s` was not produced." rendered_path)
-                   else begin
-                      (match copy_file rendered_path local_plot_path with
-                       | Error _ as err -> err
-                       | Ok () ->
-                           flush_output_streams ();
-                           match visualization_tool ~project_root () with
+                    else begin
+                       (match copy_file rendered_path local_plot_path with
+                        | Error _ as err -> err
+                        | Ok () ->
+                            if Builder_utils.is_atelier_active () then begin
+                              let atelier_plots = Builder_utils.atelier_plots_dir project_root in
+                              Builder_utils.ensure_dir atelier_plots;
+                              let plot_name = Printf.sprintf "%s_%s.png" cn.cn_name (Builder_utils.get_timestamp ()) in
+                               let atelier_plot_path = Filename.concat atelier_plots plot_name in
+                               (match copy_file rendered_path atelier_plot_path with
+                                | Error msg ->
+                                  Printf.eprintf "warning: show_plot: failed to copy to %s: %s\n%!" atelier_plot_path msg
+                                | Ok () -> ())
+                            end;
+                            flush_output_streams ();
+                            match visualization_tool ~project_root () with
                            | Error _ as err -> err
                            | Ok None -> Ok local_plot_path
                            | Ok (Some viewer) ->

@@ -21,5 +21,5 @@ pipeline_print(p)
 
 ## See Also
 
-[pipeline_to_dot](pipeline_to_dot.html)
+[pipeline_to_frame](pipeline_to_frame.html)
 

@@ -450,6 +450,9 @@ let static_pipeline_for_doctor ~project_root nodes =
     p_scripts = [];
     p_explicit_deps = [];
     p_node_diagnostics = [];
+    p_has_patterns = false;
+    p_patterns = [];
+    p_iterations = [];
   }
 
 let read_file path =

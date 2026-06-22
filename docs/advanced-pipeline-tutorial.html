@@ -1,0 +1,2005 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - advanced-pipeline-tutorial</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="advanced-pipeline-tutorial">Advanced Pipeline Tutorial</h1>
+<blockquote>
+<p>Dynamic branching, node manipulation, pipeline composition, and
+beyond</p>
+</blockquote>
+<p>This guide covers advanced pipeline features building on the
+fundamentals from the <a href="pipeline_tutorial.html">Pipeline
+Tutorial</a>. You should be familiar with basic pipeline concepts
+(nodes, dependencies, building, and inspecting) before diving in
+here.</p>
+<hr />
+<h2 id="execution-modes">17. Execution Modes</h2>
+<p>T enforces a clear separation between interactive and non-interactive
+execution:</p>
+<h3 id="non-interactive-t-run">Non-interactive (<code>t run</code>)</h3>
+<p>Scripts executed with <code>t run</code> <strong>must</strong> call
+<code>populate_pipeline()</code> (or <code>build_pipeline()</code>).
+This ensures that non-interactive execution always produces reproducible
+Nix artifacts. By default, <code>t run</code> operates in
+<strong>resilient mode</strong>, continuing past errors to provide a
+full diagnostic summary. Use <code>--failfast</code> to change this.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
+<p>A valid pipeline script looks like:</p>
+<pre class="t"><code>-- my_pipeline.t
+p = pipeline {
+  data = read_csv(&quot;input.csv&quot;)
+  result = data |&gt; filter($value &gt; 0) |&gt; summarize(total = sum($value))
+}
+
+populate_pipeline(p, build = true)</code></pre>
+<h3 id="interactive-repl">Interactive (REPL)</h3>
+<p>The REPL is <strong>unrestricted</strong> — you can run any T code
+line by line, whether or not it involves pipelines:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
+<hr />
+<h2 id="using-imports-in-pipelines">18. Using Imports in Pipelines</h2>
+<p>When a pipeline is built with <code>build_pipeline()</code>, each
+node runs inside a <strong>Nix sandbox</strong> — an isolated build
+environment. Import statements from your script are
+<strong>automatically propagated</strong> into each sandbox, so imported
+packages and functions are available to all nodes.</p>
+<pre class="t"><code>-- pipeline.t
+import my_stats
+import data_utils[read_clean, normalize]
+
+p = pipeline {
+  raw = read_csv(&quot;data.csv&quot;)
+  clean = read_clean(raw)              -- uses imported function
+  normed = normalize(clean)            -- uses imported function
+  result = weighted_mean(normed.$x, normed.$w)  -- uses imported function
+}
+
+build_pipeline(p)</code></pre>
+<p>When <code>build_pipeline(p)</code> generates the Nix derivation for
+each node, it prepends the import statements:</p>
+<pre class="t"><code>-- Generated node_script.t (inside Nix sandbox)
+import my_stats
+import data_utils[read_clean, normalize]
+raw = deserialize(&quot;$T_NODE_raw/artifact.tobj&quot;)
+result = weighted_mean(raw.$x, raw.$w)
+serialize(result, &quot;$out/artifact.tobj&quot;)</code></pre>
+<p>All three import forms are supported:</p>
+<table>
+<thead>
+<tr>
+<th>Syntax</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>import "src/helpers.t"</code></td>
+<td>Import a local file</td>
+</tr>
+<tr>
+<td><code>import my_stats</code></td>
+<td>Import all public functions from a package</td>
+</tr>
+<tr>
+<td><code>import my_stats[foo, bar]</code></td>
+<td>Import specific functions</td>
+</tr>
+<tr>
+<td><code>import my_stats[wm=weighted_mean]</code></td>
+<td>Import with aliases</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="using-explain-with-pipelines">19. Using explain() with
+Pipelines</h2>
+<p>The <code>explain()</code> function provides structured metadata
+about pipelines:</p>
+<pre class="t"><code>p = pipeline {
+  x = 10
+  y = x + 5
+  z = y * 2
+}
+
+e = explain(p)
+e.kind        -- &quot;pipeline&quot;
+e.node_count  -- 3</code></pre>
+<hr />
+<h2 id="skipping-nodes">20. Skipping Nodes</h2>
+<p>You can explicitly skip a node (and by extension, all nodes that
+depend on it) by passing the <code>noop = true</code> argument to the
+<code>node()</code> function.</p>
+<pre class="t"><code>p = pipeline {
+  raw_data = read_csv(&quot;raw.csv&quot;)
+  
+  # This node and its dependencies won&#39;t trigger a heavy Nix build
+  expensive_model = rn(
+    command = train(raw_data),
+    noop = true
+  )
+
+  # This node depends on expensive_model, therefore it becomes a noop as well
+  report = rn(command = generate_report(expensive_model))
+}
+
+populate_pipeline(p, build = true)</code></pre>
+<p>In a Nix sandbox context, <code>noop</code> generates a lightweight
+stub instead of a real build derivation.</p>
+<hr />
+<h2 id="node-metadata">21. Node Metadata</h2>
+<blockquote>
+<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+Pipeline DAG Structure</a></p>
+</blockquote>
+<p>Every node in a pipeline carries structured metadata that you can
+query and manipulate. The <code>pipeline_to_frame()</code> function
+converts this metadata into a DataFrame with one row per node.</p>
+<h3 id="pipeline_to_frame"><code>pipeline_to_frame</code></h3>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+pipeline_to_frame(p)
+-- DataFrame(3 rows x 8 cols: [name, runtime, serializer, deserializer, noop, deps, depth, command_type])</code></pre>
+<p>The columns returned are:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>String</td>
+<td>Unique node identifier</td>
+</tr>
+<tr>
+<td><code>runtime</code></td>
+<td>String</td>
+<td><code>"T"</code>, <code>"R"</code>, <code>"Python"</code>, or
+<code>"Julia"</code></td>
+</tr>
+<tr>
+<td><code>serializer</code></td>
+<td>String</td>
+<td>e.g. <code>"default"</code>, <code>"pmml"</code></td>
+</tr>
+<tr>
+<td><code>deserializer</code></td>
+<td>String</td>
+<td>e.g. <code>"default"</code>, <code>"pmml"</code></td>
+</tr>
+<tr>
+<td><code>noop</code></td>
+<td>Bool</td>
+<td>Whether the node is a no-op</td>
+</tr>
+<tr>
+<td><code>deps</code></td>
+<td>String</td>
+<td>Comma-separated dependency names</td>
+</tr>
+<tr>
+<td><code>depth</code></td>
+<td>Int</td>
+<td>Topological depth (roots = 0)</td>
+</tr>
+<tr>
+<td><code>command_type</code></td>
+<td>String</td>
+<td><code>"command"</code> or <code>"script"</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>pipeline_to_frame</code> is the foundation for inspection: you
+can use T’s standard <code>filter</code>, <code>select</code>, and
+<code>arrange</code> verbs on the resulting DataFrame.</p>
+<h3 id="select_node"><code>select_node</code></h3>
+<p><code>select_node</code> returns a DataFrame with only the columns
+you request, using NSE <code>$field</code> references:</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = node(command = &lt;{ 2 }&gt;, runtime = R, serializer = &quot;pmml&quot;)
+  c = b + 1
+}
+
+p |&gt; select_node($name, $runtime, $depth)
+-- DataFrame: name=&quot;a&quot;, runtime=&quot;T&quot;, depth=0
+--            name=&quot;b&quot;, runtime=&quot;R&quot;, depth=0
+--            name=&quot;c&quot;, runtime=&quot;T&quot;, depth=1</code></pre>
+<p>Available fields: <code>$name</code>, <code>$runtime</code>,
+<code>$serializer</code>, <code>$deserializer</code>,
+<code>$noop</code>, <code>$deps</code>, <code>$depth</code>,
+<code>$command_type</code>.</p>
+<hr />
+<h2 id="environment-variables">22. Environment Variables</h2>
+<p>Pipeline nodes can pass environment variables into the Nix build
+sandbox via the <code>env_vars</code> named argument on
+<code>node()</code>, <code>py()</code>/<code>pyn()</code>, and
+<code>rn()</code>. This allows nodes to configure their build-time
+execution environment without embedding those values directly into the
+command body.</p>
+<pre class="t"><code>p = pipeline {
+  model = rn(
+    command = &lt;{ train_model(data) }&gt;,
+    env_vars = [
+      MODEL_MODE: &quot;train&quot;,
+      RETRIES: 2,
+      DEBUG: true
+    ]
+  )
+}</code></pre>
+<h3 id="supported-types">Supported Types</h3>
+<p>The <code>env_vars</code> dictionary supports the following
+scalar-like values:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Example</th>
+<th>Nix Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>String</strong></td>
+<td><code>"train"</code></td>
+<td><code>"train"</code></td>
+</tr>
+<tr>
+<td><strong>Symbol</strong></td>
+<td><code>train</code></td>
+<td><code>"train"</code></td>
+</tr>
+<tr>
+<td><strong>Int</strong></td>
+<td><code>2</code></td>
+<td><code>"2"</code></td>
+</tr>
+<tr>
+<td><strong>Float</strong></td>
+<td><code>3.14</code></td>
+<td><code>"3.14"</code> (up to 15 significant digits)</td>
+</tr>
+<tr>
+<td><strong>Bool</strong></td>
+<td><code>true</code></td>
+<td><code>"true"</code></td>
+</tr>
+<tr>
+<td><strong>NA</strong></td>
+<td><code>NA</code></td>
+<td>(Omitted from derivation)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="validation">Validation</h3>
+<p>T performs early validation on environment variables: -
+<code>env_vars</code> must be a dictionary. - Unsupported types (like
+Lists or nested Dicts) trigger a structured type error during pipeline
+construction. - <code>NA</code> values are silently omitted from the
+generated Nix derivation instead of being materialized as empty
+strings.</p>
+<p>These variables are automatically threaded into the generated
+<code>stdenv.mkDerivation</code> and are available via standard system
+methods (e.g., <code>Sys.getenv()</code> in R or <code>os.environ</code>
+in Python) during the Nix build step.</p>
+<hr />
+<h2 id="node-level-operations-_node-family">23. Node-Level Operations
+(<code>_node</code> family)</h2>
+<p>T provides a set of colcraft-style verbs for operating on pipeline
+nodes. These mirror the DataFrame API, using NSE <code>$field</code>
+references for node metadata fields.</p>
+<h3 id="filter_node"><code>filter_node</code></h3>
+<p>Returns a new pipeline containing only the nodes where the predicate
+is true. No DAG validity check is performed — if a retained node
+references a removed node, that surfaces at <code>build_pipeline</code>
+time.</p>
+<pre class="t"><code>p = pipeline {
+  load   = read_csv(&quot;data.csv&quot;)
+  model  = rn(command = &lt;{ lm(y ~ x, data = load) }&gt;, serializer = &quot;pmml&quot;)
+  score  = node(command = predict(model, load), deserializer = &quot;pmml&quot;)
+}
+
+-- Keep only R nodes
+p |&gt; filter_node($runtime == &quot;R&quot;) |&gt; pipeline_nodes
+-- [&quot;model&quot;]
+
+-- Keep only nodes with no noop flag
+p |&gt; filter_node($noop == false) |&gt; pipeline_nodes
+
+-- Keep only shallow nodes (root and depth-1 nodes)
+p |&gt; filter_node($depth &lt;= 1) |&gt; pipeline_nodes</code></pre>
+<h3 id="which_nodes"><code>which_nodes</code></h3>
+<p><code>filter_node</code> rewrites the pipeline itself.
+<code>which_nodes</code> is the read-only counterpart: it filters the
+richer node records you would otherwise have to access manually through
+<code>read_pipeline(p).nodes</code>.</p>
+<p>This is especially useful for diagnostics queries because each record
+includes <code>name</code>, <code>value</code>, and
+<code>diagnostics</code>.</p>
+<pre class="t"><code>p = pipeline {
+  bad = 1 / 0
+  ok = 42
+  downstream = bad + 1
+}
+
+-- Keep only nodes with captured errors
+which_nodes(p, !is_na(diagnostics.error))
+
+-- Same idea, but return only the node names
+which_nodes(p, !is_na(diagnostics.error))
+  |&gt; map(\(node) node.name)
+-- [&quot;bad&quot;, &quot;downstream&quot;]
+
+-- Explicit predicate functions still work too
+has_error = \(node) !is_na(node.diagnostics.error)
+which_nodes(p, has_error)
+
+-- Convenience shortcut for the most common case
+errored_nodes(p) |&gt; map(\(node) node.name)</code></pre>
+<h3 id="mutate_node"><code>mutate_node</code></h3>
+<p>Modifies metadata fields on all nodes, or scoped to a subset using
+the <code>where</code> argument:</p>
+<pre class="t"><code>-- Mark all nodes as noop
+p |&gt; mutate_node($noop = true)
+
+-- Mark only R nodes as noop (useful for skipping heavy computations)
+p |&gt; mutate_node($noop = true, where = $runtime == &quot;R&quot;)
+
+-- Override serializer for all nodes
+p |&gt; mutate_node($serializer = &quot;pmml&quot;, where = $runtime == &quot;R&quot;)</code></pre>
+<p>Mutable metadata fields: <code>noop</code> (Bool),
+<code>runtime</code> (String), <code>serializer</code> (String),
+<code>deserializer</code> (String).</p>
+<h3 id="rename_node"><code>rename_node</code></h3>
+<p>Renames a single node and automatically rewires all dependency edges
+that referenced the old name. This is the canonical way to resolve name
+collisions before set operations like <code>union</code>.</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1 }
+
+p2 = p |&gt; rename_node(&quot;a&quot;, &quot;alpha&quot;)
+pipeline_nodes(p2)   -- [&quot;alpha&quot;, &quot;b&quot;]
+pipeline_deps(p2)    -- {`alpha`: [], `b`: [&quot;alpha&quot;]}</code></pre>
+<p>Attempting to rename to a name that already exists is an error:</p>
+<pre class="t"><code>p |&gt; rename_node(&quot;a&quot;, &quot;b&quot;)
+-- Error(ValueError: &quot;A node named `b` already exists in the Pipeline.&quot;)</code></pre>
+<h3 id="arrange_node"><code>arrange_node</code></h3>
+<p>Returns a new pipeline with nodes sorted by a metadata field. This
+affects only display/serialization order — the DAG determines execution
+order.</p>
+<hr />
+<h2 id="pipeline-manipulation-for-data-scientists">24. Pipeline
+Manipulation for Data Scientists</h2>
+<p>Beyond basic execution, T allows you to treat a Pipeline as a
+queryable and mutable data structure. This is powerful for
+meta-programming, automated reporting, and “surgical” updates to large
+analysis graphs.</p>
+<h3 id="finding-errored-nodes-programmatically">Finding Errored Nodes
+Programmatically</h3>
+<p>In a production setting, you may want to extract the errors from a
+failed pipeline run to log them or send an alert.</p>
+<pre class="t"><code>p = build_pipeline(p)
+
+-- Get detailed records for all failed nodes
+failed_records = errored_nodes(p)
+
+-- Extract just the names and error messages
+errors = map(failed_records, \(n) [name: n.name, msg: n.diagnostics.error])</code></pre>
+<h3 id="filtering-subgraphs">Filtering Subgraphs</h3>
+<p>If you have a massive pipeline but only want to visualize or re-run a
+specific subset (e.g., all Python nodes), use
+<code>filter_node()</code>:</p>
+<pre class="t"><code>-- Create a subgraph of only Python-based computations
+py_pipeline = p |&gt; filter_node($runtime == &quot;Python&quot;)
+
+-- Create a subgraph of &#39;shallow&#39; nodes (roots and their immediate children)
+shallow_p = p |&gt; filter_node($depth &lt;= 1)</code></pre>
+<h3 id="surgical-reconfiguration">Surgical Reconfiguration</h3>
+<p>Lenses allow you to modify a pipeline specification without using the
+<code>pipeline { ... }</code> block again. This is useful for “what-if”
+analysis or dynamic configuration.</p>
+<pre class="t"><code>-- 1. Identify a node to skip
+noop_l = node_meta_lens(&quot;heavy_computation&quot;, &quot;noop&quot;)
+
+-- 2. Toggle the noop flag surgically
+p_fast = p |&gt; set(noop_l, true)
+
+-- 3. Swap a runtime for testing
+p_test = p |&gt; set(node_meta_lens(&quot;model_train&quot;, &quot;runtime&quot;), &quot;R&quot;)</code></pre>
+<h3 id="inspecting-node-results-with-lenses">Inspecting Node Results
+with Lenses</h3>
+<p>If you have a <code>VPipeline</code> object (from
+<code>read_pipeline()</code>), you can use lenses to safely extract
+values from specific nodes.</p>
+<pre class="t"><code>p_info = read_pipeline(p)
+
+-- Focus on the &#39;summary&#39; node&#39;s value
+summary_l = node_lens(&quot;summary&quot;)
+summary_df = get(p_info, summary_l)</code></pre>
+<pre class="t"><code>p = pipeline { z = 1; a = 2; m = 3 }
+
+p |&gt; arrange_node($name) |&gt; pipeline_nodes       -- [&quot;a&quot;, &quot;m&quot;, &quot;z&quot;]
+p |&gt; arrange_node($name, &quot;desc&quot;) |&gt; pipeline_nodes -- [&quot;z&quot;, &quot;m&quot;, &quot;a&quot;]
+
+-- Sort a chain by depth (shallowest first)
+p = pipeline { a = 1; b = a + 1; c = b + 1 }
+p |&gt; arrange_node($depth) |&gt; pipeline_nodes      -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre>
+<hr />
+<h2 id="set-operations">24. Set Operations</h2>
+<p>Pipelines can be treated as named sets of nodes. T provides four set
+operations that combine or subtract pipelines.</p>
+<blockquote>
+<p><strong>Immutability</strong>: All set operations return new
+Pipelines. The original pipelines are never modified.</p>
+<p><strong>Lazy validation</strong>: Set operations do not check DAG
+validity. If the result has dangling references, errors surface at
+<code>build_pipeline</code> or <code>pipeline_run</code> time.</p>
+</blockquote>
+<h3 id="union"><code>union</code></h3>
+<p>Merges two pipelines, including all nodes from both. Errors
+immediately on any name collision. Use <code>rename_node</code> to
+resolve collisions first.</p>
+<pre class="t"><code>p_etl = pipeline {
+  raw   = read_csv(&quot;data.csv&quot;)
+  clean = raw |&gt; filter($value &gt; 0)
+}
+
+p_model = pipeline {
+  fit    = lm(clean, formula = y ~ x)
+  report = summary(fit)
+}
+
+p_full = p_etl |&gt; union(p_model)
+pipeline_nodes(p_full)  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;fit&quot;, &quot;report&quot;]</code></pre>
+<p>If both pipelines have a node named <code>clean</code>:</p>
+<pre class="t"><code>p_etl |&gt; union(p_model)
+-- Error(ValueError: &quot;Function `union`: name collision(s) detected: clean. Use `rename_node` to resolve.&quot;)
+
+-- Fix: rename before merging
+p_model2 = p_model |&gt; rename_node(&quot;clean&quot;, &quot;clean_model&quot;)
+p_etl |&gt; union(p_model2)</code></pre>
+<hr />
+<h2 id="diagnostic-suppression">25. Diagnostic Suppression</h2>
+<p>Nodes that produce large numbers of non-terminal warnings (like those
+from <code>filter()</code> or complex modeling functions) can be
+silenced using the <code>suppress_warnings</code> combinator. This
+silences the console output for a node while maintaining the warning
+records for auditability.</p>
+<pre class="t"><code>p = pipeline {
+  -- High-noise node with suppressed warnings
+  filtered = to_dataframe([[x: 1], [x: NA], [x: 3]]) 
+    |&gt; filter($x &gt; 1) 
+    |&gt; suppress_warnings
+
+  -- Downstream node remains unaffected
+  count = nrow(filtered)
+}</code></pre>
+<p>When building or running a pipeline with suppressed nodes, the
+summary reflects this state:</p>
+<pre><code>Pipeline summary: 1 node(s) with warnings, 1 suppressed, 0 error(s)
+  ○  filtered — warnings suppressed by caller (1 NAs ignored)</code></pre>
+<p>The <code>○</code> symbol indicates a suppressed node. You can still
+access the underlying warning objects programmatically via
+<code>warning_msg()</code> or <code>read_pipeline()</code>.</p>
+<pre class="t"><code>warning_msg(p.filtered)               -- Returns the warning message string
+read_pipeline(p).diagnostics.summary  -- Summary counts</code></pre>
+<h3 id="difference"><code>difference</code></h3>
+<p>Removes from the first pipeline all nodes whose names appear in the
+second pipeline. Nodes in the second pipeline that don’t exist in the
+first are silently ignored.</p>
+<pre class="t"><code>p = pipeline { a = 1; b = 2; c = 3; d = 4 }
+p_remove = pipeline { b = 0; d = 0 }
+
+p |&gt; difference(p_remove) |&gt; pipeline_nodes  -- [&quot;a&quot;, &quot;c&quot;]</code></pre>
+<h3 id="intersect"><code>intersect</code></h3>
+<p>Retains only nodes present by name in both pipelines, using
+definitions from the first pipeline.</p>
+<pre class="t"><code>p1 = pipeline { a = 1; b = 2; c = 3 }
+p2 = pipeline { b = 99; c = 100; d = 4 }
+
+p1 |&gt; intersect(p2) |&gt; pipeline_nodes  -- [&quot;b&quot;, &quot;c&quot;] (p1&#39;s definitions)</code></pre>
+<h3 id="patch"><code>patch</code></h3>
+<p>Like <code>union</code>, but only updates nodes that already exist in
+the first pipeline — it will not add new nodes from the second pipeline.
+Ideal for overriding configurations without accidentally importing stray
+nodes.</p>
+<pre class="t"><code>p_prod = pipeline {
+  load  = read_csv(&quot;data.csv&quot;)
+  model = rn(command = &lt;{ lm(y ~ x, data = load) }&gt;, serializer = &quot;pmml&quot;)
+}
+
+p_overrides = pipeline {
+  model = rn(command = &lt;{ lm(y ~ x + z, data = load) }&gt;, serializer = &quot;pmml&quot;)
+  extra = 99  -- stray node
+}
+
+p_updated = p_prod |&gt; patch(p_overrides)
+pipeline_nodes(p_updated)  -- [&quot;load&quot;, &quot;model&quot;] — &quot;extra&quot; was not added</code></pre>
+<hr />
+<h2 id="dag-aware-transformations">25. DAG-Aware Transformations</h2>
+<p>These operations are structurally aware of the pipeline’s dependency
+graph and are used to replace node implementations, reroute edges, and
+extract subgraphs.</p>
+<h3 id="swap"><code>swap</code></h3>
+<p>Replaces a node’s implementation while preserving its existing
+dependency edges. The new node is specified as the third argument.</p>
+<pre class="t"><code>p = pipeline {
+  data  = read_csv(&quot;data.csv&quot;)
+  model = rn(command = &lt;{ lm(y ~ x, data = data) }&gt;, serializer = &quot;pmml&quot;)
+  score = node(command = predict(model, data), deserializer = &quot;pmml&quot;)
+}
+
+-- Replace the model node with a new implementation; edges to/from model are preserved
+new_model = rn(command = &lt;{ glm(y ~ x, data = data, family = binomial) }&gt;, serializer = &quot;pmml&quot;)
+p2 = p |&gt; swap(&quot;model&quot;, new_model)
+
+pipeline_deps(p2)
+-- `model` still depends on `data`, and `score` still depends on `model`</code></pre>
+<h3 id="rewire"><code>rewire</code></h3>
+<p>Reroutes a node’s declared dependencies. The <code>replace</code>
+argument maps old dependency names to new ones. Only the named node’s
+dependency list is updated.</p>
+<pre class="t"><code>p = pipeline {
+  data    = read_csv(&quot;data.csv&quot;)
+  data_v2 = read_csv(&quot;data_v2.csv&quot;)
+  model   = rn(command = &lt;{ lm(y ~ x, data) }&gt;, serializer = &quot;pmml&quot;)
+}
+
+-- Re-point model to use data_v2 instead of data
+p2 = p |&gt; rewire(&quot;model&quot;, replace = list(data = &quot;data_v2&quot;))
+pipeline_deps(p2)
+-- {`data`: [], `data_v2`: [], `model`: [&quot;data_v2&quot;]}</code></pre>
+<h3 id="prune"><code>prune</code></h3>
+<p>Removes all leaf nodes — nodes that nothing else depends on. This is
+useful for cleaning up intermediate pipelines after
+<code>filter_node</code> or <code>difference</code> operations that may
+leave orphaned utility nodes.</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = 3 }
+-- `a` is depended on by `b`, so it is not a leaf.
+-- `b` depends on `a` but nothing depends on `b` — it is a leaf.
+-- `c` is independent and nothing depends on it — it is also a leaf.
+
+p |&gt; prune |&gt; pipeline_nodes  -- [&quot;a&quot;] (both b and c are leaves, removed)</code></pre>
+<p>You can chain <code>difference</code> and <code>prune</code> to strip
+unwanted branches in one step:</p>
+<pre class="t"><code>p_partial = p |&gt; difference(p_debug_nodes) |&gt; prune</code></pre>
+<h3 id="upstream_of"><code>upstream_of</code></h3>
+<p>Returns a new pipeline containing the named node and all its
+transitive ancestors (everything the node depends on, directly or
+indirectly).</p>
+<pre class="t"><code>p = pipeline {
+  raw     = read_csv(&quot;data.csv&quot;)
+  clean   = raw |&gt; filter($value &gt; 0)
+  model   = rn(command = &lt;{ lm(y ~ x, clean) }&gt;, serializer = &quot;pmml&quot;)
+  report  = summary(model)
+  sidebar = &quot;metadata&quot;
+}
+
+-- Everything needed to produce `model`
+p |&gt; upstream_of(&quot;model&quot;) |&gt; pipeline_nodes  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;model&quot;]
+-- sidebar is excluded because model doesn&#39;t depend on it</code></pre>
+<h3 id="downstream_of"><code>downstream_of</code></h3>
+<p>Returns a new pipeline containing the named node and all nodes that
+transitively depend on it (everything that uses this node, directly or
+indirectly).</p>
+<pre class="t"><code>-- Everything that is affected if `clean` changes
+p |&gt; downstream_of(&quot;clean&quot;) |&gt; pipeline_nodes  -- [&quot;clean&quot;, &quot;model&quot;, &quot;report&quot;]
+-- raw and sidebar are excluded</code></pre>
+<h3 id="subgraph"><code>subgraph</code></h3>
+<p>Returns the full connected component of a node — the union of its
+ancestors and descendants.</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1; d = 99 }
+
+-- Everything connected to b (upstream and downstream)
+p |&gt; subgraph(&quot;b&quot;) |&gt; pipeline_nodes  -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;] — d is disconnected</code></pre>
+<hr />
+<h2 id="pipeline-composition">26. Pipeline Composition</h2>
+<p>These higher-level operators combine two complete, separately-defined
+pipelines into one.</p>
+<h3 id="chain"><code>chain</code></h3>
+<p>Connects two pipelines where the second pipeline’s nodes reference
+node names from the first as dependencies. T verifies that at least one
+such shared reference exists; if the two pipelines are completely
+disconnected, <code>chain</code> raises an error.</p>
+<pre class="t"><code>p_etl = pipeline {
+  raw   = read_csv(&quot;data.csv&quot;)
+  clean = raw |&gt; filter($value &gt; 0)
+}
+
+-- p_model references `clean` from p_etl — this is the wire
+p_model = pipeline {
+  fit    = lm(clean, formula = y ~ x)
+  report = summary(fit)
+}
+
+p_full = p_etl |&gt; chain(p_model)
+pipeline_nodes(p_full)  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;fit&quot;, &quot;report&quot;]</code></pre>
+<p><code>chain</code> is stricter than <code>union</code>: it requires
+an <em>intent</em> to connect the pipelines, catching accidental merges
+where no wiring was meant.</p>
+<h3 id="meta-pipelines-pipeline_of">Meta-Pipelines
+(<code>pipeline_of</code>)</h3>
+<p>For larger projects, you can compose multiple pipelines into a
+higher-order DAG using the <code>pipeline_of</code> block. T-Lang
+natively understands and automatically flattens meta-pipelines at
+execution time, meaning you can pass them directly to built-in commands
+like <code>populate_pipeline()</code>, <code>read_node()</code>,
+<code>inspect_node()</code>, or <code>inspect_pipeline()</code>.</p>
+<h4 id="pipeline_of-block"><code>pipeline_of</code> block</h4>
+<p>Defines a group of sub-pipelines. The nodes within the block bind
+identifiers to pipeline values.</p>
+<pre class="t"><code>p_etl = pipeline {
+  raw   = read_csv(&quot;data.csv&quot;)
+  clean = raw |&gt; filter($value &gt; 0)
+}
+
+p_stats = pipeline {
+  summary = etl.clean |&gt; mean
+}
+
+-- Compose them into a higher-order DAG
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+}</code></pre>
+<h4 id="automatic-dependency-inference">Automatic Dependency
+Inference</h4>
+<p>T-Lang automatically analyzes cross-pipeline references in node
+expressions (such as referencing <code>etl.clean</code> in the
+<code>stats</code> pipeline) to infer the execution order between
+sub-pipelines. The flattening engine automatically wires the root nodes
+of a dependent sub-pipeline to depend on the terminal nodes of the
+pipeline it references.</p>
+<h4 id="native-execution-namespacing">Native Execution &amp;
+Namespacing</h4>
+<p>When a meta-pipeline is populated, queried, or inspected, T-Lang
+automatically flattens it internally. Node names are automatically
+namespaced (e.g. <code>etl.raw</code>, <code>etl.clean</code>,
+<code>stats.summary</code>) to prevent namespace collisions, and all
+internal variable references are rewritten accordingly.</p>
+<pre class="t"><code>pipeline_nodes(meta)
+-- [&quot;etl.raw&quot;, &quot;etl.clean&quot;, &quot;stats.summary&quot;]
+
+pipeline_deps(meta)
+-- {`etl.raw`: [], `etl.clean`: [&quot;etl.raw&quot;], `stats.summary`: [&quot;etl.clean&quot;]}
+
+-- You can build the entire meta-pipeline directly:
+populate_pipeline(meta, build = true)
+
+-- You can read individual nodes using nested dot notation:
+res = read_node(meta.stats.summary)</code></pre>
+<h3 id="cross-pipeline-dependency-tracking-t-vs.-rawcode">Cross-Pipeline
+Dependency Tracking: T vs. RawCode</h3>
+<p>T’s dependency tracking works differently depending on the node’s
+runtime. This leads to a specific limitation when using
+<code>chain()</code> with R or Python pipelines.</p>
+<h4 id="how-t-detects-dependencies">How T Detects Dependencies</h4>
+<ul>
+<li><strong>T Expressions</strong>: T has a full understanding of its
+own syntax. When you use a variable that isn’t defined inside the
+pipeline (and isn’t in your global environment), T knows for certain it
+is an external dependency.</li>
+<li><strong>RawCode (&lt;{ … }&gt;)</strong>: For R and Python, T uses a
+fast <strong>lexical heuristic</strong> (scanning for words) to find
+dependencies. It cannot reliably distinguish between a foreign function
+(like <code>lm()</code>) and a T variable from a different
+pipeline.</li>
+</ul>
+<h4 id="the-limitation">The Limitation</h4>
+<p>To avoid polluting your build environment with R/Python functions as
+Nix dependencies, T <strong>ignores</strong> external references inside
+RawCode blocks when they are not defined in the current pipeline
+block.</p>
+<p><strong>This means <code>chain()</code> will fail to automatically
+wire R/Python nodes to nodes in other pipelines.</strong></p>
+<h4 id="the-solution-the-t-stub-workaround">The Solution: The T-Stub
+Workaround</h4>
+<p>If you need an R or Python node to depend on a node from a separate
+pipeline via <code>chain()</code>, you must “bring” that dependency into
+the pipeline block using a T-expression stub with an <strong>aliased
+name</strong>.</p>
+<p><strong>❌ Broken: R node cannot “see” <code>raw_data</code> for
+chaining</strong></p>
+<pre class="t"><code>p_data = pipeline { raw_data = read_csv(&quot;data.csv&quot;) }
+
+p_model = pipeline {
+  model = rn(&lt;{ 
+    lm(mpg ~ hp, data = raw_data) 
+  }&gt;)
+}
+
+-- Error: &quot;no shared dependency names found&quot;
+p_full = p_data |&gt; chain(p_model)</code></pre>
+<p><strong>❌ Also broken: self-referential stub</strong></p>
+<pre class="t"><code>p_model = pipeline {
+  raw_data = raw_data  -- Error: &quot;Self-referential node detected&quot;
+  model = rn(&lt;{ lm(mpg ~ hp, data = raw_data) }&gt;)
+}</code></pre>
+<p><strong>✅ Fixed: Use a T-stub with an aliased name</strong></p>
+<pre class="t"><code>p_data = pipeline { raw_data = read_csv(&quot;data.csv&quot;) }
+
+p_model = pipeline {
+  -- Aliased T-stub: different name on the left, raw_data on the right.
+  -- T can parse the RHS and see `raw_data` as an external dependency.
+  data_input = raw_data
+  
+  model = rn(&lt;{ 
+    lm(mpg ~ hp, data = data_input)  -- use the alias name in R
+  }&gt;,
+  deserializer = &quot;arrow&quot;)
+}
+
+-- Success! T sees `raw_data` as a dependency of `data_input`, wiring the pipelines.
+p_full = p_data |&gt; chain(p_model)</code></pre>
+<p>By giving the stub a different name
+(<code>data_input = raw_data</code>), you avoid a self-reference while
+still creating a T-expression that references <code>raw_data</code>. T
+can parse the right-hand side, detect the cross-pipeline dependency, and
+allow <code>chain()</code> to wire the pipelines together. Note that
+R/Python code inside the chained node should use the <strong>alias
+name</strong> (<code>data_input</code>) as the variable, not the
+original (<code>raw_data</code>).</p>
+<h3 id="parameterizing-pipelines-templates-via-lambdas">Parameterizing
+Pipelines (Templates via Lambdas)</h3>
+<p>Rather than introducing new complex constructs, T-Lang encourages
+parameterizing pipelines using standard lambdas. Since lambdas return
+values and pipelines are first-class values in T-Lang, you can define a
+lambda that takes configuration parameters and returns a pipeline.</p>
+<h4 id="example">Example</h4>
+<p>Here is a template lambda that takes a multiplier parameter and
+returns a pipeline with two nodes:</p>
+<pre class="t"><code>make_pipeline = \(multiplier: Int -&gt; Pipeline) pipeline {
+  raw      = [1, 2, 3]
+  computed = raw * multiplier
+}
+
+p1 = make_pipeline(10)
+p2 = make_pipeline(20)</code></pre>
+<p>At execution time, outer variables (like <code>multiplier</code>) are
+substituted with their concrete values (like <code>10</code> or
+<code>20</code>) during compilation, resulting in fully independent
+Nix-reproducible pipelines.</p>
+<hr />
+<h2 id="parallel-execution">27. Parallel Execution</h2>
+<p>Combines two pipelines that are intended to run independently. No
+dependency wiring is performed. Errors on name collision.</p>
+<pre class="t"><code>p_r_model = pipeline {
+  r_fit = rn(command = &lt;{ lm(y ~ x, data) }&gt;, serializer = &quot;pmml&quot;)
+}
+
+p_py_model = pipeline {
+  py_fit = pyn(
+    command = &lt;{
+      from sklearn.linear_model import LinearRegression
+      LinearRegression().fit(X, y)
+    }&gt;,
+    serializer = &quot;pmml&quot;
+  )
+}
+
+-- Both models will run independently
+p_both = parallel(p_r_model, p_py_model)
+pipeline_nodes(p_both)  -- [&quot;r_fit&quot;, &quot;py_fit&quot;]</code></pre>
+<hr />
+<h2 id="extended-inspection-api">28. Extended Inspection API</h2>
+<blockquote>
+<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+Pipeline DAG Structure</a></p>
+</blockquote>
+<p>Beyond <code>pipeline_nodes</code> and <code>pipeline_deps</code>, T
+provides a complete structural inspection surface for pipelines.</p>
+<h3 id="boundary-nodes">Boundary Nodes</h3>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+pipeline_roots(p)   -- [&quot;a&quot;]  — nodes with no dependencies
+pipeline_leaves(p)  -- [&quot;c&quot;]  — nodes nothing depends on</code></pre>
+<h3 id="dependency-edges">Dependency Edges</h3>
+<p><code>pipeline_edges</code> returns a list of <code>[from, to]</code>
+pairs representing every edge in the DAG:</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+pipeline_edges(p)  -- [[&quot;a&quot;, &quot;b&quot;], [&quot;b&quot;, &quot;c&quot;]]</code></pre>
+<p>This is useful for serializing the graph structure or feeding it to
+external tools.</p>
+<h3 id="topological-depth">Topological Depth</h3>
+<p><code>pipeline_depth</code> returns the maximum topological depth
+across all nodes (root nodes have depth 0):</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+pipeline_depth(p)  -- 2</code></pre>
+<h3 id="cycle-detection">Cycle Detection</h3>
+<p><code>pipeline_cycles</code> returns any node names involved in
+dependency cycles. A correctly formed pipeline always returns an empty
+list:</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1 }
+pipeline_cycles(p)  -- []</code></pre>
+<h3 id="pipeline_print"><code>pipeline_print</code></h3>
+<p>Prints a human-readable summary of all nodes to stdout, including
+their runtime, depth, noop status, and dependency list:</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = node(command = &lt;{ 2 }&gt;, runtime = R, serializer = &quot;pmml&quot;)
+  c = b + 1
+}
+
+pipeline_print(p)
+-- Pipeline (3 nodes):
+--   a                     runtime=T         depth=0  noop=false  deps=[]
+--   b                     runtime=R         depth=0  noop=false  deps=[]
+--   c                     runtime=T         depth=1  noop=false  deps=[b]</code></pre>
+<h3 id="pipeline_to_dot"><code>pipeline_to_dot</code></h3>
+<p>Exports the pipeline as a <a
+href="https://graphviz.org/">Graphviz</a> DOT string for visualization.
+Works for both <code>Pipeline</code> and <code>MetaPipeline</code>:</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+dot = pipeline_to_dot(p)
+print(dot)
+-- digraph pipeline {
+--   rankdir=LR;
+--   node [shape=box];
+--   &quot;a&quot; [label=&quot;a\n[T]&quot;];
+--   &quot;b&quot; [label=&quot;b\n[T]&quot;];
+--   &quot;c&quot; [label=&quot;c\n[T]&quot;];
+--   &quot;a&quot; -&gt; &quot;b&quot;;
+--   &quot;b&quot; -&gt; &quot;c&quot;;
+-- }</code></pre>
+<p>Pipe the output to <code>dot -Tpng</code> or paste it into
+https://dreampuf.github.io/GraphvizOnline/ to render a visual dependency
+graph.</p>
+<h3 id="pipeline_to_mermaid"><code>pipeline_to_mermaid</code></h3>
+<p>Exports the pipeline as a <a
+href="https://mermaid.js.org/">Mermaid</a> flowchart string:</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+mermaid = pipeline_to_mermaid(p)
+print(mermaid)
+-- graph LR
+--   a[&quot;a [T]&quot;];
+--   b[&quot;b [T]&quot;];
+--   c[&quot;c [T]&quot;];
+--   a --&gt; b;
+--   b --&gt; c;</code></pre>
+<p>Render the Mermaid flowchart directly in markdown files or preview
+using the online Mermaid live editor.</p>
+<h4
+id="visualizing-mermaid-graphs-in-the-browser-with-show_plot">Visualizing
+Mermaid Graphs in the Browser with <code>show_plot</code></h4>
+<p>Rather than manually pasting the Mermaid string into an external
+editor, you can reuse <code>show_plot()</code> to visualize Mermaid
+graphs, pipelines, or meta-pipelines directly in your web browser:</p>
+<pre class="t"><code>-- Visualize a pipeline directly:
+show_plot(p)
+
+-- Or visualize a raw Mermaid string:
+show_plot(&quot;graph TD\n  Start --&gt; Stop&quot;)</code></pre>
+<p>When you pass a pipeline, meta-pipeline, or a string starting with a
+Mermaid keyword (like <code>graph</code> or <code>flowchart</code>) to
+<code>show_plot()</code>, T dynamically generates a temporary HTML file
+containing the Mermaid JS engine, renders the graph, and opens it using
+your configured system viewer/browser.</p>
+<hr />
+<h2 id="pipeline-validation">29. Pipeline Validation</h2>
+<blockquote>
+<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+Pipeline DAG Structure</a></p>
+</blockquote>
+<p>By design, T uses <strong>lazy validation</strong>: structural errors
+(missing dependencies, cycles) surface at <code>build_pipeline</code> or
+<code>pipeline_run</code> time, not at operation time. This allows you
+to compose and transform pipelines freely.</p>
+<p>When you want to validate eagerly, T provides opt-in validation
+utilities.</p>
+<h3 id="pipeline_validate"><code>pipeline_validate</code></h3>
+<p>Returns a list of validation error messages. An empty list means the
+pipeline is structurally valid. This function <strong>never
+throws</strong> — it reports problems as data.</p>
+<pre class="t"><code>p_good = pipeline { a = 1; b = a + 1 }
+pipeline_validate(p_good)  -- []
+
+-- Build a broken pipeline manually via difference
+p_broken = pipeline { a = 1; b = a + 1 } |&gt; filter_node($name == &quot;b&quot;)
+-- b now depends on a, but a was filtered out
+
+pipeline_validate(p_broken)
+-- [&quot;Node `b` depends on `a` which does not exist in the pipeline.&quot;]</code></pre>
+<p>Checks performed: 1. All referenced dependencies exist as nodes in
+the pipeline. 2. No dependency cycles.</p>
+<h3 id="pipeline_assert"><code>pipeline_assert</code></h3>
+<p>Like <code>pipeline_validate</code>, but <strong>throws</strong> the
+first error found instead of returning a list. Returns the pipeline
+unchanged if valid. This is useful as a guard at a pipeline’s
+construction site.</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1 }
+  |&gt; filter_node($depth == 0)    -- keeps a only
+  |&gt; pipeline_assert              -- succeeds, returns the pipeline
+
+-- Chaining validation into a construction expression:
+safe_pipeline = pipeline { a = 1; b = a + 1 }
+  |&gt; mutate_node($noop = true, where = $runtime == &quot;R&quot;)
+  |&gt; pipeline_assert</code></pre>
+<p>If validation fails:</p>
+<pre class="t"><code>p_broken |&gt; pipeline_assert
+-- Error(ValueError: &quot;Node `b` depends on `a` which does not exist in the pipeline.&quot;)</code></pre>
+<hr />
+<h2 id="handling-ambiguous-dependencies">30. Handling Ambiguous
+Dependencies</h2>
+<p>T-Lang uses a lexical analyzer to automatically detect dependencies
+between nodes by scanning the code for variable names that match other
+node names. While this is convenient, there are cases where automatic
+detection is insufficient or may produce false positives.</p>
+<h3 id="excluding-false-positives">Excluding False Positives</h3>
+<p>Sometimes, a node’s code may contain a word that matches another node
+name but is intended to be a comment or a string, not a dependency. To
+prevent these from causing unwanted dependency cycles, T automatically
+<strong>strips standard comments</strong> starting with <code>--</code>
+or <code>#</code> within foreign code blocks
+(<code>&lt;{ ... }&gt;</code>) before analyzing the code.</p>
+<pre class="t"><code>p = pipeline {
+  data = read_csv(&quot;input.csv&quot;)
+  
+  -- The analyzer will IGNORE the string &#39;results&#39; because it&#39;s in a comment.
+  -- This prevents an accidental dependency on the &#39;results&#39; node.
+  process = pyn(command = &lt;{
+    # We will save the processed results to a file
+    import pandas as pd
+    df = data.dropna()
+    df
+  }&gt;)
+
+  results = node(command = process |&gt; head)
+}</code></pre>
+<h3 id="forcing-detection-with-deps">Forcing Detection with
+<code>deps</code></h3>
+<p>In some runtimes, like <code>sh</code> (shell), T cannot always
+reliably infer dependencies from the command string. Similarly, you may
+want to explicitly declare a dependency that isn’t directly referenced
+in the code (e.g., a file produced by another node that your script
+reads via a hardcoded path).</p>
+<p>For these cases, you can use the <code>deps</code> argument in node
+definitions to manually declare one or more dependencies:</p>
+<pre class="t"><code>p = pipeline {
+  raw_file = shn(command = &lt;{ curl -o data.csv https://example.com/data.csv }&gt;)
+
+  -- This shell node reads data.csv, which is created by raw_file.
+  -- We use the `deps` argument to ensure raw_file executes first.
+  summary = shn(
+    command = &lt;{ cat data.csv | wc -l }&gt;, 
+    deps = [raw_file],
+    serializer = &quot;text&quot;
+  )
+}</code></pre>
+<p><strong>Key Features of <code>deps</code></strong>: -
+<strong>First-Class Syntax</strong>: <code>deps</code> is an optional
+argument available in <code>node()</code>, <code>rn()</code>,
+<code>pyn()</code>, and <code>shn()</code>. - <strong>Bare
+Identifiers</strong>: You can list direct node names as bare identifiers
+(e.g., <code>deps = [node1, node2]</code>). - <strong>Manual
+Override</strong>: It ensures the specified nodes are added to the
+dependency graph even if they aren’t parsed from the command or script
+body. - <strong>Strict Validation</strong>: T validates that all listed
+dependencies exist within the same pipeline.</p>
+<hr />
+<h2 id="best-practices">Best Practices</h2>
+<ol type="1">
+<li><strong>Name nodes descriptively</strong>: Use names like
+<code>raw_data</code>, <code>filtered_sales</code>,
+<code>summary_stats</code></li>
+<li><strong>Keep nodes focused</strong>: Each node should do one
+thing</li>
+<li><strong>Use pipes within nodes</strong>: Combine pipeline structure
+with pipe operator for readability</li>
+<li><strong>Inspect before consuming</strong>: Use
+<code>pipeline_nodes()</code>, <code>pipeline_deps()</code>, and
+<code>pipeline_to_frame()</code> to understand pipeline structure</li>
+<li><strong>Build incrementally</strong>: Start with data loading, add
+transformations one node at a time</li>
+<li><strong>Validate at construction time</strong>: Use
+<code>pipeline_assert</code> at the end of a construction chain to catch
+structural errors early</li>
+<li><strong>Compose with <code>chain</code> over
+<code>union</code></strong>: When two pipelines are intentionally
+connected, <code>chain</code> makes the dependency explicit; use
+<code>union</code> only when combining truly independent pipelines</li>
+<li><strong>Use <code>filter_node</code> + <code>upstream_of</code> for
+partial builds</strong>: Trim a large pipeline to just what you need
+before calling <code>build_pipeline</code></li>
+<li><strong>Resolve collisions with <code>rename_node</code> before set
+ops</strong>: Both <code>union</code> and <code>chain</code> enforce
+unique names; rename conflicting nodes before merging</li>
+</ol>
+<hr />
+<h2 id="complete-example">Complete Example</h2>
+<pre class="t"><code>-- A full data analysis pipeline
+p = pipeline {
+  -- Load data
+  raw = read_csv(&quot;employees.csv&quot;)
+  
+  -- Filter to active engineers
+  engineers = raw
+    |&gt; filter($dept == &quot;eng&quot;)
+    |&gt; filter($active == true)
+  
+  -- Compute statistics
+  avg_salary = engineers.salary |&gt; mean
+  salary_sd = engineers.salary |&gt; sd
+  team_size = engineers |&gt; nrow
+  
+  -- Sort by performance
+  ranked = engineers |&gt; arrange(&quot;score&quot;, &quot;desc&quot;)
+}
+
+-- Access results
+p.team_size     -- number of active engineers
+p.avg_salary    -- mean salary
+p.ranked        -- DataFrame sorted by score</code></pre>
+<hr />
+<h2 id="cross-node-artifact-retrieval">40. Cross-Node Artifact
+Retrieval</h2>
+<p>When nodes are executed within a Nix-managed sandbox (via
+<code>populate_pipeline(p, build = true)</code>), they are isolated from
+each other. However, T provides a built-in mechanism for nodes to access
+the serialized artifacts of their dependencies.</p>
+<h3 id="automatic-environment-propagation">Automatic Environment
+Propagation</h3>
+<p>For every dependency <code>dep</code> that a node has, the pipeline
+runner automatically injects an environment variable named
+<code>T_NODE_&lt;dep&gt;</code> into the sandbox. This variable contains
+the path to the Nix store directory where that dependency’s artifact is
+stored.</p>
+<h3 id="retrieval-with-node_lens">Retrieval with
+<code>node_lens</code></h3>
+<p>The canonical way to access a sibling node’s artifact is using the
+<code>node_lens</code> with the single-argument <code>get()</code>
+function. This is preferred over manual environment variable lookup
+because: 1. It is <strong>portable</strong>: T handles the path
+resolution and deserialization automatically. 2. It is
+<strong>integrated</strong>: It uses the same deserializer system as the
+rest of the pipeline.</p>
+<pre class="t"><code>p = pipeline {
+  node_a = node(command = 100, serializer = &quot;json&quot;)
+  
+  -- This node retrieves node_a&#39;s value from its Nix artifact
+  dynamic_access = node(
+    command = {
+        -- Using get(node_lens(&quot;...&quot;)) for cross-node access
+        val = get(node_lens(&quot;node_a&quot;))
+        val * 2
+    },
+    runtime = &quot;T&quot;
+  )
+}</code></pre>
+<p>When <code>dynamic_access</code> runs inside the Nix sandbox: 1. T
+sees the <code>node_lens("node_a")</code> and looks for the
+<code>T_NODE_node_a</code> environment variable. 2. It locates the
+<code>artifact</code> file within that path. 3. It detects the artifact
+class (e.g., <code>Int</code> from JSON) and deserializes it back into a
+T value.</p>
+<p>This pattern is essential for <strong>polyglot pipelines</strong>
+where data is passed between T, R, and Python nodes through files, and
+for <strong>dynamic access</strong> nodes where the target of a
+retrieval is determined at runtime (e.g.,
+<code>target = "A"; get(node_lens(target))</code>).</p>
+<hr />
+<h2 id="nix-native-orchestration-cachix">41. Nix-Native Orchestration
+&amp; Cachix</h2>
+<p>To optimize large-scale pipelines and manage remote binary caching,
+T-Lang includes native Nix orchestration features in
+<code>build_pipeline</code> and <code>pipeline_run</code>. These
+features map directly to native <code>nix build</code> mechanics,
+allowing granular rebuild control, job parallelization, Cachix
+integration, and dry-runs.</p>
+<h3 id="orchestration-parameters">Orchestration Parameters</h3>
+<p>The functions <code>build_pipeline()</code> and
+<code>pipeline_run()</code> accept an optional <code>nix_options</code>
+dictionary containing the following keys:</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Description</th>
+<th>Nix Command Mapping</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>targets</code></td>
+<td>String/List/Vector</td>
+<td>Specific node(s) or outputs to build (e.g.,
+<code>targets: ["model_a"]</code>)</td>
+<td><code>-A &lt;targets&gt;</code></td>
+</tr>
+<tr>
+<td><code>force</code></td>
+<td>Bool/String/List/Vector</td>
+<td>Rebuild nodes even if they already exist in the Nix store. Pass
+<code>true</code> to force-rebuild all nodes, or a string/list of
+specific node names.</td>
+<td><code>--check</code> (rebuilds target)</td>
+</tr>
+<tr>
+<td><code>dry_run</code></td>
+<td>Bool</td>
+<td>Preview build actions without executing them. Returns a structured
+<code>DataFrame</code> of planned actions.</td>
+<td><code>--dry-run</code></td>
+</tr>
+<tr>
+<td><code>max_jobs</code></td>
+<td>Int</td>
+<td>Limit parallel compilation/build jobs.</td>
+<td><code>--max-jobs N</code></td>
+</tr>
+<tr>
+<td><code>cache</code></td>
+<td>String</td>
+<td>A Cachix binary cache name (e.g., <code>"rstats-on-nix"</code>) to
+pull/push built artifacts.</td>
+<td><code>--option extra-substituters ...</code> &amp;
+<code>--option extra-trusted-public-keys ...</code></td>
+</tr>
+<tr>
+<td><code>builders</code></td>
+<td>String</td>
+<td>Remote builder specification in SSH syntax.</td>
+<td><code>--builders ...</code></td>
+</tr>
+<tr>
+<td><code>keep_env</code></td>
+<td>String/List/Vector</td>
+<td>Environment variable names to pass into the Nix sandbox.</td>
+<td><code>--option keep-env ...</code></td>
+</tr>
+<tr>
+<td><code>sandbox</code></td>
+<td>Bool/String</td>
+<td>Sandboxing policy: <code>true</code>/<code>"strict"</code>,
+<code>"relaxed"</code>, or <code>false</code>/<code>"none"</code>.</td>
+<td><code>--option sandbox ...</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="using-dry_run-for-build-previews">Using <code>dry_run</code> for
+Build Previews</h3>
+<p>If you set <code>dry_run: true</code> inside
+<code>nix_options</code>, T-Lang will invoke Nix in dry-run mode and
+return a structured <code>DataFrame</code> detailing the exact actions
+Nix plans to take (e.g., fetching from binary caches, building
+derivations):</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Inspect planned build actions without running them
+actions = build_pipeline(p, nix_options = [dry_run: true])
+print(actions)</code></pre>
+<p>The resulting <code>DataFrame</code> contains the columns: -
+<code>node</code>: The name of the pipeline node. - <code>action</code>:
+The action planned (e.g., <code>"build"</code>,
+<code>"substitute"</code>, or <code>"noop"</code>). - <code>path</code>:
+The absolute store path of the Nix derivation or artifact.</p>
+<h3 id="advanced-nix-orchestration-example">Advanced Nix Orchestration
+Example</h3>
+<p>Below is an example showing how to trigger a parallel, cache-backed
+build targeting a specific node:</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = a + 1
+  c = b * 2
+}
+
+-- Rebuild only node &#39;c&#39;, with parallel execution, using a Cachix binary cache
+build_pipeline(p,
+               nix_options = [
+                 targets: [&quot;c&quot;],
+                 max_jobs: 4,
+                 cache: &quot;rstats-on-nix&quot;,
+                 force: [&quot;c&quot;]
+               ])</code></pre>
+<h2 id="meta-pipelines-pipeline-composition">22. Meta-Pipelines &amp;
+Pipeline Composition</h2>
+<p>As your project grows, writing a single monolithic pipeline can
+become difficult to maintain. T supports <strong>Pipeline
+Composition</strong> via <code>pipeline_of</code> blocks, allowing you
+to compose multiple independent sub-pipelines into a higher-order DAG (a
+<strong>meta-pipeline</strong>).</p>
+<h3 id="composing-pipelines-with-pipeline_of">Composing Pipelines with
+<code>pipeline_of</code></h3>
+<p>You can group multiple pipelines into a single meta-pipeline block.
+Node names are automatically namespaced with their sub-pipeline name
+(e.g., <code>etl.raw</code>, <code>stats.summary</code>), and
+dependencies between different sub-pipelines are automatically resolved
+based on the variables they reference.</p>
+<pre class="t"><code>p_etl = pipeline {
+  raw = read_csv(&quot;data.csv&quot;)
+  clean = raw |&gt; filter($value &gt; 0)
+}
+
+p_stats = pipeline {
+  -- Dependencies on nodes in &#39;etl&#39; are automatically detected!
+  summary = etl.clean |&gt; group_by($category) |&gt; summarize(total = sum($value))
+}
+
+-- Compose them into a higher-order DAG
+meta = pipeline_of {
+  etl   = p_etl
+  stats = p_stats
+}</code></pre>
+<h3 id="automatic-dependency-inference-1">Automatic Dependency
+Inference</h3>
+<p>Unlike other pipeline tools, you do not need to manually specify
+dependencies between sub-pipelines using arrows or ordering arrays. T
+automatically analyzes the dependencies of each node inside the
+sub-pipelines. If a node in <code>stats</code> references a namespaced
+node name like <code>etl.clean</code>, T automatically wires a
+dependency edge from <code>etl.clean</code> to
+<code>stats.summary</code>.</p>
+<h3 id="implicit-flattening">Implicit Flattening</h3>
+<p>You can treat a meta-pipeline exactly like a standard pipeline. Any
+built-in function that expects a pipeline (like
+<code>populate_pipeline</code>, <code>pipeline_nodes</code>, or
+<code>pipeline_deps</code>) will automatically flatten the meta-pipeline
+internally:</p>
+<pre class="t"><code>-- Get all namespaced nodes in the meta-pipeline
+pipeline_nodes(meta)
+-- [&quot;etl.raw&quot;, &quot;etl.clean&quot;, &quot;stats.summary&quot;]
+
+-- Check dependency structure
+pipeline_deps(meta)
+-- {`etl.raw`: [], `etl.clean`: [&quot;etl.raw&quot;], `stats.summary`: [&quot;etl.clean&quot;]}
+
+-- Build the entire composed DAG in Nix
+populate_pipeline(meta, build = true)</code></pre>
+<h3 id="nested-dot-access">Nested Dot Access</h3>
+<p>You can query individual nodes and their computed metadata directly
+on the meta-pipeline using chained dot-access notation. This makes
+namespaced sub-pipelines feel like natural nested objects:</p>
+<pre class="t"><code>-- Access the computed node name of a sub-pipeline node
+meta.stats.summary.name        -- &quot;stats.summary&quot;
+
+-- Retrieve a materialized artifact after building
+read_node(meta.stats.summary)  -- Returns the summarized DataFrame</code></pre>
+<hr />
+<h2 id="granular-artifact-transfer-archive-introspection">27. Granular
+Artifact Transfer &amp; Archive Introspection</h2>
+<p>For teams working on large projects, T supports exporting
+Nix-materialized pipeline cache artifacts into portable archive files
+(<code>.nar</code> format). These archives can be transferred between
+machines, imported without rebuilding, or inspected without
+installing.</p>
+<h3 id="granular-artifact-export">Granular Artifact Export</h3>
+<p>To export cached artifacts, use <code>export_artifacts()</code>. In
+addition to entire pipelines, you can target specific
+sub-structures:</p>
+<pre class="t"><code>p = pipeline {
+  a = shn(command = &quot;echo -n &#39;hello&#39;&quot;, capture = &quot;stdout&quot;)
+  b = a |&gt; \(x) x + &quot; world&quot;
+}
+build_pipeline(p)
+
+-- 1. Export the entire pipeline&#39;s artifacts
+export_artifacts(p, &quot;full_cache.nar&quot;)
+
+-- 2. Granular export: Export a single computed node
+export_artifacts(p.a, &quot;node_a.nar&quot;)
+
+-- 3. Export a list or vector of nodes/pipelines
+export_artifacts([p.a, p.b], &quot;subset.nar&quot;)
+
+-- 4. Export nested structures/dictionaries
+export_artifacts([first: p.a, second: p.b], &quot;dict_subset.nar&quot;)</code></pre>
+<h3 id="variadic-artifact-import">Variadic Artifact Import</h3>
+<p>To restore exported artifacts, use <code>import_artifacts()</code>.
+It is variadic and supports two calling conventions:</p>
+<ol type="1">
+<li><strong>Verification Import (2 arguments)</strong>: Imports the
+archive and verifies that a specific pipeline, node, or value’s paths
+exist in the local store.</li>
+<li><strong>Immediate Store Import (1 argument)</strong>: Unpacks and
+loads the archive directly into the local Nix store without needing a
+target object for verification. This is especially useful for setting up
+an environment prior to loading or parsing a pipeline script.</li>
+</ol>
+<pre class="t"><code>-- Convention 1: Import and verify against a pipeline
+import_artifacts(p, &quot;full_cache.nar&quot;)
+
+-- Convention 2: Load archive directly into the Nix store
+import_artifacts(&quot;full_cache.nar&quot;)</code></pre>
+<h3 id="archive-introspection">Archive Introspection</h3>
+<p>You can inspect the contents of an artifact archive file without
+unpacking it permanently or changing your local store. The
+<code>inspect_artifacts()</code> function imports the archive into a
+temporary, isolated Nix store, extracts metadata for each path, and
+returns a DataFrame.</p>
+<pre class="t"><code>df = inspect_artifacts(&quot;full_cache.nar&quot;)
+
+-- View the details of the archive
+df
+-- DataFrame with columns:
+--   - node: The name of the node (if known)
+--   - store_path: The Nix store path of the artifact
+--   - hash: The SHA-256 hash of the store path
+--   - size_bytes: The size of the unpacked artifact in bytes
+--   - references: Comma-separated basenames of dependency store paths</code></pre>
+<h3 id="cache-aware-dry-runs">Cache-Aware Dry Runs</h3>
+<p>For convenience, you can perform a dry-run check directly using the
+<code>dry_run = true</code> parameter in
+<code>populate_pipeline()</code>. This reports which nodes are already
+in the Nix cache and which ones require rebuilding or downloading:</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Check cache hit/miss status directly
+plan = populate_pipeline(p, dry_run = true)
+print(plan)
+-- Returns a DataFrame with columns: node, action, and path.
+-- &quot;action&quot; will be one of:
+--   - &quot;cached&quot;: path is already built/cached locally
+--   - &quot;build&quot;: path must be rebuilt locally
+--   - &quot;fetch&quot;: path can be retrieved from remote binary substitutes</code></pre>
+<h3 id="programmatic-garbage-collection">Programmatic Garbage
+Collection</h3>
+<p>Over time, your local Nix store can accumulate unused derivations and
+cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix
+artifacts directly:</p>
+<ol type="1">
+<li><strong><code>pipeline_gc(p, dry_run = false)</code></strong>:
+Deletes the store paths of the given pipeline <code>p</code>. By default
+(<code>dry_run = true</code>), it queries what would be deleted and
+returns a DataFrame showing the <code>node</code>,
+<code>store_path</code>, and <code>deleted</code> status. Set
+<code>dry_run = false</code> to perform the actual deletion.</li>
+<li><strong><code>t_gc()</code></strong>: Performs a global Nix store
+garbage collection (<code>nix-store --gc</code>), removing all unused
+derivations and freeing up disk space.</li>
+</ol>
+<pre class="t"><code>p = pipeline {
+  a = 1
+}
+
+-- Preview what would be deleted
+plan = pipeline_gc(p, dry_run = true)
+
+-- Perform the deletion of the pipeline&#39;s nodes
+pipeline_gc(p, dry_run = false)
+
+-- Perform global garbage collection
+t_gc()</code></pre>
+<hr />
+<h2 id="cicd-with-github-actions">42. CI/CD with GitHub Actions</h2>
+<p>T can generate a complete GitHub Actions workflow YAML for executing
+a pipeline via <code>pipeline_to_ga()</code>. The generated
+workflow:</p>
+<ol type="1">
+<li>Restores cached Nix artifacts from the <code>t-runs</code> branch
+(via <code>nix-store --import</code>)</li>
+<li>Runs the pipeline via
+<code>nix develop --command t run &lt;pipeline_script&gt;</code></li>
+<li>Exports updated artifacts back to the <code>t-runs</code>
+branch</li>
+</ol>
+<pre class="t"><code>-- Write the generated YAML directly to .github/workflows/&lt;name&gt;.yml (uses &quot;src/pipeline.t&quot; by default)
+pipeline_to_ga()
+
+-- Write directly to a custom path (e.g. .github/workflows/ci.yml)
+pipeline_to_ga(&quot;src/run.t&quot;, file = &quot;.github/workflows/ci.yml&quot;)
+
+-- Get the generated YAML back as a string instead of writing to disk
+yaml = pipeline_to_ga(file = &quot;&quot;)
+print(yaml)</code></pre>
+<h3 id="parameters">Parameters</h3>
+<table>
+<colgroup>
+<col style="width: 28%" />
+<col style="width: 15%" />
+<col style="width: 23%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pipeline_script</code></td>
+<td><code>String</code></td>
+<td><code>"src/pipeline.t"</code></td>
+<td>Path to the pipeline T script. Can be passed as the first positional
+argument.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td><code>String</code></td>
+<td>Auto-detected</td>
+<td>Project name from <code>tproject.toml</code>. Controls the workflow
+display name, job ID, and NAR archive filename.</td>
+</tr>
+<tr>
+<td><code>file</code></td>
+<td><code>String</code></td>
+<td><code>".github/workflows/&lt;name&gt;.yml"</code></td>
+<td>Output file path. Defaults to
+<code>.github/workflows/&lt;name&gt;.yml</code>. Set to an empty string
+(<code>""</code>) to return the YAML workflow as a string without
+writing to disk.</td>
+</tr>
+</tbody>
+</table>
+<p>The auto-detected project name comes from the <code>name</code> field
+in your project’s <code>tproject.toml</code>. If neither a
+<code>name</code> argument nor a <code>tproject.toml</code> is found, an
+error is raised prompting you to provide an explicit name.</p>
+<hr />
+<h2 id="pattern-based-branching">11. Pattern-Based Branching</h2>
+<p>T lets you dynamically expand a single pipeline node into multiple
+branches using pattern functions. This is useful when you need to run
+the same computation over each element of a list, vector, or data
+frame.</p>
+<p>Patterns are <strong>automatically expanded</strong> when you call
+<code>populate_pipeline()</code> or <code>build_pipeline()</code> — you
+do not need to call <code>expand_pipeline()</code> explicitly. The
+explicit function is available if you want to inspect the expanded
+structure before building.</p>
+<h3 id="map_pattern-one-branch-per-element">11.1
+<code>map_pattern</code> — One Branch Per Element</h3>
+<p>Use <code>map_pattern(dep)</code> to create one branch for each
+element of an upstream dependency:</p>
+<pre class="t"><code>p = pipeline {
+  x = [10, 20, 30]
+  y = node(command = &lt;{ x * 2 }&gt;, pattern = map_pattern(x))
+}
+
+-- Auto-expansion happens inside build_pipeline:
+build_pipeline(p)
+
+-- Or inspect the expanded structure explicitly:
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- [&quot;x&quot;, &quot;y_branch_1&quot;, &quot;y_branch_2&quot;, &quot;y_branch_3&quot;]
+
+expanded.y_branch_1  -- 20  (10 * 2)
+expanded.y_branch_2  -- 40  (20 * 2)
+expanded.y_branch_3  -- 60  (30 * 2)</code></pre>
+<p>Multiple dependencies can be mapped simultaneously — all must have
+the same length, and branch <code>i</code> receives element
+<code>i</code> from each:</p>
+<pre class="t"><code>p = pipeline {
+  xs = [1, 2, 3]
+  ys = [10, 20, 30]
+  z = node(command = &lt;{ xs + ys }&gt;, pattern = map_pattern(xs, ys))
+}
+-- build_pipeline(p) auto-expands before building</code></pre>
+<h3 id="cross_pattern-cartesian-product">11.2 <code>cross_pattern</code>
+— Cartesian Product</h3>
+<p>Use <code>cross_pattern(sub1, sub2, ...)</code> for a Cartesian
+product of multiple <code>map_pattern</code> sub-patterns:</p>
+<pre class="t"><code>p = pipeline {
+  a = [1, 2]
+  b = [10, 20]
+  c = node(command = &lt;{ a + b }&gt;, pattern = cross_pattern(map_pattern(a), map_pattern(b)))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- [&quot;a&quot;, &quot;b&quot;, &quot;c_branch_1&quot;, &quot;c_branch_2&quot;, &quot;c_branch_3&quot;, &quot;c_branch_4&quot;]
+-- Branch order: (a=1,b=10), (a=1,b=20), (a=2,b=10), (a=2,b=20)</code></pre>
+<h3 id="dataframe-row-branching">11.3 DataFrame Row Branching</h3>
+<p>When a dependency is a DataFrame, each row becomes one branch
+element:</p>
+<pre class="t"><code>df = to_dataframe([[x: 10], [x: 20], [x: 30]])
+
+p = pipeline {
+  data = df
+  result = node(command = &lt;{ data }&gt;, pattern = map_pattern(data))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- [&quot;data&quot;, &quot;result_branch_1&quot;, &quot;result_branch_2&quot;, &quot;result_branch_3&quot;]
+-- Each branch receives a 1-row DataFrame</code></pre>
+<h3 id="selector-patterns">11.4 Selector Patterns</h3>
+<p>For finer-grained control over which elements produce branches, use
+selector patterns. All four take exactly one dependency and an integer
+parameter, and produce N branches where N is determined by the
+parameter.</p>
+<h4 id="slice_patterndep-i-j-...-branch-on-specific-indices">11.4.1
+<code>slice_pattern(dep, [i, j, ...])</code> — Branch on Specific
+Indices</h4>
+<p>Select specific indices (0-based) from the dependency. Each index in
+the list becomes one branch. This is useful when you want to recompute
+only a subset of values, or when you want to reorder branches.</p>
+<pre class="t"><code>p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Only branches for indices 0, 2, 4:
+  y = node(command = &lt;{ x }&gt;, pattern = slice_pattern(x, [0, 2, 4]))
+}
+-- expand_pipeline(p) produces:
+--   y_branch_1 with x = 10  (index 0)
+--   y_branch_2 with x = 30  (index 2)
+--   y_branch_3 with x = 50  (index 4)</code></pre>
+<p>Indices must be within the dependency’s bounds (0 ≤ i &lt; length).
+Out-of-range indices return an error at expansion time.</p>
+<h4 id="head_patterndep-n-branch-on-first-n-elements">11.4.2
+<code>head_pattern(dep, n)</code> — Branch on First N Elements</h4>
+<p>Take the first <code>n</code> elements of the dependency. Each of the
+first N elements becomes one branch. If <code>n</code> exceeds the
+dependency length, it is silently capped — you get at most
+<code>length(dep)</code> branches.</p>
+<pre class="t"><code>p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- First two elements:
+  y = node(command = &lt;{ x }&gt;, pattern = head_pattern(x, 2))
+  -- First ten (capped at 5):
+  z = node(command = &lt;{ x }&gt;, pattern = head_pattern(x, 10))
+}
+-- y produces 2 branches: y_branch_1 (x=10), y_branch_2 (x=20)
+-- z produces 5 branches (one per element, since 10 &gt; 5)</code></pre>
+<h4 id="tail_patterndep-n-branch-on-last-n-elements">11.4.3
+<code>tail_pattern(dep, n)</code> — Branch on Last N Elements</h4>
+<p>Take the last <code>n</code> elements of the dependency. Branches are
+indexed from the end — element at <code>length - n</code> becomes
+<code>branch_1</code>, and so on. Like <code>head_pattern</code>, n is
+capped to the dependency length if it exceeds it.</p>
+<pre class="t"><code>p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Last two elements:
+  y = node(command = &lt;{ x }&gt;, pattern = tail_pattern(x, 2))
+}
+-- y produces 2 branches:
+--   y_branch_1 with x = 40  (index 3)
+--   y_branch_2 with x = 50  (index 4)</code></pre>
+<h4 id="sample_patterndep-n-randomly-select-n-elements">11.4.4
+<code>sample_pattern(dep, n)</code> — Randomly Select N Elements</h4>
+<p>Randomly select <code>n</code> elements from the dependency (without
+replacement — no duplicate branches). Uses a Fisher-Yates partial
+shuffle seeded deterministically from the node name
+(<code>Hashtbl.hash name</code>), so repeated expansions of the same
+pipeline always produce the same random draw. Different node names
+produce different draws. As with the other selectors, n is capped to the
+dependency length.</p>
+<pre class="t"><code>p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Randomly pick 2 elements:
+  y = node(command = &lt;{ x }&gt;, pattern = sample_pattern(x, 2))
+}
+-- y produces 2 branches with randomly chosen values from x.
+-- The selection is deterministic: calling expand_pipeline(p) again on
+-- the same pipeline always picks the same two indices.</code></pre>
+<h4 id="selector-patterns-summary">Selector Patterns Summary</h4>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Branch count</th>
+<th>Branches from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>slice_pattern(dep, [i, j, ...])</code></td>
+<td><code>len(indices)</code></td>
+<td>Values at given indices</td>
+</tr>
+<tr>
+<td><code>head_pattern(dep, n)</code></td>
+<td><code>min(n, length(dep))</code></td>
+<td>First n elements</td>
+</tr>
+<tr>
+<td><code>tail_pattern(dep, n)</code></td>
+<td><code>min(n, length(dep))</code></td>
+<td>Last n elements</td>
+</tr>
+<tr>
+<td><code>sample_pattern(dep, n)</code></td>
+<td><code>min(n, length(dep))</code></td>
+<td>Random n elements</td>
+</tr>
+</tbody>
+</table>
+<p>All four patterns are automatically expanded on
+<code>build_pipeline</code>, <code>populate_pipeline</code>, and
+composition builtins (<code>chain</code>, <code>parallel</code>,
+<code>union</code>, etc.), just like <code>map_pattern</code> and
+<code>cross_pattern</code>. They cannot be nested inside
+<code>cross_pattern()</code> — only <code>map_pattern</code> is
+supported as a sub-pattern of <code>cross_pattern</code>.</p>
+<h3 id="pattern-branching-with-non-t-runtimes">11.5 Pattern Branching
+with Non-T Runtimes</h3>
+<p>Pattern branching works with non-T runtimes (<code>R</code>,
+<code>Python</code>, <code>Julia</code>, etc.), but requires explicit
+<code>serializer</code> and <code>deserializer</code> configuration so
+cross-runtime data interchange works correctly. Each branch runs under
+the same runtime as the original patterned node:</p>
+<pre class="t"><code>p = pipeline {
+  a = [1, 2, 3]
+  b = node(
+    command = &lt;{ a }&gt;,
+    runtime = R,
+    serializer = ^json,
+    deserializer = ^json,
+    pattern = map_pattern(a)
+  )
+}
+
+build_pipeline(p)
+-- Each branch (b_branch_1, b_branch_2, b_branch_3) runs in R</code></pre>
+<p>The serializer/deserializer symbols (<code>^json</code> in the
+example) must match a supported interchange format on both sides of the
+runtime boundary. If serializer and deserializer are omitted, expansion
+succeeds but the build will fail — the default serializer cannot produce
+runtime-specific artifacts for cross-runtime data interchange.</p>
+<p>See §11.8 for a complete polyglot example using
+<code>cross_pattern</code> and <code>map_pattern</code> with R
+<code>ggplot2</code>.</p>
+<h3 id="writing-the-expanded-pipeline-to-a-file">11.6 Writing the
+Expanded Pipeline to a File</h3>
+<p>Pass <code>to_script</code> to write the expanded pipeline as a T
+source file for inspection or debugging:</p>
+<pre class="t"><code>expand_pipeline(p, to_script = &quot;expanded_pipeline.t&quot;)</code></pre>
+<p>The output file contains the full <code>pipeline { ... }</code>
+definition with all branches unrolled.</p>
+<h3 id="build-and-composition-auto-expand">11.7 Build and Composition
+Auto-Expand</h3>
+<p><code>populate_pipeline()</code>, <code>build_pipeline()</code>,
+<code>chain()</code>, <code>parallel()</code>, <code>union()</code>,
+<code>intersect()</code>, <code>difference()</code>, and
+<code>patch()</code> all automatically expand any unexpanded patterns in
+their pipeline inputs before proceeding. You only need to call
+<code>expand_pipeline()</code> explicitly when you want to inspect the
+branch structure before building.</p>
+<h3 id="lazy-branch-access">11.8 Lazy Branch Access</h3>
+<p>Even before calling <code>expand_pipeline()</code>, you can inspect
+and interact with the branch structure of a patterned pipeline
+directly:</p>
+<p><strong>List branch names</strong> with
+<code>pipeline_nodes(p)</code>:</p>
+<pre class="t"><code>p = pipeline {
+  a = [10, 20, 30]
+  b = map_pattern(a) ~&gt; a * 2
+}
+pipeline_nodes(p)
+-- Result: [&quot;a&quot;, &quot;b_branch_1&quot;, &quot;b_branch_2&quot;, &quot;b_branch_3&quot;]</code></pre>
+<p><strong>Inspect branch structure</strong> with
+<code>inspect_pipeline(p)</code>:</p>
+<pre class="t"><code>inspect_pipeline(p)
+-- DataFrame with one row per branch, including auto-generated branch names</code></pre>
+<p><strong>Access a branch by name</strong> with dot notation —
+<code>p.b_branch_1</code> lazily synthesizes a
+<code>VComputedNode</code> without triggering expansion:</p>
+<pre class="t"><code>b1 = p.b_branch_1
+-- b1 is a computed node that will be resolved when built</code></pre>
+<p><strong>Helpful error on the parent node</strong>: if you try
+<code>read_node(p.b)</code> on a patterned node before building, instead
+of a generic “not built yet” error you get a message listing the
+available branches:</p>
+<pre><code>Error(ValueError): Node `b` has a pattern and expands into b_branch_1, b_branch_2, b_branch_3.
+  Use read_node(p.&lt;branch_name&gt;) to access individual branches directly.</code></pre>
+<p><strong>Reserved naming</strong>: node names ending in
+<code>_branch_N</code> (e.g. <code>x_branch_1</code>) are reserved for
+auto-generated branch nodes. Using such a name at pipeline construction
+produces a <code>NameError</code>.</p>
+<h3 id="complete-example-polyglot-dynamic-branching-pipeline">11.9
+Complete Example: Polyglot Dynamic Branching Pipeline</h3>
+<p>This demo (from <code>t_demos/dynamic_branching_t</code>) combines
+<code>cross_pattern</code>, <code>map_pattern</code>, and cross-runtime
+(T ↔︎ R) serialization into a single end-to-end pipeline. It generates
+spirograph data points in T and plots them with R <code>ggplot2</code> —
+one plot per parameter combination.</p>
+<h4 id="problem">Problem</h4>
+<p>You have a list of radii <code>[3, 5, 8]</code> and
+<code>[2, 4, 6]</code>. You want all 9 combinations of spirograph curves
+drawn as ggplot2 faceted plots. Writing 9 nodes by hand is tedious — use
+pattern branching instead.</p>
+<h4 id="pipeline-definition">Pipeline Definition</h4>
+<pre class="t"><code>p = pipeline {
+  fixed_radii = [3, 5, 8]
+  cycling_radii = [2, 4, 6]
+
+  points = node(
+    command = &lt;{
+      import &quot;src/spirograph.t&quot;
+      spirograph_points(fixed_radii, cycling_radii)
+    }&gt;,
+    pattern = cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii)),
+    runtime = T,
+    serializer = ^json
+  )
+
+  single_plot = node(
+    command = &lt;{ plot_spirographs(points) }&gt;,
+    pattern = map_pattern(points),
+    functions = [&quot;src/spirograph.R&quot;],
+    runtime = R,
+    deserializer = ^json
+  )
+}</code></pre>
+<h4 id="how-it-works">How It Works</h4>
+<ol type="1">
+<li><p><strong><code>cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii))</code></strong>
+— takes the Cartesian product of both lists (3 × 3 = 9). Each branch
+calls <code>spirograph_points(r_fixed, r_cycling)</code> from
+<code>src/spirograph.t</code> with one specific radius pair, returning a
+DataFrame of x, y coordinates.</p></li>
+<li><p><strong><code>serializer = ^json</code></strong> — the
+<code>points</code> node uses the <code>^json</code> symbol serializer
+to write each branch’s DataFrame as a JSON array of records. Without
+this, the R node downstream cannot read the data.</p></li>
+<li><p><strong><code>map_pattern(points)</code></strong> — creates one
+branch per <code>points</code> output (9 branches total). Each branch
+calls <code>plot_spirographs()</code> from
+<code>src/spirograph.R</code>.</p></li>
+<li><p><strong><code>deserializer = ^json</code></strong> — Tells the
+pipeline runner to read the R node’s JSON artifact back so it can be
+cached and inspected.</p></li>
+<li><p><strong><code>^json</code> symbol syntax</strong> — required for
+serializer/deserializer values in cross-runtime pipelines (string
+literals like <code>"json"</code> are not accepted). This is the
+canonical way to declare interchange formats.</p></li>
+</ol>
+<h4 id="the-helper-code">The Helper Code</h4>
+<p><strong><code>src/spirograph.t</code></strong> — a parametric
+spirograph function called by each data branch:</p>
+<pre class="t"><code>spirograph_points = \(fixed_radius, cycling_radius) {
+  num_points = 10000
+  max_t = 30 * pi
+  t_values = float_seq(0, max_t, num_points)
+  diff = fixed_radius - cycling_radius
+  ratio = diff / cycling_radius
+  xs = t_values |&gt; map(\(t) diff * cos(t) + cos(t * ratio))
+  ys = t_values |&gt; map(\(t) diff * sin(t) - sin(t * ratio))
+  to_dataframe([x: xs, y: ys,
+    fixed_radius: fixed_radius,
+    cycling_radius: cycling_radius])
+}</code></pre>
+<p><strong><code>src/spirograph.R</code></strong> — renders a faceted
+ggplot for one parameter combination:</p>
+<div class="sourceCode" id="cb86"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb86-2"><a href="#cb86-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb86-3"><a href="#cb86-3" aria-hidden="true" tabindex="-1"></a>plot_spirographs <span class="ot">&lt;-</span> <span class="cf">function</span>(points) {</span>
+<span id="cb86-4"><a href="#cb86-4" aria-hidden="true" tabindex="-1"></a>  label <span class="ot">&lt;-</span> <span class="st">&quot;fixed_radius = %s, cycling_radius = %s&quot;</span></span>
+<span id="cb86-5"><a href="#cb86-5" aria-hidden="true" tabindex="-1"></a>  points<span class="sc">$</span>parameters <span class="ot">&lt;-</span> <span class="fu">sprintf</span>(label, points<span class="sc">$</span>fixed_radius, points<span class="sc">$</span>cycling_radius)</span>
+<span id="cb86-6"><a href="#cb86-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(points) <span class="sc">+</span></span>
+<span id="cb86-7"><a href="#cb86-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">x =</span> x, <span class="at">y =</span> y, <span class="at">color =</span> parameters), <span class="at">size =</span> <span class="fl">0.1</span>) <span class="sc">+</span></span>
+<span id="cb86-8"><a href="#cb86-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_wrap</span>(<span class="sc">~</span>parameters) <span class="sc">+</span></span>
+<span id="cb86-9"><a href="#cb86-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_gray</span>(<span class="dv">16</span>) <span class="sc">+</span></span>
+<span id="cb86-10"><a href="#cb86-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">color =</span> <span class="st">&quot;none&quot;</span>)</span>
+<span id="cb86-11"><a href="#cb86-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>Note the <code>functions = ["src/spirograph.R"]</code> argument on
+the R node — this propagates the script into the Nix sandbox so it is
+available at build time.</p>
+<h4 id="building">Building</h4>
+<p>When you run <code>build_pipeline(p, verbose = 1)</code>, T
+automatically expands the patterns before building:</p>
+<pre><code>+ points_branch_1 building
++ points_branch_2 building
+...
++ points_branch_9 building
++ single_plot_branch_3 building
++ single_plot_branch_5 building
+...
++ single_plot_branch_1 building
+
+✓ Pipeline build completed [20 built / 20 nodes]</code></pre>
+<p>20 nodes total: 2 root (<code>fixed_radii</code>,
+<code>cycling_radii</code>), 9 data branches, 9 plot branches.</p>
+<h4 id="post-build-verification">Post-Build Verification</h4>
+<p>Since <code>build_pipeline</code> does not modify the original
+pipeline variable <code>p</code>, expanded branch nodes are only visible
+in the build log. Use <code>build_log_to_frame()</code> to inspect
+them:</p>
+<pre class="t"><code>res = build_pipeline(p, verbose = 1)
+
+node_frame = build_log_to_frame(res)
+points_branches = filter(node_frame, \(r) starts_with(r.name, &quot;points&quot;))
+plot_branches = filter(node_frame, \(r) starts_with(r.name, &quot;single_plot&quot;))
+
+assert(nrow(points_branches) == 9, &quot;Expected 9 points branches&quot;)
+assert(nrow(plot_branches) == 9, &quot;Expected 9 single_plot branches&quot;)
+assert(length(res.failed_nodes) == 0, &quot;All nodes should succeed&quot;)</code></pre>
+<p>This pattern — <code>build_log_to_frame(res)</code> +
+<code>filter</code> with a lambda — is the recommended way to verify
+branched pipeline builds when you need to inspect individual expanded
+nodes.</p>
+<h4 id="key-takeaways">Key Takeaways</h4>
+<ul>
+<li><strong><code>cross_pattern(map_pattern(...), map_pattern(...))</code></strong>
+generates a Cartesian product of branches.</li>
+<li><strong>Chaining patterns</strong> (<code>cross_pattern</code> →
+<code>map_pattern</code>) lets you build multi-phase branched
+pipelines.</li>
+<li><strong><code>^json</code> serializer/deserializer</strong> enables
+cross-runtime data interchange between T and R nodes.</li>
+<li><strong>Expanded nodes exist only in the build log</strong>, not in
+the original pipeline variable. Use <code>build_log_to_frame()</code>
+for post-build queries.</li>
+<li><strong>Patterns work with non-T runtimes downstream</strong> — a
+<code>map_pattern</code> node can depend on T data branches and run in R
+(or Python or Julia), as long as serialization is configured
+correctly.</li>
+</ul>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you’ve mastered pipelines, learn how to manage reproducible
+projects and develop T packages:</p>
+<ol type="1">
+<li><strong><a href="project_development.html">Project
+Development</a></strong> — Master T’s project structure and dependency
+management.</li>
+<li><strong><a href="package_development.html">Package
+Development</a></strong> — Create reusable T libraries.</li>
+<li><strong><a href="reproducibility.html">Reproducibility
+Guide</a></strong> — Deep dive into T’s commitment to reproducible
+research.</li>
+<li><strong><a href="api-reference.html">API Reference</a></strong> —
+Complete function reference by package.</li>
+</ol>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

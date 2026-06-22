@@ -37,25 +37,26 @@
 <p>Export Pipeline/MetaPipeline as Mermaid Graph</p>
 <p>Returns a string containing a Mermaid JS flowchart representation of
 the pipeline or metapipeline dependency graph, including node names,
-language runtimes, and execution statuses.</p>
+language runtimes, and execution error status (errored nodes are
+highlighted with a red stroke). You can view the diagram in your browser
+by passing the result to show_plot(). For MetaPipelines, sub-pipelines
+are rendered as Mermaid subgraph blocks by default, providing visual
+grouping of related nodes. Set flatten = true to get a flat diagram.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline|MetaPipeline</code>): The
-pipeline or metapipeline.</li>
-<li><strong>title</strong> (<code>Str</code>, optional): Graph title.
-Auto-detected from the project name in <code>tproject.toml</code> if
-omitted. Renders as Mermaid YAML frontmatter (<code>tlang-title:</code>
-key).</li>
-<li><strong>flatten</strong> (<code>Bool</code>, default
-<code>false</code>): If <code>true</code>, renders meta-pipelines as a
-flat graph instead of grouping sub-pipelines into subgraph blocks.</li>
+<li><p><strong>p</strong> (<code>Pipeline|MetaPipeline</code>): The
+pipeline or metapipeline.</p></li>
+<li><p><strong>flatten</strong> (<code>Bool</code>): = false Flatten
+meta-pipeline subgraphs into a single level.</p></li>
+<li><p><strong>title</strong> (<code>Str</code>): = None Optional graph
+title. Auto-detected from tproject.toml when omitted.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A Mermaid flowchart string.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>pipeline_to_mermaid(p)
-pipeline_to_mermaid(meta, title = &quot;My Graph&quot;)
-pipeline_to_mermaid(meta, flatten = true)</code></pre>
+pipeline_to_mermaid(meta, flatten = true)
+pipeline_to_mermaid(p, title = &quot;My Graph&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="pipeline_to_dot.html">pipeline_to_dot</a></p>
 </div>

@@ -138,8 +138,11 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="
 <p>If you omit the project name (<code>my_analysis</code> in the above
 example), the scaffolding tool will prompt you interactively with some
 questions (your name, the license of the project, the Nixpkgs date, the
-size of the context file for LLM agents, and the pipeline template
-preference) and then will generate a reproducible workspace.</p>
+size of the context file for LLM agents, the pipeline template
+preference, and whether to include the <strong>Atelier</strong> TUI IDE)
+and then will generate a reproducible workspace. You can also pass
+<code>--include-atelier</code> to skip the prompt and enable Atelier
+unconditionally.</p>
 <p>For your very first T project, we highly recommend selecting the
 <code>full</code> pipeline template. Having the self-contained
 cheatsheet directly in <code>src/pipeline.t</code> makes it much faster

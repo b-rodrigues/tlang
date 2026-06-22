@@ -1,6 +1,4 @@
 open Ast
-open Pipeline_utils
-
 (*
 --# Garbage Collect Pipeline Nodes
 --#
@@ -16,15 +14,6 @@ open Pipeline_utils
 --# @export
 --*)
 let register env =
-  let get_arg name pos default named_args =
-    match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
-    | Some v -> (true, v)
-    | None ->
-        let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-        match nth_safe (pos - 1) positionals with
-        | Some v -> (true, v)
-        | None -> (false, default)
-  in
   let gc_fn named_args _env =
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
@@ -35,9 +24,9 @@ let register env =
         Error.make_error ArityError
           (Printf.sprintf "Function `pipeline_gc` accepts at most 2 positional arguments but received %d." positional_count)
     | None ->
-      match get_arg "p" 1 (VNA NAGeneric) named_args with
+      match Pipeline_args.get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
-          let (_, dry_run_val) = get_arg "dry_run" 2 (VBool false) named_args in
+          let (_, dry_run_val) = Pipeline_args.get_arg "dry_run" 2 (VBool false) named_args in
           (match dry_run_val with
            | VBool dry_run ->
                (match Builder.populate_pipeline ~build:false p with

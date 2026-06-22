@@ -34,28 +34,20 @@
 </nav>
 <div class="container">
 <h1 id="show_plot">show_plot</h1>
-<p>Render a visualization and open it locally</p>
-<p>Accepts a pipeline or meta-pipeline (renders the DAG as an
-interactive Mermaid diagram in the browser), a Mermaid diagram string
-(renders directly), or a plot-producing node (renders the plot
-artifact).</p>
+<p>Render a plot node and open it locally</p>
+<p>Builds or reuses an R/Python/Julia plot artifact, renders it into
+<code>_pipeline/</code>, and opens the rendered image with the command
+configured in <code>tproject.toml</code> under
+<code>[visualization-tool]</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>plot</strong> (<code>Any</code>): A pipeline node, built
-node, <code>read_node()</code> result for a plot-producing node, a
-<code>Pipeline</code>/<code>MetaPipeline</code> (DAG visualization), or
-a Mermaid string.</li>
+node, or <code>read_node()</code> result for a plot-producing node.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The local rendered image path for plot nodes; the Mermaid HTML path
-for DAG/string inputs.</p>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>show_plot(p)                       -- render pipeline as interactive Mermaid DAG
-show_plot(pipeline_to_mermaid(p))  -- render Mermaid string directly
-show_plot(p.my_plot_node)          -- render a plot artifact</code></pre>
+<p>The local rendered image path.</p>
 <h2 id="see-also">See Also</h2>
 <p><a href="build_pipeline.html">build_pipeline</a>, <a
-href="pipeline_to_mermaid.html">pipeline_to_mermaid</a>, <a
 href="read_node.html">read_node</a></p>
 </div>
 <footer>

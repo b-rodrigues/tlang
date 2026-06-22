@@ -36,27 +36,17 @@
 <h1 id="read_pipeline">read_pipeline</h1>
 <p>Read Pipeline Metadata</p>
 <p>Returns a dictionary describing a materialized in-memory pipeline,
-including per-node diagnostics and the aggregated diagnostics summary.
-The diagnostics summary counts own warnings only (not upstream-inherited
-ones), so the count reflects which nodes originally produced
-warnings.</p>
-<p>After <code>build_pipeline(p)</code>, diagnostics include upstream
-warnings inherited from ancestor nodes, available via
-<code>warning_msg()</code> or <code>inspect_node()</code>.</p>
+including per-node diagnostics and the aggregated diagnostics
+summary.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
 inspect.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A dictionary with <code>nodes</code> and <code>diagnostics</code>
-keys. The <code>diagnostics.summary</code> field gives a high-level
-count. Use <code>warning_msg()</code> on individual nodes for full
-warning details including upstream provenance.</p>
+<p>A dictionary with node metadata and diagnostics.</p>
 <h2 id="see-also">See Also</h2>
-<p><a href="warning_msg.html">warning_msg</a>, <a
-href="inspect_node.html">inspect_node</a>, <a
-href="explain.html">explain</a>, <a
+<p><a href="explain.html">explain</a>, <a
 href="read_node.html">read_node</a></p>
 </div>
 <footer>

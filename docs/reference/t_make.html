@@ -34,13 +34,28 @@
 </nav>
 <div class="container">
 <h1 id="t_make">t_make</h1>
-<p>Build Pipeline Internally</p>
-<p>Builds the <code>src/pipeline.t</code> pipeline entrypoint.</p>
+<p>Build and run a pipeline file</p>
+<p>Reads, parses, evaluates and builds a T pipeline file. This is a
+high-level build orchestrator often used from the CLI (repl) to trigger
+a full project build. It supports a single dictionary argument for Nix
+specific build options. <code>src/pipeline.t</code> must call
+<code>populate_pipeline(...)</code> or <code>build_pipeline(...)</code>.
+If it only calls <code>populate_pipeline(...)</code> without
+<code>build=true</code>, <code>t_make()</code> emits a warning and
+continues after populating the pipeline.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>filename</strong> (<code>String</code>): (Optional) The
-pipeline build script path. Must be <code>src/pipeline.t</code>.</li>
+<li><p><strong>filename</strong> (<code>String</code>): The pipeline
+file path. Must be <code>src/pipeline.t</code>.</p></li>
+<li><p><strong>nix_options</strong> (<code>Dict</code>): (Optional) A
+dictionary of Nix orchestration options:</p></li>
+<li><p><strong>verbose</strong> (<code>Int</code>): The Nix build
+verbosity level. <code>0</code> is quiet; values &gt; 0 enable internal
+node failure logs.</p></li>
+<li><p><strong>failfast</strong> (<code>Bool</code>): Whether to stop
+immediately on evaluation errors (defaults to false).</p></li>
 </ul>
+<h2 id="returns">Returns</h2>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

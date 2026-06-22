@@ -1210,7 +1210,132 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                     | Some s -> Ok (Some [s])
                     | None -> deps_type_error ()))
         in
-        let lookup_runtime_args () =
+        let lookup_pattern () =
+          match List.assoc_opt (Some "pattern") args with
+          | None -> Ok None
+          | Some pattern_expr_ast ->
+              let extract_dep_name expr =
+                match expr.node with
+                | Var s -> Some s
+                | Value (VString s) | Value (VSymbol s) ->
+                    if String.starts_with ~prefix:"^" s then
+                      Some (String.sub s 1 (String.length s - 1))
+                    else Some s
+                | _ -> None
+              in
+              let rec parse_pattern ast =
+                match ast.node with
+                | Call { fn = { node = Var "map_pattern"; _ }; args = call_args } ->
+                    let rec extract_deps = function
+                      | [] -> Ok []
+                      | (_, arg_expr) :: rest ->
+                          (match extract_dep_name arg_expr with
+                           | Some name ->
+                               (match extract_deps rest with
+                                | Ok deps -> Ok (name :: deps)
+                                | Error _ as err -> err)
+                           | None ->
+                               Error (Error.type_error "map_pattern expects node name symbols or strings"))
+                    in
+                    (match extract_deps call_args with
+                     | Ok deps ->
+                         if deps <> [] then Ok (PatternMap deps)
+                         else Error (Error.value_error "map_pattern requires at least one dependency")
+                     | Error _ as err -> err)
+
+                 | Call { fn = { node = Var "cross_pattern"; _ }; args = call_args } ->
+                    let rec extract_subs = function
+                      | [] -> Ok []
+                      | (_, arg_expr) :: rest ->
+                          (match parse_pattern arg_expr with
+                           | Ok sub ->
+                               (match extract_subs rest with
+                                | Ok subs -> Ok (sub :: subs)
+                                | Error _ as err -> err)
+                           | Error _ as err -> err)
+                    in
+                    (match extract_subs call_args with
+                     | Ok subs when List.length subs >= 2 -> Ok (PatternCross subs)
+                     | Ok _ -> Error (Error.value_error "cross_pattern requires at least two sub-patterns")
+                     | Error _ as err -> err)
+                | Call { fn = { node = Var "slice_pattern"; _ }; args = call_args } ->
+                    (match call_args with
+                     | [ (_, dep_expr); (_, list_expr) ] ->
+                         (match extract_dep_name dep_expr with
+                          | Some dep ->
+                              let rec extract_ints = function
+                                | [] -> Ok []
+                                | (_, item_expr) :: rest ->
+                                    (match item_expr.node with
+                                     | Value (VInt i) ->
+                                         (match extract_ints rest with
+                                          | Ok ints -> Ok (i :: ints)
+                                          | Error _ as err -> err)
+                                     | _ -> Error (Error.type_error "slice_pattern expects a list of integer indices"))
+                              in
+                              (match list_expr.node with
+                               | ListLit items ->
+                                   (match extract_ints items with
+                                   | Ok ints ->
+                                       if ints <> [] then Ok (PatternSlice (dep, ints))
+                                       else Error (Error.value_error "slice_pattern requires at least one index")
+                                   | Error _ as err -> err)
+                               | _ -> Error (Error.type_error "slice_pattern expects a list of integer indices as the second argument"))
+                          | None -> Error (Error.type_error "slice_pattern expects a dependency name as the first argument"))
+                     | _ -> Error (Error.arity_error_named "slice_pattern" 2 (List.length call_args)))
+                 | Call { fn = { node = Var "head_pattern"; _ }; args = call_args } ->
+                     (match call_args with
+                      | [ (_, dep_expr); (_, n_expr) ] ->
+                          (match extract_dep_name dep_expr, n_expr.node with
+                           | Some dep, Value (VInt n) when n > 0 -> Ok (PatternHead (dep, n))
+                           | Some _, Value (VInt n) -> Error (Error.value_error (Printf.sprintf "head_pattern requires a positive count, got %d" n))
+                           | _ -> Error (Error.type_error "head_pattern expects a dependency name and an integer count"))
+                      | _ -> Error (Error.arity_error_named "head_pattern" 2 (List.length call_args)))
+                 | Call { fn = { node = Var "tail_pattern"; _ }; args = call_args } ->
+                     (match call_args with
+                      | [ (_, dep_expr); (_, n_expr) ] ->
+                          (match extract_dep_name dep_expr, n_expr.node with
+                           | Some dep, Value (VInt n) when n > 0 -> Ok (PatternTail (dep, n))
+                           | Some _, Value (VInt n) -> Error (Error.value_error (Printf.sprintf "tail_pattern requires a positive count, got %d" n))
+                           | _ -> Error (Error.type_error "tail_pattern expects a dependency name and an integer count"))
+                      | _ -> Error (Error.arity_error_named "tail_pattern" 2 (List.length call_args)))
+                 | Call { fn = { node = Var "sample_pattern"; _ }; args = call_args } ->
+                     (match call_args with
+                      | [ (_, dep_expr); (_, n_expr) ] ->
+                          (match extract_dep_name dep_expr, n_expr.node with
+                           | Some dep, Value (VInt n) when n > 0 -> Ok (PatternSample (dep, n))
+                           | Some _, Value (VInt n) -> Error (Error.value_error (Printf.sprintf "sample_pattern requires a positive count, got %d" n))
+                           | _ -> Error (Error.type_error "sample_pattern expects a dependency name and an integer count"))
+                      | _ -> Error (Error.arity_error_named "sample_pattern" 2 (List.length call_args)))
+                | other ->
+                    Error (Error.type_error
+                      (Printf.sprintf "Unsupported pattern= value: expected map_pattern(...), cross_pattern(...), slice_pattern(...), head_pattern(...), tail_pattern(...), or sample_pattern(...), got: %s"
+                         (Nix_unparse.expr_to_string (Ast.mk_expr other))))
+              in
+               (match parse_pattern pattern_expr_ast with
+                | Ok pat -> Ok (Some pat)
+                | Error _ as err -> err)
+         in
+         let lookup_iteration () =
+           match List.assoc_opt (Some "iteration") args with
+           | None -> Ok "vector"
+            | Some { node = Value ((VString ("vector" | "list") | VSymbol ("vector" | "list")) as v); _ } ->
+               Ok (match v with VString s -> s | VSymbol s -> s | _ -> "vector")
+           | Some { node = Value (VString bad | VSymbol bad); _ } ->
+               Error (Error.value_error
+                 (Printf.sprintf "Function `%s` invalid iteration value \"%s\". Expected \"vector\" or \"list\"." fn_name bad))
+           | Some e ->
+               (match eval_expr env_ref e with
+                | (VString ("vector" | "list") | VSymbol ("vector" | "list")) as v ->
+                    Ok (match v with VString s -> s | VSymbol s -> s | _ -> "vector")
+                | VString bad | VSymbol bad ->
+                    Error (Error.value_error
+                      (Printf.sprintf "Function `%s` invalid iteration value \"%s\". Expected \"vector\" or \"list\"." fn_name bad))
+                | other ->
+                    Error (Error.type_error
+                      (Printf.sprintf "Function `%s` expects `iteration` to be a String or Symbol, got %s." fn_name (Ast.Utils.type_name other))))
+         in
+         let lookup_runtime_args () =
           let rec is_arg_value ~allow_list = function
             | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNA _ -> true
             | VList items when allow_list ->
@@ -1268,9 +1393,9 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       in
       let shell_args = lookup_list "shell_args" in
       let command = lookup_arg "command" (vexpr ((VNA NAGeneric))) in
-      (match lookup_env_vars (), lookup_runtime_args (), lookup_dependencies () with
-      | Error err, _, _ | _, Error err, _ | _, _, Error err -> err
-      | Ok un_env_vars, Ok un_args, Ok un_dependencies ->
+      (match lookup_env_vars (), lookup_runtime_args (), lookup_dependencies (), lookup_pattern (), lookup_iteration () with
+      | Error err, _, _, _, _ | _, Error err, _, _, _ | _, _, Error err, _, _ | _, _, _, Error err, _ | _, _, _, _, Error err -> err
+      | Ok un_env_vars, Ok un_args, Ok un_dependencies, Ok un_pattern, Ok un_iteration ->
           let arg_path_opt =
             let find_path key =
               match List.assoc_opt key un_args with
@@ -1346,7 +1471,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                     if already_included then base_includes else base_includes @ [vexpr (VString p)]
                 | _ -> base_includes
               in
-              if runtime = "Quarto" && un_script = None then
+               if runtime = "Quarto" && un_script = None then
                 Error.make_error TypeError
                   "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
               else if runtime <> "T" && runtime <> "Quarto" then
@@ -1363,6 +1488,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
+                      un_pattern;
+                      un_iteration;
                     }
                 | Value (VString _) | Value (VSymbol _) | Value ((VNA NAGeneric)) when runtime = "sh" ->
                     VNode {
@@ -1376,6 +1503,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
+                      un_pattern;
+                      un_iteration;
                     }
                 | _ when Option.is_some un_script ->
                     VNode {
@@ -1389,6 +1518,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
+                      un_pattern;
+                      un_iteration;
                     }
                 | _ ->
                     let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, .sh, or .qmd file." runtime in
@@ -1405,6 +1536,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_includes;
                   un_noop = eval_bool "noop" false;
                   un_dependencies;
+                  un_pattern;
+                  un_iteration;
                 }
 )
     | Call { fn; args } ->
@@ -1435,12 +1568,14 @@ and eval_block env_ref stmts =
         env_ref := new_env;
         v
     | stmt :: rest ->
-        let (v, new_env) = eval_statement !env_ref stmt in
+        let old_env = !env_ref in
+        let (v, new_env) = eval_statement old_env stmt in
         env_ref := new_env;
         (match stmt.node, v with
-         | (Assignment _ | Reassignment _), VError _ -> loop () rest
-         | _, VError _ -> v
-         | _ -> loop () rest)
+          | (Assignment _ | Reassignment _), VError _ when new_env == old_env -> v
+          | (Assignment _ | Reassignment _), VError _ -> loop () rest
+          | _, VError _ -> v
+          | _ -> loop () rest)
   in
   loop () stmts
 
@@ -1575,6 +1710,25 @@ and eval_pipeline_of env_ref (nodes : (string * Ast.expr) list) : value =
 
 (** Evaluate a pipeline definition *)
 and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : value =
+  (match List.find_opt (fun (name, _) ->
+    let parts = String.split_on_char '_' name in
+    List.length parts >= 3
+    && List.nth parts (List.length parts - 2) = "branch"
+    && let last = List.nth parts (List.length parts - 1) in
+       String.length last > 0
+       && String.for_all (fun c -> c >= '0' && c <= '9') last
+  ) nodes with
+  | Some (bad_name, _) ->
+    Error.make_error NameError
+      (Printf.sprintf "Node name `%s` ends with `_branch_N` which is reserved for auto-generated branch nodes from pattern expansion. Choose a different name." bad_name)
+  | None ->
+  (match List.find_opt (fun (n, _) ->
+    List.length (List.filter (fun (n', _) -> n' = n) nodes) > 1
+  ) nodes with
+  | Some (dup_name, _) ->
+    Error.make_error NameError
+      (Printf.sprintf "Duplicate node name `%s` in pipeline." dup_name)
+  | None ->
   let rec substitute_env_vars env node_names expr =
     let sub = substitute_env_vars env node_names in
     let new_node = match expr.node with
@@ -1641,6 +1795,26 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     un_includes = [];
     un_noop = false;
     un_dependencies = None;
+    un_pattern = None;
+    un_iteration = "vector";
+  } in
+
+  let wrap_computed_node cn = {
+    un_command = vexpr (VComputedNode cn);
+    un_script = None;
+    un_runtime = cn.cn_runtime;
+    un_serializer = vexpr (VString cn.cn_serializer);
+    un_deserializer = varexpr "default";
+    un_env_vars = [];
+    un_args = [];
+    un_shell = None;
+    un_shell_args = [];
+    un_functions = [];
+    un_includes = [];
+    un_noop = false;
+    un_dependencies = None;
+    un_pattern = None;
+    un_iteration = "vector";
   } in
 
   (* Desugar nodes into enriched structures with defaults.
@@ -1648,39 +1822,54 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
      (e.g. `p = pipeline { data = data_node }`) are correctly imported.
      If a NameError occurs (e.g. `b = a` referencing an undefined sibling `a`), 
      we catch it and defer it as an unbuilt node so pipeline topological
-     sorting can resolve it as an internal dependency. *)
-  let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
+     sorting can resolve it as an internal dependency.
+
+     node_when/node_fork are handled BEFORE the generic node-call path so
+     that errors in their condition expressions (including NameError from
+     typos in condition references) propagate immediately rather than being
+     misinterpreted as forward-references to sibling nodes. *)
+  let desugar_node (name, node_expr) : (string * Ast.unbuilt_node option, value) result =
     let node_names = List.map fst nodes in
     let node_expr = substitute_env_vars !env_ref node_names node_expr in
-    let is_node_call = match node_expr.node with
-      | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
-      | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
-      | _ -> false
+    (* node_when/node_fork — resolve conditions at construction time;
+       any VError (including NameError) propagates immediately. *)
+    let when_fork_fn_name = match node_expr.node with
+      | Call { fn = { node = Var ("node_when" | "node_fork" as n); _ }; _ } -> Some n
+      | _ -> None
     in
-    if is_node_call then
-      match eval_expr env_ref node_expr with
-      | VNode un -> Ok (name, un)
-      | VComputedNode cn ->
-          Ok (name, {
-            un_command = vexpr (VComputedNode cn);
-            un_script = None;
-            un_runtime = cn.cn_runtime;
-            un_serializer = vexpr (VString cn.cn_serializer);
-            un_deserializer = varexpr "default";
-            un_env_vars = [];
-            un_args = [];
-            un_shell = None;
-            un_shell_args = [];
-            un_functions = [];
-            un_includes = [];
-            un_noop = false;
-            un_dependencies = None;
-          })
-      | VError { code = NameError; _ } -> Ok (name, default_un node_expr)
-      | VError _ as e -> Error e
-      | _ -> Ok (name, default_un node_expr)
-    else
-      Ok (name, default_un node_expr)
+    match when_fork_fn_name with
+    | Some fn_name ->
+        (match eval_expr env_ref node_expr with
+         | VNode un -> Ok (name, Some un)
+         | VNullNode -> Ok (name, None)
+         | VComputedNode cn -> Ok (name, Some (wrap_computed_node cn))
+         | VError _ as e ->
+             let annotated = match e with
+               | VError err when not (List.mem_assoc "node_name" err.context) ->
+                   VError { err with context = ("node_name", VString name) :: err.context }
+               | _ -> e
+             in
+             Error annotated
+         | other ->
+             Error (Error.type_error
+               (Printf.sprintf "Function `%s` must return a Node value, got %s."
+                  fn_name (Ast.Utils.type_name other))))
+    | None ->
+        let is_node_call = match node_expr.node with
+          | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
+          | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
+          | _ -> false
+        in
+        if is_node_call then
+          match eval_expr env_ref node_expr with
+          | VNode un -> Ok (name, Some un)
+          | VNullNode -> Ok (name, None)
+          | VComputedNode cn -> Ok (name, Some (wrap_computed_node cn))
+          | VError { code = NameError; _ } -> Ok (name, Some (default_un node_expr))
+          | VError _ as e -> Error e
+          | _ -> Ok (name, Some (default_un node_expr))
+        else
+          Ok (name, Some (default_un node_expr))
   in
 
   let rec desugar_all acc = function
@@ -1688,7 +1877,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     | node :: rest ->
         (match desugar_node node with
          | Error err -> Error err
-         | Ok res -> desugar_all (res :: acc) rest)
+         | Ok (name, Some un) -> desugar_all ((name, un) :: acc) rest
+         | Ok (_, None) -> desugar_all acc rest)
   in
 
   match desugar_all [] nodes with
@@ -1819,7 +2009,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
         { Ast.un_command = Ast.mk_expr (Ast.Value (VNA NAGeneric)); un_script = None; un_runtime = "T";
           un_serializer = Ast.mk_expr (Ast.Var "default"); un_deserializer = Ast.mk_expr (Ast.Var "default");
           un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
-          un_functions = []; un_includes = []; un_noop = false; un_dependencies = None } in
+          un_functions = []; un_includes = []; un_noop = false; un_dependencies = None;
+          un_pattern = None; un_iteration = "vector" } in
       let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
       let (v, own_warnings) = capture_node_warnings (fun () -> eval_or_defer name un current_env_ref) in
       let node_diagnostics =
@@ -1862,9 +2053,13 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       p_scripts = List.map (fun (name, un) -> (name, un.un_script)) desugared_nodes;
       p_explicit_deps = List.map (fun (name, un) -> (name, un.un_dependencies)) desugared_nodes;
       p_node_diagnostics;
+      p_has_patterns = List.exists (fun (_, un) -> Option.is_some un.un_pattern) desugared_nodes;
+      p_patterns = List.filter_map (fun (name, un) -> match un.un_pattern with Some p -> Some (name, p) | None -> None) desugared_nodes;
+      p_iterations = List.map (fun (name, un) -> (name, un.un_iteration)) desugared_nodes;
     } in
     result
   end
+  ))
 
 (** Deserialize dependencies for a node during eager evaluation.
     Resolves deserialization strategy from the node's deserializer expression,
@@ -1907,6 +2102,10 @@ and deserialize_deps_for_node env ~deserializer ~node_name deps =
 
 (** Re-run a pipeline *)
 and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_result) : value =
+  if prev.p_has_patterns then
+    Error.make_error StructuralError
+      "Pipeline contains unexpanded dynamic branching patterns. Use expand_pipeline(p) to resolve branches before rerunning/building. See help(expand_pipeline) for details."
+  else
   let node_names = List.map fst prev.p_exprs in
   let desugared_nodes = List.map (fun (name, expr) ->
     (name, {
@@ -1923,6 +2122,8 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
       un_includes = (match List.assoc_opt name prev.p_includes with Some i -> i | None -> []);
       un_noop = (match List.assoc_opt name prev.p_noops with Some b -> b | None -> false);
       un_dependencies = (match List.assoc_opt name prev.p_explicit_deps with Some d -> d | None -> None);
+      un_pattern = (match List.assoc_opt name prev.p_patterns with Some p -> Some p | None -> None);
+      un_iteration = (match List.assoc_opt name prev.p_iterations with Some it -> it | None -> "vector");
     })
   ) prev.p_exprs in
 
@@ -1956,7 +2157,8 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
         { Ast.un_command = Ast.mk_expr (Ast.Value (VNA NAGeneric)); un_script = None; un_runtime = "T";
           un_serializer = Ast.mk_expr (Ast.Var "default"); un_deserializer = Ast.mk_expr (Ast.Var "default");
           un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
-          un_functions = []; un_includes = []; un_noop = false; un_dependencies = None } in
+          un_functions = []; un_includes = []; un_noop = false; un_dependencies = None;
+          un_pattern = None; un_iteration = "vector" } in
       let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
       let deps_changed = List.exists (fun d -> List.mem d changed) node_deps in
       let fv = free_vars un.un_command in
@@ -2241,6 +2443,229 @@ and eval_dot_access env_ref target_expr field =
       | _ -> eval_dot_access_val env_ref (Utils.unwrap_value target_val) field)
   | _ -> eval_dot_access_val env_ref target_val field
 
+and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field : string) : value option =
+  let parse_branch_suffix s =
+    let branch_marker = "_branch_" in
+    let bm_len = String.length branch_marker in
+    let s_len = String.length s in
+    let rec find_marker pos =
+      if pos < 0 then None
+      else if String.sub s pos bm_len = branch_marker then
+        let orig = String.sub s 0 pos in
+        let suffix = String.sub s (pos + bm_len) (s_len - pos - bm_len) in
+        (match int_of_string_opt suffix with
+         | Some n when n > 0 -> Some (orig, n)
+         | _ -> None)
+      else find_marker (pos - 1)
+    in
+    find_marker (s_len - bm_len)
+  in
+  let rec eval_dep_len dep =
+    let from_expr =
+      match List.assoc_opt dep p.Ast.p_exprs with
+      | Some expr ->
+          (try
+             match eval_expr (ref env) expr with
+             | Ast.VList items -> Some (List.length items)
+             | Ast.VVector arr -> Some (Array.length arr)
+             | Ast.VDataFrame df -> Some (Arrow_table.num_rows df.Ast.arrow_table)
+             | _ -> None
+           with _ -> None)
+      | None -> None
+    in
+    match from_expr with
+    | Some _ -> from_expr
+    | None ->
+        (match List.assoc_opt dep p.Ast.p_patterns with
+         | Some pattern ->
+             (match pattern with
+              | Ast.PatternMap deps ->
+                  (match deps with
+                   | _ :: _ ->
+                       let lens = List.filter_map eval_dep_len deps in
+                       (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                   | _ -> None)
+              | Ast.PatternCross subs ->
+                  let sub_lengths = List.filter_map (fun sub ->
+                    match sub with
+                    | Ast.PatternMap sub_deps ->
+                        let lens = List.filter_map eval_dep_len sub_deps in
+                        (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                    | _ -> None
+                  ) subs in
+                  if List.length sub_lengths <> List.length subs then None
+                  else Some (List.fold_left ( * ) 1 sub_lengths)
+              | Ast.PatternSlice (_, indices) -> Some (List.length indices)
+              | Ast.PatternHead (d, n) | Ast.PatternTail (d, n) | Ast.PatternSample (d, n) ->
+                  (match eval_dep_len d with
+                   | Some len -> Some (min n len)
+                   | None -> None))
+         | None -> None)
+  in
+  let eval_dep_at_index dep index =
+    match List.assoc_opt dep p.Ast.p_exprs with
+    | Some expr ->
+        (try
+           match eval_expr (ref env) expr with
+           | Ast.VList items ->
+               if index >= 0 && index < List.length items then snd (List.nth items index)
+               else Ast.VNA Ast.NAGeneric
+           | Ast.VVector arr ->
+               if index >= 0 && index < Array.length arr then Array.get arr index
+               else Ast.VNA Ast.NAGeneric
+           | Ast.VDataFrame df ->
+               let n = Arrow_table.num_rows df.Ast.arrow_table in
+               if index >= 0 && index < n then
+                 Ast.VDataFrame { df with Ast.arrow_table = Arrow_table.slice df.Ast.arrow_table index 1 }
+               else Ast.VNA Ast.NAGeneric
+           | _ -> Ast.VNA Ast.NAGeneric
+         with _ -> Ast.VNA Ast.NAGeneric)
+    | None -> Ast.VNA Ast.NAGeneric
+  in
+  let mk_cn orig_name =
+    let cn_runtime = match List.assoc_opt orig_name p.Ast.p_runtimes with Some r -> r | None -> "T" in
+    let cn_serializer = match List.assoc_opt orig_name p.Ast.p_serializers with
+      | Some e -> Nix_unparse.expr_to_string e | None -> "default"
+    in
+    let cn_dependencies = match List.assoc_opt orig_name p.Ast.p_deps with Some d -> d | None -> [] in
+    Some (Ast.VComputedNode {
+      Ast.cn_name = field;
+      Ast.cn_runtime;
+      Ast.cn_path = "<unbuilt>";
+      Ast.cn_serializer;
+      Ast.cn_class = "Unknown";
+      Ast.cn_dependencies;
+      Ast.cn_p_exprs = Some p.Ast.p_exprs;
+    })
+  in
+  match parse_branch_suffix field with
+  | Some (orig_name, branch_num) ->
+      (match List.assoc_opt orig_name p.Ast.p_patterns with
+       | Some pattern ->
+            let validate_deps deps index =
+              let concrete = List.filter (fun d -> List.mem_assoc d p.Ast.p_exprs) deps in
+              let dep_values = List.map (fun dep -> eval_dep_at_index dep index) concrete in
+              if List.exists (fun v -> match v with Ast.VNA _ -> true | _ -> false) dep_values then None
+              else mk_cn orig_name
+           in
+           (match pattern with
+            | Ast.PatternMap deps ->
+                (match deps with
+                 | dep :: _ ->
+                     (match eval_dep_len dep with
+                      | Some len when branch_num <= len ->
+                          validate_deps deps (branch_num - 1)
+                      | _ -> None)
+                 | _ -> None)
+            | Ast.PatternCross subs ->
+                let sub_lengths = List.filter_map (fun sub ->
+                  match sub with
+                  | Ast.PatternMap deps ->
+                      let lens = List.filter_map eval_dep_len deps in
+                      (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                  | _ -> None
+                ) subs in
+                if List.length sub_lengths <> List.length subs then None
+                else
+                  let total = List.fold_left ( * ) 1 sub_lengths in
+                  if branch_num <= total then mk_cn orig_name else None
+            | Ast.PatternSlice (dep, indices) ->
+                if branch_num <= List.length indices then
+                  validate_deps [dep] (List.nth indices (branch_num - 1))
+                else None
+            | Ast.PatternHead (dep, n) ->
+                (match eval_dep_len dep with
+                 | Some len when branch_num <= min n len ->
+                     validate_deps [dep] (branch_num - 1)
+                 | _ -> None)
+            | Ast.PatternTail (dep, n) ->
+                (match eval_dep_len dep with
+                 | Some len when branch_num <= min n len ->
+                     let offset = max 0 (len - n) in
+                     validate_deps [dep] (offset + branch_num - 1)
+                 | _ -> None)
+            | Ast.PatternSample (dep, n) ->
+                (* Note: positional index (branch_num - 1), not Fisher-Yates shuffle.
+                   The actual sampled value on expansion may differ — that's fine for
+                   validation/display; the full shuffle happens in pipeline_expand.ml. *)
+                (match eval_dep_len dep with
+                 | Some len when branch_num <= min n len ->
+                     validate_deps [dep] (branch_num - 1)
+                 | _ -> None))
+       | None -> None)
+  | _ -> None
+
+and pattern_branch_names_for_error p field pattern =
+  let rec eval_dep_len dep =
+    let from_expr =
+      match List.assoc_opt dep p.Ast.p_exprs with
+      | Some expr ->
+          (try
+             match eval_expr (ref Ast.Env.empty) expr with
+             | Ast.VList items -> Some (List.length items)
+             | Ast.VVector arr -> Some (Array.length arr)
+             | Ast.VDataFrame df -> Some (Arrow_table.num_rows df.Ast.arrow_table)
+             | _ -> None
+           with _ -> None)
+      | None -> None
+    in
+    match from_expr with
+    | Some _ -> from_expr
+    | None ->
+        (match List.assoc_opt dep p.Ast.p_patterns with
+         | Some pattern ->
+             (match pattern with
+              | Ast.PatternMap deps ->
+                  (match deps with
+                   | _ :: _ ->
+                       let lens = List.filter_map eval_dep_len deps in
+                       (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                   | _ -> None)
+              | Ast.PatternCross subs ->
+                  let sub_lengths = List.filter_map (fun sub ->
+                    match sub with
+                    | Ast.PatternMap sub_deps ->
+                        let lens = List.filter_map eval_dep_len sub_deps in
+                        (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+                    | _ -> None
+                  ) subs in
+                  if List.length sub_lengths <> List.length subs then None
+                  else Some (List.fold_left ( * ) 1 sub_lengths)
+              | Ast.PatternSlice (_, indices) -> Some (List.length indices)
+              | Ast.PatternHead (d, n) | Ast.PatternTail (d, n) | Ast.PatternSample (d, n) ->
+                  (match eval_dep_len d with
+                   | Some len -> Some (min n len)
+                   | None -> None))
+         | None -> None)
+  in
+  let branch_count =
+    match pattern with
+    | Ast.PatternMap deps ->
+        (match deps with
+         | [dep] -> eval_dep_len dep
+         | _ -> None)
+    | Ast.PatternCross subs ->
+        let sub_lengths = List.filter_map (fun sub ->
+          match sub with
+          | Ast.PatternMap deps ->
+              let lens = List.filter_map eval_dep_len deps in
+              (match lens with [] -> None | _ -> Some (List.fold_left min max_int lens))
+          | _ -> None
+        ) subs in
+        if List.length sub_lengths <> List.length subs then None
+        else Some (List.fold_left ( * ) 1 sub_lengths)
+    | Ast.PatternSlice (_, indices) -> Some (List.length indices)
+    | Ast.PatternHead (dep, n) | Ast.PatternTail (dep, n) | Ast.PatternSample (dep, n) ->
+        (match eval_dep_len dep with
+         | Some len -> Some (min n len)
+         | None -> None)
+  in
+  match branch_count with
+  | Some count ->
+      let branches = List.init count (fun i -> field ^ "_branch_" ^ string_of_int (i + 1)) in
+      Some branches
+  | None -> None
+
 and get_pipeline_member p field =
   let resolved_cn p cn =
     match Hashtbl.find_opt Ast.pipeline_build_logs p.p_exprs with
@@ -2278,16 +2703,40 @@ and get_pipeline_member p field =
            if is_noop then
              Some (VSymbol (Printf.sprintf "<noop:%s>" field))
            else
-              Some (VComputedNode (resolved_cn p {
-                cn_name = field;
-                cn_runtime;
-                cn_path = "<unbuilt>";
-                cn_serializer;
-                cn_class = "Unknown";
-                cn_dependencies;
-                cn_p_exprs = Some p.p_exprs;
-              }))
-       | None -> None)
+               Some (VComputedNode (resolved_cn p {
+                 cn_name = field;
+                 cn_runtime;
+                 cn_path = "<unbuilt>";
+                 cn_serializer;
+                 cn_class = "Unknown";
+                 cn_dependencies;
+                 cn_p_exprs = Some p.p_exprs;
+               }))
+        | None ->
+            (* Check if this is a patterned node that expands into branches *)
+            (match List.assoc_opt field p.p_patterns with
+             | Some pattern ->
+                 let pattern_str = match pattern with
+                   | Ast.PatternMap deps -> "map_pattern(" ^ String.concat ", " deps ^ ")"
+                   | Ast.PatternCross _ -> "cross_pattern(...)"
+                   | Ast.PatternSlice (dep, indices) ->
+                       "slice_pattern(" ^ dep ^ ", [" ^ String.concat ", " (List.map string_of_int indices) ^ "])"
+                   | Ast.PatternHead (dep, n) -> "head_pattern(" ^ dep ^ ", " ^ string_of_int n ^ ")"
+                   | Ast.PatternTail (dep, n) -> "tail_pattern(" ^ dep ^ ", " ^ string_of_int n ^ ")"
+                   | Ast.PatternSample (dep, n) -> "sample_pattern(" ^ dep ^ ", " ^ string_of_int n ^ ")"
+                 in
+                 (match pattern_branch_names_for_error p field pattern with
+                  | Some branches ->
+                      Some (Error.make_error ValueError
+                        (Printf.sprintf "Node `%s` has pattern %s and expands into %s.\n\
+                          Use read_node(p.<branch_name>) to access individual branches directly."
+                          field pattern_str (String.concat ", " branches)))
+                  | None ->
+                      Some (Error.make_error ValueError
+                        (Printf.sprintf "Node `%s` has pattern %s.\n\
+                          Build the pipeline first, or use expand_pipeline(p) and access individual branches."
+                          field pattern_str)))
+              | None -> None))
 
 and pipeline_get_node_value _env_ref p field =
   match get_pipeline_member p field with
@@ -2392,10 +2841,14 @@ and eval_dot_access_val env_ref target_val field =
        (match get_pipeline_member p field with
         | Some v -> v
         | None ->
-            if has_node_prefix p field
-            then VDict [("__partial_dot_pipeline__", VPipeline p);
-                        ("__partial_dot_prefix__", VString field)]
-            else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
+            (* Try lazy branch expansion for patterned nodes *)
+            (match try_lazy_expand_branch p !env_ref field with
+             | Some v -> v
+             | None ->
+                 if has_node_prefix p field
+                 then VDict [("__partial_dot_pipeline__", VPipeline p);
+                             ("__partial_dot_prefix__", VString field)]
+                 else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)))
   | VMetaPipeline mp ->
       (match Pipeline_composition.flatten_meta (VMetaPipeline mp) with
        | VPipeline flat_p -> eval_dot_access_val env_ref (VPipeline flat_p) field
@@ -3109,10 +3562,10 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
           let env_ref = ref env in
           let v = eval_expr env_ref expr in
           let new_env = Env.add name v !env_ref in
-          (match v with
-           | VError _ -> (v, new_env)
-           | _ -> ((VNA NAGeneric), new_env))
-    | Reassignment { name; expr } ->
+            (match v with
+             | VError _ -> (v, new_env)
+             | _ -> ((VNA NAGeneric), new_env))
+     | Reassignment { name; expr } ->
         if Import_registry.find_origin env name = Some Import_registry.Builtin then
           let msg = Printf.sprintf "Cannot overwrite %s: it's a reserved keyword!" name in
           (make_error NameError msg, env)
@@ -3127,10 +3580,10 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
             flush stderr
           end;
           let new_env = Env.add name v !env_ref in
-          (match v with
-           | VError _ -> (v, new_env)
-           | _ -> ((VNA NAGeneric), new_env))
-    | Import filename ->
+            (match v with
+             | VError _ -> (v, new_env)
+             | _ -> ((VNA NAGeneric), new_env))
+     | Import filename ->
         (try
           let ch = open_in filename in
           let content = really_input_string ch (in_channel_length ch) in
