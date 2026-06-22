@@ -532,6 +532,28 @@ seq(5, 1, -1)   -- [5, 4, 3, 2, 1]
 
 ---
 
+### `float_seq(start, end, n = 100)`
+
+Generate a sequence of evenly-spaced floats.
+
+**Parameters:**
+
+- `start` — Starting value (Float or Int)
+- `end` — Ending value (Float or Int)
+- `n` (optional) — Number of values (default: 100)
+
+**Returns:**
+
+List of evenly-spaced floats.
+
+**Examples:**
+```t
+float_seq(0, 1, 5)              -- [0.0, 0.25, 0.5, 0.75, 1.0]
+float_seq(start = 0, end = 1, n = 5)
+```
+
+---
+
 **Parameters:**
 
 
@@ -2589,6 +2611,54 @@ Filter the richer node records from `read_pipeline(p).nodes` without manually wr
 ### `errored_nodes(p)`
 
 Convenience wrapper returning the subset of node records whose `diagnostics.error` is not `NA`.
+
+---
+
+### `pipeline_to_ga(p, name = NA, pipeline_script = "src/pipeline.t", file = NA)`
+
+Generates a GitHub Actions CI workflow YAML to run the pipeline on push/PR events. It integrates with Cachix (`rstats-on-nix`) and caches built Nix artifacts inside the repository's `t-runs` branch as `.nar` archives.
+
+**Parameters:**
+
+- `p` — The Pipeline to configure.
+- `name` (optional) — Project name (auto-detected from `tproject.toml` if omitted).
+- `pipeline_script` (optional) — Path to the pipeline T script (default: `"src/pipeline.t"`).
+- `file` (optional) — Output file path. If specified, writes the YAML directly to that file (usually `.github/workflows/<name>.yml`); if omitted, returns the workflow YAML content as a String.
+
+**Returns:**
+
+String (workflow YAML content or file write success message).
+
+**Examples:**
+```t
+pipeline_to_ga(p)
+pipeline_to_ga(p, name = "my-project", file = ".github/workflows/ci.yml")
+```
+
+---
+
+### `pipeline_report(p, which_log = NA, file = NA, target = "ssh")`
+
+Generates a structured execution report summarizing the status of pipeline nodes, execution durations, error logs, and warnings.
+
+**Parameters:**
+
+- `p` — The Pipeline to report on.
+- `which_log` (optional) — Regex selector to report on a specific historical build log instead of the latest log.
+- `file` (optional) — Target output file path. Defaults to `_pipeline/pipeline_report_<timestamp>.md` (ssh) or `.html` (web).
+- `target` (optional) — Output format: `"ssh"` for Markdown format (default), or `"web"` for HTML format.
+
+**Returns:**
+
+String path to the generated report file.
+
+**Examples:**
+```t
+pipeline_report(p)
+pipeline_report(p, target = "web", file = "report.html")
+```
+
+---
 
 ### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)`
 

@@ -446,6 +446,21 @@ sum([])                 -- 0</code></pre>
 seq(0, 10, 2)   -- [0, 2, 4, 6, 8, 10]
 seq(5, 1, -1)   -- [5, 4, 3, 2, 1]</code></pre>
 <hr />
+<h3
+id="float_seqstart-end-n-100"><code>float_seq(start, end, n = 100)</code></h3>
+<p>Generate a sequence of evenly-spaced floats.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>start</code> — Starting value (Float or Int)</li>
+<li><code>end</code> — Ending value (Float or Int)</li>
+<li><code>n</code> (optional) — Number of values (default: 100)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>List of evenly-spaced floats.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>float_seq(0, 1, 5)              -- [0.0, 0.25, 0.5, 0.75, 1.0]
+float_seq(start = 0, end = 1, n = 5)</code></pre>
+<hr />
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>value</code> — Any value</li>
@@ -1935,6 +1950,53 @@ lambda.</p>
 <h3 id="errored_nodesp"><code>errored_nodes(p)</code></h3>
 <p>Convenience wrapper returning the subset of node records whose
 <code>diagnostics.error</code> is not <code>NA</code>.</p>
+<hr />
+<h3
+id="pipeline_to_gap-name-na-pipeline_script-srcpipeline.t-file-na"><code>pipeline_to_ga(p, name = NA, pipeline_script = "src/pipeline.t", file = NA)</code></h3>
+<p>Generates a GitHub Actions CI workflow YAML to run the pipeline on
+push/PR events. It integrates with Cachix (<code>rstats-on-nix</code>)
+and caches built Nix artifacts inside the repository’s
+<code>t-runs</code> branch as <code>.nar</code> archives.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — The Pipeline to configure.</li>
+<li><code>name</code> (optional) — Project name (auto-detected from
+<code>tproject.toml</code> if omitted).</li>
+<li><code>pipeline_script</code> (optional) — Path to the pipeline T
+script (default: <code>"src/pipeline.t"</code>).</li>
+<li><code>file</code> (optional) — Output file path. If specified,
+writes the YAML directly to that file (usually
+<code>.github/workflows/&lt;name&gt;.yml</code>); if omitted, returns
+the workflow YAML content as a String.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>String (workflow YAML content or file write success message).</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>pipeline_to_ga(p)
+pipeline_to_ga(p, name = &quot;my-project&quot;, file = &quot;.github/workflows/ci.yml&quot;)</code></pre>
+<hr />
+<h3
+id="pipeline_reportp-which_log-na-file-na-target-ssh"><code>pipeline_report(p, which_log = NA, file = NA, target = "ssh")</code></h3>
+<p>Generates a structured execution report summarizing the status of
+pipeline nodes, execution durations, error logs, and warnings.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — The Pipeline to report on.</li>
+<li><code>which_log</code> (optional) — Regex selector to report on a
+specific historical build log instead of the latest log.</li>
+<li><code>file</code> (optional) — Target output file path. Defaults to
+<code>_pipeline/pipeline_report_&lt;timestamp&gt;.md</code> (ssh) or
+<code>.html</code> (web).</li>
+<li><code>target</code> (optional) — Output format: <code>"ssh"</code>
+for Markdown format (default), or <code>"web"</code> for HTML
+format.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>String path to the generated report file.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>pipeline_report(p)
+pipeline_report(p, target = &quot;web&quot;, file = &quot;report.html&quot;)</code></pre>
+<hr />
 <h3
 id="nodecommand-script-na-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-na-shell_args-functions-include-noop-false"><code>node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)</code></h3>
 <p>Configure execution settings such as the runtime and custom

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - build_pipeline</title>
+  <title>T Function Reference - pipeline_report</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,33 +33,34 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="build_pipeline">build_pipeline</h1>
-<p>Build Pipeline Artifacts</p>
-<p>Builds a pipeline to <code>pipeline.nix</code> and records node
-artifacts in a local registry. Supports Nix-native orchestration flags
-for targeted builds, cache usage, and dry-runs. If the pipeline contains
-unexpanded dynamic branching patterns (<code>map_pattern</code>,
-<code>cross_pattern</code>), they are automatically expanded before
-building.</p>
+<h1 id="pipeline_report">pipeline_report</h1>
+<p>Generate Pipeline Report</p>
+<p>Generates a report summarizing the pipeline’s current status,
+dependency graph, built nodes, unbuilt nodes, and errored/warned nodes.
+When target is “ssh” (default), writes a Markdown file with plain-text
+tables. When target is “web”, writes a self-contained HTML file with an
+interactive Mermaid diagram, color-coded sections, and clickable
+nodes.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline
-to build.</p></li>
-<li><p><strong>verbose</strong> (<code>Int</code>): (Optional) Nix build
-verbosity level. <code>0</code> keeps build failures quiet; values above
-<code>0</code> print failed node logs.</p></li>
-<li><p><strong>dry_run</strong> (<code>Bool</code>): (Optional) Return a
-planned build DataFrame without executing. Maps to
-<code>--dry-run</code>.</p></li>
-<li><p><strong>nix_options</strong> (<code>Dict</code>): (Optional) A
-dictionary of Nix orchestration options:</p></li>
+<li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
+report on.</p></li>
+<li><p><strong>which_log</strong> (<code>String</code>): (Optional)
+Regex to select a specific build log.</p></li>
+<li><p><strong>file</strong> (<code>String</code>): (Optional) Output
+file path. Defaults to
+<code>_pipeline/pipeline_report_&lt;timestamp&gt;.md</code> (ssh) or
+<code>.html</code> (web).</p></li>
+<li><p><strong>target</strong> (<code>String</code>): = “ssh” Output
+format. “ssh” for Markdown, “web” for HTML.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A structured build log (<code>nodes</code>, <code>duration</code>,
-<code>failed_nodes</code>, <code>out_path</code>), or a dry-run
-DataFrame.</p>
-<h2 id="see-also">See Also</h2>
-<p><a href="read_node.html">read_node</a></p>
+<p>The path to the generated report file.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>pipeline_report(p)
+pipeline_report(p, target = &quot;web&quot;)
+pipeline_report(p, target = &quot;web&quot;, file = &quot;report.html&quot;)
+pipeline_report(p, which_log = &quot;20260615&quot;)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

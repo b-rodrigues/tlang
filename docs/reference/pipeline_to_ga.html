@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - build_pipeline</title>
+  <title>T Function Reference - pipeline_to_ga</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,33 +33,32 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="build_pipeline">build_pipeline</h1>
-<p>Build Pipeline Artifacts</p>
-<p>Builds a pipeline to <code>pipeline.nix</code> and records node
-artifacts in a local registry. Supports Nix-native orchestration flags
-for targeted builds, cache usage, and dry-runs. If the pipeline contains
-unexpanded dynamic branching patterns (<code>map_pattern</code>,
-<code>cross_pattern</code>), they are automatically expanded before
-building.</p>
+<h1 id="pipeline_to_ga">pipeline_to_ga</h1>
+<p>Export Pipeline as GitHub Actions Workflow</p>
+<p>Generates a GitHub Actions CI workflow YAML that runs the pipeline on
+push/PR. The workflow restores cached Nix artifacts from the
+<code>t-runs</code> branch, executes the pipeline, and re-exports
+updated artifacts back to <code>t-runs</code>. Use the <code>file</code>
+parameter to write the YAML directly to
+<code>.github/workflows/&lt;name&gt;.yml</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline
-to build.</p></li>
-<li><p><strong>verbose</strong> (<code>Int</code>): (Optional) Nix build
-verbosity level. <code>0</code> keeps build failures quiet; values above
-<code>0</code> print failed node logs.</p></li>
-<li><p><strong>dry_run</strong> (<code>Bool</code>): (Optional) Return a
-planned build DataFrame without executing. Maps to
-<code>--dry-run</code>.</p></li>
-<li><p><strong>nix_options</strong> (<code>Dict</code>): (Optional) A
-dictionary of Nix orchestration options:</p></li>
+<li><p><strong>pipeline_script</strong> (<code>String</code>):
+(Optional) Path to the pipeline T script. Default
+“src/pipeline.t”.</p></li>
+<li><p><strong>name</strong> (<code>String</code>): (Optional) Project
+name. Auto-detected from tproject.toml when omitted.</p></li>
+<li><p><strong>file</strong> (<code>String</code>): (Optional) Output
+file path. Defaults to “.github/workflows/<name>.yml”. Pass an empty
+string (““) to get the YAML back as a string.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A structured build log (<code>nodes</code>, <code>duration</code>,
-<code>failed_nodes</code>, <code>out_path</code>), or a dry-run
-DataFrame.</p>
-<h2 id="see-also">See Also</h2>
-<p><a href="read_node.html">read_node</a></p>
+<p>The YAML workflow content or a confirmation string.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>pipeline_to_ga()
+pipeline_to_ga(&quot;src/run.t&quot;)
+pipeline_to_ga(name = &quot;my-project&quot;)
+pipeline_to_ga(file = &quot;.github/workflows/ci.yml&quot;)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

@@ -34,58 +34,28 @@
 </nav>
 <div class="container">
 <h1 id="node_when">node_when</h1>
-<p>Static Conditional Pipeline Node Inclusion</p>
+<p>Static pipeline node conditional</p>
 <p>Evaluated at pipeline construction time. Returns <code>value</code>
-if <code>condition</code> is truthy, otherwise excludes the node from
-the DAG entirely (the keyed node will not appear in
-<code>pipeline_nodes()</code> and accessing it produces an
-<code>Error</code>).</p>
-<p><code>node_when</code> is only meaningful as the direct value of a
-node binding inside a <code>pipeline { }</code> block. Using the result
-outside that context (arithmetic, <code>is_na()</code>, etc.) is
+if <code>condition</code> is truthy, otherwise returns a null marker
+that causes the pipeline to exclude the node entirely. This preserves
+Nix’s static DAG requirement — the condition is checked before the
+build. <code>node_when</code> is only meaningful as the direct value of
+a node binding inside a <code>pipeline { }</code> block. Using the
+result outside that context (arithmetic, <code>is_na()</code>, etc.) is
 unsupported.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>condition</strong> (<code>Bool</code>): The condition to
-evaluate. Must be deterministic at pipeline-definition time (e.g., a
-variable, not an I/O call).</p></li>
-<li><p><strong>value</strong> (<code>Any</code>): The node value to
-include if condition is truthy. Typically a <code>node()</code>,
-<code>rn()</code>, <code>pyn()</code>, or other pipeline node
-constructor.</p></li>
+evaluate.</p></li>
+<li><p><strong>value</strong> (<code>Node</code>): The node value to
+include if condition is true.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The <code>value</code> if condition is truthy; a null marker that
-excludes the node from the pipeline DAG otherwise.</p>
+<div class="line-block">Null The node value or null marker.</div>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>include_heavy = false
-
-p = pipeline {
-  data = [1, 2, 3, 4, 5]
-  quick = sum(data)
-  heavy = node_when(include_heavy, node(command = &quot;deep analysis&quot;, runtime = T))
-}
-
-build_pipeline(p)
-
--- &quot;heavy&quot; does not appear in the pipeline at all when include_heavy is false
-&quot;heavy&quot; in pipeline_nodes(p)  -- false</code></pre>
-<pre class="t"><code>-- With an R node
-p = pipeline {
-  data = [1, 2, 3, 4, 5]
-  total = sum(data)
-  r_out = node_when(true, rn(
-    command = &lt;{ list(lang = &quot;R&quot;, val = 42L) }&gt;,
-    serializer = ^json
-  ))
-}
-
-build_pipeline(p)
-read_node(p.r_out)  -- {lang: &quot;R&quot;, val: 42}</code></pre>
-<h2 id="see-also">See Also</h2>
-<p><a href="node_fork.html">node_fork</a>, <a href="node.html">node</a>,
-<a href="rn.html">rn</a>, <a href="pyn.html">pyn</a>, <a
-href="build_pipeline.html">build_pipeline</a></p>
+<pre class="t"><code>p = pipeline {
+model = node_when(env(&quot;CI&quot;) == &quot;1&quot;, pyn(script = &quot;train.py&quot;))
+}</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

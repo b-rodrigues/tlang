@@ -36,21 +36,24 @@
 <h1 id="pipeline_to_dot">pipeline_to_dot</h1>
 <p>Export Pipeline/MetaPipeline as DOT Graph</p>
 <p>Returns a string containing a Graphviz DOT representation of the
-pipeline or metapipeline dependency graph, including node names,
-language runtimes, and execution statuses.</p>
+pipeline or metapipeline dependency graph, including node names and
+language runtimes. For MetaPipelines, sub-pipelines are rendered as DOT
+subgraph clusters by default, providing visual grouping of related
+nodes. Set flatten = true to get a flat diagram.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline|MetaPipeline</code>): The
-pipeline or metapipeline.</li>
-<li><strong>title</strong> (<code>Str</code>, optional): Graph title.
-Auto-detected from the project name in <code>tproject.toml</code> if
-omitted. Renders as <code>label=</code> in the <code>digraph</code>
-header.</li>
+<li><p><strong>p</strong> (<code>Pipeline|MetaPipeline</code>): The
+pipeline or metapipeline.</p></li>
+<li><p><strong>flatten</strong> (<code>Bool</code>): = false Flatten
+meta-pipeline subgraphs into a single level.</p></li>
+<li><p><strong>title</strong> (<code>Str</code>): = None Optional graph
+title. Auto-detected from tproject.toml when omitted.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A DOT graph string.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>pipeline_to_dot(p)
+pipeline_to_dot(meta, flatten = true)
 pipeline_to_dot(p, title = &quot;My Graph&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="pipeline_to_mermaid.html">pipeline_to_mermaid</a></p>

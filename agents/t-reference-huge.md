@@ -2067,6 +2067,28 @@ seq(5, 1, -1)   -- [5, 4, 3, 2, 1]
 
 ---
 
+### `float_seq(start, end, n = 100)`
+
+Generate a sequence of evenly-spaced floats.
+
+**Parameters:**
+
+- `start` — Starting value (Float or Int)
+- `end` — Ending value (Float or Int)
+- `n` (optional) — Number of values (default: 100)
+
+**Returns:**
+
+List of evenly-spaced floats.
+
+**Examples:**
+```t
+float_seq(0, 1, 5)              -- [0.0, 0.25, 0.5, 0.75, 1.0]
+float_seq(start = 0, end = 1, n = 5)
+```
+
+---
+
 **Parameters:**
 
 
@@ -4124,6 +4146,54 @@ Filter the richer node records from `read_pipeline(p).nodes` without manually wr
 ### `errored_nodes(p)`
 
 Convenience wrapper returning the subset of node records whose `diagnostics.error` is not `NA`.
+
+---
+
+### `pipeline_to_ga(p, name = NA, pipeline_script = "src/pipeline.t", file = NA)`
+
+Generates a GitHub Actions CI workflow YAML to run the pipeline on push/PR events. It integrates with Cachix (`rstats-on-nix`) and caches built Nix artifacts inside the repository's `t-runs` branch as `.nar` archives.
+
+**Parameters:**
+
+- `p` — The Pipeline to configure.
+- `name` (optional) — Project name (auto-detected from `tproject.toml` if omitted).
+- `pipeline_script` (optional) — Path to the pipeline T script (default: `"src/pipeline.t"`).
+- `file` (optional) — Output file path. If specified, writes the YAML directly to that file (usually `.github/workflows/<name>.yml`); if omitted, returns the workflow YAML content as a String.
+
+**Returns:**
+
+String (workflow YAML content or file write success message).
+
+**Examples:**
+```t
+pipeline_to_ga(p)
+pipeline_to_ga(p, name = "my-project", file = ".github/workflows/ci.yml")
+```
+
+---
+
+### `pipeline_report(p, which_log = NA, file = NA, target = "ssh")`
+
+Generates a structured execution report summarizing the status of pipeline nodes, execution durations, error logs, and warnings.
+
+**Parameters:**
+
+- `p` — The Pipeline to report on.
+- `which_log` (optional) — Regex selector to report on a specific historical build log instead of the latest log.
+- `file` (optional) — Target output file path. Defaults to `_pipeline/pipeline_report_<timestamp>.md` (ssh) or `.html` (web).
+- `target` (optional) — Output format: `"ssh"` for Markdown format (default), or `"web"` for HTML format.
+
+**Returns:**
+
+String path to the generated report file.
+
+**Examples:**
+```t
+pipeline_report(p)
+pipeline_report(p, target = "web", file = "report.html")
+```
+
+---
 
 ### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)`
 
@@ -8050,9 +8120,35 @@ For datasets exceeding 2-3 GB:
 
 This release:
 
-- Introduces Atelier IDE support. `t init --project` and `t init --package` now accept `--include-atelier` (CLI flag) or prompt interactively. When enabled, the generated `flake.nix` pins `atelier.url = "github:b-rodrigues/atelier/main"` as a flake input and adds `atelier` to the devShell's `buildInputs`, making the tmux-based TUI IDE immediately available via the `atelier` command inside `nix develop`.
+- **Atelier TUI IDE Integration**: This release introduces full support for the Atelier tmux-based TUI IDE. `t init --project` and `t init --package` now accept `--include-atelier` (CLI flag) to configure the IDE in the project environment. When running inside an active Atelier session, the REPL automatically updates variables, writes diagrams/plots to the `_atelier/` directory, and runs a protected variables watcher via the new `tui_update` builtin. Atelier can also be declared as a project dependency via `[additional-tools]` in `tproject.toml`.
 - Introduces static conditionals for pipelines: `node_when(condition, node_value)` and `node_fork(...)` allow conditional node inclusion evaluated at pipeline construction time, preserving Nix's static DAG requirement.
 - **VDataFrame JSON serialization**: NAColumn entries are now omitted from JSON output (field absent) rather than serialized as null, so downstream readers see no key rather than an NA/null value.
+
+### Dynamic Branching & Pattern Expansion
+- **Pattern-based Branching**: Pipelines can now dynamically expand a single node into multiple branch nodes using pattern functions:
+  - `map_pattern(dependency)`: Maps a node over each element of a List, Vector, or DataFrame dependency.
+  - `cross_pattern(sub_pattern1, sub_pattern2, ...)`: Generates a Cartesian product of multiple `map_pattern` sub-patterns.
+  - `slice_pattern(dependency, indices)`: Creates branches selecting specific element indices.
+  - `head_pattern(dependency, n)` / `tail_pattern(dependency, n)`: Restricts branches to the first or last `n` elements.
+  - `sample_pattern(dependency, n)`: Randomly samples `n` elements from a dependency (with deterministic seed behavior).
+- **`expand_pipeline`**: Adds the built-in function `expand_pipeline(p)` to manually expand dynamic patterns into separate `<node>_branch_<N>` nodes.
+- **Auto-Expansion & Guardrails**: Branch expansion is performed automatically before pipeline compilation in `build_pipeline()` and `populate_pipeline()`. Attempting to build/populate a pipeline containing unexpanded patterns raises a compile-time `StructuralError`.
+- **Lazy Branch Expansion**: Implemented lazy branch expansion for chained or computed dependencies with patterns, resolving branch dependencies across complex DAGs.
+- **Branch Naming & Verification**: Node names containing the suffix `_branch_N` are strictly forbidden in manual definitions to prevent namespace clashes. Duplicate node detection and branch-aware `read_node` errors assist in identifying naming conflicts.
+
+### GitHub Actions Integration
+- **`pipeline_to_ga`**: Adds `pipeline_to_ga(p, ...)` to generate a complete GitHub Actions CI workflow YAML. The generated workflow automates Nix-based pipeline runs on push/PR events.
+- **Nix Caching in CI**: Integrates with Cachix (defaulting to the `rstats-on-nix` cache) and automatically manages the caching of built Nix artifacts using a repository's `t-runs` branch (archived as `.nar` files).
+- **Optional File Output**: Accepts an optional `file` parameter to write the workflow YAML directly to `.github/workflows/<name>.yml` (defaulting to auto-detected project names).
+
+### Pipeline Execution Reporting
+- **`pipeline_report`**: Introduces `pipeline_report(p, ...)` to generate structured Markdown (`target = "ssh"`) or HTML (`target = "web"`) execution reports.
+- **Detailed Run Metrics**: Reports include built/unbuilt/errored node statuses, depth indicators, runtimes, warning summaries, Mermaid dependency graph visualization, and truncated build error tracebacks.
+- **Log Targeting**: Supports the `which_log` regex parameter to report on historical run records.
+
+### Core Language Features & Fixes
+- **`float_seq`**: Adds the `float_seq(start, end, n)` built-in function to generate a List of `n` evenly-spaced floats.
+- **Assignment Error Propagation**: Blocks (`{ ... }`) no longer silently swallow errors occurring inside assignment/reassignment statements. The error is bound to the variable and propagated correctly, enabling robust recovery patterns via subsequent `match` blocks.
 
 ## [0.52.3] - 2026-06-12
 
@@ -19721,13 +19817,15 @@ The output Nix store path or the dry-run DataFrame.
 
 Build Pipeline Artifacts
 
-Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry. Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs. If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before building.
+Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry. Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs.  If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before building.
 
 ## Parameters
 
 - **pipeline** (`Pipeline`): The pipeline to build.
 
 - **verbose** (`Int`): (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+
+- **dry_run** (`Bool`): (Optional) Return a planned build DataFrame without executing. Maps to `--dry-run`.
 
 - **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
 
@@ -21974,6 +22072,37 @@ Return min, Q1, median, Q3, max.
 
 
 
+# FILE: docs/reference/float_seq.md
+
+# float_seq
+
+Generate a sequence of evenly-spaced floats
+
+Creates a list of `n` floats from `start` to `end` (inclusive), evenly spaced.
+
+## Parameters
+
+- **start** (`Float|Int`): Starting value.
+
+- **end** (`Float|Int`): Ending value.
+
+- **n** (`Int`): Number of values (default: 100).
+
+
+## Returns
+
+List of evenly-spaced floats.
+
+## Examples
+
+```t
+float_seq(0, 1, 5)
+-- Returns = [0.0, 0.25, 0.5, 0.75, 1.0]
+float_seq(start = 0, end = 1, n = 5)
+```
+
+
+
 # FILE: docs/reference/floor_date.md
 
 # floor_date
@@ -22091,51 +22220,20 @@ Joins two DataFrames and keeps rows appearing in either input.
 
 # get
 
-Unified Data Retrieval (get)
+Get Value via Lens
 
-Retrieves values from environments, collections, or pipelines using names, indices, or lenses.  This is a polymorphic primitive that unifies several retrieval modes:  1. **Variable Lookup**: `get("var_name")` retrieves a variable from the environment. 2. **Collection Indexing**: `get(collection, index)` retrieves an element (0-based). 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result. 4. **Lens Focus**: `get(data, lens)` applies a Lens to focus on a subset of data. 5. **Default Value (Fallback)**: `get(value, default)` returns `value` unchanged when it is not NA/Error; returns `default` when `value` is NA or an Error. 6. **Safe Retrieval**: `get(target, selector, default)` performs the retrieval and returns `default` only when the result is NA (missing key/node or out-of-bounds index). Type errors in unsupported target/selector combinations propagate as errors. 7. **Cross-Node Access (Sandbox)**: `get(node_lens("name"))` retrieves a sibling node's artifact.
+Retrieves a focused value from a data structure using a lens.
 
 ## Parameters
 
-- **target** (`Any`): The environment name, Collection, Pipeline, Data, or Value to check.
+- **data** (`Any`): The data structure to focus on.
 
-- **selector** (`Any`): (Optional) The index, Node name, Lens, or Default value.
-
-- **default** (`Any`): (Optional) The default value if the retrieval fails.
+- **lens** (`Lens`): The lens defining the focus.
 
 
 ## Returns
 
-The retrieved value or the default fallback.
-
-## Examples
-
-```t
-salary = 50000
-get("salary")                -- 50000 (Lookup)
-
-lst = [10, 20, 30]
-get(lst, 1)                  -- 20 (Indexing)
-
--- Safe indexing with default:
-get(lst, 5, 0)               -- 0 (Index out of bounds fallback)
-
--- Guardrail pattern (any non-NA/Error value is returned as-is):
-s = [min_age: NA]
-get(s.min_age, 0) >= 0       -- true (NA falls back to 0)
-get(42, 0)                   -- 42 (non-NA/Error value returned unchanged)
-
-p = pipeline { a = 1 }
-get(p, "a")                  -- 1 (Pipeline Access)
-get(p, "missing", "N/A")     -- "N/A" (Safe Pipeline Access)
-
-l = col_lens("mpg")
-get(mtcars, l)               -- Vector of 'mpg' column (Lens)
-
--- Sandbox access (within a Nix-built node):
-get(node_lens("node_a"))      -- Deserializes T_NODE_node_a artifact
-
-```
+The focused value.
 
 
 
@@ -22564,13 +22662,14 @@ A confirmation message describing the imported archive.
 | [filter_node](filter_node.html) | Filter Pipeline Nodes |
 | [fit_stats](fit_stats.html) | Model Goodness-of-Fit Statistics |
 | [fivenum](fivenum.html) | Five-number summary |
+| [float_seq](float_seq.html) | Generate a sequence of evenly-spaced floats |
 | [floor](floor.html) | Floor function |
 | [floor_date](floor_date.html) | Round dates down |
 | [force_tz](force_tz.html) | Retag a datetime with a timezone |
 | [format_date](format_date.html) | Format dates as strings |
 | [format_datetime](format_datetime.html) | Format datetimes as strings |
 | [full_join](full_join.html) | Join all rows from both tables |
-| [get](get.html) | Unified Data Retrieval (get) |
+| [get](get.html) | Get Value via Lens |
 | [getwd](getwd.html) | Get current working directory |
 | [glimpse](glimpse.html) | Glimpse DataFrame |
 | [greet](greet.html) | Greet someone |
@@ -22654,10 +22753,10 @@ A confirmation message describing the imported archive.
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
 | [node_diff](node_diff.html) | Compare Node Outputs Across Builds |
-| [node_fork](node_fork.html) | Static Multi-Way Branch for Pipeline Nodes |
+| [node_fork](node_fork.html) | Static pipeline multi-way branch |
 | [node_lens](node_lens.html) | Pipeline Node Lens |
 | [node_meta_lens](node_meta_lens.html) | Pipeline Metadata Lens |
-| [node_when](node_when.html) | Static Conditional Pipeline Node Inclusion |
+| [node_when](node_when.html) | Static pipeline node conditional |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
@@ -22693,11 +22792,13 @@ A confirmation message describing the imported archive.
 | [pipeline_node](pipeline_node.html) | Get Pipeline Node |
 | [pipeline_nodes](pipeline_nodes.html) | List Pipeline Nodes |
 | [pipeline_print](pipeline_print.html) | Pretty-Print a Pipeline |
+| [pipeline_report](pipeline_report.html) | Generate Pipeline Report |
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |
 | [pipeline_run](pipeline_run.html) | Run Pipeline |
 | [pipeline_to_dot](pipeline_to_dot.html) | Export Pipeline/MetaPipeline as DOT Graph |
 | [pipeline_to_drv](pipeline_to_drv.html) | Introspect Node Derivation Paths |
 | [pipeline_to_frame](pipeline_to_frame.html) | Convert Pipeline to DataFrame |
+| [pipeline_to_ga](pipeline_to_ga.html) | Export Pipeline as GitHub Actions Workflow |
 | [pipeline_to_mermaid](pipeline_to_mermaid.html) | Export Pipeline/MetaPipeline as Mermaid Graph |
 | [pipeline_to_store](pipeline_to_store.html) | Introspect Node Store Paths |
 | [pipeline_validate](pipeline_validate.html) | Validate a Pipeline |
@@ -22726,8 +22827,8 @@ A confirmation message describing the imported archive.
 | [read_file](read_file.html) | Read file contents |
 | [read_log](read_log.html) | Read Node Build Log |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
-| [read_past_node](read_past_node.html) | Read Pipeline Node from Past Build |
 | [read_parquet](read_parquet.html) | Read Parquet file |
+| [read_past_node](read_past_node.html) | Read Pipeline Node from a Past Build Run |
 | [read_pipeline](read_pipeline.html) | Read Pipeline Metadata |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |
 | [relocate](relocate.html) | Move columns to a new position |
@@ -22804,7 +22905,7 @@ A confirmation message describing the imported archive.
 | [swap](swap.html) | Swap a Pipeline Node Implementation |
 | [t_doc](t_doc.html) | Generate Documentation |
 | [t_gc](t_gc.html) | Run System Garbage Collection |
-| [t_make](t_make.html) | Build Pipeline Internally |
+| [t_make](t_make.html) | Build and run a pipeline file |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
 | [t_read_onnx](t_read_onnx.html) | Read an ONNX model file |
 | [t_read_pmml](t_read_pmml.html) | Read a PMML model file |
@@ -22844,7 +22945,7 @@ A confirmation message describing the imported archive.
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
-| [unknown](unknown.html) | Print Failed Node Logs |
+| [unknown](unknown.html) | Expand pattern-based branching in a pipeline. |
 | [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |
@@ -22940,7 +23041,7 @@ A DataFrame with columns = derivation, build_success, path, output.
 
 Inspect Pipeline Node Metadata
 
-Returns a dictionary with metadata about a computed node, including its name, runtime, artifact path, serializer, class, dependencies, and any captured warnings (both own and inherited from upstream ancestors).
+Returns a dictionary with metadata about a computed node, including its name, runtime, artifact path, serializer, class, dependencies, and warnings. The `warnings` key contains a structured list of warning records, each with `source` ("own" or the ancestor node name) and `message`.
 
 ## Parameters
 
@@ -22951,31 +23052,9 @@ Returns a dictionary with metadata about a computed node, including its name, ru
 
 A dictionary with keys = name, runtime, path, serializer, class, dependencies, warnings.
 
-The `warnings` key contains a list of structured warning records, each with:
-
-- `source` (`String`): `"own"` for warnings originating from this node, or the name of the ancestor node for inherited upstream warnings.
-- `message` (`String`): The human-readable warning message.
-
-```t
-inspect_node(p.count)
--- Returns:
--- dict
---   ├── name: "count"
---   ├── runtime: "T"
---   ├── path: "/nix/store/...-pipeline_output/count/artifact"
---   ├── serializer: "default"
---   ├── class: "Int"
---   ├── dependencies: ["filtered"]
---   └── warnings: [
---       ├── dict
---       │   ├── source: "filtered"
---       │   └── message: "filter() excluded 1 row because the predicate evaluated to NA"
---       ]
-```
-
 ## See Also
 
-[rebuild_node](rebuild_node.html), [read_node](read_node.html), [warning_msg](warning_msg.html)
+[warning_msg](warning_msg.html), [rebuild_node](rebuild_node.html), [read_node](read_node.html)
 
 
 
@@ -24526,59 +24605,33 @@ A VDiff envelope dictionary.
 
 # node_fork
 
-Static Multi-Way Branch for Pipeline Nodes
+Static pipeline multi-way branch
 
-Evaluated at pipeline construction time. Takes condition-value pairs and returns the value for the first truthy condition. If no condition matches and `.default` is provided, that value is used; if `.default` is omitted, the node is excluded from the DAG entirely.
-
-`node_fork` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context is unsupported.
+Evaluated at pipeline construction time. Takes condition-value pairs and returns the value for the first truthy condition. If no condition matches, returns a null marker (node excluded). Provide `.default` to control the fallback value. This preserves Nix's static DAG requirement — the condition is checked before the build.  `node_fork` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context is unsupported.
 
 ## Parameters
 
-- **...** (`Any`): Pairs of `condition, value` arguments. Conditions are evaluated in order; the first truthy condition's corresponding value is elected.
+- **...** (`Any`): Pairs of condition-value arguments.
 
-- **.default** (`Any`): (Optional) Fallback value if no condition matches. When omitted and no condition matches, the node is excluded from the DAG.
+- **.default** (`Any`): (Optional) Fallback value if no condition matches.
+
 
 ## Returns
 
-The value for the first truthy condition, the `.default` value, or a null marker that excludes the node from the DAG.
+| Null The selected node value or null marker.
 
 ## Examples
 
 ```t
-env_mode = "production"
-
 p = pipeline {
-  config = node_fork(
-    env_mode == "development", node(command = "dev", runtime = T),
-    env_mode == "staging",     node(command = "stg", runtime = T),
-    env_mode == "production",  node(command = "prd", runtime = T),
-    .default = node(command = "fallback", runtime = T)
-  )
+model = node_fork(
+env("MODEL_TYPE") == "lm", rn(script = "lm.R"),
+env("MODEL_TYPE") == "nn", pyn(script = "nn.py"),
+.default = rn(script = "baseline.R")
+)
 }
-
-build_pipeline(p)
-read_node(p.config)  -- "prd"
 ```
 
-```t
--- Fork between R, Python, and T fallback
-model_lang = "python"
-
-p = pipeline {
-  result = node_fork(
-    model_lang == "R",      rn(command = <{ list(lang = "R") }>, serializer = ^json),
-    model_lang == "python", pyn(command = <{ {"lang": "py"} }>, serializer = ^json),
-    .default = node(command = "t_fallback", runtime = T)
-  )
-}
-
-build_pipeline(p)
-read_node(p.result)  -- {lang: "py"}
-```
-
-## See Also
-
-[node_when](node_when.html), [node](node.html), [rn](rn.html), [pyn](pyn.html), [build_pipeline](build_pipeline.html)
 
 
 # FILE: docs/reference/node_lens.md
@@ -24660,57 +24713,29 @@ A lens for the specified metadata field.
 
 # node_when
 
-Static Conditional Pipeline Node Inclusion
+Static pipeline node conditional
 
-Evaluated at pipeline construction time. Returns `value` if `condition` is truthy, otherwise excludes the node from the DAG entirely (the keyed node will not appear in `pipeline_nodes()` and accessing it produces an `Error`).
-
-`node_when` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
+Evaluated at pipeline construction time. Returns `value` if `condition` is truthy, otherwise returns a null marker that causes the pipeline to exclude the node entirely. This preserves Nix's static DAG requirement — the condition is checked before the build.  `node_when` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
 
 ## Parameters
 
-- **condition** (`Bool`): The condition to evaluate. Must be deterministic at pipeline-definition time (e.g., a variable, not an I/O call).
+- **condition** (`Bool`): The condition to evaluate.
 
-- **value** (`Any`): The node value to include if condition is truthy. Typically a `node()`, `rn()`, `pyn()`, or other pipeline node constructor.
+- **value** (`Node`): The node value to include if condition is true.
+
 
 ## Returns
 
-The `value` if condition is truthy; a null marker that excludes the node from the pipeline DAG otherwise.
+| Null The node value or null marker.
 
 ## Examples
 
 ```t
-include_heavy = false
-
 p = pipeline {
-  data = [1, 2, 3, 4, 5]
-  quick = sum(data)
-  heavy = node_when(include_heavy, node(command = "deep analysis", runtime = T))
+model = node_when(env("CI") == "1", pyn(script = "train.py"))
 }
-
-build_pipeline(p)
-
--- "heavy" does not appear in the pipeline at all when include_heavy is false
-"heavy" in pipeline_nodes(p)  -- false
 ```
 
-```t
--- With an R node
-p = pipeline {
-  data = [1, 2, 3, 4, 5]
-  total = sum(data)
-  r_out = node_when(true, rn(
-    command = <{ list(lang = "R", val = 42L) }>,
-    serializer = ^json
-  ))
-}
-
-build_pipeline(p)
-read_node(p.r_out)  -- {lang: "R", val: 42}
-```
-
-## See Also
-
-[node_fork](node_fork.html), [node](node.html), [rn](rn.html), [pyn](pyn.html), [build_pipeline](build_pipeline.html)
 
 
 # FILE: docs/reference/normalize.md
@@ -25560,7 +25585,41 @@ pipeline_print(p)
 
 ## See Also
 
-[pipeline_to_dot](pipeline_to_dot.html)
+[pipeline_to_frame](pipeline_to_frame.html)
+
+
+
+# FILE: docs/reference/pipeline_report.md
+
+# pipeline_report
+
+Generate Pipeline Report
+
+Generates a report summarizing the pipeline's current status, dependency graph, built nodes, unbuilt nodes, and errored/warned nodes. When target is "ssh" (default), writes a Markdown file with plain-text tables. When target is "web", writes a self-contained HTML file with an interactive Mermaid diagram, color-coded sections, and clickable nodes.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to report on.
+
+- **which_log** (`String`): (Optional) Regex to select a specific build log.
+
+- **file** (`String`): (Optional) Output file path. Defaults to `_pipeline/pipeline_report_<timestamp>.md` (ssh) or `.html` (web).
+
+- **target** (`String`): = "ssh" Output format. "ssh" for Markdown, "web" for HTML.
+
+
+## Returns
+
+The path to the generated report file.
+
+## Examples
+
+```t
+pipeline_report(p)
+pipeline_report(p, target = "web")
+pipeline_report(p, target = "web", file = "report.html")
+pipeline_report(p, which_log = "20260615")
+```
 
 
 
@@ -25624,12 +25683,16 @@ The executed pipeline, or a dry-run plan DataFrame.
 
 Export Pipeline/MetaPipeline as DOT Graph
 
-Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline dependency graph, including node names, language runtimes, and execution statuses.
+Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline dependency graph, including node names and language runtimes.  For MetaPipelines, sub-pipelines are rendered as DOT subgraph clusters by default, providing visual grouping of related nodes. Set flatten = true to get a flat diagram.
 
 ## Parameters
 
 - **p** (`Pipeline|MetaPipeline`): The pipeline or metapipeline.
-- **title** (`Str`, optional): Graph title. Auto-detected from the project name in `tproject.toml` if omitted. Renders as `label=` in the `digraph` header.
+
+- **flatten** (`Bool`): = false Flatten meta-pipeline subgraphs into a single level.
+
+- **title** (`Str`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
+
 
 ## Returns
 
@@ -25639,6 +25702,7 @@ A DOT graph string.
 
 ```t
 pipeline_to_dot(p)
+pipeline_to_dot(meta, flatten = true)
 pipeline_to_dot(p, title = "My Graph")
 ```
 
@@ -25705,19 +25769,54 @@ pipeline_to_frame(p)
 
 
 
+# FILE: docs/reference/pipeline_to_ga.md
+
+# pipeline_to_ga
+
+Export Pipeline as GitHub Actions Workflow
+
+Generates a GitHub Actions CI workflow YAML that runs the pipeline on push/PR. The workflow restores cached Nix artifacts from the `t-runs` branch, executes the pipeline, and re-exports updated artifacts back to `t-runs`. Use the `file` parameter to write the YAML directly to `.github/workflows/<name>.yml`.
+
+## Parameters
+
+- **pipeline_script** (`String`): (Optional) Path to the pipeline T script. Default "src/pipeline.t".
+
+- **name** (`String`): (Optional) Project name. Auto-detected from tproject.toml when omitted.
+
+- **file** (`String`): (Optional) Output file path. Defaults to ".github/workflows/<name>.yml". Pass an empty string ("") to get the YAML back as a string.
+
+
+## Returns
+
+The YAML workflow content or a confirmation string.
+
+## Examples
+
+```t
+pipeline_to_ga()
+pipeline_to_ga("src/run.t")
+pipeline_to_ga(name = "my-project")
+pipeline_to_ga(file = ".github/workflows/ci.yml")
+```
+
+
+
 # FILE: docs/reference/pipeline_to_mermaid.md
 
 # pipeline_to_mermaid
 
 Export Pipeline/MetaPipeline as Mermaid Graph
 
-Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline dependency graph, including node names, language runtimes, and execution statuses.
+Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline dependency graph, including node names, language runtimes, and execution error status (errored nodes are highlighted with a red stroke). You can view the diagram in your browser by passing the result to show_plot().  For MetaPipelines, sub-pipelines are rendered as Mermaid subgraph blocks by default, providing visual grouping of related nodes. Set flatten = true to get a flat diagram.
 
 ## Parameters
 
 - **p** (`Pipeline|MetaPipeline`): The pipeline or metapipeline.
-- **title** (`Str`, optional): Graph title. Auto-detected from the project name in `tproject.toml` if omitted. Renders as Mermaid YAML frontmatter (`tlang-title:` key).
-- **flatten** (`Bool`, default `false`): If `true`, renders meta-pipelines as a flat graph instead of grouping sub-pipelines into subgraph blocks.
+
+- **flatten** (`Bool`): = false Flatten meta-pipeline subgraphs into a single level.
+
+- **title** (`Str`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
+
 
 ## Returns
 
@@ -25727,8 +25826,8 @@ A Mermaid flowchart string.
 
 ```t
 pipeline_to_mermaid(p)
-pipeline_to_mermaid(meta, title = "My Graph")
 pipeline_to_mermaid(meta, flatten = true)
+pipeline_to_mermaid(p, title = "My Graph")
 ```
 
 ## See Also
@@ -25927,7 +26026,7 @@ mutate(df, !!!poly($age, 3, raw = true))
 
 Populate Pipeline
 
-Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optionally builds the pipeline with full Nix-native orchestration support. If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before population.
+Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optionally builds the pipeline with full Nix-native orchestration support.  If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before population.
 
 ## Parameters
 
@@ -26463,13 +26562,7 @@ The build log content.
 
 Read Pipeline Node Artifact
 
-Reads and returns the contents of a ComputedNode. For in-memory pipelines, returns the dynamically computed value directly from the registry. For built pipelines, reads the materialized artifact from the latest build log.
-
-> **Note:** The `.warnings` field previously accessible on the result of `read_node()` has been removed. Use [`warning_msg(node)`](warning_msg.html) to inspect warnings. Use [`inspect_node(node)`](inspect_node.html) for structured warning metadata.
->
-> To read a node from a specific historical build log **without the pipeline being in scope**, use [`read_past_node(p.node_name, which_log = "...")`](read_past_node.html).
->
-> **Hint on syntax errors:** If you pass a bare symbol (e.g. `read_node(ha)` instead of `read_node(p.ha)`), T will suggest the correct form: *Did you mean `read_node(p.ha)`?*
+Reads and returns the contents of a ComputedNode. For in-memory pipelines, returns the dynamically computed value directly from the registry. For built pipelines, reads the materialized artifact from the latest build log.  Note: The `.warnings` field previously returned on the result has been removed. Use `warning_msg(node)` to inspect a node's own warnings and any upstream warnings inherited from ancestor nodes. Use `inspect_node(node)` for structured warning metadata.  Use `read_past_node(p.node_name, which_log = "...")` to read a node from a specific historical build log without needing the pipeline in scope.
 
 ## Parameters
 
@@ -26482,7 +26575,7 @@ The deserialized artifact value, or the in-memory value.
 
 ## See Also
 
-[read_past_node](read_past_node.html), [warning_msg](warning_msg.html), [inspect_node](inspect_node.html), [inspect_pipeline](inspect_pipeline.html), [build_pipeline](build_pipeline.html), [read_pipeline](read_pipeline.html)
+[inspect_pipeline](inspect_pipeline.html), [build_pipeline](build_pipeline.html), [read_pipeline](read_pipeline.html), [inspect_node](inspect_node.html), [warning_msg](warning_msg.html), [read_past_node](read_past_node.html)
 
 
 
@@ -26526,28 +26619,18 @@ Reads and returns the contents of a pipeline node from a historical build log, i
 ## Parameters
 
 - **node** (`ComputedNode`): The node to read, written as `p.node_name` (NSE-captured).
-- **which_log** (`String`, required): A regex pattern matching a specific build log filename.
+
+- **which_log** (`String`): A regex pattern matching a specific build log filename.
+
 
 ## Returns
 
 The deserialized artifact value, wrapped with diagnostics.
 
-## Examples
-
-```t
-# Read a node from a specific past build run
-read_past_node(base_p.raw, which_log = "qcfs")
-
-# Use list_logs() to find the right log pattern
-list_logs()
-#   filename                           
-#   build_log_20260609_190157_qcfs71...
-#   build_log_20260609_192734_alnsv7...
-```
-
 ## See Also
 
-[read_node](read_node.html), [list_logs](list_logs.html), [build_log](build_log.html)
+[build_log](build_log.html), [list_logs](list_logs.html), [read_node](read_node.html)
+
 
 
 # FILE: docs/reference/read_pipeline.md
@@ -26556,9 +26639,7 @@ list_logs()
 
 Read Pipeline Metadata
 
-Returns a dictionary describing a materialized in-memory pipeline, including per-node diagnostics and the aggregated diagnostics summary. The diagnostics summary counts own warnings only (not upstream-inherited ones), so the count reflects which nodes originally produced warnings.
-
-After `build_pipeline(p)`, diagnostics include upstream warnings inherited from ancestor nodes, available via `warning_msg()` or `inspect_node()`.
+Returns a dictionary describing a materialized in-memory pipeline, including per-node diagnostics and the aggregated diagnostics summary.
 
 ## Parameters
 
@@ -26567,11 +26648,11 @@ After `build_pipeline(p)`, diagnostics include upstream warnings inherited from 
 
 ## Returns
 
-A dictionary with `nodes` and `diagnostics` keys. The `diagnostics.summary` field gives a high-level count. Use `warning_msg()` on individual nodes for full warning details including upstream provenance.
+A dictionary with node metadata and diagnostics.
 
 ## See Also
 
-[warning_msg](warning_msg.html), [inspect_node](inspect_node.html), [explain](explain.html), [read_node](read_node.html)
+[explain](explain.html), [read_node](read_node.html)
 
 
 
@@ -27488,30 +27569,22 @@ A pipeline node configuration object. Must be used as a named binding inside a `
 
 # show_plot
 
-Render a visualization and open it locally
+Render a plot node and open it locally
 
-Accepts a pipeline or meta-pipeline (renders the DAG as an interactive Mermaid diagram in the browser), a Mermaid diagram string (renders directly), or a plot-producing node (renders the plot artifact).
+Builds or reuses an R/Python/Julia plot artifact, renders it into `_pipeline/`, and opens the rendered image with the command configured in `tproject.toml` under `[visualization-tool]`.
 
 ## Parameters
 
-- **plot** (`Any`): A pipeline node, built node, `read_node()` result for a plot-producing node, a `Pipeline`/`MetaPipeline` (DAG visualization), or a Mermaid string.
+- **plot** (`Any`): A pipeline node, built node, or `read_node()` result for a plot-producing node.
 
 
 ## Returns
 
-The local rendered image path for plot nodes; the Mermaid HTML path for DAG/string inputs.
-
-## Examples
-
-```t
-show_plot(p)                       -- render pipeline as interactive Mermaid DAG
-show_plot(pipeline_to_mermaid(p))  -- render Mermaid string directly
-show_plot(p.my_plot_node)          -- render a plot artifact
-```
+The local rendered image path.
 
 ## See Also
 
-[build_pipeline](build_pipeline.html), [pipeline_to_mermaid](pipeline_to_mermaid.html), [read_node](read_node.html)
+[build_pipeline](build_pipeline.html), [read_node](read_node.html)
 
 
 
@@ -28338,10 +28411,6 @@ Silences all captured warnings for the current node in the console summary. Warn
 
 The original value, signaling the evaluator to suppress diagnostic output.
 
-## See Also
-
-[warning_msg](warning_msg.html), [read_pipeline](read_pipeline.html)
-
 
 
 # FILE: docs/reference/swap.md
@@ -28521,13 +28590,23 @@ t_gc()
 
 # t_make
 
-Build Pipeline Internally
+Build and run a pipeline file
 
-Builds the `src/pipeline.t` pipeline entrypoint.
+Reads, parses, evaluates and builds a T pipeline file. This is a high-level build orchestrator often used from the CLI (repl) to trigger a full project build. It supports a single dictionary argument for Nix specific build options. `src/pipeline.t` must call `populate_pipeline(...)` or `build_pipeline(...)`. If it only calls `populate_pipeline(...)` without `build=true`, `t_make()` emits a warning and continues after populating the pipeline.
 
 ## Parameters
 
-- **filename** (`String`): (Optional) The pipeline build script path. Must be `src/pipeline.t`.
+- **filename** (`String`): The pipeline file path. Must be `src/pipeline.t`.
+
+- **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
+
+- **verbose** (`Int`): The Nix build verbosity level. `0` is quiet; values > 0 enable internal node failure logs.
+
+- **failfast** (`Bool`): Whether to stop immediately on evaluation errors (defaults to false).
+
+
+## Returns
+
 
 
 
@@ -29379,16 +29458,28 @@ unite(df, "full_name", $first_name, $last_name, sep = " ")
 
 # unknown
 
-Print Failed Node Logs
+Expand pattern-based branching in a pipeline.
 
-Prints stderr log sections for each failed node by resolving its derivation path through `nix log`.
+Patterned nodes using `map_pattern(dep)`, `cross_pattern(...)`, `slice_pattern(dep, [i1, i2, ...])`, `head_pattern(dep, n)`, `tail_pattern(dep, n)`, or `sample_pattern(dep, n)` are replaced with N branch copies, where N depends on the pattern type. Supports List, Vector, and DataFrame dependencies.  `populate_pipeline(p)`, `build_pipeline(p)`, and pipeline composition functions (`chain`, `parallel`, `union`, ...) now call this function automatically when they detect unexpanded patterns.
 
 ## Parameters
 
-- **drv_paths** (`Hashtbl`): Captured derivation paths keyed by node name.
+- **p** (`Pipeline`): The pipeline to expand.
 
-- **errored** (`List[String]`): Node names that failed during the build.
+- **to_script** (`String`): | NA = NA Optional file path to write the expanded pipeline script.
 
+
+## Returns
+
+The expanded pipeline with branches in place of patterned nodes.
+
+## Examples
+
+```t
+p = pipeline { x = [1, 2, 3]; y = node(command = <{ x }>, pattern = map_pattern(x)) }
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)  -- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
+```
 
 
 
@@ -29542,7 +29633,7 @@ wald_test(model, terms = ["wt", "hp"])
 
 Get warning message
 
-Returns the human-readable warning associated with a completed computed node, or an empty string if none. For downstream nodes that inherit warnings from ancestor nodes, each warning is prefixed with its source to make provenance clear.
+Returns the human-readable warning associated with a completed computed node, or an empty string if none. Upstream warnings inherited from ancestor nodes are prefixed with the source node name for clear provenance. Multiple warnings are joined with ". Furthermore, ".
 
 ## Parameters
 
@@ -29551,31 +29642,7 @@ Returns the human-readable warning associated with a completed computed node, or
 
 ## Returns
 
-The warning message string. Format depends on the warning source:
-
-- **Own warning**: The raw warning message (e.g. `"filter() excluded 1 row because the predicate evaluated to NA"`).
-- **Upstream warning**: Prefixed with `"Ancestor node '<name>' reported following warning: <message>"`.
-- **Multiple warnings** (own + upstream, or multiple upstream): Joined with `". Furthermore, "`.
-
-### Examples
-
-Node with only an own warning:
-```t
-warning_msg(p.filtered)
--- "filter() excluded 1 row because the predicate evaluated to NA"
-```
-
-Downstream node that inherits a warning from an ancestor:
-```t
-warning_msg(p.count)
--- "Ancestor node 'filtered' reported following warning: filter() excluded 1 row because the predicate evaluated to NA"
-```
-
-Node with both an own warning and inherited upstream warnings:
-```t
-warning_msg(p.summary)
--- "mutate() created NAs. Furthermore, Ancestor node 'filtered' reported following warning: filter() excluded 1 row because the predicate evaluated to NA"
-```
+The formatted warning message, or "" if no warnings.
 
 
 

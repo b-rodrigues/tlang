@@ -119,13 +119,14 @@
 | [filter_node](filter_node.html) | Filter Pipeline Nodes |
 | [fit_stats](fit_stats.html) | Model Goodness-of-Fit Statistics |
 | [fivenum](fivenum.html) | Five-number summary |
+| [float_seq](float_seq.html) | Generate a sequence of evenly-spaced floats |
 | [floor](floor.html) | Floor function |
 | [floor_date](floor_date.html) | Round dates down |
 | [force_tz](force_tz.html) | Retag a datetime with a timezone |
 | [format_date](format_date.html) | Format dates as strings |
 | [format_datetime](format_datetime.html) | Format datetimes as strings |
 | [full_join](full_join.html) | Join all rows from both tables |
-| [get](get.html) | Unified Data Retrieval (get) |
+| [get](get.html) | Get Value via Lens |
 | [getwd](getwd.html) | Get current working directory |
 | [glimpse](glimpse.html) | Glimpse DataFrame |
 | [greet](greet.html) | Greet someone |
@@ -209,10 +210,10 @@
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
 | [node_diff](node_diff.html) | Compare Node Outputs Across Builds |
-| [node_fork](node_fork.html) | Static Multi-Way Branch for Pipeline Nodes |
+| [node_fork](node_fork.html) | Static pipeline multi-way branch |
 | [node_lens](node_lens.html) | Pipeline Node Lens |
 | [node_meta_lens](node_meta_lens.html) | Pipeline Metadata Lens |
-| [node_when](node_when.html) | Static Conditional Pipeline Node Inclusion |
+| [node_when](node_when.html) | Static pipeline node conditional |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
@@ -248,11 +249,13 @@
 | [pipeline_node](pipeline_node.html) | Get Pipeline Node |
 | [pipeline_nodes](pipeline_nodes.html) | List Pipeline Nodes |
 | [pipeline_print](pipeline_print.html) | Pretty-Print a Pipeline |
+| [pipeline_report](pipeline_report.html) | Generate Pipeline Report |
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |
 | [pipeline_run](pipeline_run.html) | Run Pipeline |
 | [pipeline_to_dot](pipeline_to_dot.html) | Export Pipeline/MetaPipeline as DOT Graph |
 | [pipeline_to_drv](pipeline_to_drv.html) | Introspect Node Derivation Paths |
 | [pipeline_to_frame](pipeline_to_frame.html) | Convert Pipeline to DataFrame |
+| [pipeline_to_ga](pipeline_to_ga.html) | Export Pipeline as GitHub Actions Workflow |
 | [pipeline_to_mermaid](pipeline_to_mermaid.html) | Export Pipeline/MetaPipeline as Mermaid Graph |
 | [pipeline_to_store](pipeline_to_store.html) | Introspect Node Store Paths |
 | [pipeline_validate](pipeline_validate.html) | Validate a Pipeline |
@@ -281,8 +284,8 @@
 | [read_file](read_file.html) | Read file contents |
 | [read_log](read_log.html) | Read Node Build Log |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
-| [read_past_node](read_past_node.html) | Read Pipeline Node from Past Build |
 | [read_parquet](read_parquet.html) | Read Parquet file |
+| [read_past_node](read_past_node.html) | Read Pipeline Node from a Past Build Run |
 | [read_pipeline](read_pipeline.html) | Read Pipeline Metadata |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |
 | [relocate](relocate.html) | Move columns to a new position |
@@ -359,7 +362,7 @@
 | [swap](swap.html) | Swap a Pipeline Node Implementation |
 | [t_doc](t_doc.html) | Generate Documentation |
 | [t_gc](t_gc.html) | Run System Garbage Collection |
-| [t_make](t_make.html) | Build Pipeline Internally |
+| [t_make](t_make.html) | Build and run a pipeline file |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
 | [t_read_onnx](t_read_onnx.html) | Read an ONNX model file |
 | [t_read_pmml](t_read_pmml.html) | Read a PMML model file |
@@ -399,7 +402,7 @@
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
-| [unknown](unknown.html) | Print Failed Node Logs |
+| [unknown](unknown.html) | Expand pattern-based branching in a pipeline. |
 | [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |

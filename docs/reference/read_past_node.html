@@ -42,26 +42,17 @@ the node name is captured via NSE from the <code>p.node_name</code>
 syntax.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>node</strong> (<code>ComputedNode</code>): The node to read,
-written as <code>p.node_name</code> (NSE-captured).</li>
-<li><strong>which_log</strong> (<code>String</code>, required): A regex
-pattern matching a specific build log filename.</li>
+<li><p><strong>node</strong> (<code>ComputedNode</code>): The node to
+read, written as <code>p.node_name</code> (NSE-captured).</p></li>
+<li><p><strong>which_log</strong> (<code>String</code>): A regex pattern
+matching a specific build log filename.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>The deserialized artifact value, wrapped with diagnostics.</p>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code># Read a node from a specific past build run
-read_past_node(base_p.raw, which_log = &quot;qcfs&quot;)
-
-# Use list_logs() to find the right log pattern
-list_logs()
-#   filename                           
-#   build_log_20260609_190157_qcfs71...
-#   build_log_20260609_192734_alnsv7...</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="read_node.html">read_node</a>, <a
+<p><a href="build_log.html">build_log</a>, <a
 href="list_logs.html">list_logs</a>, <a
-href="build_log.html">build_log</a></p>
+href="read_node.html">read_node</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

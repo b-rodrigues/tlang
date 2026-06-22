@@ -1,53 +1,25 @@
 # node_when
 
-Static Conditional Pipeline Node Inclusion
+Static pipeline node conditional
 
-Evaluated at pipeline construction time. Returns `value` if `condition` is truthy, otherwise excludes the node from the DAG entirely (the keyed node will not appear in `pipeline_nodes()` and accessing it produces an `Error`).
-
-`node_when` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
+Evaluated at pipeline construction time. Returns `value` if `condition` is truthy, otherwise returns a null marker that causes the pipeline to exclude the node entirely. This preserves Nix's static DAG requirement — the condition is checked before the build.  `node_when` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
 
 ## Parameters
 
-- **condition** (`Bool`): The condition to evaluate. Must be deterministic at pipeline-definition time (e.g., a variable, not an I/O call).
+- **condition** (`Bool`): The condition to evaluate.
 
-- **value** (`Any`): The node value to include if condition is truthy. Typically a `node()`, `rn()`, `pyn()`, or other pipeline node constructor.
+- **value** (`Node`): The node value to include if condition is true.
+
 
 ## Returns
 
-The `value` if condition is truthy; a null marker that excludes the node from the pipeline DAG otherwise.
+| Null The node value or null marker.
 
 ## Examples
 
 ```t
-include_heavy = false
-
 p = pipeline {
-  data = [1, 2, 3, 4, 5]
-  quick = sum(data)
-  heavy = node_when(include_heavy, node(command = "deep analysis", runtime = T))
+model = node_when(env("CI") == "1", pyn(script = "train.py"))
 }
-
-build_pipeline(p)
-
--- "heavy" does not appear in the pipeline at all when include_heavy is false
-"heavy" in pipeline_nodes(p)  -- false
 ```
 
-```t
--- With an R node
-p = pipeline {
-  data = [1, 2, 3, 4, 5]
-  total = sum(data)
-  r_out = node_when(true, rn(
-    command = <{ list(lang = "R", val = 42L) }>,
-    serializer = ^json
-  ))
-}
-
-build_pipeline(p)
-read_node(p.r_out)  -- {lang: "R", val: 42}
-```
-
-## See Also
-
-[node_fork](node_fork.html), [node](node.html), [rn](rn.html), [pyn](pyn.html), [build_pipeline](build_pipeline.html)

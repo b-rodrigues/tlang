@@ -34,63 +34,17 @@
 </nav>
 <div class="container">
 <h1 id="get">get</h1>
-<p>Unified Data Retrieval (get)</p>
-<p>Retrieves values from environments, collections, or pipelines using
-names, indices, or lenses. This is a polymorphic primitive that unifies
-several retrieval modes: 1. <strong>Variable Lookup</strong>:
-<code>get("var_name")</code> retrieves a variable from the environment.
-2. <strong>Collection Indexing</strong>:
-<code>get(collection, index)</code> retrieves an element (0-based). 3.
-<strong>Pipeline Access</strong>:
-<code>get(pipeline, "node_name")</code> retrieves a specific node
-result. 4. <strong>Lens Focus</strong>: <code>get(data, lens)</code>
-applies a Lens to focus on a subset of data. 5. <strong>Default Value
-(Fallback)</strong>: <code>get(value, default)</code> returns
-<code>value</code> unchanged when it is not NA/Error; returns
-<code>default</code> when <code>value</code> is NA or an Error. 6.
-<strong>Safe Retrieval</strong>:
-<code>get(target, selector, default)</code> performs the retrieval and
-returns <code>default</code> only when the result is NA (missing
-key/node or out-of-bounds index). Type errors in unsupported
-target/selector combinations propagate as errors. 7. <strong>Cross-Node
-Access (Sandbox)</strong>: <code>get(node_lens("name"))</code> retrieves
-a sibling node’s artifact.</p>
+<p>Get Value via Lens</p>
+<p>Retrieves a focused value from a data structure using a lens.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>target</strong> (<code>Any</code>): The environment name,
-Collection, Pipeline, Data, or Value to check.</p></li>
-<li><p><strong>selector</strong> (<code>Any</code>): (Optional) The
-index, Node name, Lens, or Default value.</p></li>
-<li><p><strong>default</strong> (<code>Any</code>): (Optional) The
-default value if the retrieval fails.</p></li>
+<li><p><strong>data</strong> (<code>Any</code>): The data structure to
+focus on.</p></li>
+<li><p><strong>lens</strong> (<code>Lens</code>): The lens defining the
+focus.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The retrieved value or the default fallback.</p>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>salary = 50000
-get(&quot;salary&quot;)                -- 50000 (Lookup)
-
-lst = [10, 20, 30]
-get(lst, 1)                  -- 20 (Indexing)
-
--- Safe indexing with default:
-get(lst, 5, 0)               -- 0 (Index out of bounds fallback)
-
--- Guardrail pattern (any non-NA/Error value is returned as-is):
-s = [min_age: NA]
-get(s.min_age, 0) &gt;= 0       -- true (NA falls back to 0)
-get(42, 0)                   -- 42 (non-NA/Error value returned unchanged)
-
-p = pipeline { a = 1 }
-get(p, &quot;a&quot;)                  -- 1 (Pipeline Access)
-get(p, &quot;missing&quot;, &quot;N/A&quot;)     -- &quot;N/A&quot; (Safe Pipeline Access)
-
-l = col_lens(&quot;mpg&quot;)
-get(mtcars, l)               -- Vector of &#39;mpg&#39; column (Lens)
-
--- Sandbox access (within a Nix-built node):
-get(node_lens(&quot;node_a&quot;))      -- Deserializes T_NODE_node_a artifact
-</code></pre>
+<p>The focused value.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

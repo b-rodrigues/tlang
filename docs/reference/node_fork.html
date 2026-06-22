@@ -34,59 +34,33 @@
 </nav>
 <div class="container">
 <h1 id="node_fork">node_fork</h1>
-<p>Static Multi-Way Branch for Pipeline Nodes</p>
+<p>Static pipeline multi-way branch</p>
 <p>Evaluated at pipeline construction time. Takes condition-value pairs
 and returns the value for the first truthy condition. If no condition
-matches and <code>.default</code> is provided, that value is used; if
-<code>.default</code> is omitted, the node is excluded from the DAG
-entirely.</p>
-<p><code>node_fork</code> is only meaningful as the direct value of a
-node binding inside a <code>pipeline { }</code> block. Using the result
-outside that context is unsupported.</p>
+matches, returns a null marker (node excluded). Provide
+<code>.default</code> to control the fallback value. This preserves
+Nix’s static DAG requirement — the condition is checked before the
+build. <code>node_fork</code> is only meaningful as the direct value of
+a node binding inside a <code>pipeline { }</code> block. Using the
+result outside that context is unsupported.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>…</strong> (<code>Any</code>): Pairs of
-<code>condition, value</code> arguments. Conditions are evaluated in
-order; the first truthy condition’s corresponding value is
-elected.</p></li>
+<li><p><strong>…</strong> (<code>Any</code>): Pairs of condition-value
+arguments.</p></li>
 <li><p><strong>.default</strong> (<code>Any</code>): (Optional) Fallback
-value if no condition matches. When omitted and no condition matches,
-the node is excluded from the DAG.</p></li>
+value if no condition matches.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The value for the first truthy condition, the <code>.default</code>
-value, or a null marker that excludes the node from the DAG.</p>
+<div class="line-block">Null The selected node value or null
+marker.</div>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>env_mode = &quot;production&quot;
-
-p = pipeline {
-  config = node_fork(
-    env_mode == &quot;development&quot;, node(command = &quot;dev&quot;, runtime = T),
-    env_mode == &quot;staging&quot;,     node(command = &quot;stg&quot;, runtime = T),
-    env_mode == &quot;production&quot;,  node(command = &quot;prd&quot;, runtime = T),
-    .default = node(command = &quot;fallback&quot;, runtime = T)
-  )
-}
-
-build_pipeline(p)
-read_node(p.config)  -- &quot;prd&quot;</code></pre>
-<pre class="t"><code>-- Fork between R, Python, and T fallback
-model_lang = &quot;python&quot;
-
-p = pipeline {
-  result = node_fork(
-    model_lang == &quot;R&quot;,      rn(command = &lt;{ list(lang = &quot;R&quot;) }&gt;, serializer = ^json),
-    model_lang == &quot;python&quot;, pyn(command = &lt;{ {&quot;lang&quot;: &quot;py&quot;} }&gt;, serializer = ^json),
-    .default = node(command = &quot;t_fallback&quot;, runtime = T)
-  )
-}
-
-build_pipeline(p)
-read_node(p.result)  -- {lang: &quot;py&quot;}</code></pre>
-<h2 id="see-also">See Also</h2>
-<p><a href="node_when.html">node_when</a>, <a href="node.html">node</a>,
-<a href="rn.html">rn</a>, <a href="pyn.html">pyn</a>, <a
-href="build_pipeline.html">build_pipeline</a></p>
+<pre class="t"><code>p = pipeline {
+model = node_fork(
+env(&quot;MODEL_TYPE&quot;) == &quot;lm&quot;, rn(script = &quot;lm.R&quot;),
+env(&quot;MODEL_TYPE&quot;) == &quot;nn&quot;, pyn(script = &quot;nn.py&quot;),
+.default = rn(script = &quot;baseline.R&quot;)
+)
+}</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>
