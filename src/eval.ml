@@ -1710,6 +1710,25 @@ and eval_pipeline_of env_ref (nodes : (string * Ast.expr) list) : value =
 
 (** Evaluate a pipeline definition *)
 and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : value =
+  (match List.find_opt (fun (name, _) ->
+    let parts = String.split_on_char '_' name in
+    List.length parts >= 3
+    && List.nth parts (List.length parts - 2) = "branch"
+    && let last = List.nth parts (List.length parts - 1) in
+       String.length last > 0
+       && String.for_all (fun c -> c >= '0' && c <= '9') last
+  ) nodes with
+  | Some (bad_name, _) ->
+    Error.make_error NameError
+      (Printf.sprintf "Node name `%s` ends with `_branch_N` which is reserved for auto-generated branch nodes from pattern expansion. Choose a different name." bad_name)
+  | None ->
+  (match List.find_opt (fun (n, _) ->
+    List.length (List.filter (fun (n', _) -> n' = n) nodes) > 1
+  ) nodes with
+  | Some (dup_name, _) ->
+    Error.make_error NameError
+      (Printf.sprintf "Duplicate node name `%s` in pipeline." dup_name)
+  | None ->
   let rec substitute_env_vars env node_names expr =
     let sub = substitute_env_vars env node_names in
     let new_node = match expr.node with
@@ -2040,6 +2059,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     } in
     result
   end
+  ))
 
 (** Deserialize dependencies for a node during eager evaluation.
     Resolves deserialization strategy from the node's deserializer expression,
@@ -2423,6 +2443,145 @@ and eval_dot_access env_ref target_expr field =
       | _ -> eval_dot_access_val env_ref (Utils.unwrap_value target_val) field)
   | _ -> eval_dot_access_val env_ref target_val field
 
+and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field : string) : value option =
+  let parse_branch_suffix s =
+    let branch_marker = "_branch_" in
+    let bm_len = String.length branch_marker in
+    let s_len = String.length s in
+    let rec find_marker pos =
+      if pos < 0 then None
+      else if String.sub s pos bm_len = branch_marker then
+        let orig = String.sub s 0 pos in
+        let suffix = String.sub s (pos + bm_len) (s_len - pos - bm_len) in
+        (match int_of_string_opt suffix with
+         | Some n when n > 0 -> Some (orig, n)
+         | _ -> None)
+      else find_marker (pos - 1)
+    in
+    find_marker (s_len - bm_len)
+  in
+  let eval_dep_len dep =
+    match List.assoc_opt dep p.Ast.p_exprs with
+    | Some expr ->
+        (try
+           match eval_expr (ref env) expr with
+           | Ast.VList items -> Some (List.length items)
+           | Ast.VVector arr -> Some (Array.length arr)
+           | Ast.VDataFrame df -> Some (Arrow_table.num_rows df.Ast.arrow_table)
+           | _ -> None
+         with _ -> None)
+    | None -> None
+  in
+  let eval_dep_at_index dep index =
+    match List.assoc_opt dep p.Ast.p_exprs with
+    | Some expr ->
+        (try
+           match eval_expr (ref env) expr with
+           | Ast.VList items ->
+               if index >= 0 && index < List.length items then snd (List.nth items index)
+               else Ast.VNA Ast.NAGeneric
+           | Ast.VVector arr ->
+               if index >= 0 && index < Array.length arr then Array.get arr index
+               else Ast.VNA Ast.NAGeneric
+           | Ast.VDataFrame df ->
+               let n = Arrow_table.num_rows df.Ast.arrow_table in
+               if index >= 0 && index < n then
+                 Ast.VDataFrame { df with Ast.arrow_table = Arrow_table.slice df.Ast.arrow_table index 1 }
+               else Ast.VNA Ast.NAGeneric
+           | _ -> Ast.VNA Ast.NAGeneric
+         with _ -> Ast.VNA Ast.NAGeneric)
+    | None -> Ast.VNA Ast.NAGeneric
+  in
+  let mk_cn orig_name =
+    let cn_runtime = match List.assoc_opt orig_name p.Ast.p_runtimes with Some r -> r | None -> "T" in
+    let cn_serializer = match List.assoc_opt orig_name p.Ast.p_serializers with
+      | Some e -> Nix_unparse.expr_to_string e | None -> "default"
+    in
+    let cn_dependencies = match List.assoc_opt orig_name p.Ast.p_deps with Some d -> d | None -> [] in
+    Some (Ast.VComputedNode {
+      Ast.cn_name = field;
+      Ast.cn_runtime;
+      Ast.cn_path = "<unbuilt>";
+      Ast.cn_serializer;
+      Ast.cn_class = "Unknown";
+      Ast.cn_dependencies;
+      Ast.cn_p_exprs = Some p.Ast.p_exprs;
+    })
+  in
+  match parse_branch_suffix field with
+  | Some (orig_name, branch_num) ->
+      (match List.assoc_opt orig_name p.Ast.p_patterns with
+       | Some pattern ->
+           let validate_deps deps index =
+             let dep_values = List.map (fun dep -> eval_dep_at_index dep index) deps in
+             if List.exists (fun v -> match v with Ast.VNA _ -> true | _ -> false) dep_values then None
+             else mk_cn orig_name
+           in
+           (match pattern with
+            | Ast.PatternMap deps ->
+                (match deps with
+                 | dep :: _ ->
+                     (match eval_dep_len dep with
+                      | Some len when branch_num <= len ->
+                          validate_deps deps (branch_num - 1)
+                      | _ -> None)
+                 | _ -> None)
+            | Ast.PatternCross _ -> None
+            | Ast.PatternSlice (dep, indices) ->
+                if branch_num <= List.length indices then
+                  validate_deps [dep] (List.nth indices (branch_num - 1))
+                else None
+            | Ast.PatternHead (dep, n) ->
+                (match eval_dep_len dep with
+                 | Some len when branch_num <= min n len ->
+                     validate_deps [dep] (branch_num - 1)
+                 | _ -> None)
+            | Ast.PatternTail (dep, n) ->
+                (match eval_dep_len dep with
+                 | Some len when branch_num <= min n len ->
+                     let offset = max 0 (len - n) in
+                     validate_deps [dep] (offset + branch_num - 1)
+                 | _ -> None)
+            | Ast.PatternSample (dep, n) ->
+                (match eval_dep_len dep with
+                 | Some len when branch_num <= min n len ->
+                     validate_deps [dep] (branch_num - 1)
+                 | _ -> None))
+       | None -> None)
+  | _ -> None
+
+and pattern_branch_names_for_error p field pattern =
+  let eval_dep_len dep =
+    match List.assoc_opt dep p.Ast.p_exprs with
+    | Some expr ->
+        (try
+           match eval_expr (ref Ast.Env.empty) expr with
+           | Ast.VList items -> Some (List.length items)
+           | Ast.VVector arr -> Some (Array.length arr)
+           | Ast.VDataFrame df -> Some (Arrow_table.num_rows df.Ast.arrow_table)
+           | _ -> None
+         with _ -> None)
+    | None -> None
+  in
+  let branch_count =
+    match pattern with
+    | Ast.PatternMap deps ->
+        (match deps with
+         | [dep] -> eval_dep_len dep
+         | _ -> None)
+    | Ast.PatternCross _ -> None
+    | Ast.PatternSlice (_, indices) -> Some (List.length indices)
+    | Ast.PatternHead (dep, n) | Ast.PatternTail (dep, n) | Ast.PatternSample (dep, n) ->
+        (match eval_dep_len dep with
+         | Some len -> Some (min n len)
+         | None -> None)
+  in
+  match branch_count with
+  | Some count ->
+      let branches = List.init count (fun i -> field ^ "_branch_" ^ string_of_int (i + 1)) in
+      Some branches
+  | None -> None
+
 and get_pipeline_member p field =
   let resolved_cn p cn =
     match Hashtbl.find_opt Ast.pipeline_build_logs p.p_exprs with
@@ -2460,16 +2619,40 @@ and get_pipeline_member p field =
            if is_noop then
              Some (VSymbol (Printf.sprintf "<noop:%s>" field))
            else
-              Some (VComputedNode (resolved_cn p {
-                cn_name = field;
-                cn_runtime;
-                cn_path = "<unbuilt>";
-                cn_serializer;
-                cn_class = "Unknown";
-                cn_dependencies;
-                cn_p_exprs = Some p.p_exprs;
-              }))
-       | None -> None)
+               Some (VComputedNode (resolved_cn p {
+                 cn_name = field;
+                 cn_runtime;
+                 cn_path = "<unbuilt>";
+                 cn_serializer;
+                 cn_class = "Unknown";
+                 cn_dependencies;
+                 cn_p_exprs = Some p.p_exprs;
+               }))
+        | None ->
+            (* Check if this is a patterned node that expands into branches *)
+            (match List.assoc_opt field p.p_patterns with
+             | Some pattern ->
+                 let pattern_str = match pattern with
+                   | Ast.PatternMap deps -> "map_pattern(" ^ String.concat ", " deps ^ ")"
+                   | Ast.PatternCross _ -> "cross_pattern(...)"
+                   | Ast.PatternSlice (dep, indices) ->
+                       "slice_pattern(" ^ dep ^ ", [" ^ String.concat ", " (List.map string_of_int indices) ^ "])"
+                   | Ast.PatternHead (dep, n) -> "head_pattern(" ^ dep ^ ", " ^ string_of_int n ^ ")"
+                   | Ast.PatternTail (dep, n) -> "tail_pattern(" ^ dep ^ ", " ^ string_of_int n ^ ")"
+                   | Ast.PatternSample (dep, n) -> "sample_pattern(" ^ dep ^ ", " ^ string_of_int n ^ ")"
+                 in
+                 (match pattern_branch_names_for_error p field pattern with
+                  | Some branches ->
+                      Some (Error.make_error ValueError
+                        (Printf.sprintf "Node `%s` has pattern %s and expands into %s.\n\
+                          Use read_node(p.<branch_name>) to access individual branches directly."
+                          field pattern_str (String.concat ", " branches)))
+                  | None ->
+                      Some (Error.make_error ValueError
+                        (Printf.sprintf "Node `%s` has pattern %s.\n\
+                          Build the pipeline first, or use expand_pipeline(p) and access individual branches."
+                          field pattern_str)))
+              | None -> None))
 
 and pipeline_get_node_value _env_ref p field =
   match get_pipeline_member p field with
@@ -2574,10 +2757,14 @@ and eval_dot_access_val env_ref target_val field =
        (match get_pipeline_member p field with
         | Some v -> v
         | None ->
-            if has_node_prefix p field
-            then VDict [("__partial_dot_pipeline__", VPipeline p);
-                        ("__partial_dot_prefix__", VString field)]
-            else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
+            (* Try lazy branch expansion for patterned nodes *)
+            (match try_lazy_expand_branch p !env_ref field with
+             | Some v -> v
+             | None ->
+                 if has_node_prefix p field
+                 then VDict [("__partial_dot_pipeline__", VPipeline p);
+                             ("__partial_dot_prefix__", VString field)]
+                 else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)))
   | VMetaPipeline mp ->
       (match Pipeline_composition.flatten_meta (VMetaPipeline mp) with
        | VPipeline flat_p -> eval_dot_access_val env_ref (VPipeline flat_p) field

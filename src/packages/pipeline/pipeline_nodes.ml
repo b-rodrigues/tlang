@@ -12,12 +12,47 @@ open Ast
 --# @seealso pipeline_node, pipeline_deps
 --# @export
 *)
+
+let eval_dep_len env exprs dep_name =
+  match List.assoc_opt dep_name exprs with
+  | Some expr ->
+      (try
+         match Eval.eval_expr (ref env) expr with
+         | VList items -> Some (List.length items)
+         | VVector arr -> Some (Array.length arr)
+         | VDataFrame df -> Some (Arrow_table.num_rows df.arrow_table)
+         | _ -> None
+       with _ -> None)
+  | None -> None
+
+let compute_branch_names env p =
+  List.concat_map (fun (name, pattern) ->
+    let count_opt = match pattern with
+      | PatternMap deps ->
+          (match deps with
+           | [dep] -> eval_dep_len env p.p_exprs dep
+           | _ -> None)
+      | PatternCross _ -> None
+      | PatternSlice (_, indices) -> Some (List.length indices)
+      | PatternHead (dep, n) | PatternTail (dep, n) | PatternSample (dep, n) ->
+          (match eval_dep_len env p.p_exprs dep with
+           | Some len -> Some (min n len)
+           | None -> None)
+    in
+    match count_opt with
+    | Some n when n > 0 -> List.init n (fun i -> name ^ "_branch_" ^ string_of_int (i + 1))
+    | _ -> []
+  ) p.p_patterns
+
 let register env =
   Env.add "pipeline_nodes"
-    (make_builtin ~name:"pipeline_nodes" 1 (fun args _env ->
+    (make_builtin ~name:"pipeline_nodes" 1 (fun args env ->
       match args with
-      | [VPipeline { p_nodes; _ }] ->
-          VList (List.map (fun (name, _) -> (None, VString name)) p_nodes)
+      | [VPipeline p] ->
+          let base_names = List.map fst p.p_nodes in
+          let branch_names = compute_branch_names env p in
+          let all_names = base_names @ branch_names in
+          VList (List.map (fun name -> (None, VString name)) all_names)
       | [other] ->
           Error.type_error
             (Printf.sprintf "Function `pipeline_nodes` expects a Pipeline, but got %s."
