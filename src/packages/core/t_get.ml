@@ -8,7 +8,7 @@ open Ast
 --#
 --# This is a polymorphic primitive that unifies several retrieval modes:
 --#
---# 1. **Variable Lookup**: `get("var_name")` retrieves a variable from the environment.
+--# 1. **Variable Lookup**: `get("var_name")` retrieves a variable from the environment. When called inside an NSE data verb (`mutate`, `filter`, …), the **data mask** (`row` binding) is checked first — if the name matches a column, that column's value is returned; otherwise it falls back to the global environment.
 --# 2. **Collection Indexing**: `get(collection, index)` retrieves an element (0-based).
 --# 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result.
 --# 4. **Lens Focus**: `get(data, lens)` applies a Lens to focus on a subset of data.
@@ -24,6 +24,10 @@ open Ast
 --# @example
 --#   salary = 50000
 --#   get("salary")                -- 50000 (Lookup)
+--#
+--#   -- Data-mask aware lookup inside NSE verbs:
+--#   df = dataframe(a = [1, 2, 3])
+--#   df |> mutate(b = \(row) get("a"))  -- Vector[1, 2, 3] (column from data mask)
 --#
 --#   lst = [10, 20, 30]
 --#   get(lst, 1)                  -- 20 (Indexing)
@@ -211,11 +215,31 @@ let register ~eval_call env =
     (make_builtin ~name:"get" ~variadic:true 1 (fun args env ->
       let args_vals = args in
       match args_vals with
-      (* Variable Lookup Case (1 arg) *)
+       (* Variable Lookup Case (1 arg) *)
       | [VString name] | [VSymbol name] ->
-          (match Env.find_opt name env with
-           | Some v -> v
-           | None -> Error.name_error name)
+          (* Check data mask first: when called inside an NSE verb like
+             mutate(df, $result = get(col)), the lambda environment has
+             'row' bound to a VDict (per-row) or VDataFrame (whole-DF).
+             Check that before falling back to the global environment. *)
+          (match Env.find_opt "row" env with
+           | Some (VDict row_dict) ->
+               (match List.assoc_opt name row_dict with
+                | Some v -> v
+                | None ->
+                    (match Env.find_opt name env with
+                     | Some v -> v
+                     | None -> Error.name_error name))
+           | Some (VDataFrame df) ->
+               (match Arrow_table.get_column df.arrow_table name with
+                | Some col -> VVector (Arrow_bridge.column_to_values col)
+                | None ->
+                    (match Env.find_opt name env with
+                     | Some v -> v
+                     | None -> Error.name_error name))
+           | _ ->
+               (match Env.find_opt name env with
+                | Some v -> v
+                | None -> Error.name_error name))
 
        (* Lens/Node Fallback Case (1 arg: Lens) *)
        | [VLens (NodeLens name)] ->

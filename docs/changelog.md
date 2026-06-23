@@ -1,5 +1,9 @@
 # Changelog
 
+## [unreleased]
+
+- **`get()` data-mask awareness**: When `get("name")` is called inside an NSE data verb (`mutate`, `filter`, `summarize`, …), it now checks the data mask (`row` binding) first before falling back to the global environment. This allows `get()` to resolve column names dynamically inside data verbs via `\(row) get("col")` or `get($col)`.
+
 ## [0.53.0] - 2026-06-22
 
 This release:

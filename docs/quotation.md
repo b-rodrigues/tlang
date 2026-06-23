@@ -101,7 +101,8 @@ get(var_name)       -- retrieves [1000, 2000, 3000]
 get(to_symbol(var_name))  -- also works with Symbols
 ```
 
-Important: `get()` resolves names in the **calling environment**, not in a data-masking context. To retrieve a column dynamically inside a data verb, use quasiquotation with `!!to_symbol(col)`.
+> [!NOTE]
+> `get()` resolves names in the **calling environment** by default. When called inside an NSE data verb (`mutate`, `filter`, `summarize`, etc.), it checks the **data mask** (`row` binding) first: if the name matches a column in the current row or DataFrame, the column value is returned; otherwise it falls back to the global environment. This makes `get("col")` work naturally inside data verbs. To retrieve a column dynamically inside a data verb, you can also use `get($col)` or quasiquotation with `!!to_symbol(col)`.
 
 ## Quasiquotation
 
