@@ -8,6 +8,8 @@
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
 [![OCaml](https://img.shields.io/badge/OCaml-5.x-EC6813.svg?logo=ocaml&logoColor=white)](https://ocaml.org)
 
+[![Watch the T Orchestration Engine Trailer](https://img.youtube.com/vi/LIatS0k0JEI/maxresdefault.jpg)](https://youtu.be/LIatS0k0JEI?si=tk11_vqRb1JY75Hq)
+
 **T** is an experimental, reproducibility-by-design DSL for polyglot data science. It provides a functional, immutable language for constructing composable micropipelines—first-class, introspectable computation graphs that coordinate R, Python, and Shell execution within a unified system. Pipelines in T are not configuration artifacts but executable program structures with explicit dataflow, typed nodes, and content-addressed outputs.
 
 Built on Nix, T integrates declarative environment management and deterministic builds at the language level, enabling reproducible execution across machines without external orchestration layers. The result is a system where workflow structure, dependency resolution, and provenance tracking are intrinsic properties of the language rather than concerns delegated to external tools.
@@ -210,7 +212,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 
 ## Status & Missing Features
 
-**Beta 0.53.0 "L'Initiation"** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
+**Beta 0.53.0 "L'Initiation"** — The core syntax and functional semantics are stable. T is not just a DSL for reproducible, polyglot data science, but it also provides extensive native support for standard data manipulation verbs:
 
 - **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`, and more — heavily inspired by `dplyr`, `tidyr`, and `forcats`).
 - **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc. — inspired by `lubridate`).
