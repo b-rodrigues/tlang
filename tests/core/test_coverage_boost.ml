@@ -56,6 +56,9 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "get inside filter — VDict per-row mask, column missing, global fallback"
     {|x = 42; df = to_dataframe([a: [1, 2, 3]]); df |> filter(\(row) get("x") > 40) |> nrow()|}
     "3";
+  test "get inside mutate — name not in mask or global raises NameError"
+    {|df = to_dataframe([a: [1, 2, 3]]); df |> mutate(c = \(row) get("nonexistent"))|}
+    {|NameError:.*nonexistent|};
   test "get outside NSE context unchanged"
     {|x = 42; get("x")|}
     "42";
