@@ -2293,11 +2293,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "lag in mutate (vector input)"
     {|lag([10, 20, 30, 40])|}
-    "Vector[NA(Int), 10, 20, 30]";
- 
-   test "lead in mutate (vector input)"
-     {|lead([10, 20, 30, 40])|}
-     "Vector[20, 30, 40, NA(Int)]";
+    "Vector[NA, 10, 20, 30]";
+
+  test "lead in mutate (vector input)"
+    {|lead([10, 20, 30, 40])|}
+    "Vector[20, 30, 40, NA]";
 
   print_newline ();
 

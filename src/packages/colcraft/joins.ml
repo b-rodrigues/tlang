@@ -125,11 +125,11 @@ let right_projection left_names right_names by =
   ) [] right_names
   |> List.rev
 
-let merge_left_right ~left_names ~right_projection ~by ~right_na_of left_row right_row_opt =
+let merge_left_right ~left_names ~right_projection ~by left_row right_row_opt =
   let right_lookup name =
     match right_row_opt with
     | Some row -> assoc_value row name
-    | None -> VNA (right_na_of name)
+    | None -> (VNA NAGeneric)
   in
   let left_pairs =
     List.map (fun name -> (name, assoc_value left_row name)) left_names
@@ -151,7 +151,7 @@ let merge_left_right ~left_names ~right_projection ~by ~right_na_of left_row rig
            (name, value))
   |> fun pairs -> pairs @ right_pairs
 
-let rows_to_dataframe ?(group_keys=[]) ?(column_types=(fun _ -> NAGeneric)) column_order rows =
+let rows_to_dataframe ?(group_keys=[]) column_order rows =
   let nrows = List.length rows in
   let columns =
     List.map (fun name ->
@@ -160,7 +160,7 @@ let rows_to_dataframe ?(group_keys=[]) ?(column_types=(fun _ -> NAGeneric)) colu
           (List.map (fun row ->
                match List.assoc_opt name row with
                | Some value -> value
-               | None -> VNA (column_types name)) rows)
+               | None -> (VNA NAGeneric)) rows)
       in
        (name, values)
      ) column_order
@@ -181,24 +181,6 @@ let join_impl kind named_args _env =
             let left_names = Arrow_table.column_names left.arrow_table in
             let right_names = Arrow_table.column_names right.arrow_table in
             let right_projection = right_projection left_names right_names by in
-            let right_na_of name =
-              match Arrow_table.get_column right.arrow_table name with
-              | Some col -> Arrow_bridge.na_for_column_type col
-              | None -> NAGeneric
-            in
-            let left_na_of name =
-              match Arrow_table.get_column left.arrow_table name with
-              | Some col -> Arrow_bridge.na_for_column_type col
-              | None -> NAGeneric
-            in
-            let column_types name =
-              match Arrow_table.get_column left.arrow_table name with
-              | Some col -> Arrow_bridge.na_for_column_type col
-              | None ->
-                match Arrow_table.get_column right.arrow_table name with
-                | Some col -> Arrow_bridge.na_for_column_type col
-                | None -> NAGeneric
-            in
             let output_columns =
               match kind with
               | Semi | Anti -> left_names
@@ -235,13 +217,13 @@ let join_impl kind named_args _env =
                   joined_rows := List.map (fun name -> (name, assoc_value left_row name)) left_names :: !joined_rows
               | (Left | Full), [] ->
                   joined_rows :=
-                    merge_left_right ~left_names ~right_projection ~by ~right_na_of left_row None :: !joined_rows
+                    merge_left_right ~left_names ~right_projection ~by left_row None :: !joined_rows
               | Inner, [] -> ()
               | _, indices ->
                   List.iter (fun idx ->
                     right_matches.(idx) <- true;
                     joined_rows :=
-                      merge_left_right ~left_names ~right_projection ~by ~right_na_of left_row (Some right_rows.(idx))
+                      merge_left_right ~left_names ~right_projection ~by left_row (Some right_rows.(idx))
                       :: !joined_rows
                   ) indices
             ) left_rows;
@@ -260,9 +242,9 @@ let join_impl kind named_args _env =
                               if List.mem name by then
                                 (name, assoc_value row name)
                               else
-                                (name, VNA (left_na_of name))) left_names
+                                (name, (VNA NAGeneric))) left_names
                           in
-                           Some (merge_left_right ~left_names ~right_projection ~by ~right_na_of left_stub (Some row)))
+                           Some (merge_left_right ~left_names ~right_projection ~by left_stub (Some row)))
                   in
                   List.rev !joined_rows @ unmatched_right_rows
               | _ -> List.rev !joined_rows
@@ -272,7 +254,7 @@ let join_impl kind named_args _env =
               | Left | Inner | Semi | Anti -> left.group_keys
               | Full -> []
             in
-            rows_to_dataframe ~group_keys:preserved_group_keys ~column_types output_columns joined_rows)
+            rows_to_dataframe ~group_keys:preserved_group_keys output_columns joined_rows)
   | _ :: _ :: _ :: _ ->
       Error.make_error ArityError
         "Join functions accept exactly two positional DataFrame arguments and at most one join-key argument (or named `by`)."

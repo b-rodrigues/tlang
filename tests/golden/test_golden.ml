@@ -394,25 +394,25 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
      => NA, 85.5, 92.3, 78.9, 88.1 *)
   test "golden window: lag matches dplyr"
     {|lag([85.5, 92.3, 78.9, 88.1, 95.0])|}
-    "Vector[NA(Float), 85.5, 92.3, 78.9, 88.1]";
+    "Vector[NA, 85.5, 92.3, 78.9, 88.1]";
 
   (* R: dplyr::lead(c(85.5, 92.3, 78.9, 88.1, 95.0))
      => 92.3, 78.9, 88.1, 95.0, NA *)
   test "golden window: lead matches dplyr"
     {|lead([85.5, 92.3, 78.9, 88.1, 95.0])|}
-    "Vector[92.3, 78.9, 88.1, 95., NA(Float)]";
+    "Vector[92.3, 78.9, 88.1, 95., NA]";
 
   (* R: dplyr::lag(c(1, 2, 3, 4, 5), 2)
      => NA, NA, 1, 2, 3 *)
   test "golden window: lag with offset 2 matches dplyr"
     {|lag([1, 2, 3, 4, 5], 2)|}
-    "Vector[NA(Int), NA(Int), 1, 2, 3]";
+    "Vector[NA, NA, 1, 2, 3]";
 
   (* R: dplyr::lead(c(1, 2, 3, 4, 5), 2)
      => 3, 4, 5, NA, NA *)
   test "golden window: lead with offset 2 matches dplyr"
     {|lead([1, 2, 3, 4, 5], 2)|}
-    "Vector[3, 4, 5, NA(Int), NA(Int)]";
+    "Vector[3, 4, 5, NA, NA]";
 
   (* --- Cumulative functions --- *)
 
@@ -490,12 +490,12 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
   (* R: dplyr::lag(c(1, NA, 3)) => NA, 1, NA *)
   test "golden window NA: lag propagates NA"
     {|lag([1, NA, 3])|}
-    "Vector[NA(Int), 1, NA]";
+    "Vector[NA, 1, NA]";
 
   (* R: dplyr::lead(c(1, NA, 3)) => NA, 3, NA *)
   test "golden window NA: lead propagates NA"
     {|lead([1, NA, 3])|}
-    "Vector[NA, 3, NA(Int)]";
+    "Vector[NA, 3, NA]";
 
   (* R: cumsum(c(1, NA, 3)) => 1, NA, NA *)
   test "golden window NA: cumsum propagates NA"

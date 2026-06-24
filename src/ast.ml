@@ -17,7 +17,6 @@ type na_type =
   | NAFloat
   | NAString
   | NADate
-  | NADatetime
   | NAGeneric
 
 (** Symbolic error codes *)
@@ -745,7 +744,6 @@ module Utils = struct
     | NAFloat -> "Float"
     | NAString -> "String"
     | NADate -> "Date"
-    | NADatetime -> "Datetime"
     | NAGeneric -> ""
 
   let rec typ_to_string = function

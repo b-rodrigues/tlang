@@ -99,7 +99,7 @@ let get_value_at (view : column_view) (idx : int) : Ast.value =
     | Arrow_table.DateColumn a ->
       (match a.(idx) with Some d -> Ast.VDate d | None -> Ast.VNA Ast.NADate)
     | Arrow_table.DatetimeColumn (a, tz) ->
-      (match a.(idx) with Some ts -> Ast.VDatetime (ts, tz) | None -> Ast.VNA Ast.NADatetime)
+      (match a.(idx) with Some ts -> Ast.VDatetime (ts, tz) | None -> Ast.VNA Ast.NADate)
     | Arrow_table.NAColumn _ -> Ast.VNA Ast.NAGeneric
     | Arrow_table.DictionaryColumn (a, levels, ordered) ->
       (match a.(idx) with Some i -> Ast.VFactor (i, levels, ordered) | None -> Ast.VNA Ast.NAGeneric)

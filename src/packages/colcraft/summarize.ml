@@ -225,18 +225,14 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                     | None -> (k, [||])
                   ) df.group_keys in
                   let key_result_cols = List.map (fun k ->
-                    let empty_na = match Arrow_table.get_column df.arrow_table k with
-                      | Some col -> VNA (Arrow_bridge.na_for_column_type col)
-                      | None -> VNA NAGeneric
-                    in
                     let col = Array.init n_groups (fun g_idx ->
                       let (_, indices) = groups_array.(g_idx) in
                       match indices with
                       | first :: _ ->
                         let key_vals = match List.find_opt (fun (kn, _) -> kn = k) key_col_values with
                           | Some (_, v) -> v | None -> [||] in
-                        if first < Array.length key_vals then key_vals.(first) else empty_na
-                      | [] -> empty_na
+                        if first < Array.length key_vals then key_vals.(first) else (VNA NAGeneric)
+                      | [] -> (VNA NAGeneric)
                     ) in
                     (k, col)
                   ) df.group_keys in

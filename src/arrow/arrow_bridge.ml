@@ -23,7 +23,7 @@ let column_to_values (col : Arrow_table.column_data) : value array =
   | Arrow_table.DateColumn a ->
       Array.map (fun v -> match v with Some d -> VDate d | None -> VNA NADate) a
   | Arrow_table.DatetimeColumn (a, tz) ->
-      Array.map (fun v -> match v with Some ts -> VDatetime (ts, tz) | None -> VNA NADatetime) a
+      Array.map (fun v -> match v with Some ts -> VDatetime (ts, tz) | None -> VNA NADate) a
   | Arrow_table.NAColumn n ->
       Array.make n ((VNA NAGeneric))
   | Arrow_table.DictionaryColumn (a, levels, ordered) ->
@@ -61,8 +61,8 @@ let value_at (col : Arrow_table.column_data) (row : int) : value =
       else VNA NADate
   | Arrow_table.DatetimeColumn (a, tz) ->
       if in_bounds (Array.length a) then
-        (match a.(row) with Some ts -> VDatetime (ts, tz) | None -> VNA NADatetime)
-      else VNA NADatetime
+        (match a.(row) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
+      else VNA NADate
   | Arrow_table.NAColumn _ -> (VNA NAGeneric)
   | Arrow_table.DictionaryColumn (a, levels, ordered) ->
       if in_bounds (Array.length a) then
@@ -116,31 +116,12 @@ let values_to_column (values : value array) : Arrow_table.column_data =
          | _ ->
              has_factor := true;
              if not !factor_ordered then factor_ordered := ordered)
-    | VNA NABool -> has_bool := true
-    | VNA NAInt -> has_int := true
-    | VNA NAFloat -> has_float := true
-    | VNA NAString -> has_string := true
-    | VNA NADate -> has_date := true
-    | VNA NADatetime -> has_datetime := true
-    | VNA NAGeneric -> ()
+    | VNA _ -> ()
     | _ -> has_string := true; all_na := false  (* fallback to string *)
   ) values;
-  if !all_na then begin
-    if !has_datetime then
-      Arrow_table.DatetimeColumn (Array.map (fun _ -> None) values, None)
-    else if !has_date then
-      Arrow_table.DateColumn (Array.map (fun _ -> None) values)
-    else if !has_int then
-      Arrow_table.IntColumn (Array.map (fun _ -> None) values)
-    else if !has_float then
-      Arrow_table.FloatColumn (Array.map (fun _ -> None) values)
-    else if !has_bool then
-      Arrow_table.BoolColumn (Array.map (fun _ -> None) values)
-    else if !has_string then
-      Arrow_table.StringColumn (Array.map (fun _ -> None) values)
-    else
-      Arrow_table.NAColumn (Array.length values)
-  end else if !has_dataframe then
+  if !all_na then
+    Arrow_table.NAColumn (Array.length values)
+  else if !has_dataframe then
     if !has_int || !has_float || !has_bool || !has_string || !has_date || !has_datetime || !has_factor || !factor_inconsistent then
       raise (Invalid_argument "values_to_column: mixed DataFrame and non-DataFrame values cannot be stored in a single column")
     else
@@ -234,7 +215,7 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
         | Arrow_table.DateColumn a ->
             (match a.(row_idx) with Some d -> VDate d | None -> VNA NADate)
         | Arrow_table.DatetimeColumn (a, tz) ->
-            (match a.(row_idx) with Some ts -> VDatetime (ts, tz) | None -> VNA NADatetime)
+            (match a.(row_idx) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
         | Arrow_table.NAColumn _ -> (VNA NAGeneric)
         | Arrow_table.DictionaryColumn (a, levels, ordered) ->
             (match a.(row_idx) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
@@ -243,19 +224,6 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
       in
       (name, v)
     ) table.schema
-
-(** Map an Arrow column type to the corresponding T NA variant.
-    Used to preserve column type information when all values in a group
-    key column are absent (e.g. empty groups in group_by+summarize). *)
-let na_for_column_type (col : Arrow_table.column_data) : na_type =
-  match col with
-  | Arrow_table.IntColumn _ -> NAInt
-  | Arrow_table.FloatColumn _ -> NAFloat
-  | Arrow_table.BoolColumn _ -> NABool
-  | Arrow_table.StringColumn _ -> NAString
-  | Arrow_table.DateColumn _ -> NADate
-  | Arrow_table.DatetimeColumn _ -> NADatetime
-  | _ -> NAGeneric
 
 (** Create an Arrow table from T-Lang value column structures.
     

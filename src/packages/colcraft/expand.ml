@@ -32,8 +32,6 @@ let get_col_vals df col_name =
   | Some (FloatColumn a) -> Array.to_list a |> List.map (function Some f -> VFloat f | None -> (VNA NAGeneric)) |> unique_sorted
   | Some (StringColumn a) -> Array.to_list a |> List.map (function Some s -> VString s | None -> (VNA NAGeneric)) |> unique_sorted
   | Some (BoolColumn a) -> Array.to_list a |> List.map (function Some b -> VBool b | None -> (VNA NAGeneric)) |> unique_sorted
-  | Some (DateColumn a) -> Array.to_list a |> List.map (function Some d -> VDate d | None -> VNA NADate) |> unique_sorted
-  | Some (DatetimeColumn (a, tz)) -> Array.to_list a |> List.map (function Some ts -> VDatetime (ts, tz) | None -> VNA NADatetime) |> unique_sorted
   | _ -> [(VNA NAGeneric)]
 
 let get_nested_vals df col_names =
@@ -47,8 +45,6 @@ let get_nested_vals df col_names =
           | Some (FloatColumn a) -> (match a.(i) with Some x -> VFloat x | None -> (VNA NAGeneric))
           | Some (StringColumn a) -> (match a.(i) with Some x -> VString x | None -> (VNA NAGeneric))
           | Some (BoolColumn a) -> (match a.(i) with Some x -> VBool x | None -> (VNA NAGeneric))
-          | Some (DateColumn a) -> (match a.(i) with Some x -> VDate x | None -> VNA NADate)
-          | Some (DatetimeColumn (a, tz)) -> (match a.(i) with Some x -> VDatetime (x, tz) | None -> VNA NADatetime)
           | _ -> (VNA NAGeneric)
         in v :: get_row i ns
   in

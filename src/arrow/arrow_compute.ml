@@ -533,15 +533,11 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
       let key_col_array = Array.of_list key_col_values in
       let key_result_cols = List.mapi (fun ki k ->
         let key_vals = key_col_array.(ki) in
-        let empty_na = match Arrow_table.get_column t k with
-          | Some col -> Ast.VNA (Arrow_bridge.na_for_column_type col)
-          | None -> Ast.(VNA NAGeneric)
-        in
         let col = Array.init n_groups (fun g_idx ->
           let (_, indices) = groups_array.(g_idx) in
           match indices with
           | first :: _ -> key_vals.(first)
-          | [] -> empty_na
+          | [] -> Ast.(VNA NAGeneric)
         ) in
         (k, col)
       ) grouped.group_keys in
