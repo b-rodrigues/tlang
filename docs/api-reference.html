@@ -254,11 +254,23 @@ a function.</p>
 id="gettarget-selector-na-default-na"><code>get(target, selector = NA, default = NA)</code></h3>
 <p>Unified retrieval for variables, collection elements, pipeline nodes,
 or lens focuses.</p>
+<p>When called with a single string or symbol argument inside an NSE
+data verb (<code>mutate</code>, <code>filter</code>,
+<code>summarize</code>, …), <code>get()</code> checks the <strong>data
+mask</strong> first: if the name matches a column in the current row or
+DataFrame, the column value is returned; otherwise it falls back to the
+global environment.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>get(&quot;salary&quot;)                -- variable lookup
 get(list, 0)                  -- indexing
 get(df, col_lens(&quot;mpg&quot;))      -- lens focus
-get(val, 0)                   -- fallback if val is NA/Error</code></pre>
+get(val, 0)                   -- fallback if val is NA/Error
+
+-- Data-mask aware: column lookup inside mutate
+x = 42
+df = dataframe(a = [1, 2, 3])
+df |&gt; mutate(b = \(row) get(&quot;a&quot;))  -- column &quot;a&quot; from data mask
+df |&gt; mutate(c = \(row) get(&quot;x&quot;))  -- &quot;x&quot; not a column, falls back to global</code></pre>
 <hr />
 <h3
 id="ifelsecondition-true_val-false_val-missing-na-out_type-na"><code>ifelse(condition, true_val, false_val, missing = NA, out_type = NA)</code></h3>

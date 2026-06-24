@@ -527,6 +527,18 @@ get(p, &quot;a&quot;)                  -- 1</code></pre>
 <h4 id="lens-focus">4. Lens Focus</h4>
 <pre class="t"><code>l = col_lens(&quot;mpg&quot;)
 get(mtcars, l)               -- Vector of &#39;mpg&#39; column</code></pre>
+<h4 id="data-mask-aware-lookup-inside-nse-verbs">5. Data-Mask Aware
+Lookup (inside NSE verbs)</h4>
+<p>When called with a single string or symbol inside an NSE data verb
+(<code>mutate</code>, <code>filter</code>, <code>summarize</code>, …),
+<code>get()</code> checks the <strong>data mask</strong> first. The name
+is looked up in the current row’s columns (if the lambda is evaluated
+per-row) or the whole DataFrame; if not found there, it falls back to
+the global environment.</p>
+<pre class="t"><code>df = dataframe(a = [1, 2, 3])
+x = 42
+df |&gt; mutate(b = \(row) get(&quot;a&quot;))  -- column &quot;a&quot; from data mask → Vector[1, 2, 3]
+df |&gt; mutate(c = \(row) get(&quot;x&quot;))  -- &quot;x&quot; not a column, falls back to global → Vector[42, 42, 42]</code></pre>
 <h3 id="lenses">Lenses</h3>
 <p>Lenses are structured, serializable “addressing” objects. Unlike
 standard property access (<code>obj.prop</code>), lenses can be composed
