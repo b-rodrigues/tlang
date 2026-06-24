@@ -2,7 +2,22 @@
 
 ## [unreleased]
 
-- **`get()` data-mask awareness**: When `get("name")` is called inside an NSE data verb (`mutate`, `filter`, `summarize`, …), it now checks the data mask (`row` binding) first before falling back to the global environment. This allows `get()` to resolve column names dynamically inside data verbs via `\(row) get("col")` or `get($col)`.
+## [0.53.1] - Upcoming
+
+### Timezone Support
+- **IANA timezone offset conversion**: `with_tz()` and `force_tz()` now correctly
+  apply timezone offsets via POSIX `localtime_r`, supporting full IANA timezone
+  names (e.g. `"Europe/Paris"`, `"America/New_York"`).
+
+### Arrow Native Path Improvements
+- **Preserve factor type for all-NA columns**: `to_factor` on all-NA input now
+  preserves factor metadata (levels, ordered) through the Arrow round-trip,
+  keeping the native Arrow path active across data cleaning pipelines.
+
+### Core Language Features & Fixes
+- **`get()` data-mask awareness**: `get("name")` inside NSE data verbs
+  (`mutate`, `filter`, `summarize`, …) now checks the data mask before the
+  global environment, enabling dynamic column name resolution.
 
 ## [0.53.0] - 2026-06-22
 
