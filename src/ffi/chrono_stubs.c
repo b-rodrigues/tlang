@@ -22,6 +22,47 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <unistd.h>
+
+static int find_zoneinfo_path(const char *tz_name, char *out, size_t out_size)
+{
+  /* Probe order: TZDIR env var, then known platform paths. */
+  static const char *candidates[] = {
+    NULL,                    /* slot 0 = TZDIR env var (filled at runtime) */
+    "/etc/zoneinfo",         /* Nix */
+    "/usr/share/zoneinfo",   /* standard Linux */
+    "/usr/lib/zoneinfo",     /* macOS / non-Nix Linux */
+  };
+  static const int n_candidates = sizeof(candidates) / sizeof(candidates[0]);
+
+  size_t name_len = strlen(tz_name);
+
+  for (int i = 0; i < n_candidates; i++) {
+    const char *dir;
+    if (i == 0) {
+      dir = getenv("TZDIR");
+      if (!dir) continue;
+    } else {
+      dir = candidates[i];
+    }
+
+    size_t dir_len = strlen(dir);
+    /* path = dir / tz_name + NUL */
+    size_t path_len = dir_len + 1 + name_len + 1;
+    if (path_len > out_size) continue;
+
+    if (access(dir, R_OK) != 0) continue;
+
+    memcpy(out, dir, dir_len);
+    out[dir_len] = '/';
+    memcpy(out + dir_len + 1, tz_name, name_len + 1);
+
+    if (access(out, R_OK) == 0) return 0;
+  }
+
+  return -1;
+}
 
 CAMLprim value caml_tz_offset(value v_micros, value v_tz_name)
 {
@@ -33,9 +74,24 @@ CAMLprim value caml_tz_offset(value v_micros, value v_tz_name)
      into the OCaml heap; any subsequent allocation
      (malloc, setenv, etc.) could trigger GC compaction. */
   const char *tz_name_raw = String_val(v_tz_name);
-  size_t name_len = strlen(tz_name_raw);
-  char *tz_buf = (char *)malloc(name_len + 2);
-  snprintf(tz_buf, name_len + 2, ":%s", tz_name_raw);
+
+  /* Resolve the full zoneinfo path for this tz_name. */
+  char zone_path[512];
+  if (find_zoneinfo_path(tz_name_raw, zone_path, sizeof(zone_path)) != 0) {
+    char err_msg[1024];
+    snprintf(err_msg, sizeof(err_msg),
+      "caml_tz_offset: cannot find zoneinfo file for '%s' "
+      "(searched: TZDIR, /etc/zoneinfo, /usr/share/zoneinfo, "
+      "/usr/lib/zoneinfo)",
+      tz_name_raw);
+    caml_failwith(err_msg);
+  }
+
+  size_t zone_path_len = strlen(zone_path);
+  /* TZ value = ":" + zone_path + NUL */
+  char *tz_buf = (char *)malloc(zone_path_len + 2);
+  tz_buf[0] = ':';
+  memcpy(tz_buf + 1, zone_path, zone_path_len + 1);
 
   /* Save TZ before changing it — getenv returns a pointer into
      environ which setenv invalidates, so strdup immediately. */
