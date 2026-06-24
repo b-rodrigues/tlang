@@ -766,7 +766,7 @@ let interactive_init ?(placeholder="my_package") default_name =
   let license = prompt_string "License [EUPL-1.2, GPL-3.0-or-later, MIT] (visit https://spdx.org/licenses/ for all licenses)" "EUPL-1.2" in
   let nixpkgs_date = prompt_string "Nixpkgs date (rstats-on-nix branch)" Version.nixpkgs_date in
   let agent_context = prompt_string "Agent Context Level [small, medium, full, huge]" "medium" in
-  let pipeline_template = prompt_string "Pipeline Template [minimal, full]" "minimal" in
+  let pipeline_template = prompt_string "Pipeline Template [minimal, full]" "full" in
   let include_atelier = prompt_string "Include Atelier IDE (tmux-based TUI for T)? [y/N]" "N" in
   let use_atelier =
     match String.lowercase_ascii (String.trim include_atelier) with
@@ -901,7 +901,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
   let no_git = ref false in
   let force = ref false in
   let agent_context = ref "medium" in
-  let pipeline_template = ref "minimal" in
+  let pipeline_template = ref "full" in
   let use_atelier = ref false in
   let show_help = ref false in
   let error = ref None in
