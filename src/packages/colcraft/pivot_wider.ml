@@ -71,8 +71,8 @@ let register env =
                | Some (FloatColumn a) -> (match a.(i) with Some f -> VFloat f | None -> (VNA NAGeneric))
                | Some (IntColumn a) -> (match a.(i) with Some v -> VInt v | None -> (VNA NAGeneric))
                | Some (BoolColumn a) -> (match a.(i) with Some b -> VBool b | None -> (VNA NAGeneric))
-               | Some (DateColumn a) -> (match a.(i) with Some d -> VDate d | None -> (VNA NAGeneric))
-               | Some (DatetimeColumn (a, tz)) -> (match a.(i) with Some ts -> VDatetime (ts, tz) | None -> (VNA NAGeneric))
+               | Some (DateColumn a) -> (match a.(i) with Some d -> VDate d | None -> VNA NADate)
+               | Some (DatetimeColumn (a, tz)) -> (match a.(i) with Some ts -> VDatetime (ts, tz) | None -> VNA NADatetime)
                | _ -> (VNA NAGeneric)
              ) id_cols
            in
