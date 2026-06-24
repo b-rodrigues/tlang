@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.53.2] - 2026-06-24
+
+### Hotfix
+
+- **Nix Flake Update / Maven Dependency Parity**: Fixed local build failures caused by an upstream change in Maven dependencies for the `jpmml-evaluator` library (used for PMML model scoring). The nixpkgs fetch source hash has been updated to restore local build compatibility.
+
 ## [0.53.1] - 2026-06-24
  
 ### Hotfix
