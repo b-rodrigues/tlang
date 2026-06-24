@@ -1730,6 +1730,55 @@ This pattern — `build_log_to_frame(res)` + `filter` with a lambda — is the r
 
 ---
 
+## 12. Static Conditionals
+
+T supports conditional node inclusion evaluated at pipeline construction time, preserving Nix's static DAG requirement. There are two functions: `node_when` and `node_fork`.
+
+### `node_when(condition, value)`
+
+Returns `value` if `condition` is truthy, otherwise returns a null marker that causes the pipeline to exclude the node entirely. The condition is evaluated before the build.
+
+```t
+p = pipeline {
+  dev_data = read_csv("data/dev.csv")
+
+  model = node_when(env("CI") == "1", pyn(script = "train.py"))
+
+  deployed = node_when(env("BRANCH") == "main", pyn(script = "deploy.py"))
+}
+
+build_pipeline(p)
+```
+
+If `CI` is not `"1"`, the `model` node is excluded and no attempt is made to resolve its dependencies. If `BRANCH` is not `"main"`, the `deployed` node is similarly excluded.
+
+### `node_fork(...condition_value_pairs, .default = ...)`
+
+A multi-way branch: takes condition-value pairs and returns the value for the first truthy condition. If no condition matches and no `.default` is provided, the node is excluded.
+
+```t
+p = pipeline {
+  data = read_csv("data.csv")
+
+  model = node_fork(
+    env("MODEL") == "linear", lm(mpg ~ wt, data),
+    env("MODEL") == "forest", pyn(script = "rf.py"),
+    env("MODEL") == "neural", pyn(script = "nn.py"),
+    .default = lm(mpg ~ wt, data)
+  )
+}
+```
+
+Here, setting `MODEL=forest` in the environment selects the random forest node; any other value falls back to the `.default` linear model.
+
+### Important Notes
+
+- Both `node_when` and `node_fork` are only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
+- Conditions must be evaluable at pipeline construction time — typically using `env()` to read environment variables.
+- The null marker from an unmatched condition is not a regular value; it cannot be inspected, stored, or tested with `is_na()`. It exists only to signal node exclusion to the pipeline machinery.
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:
