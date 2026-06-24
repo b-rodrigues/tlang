@@ -85,7 +85,7 @@ When you initialize a T project (using `t init`), the generated `flake.nix` auto
 
 ### Global Configuration (Recommended)
 
-To benefit from the binary cache even outside of T projects (e.g., when running `nix shell github:b-rodrigues/tlang`), you can configure the cache globally in your system's `nix.conf`:
+To benefit from the binary cache even outside of T projects (e.g., when running `nix shell --accept-flake-config github:b-rodrigues/tlang`), you can configure the cache globally in your system's `nix.conf`:
 
 ```text
 substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
