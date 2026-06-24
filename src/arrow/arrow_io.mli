@@ -27,6 +27,9 @@ val read_ipc : string -> (Arrow_table.t, string) result
 (** Write an Arrow table to an IPC file *)
 val write_ipc : Arrow_table.t -> string -> (unit, string) result
 
+(** Write an Arrow table to a Parquet file *)
+val write_parquet : Arrow_table.t -> string -> (unit, string) result
+
 (** Return true if the given string looks like an HTTP/HTTPS URL. *)
 val is_url : string -> bool
 

@@ -186,7 +186,7 @@ let chrono_package = {
 let dataframe_package = {
   name = "dataframe";
   description = "DataFrame creation and introspection";
-  functions = ["to_dataframe"; "read_csv"; "read_parquet"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_arrow"; "write_arrow"];
+  functions = ["to_dataframe"; "read_csv"; "read_parquet"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_arrow"; "write_arrow"; "write_parquet"];
 }
 
 let pipeline_package = {
@@ -763,6 +763,7 @@ let init_env () =
   let env = T_write_csv.register ~write_csv_fn:(fun ~sep table path -> Arrow_io.write_csv ~sep table path) env in
   let env = T_read_arrow.register env in
   let env = T_write_arrow.register env in
+  let env = T_write_parquet.register env in
   let env = Colnames.register env in
   let env = Nrow.register env in
   let env = Ncol.register env in

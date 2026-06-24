@@ -1546,9 +1546,9 @@ Read a CSV file into a DataFrame.
 
 ---
 
-### `read_parquet(path)`
+### `read_parquet(path)` / `write_parquet(to_dataframe, path)`
 
-Read a Parquet file into a DataFrame.
+Read or write Parquet files using the native parquet-glib reader/writer.
 
 ---
 

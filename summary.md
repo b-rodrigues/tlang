@@ -348,7 +348,7 @@ Purpose: printing, introspection, collections, metaprogramming, filesystem/path 
 
 Purpose: DataFrame construction, I/O, shape/column introspection, Arrow interop.
 
-- Constructors and I/O: `dataframe(...)`, `read_csv(path, separator = ",", skip_header = false, skip_lines = 0, clean_colnames = false)`, `read_parquet(path)`, `read_arrow(path)`, `write_csv(df, path)`, `write_arrow(df, path)`
+- Constructors and I/O: `dataframe(...)`, `read_csv(path, separator = ",", skip_header = false, skip_lines = 0, clean_colnames = false)`, `read_parquet(path)`, `read_arrow(path)`, `write_csv(df, path)`, `write_arrow(df, path)`, `write_parquet(df, path)`
 - Introspection and extraction: `colnames(df)`, `nrow(df)`, `ncol(df)`, `glimpse(df)`, `pull(df, col)`, `to_array(df, cols = na())`
 - Column name cleaning: `clean_colnames(df)` and the documented normalization helper `clean_names(df)`
 

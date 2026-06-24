@@ -103,6 +103,9 @@ external arrow_read_ipc : string -> nativeint option
 external arrow_write_ipc : nativeint -> string -> bool
   = "caml_arrow_write_ipc"
 
+external arrow_write_parquet : nativeint -> string -> bool
+  = "caml_arrow_write_parquet"
+
 (* ===================================================================== *)
 (* Column Projection (Select)                                            *)
 (* ===================================================================== *)

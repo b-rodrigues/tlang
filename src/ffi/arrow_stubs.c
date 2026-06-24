@@ -4032,6 +4032,33 @@ CAMLprim value caml_arrow_write_ipc(value v_ptr, value v_path) {
   if (!ok && error) g_error_free(error);
   CAMLreturn(Val_bool(ok));
 }
+
+/* Write Arrow table to Parquet file */
+CAMLprim value caml_arrow_write_parquet(value v_ptr, value v_path) {
+  CAMLparam2(v_ptr, v_path);
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *path = String_val(v_path);
+  GError *error = NULL;
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+
+  GParquetArrowFileWriter *writer =
+    gparquet_arrow_file_writer_new_path(schema, path, NULL, &error);
+  if (writer == NULL) {
+    g_object_unref(schema);
+    if (error) g_error_free(error);
+    CAMLreturn(Val_bool(FALSE));
+  }
+
+  gboolean ok = gparquet_arrow_file_writer_write_table(writer, table, 0, &error);
+  gparquet_arrow_file_writer_close(writer, NULL);
+  g_object_unref(writer);
+  g_object_unref(schema);
+
+  if (!ok && error) g_error_free(error);
+  CAMLreturn(Val_bool(ok));
+}
+
 /* Create a native Arrow table from a list of (name, type_tag, timezone, array)
    tuples.
    type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String, 4=Dictionary,
