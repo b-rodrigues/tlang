@@ -244,6 +244,19 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
       (name, v)
     ) table.schema
 
+(** Map an Arrow column type to the corresponding T NA variant.
+    Used to preserve column type information when all values in a group
+    key column are absent (e.g. empty groups in group_by+summarize). *)
+let na_for_column_type (col : Arrow_table.column_data) : na_type =
+  match col with
+  | Arrow_table.IntColumn _ -> NAInt
+  | Arrow_table.FloatColumn _ -> NAFloat
+  | Arrow_table.BoolColumn _ -> NABool
+  | Arrow_table.StringColumn _ -> NAString
+  | Arrow_table.DateColumn _ -> NADate
+  | Arrow_table.DatetimeColumn _ -> NADatetime
+  | _ -> NAGeneric
+
 (** Create an Arrow table from T-Lang value column structures.
     
     @param columns List of column name to value array pairs.
