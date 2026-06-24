@@ -132,7 +132,8 @@ let values_to_column (values : value array) : Arrow_table.column_data =
       ) values)
   else if !has_factor && not !factor_inconsistent then
     Arrow_table.DictionaryColumn (Array.map (function
-      | VFactor (i, _, _) -> Some i
+      | VFactor (i, _, _) when i >= 0 -> Some i
+      | VFactor (_, _, _) -> None
       | VNA _ -> None
       | _ -> None
     ) values, !factor_levels, !factor_ordered)
