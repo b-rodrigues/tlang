@@ -2,7 +2,7 @@
 <PMML xmlns="http://www.dmg.org/PMML-4_4" xmlns:data="http://jpmml.org/jpmml-model/InlineTable" version="4.4">
 	<Header>
 		<Application name="SkLearn2PMML package" version="0.130.0"/>
-		<Timestamp>2026-06-24T17:08:43Z</Timestamp>
+		<Timestamp>2026-06-24T17:25:38Z</Timestamp>
 	</Header>
 	<MiningBuildTask>
 		<Extension name="repr">PMMLPipeline(steps=[('regressor', XGBRegressor(base_score=None, booster=None, callbacks=None,

@@ -2,6 +2,7 @@
 (* CLI and interactive REPL for the T language — 0.51.1 *)
 
 let version = Version.version
+let codename = Version.codename
 
 (* --- Readline / History --- *)
 
@@ -745,7 +746,7 @@ let cmd_repl ?failfast mode env =
   let nix_version = get_nix_version () in
   Printf.printf "T, a reproducibility-first orchestration engine for polyglot\n";
   Printf.printf "data science and statistical analysis.\n";
-  Printf.printf "Version %s \"%s\" using Nix %s\n" version "L'Initiation" nix_version;
+  Printf.printf "Version %s \"%s\" using Nix %s\n" version codename nix_version;
   Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
   Printf.printf "This software is in beta and is entirely LLM-generated — caveat emptor.\n";
   Printf.printf "Website: https://tstats-project.org\n";

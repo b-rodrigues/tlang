@@ -7,8 +7,8 @@ set -e
 VERSION=$(cat VERSION | tr -d '\n')
 TAG="v$VERSION"
 
-# Extract codename from src/repl.ml
-CODENAME=$(grep -o 'version "[^"]*" nix_version' src/repl.ml | head -n1 | cut -d'"' -f2)
+# Read codename from CODENAME
+CODENAME=$(cat CODENAME | tr -d '\n')
 CODENAME_URL=$(echo -n "$CODENAME" | sed "s/'/%27/g; s/ /%20/g")
 
 echo "Syncing version $VERSION (\"$CODENAME\") to documentation..."
