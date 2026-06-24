@@ -122,24 +122,24 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   (* lag: shift forward, fill with NA *)
   test "lag simple"
     {|lag([1, 2, 3, 4, 5])|}
-    "Vector[NA, 1, 2, 3, 4]";
+    "Vector[NA(Int), 1, 2, 3, 4]";
   test "lag with offset 2"
     {|lag([1, 2, 3, 4, 5], 2)|}
-    "Vector[NA, NA, 1, 2, 3]";
+    "Vector[NA(Int), NA(Int), 1, 2, 3]";
   test "lag empty"
     {|lag([])|}
     "Vector[]";
   test "lag strings"
     {|lag(["a", "b", "c"])|}
-    {|Vector[NA, "a", "b"]|};
+    {|Vector[NA(String), "a", "b"]|};
 
   (* lead: shift backward, fill with NA *)
   test "lead simple"
     {|lead([1, 2, 3, 4, 5])|}
-    "Vector[2, 3, 4, 5, NA]";
+    "Vector[2, 3, 4, 5, NA(Int)]";
   test "lead with offset 2"
     {|lead([1, 2, 3, 4, 5], 2)|}
-    "Vector[3, 4, 5, NA, NA]";
+    "Vector[3, 4, 5, NA(Int), NA(Int)]";
   test "lead empty"
     {|lead([])|}
     "Vector[]";
@@ -259,10 +259,10 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   (* lag/lead with NA in input — NA passes through *)
   test "lag with NA in input"
     {|lag([1, NA, 3, 4])|}
-    "Vector[NA, 1, NA, 3]";
+    "Vector[NA(Int), 1, NA, 3]";
   test "lead with NA in input"
     {|lead([1, NA, 3, 4])|}
-    "Vector[NA, 3, 4, NA]";
+    "Vector[NA, 3, 4, NA(Int)]";
 
   (* Error cases for cumulative *)
   test "cummin with string"

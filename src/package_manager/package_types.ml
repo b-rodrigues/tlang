@@ -69,7 +69,7 @@ let default_options name =
     force = false;
     interactive = false;
     agent_context = "medium";
-    pipeline_template = "minimal";
+    pipeline_template = "full";
     use_atelier = false;
   }
 

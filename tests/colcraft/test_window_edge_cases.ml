@@ -6,10 +6,10 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   (* lag with offset larger than array length — all NA *)
   test "lag offset > length"
     {|lag([1, 2, 3], 10)|}
-    "Vector[NA, NA, NA]";
+    "Vector[NA(Int), NA(Int), NA(Int)]";
   test "lag offset = length"
     {|lag([1, 2, 3], 3)|}
-    "Vector[NA, NA, NA]";
+    "Vector[NA(Int), NA(Int), NA(Int)]";
   test "lag offset = 0"
     {|lag([1, 2, 3], 0)|}
     "Vector[1, 2, 3]";
@@ -17,10 +17,10 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   (* lead with offset larger than array length — all NA *)
   test "lead offset > length"
     {|lead([1, 2, 3], 10)|}
-    "Vector[NA, NA, NA]";
+    "Vector[NA(Int), NA(Int), NA(Int)]";
   test "lead offset = length"
     {|lead([1, 2, 3], 3)|}
-    "Vector[NA, NA, NA]";
+    "Vector[NA(Int), NA(Int), NA(Int)]";
   test "lead offset = 0"
     {|lead([1, 2, 3], 0)|}
     "Vector[1, 2, 3]";
@@ -28,10 +28,10 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   (* lag/lead on single element *)
   test "lag single element"
     {|lag([42])|}
-    "Vector[NA]";
+    "Vector[NA(Int)]";
   test "lead single element"
     {|lead([42])|}
-    "Vector[NA]";
+    "Vector[NA(Int)]";
 
   print_newline ();
 

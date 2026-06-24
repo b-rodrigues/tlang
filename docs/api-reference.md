@@ -263,12 +263,20 @@ Returns `true` if the value is an Error object.
 
 Unified retrieval for variables, collection elements, pipeline nodes, or lens focuses.
 
+When called with a single string or symbol argument inside an NSE data verb (`mutate`, `filter`, `summarize`, …), `get()` checks the **data mask** first: if the name matches a column in the current row or DataFrame, the column value is returned; otherwise it falls back to the global environment.
+
 **Examples:**
 ```t
 get("salary")                -- variable lookup
 get(list, 0)                  -- indexing
 get(df, col_lens("mpg"))      -- lens focus
 get(val, 0)                   -- fallback if val is NA/Error
+
+-- Data-mask aware: column lookup inside mutate
+x = 42
+df = dataframe(a = [1, 2, 3])
+df |> mutate(b = \(row) get("a"))  -- column "a" from data mask
+df |> mutate(c = \(row) get("x"))  -- "x" not a column, falls back to global
 ```
 
 ---

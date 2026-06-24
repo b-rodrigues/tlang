@@ -34,7 +34,60 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="xx-xx">[0.53.0] - 2026-xx-xx</h2>
+<h2 id="section">[0.53.1] - 2026-06-24</h2>
+<h3 id="hotfix">Hotfix</h3>
+<p>Fix for https://github.com/b-rodrigues/tlang/issues/434</p>
+<p>jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master
+branch, so it’s included in the rstats-on-nix fork. It seems like the
+Maven dependencies got cahnged after release so compilation was failing.
+This also means that previous releases of T are likely not installable
+anymore.</p>
+<h3 id="timezone-support">Timezone Support</h3>
+<ul>
+<li><strong>IANA timezone offset conversion</strong>:
+<code>with_tz()</code> and <code>force_tz()</code> now correctly apply
+timezone offsets via POSIX <code>localtime_r</code>, supporting full
+IANA timezone names (e.g. <code>"Europe/Paris"</code>,
+<code>"America/New_York"</code>).</li>
+</ul>
+<h3 id="arrow-native-path-improvements">Arrow Native Path
+Improvements</h3>
+<ul>
+<li><strong>Preserve factor type for all-NA columns</strong>:
+<code>to_factor</code> on all-NA input now preserves factor metadata
+(levels, ordered) through the Arrow round-trip, keeping the native Arrow
+path active across data cleaning pipelines.</li>
+<li><strong>Preserve column type for all-NA columns</strong>: typed
+<code>VNA</code> variants (<code>NAInt</code>, <code>NAFloat</code>,
+<code>NADate</code>, <code>NADatetime</code>, …) now set the
+corresponding type flag in <code>values_to_column</code>, so all-NA
+columns route to the correct typed Arrow column
+(e.g. <code>IntColumn</code>, <code>FloatColumn</code>) instead of
+always falling back to <code>NAColumn</code>. Added
+<code>NADatetime</code> variant to disambiguate datetime NAs from date
+NAs.</li>
+<li><strong>Typed NA for lag/lead padding</strong>: <code>lag</code> and
+<code>lead</code> now inspect the input vector’s element type and use
+the appropriate typed NA variant for fill positions
+(e.g. <code>NA(Int)</code> for integer vectors, <code>NA(Float)</code>
+for float vectors).</li>
+<li><strong>Typed NA for outer join unmatched rows</strong>: Left/full
+joins now produce type-correct NA values for unmatched columns, inferred
+from the source Arrow column types. Also fixes empty-group key columns
+in <code>group_by</code> + <code>summarize</code> and typed NA for
+Date/Datetime null cells in <code>pivot_wider</code> and
+<code>expand</code>.</li>
+</ul>
+<h3 id="core-language-features-fixes">Core Language Features &amp;
+Fixes</h3>
+<ul>
+<li><strong><code>get()</code> data-mask awareness</strong>:
+<code>get("name")</code> inside NSE data verbs (<code>mutate</code>,
+<code>filter</code>, <code>summarize</code>, …) now checks the data mask
+before the global environment, enabling dynamic column name
+resolution.</li>
+</ul>
+<h2 id="section-1">[0.53.0] - 2026-06-22</h2>
 <p>This release:</p>
 <ul>
 <li><strong>Atelier TUI IDE Integration</strong>: This release
@@ -124,7 +177,7 @@ error tracebacks.</li>
 <li><strong>Log Targeting</strong>: Supports the <code>which_log</code>
 regex parameter to report on historical run records.</li>
 </ul>
-<h3 id="core-language-features-fixes">Core Language Features &amp;
+<h3 id="core-language-features-fixes-1">Core Language Features &amp;
 Fixes</h3>
 <ul>
 <li><strong><code>float_seq</code></strong>: Adds the
@@ -136,7 +189,7 @@ inside assignment/reassignment statements. The error is bound to the
 variable and propagated correctly, enabling robust recovery patterns via
 subsequent <code>match</code> blocks.</li>
 </ul>
-<h2 id="section">[0.52.3] - 2026-06-12</h2>
+<h2 id="section-2">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature
@@ -485,7 +538,7 @@ code.</li>
 Checklist to <code>AGENTS.md</code> as a permanent reference for future
 contributions.</li>
 </ul>
-<h2 id="section-1">[0.52.2] - 2026-05-31</h2>
+<h2 id="section-3">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -708,7 +761,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-2">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-4">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -1062,7 +1115,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-3">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-5">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -1291,7 +1344,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-4">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-6">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -1554,7 +1607,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-5">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-7">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -1851,7 +1904,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-6">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-8">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

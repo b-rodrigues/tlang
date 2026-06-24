@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.53.1] - 2026-06-24
+ 
+### Hotfix
+
+Fix for https://github.com/b-rodrigues/tlang/issues/434
+
+jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master branch, so it's included
+in the rstats-on-nix fork. It seems like the Maven dependencies got cahnged after release
+so compilation was failing. This also means that previous releases of T are likely not
+installable anymore.
+
+### Timezone Support
+- **IANA timezone offset conversion**: `with_tz()` and `force_tz()` now correctly
+  apply timezone offsets via POSIX `localtime_r`, supporting full IANA timezone
+  names (e.g. `"Europe/Paris"`, `"America/New_York"`).
+
+### Arrow Native Path Improvements
+- **Preserve factor type for all-NA columns**: `to_factor` on all-NA input now
+  preserves factor metadata (levels, ordered) through the Arrow round-trip,
+  keeping the native Arrow path active across data cleaning pipelines.
+- **Preserve column type for all-NA columns**: typed `VNA` variants (`NAInt`,
+  `NAFloat`, `NADate`, `NADatetime`, …) now set the corresponding type flag in
+  `values_to_column`, so all-NA columns route to the correct typed Arrow column
+  (e.g. `IntColumn`, `FloatColumn`) instead of always falling back to `NAColumn`.
+  Added `NADatetime` variant to disambiguate datetime NAs from date NAs.
+- **Typed NA for lag/lead padding**: `lag` and `lead` now inspect the input
+  vector's element type and use the appropriate typed NA variant for fill
+  positions (e.g. `NA(Int)` for integer vectors, `NA(Float)` for float vectors).
+- **Typed NA for outer join unmatched rows**: Left/full joins now produce
+  type-correct NA values for unmatched columns, inferred from the source
+  Arrow column types. Also fixes empty-group key columns in `group_by` +
+  `summarize` and typed NA for Date/Datetime null cells in `pivot_wider`
+  and `expand`.
+
+### Core Language Features & Fixes
+- **`get()` data-mask awareness**: `get("name")` inside NSE data verbs
+  (`mutate`, `filter`, `summarize`, …) now checks the data mask before the
+  global environment, enabling dynamic column name resolution.
+
 ## [0.53.0] - 2026-06-22
 
 This release:

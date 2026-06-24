@@ -7,6 +7,20 @@ let to_value_array label = function
   | VNA _ -> Error (Error.na_value_error label)
   | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects a Vector or List." label))
 
+(** Determine the appropriate NA fill value for lag/lead padding
+    by inspecting the first element of the input array. *)
+let na_fill_for_array (arr : value array) : value =
+  if Array.length arr = 0 then VNA NAGeneric
+  else match arr.(0) with
+    | VInt _ -> VNA NAInt
+    | VFloat _ -> VNA NAFloat
+    | VBool _ -> VNA NABool
+    | VString _ -> VNA NAString
+    | VDate _ -> VNA NADate
+    | VDatetime _ -> VNA NADatetime
+    | VNA na_t -> VNA na_t
+    | _ -> VNA NAGeneric
+
 let register env =
   (*
   --# Lag values
@@ -32,14 +46,15 @@ let register env =
         (match to_value_array "lag" arg with
          | Error e -> e
          | Ok arr ->
-           let n = Array.length arr in
-           if n = 0 then VVector [||]
-           else
-             let result = Array.make n ((VNA NAGeneric)) in
-             for i = 1 to n - 1 do
-               result.(i) <- arr.(i - 1)
-             done;
-             VVector result)
+            let n = Array.length arr in
+            if n = 0 then VVector [||]
+            else
+              let fill = na_fill_for_array arr in
+              let result = Array.make n fill in
+              for i = 1 to n - 1 do
+                result.(i) <- arr.(i - 1)
+              done;
+              VVector result)
       | [arg; VInt offset] when offset >= 0 ->
         (match to_value_array "lag" arg with
          | Error e -> e
@@ -47,7 +62,8 @@ let register env =
            let n = Array.length arr in
            if n = 0 then VVector [||]
            else
-             let result = Array.make n ((VNA NAGeneric)) in
+             let fill = na_fill_for_array arr in
+             let result = Array.make n fill in
              for i = offset to n - 1 do
                result.(i) <- arr.(i - offset)
              done;
@@ -82,14 +98,15 @@ let register env =
         (match to_value_array "lead" arg with
          | Error e -> e
          | Ok arr ->
-           let n = Array.length arr in
-           if n = 0 then VVector [||]
-           else
-             let result = Array.make n ((VNA NAGeneric)) in
-             for i = 0 to n - 2 do
-               result.(i) <- arr.(i + 1)
-             done;
-             VVector result)
+            let n = Array.length arr in
+            if n = 0 then VVector [||]
+            else
+              let fill = na_fill_for_array arr in
+              let result = Array.make n fill in
+              for i = 0 to n - 2 do
+                result.(i) <- arr.(i + 1)
+              done;
+              VVector result)
       | [arg; VInt offset] when offset >= 0 ->
         (match to_value_array "lead" arg with
          | Error e -> e
@@ -97,7 +114,8 @@ let register env =
            let n = Array.length arr in
            if n = 0 then VVector [||]
            else
-             let result = Array.make n ((VNA NAGeneric)) in
+             let fill = na_fill_for_array arr in
+             let result = Array.make n fill in
              for i = 0 to n - 1 - offset do
                result.(i) <- arr.(i + offset)
              done;

@@ -6,56 +6,7 @@ This guide covers advanced pipeline features building on the fundamentals from t
 
 ---
 
-## 17. Execution Modes
-
-T enforces a clear separation between interactive and non-interactive execution:
-
-### Non-interactive (`t run`)
-
-Scripts executed with `t run` **must** call `populate_pipeline()` (or `build_pipeline()`). This ensures that non-interactive execution always produces reproducible Nix artifacts. By default, `t run` operates in **resilient mode**, continuing past errors to provide a full diagnostic summary. Use `--failfast` to change this.
-
-```bash
-# ✅ This works — resilient by default
-$ t run my_pipeline.t
-
-# 🛑 This fails immediately on the first error
-$ t run --failfast my_pipeline.t
-
-# ❌ This is rejected — script doesn't call populate_pipeline()
-$ t run my_script.t
-# Error: non-interactive execution requires a pipeline.
-# Use --unsafe to override.
-```
-
-A valid pipeline script looks like:
-
-```t
--- my_pipeline.t
-p = pipeline {
-  data = read_csv("input.csv")
-  result = data |> filter($value > 0) |> summarize(total = sum($value))
-}
-
-populate_pipeline(p, build = true)
-```
-
-### Interactive (REPL)
-
-The REPL is **unrestricted** — you can run any T code line by line, whether or not it involves pipelines:
-
-```bash
-$ t repl
-T> x = 1 + 2
-T> print(x)
-3
-T> p = pipeline { a = 10 }
-T> p.a
-10
-```
-
----
-
-## 18. Using Imports in Pipelines
+## 17. Using Imports in Pipelines
 
 When a pipeline is built with `build_pipeline()`, each node runs inside a **Nix sandbox** — an isolated build environment. Import statements from your script are **automatically propagated** into each sandbox, so imported packages and functions are available to all nodes.
 
@@ -96,25 +47,7 @@ All three import forms are supported:
 
 ---
 
-## 19. Using explain() with Pipelines
-
-The `explain()` function provides structured metadata about pipelines:
-
-```t
-p = pipeline {
-  x = 10
-  y = x + 5
-  z = y * 2
-}
-
-e = explain(p)
-e.kind        -- "pipeline"
-e.node_count  -- 3
-```
-
----
-
-## 20. Skipping Nodes
+## 18. Skipping Nodes
 
 You can explicitly skip a node (and by extension, all nodes that depend on it) by passing the `noop = true` argument to the `node()` function.
 
@@ -139,9 +72,9 @@ In a Nix sandbox context, `noop` generates a lightweight stub instead of a real 
 
 ---
 
-## 21. Node Metadata
+## 19. Node Metadata
 
-> [↩ Quick Reference: Pipeline DAG Structure](#2-pipeline-function-quick-reference)
+> [↩ Quick Reference: Pipeline DAG Structure](#3-pipeline-function-quick-reference)
 
 Every node in a pipeline carries structured metadata that you can query and manipulate. The `pipeline_to_frame()` function converts this metadata into a DataFrame with one row per node.
 
@@ -189,7 +122,7 @@ Available fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, 
 
 ---
 
-## 22. Environment Variables
+## 20. Environment Variables
 
 Pipeline nodes can pass environment variables into the Nix build sandbox via the `env_vars` named argument on `node()`, `py()`/`pyn()`, and `rn()`. This allows nodes to configure their build-time execution environment without embedding those values directly into the command body.
 
@@ -230,7 +163,7 @@ These variables are automatically threaded into the generated `stdenv.mkDerivati
 
 ---
 
-## 23. Node-Level Operations (`_node` family)
+## 21. Node-Level Operations (`_node` family)
 
 
 T provides a set of colcraft-style verbs for operating on pipeline nodes. These mirror the DataFrame API, using NSE `$field` references for node metadata fields.
@@ -329,7 +262,7 @@ Returns a new pipeline with nodes sorted by a metadata field. This affects only 
 
 ---
 
-## 24. Pipeline Manipulation for Data Scientists
+## 22. Pipeline Manipulation for Data Scientists
 
 Beyond basic execution, T allows you to treat a Pipeline as a queryable and mutable data structure. This is powerful for meta-programming, automated reporting, and "surgical" updates to large analysis graphs.
 
@@ -395,7 +328,7 @@ p |> arrange_node($depth) |> pipeline_nodes      -- ["a", "b", "c"]
 
 ---
 
-## 24. Set Operations
+## 23. Set Operations
 
 Pipelines can be treated as named sets of nodes. T provides four set operations that combine or subtract pipelines.
 
@@ -435,7 +368,7 @@ p_etl |> union(p_model2)
 
 ---
 
-## 25. Diagnostic Suppression
+## 24. Diagnostic Suppression
 
 Nodes that produce large numbers of non-terminal warnings (like those from `filter()` or complex modeling functions) can be silenced using the `suppress_warnings` combinator. This silences the console output for a node while maintaining the warning records for auditability.
 
@@ -791,7 +724,7 @@ pipeline_nodes(p_both)  -- ["r_fit", "py_fit"]
 
 ## 28. Extended Inspection API
 
-> [↩ Quick Reference: Pipeline DAG Structure](#2-pipeline-function-quick-reference)
+> [↩ Quick Reference: Pipeline DAG Structure](#3-pipeline-function-quick-reference)
 
 Beyond `pipeline_nodes` and `pipeline_deps`, T provides a complete structural inspection surface for pipelines.
 
@@ -912,7 +845,7 @@ When you pass a pipeline, meta-pipeline, or a string starting with a Mermaid key
 
 ## 29. Pipeline Validation
 
-> [↩ Quick Reference: Pipeline DAG Structure](#2-pipeline-function-quick-reference)
+> [↩ Quick Reference: Pipeline DAG Structure](#3-pipeline-function-quick-reference)
 
 By design, T uses **lazy validation**: structural errors (missing dependencies, cycles) surface at `build_pipeline` or `pipeline_run` time, not at operation time. This allows you to compose and transform pipelines freely.
 
@@ -1017,49 +950,15 @@ p = pipeline {
 
 ## Best Practices
 
-1. **Name nodes descriptively**: Use names like `raw_data`, `filtered_sales`, `summary_stats`
-2. **Keep nodes focused**: Each node should do one thing
-3. **Use pipes within nodes**: Combine pipeline structure with pipe operator for readability
-4. **Inspect before consuming**: Use `pipeline_nodes()`, `pipeline_deps()`, and `pipeline_to_frame()` to understand pipeline structure
-5. **Build incrementally**: Start with data loading, add transformations one node at a time
-6. **Validate at construction time**: Use `pipeline_assert` at the end of a construction chain to catch structural errors early
+> See the [Pipeline Tutorial](pipeline_tutorial.md) for general pipeline best practices (descriptive names, focused nodes, pipes, inspect, incremental builds, validation).
+
 7. **Compose with `chain` over `union`**: When two pipelines are intentionally connected, `chain` makes the dependency explicit; use `union` only when combining truly independent pipelines
 8. **Use `filter_node` + `upstream_of` for partial builds**: Trim a large pipeline to just what you need before calling `build_pipeline`
 9. **Resolve collisions with `rename_node` before set ops**: Both `union` and `chain` enforce unique names; rename conflicting nodes before merging
 
 ---
 
-## Complete Example
-
-```t
--- A full data analysis pipeline
-p = pipeline {
-  -- Load data
-  raw = read_csv("employees.csv")
-  
-  -- Filter to active engineers
-  engineers = raw
-    |> filter($dept == "eng")
-    |> filter($active == true)
-  
-  -- Compute statistics
-  avg_salary = engineers.salary |> mean
-  salary_sd = engineers.salary |> sd
-  team_size = engineers |> nrow
-  
-  -- Sort by performance
-  ranked = engineers |> arrange("score", "desc")
-}
-
--- Access results
-p.team_size     -- number of active engineers
-p.avg_salary    -- mean salary
-p.ranked        -- DataFrame sorted by score
-```
-
----
-
-## 40. Cross-Node Artifact Retrieval
+## 31. Cross-Node Artifact Retrieval
 
 When nodes are executed within a Nix-managed sandbox (via `populate_pipeline(p, build = true)`), they are isolated from each other. However, T provides a built-in mechanism for nodes to access the serialized artifacts of their dependencies.
 
@@ -1098,7 +997,7 @@ This pattern is essential for **polyglot pipelines** where data is passed betwee
 
 ---
 
-## 41. Nix-Native Orchestration & Cachix
+## 32. Nix-Native Orchestration & Cachix
 
 To optimize large-scale pipelines and manage remote binary caching, T-Lang includes native Nix orchestration features in `build_pipeline` and `pipeline_run`. These features map directly to native `nix build` mechanics, allowing granular rebuild control, job parallelization, Cachix integration, and dry-runs.
 
@@ -1158,68 +1057,7 @@ build_pipeline(p,
                ])
 ```
 
-## 22. Meta-Pipelines & Pipeline Composition
-
-As your project grows, writing a single monolithic pipeline can become difficult to maintain. T supports **Pipeline Composition** via `pipeline_of` blocks, allowing you to compose multiple independent sub-pipelines into a higher-order DAG (a **meta-pipeline**).
-
-### Composing Pipelines with `pipeline_of`
-
-You can group multiple pipelines into a single meta-pipeline block. Node names are automatically namespaced with their sub-pipeline name (e.g., `etl.raw`, `stats.summary`), and dependencies between different sub-pipelines are automatically resolved based on the variables they reference.
-
-```t
-p_etl = pipeline {
-  raw = read_csv("data.csv")
-  clean = raw |> filter($value > 0)
-}
-
-p_stats = pipeline {
-  -- Dependencies on nodes in 'etl' are automatically detected!
-  summary = etl.clean |> group_by($category) |> summarize(total = sum($value))
-}
-
--- Compose them into a higher-order DAG
-meta = pipeline_of {
-  etl   = p_etl
-  stats = p_stats
-}
-```
-
-### Automatic Dependency Inference
-
-Unlike other pipeline tools, you do not need to manually specify dependencies between sub-pipelines using arrows or ordering arrays. T automatically analyzes the dependencies of each node inside the sub-pipelines. If a node in `stats` references a namespaced node name like `etl.clean`, T automatically wires a dependency edge from `etl.clean` to `stats.summary`.
-
-### Implicit Flattening
-
-You can treat a meta-pipeline exactly like a standard pipeline. Any built-in function that expects a pipeline (like `populate_pipeline`, `pipeline_nodes`, or `pipeline_deps`) will automatically flatten the meta-pipeline internally:
-
-```t
--- Get all namespaced nodes in the meta-pipeline
-pipeline_nodes(meta)
--- ["etl.raw", "etl.clean", "stats.summary"]
-
--- Check dependency structure
-pipeline_deps(meta)
--- {`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}
-
--- Build the entire composed DAG in Nix
-populate_pipeline(meta, build = true)
-```
-
-### Nested Dot Access
-
-You can query individual nodes and their computed metadata directly on the meta-pipeline using chained dot-access notation. This makes namespaced sub-pipelines feel like natural nested objects:
-
-```t
--- Access the computed node name of a sub-pipeline node
-meta.stats.summary.name        -- "stats.summary"
-
--- Retrieve a materialized artifact after building
-read_node(meta.stats.summary)  -- Returns the summarized DataFrame
-```
-
----
-
-## 27. Granular Artifact Transfer & Archive Introspection
+## 33. Granular Artifact Transfer & Archive Introspection
 
 For teams working on large projects, T supports exporting Nix-materialized pipeline cache artifacts into portable archive files (`.nar` format). These archives can be transferred between machines, imported without rebuilding, or inspected without installing.
 
@@ -1323,7 +1161,7 @@ t_gc()
 
 ---
 
-## 42. CI/CD with GitHub Actions
+## 34. CI/CD with GitHub Actions
 
 T can generate a complete GitHub Actions workflow YAML for executing a pipeline via `pipeline_to_ga()`. The generated workflow:
 
@@ -1355,7 +1193,7 @@ The auto-detected project name comes from the `name` field in your project's `tp
 
 ---
 
-## 11. Pattern-Based Branching
+## 35. Pattern-Based Branching
 
 T lets you dynamically expand a single pipeline node into multiple branches using pattern functions. This is useful when you need to run the same computation over each element of a list, vector, or data frame.
 
@@ -1727,6 +1565,55 @@ This pattern — `build_log_to_frame(res)` + `filter` with a lambda — is the r
 - **`^json` serializer/deserializer** enables cross-runtime data interchange between T and R nodes.
 - **Expanded nodes exist only in the build log**, not in the original pipeline variable. Use `build_log_to_frame()` for post-build queries.
 - **Patterns work with non-T runtimes downstream** — a `map_pattern` node can depend on T data branches and run in R (or Python or Julia), as long as serialization is configured correctly.
+
+---
+
+## 36. Static Conditionals
+
+T supports conditional node inclusion evaluated at pipeline construction time, preserving Nix's static DAG requirement. There are two functions: `node_when` and `node_fork`.
+
+### `node_when(condition, value)`
+
+Returns `value` if `condition` is truthy, otherwise returns a null marker that causes the pipeline to exclude the node entirely. The condition is evaluated before the build.
+
+```t
+p = pipeline {
+  dev_data = read_csv("data/dev.csv")
+
+  model = node_when(env("CI") == "1", pyn(script = "train.py"))
+
+  deployed = node_when(env("BRANCH") == "main", pyn(script = "deploy.py"))
+}
+
+build_pipeline(p)
+```
+
+If `CI` is not `"1"`, the `model` node is excluded and no attempt is made to resolve its dependencies. If `BRANCH` is not `"main"`, the `deployed` node is similarly excluded.
+
+### `node_fork(...condition_value_pairs, .default = ...)`
+
+A multi-way branch: takes condition-value pairs and returns the value for the first truthy condition. If no condition matches and no `.default` is provided, the node is excluded.
+
+```t
+p = pipeline {
+  data = read_csv("data.csv")
+
+  model = node_fork(
+    env("MODEL") == "linear", lm(mpg ~ wt, data),
+    env("MODEL") == "forest", pyn(script = "rf.py"),
+    env("MODEL") == "neural", pyn(script = "nn.py"),
+    .default = lm(mpg ~ wt, data)
+  )
+}
+```
+
+Here, setting `MODEL=forest` in the environment selects the random forest node; any other value falls back to the `.default` linear model.
+
+### Important Notes
+
+- Both `node_when` and `node_fork` are only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
+- Conditions must be evaluable at pipeline construction time — typically using `env()` to read environment variables.
+- The null marker from an unmatched condition is not a regular value; it cannot be inspected, stored, or tested with `is_na()`. It exists only to signal node exclusion to the pipeline machinery.
 
 ---
 

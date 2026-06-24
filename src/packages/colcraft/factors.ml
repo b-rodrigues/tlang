@@ -77,6 +77,16 @@ let to_factor_impl (args : (string option * value) list) _env =
              | Some idx -> VFactor (idx, levels, ordered)
              | None -> VNA Ast.NAGeneric (* NA if value is not in levels *))
       ) in
+      let factor_arr =
+        if Array.length factor_arr > 0
+           && Array.for_all (function VNA _ -> true | _ -> false) factor_arr
+        then
+          let arr = Array.copy factor_arr in
+          arr.(Array.length arr - 1) <- VFactor (-1, levels, ordered);
+          arr
+        else
+          factor_arr
+      in
       
       match x_val with
       | VVector _ | VList _ -> VVector factor_arr

@@ -18,6 +18,9 @@ val column_to_values : Arrow_table.column_data -> value array
     (e.g., VNA NAInt for IntColumn) if the index is out of bounds. *)
 val value_at : Arrow_table.column_data -> int -> value
 
+(** Map an Arrow column type to the corresponding T NA variant. *)
+val na_for_column_type : Arrow_table.column_data -> na_type
+
 val values_to_column : value array -> Arrow_table.column_data
 
 (** Extract a specific row from an Arrow table as an associative dictionary of field names to values.

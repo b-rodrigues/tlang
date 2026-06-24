@@ -34,9 +34,9 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (foreign_stubs
-  (language c)
-  (names arrow_stubs stats_stubs onnx_stubs)
+(foreign_stubs
+   (language c)
+   (names arrow_stubs stats_stubs onnx_stubs chrono_stubs)
   (flags (:include arrow_cflags.sexp)))
  (c_library_flags (:include arrow_libs.sexp))
  (modules

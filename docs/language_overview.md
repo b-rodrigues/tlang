@@ -449,6 +449,15 @@ l = col_lens("mpg")
 get(mtcars, l)               -- Vector of 'mpg' column
 ```
 
+#### 5. Data-Mask Aware Lookup (inside NSE verbs)
+When called with a single string or symbol inside an NSE data verb (`mutate`, `filter`, `summarize`, …), `get()` checks the **data mask** first. The name is looked up in the current row's columns (if the lambda is evaluated per-row) or the whole DataFrame; if not found there, it falls back to the global environment.
+```t
+df = dataframe(a = [1, 2, 3])
+x = 42
+df |> mutate(b = \(row) get("a"))  -- column "a" from data mask → Vector[1, 2, 3]
+df |> mutate(c = \(row) get("x"))  -- "x" not a column, falls back to global → Vector[42, 42, 42]
+```
+
 ### Lenses
 
 Lenses are structured, serializable "addressing" objects. Unlike standard property access (`obj.prop`), lenses can be composed and passed between pipeline nodes.

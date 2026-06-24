@@ -157,10 +157,18 @@ var_name = &quot;salary&quot;
 
 get(var_name)       -- retrieves [1000, 2000, 3000]
 get(to_symbol(var_name))  -- also works with Symbols</code></pre>
-<p>Important: <code>get()</code> resolves names in the <strong>calling
-environment</strong>, not in a data-masking context. To retrieve a
-column dynamically inside a data verb, use quasiquotation with
+<blockquote>
+<p>[!NOTE] <code>get()</code> resolves names in the <strong>calling
+environment</strong> by default. When called inside an NSE data verb
+(<code>mutate</code>, <code>filter</code>, <code>summarize</code>,
+etc.), it checks the <strong>data mask</strong> (<code>row</code>
+binding) first: if the name matches a column in the current row or
+DataFrame, the column value is returned; otherwise it falls back to the
+global environment. This makes <code>\(row) get("col")</code> work
+naturally inside data verbs. To retrieve a column dynamically inside a
+data verb, you can also use quasiquotation with
 <code>!!to_symbol(col)</code>.</p>
+</blockquote>
 <h2 id="quasiquotation">Quasiquotation</h2>
 <p>Quasiquotation allows you to “fill in the blanks” in a captured
 expression.</p>

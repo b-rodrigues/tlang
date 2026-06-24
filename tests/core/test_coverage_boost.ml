@@ -43,6 +43,25 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "filter_lens on to_dataframe"
     {|df = to_dataframe([mpg: [31, 21, 32, 22, 33, 23, 34, 24]]); get(df, filter_lens(\(r) r.mpg > 30)) |> nrow()|}
     "4";
+  Printf.printf "Coverage Boost — Get inside NSE verbs (data mask):\n";
+  test "get inside mutate — VDataFrame mask, column exists"
+    {|df = to_dataframe([a: [1, 2, 3]]); df |> mutate(c = \(row) get("a")) |> pull("c")|}
+    "Vector[1, 2, 3]";
+  test "get inside mutate — VDataFrame mask, column missing, global fallback"
+    {|x = 42; df = to_dataframe([a: [1, 2, 3]]); df |> mutate(c = \(row) get("x")) |> pull("c")|}
+    "Vector[42, 42, 42]";
+  test "get inside filter — VDict per-row mask, column exists"
+    {|df = to_dataframe([a: [1, 2, 3]]); df |> filter(\(row) get("a") > 1) |> nrow()|}
+    "2";
+  test "get inside filter — VDict per-row mask, column missing, global fallback"
+    {|x = 42; df = to_dataframe([a: [1, 2, 3]]); df |> filter(\(row) get("x") > 40) |> nrow()|}
+    "3";
+  test "get inside mutate — name not in mask or global raises NameError"
+    {|df = to_dataframe([a: [1, 2, 3]]); df |> mutate(c = \(row) get("nonexistent"))|}
+    {|NameError:.*nonexistent|};
+  test "get outside NSE context unchanged"
+    {|x = 42; get("x")|}
+    "42";
   print_newline ();
 
   Printf.printf "Coverage Boost — Pretty Print:\n";

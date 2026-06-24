@@ -109,48 +109,7 @@ Tutorial</a>. You should be familiar with basic pipeline concepts
 (nodes, dependencies, building, and inspecting) before diving in
 here.</p>
 <hr />
-<h2 id="execution-modes">17. Execution Modes</h2>
-<p>T enforces a clear separation between interactive and non-interactive
-execution:</p>
-<h3 id="non-interactive-t-run">Non-interactive (<code>t run</code>)</h3>
-<p>Scripts executed with <code>t run</code> <strong>must</strong> call
-<code>populate_pipeline()</code> (or <code>build_pipeline()</code>).
-This ensures that non-interactive execution always produces reproducible
-Nix artifacts. By default, <code>t run</code> operates in
-<strong>resilient mode</strong>, continuing past errors to provide a
-full diagnostic summary. Use <code>--failfast</code> to change this.</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
-<p>A valid pipeline script looks like:</p>
-<pre class="t"><code>-- my_pipeline.t
-p = pipeline {
-  data = read_csv(&quot;input.csv&quot;)
-  result = data |&gt; filter($value &gt; 0) |&gt; summarize(total = sum($value))
-}
-
-populate_pipeline(p, build = true)</code></pre>
-<h3 id="interactive-repl">Interactive (REPL)</h3>
-<p>The REPL is <strong>unrestricted</strong> — you can run any T code
-line by line, whether or not it involves pipelines:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
-<hr />
-<h2 id="using-imports-in-pipelines">18. Using Imports in Pipelines</h2>
+<h2 id="using-imports-in-pipelines">17. Using Imports in Pipelines</h2>
 <p>When a pipeline is built with <code>build_pipeline()</code>, each
 node runs inside a <strong>Nix sandbox</strong> — an isolated build
 environment. Import statements from your script are
@@ -204,21 +163,7 @@ serialize(result, &quot;$out/artifact.tobj&quot;)</code></pre>
 </tbody>
 </table>
 <hr />
-<h2 id="using-explain-with-pipelines">19. Using explain() with
-Pipelines</h2>
-<p>The <code>explain()</code> function provides structured metadata
-about pipelines:</p>
-<pre class="t"><code>p = pipeline {
-  x = 10
-  y = x + 5
-  z = y * 2
-}
-
-e = explain(p)
-e.kind        -- &quot;pipeline&quot;
-e.node_count  -- 3</code></pre>
-<hr />
-<h2 id="skipping-nodes">20. Skipping Nodes</h2>
+<h2 id="skipping-nodes">18. Skipping Nodes</h2>
 <p>You can explicitly skip a node (and by extension, all nodes that
 depend on it) by passing the <code>noop = true</code> argument to the
 <code>node()</code> function.</p>
@@ -239,9 +184,9 @@ populate_pipeline(p, build = true)</code></pre>
 <p>In a Nix sandbox context, <code>noop</code> generates a lightweight
 stub instead of a real build derivation.</p>
 <hr />
-<h2 id="node-metadata">21. Node Metadata</h2>
+<h2 id="node-metadata">19. Node Metadata</h2>
 <blockquote>
-<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+<p><a href="#3-pipeline-function-quick-reference">↩︎ Quick Reference:
 Pipeline DAG Structure</a></p>
 </blockquote>
 <p>Every node in a pipeline carries structured metadata that you can
@@ -325,7 +270,7 @@ p |&gt; select_node($name, $runtime, $depth)
 <code>$noop</code>, <code>$deps</code>, <code>$depth</code>,
 <code>$command_type</code>.</p>
 <hr />
-<h2 id="environment-variables">22. Environment Variables</h2>
+<h2 id="environment-variables">20. Environment Variables</h2>
 <p>Pipeline nodes can pass environment variables into the Nix build
 sandbox via the <code>env_vars</code> named argument on
 <code>node()</code>, <code>py()</code>/<code>pyn()</code>, and
@@ -398,7 +343,7 @@ strings.</p>
 methods (e.g., <code>Sys.getenv()</code> in R or <code>os.environ</code>
 in Python) during the Nix build step.</p>
 <hr />
-<h2 id="node-level-operations-_node-family">23. Node-Level Operations
+<h2 id="node-level-operations-_node-family">21. Node-Level Operations
 (<code>_node</code> family)</h2>
 <p>T provides a set of colcraft-style verbs for operating on pipeline
 nodes. These mirror the DataFrame API, using NSE <code>$field</code>
@@ -482,7 +427,7 @@ pipeline_deps(p2)    -- {`alpha`: [], `b`: [&quot;alpha&quot;]}</code></pre>
 affects only display/serialization order — the DAG determines execution
 order.</p>
 <hr />
-<h2 id="pipeline-manipulation-for-data-scientists">24. Pipeline
+<h2 id="pipeline-manipulation-for-data-scientists">22. Pipeline
 Manipulation for Data Scientists</h2>
 <p>Beyond basic execution, T allows you to treat a Pipeline as a
 queryable and mutable data structure. This is powerful for
@@ -539,7 +484,7 @@ p |&gt; arrange_node($name, &quot;desc&quot;) |&gt; pipeline_nodes -- [&quot;z&q
 p = pipeline { a = 1; b = a + 1; c = b + 1 }
 p |&gt; arrange_node($depth) |&gt; pipeline_nodes      -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre>
 <hr />
-<h2 id="set-operations">24. Set Operations</h2>
+<h2 id="set-operations">23. Set Operations</h2>
 <p>Pipelines can be treated as named sets of nodes. T provides four set
 operations that combine or subtract pipelines.</p>
 <blockquote>
@@ -573,7 +518,7 @@ pipeline_nodes(p_full)  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;fit&quot;,
 p_model2 = p_model |&gt; rename_node(&quot;clean&quot;, &quot;clean_model&quot;)
 p_etl |&gt; union(p_model2)</code></pre>
 <hr />
-<h2 id="diagnostic-suppression">25. Diagnostic Suppression</h2>
+<h2 id="diagnostic-suppression">24. Diagnostic Suppression</h2>
 <p>Nodes that produce large numbers of non-terminal warnings (like those
 from <code>filter()</code> or complex modeling functions) can be
 silenced using the <code>suppress_warnings</code> combinator. This
@@ -897,7 +842,7 @@ pipeline_nodes(p_both)  -- [&quot;r_fit&quot;, &quot;py_fit&quot;]</code></pre>
 <hr />
 <h2 id="extended-inspection-api">28. Extended Inspection API</h2>
 <blockquote>
-<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+<p><a href="#3-pipeline-function-quick-reference">↩︎ Quick Reference:
 Pipeline DAG Structure</a></p>
 </blockquote>
 <p>Beyond <code>pipeline_nodes</code> and <code>pipeline_deps</code>, T
@@ -995,7 +940,7 @@ your configured system viewer/browser.</p>
 <hr />
 <h2 id="pipeline-validation">29. Pipeline Validation</h2>
 <blockquote>
-<p><a href="#2-pipeline-function-quick-reference">↩︎ Quick Reference:
+<p><a href="#3-pipeline-function-quick-reference">↩︎ Quick Reference:
 Pipeline DAG Structure</a></p>
 </blockquote>
 <p>By design, T uses <strong>lazy validation</strong>: structural errors
@@ -1095,22 +1040,12 @@ body. - <strong>Strict Validation</strong>: T validates that all listed
 dependencies exist within the same pipeline.</p>
 <hr />
 <h2 id="best-practices">Best Practices</h2>
-<ol type="1">
-<li><strong>Name nodes descriptively</strong>: Use names like
-<code>raw_data</code>, <code>filtered_sales</code>,
-<code>summary_stats</code></li>
-<li><strong>Keep nodes focused</strong>: Each node should do one
-thing</li>
-<li><strong>Use pipes within nodes</strong>: Combine pipeline structure
-with pipe operator for readability</li>
-<li><strong>Inspect before consuming</strong>: Use
-<code>pipeline_nodes()</code>, <code>pipeline_deps()</code>, and
-<code>pipeline_to_frame()</code> to understand pipeline structure</li>
-<li><strong>Build incrementally</strong>: Start with data loading, add
-transformations one node at a time</li>
-<li><strong>Validate at construction time</strong>: Use
-<code>pipeline_assert</code> at the end of a construction chain to catch
-structural errors early</li>
+<blockquote>
+<p>See the <a href="pipeline_tutorial.html">Pipeline Tutorial</a> for
+general pipeline best practices (descriptive names, focused nodes,
+pipes, inspect, incremental builds, validation).</p>
+</blockquote>
+<ol start="7" type="1">
 <li><strong>Compose with <code>chain</code> over
 <code>union</code></strong>: When two pipelines are intentionally
 connected, <code>chain</code> makes the dependency explicit; use
@@ -1123,32 +1058,7 @@ ops</strong>: Both <code>union</code> and <code>chain</code> enforce
 unique names; rename conflicting nodes before merging</li>
 </ol>
 <hr />
-<h2 id="complete-example">Complete Example</h2>
-<pre class="t"><code>-- A full data analysis pipeline
-p = pipeline {
-  -- Load data
-  raw = read_csv(&quot;employees.csv&quot;)
-  
-  -- Filter to active engineers
-  engineers = raw
-    |&gt; filter($dept == &quot;eng&quot;)
-    |&gt; filter($active == true)
-  
-  -- Compute statistics
-  avg_salary = engineers.salary |&gt; mean
-  salary_sd = engineers.salary |&gt; sd
-  team_size = engineers |&gt; nrow
-  
-  -- Sort by performance
-  ranked = engineers |&gt; arrange(&quot;score&quot;, &quot;desc&quot;)
-}
-
--- Access results
-p.team_size     -- number of active engineers
-p.avg_salary    -- mean salary
-p.ranked        -- DataFrame sorted by score</code></pre>
-<hr />
-<h2 id="cross-node-artifact-retrieval">40. Cross-Node Artifact
+<h2 id="cross-node-artifact-retrieval">31. Cross-Node Artifact
 Retrieval</h2>
 <p>When nodes are executed within a Nix-managed sandbox (via
 <code>populate_pipeline(p, build = true)</code>), they are isolated from
@@ -1195,7 +1105,7 @@ for <strong>dynamic access</strong> nodes where the target of a
 retrieval is determined at runtime (e.g.,
 <code>target = "A"; get(node_lens(target))</code>).</p>
 <hr />
-<h2 id="nix-native-orchestration-cachix">41. Nix-Native Orchestration
+<h2 id="nix-native-orchestration-cachix">32. Nix-Native Orchestration
 &amp; Cachix</h2>
 <p>To optimize large-scale pipelines and manage remote binary caching,
 T-Lang includes native Nix orchestration features in
@@ -1318,71 +1228,7 @@ build_pipeline(p,
                  cache: &quot;rstats-on-nix&quot;,
                  force: [&quot;c&quot;]
                ])</code></pre>
-<h2 id="meta-pipelines-pipeline-composition">22. Meta-Pipelines &amp;
-Pipeline Composition</h2>
-<p>As your project grows, writing a single monolithic pipeline can
-become difficult to maintain. T supports <strong>Pipeline
-Composition</strong> via <code>pipeline_of</code> blocks, allowing you
-to compose multiple independent sub-pipelines into a higher-order DAG (a
-<strong>meta-pipeline</strong>).</p>
-<h3 id="composing-pipelines-with-pipeline_of">Composing Pipelines with
-<code>pipeline_of</code></h3>
-<p>You can group multiple pipelines into a single meta-pipeline block.
-Node names are automatically namespaced with their sub-pipeline name
-(e.g., <code>etl.raw</code>, <code>stats.summary</code>), and
-dependencies between different sub-pipelines are automatically resolved
-based on the variables they reference.</p>
-<pre class="t"><code>p_etl = pipeline {
-  raw = read_csv(&quot;data.csv&quot;)
-  clean = raw |&gt; filter($value &gt; 0)
-}
-
-p_stats = pipeline {
-  -- Dependencies on nodes in &#39;etl&#39; are automatically detected!
-  summary = etl.clean |&gt; group_by($category) |&gt; summarize(total = sum($value))
-}
-
--- Compose them into a higher-order DAG
-meta = pipeline_of {
-  etl   = p_etl
-  stats = p_stats
-}</code></pre>
-<h3 id="automatic-dependency-inference-1">Automatic Dependency
-Inference</h3>
-<p>Unlike other pipeline tools, you do not need to manually specify
-dependencies between sub-pipelines using arrows or ordering arrays. T
-automatically analyzes the dependencies of each node inside the
-sub-pipelines. If a node in <code>stats</code> references a namespaced
-node name like <code>etl.clean</code>, T automatically wires a
-dependency edge from <code>etl.clean</code> to
-<code>stats.summary</code>.</p>
-<h3 id="implicit-flattening">Implicit Flattening</h3>
-<p>You can treat a meta-pipeline exactly like a standard pipeline. Any
-built-in function that expects a pipeline (like
-<code>populate_pipeline</code>, <code>pipeline_nodes</code>, or
-<code>pipeline_deps</code>) will automatically flatten the meta-pipeline
-internally:</p>
-<pre class="t"><code>-- Get all namespaced nodes in the meta-pipeline
-pipeline_nodes(meta)
--- [&quot;etl.raw&quot;, &quot;etl.clean&quot;, &quot;stats.summary&quot;]
-
--- Check dependency structure
-pipeline_deps(meta)
--- {`etl.raw`: [], `etl.clean`: [&quot;etl.raw&quot;], `stats.summary`: [&quot;etl.clean&quot;]}
-
--- Build the entire composed DAG in Nix
-populate_pipeline(meta, build = true)</code></pre>
-<h3 id="nested-dot-access">Nested Dot Access</h3>
-<p>You can query individual nodes and their computed metadata directly
-on the meta-pipeline using chained dot-access notation. This makes
-namespaced sub-pipelines feel like natural nested objects:</p>
-<pre class="t"><code>-- Access the computed node name of a sub-pipeline node
-meta.stats.summary.name        -- &quot;stats.summary&quot;
-
--- Retrieve a materialized artifact after building
-read_node(meta.stats.summary)  -- Returns the summarized DataFrame</code></pre>
-<hr />
-<h2 id="granular-artifact-transfer-archive-introspection">27. Granular
+<h2 id="granular-artifact-transfer-archive-introspection">33. Granular
 Artifact Transfer &amp; Archive Introspection</h2>
 <p>For teams working on large projects, T supports exporting
 Nix-materialized pipeline cache artifacts into portable archive files
@@ -1490,7 +1336,7 @@ pipeline_gc(p, dry_run = false)
 -- Perform global garbage collection
 t_gc()</code></pre>
 <hr />
-<h2 id="cicd-with-github-actions">42. CI/CD with GitHub Actions</h2>
+<h2 id="cicd-with-github-actions">34. CI/CD with GitHub Actions</h2>
 <p>T can generate a complete GitHub Actions workflow YAML for executing
 a pipeline via <code>pipeline_to_ga()</code>. The generated
 workflow:</p>
@@ -1558,7 +1404,7 @@ in your project’s <code>tproject.toml</code>. If neither a
 <code>name</code> argument nor a <code>tproject.toml</code> is found, an
 error is raised prompting you to provide an explicit name.</p>
 <hr />
-<h2 id="pattern-based-branching">11. Pattern-Based Branching</h2>
+<h2 id="pattern-based-branching">35. Pattern-Based Branching</h2>
 <p>T lets you dynamically expand a single pipeline node into multiple
 branches using pattern functions. This is useful when you need to run
 the same computation over each element of a list, vector, or data
@@ -1885,17 +1731,17 @@ spirograph function called by each data branch:</p>
 }</code></pre>
 <p><strong><code>src/spirograph.R</code></strong> — renders a faceted
 ggplot for one parameter combination:</p>
-<div class="sourceCode" id="cb86"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
-<span id="cb86-2"><a href="#cb86-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb86-3"><a href="#cb86-3" aria-hidden="true" tabindex="-1"></a>plot_spirographs <span class="ot">&lt;-</span> <span class="cf">function</span>(points) {</span>
-<span id="cb86-4"><a href="#cb86-4" aria-hidden="true" tabindex="-1"></a>  label <span class="ot">&lt;-</span> <span class="st">&quot;fixed_radius = %s, cycling_radius = %s&quot;</span></span>
-<span id="cb86-5"><a href="#cb86-5" aria-hidden="true" tabindex="-1"></a>  points<span class="sc">$</span>parameters <span class="ot">&lt;-</span> <span class="fu">sprintf</span>(label, points<span class="sc">$</span>fixed_radius, points<span class="sc">$</span>cycling_radius)</span>
-<span id="cb86-6"><a href="#cb86-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(points) <span class="sc">+</span></span>
-<span id="cb86-7"><a href="#cb86-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">x =</span> x, <span class="at">y =</span> y, <span class="at">color =</span> parameters), <span class="at">size =</span> <span class="fl">0.1</span>) <span class="sc">+</span></span>
-<span id="cb86-8"><a href="#cb86-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_wrap</span>(<span class="sc">~</span>parameters) <span class="sc">+</span></span>
-<span id="cb86-9"><a href="#cb86-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_gray</span>(<span class="dv">16</span>) <span class="sc">+</span></span>
-<span id="cb86-10"><a href="#cb86-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">color =</span> <span class="st">&quot;none&quot;</span>)</span>
-<span id="cb86-11"><a href="#cb86-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<div class="sourceCode" id="cb78"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb78-2"><a href="#cb78-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-3"><a href="#cb78-3" aria-hidden="true" tabindex="-1"></a>plot_spirographs <span class="ot">&lt;-</span> <span class="cf">function</span>(points) {</span>
+<span id="cb78-4"><a href="#cb78-4" aria-hidden="true" tabindex="-1"></a>  label <span class="ot">&lt;-</span> <span class="st">&quot;fixed_radius = %s, cycling_radius = %s&quot;</span></span>
+<span id="cb78-5"><a href="#cb78-5" aria-hidden="true" tabindex="-1"></a>  points<span class="sc">$</span>parameters <span class="ot">&lt;-</span> <span class="fu">sprintf</span>(label, points<span class="sc">$</span>fixed_radius, points<span class="sc">$</span>cycling_radius)</span>
+<span id="cb78-6"><a href="#cb78-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(points) <span class="sc">+</span></span>
+<span id="cb78-7"><a href="#cb78-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">x =</span> x, <span class="at">y =</span> y, <span class="at">color =</span> parameters), <span class="at">size =</span> <span class="fl">0.1</span>) <span class="sc">+</span></span>
+<span id="cb78-8"><a href="#cb78-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_wrap</span>(<span class="sc">~</span>parameters) <span class="sc">+</span></span>
+<span id="cb78-9"><a href="#cb78-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_gray</span>(<span class="dv">16</span>) <span class="sc">+</span></span>
+<span id="cb78-10"><a href="#cb78-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">color =</span> <span class="st">&quot;none&quot;</span>)</span>
+<span id="cb78-11"><a href="#cb78-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 <p>Note the <code>functions = ["src/spirograph.R"]</code> argument on
 the R node — this propagates the script into the Nix sandbox so it is
 available at build time.</p>
@@ -1948,6 +1794,59 @@ for post-build queries.</li>
 <code>map_pattern</code> node can depend on T data branches and run in R
 (or Python or Julia), as long as serialization is configured
 correctly.</li>
+</ul>
+<hr />
+<h2 id="static-conditionals">36. Static Conditionals</h2>
+<p>T supports conditional node inclusion evaluated at pipeline
+construction time, preserving Nix’s static DAG requirement. There are
+two functions: <code>node_when</code> and <code>node_fork</code>.</p>
+<h3
+id="node_whencondition-value"><code>node_when(condition, value)</code></h3>
+<p>Returns <code>value</code> if <code>condition</code> is truthy,
+otherwise returns a null marker that causes the pipeline to exclude the
+node entirely. The condition is evaluated before the build.</p>
+<pre class="t"><code>p = pipeline {
+  dev_data = read_csv(&quot;data/dev.csv&quot;)
+
+  model = node_when(env(&quot;CI&quot;) == &quot;1&quot;, pyn(script = &quot;train.py&quot;))
+
+  deployed = node_when(env(&quot;BRANCH&quot;) == &quot;main&quot;, pyn(script = &quot;deploy.py&quot;))
+}
+
+build_pipeline(p)</code></pre>
+<p>If <code>CI</code> is not <code>"1"</code>, the <code>model</code>
+node is excluded and no attempt is made to resolve its dependencies. If
+<code>BRANCH</code> is not <code>"main"</code>, the
+<code>deployed</code> node is similarly excluded.</p>
+<h3
+id="node_fork...condition_value_pairs-.default-..."><code>node_fork(...condition_value_pairs, .default = ...)</code></h3>
+<p>A multi-way branch: takes condition-value pairs and returns the value
+for the first truthy condition. If no condition matches and no
+<code>.default</code> is provided, the node is excluded.</p>
+<pre class="t"><code>p = pipeline {
+  data = read_csv(&quot;data.csv&quot;)
+
+  model = node_fork(
+    env(&quot;MODEL&quot;) == &quot;linear&quot;, lm(mpg ~ wt, data),
+    env(&quot;MODEL&quot;) == &quot;forest&quot;, pyn(script = &quot;rf.py&quot;),
+    env(&quot;MODEL&quot;) == &quot;neural&quot;, pyn(script = &quot;nn.py&quot;),
+    .default = lm(mpg ~ wt, data)
+  )
+}</code></pre>
+<p>Here, setting <code>MODEL=forest</code> in the environment selects
+the random forest node; any other value falls back to the
+<code>.default</code> linear model.</p>
+<h3 id="important-notes">Important Notes</h3>
+<ul>
+<li>Both <code>node_when</code> and <code>node_fork</code> are only
+meaningful as the direct value of a node binding inside a
+<code>pipeline { }</code> block. Using the result outside that context
+(arithmetic, <code>is_na()</code>, etc.) is unsupported.</li>
+<li>Conditions must be evaluable at pipeline construction time —
+typically using <code>env()</code> to read environment variables.</li>
+<li>The null marker from an unmatched condition is not a regular value;
+it cannot be inspected, stored, or tested with <code>is_na()</code>. It
+exists only to signal node exclusion to the pipeline machinery.</li>
 </ul>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
