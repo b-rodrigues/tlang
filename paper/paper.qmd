@@ -580,7 +580,7 @@ that translates those declarations into a pinned Nix derivation graph. Running
 distributed exclusively via Nix:
 
 ```bash
-nix shell github:b-rodrigues/tlang  # users
+nix shell --accept-flake-config github:b-rodrigues/tlang  # users
 nix develop                          # contributors
 ```
 

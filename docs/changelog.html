@@ -34,8 +34,17 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.53.1] - 2026-06-24</h2>
+<h2 id="section">[0.53.2] - 2026-06-24</h2>
 <h3 id="hotfix">Hotfix</h3>
+<ul>
+<li><strong>Nix Flake Update / Maven Dependency Parity</strong>: Fixed
+local build failures caused by an upstream change in Maven dependencies
+for the <code>jpmml-evaluator</code> library (used for PMML model
+scoring). The nixpkgs fetch source hash has been updated to restore
+local build compatibility.</li>
+</ul>
+<h2 id="section-1">[0.53.1] - 2026-06-24</h2>
+<h3 id="hotfix-1">Hotfix</h3>
 <p>Fix for https://github.com/b-rodrigues/tlang/issues/434</p>
 <p>jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master
 branch, so it’s included in the rstats-on-nix fork. It seems like the
@@ -87,7 +96,7 @@ Fixes</h3>
 before the global environment, enabling dynamic column name
 resolution.</li>
 </ul>
-<h2 id="section-1">[0.53.0] - 2026-06-22</h2>
+<h2 id="section-2">[0.53.0] - 2026-06-22</h2>
 <p>This release:</p>
 <ul>
 <li><strong>Atelier TUI IDE Integration</strong>: This release
@@ -189,7 +198,7 @@ inside assignment/reassignment statements. The error is bound to the
 variable and propagated correctly, enabling robust recovery patterns via
 subsequent <code>match</code> blocks.</li>
 </ul>
-<h2 id="section-2">[0.52.3] - 2026-06-12</h2>
+<h2 id="section-3">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature
@@ -538,7 +547,7 @@ code.</li>
 Checklist to <code>AGENTS.md</code> as a permanent reference for future
 contributions.</li>
 </ul>
-<h2 id="section-3">[0.52.2] - 2026-05-31</h2>
+<h2 id="section-4">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -761,7 +770,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-4">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-5">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -1115,7 +1124,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-5">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-6">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -1344,7 +1353,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-6">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-7">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -1607,7 +1616,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-7">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-8">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -1904,7 +1913,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-8">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-9">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

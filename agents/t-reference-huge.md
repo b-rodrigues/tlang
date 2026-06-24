@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.53.0 "L'Initiation".
+**Status:** Version 0.53.2 "L'Initiation".
 
 ---
 
@@ -240,7 +240,7 @@ As a user, you don't need to clone the repository or build the compiler from
 source! You can run the T shell directly from GitHub using Nix:
 
 ```bash
-nix shell github:b-rodrigues/tlang
+nix shell --accept-flake-config github:b-rodrigues/tlang
 ```
 
 This command will download the T executable, fetch all required dependencies,
@@ -410,7 +410,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.53.0
+> **Version**: 0.53.2
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -8020,6 +8020,12 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
+## [0.53.2] - 2026-06-24
+
+### Hotfix
+
+- **Nix Flake Update / Maven Dependency Parity**: Fixed local build failures caused by an upstream change in Maven dependencies for the `jpmml-evaluator` library (used for PMML model scoring). The nixpkgs fetch source hash has been updated to restore local build compatibility.
+
 ## [0.53.1] - 2026-06-24
  
 ### Hotfix
@@ -10488,7 +10494,7 @@ To try any of these demos locally:
 2.  **Bootstrap the T environment**:
     If you don't have the `t` command installed yet, use Nix to get a temporary shell containing it:
     ```bash
-    nix shell github:b-rodrigues/tlang
+    nix shell --accept-flake-config github:b-rodrigues/tlang
     ```
 3.  **Synchronize dependencies**:
     T uses `tproject.toml` to manage dependencies. Run this to generate the project's local `flake.nix`:
@@ -14540,7 +14546,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.53.0 "L'Initiation" using Nix <nix-version>
+Version 0.53.2 "L'Initiation" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -16161,7 +16167,7 @@ When you initialize a T project (using `t init`), the generated `flake.nix` auto
 
 ### Global Configuration (Recommended)
 
-To benefit from the binary cache even outside of T projects (e.g., when running `nix shell github:b-rodrigues/tlang`), you can configure the cache globally in your system's `nix.conf`:
+To benefit from the binary cache even outside of T projects (e.g., when running `nix shell --accept-flake-config github:b-rodrigues/tlang`), you can configure the cache globally in your system's `nix.conf`:
 
 ```text
 substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
@@ -18305,7 +18311,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.53.0"
+min_version = "0.53.2"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -29723,7 +29729,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.53.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.53.2";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -29844,7 +29850,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.53.0",
+    t_version: "0.53.2",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -29887,7 +29893,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.53.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.53.2";
   };
   
   outputs = { self, nixpkgs, tlang }: {

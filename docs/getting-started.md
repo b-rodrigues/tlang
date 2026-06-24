@@ -20,7 +20,7 @@ As a user, you don't need to clone the repository or build the compiler from
 source! You can run the T shell directly from GitHub using Nix:
 
 ```bash
-nix shell github:b-rodrigues/tlang
+nix shell --accept-flake-config github:b-rodrigues/tlang
 ```
 
 This command will download the T executable, fetch all required dependencies,

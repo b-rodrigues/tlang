@@ -195,8 +195,10 @@ pre-built binaries.</p>
 <h3 id="global-configuration-recommended">Global Configuration
 (Recommended)</h3>
 <p>To benefit from the binary cache even outside of T projects (e.g.,
-when running <code>nix shell github:b-rodrigues/tlang</code>), you can
-configure the cache globally in your system’s <code>nix.conf</code>:</p>
+when running
+<code>nix shell --accept-flake-config github:b-rodrigues/tlang</code>),
+you can configure the cache globally in your system’s
+<code>nix.conf</code>:</p>
 <pre class="text"><code>substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
 trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=</code></pre>
 <blockquote>
