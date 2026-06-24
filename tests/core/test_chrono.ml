@@ -14,7 +14,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "ceiling_date rounds up hour" {|ceiling_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T10:00:00Z[UTC])";
   test "round_date rounds to nearest hour" {|round_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T10:00:00Z[UTC])";
   test "with_tz updates timezone label" {|with_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")|} "Datetime(2024-01-15T09:30:00Z[Europe/Paris])";
-  test "force_tz updates timezone label" {|force_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")|} "Datetime(2024-01-15T09:30:00Z[Europe/Paris])";
+  test "force_tz adjusts micros and updates timezone label" {|force_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")|} "Datetime(2024-01-15T08:30:00Z[Europe/Paris])";
   test "is_leap_year on integer" {|is_leap_year(2024)|} "true";
   test "days_in_month on integers" {|days_in_month(2024, 2)|} "29";
   test "within interval" {|`%within%`(ymd("2024-01-15"), interval(ymd("2024-01-01"), ymd("2024-01-31")))|} "true";
