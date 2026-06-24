@@ -1,8 +1,15 @@
 # Changelog
 
-## [unreleased]
+## [0.53.1] - 2026-06-24
+ 
+### Hotfix
 
-## [0.53.1] - Upcoming
+Fix for https://github.com/b-rodrigues/tlang/issues/434
+
+jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master branch, so it's included
+in the rstats-on-nix fork. It seems like the Maven dependencies got cahnged after release
+so compilation was failing. This also means that previous releases of T are likely not
+installable anymore.
 
 ### Timezone Support
 - **IANA timezone offset conversion**: `with_tz()` and `force_tz()` now correctly
