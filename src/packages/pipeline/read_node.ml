@@ -442,14 +442,13 @@ let read_fn named_args _env =
     | VComputedNode cn ->
         begin
           let resolved_cn = !Ast.computed_node_resolver cn in
-          let is_built = resolved_cn.cn_path <> "" && resolved_cn.cn_path <> "<unbuilt>" in
           let is_in_memory_placeholder v =
             match v with
             | VNodeResult { v = VComputedNode inner; _ } -> inner.cn_path = "" || inner.cn_path = "<unbuilt>"
             | _ -> false
           in
           match Ast.get_in_memory_node_value_for_cn cn with
-          | Some v when not is_built && not (is_in_memory_placeholder v) -> v
+          | Some v when not (is_in_memory_placeholder v) -> v
           | _ ->
             (match resolved_cn with
               | cn when cn.cn_path = "<unbuilt>" ->

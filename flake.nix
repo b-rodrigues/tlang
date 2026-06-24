@@ -412,9 +412,9 @@ chmod +x $out/bin/bisect-ppx-report
             # ocamlVersion.owl
 
             # 5. R and Python environments for testing
-            R-with-packages
-            python-with-packages
-            tlang-python
+            # R-with-packages
+            # python-with-packages
+            # tlang-python
             pkgs.actionlint
             pkgs.shellcheck
             pkgs.jpmml-statsmodels
@@ -426,8 +426,8 @@ chmod +x $out/bin/bisect-ppx-report
             pkgs.bash
             pkgs.coreutils
             pkgs.findutils
-            julia-with-packages
-            tlang-julia-path
+            # julia-with-packages
+            # tlang-julia-path
 
             # 6. Local Project Binaries (Wrappers for development)
             (pkgs.writeShellScriptBin "t" ''

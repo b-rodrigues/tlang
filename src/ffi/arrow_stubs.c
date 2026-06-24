@@ -4046,16 +4046,28 @@ CAMLprim value caml_arrow_write_parquet(value v_ptr, value v_path) {
     gparquet_arrow_file_writer_new_path(schema, path, NULL, &error);
   if (writer == NULL) {
     g_object_unref(schema);
-    if (error) g_error_free(error);
+    if (error) {
+      fprintf(stderr, "gparquet_arrow_file_writer_new_path failed: %s\n", error->message);
+      g_error_free(error);
+    } else {
+      fprintf(stderr, "gparquet_arrow_file_writer_new_path failed: unknown error\n");
+    }
     CAMLreturn(Val_bool(FALSE));
   }
 
-  gboolean ok = gparquet_arrow_file_writer_write_table(writer, table, 0, &error);
+  gboolean ok = gparquet_arrow_file_writer_write_table(writer, table, 65536, &error);
   gparquet_arrow_file_writer_close(writer, NULL);
   g_object_unref(writer);
   g_object_unref(schema);
 
-  if (!ok && error) g_error_free(error);
+  if (!ok) {
+    if (error) {
+      fprintf(stderr, "gparquet_arrow_file_writer_write_table failed: %s\n", error->message);
+      g_error_free(error);
+    } else {
+      fprintf(stderr, "gparquet_arrow_file_writer_write_table failed: unknown error\n");
+    }
+  }
   CAMLreturn(Val_bool(ok));
 }
 
