@@ -5,6 +5,8 @@ let micros_per_minute = 60_000_000L
 let micros_per_hour = 3_600_000_000L
 let micros_per_day = 86_400_000_000L
 
+external tz_offset : int64 -> string -> int64 = "caml_tz_offset"
+
 let month_abbrevs = [|"Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun"; "Jul"; "Aug"; "Sep"; "Oct"; "Nov"; "Dec"|]
 let month_names = [|"January"; "February"; "March"; "April"; "May"; "June"; "July"; "August"; "September"; "October"; "November"; "December"|]
 let weekday_abbrevs = [|"Sun"; "Mon"; "Tue"; "Wed"; "Thu"; "Fri"; "Sat"|]
@@ -474,7 +476,14 @@ let date_diff_period left right =
   | _ -> Error.type_error "Date subtraction expects Date or Datetime values."
 
 let format_datetime_value micros tz format =
-  let year, month, day, hour, minute, second, micro = split_datetime_micros micros in
+  let adjusted_micros =
+    match tz with
+    | Some label ->
+        let offset_sec = tz_offset micros label in
+        Int64.add micros (Int64.mul offset_sec 1_000_000L)
+    | None -> micros
+  in
+  let year, month, day, hour, minute, second, micro = split_datetime_micros adjusted_micros in
   let wday = sunday_wday_from_days (days_from_civil year month day) in
   let replace = function
     | "%Y" -> Printf.sprintf "%04d" year
@@ -654,23 +663,41 @@ let round_date_impl function_name kind args _env =
         (Printf.sprintf "Function `%s` expects (Date|Datetime, String)." function_name)
   | values -> Error.arity_error_named function_name 2 (List.length values)
 
-let rec relabel_timezone function_name timezone = function
+let rec with_tz_scalar ~timezone = function
   | VDatetime (micros, _) -> VDatetime (micros, Some timezone)
-  | VVector arr -> VVector (Array.map (relabel_timezone function_name timezone) arr)
+  | VVector arr -> VVector (Array.map (with_tz_scalar ~timezone) arr)
   | VNA _ -> (VNA NAGeneric)
   | _ ->
       Error.type_error
         (Printf.sprintf
-           "Function `%s` expects a Datetime or Vector of datetimes."
-           function_name)
+           "Function `with_tz` expects a Datetime or Vector of datetimes.")
 
-let timezone_impl function_name args _env =
+let with_tz_impl args _env =
   match args with
-  | [value; VString timezone] -> relabel_timezone function_name timezone value
+  | [value; VString timezone] -> with_tz_scalar ~timezone value
   | [_; _] ->
       Error.type_error
-        (Printf.sprintf "Function `%s` expects (Datetime, String)." function_name)
-  | values -> Error.arity_error_named function_name 2 (List.length values)
+        "Function `with_tz` expects (Datetime, String)."
+  | values -> Error.arity_error_named "with_tz" 2 (List.length values)
+
+let rec force_tz_scalar ~timezone = function
+  | VDatetime (micros, _) ->
+      let offset_sec = tz_offset micros timezone in
+      let offset_micros = Int64.mul offset_sec 1_000_000L in
+      VDatetime (Int64.sub micros offset_micros, Some timezone)
+  | VVector arr -> VVector (Array.map (force_tz_scalar ~timezone) arr)
+  | VNA _ -> (VNA NAGeneric)
+  | _ ->
+      Error.type_error
+        "Function `force_tz` expects a Datetime or Vector of datetimes."
+
+let force_tz_impl args _env =
+  match args with
+  | [value; VString timezone] -> force_tz_scalar ~timezone value
+  | [_; _] ->
+      Error.type_error
+        "Function `force_tz` expects (Datetime, String)."
+  | values -> Error.arity_error_named "force_tz" 2 (List.length values)
 
 let leap_year_impl args _env =
   let rec apply = function
@@ -1573,8 +1600,8 @@ let register env =
   let env = Env.add "floor_date" (make_builtin ~name:"floor_date" 2 (round_date_impl "floor_date" `Floor)) env in
   let env = Env.add "ceiling_date" (make_builtin ~name:"ceiling_date" 2 (round_date_impl "ceiling_date" `Ceiling)) env in
   let env = Env.add "round_date" (make_builtin ~name:"round_date" 2 (round_date_impl "round_date" `Round)) env in
-  let env = Env.add "with_tz" (make_builtin ~name:"with_tz" 2 (timezone_impl "with_tz")) env in
-  let env = Env.add "force_tz" (make_builtin ~name:"force_tz" 2 (timezone_impl "force_tz")) env in
+  let env = Env.add "with_tz" (make_builtin ~name:"with_tz" 2 with_tz_impl) env in
+  let env = Env.add "force_tz" (make_builtin ~name:"force_tz" 2 force_tz_impl) env in
   let env = Env.add "interval" (make_builtin ~name:"interval" 2 interval_impl) env in
   let env = Env.add "%within%" (make_builtin ~name:"%within%" 2 within_impl) env in
   let env = Env.add "is_leap_year" (make_builtin ~name:"is_leap_year" 1 leap_year_impl) env in
