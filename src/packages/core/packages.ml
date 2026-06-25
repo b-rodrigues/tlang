@@ -138,7 +138,8 @@ let stats_package = {
   description = "Statistical summaries and models";
   functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
                "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "add_diagnostics"; "score"; "deviance";
-               "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"; "compare_native_vs_pmml_scores"];
+               "pnorm"; "pt"; "pf"; "pchisq"; "qnorm"; "qt"; "qf"; "qchisq";
+               "anova"; "wald_test"; "cut"; "poly"; "compare_native_vs_pmml_scores"];
 }
 
 let colcraft_package = {

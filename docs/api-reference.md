@@ -1479,6 +1479,19 @@ Cumulative Distribution Functions for Normal, Student-t, F, and Chi-squared dist
 
 ---
 
+### Quantile Functions (Inverse CDFs)
+
+#### `qnorm(p, mean=0, sd=1)` / `qt(p, df)` / `qf(p, df1, df2)` / `qchisq(p, df)`
+
+Quantile (inverse cumulative probability) Functions for Normal, Student-t, F, and Chi-squared distributions.
+
+- `qnorm(p, mean = 0, sd = 1)` — normal quantile with optional `mean` and `sd` named args.
+- `qt(p, df)` — Student t quantile.
+- `qf(p, df1, df2)` — F quantile.
+- `qchisq(p, df)` — Chi-squared quantile.
+
+---
+
 ### Modeling
 
 #### `lm(data, formula, weights = NA)`

@@ -169,6 +169,53 @@ let pf q df1 df2 =
 let pchisq q df =
   gammp (0.5 *. float_of_int df) (0.5 *. q)
 
+(* --- Inverse CDFs (Quantile Functions) --- *)
+
+let normal_quantile p =
+  Stats.normal_quantile p
+
+let f_quantile p df1 df2 =
+  let fwd x = pf x df1 df2 in
+  if p <= 0.0 then Float.neg_infinity
+  else if p >= 1.0 then Float.infinity
+  else
+    let rec loop lo hi iter =
+      if iter >= 100 || hi -. lo < 1e-15 then
+        0.5 *. (lo +. hi)
+      else
+        let mid = 0.5 *. (lo +. hi) in
+        if fwd mid < p then loop mid hi (iter + 1)
+        else loop lo mid (iter + 1)
+    in
+    let rec find_hi hi =
+      if fwd hi >= p then hi
+      else find_hi (hi *. 2.0)
+    in
+    let hi = find_hi 1.0 in
+    if fwd 0.0 >= p then 0.0
+    else loop 0.0 hi 0
+
+let chisq_quantile p df =
+  let fwd x = pchisq x df in
+  if p <= 0.0 then Float.neg_infinity
+  else if p >= 1.0 then Float.infinity
+  else
+    let rec loop lo hi iter =
+      if iter >= 100 || hi -. lo < 1e-15 then
+        0.5 *. (lo +. hi)
+      else
+        let mid = 0.5 *. (lo +. hi) in
+        if fwd mid < p then loop mid hi (iter + 1)
+        else loop lo mid (iter + 1)
+    in
+    let rec find_hi hi =
+      if fwd hi >= p then hi
+      else find_hi (hi *. 2.0)
+    in
+    let hi = find_hi 1.0 in
+    if fwd 0.0 >= p then 0.0
+    else loop 0.0 hi 0
+
 (* --- Registration --- *)
 
 (*
@@ -243,5 +290,107 @@ let register env =
     | [VFloat q; VInt df] -> VFloat (pchisq q df)
     | [VInt q; VInt df] -> VFloat (pchisq (float_of_int q) df)
     | _ -> Error.type_error "pchisq expects (numeric, Int)."
+  )) env in
+(*
+--# Normal distribution quantile (inverse CDF)
+--#
+--# Returns the quantile (inverse cumulative probability) from the
+--# normal distribution with given mean and standard deviation.
+--#
+--# @name qnorm
+--# @param p :: Float The probability (0 < p < 1).
+--# @param mean :: Float = 0 The mean of the distribution.
+--# @param sd :: Float = 1 The standard deviation of the distribution.
+--# @return :: Float The quantile.
+--# @family stats
+--# @export
+--# @example
+--#   qnorm(0.975)
+--#   qnorm(0.5, mean = 5, sd = 2)
+*)
+(*
+--# Student t distribution quantile (inverse CDF)
+--#
+--# Returns the quantile (inverse cumulative probability) from the
+--# Student t distribution with given degrees of freedom.
+--#
+--# @name qt
+--# @param p :: Float The probability (0 < p < 1).
+--# @param df :: Int Degrees of freedom.
+--# @return :: Float The quantile.
+--# @family stats
+--# @export
+--# @example
+--#   qt(0.975, 10)
+*)
+(*
+--# F distribution quantile (inverse CDF)
+--#
+--# Returns the quantile (inverse cumulative probability) from the
+--# F distribution with given degrees of freedom.
+--#
+--# @name qf
+--# @param p :: Float The probability (0 < p < 1).
+--# @param df1 :: Int Degrees of freedom 1.
+--# @param df2 :: Int Degrees of freedom 2.
+--# @return :: Float The quantile.
+--# @family stats
+--# @export
+--# @example
+--#   qf(0.95, 2, 10)
+*)
+(*
+--# Chi-squared distribution quantile (inverse CDF)
+--#
+--# Returns the quantile (inverse cumulative probability) from the
+--# chi-squared distribution with given degrees of freedom.
+--#
+--# @name qchisq
+--# @param p :: Float The probability (0 < p < 1).
+--# @param df :: Int Degrees of freedom.
+--# @return :: Float The quantile.
+--# @family stats
+--# @export
+--# @example
+--#   qchisq(0.95, 2)
+*)
+  (* --- Quantile (inverse CDF) functions --- *)
+  let env = Env.add "qnorm" (make_builtin_named ~name:"qnorm" ~variadic:true 1 (fun named_args _env ->
+    let extract_named_float name default =
+      match Math_common.optional_named_arg name named_args with
+      | Some (VFloat v) -> `Float v
+      | Some (VInt v) -> `Float (float_of_int v)
+      | Some _ -> `Error (Error.type_error (Printf.sprintf "Function `qnorm` expects `%s` to be numeric." name))
+      | None -> `Float default
+    in
+    match (extract_named_float "mean" 0.0, extract_named_float "sd" 1.0) with
+    | `Error e, _ | _, `Error e -> e
+    | `Float mean, `Float sd ->
+      if sd <= 0.0 then
+        Error.value_error "Function `qnorm` expects `sd` to be positive."
+      else
+        let args = Math_common.positional_args_without ["mean"; "sd"] named_args in
+        match args with
+        | [VFloat p] -> VFloat (mean +. sd *. normal_quantile p)
+        | [VInt p] -> VFloat (mean +. sd *. normal_quantile (float_of_int p))
+        | _ -> Error.type_error "Function `qnorm` expects a numeric probability as first argument."
+  )) env in
+  let env = Env.add "qt" (make_builtin ~name:"qt" 2 (fun args _env ->
+    match args with
+    | [VFloat p; VInt df] -> VFloat (t_quantile p df)
+    | [VInt p; VInt df] -> VFloat (t_quantile (float_of_int p) df)
+    | _ -> Error.type_error "qt expects (numeric, Int)."
+  )) env in
+  let env = Env.add "qf" (make_builtin ~name:"qf" 3 (fun args _env ->
+    match args with
+    | [VFloat p; VInt df1; VInt df2] -> VFloat (f_quantile p df1 df2)
+    | [VInt p; VInt df1; VInt df2] -> VFloat (f_quantile (float_of_int p) df1 df2)
+    | _ -> Error.type_error "qf expects (numeric, Int, Int)."
+  )) env in
+  let env = Env.add "qchisq" (make_builtin ~name:"qchisq" 2 (fun args _env ->
+    match args with
+    | [VFloat p; VInt df] -> VFloat (chisq_quantile p df)
+    | [VInt p; VInt df] -> VFloat (chisq_quantile (float_of_int p) df)
+    | _ -> Error.type_error "qchisq expects (numeric, Int)."
   )) env in
   env
