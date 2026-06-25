@@ -359,19 +359,31 @@ let handle_magic line env mode base_keys =
       flush stdout;
       (env, true)
   | ["history"] ->
-      let items = try
-        let ch = open_in history_file in
-        let rec loop acc = try loop (input_line ch :: acc) with End_of_file -> close_in ch; List.rev acc in
-        loop []
-      with _ -> []
+      let items =
+        try
+          let ch = open_in history_file in
+          let lines =
+            try
+              let rec loop acc =
+                try loop (input_line ch :: acc)
+                with End_of_file -> List.rev acc
+              in
+              loop []
+            with e ->
+              close_in_noerr ch;
+              raise e
+          in
+          close_in ch;
+          Array.of_list lines
+        with _ -> [||]
       in
-      let total = List.length items in
+      let total = Array.length items in
       let start = max 0 (total - 50) in
       if total = 0 then
         Printf.printf "%s(no history)%s\n" color_gray color_reset
       else
         for i = start to total - 1 do
-          Printf.printf "%5d  %s\n" (i + 1) (List.nth items i)
+          Printf.printf "%5d  %s\n" (i + 1) items.(i)
         done;
       flush stdout;
       (env, true)
