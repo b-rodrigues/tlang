@@ -355,6 +355,35 @@ type session_entry =
 let session_transcript : session_entry list ref = ref []
 let base_env_ref = ref Ast.Env.empty
 
+let save_session env fname_parts ~verbose =
+  let fname = String.trim (String.concat " " fname_parts) in
+  if fname = "" then
+    (env, Some "Error: Please specify a filename (e.g., %save session.t)\n", true)
+  else
+    let entries = List.rev !session_transcript in
+    try
+      let oc = open_out fname in
+      Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () ->
+        List.iter (fun entry ->
+          match entry with
+          | EvalEntry (cmd, v) ->
+              Printf.fprintf oc "# %s\n" cmd;
+              let output = if verbose then Pretty_print.pretty_print_value v else value_summary v in
+              String.split_on_char '\n' output
+              |> List.iter (fun line -> if line <> "" then Printf.fprintf oc "# %s\n" line);
+              Printf.fprintf oc "\n"
+          | MagicEntry (cmd, output) ->
+              Printf.fprintf oc "# %s\n" cmd;
+              String.split_on_char '\n' (String.trim output)
+              |> List.iter (fun line -> if line <> "" then Printf.fprintf oc "# %s\n" line);
+              Printf.fprintf oc "\n"
+        ) entries
+      );
+      let out = Printf.sprintf "Session saved to %s\n" fname in
+      (env, Some out, true)
+    with Sys_error msg ->
+      (env, Some ("Error saving session: " ^ msg ^ "\n"), true)
+
 let handle_magic line env mode base_keys =
   let parts = String.split_on_char ' ' (String.sub line 1 (String.length line - 1)) |> List.filter (fun s -> s <> "") in
   match parts with
@@ -432,49 +461,9 @@ let handle_magic line env mode base_keys =
       let out = Printf.sprintf "%sEnvironment reset to base.%s\n" color_blue color_reset in
       (!base_env_ref, Some out, true)
   | "save" :: "verbose" :: fname_parts ->
-      let fname = String.concat " " fname_parts in
-      let entries = List.rev !session_transcript in
-      let oc = open_out fname in
-      Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () ->
-        List.iter (fun entry ->
-          match entry with
-          | EvalEntry (cmd, v) ->
-              Printf.fprintf oc "# %s\n" cmd;
-              let output = Pretty_print.pretty_print_value v in
-              String.split_on_char '\n' output
-              |> List.iter (fun line -> if line <> "" then Printf.fprintf oc "# %s\n" line);
-              Printf.fprintf oc "\n"
-          | MagicEntry (cmd, output) ->
-              Printf.fprintf oc "# %s\n" cmd;
-              String.split_on_char '\n' (String.trim output)
-              |> List.iter (fun line -> if line <> "" then Printf.fprintf oc "# %s\n" line);
-              Printf.fprintf oc "\n"
-        ) entries
-      );
-      let out = Printf.sprintf "Session saved to %s\n" fname in
-      (env, Some out, true)
+      save_session env fname_parts ~verbose:true
   | "save" :: fname_parts ->
-      let fname = String.concat " " fname_parts in
-      let entries = List.rev !session_transcript in
-      let oc = open_out fname in
-      Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () ->
-        List.iter (fun entry ->
-          match entry with
-          | EvalEntry (cmd, v) ->
-              Printf.fprintf oc "# %s\n" cmd;
-              let output = value_summary v in
-              String.split_on_char '\n' output
-              |> List.iter (fun line -> if line <> "" then Printf.fprintf oc "# %s\n" line);
-              Printf.fprintf oc "\n"
-          | MagicEntry (cmd, output) ->
-              Printf.fprintf oc "# %s\n" cmd;
-              String.split_on_char '\n' (String.trim output)
-              |> List.iter (fun line -> if line <> "" then Printf.fprintf oc "# %s\n" line);
-              Printf.fprintf oc "\n"
-        ) entries
-      );
-      let out = Printf.sprintf "Session saved to %s\n" fname in
-      (env, Some out, true)
+      save_session env fname_parts ~verbose:false
   | _ ->
       let cmd = match parts with [] -> "" | hd :: _ -> hd in
       let suggestion =
