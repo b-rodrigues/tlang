@@ -247,6 +247,87 @@ let levenshtein_distance s t =
     dp.(m).(n)
   end
 
+let rec value_summary v =
+  match v with
+  | Ast.VInt n -> string_of_int n
+  | Ast.VFloat f -> string_of_float f
+  | Ast.VBool b -> string_of_bool b
+  | Ast.VString s -> "\"" ^ Ast.Utils.escape_string_utf8 s ^ "\""
+  | Ast.VSymbol s -> s
+  | Ast.VNA na_t ->
+      let tag = Ast.Utils.na_type_to_string na_t in
+      if tag = "" then "NA" else "NA(" ^ tag ^ ")"
+  | Ast.VDate days ->
+      let tm = Unix.gmtime (float_of_int days *. 86400.) in
+      Printf.sprintf "Date(%04d-%02d-%02d)" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+  | Ast.VDatetime _ -> Ast.Utils.value_to_string v
+  | Ast.VDataFrame { arrow_table; group_keys } ->
+      let base = Printf.sprintf "%d rows x %d cols"
+        (Arrow_table.num_rows arrow_table) (Arrow_table.num_columns arrow_table)
+      in
+      if group_keys = [] then base
+      else Printf.sprintf "%s [grouped by: %s]" base (String.concat ", " group_keys)
+  | Ast.VPipeline { p_nodes; _ } ->
+      let n = List.length p_nodes in
+      Printf.sprintf "%d node%s" n (if n = 1 then "" else "s")
+  | Ast.VMetaPipeline { mp_pipelines; _ } ->
+      let n = List.length mp_pipelines in
+      Printf.sprintf "%d sub-pipeline%s" n (if n = 1 then "" else "s")
+  | Ast.VList items ->
+      let n = List.length items in
+      Printf.sprintf "[%d item%s]" n (if n = 1 then "" else "s")
+  | Ast.VVector arr ->
+      Printf.sprintf "Vector[%d elements]" (Array.length arr)
+  | Ast.VNDArray { shape; _ } ->
+      let dims = Array.to_list shape |> List.map string_of_int |> String.concat " x " in
+      Printf.sprintf "NDArray(%s)" dims
+  | Ast.VDict pairs ->
+      let lookup k = List.assoc_opt k pairs in
+      (match lookup "model_type", lookup "r_squared", lookup "nobs" with
+       | Some (Ast.VString mt), Some (Ast.VFloat r2), Some (Ast.VInt n) ->
+           Printf.sprintf "%s (r²=%.2f, n=%d)" mt r2 n
+       | Some (Ast.VString mt), Some (Ast.VFloat r2), _ ->
+           Printf.sprintf "%s (r²=%.2f)" mt r2
+       | Some (Ast.VString mt), _, Some (Ast.VInt n) ->
+           Printf.sprintf "%s (n=%d)" mt n
+       | Some (Ast.VString mt), _, _ -> mt
+       | Some (Ast.VSymbol s), _, _ -> s
+       | _ -> Printf.sprintf "{%d keys}" (List.length pairs))
+  | Ast.VLambda { params; _ } ->
+      "\\(" ^ String.concat ", " params ^ ") -> ..."
+  | Ast.VBuiltin { b_name; _ } ->
+      (match b_name with Some name -> name | None -> "<builtin>")
+  | Ast.VError { code; message; _ } ->
+      Printf.sprintf "%s: %s" (Ast.Utils.error_code_to_string code) message
+  | Ast.VFactor (idx, levels, ordered) ->
+      let level = match List.nth_opt levels idx with Some s -> s | None -> "NA" in
+      if ordered then Printf.sprintf "ordered Factor(%s)" level
+      else Printf.sprintf "Factor(%s)" level
+  | Ast.VPeriod p ->
+      Printf.sprintf "Period(%dy %dm)" p.p_years p.p_months
+  | Ast.VDuration sec -> Printf.sprintf "Duration(%g)" sec
+  | Ast.VInterval _ -> Ast.Utils.value_to_string v
+  | Ast.VLens _ -> Ast.Utils.value_to_string v
+  | Ast.VIntent { intent_fields } ->
+      Printf.sprintf "Intent{%s}" (String.concat ", " (List.map fst intent_fields))
+  | Ast.VFormula { response; predictors; _ } ->
+      Printf.sprintf "%s ~ %s" (String.concat " + " response) (String.concat " + " predictors)
+  | Ast.VExpr e -> "Expression(" ^ Ast.Utils.unparse_expr e ^ ")"
+  | Ast.VQuo { q_expr; _ } -> "Quosure(" ^ Ast.Utils.unparse_expr q_expr ^ ")"
+  | Ast.VComputedNode cn -> Printf.sprintf "computed_node<%s>" cn.cn_runtime
+  | Ast.VSerializer s -> Printf.sprintf "serializer<^%s>" s.s_format
+  | Ast.VNode un -> Printf.sprintf "node<%s>" un.un_runtime
+  | Ast.VNullNode -> "<null>"
+  | Ast.VPattern _ -> "Pattern"
+  | Ast.VBuildLog bl -> Printf.sprintf "BuildLog(%d nodes)" (List.length bl.bl_nodes)
+  | Ast.VShellResult { sr_stdout; _ } -> "\"" ^ String.escaped sr_stdout ^ "\""
+  | Ast.VRawCode s -> "<{ " ^ s ^ " }>"
+  | Ast.VUnquote v -> "!!" ^ value_summary v
+  | Ast.VUnquoteSplice v -> "!!!" ^ value_summary v
+  | Ast.VDynamicArg (n, v) -> n ^ " := " ^ value_summary v
+  | Ast.VEnv _ -> "<environment>"
+  | Ast.VNodeResult { v; _ } -> value_summary v
+
 let handle_magic line env mode base_keys =
   let parts = String.split_on_char ' ' (String.sub line 1 (String.length line - 1)) |> List.filter (fun s -> s <> "") in
   match parts with
@@ -278,10 +359,23 @@ let handle_magic line env mode base_keys =
       flush stdout;
       (env, true)
   | ["history"] ->
-      Printf.printf "Command history showing is not fully implemented yet.\n";
+      let items = try
+        let ch = open_in history_file in
+        let rec loop acc = try loop (input_line ch :: acc) with End_of_file -> close_in ch; List.rev acc in
+        loop []
+      with _ -> []
+      in
+      let total = List.length items in
+      let start = max 0 (total - 50) in
+      if total = 0 then
+        Printf.printf "%s(no history)%s\n" color_gray color_reset
+      else
+        for i = start to total - 1 do
+          Printf.printf "%5d  %s\n" (i + 1) (List.nth items i)
+        done;
       flush stdout;
       (env, true)
-  | ["objects"] ->
+  | ["objects"] | ["who"] ->
       let items = Ast.Env.fold (fun k v acc ->
         if not (Hashtbl.mem base_keys k) then (k, v) :: acc else acc
       ) env [] |> List.sort (fun (a,_) (b,_) -> String.compare a b) in
@@ -289,7 +383,7 @@ let handle_magic line env mode base_keys =
       let type_w = List.fold_left (fun m (_,v) -> max m (String.length (Ast.Utils.type_name v))) 4 items in
       Printf.printf "%sUser-defined objects (%d):%s\n" color_blue (List.length items) color_reset;
       List.iter (fun (n, v) ->
-        Printf.printf "  %-*s  %-*s  %s\n" name_w n type_w (Ast.Utils.type_name v) (Ast.Utils.value_to_string v)
+        Printf.printf "  %-*s  %-*s  %s\n" name_w n type_w (Ast.Utils.type_name v) (value_summary v)
       ) items;
       print_newline ();
       flush stdout;
