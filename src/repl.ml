@@ -403,7 +403,16 @@ let handle_magic line env mode base_keys =
       let out = Sys.getcwd () ^ "\n" in
       (env, Some out, true)
   | ["cd"; dir] ->
-      (try Sys.chdir dir; (env, None, true)
+      let expanded_dir =
+        if dir = "~" then
+          try Sys.getenv "HOME" with Not_found -> dir
+        else if String.length dir >= 2 && String.sub dir 0 2 = "~/" then
+          try (Sys.getenv "HOME") ^ String.sub dir 1 (String.length dir - 1)
+          with Not_found -> dir
+        else
+          dir
+      in
+      (try Sys.chdir expanded_dir; (env, None, true)
        with Sys_error msg -> (env, Some ("Error: " ^ msg ^ "\n"), true))
   | ["env"] ->
       let out = String.concat "\n" (Array.to_list (Unix.environment ())) ^ "\n" in
