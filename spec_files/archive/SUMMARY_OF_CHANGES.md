@@ -29,7 +29,7 @@ This document provides an overview of the new planning documents added to the T 
   - LLM-friendly code generation
   - Collaborative workflows
   
-- **Language Features**: Pattern matching, comprehensions, lenses, string interpolation
+- **Language Features**: Pattern matching, lenses, string interpolation
 - **Data Features**: Parquet/JSON, joins, pivots
 - **Developer Tooling**: VS Code extension, LSP, formatter
 - **8-Month Implementation Roadmap**: Detailed phases and milestones
@@ -95,7 +95,7 @@ This document provides an overview of the new planning documents added to the T 
 - ❌ Package management tooling (designed but not implemented)
 - ❌ Parallel pipeline execution
 - ❌ Enhanced intent blocks and LLM tooling
-- ❌ Pattern matching, comprehensions, lenses
+- ❌ Pattern matching, lenses
 - ❌ Joins, pivots, multiple file formats
 - ❌ Editor support (VS Code, LSP)
 
@@ -133,7 +133,7 @@ These are the features that make T different from R, Python, or other data analy
 
 ### Short-term (Beta Phase 1 - Months 1-2)
 1. Package management tooling
-2. Pattern matching and comprehensions
+2. Pattern matching
 3. Parallel pipeline execution
 
 ### Medium-term (Beta Phase 2-3 - Months 3-6)

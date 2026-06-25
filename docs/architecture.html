@@ -214,7 +214,7 @@ Everything is an expression (conditionals, blocks, etc.) - Operator
 precedence: <code>*</code> / <code>/</code> bind tighter than
 <code>+</code> / <code>-</code> - Pipe associativity: Left-associative
 (<code>a |&gt; f |&gt; g</code> = <code>(a |&gt; f) |&gt; g</code>) -
-List comprehensions: <code>[expr for x in xs if pred]</code> - Named
+Named
 arguments: <code>f(a = 1, b = 2)</code></p>
 <p><strong>Precedence</strong> (low to high): 1. <code>|&gt;</code>,
 <code>?|&gt;</code> (pipes) 2. <code>or</code> 3. <code>and</code> 4.
@@ -253,8 +253,7 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb4-1"><a href
 <span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>  | Pipeline <span class="kw">of</span> (<span class="dt">string</span> * expr) <span class="dt">list</span></span>
 <span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>  | Intent <span class="kw">of</span> (<span class="dt">string</span> * expr) <span class="dt">list</span></span>
 <span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>  | Formula <span class="kw">of</span> expr * expr  <span class="co">(* y ~ x *)</span></span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  | ListComp <span class="kw">of</span> expr * <span class="dt">string</span> * expr * expr <span class="dt">option</span></span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* ... *)</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* ... *)</span></span>
 <span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="co">(* Runtime Values *)</span></span>
 <span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> value =</span>

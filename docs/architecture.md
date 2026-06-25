@@ -128,7 +128,6 @@ IDENT("df") PIPE IDENT("filter") LPAREN LAMBDA ...
 - Expression-oriented: Everything is an expression (conditionals, blocks, etc.)
 - Operator precedence: `*` / `/` bind tighter than `+` / `-`
 - Pipe associativity: Left-associative (`a |> f |> g` = `(a |> f) |> g`)
-- List comprehensions: `[expr for x in xs if pred]`
 - Named arguments: `f(a = 1, b = 2)`
 
 **Precedence** (low to high):
@@ -175,7 +174,6 @@ type expr =
   | Pipeline of (string * expr) list
   | Intent of (string * expr) list
   | Formula of expr * expr  (* y ~ x *)
-  | ListComp of expr * string * expr * expr option
   (* ... *)
 
 (* Runtime Values *)

@@ -751,7 +751,6 @@ Version history and roadmap for the T programming language.
 - Immutable values
 - Dynamic typing with runtime checks
 - First-class functions and closures
-- List comprehensions
 - **Non-Standard Evaluation (NSE)**: Dollar-prefix column references (`$column_name`) for concise data manipulation
 
 ### NSE (Non-Standard Evaluation)

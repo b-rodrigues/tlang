@@ -143,9 +143,6 @@ plot = function(data, x, y, ...) (
 # Function with standard notation
 add = function(x, y) (x + y)
 
-# List comprehension
-[x * x for x in [1, 2, 3]]
-
 # Dictionary
 person = {name: "Alice", age: 30}
 person.name
