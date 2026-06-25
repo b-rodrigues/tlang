@@ -167,8 +167,10 @@ let color_red = "\027[31m"
 let color_blue = "\027[34m"
 let color_gray = "\027[90m"
 
-(** Pretty-print a value for REPL display *)
-let repl_display_value v =
+(** Format a value as a string for REPL display *)
+let repl_format_value v =
+  let buf = Buffer.create 256 in
+  let bprintf fmt = Printf.ksprintf (Buffer.add_string buf) fmt in
   let maybe_package_info v =
     match v with
     | Ast.VDict pairs ->
@@ -181,29 +183,30 @@ let repl_display_value v =
         | _ -> None)
     | _ -> None
   in
-  match v with
+  (match v with
   | Ast.(VNA NAGeneric) -> ()
   | Ast.VError { context; _ } ->
-      Printf.printf "%s%s%s\n" color_red (Ast.Utils.value_to_string v) color_reset;
+      bprintf "%s%s%s\n" color_red (Ast.Utils.value_to_string v) color_reset;
       if context <> [] then begin
-        Printf.printf "%sContext:%s\n" color_gray color_reset;
-        List.iter (fun (k, v) -> Printf.printf "  %s: %s\n" k (Ast.Utils.value_to_string v)) context
-      end;
-      flush stdout
+        bprintf "%sContext:%s\n" color_gray color_reset;
+        List.iter (fun (k, v) -> bprintf "  %s: %s\n" k (Ast.Utils.value_to_string v)) context
+      end
   | Ast.VDataFrame _ | Ast.VPipeline _ ->
-      print_endline (Pretty_print.pretty_print_value v);
-      flush stdout;
-      flush stderr
+      bprintf "%s\n" (Pretty_print.pretty_print_value v)
   | other ->
       (match maybe_package_info other with
       | Some (name, description, functions) ->
-          Printf.printf "\n  %s%s%s\n\n  %s\n\n  %sFunctions (%d):%s\n"
+          bprintf "\n  %s%s%s\n\n  %s\n\n  %sFunctions (%d):%s\n"
             color_bold name color_reset description color_blue (List.length functions) color_reset;
-          List.iter (fun fn_name -> Printf.printf "    - %s\n" fn_name) functions;
-          print_newline ()
-      | None -> print_endline (Pretty_print.pretty_print_value other));
-      flush stdout;
-      flush stderr
+          List.iter (fun fn_name -> bprintf "    - %s\n" fn_name) functions
+      | None -> bprintf "%s\n" (Pretty_print.pretty_print_value other)));
+  Buffer.contents buf
+
+(** Pretty-print a value for REPL display *)
+let repl_display_value v =
+  Printf.printf "%s" (repl_format_value v);
+  flush stdout;
+  flush stderr
 
 (* --- Magic Commands and Help --- *)
 
@@ -216,11 +219,15 @@ let magic_command_help = [
   ("history", "",       "Show command history");
   ("objects", "",       "List user-defined objects");
   ("magic",   "",       "List available magic commands");
+  ("reset",   "",       "Reset environment to base (remove all user objects)");
+  ("save",    "<file>", "Save session transcript to file");
+  ("save",    "verbose <file>", "Save session transcript with verbose output");
 ]
 
 let known_magic_commands = List.map (fun (n, _, _) -> n) magic_command_help
 
-let print_magic_commands () =
+let string_of_magic_commands () =
+  let buf = Buffer.create 512 in
   let max_w = List.fold_left (fun m (n, a, _) ->
     let len = 1 + String.length n + if a = "" then 0 else 1 + String.length a in
     max m len
@@ -228,8 +235,12 @@ let print_magic_commands () =
   in
   List.iter (fun (name, args, desc) ->
     let cmd = "%" ^ name ^ if args = "" then "" else " " ^ args in
-    Printf.printf "  %-*s  %s\n" max_w cmd desc
-  ) magic_command_help
+    Buffer.add_string buf (Printf.sprintf "  %-*s  %s\n" max_w cmd desc)
+  ) magic_command_help;
+  Buffer.contents buf
+
+let print_magic_commands () =
+  Printf.printf "%s" (string_of_magic_commands ())
 
 let levenshtein_distance s t =
   let m = String.length s and n = String.length t in
@@ -335,6 +346,15 @@ let rec value_summary v =
   | Ast.VEnv _ -> "<environment>"
   | Ast.VNodeResult { v; _ } -> value_summary v
 
+(* --- Session Transcript and Base Env --- *)
+
+type session_entry =
+  | EvalEntry of string * Ast.value
+  | MagicEntry of string * string
+
+let session_transcript : session_entry list ref = ref []
+let base_env_ref = ref Ast.Env.empty
+
 let handle_magic line env mode base_keys =
   let parts = String.split_on_char ' ' (String.sub line 1 (String.length line - 1)) |> List.filter (fun s -> s <> "") in
   match parts with
@@ -343,28 +363,22 @@ let handle_magic line env mode base_keys =
       let start_time = Unix.gettimeofday () in
       let (result, new_env) = parse_and_eval ?failfast:None mode env expr_str in
       let end_time = Unix.gettimeofday () in
-      repl_display_value result;
-      Printf.printf "%sExecution time: %.4f seconds%s\n" color_gray (end_time -. start_time) color_reset;
-      flush stdout;
-      (new_env, true)
+      let result_str = repl_format_value result in
+      let out = result_str ^ Printf.sprintf "%sExecution time: %.4f seconds%s\n" color_gray (end_time -. start_time) color_reset in
+      (new_env, Some out, true)
   | ["ls"] ->
       let files = Sys.readdir "." |> Array.to_list in
-      List.iter (fun f -> Printf.printf "%s  " f) files;
-      print_newline ();
-      flush stdout;
-      (env, true)
+      let out = String.concat "  " files ^ "\n" in
+      (env, Some out, true)
   | ["pwd"] ->
-      Printf.printf "%s\n" (Sys.getcwd ());
-      flush stdout;
-      (env, true)
+      let out = Sys.getcwd () ^ "\n" in
+      (env, Some out, true)
   | ["cd"; dir] ->
-      (try Sys.chdir dir with Sys_error msg -> Printf.printf "Error: %s\n" msg);
-      flush stdout;
-      (env, true)
+      (try Sys.chdir dir; (env, None, true)
+       with Sys_error msg -> (env, Some ("Error: " ^ msg ^ "\n"), true))
   | ["env"] ->
-      Array.iter print_endline (Unix.environment ());
-      flush stdout;
-      (env, true)
+      let out = String.concat "\n" (Array.to_list (Unix.environment ())) ^ "\n" in
+      (env, Some out, true)
   | ["history"] ->
       let items =
         try
@@ -386,33 +400,81 @@ let handle_magic line env mode base_keys =
       in
       let total = Array.length items in
       let start = max 0 (total - 50) in
-      if total = 0 then
-        Printf.printf "%s(no history)%s\n" color_gray color_reset
-      else
-        for i = start to total - 1 do
-          Printf.printf "%5d  %s\n" (i + 1) items.(i)
-        done;
-      flush stdout;
-      (env, true)
+      let out =
+        if total = 0 then Printf.sprintf "%s(no history)%s\n" color_gray color_reset
+        else begin
+          let buf = Buffer.create 512 in
+          for i = start to total - 1 do
+            Buffer.add_string buf (Printf.sprintf "%5d  %s\n" (i + 1) items.(i))
+          done;
+          Buffer.contents buf
+        end
+      in
+      (env, Some out, true)
   | ["objects"] | ["who"] ->
       let items = Ast.Env.fold (fun k v acc ->
         if not (Hashtbl.mem base_keys k) then (k, v) :: acc else acc
       ) env [] |> List.sort (fun (a,_) (b,_) -> String.compare a b) in
       let name_w = List.fold_left (fun m (n,_) -> max m (String.length n)) 4 items in
       let type_w = List.fold_left (fun m (_,v) -> max m (String.length (Ast.Utils.type_name v))) 4 items in
-      Printf.printf "%sUser-defined objects (%d):%s\n" color_blue (List.length items) color_reset;
+      let buf = Buffer.create 512 in
+      Buffer.add_string buf (Printf.sprintf "%sUser-defined objects (%d):%s\n" color_blue (List.length items) color_reset);
       List.iter (fun (n, v) ->
-        Printf.printf "  %-*s  %-*s  %s\n" name_w n type_w (Ast.Utils.type_name v) (value_summary v)
+        Buffer.add_string buf (Printf.sprintf "  %-*s  %-*s  %s\n" name_w n type_w (Ast.Utils.type_name v) (value_summary v))
       ) items;
-      print_newline ();
-      flush stdout;
-      (env, true)
+      Buffer.add_string buf "\n";
+      (env, Some (Buffer.contents buf), true)
   | ["magic"] ->
-      Printf.printf "%sAvailable magic commands:%s\n" color_blue color_reset;
-      print_magic_commands ();
-      print_newline ();
-      flush stdout;
-      (env, true)
+      let out = Printf.sprintf "%sAvailable magic commands:%s\n%s\n" color_blue color_reset (string_of_magic_commands ()) in
+      (env, Some out, true)
+  | ["reset"] ->
+      session_transcript := [];
+      let out = Printf.sprintf "%sEnvironment reset to base.%s\n" color_blue color_reset in
+      (!base_env_ref, Some out, true)
+  | "save" :: "verbose" :: fname_parts ->
+      let fname = String.concat " " fname_parts in
+      let entries = List.rev !session_transcript in
+      let oc = open_out fname in
+      Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () ->
+        List.iter (fun entry ->
+          match entry with
+          | EvalEntry (cmd, v) ->
+              Printf.fprintf oc "# %s\n" cmd;
+              let output = Pretty_print.pretty_print_value v in
+              String.split_on_char '\n' output
+              |> List.iter (fun line -> if line <> "" then Printf.fprintf oc "# %s\n" line);
+              Printf.fprintf oc "\n"
+          | MagicEntry (cmd, output) ->
+              Printf.fprintf oc "# %s\n" cmd;
+              String.split_on_char '\n' (String.trim output)
+              |> List.iter (fun line -> if line <> "" then Printf.fprintf oc "# %s\n" line);
+              Printf.fprintf oc "\n"
+        ) entries
+      );
+      let out = Printf.sprintf "Session saved to %s\n" fname in
+      (env, Some out, true)
+  | "save" :: fname_parts ->
+      let fname = String.concat " " fname_parts in
+      let entries = List.rev !session_transcript in
+      let oc = open_out fname in
+      Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () ->
+        List.iter (fun entry ->
+          match entry with
+          | EvalEntry (cmd, v) ->
+              Printf.fprintf oc "# %s\n" cmd;
+              let output = value_summary v in
+              String.split_on_char '\n' output
+              |> List.iter (fun line -> if line <> "" then Printf.fprintf oc "# %s\n" line);
+              Printf.fprintf oc "\n"
+          | MagicEntry (cmd, output) ->
+              Printf.fprintf oc "# %s\n" cmd;
+              String.split_on_char '\n' (String.trim output)
+              |> List.iter (fun line -> if line <> "" then Printf.fprintf oc "# %s\n" line);
+              Printf.fprintf oc "\n"
+        ) entries
+      );
+      let out = Printf.sprintf "Session saved to %s\n" fname in
+      (env, Some out, true)
   | _ ->
       let cmd = match parts with [] -> "" | hd :: _ -> hd in
       let suggestion =
@@ -425,11 +487,11 @@ let handle_magic line env mode base_keys =
           in
           if min_d <= max 1 (String.length cmd / 2) then Some best else None
       in
-      (match suggestion with
-       | Some s -> Printf.printf "Unknown magic command: %s\nDid you mean: %%%s?\n" line s
-       | None -> Printf.printf "Unknown magic command: %s\n" line);
-      flush stdout;
-      (env, true)
+      let out = match suggestion with
+       | Some s -> Printf.sprintf "Unknown magic command: %s\nDid you mean: %%%s?\n" line s
+       | None -> Printf.sprintf "Unknown magic command: %s\n" line
+      in
+      (env, Some out, true)
 
 (* --- CLI Commands --- *)
 
@@ -917,6 +979,7 @@ let cmd_repl ?failfast mode env =
   let base_keys = Hashtbl.create 200 in
   Ast.Env.iter (fun k _ -> Hashtbl.add base_keys k ()) env;
   base_keys_ref := Some base_keys;
+  base_env_ref := env;
 
   let nix_version = get_nix_version () in
   Printf.printf "T, a reproducibility-first orchestration engine for polyglot\n";
@@ -1036,8 +1099,14 @@ let cmd_repl ?failfast mode env =
               repl env true
             end
             else if String.length trimmed > 0 && trimmed.[0] = '%' then begin
-            let (new_env, handled) = handle_magic trimmed env mode base_keys in
+            let (new_env, output_opt, handled) = handle_magic trimmed env mode base_keys in
             if handled then (
+              (match output_opt with
+               | Some out ->
+                   Printf.printf "%s" out;
+                   flush stdout;
+                   session_transcript := MagicEntry (trimmed, out) :: !session_transcript
+               | None -> ());
               write_vars_csv new_env;
               if is_tty then (
                 ignore (LNoise.history_add line);
@@ -1083,6 +1152,7 @@ let cmd_repl ?failfast mode env =
             write_vars_csv new_env;
             Symbol_table.populate_from_env scope new_env;
             repl_display_value result;
+            session_transcript := EvalEntry (full_input, result) :: !session_transcript;
             repl ?failfast new_env true
             end
           end
