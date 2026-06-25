@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.53.3] - 2026-06-25
+
+### Reproducible Random Sampling
+
+- **`set_seed(seed)`**: Initialize the global RNG for reproducible random draws.
+- **`sample(x, n = 1, replace = false)`**: Randomly sample elements from a Vector or List, with or without replacement.
+- **`slice_sample(data, n = 1, replace = false)`**: Randomly sample rows from a DataFrame, with or without replacement.
+- All three functions share a common global RNG state; `set_seed()` guarantees identical output across runs.
+
 ## [0.53.2] - 2026-06-24
 
 ### Hotfix

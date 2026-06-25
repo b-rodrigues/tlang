@@ -103,17 +103,19 @@ The `flake.lock` file ensures every dependency (OCaml, Arrow, system libraries) 
 
 ### No Hidden Randomness
 
-T has **no built-in randomness**:
-- No random number generators (RNG)
-- No random seeds
-- No sampling without explicit seed
+T provides **explicit, reproducible randomness**:
+- **`set_seed(seed)`**: Initializes a global random number generator with a given integer seed.
+- **`sample(x, n, replace)`**: Draw a random sample of size n from a Vector or List.
+- **`slice_sample(data, n, replace)`**: Draw a random sample of n rows from a DataFrame.
 
-**To add randomness** (future feature):
 ```t
--- Explicit, reproducible randomness
-rng = random_seed(12345)
-sample = random_sample(data, 100, rng)
+-- Reproducible random sampling
+set_seed(42)
+my_sample = sample([1, 2, 3, 4, 5], n = 3)
+my_rows = mtcars |> slice_sample(n = 5)
 ```
+
+Without an explicit `set_seed()` call, the RNG is auto-seeded from system entropy and results are unpredictable. Always call `set_seed()` before sampling in reproducible workflows.
 
 ### No Implicit State
 

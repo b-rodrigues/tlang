@@ -325,11 +325,12 @@ All standard packages are auto-loaded. Each package lives under `src/packages/<p
 
 ### `base`
 
-Purpose: assertions, missing values, error values, serialization, JSON.
+Purpose: assertions, missing values, error values, serialization, JSON, reproducible randomness.
 
 - Assertions and missingness: `assert(condition, message = NA)`, `assert_file_exists(path, message = NA)`, `assert_dir_exists(path, message = NA)`, `assert_size_of_file(path, size, message = NA)`, `assert_non_empty_file(path, message = NA)`, `is_na(x)`, `na()`, `na_int()`, `na_float()`, `na_bool()`, `na_string()`
 - Error values: `error(message)`, `error(code, message)`, `error_code(err)`, `error_message(err)`, `error_context(err)`
 - Serialization: `serialize(value, path)`, `deserialize(path)`, `t_write_json(value, path)`, `t_read_json(path)`
+- Reproducible randomness: `set_seed(seed)`, `sample(x, n = 1, replace = false)`
 
 ### `core`
 
@@ -358,7 +359,7 @@ Purpose: dplyr/tidyr-style tabular verbs, joins, missing-value helpers, factors,
 
 - Core verbs: `select(df, ...)`, `filter(df, predicate_or_nse)`, `mutate(df, ...)`, `arrange(df, ..., direction = "asc")`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ..., .before = na(), .after = na())`, `distinct(df, ..., .keep_all = false)`, `count(df, ..., name = "n")`
 - Aggregation helpers: `n()`, `n_distinct(x)`
-- Row helpers: `slice(df, indices)`, `slice_min(df, order_by, n = 1)`, `slice_max(df, order_by, n = 1)`
+- Row helpers: `slice(df, indices)`, `slice_min(df, order_by, n = 1)`, `slice_max(df, order_by, n = 1)`, `slice_sample(df, n = 1, replace = false)`
 - Window/ranking helpers: `row_number(x)`, `min_rank(x)`, `dense_rank(x)`, `percent_rank(x)`, `cume_dist(x)`, `ntile(x, n)`, `lag(x, n = 1)`, `lead(x, n = 1)`, `cumsum(x)`, `cummin(x)`, `cummax(x)`, `cummean(x, na_rm = false)`, `cumall(x)`, `cumany(x)`
 - Reshaping and expansion: `pivot_longer(df, ..., names_to = "name", values_to = "value")`, `pivot_wider(df, names_from, values_from)`, `complete(df, ..., fill = [:], explicit = true)`, `expand(df, ...)`, `crossing(...)`, `nesting(...)`, `nest(df, ..., name = "data")`, `unnest(df, col)`, `separate(df, col, into, sep = pattern, remove = true)`, `unite(df, name, ..., sep = "_", remove = true)`, `separate_rows(df, col, sep = pattern)`, `uncount(df, weights, .remove = true)`
 - Missing-value handling: `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `fill(df, ..., .direction = "down")`
