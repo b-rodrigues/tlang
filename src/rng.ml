@@ -4,7 +4,7 @@ let set_seed seed =
   state := Random.State.make [| seed |]
 
 let sample_indices ~total ~k ~replace =
-  if not replace && k > total then None
+  if (not replace || total <= 0) && k > total then None
   else if k < 0 then None
   else
     let result = Array.init k (fun _ -> 0) in

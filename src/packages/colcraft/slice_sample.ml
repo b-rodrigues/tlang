@@ -23,36 +23,37 @@ let register env =
     (make_builtin_named ~name:"slice_sample" ~variadic:true 1 (fun named_args _env ->
       match named_args with
       | (_, VDataFrame df) :: rest ->
-          (match Math_common.get_bool_flag "replace" false rest with
-           | Error e -> e
-           | Ok replace ->
-               (match Math_common.optional_named_arg "n" rest with
-                | Some (VInt n) when n >= 0 ->
-                    let k = n in
-                    let total = Arrow_table.num_rows df.arrow_table in
-                    (match Rng.sample_indices ~total ~k ~replace with
-                     | None ->
-                         Error.value_error
-                           (Printf.sprintf "Function `slice_sample` cannot sample %d rows from a DataFrame with %d rows without replacement."
-                              k total)
-                     | Some indices ->
-                         let sub_table = Arrow_table.take_rows df.arrow_table indices in
-                         VDataFrame { df with arrow_table = sub_table })
-                | Some (VInt n) ->
-                    Error.value_error (Printf.sprintf "Function `slice_sample` expects `n` to be non-negative, got %d." n)
-                | Some v ->
-                    Error.type_error (Printf.sprintf "Function `slice_sample` expects `n` to be an Int, got %s." (Utils.type_name v))
-                | None ->
-                    let k = 1 in
-                    let total = Arrow_table.num_rows df.arrow_table in
-                    (match Rng.sample_indices ~total ~k ~replace with
-                     | None ->
-                         Error.value_error
-                           (Printf.sprintf "Function `slice_sample` cannot sample %d rows from a DataFrame with %d rows without replacement."
-                              k total)
-                     | Some indices ->
-                         let sub_table = Arrow_table.take_rows df.arrow_table indices in
-                         VDataFrame { df with arrow_table = sub_table })))
+          if List.exists (fun (k, _) -> k = None) rest then
+            let n_args = 1 + List.length (List.filter (fun (k, _) -> k = None) rest) in
+            Error.arity_error_named "slice_sample" 1 n_args
+          else
+            (match Math_common.get_bool_flag "replace" false rest with
+             | Error e -> e
+             | Ok replace ->
+                 let k_res =
+                   match Math_common.optional_named_arg "n" rest with
+                   | Some (VInt n) when n >= 0 -> Ok n
+                   | Some (VInt n) ->
+                       Error (Error.value_error (Printf.sprintf "Function `slice_sample` expects `n` to be non-negative, got %d." n))
+                   | Some v ->
+                       Error (Error.type_error (Printf.sprintf "Function `slice_sample` expects `n` to be an Int, got %s." (Utils.type_name v)))
+                   | None -> Ok 1
+                 in
+                 (match k_res with
+                  | Error e -> e
+                  | Ok k ->
+                      let total = Arrow_table.num_rows df.arrow_table in
+                      (match Rng.sample_indices ~total ~k ~replace with
+                       | None ->
+                           if total = 0 && k > 0 then
+                             Error.value_error "Function `slice_sample` cannot sample from an empty DataFrame."
+                           else
+                             Error.value_error
+                               (Printf.sprintf "Function `slice_sample` cannot sample %d rows from a DataFrame with %d rows without replacement."
+                                  k total)
+                       | Some indices ->
+                           let sub_table = Arrow_table.take_rows df.arrow_table indices in
+                           VDataFrame { df with arrow_table = sub_table })))
       | _ -> Error.type_error "Function `slice_sample` expects a DataFrame as first argument."
     ))
     env

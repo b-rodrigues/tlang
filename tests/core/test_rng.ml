@@ -102,4 +102,20 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "slice_sample(42)"
     {|Error(TypeError: "Function `slice_sample` expects a DataFrame as first argument.")|};
 
+  test "slice_sample with extra positional arguments returns ArityError"
+    {|df = to_dataframe([[x: 1], [x: 2]]); slice_sample(df, 5)|}
+    {|Error(ArityError: "Function `slice_sample` expects 1 arguments but received 2.")|};
+
+  test "slice_sample replace=true on empty DataFrame returns ValueError"
+    {|df = to_dataframe([]); slice_sample(df, n=5, replace=true)|}
+    {|Error(ValueError: "Function `slice_sample` cannot sample from an empty DataFrame.")|};
+
+  test "sample replace=true on empty List returns ValueError"
+    {|sample([], n=5, replace=true)|}
+    {|Error(ValueError: "Function `sample` cannot sample from an empty List.")|};
+
+  test "sample replace=true on empty Vector returns ValueError"
+    {|df = to_dataframe([[x: 1]]); empty_df = df |> filter($x > 100); sample(empty_df.x, n=5, replace=true)|}
+    {|Error(ValueError: "Function `sample` cannot sample from an empty Vector.")|};
+
   print_newline ()

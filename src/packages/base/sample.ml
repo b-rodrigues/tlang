@@ -3,9 +3,12 @@ open Ast
 let sample_vector arr k replace =
   match Rng.sample_indices ~total:(Array.length arr) ~k ~replace with
   | None ->
-      Error.value_error
-        (Printf.sprintf "Function `sample` cannot sample %d items from a population of size %d without replacement."
-           k (Array.length arr))
+      if Array.length arr = 0 && k > 0 then
+        Error.value_error "Function `sample` cannot sample from an empty Vector."
+      else
+        Error.value_error
+          (Printf.sprintf "Function `sample` cannot sample %d items from a population of size %d without replacement."
+             k (Array.length arr))
   | Some indices ->
       VVector (Array.of_list (List.map (fun i -> arr.(i)) indices))
 
@@ -14,9 +17,12 @@ let sample_list items k replace =
   let arr = Array.of_list items in
   match Rng.sample_indices ~total ~k ~replace with
   | None ->
-      Error.value_error
-        (Printf.sprintf "Function `sample` cannot sample %d items from a population of size %d without replacement."
-           k total)
+      if total = 0 && k > 0 then
+        Error.value_error "Function `sample` cannot sample from an empty List."
+      else
+        Error.value_error
+          (Printf.sprintf "Function `sample` cannot sample %d items from a population of size %d without replacement."
+             k total)
   | Some indices ->
       let selected = List.map (fun i -> let (name, v) = arr.(i) in (name, v)) indices in
       VList selected
@@ -46,21 +52,18 @@ let register env =
       match Math_common.get_bool_flag "replace" false named_args with
       | Error e -> e
       | Ok replace ->
-          (match Math_common.optional_named_arg "n" named_args with
-           | Some (VInt n) when n >= 0 ->
-               let k = n in
-               (match args with
-                | [VVector arr] -> sample_vector arr k replace
-                | [VList items] -> sample_list items k replace
-                | [VNA _] -> Error.type_error "Function `sample` expects a Vector or List, got NA."
-                | [_] -> Error.type_error "Function `sample` expects a Vector or List."
-                | _ -> Error.arity_error_named "sample" 1 (List.length args))
-           | Some (VInt n) ->
-               Error.value_error (Printf.sprintf "Function `sample` expects `n` to be non-negative, got %d." n)
-           | Some v ->
-               Error.type_error (Printf.sprintf "Function `sample` expects `n` to be an Int, got %s." (Utils.type_name v))
-           | None ->
-               let k = 1 in
+          let k_res =
+            match Math_common.optional_named_arg "n" named_args with
+            | Some (VInt n) when n >= 0 -> Ok n
+            | Some (VInt n) ->
+                Error (Error.value_error (Printf.sprintf "Function `sample` expects `n` to be non-negative, got %d." n))
+            | Some v ->
+                Error (Error.type_error (Printf.sprintf "Function `sample` expects `n` to be an Int, got %s." (Utils.type_name v)))
+            | None -> Ok 1
+          in
+          (match k_res with
+           | Error e -> e
+           | Ok k ->
                (match args with
                 | [VVector arr] -> sample_vector arr k replace
                 | [VList items] -> sample_list items k replace
