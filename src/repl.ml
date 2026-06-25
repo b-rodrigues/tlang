@@ -215,6 +215,7 @@ let magic_command_help = [
   ("env",     "",       "List environment variables");
   ("history", "",       "Show command history");
   ("objects", "",       "List user-defined objects");
+  ("magic",   "",       "List available magic commands");
 ]
 
 let known_magic_commands = List.map (fun (n, _, _) -> n) magic_command_help
@@ -403,6 +404,12 @@ let handle_magic line env mode base_keys =
       List.iter (fun (n, v) ->
         Printf.printf "  %-*s  %-*s  %s\n" name_w n type_w (Ast.Utils.type_name v) (value_summary v)
       ) items;
+      print_newline ();
+      flush stdout;
+      (env, true)
+  | ["magic"] ->
+      Printf.printf "%sAvailable magic commands:%s\n" color_blue color_reset;
+      print_magic_commands ();
       print_newline ();
       flush stdout;
       (env, true)
