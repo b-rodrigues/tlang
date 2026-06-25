@@ -30,9 +30,13 @@
           sha256 = "sha256:1sidlvvfk7vz1ijmb0zvacyg28q845hfzd8payhgd48j06rg9bfc";
         }) { inherit system; }).extend (self: super:
           let
-            djangoOverride = {
+            pythonOverrides = {
               packageOverrides = py-self: py-super: {
                 django = py-super.django.overrideAttrs (old: {
+                  doCheck = false;
+                  doInstallCheck = false;
+                });
+                twisted = py-super.twisted.overrideAttrs (old: {
                   doCheck = false;
                   doInstallCheck = false;
                 });
@@ -45,9 +49,9 @@
               cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
               buildInputs = (old.buildInputs or []) ++ [ self.boost ];
             });
-            python3 = super.python3.override djangoOverride;
-            python313 = super.python313.override djangoOverride;
-            python314 = super.python314.override djangoOverride;
+            python3 = super.python3.override pythonOverrides;
+            python313 = super.python313.override pythonOverrides;
+            python314 = super.python314.override pythonOverrides;
           });
 
         # Build R with specific packages
