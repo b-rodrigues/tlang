@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.53.0 "L'Initiation".
+**Status:** Version 0.53.2 "L'Initiation".
 
 ---
 
@@ -410,7 +410,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.53.0
+> **Version**: 0.53.2
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -2485,6 +2485,48 @@ error_context(chained)$cause  -- Returns err2
 
 ---
 
+### `set_seed(seed)`
+
+Initializes the global random number generator with a given integer seed, enabling reproducible random draws from `sample()` and `slice_sample()`.
+
+**Parameters:**
+
+- `seed` — Integer seed value.
+
+**Returns:**
+
+`NA`
+
+**Examples:**
+```t
+set_seed(42)
+sample([1, 2, 3, 4, 5], n = 3)
+```
+
+---
+
+### `sample(x, n = 1, replace = false)`
+
+Draw a random sample of size n from a Vector or List, with or without replacement.
+
+**Parameters:**
+
+- `x` — `Vector` or `List` of values to sample from.
+- `n` (optional) — Number of elements to draw. Default `1`.
+- `replace` (optional) — Whether to sample with replacement. Default `false`.
+
+**Returns:**
+
+`Vector` or `List` (matching input type)
+
+**Examples:**
+```t
+sample([10, 20, 30, 40, 50], n = 2)
+sample([1, 2, 3], n = 5, replace = true)
+```
+
+---
+
 ### `assert(condition)` / `assert(condition, message)`
 
 Assert that a condition is true; error if false.
@@ -2981,6 +3023,19 @@ Cumulative Distribution Functions for Normal, Student-t, F, and Chi-squared dist
 
 ---
 
+### Quantile Functions (Inverse CDFs)
+
+#### `qnorm(p, mean=0, sd=1)` / `qt(p, df)` / `qf(p, df1, df2)` / `qchisq(p, df)`
+
+Quantile (inverse cumulative probability) Functions for Normal, Student-t, F, and Chi-squared distributions.
+
+- `qnorm(p, mean = 0, sd = 1)` — normal quantile with optional `mean` and `sd` named args.
+- `qt(p, df)` — Student t quantile.
+- `qf(p, df1, df2)` — F quantile.
+- `qchisq(p, df)` — Chi-squared quantile.
+
+---
+
 ### Modeling
 
 #### `lm(data, formula, weights = NA)`
@@ -3090,9 +3145,9 @@ Read a CSV file into a DataFrame.
 
 ---
 
-### `read_parquet(path)`
+### `read_parquet(path)` / `write_parquet(to_dataframe, path)`
 
-Read a Parquet file into a DataFrame.
+Read or write Parquet files using the native parquet-glib reader/writer.
 
 ---
 
@@ -3490,9 +3545,9 @@ Change column order.
 
 ---
 
-#### `slice(df, ...indices)` / `slice_min(df, col, n = 1)` / `slice_max(df, col, n = 1)`
+#### `slice(df, ...indices)` / `slice_min(df, col, n = 1)` / `slice_max(df, col, n = 1)` / `slice_sample(df, n = 1, replace = false)`
 
-Subset rows by position or extreme values.
+Subset rows by position, extreme values, or random sample. `slice_sample` draws a random sample of n rows with or without replacement. Use `set_seed()` for reproducible results.
 
 ---
 
@@ -8017,6 +8072,29 @@ For datasets exceeding 2-3 GB:
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.53.3] - 2026-06-25
+
+### Reproducible Random Sampling
+
+- **`set_seed(seed)`**: Initialize the global RNG for reproducible random draws.
+- **`sample(x, n = 1, replace = false)`**: Randomly sample elements from a Vector or List, with or without replacement.
+- **`slice_sample(data, n = 1, replace = false)`**: Randomly sample rows from a DataFrame, with or without replacement.
+- All three functions share a common global RNG state; `set_seed()` guarantees identical output across runs.
+
+### Quantile Functions (Inverse CDFs)
+
+- **`qnorm(p, mean = 0, sd = 1)`**: Normal distribution quantile (inverse CDF), using Acklam's algorithm.
+- **`qt(p, df)`**: Student t distribution quantile, via binary search on `pt`.
+- **`qf(p, df1, df2)`**: F distribution quantile, via binary search on `pf`.
+- **`qchisq(p, df)`**: Chi-squared distribution quantile, via binary search on `pchisq`.
+- Enables power analysis and exact p-value thresholds natively in T without calling R.
+
+## [0.53.2] - 2026-06-24
+
+### Hotfix
+
+- **Nix Flake Update / Maven Dependency Parity**: Fixed local build failures caused by an upstream change in Maven dependencies for the `jpmml-evaluator` library (used for PMML model scoring). The nixpkgs fetch source hash has been updated to restore local build compatibility.
 
 ## [0.53.1] - 2026-06-24
  
@@ -14537,7 +14615,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.53.0 "L'Initiation" using Nix <nix-version>
+Version 0.53.2 "L'Initiation" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -18302,7 +18380,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.53.0"
+min_version = "0.53.2"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -21905,62 +21983,20 @@ Joins two DataFrames and keeps rows appearing in either input.
 
 # get
 
-Unified retrieval for variables, collection elements, pipeline nodes, or lens focuses.
+Get Value via Lens
 
-## Modes
-
-### 1. Variable Lookup
-With a single string or symbol argument, `get()` performs an R-style variable lookup.
-
-```t
-x = 42
-get("x")             -- 42
-get(to_symbol("x"))  -- 42
-```
-
-### 2. Data-Mask Aware Lookup (inside NSE verbs)
-When called inside an NSE data verb (`mutate`, `filter`, `summarize`, …), `get()` checks the **data mask** (`row` binding) before the global environment. If the name matches a column in the current row or DataFrame, the column value is returned; otherwise it falls back to the global environment.
-
-```t
-df = dataframe(a = [1, 2, 3])
-x = 42
-df |> mutate(b = \(row) get("a"))  -- column from data mask
-df |> mutate(c = \(row) get("x"))  -- not a column, falls back to global
-```
-
-### 3. Collection Indexing
-With a collection and an integer index, `get()` retrieves the element at that 0-based position.
-
-```t
-get([10, 20, 30], 1)   -- 20
-get(Vector[10, 20], 0) -- 10
-```
-
-### 4. Pipeline Node Access
-With a pipeline and a string, `get()` retrieves the named node.
-
-```t
-p = pipeline { a = 1 }
-get(p, "a")            -- 1
-```
-
-### 5. Lens Focus
-With a data structure and a Lens, `get()` retrieves the focused value.
-
-```t
-get(df, col_lens("mpg"))
-get(df, row_lens(0))
-```
+Retrieves a focused value from a data structure using a lens.
 
 ## Parameters
 
-- **target** (`Any`): The data structure to retrieve from — a string/symbol name, a collection, a pipeline, or a lens-targetable structure.
-- **selector** (`Any`, *optional*, default `NA`): An index, lens, or node name.
-- **default** (`Any`, *optional*, default `NA`): A fallback value returned when `target` is `NA` or an `Error`.
+- **data** (`Any`): The data structure to focus on.
+
+- **lens** (`Lens`): The lens defining the focus.
+
 
 ## Returns
 
-The retrieved value, or the `default` if `target` is `NA`/`Error`.
+The focused value.
 
 
 
@@ -22543,7 +22579,11 @@ A confirmation message describing the imported archive.
 | [pt](pt.html) | Student t distribution CDF |
 | [pull](pull.html) | Extract column as vector |
 | [pyn](pyn.html) | Configure a Python Pipeline Node |
+| [qchisq](qchisq.html) | Chi-squared distribution quantile |
+| [qf](qf.html) | F distribution quantile |
 | [qn](qn.html) | Configure a Quarto Pipeline Node |
+| [qnorm](qnorm.html) | Normal distribution quantile |
+| [qt](qt.html) | Student t distribution quantile |
 | [quantile](quantile.html) | Quantiles |
 | [quarter](quarter.html) | Extract the quarter |
 | [quo](quo.html) | Capture an expression with its lexical environment (quosure) |
@@ -22574,6 +22614,7 @@ A confirmation message describing the imported archive.
 | [row_number](row_number.html) | Row Number |
 | [run](run.html) | Run a shell command |
 | [run_doctor](run_doctor.html) | Run Package/Project Doctor |
+| [sample](sample.html) | Random sample from Vector or List |
 | [scaffold_package](scaffold_package.html) | Scaffold a new T package |
 | [scaffold_project](scaffold_project.html) | Scaffold a new T project |
 | [scale](scale.html) | Scale values |
@@ -22590,6 +22631,7 @@ A confirmation message describing the imported archive.
 | [serialize](serialize.html) | Serialize Value |
 | [set](set.html) | Set Focused Value |
 | [set_nix_defaults](set_nix_defaults.html) | Set Global Nix Orchestration Defaults |
+| [set_seed](set_seed.html) | Initialize global RNG seed |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
 | [show_plot](show_plot.html) | Render a plot node and open it locally |
@@ -22602,6 +22644,7 @@ A confirmation message describing the imported archive.
 | [slice](slice.html) | Extract slice |
 | [slice_max](slice_max.html) | Keep rows with the largest values |
 | [slice_min](slice_min.html) | Keep rows with the smallest values |
+| [slice_sample](slice_sample.html) | Random sample of DataFrame rows |
 | [source](source.html) | Get function source code |
 | [sqrt](sqrt.html) | Square root |
 | [standardize](standardize.html) | Standardize values |
@@ -26004,6 +26047,62 @@ A pipeline node configuration object. Must be used as a named binding inside a `
 
 
 
+# FILE: docs/reference/qchisq.md
+
+# qchisq
+
+Chi-squared distribution quantile (inverse CDF)
+
+Returns the quantile (inverse cumulative probability) from the chi-squared distribution with given degrees of freedom.
+
+## Parameters
+
+- **p** (`Float`): The probability (0 < p < 1).
+
+- **df** (`Int`): Degrees of freedom.
+
+
+## Returns
+
+The quantile.
+
+## Examples
+
+```t
+qchisq(0.95, 2)
+```
+
+
+
+# FILE: docs/reference/qf.md
+
+# qf
+
+F distribution quantile (inverse CDF)
+
+Returns the quantile (inverse cumulative probability) from the F distribution with given degrees of freedom.
+
+## Parameters
+
+- **p** (`Float`): The probability (0 < p < 1).
+
+- **df1** (`Int`): Degrees of freedom 1.
+
+- **df2** (`Int`): Degrees of freedom 2.
+
+
+## Returns
+
+The quantile.
+
+## Examples
+
+```t
+qf(0.95, 2, 10)
+```
+
+
+
 # FILE: docs/reference/qn.md
 
 # qn
@@ -26038,6 +26137,63 @@ A pipeline node configuration object. Must be used as a named binding inside a `
 ## See Also
 
 [shn](shn.html), [pyn](pyn.html), [rn](rn.html), [node](node.html)
+
+
+
+# FILE: docs/reference/qnorm.md
+
+# qnorm
+
+Normal distribution quantile (inverse CDF)
+
+Returns the quantile (inverse cumulative probability) from the normal distribution with given mean and standard deviation.
+
+## Parameters
+
+- **p** (`Float`): The probability (0 < p < 1).
+
+- **mean** (`Float`): = 0 The mean of the distribution.
+
+- **sd** (`Float`): = 1 The standard deviation of the distribution.
+
+
+## Returns
+
+The quantile.
+
+## Examples
+
+```t
+qnorm(0.975)
+qnorm(0.5, mean = 5, sd = 2)
+```
+
+
+
+# FILE: docs/reference/qt.md
+
+# qt
+
+Student t distribution quantile (inverse CDF)
+
+Returns the quantile (inverse cumulative probability) from the Student t distribution with given degrees of freedom.
+
+## Parameters
+
+- **p** (`Float`): The probability (0 < p < 1).
+
+- **df** (`Int`): Degrees of freedom.
+
+
+## Returns
+
+The quantile.
+
+## Examples
+
+```t
+qt(0.975, 10)
+```
 
 
 
@@ -26816,6 +26972,40 @@ print(branch)
 
 
 
+# FILE: docs/reference/sample.md
+
+# sample
+
+Random sample from a vector or list
+
+Draws a random sample of size n from a vector or list, with or without replacement.
+
+## Parameters
+
+- **x** (`Vector`): | List The input data.
+
+- **n** (`Int`): = 1 Sample size.
+
+- **replace** (`Bool`): = false Sample with replacement.
+
+
+## Returns
+
+| List The random sample.
+
+## Examples
+
+```t
+sample([1, 2, 3, 4, 5], n = 3)
+sample([1, 2, 3], n = 5, replace = true)
+```
+
+## See Also
+
+[slice_sample](slice_sample.html), [set_seed](set_seed.html)
+
+
+
 # FILE: docs/reference/scaffold_package.md
 
 # scaffold_package
@@ -27228,6 +27418,36 @@ Returns "Nix defaults updated" upon successfully setting the defaults.
 
 
 
+# FILE: docs/reference/set_seed.md
+
+# set_seed
+
+Set random seed for reproducibility
+
+Initializes the global random number generator with a given seed, making subsequent calls to sample() and slice_sample() deterministic.
+
+## Parameters
+
+- **seed** (`Int`): The seed value.
+
+
+## Returns
+
+
+
+## Examples
+
+```t
+set_seed(42)
+sample([1, 2, 3, 4, 5], n = 3)
+```
+
+## See Also
+
+[slice_sample](slice_sample.html), [sample](sample.html)
+
+
+
 # FILE: docs/reference/shape.md
 
 # shape
@@ -27526,6 +27746,40 @@ A DataFrame with the bottom n rows by the ordering column.
 slice_min(df, $score)
 slice_min(df, $score, n = 5)
 ```
+
+
+
+# FILE: docs/reference/slice_sample.md
+
+# slice_sample
+
+Randomly sample rows from a DataFrame
+
+Draws a random sample of n rows from a DataFrame, with or without replacement.
+
+## Parameters
+
+- **data** (`DataFrame`): The input DataFrame.
+
+- **n** (`Int`): = 1 Number of rows to sample.
+
+- **replace** (`Bool`): = false Sample with replacement.
+
+
+## Returns
+
+A DataFrame containing the sampled rows.
+
+## Examples
+
+```t
+mtcars |> slice_sample(n = 5)
+mtcars |> slice_sample(n = 100, replace = true)
+```
+
+## See Also
+
+[slice_min](slice_min.html), [slice_max](slice_max.html), [slice](slice.html), [set_seed](set_seed.html), [sample](sample.html)
 
 
 
@@ -29589,6 +29843,37 @@ write_csv(df, "output.csv")
 
 
 
+# FILE: docs/reference/write_parquet.md
+
+# write_parquet
+
+Write Parquet file
+
+Writes a DataFrame to a Parquet file using the native parquet-glib writer.
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to write.
+
+- **path** (`String`): The output file path.
+
+
+## Returns
+
+
+
+## Examples
+
+```t
+write_parquet(df, "data.parquet")
+```
+
+## See Also
+
+[write_arrow](write_arrow.html), [read_parquet](read_parquet.html)
+
+
+
 # FILE: docs/reference/write_registry.md
 
 # write_registry
@@ -29720,7 +30005,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.53.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.53.2";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -29776,17 +30061,19 @@ The `flake.lock` file ensures every dependency (OCaml, Arrow, system libraries) 
 
 ### No Hidden Randomness
 
-T has **no built-in randomness**:
-- No random number generators (RNG)
-- No random seeds
-- No sampling without explicit seed
+T provides **explicit, reproducible randomness**:
+- **`set_seed(seed)`**: Initializes a global random number generator with a given integer seed.
+- **`sample(x, n, replace)`**: Draw a random sample of size n from a Vector or List.
+- **`slice_sample(data, n, replace)`**: Draw a random sample of n rows from a DataFrame.
 
-**To add randomness** (future feature):
 ```t
--- Explicit, reproducible randomness
-rng = random_seed(12345)
-sample = random_sample(data, 100, rng)
+-- Reproducible random sampling
+set_seed(42)
+my_sample = sample([1, 2, 3, 4, 5], n = 3)
+my_rows = mtcars |> slice_sample(n = 5)
 ```
+
+Without an explicit `set_seed()` call, the RNG is auto-seeded from system entropy and results are unpredictable. Always call `set_seed()` before sampling in reproducible workflows.
 
 ### No Implicit State
 
@@ -29841,7 +30128,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.53.0",
+    t_version: "0.53.2",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -29884,7 +30171,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.53.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.53.2";
   };
   
   outputs = { self, nixpkgs, tlang }: {

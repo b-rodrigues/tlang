@@ -214,8 +214,7 @@ Everything is an expression (conditionals, blocks, etc.) - Operator
 precedence: <code>*</code> / <code>/</code> bind tighter than
 <code>+</code> / <code>-</code> - Pipe associativity: Left-associative
 (<code>a |&gt; f |&gt; g</code> = <code>(a |&gt; f) |&gt; g</code>) -
-Named
-arguments: <code>f(a = 1, b = 2)</code></p>
+Named arguments: <code>f(a = 1, b = 2)</code></p>
 <p><strong>Precedence</strong> (low to high): 1. <code>|&gt;</code>,
 <code>?|&gt;</code> (pipes) 2. <code>or</code> 3. <code>and</code> 4.
 <code>not</code> 5. <code>==</code>, <code>!=</code>, <code>&lt;</code>,
@@ -254,23 +253,23 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb4-1"><a href
 <span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>  | Intent <span class="kw">of</span> (<span class="dt">string</span> * expr) <span class="dt">list</span></span>
 <span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>  | Formula <span class="kw">of</span> expr * expr  <span class="co">(* y ~ x *)</span></span>
 <span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* ... *)</span></span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="co">(* Runtime Values *)</span></span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> value =</span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>  | VInt <span class="kw">of</span> <span class="dt">int</span></span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>  | VFloat <span class="kw">of</span> <span class="dt">float</span></span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  | VBool <span class="kw">of</span> <span class="dt">bool</span></span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>  | VString <span class="kw">of</span> <span class="dt">string</span></span>
-<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>  | VList <span class="kw">of</span> value <span class="dt">list</span></span>
-<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>  | VDict <span class="kw">of</span> (<span class="dt">string</span>, value) <span class="dt">Hashtbl</span>.t</span>
-<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>  | VFunction <span class="kw">of</span> <span class="dt">string</span> <span class="dt">list</span> * expr * environment</span>
-<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  | VDataFrame <span class="kw">of</span> to_dataframe</span>
-<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>  | VVector <span class="kw">of</span> vector</span>
-<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>  | VNA <span class="kw">of</span> na_type</span>
-<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>  | VError <span class="kw">of</span> error_info</span>
-<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>  | VPipeline <span class="kw">of</span> pipeline_data</span>
-<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>  | VIntent <span class="kw">of</span> intent_data</span>
-<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* ... *)</span></span></code></pre></div>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="co">(* Runtime Values *)</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> value =</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>  | VInt <span class="kw">of</span> <span class="dt">int</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>  | VFloat <span class="kw">of</span> <span class="dt">float</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>  | VBool <span class="kw">of</span> <span class="dt">bool</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  | VString <span class="kw">of</span> <span class="dt">string</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>  | VList <span class="kw">of</span> value <span class="dt">list</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>  | VDict <span class="kw">of</span> (<span class="dt">string</span>, value) <span class="dt">Hashtbl</span>.t</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>  | VFunction <span class="kw">of</span> <span class="dt">string</span> <span class="dt">list</span> * expr * environment</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>  | VDataFrame <span class="kw">of</span> to_dataframe</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  | VVector <span class="kw">of</span> vector</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>  | VNA <span class="kw">of</span> na_type</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>  | VError <span class="kw">of</span> error_info</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>  | VPipeline <span class="kw">of</span> pipeline_data</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>  | VIntent <span class="kw">of</span> intent_data</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* ... *)</span></span></code></pre></div>
 <p><strong>Design Notes</strong>: - Expressions are immutable;
 evaluation produces new values - Functions capture environment as
 closures - Errors and NA are first-class values, not exceptions -
