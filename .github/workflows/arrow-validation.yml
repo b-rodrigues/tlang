@@ -26,6 +26,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free disk space
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
@@ -67,6 +74,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Free disk space
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31

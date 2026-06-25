@@ -28,14 +28,26 @@
         pkgs = (import (builtins.fetchTarball {
           url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
           sha256 = "sha256:1sidlvvfk7vz1ijmb0zvacyg28q845hfzd8payhgd48j06rg9bfc";
-        }) { inherit system; }).extend (self: super: {
-          lightgbm = super.lightgbm.overrideAttrs (old: {
-            cudaSupport = false;
-            openclSupport = false;
-            cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
-            buildInputs = (old.buildInputs or []) ++ [ self.boost ];
+        }) { inherit system; }).extend (self: super:
+          let
+            djangoOverride = {
+              packageOverrides = py-self: py-super: {
+                django = py-super.django.overrideAttrs (old: {
+                  doCheck = false;
+                });
+              };
+            };
+          in {
+            lightgbm = super.lightgbm.overrideAttrs (old: {
+              cudaSupport = false;
+              openclSupport = false;
+              cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
+              buildInputs = (old.buildInputs or []) ++ [ self.boost ];
+            });
+            python3 = super.python3.override djangoOverride;
+            python313 = super.python313.override djangoOverride;
+            python314 = super.python314.override djangoOverride;
           });
-        });
 
         # Build R with specific packages
         R-with-packages = pkgs.rWrapper.override {
