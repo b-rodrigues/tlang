@@ -7,7 +7,7 @@ This file is an **LLM-oriented operating manual** for the repository. It is inte
 ## Non-Negotiable Principles
 
 - **Nix is mandatory.** Treat Nix as the only supported installation and environment-management story for T.
-  - End users run T with `nix shell github:b-rodrigues/tlang`.
+  - End users run T with `nix shell --accept-flake-config github:b-rodrigues/tlang`.
   - Contributors develop T itself with `nix develop` and then `dune build` / `dune runtest`.
   - T projects and packages are Nix flakes; `flake.nix` and `flake.lock` pin exact environments.
   - Nix is also the build automation and sandboxing layer for pipelines, cross-language nodes, and Quarto rendering.
@@ -30,7 +30,7 @@ This file is an **LLM-oriented operating manual** for the repository. It is inte
 ### Install and run T
 
 ```bash
-nix shell github:b-rodrigues/tlang
+nix shell --accept-flake-config github:b-rodrigues/tlang
 ```
 
 That is the preferred way to get the `t` executable as a user. Do **not** suggest Homebrew, pip, conda, npm, curl installers, or hand-managed OCaml toolchains as alternatives.

@@ -240,7 +240,7 @@ As a user, you don't need to clone the repository or build the compiler from
 source! You can run the T shell directly from GitHub using Nix:
 
 ```bash
-nix shell github:b-rodrigues/tlang
+nix shell --accept-flake-config github:b-rodrigues/tlang
 ```
 
 This command will download the T executable, fetch all required dependencies,
@@ -10563,7 +10563,7 @@ To try any of these demos locally:
 2.  **Bootstrap the T environment**:
     If you don't have the `t` command installed yet, use Nix to get a temporary shell containing it:
     ```bash
-    nix shell github:b-rodrigues/tlang
+    nix shell --accept-flake-config github:b-rodrigues/tlang
     ```
 3.  **Synchronize dependencies**:
     T uses `tproject.toml` to manage dependencies. Run this to generate the project's local `flake.nix`:
@@ -16236,7 +16236,7 @@ When you initialize a T project (using `t init`), the generated `flake.nix` auto
 
 ### Global Configuration (Recommended)
 
-To benefit from the binary cache even outside of T projects (e.g., when running `nix shell github:b-rodrigues/tlang`), you can configure the cache globally in your system's `nix.conf`:
+To benefit from the binary cache even outside of T projects (e.g., when running `nix shell --accept-flake-config github:b-rodrigues/tlang`), you can configure the cache globally in your system's `nix.conf`:
 
 ```text
 substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org

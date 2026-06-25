@@ -143,7 +143,7 @@ We recommend using the [Determinate Systems Nix Installer](https://install.deter
 Start by launching a temporary shell that provides the `t` executable:
 
 ```bash
-nix shell github:b-rodrigues/tlang
+nix shell --accept-flake-config github:b-rodrigues/tlang
 ```
 
 This drops you into an ephemeral environment with `t` available on your `PATH`.  
