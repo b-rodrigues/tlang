@@ -207,6 +207,46 @@ let repl_display_value v =
 
 (* --- Magic Commands and Help --- *)
 
+let magic_command_help = [
+  ("time",    "<expr>", "Time an expression");
+  ("ls",      "",       "List directory contents");
+  ("pwd",     "",       "Print working directory");
+  ("cd",      "<dir>",  "Change directory");
+  ("env",     "",       "List environment variables");
+  ("history", "",       "Show command history");
+  ("objects", "",       "List user-defined objects");
+]
+
+let known_magic_commands = List.map (fun (n, _, _) -> n) magic_command_help
+
+let print_magic_commands () =
+  let max_w = List.fold_left (fun m (n, a, _) ->
+    let len = 1 + String.length n + if a = "" then 0 else 1 + String.length a in
+    max m len
+  ) 0 magic_command_help
+  in
+  List.iter (fun (name, args, desc) ->
+    let cmd = "%" ^ name ^ if args = "" then "" else " " ^ args in
+    Printf.printf "  %-*s  %s\n" max_w cmd desc
+  ) magic_command_help
+
+let levenshtein_distance s t =
+  let m = String.length s and n = String.length t in
+  if m = 0 then n
+  else if n = 0 then m
+  else begin
+    let dp = Array.make_matrix (m + 1) (n + 1) 0 in
+    for i = 0 to m do dp.(i).(0) <- i done;
+    for j = 0 to n do dp.(0).(j) <- j done;
+    for i = 1 to m do
+      for j = 1 to n do
+        let cost = if s.[i-1] = t.[j-1] then 0 else 1 in
+        dp.(i).(j) <- min (dp.(i-1).(j) + 1) (min (dp.(i).(j-1) + 1) (dp.(i-1).(j-1) + cost))
+      done
+    done;
+    dp.(m).(n)
+  end
+
 let handle_magic line env mode base_keys =
   let parts = String.split_on_char ' ' (String.sub line 1 (String.length line - 1)) |> List.filter (fun s -> s <> "") in
   match parts with
@@ -241,17 +281,34 @@ let handle_magic line env mode base_keys =
       Printf.printf "Command history showing is not fully implemented yet.\n";
       flush stdout;
       (env, true)
-  | ["objects"] | ["who"] ->
-      let names = Ast.Env.fold (fun k _ acc -> 
-        if not (Hashtbl.mem base_keys k) then k :: acc else acc
-      ) env [] |> List.sort String.compare in
-      Printf.printf "%sUser-defined objects (%d):%s\n" color_blue (List.length names) color_reset;
-      List.iter (fun n -> Printf.printf "  %s\n" n) names;
+  | ["objects"] ->
+      let items = Ast.Env.fold (fun k v acc ->
+        if not (Hashtbl.mem base_keys k) then (k, v) :: acc else acc
+      ) env [] |> List.sort (fun (a,_) (b,_) -> String.compare a b) in
+      let name_w = List.fold_left (fun m (n,_) -> max m (String.length n)) 4 items in
+      let type_w = List.fold_left (fun m (_,v) -> max m (String.length (Ast.Utils.type_name v))) 4 items in
+      Printf.printf "%sUser-defined objects (%d):%s\n" color_blue (List.length items) color_reset;
+      List.iter (fun (n, v) ->
+        Printf.printf "  %-*s  %-*s  %s\n" name_w n type_w (Ast.Utils.type_name v) (Ast.Utils.value_to_string v)
+      ) items;
       print_newline ();
       flush stdout;
       (env, true)
   | _ ->
-      Printf.printf "Unknown magic command: %s\n" line;
+      let cmd = match parts with [] -> "" | hd :: _ -> hd in
+      let suggestion =
+        if cmd = "" then None
+        else
+          let dists = List.map (fun k -> (k, levenshtein_distance cmd k)) known_magic_commands in
+          let (best, min_d) = List.fold_left (fun (bk, bd) (k, d) ->
+            if d < bd then (k, d) else (bk, bd)
+          ) ("", max_int) dists
+          in
+          if min_d <= max 1 (String.length cmd / 2) then Some best else None
+      in
+      (match suggestion with
+       | Some s -> Printf.printf "Unknown magic command: %s\nDid you mean: %%%s?\n" line s
+       | None -> Printf.printf "Unknown magic command: %s\n" line);
       flush stdout;
       (env, true)
 
@@ -280,8 +337,7 @@ let print_help () =
   Printf.printf "  --help, -h        Show this help message\n";
   Printf.printf "  --version, -v     Show version\n";
   Printf.printf "\nREPL Power Features:\n";
-  Printf.printf "  %%time <expr>      Time an expression\n";
-  Printf.printf "  %%objects          List user-defined objects\n"
+  print_magic_commands ()
 
 let print_version () =
   Printf.printf "T language version %s\n" version
@@ -825,12 +881,8 @@ let cmd_repl ?failfast mode env =
             Printf.printf "  :packages     List all currently loaded packages\n\n";
             
             Printf.printf "Magic Commands:\n";
-            Printf.printf "  %%time <expr>  Time an expression\n";
-            Printf.printf "  %%ls           List directory contents\n";
-            Printf.printf "  %%pwd          Print working directory\n";
-            Printf.printf "  %%cd <dir>     Change directory\n";
-            Printf.printf "  %%env          List environment variables\n";
-            Printf.printf "  %%objects      List user-defined objects\n\n";
+            print_magic_commands ();
+            print_newline ();
  
             Printf.printf "Resources:\n";
             Printf.printf "  Website:      https://tstats-project.org/\n";
