@@ -293,12 +293,18 @@ let rec value_summary v =
        | Some (Ast.VString mt), _, _ -> mt
        | Some (Ast.VSymbol s), _, _ -> s
        | _ -> Printf.sprintf "{%d keys}" (List.length pairs))
-  | Ast.VLambda { params; _ } ->
-      "\\(" ^ String.concat ", " params ^ ") -> ..."
+  | Ast.VLambda { params; autoquote_params; _ } ->
+      "\\(" ^ String.concat ", " (Ast.Utils.display_params params autoquote_params) ^ ") -> ..."
   | Ast.VBuiltin { b_name; _ } ->
       (match b_name with Some name -> name | None -> "<builtin>")
   | Ast.VError { code; message; _ } ->
-      Printf.sprintf "%s: %s" (Ast.Utils.error_code_to_string code) message
+      let trunc =
+        if String.length message > 60 then
+          String.sub message 0 60 ^ "..."
+        else
+          message
+      in
+      Printf.sprintf "%s: %s" (Ast.Utils.error_code_to_string code) trunc
   | Ast.VFactor (idx, levels, ordered) ->
       let level = match List.nth_opt levels idx with Some s -> s | None -> "NA" in
       if ordered then Printf.sprintf "ordered Factor(%s)" level
