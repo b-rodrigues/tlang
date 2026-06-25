@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.53.3] - 2026-06-25
+
+### Reproducible Random Sampling
+
+- **`set_seed(seed)`**: Initialize the global RNG for reproducible random draws.
+- **`sample(x, n = 1, replace = false)`**: Randomly sample elements from a Vector or List, with or without replacement.
+- **`slice_sample(data, n = 1, replace = false)`**: Randomly sample rows from a DataFrame, with or without replacement.
+- All three functions share a common global RNG state; `set_seed()` guarantees identical output across runs.
+
+### Quantile Functions (Inverse CDFs)
+
+- **`qnorm(p, mean = 0, sd = 1)`**: Normal distribution quantile (inverse CDF), using Acklam's algorithm.
+- **`qt(p, df)`**: Student t distribution quantile, via binary search on `pt`.
+- **`qf(p, df1, df2)`**: F distribution quantile, via binary search on `pf`.
+- **`qchisq(p, df)`**: Chi-squared distribution quantile, via binary search on `pchisq`.
+- Enables power analysis and exact p-value thresholds natively in T without calling R.
+
 ## [0.53.2] - 2026-06-24
 
 ### Hotfix
@@ -734,7 +751,6 @@ Version history and roadmap for the T programming language.
 - Immutable values
 - Dynamic typing with runtime checks
 - First-class functions and closures
-- List comprehensions
 - **Non-Standard Evaluation (NSE)**: Dollar-prefix column references (`$column_name`) for concise data manipulation
 
 ### NSE (Non-Standard Evaluation)

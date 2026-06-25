@@ -325,11 +325,12 @@ All standard packages are auto-loaded. Each package lives under `src/packages/<p
 
 ### `base`
 
-Purpose: assertions, missing values, error values, serialization, JSON.
+Purpose: assertions, missing values, error values, serialization, JSON, reproducible randomness.
 
 - Assertions and missingness: `assert(condition, message = NA)`, `assert_file_exists(path, message = NA)`, `assert_dir_exists(path, message = NA)`, `assert_size_of_file(path, size, message = NA)`, `assert_non_empty_file(path, message = NA)`, `is_na(x)`, `na()`, `na_int()`, `na_float()`, `na_bool()`, `na_string()`
 - Error values: `error(message)`, `error(code, message)`, `error_code(err)`, `error_message(err)`, `error_context(err)`
 - Serialization: `serialize(value, path)`, `deserialize(path)`, `t_write_json(value, path)`, `t_read_json(path)`
+- Reproducible randomness: `set_seed(seed)`, `sample(x, n = 1, replace = false)`
 
 ### `core`
 
@@ -358,7 +359,7 @@ Purpose: dplyr/tidyr-style tabular verbs, joins, missing-value helpers, factors,
 
 - Core verbs: `select(df, ...)`, `filter(df, predicate_or_nse)`, `mutate(df, ...)`, `arrange(df, ..., direction = "asc")`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ..., .before = na(), .after = na())`, `distinct(df, ..., .keep_all = false)`, `count(df, ..., name = "n")`
 - Aggregation helpers: `n()`, `n_distinct(x)`
-- Row helpers: `slice(df, indices)`, `slice_min(df, order_by, n = 1)`, `slice_max(df, order_by, n = 1)`
+- Row helpers: `slice(df, indices)`, `slice_min(df, order_by, n = 1)`, `slice_max(df, order_by, n = 1)`, `slice_sample(df, n = 1, replace = false)`
 - Window/ranking helpers: `row_number(x)`, `min_rank(x)`, `dense_rank(x)`, `percent_rank(x)`, `cume_dist(x)`, `ntile(x, n)`, `lag(x, n = 1)`, `lead(x, n = 1)`, `cumsum(x)`, `cummin(x)`, `cummax(x)`, `cummean(x, na_rm = false)`, `cumall(x)`, `cumany(x)`
 - Reshaping and expansion: `pivot_longer(df, ..., names_to = "name", values_to = "value")`, `pivot_wider(df, names_from, values_from)`, `complete(df, ..., fill = [:], explicit = true)`, `expand(df, ...)`, `crossing(...)`, `nesting(...)`, `nest(df, ..., name = "data")`, `unnest(df, col)`, `separate(df, col, into, sep = pattern, remove = true)`, `unite(df, name, ..., sep = "_", remove = true)`, `separate_rows(df, col, sep = pattern)`, `uncount(df, weights, .remove = true)`
 - Missing-value handling: `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `fill(df, ..., .direction = "down")`
@@ -396,7 +397,7 @@ Purpose: descriptive statistics, scaling/normalization, linear models, diagnosti
 
 - Aggregation helpers: `n()`, `n_distinct(x)`
 - Descriptive statistics: `mean(x, na_rm = false, weights = NA)`, `median(x, na_rm = false, weights = NA)`, `min(x, na_rm = false)`, `max(x, na_rm = false)`, `range(x, na_rm = false)`, `var(x, na_rm = false, weights = NA)`, `sd(x, na_rm = false, weights = NA)`, `iqr(x, na_rm = false, weights = NA)`, `mad(x, constant = 1.4826)`, `fivenum(x, na_rm = false, weights = NA)`, `quantile(x, probs, na_rm = false, weights = NA)`, `skewness(x, na_rm = false, weights = NA)`, `kurtosis(x, na_rm = false, weights = NA)`, `trimmed_mean(x, trim = 0.1, na_rm = false, weights = NA)`, `winsorize(x, limits = [0.05, 0.05], na_rm = false, weights = NA)`, `cv(x, na_rm = false, weights = NA)`, `normalize(x)`, `standardize(x)`, `scale(x)`, `huber_loss(actual, predicted, delta = 1.0)`
-- Relationship helpers and distributions: `cor(x, y, na_rm = false, weights = NA)`, `cov(x, y, na_rm = false, weights = NA)`, `pnorm(x, mean = 0, sd = 1)`, `pt(x, df)`, `pf(x, df1, df2)`, `pchisq(x, df)`
+- Relationship helpers and distributions: `cor(x, y, na_rm = false, weights = NA)`, `cov(x, y, na_rm = false, weights = NA)`, `pnorm(x, mean = 0, sd = 1)`, `pt(x, df)`, `pf(x, df1, df2)`, `pchisq(x, df)`, `qnorm(p, mean = 0, sd = 1)`, `qt(p, df)`, `qf(p, df1, df2)`, `qchisq(p, df)`
 - Modeling: `lm(data, formula, weights = NA)`, `predict(data, model)`, `summary(model)`, `fit_stats(model)`, `add_diagnostics(data, model)`, `coef(model)`, `conf_int(model)`, `nobs(model)`, `df_residual(model)`, `sigma(model)`, `dispersion(model)`, `vcov(model)`, `compare(model1, model2)`, `residuals(model)`, `add_diagnostics(data, model)`, `score(data, model)`, `anova(model_or_models)`, `wald_test(model, hypothesis)`
 - PMML & ONNX: Native evaluation for Decision Trees, Random Forests, XGBoost, and LightGBM via `t_read_pmml()`. Native ONNX inference via `t_read_onnx()` and `^onnx` serialization. Now supports PMML scoring in Julia nodes via `JavaCall` and JPMML, plus Julia ONNX loading through `ONNXRunTime.jl`.
 - Basis functions: `cut(x, breaks, ...)`, `poly(x, degree, ...)`

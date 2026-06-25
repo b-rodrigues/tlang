@@ -75,6 +75,7 @@ let () =
   Test_dicts.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_builtins.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_chrono.run_tests pass_count fail_count failures eval_string eval_string_env test;
+  Test_rng.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_shell.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_lsp_support.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_sh_node.run_tests pass_count fail_count failures eval_string eval_string_env test;

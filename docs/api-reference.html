@@ -724,6 +724,39 @@ chained = error_chain(err1, err2)
 
 error_context(chained)$cause  -- Returns err2</code></pre>
 <hr />
+<h3 id="set_seedseed"><code>set_seed(seed)</code></h3>
+<p>Initializes the global random number generator with a given integer
+seed, enabling reproducible random draws from <code>sample()</code> and
+<code>slice_sample()</code>.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>seed</code> — Integer seed value.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>NA</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>set_seed(42)
+sample([1, 2, 3, 4, 5], n = 3)</code></pre>
+<hr />
+<h3
+id="samplex-n-1-replace-false"><code>sample(x, n = 1, replace = false)</code></h3>
+<p>Draw a random sample of size n from a Vector or List, with or without
+replacement.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — <code>Vector</code> or <code>List</code> of values
+to sample from.</li>
+<li><code>n</code> (optional) — Number of elements to draw. Default
+<code>1</code>.</li>
+<li><code>replace</code> (optional) — Whether to sample with
+replacement. Default <code>false</code>.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Vector</code> or <code>List</code> (matching input type)</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>sample([10, 20, 30, 40, 50], n = 2)
+sample([1, 2, 3], n = 5, replace = true)</code></pre>
+<hr />
 <h3
 id="assertcondition-assertcondition-message"><code>assert(condition)</code>
 / <code>assert(condition, message)</code></h3>
@@ -1091,6 +1124,22 @@ id="huber_lossactual-predicted-delta-1.0"><code>huber_loss(actual, predicted, de
 <p>Cumulative Distribution Functions for Normal, Student-t, F, and
 Chi-squared distributions.</p>
 <hr />
+<h3 id="quantile-functions-inverse-cdfs">Quantile Functions (Inverse
+CDFs)</h3>
+<h4
+id="qnormp-mean0-sd1-qtp-df-qfp-df1-df2-qchisqp-df"><code>qnorm(p, mean=0, sd=1)</code>
+/ <code>qt(p, df)</code> / <code>qf(p, df1, df2)</code> /
+<code>qchisq(p, df)</code></h4>
+<p>Quantile (inverse cumulative probability) Functions for Normal,
+Student-t, F, and Chi-squared distributions.</p>
+<ul>
+<li><code>qnorm(p, mean = 0, sd = 1)</code> — normal quantile with
+optional <code>mean</code> and <code>sd</code> named args.</li>
+<li><code>qt(p, df)</code> — Student t quantile.</li>
+<li><code>qf(p, df1, df2)</code> — F quantile.</li>
+<li><code>qchisq(p, df)</code> — Chi-squared quantile.</li>
+</ul>
+<hr />
 <h3 id="modeling">Modeling</h3>
 <h4
 id="lmdata-formula-weights-na"><code>lm(data, formula, weights = NA)</code></h4>
@@ -1184,8 +1233,11 @@ names (default: false)</li>
 <p><strong>Returns:</strong></p>
 <p><code>DataFrame</code></p>
 <hr />
-<h3 id="read_parquetpath"><code>read_parquet(path)</code></h3>
-<p>Read a Parquet file into a DataFrame.</p>
+<h3
+id="read_parquetpath-write_parquetto_dataframe-path"><code>read_parquet(path)</code>
+/ <code>write_parquet(to_dataframe, path)</code></h3>
+<p>Read or write Parquet files using the native parquet-glib
+reader/writer.</p>
 <hr />
 <h3
 id="read_arrowpath-write_arrowto_dataframe-path"><code>read_arrow(path)</code>
@@ -1462,10 +1514,14 @@ id="relocatedf-...columns-before-na-after-na"><code>relocate(df, ...columns, bef
 <p>Change column order.</p>
 <hr />
 <h4
-id="slicedf-...indices-slice_mindf-col-n-1-slice_maxdf-col-n-1"><code>slice(df, ...indices)</code>
+id="slicedf-...indices-slice_mindf-col-n-1-slice_maxdf-col-n-1-slice_sampledf-n-1-replace-false"><code>slice(df, ...indices)</code>
 / <code>slice_min(df, col, n = 1)</code> /
-<code>slice_max(df, col, n = 1)</code></h4>
-<p>Subset rows by position or extreme values.</p>
+<code>slice_max(df, col, n = 1)</code> /
+<code>slice_sample(df, n = 1, replace = false)</code></h4>
+<p>Subset rows by position, extreme values, or random sample.
+<code>slice_sample</code> draws a random sample of n rows with or
+without replacement. Use <code>set_seed()</code> for reproducible
+results.</p>
 <hr />
 <h4
 id="pivot_longerdf-cols-names_to-name-values_to-value"><code>pivot_longer(df, cols, names_to = "name", values_to = "value")</code></h4>

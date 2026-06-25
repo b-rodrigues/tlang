@@ -20,9 +20,6 @@ find src -name "*.ml" -o -name "*.mli" | xargs sed -i 's/Reassignment { \(.*\); 
 # And just the fields
 find src -name "*.ml" -o -name "*.mli" | xargs sed -i 's/to_expression =/expr =/g'
 
-# 4. ListComp { to_expression; _ } -> ListComp { expr; _ }
-find src -name "*.ml" -o -name "*.mli" | xargs sed -i 's/ListComp { to_expression;/ListComp { expr;/g'
-
 # 5. Fix Call record fields if they were broken (Call has fn and args)
 # No change needed for Call? Call had 'fn' and 'args' which were both to_expression types.
 # Wait, I refactored fn and args to to_expression types in ast.ml already.

@@ -143,9 +143,6 @@ plot = function(data, x, y, ...) (
 # Function with standard notation
 add = function(x, y) (x + y)
 
-# List comprehension
-[x * x for x in [1, 2, 3]]
-
 # Dictionary
 person = {name: "Alice", age: 30}
 person.name
@@ -294,7 +291,6 @@ practical, real-world data cleaning.
     - Dicts: `{name: "Alice", age: 30}`
     - Tensors: `tensor([1, 2], [3, 4])`
     - Dot access: `x.a`, `df.name`
-- **List Comprehensions**: `[x * x for x in [1, 2, 3]]`
 - **Pipe Operators**: `x |> f`, `x |> f(a, b)`, `x ?|> f`
 - **Variadics**: `...` for variadic arguments and forwarding
 

@@ -941,6 +941,48 @@ error_context(chained)$cause  -- Returns err2
 
 ---
 
+### `set_seed(seed)`
+
+Initializes the global random number generator with a given integer seed, enabling reproducible random draws from `sample()` and `slice_sample()`.
+
+**Parameters:**
+
+- `seed` — Integer seed value.
+
+**Returns:**
+
+`NA`
+
+**Examples:**
+```t
+set_seed(42)
+sample([1, 2, 3, 4, 5], n = 3)
+```
+
+---
+
+### `sample(x, n = 1, replace = false)`
+
+Draw a random sample of size n from a Vector or List, with or without replacement.
+
+**Parameters:**
+
+- `x` — `Vector` or `List` of values to sample from.
+- `n` (optional) — Number of elements to draw. Default `1`.
+- `replace` (optional) — Whether to sample with replacement. Default `false`.
+
+**Returns:**
+
+`Vector` or `List` (matching input type)
+
+**Examples:**
+```t
+sample([10, 20, 30, 40, 50], n = 2)
+sample([1, 2, 3], n = 5, replace = true)
+```
+
+---
+
 ### `assert(condition)` / `assert(condition, message)`
 
 Assert that a condition is true; error if false.
@@ -1434,6 +1476,19 @@ Compute the Huber loss between two vectors.
 #### `pnorm(x)` / `pt(x, df)` / `pf(q, df1, df2)` / `pchisq(q, df)`
 
 Cumulative Distribution Functions for Normal, Student-t, F, and Chi-squared distributions.
+
+---
+
+### Quantile Functions (Inverse CDFs)
+
+#### `qnorm(p, mean=0, sd=1)` / `qt(p, df)` / `qf(p, df1, df2)` / `qchisq(p, df)`
+
+Quantile (inverse cumulative probability) Functions for Normal, Student-t, F, and Chi-squared distributions.
+
+- `qnorm(p, mean = 0, sd = 1)` — normal quantile with optional `mean` and `sd` named args.
+- `qt(p, df)` — Student t quantile.
+- `qf(p, df1, df2)` — F quantile.
+- `qchisq(p, df)` — Chi-squared quantile.
 
 ---
 
@@ -1946,9 +2001,9 @@ Change column order.
 
 ---
 
-#### `slice(df, ...indices)` / `slice_min(df, col, n = 1)` / `slice_max(df, col, n = 1)`
+#### `slice(df, ...indices)` / `slice_min(df, col, n = 1)` / `slice_max(df, col, n = 1)` / `slice_sample(df, n = 1, replace = false)`
 
-Subset rows by position or extreme values.
+Subset rows by position, extreme values, or random sample. `slice_sample` draws a random sample of n rows with or without replacement. Use `set_seed()` for reproducible results.
 
 ---
 

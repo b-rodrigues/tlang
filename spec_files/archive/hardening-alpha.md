@@ -670,8 +670,6 @@ No `left_join()`, `inner_join()`, or other merge operations.
 #### Control Flow
 - [x] If-else expressions
 - [ ] Pattern matching (deferred to Beta)
-- [ ] List comprehensions (syntax reserved, not implemented)
-
 #### Error Handling
 - [x] Structured errors (Error type)
 - [x] Error codes (TypeError, NameError, etc.)
@@ -1159,7 +1157,6 @@ To move from Alpha (v0.1) to Beta (v0.2), the following must be completed:
 
 #### Language Features
 - [ ] Pattern matching (match expressions)
-- [ ] List comprehensions
 - [ ] Lenses (immutable updates)
 - [ ] String interpolation
 

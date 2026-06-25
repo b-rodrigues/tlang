@@ -33,7 +33,7 @@ The T Language Beta (v0.2) builds on the solid foundation of Alpha v0.1 by focus
 2. **Advanced Pipeline Execution**: Enhanced DAG-based execution with parallelization, caching strategies, and potential integration with existing workflow engines
 3. **LLM-Native Development**: Enhanced intent blocks and tooling that make T the premier language for human-AI collaborative programming
 
-These features, combined with essential language improvements (pattern matching, list comprehensions, lenses) and expanded data capabilities (joins, pivots, multiple formats), will position T as a production-ready language for reproducible data analysis.
+These features, combined with essential language improvements (pattern matching, lenses) and expanded data capabilities (joins, pivots, multiple formats), will position T as a production-ready language for reproducible data analysis.
 
 ---
 
@@ -61,7 +61,7 @@ Beta v0.2 transforms T from a proof-of-concept into a **production ecosystem**:
 1. **Complete Package Infrastructure**: Enable community contributions with zero-friction tooling
 2. **Production-Grade Pipelines**: Parallel execution, smart caching, and workflow integration
 3. **Enhanced LLM Collaboration**: Advanced intent capabilities and AI-assisted development
-4. **Language Maturity**: Pattern matching, comprehensions, and ergonomic improvements
+4. **Language Maturity**: Pattern matching and ergonomic improvements
 5. **Ecosystem Growth**: Multiple file formats, joins, pivots, and expanded statistics
 
 ---
@@ -711,30 +711,7 @@ match data {
 - Exhaustiveness checking
 - Integration with existing type system
 
-### 2. List Comprehensions 🎯 **HIGH PRIORITY**
-
-Python-style list comprehensions:
-
-```t
--- Filter and map
-squares = [x * x for x in numbers if x > 0]
-
--- Nested comprehensions
-matrix = [[x * y for x in 1:10] for y in 1:10]
-
--- Generator expressions (lazy)
-large_seq = (x * 2 for x in 1:1000000)
-
--- DataFrame comprehensions
-customer_names = [row.name for row in customers if row.age > 30]
-```
-
-**Implementation Notes**:
-- Extend parser for comprehension syntax
-- Desugar to `map` and `filter` calls
-- Add generator support for lazy evaluation
-
-### 3. Lenses for Immutable Updates 🎯 **MEDIUM PRIORITY**
+### 2. Lenses for Immutable Updates 🎯 **MEDIUM PRIORITY**
 
 Composable immutable updates:
 
@@ -1104,7 +1081,6 @@ summary = large_data |> select(col1, col2) |> head(10)  -- Loads only 10 rows
 **Goal**: Improve language ergonomics
 
 - [ ] Implement pattern matching (`match` expressions)
-- [ ] Implement list comprehensions
 - [ ] Implement string interpolation
 - [ ] Add lenses for immutable updates
 - [ ] Write comprehensive tests for new features

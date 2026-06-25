@@ -273,7 +273,11 @@
 | [pt](pt.html) | Student t distribution CDF |
 | [pull](pull.html) | Extract column as vector |
 | [pyn](pyn.html) | Configure a Python Pipeline Node |
+| [qchisq](qchisq.html) | Chi-squared distribution quantile |
+| [qf](qf.html) | F distribution quantile |
 | [qn](qn.html) | Configure a Quarto Pipeline Node |
+| [qnorm](qnorm.html) | Normal distribution quantile |
+| [qt](qt.html) | Student t distribution quantile |
 | [quantile](quantile.html) | Quantiles |
 | [quarter](quarter.html) | Extract the quarter |
 | [quo](quo.html) | Capture an expression with its lexical environment (quosure) |
@@ -304,6 +308,7 @@
 | [row_number](row_number.html) | Row Number |
 | [run](run.html) | Run a shell command |
 | [run_doctor](run_doctor.html) | Run Package/Project Doctor |
+| [sample](sample.html) | Random sample from Vector or List |
 | [scaffold_package](scaffold_package.html) | Scaffold a new T package |
 | [scaffold_project](scaffold_project.html) | Scaffold a new T project |
 | [scale](scale.html) | Scale values |
@@ -320,6 +325,7 @@
 | [serialize](serialize.html) | Serialize Value |
 | [set](set.html) | Set Focused Value |
 | [set_nix_defaults](set_nix_defaults.html) | Set Global Nix Orchestration Defaults |
+| [set_seed](set_seed.html) | Initialize global RNG seed |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
 | [show_plot](show_plot.html) | Render a plot node and open it locally |
@@ -332,6 +338,7 @@
 | [slice](slice.html) | Extract slice |
 | [slice_max](slice_max.html) | Keep rows with the largest values |
 | [slice_min](slice_min.html) | Keep rows with the smallest values |
+| [slice_sample](slice_sample.html) | Random sample of DataFrame rows |
 | [source](source.html) | Get function source code |
 | [sqrt](sqrt.html) | Square root |
 | [standardize](standardize.html) | Standardize values |

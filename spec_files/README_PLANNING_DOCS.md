@@ -55,7 +55,7 @@ This directory contains comprehensive planning documentation for the T Language 
 - 📦 User-contributed package ecosystem
 - ⚡ Production-grade pipeline execution
 - 🤖 Enhanced LLM integration
-- 🔤 Pattern matching & comprehensions
+- 🔤 Pattern matching
 - 📊 Joins, pivots, multiple file formats
 - 🛠️ VS Code extension & LSP
 - 📅 **Target: Q3 2026 (8 months)**
@@ -105,7 +105,7 @@ T Language stands out through:
    - Intent validation
    - Code generation tools
    - Collaborative workflows
-6. Language Features (pattern matching, comprehensions, lenses)
+6. Language Features (pattern matching, lenses)
 7. Data Features (Parquet/JSON, joins, pivots)
 8. Statistics (distributions, hypothesis tests)
 9. Developer Tooling (VS Code, LSP, formatter)
@@ -192,7 +192,7 @@ See **BETA.md** - Section 3.3 (Intent Blocks & LLM Integration)
 
 ### Short-term (Months 1-3)
 1. Package management tooling
-2. Pattern matching & comprehensions
+2. Pattern matching
 3. Parallel pipeline execution
 
 ### Medium-term (Months 4-6)
