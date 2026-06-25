@@ -71,6 +71,47 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "qchisq 0.5 df=2"
     "qchisq(0.5, 2) > 1.0 && qchisq(0.5, 2) < 2.0"
     "true";
+
+  test "pt rejects non-positive df"
+    "pt(0.0, 0)"
+    {|Error(ValueError: "Function `pt` expects `df` to be positive.")|};
+
+  test "pf rejects non-positive df"
+    "pf(1.0, 0, 1)"
+    {|Error(ValueError: "Function `pf` expects `df1` and `df2` to be positive.")|};
+
+  test "pchisq rejects non-positive df"
+    "pchisq(1.0, 0)"
+    {|Error(ValueError: "Function `pchisq` expects `df` to be positive.")|};
+
+  test "qnorm rejects p < 0"
+    "qnorm(-0.5)"
+    {|Error(ValueError: "Function `qnorm` expects `p` to be between 0 and 1.")|};
+
+  test "qnorm rejects p > 1"
+    "qnorm(1.5)"
+    {|Error(ValueError: "Function `qnorm` expects `p` to be between 0 and 1.")|};
+
+  test "qt rejects non-positive df"
+    "qt(0.5, 0)"
+    {|Error(ValueError: "Function `qt` expects `df` to be positive.")|};
+
+  test "qf rejects non-positive df"
+    "qf(0.5, 0, 1)"
+    {|Error(ValueError: "Function `qf` expects `df1` and `df2` to be positive.")|};
+
+  test "qchisq rejects non-positive df"
+    "qchisq(0.5, 0)"
+    {|Error(ValueError: "Function `qchisq` expects `df` to be positive.")|};
+
+  test "qf at zero probability"
+    "qf(0.0, 1, 1)"
+    "0.";
+
+  test "qchisq at zero probability"
+    "qchisq(0.0, 1)"
+    "0.";
+
   print_newline ();
 
   Printf.printf "  Model comparison + diagnostics:\n";
