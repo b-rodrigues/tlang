@@ -34,6 +34,7 @@
               packageOverrides = py-self: py-super: {
                 django = py-super.django.overrideAttrs (old: {
                   doCheck = false;
+                  doInstallCheck = false;
                 });
               };
             };
