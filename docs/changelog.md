@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.53.3] - 2026-06-25
+## [0.53.3] - 2026-06-26
+
+### Toolchain & CI Updates
+
+- **Nixpkgs Snapshot Update**: Updated the `rstats-on-nix/nixpkgs` snapshot date in `RSTATS-NIX-DATE` to `2026-06-22` along with the corresponding hash updates in `flake.nix`.
+- **Quarto Patch & Compatibility**: Integrated the Quarto patch (fixing pandoc compatibility and syntax-highlighting replacement issues) directly into the upstream `rstats-on-nix/nixpkgs` fork, allowing the local `postPatch` overrides in `flake.nix` to be simplified.
+- **CI Enhancements**: Added `.github/workflows/test-build.yml` for manual matrix builds and adopted the `wimpysworld/nothing-but-nix` GitHub Action to optimize disk space usage during CI runs.
 
 ### Reproducible Random Sampling
 
