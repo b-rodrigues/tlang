@@ -34,7 +34,29 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.53.3] - 2026-06-25</h2>
+<h2 id="section">[0.53.3] - 2026-06-26</h2>
+<h3 id="toolchain-ci-updates">Toolchain &amp; CI Updates</h3>
+<ul>
+<li><strong>Nixpkgs Snapshot &amp; Package Updates</strong>: Updated the
+<code>rstats-on-nix/nixpkgs</code> snapshot date in
+<code>RSTATS-NIX-DATE</code> to <code>2026-06-22</code> along with the
+corresponding hash updates in <code>flake.nix</code>. Added fixes to the
+<code>rstats-on-nix/nixpkgs</code> fork to permanently disable checks
+for <code>django</code> and <code>twisted</code> directly in their
+derivations (preventing build failures on <code>aarch64-darwin</code>),
+which allowed the local overrides in <code>flake.nix</code> to be
+cleaned up.</li>
+<li><strong>Quarto Patch &amp; Compatibility</strong>: Integrated the
+Quarto patch (fixing pandoc compatibility and syntax-highlighting
+replacement issues) directly into the upstream
+<code>rstats-on-nix/nixpkgs</code> fork, allowing the local
+<code>postPatch</code> overrides in <code>flake.nix</code> to be
+simplified.</li>
+<li><strong>CI Enhancements</strong>: Added
+<code>.github/workflows/test-build.yml</code> for manual matrix builds
+and adopted the <code>wimpysworld/nothing-but-nix</code> GitHub Action
+to optimize disk space usage during CI runs.</li>
+</ul>
 <h3 id="reproducible-random-sampling">Reproducible Random Sampling</h3>
 <ul>
 <li><strong><code>set_seed(seed)</code></strong>: Initialize the global

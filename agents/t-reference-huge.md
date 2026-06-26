@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.53.2 "L'Initiation".
+**Status:** Version 0.53.3 "L'Initiation".
 
 ---
 
@@ -410,7 +410,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.53.2
+> **Version**: 0.53.3
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -8073,7 +8073,13 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.53.3] - 2026-06-25
+## [0.53.3] - 2026-06-26
+
+### Toolchain & CI Updates
+
+- **Nixpkgs Snapshot & Package Updates**: Updated the `rstats-on-nix/nixpkgs` snapshot date in `RSTATS-NIX-DATE` to `2026-06-22` along with the corresponding hash updates in `flake.nix`. Added fixes to the `rstats-on-nix/nixpkgs` fork to permanently disable checks for `django` and `twisted` directly in their derivations (preventing build failures on `aarch64-darwin`), which allowed the local overrides in `flake.nix` to be cleaned up.
+- **Quarto Patch & Compatibility**: Integrated the Quarto patch (fixing pandoc compatibility and syntax-highlighting replacement issues) directly into the upstream `rstats-on-nix/nixpkgs` fork, allowing the local `postPatch` overrides in `flake.nix` to be simplified.
+- **CI Enhancements**: Added `.github/workflows/test-build.yml` for manual matrix builds and adopted the `wimpysworld/nothing-but-nix` GitHub Action to optimize disk space usage during CI runs.
 
 ### Reproducible Random Sampling
 
@@ -14615,7 +14621,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.53.2 "L'Initiation" using Nix <nix-version>
+Version 0.53.3 "L'Initiation" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -15896,6 +15902,167 @@ git show abc123:src/pipeline.t
 - [Reproducibility](reproducibility.md) — Nix for reproducible environments
 - [Examples](examples.md) — Intent-driven analysis examples
 - [Pipeline Tutorial](pipeline_tutorial.md) — Pipeline structure
+
+
+# FILE: docs/magic-cmds.md
+
+# Magic Commands
+
+Magic commands are REPL-only shortcuts prefixed with `%`. They provide quick access to common operations without parentheses or string quotes.
+
+## `%cd <dir>`
+
+Change the current working directory.
+
+```t
+%cd /tmp
+%pwd      -- /tmp
+%cd ~     -- expands ~ correctly
+```
+
+If the directory does not exist, an error message is printed. The shell escape `?<{cd ...}>` also changes the T interpreter's working directory via the same mechanism.
+
+## `%env`
+
+Print all environment variables, one per line.
+
+```t
+%env
+HOME=/home/user
+PATH=/usr/bin:/bin
+...
+```
+
+## `%history`
+
+Show the last 50 entries from the REPL command history (`~/.t_history`).
+
+```t
+%history
+    1  x = 42
+    2  y = x + 1
+    3  %pwd
+```
+
+If no history exists, displays `(no history)`.
+
+## `%ls`
+
+List files and directories in the current working directory.
+
+```t
+%ls
+file1.t  file2.t  data.csv
+```
+
+## `%magic`
+
+List all available magic commands with descriptions.
+
+```t
+%magic
+```
+
+Equivalent to the `:help` section on magic commands.
+
+## `%objects`
+
+List all user-defined variables, their types, and a compact summary.
+
+```t
+x = 42
+df = read_csv("data.csv")
+%objects
+--  name  type       summary
+--  x     Int        42
+--  df    DataFrame  150 rows x 5 cols
+```
+
+Alias: `%who`.
+
+## `%pwd`
+
+Print the current working directory.
+
+```t
+%pwd
+/home/user/projects
+```
+
+## `%reset`
+
+Remove all user-defined variables and return to the clean base environment. Also clears the session transcript for `%save`.
+
+```t
+x = 42
+%reset
+%objects
+-- (no user objects)
+```
+
+## `%save <file>` / `%save verbose <file>`
+
+Save a session transcript — every command and its result — to a file. Each entry is written as `# command` followed by `# result`.
+
+**Compact mode** (`%save file.t`) uses `value_summary`:
+```t
+# x = 42
+# 42
+
+# read_csv("data.csv")
+# DataFrame: 150 rows x 5 cols
+```
+
+**Verbose mode** (`%save verbose file.t`) uses the full pretty-printed output:
+```t
+# x = 42
+# 42
+
+# read_csv("data.csv")
+# ┌──────┬──────┐
+# │ col1 │ col2 │
+# ├──────┼──────┤
+# │ ...  │ ...  │
+# └──────┴──────┘
+```
+
+Can be combined with `%reset` to start a fresh transcript before recording.
+
+## `%time <expr>`
+
+Evaluate any T expression and print its result along with execution time.
+
+```t
+%time 1 + 1
+2
+Execution time: 0.0002 seconds
+```
+
+```t
+%time df |> filter($x > 10) |> nrow()
+42
+Execution time: 0.1540 seconds
+```
+
+---
+
+## Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `%cd <dir>` | Change directory |
+| `%env` | List environment variables |
+| `%history` | Show command history |
+| `%ls` | List directory contents |
+| `%magic` | List magic commands |
+| `%objects` / `%who` | List user-defined objects |
+| `%pwd` | Print working directory |
+| `%reset` | Reset environment to base |
+| `%save <file>` | Save session transcript (compact) |
+| `%save verbose <file>` | Save session transcript (verbose) |
+| `%time <expr>` | Time an expression |
+
+Typing an unknown magic command triggers fuzzy matching: `%objcts` suggests `Did you mean: %objects?`.
 
 
 # FILE: docs/models.md
@@ -18380,7 +18547,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.53.2"
+min_version = "0.53.3"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -30005,7 +30172,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.53.2";
+    tlang.url = "github:b-rodrigues/tlang/v0.53.3";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -30128,7 +30295,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.53.2",
+    t_version: "0.53.3",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -30171,7 +30338,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.53.2";
+    tlang.url = "github:b-rodrigues/tlang/v0.53.3";
   };
   
   outputs = { self, nixpkgs, tlang }: {
