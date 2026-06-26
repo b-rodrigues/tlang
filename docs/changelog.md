@@ -4,7 +4,7 @@
 
 ### Toolchain & CI Updates
 
-- **Nixpkgs Snapshot & Package Updates**: Updated the `rstats-on-nix/nixpkgs` snapshot date in `RSTATS-NIX-DATE` to `2026-06-22` along with the corresponding hash updates in `flake.nix`. Added fixes to the `rstats-on-nix/nixpkgs` fork to permanently disable checks for `django` and `twisted` directly in their derivations (preventing build failures on `aarch64-darwin`), which allowed the local overrides in `flake.nix` to be cleaned up.
+- **Nixpkgs Snapshot & Package Updates**: Updated the `rstats-on-nix/nixpkgs` snapshot date in `RSTATS-NIX-DATE` to `2026-06-22` along with the corresponding hash updates in `flake.nix`. Added fixes to the `rstats-on-nix/nixpkgs` fork to permanently disable checks for `django`, `twisted`, `sh`, and `fsspec` directly in their derivations (preventing build failures on `aarch64-darwin` and during source compilation), and integrated the upstream `air-formatter` package patch for `cargoBuildFlags` compatibility. This allowed the local python package overrides in `flake.nix` to be cleaned up.
 - **Quarto Patch & Compatibility**: Integrated the Quarto patch (fixing pandoc compatibility and syntax-highlighting replacement issues) directly into the upstream `rstats-on-nix/nixpkgs` fork, allowing the local `postPatch` overrides in `flake.nix` to be simplified.
 - **CI Enhancements**: Added `.github/workflows/test-build.yml` for manual matrix builds and adopted the `wimpysworld/nothing-but-nix` GitHub Action to optimize disk space usage during CI runs.
 
