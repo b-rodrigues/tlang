@@ -27,32 +27,15 @@
         # Use the Nix packages for the specified system
         pkgs = (import (builtins.fetchTarball {
           url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
-          sha256 = "sha256:05yf8x57hgr4hqmv69azrwinab0kfm77bzym47698y66an60npb8";
-        }) { inherit system; }).extend (self: super:
-          let
-            pythonOverrides = {
-              packageOverrides = py-self: py-super: {
-                django = py-super.django.overrideAttrs (old: {
-                  doCheck = false;
-                  doInstallCheck = false;
-                });
-                twisted = py-super.twisted.overrideAttrs (old: {
-                  doCheck = false;
-                  doInstallCheck = false;
-                });
-              };
-            };
-          in {
-            lightgbm = super.lightgbm.overrideAttrs (old: {
-              cudaSupport = false;
-              openclSupport = false;
-              cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
-              buildInputs = (old.buildInputs or []) ++ [ self.boost ];
-            });
-            python3 = super.python3.override pythonOverrides;
-            python313 = super.python313.override pythonOverrides;
-            python314 = super.python314.override pythonOverrides;
+          sha256 = "sha256:0rby39rzs3ss3nhgm4gryp8fc8y7xds14lam36kpxcvjhg503nkb";
+        }) { inherit system; }).extend (self: super: {
+          lightgbm = super.lightgbm.overrideAttrs (old: {
+            cudaSupport = false;
+            openclSupport = false;
+            cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
+            buildInputs = (old.buildInputs or []) ++ [ self.boost ];
           });
+        });
 
         # Build R with specific packages
         R-with-packages = pkgs.rWrapper.override {
