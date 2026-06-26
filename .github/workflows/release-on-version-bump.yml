@@ -67,10 +67,7 @@ jobs:
 
       - name: Free disk space
         if: runner.os == 'Linux'
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
+        uses: wimpysworld/nothing-but-nix@main
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
