@@ -52,6 +52,12 @@
             python3 = super.python3.override pythonOverrides;
             python313 = super.python313.override pythonOverrides;
             python314 = super.python314.override pythonOverrides;
+            quarto = super.quarto.overrideAttrs (oldAttrs: {
+              postPatch = (oldAttrs.postPatch or "") + ''
+                substituteInPlace bin/quarto.js \
+                  --replace-fail "syntax-highlighting" "highlight-style"
+              '';
+            });
           });
 
         # Build R with specific packages
