@@ -27,7 +27,7 @@
         # Use the Nix packages for the specified system
         pkgs = (import (builtins.fetchTarball {
           url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
-          sha256 = "sha256:1sidlvvfk7vz1ijmb0zvacyg28q845hfzd8payhgd48j06rg9bfc";
+          sha256 = "sha256:05yf8x57hgr4hqmv69azrwinab0kfm77bzym47698y66an60npb8";
         }) { inherit system; }).extend (self: super:
           let
             pythonOverrides = {
@@ -52,12 +52,6 @@
             python3 = super.python3.override pythonOverrides;
             python313 = super.python313.override pythonOverrides;
             python314 = super.python314.override pythonOverrides;
-            quarto = super.quarto.overrideAttrs (oldAttrs: {
-              postPatch = (oldAttrs.postPatch or "") + ''
-                substituteInPlace bin/quarto.js \
-                  --replace-fail "syntax-highlighting" "highlight-style"
-              '';
-            });
           });
 
         # Build R with specific packages
