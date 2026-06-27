@@ -36,8 +36,12 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipAddingSubstituter: true   # build from source; push-only mode
 
-      - name: Build default package
-        run: nix build .#default --print-build-logs
+      - name: Build all flake packages
+        run: |
+          for pkg in $(nix flake show --json | jq -r '.packages."${{ matrix.system }}" | keys[]'); do
+            echo "Building package: $pkg"
+            nix build .#$pkg --quiet
+          done
 
       - name: Build devShell profile (materialises all buildInputs)
         run: nix develop .#default --profile dev-shell-profile --command true

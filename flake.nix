@@ -300,6 +300,13 @@ chmod +x $out/bin/bisect-ppx-report
           tlang-r = tlang-r;
           tlang-python = tlang-python;
           tlang-julia-path = tlang-julia-path;
+
+          # Python packages to be cached
+          python-django = pkgs.python314.pkgs.django;
+          python-twisted = pkgs.python314.pkgs.twisted;
+          python-sh = pkgs.python314.pkgs.sh;
+          python-fsspec = pkgs.python314.pkgs.fsspec;
+          python-pyogrio = pkgs.python314.pkgs.pyogrio;
         };
         legacyPackages = pkgs;
 
