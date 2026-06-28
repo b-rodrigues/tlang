@@ -34,7 +34,7 @@ jobs:
         with:
           name: rstats-on-nix
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipAddingSubstituter: true   # build from source; push-only mode
+          skipAddingSubstituter: false   # set to true to build from source; push-only mode
 
       - name: Build all flake packages
         run: |
