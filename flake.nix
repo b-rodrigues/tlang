@@ -27,7 +27,7 @@
         # Use the Nix packages for the specified system
         pkgs = (import (builtins.fetchTarball {
           url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
-          sha256 = "sha256:0gsj1fdgi957bf7b1iw53mcjgr83wnd03d7524b7mjd6g7kw2ran";
+          sha256 = "sha256:0v9h52vk07ls9s1csymbjhazcx9z70r4ip2w8ghm4k1nk19wl68d";
         }) { inherit system; }).extend (self: super: {
           lightgbm = super.lightgbm.overrideAttrs (old: {
             cudaSupport = false;
@@ -300,6 +300,20 @@ chmod +x $out/bin/bisect-ppx-report
           tlang-r = tlang-r;
           tlang-python = tlang-python;
           tlang-julia-path = tlang-julia-path;
+
+          # Python packages to be cached
+          python-django = pkgs.python3.pkgs.django;
+          python-django-314 = pkgs.python314.pkgs.django;
+          python-twisted = pkgs.python3.pkgs.twisted;
+          python-twisted-314 = pkgs.python314.pkgs.twisted;
+          python-sh = pkgs.python3.pkgs.sh;
+          python-sh-314 = pkgs.python314.pkgs.sh;
+          python-fsspec = pkgs.python3.pkgs.fsspec;
+          python-fsspec-314 = pkgs.python314.pkgs.fsspec;
+          python-pyogrio = pkgs.python3.pkgs.pyogrio;
+          python-pyogrio-314 = pkgs.python314.pkgs.pyogrio;
+          python-httpcore = pkgs.python3.pkgs.httpcore;
+          python-httpcore-314 = pkgs.python314.pkgs.httpcore;
         };
         legacyPackages = pkgs;
 

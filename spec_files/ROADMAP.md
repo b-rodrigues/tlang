@@ -34,11 +34,6 @@ The alpha release validates T's core design:
   }
   ```
 
-- [ ] **List comprehensions**: Currently reserved syntax, to be implemented
-  ```t
-  [x * x for x in numbers if x > 2]
-  ```
-
 - [ ] **Lenses**: Composable immutable update helpers
   ```t
   updated = set(config, "port", 9090)

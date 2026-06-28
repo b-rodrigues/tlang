@@ -2023,8 +2023,8 @@ p.t_step|}
     let archive_ok =
       with_repo_temp_pipeline_project
         "p = pipeline {\n  cached_node = shn(command = \"echo -n 'artifact_roundtrip'\", capture = \"stdout\")\n}\n"
-        (fun dir _pipeline_path ->
-          let archive_path = Filename.concat dir "pipeline-cache.nar" in
+        (fun _dir _pipeline_path ->
+          let archive_path = Filename.concat (Filename.get_temp_dir_name ()) "pipeline-cache.nar" in
           let env = Packages.init_env () in
           let (_, env) =
             eval_string_env
@@ -2032,6 +2032,41 @@ p.t_step|}
               env
           in
           let (_, env) = eval_string_env "build_pipeline(p)" env in
+          let print_df label df_val =
+            Printf.printf "    DEBUG %s:\n" label;
+            match Ast.Utils.unwrap_value df_val with
+            | Ast.VDataFrame df ->
+                for i = 0 to df.arrow_table.nrows - 1 do
+                  let store_path =
+                    match List.assoc_opt "store_path" df.arrow_table.columns with
+                    | Some (Arrow_table.StringColumn arr) -> (match arr.(i) with Some s -> s | None -> "")
+                    | _ -> ""
+                  in
+                  let exists = Sys.file_exists store_path in
+                  let verify_exit =
+                    if store_path <> "" then
+                      match Builder_utils.run_command_argv_exit [| "nix-store"; "--verify-path"; store_path |] with
+                      | Ok code -> string_of_int code
+                      | Error msg -> "error: " ^ msg
+                    else "n/a"
+                  in
+                  let row_str =
+                    List.map (fun (name, col) ->
+                      let cell_val =
+                        match col with
+                        | Arrow_table.StringColumn arr -> (match arr.(i) with Some s -> s | None -> "null")
+                        | Arrow_table.BoolColumn arr -> (match arr.(i) with Some b -> string_of_bool b | None -> "null")
+                        | _ -> "other"
+                      in
+                      Printf.sprintf "%s=%s" name cell_val
+                    ) df.arrow_table.columns
+                  in
+                  Printf.printf "      [%d] %s (exists=%b, verify=%s)\n" i (String.concat ", " row_str) exists verify_exit
+                done
+            | other -> Printf.printf "      Not a DataFrame: %s\n" (Ast.Utils.value_to_string other)
+          in
+          let (v_status_init, _) = eval_string_env "pipeline_cache_status(p)" env in
+          print_df "status_init" v_status_init;
           let (v_export, env) =
             eval_string_env
               (Printf.sprintf "export_artifacts(p, %S)" archive_path)
@@ -2070,12 +2105,17 @@ p.t_step|}
             | Ast.VString msg -> contains_pattern "Exported 1" msg && Sys.file_exists node_archive_path
             | _ -> false
           in
-          let (_, env) = eval_string_env "pipeline_gc(p)" env in
+          let (v_gc, env) = eval_string_env "pipeline_gc(p)" env in
+          print_df "pipeline_gc" v_gc;
+          let (v_status_pre, _) = eval_string_env "pipeline_cache_status(p)" env in
+          print_df "status_pre" v_status_pre;
           let (v_import, env) =
             eval_string_env
               (Printf.sprintf "import_artifacts(%S)" archive_path)
               env
           in
+          let (v_status_post, _) = eval_string_env "pipeline_cache_status(p)" env in
+          print_df "status_post" v_status_post;
           let import_ok =
             match Ast.Utils.unwrap_value v_import with
             | Ast.VString msg -> contains_pattern "Imported" msg
@@ -2086,6 +2126,13 @@ p.t_step|}
               "nrow(filter(pipeline_cache_status(p), $cached == false)) == 0"
               env
           in
+          if not export_ok then Printf.printf "    DEBUG: export_ok failed (v_export: %s)\n" (Ast.Utils.value_to_string v_export);
+          if not inspect_ok then Printf.printf "    DEBUG: inspect_ok failed (v_inspect: %s)\n" (Ast.Utils.value_to_string v_inspect);
+          if not export_node_ok then Printf.printf "    DEBUG: export_node_ok failed (v_export_node: %s)\n" (Ast.Utils.value_to_string v_export_node);
+          if not import_ok then Printf.printf "    DEBUG: import_ok failed (v_import: %s)\n" (Ast.Utils.value_to_string v_import);
+          if not (v_after = Ast.VBool true) then Printf.printf "    DEBUG: v_after failed (got %s)\n" (Ast.Utils.value_to_string v_after);
+          remove_path archive_path;
+          remove_path node_archive_path;
           export_ok && inspect_ok && export_node_ok && import_ok && v_after = Ast.VBool true
         )
     in

@@ -144,7 +144,6 @@ model.n           -- number of observations
 - **No persistent package registry**: All packages are in the main repository
 - **No pattern matching**: `match` expressions are planned for beta
 - **No lenses**: Immutable update helpers are planned for beta
-- **No list comprehensions**: Syntax is reserved but not yet implemented
 - **Performance**: Tree-walking interpreter; no optimization passes
 - **No GPU/distributed execution**: Single-threaded execution only
 - **CSV only**: No Parquet, JSON, or database connectors yet

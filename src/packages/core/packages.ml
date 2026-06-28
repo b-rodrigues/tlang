@@ -138,7 +138,8 @@ let stats_package = {
   description = "Statistical summaries and models";
   functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
                "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "add_diagnostics"; "score"; "deviance";
-               "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"; "compare_native_vs_pmml_scores"];
+               "pnorm"; "pt"; "pf"; "pchisq"; "qnorm"; "qt"; "qf"; "qchisq";
+               "anova"; "wald_test"; "cut"; "poly"; "compare_native_vs_pmml_scores"];
 }
 
 let colcraft_package = {
@@ -149,7 +150,7 @@ let colcraft_package = {
                "ntile"; "dense_rank"; "row_number"; "min_rank"; "cume_dist"; "percent_rank";
                "lag"; "lead"; "cumany"; "cumall"; "cummax"; "cummin"; "cummean"; "cumsum";
                "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"; "to_factor"; "fct"; "fct_infreq"; "fct_reorder"; "fct_relevel"; "fct_rev"; "fct_recode"; "fct_collapse"; "fct_lump_n"; "fct_lump_min"; "fct_lump_prop"; "fct_other"; "fct_drop"; "fct_expand"; "fct_c"; "levels"; "ordered";
-               "rename"; "relocate"; "starts_with"; "ends_with"; "contains"; "everything"; "where"; "matches"; "all_of"; "any_of"; "is_numeric"; "is_character"; "is_logical"; "is_factor"; "distinct"; "slice"; "slice_max"; "slice_min"; "count";
+               "rename"; "relocate"; "starts_with"; "ends_with"; "contains"; "everything"; "where"; "matches"; "all_of"; "any_of"; "is_numeric"; "is_character"; "is_logical"; "is_factor"; "distinct"; "slice"; "slice_max"; "slice_min"; "slice_sample"; "count";
                "left_join"; "inner_join"; "full_join"; "semi_join"; "anti_join"; "bind_rows"; "bind_cols";
                "nest"; "unnest"; "separate_rows"; "uncount"];
 }
@@ -163,7 +164,7 @@ let math_package = {
 let base_package = {
   name = "base";
   description = "Assertions, NA handling, and error utilities";
-  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_msg"; "warning_msg"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"; "error_chain"];
+  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_msg"; "warning_msg"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"; "error_chain"; "set_seed"; "sample"];
 }
 
 let chrono_package = {
@@ -186,7 +187,7 @@ let chrono_package = {
 let dataframe_package = {
   name = "dataframe";
   description = "DataFrame creation and introspection";
-  functions = ["to_dataframe"; "read_csv"; "read_parquet"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_arrow"; "write_arrow"];
+  functions = ["to_dataframe"; "read_csv"; "read_parquet"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_arrow"; "write_arrow"; "write_parquet"];
 }
 
 let pipeline_package = {
@@ -754,6 +755,8 @@ let init_env () =
   let env = Serialize.register env in
   let env = Deserialize.register env in
   let env = T_json.register env in
+  let env = Set_seed.register env in
+  let env = Sample.register env in
   (* Chrono package *)
   let env = Chrono.register env in
   (* Dataframe package *)
@@ -763,6 +766,7 @@ let init_env () =
   let env = T_write_csv.register ~write_csv_fn:(fun ~sep table path -> Arrow_io.write_csv ~sep table path) env in
   let env = T_read_arrow.register env in
   let env = T_write_arrow.register env in
+  let env = T_write_parquet.register env in
   let env = Colnames.register env in
   let env = Nrow.register env in
   let env = Ncol.register env in
@@ -877,6 +881,7 @@ let init_env () =
   let env = Slice.register env in
   let env = Count.register env in
   let env = Slice_min_max.register env in
+  let env = Slice_sample.register env in
   let env = Nest.register env in
   let env = Unnest.register env in
   let env = Separate_rows.register env in

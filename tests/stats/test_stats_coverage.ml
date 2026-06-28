@@ -29,6 +29,89 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "pchisq at zero"
     "pchisq(0, 2) < 0.0001"
     "true";
+  test "qnorm 0.975"
+    "qnorm(0.975) > 1.95 && qnorm(0.975) < 1.97"
+    "true";
+  test "qnorm 0.5"
+    "qnorm(0.5)"
+    "0.";
+  test "qnorm with mean and sd"
+    "qnorm(0.5, mean = 5, sd = 2)"
+    "5.";
+  test "qnorm with named sd default mean"
+    "qnorm(0.975, sd = 1) > 1.95 && qnorm(0.975, sd = 1) < 1.97"
+    "true";
+  test "qnorm rejects negative sd"
+    "qnorm(0.5, sd = -1)"
+    {|Error(ValueError: "Function `qnorm` expects `sd` to be positive.")|};
+  test "qnorm rejects non-numeric mean"
+    "qnorm(0.5, mean = true)"
+    {|Error(TypeError: "Function `qnorm` expects `mean` to be numeric.")|};
+  test "qt 0.975 df 10"
+    "qt(0.975, 10) > 2.22 && qt(0.975, 10) < 2.23"
+    "true";
+  test "qt 0.5 df 5"
+    "qt(0.5, 5)"
+    "0.";
+  test "qt 0.025 df 10"
+    "qt(0.025, 10) < -2.22 && qt(0.025, 10) > -2.23"
+    "true";
+  test "qt rejects non-int df"
+    "qt(0.5, 1.5)"
+    {|Error(TypeError: "qt expects (numeric, Int).")|};
+  test "qf 0.95 df1=2 df2=10"
+    "qf(0.95, 2, 10) > 4.0 && qf(0.95, 2, 10) < 5.0"
+    "true";
+  test "qf 0.5 df1=5 df2=10"
+    "qf(0.5, 5, 10) > 0.8 && qf(0.5, 5, 10) < 1.0"
+    "true";
+  test "qchisq 0.95 df=2"
+    "qchisq(0.95, 2) > 5.5 && qchisq(0.95, 2) < 6.5"
+    "true";
+  test "qchisq 0.5 df=2"
+    "qchisq(0.5, 2) > 1.0 && qchisq(0.5, 2) < 2.0"
+    "true";
+
+  test "pt rejects non-positive df"
+    "pt(0.0, 0)"
+    {|Error(ValueError: "Function `pt` expects `df` to be positive.")|};
+
+  test "pf rejects non-positive df"
+    "pf(1.0, 0, 1)"
+    {|Error(ValueError: "Function `pf` expects `df1` and `df2` to be positive.")|};
+
+  test "pchisq rejects non-positive df"
+    "pchisq(1.0, 0)"
+    {|Error(ValueError: "Function `pchisq` expects `df` to be positive.")|};
+
+  test "qnorm rejects p < 0"
+    "qnorm(-0.5)"
+    {|Error(ValueError: "Function `qnorm` expects `p` to be between 0 and 1.")|};
+
+  test "qnorm rejects p > 1"
+    "qnorm(1.5)"
+    {|Error(ValueError: "Function `qnorm` expects `p` to be between 0 and 1.")|};
+
+  test "qt rejects non-positive df"
+    "qt(0.5, 0)"
+    {|Error(ValueError: "Function `qt` expects `df` to be positive.")|};
+
+  test "qf rejects non-positive df"
+    "qf(0.5, 0, 1)"
+    {|Error(ValueError: "Function `qf` expects `df1` and `df2` to be positive.")|};
+
+  test "qchisq rejects non-positive df"
+    "qchisq(0.5, 0)"
+    {|Error(ValueError: "Function `qchisq` expects `df` to be positive.")|};
+
+  test "qf at zero probability"
+    "qf(0.0, 1, 1)"
+    "0.";
+
+  test "qchisq at zero probability"
+    "qchisq(0.0, 1)"
+    "0.";
+
   print_newline ();
 
   Printf.printf "  Model comparison + diagnostics:\n";

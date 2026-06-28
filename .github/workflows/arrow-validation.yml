@@ -26,6 +26,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free disk space
+        if: runner.os == 'Linux'
+        uses: wimpysworld/nothing-but-nix@main
+
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
@@ -67,6 +71,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Free disk space
+        if: runner.os == 'Linux'
+        uses: wimpysworld/nothing-but-nix@main
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - magic-cmds</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="magic-commands">Magic Commands</h1>
+<p>Magic commands are REPL-only shortcuts prefixed with <code>%</code>.
+They provide quick access to common operations without parentheses or
+string quotes.</p>
+<h2 id="cd-dir"><code>%cd &lt;dir&gt;</code></h2>
+<p>Change the current working directory.</p>
+<pre class="t"><code>%cd /tmp
+%pwd      -- /tmp
+%cd ~     -- expands ~ correctly</code></pre>
+<p>If the directory does not exist, an error message is printed. The
+shell escape <code>?&lt;{cd ...}&gt;</code> also changes the T
+interpreter’s working directory via the same mechanism.</p>
+<h2 id="env"><code>%env</code></h2>
+<p>Print all environment variables, one per line.</p>
+<pre class="t"><code>%env
+HOME=/home/user
+PATH=/usr/bin:/bin
+...</code></pre>
+<h2 id="history"><code>%history</code></h2>
+<p>Show the last 50 entries from the REPL command history
+(<code>~/.t_history</code>).</p>
+<pre class="t"><code>%history
+    1  x = 42
+    2  y = x + 1
+    3  %pwd</code></pre>
+<p>If no history exists, displays <code>(no history)</code>.</p>
+<h2 id="ls"><code>%ls</code></h2>
+<p>List files and directories in the current working directory.</p>
+<pre class="t"><code>%ls
+file1.t  file2.t  data.csv</code></pre>
+<h2 id="magic"><code>%magic</code></h2>
+<p>List all available magic commands with descriptions.</p>
+<pre class="t"><code>%magic</code></pre>
+<p>Equivalent to the <code>:help</code> section on magic commands.</p>
+<h2 id="objects"><code>%objects</code></h2>
+<p>List all user-defined variables, their types, and a compact
+summary.</p>
+<pre class="t"><code>x = 42
+df = read_csv(&quot;data.csv&quot;)
+%objects
+--  name  type       summary
+--  x     Int        42
+--  df    DataFrame  150 rows x 5 cols</code></pre>
+<p>Alias: <code>%who</code>.</p>
+<h2 id="pwd"><code>%pwd</code></h2>
+<p>Print the current working directory.</p>
+<pre class="t"><code>%pwd
+/home/user/projects</code></pre>
+<h2 id="reset"><code>%reset</code></h2>
+<p>Remove all user-defined variables and return to the clean base
+environment. Also clears the session transcript for
+<code>%save</code>.</p>
+<pre class="t"><code>x = 42
+%reset
+%objects
+-- (no user objects)</code></pre>
+<h2 id="save-file-save-verbose-file"><code>%save &lt;file&gt;</code> /
+<code>%save verbose &lt;file&gt;</code></h2>
+<p>Save a session transcript — every command and its result — to a file.
+Each entry is written as <code># command</code> followed by
+<code># result</code>.</p>
+<p><strong>Compact mode</strong> (<code>%save file.t</code>) uses
+<code>value_summary</code>:</p>
+<pre class="t"><code># x = 42
+# 42
+
+# read_csv(&quot;data.csv&quot;)
+# DataFrame: 150 rows x 5 cols</code></pre>
+<p><strong>Verbose mode</strong> (<code>%save verbose file.t</code>)
+uses the full pretty-printed output:</p>
+<pre class="t"><code># x = 42
+# 42
+
+# read_csv(&quot;data.csv&quot;)
+# ┌──────┬──────┐
+# │ col1 │ col2 │
+# ├──────┼──────┤
+# │ ...  │ ...  │
+# └──────┴──────┘</code></pre>
+<p>Can be combined with <code>%reset</code> to start a fresh transcript
+before recording.</p>
+<h2 id="time-expr"><code>%time &lt;expr&gt;</code></h2>
+<p>Evaluate any T expression and print its result along with execution
+time.</p>
+<pre class="t"><code>%time 1 + 1
+2
+Execution time: 0.0002 seconds</code></pre>
+<pre class="t"><code>%time df |&gt; filter($x &gt; 10) |&gt; nrow()
+42
+Execution time: 0.1540 seconds</code></pre>
+<hr />
+<h2 id="quick-reference">Quick Reference</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>%cd &lt;dir&gt;</code></td>
+<td>Change directory</td>
+</tr>
+<tr>
+<td><code>%env</code></td>
+<td>List environment variables</td>
+</tr>
+<tr>
+<td><code>%history</code></td>
+<td>Show command history</td>
+</tr>
+<tr>
+<td><code>%ls</code></td>
+<td>List directory contents</td>
+</tr>
+<tr>
+<td><code>%magic</code></td>
+<td>List magic commands</td>
+</tr>
+<tr>
+<td><code>%objects</code> / <code>%who</code></td>
+<td>List user-defined objects</td>
+</tr>
+<tr>
+<td><code>%pwd</code></td>
+<td>Print working directory</td>
+</tr>
+<tr>
+<td><code>%reset</code></td>
+<td>Reset environment to base</td>
+</tr>
+<tr>
+<td><code>%save &lt;file&gt;</code></td>
+<td>Save session transcript (compact)</td>
+</tr>
+<tr>
+<td><code>%save verbose &lt;file&gt;</code></td>
+<td>Save session transcript (verbose)</td>
+</tr>
+<tr>
+<td><code>%time &lt;expr&gt;</code></td>
+<td>Time an expression</td>
+</tr>
+</tbody>
+</table>
+<p>Typing an unknown magic command triggers fuzzy matching:
+<code>%objcts</code> suggests <code>Did you mean: %objects?</code>.</p>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

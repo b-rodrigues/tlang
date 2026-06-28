@@ -144,7 +144,7 @@ class="sourceCode nix"><code class="sourceCode nix"><span id="cb1-1"><a href="#c
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">inputs</span> <span class="op">=</span> <span class="op">{</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">nixpkgs</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:NixOS/nixpkgs/nixos-23.11&quot;</span><span class="op">;</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">tlang</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang/v0.53.2&quot;</span><span class="op">;</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">tlang</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang/v0.53.3&quot;</span><span class="op">;</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  <span class="va">outputs</span> <span class="op">=</span> <span class="op">{</span> <span class="va">self</span><span class="op">,</span> <span class="va">nixpkgs</span><span class="op">,</span> <span class="va">tlang</span> <span class="op">}</span>: <span class="op">{</span></span>
@@ -188,13 +188,21 @@ originally.</p>
 <hr />
 <h2 id="deterministic-execution">Deterministic Execution</h2>
 <h3 id="no-hidden-randomness">No Hidden Randomness</h3>
-<p>T has <strong>no built-in randomness</strong>: - No random number
-generators (RNG) - No random seeds - No sampling without explicit
-seed</p>
-<p><strong>To add randomness</strong> (future feature):</p>
-<pre class="t"><code>-- Explicit, reproducible randomness
-rng = random_seed(12345)
-sample = random_sample(data, 100, rng)</code></pre>
+<p>T provides <strong>explicit, reproducible randomness</strong>: -
+<strong><code>set_seed(seed)</code></strong>: Initializes a global
+random number generator with a given integer seed. -
+<strong><code>sample(x, n, replace)</code></strong>: Draw a random
+sample of size n from a Vector or List. -
+<strong><code>slice_sample(data, n, replace)</code></strong>: Draw a
+random sample of n rows from a DataFrame.</p>
+<pre class="t"><code>-- Reproducible random sampling
+set_seed(42)
+my_sample = sample([1, 2, 3, 4, 5], n = 3)
+my_rows = mtcars |&gt; slice_sample(n = 5)</code></pre>
+<p>Without an explicit <code>set_seed()</code> call, the RNG is
+auto-seeded from system entropy and results are unpredictable. Always
+call <code>set_seed()</code> before sampling in reproducible
+workflows.</p>
 <h3 id="no-implicit-state">No Implicit State</h3>
 <ul>
 <li><strong>No global variables</strong>: All state is explicit in
@@ -243,7 +251,7 @@ Assumptions with Intent Blocks</h2>
   ],
   
   environment: {
-    t_version: &quot;0.53.2&quot;,
+    t_version: &quot;0.53.3&quot;,
     nix_revision: &quot;abc123&quot;,
     run_date: &quot;2024-01-15&quot;
   }
@@ -275,7 +283,7 @@ class="sourceCode nix"><code class="sourceCode nix"><span id="cb8-1"><a href="#c
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">inputs</span> <span class="op">=</span> <span class="op">{</span></span>
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">nixpkgs</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:NixOS/nixpkgs/nixos-23.11&quot;</span><span class="op">;</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">tlang</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang/v0.53.2&quot;</span><span class="op">;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">tlang</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang/v0.53.3&quot;</span><span class="op">;</span></span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
 <span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="va">outputs</span> <span class="op">=</span> <span class="op">{</span> <span class="va">self</span><span class="op">,</span> <span class="va">nixpkgs</span><span class="op">,</span> <span class="va">tlang</span> <span class="op">}</span>: <span class="op">{</span></span>

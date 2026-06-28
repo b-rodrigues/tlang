@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <PMML xmlns="http://www.dmg.org/PMML-4_4" xmlns:data="http://jpmml.org/jpmml-model/InlineTable" version="4.4">
 	<Header>
-		<Application name="SkLearn2PMML package" version="0.130.0"/>
-		<Timestamp>2026-06-24T17:25:37Z</Timestamp>
+		<Application name="SkLearn2PMML package" version="0.131.0"/>
+		<Timestamp>2026-06-25T16:15:29Z</Timestamp>
 	</Header>
 	<MiningBuildTask>
 		<Extension name="repr">PMMLPipeline(steps=[('regressor', RandomForestRegressor(random_state=123))])</Extension>

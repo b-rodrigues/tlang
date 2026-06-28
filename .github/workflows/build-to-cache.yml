@@ -18,6 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free disk space
+        if: runner.os == 'Linux'
+        uses: wimpysworld/nothing-but-nix@main
+
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
@@ -32,21 +36,25 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipAddingSubstituter: true   # build from source; push-only mode
 
-      - name: Build default package
-        run: nix build .#default --print-build-logs
+      - name: Build all flake packages
+        run: |
+          for pkg in $(nix flake show --json | jq -r '.packages."${{ matrix.system }}" | keys[]'); do
+            echo "Building package: $pkg"
+            nix build .#$pkg --quiet
+          done
 
       - name: Build devShell profile (materialises all buildInputs)
         run: nix develop .#default --profile dev-shell-profile --command true
 
       - name: Push full closures to Cachix
         run: |
-          # Resolve the real store paths (not the ./result symlink)
-          RESULT=$(nix path-info .#default)
-          SHELL_DRV=$(nix path-info --derivation .#devShells.$(nix eval --raw --impure --expr 'builtins.currentSystem').default)
+          # Push the runtime closures of all built packages
+          for pkg in $(nix flake show --json | jq -r '.packages."${{ matrix.system }}" | keys[]'); do
+            echo "Pushing closure of package: $pkg"
+            nix path-info --recursive .#$pkg | cachix push rstats-on-nix
+          done
 
-          echo "=== Runtime closure of t-lang ==="
-          # Push the runtime closure of the built output
-          nix path-info --recursive "$RESULT" | cachix push rstats-on-nix
+          SHELL_DRV=$(nix path-info --derivation .#devShells.$(nix eval --raw --impure --expr 'builtins.currentSystem').default)
 
           echo "=== Build-time input closure of t-lang ==="
           # Push everything that was needed to *build* t-lang

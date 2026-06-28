@@ -2143,6 +2143,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Arrow Integration — Parquet Reading:\n";
 
   let parquet_path = Filename.temp_file "test_arrow_roundtrip_" ".parquet" in
+  let parquet_write_path = Filename.temp_file "test_arrow_write_roundtrip_" ".parquet" in
   let parquet_write_cmd =
     Printf.sprintf "python3 -c %s"
       (Filename.quote
@@ -2191,14 +2192,89 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
          end
      | code ->
          incr fail_count;
-         Printf.printf "  ✗ Failed to generate Parquet test fixture with python3/pyarrow (exit %d)\n" code)
+         Printf.printf "  ✗ Failed to generate Parquet test fixture with python3/pyarrow (exit %d)\n" code);
+
+    let parquet_tbl_src = Arrow_table.create [
+      ("id", Arrow_table.IntColumn [| Some 1; Some 2; Some 3 |]);
+      ("name", Arrow_table.StringColumn [| Some "alpha"; Some "beta"; Some "gamma" |]);
+    ] 3 in
+    (match Arrow_io.write_parquet parquet_tbl_src parquet_write_path with
+     | Ok () ->
+         incr pass_count; Printf.printf "  ✓ Arrow_io.write_parquet writes Parquet file\n";
+         (match Arrow_io.read_parquet parquet_write_path with
+          | Ok parquet_tbl ->
+              let shape_ok =
+                Arrow_table.num_rows parquet_tbl = 3
+                && Arrow_table.num_columns parquet_tbl = 2
+              in
+              let id_ok =
+                match Arrow_table.get_column parquet_tbl "id" with
+                | Some (Arrow_table.IntColumn ids) ->
+                    Array.length ids = 3
+                    && ids.(0) = Some 1
+                    && ids.(1) = Some 2
+                    && ids.(2) = Some 3
+                | _ -> false
+              in
+              let name_ok =
+                match Arrow_table.get_column parquet_tbl "name" with
+                | Some (Arrow_table.StringColumn names) ->
+                    Array.length names = 3
+                    && names.(0) = Some "alpha"
+                    && names.(1) = Some "beta"
+                    && names.(2) = Some "gamma"
+                | _ -> false
+              in
+              if shape_ok && id_ok && name_ok then begin
+                incr pass_count; Printf.printf "  ✓ Arrow_io.read_parquet round-trip preserves Parquet data\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ Arrow_io.read_parquet round-trip data mismatch\n"
+              end
+          | Error msg ->
+              incr fail_count; Printf.printf "  ✗ Arrow_io.read_parquet round-trip read failed: %s\n" msg)
+     | Error msg ->
+         incr fail_count; Printf.printf "  ✗ Arrow_io.write_parquet failed: %s\n" msg);
+
+    let env_parquet = Packages.init_env () in
+    let (_, env_parquet) =
+      eval_string_env
+        (Printf.sprintf
+           {|df_parquet = to_dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); write_parquet(df_parquet, "%s")|}
+           parquet_write_path)
+        env_parquet
+    in
+    let (v, _) = eval_string_env (Printf.sprintf {|nrow(read_parquet("%s"))|} parquet_write_path) env_parquet in
+    let nrow_result = Ast.Utils.value_to_string v in
+    if nrow_result = "2" then begin
+      incr pass_count; Printf.printf "  ✓ write_parquet/read_parquet round-trip preserves nrow\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ write_parquet/read_parquet expected nrow=2, got %s\n" nrow_result
+    end;
+
+    let (v, _) = eval_string_env (Printf.sprintf {|colnames(read_parquet("%s"))|} parquet_write_path) env_parquet in
+    let colnames_result = Ast.Utils.value_to_string v in
+    if colnames_result = {|["id", "grp"]|} then begin
+      incr pass_count; Printf.printf "  ✓ write_parquet/read_parquet preserves schema/column names\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ write_parquet/read_parquet schema mismatch: %s\n" colnames_result
+    end
+
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Arrow_io.read_parquet loads a native-backed table";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "read_parquet preserves row count";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-      "read_parquet preserves schema/column names"
+      "read_parquet preserves schema/column names";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Arrow_io.write_parquet writes Parquet file";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Arrow_io.read_parquet round-trip preserves Parquet data";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "write_parquet/read_parquet round-trip preserves nrow";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "write_parquet/read_parquet preserves schema/column names"
+
   end;
 
   print_newline ();
@@ -2312,5 +2388,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (try Sys.remove list_ipc_path with _ -> ());
   (try Sys.remove null_ipc_path with _ -> ());
   (try Sys.remove dt_ipc_path with _ -> ());
-  (try Sys.remove parquet_path with _ -> ());
+    (try Sys.remove parquet_path with _ -> ());
+  (try Sys.remove parquet_write_path with _ -> ());
   print_newline ()
+

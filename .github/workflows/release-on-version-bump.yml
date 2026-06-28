@@ -65,15 +65,27 @@ jobs:
             tlang-${{ steps.version.outputs.version }}.tar.gz
           generate_release_notes: true
 
+      - name: Free disk space
+        if: runner.os == 'Linux'
+        uses: wimpysworld/nothing-but-nix@main
+
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
 
-      - name: Build and push to cache
-        env:
-          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: rstats-on-nix
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: Build and cache all flake packages
         run: |
-          nix build .#tlang --quiet
-          cachix push rstats-on-nix result
+          for pkg in $(nix flake show --json | jq -r '.packages."x86_64-linux" | keys[]'); do
+            echo "Building package: $pkg"
+            nix build .#$pkg --quiet
+          done
