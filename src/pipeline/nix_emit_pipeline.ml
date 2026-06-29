@@ -16,6 +16,13 @@ let sanitize_flake_path path =
   let s = if String.length s > 0 && s.[String.length s - 1] = '_' then String.sub s 0 (String.length s - 1) else s in
   if s = "" then "custom" else String.lowercase_ascii s
 
+let resolve_flake_path path =
+  if String.starts_with ~prefix:"path:" path then
+    let sub = String.sub path 5 (String.length path - 5) in
+    if String.length sub > 0 && sub.[0] = '/' then path
+    else "path:" ^ Sys.getcwd () ^ "/" ^ sub
+  else path
+
 let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   let import_lines = List.filter_map (fun stmt ->
     let s = unparse_import_stmt stmt in
@@ -23,13 +30,13 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   ) p.p_imports in
   let node_names = List.map fst p.p_exprs in
 
-  (* Collect per-node flake settings.
-     p_flakes is (string * string option) list: node_name -> optional flake path.
-     Build a map: flake path -> sanitized env variable name. *)
+  (* Resolve relative path: URLs to absolute paths.
+     Then sanitize the resolved path for env variable naming,
+     but emit the resolved absolute path in the Nix code. *)
   let node_flakes = List.filter_map (fun (name, flake_opt) ->
     match flake_opt with
     | None -> None
-    | Some path -> Some (name, path)
+    | Some path -> Some (name, resolve_flake_path path)
   ) p.p_flakes in
   let unique_flake_paths =
     let seen = Hashtbl.create 8 in
@@ -57,7 +64,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     unique_flake_paths
     |> List.map (fun path ->
          let env_name = Hashtbl.find flake_env_map path in
-         Printf.sprintf "  %s = mkNodeEnv %s;" env_name (if String.starts_with ~prefix:":" path || String.starts_with ~prefix:"github:" path || String.starts_with ~prefix:"gitlab:" path || String.starts_with ~prefix:"sourcehut:" path || String.starts_with ~prefix:"https:" path then path else "\"" ^ path ^ "\""))
+         Printf.sprintf "  %s = mkNodeEnv \"%s\";" env_name path)
     |> String.concat "\n"
   in
 

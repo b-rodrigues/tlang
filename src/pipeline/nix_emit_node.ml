@@ -78,7 +78,7 @@ type tlang_tree =
   | Node of (string * tlang_tree) list
 
 let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args ~flake_env_name =
-  let nix_ref name = match flake_env_name with None -> name | Some env -> env ^ "." ^ name in
+  let nix_ref name = name in
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
