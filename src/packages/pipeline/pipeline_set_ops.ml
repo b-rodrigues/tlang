@@ -37,6 +37,7 @@ let filter_node_set keep_set p =
     p_node_diagnostics = List.filter (fun (n, _) -> keep_set n) p.p_node_diagnostics;
     p_patterns     = List.filter (fun (n, _) -> keep_set n) p.p_patterns;
     p_iterations   = List.filter (fun (n, _) -> keep_set n) p.p_iterations;
+    p_flakes       = List.filter (fun (n, _) -> keep_set n) p.p_flakes;
     p_has_patterns = (List.filter (fun (n, _) -> keep_set n) p.p_patterns <> []);
   }
 
@@ -68,6 +69,7 @@ let union p1 p2 =
       p_node_diagnostics = p1.p_node_diagnostics @ p2.p_node_diagnostics;
       p_patterns     = p1.p_patterns @ p2.p_patterns;
       p_iterations   = p1.p_iterations @ p2.p_iterations;
+      p_flakes       = p1.p_flakes @ p2.p_flakes;
       p_has_patterns = p1.p_has_patterns || p2.p_has_patterns;
     })
 
@@ -108,6 +110,7 @@ let patch p1 p2 =
     p_node_diagnostics = p1_filtered.p_node_diagnostics @ p2_filtered.p_node_diagnostics;
     p_patterns     = p1_filtered.p_patterns @ p2_filtered.p_patterns;
     p_iterations   = p1_filtered.p_iterations @ p2_filtered.p_iterations;
+    p_flakes       = p1_filtered.p_flakes @ p2_filtered.p_flakes;
     p_has_patterns = p1_filtered.p_has_patterns || p2_filtered.p_has_patterns;
   }
 

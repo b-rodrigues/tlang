@@ -1617,6 +1617,108 @@ Here, setting `MODEL=forest` in the environment selects the random forest node; 
 
 ---
 
+## 37. Custom Flakes per Node
+
+By default, every node in a pipeline uses the project's flake (defined by `tproject.toml`) for its build environment. The **`flake`** named argument lets you override this — each node can use a completely different Nix flake, replacing the entire environment for that node.
+
+```t
+p = pipeline {
+  -- Node using the default project flake (unchanged)
+  a = node(command = "hello from default flake", runtime = T)
+
+  -- Node using a different flake from GitHub
+  b = node(
+    command = "hello from custom flake",
+    runtime = T,
+    flake = "github:b-rodrigues/tlang"
+  )
+}
+```
+
+### How It Works
+
+When `populate_pipeline(p)` generates the Nix expression, each unique flake path creates a dedicated environment via the `mkNodeEnv` helper:
+
+```nix
+env_github_b_rodrigues_tlang = mkNodeEnv github:b-rodrigues/tlang;
+env_github_b_rodrigues_rix    = mkNodeEnv github:b-rodrigues/rix;
+env_path_test_flake            = mkNodeEnv "path:../test_flake";
+```
+
+Nodes referencing a custom flake are rewritten to use that flake's bindings (`env_<name>.stdenv`, `env_<name>.tBin`, etc.) instead of the project-level bindings. Nodes without a `flake` argument continue to use the project flake unchanged.
+
+### Supported Flake References
+
+| Format | Example | Notes |
+|--------|---------|-------|
+| `github:owner/repo` | `github:b-rodrigues/tlang` | GitHub repository |
+| `github:owner/repo/rev` | `github:b-rodrigues/tlang/main` | With branch/commit |
+| `gitlab:owner/repo` | `gitlab:example/project` | GitLab repository |
+| `sourcehut:owner/repo` | `sourcehut:~user/project` | SourceHut repository |
+| `path:/abs/path` | `path:/home/user/myflake` | Absolute local path |
+| `path:../relative/path` | `path:../test_flake` | Relative local path |
+
+### Full Replacement
+
+A per-node flake **fully replaces** the project flake for that node — nixpkgs, R/Python/Julia packages, and the t-lang version all come from the specified flake. There is no additive or overlay behaviour. This means:
+
+- **Different nixpkgs version** — a node can use an older or newer nixpkgs than the project
+- **Different R/Python packages** — each node can have its own package set
+- **Different t-lang version** — each node can run a different build of T
+
+### Local Flakes
+
+You can reference a local flake directory using `path:` URLs. The path is resolved relative to the `_pipeline/` directory where the Nix expression is generated:
+
+```t
+d = node(
+  command = "hello from local flake",
+  runtime = T,
+  flake = "path:../test_flake"
+)
+```
+
+The referenced directory must contain a valid `flake.nix` with `inputs.nixpkgs` and the standard t-lang `packages` (including `tlang-r`, `tlang-julia`, etc.) for proper sandbox resolution.
+
+### How the Flake Must Be Structured
+
+To work with `mkNodeEnv`, the custom flake must expose the same outputs that T's project flake provides:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    t-lang.url  = "github:b-rodrigues/tlang";
+  };
+
+  outputs = { self, nixpkgs, t-lang }: {
+    legacyPackages.${builtins.currentSystem} =
+      nixpkgs.legacyPackages.${builtins.currentSystem};
+
+    packages.${builtins.currentSystem} = rec {
+      default          = t-lang.packages.${builtins.currentSystem}.default;
+      tlang-r          = t-lang.packages.${builtins.currentSystem}.tlang-r;
+      tlang-julia-path = t-lang.packages.${builtins.currentSystem}.tlang-julia-path;
+      "tlang-julia"    = t-lang.packages.${builtins.currentSystem}."tlang-julia";
+    };
+  };
+}
+```
+
+The key requirements are:
+- `legacyPackages.${system}` — provides the full nixpkgs package set
+- `packages.${system}.default` — provides the `t` binary
+- `packages.${system}.tlang-r` — provides R packages declared in the flake
+- `packages.${system}.tlang-julia-path` / `packages.${system}."tlang-julia"` — provides Julia packages
+
+If these outputs are missing, the per-node sandbox will fail at build time when attempting to resolve runtime dependencies.
+
+### Backward Compatibility
+
+Nodes without a `flake` argument are completely unaffected. The project-level environment is aliased (`stdenv = projectStdenv`, `tBin = projectTBin`, etc.) so existing pipeline definitions require no changes.
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:

@@ -2723,7 +2723,7 @@ pipeline_report(p, target = "web", file = "report.html")
 
 ---
 
-### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)`
+### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
 
@@ -2741,6 +2741,7 @@ Configure execution settings such as the runtime and custom serialized methods f
 - `functions` (optional) — Code files to source before execution.
 - `include` (optional) — Additional files to bring into the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Fully replaces the project flake for this node. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -2761,9 +2762,9 @@ include = "config.yml"
 
 ---
 
-### `py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
-### `pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
 
@@ -2777,6 +2778,7 @@ Configure a Python Pipeline Node. A convenience wrapper around `node()` with `ru
 - `functions` (optional) — Python files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+- `flake` (optional) — A Nix flake reference to use for this node's build environment. Default: `NA`.
 
 **Returns:**
 
@@ -2784,7 +2786,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtime = "R"`. Used directly within a `pipeline { ... }` block to execute R code.
 
@@ -2798,6 +2800,7 @@ Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtim
 - `functions` (optional) — R scripts to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+- `flake` (optional) — A Nix flake reference to use for this node's build environment. Default: `NA`.
 
 **Returns:**
 
@@ -2805,11 +2808,12 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
 
 **Parameters:**
+
 
 - `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
 - `script` — Path to an external `.jl` file to execute as the node body.
@@ -2819,6 +2823,7 @@ Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `run
 - `functions` (optional) — Julia files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+- `flake` (optional) — A Nix flake reference to use for this node's build environment. Default: `NA`.
 
 **Returns:**
 
@@ -2826,11 +2831,12 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false)`
+### `qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Quarto pipeline node. A convenience wrapper around `node()` with `runtime = "Quarto"`. Use it to render `.qmd` files inside `pipeline { ... }` blocks.
 
 **Parameters:**
+
 
 - `script` (optional) — Path to an external `.qmd` file. Mutually exclusive with `command`.
 - `serializer` (optional) — Custom serializer function. Default: `default`.
@@ -2840,6 +2846,7 @@ Configure a Quarto pipeline node. A convenience wrapper around `node()` with `ru
 - `functions` (optional) — Files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+- `flake` (optional) — A Nix flake reference to use for this node's build environment. Default: `NA`.
 
 **Returns:**
 
@@ -2847,11 +2854,12 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
+### `shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a shell pipeline node. A convenience wrapper around `node()` with `runtime = "sh"`. Use it for CLI tools, inline shell scripts, and `.sh` files inside `pipeline { ... }` blocks.
 
 **Parameters:**
+
 
 - `command` — The shell command or raw shell script body to execute.
 - `script` (optional) — Path to an external `.sh` file. Mutually exclusive with `command`.
@@ -2864,6 +2872,7 @@ Configure a shell pipeline node. A convenience wrapper around `node()` with `run
 - `functions` (optional) — Additional files to include in the sandbox before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+- `flake` (optional) — A Nix flake reference to use for this node's build environment. Default: `NA`.
 
 **Returns:**
 

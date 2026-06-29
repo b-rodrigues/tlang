@@ -77,7 +77,8 @@ type tlang_tree =
   | Leaf of string
   | Node of (string * tlang_tree) list
 
-let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args =
+let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args ~flake_env_name =
+  let nix_ref name = match flake_env_name with None -> name | Some env -> env ^ "." ^ name in
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
@@ -113,11 +114,12 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
 
   if noop then
+    let pkgs_str = nix_ref "pkgs" in
     Printf.sprintf {|
-  %s = pkgs.runCommand "%s" {} ''
+  %s = %s.runCommand "%s" {} ''
     mkdir -p $out
     echo "Build skipped for %s" > $out/NOOPBUILD
-  '';|} name name name
+  '';|} name pkgs_str name name
   else
   let eval_expr_safe e = Eval.eval_expr (ref Ast.Env.empty) e in
   let ser_val = eval_expr_safe serializer in
@@ -134,15 +136,15 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
   let ext, extra_input = match runtime with
     | "R" -> 
-        "R", "r-env"
+        "R", nix_ref "r-env"
     | "Python" -> 
-        "py", "py-env"
+        "py", nix_ref "py-env"
     | "Julia" ->
-        "jl", "juliaPkg"
+        "jl", nix_ref "juliaPkg"
     | "Quarto" ->
-        "sh", "r-env py-env"
+        "sh", nix_ref "r-env" ^ " " ^ nix_ref "py-env"
     | "sh" ->
-        "sh", "pkgs.bash"
+        "sh", nix_ref "pkgs" ^ ".bash"
     | _ -> "t", ""
   in
 
@@ -2814,7 +2816,7 @@ EOF
     | _ -> "t run --unsafe --mode repl node_script.t"
   in
 
-  Printf.sprintf {|
+  let output = Printf.sprintf {|
   %s = stdenv.mkDerivation {
     name = "%s";
     buildInputs = [ tBin %s ] ++ globalBuildInputs;
@@ -2855,3 +2857,12 @@ EOF
     '';
   };
  |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+  in
+  match flake_env_name with
+  | None -> output
+  | Some env ->
+      let prefix = env ^ "." in
+      let replace_var v = Str.global_replace (Str.regexp_string v) (prefix ^ v) in
+      output |> replace_var "tBin" |> replace_var "r-env" |> replace_var "py-env"
+             |> replace_var "juliaPkg" |> replace_var "pkgs" |> replace_var "tlangJl"
+             |> replace_var "stdenv"

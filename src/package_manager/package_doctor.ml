@@ -453,6 +453,7 @@ let static_pipeline_for_doctor ~project_root nodes =
     p_has_patterns = false;
     p_patterns = [];
     p_iterations = [];
+    p_flakes = [];
   }
 
 let read_file path =

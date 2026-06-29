@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.54.0] - unreleased
+
+### Per-Node Flake Replacement
+
+- **`flake` named argument for pipeline nodes**: `node()`, `rn()`, `pyn()`, `jln()`, `qn()`, `shn()` and their shorthand variants now accept an optional `flake` parameter to specify a custom Nix flake for that node's build environment.
+- **Full environment replacement**: The per-node flake completely replaces the project flake (nixpkgs version, R/Python/Julia packages, and t-lang binary) for that node. Different nodes can use different nixpkgs snapshots, different package sets, or different t-lang versions.
+- **Supported flake references**: `github:owner/repo`, `gitlab:owner/repo`, `sourcehut:owner/repo`, `path:/abs/path`, and `path:../relative/path`.
+- **Backward compatible**: Nodes without a `flake` argument are unchanged — project-level environment bindings are aliased so existing pipelines require no modifications.
+
 ## [0.53.3] - 2026-06-26
 
 ### Toolchain & CI Updates
