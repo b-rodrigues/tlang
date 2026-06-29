@@ -94,8 +94,8 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     let des = match List.assoc_opt name p.p_deserializers with Some d -> d | None -> Ast.mk_expr (Ast.Var "default") in
     is_pmml_ser ser || is_pmml_des des
   ) p.p_exprs in
-  let julia_build_input = if has_julia && has_pmml then "\n                      ++ [ projectEnv.juliaPkg projectEnv.pkgs.gcc.cc.lib projectEnv.pkgs.avahi ]" 
-                           else if has_julia then "\n                      ++ [ projectEnv.juliaPkg ]"
+  let julia_build_input = if has_julia && has_pmml then "\n                      ++ [ juliaPkg pkgs.gcc.cc.lib pkgs.avahi ]" 
+                           else if has_julia then "\n                      ++ [ juliaPkg ]"
                            else "" in
 
   let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\"" in
@@ -106,6 +106,10 @@ let
   # mkNodeEnv: build a runtime environment from an arbitrary flake path.
   # R/Python/Julia package lists still come from the project's tproject.toml.
   # The flake provides nixpkgs version, t-lang version, and R/Python/Julia versions.
+  # Each component is resolved independently: if the flake provides `t-lang` (or
+  # has the relevant package), it is used; otherwise it falls back to the
+  # project-level binding. This allows e.g. an R-only flake (like jbedo/rshells)
+  # to provide R packages while T serialization infrastructure comes from the project.
   # Note: toString is required to convert the path to a string
   # that builtins.getFlake accepts.
   mkNodeEnv = flakePath:
@@ -114,17 +118,17 @@ let
       pkgs   = if (builtins.hasAttr "legacyPackages" flake && builtins.hasAttr system flake.legacyPackages.${system}) 
                then flake.legacyPackages.${system} 
                else flake.inputs.nixpkgs.legacyPackages.${system};
-      tBin   = (flake.inputs.t-lang or flake).packages.${system}.default;
       stdenv = pkgs.stdenv;
       tlangPkgSet = (flake.inputs.t-lang or flake).packages.${system};
+      tBin   = if tlangPkgSet ? default then tlangPkgSet.default else projectTBin;
       r-env = pkgs.rWrapper.override {
-        packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ [ tlangPkgSet.tlang-r ];
+        packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
       };
       py-env = pkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
       juliaPkg = let
         juliaBase = pkgs.${juliaPackageName};
       in if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
-      tlangJl = tlangPkgSet.tlang-julia-path;
+      tlangJl = if tlangPkgSet ? tlang-julia-path then tlangPkgSet.tlang-julia-path else projectTlangJl;
     in { inherit tBin pkgs stdenv tlangPkgSet r-env py-env juliaPkg tlangJl; };
 
   # Pull exact pinned inputs from the project flake.

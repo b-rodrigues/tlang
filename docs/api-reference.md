@@ -2741,7 +2741,7 @@ Configure execution settings such as the runtime and custom serialized methods f
 - `functions` (optional) — Code files to source before execution.
 - `include` (optional) — Additional files to bring into the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub.
-- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Fully replaces the project flake for this node. Default: `NA` (use project flake).
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component (t-lang binary, R packages, Julia path, nixpkgs) resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -2778,7 +2778,7 @@ Configure a Python Pipeline Node. A convenience wrapper around `node()` with `ru
 - `functions` (optional) — Python files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
-- `flake` (optional) — A Nix flake reference to use for this node's build environment. Default: `NA`.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -2800,7 +2800,7 @@ Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtim
 - `functions` (optional) — R scripts to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
-- `flake` (optional) — A Nix flake reference to use for this node's build environment. Default: `NA`.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -2823,7 +2823,7 @@ Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `run
 - `functions` (optional) — Julia files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
-- `flake` (optional) — A Nix flake reference to use for this node's build environment. Default: `NA`.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -2846,7 +2846,7 @@ Configure a Quarto pipeline node. A convenience wrapper around `node()` with `ru
 - `functions` (optional) — Files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
-- `flake` (optional) — A Nix flake reference to use for this node's build environment. Default: `NA`.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -2872,7 +2872,7 @@ Configure a shell pipeline node. A convenience wrapper around `node()` with `run
 - `functions` (optional) — Additional files to include in the sandbox before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
-- `flake` (optional) — A Nix flake reference to use for this node's build environment. Default: `NA`.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 

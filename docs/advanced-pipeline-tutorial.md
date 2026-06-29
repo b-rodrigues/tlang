@@ -1658,13 +1658,27 @@ Nodes referencing a custom flake are rewritten to use that flake's bindings (`en
 | `path:/abs/path` | `path:/home/user/myflake` | Absolute local path |
 | `path:../relative/path` | `path:../test_flake` | Relative local path |
 
-### Full Replacement
+### Selective Replacement with Fallback
 
-A per-node flake **fully replaces** the project flake for that node — nixpkgs, R/Python/Julia packages, and the t-lang version all come from the specified flake. There is no additive or overlay behaviour. This means:
+A per-node flake **replaces** the project flake for that node on a per-component basis. Each runtime component is resolved independently from the custom flake when available, otherwise it falls back to the project-level binding:
 
+| Component | Resolved from custom flake if… | Falls back to project if missing |
+|-----------|-------------------------------|----------------------------------|
+| `tBin` (T binary) | `flake.inputs.t-lang.packages.${system}.default` | Project `t` binary |
+| `r-env` (R environment) | `flake.inputs.t-lang.packages.${system}.tlang-r` | Just `pkgs.rWrapper` (no `tlang-r`) |
+| `tlangJl` (Julia path) | `flake.inputs.t-lang.packages.${system}.tlang-julia-path` | Project Julia path |
+| `pkgs` (nixpkgs) | `flake.legacyPackages.${system}` or `flake.inputs.nixpkgs.legacyPackages.${system}` | Project nixpkgs |
+| `stdenv` | `pkgs.stdenv` from the custom flake's nixpkgs | — (derives from `pkgs`) |
+| `py-env` (Python) | `pkgs.${pyVersion}.withPackages` from custom nixpkgs | — (just the packages, no `t-lang` component) |
+| `juliaPkg` (Julia) | `pkgs.${juliaPackageName}` from custom nixpkgs | — (just the package, no `t-lang` component) |
+
+This means:
+
+- **An R-only flake** (like `github:jbedo/rshells`) provides R packages and nixpkgs snapshot, while T serialization infrastructure comes from the project
+- **A full t-lang flake** (like `github:b-rodrigues/tlang`) replaces everything — nixpkgs, R/Python/Julia, and T binary
 - **Different nixpkgs version** — a node can use an older or newer nixpkgs than the project
 - **Different R/Python packages** — each node can have its own package set
-- **Different t-lang version** — each node can run a different build of T
+- **Different t-lang version** — each node can run a different build of T (if the flake provides `t-lang`)
 
 ### Local Flakes
 
