@@ -1640,9 +1640,9 @@ p = pipeline {
 When `populate_pipeline(p)` generates the Nix expression, each unique flake path creates a dedicated environment via the `mkNodeEnv` helper:
 
 ```nix
-env_github_b_rodrigues_tlang = mkNodeEnv github:b-rodrigues/tlang;
-env_github_b_rodrigues_rix    = mkNodeEnv github:b-rodrigues/rix;
-env_path_test_flake            = mkNodeEnv "path:../test_flake";
+env_github_b_rodrigues_tlang = mkNodeEnv "github:b-rodrigues/tlang";
+env_github_jbedo_rshells     = mkNodeEnv "github:jbedo/rshells";
+env_path_test_flake           = mkNodeEnv "path:../test_flake";
 ```
 
 Nodes referencing a custom flake are rewritten to use that flake's bindings (`env_<name>.stdenv`, `env_<name>.tBin`, etc.) instead of the project-level bindings. Nodes without a `flake` argument continue to use the project flake unchanged.
