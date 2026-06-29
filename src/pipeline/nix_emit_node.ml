@@ -78,7 +78,6 @@ type tlang_tree =
   | Node of (string * tlang_tree) list
 
 let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args ~flake_env_name =
-  let nix_ref name = name in
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
@@ -114,7 +113,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
 
   if noop then
-    let pkgs_str = nix_ref "pkgs" in
+    let pkgs_str = "pkgs" in
     Printf.sprintf {|
   %s = %s.runCommand "%s" {} ''
     mkdir -p $out
@@ -136,15 +135,15 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
   let ext, extra_input = match runtime with
     | "R" -> 
-        "R", nix_ref "r-env"
+        "R", "r-env"
     | "Python" -> 
-        "py", nix_ref "py-env"
+        "py", "py-env"
     | "Julia" ->
-        "jl", nix_ref "juliaPkg"
+        "jl", "juliaPkg"
     | "Quarto" ->
-        "sh", nix_ref "r-env" ^ " " ^ nix_ref "py-env"
+        "sh", "r-env" ^ " " ^ "py-env"
     | "sh" ->
-        "sh", nix_ref "pkgs" ^ ".bash"
+        "sh", "pkgs" ^ ".bash"
     | _ -> "t", ""
   in
 
@@ -2862,7 +2861,38 @@ EOF
   | None -> output
   | Some env ->
       let prefix = env ^ "." in
-      let replace_var v = Str.global_replace (Str.regexp_string v) (prefix ^ v) in
+      (* Word-boundary-aware replacement to prevent e.g. "pkgs" matching
+         inside "rPackages". Uses a character-level scan because OCaml's
+         Str module lacks \b word-boundary support. The mutable ref is
+         local to this string scan and avoids the complexity of a
+         recursive index-tracking approach. *)
+      let replace_var v input =
+        let len_v = String.length v in
+        let len = String.length input in
+        let is_id_char c =
+          (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+          || (c >= '0' && c <= '9') || c = '_' || c = '-'
+        in
+        let buf = Buffer.create len in
+        let i = ref 0 in
+        while !i < len do
+          if !i + len_v <= len && String.sub input !i len_v = v then
+            let preceded = !i > 0 && is_id_char input.[!i - 1] in
+            let followed = !i + len_v < len && is_id_char input.[!i + len_v] in
+            if preceded || followed then begin
+              Buffer.add_char buf input.[!i];
+              i := !i + 1
+            end else begin
+              Buffer.add_string buf (prefix ^ v);
+              i := !i + len_v
+            end
+          else begin
+            Buffer.add_char buf input.[!i];
+            i := !i + 1
+          end
+        done;
+        Buffer.contents buf
+      in
       output |> replace_var "tBin" |> replace_var "r-env" |> replace_var "py-env"
              |> replace_var "juliaPkg" |> replace_var "pkgs" |> replace_var "tlangJl"
              |> replace_var "stdenv"

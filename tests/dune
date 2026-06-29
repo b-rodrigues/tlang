@@ -41,6 +41,7 @@
     test_lens
     test_serializers
     test_pipeline_comments
+    test_nix_emit
     test_explicit_deps
     test_structural_integrity
     test_agent_scaffold

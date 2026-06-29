@@ -143,6 +143,9 @@ let () =
   (* Pipeline comments and annotations *)
   Test_pipeline_comments.run_tests pass_count fail_count failures eval_string eval_string_env test;
 
+  (* Nix emission utilities *)
+  Test_nix_emit.run_tests pass_count fail_count failures eval_string eval_string_env test;
+
   (* ImportFileFrom tests *)
   Test_import_file_from.run_tests pass_count fail_count failures eval_string eval_string_env test;
   
