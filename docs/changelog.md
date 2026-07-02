@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.54.0] - unreleased
+
+### Per-Node Flake Replacement
+
+- **`flake` named argument for pipeline nodes**: `node()`, `rn()`, `pyn()`, `jln()`, `qn()`, `shn()` and their shorthand variants now accept an optional `flake` parameter to specify a custom Nix flake for that node's build environment.
+- **Selective replacement with fallback**: Each runtime component is resolved independently from the custom flake when available, otherwise falls back to the project-level binding. This allows flakes that provide only R infrastructure (e.g. `jbedo/rshells`) to coexist with T's project-level serialization infrastructure.
+- **Supported flake references**: `github:owner/repo`, `gitlab:owner/repo`, `sourcehut:owner/repo`, `path:/abs/path`, and `path:../relative/path`.
+- **Backward compatible**: Nodes without a `flake` argument are unchanged — project-level environment bindings are aliased so existing pipelines require no modifications.
+
 ## [0.53.3] - 2026-06-26
 
 ### Toolchain & CI Updates

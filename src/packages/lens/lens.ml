@@ -615,7 +615,7 @@ let rec apply_lens_set ~eval_call lens data val_v env =
               let placeholder = VComputedNode {
                 cn_name = node_name; cn_runtime = "T"; cn_path = "<unbuilt>";
                 cn_serializer = "default"; cn_class = "Unknown";
-                cn_dependencies = []; cn_p_exprs = Some p.p_exprs;
+                cn_dependencies = []; cn_p_exprs = Some p.p_exprs; cn_flake = None;
               } in
               VPipeline { p with p_nodes = p.p_nodes @ [(node_name, placeholder)] }
         | _ -> Error.type_error "node_lens set expects a Pipeline")

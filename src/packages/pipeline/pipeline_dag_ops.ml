@@ -61,6 +61,7 @@ let filter_pipeline (names : string list) (p : pipeline_result) : pipeline_resul
     p_node_diagnostics = List.filter (fun (n, _) -> keep n) p.p_node_diagnostics;
     p_patterns     = List.filter (fun (n, _) -> keep n) p.p_patterns;
     p_iterations   = List.filter (fun (n, _) -> keep n) p.p_iterations;
+    p_flakes       = List.filter (fun (n, _) -> keep n) p.p_flakes;
     p_has_patterns = (List.filter (fun (n, _) -> keep n) p.p_patterns <> []);
   }
 
