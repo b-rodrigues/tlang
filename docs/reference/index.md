@@ -273,11 +273,11 @@
 | [pt](pt.html) | Student t distribution CDF |
 | [pull](pull.html) | Extract column as vector |
 | [pyn](pyn.html) | Configure a Python Pipeline Node |
-| [qchisq](qchisq.html) | Chi-squared distribution quantile |
-| [qf](qf.html) | F distribution quantile |
+| [qchisq](qchisq.html) | Chi-squared distribution quantile (inverse CDF) |
+| [qf](qf.html) | F distribution quantile (inverse CDF) |
 | [qn](qn.html) | Configure a Quarto Pipeline Node |
-| [qnorm](qnorm.html) | Normal distribution quantile |
-| [qt](qt.html) | Student t distribution quantile |
+| [qnorm](qnorm.html) | Normal distribution quantile (inverse CDF) |
+| [qt](qt.html) | Student t distribution quantile (inverse CDF) |
 | [quantile](quantile.html) | Quantiles |
 | [quarter](quarter.html) | Extract the quarter |
 | [quo](quo.html) | Capture an expression with its lexical environment (quosure) |
@@ -308,7 +308,7 @@
 | [row_number](row_number.html) | Row Number |
 | [run](run.html) | Run a shell command |
 | [run_doctor](run_doctor.html) | Run Package/Project Doctor |
-| [sample](sample.html) | Random sample from Vector or List |
+| [sample](sample.html) | Random sample from a vector or list |
 | [scaffold_package](scaffold_package.html) | Scaffold a new T package |
 | [scaffold_project](scaffold_project.html) | Scaffold a new T project |
 | [scale](scale.html) | Scale values |
@@ -325,7 +325,7 @@
 | [serialize](serialize.html) | Serialize Value |
 | [set](set.html) | Set Focused Value |
 | [set_nix_defaults](set_nix_defaults.html) | Set Global Nix Orchestration Defaults |
-| [set_seed](set_seed.html) | Initialize global RNG seed |
+| [set_seed](set_seed.html) | Set random seed for reproducibility |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
 | [show_plot](show_plot.html) | Render a plot node and open it locally |
@@ -338,7 +338,7 @@
 | [slice](slice.html) | Extract slice |
 | [slice_max](slice_max.html) | Keep rows with the largest values |
 | [slice_min](slice_min.html) | Keep rows with the smallest values |
-| [slice_sample](slice_sample.html) | Random sample of DataFrame rows |
+| [slice_sample](slice_sample.html) | Randomly sample rows from a DataFrame |
 | [source](source.html) | Get function source code |
 | [sqrt](sqrt.html) | Square root |
 | [standardize](standardize.html) | Standardize values |
@@ -425,6 +425,7 @@
 | [with_tz](with_tz.html) | Convert a datetime to a new timezone |
 | [write_arrow](write_arrow.html) | Write Arrow IPC file |
 | [write_csv](write_csv.html) | Write CSV file |
+| [write_parquet](write_parquet.html) | Write Parquet file |
 | [write_text](write_text.html) | Write text to a file |
 | [yday](yday.html) | Extract the day of year |
 | [year](year.html) | Extract the year component |

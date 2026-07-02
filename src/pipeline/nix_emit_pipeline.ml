@@ -54,7 +54,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   (* Per-node flake env assignment: node_name -> Some env_name or None *)
   let node_to_flake_env =
     List.map (fun (name, path) ->
-      name, Some (Hashtbl.find flake_env_map path)
+      name, Hashtbl.find_opt flake_env_map path
     ) node_flakes
   in
 
@@ -62,9 +62,10 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
 
   let flake_env_bindings =
     unique_flake_paths
-    |> List.map (fun path ->
-         let env_name = Hashtbl.find flake_env_map path in
-         Printf.sprintf "  %s = mkNodeEnv \"%s\";" env_name path)
+    |> List.filter_map (fun path ->
+         match Hashtbl.find_opt flake_env_map path with
+         | Some env_name -> Some (Printf.sprintf "  %s = mkNodeEnv \"%s\";" env_name path)
+         | None -> None)
     |> String.concat "\n"
   in
 

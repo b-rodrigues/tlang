@@ -24,6 +24,8 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
+- **flake** (`String`): (Optional) A Nix flake reference (e.g. "github:b-rodrigues/tlang") to use for this node's build environment. Default = NA (use project flake).
+
 
 ## Returns
 

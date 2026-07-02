@@ -18,6 +18,7 @@
 --# @param functions :: String | List[String] (Optional) Additional files to include in the sandbox before execution.
 --# @param include :: String | List[String] (Optional) Additional files for the sandbox.
 --# @param noop :: Bool (Optional) Whether to skip execution and generate a stub. Default = false.
+--# @param flake :: String (Optional) A Nix flake reference (e.g. "github:b-rodrigues/tlang") to use for this node's build environment. Default = NA (use project flake).
 --# @return :: NodeDef A pipeline node configuration object. Must be used as a named binding inside a `pipeline { ... }` block; the shell command is executed by the pipeline builder, not immediately.
 --# @family pipeline
 --# @seealso node, rn, pyn
