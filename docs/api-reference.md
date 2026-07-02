@@ -2741,7 +2741,7 @@ Configure execution settings such as the runtime and custom serialized methods f
 - `functions` (optional) — Code files to source before execution.
 - `include` (optional) — Additional files to bring into the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub.
-- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component (t-lang binary, R packages, Julia path, nixpkgs) resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component (t-lang binary, R packages, Julia path, nixpkgs) resolves independently from the custom flake when available, falling back to the project-level binding otherwise. **Project-level package declarations from `tproject.toml` (`[r-dependencies]`, `[py-dependencies]`, `[jl-dependencies]`) are still installed in per-node flake environments, built from the custom flake's nixpkgs.** Default: `NA` (use project flake).
 
 **Returns:**
 

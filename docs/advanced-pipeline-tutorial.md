@@ -1680,6 +1680,34 @@ This means:
 - **Different R/Python packages** — each node can have its own package set
 - **Different t-lang version** — each node can run a different build of T (if the flake provides `t-lang`)
 
+### Project-Level Package Inheritance
+
+A per-node flake replaces the **runtime components** (t-lang binary, language runtimes, nixpkgs) for that node. However, **project-level package declarations** from `tproject.toml` (`[r-dependencies]`, `[py-dependencies]`, `[jl-dependencies]`) are still installed in every node, including those using a custom flake. The flake determines *which nixpkgs revision* the packages are built from, but `tproject.toml` determines *what packages* are installed on top of the flake's environment.
+
+This means:
+
+- **Same package, different nixpkgs** — A package declared in `[r-dependencies]` is built from each per-node flake's nixpkgs. A node using `nixpkgs/r-updates` may get a different version than a node using `nixos-24.11`.
+- **Project-level convenience** — Common packages can be declared once in `tproject.toml` and shared across all nodes, regardless of which flake each node uses.
+- **Self-contained flakes** — If you need a flake to be fully self-contained (usable in any project without modifying `tproject.toml`), configure the desired packages directly within the flake's R/Python/Julia environment rather than relying on project-level declarations.
+
+```t
+-- Example: both nodes use different flakes, but both inherit jsonlite
+-- from the project's [r-dependencies]:
+f = node(
+  command = <{ library(jsonlite); toJSON(mtcars) }>,
+  runtime = R,
+  flake = "github:jbedo/rshells"
+)
+g = node(
+  command = <{ library(jsonlite); fromJSON("data.json") }>,
+  runtime = R,
+  flake = "path:../minimal_r_flake"
+)
+```
+
+> [!TIP]
+> To check which packages a per-node flake environment has access to, use `require()` in R or `import` in Python/Julia within the node's command block rather than assuming the flake's nixpkgs determines package availability.
+
 ### Local Flakes
 
 You can reference a local flake directory using `path:` URLs. The path is resolved relative to the `_pipeline/` directory where the Nix expression is generated:
