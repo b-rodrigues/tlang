@@ -123,11 +123,15 @@ let
   mkNodeEnv = flakePath:
     let
       flake = builtins.getFlake flakePath;
-      pkgs   = if (builtins.hasAttr "legacyPackages" flake && builtins.hasAttr system flake.legacyPackages.${system}) 
+      pkgs   = if (builtins.hasAttr "legacyPackages" flake && builtins.hasAttr system flake.legacyPackages) 
                then flake.legacyPackages.${system} 
                else flake.inputs.nixpkgs.legacyPackages.${system};
       stdenv = pkgs.stdenv;
-      tlangPkgSet = (flake.inputs.t-lang or flake).packages.${system};
+      tlangPkgSet = let
+        pkgFlake = flake.inputs.t-lang or flake;
+      in if builtins.hasAttr "packages" pkgFlake && builtins.hasAttr system pkgFlake.packages then
+        pkgFlake.packages.${system}
+      else {};
       tBin   = if tlangPkgSet ? default then tlangPkgSet.default else projectTBin;
       r-env = pkgs.rWrapper.override {
         packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
@@ -142,7 +146,7 @@ let
   # Pull exact pinned inputs from the project flake.
   # The flake.lock guarantees reproducibility.
   projectFlake  = builtins.getFlake (toString %s/.);
-  projectPkgs   = if (builtins.hasAttr "legacyPackages" projectFlake && builtins.hasAttr system projectFlake.legacyPackages.${system}) 
+  projectPkgs   = if (builtins.hasAttr "legacyPackages" projectFlake && builtins.hasAttr system projectFlake.legacyPackages) 
            then projectFlake.legacyPackages.${system} 
            else projectFlake.inputs.nixpkgs.legacyPackages.${system};
   projectTBin   = let
@@ -151,7 +155,11 @@ let
              base.overrideAttrs (old: { src = sources; })
            else base;
   projectStdenv = projectPkgs.stdenv;
-  projectTlangPkgSet = (projectFlake.inputs.t-lang or projectFlake).packages.${system};
+  projectTlangPkgSet = let
+    pkgFlake = projectFlake.inputs.t-lang or projectFlake;
+  in if builtins.hasAttr "packages" pkgFlake && builtins.hasAttr system pkgFlake.packages then
+    pkgFlake.packages.${system}
+  else {};
   projectREnv = projectPkgs.rWrapper.override {
     packages = (builtins.map (p: projectPkgs.rPackages.${p}) rPackagesList) ++ [ projectTlangPkgSet.tlang-r ];
   };
