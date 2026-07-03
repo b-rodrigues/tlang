@@ -136,10 +136,11 @@ Projects that need packages from PyPI can opt into UV explicitly:
 
 ```toml
 [py-dependencies]
-version = "python314"
 resolver = "uv"
 workspace = "python"
 ```
+
+The `version` field is **optional** when using the UV resolver. If omitted, T infers the Nixpkgs Python attribute (e.g. `python312`) from the `requires-python` field in `python/pyproject.toml`. The inference accepts specifiers that constrain to a single minor version (`==3.12`, `==3.12.*`, `~=3.12`, `>=3.12,<3.13`) and errors on open-ended ranges (`>=3.12`). If an explicit `version` conflicts with `requires-python`, T prints a warning and uses the explicit value.
 
 The workspace directory must contain the UV project metadata and lock file:
 
@@ -168,12 +169,11 @@ Replace the default `[py-dependencies]` section (or add it if missing):
 
 ```toml
 [py-dependencies]
-version = "python314"
 resolver = "uv"
 workspace = "python"
 ```
 
-Remove any `packages` key if present — UV and `packages` are mutually exclusive.
+The `version` field is optional when using the UV resolver — T infers it from `requires-python` in `pyproject.toml`. Remove any `packages` key if present — UV and `packages` are mutually exclusive.
 
 **3. Create the Python workspace directory and `pyproject.toml`**
 
