@@ -54,6 +54,8 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
       write_mock "agents-package.md" "Package Guide";
       write_mock "t-reference-small.md" "Small Ref";
       write_mock "t-reference-medium.md" "Medium Ref";
+      write_mock "skill-t-project.md" "Project Skill";
+      write_mock "skill-t-package.md" "Package Skill";
 
       (* Set environment variable to point to our mock agents folder *)
       let old_agents_dir = Sys.getenv_opt "TLANG_AGENTS_DIR" in
@@ -109,6 +111,34 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
             let s = really_input_string ic (in_channel_length ic) in
             close_in ic;
             String.contains s 'T' && String.contains s '-'
+          );
+
+          (* Test 4: project Skill lands at .claude/skills/t-project/SKILL.md *)
+          test_pm "copy_skill_file project" (fun () ->
+            let ok = copy_skill_file project_dest false in
+            let skill_path =
+              Filename.concat project_dest ".claude/skills/t-project/SKILL.md"
+            in
+            let content =
+              let ic = open_in skill_path in
+              let s = really_input_string ic (in_channel_length ic) in
+              close_in ic; s
+            in
+            ok && content = "Project Skill"
+          );
+
+          (* Test 5: package Skill lands at .claude/skills/t-package/SKILL.md *)
+          test_pm "copy_skill_file package" (fun () ->
+            let ok = copy_skill_file package_dest true in
+            let skill_path =
+              Filename.concat package_dest ".claude/skills/t-package/SKILL.md"
+            in
+            let content =
+              let ic = open_in skill_path in
+              let s = really_input_string ic (in_channel_length ic) in
+              close_in ic; s
+            in
+            ok && content = "Package Skill"
           )
         );
       print_newline ()
