@@ -25,7 +25,7 @@ This trips agents up more than anything else. Pick based on *what's executing*, 
 | Run Python code (ML, a specific library) | `pyn(...)` |
 | Shell out (rsync, a CLI tool, a compiled binary) | `shn(...)` |
 
-Every node result flows through Arrow by default (`serializer = arrow`) when it's tabular — don't
+Every node result flows through Arrow by default (`serializer = ^arrow`) when it's tabular — don't
 hand-roll CSV round-trips between languages, that's what Arrow is for.
 
 ## Worked example: adding a node to an existing pipeline
@@ -37,9 +37,9 @@ p = pipeline {
 
   -- new node: hand off to R for a model fit
   model = rn(
-    command = "fixest::feols(amount ~ x1 + x2, data = clean)",
-    inputs = [clean],
-    serializer = arrow
+    command = <{ fixest::feols(amount ~ x1 + x2, data = clean) }>,
+    deps = [clean],
+    serializer = ^arrow
   )
 }
 
@@ -48,7 +48,7 @@ build_pipeline(p)
 
 Notes:
 - New nodes go inside the existing `pipeline { ... }` block — don't create a second pipeline.
-- `inputs = [clean]` makes the upstream node's Arrow output available to the R code as `clean`.
+- `deps = [clean]` makes the upstream node's Arrow output available to the R code as `clean`.
 - Small, single-purpose nodes beat one big node that does read+clean+model. If a node's `command`
   is doing three things, split it.
 

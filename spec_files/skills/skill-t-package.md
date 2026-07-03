@@ -47,7 +47,7 @@ test("winsorize clips values outside the given quantiles", {
 
 ## The T-Doc block is not optional decoration
 
-Every public function needs one, and `t doc --generate` will catch it if you skip a field. Keep
+Every public function needs one, and `t_doc("generate")` will catch it if you skip a field. Keep
 the tags in this order: `@name`, `@param` (one per parameter, in call order), `@return`,
 `@family` (if grouping with related functions), `@export` or `@private`.
 
@@ -71,7 +71,7 @@ bug from whoever calls it next.
 ## Before calling a task done
 
 - `t test` passes, and the new/changed function has at least one test exercising it.
-- `t doc --parse . && t doc --generate` runs clean — this is the fastest way to catch a malformed
+- `t_doc("parse")` and `t_doc("generate")` run clean — this is the fastest way to catch a malformed
   T-Doc block before a human notices.
 - If you added a dependency, it's declared in `DESCRIPTION.toml` and you ran `t update`.
 - Naming follows snake_case / tidyverse-style conventions already used elsewhere in `src/` — check
