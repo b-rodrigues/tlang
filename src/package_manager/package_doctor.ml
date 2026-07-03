@@ -504,6 +504,7 @@ let missing_pipeline_entrypoint_issue path =
 let has_declared_runtime_dependencies cfg =
   cfg.Package_types.proj_r_dependencies <> []
   || cfg.proj_py_dependencies <> []
+  || cfg.proj_py_resolver = "uv"
   || cfg.proj_julia_dependencies <> []
 
 let project_dependency_issues dir =

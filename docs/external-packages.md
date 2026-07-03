@@ -103,3 +103,26 @@ standard `default` or `tobj` serializers. If you use a custom serializer name,
 call the helper package directly and pass the matching deserializer yourself.
 Julia-native diffs invoked from T currently launch a fresh Julia helper process
 for each comparison, so repeated large diffs will include Julia startup cost.
+
+## Optional UV/uv2nix Python environments
+
+T's default Python dependency resolver remains nixpkgs: list packages in `[py-dependencies].packages`, run `t update`, and the generated flake uses `python.withPackages` from the pinned nixpkgs revision.
+
+Projects that need packages from PyPI can opt into UV explicitly:
+
+```toml
+[py-dependencies]
+version = "python314"
+resolver = "uv"
+workspace = "python"
+```
+
+The workspace directory must contain the UV project metadata and lock file:
+
+```text
+python/
+  pyproject.toml
+  uv.lock
+```
+
+When `resolver = "uv"`, do not set `[py-dependencies].packages`; Python dependencies are declared only in `pyproject.toml` and locked by `uv.lock`. Running `t update` generates uv2nix/pyproject.nix inputs in `flake.nix` and builds the Python environment as a Nix virtual environment. This keeps the Python node executor unchanged while avoiding mixed dependency resolution.

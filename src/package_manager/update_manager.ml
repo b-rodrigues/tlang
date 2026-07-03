@@ -796,6 +796,8 @@ let update_flake_lock () =
                               ~r_deps:cfg.proj_r_dependencies
                               ~py_deps:cfg.proj_py_dependencies
                               ~py_version:cfg.proj_py_version
+                              ~py_resolver:cfg.proj_py_resolver
+                              ~py_workspace:cfg.proj_py_workspace
                               ~jl_deps:cfg.proj_julia_dependencies
                               ~jl_version:cfg.proj_julia_version
                               ~additional_tools:cfg.proj_additional_tools

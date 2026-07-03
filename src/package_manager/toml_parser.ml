@@ -58,13 +58,22 @@ let parse_tproject_toml (content : string) : (project_config, string) result =
     let name = get_string_opt toml ["project"; "name"] ~default:"" in
     if name = "" then Error "Missing required field: project.name"
     else
+      let py_resolver = get_string_opt toml ["py-dependencies"; "resolver"] ~default:"nixpkgs" in
+      let py_packages = get_string_list_opt toml ["py-dependencies"; "packages"] ~default:[] in
+      if py_resolver <> "nixpkgs" && py_resolver <> "uv" then
+        Error (Printf.sprintf "Unsupported [py-dependencies].resolver %S; expected \"nixpkgs\" or \"uv\"" py_resolver)
+      else if py_resolver = "uv" && py_packages <> [] then
+        Error "[py-dependencies].packages cannot be used when resolver = \"uv\"; declare Python dependencies in pyproject.toml and uv.lock instead"
+      else
       Ok {
         proj_name = name;
         proj_description = get_string_opt toml ["project"; "description"] ~default:"";
         proj_dependencies = parse_dependencies toml;
         proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
-        proj_py_dependencies = get_string_list_opt toml ["py-dependencies"; "packages"] ~default:[];
+        proj_py_dependencies = py_packages;
         proj_py_version = get_string_opt toml ["py-dependencies"; "version"] ~default:"python314";
+        proj_py_resolver = py_resolver;
+        proj_py_workspace = get_string_opt toml ["py-dependencies"; "workspace"] ~default:"python";
         proj_julia_dependencies = get_string_list_opt toml ["jl-dependencies"; "packages"] ~default:[];
         proj_julia_version = get_string_opt toml ["jl-dependencies"; "version"] ~default:"lts";
         proj_visualization_tool = get_string_opt toml ["visualization-tool"; "command"] ~default:"";
@@ -128,8 +137,12 @@ let serialize_tproject_toml (cfg : project_config) : string =
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_r_dependencies));
   Buffer.add_string buf "[py-dependencies]\n";
   Printf.bprintf buf "version = %S\n" cfg.proj_py_version;
-  Printf.bprintf buf "packages = [%s]\n\n"
-    (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_py_dependencies));
+  if cfg.proj_py_resolver = "uv" then begin
+    Printf.bprintf buf "resolver = %S\n" cfg.proj_py_resolver;
+    Printf.bprintf buf "workspace = %S\n\n" cfg.proj_py_workspace
+  end else
+    Printf.bprintf buf "packages = [%s]\n\n"
+      (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_py_dependencies));
   Buffer.add_string buf "[jl-dependencies]\n";
   Printf.bprintf buf "version = %S\n" cfg.proj_julia_version;
   Printf.bprintf buf "packages = [%s]\n\n"

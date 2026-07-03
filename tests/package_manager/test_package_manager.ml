@@ -219,9 +219,42 @@ min_version = "0.51.0"
                 && cfg.proj_description = "Test project"
                 && cfg.proj_r_dependencies = ["dplyr"; "tidyr"]
                 && cfg.proj_py_version = "python310"
+                && cfg.proj_py_resolver = "nixpkgs"
                 && cfg.proj_visualization_tool = "xdg-open"
                 && cfg.proj_py_dependencies = ["pandas"]
     | Error _ -> false);
+
+  test_pm "parse uv Python resolver without duplicated packages" (fun () ->
+    let uv_toml = {|
+[project]
+name = "uv-project"
+
+[py-dependencies]
+version = "python314"
+resolver = "uv"
+workspace = "python"
+|} in
+    match Toml_parser.parse_tproject_toml uv_toml with
+    | Ok cfg ->
+        cfg.proj_py_resolver = "uv"
+        && cfg.proj_py_workspace = "python"
+        && cfg.proj_py_dependencies = []
+    | Error _ -> false);
+
+  test_pm "reject uv Python resolver with tproject packages" (fun () ->
+    let uv_toml = {|
+[project]
+name = "uv-project"
+
+[py-dependencies]
+version = "python314"
+resolver = "uv"
+packages = ["pandas"]
+|} in
+    match Toml_parser.parse_tproject_toml uv_toml with
+    | Ok _ -> false
+    | Error msg ->
+        Test_helpers.contains msg "[py-dependencies].packages cannot be used");
 
   test_pm "format project sync message reports T, R, and Python counts" (fun () ->
     match Toml_parser.parse_tproject_toml project_toml with
@@ -1258,6 +1291,24 @@ min_version = "0.51.0"
     && has "py-env = pkgs.python314.withPackages"
     && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
     && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"");
+
+  test_pm "generate project flake with uv Python resolver" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"uv-proj" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.51.0" ~deps:[]
+      ~py_version:"python314"
+      ~py_resolver:"uv"
+      ~py_workspace:"python"
+      () in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "pyproject-nix.url = \"github:pyproject-nix/pyproject.nix\""
+    && has "uv2nix.url = \"github:pyproject-nix/uv2nix\""
+    && has "pyproject-build-systems.url = \"github:pyproject-nix/build-system-pkgs\""
+    && has "pyWorkspace = uv2nix.lib.workspace.loadWorkspace"
+    && has "workspaceRoot = ./. + \"/python\""
+    && has "py-env = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default"
+    && not (has "pkgs.python314.withPackages"));
 
   print_newline ();
 

@@ -184,6 +184,8 @@ let generate_project_flake
     ?(r_deps : string list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
+    ?(py_resolver : string = "nixpkgs")
+    ?(py_workspace : string = "python")
     ?(jl_deps : string list = [])
     ?(jl_version : string = "lts")
     ?(additional_tools : string list = [])
@@ -201,8 +203,10 @@ let generate_project_flake
   let buf = Buffer.create 2048 in
   (* Inputs section *)
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
+  let use_uv = py_resolver = "uv" in
   let all_output_args =
     ["self"; "nixpkgs"; "flake-utils"; "t-lang"] @
+    (if use_uv then ["pyproject-nix"; "uv2nix"; "pyproject-build-systems"] else []) @
     (if effective_use_atelier then ["atelier"] else []) @ dep_input_names in
   Buffer.add_string buf "{\n";
   Printf.bprintf buf "  description = \"%s — a T data analysis project\";\n\n"
@@ -212,6 +216,14 @@ let generate_project_flake
     nixpkgs_date;
   Buffer.add_string buf "    flake-utils.url = \"github:numtide/flake-utils\";\n";
   let tlang_url = match Sys.getenv_opt "TLANG_FLAKE_URL" with Some url -> url | None -> Printf.sprintf "github:b-rodrigues/tlang/v%s" t_version in Printf.bprintf buf "    t-lang.url = \"%s\";\n" tlang_url;
+  if use_uv then begin
+    Buffer.add_string buf "    # Optional UV/uv2nix Python dependency backend\n";
+    Buffer.add_string buf "    pyproject-nix.url = \"github:pyproject-nix/pyproject.nix\";\n";
+    Buffer.add_string buf "    uv2nix.url = \"github:pyproject-nix/uv2nix\";\n";
+    Buffer.add_string buf "    pyproject-build-systems.url = \"github:pyproject-nix/build-system-pkgs\";\n";
+    Buffer.add_string buf "    uv2nix.inputs.pyproject-nix.follows = \"pyproject-nix\";\n";
+    Buffer.add_string buf "    pyproject-build-systems.inputs.pyproject-nix.follows = \"pyproject-nix\";\n";
+  end;
   if effective_use_atelier then begin
     Buffer.add_string buf "    # Atelier IDE (tmux-based TUI for T)\n";
     Buffer.add_string buf "    atelier.url = \"github:b-rodrigues/atelier/main\";\n";
@@ -265,12 +277,19 @@ let generate_project_flake
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Python environment\n";
-  Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
-  Buffer.add_string buf "          deepdiff\n";
-  List.iter (fun dep ->
-    Printf.bprintf buf "          %s\n" dep
-  ) py_deps;
-  Buffer.add_string buf "        ]);\n";
+  if use_uv then begin
+    Printf.bprintf buf "        pyWorkspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./. + \"/%s\"; };\n" py_workspace;
+    Buffer.add_string buf "        pyOverlay = pyWorkspace.mkPyprojectOverlay { sourcePreference = \"wheel\"; };\n";
+    Printf.bprintf buf "        pySet = (pkgs.callPackage pyproject-nix.build.packages { python = pkgs.%s; }).overrideScope (pkgs.lib.composeManyExtensions [ pyOverlay pyproject-build-systems.overlays.default ]);\n" py_version;
+    Buffer.add_string buf "        py-env = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default;\n";
+  end else begin
+    Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
+    Buffer.add_string buf "          deepdiff\n";
+    List.iter (fun dep ->
+      Printf.bprintf buf "          %s\n" dep
+    ) py_deps;
+    Buffer.add_string buf "        ]);\n";
+  end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Julia environment\n";
   let jl_attr = if jl_version = "lts" then "julia-lts" else "julia_" ^ (String.map (function '.' -> '_' | c -> c) jl_version) in
@@ -540,6 +559,8 @@ let install_flake
     ?(r_deps : string list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
+    ?(py_resolver : string = "nixpkgs")
+    ?(py_workspace : string = "python")
     ?(jl_deps : string list = [])
     ?(jl_version : string = "lts")
     ?(additional_tools : string list = [])
@@ -551,7 +572,7 @@ let install_flake
   let flake_path = Filename.concat dir "flake.nix" in
   let content = match kind with
     | Project ->
-      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
+      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~py_resolver ~py_workspace ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
         ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ~use_atelier ()
