@@ -25,26 +25,33 @@ let create_dir path =
     @param content The text content to write. *)
 let write_file path content =
   let ch = open_out path in
-  output_string ch content;
-  close_out ch
+  Fun.protect
+    ~finally:(fun () -> close_out_noerr ch)
+    (fun () -> output_string ch content)
 
 let discover_agents_dir () =
   let is_existing_dir p = Sys.file_exists p && Sys.is_directory p in
   match Sys.getenv_opt "TLANG_AGENTS_DIR" with
   | Some d when is_existing_dir d -> Some d
   | _ ->
-      let exe_dir = Filename.dirname Sys.executable_name in
-      let share_dir = Filename.concat (Filename.dirname exe_dir) "share/tlang/agents" in
-      if is_existing_dir "agents" then Some "agents"
-      else if is_existing_dir share_dir then Some share_dir
+      let share_dir =
+        Filename.concat
+          (Filename.concat
+             (Filename.dirname (Filename.dirname (Sys.argv.(0))))
+             "share")
+          "tlang/agents"
+      in
+      if is_existing_dir share_dir then Some share_dir
+      else if is_existing_dir "agents" then Some "agents"
       else None
 
 let append_to_gitignore dir line =
   let gitignore_path = Filename.concat dir ".gitignore" in
   try
     let out = open_out_gen [Open_append; Open_creat] 0o644 gitignore_path in
-    output_string out (line ^ "\n");
-    close_out out
+    Fun.protect
+      ~finally:(fun () -> close_out_noerr out)
+      (fun () -> output_string out (line ^ "\n"))
   with Sys_error _ -> ()
 
 let copy_text_file src_path dest_path =
@@ -108,8 +115,9 @@ let copy_agent_files dir is_package context =
     let gitignore_path = Filename.concat dir ".gitignore" in
     try
       let out = open_out_gen [Open_append; Open_creat] 0o644 gitignore_path in
-      output_string out "\n# AI Agent Context Reference\nT-LANGUAGE-REFERENCE.md\n";
-      close_out out;
+      Fun.protect
+        ~finally:(fun () -> close_out_noerr out)
+        (fun () -> output_string out "\n# AI Agent Context Reference\nT-LANGUAGE-REFERENCE.md\n");
       true
     with Sys_error _ -> false
   end else begin

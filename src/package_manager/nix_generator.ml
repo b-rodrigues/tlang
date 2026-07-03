@@ -586,15 +586,20 @@ let install_flake
     (if Sys.file_exists flake_path then begin
       let bak = flake_path ^ ".bak" in
       let ch = open_in flake_path in
-      let old = really_input_string ch (in_channel_length ch) in
-      close_in ch;
+      let old =
+        Fun.protect
+          ~finally:(fun () -> close_in_noerr ch)
+          (fun () -> really_input_string ch (in_channel_length ch))
+      in
       let ch_out = open_out bak in
-      output_string ch_out old;
-      close_out ch_out
+      Fun.protect
+        ~finally:(fun () -> close_out_noerr ch_out)
+        (fun () -> output_string ch_out old)
     end);
     (* Write new flake.nix *)
     let ch = open_out flake_path in
-    output_string ch content;
-    close_out ch;
+    Fun.protect
+      ~finally:(fun () -> close_out_noerr ch)
+      (fun () -> output_string ch content);
     Ok content
   end
