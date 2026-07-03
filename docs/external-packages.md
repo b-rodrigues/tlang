@@ -108,6 +108,30 @@ for each comparison, so repeated large diffs will include Julia startup cost.
 
 T's default Python dependency resolver remains nixpkgs: list packages in `[py-dependencies].packages`, run `t update`, and the generated flake uses `python.withPackages` from the pinned nixpkgs revision.
 
+### Choosing a Resolver: Nixpkgs vs. UV
+
+To decide which Python dependency resolver is best for your project:
+
+```text
+                            Do you need PyPI-only packages,
+                            highly specific versions, or a
+                            complex Python project stack?
+                                     /         \
+                                   No           Yes
+                                  /               \
+            Use Default Nixpkgs Resolver      Use UV Workspace Resolver
+            - Simple config in tproject.toml   - Standard pyproject.toml + uv.lock
+            - Quickest setup for casual users  - Best for Python-heavy codebases
+```
+
+*   **Use the Default (Nixpkgs) Resolver if:**
+    *   You are primarily an R, Julia, or T developer who just needs a few standard Python packages (e.g., `pandas`, `scikit-learn`, `numpy`).
+    *   You want the simplest possible configuration without managing extra files like `pyproject.toml` or `uv.lock`.
+*   **Use the UV Workspace Resolver if:**
+    *   You need PyPI-specific packages that are missing or outdated in `nixpkgs`.
+    *   You require highly specific package versions or need to resolve complex dependencies.
+    *   Your pipeline includes an extensive Python stack where lockfile-level reproducibility (via `uv.lock`) is desired.
+
 Projects that need packages from PyPI can opt into UV explicitly:
 
 ```toml
