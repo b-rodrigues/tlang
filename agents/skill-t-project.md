@@ -56,8 +56,8 @@ Notes:
 ## Debugging and inspecting a node/pipeline
 
 1. **Check pipeline status:** Use `inspect_pipeline(p)` to view node build states, cache locations, and execution times.
-2. **Examine evaluated data:** Use `read_node(p.name)` or `read_node("name")` from the REPL/subshell to read and inspect the actual output of a built node.
-3. **Read diagnostic logs:** `t explain --node <name>` from the shell, or `explain(read_node("name"))` from the REPL — the `diagnostics` field tells you what actually ran and what it produced.
+2. **Examine evaluated data:** Use `read_node(p.name)` from the REPL/subshell to read and inspect the actual output of a built node.
+3. **Read diagnostic logs:** `t explain --node <name>` from the shell, or `explain(read_node(p.name))` from the REPL — the `diagnostics` field tells you what actually ran and what it produced.
 4. If a node errors, check `is_error()` on its output before assuming the pipeline is broken — T nodes return `Error` values rather than raising, so a "successful" run can still be carrying an error downstream until something inspects it.
 5. `t doctor` catches environment drift (stale flake, missing Nix inputs) before you go chasing a phantom code bug.
 
