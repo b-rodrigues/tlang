@@ -23,6 +23,7 @@ This trips agents up more than anything else. Pick based on *what's executing*, 
 | Run a pure T expression (filter, mutate, join) | `node(command = <t-expr>, runtime = T)` |
 | Run R code (a model, a plot, a stats package) | `rn(...)` |
 | Run Python code (ML, a specific library) | `pyn(...)` |
+| Run Julia code (numerical computing, models) | `jln(...)` |
 | Shell out (rsync, a CLI tool, a compiled binary) | `shn(...)` |
 
 Every node result flows through Arrow by default (`serializer = ^arrow`) when it's tabular — don't
@@ -52,15 +53,13 @@ Notes:
 - Small, single-purpose nodes beat one big node that does read+clean+model. If a node's `command`
   is doing three things, split it.
 
-## Debugging a node
+## Debugging and inspecting a node/pipeline
 
-1. `t explain --node <name>` from the shell, or `explain(read_node("name"))` from the REPL — the
-   `diagnostics` field tells you what actually ran and what it produced.
-2. If a node errors, check `is_error()` on its output before assuming the pipeline is broken —
-   T nodes return `Error` values rather than raising, so a "successful" run can still be carrying
-   an error downstream until something inspects it.
-3. `t doctor` catches environment drift (stale flake, missing Nix inputs) before you go chasing a
-   phantom code bug.
+1. **Check pipeline status:** Use `inspect_pipeline(p)` to view node build states, cache locations, and execution times.
+2. **Examine evaluated data:** Use `read_node(p.name)` or `read_node("name")` from the REPL/subshell to read and inspect the actual output of a built node.
+3. **Read diagnostic logs:** `t explain --node <name>` from the shell, or `explain(read_node("name"))` from the REPL — the `diagnostics` field tells you what actually ran and what it produced.
+4. If a node errors, check `is_error()` on its output before assuming the pipeline is broken — T nodes return `Error` values rather than raising, so a "successful" run can still be carrying an error downstream until something inspects it.
+5. `t doctor` catches environment drift (stale flake, missing Nix inputs) before you go chasing a phantom code bug.
 
 ## Common mistakes agents make here
 
