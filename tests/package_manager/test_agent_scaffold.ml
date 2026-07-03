@@ -120,11 +120,13 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
               Filename.concat project_dest ".claude/skills/t-project/SKILL.md"
             in
             let content =
-              let ic = open_in skill_path in
-              let s = really_input_string ic (in_channel_length ic) in
-              close_in ic; s
+              try
+                let ic = open_in skill_path in
+                let s = really_input_string ic (in_channel_length ic) in
+                close_in ic; Some s
+              with _ -> None
             in
-            ok && content = "Project Skill"
+            ok && content = Some "Project Skill"
           );
 
           (* Test 5: package Skill lands at .claude/skills/t-package/SKILL.md *)
@@ -134,11 +136,13 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
               Filename.concat package_dest ".claude/skills/t-package/SKILL.md"
             in
             let content =
-              let ic = open_in skill_path in
-              let s = really_input_string ic (in_channel_length ic) in
-              close_in ic; s
+              try
+                let ic = open_in skill_path in
+                let s = really_input_string ic (in_channel_length ic) in
+                close_in ic; Some s
+              with _ -> None
             in
-            ok && content = "Package Skill"
+            ok && content = Some "Package Skill"
           )
         );
       print_newline ()

@@ -137,7 +137,9 @@ let copy_skill_file dir is_package =
         false
       end else begin
         let skill_dir =
-          Filename.concat (Filename.concat dir ".claude/skills") skill_name
+          Filename.concat
+            (Filename.concat (Filename.concat dir ".claude") "skills")
+            skill_name
         in
         create_dir skill_dir;
         let dest_path = Filename.concat skill_dir "SKILL.md" in
