@@ -9,6 +9,13 @@
 - **Supported flake references**: `github:owner/repo`, `gitlab:owner/repo`, `sourcehut:owner/repo`, `path:/abs/path`, and `path:../relative/path`.
 - **Backward compatible**: Nodes without a `flake` argument are unchanged — project-level environment bindings are aliased so existing pipelines require no modifications.
 
+### Optional UV/uv2nix Python Environments
+
+- **UV resolver opt-in**: Projects can set `[py-dependencies].resolver = "uv"` and point `workspace` at a locked UV project directory (default `"python"`). When enabled, Python dependencies are declared in `pyproject.toml` and locked via `uv.lock` instead of `[py-dependencies].packages`.
+- **uv2nix flake integration**: Running `t update` generates uv2nix/pyproject.nix flake inputs (`pyproject-nix`, `uv2nix`, `pyproject-build-systems`) and builds the Python environment as a Nix virtual environment via `pySet.mkVirtualEnv`, avoiding mixed dependency resolution between nixpkgs and PyPI.
+- **Pipeline runtime support**: The pipeline Nix emitter reads `pyResolver` from `tproject.toml` at build time and emits the corresponding uv2nix environment (or falls back to the nixpkgs `withPackages` path). Python pipeline nodes work unchanged regardless of resolver choice.
+- **Validation**: Setting `resolver = "uv"` and `packages` simultaneously is rejected with a clear error. Only `"nixpkgs"` and `"uv"` are valid resolver values.
+
 ## [0.53.3] - 2026-06-26
 
 ### Toolchain & CI Updates
