@@ -117,6 +117,35 @@ let copy_agent_files dir is_package context =
     false
   end
 
+(** Copy the bundled agent Skill (SKILL.md) that gives AI agents a fast,
+    example-driven playbook for common T tasks, as a companion to AGENTS.md
+    and T-LANGUAGE-REFERENCE.md. Lands at .claude/skills/<name>/SKILL.md so
+    Claude Code (and other Skill-aware agents) discover it automatically.
+
+    @param dir The destination directory.
+    @param is_package [true] for package setups, [false] for projects.
+    @return [true] if successful, [false] otherwise. *)
+let copy_skill_file dir is_package =
+  let skill_name = if is_package then "t-package" else "t-project" in
+  let src_name = "skill-" ^ skill_name ^ ".md" in
+  match discover_agents_dir () with
+  | None -> false
+  | Some agents_dir ->
+      let src_path = Filename.concat agents_dir src_name in
+      if not (Sys.file_exists src_path) then begin
+        Printf.eprintf "Warning: Skill template not found: %s\n" src_path;
+        false
+      end else begin
+        let skill_dir =
+          Filename.concat
+            (Filename.concat (Filename.concat dir ".claude") "skills")
+            skill_name
+        in
+        create_dir skill_dir;
+        let dest_path = Filename.concat skill_dir "SKILL.md" in
+        copy_text_file src_path dest_path
+      end
+
 let default_tlang_tag = "v" ^ Version.version
 
 (** Strip the "v" prefix from a tag to get a plain version number. *)
@@ -707,6 +736,7 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         write_file (Filename.concat dir "docs/index.md") (Printf.sprintf "# %s\n\nPackage documentation.\n" opts.target_name);
         (* Agent files *)
         let _ = copy_agent_files dir true opts.agent_context in
+        let _ = copy_skill_file dir true in
         (* Git init *)
         if not opts.no_git then git_init dir;
         (* Success message *)
@@ -723,8 +753,10 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  ├── tests/\n";
         Printf.printf "  │   └── test-%s.t\n" opts.target_name;
         Printf.printf "  ├── examples/\n";
-        Printf.printf "  └── docs/\n";
-        Printf.printf "      └── index.md\n";
+        Printf.printf "  ├── docs/\n";
+        Printf.printf "  │   └── index.md\n";
+        Printf.printf "  └── .claude/skills/t-package/\n";
+        Printf.printf "      └── SKILL.md\n";
         Printf.printf "\nNext steps:\n";
         Printf.printf "  cd %s\n" dir;
         Printf.printf "  nix develop           # Enter development shell\n";
@@ -863,6 +895,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         let _ = write_project_pipeline dir opts sub in
         (* Agent files *)
         let _ = copy_agent_files dir false opts.agent_context in
+        let _ = copy_skill_file dir false in
         (* Git init *)
         if not opts.no_git then git_init dir;
         (* Success message *)
@@ -877,7 +910,9 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  │   └── pipeline.t\n";
         Printf.printf "  ├── data/\n";
         Printf.printf "  ├── outputs/\n";
-        Printf.printf "  └── tests/\n";
+        Printf.printf "  ├── tests/\n";
+        Printf.printf "  └── .claude/skills/t-project/\n";
+        Printf.printf "      └── SKILL.md\n";
         Printf.printf "\nNext steps:\n";
         Printf.printf "  cd %s\n" dir;
         Printf.printf "  nix develop           # Enter reproducible environment\n";
