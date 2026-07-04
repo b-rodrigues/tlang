@@ -168,7 +168,11 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
              in
              match Toml_parser.parse_tproject_toml ~root_dir:project_root content with
              | Ok cfg ->
-               let toml_git_pkgs = cfg.proj_r_git_dependencies in
+               let toml_git_pkgs =
+                 R_description_resolver.auto_detect_all
+                   ~cache_root:(Filename.concat project_root ".t_r_pkg_cache")
+                   ~deps:cfg.proj_r_git_dependencies
+               in
                if cfg.proj_r_resolver = "renv" then
                  match Renv_resolver.split_packages ~project_root with
                  | Ok (renv_cran, renv_git) -> renv_cran, toml_git_pkgs @ renv_git

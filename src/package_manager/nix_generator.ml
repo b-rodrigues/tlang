@@ -621,6 +621,10 @@ let install_flake
         r_deps, r_git_deps
     else r_deps, r_git_deps
   in
+  let r_git_deps =
+    if r_git_deps = [] then []
+    else R_description_resolver.auto_detect_all ~cache_root:(Filename.concat dir ".t_r_pkg_cache") ~deps:r_git_deps
+  in
   let content = match kind with
     | Project ->
       generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~r_git_deps ~py_deps ~py_version ~py_resolver ~py_workspace ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
