@@ -1975,4 +1975,102 @@ packages = ["dplyr"]
     | Ok cfg -> cfg.proj_r_git_dependencies = []
     | Error _ -> false);
 
+  print_newline ();
+  Printf.printf "Package Manager — DESCRIPTION/NAMESPACE parser:\n";
+
+  let sample_description = {|
+Package: testpkg
+Title: A Test Package
+Version: 1.0.0
+Depends:
+    R (>= 3.5),
+    methods
+Imports:
+    dplyr (>= 1.0.0),
+    tidyr,
+    ggplot2
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+Remotes:
+    user/brotools,
+    gitlab::user/anotherpkg
+Description: A package used for testing.
+|} in
+
+  let sample_namespace = {|
+import(dplyr)
+importFrom(tidyr, pivot_longer, pivot_wider)
+import(ggplot2)
+importFrom(Rcpp, evalCpp)
+export(my_function)
+|} in
+
+  test_pm "parse_dcf_content extracts fields correctly" (fun () ->
+    let fields = R_description_resolver.parse_dcf_content sample_description in
+    let pkg = List.assoc_opt "Package" fields in
+    let vers = List.assoc_opt "Version" fields in
+    let imports = List.assoc_opt "Imports" fields in
+    pkg = Some "testpkg"
+    && vers = Some "1.0.0"
+    && (match imports with Some v -> String.contains v ',' | None -> false)
+  );
+
+  test_pm "parse_description_deps extracts Imports/Depends/LinkingTo" (fun () ->
+    let deps = R_description_resolver.parse_description_deps sample_description in
+    List.mem "dplyr" deps
+    && List.mem "tidyr" deps
+    && List.mem "ggplot2" deps
+    && List.mem "Rcpp" deps
+    && List.mem "RcppArmadillo" deps
+    && not (List.mem "R" deps)
+    && not (List.mem "methods" deps)
+  );
+
+  test_pm "parse_description_deps strips version specs" (fun () ->
+    let deps = R_description_resolver.parse_description_deps sample_description in
+    List.mem "dplyr" deps
+    && not (List.exists (fun d -> String.contains d '(') deps)
+  );
+
+  test_pm "parse_remotes_field extracts remote package names" (fun () ->
+    let fields = R_description_resolver.parse_dcf_content sample_description in
+    match R_description_resolver.get_dcf_field fields "Remotes" with
+    | Some remotes ->
+      let pkgs = R_description_resolver.parse_remotes_field remotes in
+      List.mem "brotools" pkgs && List.mem "anotherpkg" pkgs
+      && List.length pkgs = 2
+    | None -> false
+  );
+
+  test_pm "parse_namespace_deps extracts imports" (fun () ->
+    let deps = R_description_resolver.parse_namespace_deps sample_namespace in
+    List.mem "dplyr" deps
+    && List.mem "tidyr" deps
+    && List.mem "ggplot2" deps
+    && List.mem "Rcpp" deps
+    && List.length deps = 4
+  );
+
+  test_pm "parse empty DESCRIPTION returns no deps" (fun () ->
+    let deps = R_description_resolver.parse_description_deps "" in
+    deps = []
+  );
+
+  test_pm "parse empty NAMESPACE returns no deps" (fun () ->
+    let deps = R_description_resolver.parse_namespace_deps "" in
+    deps = []
+  );
+
+  test_pm "auto_detect_all returns deps unchanged when inputs already populated" (fun () ->
+    let dep : Package_types.r_git_dependency =
+      { rgd_name = "testpkg"; rgd_git_url = "https://example.com/testpkg"; rgd_rev = "abc123";
+        rgd_cran_inputs = ["dplyr"]; rgd_git_inputs = []; rgd_subdir = None }
+    in
+    let result = R_description_resolver.auto_detect_all ~cache_root:"/nonexistent" ~deps:[dep] in
+    match result with
+    | [d] -> d.rgd_cran_inputs = ["dplyr"] && d.rgd_git_inputs = []
+    | _ -> false
+  );
+
   print_newline ()
