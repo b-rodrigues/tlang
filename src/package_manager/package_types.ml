@@ -41,6 +41,7 @@ type project_config = {
   proj_dependencies : dependency list;
   proj_r_dependencies : string list;
   proj_r_git_dependencies : r_git_dependency list;
+  proj_r_resolver : string;
   proj_py_dependencies : string list;
   proj_py_version : string;
   proj_py_resolver : string;
@@ -109,6 +110,7 @@ let default_project_config name = {
   proj_dependencies = [];
   proj_r_dependencies = [];
   proj_r_git_dependencies = [];
+  proj_r_resolver = "nixpkgs";
   proj_py_dependencies = [];
   proj_py_version = "python314";
   proj_py_resolver = "nixpkgs";

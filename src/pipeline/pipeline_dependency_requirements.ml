@@ -444,6 +444,12 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
         (match Toml_parser.parse_tproject_toml ~root_dir:project_root content with
          | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
          | Ok cfg ->
+             let cfg =
+               if cfg.proj_r_resolver = "renv" then
+                 let renv_cran = Renv_resolver.read_and_split_cran_packages ~project_root in
+                 { cfg with proj_r_dependencies = cfg.proj_r_dependencies @ renv_cran }
+               else cfg
+             in
              let analysis = analyze_missing_requirements p cfg in
              if analysis_is_empty analysis then
                Ok ()

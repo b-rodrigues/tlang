@@ -191,12 +191,17 @@ let parse_tproject_toml ?(root_dir : string option) (content : string) : (projec
                    | _ -> ())
                 | None -> ())
              | _ -> ());
+            let r_resolver = get_string_opt toml ["r-dependencies"; "resolver"] ~default:"nixpkgs" in
+            if r_resolver <> "nixpkgs" && r_resolver <> "renv" then
+              Error (Printf.sprintf "Unsupported [r-dependencies].resolver %S; expected \"nixpkgs\" or \"renv\"" r_resolver)
+            else
             Ok {
               proj_name = name;
               proj_description = get_string_opt toml ["project"; "description"] ~default:"";
               proj_dependencies = parse_dependencies toml;
               proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
               proj_r_git_dependencies = parse_r_git_dependencies toml;
+              proj_r_resolver = r_resolver;
               proj_py_dependencies = py_packages;
               proj_py_version = py_version;
               proj_py_resolver = py_resolver;
@@ -261,6 +266,8 @@ let serialize_tproject_toml (cfg : project_config) : string =
   ) cfg.proj_dependencies;
   Buffer.add_char buf '\n';
   Buffer.add_string buf "[r-dependencies]\n";
+  if cfg.proj_r_resolver = "renv" then
+    Printf.bprintf buf "resolver = %S\n" cfg.proj_r_resolver;
   List.iter (fun g ->
     if g.rgd_build_inputs = [] then
       Printf.bprintf buf "%s = { git = %S, rev = %S }\n"

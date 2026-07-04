@@ -588,6 +588,7 @@ let install_flake
     ~(deps : dependency list)
     ?(r_deps : string list = [])
     ?(r_git_deps : Package_types.r_git_dependency list = [])
+    ?(r_resolver : string = "nixpkgs")
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
     ?(py_resolver : string = "nixpkgs")
@@ -601,6 +602,16 @@ let install_flake
     ~(dry_run : bool)
     () : (string, string) result =
   let flake_path = Filename.concat dir "flake.nix" in
+  let r_deps, r_git_deps =
+    if kind = Project && r_resolver = "renv" then
+      match Renv_resolver.split_packages ~project_root:dir with
+      | Ok (renv_cran, renv_git) ->
+        r_deps @ renv_cran, r_git_deps @ renv_git
+      | Error msg ->
+        Printf.eprintf "Warning: %s\n%!" msg;
+        r_deps, r_git_deps
+    else r_deps, r_git_deps
+  in
   let content = match kind with
     | Project ->
       generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~r_git_deps ~py_deps ~py_version ~py_resolver ~py_workspace ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
