@@ -136,7 +136,8 @@ let
       r-env = pkgs.rWrapper.override {
         packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
       };
-      py-env = pkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
+      py-env = if pyResolver == "uv" then projectPyEnv
+               else pkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
       juliaPkg = let
         juliaBase = pkgs.${juliaPackageName};
       in if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
