@@ -2074,9 +2074,9 @@ export(my_function)
   );
 
   test_pm "parse_namespace_deps handles import(pkg, except = ...) and multi-parameter forms" (fun () ->
-    let ns = "import(pkg1, except = c(a, b))\nimport(pkg2, except = a)\nimportFrom(pkg3, fun1, fun2)" in
+    let ns = "import(pkg1, except = c(a, b))\nimport(pkg2, pkg3, except = a)\nimportFrom(pkg4, fun1, fun2)" in
     let deps = R_description_resolver.parse_namespace_deps ns in
-    List.mem "pkg1" deps && List.mem "pkg2" deps && List.mem "pkg3" deps && List.length deps = 3
+    List.mem "pkg1" deps && List.mem "pkg2" deps && List.mem "pkg3" deps && List.mem "pkg4" deps && List.length deps = 4
   );
 
   test_pm "parse_remotes_field skips unsupported remote types" (fun () ->
