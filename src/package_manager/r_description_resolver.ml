@@ -229,8 +229,9 @@ let rec fetch_commit ~cache_root ~url ~rev ~name =
     | Error _ ->
       remove_path_recursively cache_dir;
       fetch_commit ~cache_root ~url ~rev ~name
-  end else begin
+  end   else begin
     (try Unix.mkdir cache_root 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+    (try Unix.mkdir cache_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
     match run_git ~dir:cache_dir ["init"] with
     | Error msg -> Error msg
     | Ok () ->
