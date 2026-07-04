@@ -136,7 +136,8 @@ let
       r-env = pkgs.rWrapper.override {
         packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
       };
-      py-env = pkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
+      py-env = if pyResolver == "uv" then projectPyEnv
+               else pkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
       juliaPkg = let
         juliaBase = pkgs.${juliaPackageName};
       in if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
@@ -163,7 +164,14 @@ let
   projectREnv = projectPkgs.rWrapper.override {
     packages = (builtins.map (p: projectPkgs.rPackages.${p}) rPackagesList) ++ [ projectTlangPkgSet.tlang-r ];
   };
-  projectPyEnv = projectPkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
+  projectPyEnv =
+    if pyResolver == "uv" then
+      let
+        pyWorkspace = projectFlake.inputs.uv2nix.lib.workspace.loadWorkspace { workspaceRoot = %s/. + "/${pyWorkspaceDir}"; };
+        pyOverlay = pyWorkspace.mkPyprojectOverlay { sourcePreference = "wheel"; };
+        pySet = (projectPkgs.callPackage projectFlake.inputs.pyproject-nix.build.packages { python = projectPkgs.${pyVersion}; }).overrideScope (projectPkgs.lib.composeManyExtensions [ pyOverlay projectFlake.inputs.pyproject-build-systems.overlays.default ]);
+      in pySet.mkVirtualEnv "t-python-uv-env" pyWorkspace.deps.default
+    else projectPkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
   projectJuliaPkg = let
     juliaBase = projectPkgs.${juliaPackageName};
   in if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
@@ -192,7 +200,9 @@ let
   rPackagesList = (toml.r-dependencies or {}).packages or [];
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
   pyVersion = pyDeps.version or "python3";
-  pyPackagesList = pyDeps.packages or [];
+  pyResolver = pyDeps.resolver or "nixpkgs";
+  pyWorkspaceDir = pyDeps.workspace or "python";
+  pyPackagesList = if pyResolver == "uv" then [] else pyDeps.packages or [];
   juliaDeps = toml.jl-dependencies or {};
   juliaVersion = juliaDeps.version or "lts";
   juliaPackageName = if juliaVersion == "lts" then "julia-lts" else "julia_" + (builtins.replaceStrings ["."] ["_"] juliaVersion);
@@ -222,4 +232,4 @@ rec {
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root julia_packages_injection julia_build_input flake_env_bindings nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root rel_root julia_packages_injection julia_build_input flake_env_bindings nodes (String.concat " " node_names) final_copy

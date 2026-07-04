@@ -281,7 +281,9 @@ let analyze_missing_requirements (p : Ast.pipeline_result) (cfg : project_config
   in
   {
     missing_r_deps = missing_from required.r_deps cfg.proj_r_dependencies;
-    missing_py_deps = missing_from required.py_deps cfg.proj_py_dependencies;
+    missing_py_deps =
+      if cfg.proj_py_resolver = "uv" then []
+      else missing_from required.py_deps cfg.proj_py_dependencies;
     missing_julia_deps = missing_from required.julia_deps cfg.proj_julia_dependencies;
     missing_additional_tools =
       missing_from required.additional_tools cfg.proj_additional_tools;
@@ -439,7 +441,7 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
     match read_file tproject_path with
     | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)
     | Ok content ->
-        (match Toml_parser.parse_tproject_toml content with
+        (match Toml_parser.parse_tproject_toml ~root_dir:project_root content with
          | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
          | Ok cfg ->
              let analysis = analyze_missing_requirements p cfg in

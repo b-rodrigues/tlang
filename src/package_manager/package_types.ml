@@ -31,6 +31,8 @@ type project_config = {
   proj_r_dependencies : string list;
   proj_py_dependencies : string list;
   proj_py_version : string;
+  proj_py_resolver : string;
+  proj_py_workspace : string;
   proj_julia_dependencies : string list;
   proj_julia_version : string;
   proj_visualization_tool : string;
@@ -96,6 +98,8 @@ let default_project_config name = {
   proj_r_dependencies = [];
   proj_py_dependencies = [];
   proj_py_version = "python314";
+  proj_py_resolver = "nixpkgs";
+  proj_py_workspace = "python";
   proj_julia_dependencies = [];
   proj_julia_version = "lts";
   proj_visualization_tool = "";
