@@ -121,7 +121,9 @@ let parse_description_toml (content : string) : (package_config, string) result 
   | exn -> Error (Printf.sprintf "Failed to parse DESCRIPTION.toml: %s" (Printexc.to_string exn))
 
 (** Parse git R package dependencies from [r-dependencies] (inline tables).
-    The [rev] key must be a full git commit SHA. *)
+    The [rev] key must be a full git commit SHA.
+    The optional [deps] key lists CRAN packages needed as [buildInputs]
+    for [buildRPackage]. *)
 let parse_r_git_dependencies toml =
   try
     match Otoml.find toml Otoml.get_table ["r-dependencies"] with
@@ -130,7 +132,11 @@ let parse_r_git_dependencies toml =
         try
           let git_url = Otoml.find value Otoml.get_string ["git"] in
           let rev = Otoml.find value Otoml.get_string ["rev"] in
-          Some { rgd_name = name; rgd_git_url = git_url; rgd_rev = rev }
+          let build_inputs =
+            try Otoml.find value (Otoml.get_array Otoml.get_string) ["deps"]
+            with _ -> []
+          in
+          Some { rgd_name = name; rgd_git_url = git_url; rgd_rev = rev; rgd_build_inputs = build_inputs }
         with _ -> None
       ) pairs
   with _ -> []
@@ -256,8 +262,13 @@ let serialize_tproject_toml (cfg : project_config) : string =
   Buffer.add_char buf '\n';
   Buffer.add_string buf "[r-dependencies]\n";
   List.iter (fun g ->
-    Printf.bprintf buf "%s = { git = %S, rev = %S }\n"
-      g.rgd_name g.rgd_git_url g.rgd_rev
+    if g.rgd_build_inputs = [] then
+      Printf.bprintf buf "%s = { git = %S, rev = %S }\n"
+        g.rgd_name g.rgd_git_url g.rgd_rev
+    else
+      Printf.bprintf buf "%s = { git = %S, rev = %S, deps = [%s] }\n"
+        g.rgd_name g.rgd_git_url g.rgd_rev
+        (String.concat ", " (List.map (fun d -> Printf.sprintf "%S" d) g.rgd_build_inputs))
   ) cfg.proj_r_git_dependencies;
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_r_dependencies));

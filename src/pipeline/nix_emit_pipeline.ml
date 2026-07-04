@@ -112,14 +112,24 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
   let r_git_pkgs_str =
     if r_git_pkgs = [] then ""
     else
+  let nixify_r_pkg_name name =
+    String.concat "_" (String.split_on_char '.' name)
+  in
       let entries = List.map (fun g ->
+        let build_inputs =
+          if g.rgd_build_inputs = [] then ""
+          else
+            let deps_str = String.concat " " (List.map nixify_r_pkg_name g.rgd_build_inputs) in
+            "\n      buildInputs = (with projectPkgs.rPackages; [ " ^ deps_str ^
+            " ]) ++ [ projectPkgs.R projectPkgs.gettext ];"
+        in
         Printf.sprintf {|    (projectPkgs.rPackages.buildRPackage {
       name = %S;
       src = builtins.fetchGit {
         url = %S;
         rev = %S;
-      };
-    })|} g.rgd_name g.rgd_git_url g.rgd_rev
+      };%s
+    })|} g.rgd_name g.rgd_git_url g.rgd_rev build_inputs
       ) r_git_pkgs in
       "\n" ^ String.concat "\n" entries ^ "\n    "
   in
@@ -150,7 +160,7 @@ let
       else {};
       tBin   = if tlangPkgSet ? default then tlangPkgSet.default else projectTBin;
       r-env = pkgs.rWrapper.override {
-        packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ rGitPkgsList ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
+        packages = (builtins.map (p: pkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rPackagesList) ++ rGitPkgsList ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
       };
       py-env = if pyResolver == "uv" then projectPyEnv
                else pkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
@@ -178,7 +188,7 @@ let
     pkgFlake.packages.${system}
   else {};
   projectREnv = projectPkgs.rWrapper.override {
-    packages = (builtins.map (p: projectPkgs.rPackages.${p}) rPackagesList) ++ rGitPkgsList ++ [ projectTlangPkgSet.tlang-r ];
+    packages = (builtins.map (p: projectPkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rPackagesList) ++ rGitPkgsList ++ [ projectTlangPkgSet.tlang-r ];
   };
   projectPyEnv =
     if pyResolver == "uv" then

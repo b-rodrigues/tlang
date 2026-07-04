@@ -271,14 +271,24 @@ let generate_project_flake
     Buffer.add_string buf "        # R git packages\n";
     Buffer.add_string buf "        rGitPkgs = [\n";
     List.iter (fun g ->
+      let nixify_r_pkg_name name =
+        String.concat "_" (String.split_on_char '.' name)
+      in
+      let inputs_str =
+        if g.rgd_build_inputs = [] then ""
+        else
+          let deps_str = String.concat " " (List.map nixify_r_pkg_name g.rgd_build_inputs) in
+          "            buildInputs = (with pkgs.rPackages; [ " ^ deps_str ^
+          " ]) ++ [ pkgs.R pkgs.gettext ];\n"
+      in
       Printf.bprintf buf {|          (pkgs.rPackages.buildRPackage {
             name = %S;
             src = builtins.fetchGit {
               url = %S;
               rev = %S;
             };
-          })
-|}        g.rgd_name g.rgd_git_url g.rgd_rev
+%s          })
+|}        g.rgd_name g.rgd_git_url g.rgd_rev inputs_str
     ) r_git_deps;
     Buffer.add_string buf "        ];\n";
   end;

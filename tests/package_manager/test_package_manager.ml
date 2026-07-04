@@ -324,7 +324,7 @@ packages = []
 
   test_pm "nix_generator includes buildRPackage + fetchGit for git R deps" (fun () ->
     let pkg : Package_types.r_git_dependency =
-      { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678" }
+      { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678"; rgd_build_inputs = [] }
     in
     let nix = Nix_generator.generate_project_flake
       ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
