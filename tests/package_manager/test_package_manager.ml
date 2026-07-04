@@ -256,6 +256,41 @@ packages = ["pandas"]
     | Error msg ->
         Test_helpers.contains msg "[py-dependencies].packages cannot be used");
 
+  test_pm "infer py_version from requires-python ==3.12" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python "==3.12" with
+    | Ok v -> v = "python312"
+    | Error _ -> false);
+
+  test_pm "infer py_version from requires-python ~=3.10" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python "~=3.10" with
+    | Ok v -> v = "python310"
+    | Error _ -> false);
+
+  test_pm "infer py_version from requires-python ==3.11.*" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python "==3.11.*" with
+    | Ok v -> v = "python311"
+    | Error _ -> false);
+
+  test_pm "infer py_version from requires-python >=3.12,<3.13" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python ">=3.12,<3.13" with
+    | Ok v -> v = "python312"
+    | Error _ -> false);
+
+  test_pm "reject open-ended requires-python >=3.12" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python ">=3.12" with
+    | Error _ -> true
+    | Ok _ -> false);
+
+  test_pm "reject multi-minor requires-python >=3.10,<3.13" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python ">=3.10,<3.13" with
+    | Error _ -> true
+    | Ok _ -> false);
+
+  test_pm "reject unparseable requires-python" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python "not-a-version" with
+    | Error _ -> true
+    | Ok _ -> false);
+
   test_pm "format project sync message reports T, R, and Python counts" (fun () ->
     match Toml_parser.parse_tproject_toml project_toml with
     | Ok cfg ->
@@ -991,6 +1026,78 @@ min_version = "0.51.0"
     && List.mem "      locked.lastModified: 1 -> 2" summary
     && List.mem "      locked.narHash: sha256-old -> sha256-new" summary
     && List.mem "      locked.rev: oldrev -> newrev" summary);
+
+  test_pm "uv no version infers from pyproject.toml requires-python" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let python_dir = Filename.concat base_dir "python" in
+        Unix.mkdir python_dir 0o755;
+        let ch = open_out (Filename.concat python_dir "pyproject.toml") in
+        output_string ch {|[project]
+name = "test"
+requires-python = "==3.12"
+dependencies = ["pandas"]
+|};
+        close_out ch;
+        let uv_toml = {|
+[project]
+name = "uv-project"
+
+[py-dependencies]
+resolver = "uv"
+workspace = "python"
+|} in
+        match Toml_parser.parse_tproject_toml ~root_dir:base_dir uv_toml with
+        | Ok cfg ->
+            let cleanup = (try remove_path base_dir; true with _ -> false) in
+            cleanup && cfg.proj_py_version = "python312" && cfg.proj_py_resolver = "uv"
+        | Error _ -> (try remove_path base_dir; false with _ -> false));
+
+  test_pm "uv no version errors when pyproject.toml has open-ended requires-python" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let python_dir = Filename.concat base_dir "python" in
+        Unix.mkdir python_dir 0o755;
+        let ch = open_out (Filename.concat python_dir "pyproject.toml") in
+        output_string ch {|[project]
+name = "test"
+requires-python = ">=3.12"
+dependencies = ["pandas"]
+|};
+        close_out ch;
+        let uv_toml = {|
+[project]
+name = "uv-project"
+
+[py-dependencies]
+resolver = "uv"
+workspace = "python"
+|} in
+        match Toml_parser.parse_tproject_toml ~root_dir:base_dir uv_toml with
+        | Ok _ -> (try remove_path base_dir; false with _ -> false)
+        | Error msg ->
+            let cleanup = (try remove_path base_dir; true with _ -> false) in
+            cleanup && Test_helpers.contains msg "ambiguous");
+
+  test_pm "uv no version errors when pyproject.toml is missing" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let uv_toml = {|
+[project]
+name = "uv-project"
+
+[py-dependencies]
+resolver = "uv"
+workspace = "python"
+|} in
+        match Toml_parser.parse_tproject_toml ~root_dir:base_dir uv_toml with
+        | Ok _ -> (try remove_path base_dir; false with _ -> false)
+        | Error msg ->
+            let cleanup = (try remove_path base_dir; true with _ -> false) in
+            cleanup && Test_helpers.contains msg "requires-python' in workspace");
 
   print_newline ();
 

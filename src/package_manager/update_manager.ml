@@ -269,7 +269,7 @@ let load_current_dependency_source () =
     match read_file tproject_path with
     | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)
     | Ok content ->
-        (match Toml_parser.parse_tproject_toml content with
+        (match Toml_parser.parse_tproject_toml ~root_dir:dir content with
         | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
         | Ok cfg -> Ok (Project_config ("tproject.toml", cfg)))
   else if Sys.file_exists description_path then
@@ -781,7 +781,7 @@ let update_flake_lock () =
               match read_file tproject_path with
               | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)
               | Ok content ->
-                  match Toml_parser.parse_tproject_toml content with
+                  match Toml_parser.parse_tproject_toml ~root_dir:dir content with
                   | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
                   | Ok cfg ->
                       Printf.printf "%s" (format_project_sync_message cfg);
@@ -870,7 +870,7 @@ let cmd_upgrade () =
     match read_file tproject_path with
     | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)
     | Ok content ->
-        match Toml_parser.parse_tproject_toml content with
+        match Toml_parser.parse_tproject_toml ~root_dir:dir content with
         | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
         | Ok cfg ->
             Printf.printf "Checking for new T releases...\n";
