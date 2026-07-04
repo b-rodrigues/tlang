@@ -116,28 +116,35 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
   in
 
   let r_git_pkgs_str =
-    if r_git_pkgs = [] then ""
+    if r_git_pkgs = [] then "  rGitPkgSet = {};"
     else
-  let nixify_r_pkg_name name =
-    String.concat "_" (String.split_on_char '.' name)
-  in
+      let nixify_r_pkg_name name =
+        String.concat "_" (String.split_on_char '.' name)
+      in
       let entries = List.map (fun g ->
         let build_inputs =
-          if g.rgd_build_inputs = [] then ""
+          if g.rgd_cran_inputs = [] && g.rgd_git_inputs = [] then ""
           else
-            let deps_str = String.concat " " (List.map nixify_r_pkg_name g.rgd_build_inputs) in
-            "\n      buildInputs = (with projectPkgs.rPackages; [ " ^ deps_str ^
-            " ]) ++ [ projectPkgs.R projectPkgs.gettext ];"
+            let cran_deps = String.concat " " (List.map nixify_r_pkg_name g.rgd_cran_inputs) in
+            let git_deps = String.concat " " (List.map nixify_r_pkg_name g.rgd_git_inputs) in
+            let cran_part = if g.rgd_cran_inputs = [] then "[]" else "(with projectPkgs.rPackages; [ " ^ cran_deps ^ " ])" in
+            let git_part = if g.rgd_git_inputs = [] then "[]" else "[ " ^ git_deps ^ " ]" in
+            "\n      propagatedBuildInputs = " ^ cran_part ^ " ++ " ^ git_part ^ " ++ [ projectPkgs.R projectPkgs.gettext ];"
         in
-        Printf.sprintf {|    (projectPkgs.rPackages.buildRPackage {
+        let source_root =
+          match g.rgd_subdir with
+          | Some s -> Printf.sprintf "\n      sourceRoot = %S;" ("source/" ^ s)
+          | None -> ""
+        in
+        Printf.sprintf {|    %s = projectPkgs.rPackages.buildRPackage {
       name = %S;
       src = builtins.fetchGit {
         url = %S;
         rev = %S;
-      };%s
-    })|} g.rgd_name g.rgd_git_url g.rgd_rev build_inputs
+      };%s%s
+    };|} (nixify_r_pkg_name g.rgd_name) g.rgd_name g.rgd_git_url g.rgd_rev source_root build_inputs
       ) r_git_pkgs in
-      "\n" ^ String.concat "\n" entries ^ "\n    "
+      "  rGitPkgSet = rec {\n" ^ String.concat "\n" entries ^ "\n  };"
   in
 
   Printf.sprintf {|
@@ -203,7 +210,8 @@ let
         pyOverlay = pyWorkspace.mkPyprojectOverlay { sourcePreference = "wheel"; };
         pySet = (projectPkgs.callPackage projectFlake.inputs.pyproject-nix.build.packages { python = projectPkgs.${pyVersion}; }).overrideScope (projectPkgs.lib.composeManyExtensions [ pyOverlay projectFlake.inputs.pyproject-build-systems.overlays.default ]);
       in pySet.mkVirtualEnv "t-python-uv-env" pyWorkspace.deps.default
-    else projectPkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
+    else
+      projectPkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
   projectJuliaPkg = let
     juliaBase = projectPkgs.${juliaPackageName};
   in if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
@@ -230,7 +238,8 @@ let
   toml = if builtins.pathExists %s/tproject.toml then builtins.fromTOML (builtins.readFile %s/tproject.toml) else {};
   
   rPackagesList = (toml.r-dependencies or {}).packages or [];
-  %s  rGitPkgsList = [%s];
+  %s  %s
+  rGitPkgsList = builtins.attrValues rGitPkgSet;
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
   pyVersion = pyDeps.version or "python3";
   pyResolver = pyDeps.resolver or "nixpkgs";

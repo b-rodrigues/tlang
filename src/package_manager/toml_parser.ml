@@ -120,24 +120,37 @@ let parse_description_toml (content : string) : (package_config, string) result 
   | Otoml.Parse_error (_, msg) -> Error (Printf.sprintf "TOML parse error: %s" msg)
   | exn -> Error (Printf.sprintf "Failed to parse DESCRIPTION.toml: %s" (Printexc.to_string exn))
 
-(** Parse git R package dependencies from [r-dependencies] (inline tables).
-    The [rev] key must be a full git commit SHA.
-    The optional [deps] key lists CRAN packages needed as [buildInputs]
-    for [buildRPackage]. *)
 let parse_r_git_dependencies toml =
   try
     match Otoml.find toml Otoml.get_table ["r-dependencies"] with
     | pairs ->
       List.filter_map (fun (name, value) ->
-        try
-          let git_url = Otoml.find value Otoml.get_string ["git"] in
-          let rev = Otoml.find value Otoml.get_string ["rev"] in
-          let build_inputs =
-            try Otoml.find value (Otoml.get_array Otoml.get_string) ["deps"]
-            with _ -> []
-          in
-          Some { rgd_name = name; rgd_git_url = git_url; rgd_rev = rev; rgd_build_inputs = build_inputs }
-        with _ -> None
+        if name = "packages" || name = "resolver" then None
+        else
+          try
+            let _ = Otoml.get_table value in
+            (try
+               let git_url = Otoml.find value Otoml.get_string ["git"] in
+               let rev = Otoml.find value Otoml.get_string ["rev"] in
+               let cran_inputs =
+                 try Otoml.find value (Otoml.get_array Otoml.get_string) ["deps"]
+                 with _ -> []
+               in
+               let subdir =
+                 try Some (Otoml.find value Otoml.get_string ["subdir"])
+                 with _ -> None
+               in
+               Some { rgd_name = name
+                    ; rgd_git_url = git_url
+                    ; rgd_rev = rev
+                    ; rgd_cran_inputs = cran_inputs
+                    ; rgd_git_inputs = []
+                    ; rgd_subdir = subdir
+                    }
+             with _ ->
+               Printf.eprintf "Warning: [r-dependencies].%s is an inline table but is missing required 'git' or 'rev' string fields. Skipping.\n%!" name;
+               None)
+          with _ -> None
       ) pairs
   with _ -> []
 
@@ -269,13 +282,17 @@ let serialize_tproject_toml (cfg : project_config) : string =
   if cfg.proj_r_resolver = "renv" then
     Printf.bprintf buf "resolver = %S\n" cfg.proj_r_resolver;
   List.iter (fun g ->
-    if g.rgd_build_inputs = [] then
-      Printf.bprintf buf "%s = { git = %S, rev = %S }\n"
-        g.rgd_name g.rgd_git_url g.rgd_rev
-    else
-      Printf.bprintf buf "%s = { git = %S, rev = %S, deps = [%s] }\n"
-        g.rgd_name g.rgd_git_url g.rgd_rev
-        (String.concat ", " (List.map (fun d -> Printf.sprintf "%S" d) g.rgd_build_inputs))
+    let deps_str =
+      if g.rgd_cran_inputs = [] then ""
+      else Printf.sprintf ", deps = [%s]" (String.concat ", " (List.map (fun d -> Printf.sprintf "%S" d) g.rgd_cran_inputs))
+    in
+    let subdir_str =
+      match g.rgd_subdir with
+      | Some s -> Printf.sprintf ", subdir = %S" s
+      | None -> ""
+    in
+    Printf.bprintf buf "%s = { git = %S, rev = %S%s%s }\n"
+      g.rgd_name g.rgd_git_url g.rgd_rev deps_str subdir_str
   ) cfg.proj_r_git_dependencies;
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_r_dependencies));

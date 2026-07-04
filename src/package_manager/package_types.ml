@@ -10,13 +10,16 @@ type dependency = {
 
 (** A git-hosted R package dependency (installed from a git repository).
     [rgd_rev] must be a full git commit SHA, as required by [builtins.fetchGit].
-    [rgd_build_inputs] lists the CRAN packages required by this git R package
-    at build time; @see {!toml_parser.parse_r_git_dependencies}. *)
+    [rgd_cran_inputs] lists the CRAN dependencies.
+    [rgd_git_inputs] lists the sibling git dependencies.
+    [rgd_subdir] is an optional subdirectory path for monorepos. *)
 type r_git_dependency = {
   rgd_name : string;
   rgd_git_url : string;
   rgd_rev : string;
-  rgd_build_inputs : string list;
+  rgd_cran_inputs : string list;
+  rgd_git_inputs : string list;
+  rgd_subdir : string option;
 }
 
 (** Package metadata parsed from DESCRIPTION.toml *)

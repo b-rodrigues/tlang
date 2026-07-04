@@ -3,7 +3,7 @@ open Package_types
 let base_r_packages =
   [ "R"; "methods"; "utils"; "stats"; "graphics"; "grDevices"
   ; "datasets"; "grid"; "tools"; "parallel"; "compiler"; "splines"
-  ; "stats4"; "tcltk"; "tcltk2"; "Matrix" ]
+  ; "stats4"; "tcltk"; "Matrix" ]
 
 let is_base_r_package name =
   List.mem name base_r_packages
@@ -69,7 +69,8 @@ let parse_renv_lock_json json =
     let remote_repo = get_string_value "RemoteRepo" pkg_json in
     let remote_sha = get_string_value "RemoteSha" pkg_json in
     let remotes = get_string_value "Remotes" pkg_json in
-    (name, source, requirements, remote_host, remote_username, remote_repo, remote_sha, remotes)
+    let remote_subdir = get_string_value "RemoteSubdir" pkg_json in
+    (name, source, requirements, remote_host, remote_username, remote_repo, remote_sha, remotes, remote_subdir)
   in
   let parsed_packages = List.map parse_package packages_json in
   (r_version, parsed_packages)
@@ -96,7 +97,7 @@ let split_packages ~project_root : (string list * r_git_dependency list, string)
     let git_pkgs = ref [] in
     let unsupported = ref [] in
 
-    List.iter (fun (name, source, requirements, remote_host, remote_username, remote_repo, remote_sha, remotes) ->
+    List.iter (fun (name, source, requirements, remote_host, remote_username, remote_repo, remote_sha, remotes, remote_subdir) ->
       match source with
       | "Repository" | "Bioconductor" ->
         cran_pkgs := name :: !cran_pkgs
@@ -123,7 +124,7 @@ let split_packages ~project_root : (string list * r_git_dependency list, string)
                  |> List.filter (fun s -> s <> "")
                | _ -> []
              in
-             git_pkgs := (name, url, sha, build_inputs, remotes_list, user, repo) :: !git_pkgs
+             git_pkgs := (name, url, sha, build_inputs, remotes_list, user, repo, remote_subdir) :: !git_pkgs
            else
              unsupported := name :: !unsupported
          | _ ->
@@ -135,24 +136,37 @@ let split_packages ~project_root : (string list * r_git_dependency list, string)
 
     let git_pkgs_list = List.rev !git_pkgs in
 
-    let resolve_remotes (name, url, sha, build_inputs, remotes_list, _user, _repo) =
+    let resolve_remotes (name, url, sha, build_inputs, remotes_list, _user, _repo, subdir) =
       let resolved =
         List.filter_map (fun remote ->
           let sanitized = sanitize_remote_string remote in
           match String.split_on_char '/' sanitized with
           | [remote_user; remote_repo_name] ->
-            List.find_opt (fun (n, _, _, _, _, ru, rr) ->
+            List.find_opt (fun (n, _, _, _, _, ru, rr, _) ->
               ru = remote_user && rr = remote_repo_name && n <> name
             ) git_pkgs_list
-            |> Option.map (fun (n, _, _, _, _, _, _) -> n)
+            |> Option.map (fun (n, _, _, _, _, _, _, _) -> n)
           | _ -> None
         ) remotes_list
       in
-      let all_build_inputs = build_inputs @ resolved in
+      let all_inputs = build_inputs @ resolved in
+      let is_git_pkg_name pkg_name =
+        List.exists (fun (n, _, _, _, _, _, _, _) -> n = pkg_name) git_pkgs_list
+      in
+      let git_inputs =
+        List.filter is_git_pkg_name all_inputs
+        |> List.sort_uniq String.compare
+      in
+      let cran_inputs =
+        List.filter (fun p -> not (is_git_pkg_name p)) all_inputs
+        |> List.sort_uniq String.compare
+      in
       { rgd_name = name
       ; rgd_git_url = url
       ; rgd_rev = sha
-      ; rgd_build_inputs = all_build_inputs
+      ; rgd_cran_inputs = cran_inputs
+      ; rgd_git_inputs = git_inputs
+      ; rgd_subdir = subdir
       }
     in
 
@@ -173,3 +187,4 @@ let read_and_split_git_packages ~project_root : r_git_dependency list =
   match split_packages ~project_root with
   | Ok (_, git) -> git
   | Error _ -> []
+

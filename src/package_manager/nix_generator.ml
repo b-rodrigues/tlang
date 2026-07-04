@@ -269,28 +269,36 @@ let generate_project_flake
   if r_git_deps <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # R git packages\n";
-    Buffer.add_string buf "        rGitPkgs = [\n";
+    Buffer.add_string buf "        rGitPkgSet = rec {\n";
     List.iter (fun g ->
       let nixify_r_pkg_name name =
         String.concat "_" (String.split_on_char '.' name)
       in
       let inputs_str =
-        if g.rgd_build_inputs = [] then ""
+        if g.rgd_cran_inputs = [] && g.rgd_git_inputs = [] then ""
         else
-          let deps_str = String.concat " " (List.map nixify_r_pkg_name g.rgd_build_inputs) in
-          "            buildInputs = (with pkgs.rPackages; [ " ^ deps_str ^
-          " ]) ++ [ pkgs.R pkgs.gettext ];\n"
+          let cran_deps = String.concat " " (List.map nixify_r_pkg_name g.rgd_cran_inputs) in
+          let git_deps = String.concat " " (List.map nixify_r_pkg_name g.rgd_git_inputs) in
+          let cran_part = if g.rgd_cran_inputs = [] then "[]" else "(with pkgs.rPackages; [ " ^ cran_deps ^ " ])" in
+          let git_part = if g.rgd_git_inputs = [] then "[]" else "[ " ^ git_deps ^ " ]" in
+          "            propagatedBuildInputs = " ^ cran_part ^ " ++ " ^ git_part ^ " ++ [ pkgs.R pkgs.gettext ];\n"
       in
-      Printf.bprintf buf {|          (pkgs.rPackages.buildRPackage {
+      let source_root =
+        match g.rgd_subdir with
+        | Some s -> Printf.sprintf "            sourceRoot = %S;\n" ("source/" ^ s)
+        | None -> ""
+      in
+      Printf.bprintf buf {|          %s = pkgs.rPackages.buildRPackage {
             name = %S;
             src = builtins.fetchGit {
               url = %S;
               rev = %S;
             };
-%s          })
-|}        g.rgd_name g.rgd_git_url g.rgd_rev inputs_str
+%s%s          };
+|}        (nixify_r_pkg_name g.rgd_name) g.rgd_name g.rgd_git_url g.rgd_rev source_root inputs_str
     ) r_git_deps;
-    Buffer.add_string buf "        ];\n";
+    Buffer.add_string buf "        };\n";
+    Buffer.add_string buf "        rGitPkgs = builtins.attrValues rGitPkgSet;\n";
   end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # R environment\n";

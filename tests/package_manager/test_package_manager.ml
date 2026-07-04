@@ -324,7 +324,7 @@ packages = []
 
   test_pm "nix_generator includes buildRPackage + fetchGit for git R deps" (fun () ->
     let pkg : Package_types.r_git_dependency =
-      { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678"; rgd_build_inputs = [] }
+      { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }
     in
     let nix = Nix_generator.generate_project_flake
       ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
@@ -1909,7 +1909,8 @@ second = pipeline {
       "Requirements": [
         "digest"
       ],
-      "Hash": "xyz..."
+      "Hash": "xyz...",
+      "RemoteSubdir": "subdir-path"
     }
   }
 }|};
@@ -1920,8 +1921,8 @@ second = pipeline {
     | Ok (cran, git) ->
       List.mem "digest" cran
       && List.length git = 2
-      && List.exists (fun g -> g.Package_types.rgd_name = "mygitpkg" && g.rgd_git_url = "https://github.com/user/mygitpkg" && g.rgd_rev = "abc1234def" && g.rgd_build_inputs = ["digest"]) git
-      && List.exists (fun g -> g.Package_types.rgd_name = "mygitlabpkg" && g.rgd_git_url = "https://gitlab.com/gitlabuser/mygitlabpkg" && g.rgd_rev = "xyz9876abc" && g.rgd_build_inputs = ["digest"]) git
+      && List.exists (fun g -> g.Package_types.rgd_name = "mygitpkg" && g.rgd_git_url = "https://github.com/user/mygitpkg" && g.rgd_rev = "abc1234def" && g.rgd_cran_inputs = ["digest"] && g.rgd_git_inputs = [] && g.rgd_subdir = None) git
+      && List.exists (fun g -> g.Package_types.rgd_name = "mygitlabpkg" && g.rgd_git_url = "https://gitlab.com/gitlabuser/mygitlabpkg" && g.rgd_rev = "xyz9876abc" && g.rgd_cran_inputs = ["digest"] && g.rgd_git_inputs = [] && g.rgd_subdir = Some "subdir-path") git
     | Error _ -> false);
 
   test_pm "split_packages handles remotes with tags and user prefixes" (fun () ->
@@ -1953,12 +1954,25 @@ second = pipeline {
     match res with
     | Ok (_, git) ->
       List.length git = 2
-      && List.exists (fun g -> g.Package_types.rgd_name = "main_pkg" && List.mem "dep_pkg" g.rgd_build_inputs) git
+      && List.exists (fun g -> g.Package_types.rgd_name = "main_pkg" && List.mem "dep_pkg" g.rgd_git_inputs && not (List.mem "dep_pkg" g.rgd_cran_inputs)) git
     | Error _ -> false);
 
   test_pm "split_packages returns error when renv.lock is missing" (fun () ->
     match Renv_resolver.split_packages ~project_root:"/nonexistent_directory_foo_bar" with
     | Error _ -> true
     | Ok _ -> false);
+
+  test_pm "parse_r_git_dependencies warns on malformed inline tables" (fun () ->
+    let toml = {|
+[project]
+name = "test"
+
+[r-dependencies]
+bad_pkg = { git = "https://github.com/user/bad" } # missing rev
+packages = ["dplyr"]
+|} in
+    match Toml_parser.parse_tproject_toml toml with
+    | Ok cfg -> cfg.proj_r_git_dependencies = []
+    | Error _ -> false);
 
   print_newline ()

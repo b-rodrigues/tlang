@@ -146,7 +146,7 @@ resolver = "renv"
 When `resolver = "renv"`, T automatically discovers all R dependencies from `renv.lock`:
 
 - **CRAN packages** are read from each entry's `Repository` or `Bioconductor` field and mapped to `pkgs.rPackages.*`.
-- **GitHub/GitLab packages** are fetched via `builtins.fetchGit` using the `RemoteHost`, `RemoteUsername`, `RemoteRepo`, and `RemoteRef` fields.
+- **GitHub/GitLab packages** are fetched via `builtins.fetchGit` using the `RemoteHost`, `RemoteUsername`, `RemoteRepo`, and `RemoteSha` fields.
 - The **`Remotes` field** is parsed: entries like `user/repo` are matched against packages in the lock file and injected as `buildInputs` of the declaring git package.
 - Supported remote hosts: `api.github.com` and `gitlab.com`. Other sources (bitbucket, custom URLs) produce a warning and are skipped.
 - Base R packages (`R`, `methods`, `stats`, etc.) are automatically filtered out.

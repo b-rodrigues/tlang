@@ -18,7 +18,7 @@
 
 ### R Dependency Management — renv.lock Resolver & Git Packages
 
-- **renv.lock resolver**: Projects can set `[r-dependencies].resolver = "renv"` to auto-discover R dependencies from `renv.lock`. CRAN packages from `Repository`/`Bioconductor` entries are mapped to `pkgs.rPackages.*`, and GitHub/GitLab packages are fetched via `builtins.fetchGit` using `RemoteHost`, `RemoteUsername`, `RemoteRepo`, and `RemoteRef` fields.
+- **renv.lock resolver**: Projects can set `[r-dependencies].resolver = "renv"` to auto-discover R dependencies from `renv.lock`. CRAN packages from `Repository`/`Bioconductor` entries are mapped to `pkgs.rPackages.*`, and GitHub/GitLab packages are fetched via `builtins.fetchGit` using `RemoteHost`, `RemoteUsername`, `RemoteRepo`, and `RemoteSha` fields.
 - **Remote field resolution**: The `Remotes` field in renv.lock entries is parsed — `user/repo` strings are matched against packages in the lock file and injected as `buildInputs` of the declaring git package. Supported remote hosts: `api.github.com` and `gitlab.com`. Other sources produce a warning and are skipped. Base R packages (`R`, `methods`, `stats`, etc.) are automatically filtered out.
 - **Git R packages in tproject.toml**: R packages from remote Git repositories can be declared directly in `[r-dependencies]` (e.g., `my_pkg = { git = "https://...", rev = "full-sha" }`) and are merged with renv-discovered git packages when using the renv resolver.
 - **Pipeline runtime support**: The pipeline Nix emitter reads `r_renv_cran_pkgs` and `r_git_pkgs` at build time, generating the appropriate Nix expressions for renv-discovered CRAN packages alongside the traditional `rPackagesList` in every R environment (`mkNodeEnv` and `projectREnv`).
