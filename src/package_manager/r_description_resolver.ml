@@ -44,7 +44,7 @@ let parse_dep_list value =
       | Some pos -> String.trim (String.sub s 0 pos)
       | None -> s
     )
-    |> List.filter (fun s -> s <> "" && s <> "R")
+    |> List.filter (fun s -> s <> "")
 
 let parse_description_deps content =
   let fields = parse_dcf_content content in
@@ -65,24 +65,35 @@ let parse_remotes_field value =
     String.split_on_char ',' value
     |> List.map String.trim
     |> List.filter (fun s -> s <> "")
-    |> List.map (fun s ->
-      let s = if String.starts_with ~prefix:"github::" s then
-        String.sub s 8 (String.length s - 8)
-      else if String.starts_with ~prefix:"gitlab::" s then
-        String.sub s 8 (String.length s - 8)
-      else s in
-      let s = match String.index_opt s '#' with
-        | Some pos -> String.trim (String.sub s 0 pos)
-        | None -> s in
-      let repo_part =
-        let parts = String.split_on_char '/' s in
-        List.fold_left (fun _ p -> p) "" parts
+    |> List.filter_map (fun s ->
+      let has_unsupported_prefix =
+        match String.index_opt s ':' with
+        | Some pos ->
+          let prefix = String.sub s 0 pos in
+          prefix <> "github" && prefix <> "gitlab"
+        | None -> false
       in
-      match String.index_opt repo_part '@' with
-      | Some pos -> String.trim (String.sub repo_part 0 pos)
-      | None -> String.trim repo_part
+      if has_unsupported_prefix then None
+      else
+        let s = if String.starts_with ~prefix:"github::" s then
+          String.sub s 8 (String.length s - 8)
+        else if String.starts_with ~prefix:"gitlab::" s then
+          String.sub s 8 (String.length s - 8)
+        else s in
+        let s = match String.index_opt s '#' with
+          | Some pos -> String.trim (String.sub s 0 pos)
+          | None -> s in
+        let repo_part =
+          let parts = String.split_on_char '/' s in
+          List.fold_left (fun _ p -> p) "" parts
+        in
+        let final_name =
+          match String.index_opt repo_part '@' with
+          | Some pos -> String.trim (String.sub repo_part 0 pos)
+          | None -> String.trim repo_part
+        in
+        if final_name <> "" then Some final_name else None
     )
-    |> List.filter (fun s -> s <> "")
 
 let parse_namespace_deps content =
   let lines = String.split_on_char '\n' content in
@@ -90,21 +101,25 @@ let parse_namespace_deps content =
     let trimmed = String.trim line in
     if String.starts_with ~prefix:"import(" trimmed then
       let inner = String.sub trimmed 7 (String.length trimmed - 8) in
-      let pkg = String.trim inner in
-      let pkg = if String.length pkg >= 2 && (pkg.[0] = '"' || pkg.[0] = '\'') then
-        String.sub pkg 1 (String.length pkg - 2)
-      else pkg in
-      Some pkg
+      let first_part =
+        match String.split_on_char ',' inner with
+        | first :: _ -> String.trim first
+        | [] -> String.trim inner
+      in
+      let pkg = if String.length first_part >= 2 && (first_part.[0] = '"' || first_part.[0] = '\'') then
+        String.sub first_part 1 (String.length first_part - 2)
+      else first_part in
+      if pkg <> "" then Some pkg else None
     else if String.starts_with ~prefix:"importFrom(" trimmed then
       let inner = String.sub trimmed 11 (String.length trimmed - 12) in
-      match String.index_opt inner ',' with
-      | Some pos ->
-        let pkg = String.trim (String.sub inner 0 pos) in
+      match String.split_on_char ',' inner with
+      | pkg_part :: _ ->
+        let pkg = String.trim pkg_part in
         let pkg = if String.length pkg >= 2 && (pkg.[0] = '"' || pkg.[0] = '\'') then
           String.sub pkg 1 (String.length pkg - 2)
         else pkg in
-        Some pkg
-      | None -> Some (String.trim inner)
+        if pkg <> "" then Some pkg else None
+      | [] -> None
     else
       None
   in
@@ -122,22 +137,36 @@ let run_git ~dir args =
     let out_buf = Buffer.create 1024 in
     let err_buf = Buffer.create 1024 in
     let buf = Bytes.create 4096 in
-    let rec drain () =
-      let fd_out = Unix.descr_of_in_channel ch_in in
-      let fd_err = Unix.descr_of_in_channel ch_err in
-      let ready, _, _ = Unix.select [fd_out; fd_err] [] [] 60.0 in
-      let got_data = ref false in
-      if List.mem fd_out ready then (
-        let n = try input ch_in buf 0 (Bytes.length buf) with End_of_file -> 0 in
-        if n > 0 then (Buffer.add_subbytes out_buf buf 0 n; got_data := true)
-      );
-      if List.mem fd_err ready then (
-        let n = try input ch_err buf 0 (Bytes.length buf) with End_of_file -> 0 in
-        if n > 0 then (Buffer.add_subbytes err_buf buf 0 n; got_data := true)
-      );
-      if !got_data then drain ()
+    let rec drain eof_out eof_err =
+      if eof_out && eof_err then ()
+      else
+        let fd_out = Unix.descr_of_in_channel ch_in in
+        let fd_err = Unix.descr_of_in_channel ch_err in
+        let read_fds =
+          let l = [] in
+          let l = if not eof_out then fd_out :: l else l in
+          let l = if not eof_err then fd_err :: l else l in
+          l
+        in
+        match Unix.select read_fds [] [] 60.0 with
+        | ready, _, _ ->
+          let next_eof_out = ref eof_out in
+          let next_eof_err = ref eof_err in
+          if List.mem fd_out ready then (
+            let n = try input ch_in buf 0 (Bytes.length buf) with End_of_file -> 0 in
+            if n > 0 then Buffer.add_subbytes out_buf buf 0 n
+            else next_eof_out := true
+          );
+          if List.mem fd_err ready then (
+            let n = try input ch_err buf 0 (Bytes.length buf) with End_of_file -> 0 in
+            if n > 0 then Buffer.add_subbytes err_buf buf 0 n
+            else next_eof_err := true
+          );
+          drain !next_eof_out !next_eof_err
+        | exception Unix.Unix_error (Unix.EINTR, _, _) ->
+          drain eof_out eof_err
     in
-    drain ();
+    drain false false;
     let status = Unix.close_process_full (ch_in, ch_out, ch_err) in
     match status with
     | Unix.WEXITED 0 -> Ok ()
@@ -151,13 +180,16 @@ let run_git ~dir args =
     Error (Printf.sprintf "git %s raised: %s" (String.concat " " args) (Printexc.to_string exn))
 
 let rec remove_path_recursively path =
-  if Sys.file_exists path then
-    if Sys.is_directory path then begin
+  try
+    let stats = Unix.lstat path in
+    match stats.st_kind with
+    | Unix.S_DIR ->
       Sys.readdir path
       |> Array.iter (fun name -> remove_path_recursively (Filename.concat path name));
       Unix.rmdir path
-    end else
+    | _ ->
       Sys.remove path
+  with Unix.Unix_error (Unix.ENOENT, _, _) -> ()
 
 let rec fetch_commit ~cache_root ~url ~rev ~name =
   let cache_dir = Filename.concat cache_root (Printf.sprintf "%s-%s" name rev) in
@@ -189,12 +221,12 @@ let rec fetch_commit ~cache_root ~url ~rev ~name =
            | Ok () -> Ok cache_dir)
   end
 
-let find_description_path ~checkout_dir ~subdir =
+let find_file_recursively ~filename ~checkout_dir ~subdir =
   let search_dir = match subdir with
     | Some s -> Filename.concat checkout_dir s
     | None -> checkout_dir
   in
-  let direct = Filename.concat search_dir "DESCRIPTION" in
+  let direct = Filename.concat search_dir filename in
   if Sys.file_exists direct then Some direct
   else
     let rec search path =
@@ -205,7 +237,7 @@ let find_description_path ~checkout_dir ~subdir =
         let found = ref None in
         Array.iter (fun e ->
           let full = Filename.concat path e in
-          if e = "DESCRIPTION" then found := Some full
+          if e = filename then found := Some full
           else if Sys.is_directory full && e <> ".git" && e <> "_pipeline" then
             match search full with
             | Some p -> found := Some p
@@ -215,31 +247,11 @@ let find_description_path ~checkout_dir ~subdir =
     in
     search search_dir
 
+let find_description_path ~checkout_dir ~subdir =
+  find_file_recursively ~filename:"DESCRIPTION" ~checkout_dir ~subdir
+
 let find_namespace_path ~checkout_dir ~subdir =
-  let search_dir = match subdir with
-    | Some s -> Filename.concat checkout_dir s
-    | None -> checkout_dir
-  in
-  let direct = Filename.concat search_dir "NAMESPACE" in
-  if Sys.file_exists direct then Some direct
-  else
-    let rec search path =
-      let entries = try Some (Sys.readdir path) with _ -> None in
-      match entries with
-      | None -> None
-      | Some entries ->
-        let found = ref None in
-        Array.iter (fun e ->
-          let full = Filename.concat path e in
-          if e = "NAMESPACE" then found := Some full
-          else if Sys.is_directory full && e <> ".git" && e <> "_pipeline" then
-            match search full with
-            | Some p -> found := Some p
-            | None -> ()
-        ) entries;
-        !found
-    in
-    search search_dir
+  find_file_recursively ~filename:"NAMESPACE" ~checkout_dir ~subdir
 
 let read_file path =
   try
@@ -294,6 +306,10 @@ let auto_detect_one ~cache_root ~(dep : r_git_dependency) ~(all_git_deps : r_git
             let git_deps, cran_deps =
               List.partition (fun pkg -> List.mem pkg all_git_names) all_deps
             in
+            List.iter (fun pkg ->
+              if not (List.mem pkg all_git_names) && (String.contains pkg '/' || String.contains pkg ':') then
+                Printf.eprintf "Warning: Transitive dependency %S looks like a Git remote but is not declared in tproject.toml or renv.lock. It will be treated as a CRAN package.\n%!" pkg
+            ) all_deps;
             { dep with
               rgd_cran_inputs = cran_deps;
               rgd_git_inputs = git_deps;

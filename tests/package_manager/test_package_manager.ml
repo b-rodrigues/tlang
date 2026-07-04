@@ -2073,4 +2073,16 @@ export(my_function)
     | _ -> false
   );
 
+  test_pm "parse_namespace_deps handles import(pkg, except = ...) and multi-parameter forms" (fun () ->
+    let ns = "import(pkg1, except = c(a, b))\nimport(pkg2, except = a)\nimportFrom(pkg3, fun1, fun2)" in
+    let deps = R_description_resolver.parse_namespace_deps ns in
+    List.mem "pkg1" deps && List.mem "pkg2" deps && List.mem "pkg3" deps && List.length deps = 3
+  );
+
+  test_pm "parse_remotes_field skips unsupported remote types" (fun () ->
+    let remotes = "github::user/repo, gitlab::user/repo2, url::https://example.com/repo, local::/path/to/repo, bioconductor::Biobase" in
+    let pkgs = R_description_resolver.parse_remotes_field remotes in
+    List.mem "repo" pkgs && List.mem "repo2" pkgs && List.length pkgs = 2
+  );
+
   print_newline ()
