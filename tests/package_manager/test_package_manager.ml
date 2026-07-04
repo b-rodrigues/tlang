@@ -291,6 +291,48 @@ packages = ["pandas"]
     | Error _ -> true
     | Ok _ -> false);
 
+  test_pm "parse git R package from [r-dependencies] inline table" (fun () ->
+    let toml = {|
+[project]
+name = "test"
+
+[r-dependencies]
+packages = ["dplyr"]
+myPkg = { git = "https://github.com/user/myPkg", rev = "abc1234def5678" }
+|} in
+    match Toml_parser.parse_tproject_toml toml with
+    | Ok cfg ->
+        List.length cfg.proj_r_git_dependencies = 1
+        && (List.hd cfg.proj_r_git_dependencies).rgd_name = "myPkg"
+        && (List.hd cfg.proj_r_git_dependencies).rgd_git_url = "https://github.com/user/myPkg"
+        && (List.hd cfg.proj_r_git_dependencies).rgd_rev = "abc1234def5678"
+        && cfg.proj_r_dependencies = ["dplyr"]
+    | Error _ -> false);
+
+  test_pm "entries without 'rev' key are silently skipped" (fun () ->
+    let toml = {|
+[project]
+name = "test"
+
+[r-dependencies]
+badPkg = { git = "https://github.com/user/bad" }
+packages = []
+|} in
+    match Toml_parser.parse_tproject_toml toml with
+    | Ok cfg -> cfg.proj_r_git_dependencies = []
+    | Error _ -> false);
+
+  test_pm "nix_generator includes buildRPackage + fetchGit for git R deps" (fun () ->
+    let pkg : Package_types.r_git_dependency =
+      { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678" }
+    in
+    let nix = Nix_generator.generate_project_flake
+      ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
+      ~deps:[] ~r_git_deps:[pkg] () in
+    Test_helpers.contains nix "buildRPackage"
+    && Test_helpers.contains nix "abc1234def5678"
+    && Test_helpers.contains nix "https://github.com/user/myPkg");
+
   test_pm "format project sync message reports T, R, and Python counts" (fun () ->
     match Toml_parser.parse_tproject_toml project_toml with
     | Ok cfg ->

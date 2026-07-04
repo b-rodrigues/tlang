@@ -119,7 +119,7 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
         url = %S;
         rev = %S;
       };
-    })|} g.rgd_name g.rgd_git_url g.rgd_tag
+    })|} g.rgd_name g.rgd_git_url g.rgd_rev
       ) r_git_pkgs in
       "\n" ^ String.concat "\n" entries ^ "\n    "
   in

@@ -8,11 +8,12 @@ type dependency = {
   tag : string;
 }
 
-(** A git-hosted R package dependency (installed from a git repository) *)
+(** A git-hosted R package dependency (installed from a git repository).
+    [rgd_rev] must be a full git commit SHA, as required by [builtins.fetchGit]. *)
 type r_git_dependency = {
   rgd_name : string;
   rgd_git_url : string;
-  rgd_tag : string;
+  rgd_rev : string;
 }
 
 (** Package metadata parsed from DESCRIPTION.toml *)

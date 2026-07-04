@@ -161,8 +161,11 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
         if Sys.file_exists tproject_path then
           (try
              let ch = open_in tproject_path in
-             let content = really_input_string ch (in_channel_length ch) in
-             close_in ch;
+             let content =
+               Fun.protect
+                 ~finally:(fun () -> close_in_noerr ch)
+                 (fun () -> really_input_string ch (in_channel_length ch))
+             in
              match Toml_parser.parse_tproject_toml ~root_dir:project_root content with
              | Ok cfg -> cfg.proj_r_git_dependencies
              | Error _ -> []

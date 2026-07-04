@@ -278,7 +278,7 @@ let generate_project_flake
               rev = %S;
             };
           })
-|}        g.rgd_name g.rgd_git_url g.rgd_tag
+|}        g.rgd_name g.rgd_git_url g.rgd_rev
     ) r_git_deps;
     Buffer.add_string buf "        ];\n";
   end;
