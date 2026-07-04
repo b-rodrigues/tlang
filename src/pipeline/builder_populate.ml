@@ -2,6 +2,7 @@
 open Builder_utils
 open Builder_write_dag
 open Builder_internal
+open Package_types
 
 let builtin_pipeline_strategies =
   [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx" ]
@@ -154,7 +155,21 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
         | "." -> ".."
         | r -> "../" ^ r
       in
-      let nix_content = Nix_emitter.emit_pipeline ~rel_root p in
+      let r_git_pkgs =
+        let project_root = Builder_utils.get_project_root () in
+        let tproject_path = Filename.concat project_root "tproject.toml" in
+        if Sys.file_exists tproject_path then
+          (try
+             let ch = open_in tproject_path in
+             let content = really_input_string ch (in_channel_length ch) in
+             close_in ch;
+             match Toml_parser.parse_tproject_toml ~root_dir:project_root content with
+             | Ok cfg -> cfg.proj_r_git_dependencies
+             | Error _ -> []
+           with _ -> [])
+        else []
+      in
+      let nix_content = Nix_emitter.emit_pipeline ~rel_root ~r_git_pkgs p in
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () ->

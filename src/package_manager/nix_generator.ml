@@ -182,6 +182,7 @@ let generate_project_flake
     ~(t_version : string)
     ~(deps : dependency list)
     ?(r_deps : string list = [])
+    ?(r_git_deps : Package_types.r_git_dependency list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
     ?(py_resolver : string = "nixpkgs")
@@ -265,6 +266,22 @@ let generate_project_flake
     ) deps;
     Buffer.add_string buf "        ];\n"
   end;
+  if r_git_deps <> [] then begin
+    Buffer.add_string buf "\n";
+    Buffer.add_string buf "        # R git packages\n";
+    Buffer.add_string buf "        rGitPkgs = [\n";
+    List.iter (fun g ->
+      Printf.bprintf buf {|          (pkgs.rPackages.buildRPackage {
+            name = %S;
+            src = builtins.fetchGit {
+              url = %S;
+              rev = %S;
+            };
+          })
+|}        g.rgd_name g.rgd_git_url g.rgd_tag
+    ) r_git_deps;
+    Buffer.add_string buf "        ];\n";
+  end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # R environment\n";
   Buffer.add_string buf "        r-env = pkgs.rWrapper.override {\n";
@@ -273,7 +290,10 @@ let generate_project_flake
   List.iter (fun dep ->
     Printf.bprintf buf "            %s\n" dep
   ) r_deps;
-  Buffer.add_string buf "          ];\n";
+  if r_git_deps <> [] then
+    Buffer.add_string buf "          ] ++ rGitPkgs;\n"
+  else
+    Buffer.add_string buf "          ];\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Python environment\n";
@@ -557,6 +577,7 @@ let install_flake
     ~(t_version : string)
     ~(deps : dependency list)
     ?(r_deps : string list = [])
+    ?(r_git_deps : Package_types.r_git_dependency list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
     ?(py_resolver : string = "nixpkgs")
@@ -572,7 +593,7 @@ let install_flake
   let flake_path = Filename.concat dir "flake.nix" in
   let content = match kind with
     | Project ->
-      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~py_resolver ~py_workspace ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
+      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~r_git_deps ~py_deps ~py_version ~py_resolver ~py_workspace ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
         ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ~use_atelier ()

@@ -8,6 +8,13 @@ type dependency = {
   tag : string;
 }
 
+(** A git-hosted R package dependency (installed from a git repository) *)
+type r_git_dependency = {
+  rgd_name : string;
+  rgd_git_url : string;
+  rgd_tag : string;
+}
+
 (** Package metadata parsed from DESCRIPTION.toml *)
 type package_config = {
   name : string;
@@ -29,6 +36,7 @@ type project_config = {
   proj_description : string;
   proj_dependencies : dependency list;
   proj_r_dependencies : string list;
+  proj_r_git_dependencies : r_git_dependency list;
   proj_py_dependencies : string list;
   proj_py_version : string;
   proj_py_resolver : string;
@@ -96,6 +104,7 @@ let default_project_config name = {
   proj_description = "A T data analysis project";
   proj_dependencies = [];
   proj_r_dependencies = [];
+  proj_r_git_dependencies = [];
   proj_py_dependencies = [];
   proj_py_version = "python314";
   proj_py_resolver = "nixpkgs";
