@@ -306,7 +306,8 @@ let generate_project_flake
   Buffer.add_string buf "          packages = with pkgs.rPackages; [\n";
   Buffer.add_string buf "            t-lang.packages.${system}.tlang-r\n";
   List.iter (fun dep ->
-    Printf.bprintf buf "            %s\n" dep
+    let nixified = String.concat "_" (String.split_on_char '.' dep) in
+    Printf.bprintf buf "            %s\n" nixified
   ) r_deps;
   if r_git_deps <> [] then
     Buffer.add_string buf "          ] ++ rGitPkgs;\n"
