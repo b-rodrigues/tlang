@@ -34,6 +34,92 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
+<h2 id="unreleased">[0.54.0] - unreleased</h2>
+<h3 id="per-node-flake-replacement">Per-Node Flake Replacement</h3>
+<ul>
+<li><strong><code>flake</code> named argument for pipeline
+nodes</strong>: <code>node()</code>, <code>rn()</code>,
+<code>pyn()</code>, <code>jln()</code>, <code>qn()</code>,
+<code>shn()</code> and their shorthand variants now accept an optional
+<code>flake</code> parameter to specify a custom Nix flake for that
+node’s build environment.</li>
+<li><strong>Selective replacement with fallback</strong>: Each runtime
+component is resolved independently from the custom flake when
+available, otherwise falls back to the project-level binding. This
+allows flakes that provide only R infrastructure
+(e.g. <code>jbedo/rshells</code>) to coexist with T’s project-level
+serialization infrastructure.</li>
+<li><strong>Supported flake references</strong>:
+<code>github:owner/repo</code>, <code>gitlab:owner/repo</code>,
+<code>sourcehut:owner/repo</code>, <code>path:/abs/path</code>, and
+<code>path:../relative/path</code>.</li>
+<li><strong>Backward compatible</strong>: Nodes without a
+<code>flake</code> argument are unchanged — project-level environment
+bindings are aliased so existing pipelines require no
+modifications.</li>
+</ul>
+<h3 id="optional-uvuv2nix-python-environments">Optional UV/uv2nix Python
+Environments</h3>
+<ul>
+<li><strong>UV resolver opt-in</strong>: Projects can set
+<code>[py-dependencies].resolver = "uv"</code> and point
+<code>workspace</code> at a locked UV project directory (default
+<code>"python"</code>). When enabled, Python dependencies are declared
+in <code>pyproject.toml</code> and locked via <code>uv.lock</code>
+instead of <code>[py-dependencies].packages</code>.</li>
+<li><strong>uv2nix flake integration</strong>: Running
+<code>t update</code> generates uv2nix/pyproject.nix flake inputs
+(<code>pyproject-nix</code>, <code>uv2nix</code>,
+<code>pyproject-build-systems</code>) and builds the Python environment
+as a Nix virtual environment via <code>pySet.mkVirtualEnv</code>,
+avoiding mixed dependency resolution between nixpkgs and PyPI.</li>
+<li><strong>Pipeline runtime support</strong>: The pipeline Nix emitter
+reads <code>pyResolver</code> from <code>tproject.toml</code> at build
+time and emits the corresponding uv2nix environment (or falls back to
+the nixpkgs <code>withPackages</code> path). Python pipeline nodes work
+unchanged regardless of resolver choice.</li>
+<li><strong>Validation</strong>: Setting <code>resolver = "uv"</code>
+and <code>packages</code> simultaneously is rejected with a clear error.
+Only <code>"nixpkgs"</code> and <code>"uv"</code> are valid resolver
+values.</li>
+</ul>
+<h3 id="r-dependency-management-renv.lock-resolver-git-packages">R
+Dependency Management — renv.lock Resolver &amp; Git Packages</h3>
+<ul>
+<li><strong>renv.lock resolver</strong>: Projects can set
+<code>[r-dependencies].resolver = "renv"</code> to auto-discover R
+dependencies from <code>renv.lock</code>. CRAN packages from
+<code>Repository</code>/<code>Bioconductor</code> entries are mapped to
+<code>pkgs.rPackages.*</code>, and GitHub/GitLab packages are fetched
+via <code>builtins.fetchGit</code> using <code>RemoteHost</code>,
+<code>RemoteUsername</code>, <code>RemoteRepo</code>, and
+<code>RemoteSha</code> fields.</li>
+<li><strong>Remote field resolution</strong>: The <code>Remotes</code>
+field in renv.lock entries is parsed — <code>user/repo</code> strings
+are matched against packages in the lock file and injected as
+<code>buildInputs</code> of the declaring git package. Supported remote
+hosts: <code>api.github.com</code> and <code>gitlab.com</code>. Other
+sources produce a warning and are skipped. Base R packages
+(<code>R</code>, <code>methods</code>, <code>stats</code>, etc.) are
+automatically filtered out.</li>
+<li><strong>Git R packages in tproject.toml</strong>: R packages from
+remote Git repositories can be declared directly in
+<code>[r-dependencies]</code> (e.g.,
+<code>my_pkg = { git = "https://...", rev = "full-sha" }</code>) and are
+merged with renv-discovered git packages when using the renv
+resolver.</li>
+<li><strong>Pipeline runtime support</strong>: The pipeline Nix emitter
+reads <code>r_renv_cran_pkgs</code> and <code>r_git_pkgs</code> at build
+time, generating the appropriate Nix expressions for renv-discovered
+CRAN packages alongside the traditional <code>rPackagesList</code> in
+every R environment (<code>mkNodeEnv</code> and
+<code>projectREnv</code>).</li>
+<li><strong>Dependency analysis integration</strong>: When
+<code>resolver = "renv"</code> is set, the dependency checker merges
+renv.lock CRAN packages into the analysis so requirement checks pass
+without an explicit <code>packages</code> list in
+<code>tproject.toml</code>.</li>
+</ul>
 <h2 id="section">[0.53.3] - 2026-06-26</h2>
 <h3 id="toolchain-ci-updates">Toolchain &amp; CI Updates</h3>
 <ul>

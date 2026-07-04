@@ -64,6 +64,9 @@ unquoted function name. Custom functions can also be used. Default =
 (Optional) Additional files for the sandbox.</p></li>
 <li><p><strong>noop</strong> (<code>Bool</code>): (Optional) Whether to
 skip execution and generate a stub. Default = false.</p></li>
+<li><p><strong>flake</strong> (<code>String</code>): (Optional) A Nix
+flake reference (e.g. “github:b-rodrigues/tlang”) to use for this node’s
+build environment. Default = NA (use project flake).</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A pipeline node configuration object. Must be used as a named binding

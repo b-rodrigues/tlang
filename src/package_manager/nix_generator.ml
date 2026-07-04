@@ -182,6 +182,7 @@ let generate_project_flake
     ~(t_version : string)
     ~(deps : dependency list)
     ?(r_deps : string list = [])
+    ?(r_git_deps : Package_types.r_git_dependency list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
     ?(py_resolver : string = "nixpkgs")
@@ -265,15 +266,65 @@ let generate_project_flake
     ) deps;
     Buffer.add_string buf "        ];\n"
   end;
+  if r_git_deps <> [] then begin
+    let deduplicate_r_git_deps deps =
+      let rec keep_unique seen acc = function
+        | [] -> List.rev acc
+        | dep :: rest ->
+          if List.mem dep.Package_types.rgd_name seen then
+            keep_unique seen acc rest
+          else
+            keep_unique (dep.rgd_name :: seen) (dep :: acc) rest
+      in
+      keep_unique [] [] deps
+    in
+    let r_git_deps = deduplicate_r_git_deps r_git_deps in
+    Buffer.add_string buf "\n";
+    Buffer.add_string buf "        # R git packages\n";
+    Buffer.add_string buf "        rGitPkgSet = rec {\n";
+    List.iter (fun g ->
+      let nixify_r_pkg_name name =
+        String.concat "_" (String.split_on_char '.' name)
+      in
+      let inputs_str =
+        if g.rgd_cran_inputs = [] && g.rgd_git_inputs = [] then ""
+        else
+          let cran_deps = String.concat " " (List.map nixify_r_pkg_name g.rgd_cran_inputs) in
+          let git_deps = String.concat " " (List.map nixify_r_pkg_name g.rgd_git_inputs) in
+          let cran_part = if g.rgd_cran_inputs = [] then "[]" else "(with pkgs.rPackages; [ " ^ cran_deps ^ " ])" in
+          let git_part = if g.rgd_git_inputs = [] then "[]" else "[ " ^ git_deps ^ " ]" in
+          "            propagatedBuildInputs = " ^ cran_part ^ " ++ " ^ git_part ^ " ++ [ pkgs.R pkgs.gettext ];\n"
+      in
+      let source_root =
+        match g.rgd_subdir with
+        | Some s -> Printf.sprintf "            sourceRoot = %S;\n" ("source/" ^ s)
+        | None -> ""
+      in
+      Printf.bprintf buf {|          %s = pkgs.rPackages.buildRPackage {
+            name = %S;
+            src = builtins.fetchGit {
+              url = %S;
+              rev = %S;
+            };
+%s%s          };
+|}        (nixify_r_pkg_name g.rgd_name) g.rgd_name g.rgd_git_url g.rgd_rev source_root inputs_str
+    ) r_git_deps;
+    Buffer.add_string buf "        };\n";
+    Buffer.add_string buf "        rGitPkgs = builtins.attrValues rGitPkgSet;\n";
+  end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # R environment\n";
   Buffer.add_string buf "        r-env = pkgs.rWrapper.override {\n";
   Buffer.add_string buf "          packages = with pkgs.rPackages; [\n";
   Buffer.add_string buf "            t-lang.packages.${system}.tlang-r\n";
   List.iter (fun dep ->
-    Printf.bprintf buf "            %s\n" dep
+    let nixified = String.concat "_" (String.split_on_char '.' dep) in
+    Printf.bprintf buf "            %s\n" nixified
   ) r_deps;
-  Buffer.add_string buf "          ];\n";
+  if r_git_deps <> [] then
+    Buffer.add_string buf "          ] ++ rGitPkgs;\n"
+  else
+    Buffer.add_string buf "          ];\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Python environment\n";
@@ -557,6 +608,8 @@ let install_flake
     ~(t_version : string)
     ~(deps : dependency list)
     ?(r_deps : string list = [])
+    ?(r_git_deps : Package_types.r_git_dependency list = [])
+    ?(r_resolver : string = "nixpkgs")
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
     ?(py_resolver : string = "nixpkgs")
@@ -570,9 +623,23 @@ let install_flake
     ~(dry_run : bool)
     () : (string, string) result =
   let flake_path = Filename.concat dir "flake.nix" in
+  let r_deps, r_git_deps =
+    if kind = Project && r_resolver = "renv" then
+      match Renv_resolver.split_packages ~project_root:dir with
+      | Ok (renv_cran, renv_git) ->
+        r_deps @ renv_cran, r_git_deps @ renv_git
+      | Error msg ->
+        Printf.eprintf "Warning: %s\n%!" msg;
+        r_deps, r_git_deps
+    else r_deps, r_git_deps
+  in
+  let r_git_deps =
+    if r_git_deps = [] then []
+    else R_description_resolver.auto_detect_all ~cache_root:(Filename.concat dir ".t_r_pkg_cache") ~deps:r_git_deps
+  in
   let content = match kind with
     | Project ->
-      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~py_resolver ~py_workspace ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
+      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~r_git_deps ~py_deps ~py_version ~py_resolver ~py_workspace ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
         ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ~use_atelier ()

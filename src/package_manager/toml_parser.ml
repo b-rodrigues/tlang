@@ -120,6 +120,40 @@ let parse_description_toml (content : string) : (package_config, string) result 
   | Otoml.Parse_error (_, msg) -> Error (Printf.sprintf "TOML parse error: %s" msg)
   | exn -> Error (Printf.sprintf "Failed to parse DESCRIPTION.toml: %s" (Printexc.to_string exn))
 
+let parse_r_git_dependencies toml =
+  try
+    match Otoml.find toml Otoml.get_table ["r-dependencies"] with
+    | pairs ->
+      List.filter_map (fun (name, value) ->
+        if name = "packages" || name = "resolver" then None
+        else
+          try
+            let _ = Otoml.get_table value in
+            (try
+               let git_url = Otoml.find value Otoml.get_string ["git"] in
+               let rev = Otoml.find value Otoml.get_string ["rev"] in
+               let cran_inputs =
+                 try Otoml.find value (Otoml.get_array Otoml.get_string) ["deps"]
+                 with _ -> []
+               in
+               let subdir =
+                 try Some (Otoml.find value Otoml.get_string ["subdir"])
+                 with _ -> None
+               in
+               Some { rgd_name = name
+                    ; rgd_git_url = git_url
+                    ; rgd_rev = rev
+                    ; rgd_cran_inputs = cran_inputs
+                    ; rgd_git_inputs = []
+                    ; rgd_subdir = subdir
+                    }
+             with _ ->
+               Printf.eprintf "Warning: [r-dependencies].%s is an inline table but is missing required 'git' or 'rev' string fields. Skipping.\n%!" name;
+               None)
+          with _ -> None
+      ) pairs
+  with _ -> []
+
 (** Parse a tproject.toml string into project_config.
     @param root_dir Optional root directory for reading pyproject.toml (needed when resolver=uv and version is absent). *)
 let parse_tproject_toml ?(root_dir : string option) (content : string) : (project_config, string) result =
@@ -170,11 +204,17 @@ let parse_tproject_toml ?(root_dir : string option) (content : string) : (projec
                    | _ -> ())
                 | None -> ())
              | _ -> ());
+            let r_resolver = get_string_opt toml ["r-dependencies"; "resolver"] ~default:"nixpkgs" in
+            if r_resolver <> "nixpkgs" && r_resolver <> "renv" then
+              Error (Printf.sprintf "Unsupported [r-dependencies].resolver %S; expected \"nixpkgs\" or \"renv\"" r_resolver)
+            else
             Ok {
               proj_name = name;
               proj_description = get_string_opt toml ["project"; "description"] ~default:"";
               proj_dependencies = parse_dependencies toml;
               proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
+              proj_r_git_dependencies = parse_r_git_dependencies toml;
+              proj_r_resolver = r_resolver;
               proj_py_dependencies = py_packages;
               proj_py_version = py_version;
               proj_py_resolver = py_resolver;
@@ -239,6 +279,21 @@ let serialize_tproject_toml (cfg : project_config) : string =
   ) cfg.proj_dependencies;
   Buffer.add_char buf '\n';
   Buffer.add_string buf "[r-dependencies]\n";
+  if cfg.proj_r_resolver = "renv" then
+    Printf.bprintf buf "resolver = %S\n" cfg.proj_r_resolver;
+  List.iter (fun g ->
+    let deps_str =
+      if g.rgd_cran_inputs = [] then ""
+      else Printf.sprintf ", deps = [%s]" (String.concat ", " (List.map (fun d -> Printf.sprintf "%S" d) g.rgd_cran_inputs))
+    in
+    let subdir_str =
+      match g.rgd_subdir with
+      | Some s -> Printf.sprintf ", subdir = %S" s
+      | None -> ""
+    in
+    Printf.bprintf buf "%s = { git = %S, rev = %S%s%s }\n"
+      g.rgd_name g.rgd_git_url g.rgd_rev deps_str subdir_str
+  ) cfg.proj_r_git_dependencies;
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_r_dependencies));
   Buffer.add_string buf "[py-dependencies]\n";

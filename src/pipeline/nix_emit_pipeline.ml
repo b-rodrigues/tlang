@@ -1,6 +1,7 @@
 open Ast
 open Nix_unparse
 open Nix_emit_node
+open Package_types
 
 let sanitize_flake_path path =
   let buf = Buffer.create (String.length path) in
@@ -23,7 +24,7 @@ let resolve_flake_path path =
     else "path:" ^ Sys.getcwd () ^ "/" ^ sub
   else path
 
-let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
+let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency list = []) ?(r_renv_cran_pkgs : string list = []) (p : Ast.pipeline_result) =
   let import_lines = List.filter_map (fun stmt ->
     let s = unparse_import_stmt stmt in
     if s = "" then None else Some s
@@ -108,6 +109,56 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
 
   let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\"" in
 
+  let r_renv_cran_pkgs_str =
+    let quoted = List.map (fun p -> "\"" ^ p ^ "\"") r_renv_cran_pkgs in
+    let nix_list = String.concat " " quoted in
+    "  rRenvPackagesList = [ " ^ nix_list ^ " ];\n"
+  in
+
+  let r_git_pkgs_str =
+    if r_git_pkgs = [] then "  rGitPkgSet = {};"
+    else
+      let deduplicate_r_git_deps deps =
+        let rec keep_unique seen acc = function
+          | [] -> List.rev acc
+          | dep :: rest ->
+            if List.mem dep.Package_types.rgd_name seen then
+              keep_unique seen acc rest
+            else
+              keep_unique (dep.rgd_name :: seen) (dep :: acc) rest
+        in
+        keep_unique [] [] deps
+      in
+      let r_git_pkgs = deduplicate_r_git_deps r_git_pkgs in
+      let nixify_r_pkg_name name =
+        String.concat "_" (String.split_on_char '.' name)
+      in
+      let entries = List.map (fun g ->
+        let build_inputs =
+          if g.rgd_cran_inputs = [] && g.rgd_git_inputs = [] then ""
+          else
+            let cran_deps = String.concat " " (List.map nixify_r_pkg_name g.rgd_cran_inputs) in
+            let git_deps = String.concat " " (List.map nixify_r_pkg_name g.rgd_git_inputs) in
+            let cran_part = if g.rgd_cran_inputs = [] then "[]" else "(with projectPkgs.rPackages; [ " ^ cran_deps ^ " ])" in
+            let git_part = if g.rgd_git_inputs = [] then "[]" else "[ " ^ git_deps ^ " ]" in
+            "\n      propagatedBuildInputs = " ^ cran_part ^ " ++ " ^ git_part ^ " ++ [ projectPkgs.R projectPkgs.gettext ];"
+        in
+        let source_root =
+          match g.rgd_subdir with
+          | Some s -> Printf.sprintf "\n      sourceRoot = %S;" ("source/" ^ s)
+          | None -> ""
+        in
+        Printf.sprintf {|    %s = projectPkgs.rPackages.buildRPackage {
+      name = %S;
+      src = builtins.fetchGit {
+        url = %S;
+        rev = %S;
+      };%s%s
+    };|} (nixify_r_pkg_name g.rgd_name) g.rgd_name g.rgd_git_url g.rgd_rev source_root build_inputs
+      ) r_git_pkgs in
+      "  rGitPkgSet = rec {\n" ^ String.concat "\n" entries ^ "\n  };"
+  in
+
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
 let
@@ -134,7 +185,7 @@ let
       else {};
       tBin   = if tlangPkgSet ? default then tlangPkgSet.default else projectTBin;
       r-env = pkgs.rWrapper.override {
-        packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
+        packages = (builtins.map (p: pkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rPackagesList) ++ (builtins.map (p: pkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rRenvPackagesList) ++ rGitPkgsList ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
       };
       py-env = if pyResolver == "uv" then projectPyEnv
                else pkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
@@ -162,7 +213,7 @@ let
     pkgFlake.packages.${system}
   else {};
   projectREnv = projectPkgs.rWrapper.override {
-    packages = (builtins.map (p: projectPkgs.rPackages.${p}) rPackagesList) ++ [ projectTlangPkgSet.tlang-r ];
+    packages = (builtins.map (p: projectPkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rPackagesList) ++ (builtins.map (p: projectPkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rRenvPackagesList) ++ rGitPkgsList ++ [ projectTlangPkgSet.tlang-r ];
   };
   projectPyEnv =
     if pyResolver == "uv" then
@@ -171,7 +222,8 @@ let
         pyOverlay = pyWorkspace.mkPyprojectOverlay { sourcePreference = "wheel"; };
         pySet = (projectPkgs.callPackage projectFlake.inputs.pyproject-nix.build.packages { python = projectPkgs.${pyVersion}; }).overrideScope (projectPkgs.lib.composeManyExtensions [ pyOverlay projectFlake.inputs.pyproject-build-systems.overlays.default ]);
       in pySet.mkVirtualEnv "t-python-uv-env" pyWorkspace.deps.default
-    else projectPkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
+    else
+      projectPkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
   projectJuliaPkg = let
     juliaBase = projectPkgs.${juliaPackageName};
   in if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
@@ -198,6 +250,8 @@ let
   toml = if builtins.pathExists %s/tproject.toml then builtins.fromTOML (builtins.readFile %s/tproject.toml) else {};
   
   rPackagesList = (toml.r-dependencies or {}).packages or [];
+  %s  %s
+  rGitPkgsList = builtins.attrValues rGitPkgSet;
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
   pyVersion = pyDeps.version or "python3";
   pyResolver = pyDeps.resolver or "nixpkgs";
@@ -232,4 +286,4 @@ rec {
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root rel_root julia_packages_injection julia_build_input flake_env_bindings nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root rel_root r_renv_cran_pkgs_str r_git_pkgs_str julia_packages_injection julia_build_input flake_env_bindings nodes (String.concat " " node_names) final_copy
