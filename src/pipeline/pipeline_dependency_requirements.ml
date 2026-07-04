@@ -279,8 +279,10 @@ let analyze_missing_requirements (p : Ast.pipeline_result) (cfg : project_config
     String_set.diff required_list (add_list String_set.empty existing_list)
     |> String_set.elements
   in
+  let r_git_names = List.map (fun (g : Package_types.r_git_dependency) -> g.rgd_name) cfg.proj_r_git_dependencies in
+  let existing_r = cfg.proj_r_dependencies @ r_git_names in
   {
-    missing_r_deps = missing_from required.r_deps cfg.proj_r_dependencies;
+    missing_r_deps = missing_from required.r_deps existing_r;
     missing_py_deps =
       if cfg.proj_py_resolver = "uv" then []
       else missing_from required.py_deps cfg.proj_py_dependencies;
@@ -447,7 +449,11 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
              let cfg =
                if cfg.proj_r_resolver = "renv" then
                  let renv_cran = Renv_resolver.read_and_split_cran_packages ~project_root in
-                 { cfg with proj_r_dependencies = cfg.proj_r_dependencies @ renv_cran }
+                 let renv_git = Renv_resolver.read_and_split_git_packages ~project_root in
+                 { cfg with
+                   proj_r_dependencies = cfg.proj_r_dependencies @ renv_cran;
+                   proj_r_git_dependencies = cfg.proj_r_git_dependencies @ renv_git;
+                 }
                else cfg
              in
              let analysis = analyze_missing_requirements p cfg in

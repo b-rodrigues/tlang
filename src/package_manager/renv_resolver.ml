@@ -14,10 +14,18 @@ let read_renv_lock ~project_root =
     Error (Printf.sprintf "renv.lock not found at %s" path)
   else
     try
-      let json = Yojson.Safe.from_file path in
-      Ok json
-    with Yojson.Json_error msg ->
-      Error (Printf.sprintf "Failed to parse renv.lock: %s" msg)
+      let ch = open_in path in
+      let content =
+        Fun.protect
+          ~finally:(fun () -> close_in_noerr ch)
+          (fun () -> really_input_string ch (in_channel_length ch))
+      in
+      try
+        Ok (Yojson.Safe.from_string content)
+      with Yojson.Json_error msg ->
+        Error (Printf.sprintf "Failed to parse renv.lock: %s" msg)
+    with exn ->
+      Error (Printf.sprintf "Failed to read renv.lock: %s" (Printexc.to_string exn))
 
 let get_string member json =
   match json with
@@ -66,6 +74,18 @@ let parse_renv_lock_json json =
   let parsed_packages = List.map parse_package packages_json in
   (r_version, parsed_packages)
 
+let sanitize_remote_string s =
+  let s =
+    if String.starts_with ~prefix:"github::" s then
+      String.sub s 8 (String.length s - 8)
+    else if String.starts_with ~prefix:"gitlab::" s then
+      String.sub s 8 (String.length s - 8)
+    else s
+  in
+  match String.split_on_char '@' s with
+  | name_part :: _ -> name_part
+  | [] -> s
+
 let split_packages ~project_root : (string list * r_git_dependency list, string) result =
   match read_renv_lock ~project_root with
   | Error msg -> Error msg
@@ -80,32 +100,35 @@ let split_packages ~project_root : (string list * r_git_dependency list, string)
       match source with
       | "Repository" | "Bioconductor" ->
         cran_pkgs := name :: !cran_pkgs
-      | "GitHub" ->
-        (match remote_host, remote_username, remote_repo, remote_sha with
-         | Some host, Some user, Some repo, Some sha when host = "api.github.com" || host = "gitlab.com" ->
-           let url = if host = "api.github.com" then
-             Printf.sprintf "https://github.com/%s/%s" user repo
+      | "GitHub" | "GitLab" as src ->
+        (match remote_username, remote_repo, remote_sha with
+         | Some user, Some repo, Some sha ->
+           let default_host = if src = "GitHub" then "api.github.com" else "gitlab.com" in
+           let host = Option.value remote_host ~default:default_host in
+           if host = "api.github.com" || host = "gitlab.com" then
+             let url = if host = "api.github.com" then
+               Printf.sprintf "https://github.com/%s/%s" user repo
+             else
+               Printf.sprintf "https://gitlab.com/%s/%s" user repo
+             in
+             let build_inputs = List.filter (fun p -> not (is_base_r_package p)) requirements in
+             let remotes_list =
+               match remotes with
+               | Some r when r <> "" ->
+                 let parts = String.split_on_char '\n' r in
+                 List.concat_map (fun line ->
+                   String.split_on_char ',' line
+                 ) parts
+                 |> List.map String.trim
+                 |> List.filter (fun s -> s <> "")
+               | _ -> []
+             in
+             git_pkgs := (name, url, sha, build_inputs, remotes_list, user, repo) :: !git_pkgs
            else
-             Printf.sprintf "https://gitlab.com/%s/%s" user repo
-           in
-           let build_inputs = List.filter (fun p -> not (is_base_r_package p)) requirements in
-           let remotes_list =
-             match remotes with
-             | Some r when r <> "" ->
-               let parts = String.split_on_char '\n' r in
-               List.concat_map (fun line ->
-                 String.split_on_char ',' line
-               ) parts
-               |> List.map String.trim
-               |> List.filter (fun s -> s <> "")
-             | _ -> []
-           in
-           git_pkgs := (name, url, sha, build_inputs, remotes_list, user, repo) :: !git_pkgs
+             unsupported := name :: !unsupported
          | _ ->
            unsupported := name :: !unsupported
         )
-      | "git" ->
-        unsupported := name :: !unsupported
       | _ ->
         unsupported := name :: !unsupported
     ) parsed_packages;
@@ -115,7 +138,8 @@ let split_packages ~project_root : (string list * r_git_dependency list, string)
     let resolve_remotes (name, url, sha, build_inputs, remotes_list, _user, _repo) =
       let resolved =
         List.filter_map (fun remote ->
-          match String.split_on_char '/' remote with
+          let sanitized = sanitize_remote_string remote in
+          match String.split_on_char '/' sanitized with
           | [remote_user; remote_repo_name] ->
             List.find_opt (fun (n, _, _, _, _, ru, rr) ->
               ru = remote_user && rr = remote_repo_name && n <> name

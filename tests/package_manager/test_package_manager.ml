@@ -1852,4 +1852,113 @@ second = pipeline {
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
     match res with Error _ -> true | Ok _ -> false);
 
+  print_newline ();
+
+  (* ===================================================== *)
+  Printf.printf "Package Manager — Renv Resolver:\n";
+
+  test_pm "split_packages parses CRAN and GitHub/GitLab packages correctly" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-renv-valid" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)));
+    let ch = open_out (Filename.concat dir "renv.lock") in
+    output_string ch {|{
+  "R": {
+    "Version": "4.3.1",
+    "Repositories": [
+      {
+        "Name": "CRAN",
+        "URL": "https://cloud.r-project.org"
+      }
+    ]
+  },
+  "Packages": {
+    "digest": {
+      "Package": "digest",
+      "Version": "0.6.35",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "methods"
+      ],
+      "Hash": "cf5541604a11f2fc362a2656910609f0"
+    },
+    "mygitpkg": {
+      "Package": "mygitpkg",
+      "Version": "1.0.0",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteUsername": "user",
+      "RemoteRepo": "mygitpkg",
+      "RemoteRef": "main",
+      "RemoteSha": "abc1234def",
+      "Requirements": [
+        "digest"
+      ],
+      "Hash": "abc..."
+    },
+    "mygitlabpkg": {
+      "Package": "mygitlabpkg",
+      "Version": "1.0.0",
+      "Source": "GitLab",
+      "RemoteType": "gitlab",
+      "RemoteUsername": "gitlabuser",
+      "RemoteRepo": "mygitlabpkg",
+      "RemoteRef": "main",
+      "RemoteSha": "xyz9876abc",
+      "Requirements": [
+        "digest"
+      ],
+      "Hash": "xyz..."
+    }
+  }
+}|};
+    close_out ch;
+    let res = Renv_resolver.split_packages ~project_root:dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    match res with
+    | Ok (cran, git) ->
+      List.mem "digest" cran
+      && List.length git = 2
+      && List.exists (fun g -> g.Package_types.rgd_name = "mygitpkg" && g.rgd_git_url = "https://github.com/user/mygitpkg" && g.rgd_rev = "abc1234def" && g.rgd_build_inputs = ["digest"]) git
+      && List.exists (fun g -> g.Package_types.rgd_name = "mygitlabpkg" && g.rgd_git_url = "https://gitlab.com/gitlabuser/mygitlabpkg" && g.rgd_rev = "xyz9876abc" && g.rgd_build_inputs = ["digest"]) git
+    | Error _ -> false);
+
+  test_pm "split_packages handles remotes with tags and user prefixes" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-renv-remotes" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)));
+    let ch = open_out (Filename.concat dir "renv.lock") in
+    output_string ch {|{
+  "Packages": {
+    "dep_pkg": {
+      "Package": "dep_pkg",
+      "Source": "GitHub",
+      "RemoteUsername": "user",
+      "RemoteRepo": "dep_pkg",
+      "RemoteSha": "hash1"
+    },
+    "main_pkg": {
+      "Package": "main_pkg",
+      "Source": "GitHub",
+      "RemoteUsername": "user",
+      "RemoteRepo": "main_pkg",
+      "RemoteSha": "hash2",
+      "Remotes": "github::user/dep_pkg@v1.0"
+    }
+  }
+}|};
+    close_out ch;
+    let res = Renv_resolver.split_packages ~project_root:dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    match res with
+    | Ok (_, git) ->
+      List.length git = 2
+      && List.exists (fun g -> g.Package_types.rgd_name = "main_pkg" && List.mem "dep_pkg" g.rgd_build_inputs) git
+    | Error _ -> false);
+
+  test_pm "split_packages returns error when renv.lock is missing" (fun () ->
+    match Renv_resolver.split_packages ~project_root:"/nonexistent_directory_foo_bar" with
+    | Error _ -> true
+    | Ok _ -> false);
+
   print_newline ()
