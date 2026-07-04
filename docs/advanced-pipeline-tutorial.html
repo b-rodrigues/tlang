@@ -1849,6 +1849,252 @@ it cannot be inspected, stored, or tested with <code>is_na()</code>. It
 exists only to signal node exclusion to the pipeline machinery.</li>
 </ul>
 <hr />
+<h2 id="custom-flakes-per-node">37. Custom Flakes per Node</h2>
+<p>By default, every node in a pipeline uses the project’s flake
+(defined by <code>tproject.toml</code>) for its build environment. The
+<strong><code>flake</code></strong> named argument lets you override
+this — each node can use a completely different Nix flake, replacing the
+entire environment for that node.</p>
+<pre class="t"><code>p = pipeline {
+  -- Node using the default project flake (unchanged)
+  a = node(command = &quot;hello from default flake&quot;, runtime = T)
+
+  -- Node using a different flake from GitHub
+  b = node(
+    command = &quot;hello from custom flake&quot;,
+    runtime = T,
+    flake = &quot;github:b-rodrigues/tlang&quot;
+  )
+}</code></pre>
+<h3 id="how-it-works-1">How It Works</h3>
+<p>When <code>populate_pipeline(p)</code> generates the Nix expression,
+each unique flake path creates a dedicated environment via the
+<code>mkNodeEnv</code> helper:</p>
+<div class="sourceCode" id="cb84"><pre
+class="sourceCode nix"><code class="sourceCode nix"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a>env_github_b_rodrigues_tlang = mkNodeEnv <span class="st">&quot;github:b-rodrigues/tlang&quot;</span>;</span>
+<span id="cb84-2"><a href="#cb84-2" aria-hidden="true" tabindex="-1"></a>env_github_jbedo_rshells     = mkNodeEnv <span class="st">&quot;github:jbedo/rshells&quot;</span>;</span>
+<span id="cb84-3"><a href="#cb84-3" aria-hidden="true" tabindex="-1"></a>env_path_test_flake           = mkNodeEnv <span class="st">&quot;path:../test_flake&quot;</span>;</span></code></pre></div>
+<p>Nodes referencing a custom flake are rewritten to use that flake’s
+bindings (<code>env_&lt;name&gt;.stdenv</code>,
+<code>env_&lt;name&gt;.tBin</code>, etc.) instead of the project-level
+bindings. Nodes without a <code>flake</code> argument continue to use
+the project flake unchanged.</p>
+<h3 id="supported-flake-references">Supported Flake References</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 37%" />
+<col style="width: 29%" />
+</colgroup>
+<thead>
+<tr>
+<th>Format</th>
+<th>Example</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>github:owner/repo</code></td>
+<td><code>github:b-rodrigues/tlang</code></td>
+<td>GitHub repository</td>
+</tr>
+<tr>
+<td><code>github:owner/repo/rev</code></td>
+<td><code>github:b-rodrigues/tlang/main</code></td>
+<td>With branch/commit</td>
+</tr>
+<tr>
+<td><code>gitlab:owner/repo</code></td>
+<td><code>gitlab:example/project</code></td>
+<td>GitLab repository</td>
+</tr>
+<tr>
+<td><code>sourcehut:owner/repo</code></td>
+<td><code>sourcehut:~user/project</code></td>
+<td>SourceHut repository</td>
+</tr>
+<tr>
+<td><code>path:/abs/path</code></td>
+<td><code>path:/home/user/myflake</code></td>
+<td>Absolute local path</td>
+</tr>
+<tr>
+<td><code>path:../relative/path</code></td>
+<td><code>path:../test_flake</code></td>
+<td>Relative local path</td>
+</tr>
+</tbody>
+</table>
+<h3 id="selective-replacement-with-fallback">Selective Replacement with
+Fallback</h3>
+<p>A per-node flake <strong>replaces</strong> the project flake for that
+node on a per-component basis. Each runtime component is resolved
+independently from the custom flake when available, otherwise it falls
+back to the project-level binding:</p>
+<table>
+<colgroup>
+<col style="width: 14%" />
+<col style="width: 40%" />
+<col style="width: 44%" />
+</colgroup>
+<thead>
+<tr>
+<th>Component</th>
+<th>Resolved from custom flake if…</th>
+<th>Falls back to project if missing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tBin</code> (T binary)</td>
+<td><code>flake.inputs.t-lang.packages.${system}.default</code></td>
+<td>Project <code>t</code> binary</td>
+</tr>
+<tr>
+<td><code>r-env</code> (R environment)</td>
+<td><code>flake.inputs.t-lang.packages.${system}.tlang-r</code></td>
+<td>Just <code>pkgs.rWrapper</code> (no <code>tlang-r</code>)</td>
+</tr>
+<tr>
+<td><code>tlangJl</code> (Julia path)</td>
+<td><code>flake.inputs.t-lang.packages.${system}.tlang-julia-path</code></td>
+<td>Project Julia path</td>
+</tr>
+<tr>
+<td><code>pkgs</code> (nixpkgs)</td>
+<td><code>flake.legacyPackages.${system}</code> or
+<code>flake.inputs.nixpkgs.legacyPackages.${system}</code></td>
+<td>Project nixpkgs</td>
+</tr>
+<tr>
+<td><code>stdenv</code></td>
+<td><code>pkgs.stdenv</code> from the custom flake’s nixpkgs</td>
+<td>— (derives from <code>pkgs</code>)</td>
+</tr>
+<tr>
+<td><code>py-env</code> (Python)</td>
+<td><code>pkgs.${pyVersion}.withPackages</code> from custom nixpkgs</td>
+<td>— (just the packages, no <code>t-lang</code> component)</td>
+</tr>
+<tr>
+<td><code>juliaPkg</code> (Julia)</td>
+<td><code>pkgs.${juliaPackageName}</code> from custom nixpkgs</td>
+<td>— (just the package, no <code>t-lang</code> component)</td>
+</tr>
+</tbody>
+</table>
+<p>This means:</p>
+<ul>
+<li><strong>An R-only flake</strong> (like
+<code>github:jbedo/rshells</code>) provides R packages and nixpkgs
+snapshot, while T serialization infrastructure comes from the
+project</li>
+<li><strong>A full t-lang flake</strong> (like
+<code>github:b-rodrigues/tlang</code>) replaces everything — nixpkgs,
+R/Python/Julia, and T binary</li>
+<li><strong>Different nixpkgs version</strong> — a node can use an older
+or newer nixpkgs than the project</li>
+<li><strong>Different R/Python packages</strong> — each node can have
+its own package set</li>
+<li><strong>Different t-lang version</strong> — each node can run a
+different build of T (if the flake provides <code>t-lang</code>)</li>
+</ul>
+<h3 id="project-level-package-inheritance">Project-Level Package
+Inheritance</h3>
+<p>A per-node flake replaces the <strong>runtime components</strong>
+(t-lang binary, language runtimes, nixpkgs) for that node. However,
+<strong>project-level package declarations</strong> from
+<code>tproject.toml</code> (<code>[r-dependencies]</code>,
+<code>[py-dependencies]</code>, <code>[jl-dependencies]</code>) are
+still installed in every node, including those using a custom flake. The
+flake determines <em>which nixpkgs revision</em> the packages are built
+from, but <code>tproject.toml</code> determines <em>what packages</em>
+are installed on top of the flake’s environment.</p>
+<p>This means:</p>
+<ul>
+<li><strong>Same package, different nixpkgs</strong> — A package
+declared in <code>[r-dependencies]</code> is built from each per-node
+flake’s nixpkgs. A node using <code>nixpkgs/r-updates</code> may get a
+different version than a node using <code>nixos-24.11</code>.</li>
+<li><strong>Project-level convenience</strong> — Common packages can be
+declared once in <code>tproject.toml</code> and shared across all nodes,
+regardless of which flake each node uses.</li>
+<li><strong>Self-contained flakes</strong> — If you need a flake to be
+fully self-contained (usable in any project without modifying
+<code>tproject.toml</code>), configure the desired packages directly
+within the flake’s R/Python/Julia environment rather than relying on
+project-level declarations.</li>
+</ul>
+<pre class="t"><code>-- Example: both nodes use different flakes, but both inherit jsonlite
+-- from the project&#39;s [r-dependencies]:
+f = node(
+  command = &lt;{ library(jsonlite); toJSON(mtcars) }&gt;,
+  runtime = R,
+  flake = &quot;github:jbedo/rshells&quot;
+)
+g = node(
+  command = &lt;{ library(jsonlite); fromJSON(&quot;data.json&quot;) }&gt;,
+  runtime = R,
+  flake = &quot;path:../minimal_r_flake&quot;
+)</code></pre>
+<blockquote>
+<p>[!TIP] To check which packages a per-node flake environment has
+access to, use <code>require()</code> in R or <code>import</code> in
+Python/Julia within the node’s command block rather than assuming the
+flake’s nixpkgs determines package availability.</p>
+</blockquote>
+<h3 id="local-flakes">Local Flakes</h3>
+<p>You can reference a local flake directory using <code>path:</code>
+URLs. The path is resolved relative to the <code>_pipeline/</code>
+directory where the Nix expression is generated:</p>
+<pre class="t"><code>d = node(
+  command = &quot;hello from local flake&quot;,
+  runtime = T,
+  flake = &quot;path:../test_flake&quot;
+)</code></pre>
+<p>The referenced directory must contain a valid <code>flake.nix</code>
+with <code>inputs.nixpkgs</code> and the standard t-lang
+<code>packages</code> (including <code>tlang-r</code>,
+<code>tlang-julia</code>, etc.) for proper sandbox resolution.</p>
+<h3 id="how-the-flake-must-be-structured">How the Flake Must Be
+Structured</h3>
+<p>To work with <code>mkNodeEnv</code>, the custom flake must expose the
+same outputs that T’s project flake provides:</p>
+<div class="sourceCode" id="cb87"><pre
+class="sourceCode nix"><code class="sourceCode nix"><span id="cb87-1"><a href="#cb87-1" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb87-2"><a href="#cb87-2" aria-hidden="true" tabindex="-1"></a>  <span class="va">inputs</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb87-3"><a href="#cb87-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">nixpkgs</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:NixOS/nixpkgs/nixos-24.11&quot;</span><span class="op">;</span></span>
+<span id="cb87-4"><a href="#cb87-4" aria-hidden="true" tabindex="-1"></a>    <span class="va">t-lang</span>.<span class="va">url</span>  <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang&quot;</span><span class="op">;</span></span>
+<span id="cb87-5"><a href="#cb87-5" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
+<span id="cb87-6"><a href="#cb87-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb87-7"><a href="#cb87-7" aria-hidden="true" tabindex="-1"></a>  <span class="va">outputs</span> <span class="op">=</span> <span class="op">{</span> <span class="va">self</span><span class="op">,</span> <span class="va">nixpkgs</span><span class="op">,</span> <span class="va">t-lang</span> <span class="op">}</span>: <span class="op">{</span></span>
+<span id="cb87-8"><a href="#cb87-8" aria-hidden="true" tabindex="-1"></a>    <span class="va">legacyPackages</span>.<span class="sc">${</span><span class="bu">builtins</span><span class="op">.</span>currentSystem<span class="sc">}</span> <span class="op">=</span></span>
+<span id="cb87-9"><a href="#cb87-9" aria-hidden="true" tabindex="-1"></a>      nixpkgs<span class="op">.</span>legacyPackages<span class="op">.</span><span class="sc">${</span><span class="bu">builtins</span><span class="op">.</span>currentSystem<span class="sc">}</span><span class="op">;</span></span>
+<span id="cb87-10"><a href="#cb87-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb87-11"><a href="#cb87-11" aria-hidden="true" tabindex="-1"></a>    <span class="va">packages</span>.<span class="sc">${</span><span class="bu">builtins</span><span class="op">.</span>currentSystem<span class="sc">}</span> <span class="op">=</span> <span class="kw">rec</span> <span class="op">{</span></span>
+<span id="cb87-12"><a href="#cb87-12" aria-hidden="true" tabindex="-1"></a>      <span class="va">default</span>          <span class="op">=</span> t<span class="op">-</span>lang<span class="op">.</span>packages<span class="op">.</span><span class="sc">${</span><span class="bu">builtins</span><span class="op">.</span>currentSystem<span class="sc">}</span><span class="op">.</span>default<span class="op">;</span></span>
+<span id="cb87-13"><a href="#cb87-13" aria-hidden="true" tabindex="-1"></a>      <span class="va">tlang-r</span>          <span class="op">=</span> t<span class="op">-</span>lang<span class="op">.</span>packages<span class="op">.</span><span class="sc">${</span><span class="bu">builtins</span><span class="op">.</span>currentSystem<span class="sc">}</span><span class="op">.</span>tlang<span class="op">-</span>r<span class="op">;</span></span>
+<span id="cb87-14"><a href="#cb87-14" aria-hidden="true" tabindex="-1"></a>      <span class="va">tlang-julia-path</span> <span class="op">=</span> t<span class="op">-</span>lang<span class="op">.</span>packages<span class="op">.</span><span class="sc">${</span><span class="bu">builtins</span><span class="op">.</span>currentSystem<span class="sc">}</span><span class="op">.</span>tlang<span class="op">-</span>julia<span class="op">-</span>path<span class="op">;</span></span>
+<span id="cb87-15"><a href="#cb87-15" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;tlang-julia&quot;</span>    <span class="op">=</span> t<span class="op">-</span>lang<span class="op">.</span>packages<span class="op">.</span><span class="sc">${</span><span class="bu">builtins</span><span class="op">.</span>currentSystem<span class="sc">}</span><span class="op">.</span><span class="st">&quot;tlang-julia&quot;</span><span class="op">;</span></span>
+<span id="cb87-16"><a href="#cb87-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb87-17"><a href="#cb87-17" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
+<span id="cb87-18"><a href="#cb87-18" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>The key requirements are: - <code>legacyPackages.${system}</code> —
+provides the full nixpkgs package set -
+<code>packages.${system}.default</code> — provides the <code>t</code>
+binary - <code>packages.${system}.tlang-r</code> — provides R packages
+declared in the flake - <code>packages.${system}.tlang-julia-path</code>
+/ <code>packages.${system}."tlang-julia"</code> — provides Julia
+packages</p>
+<p>If these outputs are missing, the per-node sandbox will fail at build
+time when attempting to resolve runtime dependencies.</p>
+<h3 id="backward-compatibility">Backward Compatibility</h3>
+<p>Nodes without a <code>flake</code> argument are completely
+unaffected. The project-level environment is aliased
+(<code>stdenv = projectStdenv</code>, <code>tBin = projectTBin</code>,
+etc.) so existing pipeline definitions require no changes.</p>
+<hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you’ve mastered pipelines, learn how to manage reproducible
 projects and develop T packages:</p>

@@ -4267,7 +4267,7 @@ pipeline_report(p, target = "web", file = "report.html")
 
 ---
 
-### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)`
+### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
 
@@ -4285,6 +4285,7 @@ Configure execution settings such as the runtime and custom serialized methods f
 - `functions` (optional) — Code files to source before execution.
 - `include` (optional) — Additional files to bring into the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component (t-lang binary, R packages, Julia path, nixpkgs) resolves independently from the custom flake when available, falling back to the project-level binding otherwise. **Project-level package declarations from `tproject.toml` (`[r-dependencies]`, `[py-dependencies]`, `[jl-dependencies]`) are still installed in per-node flake environments, built from the custom flake's nixpkgs.** Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -4305,9 +4306,9 @@ include = "config.yml"
 
 ---
 
-### `py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
-### `pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
 
@@ -4321,6 +4322,7 @@ Configure a Python Pipeline Node. A convenience wrapper around `node()` with `ru
 - `functions` (optional) — Python files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -4328,7 +4330,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtime = "R"`. Used directly within a `pipeline { ... }` block to execute R code.
 
@@ -4342,6 +4344,7 @@ Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtim
 - `functions` (optional) — R scripts to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -4349,11 +4352,12 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
 
 **Parameters:**
+
 
 - `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
 - `script` — Path to an external `.jl` file to execute as the node body.
@@ -4363,6 +4367,7 @@ Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `run
 - `functions` (optional) — Julia files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -4370,11 +4375,12 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false)`
+### `qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Quarto pipeline node. A convenience wrapper around `node()` with `runtime = "Quarto"`. Use it to render `.qmd` files inside `pipeline { ... }` blocks.
 
 **Parameters:**
+
 
 - `script` (optional) — Path to an external `.qmd` file. Mutually exclusive with `command`.
 - `serializer` (optional) — Custom serializer function. Default: `default`.
@@ -4384,6 +4390,7 @@ Configure a Quarto pipeline node. A convenience wrapper around `node()` with `ru
 - `functions` (optional) — Files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -4391,11 +4398,12 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
+### `shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a shell pipeline node. A convenience wrapper around `node()` with `runtime = "sh"`. Use it for CLI tools, inline shell scripts, and `.sh` files inside `pipeline { ... }` blocks.
 
 **Parameters:**
+
 
 - `command` — The shell command or raw shell script body to execute.
 - `script` (optional) — Path to an external `.sh` file. Mutually exclusive with `command`.
@@ -4408,6 +4416,7 @@ Configure a shell pipeline node. A convenience wrapper around `node()` with `run
 - `functions` (optional) — Additional files to include in the sandbox before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+- `flake` (optional) — A Nix flake reference (e.g. `github:b-rodrigues/tlang`, `path:../test_flake`) to use for this node's build environment. Each runtime component resolves independently from the custom flake when available, falling back to the project-level binding otherwise. Default: `NA` (use project flake).
 
 **Returns:**
 
@@ -6742,6 +6751,150 @@ Here, setting `MODEL=forest` in the environment selects the random forest node; 
 
 ---
 
+## 37. Custom Flakes per Node
+
+By default, every node in a pipeline uses the project's flake (defined by `tproject.toml`) for its build environment. The **`flake`** named argument lets you override this — each node can use a completely different Nix flake, replacing the entire environment for that node.
+
+```t
+p = pipeline {
+  -- Node using the default project flake (unchanged)
+  a = node(command = "hello from default flake", runtime = T)
+
+  -- Node using a different flake from GitHub
+  b = node(
+    command = "hello from custom flake",
+    runtime = T,
+    flake = "github:b-rodrigues/tlang"
+  )
+}
+```
+
+### How It Works
+
+When `populate_pipeline(p)` generates the Nix expression, each unique flake path creates a dedicated environment via the `mkNodeEnv` helper:
+
+```nix
+env_github_b_rodrigues_tlang = mkNodeEnv "github:b-rodrigues/tlang";
+env_github_jbedo_rshells     = mkNodeEnv "github:jbedo/rshells";
+env_path_test_flake           = mkNodeEnv "path:../test_flake";
+```
+
+Nodes referencing a custom flake are rewritten to use that flake's bindings (`env_<name>.stdenv`, `env_<name>.tBin`, etc.) instead of the project-level bindings. Nodes without a `flake` argument continue to use the project flake unchanged.
+
+### Supported Flake References
+
+| Format | Example | Notes |
+|--------|---------|-------|
+| `github:owner/repo` | `github:b-rodrigues/tlang` | GitHub repository |
+| `github:owner/repo/rev` | `github:b-rodrigues/tlang/main` | With branch/commit |
+| `gitlab:owner/repo` | `gitlab:example/project` | GitLab repository |
+| `sourcehut:owner/repo` | `sourcehut:~user/project` | SourceHut repository |
+| `path:/abs/path` | `path:/home/user/myflake` | Absolute local path |
+| `path:../relative/path` | `path:../test_flake` | Relative local path |
+
+### Selective Replacement with Fallback
+
+A per-node flake **replaces** the project flake for that node on a per-component basis. Each runtime component is resolved independently from the custom flake when available, otherwise it falls back to the project-level binding:
+
+| Component | Resolved from custom flake if… | Falls back to project if missing |
+|-----------|-------------------------------|----------------------------------|
+| `tBin` (T binary) | `flake.inputs.t-lang.packages.${system}.default` | Project `t` binary |
+| `r-env` (R environment) | `flake.inputs.t-lang.packages.${system}.tlang-r` | Just `pkgs.rWrapper` (no `tlang-r`) |
+| `tlangJl` (Julia path) | `flake.inputs.t-lang.packages.${system}.tlang-julia-path` | Project Julia path |
+| `pkgs` (nixpkgs) | `flake.legacyPackages.${system}` or `flake.inputs.nixpkgs.legacyPackages.${system}` | Project nixpkgs |
+| `stdenv` | `pkgs.stdenv` from the custom flake's nixpkgs | — (derives from `pkgs`) |
+| `py-env` (Python) | `pkgs.${pyVersion}.withPackages` from custom nixpkgs | — (just the packages, no `t-lang` component) |
+| `juliaPkg` (Julia) | `pkgs.${juliaPackageName}` from custom nixpkgs | — (just the package, no `t-lang` component) |
+
+This means:
+
+- **An R-only flake** (like `github:jbedo/rshells`) provides R packages and nixpkgs snapshot, while T serialization infrastructure comes from the project
+- **A full t-lang flake** (like `github:b-rodrigues/tlang`) replaces everything — nixpkgs, R/Python/Julia, and T binary
+- **Different nixpkgs version** — a node can use an older or newer nixpkgs than the project
+- **Different R/Python packages** — each node can have its own package set
+- **Different t-lang version** — each node can run a different build of T (if the flake provides `t-lang`)
+
+### Project-Level Package Inheritance
+
+A per-node flake replaces the **runtime components** (t-lang binary, language runtimes, nixpkgs) for that node. However, **project-level package declarations** from `tproject.toml` (`[r-dependencies]`, `[py-dependencies]`, `[jl-dependencies]`) are still installed in every node, including those using a custom flake. The flake determines *which nixpkgs revision* the packages are built from, but `tproject.toml` determines *what packages* are installed on top of the flake's environment.
+
+This means:
+
+- **Same package, different nixpkgs** — A package declared in `[r-dependencies]` is built from each per-node flake's nixpkgs. A node using `nixpkgs/r-updates` may get a different version than a node using `nixos-24.11`.
+- **Project-level convenience** — Common packages can be declared once in `tproject.toml` and shared across all nodes, regardless of which flake each node uses.
+- **Self-contained flakes** — If you need a flake to be fully self-contained (usable in any project without modifying `tproject.toml`), configure the desired packages directly within the flake's R/Python/Julia environment rather than relying on project-level declarations.
+
+```t
+-- Example: both nodes use different flakes, but both inherit jsonlite
+-- from the project's [r-dependencies]:
+f = node(
+  command = <{ library(jsonlite); toJSON(mtcars) }>,
+  runtime = R,
+  flake = "github:jbedo/rshells"
+)
+g = node(
+  command = <{ library(jsonlite); fromJSON("data.json") }>,
+  runtime = R,
+  flake = "path:../minimal_r_flake"
+)
+```
+
+> [!TIP]
+> To check which packages a per-node flake environment has access to, use `require()` in R or `import` in Python/Julia within the node's command block rather than assuming the flake's nixpkgs determines package availability.
+
+### Local Flakes
+
+You can reference a local flake directory using `path:` URLs. The path is resolved relative to the `_pipeline/` directory where the Nix expression is generated:
+
+```t
+d = node(
+  command = "hello from local flake",
+  runtime = T,
+  flake = "path:../test_flake"
+)
+```
+
+The referenced directory must contain a valid `flake.nix` with `inputs.nixpkgs` and the standard t-lang `packages` (including `tlang-r`, `tlang-julia`, etc.) for proper sandbox resolution.
+
+### How the Flake Must Be Structured
+
+To work with `mkNodeEnv`, the custom flake must expose the same outputs that T's project flake provides:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    t-lang.url  = "github:b-rodrigues/tlang";
+  };
+
+  outputs = { self, nixpkgs, t-lang }: {
+    legacyPackages.${builtins.currentSystem} =
+      nixpkgs.legacyPackages.${builtins.currentSystem};
+
+    packages.${builtins.currentSystem} = rec {
+      default          = t-lang.packages.${builtins.currentSystem}.default;
+      tlang-r          = t-lang.packages.${builtins.currentSystem}.tlang-r;
+      tlang-julia-path = t-lang.packages.${builtins.currentSystem}.tlang-julia-path;
+      "tlang-julia"    = t-lang.packages.${builtins.currentSystem}."tlang-julia";
+    };
+  };
+}
+```
+
+The key requirements are:
+- `legacyPackages.${system}` — provides the full nixpkgs package set
+- `packages.${system}.default` — provides the `t` binary
+- `packages.${system}.tlang-r` — provides R packages declared in the flake
+- `packages.${system}.tlang-julia-path` / `packages.${system}."tlang-julia"` — provides Julia packages
+
+If these outputs are missing, the per-node sandbox will fail at build time when attempting to resolve runtime dependencies.
+
+### Backward Compatibility
+
+Nodes without a `flake` argument are completely unaffected. The project-level environment is aliased (`stdenv = projectStdenv`, `tBin = projectTBin`, etc.) so existing pipeline definitions require no changes.
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:
@@ -8072,6 +8225,30 @@ For datasets exceeding 2-3 GB:
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.54.0] - unreleased
+
+### Per-Node Flake Replacement
+
+- **`flake` named argument for pipeline nodes**: `node()`, `rn()`, `pyn()`, `jln()`, `qn()`, `shn()` and their shorthand variants now accept an optional `flake` parameter to specify a custom Nix flake for that node's build environment.
+- **Selective replacement with fallback**: Each runtime component is resolved independently from the custom flake when available, otherwise falls back to the project-level binding. This allows flakes that provide only R infrastructure (e.g. `jbedo/rshells`) to coexist with T's project-level serialization infrastructure.
+- **Supported flake references**: `github:owner/repo`, `gitlab:owner/repo`, `sourcehut:owner/repo`, `path:/abs/path`, and `path:../relative/path`.
+- **Backward compatible**: Nodes without a `flake` argument are unchanged — project-level environment bindings are aliased so existing pipelines require no modifications.
+
+### Optional UV/uv2nix Python Environments
+
+- **UV resolver opt-in**: Projects can set `[py-dependencies].resolver = "uv"` and point `workspace` at a locked UV project directory (default `"python"`). When enabled, Python dependencies are declared in `pyproject.toml` and locked via `uv.lock` instead of `[py-dependencies].packages`.
+- **uv2nix flake integration**: Running `t update` generates uv2nix/pyproject.nix flake inputs (`pyproject-nix`, `uv2nix`, `pyproject-build-systems`) and builds the Python environment as a Nix virtual environment via `pySet.mkVirtualEnv`, avoiding mixed dependency resolution between nixpkgs and PyPI.
+- **Pipeline runtime support**: The pipeline Nix emitter reads `pyResolver` from `tproject.toml` at build time and emits the corresponding uv2nix environment (or falls back to the nixpkgs `withPackages` path). Python pipeline nodes work unchanged regardless of resolver choice.
+- **Validation**: Setting `resolver = "uv"` and `packages` simultaneously is rejected with a clear error. Only `"nixpkgs"` and `"uv"` are valid resolver values.
+
+### R Dependency Management — renv.lock Resolver & Git Packages
+
+- **renv.lock resolver**: Projects can set `[r-dependencies].resolver = "renv"` to auto-discover R dependencies from `renv.lock`. CRAN packages from `Repository`/`Bioconductor` entries are mapped to `pkgs.rPackages.*`, and GitHub/GitLab packages are fetched via `builtins.fetchGit` using `RemoteHost`, `RemoteUsername`, `RemoteRepo`, and `RemoteSha` fields.
+- **Remote field resolution**: The `Remotes` field in renv.lock entries is parsed — `user/repo` strings are matched against packages in the lock file and injected as `buildInputs` of the declaring git package. Supported remote hosts: `api.github.com` and `gitlab.com`. Other sources produce a warning and are skipped. Base R packages (`R`, `methods`, `stats`, etc.) are automatically filtered out.
+- **Git R packages in tproject.toml**: R packages from remote Git repositories can be declared directly in `[r-dependencies]` (e.g., `my_pkg = { git = "https://...", rev = "full-sha" }`) and are merged with renv-discovered git packages when using the renv resolver.
+- **Pipeline runtime support**: The pipeline Nix emitter reads `r_renv_cran_pkgs` and `r_git_pkgs` at build time, generating the appropriate Nix expressions for renv-discovered CRAN packages alongside the traditional `rPackagesList` in every R environment (`mkNodeEnv` and `projectREnv`).
+- **Dependency analysis integration**: When `resolver = "renv"` is set, the dependency checker merges renv.lock CRAN packages into the analysis so requirement checks pass without an explicit `packages` list in `tproject.toml`.
 
 ## [0.53.3] - 2026-06-26
 
@@ -17748,7 +17925,7 @@ populate_pipeline(p, build = true)
 `populate_pipeline(p, build = true)` is the primary command for materializing a pipeline. It does the following:
 
 1. **Populates** the `_pipeline/` directory with `pipeline.nix` and `dag.json`.
-2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments!
+2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments — including nodes that use a custom per-node flake (see [Custom Flakes per Node](advanced-pipeline-tutorial.md#37-custom-flakes-per-node) for inheritance details).
 3. **Triggers** a Nix build to materialize each node as a serialized artifact.
 4. **Records** the build in a timestamped log file (`_pipeline/build_log_YYYYMMdd_HHmmss_hash.json`).
 
@@ -18601,6 +18778,173 @@ Running nix flake update...
 ```
 
 This updates your `tproject.toml` and then runs `t update` automatically.
+
+### 3.3 R Dependencies
+
+R packages can be managed via the default nixpkgs resolver or by pointing T at an `renv.lock` file.
+
+#### 3.3.1 Nixpkgs Resolver (default)
+
+List CRAN packages from nixpkgs directly:
+
+```toml
+[r-dependencies]
+packages = ["dplyr", "ggplot2", "jsonlite"]
+```
+
+After editing, run `t update` to include them in `flake.nix`. Packages are available in every R pipeline node and in `nix develop`.
+
+#### 3.3.2 renv Resolver
+
+If your project already has an `renv.lock` file, set:
+
+```toml
+[r-dependencies]
+resolver = "renv"
+```
+
+When `resolver = "renv"`, T automatically discovers all R dependencies from `renv.lock`:
+
+- **CRAN packages** are read from each entry's `Repository` or `Bioconductor` field and mapped to `pkgs.rPackages.*`.
+- **GitHub/GitLab packages** are fetched via `builtins.fetchGit` using the `RemoteHost`, `RemoteUsername`, `RemoteRepo`, and `RemoteSha` fields.
+- The **`Remotes` field** is parsed: entries like `user/repo` are matched against packages in the lock file and injected as `buildInputs` of the declaring git package.
+- Supported remote hosts: `api.github.com` and `gitlab.com`. Other sources (bitbucket, custom URLs) produce a warning and are skipped.
+- Base R packages (`R`, `methods`, `stats`, etc.) are automatically filtered out.
+
+No `packages` list is required — `renv.lock` is the single source of truth. Run `t update` to regenerate `flake.nix` with the renv-discovered packages.
+
+#### 3.3.3 Git R Packages
+
+Declare R packages from remote Git repositories directly in `tproject.toml`:
+
+```toml
+[r-dependencies]
+packages = ["dplyr"]
+my_pkg = { git = "https://github.com/user/my-pkg", rev = "abc123def456" }
+```
+
+The `rev` field must be a full Git commit hash. Each git package is injected into every R pipeline node's `buildInputs`.
+
+When using `resolver = "renv"`, git packages from `renv.lock` are automatically merged with those declared in `tproject.toml`.
+
+### 3.4 Python Dependencies
+
+Python packages can use the default nixpkgs resolver or the UV workspace resolver for PyPI-only dependencies.
+
+#### 3.4.1 Nixpkgs Resolver (default)
+
+List packages from the pinned nixpkgs revision:
+
+```toml
+[py-dependencies]
+packages = ["pandas", "scikit-learn"]
+```
+
+Run `t update` to generate a `python.withPackages` environment in `flake.nix`. Simple, no extra files needed.
+
+#### 3.4.2 UV Workspace Resolver
+
+Projects that need packages from PyPI can opt into UV explicitly:
+
+```toml
+[py-dependencies]
+resolver = "uv"
+workspace = "python"
+```
+
+The `version` field is **optional** when using the UV resolver. If omitted, T infers the Nixpkgs Python attribute (e.g. `python312`) from the `requires-python` field in `python/pyproject.toml`. The inference accepts specifiers that constrain to a single minor version (`==3.12`, `==3.12.*`, `~=3.12`, `>=3.12,<3.13`) and errors on open-ended ranges (`>=3.12`). If an explicit `version` conflicts with `requires-python`, T prints a warning and uses the explicit value.
+
+The workspace directory must contain the UV project metadata and lock file:
+
+```text
+python/
+  pyproject.toml
+  uv.lock
+```
+
+When `resolver = "uv"`, do not set `[py-dependencies].packages`; Python dependencies are declared only in `pyproject.toml` and locked by `uv.lock`. Running `t update` generates uv2nix/pyproject.nix inputs in `flake.nix` and builds the Python environment as a Nix virtual environment.
+
+#### 3.4.3 Setting up a UV workspace from scratch
+
+This walkthrough assumes you do **not** have `uv` installed and have **no** existing Python package metadata — you are starting from an empty T project.
+
+**1. Create a new T project**
+
+```bash
+t project my_project
+cd my_project
+```
+
+**2. Edit `tproject.toml`**
+
+Replace the default `[py-dependencies]` section (or add it if missing):
+
+```toml
+[py-dependencies]
+resolver = "uv"
+workspace = "python"
+```
+
+The `version` field is optional when using the UV resolver — T infers it from `requires-python` in `pyproject.toml`. Remove any `packages` key if present — UV and `packages` are mutually exclusive.
+
+**3. Create the Python workspace directory and `pyproject.toml`**
+
+```bash
+mkdir python
+```
+
+```toml
+# python/pyproject.toml
+[project]
+name = "my_project_python_env"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas",
+]
+```
+
+Add any PyPI packages to the `dependencies` list. Re-run `uv lock` whenever the list changes.
+
+**4. Generate the lock file**
+
+You need `uv` and `python3` on `PATH`. If you do not have them installed, enter a temporary Nix shell:
+
+```bash
+nix shell nixpkgs#uv nixpkgs#python3
+```
+
+Then generate the lock file:
+
+```bash
+uv lock --project python
+```
+
+Type `exit` or press `Ctrl-D` to leave the Nix shell when done, or keep it open for the next step.
+
+**5. Generate the Nix flake**
+
+```bash
+t update
+```
+
+This reads the UV workspace, adds `pyproject-nix`, `uv2nix`, and `pyproject-build-systems` inputs to `flake.nix`, and configures the Python environment to use `pySet.mkVirtualEnv` instead of `pkgs.python314.withPackages`.
+
+**6. Run your pipeline**
+
+```bash
+nix develop
+t run src/pipeline.t
+```
+
+Python pipeline nodes work identically regardless of which resolver you chose.
+
+**Adding or removing dependencies later**
+
+1. Edit `dependencies` in `python/pyproject.toml`.
+2. Re-run `uv lock --project python`.
+3. Re-run `t update` to regenerate `flake.nix`.
+4. Commit the updated `pyproject.toml` and `uv.lock`.
 
 ## 4. Importing Packages
 
@@ -22746,11 +23090,11 @@ A confirmation message describing the imported archive.
 | [pt](pt.html) | Student t distribution CDF |
 | [pull](pull.html) | Extract column as vector |
 | [pyn](pyn.html) | Configure a Python Pipeline Node |
-| [qchisq](qchisq.html) | Chi-squared distribution quantile |
-| [qf](qf.html) | F distribution quantile |
+| [qchisq](qchisq.html) | Chi-squared distribution quantile (inverse CDF) |
+| [qf](qf.html) | F distribution quantile (inverse CDF) |
 | [qn](qn.html) | Configure a Quarto Pipeline Node |
-| [qnorm](qnorm.html) | Normal distribution quantile |
-| [qt](qt.html) | Student t distribution quantile |
+| [qnorm](qnorm.html) | Normal distribution quantile (inverse CDF) |
+| [qt](qt.html) | Student t distribution quantile (inverse CDF) |
 | [quantile](quantile.html) | Quantiles |
 | [quarter](quarter.html) | Extract the quarter |
 | [quo](quo.html) | Capture an expression with its lexical environment (quosure) |
@@ -22781,7 +23125,7 @@ A confirmation message describing the imported archive.
 | [row_number](row_number.html) | Row Number |
 | [run](run.html) | Run a shell command |
 | [run_doctor](run_doctor.html) | Run Package/Project Doctor |
-| [sample](sample.html) | Random sample from Vector or List |
+| [sample](sample.html) | Random sample from a vector or list |
 | [scaffold_package](scaffold_package.html) | Scaffold a new T package |
 | [scaffold_project](scaffold_project.html) | Scaffold a new T project |
 | [scale](scale.html) | Scale values |
@@ -22798,7 +23142,7 @@ A confirmation message describing the imported archive.
 | [serialize](serialize.html) | Serialize Value |
 | [set](set.html) | Set Focused Value |
 | [set_nix_defaults](set_nix_defaults.html) | Set Global Nix Orchestration Defaults |
-| [set_seed](set_seed.html) | Initialize global RNG seed |
+| [set_seed](set_seed.html) | Set random seed for reproducibility |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
 | [show_plot](show_plot.html) | Render a plot node and open it locally |
@@ -22811,7 +23155,7 @@ A confirmation message describing the imported archive.
 | [slice](slice.html) | Extract slice |
 | [slice_max](slice_max.html) | Keep rows with the largest values |
 | [slice_min](slice_min.html) | Keep rows with the smallest values |
-| [slice_sample](slice_sample.html) | Random sample of DataFrame rows |
+| [slice_sample](slice_sample.html) | Randomly sample rows from a DataFrame |
 | [source](source.html) | Get function source code |
 | [sqrt](sqrt.html) | Square root |
 | [standardize](standardize.html) | Standardize values |
@@ -22898,6 +23242,7 @@ A confirmation message describing the imported archive.
 | [with_tz](with_tz.html) | Convert a datetime to a new timezone |
 | [write_arrow](write_arrow.html) | Write Arrow IPC file |
 | [write_csv](write_csv.html) | Write CSV file |
+| [write_parquet](write_parquet.html) | Write Parquet file |
 | [write_text](write_text.html) | Write text to a file |
 | [yday](yday.html) | Extract the day of year |
 | [year](year.html) | Extract the year component |
@@ -23364,6 +23709,8 @@ A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly wi
 - **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
+
+- **flake** (`String`): (Optional) A Nix flake reference (e.g. "github:b-rodrigues/tlang") to use for this node's build environment. Default = NA (use project flake).
 
 
 ## Returns
@@ -24617,6 +24964,8 @@ Configure execution settings such as the runtime and custom serialized methods f
 - **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
+
+- **flake** (`String`): (Optional) A Nix flake reference (e.g. "github:b-rodrigues/tlang") to use for this node's build environment. Default = NA (use project flake).
 
 
 ## Returns
@@ -26203,6 +26552,8 @@ A convenience wrapper around `node()` with `runtime = "Python"`. Used directly w
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
+- **flake** (`String`): (Optional) A Nix flake reference (e.g. "github:b-rodrigues/tlang") to use for this node's build environment. Default = NA (use project flake).
+
 
 ## Returns
 
@@ -26295,6 +26646,8 @@ A convenience wrapper around `node()` with `runtime = "Quarto"`. Used directly w
 - **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
+
+- **flake** (`String`): (Optional) A Nix flake reference (e.g. "github:b-rodrigues/tlang") to use for this node's build environment. Default = NA (use project flake).
 
 
 ## Returns
@@ -27004,6 +27357,8 @@ A convenience wrapper around `node()` with `runtime = "R"`. Used directly within
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
+- **flake** (`String`): (Optional) A Nix flake reference (e.g. "github:b-rodrigues/tlang") to use for this node's build environment. Default = NA (use project flake).
+
 
 ## Returns
 
@@ -27667,6 +28022,8 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 - **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
+
+- **flake** (`String`): (Optional) A Nix flake reference (e.g. "github:b-rodrigues/tlang") to use for this node's build environment. Default = NA (use project flake).
 
 
 ## Returns
