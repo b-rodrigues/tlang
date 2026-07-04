@@ -333,6 +333,29 @@ packages = []
     && Test_helpers.contains nix "abc1234def5678"
     && Test_helpers.contains nix "https://github.com/user/myPkg");
 
+  test_pm "nix_generator deduplicates duplicate git R deps by name" (fun () ->
+    let pkg1 : Package_types.r_git_dependency =
+      { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }
+    in
+    let pkg2 : Package_types.r_git_dependency =
+      { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg2"; rgd_rev = "xyz9876"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }
+    in
+    let nix = Nix_generator.generate_project_flake
+      ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
+      ~deps:[] ~r_git_deps:[pkg1; pkg2] () in
+    let occurrences s sub =
+      let sub_len = String.length sub in
+      let s_len = String.length s in
+      let rec count idx acc =
+        if idx > s_len - sub_len then acc
+        else if String.sub s idx sub_len = sub then count (idx + 1) (acc + 1)
+        else count (idx + 1) acc
+      in
+      count 0 0
+    in
+    occurrences nix "myPkg = pkgs.rPackages.buildRPackage" = 1
+  );
+
   test_pm "format project sync message reports T, R, and Python counts" (fun () ->
     match Toml_parser.parse_tproject_toml project_toml with
     | Ok cfg ->

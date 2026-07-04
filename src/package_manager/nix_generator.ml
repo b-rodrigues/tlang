@@ -267,6 +267,18 @@ let generate_project_flake
     Buffer.add_string buf "        ];\n"
   end;
   if r_git_deps <> [] then begin
+    let deduplicate_r_git_deps deps =
+      let rec keep_unique seen acc = function
+        | [] -> List.rev acc
+        | dep :: rest ->
+          if List.mem dep.Package_types.rgd_name seen then
+            keep_unique seen acc rest
+          else
+            keep_unique (dep.rgd_name :: seen) (dep :: acc) rest
+      in
+      keep_unique [] [] deps
+    in
+    let r_git_deps = deduplicate_r_git_deps r_git_deps in
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # R git packages\n";
     Buffer.add_string buf "        rGitPkgSet = rec {\n";

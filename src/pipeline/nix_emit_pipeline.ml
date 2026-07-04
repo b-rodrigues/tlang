@@ -118,6 +118,18 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
   let r_git_pkgs_str =
     if r_git_pkgs = [] then "  rGitPkgSet = {};"
     else
+      let deduplicate_r_git_deps deps =
+        let rec keep_unique seen acc = function
+          | [] -> List.rev acc
+          | dep :: rest ->
+            if List.mem dep.Package_types.rgd_name seen then
+              keep_unique seen acc rest
+            else
+              keep_unique (dep.rgd_name :: seen) (dep :: acc) rest
+        in
+        keep_unique [] [] deps
+      in
+      let r_git_pkgs = deduplicate_r_git_deps r_git_pkgs in
       let nixify_r_pkg_name name =
         String.concat "_" (String.split_on_char '.' name)
       in
