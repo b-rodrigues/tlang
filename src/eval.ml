@@ -222,6 +222,11 @@ let last_pipeline_exprs : (string * Ast.expr) list option ref = ref None
 let last_evaluated_node_name : string option ref = ref None
 let current_node_suppression_requested = ref false
 
+(** Flag to signal that we are inside a pipeline block construction.
+    Functions like fetchurl check this to decide whether to create
+    a VNode (pipeline mode) or execute immediately (REPL mode). *)
+let pipeline_construction_mode = ref false
+
 let request_warning_suppression () =
   current_node_suppression_requested := true
 
@@ -1867,7 +1872,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                   fn_name (Ast.Utils.type_name other))))
     | None ->
         let is_node_call = match node_expr.node with
-          | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
+          | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn" | "fetchurl"); _ }; _ }
           | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
           | _ -> false
         in
@@ -1892,7 +1897,13 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
          | Ok (_, None) -> desugar_all acc rest)
   in
 
-  match desugar_all [] nodes with
+  let saved_pipeline_construction_mode = !pipeline_construction_mode in
+  pipeline_construction_mode := true;
+  let result = Fun.protect ~finally:(fun () ->
+    pipeline_construction_mode := saved_pipeline_construction_mode)
+    (fun () -> desugar_all [] nodes)
+  in
+  match result with
   | Error err -> err
   | Ok desugared_nodes ->
   

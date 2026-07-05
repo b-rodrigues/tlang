@@ -53,7 +53,7 @@
     ; packages/strcraft
     string_ops
     ; packages/base
-    t_assert is_na na error_mod error_utils serialize deserialize t_json set_seed sample
+    t_assert is_na na error_mod error_utils serialize deserialize t_json set_seed sample fetchurl prefetch
     ; packages/chrono
     chrono
     ; packages/dataframe

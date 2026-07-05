@@ -256,6 +256,34 @@ There are two useful modes:
 
 Shell nodes default to `serializer = text`, which makes them a good fit for reports, command output, and glue code between other pipeline nodes. For a full end-to-end example that mixes T, R, Python, and `sh`, see `tests/pipeline/polyglot_shell_pipeline.t` and `.github/workflows/polyglot-shell-pipeline.yml`.
 
+### Fetching Remote Assets
+
+Pipeline nodes can download files from URLs using `fetchurl`. This generates a Nix derivation that uses `builtins.fetchurl` with SHA-256 verification, making downloads reproducible and cached.
+
+```t
+-- Compute the hash upfront using prefetch:
+hash = prefetch("https://example.com/data.csv")
+
+-- Pin the hash in a pipeline node:
+p = pipeline {
+  raw = fetchurl("https://example.com/data.csv", sha256 = hash)
+}
+
+populate_pipeline(p, build = true)
+pipeline_copy()
+
+-- The downloaded file is at p.raw.path:
+content = read_file(p.raw.path)
+```
+
+In REPL mode, `fetchurl` downloads immediately via `curl`:
+
+```t
+fetchurl("https://example.com/data.csv", output = "data.csv")
+```
+
+The companion function `prefetch(url)` downloads a URL and returns its SHA-256 hash, enabling the two-step workflow of computing the hash upfront then pinning it in a pipeline for reproducible builds.
+
 ---
 
 ## 5. Cross-Language Integration
