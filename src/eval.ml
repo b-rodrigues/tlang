@@ -1897,13 +1897,14 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
          | Ok (_, None) -> desugar_all acc rest)
   in
 
+  let saved_pipeline_construction_mode = !pipeline_construction_mode in
   pipeline_construction_mode := true;
   match desugar_all [] nodes with
   | Error err ->
-      pipeline_construction_mode := false;
+      pipeline_construction_mode := saved_pipeline_construction_mode;
       err
   | Ok desugared_nodes ->
-      pipeline_construction_mode := false;
+      pipeline_construction_mode := saved_pipeline_construction_mode;
   
   (* Compute dependencies based on the 'command' part of the desugared node.
      A free variable counts as a pipeline dependency iff it is:

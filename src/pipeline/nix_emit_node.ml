@@ -134,6 +134,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   %s = stdenv.mkDerivation {
     name = "%s";
     buildCommand = ''
+      mkdir -p $out
       cp ${builtins.fetchurl { url = %s; sha256 = %s; }} $out/artifact
       echo "BinaryFile" > $out/class
     '';

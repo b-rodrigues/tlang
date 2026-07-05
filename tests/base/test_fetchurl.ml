@@ -8,7 +8,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
 
   test "fetchurl: no arguments"
     "fetchurl()"
-    {|Error(ArityError: "Function `fetchurl` requires 1 argument, got 0.")|};
+    {|Error(ArityError: "[L1:C1] Function `fetchurl` expects 1 arguments but received 0.")|};
 
   test "prefetch: wrong type for url"
     "prefetch(42)"
@@ -16,29 +16,29 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
 
   test "prefetch: no arguments"
     "prefetch()"
-    {|Error(ArityError: "Function `prefetch` requires 1 argument, got 0.")|};
+    {|Error(ArityError: "[L1:C1] Function `prefetch` expects 1 arguments but received 0.")|};
 
   test "prefetch: too many arguments"
     {|prefetch("https://example.com", "extra")|}
-    {|Error(ArityError: "Function `prefetch` requires 1 argument, got 2.")|};
+    {|Error(ArityError: "[L1:C1] Function `prefetch` expects 1 arguments but received 2.")|};
 
-  (* --- fetchurl is a known symbol (resolves to VSymbol, not NameError) --- *)
-  test "fetchurl is a known symbol"
+  (* --- fetchurl is a builtin function --- *)
+  test "fetchurl is a builtin function"
     "type(fetchurl)"
-    {|"Symbol"|};
+    {|"BuiltinFunction"|};
 
-  (* --- Pipeline-mode VNode construction --- *)
-  (* In pipeline construction mode, fetchurl(...) must return a VNode, not
+  (* --- sha256 type checking --- *)
+  test "fetchurl: sha256 wrong type"
+    {|fetchurl("https://example.com", sha256 = 42)|}
+    {|Error(TypeError: "Function `fetchurl`: `sha256` expects a String, got Int.")|};
+
+  (* --- Pipeline-mode node construction --- *)
+  (* In pipeline construction mode, fetchurl(...) must create a node, not
      attempt a curl invocation.  We verify this by checking the type of the
      resulting node inside a pipeline block. *)
-  test "fetchurl in pipeline returns Node"
+  test "fetchurl in pipeline returns ComputedNode"
     {|p = pipeline { data = fetchurl("https://example.com/data.csv", sha256 = "abc123") }
       type(p.data)|}
-    {|"Node"|};
-
-  test "fetchurl in pipeline without sha256 returns Node"
-    {|p = pipeline { src = fetchurl("https://example.com/file.bin") }
-      type(p.src)|}
-    {|"Node"|};
+    {|"ComputedNode"|};
 
   print_newline ()

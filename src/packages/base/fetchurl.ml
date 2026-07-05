@@ -23,7 +23,7 @@ open Ast
 *)
 let register env =
   let url_from_args args =
-    match List.find_opt (fun (n, _) -> n = None) args with
+    match List.find_opt (fun (n, _) -> n = None || n = Some "url") args with
     | Some (_, VString u) -> Ok u
     | Some (_, VSymbol u) -> Ok u
     | Some (_, other) ->
@@ -35,9 +35,13 @@ let register env =
   in
   let sha256_from_args args =
     match List.find_opt (fun (n, _) -> n = Some "sha256") args with
-    | Some (_, VString s) -> s
-    | Some (_, VSymbol s) -> s
-    | _ -> ""
+    | Some (_, VString s) -> Ok s
+    | Some (_, VSymbol s) -> Ok s
+    | Some (_, other) ->
+        Error (Error.type_error
+          (Printf.sprintf "Function `fetchurl`: `sha256` expects a String, got %s."
+             (Ast.Utils.type_name other)))
+    | None -> Ok ""
   in
   let escape_shell s =
     "'" ^ String.concat "'\\''" (String.split_on_char '\'' s) ^ "'"
@@ -47,46 +51,47 @@ let register env =
       match url_from_args args with
       | Error e -> e
       | Ok url ->
-      let sha256 = sha256_from_args args in
-      if !Eval.pipeline_construction_mode then
-        let un_args =
-          if sha256 <> "" then
-            [("url", VString url); ("sha256", VString sha256)]
-          else
-            [("url", VString url)]
-        in
-        VNode {
-          un_command = mk_expr (Value (VString url));
-          un_script = None;
-          un_runtime = "fetchurl";
-          un_serializer = mk_expr (Value (VString "bin"));
-          un_deserializer = mk_expr (Var "default");
-          un_env_vars = [];
-          un_args;
-          un_shell = None;
-          un_shell_args = [];
-          un_functions = [];
-          un_includes = [];
-          un_noop = false;
-          un_dependencies = None;
-          un_pattern = None;
-          un_iteration = "vector";
-          un_flake = None;
-        }
-      else
-        let output_name = match
-          List.find_opt (fun (n, _) -> n = Some "output") args,
-          List.find_opt (fun (n, _) -> n = Some "dest") args
-        with
-        | Some (_, VString o), _ -> o
-        | _, Some (_, VString d) -> Filename.concat d (Filename.basename url)
-        | _ -> Filename.basename url
-        in
-        let cmd = Printf.sprintf "curl -L -o %s %s" (escape_shell output_name) (escape_shell url) in
-        (match Sys.command cmd with
-         | 0 -> VString output_name
-         | n ->
-             Error.make_error ShellError
-               (Printf.sprintf "Function `fetchurl`: curl failed with exit code %d when fetching %s" n url))
+      (match sha256_from_args args with
+       | Error e -> e
+       | Ok sha256 ->
+         if !Eval.pipeline_construction_mode then begin
+           if sha256 = "" then
+             Error.make_error TypeError
+               "Function `fetchurl`: `sha256` is required in pipeline mode."
+           else
+             VNode {
+               un_command = mk_expr (Value (VString url));
+               un_script = None;
+               un_runtime = "fetchurl";
+               un_serializer = mk_expr (Value (VString "bin"));
+               un_deserializer = mk_expr (Var "default");
+               un_env_vars = [];
+               un_args = [("url", VString url); ("sha256", VString sha256)];
+               un_shell = None;
+               un_shell_args = [];
+               un_functions = [];
+               un_includes = [];
+               un_noop = false;
+               un_dependencies = None;
+               un_pattern = None;
+               un_iteration = "vector";
+               un_flake = None;
+             }
+         end else
+           let output_name = match
+             List.find_opt (fun (n, _) -> n = Some "output") args,
+             List.find_opt (fun (n, _) -> n = Some "dest") args
+           with
+           | Some (_, VString o), _ -> o
+           | _, Some (_, VString d) -> Filename.concat d (Filename.basename url)
+           | _ -> Filename.basename url
+           in
+           let cmd = Printf.sprintf "curl -f -L -o %s %s" (escape_shell output_name) (escape_shell url) in
+           (match Sys.command cmd with
+            | 0 -> VString output_name
+            | n ->
+                Error.make_error ShellError
+                  (Printf.sprintf "Function `fetchurl`: curl failed with exit code %d when fetching %s" n url))
+      )
     ))
     env

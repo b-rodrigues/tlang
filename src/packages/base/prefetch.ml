@@ -25,7 +25,7 @@ let register env =
       match args with
       | [VString url] | [VSymbol url] ->
           let tmpfile = Filename.temp_file "t_prefetch_" ".tmp" in
-          let dl_cmd = Printf.sprintf "curl -sL -o %s %s" (escape_shell tmpfile) (escape_shell url) in
+          let dl_cmd = Printf.sprintf "curl -sfL -o %s %s" (escape_shell tmpfile) (escape_shell url) in
           (match Sys.command dl_cmd with
            | 0 ->
                let hash_cmd = Printf.sprintf "sha256sum %s | cut -d' ' -f1" (escape_shell tmpfile) in
@@ -34,10 +34,14 @@ let register env =
                  let line = input_line hash_channel in
                  String.trim line
                with End_of_file -> "" in
-               (match Unix.close_process_in hash_channel with
-                | Unix.WEXITED 0 ->
+               (match Unix.close_process_in hash_channel, hash with
+                | Unix.WEXITED 0, h when h <> "" ->
                     Sys.remove tmpfile;
-                    VString hash
+                    VString h
+                | Unix.WEXITED 0, _ ->
+                    Sys.remove tmpfile;
+                    Error.make_error ShellError
+                      (Printf.sprintf "Function `prefetch`: computed empty SHA-256 hash for %s" url)
                 | _ ->
                     Sys.remove tmpfile;
                     Error.make_error ShellError
