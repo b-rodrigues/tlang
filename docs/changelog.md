@@ -24,6 +24,11 @@
 - **Pipeline runtime support**: The pipeline Nix emitter reads `r_renv_cran_pkgs` and `r_git_pkgs` at build time, generating the appropriate Nix expressions for renv-discovered CRAN packages alongside the traditional `rPackagesList` in every R environment (`mkNodeEnv` and `projectREnv`).
 - **Dependency analysis integration**: When `resolver = "renv"` is set, the dependency checker merges renv.lock CRAN packages into the analysis so requirement checks pass without an explicit `packages` list in `tproject.toml`.
 
+### Reproducible URL Downloading
+
+- **`fetchurl(url, sha256, output, dest)`**: Downloads a file from a URL with reproducibility guarantees. In REPL mode, uses `curl` to download (optional `output`/`dest` for the save path). In pipeline mode, generates a `builtins.fetchurl` Nix derivation with the required `sha256` hash for content-addressable caching. The downloaded artifact is accessible at `p.node_name.path` after building.
+- **`prefetch(url)`**: Downloads a URL and returns its SHA-256 hash, usable as the `sha256` argument to `fetchurl`. Enables a two-step workflow: compute the hash upfront, then pin it in a pipeline for reproducible builds.
+
 ## [0.53.3] - 2026-06-26
 
 ### Toolchain & CI Updates
