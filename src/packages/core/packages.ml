@@ -757,6 +757,8 @@ let init_env () =
   let env = T_json.register env in
   let env = Set_seed.register env in
   let env = Sample.register env in
+  let env = Fetchurl.register env in
+  let env = Prefetch.register env in
   (* Chrono package *)
   let env = Chrono.register env in
   (* Dataframe package *)
@@ -979,7 +981,7 @@ let init_env () =
      Add new runtimes or serializer names here as they are introduced. *)
   let known_symbols = [
     (* Runtimes *)
-    "R"; "Python"; "T"; "Julia"; "Quarto"; "sh";
+    "R"; "Python"; "T"; "Julia"; "Quarto"; "sh"; "fetchurl";
     (* Serialization defaults *)
     "default";
     (* R serializers *)
@@ -993,7 +995,8 @@ let init_env () =
     "pmml"; "^pmml"; "^csv"; "^arrow"; "^json"; "^onnx";
   ] in
   let env = List.fold_left (fun acc name ->
-    Env.add name (VSymbol name) acc
+    if Env.mem name acc then acc
+    else Env.add name (VSymbol name) acc
   ) env known_symbols in
   let env = Import_registry.mark_builtin_bindings env in
   env

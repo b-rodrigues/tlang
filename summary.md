@@ -331,6 +331,7 @@ Purpose: assertions, missing values, error values, serialization, JSON, reproduc
 - Error values: `error(message)`, `error(code, message)`, `error_code(err)`, `error_message(err)`, `error_context(err)`
 - Serialization: `serialize(value, path)`, `deserialize(path)`, `t_write_json(value, path)`, `t_read_json(path)`
 - Reproducible randomness: `set_seed(seed)`, `sample(x, n = 1, replace = false)`
+- Fetching remote assets: `fetchurl(url, sha256?, output?, dest?)` downloads a file via curl (REPL) or Nix `builtins.fetchurl` (pipeline); `prefetch(url)` downloads and computes the SHA-256 hash
 
 ### `core`
 

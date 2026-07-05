@@ -1206,6 +1206,57 @@ Deserializes a T value from a JSON file. Automatically handles type conversion f
 
 ---
 
+### `fetchurl(url, sha256?, output?, dest?)`
+
+Downloads a file from a URL. In the REPL, wraps curl for immediate download. Inside a pipeline, creates a node that uses Nix's `builtins.fetchurl` to fetch the asset into the Nix store, making it available downstream.
+
+**Parameters:**
+
+- `url` — The URL to download (String)
+- `sha256` (optional) — Expected SHA-256 hash (String). Required in pipeline mode.
+- `output` (optional) — Output file path for REPL mode (String). Defaults to basename of URL.
+- `dest` (optional) — Output directory for REPL mode (String). Defaults to current directory.
+
+**Returns:**
+
+`String` (REPL mode) — The path to the downloaded file.
+`Node` (pipeline mode) — A pipeline node configured to fetch the URL via Nix.
+
+**Examples:**
+```t
+-- REPL mode: download to current directory
+data = fetchurl("https://example.com/data.csv", output = "data.csv")
+
+-- Pipeline mode: fetch via Nix builtins.fetchurl
+p = pipeline {
+  raw = fetchurl("https://example.com/data.csv", sha256 = "abc123...");
+  result = read_csv(raw) |> mutate(...);
+}
+build_pipeline(p)
+```
+
+---
+
+### `prefetch(url)`
+
+Downloads a URL and computes its SHA-256 hash. Useful for obtaining the hash needed by `fetchurl` in pipeline mode.
+
+**Parameters:**
+
+- `url` — The URL to prefetch (String)
+
+**Returns:**
+
+`String` — The SHA-256 hex digest of the downloaded content.
+
+**Examples:**
+```t
+hash = prefetch("https://example.com/data.csv")
+print(hash)  -- e.g. "abc123..."
+```
+
+---
+
 ## Math Package
 
 Mathematical functions operating on scalars and vectors. Most functions are vectorized over Collections.

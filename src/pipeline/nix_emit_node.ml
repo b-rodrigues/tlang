@@ -119,6 +119,26 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     mkdir -p $out
     echo "Build skipped for %s" > $out/NOOPBUILD
   '';|} name pkgs_str name name
+  else if runtime = "fetchurl" then
+    let url = match List.assoc_opt "url" runtime_args with
+      | Some (VString u) -> u
+      | Some (VSymbol u) -> u
+      | _ -> "" in
+    let sha256 = match List.assoc_opt "sha256" runtime_args with
+      | Some (VString s) -> s
+      | Some (VSymbol s) -> s
+      | _ -> "" in
+    let nix_url = Nix_utils.nix_double_quote url in
+    let nix_sha256 = Nix_utils.nix_double_quote sha256 in
+    Printf.sprintf {|
+  %s = stdenv.mkDerivation {
+    name = "%s";
+    buildCommand = ''
+      cp ${builtins.fetchurl { url = %s; sha256 = %s; }} $out/artifact
+      echo "BinaryFile" > $out/class
+    '';
+  };
+  |} name name nix_url nix_sha256
   else
   let eval_expr_safe e = Eval.eval_expr (ref Ast.Env.empty) e in
   let ser_val = eval_expr_safe serializer in
@@ -2064,7 +2084,7 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
 
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
-    if runtime = "Quarto" || runtime = "sh" then
+    if runtime = "Quarto" || runtime = "sh" || runtime = "fetchurl" then
       ""
     else
       let get_load_stmt dep_name =
