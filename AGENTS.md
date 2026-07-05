@@ -342,6 +342,27 @@ Or just re-run T scripts and compare (when data already exists):
 make golden-quick
 ```
 
+### Explicit Error Guards in T Scripts
+
+Errors in T are **first-class values** — they do not propagate or halt execution unless explicitly checked. A failed `fetchurl` or a broken pipeline node simply stores the error in the variable. **Every demo and integration test script must guard against this** by checking for errors after any fallible operation:
+
+```t
+-- Good: explicit guard stops on error
+p = pipeline { raw = fetchurl(url, sha256 = hash) }
+populate_pipeline(p, build = true)
+pipeline_copy()
+
+if (is_error(p.raw)) {
+  error(str_join(["Node 'raw' errored: ", error_msg(p.raw)]))
+}
+
+-- Bad: script continues past a silent error
+populate_pipeline(p, build = true)
+filepath = p.raw.path        -- silently returns an Error value, not a path
+```
+
+This is especially critical in CI where a node might fail (e.g., Nix build failure, missing dependency, network error). Without an explicit `is_error()` guard, the script will cheerfully print "all tests passed" while every assertion operates on error values instead of real data.
+
 ---
 
 ## Troubleshooting and Fixing Tests
