@@ -1899,12 +1899,13 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
 
   let saved_pipeline_construction_mode = !pipeline_construction_mode in
   pipeline_construction_mode := true;
-  match desugar_all [] nodes with
-  | Error err ->
-      pipeline_construction_mode := saved_pipeline_construction_mode;
-      err
+  let result = Fun.protect ~finally:(fun () ->
+    pipeline_construction_mode := saved_pipeline_construction_mode)
+    (fun () -> desugar_all [] nodes)
+  in
+  match result with
+  | Error err -> err
   | Ok desugared_nodes ->
-      pipeline_construction_mode := saved_pipeline_construction_mode;
   
   (* Compute dependencies based on the 'command' part of the desugared node.
      A free variable counts as a pipeline dependency iff it is:
