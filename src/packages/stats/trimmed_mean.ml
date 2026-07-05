@@ -82,7 +82,7 @@ let register env =
                            let arr = Array.of_list xs in
                            let n = Array.length arr in
                            let k = int_of_float (Float.floor (trim *. float_of_int n)) in
-                           Array.sort compare arr;
+                           Array.sort Float.compare arr;
                            let kept = Array.sub arr k (n - (2 * k)) in
                            VFloat (Array.fold_left ( +. ) 0.0 kept /. float_of_int (Array.length kept)))))
         | _ -> Error.arity_error_named "trimmed_mean" 2 (List.length args))) env

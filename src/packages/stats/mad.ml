@@ -45,7 +45,7 @@ let quantile xs p =
   let n = Array.length arr in
   if n = 0 then None
   else (
-    Array.sort compare arr;
+    Array.sort Float.compare arr;
     let h = p *. float_of_int (n - 1) in
     let lo = int_of_float (Float.floor h) in
     let hi = min (lo + 1) (n - 1) in

@@ -12,11 +12,7 @@ open Ast
 --# @export
 *)
 
-let has_na_rm named_args =
-  List.exists (fun (name, v) -> name = Some "na_rm" && match v with VBool true -> true | _ -> false) named_args
 
-let strip_na_rm named_args =
-  List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd
 
 let numeric_values ~label ~na_rm v =
   let vals =
@@ -39,17 +35,7 @@ let numeric_values ~label ~na_rm v =
       in
       go [] vals
 
-let quantile xs p =
-  let arr = Array.of_list xs in
-  let n = Array.length arr in
-  if n = 0 then None
-  else (
-    Array.sort compare arr;
-    let h = p *. float_of_int (n - 1) in
-    let lo = int_of_float (Float.floor h) in
-    let hi = min (lo + 1) (n - 1) in
-    let frac = h -. float_of_int lo in
-    Some (arr.(lo) +. frac *. (arr.(hi) -. arr.(lo))))
+
 
 let mean xs =
   let n = List.length xs in
@@ -71,6 +57,6 @@ let register env =
                | None -> Error.make_error RuntimeError "Function `scale` internal error: mean returned None for non-empty list."
                | Some m ->
                let s = Float.sqrt (List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int (n - 1)) in
-               if s = 0.0 then Error.value_error "Function `scale` undefined for zero-variance data."
+               if Float.abs s < 1e-15 then Error.value_error "Function `scale` undefined for zero-variance data."
                else vecf (List.map (fun v -> (v -. m) /. s) xs))
     | _ -> Error.arity_error_named "scale" 1 (List.length args))) env
