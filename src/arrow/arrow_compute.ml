@@ -615,7 +615,9 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
         | _ -> Ast.(VNA NAGeneric)
       ) in
       let all_columns = key_result_cols @ [(agg_col_name, agg_col)] in
-      Some (Arrow_bridge.table_from_value_columns all_columns n_groups)
+      (match Arrow_bridge.table_from_value_columns all_columns n_groups with
+       | Ok table -> Some table
+       | Error _ -> None)
     end
 
 (** Compute multiple aggregations in a single call.
@@ -670,8 +672,9 @@ let apply_unary_math_column (t : Arrow_table.t) (col_name : string)
         | Ast.VNA _ as na -> na
         | _ -> v
       ) values in
-      let new_col = Arrow_bridge.values_to_column new_values in
-      Some (Arrow_table.add_column t col_name new_col)
+      (match Arrow_bridge.values_to_column new_values with
+       | Ok new_col -> Some (Arrow_table.add_column t col_name new_col)
+       | Error _ -> None)
 
 (** Apply sqrt to every element of a named numeric column. *)
 let sqrt_column (t : Arrow_table.t) (col_name : string) : Arrow_table.t option =
@@ -711,8 +714,9 @@ let pow_column (t : Arrow_table.t) (col_name : string) (exponent : float) : Arro
         | Ast.VNA _ as na -> na
         | _ -> v
       ) values in
-      let new_col = Arrow_bridge.values_to_column new_values in
-      Some (Arrow_table.add_column t col_name new_col)
+      (match Arrow_bridge.values_to_column new_values with
+       | Ok new_col -> Some (Arrow_table.add_column t col_name new_col)
+       | Error _ -> None)
 
 (* ===================================================================== *)
 (* Column-Level Aggregations (Phase 5 — Week 1)                          *)

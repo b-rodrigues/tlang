@@ -1,6 +1,8 @@
 (* src/pmml_utils.ml *)
 open Ast
 
+exception PMMLParseError of string
+
 type predictor_info = {
   name: string;
   estimate: float;
@@ -672,11 +674,11 @@ let read_pmml path =
           | `El_start ((_, "NumericPredictor"), attrs) ->
               let name = match find_attr "name" attrs with
                 | Some s -> s
-                | None -> raise (Invalid_argument "Required PMML attribute 'name' missing in <NumericPredictor>")
+                | None -> raise (PMMLParseError "Required PMML attribute 'name' missing in <NumericPredictor>")
               in
               let coef = match get_float_attr "coefficient" attrs with
                 | Some v -> v
-                | None -> raise (Invalid_argument "Required PMML attribute 'coefficient' missing in <NumericPredictor>")
+                | None -> raise (PMMLParseError "Required PMML attribute 'coefficient' missing in <NumericPredictor>")
               in
               let p = { name; estimate = coef; 
                         std_error = get_float_attr "stdError" attrs; 
@@ -716,7 +718,7 @@ let read_pmml path =
                 found_table := true;
                 let intercept_val = match get_float_attr "intercept" attrs with
                   | Some v -> v
-                  | None -> raise (Invalid_argument "Required PMML attribute 'intercept' missing in <RegressionTable>")
+                  | None -> raise (PMMLParseError "Required PMML attribute 'intercept' missing in <RegressionTable>")
                 in
                 let p = { name = "(Intercept)"; estimate = intercept_val; 
                           std_error = get_float_attr "stdError" attrs;
@@ -897,5 +899,7 @@ let read_pmml path =
           ("_display_keys", VList display_keys);
         ])
     ) (* end Fun.protect *)
-  with exn -> 
+  with 
+  | PMMLParseError msg -> Error msg
+  | exn -> 
     Error (Printf.sprintf "PMML Parse Error: %s" (Printexc.to_string exn))

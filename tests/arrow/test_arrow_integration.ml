@@ -162,9 +162,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Test 15: Values to column conversion *)
   let vals = [| Ast.VInt 10; Ast.VInt 20; Ast.VNA Ast.NAInt |] in
-  let col = Arrow_bridge.values_to_column vals in
-  (match col with
-   | Arrow_table.IntColumn data ->
+  (match Arrow_bridge.values_to_column vals with
+   | Ok (Arrow_table.IntColumn data) ->
        if data.(0) = Some 10 && data.(1) = Some 20 && data.(2) = None then begin
          incr pass_count; Printf.printf "  ✓ Values to IntColumn with NA\n"
        end else begin
@@ -1277,7 +1276,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                         Ast.(VNA Ast.NAGeneric);
                         Ast.VFactor (2, ["A"; "B"; "C"], true) |] in
   (match Arrow_bridge.values_to_column factor_input with
-   | Arrow_table.DictionaryColumn (idx, levels, ordered) ->
+   | Ok (Arrow_table.DictionaryColumn (idx, levels, ordered)) ->
        if idx.(0) = Some 0 && idx.(1) = None && idx.(2) = Some 2
           && levels = ["A"; "B"; "C"] && ordered then begin
          incr pass_count; Printf.printf "  ✓ Bridge VFactor → DictionaryColumn round-trip\n"
@@ -1325,7 +1324,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                          Ast.(VNA Ast.NAGeneric);
                          Ast.VFactor (0, ["low"; "med"; "high"], true) |] in
   (match Arrow_bridge.values_to_column ordered_input with
-   | Arrow_table.DictionaryColumn (idx, levels, ordered) ->
+   | Ok (Arrow_table.DictionaryColumn (idx, levels, ordered)) ->
        if idx.(0) = Some 1 && idx.(1) = None && idx.(2) = Some 0
           && levels = ["low"; "med"; "high"] && ordered then begin
          incr pass_count; Printf.printf "  ✓ Ordered to_factor bridge round-trip preserves ordered flag\n"

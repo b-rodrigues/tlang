@@ -99,14 +99,14 @@ let parse_namespace_deps content =
   let lines = String.split_on_char '\n' content in
   let extract_import line =
     let trimmed = String.trim line in
-    if String.starts_with ~prefix:"import(" trimmed then
+    if String.starts_with ~prefix:"import(" trimmed && String.ends_with ~suffix:")" trimmed && String.length trimmed >= 8 then
       let inner = String.sub trimmed 7 (String.length trimmed - 8) in
       let inner_clean =
         match String.index_opt inner '=' with
         | Some pos ->
           let before = String.sub inner 0 pos in
           let before_trimmed = String.trim before in
-          if String.ends_with ~suffix:"except" before_trimmed then
+          if String.ends_with ~suffix:"except" before_trimmed && String.length before_trimmed >= 6 then
             String.sub before_trimmed 0 (String.length before_trimmed - 6)
           else
             before
@@ -117,17 +117,17 @@ let parse_namespace_deps content =
       |> List.filter_map (fun s ->
         if s = "" then None
         else
-          let pkg = if String.length s >= 2 && (s.[0] = '"' || s.[0] = '\'') then
+          let pkg = if String.length s >= 2 && (s.[0] = '"' || s.[0] = '\'') && (s.[String.length s - 1] = '"' || s.[String.length s - 1] = '\'') then
             String.sub s 1 (String.length s - 2)
           else s in
           if pkg <> "" then Some pkg else None
       )
-    else if String.starts_with ~prefix:"importFrom(" trimmed then
+    else if String.starts_with ~prefix:"importFrom(" trimmed && String.ends_with ~suffix:")" trimmed && String.length trimmed >= 12 then
       let inner = String.sub trimmed 11 (String.length trimmed - 12) in
       match String.split_on_char ',' inner with
       | pkg_part :: _ ->
         let pkg = String.trim pkg_part in
-        let pkg = if String.length pkg >= 2 && (pkg.[0] = '"' || pkg.[0] = '\'') then
+        let pkg = if String.length pkg >= 2 && (pkg.[0] = '"' || pkg.[0] = '\'') && (pkg.[String.length pkg - 1] = '"' || pkg.[String.length pkg - 1] = '\'') then
           String.sub pkg 1 (String.length pkg - 2)
         else pkg in
         if pkg <> "" then [pkg] else []

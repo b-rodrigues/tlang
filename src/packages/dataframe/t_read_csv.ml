@@ -134,8 +134,9 @@ let parse_csv_string ?(sep=',') ?(skip_header=false) ?(skip_lines=0) ?(clean_col
           (name, col_data)
         ) headers in
         (* Convert to Arrow table via bridge *)
-        let arrow_table = Arrow_bridge.table_from_value_columns value_columns nrows in
-        VDataFrame { arrow_table; group_keys = [] }
+        (match Arrow_bridge.table_from_value_columns value_columns nrows with
+         | Ok arrow_table -> VDataFrame { arrow_table; group_keys = [] }
+         | Error err -> err)
 
 
 (*

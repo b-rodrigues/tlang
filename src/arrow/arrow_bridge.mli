@@ -21,15 +21,15 @@ val value_at : Arrow_table.column_data -> int -> value
 (** Map an Arrow column type to the corresponding T NA variant. *)
 val na_for_column_type : Arrow_table.column_data -> na_type
 
-val values_to_column : value array -> Arrow_table.column_data
+val values_to_column : value array -> (Arrow_table.column_data, value) result
 
 (** Extract a specific row from an Arrow table as an associative dictionary of field names to values.
     This function is bounds-safe and returns VNA NAGeneric values if the index is out of bounds. *)
 val row_to_dict : Arrow_table.t -> int -> (string * value) list
 
 (** Create an Arrow table from T-Lang value column structures.
-    Validates that all column arrays match the specified [row_count], raising Invalid_argument if not. *)
-val table_from_value_columns : (string * value array) list -> row_count -> Arrow_table.t
+    Validates that all column arrays match the specified [row_count], returning a VError result if not. *)
+val table_from_value_columns : (string * value array) list -> row_count -> (Arrow_table.t, value) result
 
 (** Convert an Arrow table structure back to T-Lang value column arrays.
     Costly memory copy and allocation. *)

@@ -12,8 +12,9 @@ let count_impl (named_args : (string option * value) list) _env =
       if keys = [] then
         (* Just count rows of the whole df *)
         let n = Arrow_table.num_rows df.arrow_table in
-        let arrow_table = Arrow_bridge.table_from_value_columns [(name_val, [|VInt n|])] 1 in
-        VDataFrame { arrow_table; group_keys = [] }
+        (match Arrow_bridge.table_from_value_columns [(name_val, [|VInt n|])] 1 with
+         | Ok arrow_table -> VDataFrame { arrow_table; group_keys = [] }
+         | Error err -> err)
       else
         let grouped = Arrow_compute.group_by df.arrow_table keys in
         let agg_table = match Arrow_compute.group_aggregate grouped "count" "" with

@@ -80,7 +80,7 @@ let value_at (col : Arrow_table.column_data) (row : int) : value =
     
     @param values The T-Lang value array.
     @return The constructed Arrow column data structure. *)
-let values_to_column (values : value array) : Arrow_table.column_data =
+let values_to_column (values : value array) : (Arrow_table.column_data, value) result =
   (* Infer column type from non-NA values *)
   let has_int = ref false in
   let has_float = ref false in
@@ -127,35 +127,35 @@ let values_to_column (values : value array) : Arrow_table.column_data =
   ) values;
   if !all_na then begin
     if !has_datetime then
-      Arrow_table.DatetimeColumn (Array.map (fun _ -> None) values, None)
+      Ok (Arrow_table.DatetimeColumn (Array.map (fun _ -> None) values, None))
     else if !has_date then
-      Arrow_table.DateColumn (Array.map (fun _ -> None) values)
+      Ok (Arrow_table.DateColumn (Array.map (fun _ -> None) values))
     else if !has_int then
-      Arrow_table.IntColumn (Array.map (fun _ -> None) values)
+      Ok (Arrow_table.IntColumn (Array.map (fun _ -> None) values))
     else if !has_float then
-      Arrow_table.FloatColumn (Array.map (fun _ -> None) values)
+      Ok (Arrow_table.FloatColumn (Array.map (fun _ -> None) values))
     else if !has_bool then
-      Arrow_table.BoolColumn (Array.map (fun _ -> None) values)
+      Ok (Arrow_table.BoolColumn (Array.map (fun _ -> None) values))
     else if !has_string then
-      Arrow_table.StringColumn (Array.map (fun _ -> None) values)
+      Ok (Arrow_table.StringColumn (Array.map (fun _ -> None) values))
     else
-      Arrow_table.NAColumn (Array.length values)
+      Ok (Arrow_table.NAColumn (Array.length values))
   end else if !has_dataframe then
     if !has_int || !has_float || !has_bool || !has_string || !has_date || !has_datetime || !has_factor || !factor_inconsistent then
-      raise (Invalid_argument "values_to_column: mixed DataFrame and non-DataFrame values cannot be stored in a single column")
+      Error (Error.type_error "mixed DataFrame and non-DataFrame values cannot be stored in a single column")
     else
-      Arrow_table.ListColumn (Array.map (function
+      Ok (Arrow_table.ListColumn (Array.map (function
         | VDataFrame df -> Some df.arrow_table
         | VNA _ -> None
         | _ -> None
-      ) values)
+      ) values))
   else if !has_factor && not !factor_inconsistent then
-    Arrow_table.DictionaryColumn (Array.map (function
+    Ok (Arrow_table.DictionaryColumn (Array.map (function
       | VFactor (i, _, _) when i >= 0 -> Some i
       | VFactor (_, _, _) -> None
       | VNA _ -> None
       | _ -> None
-    ) values, !factor_levels, !factor_ordered)
+    ) values, !factor_levels, !factor_ordered))
   else if !has_datetime && not (!has_int || !has_float || !has_bool || !has_string || !has_date || !has_factor) then
     let tz =
       Array.fold_left (fun acc v ->
@@ -165,46 +165,46 @@ let values_to_column (values : value array) : Arrow_table.column_data =
         | None, _ -> None
       ) None values
     in
-    Arrow_table.DatetimeColumn (Array.map (function
+    Ok (Arrow_table.DatetimeColumn (Array.map (function
       | VDatetime (ts, _) -> Some ts
       | VNA _ -> None
       | _ -> None
-    ) values, tz)
+    ) values, tz))
   else if !has_date && not (!has_int || !has_float || !has_bool || !has_string || !has_datetime || !has_factor) then
-    Arrow_table.DateColumn (Array.map (function
+    Ok (Arrow_table.DateColumn (Array.map (function
       | VDate d -> Some d
       | VNA _ -> None
       | _ -> None
-    ) values)
+    ) values))
   else if !has_string || !factor_inconsistent then
-    Arrow_table.StringColumn (Array.map (fun v ->
+    Ok (Arrow_table.StringColumn (Array.map (fun v ->
       match v with
       | VString s -> Some s
       | VFactor (i, levels, _) -> (match List.nth_opt levels i with Some s -> Some s | None -> None)
       | VNA _ -> None
       | v -> Some (Utils.value_to_string v)
-    ) values)
+    ) values))
   else if !has_float then
-    Arrow_table.FloatColumn (Array.map (function
+    Ok (Arrow_table.FloatColumn (Array.map (function
       | VFloat f -> Some f
       | VInt i -> Some (float_of_int i)
       | VNA _ -> None
       | _ -> None
-    ) values)
+    ) values))
   else if !has_int then
-    Arrow_table.IntColumn (Array.map (function
+    Ok (Arrow_table.IntColumn (Array.map (function
       | VInt i -> Some i
       | VNA _ -> None
       | _ -> None
-    ) values)
+    ) values))
   else if !has_bool then
-    Arrow_table.BoolColumn (Array.map (function
+    Ok (Arrow_table.BoolColumn (Array.map (function
       | VBool b -> Some b
       | VNA _ -> None
       | _ -> None
-    ) values)
+    ) values))
   else
-    Arrow_table.NAColumn (Array.length values)
+    Ok (Arrow_table.NAColumn (Array.length values))
 
 (** Extract a specific row from an Arrow table as an associative dictionary of field names to values.
     
@@ -262,15 +262,29 @@ let na_for_column_type (col : Arrow_table.column_data) : na_type =
     @param columns List of column name to value array pairs.
     @param nrows Total row count of the table.
     @return The constructed and materialized Arrow table. *)
-let table_from_value_columns (columns : (string * value array) list) (nrows : int) : Arrow_table.t =
-  List.iter (fun (name, values) ->
-    if Array.length values <> nrows then
-      raise (Invalid_argument (Printf.sprintf "table_from_value_columns: column '%s' has length %d but expected %d" name (Array.length values) nrows))
-  ) columns;
-  let arrow_columns = List.map (fun (name, values) ->
-    (name, values_to_column values)
-  ) columns in
-  Arrow_table.create arrow_columns nrows |> Arrow_table.materialize
+let table_from_value_columns (columns : (string * value array) list) (nrows : int) : (Arrow_table.t, value) result =
+  let rec validate = function
+    | [] -> Ok ()
+    | (name, values) :: rest ->
+        if Array.length values <> nrows then
+          Error (Error.value_error (Printf.sprintf "table_from_value_columns: column '%s' has length %d but expected %d" name (Array.length values) nrows))
+        else
+          validate rest
+  in
+  match validate columns with
+  | Error err -> Error err
+  | Ok () ->
+      let rec map_cols acc = function
+        | [] -> Ok (List.rev acc)
+        | (name, values) :: rest ->
+            (match values_to_column values with
+             | Error err -> Error err
+             | Ok col -> map_cols ((name, col) :: acc) rest)
+      in
+      (match map_cols [] columns with
+       | Error err -> Error err
+       | Ok arrow_columns ->
+           Ok (Arrow_table.create arrow_columns nrows |> Arrow_table.materialize))
 
 (** Convert an Arrow table structure back to T-Lang value column arrays.
     
