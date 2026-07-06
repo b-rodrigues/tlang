@@ -10,6 +10,7 @@
 
 - **Scientific Float Notation Support**: Parser and lexer now support standard scientific notation for floating-point literals (e.g. `1e-5`, `3.14e+2`, `2.7E-3`).
 - **String Escape Sequence Validation**: The string parser now validates escape sequences at parse time, throwing a clear syntax error for invalid or unrecognized escape sequences.
+- **Hex Byte Escape (`\xHH`)**: String literals now support `\x` followed by exactly two hexadecimal digits (e.g. `"\x48\x69"` → `"Hi"`), enabling embedding of arbitrary byte sequences.
 - **Precision Floating-Point Calculations**: Replaced polymorphic comparisons with epsilon-based tolerance checks (`Float.abs v < 1e-15`) and `Float.compare` in statistical packages (e.g., `mean`, `sd`, `lm`), eliminating silent precision corruption.
 - **Safe Vector & List Slicing**: Added strict bounds checking for all list and vector index operations, preventing silent errors or partial function failures.
 - **Detailed Package Manager Error Diagnostics**: Upgraded remote repository check (`git ls-remote`) and dependency upgrade error handling to report specific system warnings and write failures rather than generic error messages.

@@ -39,6 +39,7 @@ This creates the following structure:
 - **tests/**: Project-specific tests.
 - **AGENTS.md**: Onboarding guide for AI Agents.
 - **T-LANGUAGE-REFERENCE.md**: Tiered language reference for LLMs.
+- **.claude/skills/SKILL.md**: An AI agent skill file that teaches LLMs how to work with T projects (scaffolded automatically).
 
 ## 2. Entering the Development Environment
 
