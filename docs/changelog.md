@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.54.0] - unreleased
+## [0.54.0] - 2026-07-06
 
 ### Pipeline & Diagnostics
 
