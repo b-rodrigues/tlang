@@ -31,8 +31,9 @@ let to_json_file filename =
   let entries = get_all () in
   let json = "{\"docs\": [" ^ (String.concat ", " (List.map doc_entry_to_json entries)) ^ "]}" in
   let chan = open_out filename in
-  output_string chan json;
-  close_out chan
+  Fun.protect
+    ~finally:(fun () -> close_out_noerr chan)
+    (fun () -> output_string chan json)
 
 (* Simple JSON parser (very limited) would go here for loading *)
 (* For now, we only implement saving as loading is for the generation phase *)
@@ -61,8 +62,11 @@ let normalize_path path =
 let load_from_json filename =
   try
     let ch = open_in filename in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
+    let content =
+      Fun.protect
+        ~finally:(fun () -> close_in_noerr ch)
+        (fun () -> really_input_string ch (in_channel_length ch))
+    in
     
     let json = Tdoc_json.from_string content in
     match json with
@@ -79,4 +83,5 @@ let load_from_json filename =
   with
   | Sys_error msg -> Printf.eprintf "Warning: Could not load documentation: %s\n" msg
   | Tdoc_json.Json_error msg -> Printf.eprintf "Warning: Failed to parse documentation: %s\n" msg
+  | Out_of_memory | Stack_overflow as e -> raise e
   | exn -> Printf.eprintf "Warning: Unknown error loading documentation: %s\n" (Printexc.to_string exn)

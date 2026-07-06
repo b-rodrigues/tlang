@@ -173,12 +173,26 @@ let run_git ~dir args =
             let next_eof_out = ref eof_out in
             let next_eof_err = ref eof_err in
             if List.mem pipe_out_read ready then (
-              let n = try Unix.read pipe_out_read buf 0 (Bytes.length buf) with _ -> 0 in
+              let n =
+                try Unix.read pipe_out_read buf 0 (Bytes.length buf)
+                with
+                | End_of_file -> 0
+                | exn ->
+                    Printf.eprintf "Warning: Unix.read failed: %s\n%!" (Printexc.to_string exn);
+                    0
+              in
               if n > 0 then Buffer.add_subbytes out_buf buf 0 n
               else next_eof_out := true
             );
             if List.mem pipe_err_read ready then (
-              let n = try Unix.read pipe_err_read buf 0 (Bytes.length buf) with _ -> 0 in
+              let n =
+                try Unix.read pipe_err_read buf 0 (Bytes.length buf)
+                with
+                | End_of_file -> 0
+                | exn ->
+                    Printf.eprintf "Warning: Unix.read failed: %s\n%!" (Printexc.to_string exn);
+                    0
+              in
               if n > 0 then Buffer.add_subbytes err_buf buf 0 n
               else next_eof_err := true
             );
@@ -261,7 +275,15 @@ let find_file_recursively ~filename ~checkout_dir ~subdir =
   if Sys.file_exists direct then Some direct
   else
     let rec search path =
-      let entries = try Some (Sys.readdir path) with _ -> None in
+      let entries =
+        try Some (Sys.readdir path)
+        with
+        | Sys_error msg ->
+            Printf.eprintf "Warning: Sys.readdir failed on %s: %s\n%!" path msg;
+            None
+        | Out_of_memory | Stack_overflow as e -> raise e
+        | _ -> None
+      in
       match entries with
       | None -> None
       | Some entries ->

@@ -35,9 +35,11 @@ let extract_nixpkgs_date flake_content =
 let read_file path =
   try
     let ch = open_in path in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    Ok content
+    Fun.protect
+      ~finally:(fun () -> close_in_noerr ch)
+      (fun () ->
+        let content = really_input_string ch (in_channel_length ch) in
+        Ok content)
   with Sys_error msg -> Error msg
 
 (** Parse remote tag references from `git ls-remote --tags` output.
@@ -370,7 +372,7 @@ let run_git_ls_remote_tags url =
           else
             Error "git ls-remote reported an error"
       | Unix.WSIGNALED _ | Unix.WSTOPPED _ -> Error "git ls-remote terminated unexpectedly"
-    with _ -> Error "git ls-remote invocation failed"
+    with exn -> Error (Printf.sprintf "git ls-remote invocation failed: %s" (Printexc.to_string exn))
 
 (** Format a user-friendly warning message for various git ls-remote tag check failures.
     
@@ -891,13 +893,21 @@ let cmd_upgrade () =
               flush stdout;
               let new_cfg = { cfg with proj_min_t_version = latest_version; proj_nixpkgs_date = today } in
               let new_content = Toml_parser.serialize_tproject_toml new_cfg in
-              try
-                let oc = open_out tproject_path in
-                Fun.protect
-                  ~finally:(fun () -> close_out_noerr oc)
-                  (fun () -> output_string oc new_content);
-                Printf.printf "Regenerating flake.nix and updating dependencies...\n";
-                flush stdout;
-                update_flake_lock ()
-              with e -> Error (Printf.sprintf "Failed to update tproject.toml: %s" (Printexc.to_string e))
+              let write_res =
+                try
+                  let oc = open_out tproject_path in
+                  Fun.protect
+                    ~finally:(fun () -> close_out_noerr oc)
+                    (fun () -> output_string oc new_content);
+                  Ok ()
+                with e -> Error (Printf.sprintf "Failed to update tproject.toml: %s" (Printexc.to_string e))
+              in
+              match write_res with
+              | Error _ as err -> err
+              | Ok () ->
+                  Printf.printf "Regenerating flake.nix and updating dependencies...\n";
+                  flush stdout;
+                  (try
+                     update_flake_lock ()
+                   with e -> Error (Printf.sprintf "Failed to update flake lock: %s" (Printexc.to_string e)))
             )

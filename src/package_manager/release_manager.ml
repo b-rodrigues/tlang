@@ -8,110 +8,130 @@ open Package_types
     For commands that include user-supplied data, use [run_command_argv] instead. *)
 let run_command cmd : (string, string) result =
   try
-    let (ch_in, ch_out, ch_err) = Unix.open_process_full cmd (Unix.environment ()) in
-    close_out ch_out; (* Close stdin to the process *)
+    let (ch_in, ch_out, ch_err) as channels = Unix.open_process_full cmd (Unix.environment ()) in
+    let status =
+      Fun.protect
+        ~finally:(fun () ->
+          close_out_noerr ch_out;
+          close_in_noerr ch_in;
+          close_in_noerr ch_err)
+        (fun () ->
+          let out_buf = Buffer.create 1024 in
+          let err_buf = Buffer.create 1024 in
+          let buf = Bytes.create 4096 in
 
-    let out_buf = Buffer.create 1024 in
-    let err_buf = Buffer.create 1024 in
-    let buf = Bytes.create 4096 in
+          (* Drain stdout and stderr concurrently to avoid deadlock on full pipe buffers. *)
+          let fd_out = Unix.descr_of_in_channel ch_in in
+          let fd_err = Unix.descr_of_in_channel ch_err in
 
-    (* Drain stdout and stderr concurrently to avoid deadlock on full pipe buffers. *)
-    let fd_out = Unix.descr_of_in_channel ch_in in
-    let fd_err = Unix.descr_of_in_channel ch_err in
-
-    let rec drain out_open err_open =
-      if not out_open && not err_open then
-        ()
-      else
-        let read_fds =
-          [] |> (fun acc -> if out_open then fd_out :: acc else acc)
-             |> (fun acc -> if err_open then fd_err :: acc else acc)
-        in
-        let ready, _, _ = Unix.select read_fds [] [] (-1.) in
-        let out_open =
-          if out_open && List.mem fd_out ready then (
-            let n = input ch_in buf 0 (Bytes.length buf) in
-            if n = 0 then
-              false
-            else (
-              Buffer.add_subbytes out_buf buf 0 n;
-              true
-            )
-          ) else out_open
-        in
-        let err_open =
-          if err_open && List.mem fd_err ready then (
-            let n = input ch_err buf 0 (Bytes.length buf) in
-            if n = 0 then
-              false
-            else (
-              Buffer.add_subbytes err_buf buf 0 n;
-              true
-            )
-          ) else err_open
-        in
-        drain out_open err_open
+          let rec drain out_open err_open =
+            if not out_open && not err_open then
+              ()
+            else
+              let read_fds =
+                [] |> (fun acc -> if out_open then fd_out :: acc else acc)
+                   |> (fun acc -> if err_open then fd_err :: acc else acc)
+              in
+              let ready, _, _ = Unix.select read_fds [] [] (-1.) in
+              let out_open =
+                if out_open && List.mem fd_out ready then (
+                  let n = input ch_in buf 0 (Bytes.length buf) in
+                  if n = 0 then
+                    false
+                  else (
+                    Buffer.add_subbytes out_buf buf 0 n;
+                    true
+                  )
+                ) else out_open
+              in
+              let err_open =
+                if err_open && List.mem fd_err ready then (
+                  let n = input ch_err buf 0 (Bytes.length buf) in
+                  if n = 0 then
+                    false
+                  else (
+                    Buffer.add_subbytes err_buf buf 0 n;
+                    true
+                  )
+                ) else err_open
+              in
+              drain out_open err_open
+          in
+          drain true true;
+          let exit_status = Unix.close_process_full channels in
+          (out_buf, err_buf, exit_status))
     in
-    drain true true;
-
-    let status = Unix.close_process_full (ch_in, ch_out, ch_err) in
-    match status with
+    let (out_buf, err_buf, exit_status) = status in
+    match exit_status with
     | Unix.WEXITED 0 -> Ok (String.trim (Buffer.contents out_buf))
     | Unix.WEXITED n -> 
         let err_msg = String.trim (Buffer.contents err_buf) in
         if err_msg <> "" then Error (Printf.sprintf "Command '%s' failed (exit %d): %s" cmd n err_msg)
         else Error (Printf.sprintf "Command '%s' failed with exit code %d" cmd n)
     | _ -> Error (Printf.sprintf "Command '%s' failed unexpectedly" cmd)
-  with e -> Error (Printexc.to_string e)
+  with
+  | Unix.Unix_error (err, fn, arg) ->
+      Error (Printf.sprintf "OS error during execution of '%s' in %s(%s): %s" cmd fn arg (Unix.error_message err))
+  | Sys_error msg ->
+      Error (Printf.sprintf "System error during execution of '%s': %s" cmd msg)
+  | Out_of_memory | Stack_overflow as e -> raise e
+  | e -> Error (Printf.sprintf "Unexpected failure during execution of '%s': %s" cmd (Printexc.to_string e))
 
 (** Execute a command with an explicit argument vector, bypassing shell interpretation.
     This prevents shell injection when arguments contain user-supplied data. *)
 let run_command_argv (argv : string array) : (string, string) result =
   if Array.length argv = 0 then Error "run_command_argv: empty argument vector"
   else
+    let cmd_display = String.concat " " (Array.to_list argv) in
     try
       let prog = argv.(0) in
-      let (ch_in, ch_out, ch_err) =
+      let (ch_in, ch_out, ch_err) as channels =
         Unix.open_process_args_full prog argv (Unix.environment ())
       in
-      close_out ch_out;
+      let status =
+        Fun.protect
+          ~finally:(fun () ->
+            close_out_noerr ch_out;
+            close_in_noerr ch_in;
+            close_in_noerr ch_err)
+          (fun () ->
+            let out_buf = Buffer.create 1024 in
+            let err_buf = Buffer.create 1024 in
+            let buf = Bytes.create 4096 in
 
-      let out_buf = Buffer.create 1024 in
-      let err_buf = Buffer.create 1024 in
-      let buf = Bytes.create 4096 in
+            let fd_out = Unix.descr_of_in_channel ch_in in
+            let fd_err = Unix.descr_of_in_channel ch_err in
 
-      let fd_out = Unix.descr_of_in_channel ch_in in
-      let fd_err = Unix.descr_of_in_channel ch_err in
-
-      let rec drain out_open err_open =
-        if not out_open && not err_open then ()
-        else
-          let read_fds =
-            [] |> (fun acc -> if out_open then fd_out :: acc else acc)
-               |> (fun acc -> if err_open then fd_err :: acc else acc)
-          in
-          let ready, _, _ = Unix.select read_fds [] [] (-1.) in
-          let out_open =
-            if out_open && List.mem fd_out ready then (
-              let n = input ch_in buf 0 (Bytes.length buf) in
-              if n = 0 then false
-              else (Buffer.add_subbytes out_buf buf 0 n; true)
-            ) else out_open
-          in
-          let err_open =
-            if err_open && List.mem fd_err ready then (
-              let n = input ch_err buf 0 (Bytes.length buf) in
-              if n = 0 then false
-              else (Buffer.add_subbytes err_buf buf 0 n; true)
-            ) else err_open
-          in
-          drain out_open err_open
+            let rec drain out_open err_open =
+              if not out_open && not err_open then ()
+              else
+                let read_fds =
+                  [] |> (fun acc -> if out_open then fd_out :: acc else acc)
+                     |> (fun acc -> if err_open then fd_err :: acc else acc)
+                in
+                let ready, _, _ = Unix.select read_fds [] [] (-1.) in
+                let out_open =
+                  if out_open && List.mem fd_out ready then (
+                    let n = input ch_in buf 0 (Bytes.length buf) in
+                    if n = 0 then false
+                    else (Buffer.add_subbytes out_buf buf 0 n; true)
+                  ) else out_open
+                in
+                let err_open =
+                  if err_open && List.mem fd_err ready then (
+                    let n = input ch_err buf 0 (Bytes.length buf) in
+                    if n = 0 then false
+                    else (Buffer.add_subbytes err_buf buf 0 n; true)
+                  ) else err_open
+                in
+                drain out_open err_open
+            in
+            drain true true;
+            let exit_status = Unix.close_process_full channels in
+            (out_buf, err_buf, exit_status))
       in
-      drain true true;
-
-      let cmd_display = String.concat " " (Array.to_list argv) in
-      let status = Unix.close_process_full (ch_in, ch_out, ch_err) in
-      match status with
+      let (out_buf, err_buf, exit_status) = status in
+      match exit_status with
       | Unix.WEXITED 0 -> Ok (String.trim (Buffer.contents out_buf))
       | Unix.WEXITED n ->
           let err_msg = String.trim (Buffer.contents err_buf) in
@@ -120,7 +140,13 @@ let run_command_argv (argv : string array) : (string, string) result =
           else
             Error (Printf.sprintf "Command '%s' failed with exit code %d" cmd_display n)
       | _ -> Error (Printf.sprintf "Command '%s' failed unexpectedly" cmd_display)
-    with e -> Error (Printexc.to_string e)
+    with
+    | Unix.Unix_error (err, fn, arg) ->
+        Error (Printf.sprintf "OS error during execution of '%s' in %s(%s): %s" cmd_display fn arg (Unix.error_message err))
+    | Sys_error msg ->
+        Error (Printf.sprintf "System error during execution of '%s': %s" cmd_display msg)
+    | Out_of_memory | Stack_overflow as e -> raise e
+    | e -> Error (Printf.sprintf "Unexpected failure during execution of '%s': %s" cmd_display (Printexc.to_string e))
 
 (** Validate that a version string contains only safe characters.
     Accepts semver-like versions: digits, dots, hyphens, and alphanumerics. *)
