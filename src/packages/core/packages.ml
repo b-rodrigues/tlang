@@ -993,6 +993,8 @@ let init_env () =
     "write_json"; "read_json";
     (* PMML *)
     "pmml"; "^pmml"; "^csv"; "^arrow"; "^json"; "^onnx";
+    (* Binary/passthrough (fetchurl) *)
+    "bin"; "^bin";
   ] in
   let env = List.fold_left (fun acc name ->
     if Env.mem name acc then acc

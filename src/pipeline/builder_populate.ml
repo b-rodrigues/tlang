@@ -5,7 +5,7 @@ open Builder_internal
 open Package_types
 
 let builtin_pipeline_strategies =
-  [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx" ]
+  [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx"; "bin" ]
 
 let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
   let eval_string_list lst =
@@ -144,6 +144,30 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
   | Some err -> Error (err)
   | None ->
   match check_serializer_coherence () with
+  | Some err -> Error (err)
+  | None ->
+  let check_bin_only_for_fetchurl () =
+    List.find_map (fun (name, _) ->
+      let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
+      let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+      let rec is_bin_format expr =
+        match expr.Ast.node with
+        | Ast.Value (Ast.VString s) -> String.lowercase_ascii s = "bin"
+        | Ast.Value (Ast.VSymbol s) ->
+            let s = String.lowercase_ascii (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s) in
+            s = "bin"
+        | Ast.Value (Ast.VSerializer s) -> s.s_format = "bin"
+        | Ast.ListLit items -> List.exists (fun (_, e) -> is_bin_format e) items
+        | Ast.DictLit items -> List.exists (fun (_, e) -> is_bin_format e) items
+        | _ -> false
+      in
+      if is_bin_format ser && runtime <> "fetchurl" then
+        Some (Printf.sprintf "The ^bin serializer is only supported for fetchurl nodes. Node `%s` uses runtime `%s`. Either set runtime = fetchurl or choose a different serializer." name runtime)
+      else
+        None
+    ) p.p_exprs
+  in
+  match check_bin_only_for_fetchurl () with
   | Some err -> Error (err)
   | None ->
   ensure_pipeline_dir ();
