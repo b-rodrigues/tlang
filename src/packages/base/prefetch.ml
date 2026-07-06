@@ -3,8 +3,9 @@ open Ast
 (*
 --# Prefetch a URL and compute its SHA-256 hash
 --#
---# Downloads a URL and computes its SHA-256 hash, printing the result.
---# Useful for obtaining the hash needed by `fetchurl` in pipeline mode.
+--# Downloads a URL via nix-prefetch-url and returns its SHA-256 hash.
+--# The file is stored in the Nix store so that fetchurl in pipeline mode
+--# finds it cached and does not re-download.
 --#
 --# @name prefetch
 --# @param url :: String The URL to prefetch.
@@ -24,32 +25,23 @@ let register env =
     (make_builtin ~name:"prefetch" 1 (fun args _env ->
       match args with
       | [VString url] | [VSymbol url] ->
-          let tmpfile = Filename.temp_file "t_prefetch_" ".tmp" in
-          let dl_cmd = Printf.sprintf "curl -sfL -o %s %s" (escape_shell tmpfile) (escape_shell url) in
-          (match Sys.command dl_cmd with
-           | 0 ->
-               let hash_cmd = Printf.sprintf "sha256sum %s | cut -d' ' -f1" (escape_shell tmpfile) in
-               let hash_channel = Unix.open_process_in hash_cmd in
-               let hash = try
-                 let line = input_line hash_channel in
-                 String.trim line
-               with End_of_file -> "" in
-               (match Unix.close_process_in hash_channel, hash with
-                | Unix.WEXITED 0, h when h <> "" ->
-                    Sys.remove tmpfile;
-                    VString h
-                | Unix.WEXITED 0, _ ->
-                    Sys.remove tmpfile;
-                    Error.make_error ShellError
-                      (Printf.sprintf "Function `prefetch`: computed empty SHA-256 hash for %s" url)
-                | _ ->
-                    Sys.remove tmpfile;
-                    Error.make_error ShellError
-                      (Printf.sprintf "Function `prefetch`: failed to compute SHA-256 hash for %s" url))
-           | n ->
-               Sys.remove tmpfile;
+          let cmd = Printf.sprintf "nix-prefetch-url %s 2>/dev/null" (escape_shell url) in
+          let ch = Unix.open_process_in cmd in
+          let hash = try
+            let line = input_line ch in
+            String.trim line
+          with End_of_file -> "" in
+          (match Unix.close_process_in ch, hash with
+           | Unix.WEXITED 0, h when h <> "" -> VString h
+           | Unix.WEXITED 0, _ ->
                Error.make_error ShellError
-                 (Printf.sprintf "Function `prefetch`: curl failed with exit code %d when fetching %s" n url))
+                 (Printf.sprintf "Function `prefetch`: got empty hash for %s" url)
+           | Unix.WEXITED n, _ ->
+               Error.make_error ShellError
+                 (Printf.sprintf "Function `prefetch`: nix-prefetch-url failed with exit code %d when fetching %s" n url)
+           | _, _ ->
+               Error.make_error ShellError
+                 (Printf.sprintf "Function `prefetch`: nix-prefetch-url terminated abnormally when fetching %s" url))
       | [other] ->
           Error.type_error
             (Printf.sprintf "Function `prefetch` expects a String URL, got %s."
