@@ -7,6 +7,10 @@
 module Env = Map.Make(String)
 module String_set = Set.Make(String)
 
+exception TLangSyntaxError of string
+exception Mixed_bracket_form
+exception Invalid_match_pattern of string
+
 type symbol = string
 
 

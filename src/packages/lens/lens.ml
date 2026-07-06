@@ -41,26 +41,29 @@ let rec col_lens_set_impl col_name ~eval_call args env =
   | [(_, VDataFrame df); (_, val_v)] ->
       let names = Arrow_table.column_names df.arrow_table in
       let nrows = Arrow_table.num_rows df.arrow_table in
-      let new_col = match val_v with
+      let new_col_res = match val_v with
         | VVector vals when Array.length vals = nrows -> Arrow_bridge.values_to_column vals
         | VVector vals -> 
-            if Array.length vals = 0 then Arrow_table.NAColumn nrows
+            if Array.length vals = 0 then Ok (Arrow_table.NAColumn nrows)
             else Arrow_bridge.values_to_column (Array.init nrows (fun i -> vals.(i mod Array.length vals)))
         | v -> 
             let vals = Array.make nrows v in
             Arrow_bridge.values_to_column vals
       in
-      let columns = List.map (fun name ->
-        if name = col_name then (name, new_col)
-        else match Arrow_table.get_column df.arrow_table name with
-             | Some col -> (name, col)
-             | None -> (name, Arrow_table.NAColumn nrows)
-      ) names in
-      let final_cols = 
-        if List.mem col_name names then columns
-        else columns @ [(col_name, new_col)]
-      in
-      VDataFrame { arrow_table = Arrow_table.create final_cols nrows; group_keys = df.group_keys }
+      (match new_col_res with
+       | Error err -> err
+       | Ok new_col ->
+           let columns = List.map (fun name ->
+             if name = col_name then (name, new_col)
+             else match Arrow_table.get_column df.arrow_table name with
+                  | Some col -> (name, col)
+                  | None -> (name, Arrow_table.NAColumn nrows)
+           ) names in
+           let final_cols = 
+             if List.mem col_name names then columns
+             else columns @ [(col_name, new_col)]
+           in
+           VDataFrame { arrow_table = Arrow_table.create final_cols nrows; group_keys = df.group_keys })
   | [(_, VDict items); (_, val_v)] ->
       let new_items = List.map (fun (k, v) -> if k = col_name then (k, val_v) else (k, v)) items in
       let final_items = if List.mem_assoc col_name items then new_items else new_items @ [(col_name, val_v)] in
@@ -176,31 +179,45 @@ let row_lens_set_impl i ~eval_call:_ args _env =
       if i < 0 || i >= nrows then Error.index_error i nrows
       else
         let names = Arrow_table.column_names df.arrow_table in
-        let updated_cols = List.map (fun name ->
-          let col = match Arrow_table.get_column df.arrow_table name with
-            | Some c -> c
-            | None -> Arrow_table.NAColumn nrows
-          in
-          let vals = Arrow_bridge.column_to_values col in
-          let new_val = match List.assoc_opt name row_items with
-            | Some v -> v
-            | None -> (VNA NAGeneric)
-          in
-          if i < Array.length vals then vals.(i) <- new_val;
-          (name, Arrow_bridge.values_to_column vals)
-        ) names in
-        (* Add new columns for keys present in the row Dict but missing from the DataFrame *)
-        let names_tbl = Hashtbl.create (List.length names) in
-        List.iter (fun n -> Hashtbl.replace names_tbl n ()) names;
-        let extra_cols = List.filter_map (fun (name, v) ->
-          if Hashtbl.mem names_tbl name then None
-          else
-            let vals = Array.make nrows ((VNA NAGeneric)) in
-            vals.(i) <- v;
-            Some (name, Arrow_bridge.values_to_column vals)
-        ) row_items in
-        let all_cols = updated_cols @ extra_cols in
-        VDataFrame { df with arrow_table = Arrow_table.create all_cols nrows }
+        let rec map_updated acc = function
+          | [] -> Ok (List.rev acc)
+          | name :: rest ->
+              let col = match Arrow_table.get_column df.arrow_table name with
+                | Some c -> c
+                | None -> Arrow_table.NAColumn nrows
+              in
+              let vals = Arrow_bridge.column_to_values col in
+              let new_val = match List.assoc_opt name row_items with
+                | Some v -> v
+                | None -> (VNA NAGeneric)
+              in
+              if i < Array.length vals then vals.(i) <- new_val;
+              (match Arrow_bridge.values_to_column vals with
+               | Error err -> Error err
+               | Ok c -> map_updated ((name, c) :: acc) rest)
+        in
+        (match map_updated [] names with
+         | Error err -> err
+         | Ok updated_cols ->
+             (* Add new columns for keys present in the row Dict but missing from the DataFrame *)
+             let names_tbl = Hashtbl.create (List.length names) in
+             List.iter (fun n -> Hashtbl.replace names_tbl n ()) names;
+             let rec map_extra acc = function
+               | [] -> Ok (List.rev acc)
+               | (name, v) :: rest ->
+                   if Hashtbl.mem names_tbl name then map_extra acc rest
+                   else
+                     let vals = Array.make nrows ((VNA NAGeneric)) in
+                     vals.(i) <- v;
+                     (match Arrow_bridge.values_to_column vals with
+                      | Error err -> Error err
+                      | Ok c -> map_extra ((name, c) :: acc) rest)
+             in
+             (match map_extra [] row_items with
+              | Error err -> err
+              | Ok extra_cols ->
+                  let all_cols = updated_cols @ extra_cols in
+                  VDataFrame { df with arrow_table = Arrow_table.create all_cols nrows }))
   | [(_, VDataFrame _); (_, other)] -> Error.type_error (Printf.sprintf "row_lens set expects a Dict for the row data, got %s" (Utils.type_name other))
   | [(_, other); _] -> Error.type_error (Printf.sprintf "row_lens set expects a DataFrame, got %s" (Utils.type_name other))
   | _ -> Error.arity_error_named "row_set" 2 (List.length args)
@@ -388,41 +405,55 @@ let filter_lens_set_impl p ~eval_call args env =
                        "filter_lens set on DataFrame: replacement has %d rows but %d were matched"
                        repl_nrows match_count)
                 else
-                  let updated_cols = List.map (fun name ->
-                    let col = match Arrow_table.get_column df.arrow_table name with
-                      | Some c -> c | None -> Arrow_table.NAColumn nrows
-                    in
-                    let vals = Arrow_bridge.column_to_values col in
-                    let repl_col = match Arrow_table.get_column df_repl.arrow_table name with
-                      | Some c -> c | None -> Arrow_table.NAColumn match_count
-                    in
-                    let repl_vals = Arrow_bridge.column_to_values repl_col in
-                    let repl_idx = ref 0 in
-                    for i = 0 to nrows - 1 do
-                      if mask.(i) then begin
-                        vals.(i) <- repl_vals.(!repl_idx);
-                        incr repl_idx
-                      end
-                    done;
-                    (name, Arrow_bridge.values_to_column vals)
-                  ) names in
-                  VDataFrame { df with arrow_table = Arrow_table.create updated_cols nrows }
+                  let rec map_cols acc = function
+                    | [] -> Ok (List.rev acc)
+                    | name :: rest ->
+                        let col = match Arrow_table.get_column df.arrow_table name with
+                          | Some c -> c | None -> Arrow_table.NAColumn nrows
+                        in
+                        let vals = Arrow_bridge.column_to_values col in
+                        let repl_col = match Arrow_table.get_column df_repl.arrow_table name with
+                          | Some c -> c | None -> Arrow_table.NAColumn match_count
+                        in
+                        let repl_vals = Arrow_bridge.column_to_values repl_col in
+                        let repl_idx = ref 0 in
+                        for i = 0 to nrows - 1 do
+                          if mask.(i) then begin
+                            vals.(i) <- repl_vals.(!repl_idx);
+                            incr repl_idx
+                          end
+                        done;
+                        (match Arrow_bridge.values_to_column vals with
+                         | Error err -> Error err
+                         | Ok c -> map_cols ((name, c) :: acc) rest)
+                  in
+                  (match map_cols [] names with
+                   | Error err -> err
+                   | Ok updated_cols ->
+                       VDataFrame { df with arrow_table = Arrow_table.create updated_cols nrows })
             | VDict row_items ->
                 (* scalar broadcast: apply the same Dict to every matched row *)
-                let updated_cols = List.map (fun name ->
-                  let col = match Arrow_table.get_column df.arrow_table name with
-                    | Some c -> c | None -> Arrow_table.NAColumn nrows
-                  in
-                  let vals = Arrow_bridge.column_to_values col in
-                  let new_val = match List.assoc_opt name row_items with
-                    | Some v -> v | None -> (VNA NAGeneric)
-                  in
-                  for i = 0 to nrows - 1 do
-                    if mask.(i) then vals.(i) <- new_val
-                  done;
-                  (name, Arrow_bridge.values_to_column vals)
-                ) names in
-                VDataFrame { df with arrow_table = Arrow_table.create updated_cols nrows }
+                let rec map_cols acc = function
+                  | [] -> Ok (List.rev acc)
+                  | name :: rest ->
+                      let col = match Arrow_table.get_column df.arrow_table name with
+                        | Some c -> c | None -> Arrow_table.NAColumn nrows
+                      in
+                      let vals = Arrow_bridge.column_to_values col in
+                      let new_val = match List.assoc_opt name row_items with
+                        | Some v -> v | None -> (VNA NAGeneric)
+                      in
+                      for i = 0 to nrows - 1 do
+                        if mask.(i) then vals.(i) <- new_val
+                      done;
+                      (match Arrow_bridge.values_to_column vals with
+                       | Error err -> Error err
+                       | Ok c -> map_cols ((name, c) :: acc) rest)
+                in
+                (match map_cols [] names with
+                 | Error err -> err
+                 | Ok updated_cols ->
+                     VDataFrame { df with arrow_table = Arrow_table.create updated_cols nrows })
             | other ->
                 Error.type_error
                   (Printf.sprintf

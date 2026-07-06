@@ -48,16 +48,22 @@ let separate_rows_impl (named_args : (string option * value) list) _env =
                       ) t_list
                     ) tokens;
                     
-                    let new_columns = List.map (fun (name, _) ->
-                      if name = col_name then
-                        (name, Arrow_bridge.values_to_column sep_values)
-                      else
-                        match Arrow_table.get_column df.arrow_table name with
-                        | Some col -> (name, Arrow_table.take_col col expansion_indices final_nrows)
-                        | None -> (name, Arrow_table.NAColumn final_nrows)
-                    ) df.arrow_table.schema in
-                    
-                    VDataFrame { df with arrow_table = { df.arrow_table with columns = new_columns; nrows = final_nrows; native_handle = None } }))
+                    let rec build_cols acc = function
+                      | [] -> Ok (List.rev acc)
+                      | (name, _) :: rest ->
+                          if name = col_name then
+                            (match Arrow_bridge.values_to_column sep_values with
+                             | Ok col -> build_cols ((name, col) :: acc) rest
+                             | Error err -> Error err)
+                          else
+                            match Arrow_table.get_column df.arrow_table name with
+                            | Some col -> build_cols ((name, Arrow_table.take_col col expansion_indices final_nrows) :: acc) rest
+                            | None -> build_cols ((name, Arrow_table.NAColumn final_nrows) :: acc) rest
+                    in
+                    (match build_cols [] df.arrow_table.schema with
+                     | Error err -> err
+                     | Ok new_columns ->
+                         VDataFrame { df with arrow_table = { df.arrow_table with columns = new_columns; nrows = final_nrows; native_handle = None } })))
            | _ -> Error.type_error (Printf.sprintf "Column `%s` is not a String column." col_name))
   | _ :: _ -> Error.type_error "Function `separate_rows` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `separate_rows` requires a DataFrame."

@@ -271,6 +271,12 @@ let register env =
                       | Parser.Error ->
                           let pos = Lexing.lexeme_start_p lexbuf in
                           make_located_error ~file:!filename SyntaxError (Printf.sprintf "Parse error in '%s'" !filename) pos
+                      | Ast.Mixed_bracket_form ->
+                          let pos = Lexing.lexeme_start_p lexbuf in
+                          make_located_error ~file:!filename SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos
+                      | Ast.Invalid_match_pattern msg ->
+                          let pos = Lexing.lexeme_start_p lexbuf in
+                          make_located_error ~file:!filename SyntaxError msg pos
                       | Sys.Break ->
                           interrupt_error ())
                     with

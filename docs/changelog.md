@@ -2,6 +2,19 @@
 
 ## [0.54.0] - unreleased
 
+### Pipeline & Diagnostics
+
+- **SoftFailed Node Classification**: Fixed `diagnostics.summary` not counting soft-failed nodes that carry captured errors. Previously the `SoftFailed` error class was overwritten with the raw error code string during log parsing, making those nodes invisible to diagnostics. The original `VError` class is now preserved correctly.
+
+### Code Safety & Runtime Robustness
+
+- **Scientific Float Notation Support**: Parser and lexer now support standard scientific notation for floating-point literals (e.g. `1e-5`, `3.14e+2`, `2.7E-3`).
+- **String Escape Sequence Validation**: The string parser now validates escape sequences at parse time, throwing a clear syntax error for invalid or unrecognized escape sequences.
+- **Precision Floating-Point Calculations**: Replaced polymorphic comparisons with epsilon-based tolerance checks (`Float.abs v < 1e-15`) and `Float.compare` in statistical packages (e.g., `mean`, `sd`, `lm`), eliminating silent precision corruption.
+- **Safe Vector & List Slicing**: Added strict bounds checking for all list and vector index operations, preventing silent errors or partial function failures.
+- **Detailed Package Manager Error Diagnostics**: Upgraded remote repository check (`git ls-remote`) and dependency upgrade error handling to report specific system warnings and write failures rather than generic error messages.
+
+
 ### Per-Node Flake Replacement
 
 - **`flake` named argument for pipeline nodes**: `node()`, `rn()`, `pyn()`, `jln()`, `qn()`, `shn()` and their shorthand variants now accept an optional `flake` parameter to specify a custom Nix flake for that node's build environment.

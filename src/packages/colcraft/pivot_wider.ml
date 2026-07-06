@@ -158,7 +158,9 @@ let register env =
              List.filter (fun key -> List.exists (fun (name, _) -> name = key) new_columns) df.group_keys
            in
           
-          VDataFrame { arrow_table = { schema = new_schema; columns = new_columns; nrows = new_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = new_group_keys })
+           (try VDataFrame { arrow_table = { schema = new_schema; columns = new_columns; nrows = new_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = new_group_keys }
+            with Arrow_table.MaterializeError msg ->
+              Error.type_error (Printf.sprintf "pivot_wider: %s" msg)))
           | Some _ -> Error.type_error (Printf.sprintf "Function `pivot_wider` expects `names_from` to refer to a String column, but \"%s\" has a non-String type." names_from))
     ))
     env

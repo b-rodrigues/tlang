@@ -46,7 +46,7 @@ let quantile xs p =
   let n = Array.length arr in
   if n = 0 then None
   else (
-    Array.sort compare arr;
+    Array.sort Float.compare arr;
     let h = p *. float_of_int (n - 1) in
     let lo = int_of_float (Float.floor h) in
     let hi = min (lo + 1) (n - 1) in
@@ -59,7 +59,7 @@ let mean xs =
 
 let fivenum_tukey xs =
   let arr = Array.of_list xs in
-  Array.sort compare arr;
+  Array.sort Float.compare arr;
   let n = Array.length arr in
   if n = 0 then None
   else if n = 1 then Some (arr.(0), arr.(0), arr.(0), arr.(0), arr.(0))

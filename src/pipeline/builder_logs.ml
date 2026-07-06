@@ -74,7 +74,7 @@ let read_log path =
         | _ -> ""
       in
       let cn_class =
-        if status = "Errored" || status = "SoftFailed" then
+        if status = "Errored" then
           (if err_code <> "" then err_code else "Error")
         else
           node_json |> member "class" |> to_string

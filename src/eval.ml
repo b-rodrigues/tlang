@@ -1994,17 +1994,17 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
           (match un.un_deserializer.node with Var "default" -> true | _ -> false)
       | None -> false (* External dependency — we don't know its runtime yet *)
     ) my_deps in
-    if offenders <> [] then
-      let offender = List.hd offenders in
-      let offender_runtime = match List.assoc_opt offender runtime_mapping with Some r -> r | None -> "Unknown" in
-      Some (Printf.sprintf "Node `%s` (%s) depends on `%s` (%s) but has no explicit deserializer."
-             name my_runtime offender offender_runtime)
-    else None
+    (match offenders with
+     | offender :: _ ->
+         let offender_runtime = match List.assoc_opt offender runtime_mapping with Some r -> r | None -> "Unknown" in
+         Some (Printf.sprintf "Node `%s` (%s) depends on `%s` (%s) but has no explicit deserializer."
+                name my_runtime offender offender_runtime)
+     | [] -> None)
   ) desugared_nodes in
 
-  if validation_errors <> [] then
-    Error.make_error StructuralError (List.hd validation_errors)
-  else begin
+  match validation_errors with
+  | first_err :: _ -> Error.make_error StructuralError first_err
+  | [] -> begin
   let new_p_exprs = List.map (fun (name, un) -> (name, un.un_command)) desugared_nodes in
   Ast.clear_pipeline_in_memory ~p_exprs:new_p_exprs;
 
@@ -2535,7 +2535,10 @@ and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field 
         (try
            match eval_expr (ref env) expr with
            | Ast.VList items ->
-               if index >= 0 && index < List.length items then snd (List.nth items index)
+               if index >= 0 then
+                 (match List.nth_opt items index with
+                  | Some (_, v) -> v
+                  | None -> Ast.VNA Ast.NAGeneric)
                else Ast.VNA Ast.NAGeneric
            | Ast.VVector arr ->
                if index >= 0 && index < Array.length arr then Array.get arr index
@@ -3639,6 +3642,20 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                  ~location:(source_location ~file:filename pos)
                  SyntaxError
                  (Printf.sprintf "Import parse error in '%s'" filename),
+               env)
+          | Ast.Mixed_bracket_form ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 "Mixed bracket literal (found both single elements and key-value pairs)",
+               env)
+          | Ast.Invalid_match_pattern msg ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 msg,
                env))
         with
         | Sys_error msg ->
@@ -3711,6 +3728,20 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                  ~location:(source_location ~file:filename pos)
                  SyntaxError
                  (Printf.sprintf "Import parse error in '%s'" filename),
+               env)
+          | Ast.Mixed_bracket_form ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 "Mixed bracket literal (found both single elements and key-value pairs)",
+               env)
+          | Ast.Invalid_match_pattern msg ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 msg,
                env))
         with
         | Sys_error msg ->

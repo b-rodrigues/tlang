@@ -477,6 +477,8 @@ let parse_program path =
       with
       | Lexer.SyntaxError msg -> Result.error (Printf.sprintf "Could not parse %s: %s" path msg)
       | Parser.Error -> Result.error (Printf.sprintf "Could not parse %s" path)
+      | Ast.Mixed_bracket_form -> Result.error (Printf.sprintf "Could not parse %s: Mixed bracket literal (found both single elements and key-value pairs)" path)
+      | Ast.Invalid_match_pattern msg -> Result.error (Printf.sprintf "Could not parse %s: %s" path msg)
 
 let doctor_issue_for_package ~section ~runtime pkg =
   {

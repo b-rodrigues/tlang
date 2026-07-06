@@ -132,6 +132,8 @@ let register env =
                      let final_columns = List.rev !final_columns in
                      
                      let new_schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) final_columns in
-                     VDataFrame { arrow_table = { schema = new_schema; columns = final_columns; nrows = orig_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = df.group_keys }))
+                      (try VDataFrame { arrow_table = { schema = new_schema; columns = final_columns; nrows = orig_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = df.group_keys }
+                       with Arrow_table.MaterializeError msg ->
+                         Error.type_error (Printf.sprintf "separate: %s" msg))))
     ))
     env

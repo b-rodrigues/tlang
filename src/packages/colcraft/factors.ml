@@ -34,11 +34,11 @@ let level_index_of levels s =
     | _ :: t -> aux (i + 1) t
   in aux 0 levels
 
-let to_factor_impl (args : (string option * value) list) _env =
+let factor_impl (args : (string option * value) list) _env =
   let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
   let named = List.filter_map (fun (k, v) -> match k with Some n -> Some (n, v) | None -> None) args in
   match positional with
-  | [] -> Error.make_error Ast.ArityError "to_factor expects at least 1 argument"
+  | [] -> Error.make_error Ast.ArityError "Function `to_factor` expects at least 1 argument"
   | x_val :: _ ->
       let items = match x_val with
         | VVector a -> Array.to_list a
@@ -91,9 +91,6 @@ let to_factor_impl (args : (string option * value) list) _env =
       match x_val with
       | VVector _ | VList _ -> VVector factor_arr
       | _ -> factor_arr.(0)
-
-let factor_impl = to_factor_impl
-
 let ordered_impl (args : (string option * value) list) _env =
   (* same as to_factor but defaults ordered=true *)
   let named = List.filter_map (fun (k, v) -> match k with Some n -> Some (n, v) | None -> None) args in
@@ -228,7 +225,9 @@ let fct_reorder_impl (args : (string option * value) list) _env =
   let named = List.filter_map (fun (k, v) -> match k with Some n -> Some (n, v) | None -> None) args in
   match positional with
   | [VVector f_arr; VVector x_arr] ->
-      if Array.length f_arr = 0 then VVector [||]
+      if Array.length f_arr <> Array.length x_arr then
+        Error.value_error "Function `fct_reorder` expects `f` and `x` to have the same length."
+      else if Array.length f_arr = 0 then VVector [||]
       else
         (match find_first_factor_in_array f_arr with
          | Some (levels, ordered) ->

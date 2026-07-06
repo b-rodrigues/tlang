@@ -60,6 +60,12 @@ let parse_and_eval ?filename ?(failfast=false) mode env input =
   | Parser.Error ->
       let pos = Lexing.lexeme_start_p lexbuf in
       (make_located_error ?file:filename Ast.SyntaxError "Parse Error" pos, env)
+  | Ast.Mixed_bracket_form ->
+      let pos = Lexing.lexeme_start_p lexbuf in
+      (make_located_error ?file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos, env)
+  | Ast.Invalid_match_pattern msg ->
+      let pos = Lexing.lexeme_start_p lexbuf in
+      (make_located_error ?file:filename Ast.SyntaxError msg pos, env)
   | Sys.Break ->
       (interrupt_error (), env)
 
@@ -549,6 +555,12 @@ let parse_program_from_file filename =
     | Parser.Error ->
         let pos = Lexing.lexeme_start_p lexbuf in
         Error (make_located_error ~file:filename Ast.SyntaxError "Parse Error" pos)
+    | Ast.Mixed_bracket_form ->
+        let pos = Lexing.lexeme_start_p lexbuf in
+        Error (make_located_error ~file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos)
+    | Ast.Invalid_match_pattern msg ->
+        let pos = Lexing.lexeme_start_p lexbuf in
+        Error (make_located_error ~file:filename Ast.SyntaxError msg pos)
     | Sys.Break ->
         Error (interrupt_error ())
   with
@@ -1231,6 +1243,12 @@ let () =
                | Parser.Error ->
                    let pos = Lexing.lexeme_start_p lexbuf in
                    make_located_error ~file:filename Ast.SyntaxError (Printf.sprintf "Parse error in '%s'" filename) pos
+               | Ast.Mixed_bracket_form ->
+                   let pos = Lexing.lexeme_start_p lexbuf in
+                   make_located_error ~file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos
+               | Ast.Invalid_match_pattern msg ->
+                   let pos = Lexing.lexeme_start_p lexbuf in
+                   make_located_error ~file:filename Ast.SyntaxError msg pos
                | Sys.Break ->
                    interrupt_error ())
              with

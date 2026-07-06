@@ -139,6 +139,16 @@ let run_test_file (file : string) : test_result =
     { file; success = false;
       error_msg = Some "Parse Error";
       duration }
+  | Ast.Mixed_bracket_form ->
+    let duration = Unix.gettimeofday () -. start in
+    { file; success = false;
+      error_msg = Some "Mixed bracket literal (found both single elements and key-value pairs)";
+      duration }
+  | Ast.Invalid_match_pattern msg ->
+    let duration = Unix.gettimeofday () -. start in
+    { file; success = false;
+      error_msg = Some msg;
+      duration }
   | Sys_error msg ->
     let duration = Unix.gettimeofday () -. start in
     { file; success = false;

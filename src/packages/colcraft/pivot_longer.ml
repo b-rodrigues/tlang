@@ -130,6 +130,8 @@ let register env =
             List.filter (fun k -> List.mem k existing_cols) df.group_keys
           in
           
-          VDataFrame { arrow_table = { schema = new_schema; columns = new_columns; nrows = new_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = new_group_keys }
+          (try VDataFrame { arrow_table = { schema = new_schema; columns = new_columns; nrows = new_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = new_group_keys }
+           with Arrow_table.MaterializeError msg ->
+             Error.type_error (Printf.sprintf "pivot_longer: %s" msg))
     ))
     env

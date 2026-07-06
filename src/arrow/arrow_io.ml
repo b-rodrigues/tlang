@@ -266,23 +266,29 @@ let read_parquet_local (path : string) : (Arrow_table.t, string) result =
 
 (** Write an Arrow table to an IPC file *)
 let write_ipc (table : Arrow_table.t) (path : string) : (unit, string) result =
-  let table = Arrow_table.materialize table in
-  match table.native_handle with
-  | Some handle when not handle.freed ->
-      if Arrow_ffi.arrow_write_ipc handle.ptr path then Ok ()
-      else Error ("Arrow IPC write failed: " ^ path)
-  | _ -> 
-      Error "Arrow IPC write failed: could not materialize table to native Arrow format"
+  try
+    let table = Arrow_table.materialize table in
+    match table.native_handle with
+    | Some handle when not handle.freed ->
+        if Arrow_ffi.arrow_write_ipc handle.ptr path then Ok ()
+        else Error ("Arrow IPC write failed: " ^ path)
+    | _ -> 
+        Error "Arrow IPC write failed: could not materialize table to native Arrow format"
+  with Arrow_table.MaterializeError msg ->
+    Error ("Arrow IPC write failed: could not materialize table: " ^ msg)
 
 (** Write an Arrow table to a Parquet file *)
 let write_parquet (table : Arrow_table.t) (path : string) : (unit, string) result =
-  let table = Arrow_table.materialize table in
-  match table.native_handle with
-  | Some handle when not handle.freed ->
-      if Arrow_ffi.arrow_write_parquet handle.ptr path then Ok ()
-      else Error ("Parquet write failed: " ^ path)
-  | _ ->
-      Error "Parquet write failed: could not materialize table to native Arrow format"
+  try
+    let table = Arrow_table.materialize table in
+    match table.native_handle with
+    | Some handle when not handle.freed ->
+        if Arrow_ffi.arrow_write_parquet handle.ptr path then Ok ()
+        else Error ("Parquet write failed: " ^ path)
+    | _ ->
+        Error "Parquet write failed: could not materialize table to native Arrow format"
+  with Arrow_table.MaterializeError msg ->
+    Error ("Parquet write failed: could not materialize table: " ^ msg)
 
 (** Pure OCaml CSV reading fallback *)
 let read_csv_fallback (path : string) : (Arrow_table.t, string) result =

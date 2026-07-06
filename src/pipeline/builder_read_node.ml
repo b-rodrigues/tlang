@@ -219,8 +219,9 @@ let read_logged_node_value name cn =
   else if cn.cn_serializer = "csv" then
     (try
        let ch = open_in cn.cn_path in
-       let content = really_input_string ch (in_channel_length ch) in
-       close_in ch;
+       let content = Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
+         really_input_string ch (in_channel_length ch)
+       ) in
        T_read_csv.parse_csv_string content
      with exn ->
        Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read CSV node `%s` from `%s`: %s" name cn.cn_path (Printexc.to_string exn)))
@@ -491,8 +492,9 @@ let read_node ?which_log name =
       let class_path = Filename.concat path "class" in
       if Sys.file_exists artifact_path && Sys.file_exists class_path then
         let ch = open_in class_path in
-        let cls = try input_line ch |> String.trim with _ -> "unknown" in
-        close_in ch;
+        let cls = Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
+          try input_line ch |> String.trim with _ -> "unknown"
+        ) in
         
         let cn = {
           cn_name = name;

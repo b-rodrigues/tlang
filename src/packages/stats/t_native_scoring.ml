@@ -339,47 +339,53 @@ let rec eval_predicate evals pred row_idx =
   | PredTrue -> Some true
   | PredFalse -> Some false
   | PredSimple { field; op; value } ->
-      (match Hashtbl.find evals field row_idx with
-        | RowFloat f ->
-            (match value with
-             | Some v ->
-                (match float_of_string_opt v with
-                 | Some f_val ->
+      (match Hashtbl.find_opt evals field with
+       | None -> None
+       | Some accessor ->
+           (match accessor row_idx with
+            | RowFloat f ->
+                (match value with
+                 | Some v ->
+                    (match float_of_string_opt v with
+                     | Some f_val ->
+                         (match op with
+                          | "lessThan" -> Some (f < f_val)
+                          | "lessOrEqual" -> Some (f <= f_val)
+                          | "greaterThan" -> Some (f > f_val)
+                          | "greaterOrEqual" -> Some (f >= f_val)
+                          | "equal" -> Some (Float.equal f f_val)
+                          | "notEqual" -> Some (not (Float.equal f f_val))
+                          | _ -> None)
+                     | None -> None)
+                 | None -> None)
+            | RowString s ->
+                (match value with
+                 | Some v ->
                      (match op with
-                      | "lessThan" -> Some (f < f_val)
-                      | "lessOrEqual" -> Some (f <= f_val)
-                      | "greaterThan" -> Some (f > f_val)
-                      | "greaterOrEqual" -> Some (f >= f_val)
-                      | "equal" -> Some (f = f_val)
-                      | "notEqual" -> Some (f <> f_val)
+                      | "equal" -> Some (s = v)
+                      | "notEqual" -> Some (s <> v)
                       | _ -> None)
                  | None -> None)
-             | None -> None)
-       | RowString s ->
-           (match value with
-            | Some v ->
-                (match op with
-                 | "equal" -> Some (s = v)
-                 | "notEqual" -> Some (s <> v)
-                 | _ -> None)
-            | None -> None)
-       | RowMissing -> None)
+            | RowMissing -> None))
   | PredSimpleSet { field; op; values } ->
-      (match Hashtbl.find evals field row_idx with
-       | RowString s ->
-           let found = List.mem s values in
-           (match op with
-            | "isIn" -> Some found
-            | "isNotIn" -> Some (not found)
-            | _ -> None)
-       | RowFloat f ->
-           let s = string_of_float f in
-           let found = List.mem s values in
-           (match op with
-            | "isIn" -> Some found
-            | "isNotIn" -> Some (not found)
-            | _ -> None)
-       | RowMissing -> None)
+      (match Hashtbl.find_opt evals field with
+       | None -> None
+       | Some accessor ->
+           (match accessor row_idx with
+            | RowString s ->
+                let found = List.mem s values in
+                (match op with
+                 | "isIn" -> Some found
+                 | "isNotIn" -> Some (not found)
+                 | _ -> None)
+            | RowFloat f ->
+                let parsed_vals = List.filter_map float_of_string_opt values in
+                let found = List.exists (fun v -> Float.equal f v) parsed_vals in
+                (match op with
+                 | "isIn" -> Some found
+                 | "isNotIn" -> Some (not found)
+                 | _ -> None)
+            | RowMissing -> None))
   | PredCompound { op; predicates } ->
       let results = List.filter_map (fun p -> eval_predicate evals p row_idx) predicates in
       match op with
@@ -638,8 +644,6 @@ let predict_boosted_model df model =
                                   let prob = 1.0 /. (1.0 +. exp(-. s)) in
                                   out.(i) <- VFloat prob
                               | [] -> out.(i) <- VNA NAFloat)
-                           else if List.length scores = 1 then
-                             out.(i) <- score_to_class ensemble.classes scores
                            else
                              out.(i) <- score_to_class ensemble.classes scores
                        | _ ->

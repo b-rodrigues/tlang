@@ -362,6 +362,11 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
     end else begin
       let statuses = Hashtbl.create (List.length node_names) in
       List.iter (fun n -> Hashtbl.add statuses n "Pending") node_names;
+      let find_status name =
+        match Hashtbl.find_opt statuses name with
+        | Some s -> s
+        | None -> "Pending"
+      in
       
       let captured_output = Buffer.create 1024 in
       let argv = Array.of_list
@@ -403,7 +408,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
               in
               if drv_path <> "" then Hashtbl.replace drv_paths name drv_path;
 
-              if Hashtbl.find statuses name = "Pending" then (
+              if find_status name = "Pending" then (
                 Hashtbl.replace statuses name "Building";
                 Printf.eprintf "  + %s building\n%!" name
               )
@@ -414,9 +419,9 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
           match List.find_opt (fun name -> contains_substring line ("-" ^ name)) sorted_node_names with
           | Some name ->
               Hashtbl.replace node_store_paths name line;
-              if Hashtbl.find statuses name <> "Completed" && 
-                 Hashtbl.find statuses name <> "SoftFailed" &&
-                 Hashtbl.find statuses name <> "Errored" then (
+              if find_status name <> "Completed" && 
+                 find_status name <> "SoftFailed" &&
+                 find_status name <> "Errored" then (
                 let duration =
                   match Hashtbl.find_opt node_start_times name with
                   | Some t -> Unix.gettimeofday () -. t
@@ -432,7 +437,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
           if contains_substring line "error:" || contains_substring line "failed" then (
             match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
             | Some name ->
-                if Hashtbl.find statuses name <> "Errored" then (
+                if find_status name <> "Errored" then (
                   let duration =
                     match Hashtbl.find_opt node_start_times name with
                     | Some t -> Unix.gettimeofday () -. t
@@ -503,7 +508,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
             let serializer = Nix_unparse.expr_to_string serializer_expr in
             let deps = match List.assoc_opt name p.p_deps with Some d -> d| None -> [] in
             let status =
-              let current = Hashtbl.find statuses name in
+              let current = find_status name in
               if current = "Errored" then "Errored"
               else if class_val = "VError" || class_val = "Error" then "SoftFailed"
               else if class_val <> "Unknown" then "Completed"
@@ -637,13 +642,13 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                       let warnings_path = Filename.concat node_path "warnings" in
                       if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
                       
-                      if Hashtbl.find statuses name <> "Completed" && 
-                         Hashtbl.find statuses name <> "SoftFailed" &&
-                         Hashtbl.find statuses name <> "Errored" then (
+                      if find_status name <> "Completed" && 
+                         find_status name <> "SoftFailed" &&
+                         find_status name <> "Errored" then (
                         (match read_file_first_line class_path with
                          | Some "VError" | Some "Error" -> Hashtbl.replace statuses name "SoftFailed"
                          | _ -> Hashtbl.replace statuses name "Completed")
-                      ) else if Hashtbl.find statuses name = "Completed" then (
+                      ) else if find_status name = "Completed" then (
                         if (match read_file_first_line class_path with Some "VError" | Some "Error" -> true | _ -> false) then
                            Hashtbl.replace statuses name "SoftFailed"
                       );
@@ -658,8 +663,8 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                   ) node_names;
 
                   (* Success Summary *)
-                  let completed = List.filter (fun n -> Hashtbl.find statuses n = "Completed") node_names in
-                  let soft_failed = List.filter (fun n -> Hashtbl.find statuses n = "SoftFailed") node_names in
+                  let completed = List.filter (fun n -> find_status n = "Completed") node_names in
+                  let soft_failed = List.filter (fun n -> find_status n = "SoftFailed") node_names in
                   let with_warnings = List.filter (fun n -> Hashtbl.find_opt node_has_warnings n = Some true) node_names in
 
                   (* Order: check soft_failed/with_warnings first — built_count = 0 AND
@@ -755,8 +760,8 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                 | _ -> ()
               ) node_names;
 
-              let errored = List.filter (fun n -> Hashtbl.find statuses n = "Errored") node_names in
-              let soft_failed = List.filter (fun n -> Hashtbl.find statuses n = "SoftFailed") node_names in
+              let errored = List.filter (fun n -> find_status n = "Errored") node_names in
+              let soft_failed = List.filter (fun n -> find_status n = "SoftFailed") node_names in
               let with_warnings = List.filter (fun n -> Hashtbl.find_opt node_has_warnings n = Some true) node_names in
 
               let error_summary =

@@ -3,7 +3,6 @@
 
 open Package_types
 
-let companion_package_version = "0.1.0"
 
 let julia_depot_sandbox_hook =
   "            # Create a local Julia depot directory for sandbox guards\n\
@@ -649,24 +648,27 @@ let install_flake
     Printf.printf "%s\n" content;
     Ok content
   end else begin
-    (* Backup existing flake.nix *)
-    (if Sys.file_exists flake_path then begin
-      let bak = flake_path ^ ".bak" in
-      let ch = open_in flake_path in
-      let old =
+    try
+      (* Backup existing flake.nix *)
+      (if Sys.file_exists flake_path then begin
+        let bak = flake_path ^ ".bak" in
+        let ch = open_in flake_path in
+        let old =
+          Fun.protect
+            ~finally:(fun () -> close_in_noerr ch)
+            (fun () -> really_input_string ch (in_channel_length ch))
+        in
+        let ch_out = open_out bak in
         Fun.protect
-          ~finally:(fun () -> close_in_noerr ch)
-          (fun () -> really_input_string ch (in_channel_length ch))
-      in
-      let ch_out = open_out bak in
+          ~finally:(fun () -> close_out_noerr ch_out)
+          (fun () -> output_string ch_out old)
+      end);
+      (* Write new flake.nix *)
+      let ch = open_out flake_path in
       Fun.protect
-        ~finally:(fun () -> close_out_noerr ch_out)
-        (fun () -> output_string ch_out old)
-    end);
-    (* Write new flake.nix *)
-    let ch = open_out flake_path in
-    Fun.protect
-      ~finally:(fun () -> close_out_noerr ch)
-      (fun () -> output_string ch content);
-    Ok content
+        ~finally:(fun () -> close_out_noerr ch)
+        (fun () -> output_string ch content);
+      Ok content
+    with Sys_error msg ->
+      Error ("Failed to write flake.nix: " ^ msg)
   end
