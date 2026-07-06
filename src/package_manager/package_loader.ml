@@ -135,6 +135,10 @@ let eval_package_sources
         Error (Printf.sprintf "Package '%s' syntax error: %s" (Filename.basename pkg_dir) msg)
     | Parser.Error ->
         Error (Printf.sprintf "Package '%s' parse error" (Filename.basename pkg_dir))
+    | Ast.Mixed_bracket_form ->
+        Error (Printf.sprintf "Package '%s' parse error: Mixed bracket literal (found both single elements and key-value pairs)" (Filename.basename pkg_dir))
+    | Ast.Invalid_match_pattern msg ->
+        Error (Printf.sprintf "Package '%s' parse error: %s" (Filename.basename pkg_dir) msg)
     | Sys_error msg ->
         Error (Printf.sprintf "Package '%s' file error: %s" (Filename.basename pkg_dir) msg)
 

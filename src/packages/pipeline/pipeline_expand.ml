@@ -27,7 +27,7 @@ open Ast
 let value_length (v : value) : int =
   match v with
   | VList items -> List.length items
-  | VVector items -> Array.length items
+  | VVector arr -> Array.length arr
   | VDataFrame df -> Arrow_table.num_rows df.arrow_table
   | _ -> 1
 
@@ -200,12 +200,6 @@ let make_branch (name : string) (orig_name : string) (i : int) (value_idx : int)
     un_flake = None;
   }}
 
-let value_length (v : value) : int =
-  match v with
-  | VList items -> List.length items
-  | VVector arr -> Array.length arr
-  | VDataFrame df -> Arrow_table.num_rows df.arrow_table
-  | _ -> 1
 
 let process_map
     ?(expanded_map : (string * string list) list = [])
@@ -396,7 +390,7 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
         let deps = pattern_dep_names name in
         Hashtbl.replace in_degree name (List.length deps);
         List.iter (fun dep ->
-          Hashtbl.replace dependents dep (name :: Hashtbl.find dependents dep)
+          Hashtbl.replace dependents dep (name :: (match Hashtbl.find_opt dependents dep with Some l -> l | None -> []))
         ) deps
       ) p.p_patterns;
       let queue = Queue.create () in
@@ -408,10 +402,10 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
         let name = Queue.pop queue in
         result := name :: !result;
         List.iter (fun dependent ->
-          let new_deg = Hashtbl.find in_degree dependent - 1 in
+          let new_deg = (match Hashtbl.find_opt in_degree dependent with Some d -> d | None -> 0) - 1 in
           Hashtbl.replace in_degree dependent new_deg;
           if new_deg = 0 then Queue.push dependent queue
-        ) (Hashtbl.find dependents name)
+        ) (match Hashtbl.find_opt dependents name with Some l -> l | None -> [])
       done;
       if List.length !result <> List.length p.p_patterns then
         Error (Error.make_error StructuralError
@@ -496,7 +490,10 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
               | Some deps ->
                   let updated = List.map (fun dep ->
                     match List.find_opt (fun (orig, _) -> orig = dep) !expanded_map with
-                    | Some (_, branch_names) -> List.nth branch_names (dep_index_for_branch b dep)
+                    | Some (_, branch_names) ->
+                       (match List.nth_opt branch_names (dep_index_for_branch b dep) with
+                        | Some name -> name
+                        | None -> dep)
                     | None -> dep
                   ) deps in
                   Some (b.branch_name, updated)
@@ -510,8 +507,11 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                   let updated = Option.map (fun deps ->
                     List.map (fun dep ->
                       match List.find_opt (fun (orig, _) -> orig = dep) !expanded_map with
-                      | Some (_, branch_names) -> List.nth branch_names (dep_index_for_branch b dep)
-                      | None -> dep
+                      | Some (_, branch_names) ->
+                         (match List.nth_opt branch_names (dep_index_for_branch b dep) with
+                          | Some name -> name
+                          | None -> dep)
+                     | None -> dep
                     ) deps
                   ) deps_opt in
                   Some (b.branch_name, updated)

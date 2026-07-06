@@ -82,17 +82,23 @@ let build_model_value ?weights (result : Arrow_owl_bridge.lm_result)
     VDict (model_data_fields @ weight_fields @ [("fit_method", fit_method)])
   in
 
-  (* Create coefficients dictionary *)
-  let coef_pairs = List.map2 (fun name value ->
-    (name, VFloat value)
-  ) result.term_names (Array.to_list result.coefficients) in
-  let coefficients_dict = VDict coef_pairs in
+  let term_len = List.length result.term_names in
+  let coef_len = Array.length result.coefficients in
+  let stderr_len = Array.length result.std_errors in
+  if term_len <> coef_len || term_len <> stderr_len then
+    Error.type_error "Linear model result term names, coefficients, or standard errors length mismatch."
+  else
+    (* Create coefficients dictionary *)
+    let coef_pairs = List.map2 (fun name value ->
+      (name, VFloat value)
+    ) result.term_names (Array.to_list result.coefficients) in
+    let coefficients_dict = VDict coef_pairs in
 
-  (* Create standard errors dictionary *)
-  let stderr_pairs = List.map2 (fun name value ->
-    (name, VFloat value)
-  ) result.term_names (Array.to_list result.std_errors) in
-  let std_errors_dict = VDict stderr_pairs in
+    (* Create standard errors dictionary *)
+    let stderr_pairs = List.map2 (fun name value ->
+      (name, VFloat value)
+    ) result.term_names (Array.to_list result.std_errors) in
+    let std_errors_dict = VDict stderr_pairs in
 
   (* Return VDict as a model object — prints formula + key stats *)
   VDict [
@@ -182,7 +188,7 @@ let rec float_array_of_weights label expected_len = function
         (match loop 0 with
          | Error _ as err -> err
          | Ok ws ->
-             if Array.for_all (fun w -> w = 0.0) ws then
+             if Array.for_all (fun w -> Float.abs w < 1e-15) ws then
                Error
                  (Error.value_error
                     "Function `lm` expects `weights` to contain at least one positive value.")

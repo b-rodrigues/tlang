@@ -128,7 +128,7 @@ let expand_impl named_args _env =
           | _ -> None
         ) in
         (* Inference for output column type *)
-        let first_v = if nrows > 0 then List.nth combos_arr.(0) i else (VNA NAGeneric) in
+        let first_v = if nrows > 0 then (match List.nth_opt combos_arr.(0) i with Some v -> v | None -> VNA NAGeneric) else (VNA NAGeneric) in
         let col = match first_v with
           | VInt _ -> IntColumn (Array.map (function Some (VInt x) -> Some x | _ -> None) data)
           | VFloat _ -> FloatColumn (Array.map (function Some (VFloat x) -> Some x | Some (VInt x) -> Some (float_of_int x) | _ -> None) data)

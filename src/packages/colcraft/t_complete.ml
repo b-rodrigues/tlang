@@ -190,7 +190,11 @@ let register env =
 
             let new_col_data = 
                if is_id_col then
-                  let extract_combo_val i = List.nth final_combos_arr.(i) id_idx in
+                  let extract_combo_val i =
+                    match List.nth_opt final_combos_arr.(i) id_idx with
+                    | Some v -> v
+                    | None -> VNA NAGeneric
+                  in
                   match col_data with
                   | IntColumn _ -> IntColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VInt x -> Some x | _ -> None))
                   | FloatColumn _ -> FloatColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VFloat x -> Some x | _ -> None))

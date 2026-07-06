@@ -2,7 +2,7 @@
 (* lexer.mll *)
 (* OCamllex lexer for the T language — Phase 0 Alpha *)
 open Parser (* The tokens are defined in parser.mly *)
-exception SyntaxError of string
+exception SyntaxError = Ast.TLangSyntaxError
 
 let is_ident_char = function
   | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '$' -> true
@@ -32,7 +32,7 @@ let advance_lines_for_lexeme lexbuf lexeme =
 
 let digit = ['0'-'9']
 let int = digit+
-let float = digit+ '.' digit*
+let float = digit+ '.' digit* (['e' 'E'] ['+' '-']? digit+)?
 
 (* Identifiers can't start with a digit *)
 let ident_start = ['a'-'z' 'A'-'Z' '_']
@@ -173,4 +173,5 @@ and read_string buf delim = parse
   | '\\' '\\' { Buffer.add_char buf '\\'; read_string buf delim lexbuf }
   | [^ '"' '\'' '\\']+ as s { Buffer.add_string buf s; read_string buf delim lexbuf }
   | eof { raise (SyntaxError "Unterminated string") }
+  | '\\' _ as s { raise (SyntaxError ("Unknown escape sequence: " ^ s)) }
   | _ as c { Buffer.add_char buf c; read_string buf delim lexbuf }
