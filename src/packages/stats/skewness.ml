@@ -78,7 +78,7 @@ let register env =
                   if Array.length xs < 3 then Error.value_error "Function `skewness` requires at least 3 values."
                   else
                     (match (Math_utils.weighted_central_moment xs ws 2.0, Math_utils.weighted_central_moment xs ws 3.0) with
-                     | Some m2, Some _ when Float.abs m2 < 1e-15 -> VFloat 0.0
+                     | Some m2, Some _ when Float.abs m2 < 1e-12 -> VFloat 0.0
                      | Some m2, Some m3 -> VFloat (m3 /. Float.pow m2 1.5)
                      | _ -> Error.make_error RuntimeError "Function `skewness` internal error: weighted moments could not be computed."))
          | None ->
@@ -92,7 +92,7 @@ let register env =
                     | None -> Error.value_error "Function `skewness` received empty input after filtering."
                     | Some m ->
                     let m2 = List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int n in
-                    if Float.abs m2 < 1e-15 then VFloat 0.0
+                    if Float.abs m2 < 1e-12 then VFloat 0.0
                     else
                       let m3 = List.fold_left (fun a v -> let d = v -. m in a +. d *. d *. d) 0.0 xs /. float_of_int n in
                       VFloat (m3 /. Float.pow m2 1.5)))

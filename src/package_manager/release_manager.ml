@@ -8,19 +8,35 @@ open Package_types
     For commands that include user-supplied data, use [run_command_argv] instead. *)
 let run_command cmd : (string, string) result =
   try
-    let (ch_in, ch_out, ch_err) as channels = Unix.open_process_full cmd (Unix.environment ()) in
+    let stdin_r, stdin_w = Unix.pipe ~cloexec:true () in
+    let stdout_r, stdout_w = Unix.pipe ~cloexec:true () in
+    let stderr_r, stderr_w = Unix.pipe ~cloexec:true () in
+    Unix.clear_close_on_exec stdin_r;
+    Unix.clear_close_on_exec stdout_w;
+    Unix.clear_close_on_exec stderr_w;
+    let pid =
+      Unix.create_process "/bin/sh" [| "/bin/sh"; "-c"; cmd |]
+        stdin_r stdout_w stderr_w
+    in
+    Unix.close stdin_r;
+    Unix.close stdout_w;
+    Unix.close stderr_w;
+    Unix.close stdin_w;
+    let ch_in = Unix.in_channel_of_descr stdout_r in
+    let ch_err = Unix.in_channel_of_descr stderr_r in
+    let reaped = ref false in
     let status =
       Fun.protect
         ~finally:(fun () ->
-          close_out_noerr ch_out;
-          close_in_noerr ch_in;
-          close_in_noerr ch_err)
+          if not !reaped then (
+            close_in_noerr ch_in;
+            close_in_noerr ch_err;
+            try ignore (Unix.waitpid [] pid) with _ -> ()))
         (fun () ->
           let out_buf = Buffer.create 1024 in
           let err_buf = Buffer.create 1024 in
           let buf = Bytes.create 4096 in
 
-          (* Drain stdout and stderr concurrently to avoid deadlock on full pipe buffers. *)
           let fd_out = Unix.descr_of_in_channel ch_in in
           let fd_err = Unix.descr_of_in_channel ch_err in
 
@@ -58,7 +74,10 @@ let run_command cmd : (string, string) result =
               drain out_open err_open
           in
           drain true true;
-          let exit_status = Unix.close_process_full channels in
+          let _, exit_status = Unix.waitpid [] pid in
+          reaped := true;
+          close_in_noerr ch_in;
+          close_in_noerr ch_err;
           (out_buf, err_buf, exit_status))
     in
     let (out_buf, err_buf, exit_status) = status in
@@ -84,16 +103,29 @@ let run_command_argv (argv : string array) : (string, string) result =
   else
     let cmd_display = String.concat " " (Array.to_list argv) in
     try
-      let prog = argv.(0) in
-      let (ch_in, ch_out, ch_err) as channels =
-        Unix.open_process_args_full prog argv (Unix.environment ())
+      let stdin_r, stdin_w = Unix.pipe ~cloexec:true () in
+      let stdout_r, stdout_w = Unix.pipe ~cloexec:true () in
+      let stderr_r, stderr_w = Unix.pipe ~cloexec:true () in
+      Unix.clear_close_on_exec stdin_r;
+      Unix.clear_close_on_exec stdout_w;
+      Unix.clear_close_on_exec stderr_w;
+      let pid =
+        Unix.create_process argv.(0) argv stdin_r stdout_w stderr_w
       in
+      Unix.close stdin_r;
+      Unix.close stdout_w;
+      Unix.close stderr_w;
+      Unix.close stdin_w;
+      let ch_in = Unix.in_channel_of_descr stdout_r in
+      let ch_err = Unix.in_channel_of_descr stderr_r in
+      let reaped = ref false in
       let status =
         Fun.protect
           ~finally:(fun () ->
-            close_out_noerr ch_out;
-            close_in_noerr ch_in;
-            close_in_noerr ch_err)
+            if not !reaped then (
+              close_in_noerr ch_in;
+              close_in_noerr ch_err;
+              try ignore (Unix.waitpid [] pid) with _ -> ()))
           (fun () ->
             let out_buf = Buffer.create 1024 in
             let err_buf = Buffer.create 1024 in
@@ -127,7 +159,10 @@ let run_command_argv (argv : string array) : (string, string) result =
                 drain out_open err_open
             in
             drain true true;
-            let exit_status = Unix.close_process_full channels in
+            let _, exit_status = Unix.waitpid [] pid in
+            reaped := true;
+            close_in_noerr ch_in;
+            close_in_noerr ch_err;
             (out_buf, err_buf, exit_status))
       in
       let (out_buf, err_buf, exit_status) = status in

@@ -36,6 +36,8 @@ let env_flag name =
   | Some ("1" | "true" | "yes" | "on") -> true
   | _ -> false
 
+exception MaterializeError of string
+
 let zero_copy_events : zero_copy_event list ref = ref []
 let zero_copy_event_count : int ref = ref 0
 let max_zero_copy_events = 1000
@@ -705,7 +707,9 @@ let materialize (t : t) : t =
                   let schema_hint = list_schema_hint_of_arrow_type type_ in
                   (match flatten_list_column ?schema_hint nested with
                    | Ok (offsets, present, sub_cols) -> Obj.repr (offsets, present, sub_cols)
-                   | Error msg -> failwith msg)
+                   | Error msg ->
+                    raise (MaterializeError
+                      (Printf.sprintf "materialize: failed to flatten list column `%s`: %s" name msg)))
               | Some (IntColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
               | Some (FloatColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
               | Some (BoolColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
@@ -721,12 +725,17 @@ let materialize (t : t) : t =
           | Some ptr -> create_from_native ptr t.schema t.nrows
           | None -> t
         with
+        | MaterializeError _ as e -> raise e
         | Out_of_memory | Stack_overflow as exn -> raise exn
         | exn ->
             Printf.eprintf
               "Warning: Native materialization failed (%s). Keeping OCaml representation.\n%!"
               (Printexc.to_string exn);
             t
+
+let try_materialize_or_keep t =
+  try materialize t
+  with MaterializeError _ -> t
 
 (** Prepare a table for transfer across processes (e.g. via Marshal).
     Materializes any native data into OCaml storage and clears the native handle,
@@ -791,7 +800,7 @@ let project (t : t) (names : string list) : t =
               | Some col -> (n, col)
               | None -> (n, NAColumn t.nrows)
             ) names in
-            { schema; columns; nrows = t.nrows; native_handle = None } |> materialize)
+            { schema; columns; nrows = t.nrows; native_handle = None } |> try_materialize_or_keep)
   | _ ->
       let schema = List.map safe_assoc_schema names in
       let columns = List.map (fun n ->
@@ -799,7 +808,7 @@ let project (t : t) (names : string list) : t =
         | Some col -> (n, col)
         | None -> (n, NAColumn t.nrows)
       ) names in
-      { schema; columns; nrows = t.nrows; native_handle = None } |> materialize
+      { schema; columns; nrows = t.nrows; native_handle = None } |> try_materialize_or_keep
 
 (** Add or replace a column.
     Keeps the result on the native Arrow path when all columns are supported
@@ -830,7 +839,7 @@ let add_column (t : t) (name : string) (col : column_data) : t =
     else
       t.schema @ [(name, typ)]
   in
-  { schema; columns; nrows = t.nrows; native_handle = None } |> materialize
+  { schema; columns; nrows = t.nrows; native_handle = None } |> try_materialize_or_keep
 
 (** Add a column to [dst] by taking it from [src]. 
     Stays native if both have native handles. *)
@@ -903,11 +912,11 @@ let filter_rows (t : t) (mask : bool array) : t =
              | Some col -> (name, filter_col col)
              | None -> (name, NAColumn new_nrows)
            ) t.schema in
-           { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize)
+           { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> try_materialize_or_keep)
   | _ ->
       let filter_col col = _filter_column_pure col mask new_nrows in
       let columns = List.map (fun (name, col) -> (name, filter_col col)) t.columns in
-      { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
+      { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> try_materialize_or_keep
 
 (** Slice rows: offset, length *)
 let slice (t : t) (offset : int) (len : int) : t =
@@ -922,10 +931,10 @@ let slice (t : t) (offset : int) (len : int) : t =
              let col = match get_column t name with Some c -> c | None -> NAColumn t.nrows in
              (name, slice_column col offset len)
            ) t.schema in
-           { schema = t.schema; columns; nrows = len; native_handle = None } |> materialize)
+           { schema = t.schema; columns; nrows = len; native_handle = None } |> try_materialize_or_keep)
   | _ ->
       let columns = List.map (fun (name, col) -> (name, slice_column col offset len)) t.columns in
-      { schema = t.schema; columns; nrows = len; native_handle = None } |> materialize
+      { schema = t.schema; columns; nrows = len; native_handle = None } |> try_materialize_or_keep
 
 
 (** Take rows by index list *)
@@ -949,12 +958,12 @@ let take_rows (t : t) (indices : int list) : t =
            let idx_arr = Array.of_list valid_indices in
            let new_nrows = List.length valid_indices in
            let columns = List.map (fun (name, col) -> (name, take_col col idx_arr new_nrows)) source_columns in
-           { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize)
+           { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> try_materialize_or_keep)
   | _ ->
       let idx_arr = Array.of_list valid_indices in
       let new_nrows = List.length valid_indices in
       let columns = List.map (fun (name, col) -> (name, take_col col idx_arr new_nrows)) t.columns in
-      { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
+      { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> try_materialize_or_keep
 
 (** Reorder rows by index array *)
 let sort_by_indices (t : t) (indices : int array) : t =
@@ -994,7 +1003,7 @@ let sort_by_indices (t : t) (indices : int array) : t =
              | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
            in
            let columns = List.map (fun (name, col) -> (name, sort_col col)) source_columns in
-           { schema = t.schema; columns; nrows = n; native_handle = None } |> materialize)
+           { schema = t.schema; columns; nrows = n; native_handle = None } |> try_materialize_or_keep)
   | _ ->
     let n = Array.length indices in
     let sort_col = function
@@ -1009,7 +1018,7 @@ let sort_by_indices (t : t) (indices : int array) : t =
       | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
     in
     let columns = List.map (fun (name, col) -> (name, sort_col col)) t.columns in
-    { schema = t.schema; columns; nrows = n; native_handle = None } |> materialize
+    { schema = t.schema; columns; nrows = n; native_handle = None } |> try_materialize_or_keep
 
 (** Rename columns based on an old_name -> new_name mapping. *)
 let rename_columns (t : t) (mapping : (string * string) list) : t =
@@ -1038,7 +1047,7 @@ let rename_columns (t : t) (mapping : (string * string) list) : t =
              let col = match get_column t name with Some c -> c | None -> NAColumn t.nrows in
              match List.assoc_opt name old_to_new with
              | Some new_name -> (new_name, col) | None -> (name, col)) t.schema in
-           { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> materialize)
+           { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> try_materialize_or_keep)
   | _ ->
       let old_to_new = List.map (fun (new_n, old_n) -> (old_n, new_n)) mapping in
       let new_schema = List.map (fun (name, ty) ->
@@ -1047,7 +1056,7 @@ let rename_columns (t : t) (mapping : (string * string) list) : t =
       let columns = List.map (fun (name, data) ->
         match List.assoc_opt name old_to_new with
         | Some new_name -> (new_name, data) | None -> (name, data)) t.columns in
-      { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> materialize
+      { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> try_materialize_or_keep
 
 let merge_horizontal (t1 : t) (t2 : t) : t option =
   match t1.native_handle, t2.native_handle with

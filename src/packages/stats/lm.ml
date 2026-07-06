@@ -188,7 +188,7 @@ let rec float_array_of_weights label expected_len = function
         (match loop 0 with
          | Error _ as err -> err
          | Ok ws ->
-             if Array.for_all (fun w -> Float.abs w < 1e-15) ws then
+             if Array.for_all (fun w -> Float.abs w < 1e-12) ws then
                Error
                  (Error.value_error
                     "Function `lm` expects `weights` to contain at least one positive value.")

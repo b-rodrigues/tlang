@@ -283,8 +283,11 @@ let table_from_value_columns (columns : (string * value array) list) (nrows : in
       in
       (match map_cols [] columns with
        | Error err -> Error err
-       | Ok arrow_columns ->
-           Ok (Arrow_table.create arrow_columns nrows |> Arrow_table.materialize))
+        | Ok arrow_columns ->
+            (try Ok (Arrow_table.create arrow_columns nrows |> Arrow_table.materialize)
+             with Arrow_table.MaterializeError msg ->
+               Error (Error.type_error
+                 (Printf.sprintf "table_from_value_columns: %s" msg))))
 
 (** Convert an Arrow table structure back to T-Lang value column arrays.
     

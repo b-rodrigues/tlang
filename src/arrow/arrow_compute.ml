@@ -81,7 +81,10 @@ let add_computed_column (t : Arrow_table.t) (name : string)
   match t.native_handle with
   | Some handle when not handle.Arrow_table.freed ->
       let temp_table =
-        Arrow_table.create [ (name, col) ] t.nrows |> Arrow_table.materialize in
+        try Arrow_table.create [ (name, col) ] t.nrows |> Arrow_table.materialize
+        with Arrow_table.MaterializeError _ ->
+          Arrow_table.create [ (name, col) ] t.nrows
+      in
       if Arrow_table.is_native_backed temp_table then
         Arrow_table.add_column_from_table t name temp_table name
       else

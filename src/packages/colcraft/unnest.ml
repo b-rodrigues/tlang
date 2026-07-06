@@ -100,12 +100,14 @@ let unnest_impl (named_args : (string option * value) list) _env =
                        let tables_to_stack = List.filter_map (fun x -> x) (Array.to_list data) in
                        let stacked_table = Arrow_table.concatenate tables_to_stack in
                        if is_native_backed stacked_table then
-                         let base_table = {
-                           schema = other_schema;
-                           columns = other_cols;
-                           nrows = !final_nrows;
-                           native_handle = None;
-                         } |> materialize in
+                          let base_table =
+                            try_materialize_or_keep {
+                              schema = other_schema;
+                              columns = other_cols;
+                              nrows = !final_nrows;
+                              native_handle = None;
+                            }
+                          in
                          let res = ref base_table in
                          List.iter (fun (n, _) ->
                            res := add_column_from_table !res n stacked_table n

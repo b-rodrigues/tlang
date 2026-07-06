@@ -79,8 +79,8 @@ let register env =
                   else
                     (match (Math_utils.weighted_mean_array xs ws, Math_utils.weighted_variance_population xs ws) with
                      | Some m, Some v ->
-                          if Float.abs m < 1e-15 then Error.value_error "Function `cv` undefined when mean is zero."
-                          else VFloat ((Float.sqrt v) /. m)
+                         if Float.abs m < 1e-12 then Error.value_error "Function `cv` undefined when mean is zero."
+                         else VFloat ((Float.sqrt v) /. m)
                      | _ -> Error.make_error RuntimeError "Function `cv` internal error: weighted moments could not be computed."))
          | None ->
              (match numeric_values ~label:"cv" ~na_rm x with
@@ -92,7 +92,7 @@ let register env =
                     match mean xs with
                     | None -> Error.value_error "Function `cv` received empty input after filtering."
                     | Some m ->
-                    if Float.abs m < 1e-15 then Error.value_error "Function `cv` undefined when mean is zero."
+                    if Float.abs m < 1e-12 then Error.value_error "Function `cv` undefined when mean is zero."
                     else
                       let s = Float.sqrt (List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int (n - 1)) in
                       VFloat (s /. m)))

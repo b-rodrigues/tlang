@@ -32,7 +32,7 @@ let advance_lines_for_lexeme lexbuf lexeme =
 
 let digit = ['0'-'9']
 let int = digit+
-let float = digit+ '.' digit* (['e' 'E'] ['+' '-']? digit+)?
+let float = digit+ '.' digit* (['e' 'E'] ['+' '-']? digit+)? | digit+ ['e' 'E'] ['+' '-']? digit+
 let hex_digit = ['0'-'9' 'a'-'f' 'A'-'F']
 
 (* Identifiers can't start with a digit *)
