@@ -33,6 +33,7 @@ let advance_lines_for_lexeme lexbuf lexeme =
 let digit = ['0'-'9']
 let int = digit+
 let float = digit+ '.' digit* (['e' 'E'] ['+' '-']? digit+)?
+let hex_digit = ['0'-'9' 'a'-'f' 'A'-'F']
 
 (* Identifiers can't start with a digit *)
 let ident_start = ['a'-'z' 'A'-'Z' '_']
@@ -171,6 +172,11 @@ and read_string buf delim = parse
   | '\\' '"'  { Buffer.add_char buf '"'; read_string buf delim lexbuf }
   | '\\' '\'' { Buffer.add_char buf '\''; read_string buf delim lexbuf }
   | '\\' '\\' { Buffer.add_char buf '\\'; read_string buf delim lexbuf }
+  | '\\' 'x' (hex_digit hex_digit) as s {
+      let byte = int_of_string ("0x" ^ String.sub s 2 2) in
+      Buffer.add_char buf (Char.chr byte);
+      read_string buf delim lexbuf
+    }
   | [^ '"' '\'' '\\']+ as s { Buffer.add_string buf s; read_string buf delim lexbuf }
   | eof { raise (SyntaxError "Unterminated string") }
   | '\\' _ as s { raise (SyntaxError ("Unknown escape sequence: " ^ s)) }
