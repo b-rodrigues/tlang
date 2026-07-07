@@ -103,9 +103,9 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
 
   let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\"" in
 
-  let py_version_line = match py_version with
-    | Some v -> Printf.sprintf "  pyVersion = \"%s\";" v
-    | None -> "  pyVersion = pyDeps.version or \"python3\";"
+  let py_version_val = match py_version with
+    | Some v -> Printf.sprintf "\"%s\"" v
+    | None -> "pyDeps.version or \"python3\""
   in
 
   let r_serializer_packages_str =
@@ -300,4 +300,4 @@ rec {
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root rel_root r_serializer_packages_str py_serializer_packages_str r_renv_cran_pkgs_str r_git_pkgs_str py_version_line julia_packages_injection julia_build_input flake_env_bindings nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root rel_root r_serializer_packages_str py_serializer_packages_str r_renv_cran_pkgs_str r_git_pkgs_str py_version_val julia_packages_injection julia_build_input flake_env_bindings nodes (String.concat " " node_names) final_copy
