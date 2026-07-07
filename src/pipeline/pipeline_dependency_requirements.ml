@@ -273,6 +273,12 @@ let required_for_pipeline (p : Ast.pipeline_result) =
     empty_requirements
     p.p_exprs
 
+let required_r_serializer_packages (p : Ast.pipeline_result) : string list =
+  String_set.elements (required_for_pipeline p).r_deps
+
+let required_py_serializer_packages (p : Ast.pipeline_result) : string list =
+  String_set.elements (required_for_pipeline p).py_deps
+
 let analyze_missing_requirements (p : Ast.pipeline_result) (cfg : project_config) =
   let required = required_for_pipeline p in
   let missing_from required_list existing_list =

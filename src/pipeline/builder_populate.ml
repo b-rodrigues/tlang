@@ -180,7 +180,7 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
         | r -> "../" ^ r
       in
       let project_root = Builder_utils.get_project_root () in
-      let r_renv_cran_pkgs, r_git_pkgs =
+      let r_renv_cran_pkgs, r_git_pkgs, py_version_opt =
         let tproject_path = Filename.concat project_root "tproject.toml" in
         if Sys.file_exists tproject_path then
           (try
@@ -197,17 +197,29 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
                    ~cache_root:(Filename.concat project_root ".t_r_pkg_cache")
                    ~deps:cfg.proj_r_git_dependencies
                in
-               if cfg.proj_r_resolver = "renv" then
-                 match Renv_resolver.split_packages ~project_root with
-                 | Ok (renv_cran, renv_git) -> renv_cran, toml_git_pkgs @ renv_git
-                 | Error _ -> [], toml_git_pkgs
-               else
-                 [], toml_git_pkgs
-             | Error _ -> [], []
-           with _ -> [], [])
-        else [], []
+               let cran_pkgs, git_pkgs =
+                 if cfg.proj_r_resolver = "renv" then
+                   match Renv_resolver.split_packages ~project_root with
+                   | Ok (renv_cran, renv_git) -> renv_cran, toml_git_pkgs @ renv_git
+                   | Error _ -> [], toml_git_pkgs
+                 else
+                   [], toml_git_pkgs
+               in
+               cran_pkgs, git_pkgs, Some cfg.proj_py_version
+             | Error _ -> [], [], None
+           with _ -> [], [], None)
+        else [], [], None
       in
-      let nix_content = Nix_emitter.emit_pipeline ~rel_root ~r_git_pkgs ~r_renv_cran_pkgs p in
+      let r_serializer_packages =
+        Pipeline_dependency_requirements.required_r_serializer_packages p
+      in
+      let py_serializer_packages =
+        Pipeline_dependency_requirements.required_py_serializer_packages p
+      in
+      let nix_content =
+        Nix_emitter.emit_pipeline ~rel_root ~r_git_pkgs ~r_renv_cran_pkgs
+          ?py_version:py_version_opt ~r_serializer_packages ~py_serializer_packages p
+      in
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () ->
