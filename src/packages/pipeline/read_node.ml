@@ -38,8 +38,12 @@ let r_debug_startup_content () =
 let julia_debug_startup_content julia_package_path =
   let buf = Buffer.create 512 in
   Buffer.add_string buf
-    {|const _tlang_pkg_id = Base.PkgId(Base.UUID("44cfe95a-1eb2-52ea-b672-e2afdf69b78f"), "Pkg")
-     const _tlang_real_pkg = Base.require(_tlang_pkg_id)
+    {|if !isdefined(Main, :_tlang_pkg_id)
+      const _tlang_pkg_id = Base.PkgId(Base.UUID("44cfe95a-1eb2-52ea-b672-e2afdf69b78f"), "Pkg")
+    end
+     if !isdefined(Main, :_tlang_real_pkg)
+       const _tlang_real_pkg = Base.require(_tlang_pkg_id)
+     end
 |};
   (match julia_package_path with
    | Some path ->
@@ -77,7 +81,9 @@ let julia_debug_startup_content julia_package_path =
     (debug_subshell_guard_message "Julia" "Pkg.develop()");
   Buffer.add_string buf
     {|if isinteractive()
-     const _tlang_repl_id = Base.PkgId(Base.UUID("3fa0cd96-eef1-5676-8a61-b3b8758bbffb"), "REPL")
+     if !isdefined(Main, :_tlang_repl_id)
+       const _tlang_repl_id = Base.PkgId(Base.UUID("3fa0cd96-eef1-5676-8a61-b3b8758bbffb"), "REPL")
+     end
      try
        _tlang_repl = Base.require(_tlang_repl_id)
        function _tlang_install_packages_hook(pkgs::Vector{Symbol})
