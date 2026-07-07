@@ -200,7 +200,8 @@ let
       r-env = pkgs.rWrapper.override {
         packages = (builtins.map (p: pkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rSerializerPackages) ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
       };
-      py-env = let pyInterp = if builtins.hasAttr pyVersion pkgs then pkgs.${pyVersion} else pkgs.python3;
+      py-env = if tlangPkgSet ? py-env then tlangPkgSet.py-env
+               else let pyInterp = if builtins.hasAttr pyVersion pkgs then pkgs.${pyVersion} else pkgs.python3;
                in pyInterp.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pySerializerPackages));
       juliaPkg = let
         juliaBase = pkgs.${juliaPackageName};
