@@ -94,18 +94,12 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
     |> List.map (fun n -> Printf.sprintf "      cp -r ${%s} $out/%s" n n)
     |> String.concat "\n"
   in
-  let has_julia = List.exists (fun (name, _) ->
-    let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-    runtime = "Julia"
-  ) p.p_exprs in
   let has_pmml = List.exists (fun (name, _) ->
     let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
     let des = match List.assoc_opt name p.p_deserializers with Some d -> d | None -> Ast.mk_expr (Ast.Var "default") in
     is_pmml_ser ser || is_pmml_des des
   ) p.p_exprs in
-  let julia_build_input = if has_julia && has_pmml then "\n                      ++ [ juliaPkg pkgs.gcc.cc.lib pkgs.avahi ]" 
-                           else if has_julia then "\n                      ++ [ juliaPkg ]"
-                           else "" in
+  let julia_build_input = "" in
 
   let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\"" in
 
