@@ -328,7 +328,7 @@ packages = []
     in
     let nix = Nix_generator.generate_project_flake
       ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
-      ~deps:[] ~r_git_deps:[pkg] () in
+      ~uv2nix_commit:"dummy" ~deps:[] ~r_git_deps:[pkg] () in
     Test_helpers.contains nix "buildRPackage"
     && Test_helpers.contains nix "abc1234def5678"
     && Test_helpers.contains nix "https://github.com/user/myPkg");
@@ -342,7 +342,7 @@ packages = []
     in
     let nix = Nix_generator.generate_project_flake
       ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
-      ~deps:[] ~r_git_deps:[pkg1; pkg2] () in
+      ~uv2nix_commit:"dummy" ~deps:[] ~r_git_deps:[pkg1; pkg2] () in
     let occurrences s sub =
       let sub_len = String.length sub in
       let s_len = String.length s in
@@ -1354,7 +1354,7 @@ workspace = "python"
   test_pm "generate project flake with deps" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0"
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy"
       ~deps:[make_dep "stats" "https://github.com/t-lang/stats" "v0.51.0"] () in
     (* Check key parts are present *)
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
@@ -1372,7 +1372,7 @@ workspace = "python"
   test_pm "generate project flake no deps" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"empty" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[] () in
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
     has "t-lang.url" && not (has "tPackages"));
@@ -1389,7 +1389,7 @@ workspace = "python"
   test_pm "generate project flake with additional_tools" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       ~additional_tools:["pandoc"; "jq"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -1399,7 +1399,7 @@ workspace = "python"
   test_pm "generate project flake auto-provisions quarto extension" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       ~additional_tools:["quarto"; "jq"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -1414,7 +1414,7 @@ workspace = "python"
   test_pm "generate project flake with latex_pkgs" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       ~latex_pkgs:["amsmath"; "hyperref"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -1438,7 +1438,7 @@ workspace = "python"
   test_pm "invalid nix identifiers are rejected from additional_tools" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       ~warn_invalid_pkg_names:false
       ~additional_tools:["valid-pkg"; "$(evil)"; "valid_pkg2"; "bad pkg"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
@@ -1449,7 +1449,7 @@ workspace = "python"
   test_pm "generate project flake exposes runtime companion packages in dev shell" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"polyglot" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       ~r_deps:["dplyr"]
       ~py_deps:["pandas"]
       ~py_version:"python314"
@@ -1467,7 +1467,8 @@ workspace = "python"
   test_pm "generate project flake with uv Python resolver" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"uv-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"102cb1ffb47c9f722633e947137f578874ea34cd"
+      ~deps:[]
       ~py_version:"python314"
       ~py_resolver:"uv"
       ~py_workspace:"python"
@@ -1475,7 +1476,7 @@ workspace = "python"
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
     has "pyproject-nix.url = \"github:pyproject-nix/pyproject.nix\""
-    && has "uv2nix.url = \"github:pyproject-nix/uv2nix\""
+    && has "uv2nix.url = \"github:pyproject-nix/uv2nix/102cb1ffb47c9f722633e947137f578874ea34cd\""
     && has "pyproject-build-systems.url = \"github:pyproject-nix/build-system-pkgs\""
     && has "pyWorkspace = uv2nix.lib.workspace.loadWorkspace"
     && has "workspaceRoot = ./. + \"/python\""

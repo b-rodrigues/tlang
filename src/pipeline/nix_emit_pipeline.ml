@@ -24,7 +24,7 @@ let resolve_flake_path path =
     else "path:" ^ Sys.getcwd () ^ "/" ^ sub
   else path
 
-let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency list = []) ?(r_renv_cran_pkgs : string list = []) (p : Ast.pipeline_result) =
+let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency list = []) ?(r_renv_cran_pkgs : string list = []) ?py_version ?(r_serializer_packages : string list = []) ?(py_serializer_packages : string list = []) (p : Ast.pipeline_result) =
   let import_lines = List.filter_map (fun stmt ->
     let s = unparse_import_stmt stmt in
     if s = "" then None else Some s
@@ -103,6 +103,23 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
 
   let julia_packages_injection = if has_pmml then "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\" \"JavaCall\"" else "\"DataFrames\" \"CSV\" \"StatsModels\" \"JSON\" \"JLD2\"" in
 
+  let py_version_val = match py_version with
+    | Some v -> Printf.sprintf "\"%s\"" v
+    | None -> "pyDeps.version or \"python3\""
+  in
+
+  let r_serializer_packages_str =
+    let quoted = List.map (fun p -> "\"" ^ p ^ "\"") r_serializer_packages in
+    let nix_list = String.concat " " quoted in
+    "  rSerializerPackages = [ " ^ nix_list ^ " ];\n"
+  in
+
+  let py_serializer_packages_str =
+    let quoted = List.map (fun p -> "\"" ^ p ^ "\"") py_serializer_packages in
+    let nix_list = String.concat " " quoted in
+    "  pySerializerPackages = [ " ^ nix_list ^ " ];"
+  in
+
   let r_renv_cran_pkgs_str =
     let quoted = List.map (fun p -> "\"" ^ p ^ "\"") r_renv_cran_pkgs in
     let nix_list = String.concat " " quoted in
@@ -157,7 +174,9 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
 { system ? builtins.currentSystem }:
 let
   # mkNodeEnv: build a runtime environment from an arbitrary flake path.
-  # R/Python/Julia package lists still come from the project's tproject.toml.
+  # R and Python serializer packages (jsonlite, arrow, deepdiff, etc.) are
+  # resolved from the flake's nixpkgs automatically -- not from tproject.toml.
+  # Julia package lists still come from the project's tproject.toml.
   # The flake provides nixpkgs version, t-lang version, and R/Python/Julia versions.
   # Each component is resolved independently: if the flake provides `t-lang` (or
   # has the relevant package), it is used; otherwise it falls back to the
@@ -179,10 +198,11 @@ let
       else {};
       tBin   = if tlangPkgSet ? default then tlangPkgSet.default else projectTBin;
       r-env = pkgs.rWrapper.override {
-        packages = (builtins.map (p: pkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rPackagesList) ++ (builtins.map (p: pkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rRenvPackagesList) ++ rGitPkgsList ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
+        packages = (builtins.map (p: pkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rSerializerPackages) ++ (if tlangPkgSet ? tlang-r then [ tlangPkgSet.tlang-r ] else []);
       };
-      py-env = if pyResolver == "uv" then projectPyEnv
-               else pkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
+      py-env = if tlangPkgSet ? py-env then tlangPkgSet.py-env
+               else let pyInterp = if builtins.hasAttr pyVersion pkgs then pkgs.${pyVersion} else pkgs.python3;
+               in pyInterp.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pySerializerPackages));
       juliaPkg = let
         juliaBase = pkgs.${juliaPackageName};
       in if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
@@ -207,7 +227,7 @@ let
     pkgFlake.packages.${system}
   else {};
   projectREnv = projectPkgs.rWrapper.override {
-    packages = (builtins.map (p: projectPkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rPackagesList) ++ (builtins.map (p: projectPkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rRenvPackagesList) ++ rGitPkgsList ++ [ projectTlangPkgSet.tlang-r ];
+    packages = (builtins.map (p: projectPkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rPackagesList) ++ (builtins.map (p: projectPkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rRenvPackagesList) ++ rGitPkgsList ++ (builtins.map (p: projectPkgs.rPackages.${builtins.replaceStrings ["."] ["_"] p}) rSerializerPackages) ++ [ projectTlangPkgSet.tlang-r ];
   };
   projectPyEnv =
     if pyResolver == "uv" then
@@ -217,7 +237,7 @@ let
         pySet = (projectPkgs.callPackage projectFlake.inputs.pyproject-nix.build.packages { python = projectPkgs.${pyVersion}; }).overrideScope (projectPkgs.lib.composeManyExtensions [ pyOverlay projectFlake.inputs.pyproject-build-systems.overlays.default ]);
       in pySet.mkVirtualEnv "t-python-uv-env" pyWorkspace.deps.default
     else
-      projectPkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pyPackagesList));
+      projectPkgs.${pyVersion}.withPackages (ps: [ ps.deepdiff ] ++ (builtins.map (p: ps.${p}) pySerializerPackages) ++ (builtins.map (p: ps.${p}) pyPackagesList));
   projectJuliaPkg = let
     juliaBase = projectPkgs.${juliaPackageName};
   in if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
@@ -243,11 +263,12 @@ let
 
   toml = if builtins.pathExists %s/tproject.toml then builtins.fromTOML (builtins.readFile %s/tproject.toml) else {};
   
+  %s  %s
   rPackagesList = (toml.r-dependencies or {}).packages or [];
   %s  %s
   rGitPkgsList = builtins.attrValues rGitPkgSet;
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
-  pyVersion = pyDeps.version or "python3";
+  pyVersion = %s;
   pyResolver = pyDeps.resolver or "nixpkgs";
   pyWorkspaceDir = pyDeps.workspace or "python";
   pyPackagesList = if pyResolver == "uv" then [] else pyDeps.packages or [];
@@ -280,4 +301,4 @@ rec {
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root rel_root r_renv_cran_pkgs_str r_git_pkgs_str julia_packages_injection julia_build_input flake_env_bindings nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root rel_root r_serializer_packages_str py_serializer_packages_str r_renv_cran_pkgs_str r_git_pkgs_str py_version_val julia_packages_injection julia_build_input flake_env_bindings nodes (String.concat " " node_names) final_copy

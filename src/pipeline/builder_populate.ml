@@ -7,6 +7,8 @@ open Package_types
 let builtin_pipeline_strategies =
   [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx"; "bin" ]
 
+let cold_start_warning_shown = ref false
+
 let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
   let eval_string_list lst =
     lst
@@ -180,7 +182,7 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
         | r -> "../" ^ r
       in
       let project_root = Builder_utils.get_project_root () in
-      let r_renv_cran_pkgs, r_git_pkgs =
+      let r_renv_cran_pkgs, r_git_pkgs, py_version_opt, use_uv =
         let tproject_path = Filename.concat project_root "tproject.toml" in
         if Sys.file_exists tproject_path then
           (try
@@ -197,21 +199,41 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
                    ~cache_root:(Filename.concat project_root ".t_r_pkg_cache")
                    ~deps:cfg.proj_r_git_dependencies
                in
-               if cfg.proj_r_resolver = "renv" then
-                 match Renv_resolver.split_packages ~project_root with
-                 | Ok (renv_cran, renv_git) -> renv_cran, toml_git_pkgs @ renv_git
-                 | Error _ -> [], toml_git_pkgs
-               else
-                 [], toml_git_pkgs
-             | Error _ -> [], []
-           with _ -> [], [])
-        else [], []
+               let cran_pkgs, git_pkgs =
+                 if cfg.proj_r_resolver = "renv" then
+                   match Renv_resolver.split_packages ~project_root with
+                   | Ok (renv_cran, renv_git) -> renv_cran, toml_git_pkgs @ renv_git
+                   | Error _ -> [], toml_git_pkgs
+                 else
+                   [], toml_git_pkgs
+               in
+               cran_pkgs, git_pkgs, Some cfg.proj_py_version, cfg.proj_py_resolver = "uv"
+             | Error _ -> [], [], None, false
+           with _ -> [], [], None, false)
+        else [], [], None, false
       in
-      let nix_content = Nix_emitter.emit_pipeline ~rel_root ~r_git_pkgs ~r_renv_cran_pkgs p in
+      let r_serializer_packages, py_serializer_packages =
+        Pipeline_dependency_requirements.required_serializer_packages p
+      in
+      let nix_content =
+        Nix_emitter.emit_pipeline ~rel_root ~r_git_pkgs ~r_renv_cran_pkgs
+          ?py_version:py_version_opt ~r_serializer_packages ~py_serializer_packages p
+      in
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () ->
           if build then
+            let has_per_node_flakes = List.exists (fun (_, f) -> f <> None) p.p_flakes in
+            if (has_per_node_flakes || use_uv) && not !cold_start_warning_shown then (
+              cold_start_warning_shown := true;
+              Printf.eprintf
+                "\n\
+                 This pipeline uses per-node flakes or UV Python workspaces.\n\
+                 The first build will download and compile all dependencies.\n\
+                 This is a one-time cold-start cost — subsequent runs will be\n\
+                 significantly faster. Go grab a coffee ☕\n\
+                 \n%!"
+            );
             match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
             | Ok result -> Ok result
             | Error msg -> Error msg
