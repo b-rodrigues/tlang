@@ -179,6 +179,7 @@ let generate_project_flake
     ~(project_name : string)
     ~(nixpkgs_date : string)
     ~(t_version : string)
+    ~(uv2nix_commit : string)
     ~(deps : dependency list)
     ?(r_deps : string list = [])
     ?(r_git_deps : Package_types.r_git_dependency list = [])
@@ -219,7 +220,7 @@ let generate_project_flake
   if use_uv then begin
     Buffer.add_string buf "    # Optional UV/uv2nix Python dependency backend\n";
     Buffer.add_string buf "    pyproject-nix.url = \"github:pyproject-nix/pyproject.nix\";\n";
-    Buffer.add_string buf "    uv2nix.url = \"github:pyproject-nix/uv2nix\";\n";
+    Printf.bprintf buf "    uv2nix.url = \"github:pyproject-nix/uv2nix/%s\";\n" uv2nix_commit;
     Buffer.add_string buf "    pyproject-build-systems.url = \"github:pyproject-nix/build-system-pkgs\";\n";
     Buffer.add_string buf "    uv2nix.inputs.pyproject-nix.follows = \"pyproject-nix\";\n";
     Buffer.add_string buf "    pyproject-build-systems.inputs.pyproject-nix.follows = \"pyproject-nix\";\n";
@@ -605,6 +606,7 @@ let install_flake
     ~(version : string)
     ~(nixpkgs_date : string)
     ~(t_version : string)
+    ~(uv2nix_commit : string)
     ~(deps : dependency list)
     ?(r_deps : string list = [])
     ?(r_git_deps : Package_types.r_git_dependency list = [])
@@ -638,7 +640,7 @@ let install_flake
   in
   let content = match kind with
     | Project ->
-      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~r_git_deps ~py_deps ~py_version ~py_resolver ~py_workspace ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
+      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~uv2nix_commit ~deps ~r_deps ~r_git_deps ~py_deps ~py_version ~py_resolver ~py_workspace ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
         ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ~use_atelier ()

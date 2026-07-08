@@ -892,6 +892,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
           ~project_name:opts.target_name
           ~nixpkgs_date:opts.nixpkgs_date
           ~t_version:tlang_version
+          ~uv2nix_commit:Uv2nix_commit.commit
           ~deps:[]
           ~use_atelier:opts.use_atelier () in
         write_file (Filename.concat dir "flake.nix") flake_content;

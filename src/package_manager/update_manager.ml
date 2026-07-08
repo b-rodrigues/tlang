@@ -794,6 +794,7 @@ let update_flake_lock () =
                               ~version:"0.0.0"
                               ~nixpkgs_date:(if cfg.proj_nixpkgs_date <> "" then cfg.proj_nixpkgs_date else nixpkgs_date)
                               ~t_version:cfg.proj_min_t_version
+                              ~uv2nix_commit:Uv2nix_commit.commit
                               ~deps:cfg.proj_dependencies
                               ~r_deps:cfg.proj_r_dependencies
                               ~r_git_deps:cfg.proj_r_git_dependencies
@@ -829,6 +830,7 @@ let update_flake_lock () =
                               ~version:cfg.version
                               ~nixpkgs_date:nixpkgs_date
                               ~t_version:cfg.min_t_version
+                              ~uv2nix_commit:Uv2nix_commit.commit
                               ~deps:cfg.dependencies
                               ~additional_tools:cfg.additional_tools
                               ~latex_pkgs:cfg.latex_packages
