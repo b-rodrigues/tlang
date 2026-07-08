@@ -178,7 +178,11 @@ let make_subprocess_env ?(is_flake=false) overrides =
          with Not_found -> ())
       [ "HOME"; "USER"; "TERM"; "PATH"; "NIX_REMOTE"; "NIX_SSL_CERT_FILE";
         "XDG_CACHE_HOME"; "XDG_CONFIG_HOME"; "XDG_DATA_HOME";
-        "NIX_USER_CONF_FILES"; "NIX_CONFIG" ]
+        "NIX_USER_CONF_FILES"; "NIX_CONFIG";
+        "LC_ALL"; "LC_COLLATE"; "LC_CTYPE"; "LC_MESSAGES"; "LC_MONETARY";
+        "LC_NUMERIC"; "LC_TIME"; "LANG"; "HTTP_PROXY"; "HTTPS_PROXY";
+        "NO_PROXY"; "http_proxy"; "https_proxy"; "no_proxy"; "SSL_CERT_FILE";
+        "COLORTERM"; "SHELL"; "EDITOR"; "LD_LIBRARY_PATH"; "DYLD_LIBRARY_PATH" ]
   );
   List.iter (fun (key, value) -> Hashtbl.replace tbl key value) overrides;
   Hashtbl.fold (fun key value acc -> (key ^ "=" ^ value) :: acc) tbl []
@@ -321,7 +325,7 @@ let register env =
         let wrap_with_flake attr cmd = match cn.cn_flake with
           | Some f ->
               let q = "'" ^ String.concat "'\\''" (String.split_on_char '\'' f) ^ "'" in
-              Printf.sprintf "(nix shell --impure %s#%s -c %s) || (%s)" q attr cmd cmd
+              Printf.sprintf "(nix shell --impure %s#%s -c %s) || (echo 'Warning: Per-node flake failed; falling back to project environment' >&2; %s)" q attr cmd cmd
           | None -> cmd
         in
         match String.lowercase_ascii cn.cn_runtime with
