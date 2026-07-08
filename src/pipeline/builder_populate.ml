@@ -2,9 +2,12 @@
 open Builder_utils
 open Builder_write_dag
 open Builder_internal
+open Package_types
 
 let builtin_pipeline_strategies =
-  [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx" ]
+  [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx"; "bin" ]
+
+let cold_start_warning_shown = ref false
 
 let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
   let eval_string_list lst =
@@ -145,6 +148,30 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
   match check_serializer_coherence () with
   | Some err -> Error (err)
   | None ->
+  let check_bin_only_for_fetchurl () =
+    List.find_map (fun (name, _) ->
+      let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
+      let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+      let rec is_bin_format expr =
+        match expr.Ast.node with
+        | Ast.Value (Ast.VString s) -> String.lowercase_ascii s = "bin"
+        | Ast.Value (Ast.VSymbol s) ->
+            let s = String.lowercase_ascii (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s) in
+            s = "bin"
+        | Ast.Value (Ast.VSerializer s) -> s.s_format = "bin"
+        | Ast.ListLit items -> List.exists (fun (_, e) -> is_bin_format e) items
+        | Ast.DictLit items -> List.exists (fun (_, e) -> is_bin_format e) items
+        | _ -> false
+      in
+      if is_bin_format ser && runtime <> "fetchurl" then
+        Some (Printf.sprintf "The ^bin serializer is only supported for fetchurl nodes. Node `%s` uses runtime `%s`. Either set runtime = fetchurl or choose a different serializer." name runtime)
+      else
+        None
+    ) p.p_exprs
+  in
+  match check_bin_only_for_fetchurl () with
+  | Some err -> Error (err)
+  | None ->
   ensure_pipeline_dir ();
   match write_dag p with
   | Error msg -> Error ("Failed to write dag.json: " ^ msg)
@@ -154,11 +181,59 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
         | "." -> ".."
         | r -> "../" ^ r
       in
-      let nix_content = Nix_emitter.emit_pipeline ~rel_root p in
+      let project_root = Builder_utils.get_project_root () in
+      let r_renv_cran_pkgs, r_git_pkgs, py_version_opt, use_uv =
+        let tproject_path = Filename.concat project_root "tproject.toml" in
+        if Sys.file_exists tproject_path then
+          (try
+             let ch = open_in tproject_path in
+             let content =
+               Fun.protect
+                 ~finally:(fun () -> close_in_noerr ch)
+                 (fun () -> really_input_string ch (in_channel_length ch))
+             in
+             match Toml_parser.parse_tproject_toml ~root_dir:project_root content with
+             | Ok cfg ->
+               let toml_git_pkgs =
+                 R_description_resolver.auto_detect_all
+                   ~cache_root:(Filename.concat project_root ".t_r_pkg_cache")
+                   ~deps:cfg.proj_r_git_dependencies
+               in
+               let cran_pkgs, git_pkgs =
+                 if cfg.proj_r_resolver = "renv" then
+                   match Renv_resolver.split_packages ~project_root with
+                   | Ok (renv_cran, renv_git) -> renv_cran, toml_git_pkgs @ renv_git
+                   | Error _ -> [], toml_git_pkgs
+                 else
+                   [], toml_git_pkgs
+               in
+               cran_pkgs, git_pkgs, Some cfg.proj_py_version, cfg.proj_py_resolver = "uv"
+             | Error _ -> [], [], None, false
+           with _ -> [], [], None, false)
+        else [], [], None, false
+      in
+      let r_serializer_packages, py_serializer_packages =
+        Pipeline_dependency_requirements.required_serializer_packages p
+      in
+      let nix_content =
+        Nix_emitter.emit_pipeline ~rel_root ~r_git_pkgs ~r_renv_cran_pkgs
+          ?py_version:py_version_opt ~r_serializer_packages ~py_serializer_packages p
+      in
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () ->
           if build then
+            let has_per_node_flakes = List.exists (fun (_, f) -> f <> None) p.p_flakes in
+            if (has_per_node_flakes || use_uv) && not !cold_start_warning_shown then (
+              cold_start_warning_shown := true;
+              Printf.eprintf
+                "\n\
+                 This pipeline uses per-node flakes or UV Python workspaces.\n\
+                 The first build will download and compile all dependencies.\n\
+                 This is a one-time cold-start cost — subsequent runs will be\n\
+                 significantly faster. Go grab a coffee ☕\n\
+                 \n%!"
+            );
             match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
             | Ok result -> Ok result
             | Error msg -> Error msg

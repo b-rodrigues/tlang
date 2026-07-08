@@ -1,0 +1,302 @@
+diff --git a/agents/skill-t-package.md b/agents/skill-t-package.md
+new file mode 100644
+index 0000000..472dc37
+--- /dev/null
++++ b/agents/skill-t-package.md
+@@ -0,0 +1,78 @@
++---
++name: t-package
++description: Use this skill when working inside a T (tlang) package — a directory with DESCRIPTION.toml, src/*.t, and a tests/ folder meant to be imported by other T projects rather than run as an analysis. Trigger for writing exported functions, adding T-Doc (--#) comments, writing unit tests, running t doc or t test, or deciding whether something belongs in this package versus a one-off project. Trigger even without the word "package" if the directory has DESCRIPTION.toml and no tproject.toml.
++---
++
++# T Package Quickstart
++
++Companion to `AGENTS.md` and `T-LANGUAGE-REFERENCE.md` in this package's root — read both first.
++This skill covers the mechanics of adding something to the package correctly.
++
++## Mental model
++
++A package is a library, not an analysis. The test that should guide every decision here: **would
++this function still make sense if someone imported it into a project you've never seen?** If it
++assumes a `data/` directory, a specific column name, or a specific project's shape, it belongs in
++a project's pipeline, not in this package.
++
++## Worked example: adding an exported function
++
++```t
++--# Winsorize a numeric column at the given percentile tails.
++--#
++--# Values below the lower quantile are clipped to it, and likewise for the upper.
++--# Returns the input unchanged if all values are NA.
++--#
++--# @name winsorize
++--# @param x :: Vector[Float] The values to clip.
++--# @param probs :: Vector[Float] = [0.01, 0.99] Lower/upper quantile cutoffs.
++--# @return :: Vector[Float] The clipped values.
++--# @export
++winsorize = \(x, probs = [0.01, 0.99]) {
++  bounds = quantile(x, probs, na_rm = true)
++  x |> map(\(v) clamp(v, bounds[0], bounds[1]))
++}
++```
++
++Then, matching test in `tests/`:
++
++```t
++test("winsorize clips values outside the given quantiles", {
++  x = [1, 2, 3, 100, -50]
++  result = winsorize(x, probs = [0.1, 0.9])
++  assert(max(result) < 100, "upper tail should be clipped")
++  assert(min(result) > -50, "lower tail should be clipped")
++})
++```
++
++## The T-Doc block is not optional decoration
++
++Every public function needs one, and `t doc --generate` will catch it if you skip a field. Keep
++the tags in this order: `@name`, `@param` (one per parameter, in call order), `@return`,
++`@family` (if grouping with related functions), `@export` or `@private`.
++
++`@private` is how you hide a helper from the package's public namespace — use it liberally for
++anything that isn't meant to be called directly by consumers of the package.
++
++## Data-first, always
++
++The data argument is the *first* positional parameter, full stop — even if the function reads
++more naturally with it elsewhere. This is what makes `df |> winsorize(probs = [0.05, 0.95])` work.
++If you're about to write a function where data isn't first, that's a sign it should be structured
++differently, not an exception to make.
++
++## Error handling
++
++No placeholders, no silent `null`-like fallbacks. On invalid input, return
++`error("PackageName", "specific message")` and let the caller decide what to do with it via
++`is_error()` / `?|>`. A function that prints a warning and returns a best-guess value is hiding a
++bug from whoever calls it next.
++
++## Before calling a task done
++
++- `t test` passes, and the new/changed function has at least one test exercising it.
++- `t doc --parse . && t doc --generate` runs clean — this is the fastest way to catch a malformed
++  T-Doc block before a human notices.
++- If you added a dependency, it's declared in `DESCRIPTION.toml` and you ran `t update`.
++- Naming follows snake_case / tidyverse-style conventions already used elsewhere in `src/` — check
++  a neighboring function rather than guessing.
+diff --git a/agents/skill-t-project.md b/agents/skill-t-project.md
+new file mode 100644
+index 0000000..f1b427c
+--- /dev/null
++++ b/agents/skill-t-project.md
+@@ -0,0 +1,86 @@
++---
++name: t-project
++description: Use this skill when working inside a T (tlang) analysis project — a directory with tproject.toml and pipeline .t scripts. Trigger for writing or editing pipeline { ... } blocks, adding or debugging nodes (node/rn/pyn/shn), working with colcraft verbs ($col, filter, mutate, summarize), wiring R/Python/Shell code into a pipeline, or running/updating a T project (t run, t update, t test, t doctor). Trigger even if the user just says "add a step" or "the pipeline is broken" without mentioning T by name — if the directory has tproject.toml, this is a T project.
++---
++
++# T Project Quickstart
++
++This is a companion to `AGENTS.md` and `T-LANGUAGE-REFERENCE.md`, which already live in this
++project's root — read both before writing code if you haven't. This skill covers the *how*, not
++the *what*: the concrete moves that come up in almost every T pipeline task.
++
++## Before touching anything
++
++Read `T-LANGUAGE-REFERENCE.md` in the project root. It's tiered to this project's context level
++and is the source of truth for exact function signatures — don't guess at stdlib arguments.
++
++## Choosing a node type
++
++This trips agents up more than anything else. Pick based on *what's executing*, not habit:
++
++| You want to... | Use |
++|---|---|
++| Run a pure T expression (filter, mutate, join) | `node(command = <t-expr>, runtime = T)` |
++| Run R code (a model, a plot, a stats package) | `rn(...)` |
++| Run Python code (ML, a specific library) | `pyn(...)` |
++| Shell out (rsync, a CLI tool, a compiled binary) | `shn(...)` |
++
++Every node result flows through Arrow by default (`serializer = arrow`) when it's tabular — don't
++hand-roll CSV round-trips between languages, that's what Arrow is for.
++
++## Worked example: adding a node to an existing pipeline
++
++```t
++p = pipeline {
++  raw = node(command = read_csv("data/input.csv"), runtime = T)
++  clean = raw |> filter($amount > 0) |> drop_na($amount)
++
++  -- new node: hand off to R for a model fit
++  model = rn(
++    command = "fixest::feols(amount ~ x1 + x2, data = clean)",
++    inputs = [clean],
++    serializer = arrow
++  )
++}
++
++build_pipeline(p)
++```
++
++Notes:
++- New nodes go inside the existing `pipeline { ... }` block — don't create a second pipeline.
++- `inputs = [clean]` makes the upstream node's Arrow output available to the R code as `clean`.
++- Small, single-purpose nodes beat one big node that does read+clean+model. If a node's `command`
++  is doing three things, split it.
++
++## Debugging a node
++
++1. `t explain --node <name>` from the shell, or `explain(read_node("name"))` from the REPL — the
++   `diagnostics` field tells you what actually ran and what it produced.
++2. If a node errors, check `is_error()` on its output before assuming the pipeline is broken —
++   T nodes return `Error` values rather than raising, so a "successful" run can still be carrying
++   an error downstream until something inspects it.
++3. `t doctor` catches environment drift (stale flake, missing Nix inputs) before you go chasing a
++   phantom code bug.
++
++## Common mistakes agents make here
++
++- **Reassigning a variable with `=` after it's already bound.** T is immutable; use `:=` to
++  rebind, or give the new value a new name. `a = 1; a = 2` is not valid T.
++- **Writing a `for` loop.** There isn't one. Reach for `map()`, `summarize()`, or a colcraft verb.
++- **Referencing a column as a bare name inside a colcraft verb.** `filter(df, amount > 0)` is
++  wrong — it needs `filter(df, $amount > 0)`. The `$` is what makes it NSE instead of a lookup
++  against the caller's environment.
++- **Installing packages by hand.** No `install.packages()`, no `pip install`. Add the dependency
++  to `tproject.toml` and run `t update` — that's what regenerates the Nix environment.
++- **Writing to `data/`.** Treat it as read-only input. Pipeline outputs go through
++  `pipeline_copy(p, node, to)` into `outputs/`.
++- **Skipping the `pipeline { ... }` wrapper.** A bare script of T statements isn't runnable via
++  `t run` — everything that should be cached/reproducible needs to be a node inside a pipeline.
++
++## Before calling a task done
++
++- `t run src/pipeline.t` (or the project's entry pipeline) completes without an unhandled `Error`.
++- If you touched `tproject.toml`, you ran `t update` afterward.
++- If the task involved a nontrivial analytical decision, you added an `intent { ... }` block
++  documenting the assumption/goal/dependency — that's what makes the pipeline auditable later,
++  by a human or another agent.
+diff --git a/src/package_manager/scaffold.ml b/src/package_manager/scaffold.ml
+index d5dca6a..9927512 100644
+--- a/src/package_manager/scaffold.ml
++++ b/src/package_manager/scaffold.ml
+@@ -117,6 +117,33 @@ let copy_agent_files dir is_package context =
+     false
+   end
+ 
++(** Copy the bundled agent Skill (SKILL.md) that gives AI agents a fast,
++    example-driven playbook for common T tasks, as a companion to AGENTS.md
++    and T-LANGUAGE-REFERENCE.md. Lands at .claude/skills/<name>/SKILL.md so
++    Claude Code (and other Skill-aware agents) discover it automatically.
++
++    @param dir The destination directory.
++    @param is_package [true] for package setups, [false] for projects.
++    @return [true] if successful, [false] otherwise. *)
++let copy_skill_file dir is_package =
++  let skill_name = if is_package then "t-package" else "t-project" in
++  let src_name = "skill-" ^ skill_name ^ ".md" in
++  match discover_agents_dir () with
++  | None -> false
++  | Some agents_dir ->
++      let src_path = Filename.concat agents_dir src_name in
++      if not (Sys.file_exists src_path) then begin
++        Printf.eprintf "Warning: Skill template not found: %s\n" src_path;
++        false
++      end else begin
++        let skill_dir =
++          Filename.concat (Filename.concat dir ".claude/skills") skill_name
++        in
++        create_dir skill_dir;
++        let dest_path = Filename.concat skill_dir "SKILL.md" in
++        copy_text_file src_path dest_path
++      end
++
+ let default_tlang_tag = "v" ^ Version.version
+ 
+ (** Strip the "v" prefix from a tag to get a plain version number. *)
+@@ -707,6 +734,7 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
+         write_file (Filename.concat dir "docs/index.md") (Printf.sprintf "# %s\n\nPackage documentation.\n" opts.target_name);
+         (* Agent files *)
+         let _ = copy_agent_files dir true opts.agent_context in
++        let _ = copy_skill_file dir true in
+         (* Git init *)
+         if not opts.no_git then git_init dir;
+         (* Success message *)
+@@ -723,8 +751,10 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
+         Printf.printf "  ├── tests/\n";
+         Printf.printf "  │   └── test-%s.t\n" opts.target_name;
+         Printf.printf "  ├── examples/\n";
+-        Printf.printf "  └── docs/\n";
+-        Printf.printf "      └── index.md\n";
++        Printf.printf "  ├── docs/\n";
++        Printf.printf "  │   └── index.md\n";
++        Printf.printf "  └── .claude/skills/t-package/\n";
++        Printf.printf "      └── SKILL.md\n";
+         Printf.printf "\nNext steps:\n";
+         Printf.printf "  cd %s\n" dir;
+         Printf.printf "  nix develop           # Enter development shell\n";
+@@ -863,6 +893,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
+         let _ = write_project_pipeline dir opts sub in
+         (* Agent files *)
+         let _ = copy_agent_files dir false opts.agent_context in
++        let _ = copy_skill_file dir false in
+         (* Git init *)
+         if not opts.no_git then git_init dir;
+         (* Success message *)
+@@ -877,7 +908,9 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
+         Printf.printf "  │   └── pipeline.t\n";
+         Printf.printf "  ├── data/\n";
+         Printf.printf "  ├── outputs/\n";
+-        Printf.printf "  └── tests/\n";
++        Printf.printf "  ├── tests/\n";
++        Printf.printf "  └── .claude/skills/t-project/\n";
++        Printf.printf "      └── SKILL.md\n";
+         Printf.printf "\nNext steps:\n";
+         Printf.printf "  cd %s\n" dir;
+         Printf.printf "  nix develop           # Enter reproducible environment\n";
+diff --git a/tests/package_manager/test_agent_scaffold.ml b/tests/package_manager/test_agent_scaffold.ml
+index 7051139..a62ed17 100644
+--- a/tests/package_manager/test_agent_scaffold.ml
++++ b/tests/package_manager/test_agent_scaffold.ml
+@@ -54,6 +54,8 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
+       write_mock "agents-package.md" "Package Guide";
+       write_mock "t-reference-small.md" "Small Ref";
+       write_mock "t-reference-medium.md" "Medium Ref";
++      write_mock "skill-t-project.md" "Project Skill";
++      write_mock "skill-t-package.md" "Package Skill";
+ 
+       (* Set environment variable to point to our mock agents folder *)
+       let old_agents_dir = Sys.getenv_opt "TLANG_AGENTS_DIR" in
+@@ -109,6 +111,34 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
+             let s = really_input_string ic (in_channel_length ic) in
+             close_in ic;
+             String.contains s 'T' && String.contains s '-'
++          );
++
++          (* Test 4: project Skill lands at .claude/skills/t-project/SKILL.md *)
++          test_pm "copy_skill_file project" (fun () ->
++            let ok = copy_skill_file project_dest false in
++            let skill_path =
++              Filename.concat project_dest ".claude/skills/t-project/SKILL.md"
++            in
++            let content =
++              let ic = open_in skill_path in
++              let s = really_input_string ic (in_channel_length ic) in
++              close_in ic; s
++            in
++            ok && content = "Project Skill"
++          );
++
++          (* Test 5: package Skill lands at .claude/skills/t-package/SKILL.md *)
++          test_pm "copy_skill_file package" (fun () ->
++            let ok = copy_skill_file package_dest true in
++            let skill_path =
++              Filename.concat package_dest ".claude/skills/t-package/SKILL.md"
++            in
++            let content =
++              let ic = open_in skill_path in
++              let s = really_input_string ic (in_channel_length ic) in
++              close_in ic; s
++            in
++            ok && content = "Package Skill"
+           )
+         );
+       print_newline ()

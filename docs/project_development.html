@@ -148,6 +148,9 @@ definition.</li>
 <li><strong>AGENTS.md</strong>: Onboarding guide for AI Agents.</li>
 <li><strong>T-LANGUAGE-REFERENCE.md</strong>: Tiered language reference
 for LLMs.</li>
+<li><strong>.claude/skills/SKILL.md</strong>: An AI agent skill file
+that teaches LLMs how to work with T projects (scaffolded
+automatically).</li>
 </ul>
 <h2 id="entering-the-development-environment">2. Entering the
 Development Environment</h2>
@@ -170,7 +173,7 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb3-1"><a href="
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="dt">data_utils</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/data-utils&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v0.2.0&quot;</span><span class="op"> }</span></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">[t]</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.53.3&quot;</span></span></code></pre></div>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.54.0&quot;</span></span></code></pre></div>
 <h3 id="system-dependencies-and-latex">3.1 System Dependencies and
 LaTeX</h3>
 <p>Beyond T packages, you can declare system-level tools and LaTeX
@@ -220,6 +223,167 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="st">Running nix flake update...</span></span></code></pre></div>
 <p>This updates your <code>tproject.toml</code> and then runs
 <code>t update</code> automatically.</p>
+<h3 id="r-dependencies">3.3 R Dependencies</h3>
+<p>R packages can be managed via the default nixpkgs resolver or by
+pointing T at an <code>renv.lock</code> file.</p>
+<h4 id="nixpkgs-resolver-default">3.3.1 Nixpkgs Resolver (default)</h4>
+<p>List CRAN packages from nixpkgs directly:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;dplyr&quot;</span><span class="op">,</span> <span class="st">&quot;ggplot2&quot;</span><span class="op">,</span> <span class="st">&quot;jsonlite&quot;</span><span class="op">]</span></span></code></pre></div>
+<p>After editing, run <code>t update</code> to include them in
+<code>flake.nix</code>. Packages are available in every R pipeline node
+and in <code>nix develop</code>.</p>
+<h4 id="renv-resolver">3.3.2 renv Resolver</h4>
+<p>If your project already has an <code>renv.lock</code> file, set:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="dt">resolver</span> <span class="op">=</span> <span class="st">&quot;renv&quot;</span></span></code></pre></div>
+<p>When <code>resolver = "renv"</code>, T automatically discovers all R
+dependencies from <code>renv.lock</code>:</p>
+<ul>
+<li><strong>CRAN packages</strong> are read from each entry’s
+<code>Repository</code> or <code>Bioconductor</code> field and mapped to
+<code>pkgs.rPackages.*</code>.</li>
+<li><strong>GitHub/GitLab packages</strong> are fetched via
+<code>builtins.fetchGit</code> using the <code>RemoteHost</code>,
+<code>RemoteUsername</code>, <code>RemoteRepo</code>, and
+<code>RemoteSha</code> fields.</li>
+<li>The <strong><code>Remotes</code> field</strong> is parsed: entries
+like <code>user/repo</code> are matched against packages in the lock
+file and injected as <code>buildInputs</code> of the declaring git
+package.</li>
+<li>Supported remote hosts: <code>api.github.com</code> and
+<code>gitlab.com</code>. Other sources (bitbucket, custom URLs) produce
+a warning and are skipped.</li>
+<li>Base R packages (<code>R</code>, <code>methods</code>,
+<code>stats</code>, etc.) are automatically filtered out.</li>
+</ul>
+<p>No <code>packages</code> list is required — <code>renv.lock</code> is
+the single source of truth. Run <code>t update</code> to regenerate
+<code>flake.nix</code> with the renv-discovered packages.</p>
+<h4 id="git-r-packages">3.3.3 Git R Packages</h4>
+<p>Declare R packages from remote Git repositories directly in
+<code>tproject.toml</code>:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;dplyr&quot;</span><span class="op">]</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="dt">my_pkg</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/my-pkg&quot;</span><span class="op">, </span><span class="dt">rev</span><span class="op"> =</span> <span class="st">&quot;abc123def456&quot;</span><span class="op"> }</span></span></code></pre></div>
+<p>The <code>rev</code> field must be a full Git commit hash. Each git
+package is injected into every R pipeline node’s
+<code>buildInputs</code>.</p>
+<p>When using <code>resolver = "renv"</code>, git packages from
+<code>renv.lock</code> are automatically merged with those declared in
+<code>tproject.toml</code>.</p>
+<h3 id="python-dependencies">3.4 Python Dependencies</h3>
+<p>Python packages can use the default nixpkgs resolver or the UV
+workspace resolver for PyPI-only dependencies.</p>
+<h4 id="nixpkgs-resolver-default-1">3.4.1 Nixpkgs Resolver
+(default)</h4>
+<p>List packages from the pinned nixpkgs revision:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[py-dependencies]</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;pandas&quot;</span><span class="op">,</span> <span class="st">&quot;scikit-learn&quot;</span><span class="op">]</span></span></code></pre></div>
+<p>Run <code>t update</code> to generate a
+<code>python.withPackages</code> environment in <code>flake.nix</code>.
+Simple, no extra files needed.</p>
+<h4 id="uv-workspace-resolver">3.4.2 UV Workspace Resolver</h4>
+<p>Projects that need packages from PyPI can opt into UV explicitly:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[py-dependencies]</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="dt">resolver</span> <span class="op">=</span> <span class="st">&quot;uv&quot;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="dt">workspace</span> <span class="op">=</span> <span class="st">&quot;python&quot;</span></span></code></pre></div>
+<p>The <code>version</code> field is <strong>optional</strong> when
+using the UV resolver. If omitted, T infers the Nixpkgs Python attribute
+(e.g. <code>python312</code>) from the <code>requires-python</code>
+field in <code>python/pyproject.toml</code>. The inference accepts
+specifiers that constrain to a single minor version
+(<code>==3.12</code>, <code>==3.12.*</code>, <code>~=3.12</code>,
+<code>&gt;=3.12,&lt;3.13</code>) and errors on open-ended ranges
+(<code>&gt;=3.12</code>). If an explicit <code>version</code> conflicts
+with <code>requires-python</code>, T prints a warning and uses the
+explicit value.</p>
+<p>The workspace directory must contain the UV project metadata and lock
+file:</p>
+<pre class="text"><code>python/
+  pyproject.toml
+  uv.lock</code></pre>
+<p>When <code>resolver = "uv"</code>, do not set
+<code>[py-dependencies].packages</code>; Python dependencies are
+declared only in <code>pyproject.toml</code> and locked by
+<code>uv.lock</code>. Running <code>t update</code> generates
+uv2nix/pyproject.nix inputs in <code>flake.nix</code> and builds the
+Python environment as a Nix virtual environment.</p>
+<h4 id="setting-up-a-uv-workspace-from-scratch">3.4.3 Setting up a UV
+workspace from scratch</h4>
+<p>This walkthrough assumes you do <strong>not</strong> have
+<code>uv</code> installed and have <strong>no</strong> existing Python
+package metadata — you are starting from an empty T project.</p>
+<p><strong>1. Create a new T project</strong></p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> project my_project</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> my_project</span></code></pre></div>
+<p><strong>2. Edit <code>tproject.toml</code></strong></p>
+<p>Replace the default <code>[py-dependencies]</code> section (or add it
+if missing):</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[py-dependencies]</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="dt">resolver</span> <span class="op">=</span> <span class="st">&quot;uv&quot;</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="dt">workspace</span> <span class="op">=</span> <span class="st">&quot;python&quot;</span></span></code></pre></div>
+<p>The <code>version</code> field is optional when using the UV resolver
+— T infers it from <code>requires-python</code> in
+<code>pyproject.toml</code>. Remove any <code>packages</code> key if
+present — UV and <code>packages</code> are mutually exclusive.</p>
+<p><strong>3. Create the Python workspace directory and
+<code>pyproject.toml</code></strong></p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> python</span></code></pre></div>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># python/pyproject.toml</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">[project]</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="dt">name</span> <span class="op">=</span> <span class="st">&quot;my_project_python_env&quot;</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;0.1.0&quot;</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="dt">requires-python</span> <span class="op">=</span> <span class="st">&quot;&gt;=3.12&quot;</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="dt">dependencies</span> <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;pandas&quot;</span><span class="op">,</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a><span class="op">]</span></span></code></pre></div>
+<p>Add any PyPI packages to the <code>dependencies</code> list. Re-run
+<code>uv lock</code> whenever the list changes.</p>
+<p><strong>4. Generate the lock file</strong></p>
+<p>You need <code>uv</code> and <code>python3</code> on
+<code>PATH</code>. If you do not have them installed, enter a temporary
+Nix shell:</p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> shell nixpkgs#uv nixpkgs#python3</span></code></pre></div>
+<p>Then generate the lock file:</p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> lock <span class="at">--project</span> python</span></code></pre></div>
+<p>Type <code>exit</code> or press <code>Ctrl-D</code> to leave the Nix
+shell when done, or keep it open for the next step.</p>
+<p><strong>5. Generate the Nix flake</strong></p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> update</span></code></pre></div>
+<p>This reads the UV workspace, adds <code>pyproject-nix</code>,
+<code>uv2nix</code>, and <code>pyproject-build-systems</code> inputs to
+<code>flake.nix</code>, and configures the Python environment to use
+<code>pySet.mkVirtualEnv</code> instead of
+<code>pkgs.python314.withPackages</code>.</p>
+<p><strong>6. Run your pipeline</strong></p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span></code></pre></div>
+<p>Python pipeline nodes work identically regardless of which resolver
+you chose.</p>
+<p><strong>Adding or removing dependencies later</strong></p>
+<ol type="1">
+<li>Edit <code>dependencies</code> in
+<code>python/pyproject.toml</code>.</li>
+<li>Re-run <code>uv lock --project python</code>.</li>
+<li>Re-run <code>t update</code> to regenerate
+<code>flake.nix</code>.</li>
+<li>Commit the updated <code>pyproject.toml</code> and
+<code>uv.lock</code>.</li>
+</ol>
 <h2 id="importing-packages">4. Importing Packages</h2>
 <p>Once inside <code>nix develop</code>, you can use the
 <code>import</code> statement in your T scripts to load package
@@ -259,11 +423,11 @@ p = pipeline {
 build_pipeline(p)
 print(price_by_area)</code></pre>
 <p>Run your script:</p>
-<div class="sourceCode" id="cb13"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>Or use the REPL for interactive exploration:</p>
-<div class="sourceCode" id="cb14"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
 <h2 id="running-tests">6. Running Tests</h2>
 <p>You can add tests in <code>tests/</code> following the same
 conventions as packages:</p>
@@ -273,8 +437,8 @@ import my_stats
 result = weighted_mean([1, 2, 3], [0.5, 0.3, 0.2])
 assert(result == 1.7)</code></pre>
 <p>Run them with:</p>
-<div class="sourceCode" id="cb16"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
 <h2 id="reproducibility">7. Reproducibility</h2>
 <p>Your project is fully reproducible through Nix:</p>
 <ul>
@@ -286,11 +450,11 @@ inputs</li>
 source of truth for dependencies</li>
 </ul>
 <p>Anyone can reproduce your environment:</p>
-<div class="sourceCode" id="cb17"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>The same T version, same package versions, same R packages, and same
 system libraries are used every time.</p>
 <h2 id="ide-support-autocompletion">8. IDE Support &amp;

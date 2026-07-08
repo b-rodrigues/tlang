@@ -124,24 +124,36 @@ let nest_impl (named_args : (string option * value) list) _env =
             Some sub_table
           ) in
 
-          let all_cols = List.map (fun (k, v) -> (k, Arrow_bridge.values_to_column v)) key_cols in
-          let first_sub = match nested_data.(0) with Some t -> t | None -> Arrow_table.empty in
-          let nested_col = (new_col_name, Arrow_table.ListColumn nested_data) in
+          let rec convert_cols = function
+            | [] -> Ok []
+            | (k, v) :: rest ->
+                (match Arrow_bridge.values_to_column v with
+                 | Error err -> Error err
+                 | Ok col ->
+                     (match convert_cols rest with
+                      | Error err -> Error err
+                      | Ok converted -> Ok ((k, col) :: converted)))
+          in
+          (match convert_cols key_cols with
+           | Error err -> err
+           | Ok all_cols ->
+               let first_sub = match nested_data.(0) with Some t -> t | None -> Arrow_table.empty in
+               let nested_col = (new_col_name, Arrow_table.ListColumn nested_data) in
 
-          let final_cols = all_cols @ [nested_col] in
-          let final_schema = List.map (fun (k, _) ->
-            (k, match Arrow_table.column_type df.arrow_table k with Some t -> t | None -> ArrowNA)
-          ) key_cols @ [(new_col_name, ArrowList (ArrowStruct first_sub.schema))] in
+               let final_cols = all_cols @ [nested_col] in
+               let final_schema = List.map (fun (k, _) ->
+                 (k, match Arrow_table.column_type df.arrow_table k with Some t -> t | None -> ArrowNA)
+               ) key_cols @ [(new_col_name, ArrowList (ArrowStruct first_sub.schema))] in
 
-          VDataFrame {
-            arrow_table = {
-              schema = final_schema;
-              columns = final_cols;
-              nrows = n_groups;
-              native_handle = None
-            };
-            group_keys = []
-          }
+               VDataFrame {
+                 arrow_table = {
+                   schema = final_schema;
+                   columns = final_cols;
+                   nrows = n_groups;
+                   native_handle = None
+                 };
+                 group_keys = []
+               })
           end
     end
   | _ :: _ -> Error.type_error "Function `nest` expects a DataFrame as first argument."

@@ -263,9 +263,11 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
           (match !had_error with
            | Some e -> e
            | None ->
-             let arrow_col = Arrow_bridge.values_to_column new_col in
-             let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
-             VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
+             (match Arrow_bridge.values_to_column new_col with
+              | Ok arrow_col ->
+                  let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
+                  VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+              | Error err -> err))
         else (
           match try_vectorize_mutate df.arrow_table fn col_name with
           | Some new_table ->
@@ -281,19 +283,25 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
             in
             (match whole_result with
              | VVector vec when Array.length vec = nrows ->
-               let arrow_col = Arrow_bridge.values_to_column vec in
-               let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
-               VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+               (match Arrow_bridge.values_to_column vec with
+                | Ok arrow_col ->
+                    let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
+                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+                | Error err -> err)
              | VList items when List.length items = nrows ->
                let vec = Array.of_list (List.map snd items) in
-               let arrow_col = Arrow_bridge.values_to_column vec in
-               let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
-               VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+               (match Arrow_bridge.values_to_column vec with
+                | Ok arrow_col ->
+                    let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
+                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+                | Error err -> err)
              | res when not (is_na_value res) && (match res with VVector _ | VList _ | VNDArray _ | VError _ -> false | _ -> true) ->
                let vec = Array.make nrows res in
-               let arrow_col = Arrow_bridge.values_to_column vec in
-               let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
-               VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+               (match Arrow_bridge.values_to_column vec with
+                | Ok arrow_col ->
+                    let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
+                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+                | Error err -> err)
              | _ ->
                let new_col = Array.init nrows (fun i ->
                  let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
@@ -307,9 +315,11 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                (match !first_error with
                 | Some e -> e
                 | None ->
-                  let arrow_col = Arrow_bridge.values_to_column new_col in
-                  let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
-                  VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
+                  (match Arrow_bridge.values_to_column new_col with
+                   | Ok arrow_col ->
+                       let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
+                       VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+                   | Error err -> err)))
         )
       in
       let apply_vector_mutation df col_name vec =
@@ -319,9 +329,11 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
             (Printf.sprintf "Function `mutate` vector length %d does not match DataFrame row count %d."
                (Array.length vec) nrows)
         else
-          let arrow_col = Arrow_bridge.values_to_column vec in
-          let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
-          VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+          (match Arrow_bridge.values_to_column vec with
+           | Ok arrow_col ->
+               let new_table = Arrow_table.add_column df.arrow_table col_name arrow_col in
+               VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+           | Error err -> err)
       in
       match named_args with
       | [] ->

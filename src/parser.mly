@@ -3,9 +3,7 @@
 (* Menhir grammar for the T language — Phase 0 Alpha *)
 open Ast
 
-(* Custom exceptions for parser-only validation. *)
-exception Mixed_bracket_form
-exception Invalid_match_pattern of string
+
 
 (* Helper to build a parameter record from parsing *)
 type parsed_param = string * Ast.typ option * bool
@@ -19,7 +17,7 @@ type bracket_item =
 let build_bracket_literal (items : bracket_item list) : Ast.expr_node =
   let rec loop saw_expr saw_pair dict_rev list_rev = function
     | [] ->
-      if saw_expr && saw_pair then raise Mixed_bracket_form
+      if saw_expr && saw_pair then raise Ast.Mixed_bracket_form
       else if saw_pair then DictLit (List.rev dict_rev)
       else ListLit (List.rev list_rev)
     | BrExpr e :: rest ->
@@ -447,7 +445,7 @@ match_pattern:
       if ctor = "Error" then PError field
       else
         raise
-          (Invalid_match_pattern
+          (Ast.Invalid_match_pattern
              (Printf.sprintf
                 "Invalid pattern constructor `%s`. Only `Error { ... }` is supported in constructor patterns."
                 ctor))

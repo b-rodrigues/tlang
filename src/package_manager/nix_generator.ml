@@ -3,7 +3,6 @@
 
 open Package_types
 
-let companion_package_version = "0.1.0"
 
 let julia_depot_sandbox_hook =
   "            # Create a local Julia depot directory for sandbox guards\n\
@@ -180,10 +179,14 @@ let generate_project_flake
     ~(project_name : string)
     ~(nixpkgs_date : string)
     ~(t_version : string)
+    ~(uv2nix_commit : string)
     ~(deps : dependency list)
     ?(r_deps : string list = [])
+    ?(r_git_deps : Package_types.r_git_dependency list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
+    ?(py_resolver : string = "nixpkgs")
+    ?(py_workspace : string = "python")
     ?(jl_deps : string list = [])
     ?(jl_version : string = "lts")
     ?(additional_tools : string list = [])
@@ -201,8 +204,10 @@ let generate_project_flake
   let buf = Buffer.create 2048 in
   (* Inputs section *)
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
+  let use_uv = py_resolver = "uv" in
   let all_output_args =
     ["self"; "nixpkgs"; "flake-utils"; "t-lang"] @
+    (if use_uv then ["pyproject-nix"; "uv2nix"; "pyproject-build-systems"] else []) @
     (if effective_use_atelier then ["atelier"] else []) @ dep_input_names in
   Buffer.add_string buf "{\n";
   Printf.bprintf buf "  description = \"%s — a T data analysis project\";\n\n"
@@ -212,6 +217,14 @@ let generate_project_flake
     nixpkgs_date;
   Buffer.add_string buf "    flake-utils.url = \"github:numtide/flake-utils\";\n";
   let tlang_url = match Sys.getenv_opt "TLANG_FLAKE_URL" with Some url -> url | None -> Printf.sprintf "github:b-rodrigues/tlang/v%s" t_version in Printf.bprintf buf "    t-lang.url = \"%s\";\n" tlang_url;
+  if use_uv then begin
+    Buffer.add_string buf "    # Optional UV/uv2nix Python dependency backend\n";
+    Buffer.add_string buf "    pyproject-nix.url = \"github:pyproject-nix/pyproject.nix\";\n";
+    Printf.bprintf buf "    uv2nix.url = \"github:pyproject-nix/uv2nix/%s\";\n" uv2nix_commit;
+    Buffer.add_string buf "    pyproject-build-systems.url = \"github:pyproject-nix/build-system-pkgs\";\n";
+    Buffer.add_string buf "    uv2nix.inputs.pyproject-nix.follows = \"pyproject-nix\";\n";
+    Buffer.add_string buf "    pyproject-build-systems.inputs.pyproject-nix.follows = \"pyproject-nix\";\n";
+  end;
   if effective_use_atelier then begin
     Buffer.add_string buf "    # Atelier IDE (tmux-based TUI for T)\n";
     Buffer.add_string buf "    atelier.url = \"github:b-rodrigues/atelier/main\";\n";
@@ -253,24 +266,81 @@ let generate_project_flake
     ) deps;
     Buffer.add_string buf "        ];\n"
   end;
+  if r_git_deps <> [] then begin
+    let deduplicate_r_git_deps deps =
+      let rec keep_unique seen acc = function
+        | [] -> List.rev acc
+        | dep :: rest ->
+          if List.mem dep.Package_types.rgd_name seen then
+            keep_unique seen acc rest
+          else
+            keep_unique (dep.rgd_name :: seen) (dep :: acc) rest
+      in
+      keep_unique [] [] deps
+    in
+    let r_git_deps = deduplicate_r_git_deps r_git_deps in
+    Buffer.add_string buf "\n";
+    Buffer.add_string buf "        # R git packages\n";
+    Buffer.add_string buf "        rGitPkgSet = rec {\n";
+    List.iter (fun g ->
+      let nixify_r_pkg_name name =
+        String.concat "_" (String.split_on_char '.' name)
+      in
+      let inputs_str =
+        if g.rgd_cran_inputs = [] && g.rgd_git_inputs = [] then ""
+        else
+          let cran_deps = String.concat " " (List.map nixify_r_pkg_name g.rgd_cran_inputs) in
+          let git_deps = String.concat " " (List.map nixify_r_pkg_name g.rgd_git_inputs) in
+          let cran_part = if g.rgd_cran_inputs = [] then "[]" else "(with pkgs.rPackages; [ " ^ cran_deps ^ " ])" in
+          let git_part = if g.rgd_git_inputs = [] then "[]" else "[ " ^ git_deps ^ " ]" in
+          "            propagatedBuildInputs = " ^ cran_part ^ " ++ " ^ git_part ^ " ++ [ pkgs.R pkgs.gettext ];\n"
+      in
+      let source_root =
+        match g.rgd_subdir with
+        | Some s -> Printf.sprintf "            sourceRoot = %S;\n" ("source/" ^ s)
+        | None -> ""
+      in
+      Printf.bprintf buf {|          %s = pkgs.rPackages.buildRPackage {
+            name = %S;
+            src = builtins.fetchGit {
+              url = %S;
+              rev = %S;
+            };
+%s%s          };
+|}        (nixify_r_pkg_name g.rgd_name) g.rgd_name g.rgd_git_url g.rgd_rev source_root inputs_str
+    ) r_git_deps;
+    Buffer.add_string buf "        };\n";
+    Buffer.add_string buf "        rGitPkgs = builtins.attrValues rGitPkgSet;\n";
+  end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # R environment\n";
   Buffer.add_string buf "        r-env = pkgs.rWrapper.override {\n";
   Buffer.add_string buf "          packages = with pkgs.rPackages; [\n";
   Buffer.add_string buf "            t-lang.packages.${system}.tlang-r\n";
   List.iter (fun dep ->
-    Printf.bprintf buf "            %s\n" dep
+    let nixified = String.concat "_" (String.split_on_char '.' dep) in
+    Printf.bprintf buf "            %s\n" nixified
   ) r_deps;
-  Buffer.add_string buf "          ];\n";
+  if r_git_deps <> [] then
+    Buffer.add_string buf "          ] ++ rGitPkgs;\n"
+  else
+    Buffer.add_string buf "          ];\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Python environment\n";
-  Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
-  Buffer.add_string buf "          deepdiff\n";
-  List.iter (fun dep ->
-    Printf.bprintf buf "          %s\n" dep
-  ) py_deps;
-  Buffer.add_string buf "        ]);\n";
+  if use_uv then begin
+    Printf.bprintf buf "        pyWorkspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./. + \"/%s\"; };\n" py_workspace;
+    Buffer.add_string buf "        pyOverlay = pyWorkspace.mkPyprojectOverlay { sourcePreference = \"wheel\"; };\n";
+    Printf.bprintf buf "        pySet = (pkgs.callPackage pyproject-nix.build.packages { python = pkgs.%s; }).overrideScope (pkgs.lib.composeManyExtensions [ pyOverlay pyproject-build-systems.overlays.default ]);\n" py_version;
+    Buffer.add_string buf "        py-env = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default;\n";
+  end else begin
+    Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
+    Buffer.add_string buf "          deepdiff\n";
+    List.iter (fun dep ->
+      Printf.bprintf buf "          %s\n" dep
+    ) py_deps;
+    Buffer.add_string buf "        ]);\n";
+  end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Julia environment\n";
   let jl_attr = if jl_version = "lts" then "julia-lts" else "julia_" ^ (String.map (function '.' -> '_' | c -> c) jl_version) in
@@ -536,10 +606,15 @@ let install_flake
     ~(version : string)
     ~(nixpkgs_date : string)
     ~(t_version : string)
+    ~(uv2nix_commit : string)
     ~(deps : dependency list)
     ?(r_deps : string list = [])
+    ?(r_git_deps : Package_types.r_git_dependency list = [])
+    ?(r_resolver : string = "nixpkgs")
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
+    ?(py_resolver : string = "nixpkgs")
+    ?(py_workspace : string = "python")
     ?(jl_deps : string list = [])
     ?(jl_version : string = "lts")
     ?(additional_tools : string list = [])
@@ -549,9 +624,23 @@ let install_flake
     ~(dry_run : bool)
     () : (string, string) result =
   let flake_path = Filename.concat dir "flake.nix" in
+  let r_deps, r_git_deps =
+    if kind = Project && r_resolver = "renv" then
+      match Renv_resolver.split_packages ~project_root:dir with
+      | Ok (renv_cran, renv_git) ->
+        r_deps @ renv_cran, r_git_deps @ renv_git
+      | Error msg ->
+        Printf.eprintf "Warning: %s\n%!" msg;
+        r_deps, r_git_deps
+    else r_deps, r_git_deps
+  in
+  let r_git_deps =
+    if r_git_deps = [] then []
+    else R_description_resolver.auto_detect_all ~cache_root:(Filename.concat dir ".t_r_pkg_cache") ~deps:r_git_deps
+  in
   let content = match kind with
     | Project ->
-      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
+      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~uv2nix_commit ~deps ~r_deps ~r_git_deps ~py_deps ~py_version ~py_resolver ~py_workspace ~jl_deps ~jl_version ~additional_tools ~latex_pkgs ~use_atelier ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
         ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ~use_atelier ()
@@ -561,19 +650,27 @@ let install_flake
     Printf.printf "%s\n" content;
     Ok content
   end else begin
-    (* Backup existing flake.nix *)
-    (if Sys.file_exists flake_path then begin
-      let bak = flake_path ^ ".bak" in
-      let ch = open_in flake_path in
-      let old = really_input_string ch (in_channel_length ch) in
-      close_in ch;
-      let ch_out = open_out bak in
-      output_string ch_out old;
-      close_out ch_out
-    end);
-    (* Write new flake.nix *)
-    let ch = open_out flake_path in
-    output_string ch content;
-    close_out ch;
-    Ok content
+    try
+      (* Backup existing flake.nix *)
+      (if Sys.file_exists flake_path then begin
+        let bak = flake_path ^ ".bak" in
+        let ch = open_in flake_path in
+        let old =
+          Fun.protect
+            ~finally:(fun () -> close_in_noerr ch)
+            (fun () -> really_input_string ch (in_channel_length ch))
+        in
+        let ch_out = open_out bak in
+        Fun.protect
+          ~finally:(fun () -> close_out_noerr ch_out)
+          (fun () -> output_string ch_out old)
+      end);
+      (* Write new flake.nix *)
+      let ch = open_out flake_path in
+      Fun.protect
+        ~finally:(fun () -> close_out_noerr ch)
+        (fun () -> output_string ch content);
+      Ok content
+    with Sys_error msg ->
+      Error ("Failed to write flake.nix: " ^ msg)
   end

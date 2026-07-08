@@ -46,7 +46,7 @@ let quantile xs p =
   let n = Array.length arr in
   if n = 0 then None
   else (
-    Array.sort compare arr;
+    Array.sort Float.compare arr;
     let h = p *. float_of_int (n - 1) in
     let lo = int_of_float (Float.floor h) in
     let hi = min (lo + 1) (n - 1) in
@@ -78,7 +78,7 @@ let register env =
                   if Array.length xs < 4 then Error.value_error "Function `kurtosis` requires at least 4 values."
                   else
                     (match (Math_utils.weighted_central_moment xs ws 2.0, Math_utils.weighted_central_moment xs ws 4.0) with
-                     | Some m2, Some _ when m2 = 0.0 -> VFloat (-3.0)
+                     | Some m2, Some _ when Float.abs m2 < 1e-12 -> VFloat (-3.0)
                      | Some m2, Some m4 -> VFloat (m4 /. (m2 *. m2) -. 3.0)
                      | _ -> Error.make_error RuntimeError "Function `kurtosis` internal error: weighted moments could not be computed."))
          | None ->
@@ -92,7 +92,7 @@ let register env =
                     | None -> Error.make_error RuntimeError "Function `kurtosis` internal error: mean returned None for non-empty list."
                     | Some m ->
                     let m2 = List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int n in
-                    if m2 = 0.0 then VFloat (-3.0)
+                    if Float.abs m2 < 1e-12 then VFloat (-3.0)
                     else
                       let m4 = List.fold_left (fun a v -> let d = v -. m in a +. d *. d *. d *. d) 0.0 xs /. float_of_int n in
                       VFloat (m4 /. (m2 *. m2) -. 3.0)))

@@ -453,6 +453,7 @@ let static_pipeline_for_doctor ~project_root nodes =
     p_has_patterns = false;
     p_patterns = [];
     p_iterations = [];
+    p_flakes = [];
   }
 
 let read_file path =
@@ -476,6 +477,8 @@ let parse_program path =
       with
       | Lexer.SyntaxError msg -> Result.error (Printf.sprintf "Could not parse %s: %s" path msg)
       | Parser.Error -> Result.error (Printf.sprintf "Could not parse %s" path)
+      | Ast.Mixed_bracket_form -> Result.error (Printf.sprintf "Could not parse %s: Mixed bracket literal (found both single elements and key-value pairs)" path)
+      | Ast.Invalid_match_pattern msg -> Result.error (Printf.sprintf "Could not parse %s: %s" path msg)
 
 let doctor_issue_for_package ~section ~runtime pkg =
   {
@@ -503,6 +506,7 @@ let missing_pipeline_entrypoint_issue path =
 let has_declared_runtime_dependencies cfg =
   cfg.Package_types.proj_r_dependencies <> []
   || cfg.proj_py_dependencies <> []
+  || cfg.proj_py_resolver = "uv"
   || cfg.proj_julia_dependencies <> []
 
 let project_dependency_issues dir =

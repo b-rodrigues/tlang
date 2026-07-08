@@ -26,6 +26,8 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
+- **flake** (`String`): (Optional) A Nix flake reference (e.g. "github:b-rodrigues/tlang") to use for this node's build environment. Default = NA (use project flake).
+
 
 ## Returns
 

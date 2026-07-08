@@ -256,6 +256,34 @@ There are two useful modes:
 
 Shell nodes default to `serializer = text`, which makes them a good fit for reports, command output, and glue code between other pipeline nodes. For a full end-to-end example that mixes T, R, Python, and `sh`, see `tests/pipeline/polyglot_shell_pipeline.t` and `.github/workflows/polyglot-shell-pipeline.yml`.
 
+### Fetching Remote Assets
+
+Pipeline nodes can download files from URLs using `fetchurl`. This generates a Nix derivation that uses `builtins.fetchurl` with SHA-256 verification, making downloads reproducible and cached.
+
+```t
+-- Compute the hash upfront using prefetch:
+hash = prefetch("https://example.com/data.csv")
+
+-- Pin the hash in a pipeline node:
+p = pipeline {
+  raw = fetchurl("https://example.com/data.csv", sha256 = hash)
+}
+
+populate_pipeline(p, build = true)
+pipeline_copy()
+
+-- The downloaded file is at p.raw.path:
+content = read_file(p.raw.path)
+```
+
+In REPL mode, `fetchurl` downloads immediately via `curl`:
+
+```t
+fetchurl("https://example.com/data.csv", output = "data.csv")
+```
+
+The companion function `prefetch(url)` downloads a URL and returns its SHA-256 hash, enabling the two-step workflow of computing the hash upfront then pinning it in a pipeline for reproducible builds.
+
 ---
 
 ## 5. Cross-Language Integration
@@ -558,7 +586,7 @@ populate_pipeline(p, build = true)
 `populate_pipeline(p, build = true)` is the primary command for materializing a pipeline. It does the following:
 
 1. **Populates** the `_pipeline/` directory with `pipeline.nix` and `dag.json`.
-2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments!
+2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments — including nodes that use a custom per-node flake (see [Custom Flakes per Node](advanced-pipeline-tutorial.md#37-custom-flakes-per-node) for inheritance details).
 3. **Triggers** a Nix build to materialize each node as a serialized artifact.
 4. **Records** the build in a timestamped log file (`_pipeline/build_log_YYYYMMdd_HHmmss_hash.json`).
 

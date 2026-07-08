@@ -74,7 +74,7 @@ let read_log path =
         | _ -> ""
       in
       let cn_class =
-        if status = "Errored" || status = "SoftFailed" then
+        if status = "Errored" then
           (if err_code <> "" then err_code else "Error")
         else
           node_json |> member "class" |> to_string
@@ -91,6 +91,7 @@ let read_log path =
         cn_class;
         cn_dependencies = node_json |> member "dependencies" |> to_list |> filter_string;
         cn_p_exprs = None;
+        cn_flake = None;
       } in
       (name, cn)
     ) nodes in

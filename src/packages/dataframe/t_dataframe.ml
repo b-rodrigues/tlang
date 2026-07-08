@@ -49,8 +49,9 @@ let register env =
                 else
                   (name, vec)
               ) raw_columns in
-              let arrow_table = Arrow_bridge.table_from_value_columns columns nrows in
-              VDataFrame { arrow_table; group_keys = [] }
+              (match Arrow_bridge.table_from_value_columns columns nrows with
+               | Ok arrow_table -> VDataFrame { arrow_table; group_keys = [] }
+               | Error err -> err)
           with Failure msg -> Error.value_error ("to_dataframe: " ^ msg))
       | _ ->
         let rows = match args with
@@ -86,8 +87,9 @@ let register env =
                     ) headers in
 
                     (* Create Arrow table using bridge *)
-                    let arrow_table = Arrow_bridge.table_from_value_columns columns nrows in
-                    VDataFrame { arrow_table; group_keys = [] }
+                    (match Arrow_bridge.table_from_value_columns columns nrows with
+                     | Ok arrow_table -> VDataFrame { arrow_table; group_keys = [] }
+                     | Error err -> err)
 
                 | VList pairs ->
                     let headers = List.filter_map (fun (k, _) -> k) pairs in
@@ -110,8 +112,9 @@ let register env =
                     ) headers in
 
                     (* Create Arrow table using bridge *)
-                    let arrow_table = Arrow_bridge.table_from_value_columns columns nrows in
-                    VDataFrame { arrow_table; group_keys = [] }
+                    (match Arrow_bridge.table_from_value_columns columns nrows with
+                     | Ok arrow_table -> VDataFrame { arrow_table; group_keys = [] }
+                     | Error err -> err)
                 
                 | _ -> Error.type_error (Printf.sprintf "Function `to_dataframe` expects a list of Dicts (rows). First row is: %s" (Ast.Utils.value_to_string first_row_val)))
         )

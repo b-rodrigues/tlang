@@ -166,10 +166,9 @@ let rows_to_dataframe ?(group_keys=[]) ?(column_types=(fun _ -> NAGeneric)) colu
      ) column_order
   in
   let group_keys = List.filter (fun key -> List.mem key column_order) group_keys in
-  VDataFrame {
-    arrow_table = Arrow_bridge.table_from_value_columns columns nrows;
-    group_keys;
-  }
+  (match Arrow_bridge.table_from_value_columns columns nrows with
+   | Ok arrow_table -> VDataFrame { arrow_table; group_keys }
+   | Error err -> err)
 
 let join_impl kind named_args _env =
   match positional_args named_args with
@@ -347,7 +346,9 @@ let bind_cols_impl args _env =
                       (output_name, values))
                ) dfs
              in
-             VDataFrame { arrow_table = Arrow_bridge.table_from_value_columns columns expected_rows; group_keys = [] })
+              (match Arrow_bridge.table_from_value_columns columns expected_rows with
+               | Ok arrow_table -> VDataFrame { arrow_table; group_keys = [] }
+               | Error err -> err))
 
 (*
 --# Join rows from the left table

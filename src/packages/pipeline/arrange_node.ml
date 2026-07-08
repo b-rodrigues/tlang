@@ -73,6 +73,7 @@ let register env =
           p_node_diagnostics = reorder p.p_node_diagnostics;
           p_patterns     = reorder p.p_patterns;
           p_iterations   = reorder p.p_iterations;
+          p_flakes       = reorder p.p_flakes;
           p_has_patterns = p.p_has_patterns;
         }
       in

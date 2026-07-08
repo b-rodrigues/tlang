@@ -132,10 +132,10 @@ let register env =
           | _ -> false
         in
         if is_collect_exceptions_df then
-          let node_col = List.assoc "node" value_columns in
-          let status_col = List.assoc "status" value_columns in
-          let code_col = List.assoc "code" value_columns in
-          let message_col = List.assoc "message" value_columns in
+          let node_col = match List.assoc_opt "node" value_columns with Some c -> c | None -> [||] in
+          let status_col = match List.assoc_opt "status" value_columns with Some c -> c | None -> [||] in
+          let code_col = match List.assoc_opt "code" value_columns with Some c -> c | None -> [||] in
+          let message_col = match List.assoc_opt "message" value_columns with Some c -> c | None -> [||] in
           let get_str_val col row =
             match col.(row) with
             | VString s -> s

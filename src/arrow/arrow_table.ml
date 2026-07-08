@@ -36,6 +36,8 @@ let env_flag name =
   | Some ("1" | "true" | "yes" | "on") -> true
   | _ -> false
 
+exception MaterializeError of string
+
 let zero_copy_events : zero_copy_event list ref = ref []
 let zero_copy_event_count : int ref = ref 0
 let max_zero_copy_events = 1000
@@ -379,29 +381,7 @@ let get_column (t : t) (name : string) : column_data option =
            ) 0 cols in
            NAColumn total
  
- (** Concatenate multiple tables with the same schema *)
- let rec concatenate (tables : t list) : t =
-   match tables with
-   | [] -> empty
-   | [t] -> t
-   | first :: _ ->
-       let all_native = List.for_all (fun t ->
-         match t.native_handle with
-         | Some handle -> not handle.freed
-         | None -> false
-       ) tables in
-
-       if all_native && Arrow_ffi.arrow_available then
-         let ptrs = List.map (fun t -> (Option.get t.native_handle).ptr) tables in
-         match Arrow_ffi.arrow_table_concatenate ptrs with
-         | Some new_ptr ->
-             let nrows = List.fold_left (fun acc t -> acc + t.nrows) 0 tables in
-             create_from_native new_ptr first.schema nrows
-         | None -> concatenate_ocaml tables
-       else
-         concatenate_ocaml tables
-
-and concatenate_ocaml (tables : t list) : t =
+let concatenate_ocaml (tables : t list) : t =
   match tables with
   | [] -> empty
   | [t] -> t
@@ -413,6 +393,28 @@ and concatenate_ocaml (tables : t list) : t =
         (name, concatenate_columns cols_to_concat)
       ) schema in
       { schema; columns; nrows; native_handle = None }
+
+(** Concatenate multiple tables with the same schema *)
+let concatenate (tables : t list) : t =
+  match tables with
+  | [] -> empty
+  | [t] -> t
+  | first :: _ ->
+      let all_native = List.for_all (fun t ->
+        match t.native_handle with
+        | Some handle -> not handle.freed
+        | None -> false
+      ) tables in
+
+      if all_native && Arrow_ffi.arrow_available then
+        let ptrs = List.filter_map (fun t -> match t.native_handle with Some h -> Some h.ptr | None -> None) tables in
+        match Arrow_ffi.arrow_table_concatenate ptrs with
+        | Some new_ptr ->
+            let nrows = List.fold_left (fun acc t -> acc + t.nrows) 0 tables in
+            create_from_native new_ptr first.schema nrows
+        | None -> concatenate_ocaml tables
+      else
+        concatenate_ocaml tables
 
 let column_type (t : t) (name : string) : arrow_type option =
   List.assoc_opt name t.schema
@@ -518,12 +520,54 @@ let is_arrow_table_new_supported = function
   | ListColumn a -> is_supported_list_column a
   | DatetimeColumn _ -> true
 
+(* Helper to flatten DictionaryColumn sub-column *)
+let flatten_dictionary_sub_column (nested : t option array) (fname : string) (n_total : int) =
+  let flat_indices : int option array = Array.make n_total None in
+  let levels = ref None in
+  let ordered = ref None in
+  let validate_levels expected actual = expected = actual in
+
+  let pos = ref 0 in
+  let err = ref None in
+  (try
+     Array.iter (function
+       | None -> ()
+       | Some sub_t ->
+           (match get_column sub_t fname with
+            | Some (DictionaryColumn (indices, lvl, ord)) ->
+                if Array.length indices <> sub_t.nrows then
+                  raise (Failure ("ArrowDictionary flatten: invalid index array length for field " ^ fname));
+                (match !levels, !ordered with
+                 | None, None ->
+                     levels := Some lvl;
+                     ordered := Some ord
+                 | Some expected_levels, Some expected_ordered ->
+                     if expected_ordered <> ord || not (validate_levels expected_levels lvl) then
+                       raise (Failure ("ArrowDictionary flatten: incompatible dictionary payloads for field " ^ fname))
+                 | _ ->
+                     raise (Failure ("ArrowDictionary flatten: inconsistent dictionary metadata state for field " ^ fname)));
+                let level_count = List.length lvl in
+                Array.iteri (fun j v ->
+                  (match v with
+                   | Some idx when idx < 0 || idx >= level_count ->
+                       raise (Failure ("ArrowDictionary flatten: out-of-bounds dictionary index for field " ^ fname))
+                   | _ -> ());
+                  flat_indices.(!pos + j) <- v
+                ) indices
+            | _ -> ());
+           pos := !pos + sub_t.nrows
+     ) nested
+   with Failure msg -> err := Some msg);
+  match !err with
+  | Some msg -> Error msg
+  | None -> Ok (Obj.repr (flat_indices, Option.value !levels ~default:[], Option.value !ordered ~default:false))
+
 (** Flatten a ListColumn into (offsets, present_flags, sub_column_specs) for FFI.
     offsets : int array of length nrows+1
     present : bool array of length nrows (true = non-null)
     sub_cols : (string * int * string option * Obj.t) list — flattened column data *)
 let rec flatten_list_column ?schema_hint (nested : t option array)
-  : (int array * bool array * (string * int * string option * Obj.t) list) =
+  : (int array * bool array * (string * int * string option * Obj.t) list, string) result =
   let nrows = Array.length nested in
   let arrow_int64_tag = 0 in
   let arrow_float64_tag = 1 in
@@ -556,71 +600,52 @@ let rec flatten_list_column ?schema_hint (nested : t option array)
   let n_total = !total in
   let sub_schema = Option.value (effective_list_schema ?schema_hint nested) ~default:[] in
   (* Flatten each sub-column *)
-  let sub_cols = List.map (fun (fname, ftype) ->
-    let tag = sub_tag_of ftype in
-    let timezone =
-      match ftype with
-      | ArrowTimestamp tz -> tz
-      | _ -> None
-    in
-    let raw_data =
-      match ftype with
-      | ArrowDictionary ->
-          let flat_indices : int option array = Array.make n_total None in
-          let levels = ref None in
-          let ordered = ref None in
-          let validate_levels expected actual = expected = actual in
-
-          let pos = ref 0 in
-          Array.iter (function
-            | None -> ()
-            | Some sub_t ->
-                (match get_column sub_t fname with
-                 | Some (DictionaryColumn (indices, lvl, ord)) ->
-                     if Array.length indices <> sub_t.nrows then
-                       invalid_arg ("ArrowDictionary flatten: invalid index array length for field " ^ fname);
-                     (match !levels, !ordered with
-                      | None, None ->
-                          levels := Some lvl;
-                          ordered := Some ord
-                      | Some expected_levels, Some expected_ordered ->
-                          if expected_ordered <> ord || not (validate_levels expected_levels lvl) then
-                            invalid_arg ("ArrowDictionary flatten: incompatible dictionary payloads for field " ^ fname)
-                      | _ ->
-                          invalid_arg ("ArrowDictionary flatten: inconsistent dictionary metadata state for field " ^ fname));
-                     let level_count = List.length lvl in
-                     Array.iteri (fun j v ->
-                       (match v with
-                        | Some idx when idx < 0 || idx >= level_count ->
-                            invalid_arg ("ArrowDictionary flatten: out-of-bounds dictionary index for field " ^ fname)
-                        | _ -> ());
-                       flat_indices.(!pos + j) <- v
-                     ) indices
-                 | _ -> ());
-                pos := !pos + sub_t.nrows
-          ) nested;
-          Obj.repr (flat_indices, Option.value !levels ~default:[], Option.value !ordered ~default:false)
-      | _ ->
-          let cols_to_concat = List.filter_map (fun x -> x) (Array.to_list nested) 
-                               |> List.filter_map (fun t -> get_column t fname) in
-          let combined = concatenate_columns cols_to_concat in
-          (match combined with
-           | IntColumn a -> Obj.repr a
-           | FloatColumn a -> Obj.repr a
-           | StringColumn a -> Obj.repr a
-           | BoolColumn a -> Obj.repr a
-           | DateColumn a -> Obj.repr a
-           | DatetimeColumn (a, _) -> Obj.repr a
-           | DictionaryColumn (a, lvl, ord) -> Obj.repr (a, lvl, ord)
-           | ListColumn a -> 
-               let schema_hint = match ftype with ArrowList (ArrowStruct s) -> Some s | _ -> None in
-               Obj.repr (flatten_list_column ?schema_hint a)
-           | NAColumn n -> 
-               Obj.repr (Array.make n None))
-    in
-    (fname, tag, timezone, raw_data)
-  ) sub_schema in
-  (offsets, present, sub_cols)
+  let rec map_sub_cols = function
+    | [] -> Ok []
+    | (fname, ftype) :: rest ->
+        let tag = sub_tag_of ftype in
+        let timezone =
+          match ftype with
+          | ArrowTimestamp tz -> tz
+          | _ -> None
+        in
+        (match ftype with
+         | ArrowDictionary ->
+             (match flatten_dictionary_sub_column nested fname n_total with
+              | Error msg -> Error msg
+              | Ok raw_data ->
+                  (match map_sub_cols rest with
+                   | Error msg -> Error msg
+                   | Ok rest_cols -> Ok ((fname, tag, timezone, raw_data) :: rest_cols)))
+         | _ ->
+             let cols_to_concat = List.filter_map (fun x -> x) (Array.to_list nested) 
+                                  |> List.filter_map (fun t -> get_column t fname) in
+             let combined = concatenate_columns cols_to_concat in
+             (match combined with
+              | IntColumn a -> Ok (Obj.repr a)
+              | FloatColumn a -> Ok (Obj.repr a)
+              | StringColumn a -> Ok (Obj.repr a)
+              | BoolColumn a -> Ok (Obj.repr a)
+              | DateColumn a -> Ok (Obj.repr a)
+              | DatetimeColumn (a, _) -> Ok (Obj.repr a)
+              | DictionaryColumn (a, lvl, ord) -> Ok (Obj.repr (a, lvl, ord))
+              | ListColumn a -> 
+                  let schema_hint = match ftype with ArrowList (ArrowStruct s) -> Some s | _ -> None in
+                  (match flatten_list_column ?schema_hint a with
+                   | Ok nested_flat -> Ok (Obj.repr nested_flat)
+                   | Error msg -> Error msg)
+              | NAColumn n -> 
+                  Ok (Obj.repr (Array.make n None)))
+             |> (function
+                 | Error msg -> Error msg
+                 | Ok raw_data ->
+                     (match map_sub_cols rest with
+                      | Error msg -> Error msg
+                      | Ok rest_cols -> Ok ((fname, tag, timezone, raw_data) :: rest_cols))))
+  in
+  match map_sub_cols sub_schema with
+  | Error msg -> Error msg
+  | Ok cols -> Ok (offsets, present, cols)
 
 (** Materialize a pure OCaml table into a native Arrow-backed one.
     Returns the table itself if it already has a native_handle.
@@ -680,8 +705,11 @@ let materialize (t : t) : t =
               | Some (ListColumn nested) ->
                   (* Pack as tuple (offsets, present, sub_col_specs) for C FFI. *)
                   let schema_hint = list_schema_hint_of_arrow_type type_ in
-                  let (offsets, present, sub_cols) = flatten_list_column ?schema_hint nested in
-                  Obj.repr (offsets, present, sub_cols)
+                  (match flatten_list_column ?schema_hint nested with
+                   | Ok (offsets, present, sub_cols) -> Obj.repr (offsets, present, sub_cols)
+                   | Error msg ->
+                    raise (MaterializeError
+                      (Printf.sprintf "materialize: failed to flatten list column `%s`: %s" name msg)))
               | Some (IntColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
               | Some (FloatColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
               | Some (BoolColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
@@ -697,12 +725,17 @@ let materialize (t : t) : t =
           | Some ptr -> create_from_native ptr t.schema t.nrows
           | None -> t
         with
+        | MaterializeError _ as e -> raise e
         | Out_of_memory | Stack_overflow as exn -> raise exn
         | exn ->
             Printf.eprintf
               "Warning: Native materialization failed (%s). Keeping OCaml representation.\n%!"
               (Printexc.to_string exn);
             t
+
+let try_materialize_or_keep t =
+  try materialize t
+  with MaterializeError _ -> t
 
 (** Prepare a table for transfer across processes (e.g. via Marshal).
     Materializes any native data into OCaml storage and clears the native handle,
@@ -767,7 +800,7 @@ let project (t : t) (names : string list) : t =
               | Some col -> (n, col)
               | None -> (n, NAColumn t.nrows)
             ) names in
-            { schema; columns; nrows = t.nrows; native_handle = None } |> materialize)
+            { schema; columns; nrows = t.nrows; native_handle = None } |> try_materialize_or_keep)
   | _ ->
       let schema = List.map safe_assoc_schema names in
       let columns = List.map (fun n ->
@@ -775,7 +808,7 @@ let project (t : t) (names : string list) : t =
         | Some col -> (n, col)
         | None -> (n, NAColumn t.nrows)
       ) names in
-      { schema; columns; nrows = t.nrows; native_handle = None } |> materialize
+      { schema; columns; nrows = t.nrows; native_handle = None } |> try_materialize_or_keep
 
 (** Add or replace a column.
     Keeps the result on the native Arrow path when all columns are supported
@@ -806,7 +839,7 @@ let add_column (t : t) (name : string) (col : column_data) : t =
     else
       t.schema @ [(name, typ)]
   in
-  { schema; columns; nrows = t.nrows; native_handle = None } |> materialize
+  { schema; columns; nrows = t.nrows; native_handle = None } |> try_materialize_or_keep
 
 (** Add a column to [dst] by taking it from [src]. 
     Stays native if both have native handles. *)
@@ -834,7 +867,8 @@ let _filter_column_pure (col : column_data) (mask : bool array) (new_nrows : int
   Array.iteri (fun src b ->
     if b then begin indices.(!j) <- src; incr j end
   ) mask;
-  assert (!j = new_nrows); (* Invariant: mask true-count must match new_nrows *)
+  if !j <> new_nrows then
+    failwith "InternalError: mask true-count mismatch in _filter_column_pure";
   let pick a = Array.init new_nrows (fun i -> a.(indices.(i))) in
   match col with
   | IntColumn a -> IntColumn (pick a)
@@ -878,11 +912,11 @@ let filter_rows (t : t) (mask : bool array) : t =
              | Some col -> (name, filter_col col)
              | None -> (name, NAColumn new_nrows)
            ) t.schema in
-           { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize)
+           { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> try_materialize_or_keep)
   | _ ->
       let filter_col col = _filter_column_pure col mask new_nrows in
       let columns = List.map (fun (name, col) -> (name, filter_col col)) t.columns in
-      { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
+      { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> try_materialize_or_keep
 
 (** Slice rows: offset, length *)
 let slice (t : t) (offset : int) (len : int) : t =
@@ -897,10 +931,10 @@ let slice (t : t) (offset : int) (len : int) : t =
              let col = match get_column t name with Some c -> c | None -> NAColumn t.nrows in
              (name, slice_column col offset len)
            ) t.schema in
-           { schema = t.schema; columns; nrows = len; native_handle = None } |> materialize)
+           { schema = t.schema; columns; nrows = len; native_handle = None } |> try_materialize_or_keep)
   | _ ->
       let columns = List.map (fun (name, col) -> (name, slice_column col offset len)) t.columns in
-      { schema = t.schema; columns; nrows = len; native_handle = None } |> materialize
+      { schema = t.schema; columns; nrows = len; native_handle = None } |> try_materialize_or_keep
 
 
 (** Take rows by index list *)
@@ -924,12 +958,12 @@ let take_rows (t : t) (indices : int list) : t =
            let idx_arr = Array.of_list valid_indices in
            let new_nrows = List.length valid_indices in
            let columns = List.map (fun (name, col) -> (name, take_col col idx_arr new_nrows)) source_columns in
-           { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize)
+           { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> try_materialize_or_keep)
   | _ ->
       let idx_arr = Array.of_list valid_indices in
       let new_nrows = List.length valid_indices in
       let columns = List.map (fun (name, col) -> (name, take_col col idx_arr new_nrows)) t.columns in
-      { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
+      { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> try_materialize_or_keep
 
 (** Reorder rows by index array *)
 let sort_by_indices (t : t) (indices : int array) : t =
@@ -969,7 +1003,7 @@ let sort_by_indices (t : t) (indices : int array) : t =
              | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
            in
            let columns = List.map (fun (name, col) -> (name, sort_col col)) source_columns in
-           { schema = t.schema; columns; nrows = n; native_handle = None } |> materialize)
+           { schema = t.schema; columns; nrows = n; native_handle = None } |> try_materialize_or_keep)
   | _ ->
     let n = Array.length indices in
     let sort_col = function
@@ -984,7 +1018,7 @@ let sort_by_indices (t : t) (indices : int array) : t =
       | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
     in
     let columns = List.map (fun (name, col) -> (name, sort_col col)) t.columns in
-    { schema = t.schema; columns; nrows = n; native_handle = None } |> materialize
+    { schema = t.schema; columns; nrows = n; native_handle = None } |> try_materialize_or_keep
 
 (** Rename columns based on an old_name -> new_name mapping. *)
 let rename_columns (t : t) (mapping : (string * string) list) : t =
@@ -1013,7 +1047,7 @@ let rename_columns (t : t) (mapping : (string * string) list) : t =
              let col = match get_column t name with Some c -> c | None -> NAColumn t.nrows in
              match List.assoc_opt name old_to_new with
              | Some new_name -> (new_name, col) | None -> (name, col)) t.schema in
-           { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> materialize)
+           { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> try_materialize_or_keep)
   | _ ->
       let old_to_new = List.map (fun (new_n, old_n) -> (old_n, new_n)) mapping in
       let new_schema = List.map (fun (name, ty) ->
@@ -1022,7 +1056,7 @@ let rename_columns (t : t) (mapping : (string * string) list) : t =
       let columns = List.map (fun (name, data) ->
         match List.assoc_opt name old_to_new with
         | Some new_name -> (new_name, data) | None -> (name, data)) t.columns in
-      { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> materialize
+      { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> try_materialize_or_keep
 
 let merge_horizontal (t1 : t) (t2 : t) : t option =
   match t1.native_handle, t2.native_handle with

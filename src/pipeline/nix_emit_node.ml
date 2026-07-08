@@ -77,7 +77,7 @@ type tlang_tree =
   | Leaf of string
   | Node of (string * tlang_tree) list
 
-let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args =
+let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args ~flake_env_name =
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
@@ -113,11 +113,33 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
 
   if noop then
+    let pkgs_str = "pkgs" in
     Printf.sprintf {|
-  %s = pkgs.runCommand "%s" {} ''
+  %s = %s.runCommand "%s" {} ''
     mkdir -p $out
     echo "Build skipped for %s" > $out/NOOPBUILD
-  '';|} name name name
+  '';|} name pkgs_str name name
+  else if runtime = "fetchurl" then
+    let url = match List.assoc_opt "url" runtime_args with
+      | Some (VString u) -> u
+      | Some (VSymbol u) -> u
+      | _ -> "" in
+    let sha256 = match List.assoc_opt "sha256" runtime_args with
+      | Some (VString s) -> s
+      | Some (VSymbol s) -> s
+      | _ -> "" in
+    let nix_url = Nix_utils.nix_double_quote url in
+    let nix_sha256 = Nix_utils.nix_double_quote sha256 in
+    Printf.sprintf {|
+  %s = stdenv.mkDerivation {
+    name = "%s";
+    buildCommand = ''
+      mkdir -p $out
+      cp ${builtins.fetchurl { url = %s; sha256 = %s; }} $out/artifact
+      echo "BinaryFile" > $out/class
+    '';
+  };
+  |} name name nix_url nix_sha256
   else
   let eval_expr_safe e = Eval.eval_expr (ref Ast.Env.empty) e in
   let ser_val = eval_expr_safe serializer in
@@ -140,9 +162,9 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | "Julia" ->
         "jl", "juliaPkg"
     | "Quarto" ->
-        "sh", "r-env py-env"
+        "sh", "r-env" ^ " " ^ "py-env"
     | "sh" ->
-        "sh", "pkgs.bash"
+        "sh", "pkgs" ^ ".bash"
     | _ -> "t", ""
   in
 
@@ -2063,7 +2085,7 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
 
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
-    if runtime = "Quarto" || runtime = "sh" then
+    if runtime = "Quarto" || runtime = "sh" || runtime = "fetchurl" then
       ""
     else
       let get_load_stmt dep_name =
@@ -2814,7 +2836,7 @@ EOF
     | _ -> "t run --unsafe --mode repl node_script.t"
   in
 
-  Printf.sprintf {|
+  let output = Printf.sprintf {|
   %s = stdenv.mkDerivation {
     name = "%s";
     buildInputs = [ tBin %s ] ++ globalBuildInputs;
@@ -2855,3 +2877,43 @@ EOF
     '';
   };
  |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+  in
+  match flake_env_name with
+  | None -> output
+  | Some env ->
+      let prefix = env ^ "." in
+      (* Word-boundary-aware replacement to prevent e.g. "pkgs" matching
+         inside "rPackages". Uses a character-level scan because OCaml's
+         Str module lacks \b word-boundary support. The mutable ref is
+         local to this string scan and avoids the complexity of a
+         recursive index-tracking approach. *)
+      let replace_var v input =
+        let len_v = String.length v in
+        let len = String.length input in
+        let is_id_char c =
+          (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+          || (c >= '0' && c <= '9') || c = '_' || c = '-'
+        in
+        let buf = Buffer.create len in
+        let i = ref 0 in
+        while !i < len do
+          if !i + len_v <= len && String.sub input !i len_v = v then
+            let preceded = !i > 0 && is_id_char input.[!i - 1] in
+            let followed = !i + len_v < len && is_id_char input.[!i + len_v] in
+            if preceded || followed then begin
+              Buffer.add_char buf input.[!i];
+              i := !i + 1
+            end else begin
+              Buffer.add_string buf (prefix ^ v);
+              i := !i + len_v
+            end
+          else begin
+            Buffer.add_char buf input.[!i];
+            i := !i + 1
+          end
+        done;
+        Buffer.contents buf
+      in
+      output |> replace_var "tBin" |> replace_var "r-env" |> replace_var "py-env"
+             |> replace_var "juliaPkg" |> replace_var "pkgs" |> replace_var "tlangJl"
+             |> replace_var "stdenv"

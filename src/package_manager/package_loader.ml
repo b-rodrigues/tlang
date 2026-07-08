@@ -73,7 +73,9 @@ let load_private_names (pkg_dir : string) : string list =
         if not entry.is_export then Some entry.name else None
       ) all_docs in
       privates
-    with _ -> []
+    with
+    | Out_of_memory | Stack_overflow as e -> raise e
+    | _ -> []
   end else
     []
 
@@ -119,8 +121,11 @@ let eval_package_sources
     try
       let (pkg_env, defined_names) = List.fold_left (fun (env, names) file ->
         let ch = open_in file in
-        let content = really_input_string ch (in_channel_length ch) in
-        close_in ch;
+        let content =
+          Fun.protect
+            ~finally:(fun () -> close_in_noerr ch)
+            (fun () -> really_input_string ch (in_channel_length ch))
+        in
         let lexbuf = Lexing.from_string content in
         let program = Parser.program Lexer.token lexbuf in
         let program_names = defined_names_in_program program in
@@ -135,6 +140,10 @@ let eval_package_sources
         Error (Printf.sprintf "Package '%s' syntax error: %s" (Filename.basename pkg_dir) msg)
     | Parser.Error ->
         Error (Printf.sprintf "Package '%s' parse error" (Filename.basename pkg_dir))
+    | Ast.Mixed_bracket_form ->
+        Error (Printf.sprintf "Package '%s' parse error: Mixed bracket literal (found both single elements and key-value pairs)" (Filename.basename pkg_dir))
+    | Ast.Invalid_match_pattern msg ->
+        Error (Printf.sprintf "Package '%s' parse error: %s" (Filename.basename pkg_dir) msg)
     | Sys_error msg ->
         Error (Printf.sprintf "Package '%s' file error: %s" (Filename.basename pkg_dir) msg)
 

@@ -35,7 +35,7 @@
 <div class="container">
 <h1 id="t-language-overview">T Language Overview</h1>
 <blockquote>
-<p><strong>Version</strong>: 0.53.3</p>
+<p><strong>Version</strong>: 0.54.0</p>
 </blockquote>
 <p>T is a functional programming language designed for declarative,
 tabular data manipulation. It combines the pipeline-driven style of R’s
@@ -842,6 +842,52 @@ cumany([false, true, false]) -- Vector[false, true, true]
 
 -- NA propagation
 cumsum([1, NA, 3])         -- Vector[1, NA, NA]</code></pre>
+<hr />
+<h2 id="string-literal-escape-sequences">String Literal Escape
+Sequences</h2>
+<p>String literals support the following escape sequences:</p>
+<table>
+<thead>
+<tr>
+<th>Escape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>\n</code></td>
+<td>Newline</td>
+</tr>
+<tr>
+<td><code>\r</code></td>
+<td>Carriage return</td>
+</tr>
+<tr>
+<td><code>\t</code></td>
+<td>Tab</td>
+</tr>
+<tr>
+<td><code>\\</code></td>
+<td>Backslash</td>
+</tr>
+<tr>
+<td><code>\"</code></td>
+<td>Double quote</td>
+</tr>
+<tr>
+<td><code>\xHH</code></td>
+<td>Hex byte (two hex digits, e.g. <code>\x48</code> for
+<code>H</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>\xHH</code> escape inserts the byte with the given
+hexadecimal value. This is useful for embedding arbitrary byte
+sequences:</p>
+<pre class="t"><code>&quot;\x48\x65\x6c\x6c\x6f&quot;     -- &quot;Hello&quot;
+&quot;\xef\xbb\xbf&quot;              -- UTF-8 BOM</code></pre>
+<p>Invalid escape sequences (e.g. <code>\z</code>, <code>\xGH</code>)
+produce a clear syntax error.</p>
 <hr />
 <h2 id="shell-escape">Shell Escape (<code>?&lt;{ }&gt;</code>)</h2>
 <p>The shell escape syntax allows you to execute arbitrary shell

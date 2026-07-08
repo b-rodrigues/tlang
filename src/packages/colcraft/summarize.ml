@@ -157,8 +157,9 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                 | Some (_, e) -> e
                 | None ->
                   let value_columns = List.map (fun (name, v) -> (name, [|v|])) result_cols in
-                  let arrow_table = Arrow_bridge.table_from_value_columns value_columns 1 in
-                  VDataFrame { arrow_table; group_keys = [] })
+                  (match Arrow_bridge.table_from_value_columns value_columns 1 with
+                   | Ok arrow_table -> VDataFrame { arrow_table; group_keys = [] }
+                   | Error err -> err))
                else
                  let grouped = Arrow_compute.group_by df.arrow_table df.group_keys in
                 let vectorized_pairs =
@@ -353,8 +354,9 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                    | Some e -> e
                    | None ->
                      let all_columns = key_result_cols @ summary_result_cols in
-                     let arrow_table = Arrow_bridge.table_from_value_columns all_columns n_groups in
-                     VDataFrame { arrow_table; group_keys = [] })))
+                     (match Arrow_bridge.table_from_value_columns all_columns n_groups with
+                      | Ok arrow_table -> VDataFrame { arrow_table; group_keys = [] }
+                      | Error err -> err))))
       | _ -> Error.type_error "Function `summarize` expects a DataFrame as first argument."
     ))
     env

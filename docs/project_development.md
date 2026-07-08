@@ -39,6 +39,7 @@ This creates the following structure:
 - **tests/**: Project-specific tests.
 - **AGENTS.md**: Onboarding guide for AI Agents.
 - **T-LANGUAGE-REFERENCE.md**: Tiered language reference for LLMs.
+- **.claude/skills/SKILL.md**: An AI agent skill file that teaches LLMs how to work with T projects (scaffolded automatically).
 
 ## 2. Entering the Development Environment
 
@@ -64,7 +65,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.53.3"
+min_version = "0.54.0"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -118,6 +119,173 @@ Running nix flake update...
 ```
 
 This updates your `tproject.toml` and then runs `t update` automatically.
+
+### 3.3 R Dependencies
+
+R packages can be managed via the default nixpkgs resolver or by pointing T at an `renv.lock` file.
+
+#### 3.3.1 Nixpkgs Resolver (default)
+
+List CRAN packages from nixpkgs directly:
+
+```toml
+[r-dependencies]
+packages = ["dplyr", "ggplot2", "jsonlite"]
+```
+
+After editing, run `t update` to include them in `flake.nix`. Packages are available in every R pipeline node and in `nix develop`.
+
+#### 3.3.2 renv Resolver
+
+If your project already has an `renv.lock` file, set:
+
+```toml
+[r-dependencies]
+resolver = "renv"
+```
+
+When `resolver = "renv"`, T automatically discovers all R dependencies from `renv.lock`:
+
+- **CRAN packages** are read from each entry's `Repository` or `Bioconductor` field and mapped to `pkgs.rPackages.*`.
+- **GitHub/GitLab packages** are fetched via `builtins.fetchGit` using the `RemoteHost`, `RemoteUsername`, `RemoteRepo`, and `RemoteSha` fields.
+- The **`Remotes` field** is parsed: entries like `user/repo` are matched against packages in the lock file and injected as `buildInputs` of the declaring git package.
+- Supported remote hosts: `api.github.com` and `gitlab.com`. Other sources (bitbucket, custom URLs) produce a warning and are skipped.
+- Base R packages (`R`, `methods`, `stats`, etc.) are automatically filtered out.
+
+No `packages` list is required — `renv.lock` is the single source of truth. Run `t update` to regenerate `flake.nix` with the renv-discovered packages.
+
+#### 3.3.3 Git R Packages
+
+Declare R packages from remote Git repositories directly in `tproject.toml`:
+
+```toml
+[r-dependencies]
+packages = ["dplyr"]
+my_pkg = { git = "https://github.com/user/my-pkg", rev = "abc123def456" }
+```
+
+The `rev` field must be a full Git commit hash. Each git package is injected into every R pipeline node's `buildInputs`.
+
+When using `resolver = "renv"`, git packages from `renv.lock` are automatically merged with those declared in `tproject.toml`.
+
+### 3.4 Python Dependencies
+
+Python packages can use the default nixpkgs resolver or the UV workspace resolver for PyPI-only dependencies.
+
+#### 3.4.1 Nixpkgs Resolver (default)
+
+List packages from the pinned nixpkgs revision:
+
+```toml
+[py-dependencies]
+packages = ["pandas", "scikit-learn"]
+```
+
+Run `t update` to generate a `python.withPackages` environment in `flake.nix`. Simple, no extra files needed.
+
+#### 3.4.2 UV Workspace Resolver
+
+Projects that need packages from PyPI can opt into UV explicitly:
+
+```toml
+[py-dependencies]
+resolver = "uv"
+workspace = "python"
+```
+
+The `version` field is **optional** when using the UV resolver. If omitted, T infers the Nixpkgs Python attribute (e.g. `python312`) from the `requires-python` field in `python/pyproject.toml`. The inference accepts specifiers that constrain to a single minor version (`==3.12`, `==3.12.*`, `~=3.12`, `>=3.12,<3.13`) and errors on open-ended ranges (`>=3.12`). If an explicit `version` conflicts with `requires-python`, T prints a warning and uses the explicit value.
+
+The workspace directory must contain the UV project metadata and lock file:
+
+```text
+python/
+  pyproject.toml
+  uv.lock
+```
+
+When `resolver = "uv"`, do not set `[py-dependencies].packages`; Python dependencies are declared only in `pyproject.toml` and locked by `uv.lock`. Running `t update` generates uv2nix/pyproject.nix inputs in `flake.nix` and builds the Python environment as a Nix virtual environment.
+
+#### 3.4.3 Setting up a UV workspace from scratch
+
+This walkthrough assumes you do **not** have `uv` installed and have **no** existing Python package metadata — you are starting from an empty T project.
+
+**1. Create a new T project**
+
+```bash
+t project my_project
+cd my_project
+```
+
+**2. Edit `tproject.toml`**
+
+Replace the default `[py-dependencies]` section (or add it if missing):
+
+```toml
+[py-dependencies]
+resolver = "uv"
+workspace = "python"
+```
+
+The `version` field is optional when using the UV resolver — T infers it from `requires-python` in `pyproject.toml`. Remove any `packages` key if present — UV and `packages` are mutually exclusive.
+
+**3. Create the Python workspace directory and `pyproject.toml`**
+
+```bash
+mkdir python
+```
+
+```toml
+# python/pyproject.toml
+[project]
+name = "my_project_python_env"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas",
+]
+```
+
+Add any PyPI packages to the `dependencies` list. Re-run `uv lock` whenever the list changes.
+
+**4. Generate the lock file**
+
+You need `uv` and `python3` on `PATH`. If you do not have them installed, enter a temporary Nix shell:
+
+```bash
+nix shell nixpkgs#uv nixpkgs#python3
+```
+
+Then generate the lock file:
+
+```bash
+uv lock --project python
+```
+
+Type `exit` or press `Ctrl-D` to leave the Nix shell when done, or keep it open for the next step.
+
+**5. Generate the Nix flake**
+
+```bash
+t update
+```
+
+This reads the UV workspace, adds `pyproject-nix`, `uv2nix`, and `pyproject-build-systems` inputs to `flake.nix`, and configures the Python environment to use `pySet.mkVirtualEnv` instead of `pkgs.python314.withPackages`.
+
+**6. Run your pipeline**
+
+```bash
+nix develop
+t run src/pipeline.t
+```
+
+Python pipeline nodes work identically regardless of which resolver you chose.
+
+**Adding or removing dependencies later**
+
+1. Edit `dependencies` in `python/pyproject.toml`.
+2. Re-run `uv lock --project python`.
+3. Re-run `t update` to regenerate `flake.nix`.
+4. Commit the updated `pyproject.toml` and `uv.lock`.
 
 ## 4. Importing Packages
 

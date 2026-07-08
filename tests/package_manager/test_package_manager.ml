@@ -219,9 +219,142 @@ min_version = "0.51.0"
                 && cfg.proj_description = "Test project"
                 && cfg.proj_r_dependencies = ["dplyr"; "tidyr"]
                 && cfg.proj_py_version = "python310"
+                && cfg.proj_py_resolver = "nixpkgs"
                 && cfg.proj_visualization_tool = "xdg-open"
                 && cfg.proj_py_dependencies = ["pandas"]
     | Error _ -> false);
+
+  test_pm "parse uv Python resolver without duplicated packages" (fun () ->
+    let uv_toml = {|
+[project]
+name = "uv-project"
+
+[py-dependencies]
+version = "python314"
+resolver = "uv"
+workspace = "python"
+|} in
+    match Toml_parser.parse_tproject_toml uv_toml with
+    | Ok cfg ->
+        cfg.proj_py_resolver = "uv"
+        && cfg.proj_py_workspace = "python"
+        && cfg.proj_py_dependencies = []
+    | Error _ -> false);
+
+  test_pm "reject uv Python resolver with tproject packages" (fun () ->
+    let uv_toml = {|
+[project]
+name = "uv-project"
+
+[py-dependencies]
+version = "python314"
+resolver = "uv"
+packages = ["pandas"]
+|} in
+    match Toml_parser.parse_tproject_toml uv_toml with
+    | Ok _ -> false
+    | Error msg ->
+        Test_helpers.contains msg "[py-dependencies].packages cannot be used");
+
+  test_pm "infer py_version from requires-python ==3.12" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python "==3.12" with
+    | Ok v -> v = "python312"
+    | Error _ -> false);
+
+  test_pm "infer py_version from requires-python ~=3.10" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python "~=3.10" with
+    | Ok v -> v = "python310"
+    | Error _ -> false);
+
+  test_pm "infer py_version from requires-python ==3.11.*" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python "==3.11.*" with
+    | Ok v -> v = "python311"
+    | Error _ -> false);
+
+  test_pm "infer py_version from requires-python >=3.12,<3.13" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python ">=3.12,<3.13" with
+    | Ok v -> v = "python312"
+    | Error _ -> false);
+
+  test_pm "reject open-ended requires-python >=3.12" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python ">=3.12" with
+    | Error _ -> true
+    | Ok _ -> false);
+
+  test_pm "reject multi-minor requires-python >=3.10,<3.13" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python ">=3.10,<3.13" with
+    | Error _ -> true
+    | Ok _ -> false);
+
+  test_pm "reject unparseable requires-python" (fun () ->
+    match Toml_parser.infer_py_version_from_requires_python "not-a-version" with
+    | Error _ -> true
+    | Ok _ -> false);
+
+  test_pm "parse git R package from [r-dependencies] inline table" (fun () ->
+    let toml = {|
+[project]
+name = "test"
+
+[r-dependencies]
+packages = ["dplyr"]
+myPkg = { git = "https://github.com/user/myPkg", rev = "abc1234def5678" }
+|} in
+    match Toml_parser.parse_tproject_toml toml with
+    | Ok cfg ->
+        List.length cfg.proj_r_git_dependencies = 1
+        && (List.hd cfg.proj_r_git_dependencies).rgd_name = "myPkg"
+        && (List.hd cfg.proj_r_git_dependencies).rgd_git_url = "https://github.com/user/myPkg"
+        && (List.hd cfg.proj_r_git_dependencies).rgd_rev = "abc1234def5678"
+        && cfg.proj_r_dependencies = ["dplyr"]
+    | Error _ -> false);
+
+  test_pm "entries without 'rev' key are silently skipped" (fun () ->
+    let toml = {|
+[project]
+name = "test"
+
+[r-dependencies]
+badPkg = { git = "https://github.com/user/bad" }
+packages = []
+|} in
+    match Toml_parser.parse_tproject_toml toml with
+    | Ok cfg -> cfg.proj_r_git_dependencies = []
+    | Error _ -> false);
+
+  test_pm "nix_generator includes buildRPackage + fetchGit for git R deps" (fun () ->
+    let pkg : Package_types.r_git_dependency =
+      { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }
+    in
+    let nix = Nix_generator.generate_project_flake
+      ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
+      ~uv2nix_commit:"dummy" ~deps:[] ~r_git_deps:[pkg] () in
+    Test_helpers.contains nix "buildRPackage"
+    && Test_helpers.contains nix "abc1234def5678"
+    && Test_helpers.contains nix "https://github.com/user/myPkg");
+
+  test_pm "nix_generator deduplicates duplicate git R deps by name" (fun () ->
+    let pkg1 : Package_types.r_git_dependency =
+      { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }
+    in
+    let pkg2 : Package_types.r_git_dependency =
+      { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg2"; rgd_rev = "xyz9876"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }
+    in
+    let nix = Nix_generator.generate_project_flake
+      ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
+      ~uv2nix_commit:"dummy" ~deps:[] ~r_git_deps:[pkg1; pkg2] () in
+    let occurrences s sub =
+      let sub_len = String.length sub in
+      let s_len = String.length s in
+      let rec count idx acc =
+        if idx > s_len - sub_len then acc
+        else if String.sub s idx sub_len = sub then count (idx + 1) (acc + 1)
+        else count (idx + 1) acc
+      in
+      count 0 0
+    in
+    occurrences nix "myPkg = pkgs.rPackages.buildRPackage" = 1
+  );
 
   test_pm "format project sync message reports T, R, and Python counts" (fun () ->
     match Toml_parser.parse_tproject_toml project_toml with
@@ -959,6 +1092,78 @@ min_version = "0.51.0"
     && List.mem "      locked.narHash: sha256-old -> sha256-new" summary
     && List.mem "      locked.rev: oldrev -> newrev" summary);
 
+  test_pm "uv no version infers from pyproject.toml requires-python" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let python_dir = Filename.concat base_dir "python" in
+        Unix.mkdir python_dir 0o755;
+        let ch = open_out (Filename.concat python_dir "pyproject.toml") in
+        output_string ch {|[project]
+name = "test"
+requires-python = "==3.12"
+dependencies = ["pandas"]
+|};
+        close_out ch;
+        let uv_toml = {|
+[project]
+name = "uv-project"
+
+[py-dependencies]
+resolver = "uv"
+workspace = "python"
+|} in
+        match Toml_parser.parse_tproject_toml ~root_dir:base_dir uv_toml with
+        | Ok cfg ->
+            let cleanup = (try remove_path base_dir; true with _ -> false) in
+            cleanup && cfg.proj_py_version = "python312" && cfg.proj_py_resolver = "uv"
+        | Error _ -> (try remove_path base_dir; false with _ -> false));
+
+  test_pm "uv no version errors when pyproject.toml has open-ended requires-python" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let python_dir = Filename.concat base_dir "python" in
+        Unix.mkdir python_dir 0o755;
+        let ch = open_out (Filename.concat python_dir "pyproject.toml") in
+        output_string ch {|[project]
+name = "test"
+requires-python = ">=3.12"
+dependencies = ["pandas"]
+|};
+        close_out ch;
+        let uv_toml = {|
+[project]
+name = "uv-project"
+
+[py-dependencies]
+resolver = "uv"
+workspace = "python"
+|} in
+        match Toml_parser.parse_tproject_toml ~root_dir:base_dir uv_toml with
+        | Ok _ -> (try remove_path base_dir; false with _ -> false)
+        | Error msg ->
+            let cleanup = (try remove_path base_dir; true with _ -> false) in
+            cleanup && Test_helpers.contains msg "ambiguous");
+
+  test_pm "uv no version errors when pyproject.toml is missing" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let uv_toml = {|
+[project]
+name = "uv-project"
+
+[py-dependencies]
+resolver = "uv"
+workspace = "python"
+|} in
+        match Toml_parser.parse_tproject_toml ~root_dir:base_dir uv_toml with
+        | Ok _ -> (try remove_path base_dir; false with _ -> false)
+        | Error msg ->
+            let cleanup = (try remove_path base_dir; true with _ -> false) in
+            cleanup && Test_helpers.contains msg "requires-python' in workspace");
+
   print_newline ();
 
   (* ===================================================== *)
@@ -1149,7 +1354,7 @@ min_version = "0.51.0"
   test_pm "generate project flake with deps" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0"
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy"
       ~deps:[make_dep "stats" "https://github.com/t-lang/stats" "v0.51.0"] () in
     (* Check key parts are present *)
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
@@ -1167,7 +1372,7 @@ min_version = "0.51.0"
   test_pm "generate project flake no deps" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"empty" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[] () in
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
     has "t-lang.url" && not (has "tPackages"));
@@ -1184,7 +1389,7 @@ min_version = "0.51.0"
   test_pm "generate project flake with additional_tools" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       ~additional_tools:["pandoc"; "jq"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -1194,7 +1399,7 @@ min_version = "0.51.0"
   test_pm "generate project flake auto-provisions quarto extension" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       ~additional_tools:["quarto"; "jq"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -1209,7 +1414,7 @@ min_version = "0.51.0"
   test_pm "generate project flake with latex_pkgs" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       ~latex_pkgs:["amsmath"; "hyperref"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -1233,7 +1438,7 @@ min_version = "0.51.0"
   test_pm "invalid nix identifiers are rejected from additional_tools" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       ~warn_invalid_pkg_names:false
       ~additional_tools:["valid-pkg"; "$(evil)"; "valid_pkg2"; "bad pkg"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
@@ -1244,7 +1449,7 @@ min_version = "0.51.0"
   test_pm "generate project flake exposes runtime companion packages in dev shell" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"polyglot" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51.0" ~deps:[]
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       ~r_deps:["dplyr"]
       ~py_deps:["pandas"]
       ~py_version:"python314"
@@ -1258,6 +1463,25 @@ min_version = "0.51.0"
     && has "py-env = pkgs.python314.withPackages"
     && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
     && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"");
+
+  test_pm "generate project flake with uv Python resolver" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"uv-proj" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.51.0" ~uv2nix_commit:"102cb1ffb47c9f722633e947137f578874ea34cd"
+      ~deps:[]
+      ~py_version:"python314"
+      ~py_resolver:"uv"
+      ~py_workspace:"python"
+      () in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "pyproject-nix.url = \"github:pyproject-nix/pyproject.nix\""
+    && has "uv2nix.url = \"github:pyproject-nix/uv2nix/102cb1ffb47c9f722633e947137f578874ea34cd\""
+    && has "pyproject-build-systems.url = \"github:pyproject-nix/build-system-pkgs\""
+    && has "pyWorkspace = uv2nix.lib.workspace.loadWorkspace"
+    && has "workspaceRoot = ./. + \"/python\""
+    && has "py-env = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default"
+    && not (has "pkgs.python314.withPackages"));
 
   print_newline ();
 
@@ -1651,5 +1875,238 @@ second = pipeline {
     let res = Documentation_manager.validate_docs dir in
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
     match res with Error _ -> true | Ok _ -> false);
+
+  print_newline ();
+
+  (* ===================================================== *)
+  Printf.printf "Package Manager — Renv Resolver:\n";
+
+  test_pm "split_packages parses CRAN and GitHub/GitLab packages correctly" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-renv-valid" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)));
+    let ch = open_out (Filename.concat dir "renv.lock") in
+    output_string ch {|{
+  "R": {
+    "Version": "4.3.1",
+    "Repositories": [
+      {
+        "Name": "CRAN",
+        "URL": "https://cloud.r-project.org"
+      }
+    ]
+  },
+  "Packages": {
+    "digest": {
+      "Package": "digest",
+      "Version": "0.6.35",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "methods"
+      ],
+      "Hash": "cf5541604a11f2fc362a2656910609f0"
+    },
+    "mygitpkg": {
+      "Package": "mygitpkg",
+      "Version": "1.0.0",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteUsername": "user",
+      "RemoteRepo": "mygitpkg",
+      "RemoteRef": "main",
+      "RemoteSha": "abc1234def",
+      "Requirements": [
+        "digest"
+      ],
+      "Hash": "abc..."
+    },
+    "mygitlabpkg": {
+      "Package": "mygitlabpkg",
+      "Version": "1.0.0",
+      "Source": "GitLab",
+      "RemoteType": "gitlab",
+      "RemoteUsername": "gitlabuser",
+      "RemoteRepo": "mygitlabpkg",
+      "RemoteRef": "main",
+      "RemoteSha": "xyz9876abc",
+      "Requirements": [
+        "digest"
+      ],
+      "Hash": "xyz...",
+      "RemoteSubdir": "subdir-path"
+    }
+  }
+}|};
+    close_out ch;
+    let res = Renv_resolver.split_packages ~project_root:dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    match res with
+    | Ok (cran, git) ->
+      List.mem "digest" cran
+      && List.length git = 2
+      && List.exists (fun g -> g.Package_types.rgd_name = "mygitpkg" && g.rgd_git_url = "https://github.com/user/mygitpkg" && g.rgd_rev = "abc1234def" && g.rgd_cran_inputs = ["digest"] && g.rgd_git_inputs = [] && g.rgd_subdir = None) git
+      && List.exists (fun g -> g.Package_types.rgd_name = "mygitlabpkg" && g.rgd_git_url = "https://gitlab.com/gitlabuser/mygitlabpkg" && g.rgd_rev = "xyz9876abc" && g.rgd_cran_inputs = ["digest"] && g.rgd_git_inputs = [] && g.rgd_subdir = Some "subdir-path") git
+    | Error _ -> false);
+
+  test_pm "split_packages handles remotes with tags and user prefixes" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-renv-remotes" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)));
+    let ch = open_out (Filename.concat dir "renv.lock") in
+    output_string ch {|{
+  "Packages": {
+    "dep_pkg": {
+      "Package": "dep_pkg",
+      "Source": "GitHub",
+      "RemoteUsername": "user",
+      "RemoteRepo": "dep_pkg",
+      "RemoteSha": "hash1"
+    },
+    "main_pkg": {
+      "Package": "main_pkg",
+      "Source": "GitHub",
+      "RemoteUsername": "user",
+      "RemoteRepo": "main_pkg",
+      "RemoteSha": "hash2",
+      "Remotes": "github::user/dep_pkg@v1.0"
+    }
+  }
+}|};
+    close_out ch;
+    let res = Renv_resolver.split_packages ~project_root:dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    match res with
+    | Ok (_, git) ->
+      List.length git = 2
+      && List.exists (fun g -> g.Package_types.rgd_name = "main_pkg" && List.mem "dep_pkg" g.rgd_git_inputs && not (List.mem "dep_pkg" g.rgd_cran_inputs)) git
+    | Error _ -> false);
+
+  test_pm "split_packages returns error when renv.lock is missing" (fun () ->
+    match Renv_resolver.split_packages ~project_root:"/nonexistent_directory_foo_bar" with
+    | Error _ -> true
+    | Ok _ -> false);
+
+  test_pm "parse_r_git_dependencies warns on malformed inline tables" (fun () ->
+    let toml = {|
+[project]
+name = "test"
+
+[r-dependencies]
+bad_pkg = { git = "https://github.com/user/bad" } # missing rev
+packages = ["dplyr"]
+|} in
+    match Toml_parser.parse_tproject_toml toml with
+    | Ok cfg -> cfg.proj_r_git_dependencies = []
+    | Error _ -> false);
+
+  print_newline ();
+  Printf.printf "Package Manager — DESCRIPTION/NAMESPACE parser:\n";
+
+  let sample_description = {|
+Package: testpkg
+Title: A Test Package
+Version: 1.0.0
+Depends:
+    R (>= 3.5),
+    methods
+Imports:
+    dplyr (>= 1.0.0),
+    tidyr,
+    ggplot2
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+Remotes:
+    user/brotools,
+    gitlab::user/anotherpkg
+Description: A package used for testing.
+|} in
+
+  let sample_namespace = {|
+import(dplyr)
+importFrom(tidyr, pivot_longer, pivot_wider)
+import(ggplot2)
+importFrom(Rcpp, evalCpp)
+export(my_function)
+|} in
+
+  test_pm "parse_dcf_content extracts fields correctly" (fun () ->
+    let fields = R_description_resolver.parse_dcf_content sample_description in
+    let pkg = List.assoc_opt "Package" fields in
+    let vers = List.assoc_opt "Version" fields in
+    let imports = List.assoc_opt "Imports" fields in
+    pkg = Some "testpkg"
+    && vers = Some "1.0.0"
+    && (match imports with Some v -> String.contains v ',' | None -> false)
+  );
+
+  test_pm "parse_description_deps extracts Imports/Depends/LinkingTo" (fun () ->
+    let deps = R_description_resolver.parse_description_deps sample_description in
+    List.mem "dplyr" deps
+    && List.mem "tidyr" deps
+    && List.mem "ggplot2" deps
+    && List.mem "Rcpp" deps
+    && List.mem "RcppArmadillo" deps
+    && not (List.mem "R" deps)
+    && not (List.mem "methods" deps)
+  );
+
+  test_pm "parse_description_deps strips version specs" (fun () ->
+    let deps = R_description_resolver.parse_description_deps sample_description in
+    List.mem "dplyr" deps
+    && not (List.exists (fun d -> String.contains d '(') deps)
+  );
+
+  test_pm "parse_remotes_field extracts remote package names" (fun () ->
+    let fields = R_description_resolver.parse_dcf_content sample_description in
+    match R_description_resolver.get_dcf_field fields "Remotes" with
+    | Some remotes ->
+      let pkgs = R_description_resolver.parse_remotes_field remotes in
+      List.mem "brotools" pkgs && List.mem "anotherpkg" pkgs
+      && List.length pkgs = 2
+    | None -> false
+  );
+
+  test_pm "parse_namespace_deps extracts imports" (fun () ->
+    let deps = R_description_resolver.parse_namespace_deps sample_namespace in
+    List.mem "dplyr" deps
+    && List.mem "tidyr" deps
+    && List.mem "ggplot2" deps
+    && List.mem "Rcpp" deps
+    && List.length deps = 4
+  );
+
+  test_pm "parse empty DESCRIPTION returns no deps" (fun () ->
+    let deps = R_description_resolver.parse_description_deps "" in
+    deps = []
+  );
+
+  test_pm "parse empty NAMESPACE returns no deps" (fun () ->
+    let deps = R_description_resolver.parse_namespace_deps "" in
+    deps = []
+  );
+
+  test_pm "auto_detect_all returns deps unchanged when inputs already populated" (fun () ->
+    let dep : Package_types.r_git_dependency =
+      { rgd_name = "testpkg"; rgd_git_url = "https://example.com/testpkg"; rgd_rev = "abc123";
+        rgd_cran_inputs = ["dplyr"]; rgd_git_inputs = []; rgd_subdir = None }
+    in
+    let result = R_description_resolver.auto_detect_all ~cache_root:"/nonexistent" ~deps:[dep] in
+    match result with
+    | [d] -> d.rgd_cran_inputs = ["dplyr"] && d.rgd_git_inputs = []
+    | _ -> false
+  );
+
+  test_pm "parse_namespace_deps handles import(pkg, except = ...) and multi-parameter forms" (fun () ->
+    let ns = "import(pkg1, except = c(a, b))\nimport(pkg2, pkg3, except = a)\nimportFrom(pkg4, fun1, fun2)" in
+    let deps = R_description_resolver.parse_namespace_deps ns in
+    List.mem "pkg1" deps && List.mem "pkg2" deps && List.mem "pkg3" deps && List.mem "pkg4" deps && List.length deps = 4
+  );
+
+  test_pm "parse_remotes_field skips unsupported remote types" (fun () ->
+    let remotes = "github::user/repo, gitlab::user/repo2, url::https://example.com/repo, local::/path/to/repo, bioconductor::Biobase" in
+    let pkgs = R_description_resolver.parse_remotes_field remotes in
+    List.mem "repo" pkgs && List.mem "repo2" pkgs && List.length pkgs = 2
+  );
 
   print_newline ()

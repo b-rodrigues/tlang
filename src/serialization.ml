@@ -1,3 +1,5 @@
+exception JSONError of string
+
 let ensure_parent_dir path =
   let dir = Filename.dirname path in
   let rec ensure d =
@@ -233,25 +235,25 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
         ) names)
       )))
   | VPipeline _ ->
-      invalid_arg "value_to_yojson: VPipeline is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VPipeline is not supported for JSON serialization")
   | VMetaPipeline _ ->
-      invalid_arg "value_to_yojson: VMetaPipeline is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VMetaPipeline is not supported for JSON serialization")
   | VLambda _ ->
-      invalid_arg "value_to_yojson: VLambda is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VLambda is not supported for JSON serialization")
   | VBuiltin _ ->
-      invalid_arg "value_to_yojson: VBuiltin is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VBuiltin is not supported for JSON serialization")
   | VFormula _ ->
-      invalid_arg "value_to_yojson: VFormula is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VFormula is not supported for JSON serialization")
   | VNDArray _ ->
-      invalid_arg "value_to_yojson: VNDArray is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VNDArray is not supported for JSON serialization")
   | VIntent _ ->
-      invalid_arg "value_to_yojson: VIntent is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VIntent is not supported for JSON serialization")
   | VNode _ ->
-      invalid_arg "value_to_yojson: VNode is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VNode is not supported for JSON serialization")
   | VExpr _ ->
-      invalid_arg "value_to_yojson: VExpr is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VExpr is not supported for JSON serialization")
   | VComputedNode _ ->
-      invalid_arg "value_to_yojson: VComputedNode is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VComputedNode is not supported for JSON serialization")
   | VError err ->
       `Assoc [
         ("type", `String "VError");
@@ -292,10 +294,10 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
           | None -> `Null));
       ]
   | VFactor _ | VSerializer _ | VBuildLog _ | VPattern _ ->
-      invalid_arg "value_to_yojson: VFactor/VSerializer/VBuildLog/VPattern is not supported for JSON serialization"
+      raise (JSONError "value_to_yojson: VFactor/VSerializer/VBuildLog/VPattern is not supported for JSON serialization")
   | VNullNode -> `Null
   | VUnquote _ | VUnquoteSplice _ | VDynamicArg _ | VQuo _ | VEnv _ ->
-      invalid_arg "value_to_yojson: metaprogramming intermediate values are not serializable"
+      raise (JSONError "value_to_yojson: metaprogramming intermediate values are not serializable")
   | VLens l ->
       let rec lens_to_yojson = function
         | Ast.ColLens s -> `Assoc [("type", `String "ColLens"); ("name", `String s)]
@@ -423,7 +425,7 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
               | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
          | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)))
   | _ ->
-      invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
+      raise (JSONError ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j))
 
 and yojson_to_verror (j : Yojson.Safe.t) : Ast.value =
   match j with
@@ -456,12 +458,12 @@ and yojson_to_verror (j : Yojson.Safe.t) : Ast.value =
              | _ -> None
             in
             Ast.VError { code; message; context; location; na_count }
-       | _ ->
-           invalid_arg
-             ("yojson_to_verror: expected object with type=\"VError\", got: "
-              ^ Yojson.Safe.to_string j))
+        | _ ->
+            raise (JSONError
+              ("yojson_to_verror: expected object with type=\"VError\", got: "
+               ^ Yojson.Safe.to_string j)))
   | _ ->
-      invalid_arg ("yojson_to_verror: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
+      raise (JSONError ("yojson_to_verror: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j))
 
 let write_json path value =
   try
@@ -469,7 +471,9 @@ let write_json path value =
     let j = value_to_yojson value in
     Yojson.Safe.to_file path j;
     Ok ()
-  with exn -> Error (Printexc.to_string exn)
+  with 
+  | JSONError msg -> Error msg
+  | exn -> Error (Printexc.to_string exn)
 
 let read_json path =
   try
@@ -477,7 +481,9 @@ let read_json path =
     else
       let j = Yojson.Safe.from_file path in
       Ok (yojson_to_value j)
-  with exn -> Error (Printexc.to_string exn)
+  with 
+  | JSONError msg -> Error msg
+  | exn -> Error (Printexc.to_string exn)
 
 let read_verror_json path =
   try
@@ -485,7 +491,9 @@ let read_verror_json path =
     else
       let j = Yojson.Safe.from_file path in
       Ok (yojson_to_verror j)
-  with exn -> Error (Printexc.to_string exn)
+  with 
+  | JSONError msg -> Error msg
+  | exn -> Error (Printexc.to_string exn)
 
 (*
 --# Binary Serialization

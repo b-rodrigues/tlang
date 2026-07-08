@@ -367,7 +367,7 @@ let quantile_array xs p =
   if n = 0 then None
   else
     let sorted = Array.copy xs in
-    Array.sort compare sorted;
+    Array.sort Float.compare sorted;
     let h = p *. float_of_int (n - 1) in
     let lo = int_of_float (Float.floor h) in
     let hi = min (lo + 1) (n - 1) in
@@ -466,29 +466,34 @@ let solve_and_invert a b =
 (** Matrix multiplication A (m x n) * B (n x k) *)
 let mat_mul a b =
   let m = Array.length a in
-  let n = Array.length a.(0) in
-  let k = Array.length b.(0) in
-  let res = Array.make_matrix m k 0.0 in
-  for i = 0 to m - 1 do
-    for j = 0 to k - 1 do
-      for l = 0 to n - 1 do
-        res.(i).(j) <- res.(i).(j) +. a.(i).(l) *. b.(l).(j)
+  let nb = Array.length b in
+  if m = 0 || nb = 0 then [||]
+  else
+    let n = Array.length a.(0) in
+    let k = Array.length b.(0) in
+    let res = Array.make_matrix m k 0.0 in
+    for i = 0 to m - 1 do
+      for j = 0 to k - 1 do
+        for l = 0 to n - 1 do
+          res.(i).(j) <- res.(i).(j) +. a.(i).(l) *. b.(l).(j)
+        done
       done
-    done
-  done;
-  res
+    done;
+    res
 
 (** Matrix-vector multiplication A (m x n) * v (n) *)
 let mat_vec_mul a v =
   let m = Array.length a in
-  let n = Array.length a.(0) in
-  let res = Array.make m 0.0 in
-  for i = 0 to m - 1 do
-    for j = 0 to n - 1 do
-      res.(i) <- res.(i) +. a.(i).(j) *. v.(j)
-    done
-  done;
-  res
+  if m = 0 then [||]
+  else
+    let n = Array.length a.(0) in
+    let res = Array.make m 0.0 in
+    for i = 0 to m - 1 do
+      for j = 0 to n - 1 do
+        res.(i) <- res.(i) +. a.(i).(j) *. v.(j)
+      done
+    done;
+    res
 
 (** Dot product of two vectors *)
 let dot_product v1 v2 =

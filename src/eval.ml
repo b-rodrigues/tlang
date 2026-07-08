@@ -222,6 +222,11 @@ let last_pipeline_exprs : (string * Ast.expr) list option ref = ref None
 let last_evaluated_node_name : string option ref = ref None
 let current_node_suppression_requested = ref false
 
+(** Flag to signal that we are inside a pipeline block construction.
+    Functions like fetchurl check this to decide whether to create
+    a VNode (pipeline mode) or execute immediately (REPL mode). *)
+let pipeline_construction_mode = ref false
+
 let request_warning_suppression () =
   current_node_suppression_requested := true
 
@@ -1393,6 +1398,11 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       in
       let shell_args = lookup_list "shell_args" in
       let command = lookup_arg "command" (vexpr ((VNA NAGeneric))) in
+      let un_flake =
+        match List.assoc_opt (Some "flake") args with
+        | Some e -> (match eval_expr env_ref e with VString s -> Some s | VSymbol s -> Some s | _ -> None)
+        | None -> None
+      in
       (match lookup_env_vars (), lookup_runtime_args (), lookup_dependencies (), lookup_pattern (), lookup_iteration () with
       | Error err, _, _, _, _ | _, Error err, _, _, _ | _, _, Error err, _, _ | _, _, _, Error err, _ | _, _, _, _, Error err -> err
       | Ok un_env_vars, Ok un_args, Ok un_dependencies, Ok un_pattern, Ok un_iteration ->
@@ -1490,6 +1500,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_dependencies;
                       un_pattern;
                       un_iteration;
+                      un_flake;
                     }
                 | Value (VString _) | Value (VSymbol _) | Value ((VNA NAGeneric)) when runtime = "sh" ->
                     VNode {
@@ -1505,6 +1516,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_dependencies;
                       un_pattern;
                       un_iteration;
+                      un_flake;
                     }
                 | _ when Option.is_some un_script ->
                     VNode {
@@ -1520,6 +1532,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_dependencies;
                       un_pattern;
                       un_iteration;
+                      un_flake;
                     }
                 | _ ->
                     let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, .sh, or .qmd file." runtime in
@@ -1538,6 +1551,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_dependencies;
                   un_pattern;
                   un_iteration;
+                  un_flake;
                 }
 )
     | Call { fn; args } ->
@@ -1797,6 +1811,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     un_dependencies = None;
     un_pattern = None;
     un_iteration = "vector";
+    un_flake = None;
   } in
 
   let wrap_computed_node cn = {
@@ -1815,6 +1830,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     un_dependencies = None;
     un_pattern = None;
     un_iteration = "vector";
+    un_flake = cn.cn_flake;
   } in
 
   (* Desugar nodes into enriched structures with defaults.
@@ -1856,7 +1872,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                   fn_name (Ast.Utils.type_name other))))
     | None ->
         let is_node_call = match node_expr.node with
-          | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn"); _ }; _ }
+          | Call { fn = { node = Var ("node" | "pyn" | "rn" | "jln" | "qn" | "shn" | "fetchurl"); _ }; _ }
           | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
           | _ -> false
         in
@@ -1881,7 +1897,13 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
          | Ok (_, None) -> desugar_all acc rest)
   in
 
-  match desugar_all [] nodes with
+  let saved_pipeline_construction_mode = !pipeline_construction_mode in
+  pipeline_construction_mode := true;
+  let result = Fun.protect ~finally:(fun () ->
+    pipeline_construction_mode := saved_pipeline_construction_mode)
+    (fun () -> desugar_all [] nodes)
+  in
+  match result with
   | Error err -> err
   | Ok desugared_nodes ->
   
@@ -1972,17 +1994,17 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
           (match un.un_deserializer.node with Var "default" -> true | _ -> false)
       | None -> false (* External dependency — we don't know its runtime yet *)
     ) my_deps in
-    if offenders <> [] then
-      let offender = List.hd offenders in
-      let offender_runtime = match List.assoc_opt offender runtime_mapping with Some r -> r | None -> "Unknown" in
-      Some (Printf.sprintf "Node `%s` (%s) depends on `%s` (%s) but has no explicit deserializer."
-             name my_runtime offender offender_runtime)
-    else None
+    (match offenders with
+     | offender :: _ ->
+         let offender_runtime = match List.assoc_opt offender runtime_mapping with Some r -> r | None -> "Unknown" in
+         Some (Printf.sprintf "Node `%s` (%s) depends on `%s` (%s) but has no explicit deserializer."
+                name my_runtime offender offender_runtime)
+     | [] -> None)
   ) desugared_nodes in
 
-  if validation_errors <> [] then
-    Error.make_error StructuralError (List.hd validation_errors)
-  else begin
+  match validation_errors with
+  | first_err :: _ -> Error.make_error StructuralError first_err
+  | [] -> begin
   let new_p_exprs = List.map (fun (name, un) -> (name, un.un_command)) desugared_nodes in
   Ast.clear_pipeline_in_memory ~p_exprs:new_p_exprs;
 
@@ -2002,6 +2024,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
         cn_class = "Unknown";
         cn_dependencies = (match List.assoc_opt name deps with Some d -> d | None -> []);
         cn_p_exprs = Some new_p_exprs;
+        cn_flake = un.un_flake;
       }
     in
     let (results, diagnostics, _) = List.fold_left (fun (results, diagnostics, current_env_ref) name ->
@@ -2010,7 +2033,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
           un_serializer = Ast.mk_expr (Ast.Var "default"); un_deserializer = Ast.mk_expr (Ast.Var "default");
           un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
           un_functions = []; un_includes = []; un_noop = false; un_dependencies = None;
-          un_pattern = None; un_iteration = "vector" } in
+          un_pattern = None; un_iteration = "vector"; un_flake = None } in
       let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
       let (v, own_warnings) = capture_node_warnings (fun () -> eval_or_defer name un current_env_ref) in
       let node_diagnostics =
@@ -2056,6 +2079,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       p_has_patterns = List.exists (fun (_, un) -> Option.is_some un.un_pattern) desugared_nodes;
       p_patterns = List.filter_map (fun (name, un) -> match un.un_pattern with Some p -> Some (name, p) | None -> None) desugared_nodes;
       p_iterations = List.map (fun (name, un) -> (name, un.un_iteration)) desugared_nodes;
+      p_flakes = List.map (fun (name, un) -> (name, un.un_flake)) desugared_nodes;
     } in
     result
   end
@@ -2124,6 +2148,7 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
       un_dependencies = (match List.assoc_opt name prev.p_explicit_deps with Some d -> d | None -> None);
       un_pattern = (match List.assoc_opt name prev.p_patterns with Some p -> Some p | None -> None);
       un_iteration = (match List.assoc_opt name prev.p_iterations with Some it -> it | None -> "vector");
+      un_flake = (match List.assoc_opt name prev.p_flakes with Some f -> f | None -> None);
     })
   ) prev.p_exprs in
 
@@ -2140,17 +2165,19 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
            | Some missing -> 
                Error.make_error NameError (Printf.sprintf "Pipeline node `%s` depends on unknown identifier `%s`." name missing)
             | None ->
-               VComputedNode {
-                 cn_name = name; cn_runtime = un.un_runtime; cn_path = "<unbuilt>";
-                 cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.expr_to_string un.un_serializer);
-                 cn_class = "Unknown"; cn_dependencies = node_deps; cn_p_exprs = Some prev.p_exprs;
-               }
-          end else
-           VComputedNode {
-             cn_name = name; cn_runtime = un.un_runtime; cn_path = "<unbuilt>";
-             cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.expr_to_string un.un_serializer);
-             cn_class = "Unknown"; cn_dependencies = node_deps; cn_p_exprs = Some prev.p_exprs;
-           }
+                VComputedNode {
+                  cn_name = name; cn_runtime = un.un_runtime; cn_path = "<unbuilt>";
+                  cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.expr_to_string un.un_serializer);
+                  cn_class = "Unknown"; cn_dependencies = node_deps; cn_p_exprs = Some prev.p_exprs;
+                  cn_flake = un.un_flake;
+                }
+           end else
+            VComputedNode {
+              cn_name = name; cn_runtime = un.un_runtime; cn_path = "<unbuilt>";
+              cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.expr_to_string un.un_serializer);
+              cn_class = "Unknown"; cn_dependencies = node_deps; cn_p_exprs = Some prev.p_exprs;
+              cn_flake = un.un_flake;
+            }
     in
     let (results, diagnostics, _, _) = List.fold_left (fun (results, diagnostics, current_env_ref, changed) name ->
       let un = match List.assoc_opt name desugared_nodes with Some u -> u | None ->
@@ -2158,7 +2185,7 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
           un_serializer = Ast.mk_expr (Ast.Var "default"); un_deserializer = Ast.mk_expr (Ast.Var "default");
           un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
           un_functions = []; un_includes = []; un_noop = false; un_dependencies = None;
-          un_pattern = None; un_iteration = "vector" } in
+          un_pattern = None; un_iteration = "vector"; un_flake = None } in
       let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
       let deps_changed = List.exists (fun d -> List.mem d changed) node_deps in
       let fv = free_vars un.un_command in
@@ -2508,7 +2535,10 @@ and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field 
         (try
            match eval_expr (ref env) expr with
            | Ast.VList items ->
-               if index >= 0 && index < List.length items then snd (List.nth items index)
+               if index >= 0 then
+                 (match List.nth_opt items index with
+                  | Some (_, v) -> v
+                  | None -> Ast.VNA Ast.NAGeneric)
                else Ast.VNA Ast.NAGeneric
            | Ast.VVector arr ->
                if index >= 0 && index < Array.length arr then Array.get arr index
@@ -2536,6 +2566,7 @@ and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field 
       Ast.cn_class = "Unknown";
       Ast.cn_dependencies;
       Ast.cn_p_exprs = Some p.Ast.p_exprs;
+      Ast.cn_flake = None;
     })
   in
   match parse_branch_suffix field with
@@ -2698,20 +2729,22 @@ and get_pipeline_member p field =
              | Some e -> Nix_unparse.expr_to_string e
              | None -> "default"
            in
-           let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
-           let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
-           if is_noop then
-             Some (VSymbol (Printf.sprintf "<noop:%s>" field))
-           else
-               Some (VComputedNode (resolved_cn p {
-                 cn_name = field;
-                 cn_runtime;
-                 cn_path = "<unbuilt>";
-                 cn_serializer;
-                 cn_class = "Unknown";
-                 cn_dependencies;
-                 cn_p_exprs = Some p.p_exprs;
-               }))
+            let cn_dependencies = match List.assoc_opt field p.p_deps with Some d -> d | None -> [] in
+            let cn_flake = match List.assoc_opt field p.p_flakes with Some f -> f | None -> None in
+            let is_noop = match List.assoc_opt field p.p_noops with Some b -> b | None -> false in
+            if is_noop then
+              Some (VSymbol (Printf.sprintf "<noop:%s>" field))
+            else
+                Some (VComputedNode (resolved_cn p {
+                  cn_name = field;
+                  cn_runtime;
+                  cn_path = "<unbuilt>";
+                  cn_serializer;
+                  cn_class = "Unknown";
+                  cn_dependencies;
+                  cn_p_exprs = Some p.p_exprs;
+                  cn_flake;
+                }))
         | None ->
             (* Check if this is a patterned node that expands into branches *)
             (match List.assoc_opt field p.p_patterns with
@@ -3609,6 +3642,20 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                  ~location:(source_location ~file:filename pos)
                  SyntaxError
                  (Printf.sprintf "Import parse error in '%s'" filename),
+               env)
+          | Ast.Mixed_bracket_form ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 "Mixed bracket literal (found both single elements and key-value pairs)",
+               env)
+          | Ast.Invalid_match_pattern msg ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 msg,
                env))
         with
         | Sys_error msg ->
@@ -3681,6 +3728,20 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                  ~location:(source_location ~file:filename pos)
                  SyntaxError
                  (Printf.sprintf "Import parse error in '%s'" filename),
+               env)
+          | Ast.Mixed_bracket_form ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 "Mixed bracket literal (found both single elements and key-value pairs)",
+               env)
+          | Ast.Invalid_match_pattern msg ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 msg,
                env))
         with
         | Sys_error msg ->

@@ -273,15 +273,23 @@ let required_for_pipeline (p : Ast.pipeline_result) =
     empty_requirements
     p.p_exprs
 
+let required_serializer_packages (p : Ast.pipeline_result) : string list * string list =
+  let req = required_for_pipeline p in
+  (String_set.elements req.r_deps, String_set.elements req.py_deps)
+
 let analyze_missing_requirements (p : Ast.pipeline_result) (cfg : project_config) =
   let required = required_for_pipeline p in
   let missing_from required_list existing_list =
     String_set.diff required_list (add_list String_set.empty existing_list)
     |> String_set.elements
   in
+  let r_git_names = List.map (fun (g : Package_types.r_git_dependency) -> g.rgd_name) cfg.proj_r_git_dependencies in
+  let existing_r = cfg.proj_r_dependencies @ r_git_names in
   {
-    missing_r_deps = missing_from required.r_deps cfg.proj_r_dependencies;
-    missing_py_deps = missing_from required.py_deps cfg.proj_py_dependencies;
+    missing_r_deps = missing_from required.r_deps existing_r;
+    missing_py_deps =
+      if cfg.proj_py_resolver = "uv" then []
+      else missing_from required.py_deps cfg.proj_py_dependencies;
     missing_julia_deps = missing_from required.julia_deps cfg.proj_julia_dependencies;
     missing_additional_tools =
       missing_from required.additional_tools cfg.proj_additional_tools;
@@ -439,9 +447,20 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
     match read_file tproject_path with
     | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)
     | Ok content ->
-        (match Toml_parser.parse_tproject_toml content with
+        (match Toml_parser.parse_tproject_toml ~root_dir:project_root content with
          | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
          | Ok cfg ->
+              let cfg =
+                if cfg.proj_r_resolver = "renv" then
+                  match Renv_resolver.split_packages ~project_root with
+                  | Ok (renv_cran, renv_git) ->
+                    { cfg with
+                      proj_r_dependencies = cfg.proj_r_dependencies @ renv_cran;
+                      proj_r_git_dependencies = cfg.proj_r_git_dependencies @ renv_git;
+                    }
+                  | Error _ -> cfg
+                else cfg
+              in
              let analysis = analyze_missing_requirements p cfg in
              if analysis_is_empty analysis then
                Ok ()

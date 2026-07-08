@@ -8,6 +8,20 @@ type dependency = {
   tag : string;
 }
 
+(** A git-hosted R package dependency (installed from a git repository).
+    [rgd_rev] must be a full git commit SHA, as required by [builtins.fetchGit].
+    [rgd_cran_inputs] lists the CRAN dependencies.
+    [rgd_git_inputs] lists the sibling git dependencies.
+    [rgd_subdir] is an optional subdirectory path for monorepos. *)
+type r_git_dependency = {
+  rgd_name : string;
+  rgd_git_url : string;
+  rgd_rev : string;
+  rgd_cran_inputs : string list;
+  rgd_git_inputs : string list;
+  rgd_subdir : string option;
+}
+
 (** Package metadata parsed from DESCRIPTION.toml *)
 type package_config = {
   name : string;
@@ -29,8 +43,12 @@ type project_config = {
   proj_description : string;
   proj_dependencies : dependency list;
   proj_r_dependencies : string list;
+  proj_r_git_dependencies : r_git_dependency list;
+  proj_r_resolver : string;
   proj_py_dependencies : string list;
   proj_py_version : string;
+  proj_py_resolver : string;
+  proj_py_workspace : string;
   proj_julia_dependencies : string list;
   proj_julia_version : string;
   proj_visualization_tool : string;
@@ -94,8 +112,12 @@ let default_project_config name = {
   proj_description = "A T data analysis project";
   proj_dependencies = [];
   proj_r_dependencies = [];
+  proj_r_git_dependencies = [];
+  proj_r_resolver = "nixpkgs";
   proj_py_dependencies = [];
   proj_py_version = "python314";
+  proj_py_resolver = "nixpkgs";
+  proj_py_workspace = "python";
   proj_julia_dependencies = [];
   proj_julia_version = "lts";
   proj_visualization_tool = "";

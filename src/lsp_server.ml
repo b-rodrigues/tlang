@@ -171,8 +171,12 @@ module Server = struct
        let analysis = Analyzer.analyze program scope in
        definitions := analysis.definitions
        with
-       | Parser.Error ->
-          diagnostics := [ diagnostic_at_lexeme lexbuf "Syntax error" ]
+        | Parser.Error ->
+           diagnostics := [ diagnostic_at_lexeme lexbuf "Syntax error" ]
+        | Ast.Mixed_bracket_form ->
+           diagnostics := [ diagnostic_at_lexeme lexbuf "Mixed bracket literal (found both single elements and key-value pairs)" ]
+        | Ast.Invalid_match_pattern msg ->
+           diagnostics := [ diagnostic_at_lexeme lexbuf msg ]
       | Lexer.SyntaxError msg ->
           diagnostics :=
             [ diagnostic_at_lexeme lexbuf (Printf.sprintf "Lexer error: %s" msg) ]

@@ -911,6 +911,51 @@ conversion for scalars, lists, and dictionaries.</p>
 <p><strong>Returns:</strong></p>
 <p><code>Any</code> — The deserialized value</p>
 <hr />
+<h3
+id="fetchurlurl-sha256-output-dest"><code>fetchurl(url, sha256?, output?, dest?)</code></h3>
+<p>Downloads a file from a URL. In the REPL, wraps curl for immediate
+download. Inside a pipeline, creates a node that uses Nix’s
+<code>builtins.fetchurl</code> to fetch the asset into the Nix store,
+making it available downstream.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>url</code> — The URL to download (String)</li>
+<li><code>sha256</code> (optional) — Expected SHA-256 hash (String).
+Required in pipeline mode.</li>
+<li><code>output</code> (optional) — Output file path for REPL mode
+(String). Defaults to basename of URL.</li>
+<li><code>dest</code> (optional) — Output directory for REPL mode
+(String). Defaults to current directory.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> (REPL mode) — The path to the downloaded file.
+<code>Node</code> (pipeline mode) — A pipeline node configured to fetch
+the URL via Nix.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>-- REPL mode: download to current directory
+data = fetchurl(&quot;https://example.com/data.csv&quot;, output = &quot;data.csv&quot;)
+
+-- Pipeline mode: fetch via Nix builtins.fetchurl
+p = pipeline {
+  raw = fetchurl(&quot;https://example.com/data.csv&quot;, sha256 = &quot;abc123...&quot;);
+  result = read_csv(raw) |&gt; mutate(...);
+}
+build_pipeline(p)</code></pre>
+<hr />
+<h3 id="prefetchurl"><code>prefetch(url)</code></h3>
+<p>Downloads a URL and computes its SHA-256 hash. Useful for obtaining
+the hash needed by <code>fetchurl</code> in pipeline mode.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>url</code> — The URL to prefetch (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> — The SHA-256 hex digest of the downloaded
+content.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>hash = prefetch(&quot;https://example.com/data.csv&quot;)
+print(hash)  -- e.g. &quot;abc123...&quot;</code></pre>
+<hr />
 <h2 id="math-package">Math Package</h2>
 <p>Mathematical functions operating on scalars and vectors. Most
 functions are vectorized over Collections.</p>
@@ -2066,7 +2111,7 @@ format.</li>
 pipeline_report(p, target = &quot;web&quot;, file = &quot;report.html&quot;)</code></pre>
 <hr />
 <h3
-id="nodecommand-script-na-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-na-shell_args-functions-include-noop-false"><code>node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)</code></h3>
+id="nodecommand-script-na-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-na-shell_args-functions-include-noop-false-flake-na"><code>node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure execution settings such as the runtime and custom
 serialized methods for a pipeline node.</p>
 <p><strong>Parameters:</strong></p>
@@ -2094,6 +2139,18 @@ execution.</li>
 sandbox.</li>
 <li><code>noop</code> (optional) — Whether to skip execution and
 generate a stub.</li>
+<li><code>flake</code> (optional) — A Nix flake reference
+(e.g. <code>github:b-rodrigues/tlang</code>,
+<code>path:../test_flake</code>) to use for this node’s build
+environment. Each runtime component (t-lang binary, R packages, Julia
+path, nixpkgs) resolves independently from the custom flake when
+available, falling back to the project-level binding otherwise.
+<strong>Project-level package declarations from
+<code>tproject.toml</code> (<code>[r-dependencies]</code>,
+<code>[py-dependencies]</code>, <code>[jl-dependencies]</code>) are
+still installed in per-node flake environments, built from the custom
+flake’s nixpkgs.</strong> Default: <code>NA</code> (use project
+flake).</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>A pipeline node configuration object (<code>NodeDef</code>). Must be
@@ -2111,9 +2168,9 @@ include = &quot;config.yml&quot;
 }</code></pre>
 <hr />
 <h3
-id="pycommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="pycommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <h3
-id="pyncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="pyncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a Python Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Python"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Python code.</p>
@@ -2133,6 +2190,12 @@ execution.</li>
 sandbox.</li>
 <li><code>noop</code> (optional) — Whether to skip execution and
 generate a stub. Default: <code>false</code>.</li>
+<li><code>flake</code> (optional) — A Nix flake reference
+(e.g. <code>github:b-rodrigues/tlang</code>,
+<code>path:../test_flake</code>) to use for this node’s build
+environment. Each runtime component resolves independently from the
+custom flake when available, falling back to the project-level binding
+otherwise. Default: <code>NA</code> (use project flake).</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>A pipeline node configuration object (<code>NodeDef</code>). Must be
@@ -2141,7 +2204,7 @@ the Python code is executed by the pipeline builder, not
 immediately.</p>
 <hr />
 <h3
-id="rncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="rncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure an R Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "R"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute R code.</p>
@@ -2161,6 +2224,12 @@ execution.</li>
 sandbox.</li>
 <li><code>noop</code> (optional) — Whether to skip execution and
 generate a stub. Default: <code>false</code>.</li>
+<li><code>flake</code> (optional) — A Nix flake reference
+(e.g. <code>github:b-rodrigues/tlang</code>,
+<code>path:../test_flake</code>) to use for this node’s build
+environment. Each runtime component resolves independently from the
+custom flake when available, falling back to the project-level binding
+otherwise. Default: <code>NA</code> (use project flake).</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>A pipeline node configuration object (<code>NodeDef</code>). Must be
@@ -2168,7 +2237,7 @@ used as a named binding inside a <code>pipeline { ... }</code> block;
 the R code is executed by the pipeline builder, not immediately.</p>
 <hr />
 <h3
-id="jlncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="jlncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a Julia Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Julia"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Julia code.</p>
@@ -2192,6 +2261,12 @@ execution.</li>
 sandbox.</li>
 <li><code>noop</code> (optional) — Whether to skip execution and
 generate a stub. Default: <code>false</code>.</li>
+<li><code>flake</code> (optional) — A Nix flake reference
+(e.g. <code>github:b-rodrigues/tlang</code>,
+<code>path:../test_flake</code>) to use for this node’s build
+environment. Each runtime component resolves independently from the
+custom flake when available, falling back to the project-level binding
+otherwise. Default: <code>NA</code> (use project flake).</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>A pipeline node configuration object (<code>NodeDef</code>). Must be
@@ -2199,7 +2274,7 @@ used as a named binding inside a <code>pipeline { ... }</code> block;
 the Julia code is executed by the pipeline builder, not immediately.</p>
 <hr />
 <h3
-id="qnscript-na-serializer-default-deserializer-default-env_vars-args-functions-include-noop-false"><code>qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false)</code></h3>
+id="qnscript-na-serializer-default-deserializer-default-env_vars-args-functions-include-noop-false-flake-na"><code>qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a Quarto pipeline node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Quarto"</code>. Use it to
 render <code>.qmd</code> files inside <code>pipeline { ... }</code>
@@ -2224,6 +2299,12 @@ execution.</li>
 sandbox.</li>
 <li><code>noop</code> (optional) — Whether to skip execution and
 generate a stub. Default: <code>false</code>.</li>
+<li><code>flake</code> (optional) — A Nix flake reference
+(e.g. <code>github:b-rodrigues/tlang</code>,
+<code>path:../test_flake</code>) to use for this node’s build
+environment. Each runtime component resolves independently from the
+custom flake when available, falling back to the project-level binding
+otherwise. Default: <code>NA</code> (use project flake).</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>A pipeline node configuration object (<code>NodeDef</code>). Must be
@@ -2232,7 +2313,7 @@ the Quarto document is rendered by the pipeline builder, not
 immediately.</p>
 <hr />
 <h3
-id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false"><code>shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)</code></h3>
+id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false-flake-na"><code>shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a shell pipeline node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "sh"</code>. Use it for CLI
 tools, inline shell scripts, and <code>.sh</code> files inside
@@ -2263,6 +2344,12 @@ the sandbox before execution.</li>
 sandbox.</li>
 <li><code>noop</code> (optional) — Whether to skip execution and
 generate a stub. Default: <code>false</code>.</li>
+<li><code>flake</code> (optional) — A Nix flake reference
+(e.g. <code>github:b-rodrigues/tlang</code>,
+<code>path:../test_flake</code>) to use for this node’s build
+environment. Each runtime component resolves independently from the
+custom flake when available, falling back to the project-level binding
+otherwise. Default: <code>NA</code> (use project flake).</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>A pipeline node configuration object (<code>NodeDef</code>). Must be

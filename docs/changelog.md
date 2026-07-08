@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.54.0] - 2026-07-08
+
+### Pipeline & Diagnostics
+
+- **SoftFailed Node Classification**: Fixed `diagnostics.summary` not counting soft-failed nodes that carry captured errors. Previously the `SoftFailed` error class was overwritten with the raw error code string during log parsing, making those nodes invisible to diagnostics. The original `VError` class is now preserved correctly.
+- **No-op Cached Build Tracking**: Fixed build log tracking for fully cached builds. Building a pipeline when all nodes are cached now correctly writes the build log, preventing downstream failures when querying build diagnostics or artifacts.
+- **Cold-Start Build Warning**: Added a plain-text warning during pipeline builds using per-node flakes or UV workspaces to alert the user of one-time compilation/download costs. The warning is shown at most once per REPL session to prevent noise.
+
+### Code Safety & Runtime Robustness
+
+- **Scientific Float Notation Support**: Parser and lexer now support standard scientific notation for floating-point literals (e.g. `1e-5`, `3.14e+2`, `2.7E-3`).
+- **String Escape Sequence Validation**: The string parser now validates escape sequences at parse time, throwing a clear syntax error for invalid or unrecognized escape sequences.
+- **Hex Byte Escape (`\xHH`)**: String literals now support `\x` followed by exactly two hexadecimal digits (e.g. `"\x48\x69"` → `"Hi"`), enabling embedding of arbitrary byte sequences.
+- **Precision Floating-Point Calculations**: Replaced polymorphic comparisons with epsilon-based tolerance checks (`Float.abs v < 1e-15`) and `Float.compare` in statistical packages (e.g., `mean`, `sd`, `lm`), eliminating silent precision corruption.
+- **Safe Vector & List Slicing**: Added strict bounds checking for all list and vector index operations, preventing silent errors or partial function failures.
+- **Detailed Package Manager Error Diagnostics**: Upgraded remote repository check (`git ls-remote`) and dependency upgrade error handling to report specific system warnings and write failures rather than generic error messages.
+
+
+### Per-Node Flake Replacement
+
+- **`flake` named argument for pipeline nodes**: `node()`, `rn()`, `pyn()`, `jln()`, `qn()`, `shn()` and their shorthand variants now accept an optional `flake` parameter to specify a custom Nix flake for that node's build environment.
+- **Selective replacement with fallback**: Each runtime component is resolved independently from the custom flake when available, otherwise falls back to the project-level binding. This allows flakes that provide only R infrastructure (e.g. `jbedo/rshells`) to coexist with T's project-level serialization infrastructure.
+- **Supported flake references**: `github:owner/repo`, `gitlab:owner/repo`, `sourcehut:owner/repo`, `path:/abs/path`, and `path:../relative/path`.
+- **Backward compatible**: Nodes without a `flake` argument are unchanged — project-level environment bindings are aliased so existing pipelines require no modifications.
+- **Automatic Serializer Package Injection**: R and Python serializer packages (e.g., `jsonlite`, `arrow`, `deepdiff`, etc.) are now automatically injected into both project-level and per-node flake environments at build time, so users no longer need to explicitly list them in `tproject.toml`.
+- **Isolated Environment for Per-Node Python Flakes**: Node environments with a custom flake now cleanly isolate Python dependencies. They use the flake's Nixpkgs (falling back from the project's Python version to `python3` if not found) and receive only the automatically-injected serializer packages, ignoring the project's own package list or UV workspace.
+- **`debug_node()` Environment Isolation**: Fixed parent environment variables (like `PYTHONPATH` or Nix-develop variables) leaking into `debug_node()` subshells when debugging nodes with custom flakes. Subshells now run with clean, isolated environments containing only essential Nix, dynamic linker, locale, proxy, and terminal settings. Surfaced warnings to `stderr` if the flake environment fails to load.
+
+### Optional UV/uv2nix Python Environments
+
+- **UV resolver opt-in**: Projects can set `[py-dependencies].resolver = "uv"` and point `workspace` at a locked UV project directory (default `"python"`). When enabled, Python dependencies are declared in `pyproject.toml` and locked via `uv.lock` instead of `[py-dependencies].packages`.
+- **uv2nix flake integration**: Running `t update` generates uv2nix/pyproject.nix flake inputs (`pyproject-nix`, `uv2nix`, `pyproject-build-systems`) and builds the Python environment as a Nix virtual environment via `pySet.mkVirtualEnv`, avoiding mixed dependency resolution between nixpkgs and PyPI.
+- **Pipeline runtime support**: The pipeline Nix emitter reads `pyResolver` from `tproject.toml` at build time and emits the corresponding uv2nix environment (or falls back to the nixpkgs `withPackages` path). Python pipeline nodes work unchanged regardless of resolver choice.
+- **Validation**: Setting `resolver = "uv"` and `packages` simultaneously is rejected with a clear error. Only `"nixpkgs"` and `"uv"` are valid resolver values.
+- **Pinned `uv2nix` Commit**: Pinned the default `uv2nix` input URL to a specific, reproducible git commit hash (`102cb1ffb47c9f722633e947137f578874ea34cd`) via a compile-time constant rather than using a floating branch reference.
+
+### R Dependency Management — renv.lock Resolver & Git Packages
+
+- **renv.lock resolver**: Projects can set `[r-dependencies].resolver = "renv"` to auto-discover R dependencies from `renv.lock`. CRAN packages from `Repository`/`Bioconductor` entries are mapped to `pkgs.rPackages.*`, and GitHub/GitLab packages are fetched via `builtins.fetchGit` using `RemoteHost`, `RemoteUsername`, `RemoteRepo`, and `RemoteSha` fields.
+- **Remote field resolution**: The `Remotes` field in renv.lock entries is parsed — `user/repo` strings are matched against packages in the lock file and injected as `buildInputs` of the declaring git package. Supported remote hosts: `api.github.com` and `gitlab.com`. Other sources produce a warning and are skipped. Base R packages (`R`, `methods`, `stats`, etc.) are automatically filtered out.
+- **Git R packages in tproject.toml**: R packages from remote Git repositories can be declared directly in `[r-dependencies]` (e.g., `my_pkg = { git = "https://...", rev = "full-sha" }`) and are merged with renv-discovered git packages when using the renv resolver.
+- **Pipeline runtime support**: The pipeline Nix emitter reads `r_renv_cran_pkgs` and `r_git_pkgs` at build time, generating the appropriate Nix expressions for renv-discovered CRAN packages alongside the traditional `rPackagesList` in every R environment (`mkNodeEnv` and `projectREnv`).
+- **Dependency analysis integration**: When `resolver = "renv"` is set, the dependency checker merges renv.lock CRAN packages into the analysis so requirement checks pass without an explicit `packages` list in `tproject.toml`.
+
+### Reproducible URL Downloading
+
+- **`fetchurl(url, sha256, output, dest)`**: Downloads a file from a URL with reproducibility guarantees. In REPL mode, uses `curl` to download (optional `output`/`dest` for the save path). In pipeline mode, generates a `builtins.fetchurl` Nix derivation with the required `sha256` hash for content-addressable caching. The downloaded artifact is accessible at `p.node_name.path` after building.
+- **`prefetch(url)`**: Downloads a URL and returns its SHA-256 hash, usable as the `sha256` argument to `fetchurl`. Enables a two-step workflow: compute the hash upfront, then pin it in a pipeline for reproducible builds.
+
 ## [0.53.3] - 2026-06-26
 
 ### Toolchain & CI Updates

@@ -478,9 +478,10 @@ let computed_node_from_registry node_name =
                 cn_path = artifact_path;
                 cn_serializer = "default";
                 cn_class = class_name;
-                cn_dependencies = [];
-                cn_p_exprs = None;
-              })
+                 cn_dependencies = [];
+                 cn_p_exprs = None;
+                 cn_flake = None;
+               })
   | _ ->
       match Builder_logs.get_logs () with
       | [] ->
@@ -524,6 +525,7 @@ let build_ephemeral_plot_node node_name (un : unbuilt_node) =
       p_has_patterns = Option.is_some un.un_pattern;
       p_patterns = (match un.un_pattern with Some p -> [ (node_name, p) ] | None -> []);
       p_iterations = [ (node_name, un.un_iteration) ];
+      p_flakes = [ (node_name, un.un_flake) ];
     }
   in
   match Builder.populate_pipeline ~build:true pipeline with

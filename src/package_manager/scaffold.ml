@@ -25,26 +25,33 @@ let create_dir path =
     @param content The text content to write. *)
 let write_file path content =
   let ch = open_out path in
-  output_string ch content;
-  close_out ch
+  Fun.protect
+    ~finally:(fun () -> close_out_noerr ch)
+    (fun () -> output_string ch content)
 
 let discover_agents_dir () =
   let is_existing_dir p = Sys.file_exists p && Sys.is_directory p in
   match Sys.getenv_opt "TLANG_AGENTS_DIR" with
   | Some d when is_existing_dir d -> Some d
   | _ ->
-      let exe_dir = Filename.dirname Sys.executable_name in
-      let share_dir = Filename.concat (Filename.dirname exe_dir) "share/tlang/agents" in
-      if is_existing_dir "agents" then Some "agents"
-      else if is_existing_dir share_dir then Some share_dir
+      let share_dir =
+        Filename.concat
+          (Filename.concat
+             (Filename.dirname (Filename.dirname (Sys.argv.(0))))
+             "share")
+          "tlang/agents"
+      in
+      if is_existing_dir share_dir then Some share_dir
+      else if is_existing_dir "agents" then Some "agents"
       else None
 
 let append_to_gitignore dir line =
   let gitignore_path = Filename.concat dir ".gitignore" in
   try
     let out = open_out_gen [Open_append; Open_creat] 0o644 gitignore_path in
-    output_string out (line ^ "\n");
-    close_out out
+    Fun.protect
+      ~finally:(fun () -> close_out_noerr out)
+      (fun () -> output_string out (line ^ "\n"))
   with Sys_error _ -> ()
 
 let copy_text_file src_path dest_path =
@@ -108,14 +115,44 @@ let copy_agent_files dir is_package context =
     let gitignore_path = Filename.concat dir ".gitignore" in
     try
       let out = open_out_gen [Open_append; Open_creat] 0o644 gitignore_path in
-      output_string out "\n# AI Agent Context Reference\nT-LANGUAGE-REFERENCE.md\n";
-      close_out out;
+      Fun.protect
+        ~finally:(fun () -> close_out_noerr out)
+        (fun () -> output_string out "\n# AI Agent Context Reference\nT-LANGUAGE-REFERENCE.md\n");
       true
     with Sys_error _ -> false
   end else begin
     Printf.eprintf "Warning: Could not create AGENTS.md or T-LANGUAGE-REFERENCE.md from installed/local templates.\n";
     false
   end
+
+(** Copy the bundled agent Skill (SKILL.md) that gives AI agents a fast,
+    example-driven playbook for common T tasks, as a companion to AGENTS.md
+    and T-LANGUAGE-REFERENCE.md. Lands at .claude/skills/<name>/SKILL.md so
+    Claude Code (and other Skill-aware agents) discover it automatically.
+
+    @param dir The destination directory.
+    @param is_package [true] for package setups, [false] for projects.
+    @return [true] if successful, [false] otherwise. *)
+let copy_skill_file dir is_package =
+  let skill_name = if is_package then "t-package" else "t-project" in
+  let src_name = "skill-" ^ skill_name ^ ".md" in
+  match discover_agents_dir () with
+  | None -> false
+  | Some agents_dir ->
+      let src_path = Filename.concat agents_dir src_name in
+      if not (Sys.file_exists src_path) then begin
+        Printf.eprintf "Warning: Skill template not found: %s\n" src_path;
+        false
+      end else begin
+        let skill_dir =
+          Filename.concat
+            (Filename.concat (Filename.concat dir ".claude") "skills")
+            skill_name
+        in
+        create_dir skill_dir;
+        let dest_path = Filename.concat skill_dir "SKILL.md" in
+        copy_text_file src_path dest_path
+      end
 
 let default_tlang_tag = "v" ^ Version.version
 
@@ -707,6 +744,7 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         write_file (Filename.concat dir "docs/index.md") (Printf.sprintf "# %s\n\nPackage documentation.\n" opts.target_name);
         (* Agent files *)
         let _ = copy_agent_files dir true opts.agent_context in
+        let _ = copy_skill_file dir true in
         (* Git init *)
         if not opts.no_git then git_init dir;
         (* Success message *)
@@ -723,8 +761,10 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  ├── tests/\n";
         Printf.printf "  │   └── test-%s.t\n" opts.target_name;
         Printf.printf "  ├── examples/\n";
-        Printf.printf "  └── docs/\n";
-        Printf.printf "      └── index.md\n";
+        Printf.printf "  ├── docs/\n";
+        Printf.printf "  │   └── index.md\n";
+        Printf.printf "  └── .claude/skills/t-package/\n";
+        Printf.printf "      └── SKILL.md\n";
         Printf.printf "\nNext steps:\n";
         Printf.printf "  cd %s\n" dir;
         Printf.printf "  nix develop           # Enter development shell\n";
@@ -852,6 +892,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
           ~project_name:opts.target_name
           ~nixpkgs_date:opts.nixpkgs_date
           ~t_version:tlang_version
+          ~uv2nix_commit:Uv2nix_commit.commit
           ~deps:[]
           ~use_atelier:opts.use_atelier () in
         write_file (Filename.concat dir "flake.nix") flake_content;
@@ -863,6 +904,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         let _ = write_project_pipeline dir opts sub in
         (* Agent files *)
         let _ = copy_agent_files dir false opts.agent_context in
+        let _ = copy_skill_file dir false in
         (* Git init *)
         if not opts.no_git then git_init dir;
         (* Success message *)
@@ -877,7 +919,9 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  │   └── pipeline.t\n";
         Printf.printf "  ├── data/\n";
         Printf.printf "  ├── outputs/\n";
-        Printf.printf "  └── tests/\n";
+        Printf.printf "  ├── tests/\n";
+        Printf.printf "  └── .claude/skills/t-project/\n";
+        Printf.printf "      └── SKILL.md\n";
         Printf.printf "\nNext steps:\n";
         Printf.printf "  cd %s\n" dir;
         Printf.printf "  nix develop           # Enter reproducible environment\n";

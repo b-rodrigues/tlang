@@ -110,8 +110,13 @@ let register env =
           with
           | Sys_error msg ->
             Error.make_error FileError (Printf.sprintf "read_file: %s" msg)
+          | End_of_file ->
+            Error.make_error FileError "read_file: End of file"
+          | Invalid_argument msg ->
+            Error.make_error FileError (Printf.sprintf "read_file invalid argument: %s" msg)
+          | Out_of_memory | Stack_overflow as e -> raise e
           | exn ->
-            Error.make_error FileError (Printf.sprintf "read_file: %s" (Printexc.to_string exn)))
+            Error.make_error FileError (Printf.sprintf "read_file unexpected error: %s" (Printexc.to_string exn)))
       | [(_, other)] ->
           Error.type_error (Printf.sprintf "Function `read_file` expects a String, got %s." (Utils.type_name other))
       | _ -> Error.arity_error_named "read_file" 1 (List.length args)

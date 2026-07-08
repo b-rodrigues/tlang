@@ -24,10 +24,12 @@
 
 open Ast
 
+exception BranchIndexError of string
+
 let value_length (v : value) : int =
   match v with
   | VList items -> List.length items
-  | VVector items -> Array.length items
+  | VVector arr -> Array.length arr
   | VDataFrame df -> Arrow_table.num_rows df.arrow_table
   | _ -> 1
 
@@ -197,14 +199,9 @@ let make_branch (name : string) (orig_name : string) (i : int) (value_idx : int)
     un_dependencies = None;
     un_pattern = None;
     un_iteration = "vector";
+    un_flake = None;
   }}
 
-let value_length (v : value) : int =
-  match v with
-  | VList items -> List.length items
-  | VVector arr -> Array.length arr
-  | VDataFrame df -> Arrow_table.num_rows df.arrow_table
-  | _ -> 1
 
 let process_map
     ?(expanded_map : (string * string list) list = [])
@@ -395,7 +392,7 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
         let deps = pattern_dep_names name in
         Hashtbl.replace in_degree name (List.length deps);
         List.iter (fun dep ->
-          Hashtbl.replace dependents dep (name :: Hashtbl.find dependents dep)
+          Hashtbl.replace dependents dep (name :: (match Hashtbl.find_opt dependents dep with Some l -> l | None -> []))
         ) deps
       ) p.p_patterns;
       let queue = Queue.create () in
@@ -407,10 +404,10 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
         let name = Queue.pop queue in
         result := name :: !result;
         List.iter (fun dependent ->
-          let new_deg = Hashtbl.find in_degree dependent - 1 in
+          let new_deg = (match Hashtbl.find_opt in_degree dependent with Some d -> d | None -> 0) - 1 in
           Hashtbl.replace in_degree dependent new_deg;
           if new_deg = 0 then Queue.push dependent queue
-        ) (Hashtbl.find dependents name)
+        ) (match Hashtbl.find_opt dependents name with Some l -> l | None -> [])
       done;
       if List.length !result <> List.length p.p_patterns then
         Error (Error.make_error StructuralError
@@ -495,7 +492,13 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
               | Some deps ->
                   let updated = List.map (fun dep ->
                     match List.find_opt (fun (orig, _) -> orig = dep) !expanded_map with
-                    | Some (_, branch_names) -> List.nth branch_names (dep_index_for_branch b dep)
+                    | Some (_, branch_names) ->
+                       (match List.nth_opt branch_names (dep_index_for_branch b dep) with
+                        | Some name -> name
+                        | None -> raise (BranchIndexError
+                            (Printf.sprintf
+                               "expand_pipeline: branch index %d for dependency '%s' of node '%s' out of range (branch_names length = %d)"
+                               (dep_index_for_branch b dep) dep b.branch_name (List.length branch_names))))
                     | None -> dep
                   ) deps in
                   Some (b.branch_name, updated)
@@ -509,8 +512,14 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                   let updated = Option.map (fun deps ->
                     List.map (fun dep ->
                       match List.find_opt (fun (orig, _) -> orig = dep) !expanded_map with
-                      | Some (_, branch_names) -> List.nth branch_names (dep_index_for_branch b dep)
-                      | None -> dep
+                      | Some (_, branch_names) ->
+                         (match List.nth_opt branch_names (dep_index_for_branch b dep) with
+                          | Some name -> name
+                          | None -> raise (BranchIndexError
+                              (Printf.sprintf
+                                 "expand_pipeline: branch index %d for dependency '%s' of node '%s' out of range (branch_names length = %d)"
+                                 (dep_index_for_branch b dep) dep b.branch_name (List.length branch_names))))
+                     | None -> dep
                     ) deps
                   ) deps_opt in
                   Some (b.branch_name, updated)
@@ -518,46 +527,58 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
             ) branches
           in
 
-          let expanded = {
-            p_nodes          = List.filter (fun (n, _) -> not (is_removed n)) p.p_nodes @ branch_nodes;
-            p_exprs          = List.filter (fun (n, _) -> not (is_removed n)) p.p_exprs @ branch_exprs;
-            p_deps           = List.filter (fun (n, _) -> not (is_removed n)) p.p_deps @ make_branch_deps p.p_deps;
-            p_imports        = p.p_imports;
-            p_runtimes       = List.filter (fun (n, _) -> not (is_removed n)) p.p_runtimes @ make_branch_entries p.p_runtimes;
-            p_serializers    = List.filter (fun (n, _) -> not (is_removed n)) p.p_serializers @ make_branch_entries p.p_serializers;
-            p_deserializers  = List.filter (fun (n, _) -> not (is_removed n)) p.p_deserializers @ make_branch_entries p.p_deserializers;
-            p_env_vars       = List.filter (fun (n, _) -> not (is_removed n)) p.p_env_vars @ make_branch_entries p.p_env_vars;
-            p_args           = List.filter (fun (n, _) -> not (is_removed n)) p.p_args @ make_branch_entries p.p_args;
-            p_shells         = List.filter (fun (n, _) -> not (is_removed n)) p.p_shells @ make_branch_entries p.p_shells;
-            p_shell_args     = List.filter (fun (n, _) -> not (is_removed n)) p.p_shell_args @ make_branch_entries p.p_shell_args;
-            p_functions      = List.filter (fun (n, _) -> not (is_removed n)) p.p_functions @ make_branch_entries p.p_functions;
-            p_includes       = List.filter (fun (n, _) -> not (is_removed n)) p.p_includes @ make_branch_entries p.p_includes;
-            p_noops          = List.filter (fun (n, _) -> not (is_removed n)) p.p_noops @ make_branch_entries p.p_noops;
-            p_scripts        = List.filter (fun (n, _) -> not (is_removed n)) p.p_scripts @ make_branch_entries p.p_scripts;
-            p_explicit_deps  = List.filter (fun (n, _) -> not (is_removed n)) p.p_explicit_deps @ make_branch_explicit_deps p.p_explicit_deps;
-            p_node_diagnostics = List.filter (fun (n, _) -> not (is_removed n)) p.p_node_diagnostics @
-              List.map (fun b -> (b.branch_name, Utils.empty_node_diagnostics)) branches;
-            p_has_patterns   = false;
-            p_patterns       = [];
-            p_iterations     = List.filter (fun (n, _) -> not (is_removed n)) p.p_iterations @
-              List.map (fun b -> (b.branch_name, "vector")) branches;
-          } in
+          (match
+             try
+               let branch_deps = make_branch_deps p.p_deps in
+               let branch_explicit_deps = make_branch_explicit_deps p.p_explicit_deps in
+               Ok (branch_deps, branch_explicit_deps)
+             with BranchIndexError msg ->
+               Error (Error.make_error RuntimeError msg)
+           with
+           | Error err -> err
+           | Ok (branch_deps, branch_explicit_deps) ->
+               let expanded = {
+                 p_nodes          = List.filter (fun (n, _) -> not (is_removed n)) p.p_nodes @ branch_nodes;
+                 p_exprs          = List.filter (fun (n, _) -> not (is_removed n)) p.p_exprs @ branch_exprs;
+                 p_deps           = List.filter (fun (n, _) -> not (is_removed n)) p.p_deps @ branch_deps;
+                 p_imports        = p.p_imports;
+                 p_runtimes       = List.filter (fun (n, _) -> not (is_removed n)) p.p_runtimes @ make_branch_entries p.p_runtimes;
+                 p_serializers    = List.filter (fun (n, _) -> not (is_removed n)) p.p_serializers @ make_branch_entries p.p_serializers;
+                 p_deserializers  = List.filter (fun (n, _) -> not (is_removed n)) p.p_deserializers @ make_branch_entries p.p_deserializers;
+                 p_env_vars       = List.filter (fun (n, _) -> not (is_removed n)) p.p_env_vars @ make_branch_entries p.p_env_vars;
+                 p_args           = List.filter (fun (n, _) -> not (is_removed n)) p.p_args @ make_branch_entries p.p_args;
+                 p_shells         = List.filter (fun (n, _) -> not (is_removed n)) p.p_shells @ make_branch_entries p.p_shells;
+                 p_shell_args     = List.filter (fun (n, _) -> not (is_removed n)) p.p_shell_args @ make_branch_entries p.p_shell_args;
+                 p_functions      = List.filter (fun (n, _) -> not (is_removed n)) p.p_functions @ make_branch_entries p.p_functions;
+                 p_includes       = List.filter (fun (n, _) -> not (is_removed n)) p.p_includes @ make_branch_entries p.p_includes;
+                 p_noops          = List.filter (fun (n, _) -> not (is_removed n)) p.p_noops @ make_branch_entries p.p_noops;
+                 p_scripts        = List.filter (fun (n, _) -> not (is_removed n)) p.p_scripts @ make_branch_entries p.p_scripts;
+                 p_explicit_deps  = List.filter (fun (n, _) -> not (is_removed n)) p.p_explicit_deps @ branch_explicit_deps;
+                 p_node_diagnostics = List.filter (fun (n, _) -> not (is_removed n)) p.p_node_diagnostics @
+                   List.map (fun b -> (b.branch_name, Utils.empty_node_diagnostics)) branches;
+                 p_has_patterns   = false;
+                 p_patterns       = [];
+                 p_iterations     = List.filter (fun (n, _) -> not (is_removed n)) p.p_iterations @
+                   List.map (fun b -> (b.branch_name, "vector")) branches;
+                 p_flakes         = List.filter (fun (n, _) -> not (is_removed n)) p.p_flakes @
+                   List.map (fun b -> (b.branch_name, None)) branches;
+               } in
 
-          (match to_script with
-           | None -> VPipeline expanded
-           | Some path ->
-               let pipeline_def = Ast.PipelineDef (
-                 List.filter (fun (n, _) -> not (is_removed n)) p.p_exprs @ branch_exprs
-               ) in
-               let script_content = Nix_unparse.unparse_expr (Ast.mk_expr pipeline_def) in
-               (try
-                  let oc = open_out path in
-                  output_string oc script_content;
-                  close_out oc;
-                  VPipeline expanded
-                with e ->
-                  Error.make_error RuntimeError
-                    (Printf.sprintf "expand_pipeline: could not write script to %s: %s" path (Printexc.to_string e))))
+               match to_script with
+               | None -> VPipeline expanded
+               | Some path ->
+                   let pipeline_def = Ast.PipelineDef (
+                     List.filter (fun (n, _) -> not (is_removed n)) p.p_exprs @ branch_exprs
+                   ) in
+                   let script_content = Nix_unparse.unparse_expr (Ast.mk_expr pipeline_def) in
+                   (try
+                      let oc = open_out path in
+                      output_string oc script_content;
+                      close_out oc;
+                      VPipeline expanded
+                    with e ->
+                      Error.make_error RuntimeError
+                        (Printf.sprintf "expand_pipeline: could not write script to %s: %s" path (Printexc.to_string e))))
 
 let expand_pipeline_for_build (p : pipeline_result) (env : value Env.t) : (pipeline_result, value) Result.t =
   if not p.p_has_patterns then Ok p

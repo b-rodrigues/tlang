@@ -128,7 +128,7 @@ let expand_impl named_args _env =
           | _ -> None
         ) in
         (* Inference for output column type *)
-        let first_v = if nrows > 0 then List.nth combos_arr.(0) i else (VNA NAGeneric) in
+        let first_v = if nrows > 0 then (match List.nth_opt combos_arr.(0) i with Some v -> v | None -> VNA NAGeneric) else (VNA NAGeneric) in
         let col = match first_v with
           | VInt _ -> IntColumn (Array.map (function Some (VInt x) -> Some x | _ -> None) data)
           | VFloat _ -> FloatColumn (Array.map (function Some (VFloat x) -> Some x | Some (VInt x) -> Some (float_of_int x) | _ -> None) data)
@@ -140,7 +140,9 @@ let expand_impl named_args _env =
       ) column_names in
       
       let schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) columns in
-      VDataFrame { arrow_table = { schema; columns; nrows; native_handle = None } |> Arrow_table.materialize; group_keys = [] }
+      (try VDataFrame { arrow_table = { schema; columns; nrows; native_handle = None } |> Arrow_table.materialize; group_keys = [] }
+       with Arrow_table.MaterializeError msg ->
+         Error.type_error (Printf.sprintf "expand: %s" msg))
 
 (*
 --# Create a data frame from all combinations of inputs
@@ -182,7 +184,9 @@ let crossing_impl named_args _env =
       in (name, col)
     ) inputs in
     let schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) columns in
-    VDataFrame { arrow_table = { schema; columns; nrows = 0; native_handle = None } |> Arrow_table.materialize; group_keys = [] }
+    (try VDataFrame { arrow_table = { schema; columns; nrows = 0; native_handle = None } |> Arrow_table.materialize; group_keys = [] }
+     with Arrow_table.MaterializeError msg ->
+       Error.type_error (Printf.sprintf "crossing: %s" msg))
   end else begin
     let combo_lists = List.map (fun (_, vals) -> List.map (fun v -> [v]) vals) inputs in
     let final_combos = cartesian combo_lists |> List.map List.flatten in
@@ -202,7 +206,9 @@ let crossing_impl named_args _env =
     ) inputs in
     
     let schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) columns in
-    VDataFrame { arrow_table = { schema; columns; nrows; native_handle = None } |> Arrow_table.materialize; group_keys = [] }
+    (try VDataFrame { arrow_table = { schema; columns; nrows; native_handle = None } |> Arrow_table.materialize; group_keys = [] }
+     with Arrow_table.MaterializeError msg ->
+       Error.type_error (Printf.sprintf "crossing: %s" msg))
   end
 
 (*

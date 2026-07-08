@@ -673,6 +673,31 @@ pipeline nodes. For a full end-to-end example that mixes T, R, Python,
 and <code>sh</code>, see
 <code>tests/pipeline/polyglot_shell_pipeline.t</code> and
 <code>.github/workflows/polyglot-shell-pipeline.yml</code>.</p>
+<h3 id="fetching-remote-assets">Fetching Remote Assets</h3>
+<p>Pipeline nodes can download files from URLs using
+<code>fetchurl</code>. This generates a Nix derivation that uses
+<code>builtins.fetchurl</code> with SHA-256 verification, making
+downloads reproducible and cached.</p>
+<pre class="t"><code>-- Compute the hash upfront using prefetch:
+hash = prefetch(&quot;https://example.com/data.csv&quot;)
+
+-- Pin the hash in a pipeline node:
+p = pipeline {
+  raw = fetchurl(&quot;https://example.com/data.csv&quot;, sha256 = hash)
+}
+
+populate_pipeline(p, build = true)
+pipeline_copy()
+
+-- The downloaded file is at p.raw.path:
+content = read_file(p.raw.path)</code></pre>
+<p>In REPL mode, <code>fetchurl</code> downloads immediately via
+<code>curl</code>:</p>
+<pre class="t"><code>fetchurl(&quot;https://example.com/data.csv&quot;, output = &quot;data.csv&quot;)</code></pre>
+<p>The companion function <code>prefetch(url)</code> downloads a URL and
+returns its SHA-256 hash, enabling the two-step workflow of computing
+the hash upfront then pinning it in a pipeline for reproducible
+builds.</p>
 <hr />
 <h2 id="cross-language-integration">5. Cross-Language Integration</h2>
 <p>T is designed to orchestrate code across multiple languages. The
@@ -900,8 +925,8 @@ nodes succeeded and which failed.</p>
 <p>If you prefer the usual, common behaviour where evaluation stops
 immediately at the first error, you can use the <code>--failfast</code>
 flag:</p>
-<div class="sourceCode" id="cb27"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
 <p>In your T scripts, you can also opt-in to this behavior via
 <code>t_make()</code>:</p>
 <pre class="t"><code>t_make(failfast = true)</code></pre>
@@ -943,7 +968,10 @@ with <code>pipeline.nix</code> and <code>dag.json</code>.</li>
 <li><strong>Generates</strong> a Nix expression with one derivation per
 node. Crucially, if you define <code>[r-dependencies]</code> or
 <code>[py-dependencies]</code> in your <code>tproject.toml</code>,
-pipeline nodes have access to these language environments!</li>
+pipeline nodes have access to these language environments — including
+nodes that use a custom per-node flake (see <a
+href="advanced-pipeline-tutorial.md#37-custom-flakes-per-node">Custom
+Flakes per Node</a> for inheritance details).</li>
 <li><strong>Triggers</strong> a Nix build to materialize each node as a
 serialized artifact.</li>
 <li><strong>Records</strong> the build in a timestamped log file

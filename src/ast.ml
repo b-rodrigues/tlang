@@ -7,6 +7,10 @@
 module Env = Map.Make(String)
 module String_set = Set.Make(String)
 
+exception TLangSyntaxError of string
+exception Mixed_bracket_form
+exception Invalid_match_pattern of string
+
 type symbol = string
 
 
@@ -138,6 +142,7 @@ and pipeline_result = {
   p_has_patterns : bool;                      (* true if any node has a pattern *)
   p_patterns     : (string * pattern_expr) list; (* Map node name -> pattern *)
   p_iterations   : (string * string) list;       (* Map node name -> iteration type *)
+  p_flakes       : (string * string option) list; (* Map node name -> optional flake path *)
 }
 
 and meta_pipeline = {
@@ -162,6 +167,7 @@ and computed_node = {
   cn_class : string;
   cn_dependencies : string list;
   cn_p_exprs : ((string * expr) list) option;  (* Pipeline identity for scoped cache lookups *)
+  cn_flake : string option;                    (* Optional path to a dedicated Nix flake *)
 }
 
 (** Metadata for an unbuilt node (first-class value from node() function) *)
@@ -181,6 +187,7 @@ and unbuilt_node = {
   un_dependencies : string list option;
   un_pattern : pattern_expr option;     (* None = no dynamic branching *)
   un_iteration : string;                (* "vector" | "list" *)
+  un_flake : string option;             (* Optional path to a dedicated Nix flake *)
 }
 
 (** Result of a ?<{...}> shell escape — carries stdout, stderr, and exit code.

@@ -1,6 +1,6 @@
 # T Language Overview
 
-> **Version**: 0.53.3
+> **Version**: 0.54.0
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -735,6 +735,30 @@ cumany([false, true, false]) -- Vector[false, true, true]
 -- NA propagation
 cumsum([1, NA, 3])         -- Vector[1, NA, NA]
 ```
+
+---
+
+## String Literal Escape Sequences
+
+String literals support the following escape sequences:
+
+| Escape | Meaning |
+|--------|---------|
+| `\n`   | Newline |
+| `\r`   | Carriage return |
+| `\t`   | Tab |
+| `\\`   | Backslash |
+| `\"`   | Double quote |
+| `\xHH` | Hex byte (two hex digits, e.g. `\x48` for `H`) |
+
+The `\xHH` escape inserts the byte with the given hexadecimal value. This is useful for embedding arbitrary byte sequences:
+
+```t
+"\x48\x65\x6c\x6c\x6f"     -- "Hello"
+"\xef\xbb\xbf"              -- UTF-8 BOM
+```
+
+Invalid escape sequences (e.g. `\z`, `\xGH`) produce a clear syntax error.
 
 ---
 

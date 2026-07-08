@@ -190,7 +190,11 @@ let register env =
 
             let new_col_data = 
                if is_id_col then
-                  let extract_combo_val i = List.nth final_combos_arr.(i) id_idx in
+                  let extract_combo_val i =
+                    match List.nth_opt final_combos_arr.(i) id_idx with
+                    | Some v -> v
+                    | None -> VNA NAGeneric
+                  in
                   match col_data with
                   | IntColumn _ -> IntColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VInt x -> Some x | _ -> None))
                   | FloatColumn _ -> FloatColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VFloat x -> Some x | _ -> None))
@@ -268,6 +272,8 @@ let register env =
           ) all_cols in
 
           let new_schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) new_columns in
-          VDataFrame { arrow_table = { schema = new_schema; columns = new_columns; nrows = final_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = df.group_keys }
+           (try VDataFrame { arrow_table = { schema = new_schema; columns = new_columns; nrows = final_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = df.group_keys }
+            with Arrow_table.MaterializeError msg ->
+              Error.type_error (Printf.sprintf "complete: %s" msg))
     ))
     env

@@ -28,15 +28,22 @@ let strip_prefix s prefix =
     @return A list of all lines in the file. *)
 let extract_comments filename =
   let lines = ref [] in
-  let chan = open_in filename in
   try
-    while true do
-      lines := input_line chan :: !lines
-    done;
-    [] (* unreachable *)
-  with End_of_file ->
-    close_in chan;
+    let chan = open_in filename in
+    Fun.protect
+      ~finally:(fun () -> close_in_noerr chan)
+      (fun () ->
+        try
+          while true do
+            lines := input_line chan :: !lines
+          done
+        with End_of_file -> ());
     List.rev !lines
+  with
+  | Sys_error msg ->
+      Printf.eprintf "Warning: Could not read file '%s': %s\n%!" filename msg;
+      []
+  | Out_of_memory | Stack_overflow as e -> raise e
 
 (** Parse a raw list of `--#` T-Doc comment lines into a structured documentation entry.
     
