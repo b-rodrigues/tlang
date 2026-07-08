@@ -5,6 +5,8 @@
 ### Pipeline & Diagnostics
 
 - **SoftFailed Node Classification**: Fixed `diagnostics.summary` not counting soft-failed nodes that carry captured errors. Previously the `SoftFailed` error class was overwritten with the raw error code string during log parsing, making those nodes invisible to diagnostics. The original `VError` class is now preserved correctly.
+- **No-op Cached Build Tracking**: Fixed build log tracking for fully cached builds. Building a pipeline when all nodes are cached now correctly writes the build log, preventing downstream failures when querying build diagnostics or artifacts.
+- **Cold-Start Build Warning**: Added a plain-text warning during pipeline builds using per-node flakes or UV workspaces to alert the user of one-time compilation/download costs. The warning is shown at most once per REPL session to prevent noise.
 
 ### Code Safety & Runtime Robustness
 
@@ -22,6 +24,9 @@
 - **Selective replacement with fallback**: Each runtime component is resolved independently from the custom flake when available, otherwise falls back to the project-level binding. This allows flakes that provide only R infrastructure (e.g. `jbedo/rshells`) to coexist with T's project-level serialization infrastructure.
 - **Supported flake references**: `github:owner/repo`, `gitlab:owner/repo`, `sourcehut:owner/repo`, `path:/abs/path`, and `path:../relative/path`.
 - **Backward compatible**: Nodes without a `flake` argument are unchanged — project-level environment bindings are aliased so existing pipelines require no modifications.
+- **Automatic Serializer Package Injection**: R and Python serializer packages (e.g., `jsonlite`, `arrow`, `deepdiff`, etc.) are now automatically injected into both project-level and per-node flake environments at build time, so users no longer need to explicitly list them in `tproject.toml`.
+- **Isolated Environment for Per-Node Python Flakes**: Node environments with a custom flake now cleanly isolate Python dependencies. They use the flake's Nixpkgs (falling back from the project's Python version to `python3` if not found) and receive only the automatically-injected serializer packages, ignoring the project's own package list or UV workspace.
+- **`debug_node()` Environment Isolation**: Fixed parent environment variables (like `PYTHONPATH` or Nix-develop variables) leaking into `debug_node()` subshells when debugging nodes with custom flakes. Subshells now run with clean, isolated environments containing only essential Nix, dynamic linker, locale, proxy, and terminal settings. Surfaced warnings to `stderr` if the flake environment fails to load.
 
 ### Optional UV/uv2nix Python Environments
 
@@ -29,6 +34,7 @@
 - **uv2nix flake integration**: Running `t update` generates uv2nix/pyproject.nix flake inputs (`pyproject-nix`, `uv2nix`, `pyproject-build-systems`) and builds the Python environment as a Nix virtual environment via `pySet.mkVirtualEnv`, avoiding mixed dependency resolution between nixpkgs and PyPI.
 - **Pipeline runtime support**: The pipeline Nix emitter reads `pyResolver` from `tproject.toml` at build time and emits the corresponding uv2nix environment (or falls back to the nixpkgs `withPackages` path). Python pipeline nodes work unchanged regardless of resolver choice.
 - **Validation**: Setting `resolver = "uv"` and `packages` simultaneously is rejected with a clear error. Only `"nixpkgs"` and `"uv"` are valid resolver values.
+- **Pinned `uv2nix` Commit**: Pinned the default `uv2nix` input URL to a specific, reproducible git commit hash (`102cb1ffb47c9f722633e947137f578874ea34cd`) via a compile-time constant rather than using a floating branch reference.
 
 ### R Dependency Management — renv.lock Resolver & Git Packages
 
