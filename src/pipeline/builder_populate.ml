@@ -180,7 +180,7 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
         | r -> "../" ^ r
       in
       let project_root = Builder_utils.get_project_root () in
-      let r_renv_cran_pkgs, r_git_pkgs, py_version_opt =
+      let r_renv_cran_pkgs, r_git_pkgs, py_version_opt, use_uv =
         let tproject_path = Filename.concat project_root "tproject.toml" in
         if Sys.file_exists tproject_path then
           (try
@@ -205,10 +205,10 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
                  else
                    [], toml_git_pkgs
                in
-               cran_pkgs, git_pkgs, Some cfg.proj_py_version
-             | Error _ -> [], [], None
-           with _ -> [], [], None)
-        else [], [], None
+               cran_pkgs, git_pkgs, Some cfg.proj_py_version, cfg.proj_py_resolver = "uv"
+             | Error _ -> [], [], None, false
+           with _ -> [], [], None, false)
+        else [], [], None, false
       in
       let r_serializer_packages =
         Pipeline_dependency_requirements.required_r_serializer_packages p
@@ -224,6 +224,17 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () ->
           if build then
+            let has_per_node_flakes = List.exists (fun (_, f) -> f <> None) p.p_flakes in
+            if has_per_node_flakes || use_uv then
+              Printf.eprintf
+                "\n\
+                 ╔══════════════════════════════════════════════════════════════════════╗\n\
+                 ║  This pipeline uses per-node flakes or UV Python workspaces.        ║\n\
+                 ║  The first build will download and compile all dependencies.         ║\n\
+                 ║  This is a one-time cold-start cost — subsequent runs will be        ║\n\
+                 ║  significantly faster. Go grab a coffee ☕                           ║\n\
+                 ╚══════════════════════════════════════════════════════════════════════╝\n\
+                 \n%!";
             match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
             | Ok result -> Ok result
             | Error msg -> Error msg
