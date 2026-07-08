@@ -7,6 +7,8 @@ open Package_types
 let builtin_pipeline_strategies =
   [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx"; "bin" ]
 
+let cold_start_warning_shown = ref false
+
 let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
   let eval_string_list lst =
     lst
@@ -222,16 +224,16 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
       | Ok () ->
           if build then
             let has_per_node_flakes = List.exists (fun (_, f) -> f <> None) p.p_flakes in
-            if has_per_node_flakes || use_uv then
+            if (has_per_node_flakes || use_uv) && not !cold_start_warning_shown then (
+              cold_start_warning_shown := true;
               Printf.eprintf
                 "\n\
-                 ╔══════════════════════════════════════════════════════════════════════╗\n\
-                 ║  This pipeline uses per-node flakes or UV Python workspaces.        ║\n\
-                 ║  The first build will download and compile all dependencies.         ║\n\
-                 ║  This is a one-time cold-start cost — subsequent runs will be        ║\n\
-                 ║  significantly faster. Go grab a coffee ☕                           ║\n\
-                 ╚══════════════════════════════════════════════════════════════════════╝\n\
-                 \n%!";
+                 This pipeline uses per-node flakes or UV Python workspaces.\n\
+                 The first build will download and compile all dependencies.\n\
+                 This is a one-time cold-start cost — subsequent runs will be\n\
+                 significantly faster. Go grab a coffee ☕\n\
+                 \n%!"
+            );
             match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
             | Ok result -> Ok result
             | Error msg -> Error msg
