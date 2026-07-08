@@ -156,24 +156,36 @@ let rec remove_path_recursively path =
       Unix.rmdir path
     ) else Sys.remove path
 
-let make_subprocess_env overrides =
+let make_subprocess_env ?(is_flake=false) overrides =
   let tbl = Hashtbl.create 32 in
-  Array.iter
-    (fun entry ->
-      match String.index_opt entry '=' with
-      | None -> ()
-      | Some idx ->
-          (* Split on the first '=' so values keep any additional '=' bytes. *)
-          let key = String.sub entry 0 idx in
-          let value = String.sub entry (idx + 1) (String.length entry - idx - 1) in
-          Hashtbl.replace tbl key value)
-    (Unix.environment ());
+  if not is_flake then
+    Array.iter
+      (fun entry ->
+        match String.index_opt entry '=' with
+        | None -> ()
+        | Some idx ->
+            (* Split on the first '=' so values keep any additional '=' bytes. *)
+            let key = String.sub entry 0 idx in
+            let value = String.sub entry (idx + 1) (String.length entry - idx - 1) in
+            Hashtbl.replace tbl key value)
+      (Unix.environment ())
+  else (
+    List.iter
+      (fun var ->
+         try
+           let value = Sys.getenv var in
+           Hashtbl.replace tbl var value
+         with Not_found -> ())
+      [ "HOME"; "USER"; "TERM"; "PATH"; "NIX_REMOTE"; "NIX_SSL_CERT_FILE";
+        "XDG_CACHE_HOME"; "XDG_CONFIG_HOME"; "XDG_DATA_HOME";
+        "NIX_USER_CONF_FILES"; "NIX_CONFIG" ]
+  );
   List.iter (fun (key, value) -> Hashtbl.replace tbl key value) overrides;
   Hashtbl.fold (fun key value acc -> (key ^ "=" ^ value) :: acc) tbl []
   |> List.sort String.compare |> Array.of_list
 
-let run_shell_command_with_env shell_cmd overrides =
-  let envp = make_subprocess_env overrides in
+let run_shell_command_with_env ?(is_flake=false) shell_cmd overrides =
+  let envp = make_subprocess_env ~is_flake overrides in
   let pid =
     Unix.create_process_env "/bin/sh" [| "/bin/sh"; "-c"; shell_cmd |] envp
       Unix.stdin Unix.stdout Unix.stderr
@@ -306,9 +318,18 @@ let register env =
         let clean_deps = List.map (fun (name, _, _) -> name) !resolved_deps in
         let csv_deps = List.filter_map (fun (name, _, ser) ->
           if String.lowercase_ascii ser = "csv" then Some name else None) !resolved_deps in
+        let wrap_with_flake attr cmd = match cn.cn_flake with
+          | Some f ->
+              let q = "'" ^ String.concat "'\\''" (String.split_on_char '\'' f) ^ "'" in
+              Printf.sprintf "(nix shell --impure %s#%s -c %s) || (%s)" q attr cmd cmd
+          | None -> cmd
+        in
         match String.lowercase_ascii cn.cn_runtime with
         | "python" ->
             Printf.printf "Starting interactive Python REPL...\n%!";
+            (match cn.cn_flake with
+             | Some _ -> Printf.printf "  Using per-node flake Python environment.\n%!";
+             | None -> ());
             Printf.printf "Tip: Load upstream dependencies in Python using:\n%!";
             Printf.printf "  import tlang\n%!";
             List.iter (fun dep ->
@@ -339,9 +360,12 @@ let register env =
                (try remove_path_recursively startup_path with _ -> ());
                (try remove_path_recursively guard_root with _ -> ()));
 
-            "python -i"
+            wrap_with_flake "py-env" "python -i"
         | "r" ->
             Printf.printf "Starting interactive R REPL...\n%!";
+            (match cn.cn_flake with
+             | Some _ -> Printf.printf "  Using per-node flake R environment.\n%!";
+             | None -> ());
             Printf.printf "Tip: Load upstream dependencies in R using:\n%!";
             Printf.printf "  library(tlang)\n%!";
             List.iter (fun dep ->
@@ -359,9 +383,12 @@ let register env =
                  ("R_PROFILE_USER", startup_path) :: !subshell_env_overrides
              with _ -> ());
 
-            "R --no-save --quiet"
+            wrap_with_flake "r-env" "R --no-save --quiet"
         | "julia" ->
             Printf.printf "Starting interactive Julia REPL...\n%!";
+            (match cn.cn_flake with
+             | Some _ -> Printf.printf "  Using per-node flake Julia environment.\n%!";
+             | None -> ());
             Printf.printf "Tip: Load upstream dependencies in Julia using:\n%!";
             Printf.printf "  using tlang\n%!";
             if csv_deps <> [] then
@@ -376,16 +403,17 @@ let register env =
             let startup_path = Filename.concat (Sys.getcwd ()) ".t_debug_startup.jl" in
             let startup_ready =
               try
-                write_text_file startup_path (julia_debug_startup_content julia_package_path);
-                cleanup_paths := startup_path :: !cleanup_paths;
-                true
+                 write_text_file startup_path (julia_debug_startup_content julia_package_path);
+                 cleanup_paths := startup_path :: !cleanup_paths;
+                 true
               with _ ->
                 (try remove_path_recursively startup_path with _ -> ());
                 false
             in
-            if startup_ready then
+            let julia_cmd = if startup_ready then
               Printf.sprintf "julia -i -e %S" (Printf.sprintf "include(%S)" startup_path)
-            else "julia -i"
+            else "julia -i" in
+            wrap_with_flake "juliaPkg" julia_cmd
         | _ ->
             Printf.printf "Starting interactive bash subshell...\n%!";
             "bash"
@@ -393,7 +421,8 @@ let register env =
       Printf.printf "Press Ctrl+D or exit to return to T REPL.\n";
       Printf.printf "==================================================\n\n%!";
       flush stdout;
-      let status = run_shell_command_with_env shell_cmd !subshell_env_overrides in
+      let is_flake = cn.cn_flake <> None in
+      let status = run_shell_command_with_env ~is_flake shell_cmd !subshell_env_overrides in
 
       (* Clean up temporary startup files *)
       List.iter (fun path -> try remove_path_recursively path with _ -> ()) !cleanup_paths;
