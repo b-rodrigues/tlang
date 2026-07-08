@@ -210,11 +210,8 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
            with _ -> [], [], None, false)
         else [], [], None, false
       in
-      let r_serializer_packages =
-        Pipeline_dependency_requirements.required_r_serializer_packages p
-      in
-      let py_serializer_packages =
-        Pipeline_dependency_requirements.required_py_serializer_packages p
+      let r_serializer_packages, py_serializer_packages =
+        Pipeline_dependency_requirements.required_serializer_packages p
       in
       let nix_content =
         Nix_emitter.emit_pipeline ~rel_root ~r_git_pkgs ~r_renv_cran_pkgs
