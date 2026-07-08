@@ -34,7 +34,51 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="unreleased">[0.54.0] - unreleased</h2>
+<h2 id="section">[0.54.0] - 2026-07-08</h2>
+<h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
+<ul>
+<li><strong>SoftFailed Node Classification</strong>: Fixed
+<code>diagnostics.summary</code> not counting soft-failed nodes that
+carry captured errors. Previously the <code>SoftFailed</code> error
+class was overwritten with the raw error code string during log parsing,
+making those nodes invisible to diagnostics. The original
+<code>VError</code> class is now preserved correctly.</li>
+<li><strong>No-op Cached Build Tracking</strong>: Fixed build log
+tracking for fully cached builds. Building a pipeline when all nodes are
+cached now correctly writes the build log, preventing downstream
+failures when querying build diagnostics or artifacts.</li>
+<li><strong>Cold-Start Build Warning</strong>: Added a plain-text
+warning during pipeline builds using per-node flakes or UV workspaces to
+alert the user of one-time compilation/download costs. The warning is
+shown at most once per REPL session to prevent noise.</li>
+</ul>
+<h3 id="code-safety-runtime-robustness">Code Safety &amp; Runtime
+Robustness</h3>
+<ul>
+<li><strong>Scientific Float Notation Support</strong>: Parser and lexer
+now support standard scientific notation for floating-point literals
+(e.g. <code>1e-5</code>, <code>3.14e+2</code>,
+<code>2.7E-3</code>).</li>
+<li><strong>String Escape Sequence Validation</strong>: The string
+parser now validates escape sequences at parse time, throwing a clear
+syntax error for invalid or unrecognized escape sequences.</li>
+<li><strong>Hex Byte Escape (<code>\xHH</code>)</strong>: String
+literals now support <code>\x</code> followed by exactly two hexadecimal
+digits (e.g. <code>"\x48\x69"</code> → <code>"Hi"</code>), enabling
+embedding of arbitrary byte sequences.</li>
+<li><strong>Precision Floating-Point Calculations</strong>: Replaced
+polymorphic comparisons with epsilon-based tolerance checks
+(<code>Float.abs v &lt; 1e-15</code>) and <code>Float.compare</code> in
+statistical packages (e.g., <code>mean</code>, <code>sd</code>,
+<code>lm</code>), eliminating silent precision corruption.</li>
+<li><strong>Safe Vector &amp; List Slicing</strong>: Added strict bounds
+checking for all list and vector index operations, preventing silent
+errors or partial function failures.</li>
+<li><strong>Detailed Package Manager Error Diagnostics</strong>:
+Upgraded remote repository check (<code>git ls-remote</code>) and
+dependency upgrade error handling to report specific system warnings and
+write failures rather than generic error messages.</li>
+</ul>
 <h3 id="per-node-flake-replacement">Per-Node Flake Replacement</h3>
 <ul>
 <li><strong><code>flake</code> named argument for pipeline
@@ -57,6 +101,25 @@ serialization infrastructure.</li>
 <code>flake</code> argument are unchanged — project-level environment
 bindings are aliased so existing pipelines require no
 modifications.</li>
+<li><strong>Automatic Serializer Package Injection</strong>: R and
+Python serializer packages (e.g., <code>jsonlite</code>,
+<code>arrow</code>, <code>deepdiff</code>, etc.) are now automatically
+injected into both project-level and per-node flake environments at
+build time, so users no longer need to explicitly list them in
+<code>tproject.toml</code>.</li>
+<li><strong>Isolated Environment for Per-Node Python Flakes</strong>:
+Node environments with a custom flake now cleanly isolate Python
+dependencies. They use the flake’s Nixpkgs (falling back from the
+project’s Python version to <code>python3</code> if not found) and
+receive only the automatically-injected serializer packages, ignoring
+the project’s own package list or UV workspace.</li>
+<li><strong><code>debug_node()</code> Environment Isolation</strong>:
+Fixed parent environment variables (like <code>PYTHONPATH</code> or
+Nix-develop variables) leaking into <code>debug_node()</code> subshells
+when debugging nodes with custom flakes. Subshells now run with clean,
+isolated environments containing only essential Nix, dynamic linker,
+locale, proxy, and terminal settings. Surfaced warnings to
+<code>stderr</code> if the flake environment fails to load.</li>
 </ul>
 <h3 id="optional-uvuv2nix-python-environments">Optional UV/uv2nix Python
 Environments</h3>
@@ -82,6 +145,11 @@ unchanged regardless of resolver choice.</li>
 and <code>packages</code> simultaneously is rejected with a clear error.
 Only <code>"nixpkgs"</code> and <code>"uv"</code> are valid resolver
 values.</li>
+<li><strong>Pinned <code>uv2nix</code> Commit</strong>: Pinned the
+default <code>uv2nix</code> input URL to a specific, reproducible git
+commit hash (<code>102cb1ffb47c9f722633e947137f578874ea34cd</code>) via
+a compile-time constant rather than using a floating branch
+reference.</li>
 </ul>
 <h3 id="r-dependency-management-renv.lock-resolver-git-packages">R
 Dependency Management — renv.lock Resolver &amp; Git Packages</h3>
@@ -120,7 +188,22 @@ renv.lock CRAN packages into the analysis so requirement checks pass
 without an explicit <code>packages</code> list in
 <code>tproject.toml</code>.</li>
 </ul>
-<h2 id="section">[0.53.3] - 2026-06-26</h2>
+<h3 id="reproducible-url-downloading">Reproducible URL Downloading</h3>
+<ul>
+<li><strong><code>fetchurl(url, sha256, output, dest)</code></strong>:
+Downloads a file from a URL with reproducibility guarantees. In REPL
+mode, uses <code>curl</code> to download (optional
+<code>output</code>/<code>dest</code> for the save path). In pipeline
+mode, generates a <code>builtins.fetchurl</code> Nix derivation with the
+required <code>sha256</code> hash for content-addressable caching. The
+downloaded artifact is accessible at <code>p.node_name.path</code> after
+building.</li>
+<li><strong><code>prefetch(url)</code></strong>: Downloads a URL and
+returns its SHA-256 hash, usable as the <code>sha256</code> argument to
+<code>fetchurl</code>. Enables a two-step workflow: compute the hash
+upfront, then pin it in a pipeline for reproducible builds.</li>
+</ul>
+<h2 id="section-1">[0.53.3] - 2026-06-26</h2>
 <h3 id="toolchain-ci-updates">Toolchain &amp; CI Updates</h3>
 <ul>
 <li><strong>Nixpkgs Snapshot &amp; Package Updates</strong>: Updated the
@@ -173,7 +256,7 @@ distribution quantile, via binary search on <code>pchisq</code>.</li>
 <li>Enables power analysis and exact p-value thresholds natively in T
 without calling R.</li>
 </ul>
-<h2 id="section-1">[0.53.2] - 2026-06-24</h2>
+<h2 id="section-2">[0.53.2] - 2026-06-24</h2>
 <h3 id="hotfix">Hotfix</h3>
 <ul>
 <li><strong>Nix Flake Update / Maven Dependency Parity</strong>: Fixed
@@ -182,7 +265,7 @@ for the <code>jpmml-evaluator</code> library (used for PMML model
 scoring). The nixpkgs fetch source hash has been updated to restore
 local build compatibility.</li>
 </ul>
-<h2 id="section-2">[0.53.1] - 2026-06-24</h2>
+<h2 id="section-3">[0.53.1] - 2026-06-24</h2>
 <h3 id="hotfix-1">Hotfix</h3>
 <p>Fix for https://github.com/b-rodrigues/tlang/issues/434</p>
 <p>jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master
@@ -235,7 +318,7 @@ Fixes</h3>
 before the global environment, enabling dynamic column name
 resolution.</li>
 </ul>
-<h2 id="section-3">[0.53.0] - 2026-06-22</h2>
+<h2 id="section-4">[0.53.0] - 2026-06-22</h2>
 <p>This release:</p>
 <ul>
 <li><strong>Atelier TUI IDE Integration</strong>: This release
@@ -337,7 +420,7 @@ inside assignment/reassignment statements. The error is bound to the
 variable and propagated correctly, enabling robust recovery patterns via
 subsequent <code>match</code> blocks.</li>
 </ul>
-<h2 id="section-4">[0.52.3] - 2026-06-12</h2>
+<h2 id="section-5">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature
@@ -686,7 +769,7 @@ code.</li>
 Checklist to <code>AGENTS.md</code> as a permanent reference for future
 contributions.</li>
 </ul>
-<h2 id="section-5">[0.52.2] - 2026-05-31</h2>
+<h2 id="section-6">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -909,7 +992,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-6">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-7">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -1263,7 +1346,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-7">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-8">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -1492,7 +1575,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-8">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-9">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -1755,7 +1838,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-9">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-10">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -2052,7 +2135,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-10">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-11">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

@@ -911,6 +911,51 @@ conversion for scalars, lists, and dictionaries.</p>
 <p><strong>Returns:</strong></p>
 <p><code>Any</code> — The deserialized value</p>
 <hr />
+<h3
+id="fetchurlurl-sha256-output-dest"><code>fetchurl(url, sha256?, output?, dest?)</code></h3>
+<p>Downloads a file from a URL. In the REPL, wraps curl for immediate
+download. Inside a pipeline, creates a node that uses Nix’s
+<code>builtins.fetchurl</code> to fetch the asset into the Nix store,
+making it available downstream.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>url</code> — The URL to download (String)</li>
+<li><code>sha256</code> (optional) — Expected SHA-256 hash (String).
+Required in pipeline mode.</li>
+<li><code>output</code> (optional) — Output file path for REPL mode
+(String). Defaults to basename of URL.</li>
+<li><code>dest</code> (optional) — Output directory for REPL mode
+(String). Defaults to current directory.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> (REPL mode) — The path to the downloaded file.
+<code>Node</code> (pipeline mode) — A pipeline node configured to fetch
+the URL via Nix.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>-- REPL mode: download to current directory
+data = fetchurl(&quot;https://example.com/data.csv&quot;, output = &quot;data.csv&quot;)
+
+-- Pipeline mode: fetch via Nix builtins.fetchurl
+p = pipeline {
+  raw = fetchurl(&quot;https://example.com/data.csv&quot;, sha256 = &quot;abc123...&quot;);
+  result = read_csv(raw) |&gt; mutate(...);
+}
+build_pipeline(p)</code></pre>
+<hr />
+<h3 id="prefetchurl"><code>prefetch(url)</code></h3>
+<p>Downloads a URL and computes its SHA-256 hash. Useful for obtaining
+the hash needed by <code>fetchurl</code> in pipeline mode.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>url</code> — The URL to prefetch (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> — The SHA-256 hex digest of the downloaded
+content.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>hash = prefetch(&quot;https://example.com/data.csv&quot;)
+print(hash)  -- e.g. &quot;abc123...&quot;</code></pre>
+<hr />
 <h2 id="math-package">Math Package</h2>
 <p>Mathematical functions operating on scalars and vectors. Most
 functions are vectorized over Collections.</p>
