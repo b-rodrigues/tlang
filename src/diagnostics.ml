@@ -190,9 +190,6 @@ let of_verror ?file (err : Ast.error_info) : diagnostic =
     | [] -> extract_cycle_nodes err.message
   in
   let suggested_fix = match err.code with
-    | Ast.ArityError -> NoFix
-    | Ast.NameError when node_name <> None ->
-        Add_node_arg { node = Option.get node_name; arg = "" }
     | _ -> NoFix
   in
   {
@@ -230,6 +227,9 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
           }]
       | None -> []
     in
+    (* NOTE: NA counts are currently the only warning source in nd_warnings.
+       If additional warning kinds are added to the pipeline, this filter
+       should be extended to emit them as diagnostics. *)
     let warnings = List.filter_map (fun nw ->
       if nw.Ast.nw_na_count = 0 then None
       else Some ({
@@ -260,6 +260,35 @@ let exit_code_of_diagnostics entries =
     if has_env then 3
     else if has_schema then 2
     else 1
+
+let phase_rank = function
+  | Parse -> 0
+  | Wire -> 1
+  | Schema -> 2
+  | Env -> 3
+  | Build -> 4
+  | Exec -> 5
+
+let worst_phase entries =
+  match entries with
+  | [] -> Wire
+  | d :: rest ->
+      List.fold_left (fun acc e ->
+        if phase_rank e.diag_phase > phase_rank acc
+        then e.diag_phase else acc
+      ) d.diag_phase rest
+
+let worst_tier entries =
+  match entries with
+  | [] -> 1
+  | d :: rest ->
+      match List.fold_left (fun acc e ->
+        if phase_rank e.diag_phase > phase_rank acc
+        then e.diag_phase else acc
+      ) d.diag_phase rest with
+      | Parse | Wire -> 1
+      | Schema -> 2
+      | Env | Build | Exec -> 3
 
 let diagnostic_phase d = d.diag_phase
 let diagnostic_severity d = d.diag_severity

@@ -708,12 +708,15 @@ let cmd_run_expr ?failfast mode expr env =
   | Ast.(VNA NAGeneric) -> ()
   | v -> print_string (Pretty_print.pretty_print_value v)
 
-let cmd_check ?(json=false) ?(tier=1) mode filename env =
+let cmd_check ?(json=false) mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
-  Ast.check_mode := true;
-  let (result, _env) = run_file ~failfast:true mode filename env in
-  Ast.check_mode := false;
+  let run () =
+    Ast.check_mode := true;
+    Fun.protect ~finally:(fun () -> Ast.check_mode := false)
+      (fun () -> run_file ~failfast:true mode filename env)
+  in
+  let (result, _env) = run () in
   let check_result =
     let diag_list : Diagnostics.diagnostic list = match result with
       | Ast.VError err ->
@@ -723,10 +726,8 @@ let cmd_check ?(json=false) ?(tier=1) mode filename env =
       | Ast.(VNA NAGeneric) -> []
       | _ -> []
     in
-    let check_phase = match diag_list with
-      | [] -> Diagnostics.Wire
-      | d :: _ -> Diagnostics.diagnostic_phase d
-    in
+    let check_phase = Diagnostics.worst_phase diag_list in
+    let tier = Diagnostics.worst_tier diag_list in
     Diagnostics.make_result ~tier ~phase:check_phase diag_list
   in
   if json then
@@ -1454,7 +1455,7 @@ let () =
            Printf.eprintf "Usage: t check [--json] <file.t>\n";
            exit 1
        | Some f ->
-           cmd_check ~json ~tier:1 script_mode f env)
+           cmd_check ~json script_mode f env)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest
