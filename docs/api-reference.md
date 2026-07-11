@@ -3253,6 +3253,8 @@ t check --json analysis/pipeline.t | jq '.diagnostics'
 
 `t check` runs the full evaluator with `--failfast` but skips Nix builds entirely. Pipeline construction (`build_pipeline`, `populate_pipeline`) is short-circuited, so the check completes instantly without requiring Nix or any runtime dependencies. Node bodies (R, Python, Julia, shell commands) are never evaluated — only the pipeline DAG structure is validated. This makes it suitable for pre-commit hooks, editor integration, and CI structural validation.
 
+> **Note:** The `--env` flag additionally invokes `nix-instantiate --eval` and writes `pipeline.nix`/`dag.json` to `_pipeline/` (see below). If you need a tier-1-only check with zero side effects, use `t check` without `--env`.
+
 **Schema validation (`--schema`):**
 
 When `--schema` is passed, `t check` additionally runs static schema propagation on all pipelines found in the environment. For each pipeline, it:
@@ -3269,6 +3271,7 @@ When `--env` is passed, `t check` additionally runs environment resolution check
 
 1. **Package declarations**: Checks that R/Python/Julia packages required by the pipeline are declared in `tproject.toml`.
 2. **Lockfile consistency**: For `r_resolver = "renv"`, verifies that declared R packages exist in `renv.lock`.
+3. **Nix evaluation**: Generates `pipeline.nix` and `dag.json` in `_pipeline/`, then runs `nix-instantiate --impure --eval --strict` to validate that the Nix expressions evaluate correctly. This writes to the project's pipeline directory as a side effect.
 
 Environment errors are reported as `phase: "env"` diagnostics and trigger exit code 3.
 

@@ -477,7 +477,8 @@ let run_command_argv_capture (argv : string array) : (string, string) result =
 
 let ensure_pipeline_dir () =
   if not (Sys.file_exists pipeline_dir) then
-    Unix.mkdir pipeline_dir 0o755
+    (try Unix.mkdir pipeline_dir 0o755
+     with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
 
 let rec find_project_root dir =
   if Sys.file_exists (Filename.concat dir "flake.nix") || Sys.file_exists (Filename.concat dir "dune-project") || Sys.file_exists (Filename.concat dir "tproject.toml") then

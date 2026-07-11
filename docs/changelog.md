@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.54.1] - Unreleased
+
+### `t check` Environment Validation
+
+- **Nix Evaluability Check**: `t check --env` now also generates `pipeline.nix` and `dag.json` and validates them via `nix-instantiate --eval`. This catches Nix expression errors (bad references, type mismatches) before a full build.
+- **Git-Sourced Lockfile Packages**: `check_lockfile_consistency` now includes packages resolved via GitHub/GitLab entries in `renv.lock`, preventing false-positive `missing_from_lockfile` diagnostics.
+
 ## [0.54.0] - 2026-07-08
 
 ### Pipeline & Diagnostics
