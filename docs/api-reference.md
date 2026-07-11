@@ -3202,7 +3202,7 @@ build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-
 
 ### `t check` (CLI)
 
-Structural pipeline validation without triggering Nix builds. Performs tier 1 checks: syntax parsing, pipeline graph validation (cycles, missing dependencies, duplicates), and variable binding verification.
+Structural pipeline validation without triggering Nix builds. Runs the full evaluator with `--failfast` but short-circuits Nix builds, so it can surface errors across all phases — syntax (parse), graph structure (wire), types (schema), and environment (missing files). The reported `tier` and `phase` reflect the deepest phase reached during evaluation, not a fixed depth limit.
 
 **Usage:**
 
@@ -3232,6 +3232,8 @@ t check --json path/to/script.t   # machine-readable JSON output
 }
 ```
 
+The `tier` field is derived from the deepest phase that produced diagnostics: parse/wire errors yield `tier: 1`, schema errors yield `tier: 2`, and env/build/exec errors yield `tier: 3`. A clean run reports `"tier": 1` and `"phase": "wire"` as the default.
+
 Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node`, `file`, `span`, `message`, `caused_by`, and `suggested_fix`.
 
 **Examples:**
@@ -3246,7 +3248,7 @@ t check --json analysis/pipeline.t | jq '.diagnostics'
 
 **How it works:**
 
-`t check` runs the full evaluator with `--failfast` but skips Nix builds entirely. Pipeline construction (`build_pipeline`, `populate_pipeline`) is short-circuited, so the check completes instantly without requiring Nix or any runtime dependencies. This makes it suitable for pre-commit hooks, editor integration, and CI structural validation.
+`t check` runs the full evaluator with `--failfast` but skips Nix builds entirely. Pipeline construction (`build_pipeline`, `populate_pipeline`) is short-circuited, so the check completes instantly without requiring Nix or any runtime dependencies. Node bodies (R, Python, Julia, shell commands) are never evaluated — only the pipeline DAG structure is validated. This makes it suitable for pre-commit hooks, editor integration, and CI structural validation.
 
 ---
 
