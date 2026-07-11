@@ -3275,6 +3275,10 @@ When `--env` is passed, `t check` additionally runs environment resolution check
 
 Environment errors are reported as `phase: "env"` diagnostics and trigger exit code 3.
 
+**Watch mode (`--watch`):**
+
+When `--watch` is passed, `t check` runs once and then polls the input file for changes (every 0.5s). On each modification, it re-runs the check and prints updated results. Press Ctrl+C to stop. Watch mode can be combined with `--schema` and/or `--env`.
+
 ---
 
 ### `read_node(node)`

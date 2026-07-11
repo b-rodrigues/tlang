@@ -78,6 +78,7 @@ t check path/to/script.t                  # structural validation (default: no N
 t check --schema path/to/script.t          # + column-level schema validation
 t check --env path/to/script.t             # + environment/lockfile checks + Nix eval
 t check --json path/to/script.t            # machine-readable diagnostics
+t check --watch path/to/script.t           # re-run on file save (Ctrl+C to stop)
 
 t test
 
