@@ -506,7 +506,7 @@ let print_help () =
   Printf.printf "  repl              Start the interactive REPL (default)\n";
   Printf.printf "  run <file.t>      Execute a T source file\n";
   Printf.printf "  run --expr <expr> Execute a T expression directly\n";
-  Printf.printf "  check [--json] <file.t>  Validate pipeline structure (no Nix builds)\n";
+  Printf.printf "  check [--json] [--schema] <file.t>  Validate pipeline structure (no Nix builds)\n";
   Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
@@ -708,7 +708,7 @@ let cmd_run_expr ?failfast mode expr env =
   | Ast.(VNA NAGeneric) -> ()
   | v -> print_string (Pretty_print.pretty_print_value v)
 
-let cmd_check ?(json=false) mode filename env =
+let cmd_check ?(json=false) ?(schema=false) mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
   let run () =
@@ -716,15 +716,37 @@ let cmd_check ?(json=false) mode filename env =
     Fun.protect ~finally:(fun () -> Ast.check_mode := false)
       (fun () -> run_file ~failfast:true mode filename env)
   in
-  let (result, _env) = run () in
+  let (result, new_env) = run () in
   let check_result =
-    let diag_list : Diagnostics.diagnostic list = match result with
-      | Ast.VError err ->
-          [Diagnostics.of_verror ~file:filename err]
-      | Ast.VPipeline p ->
-          Diagnostics.of_pipeline_result ~file:filename p
-      | Ast.(VNA NAGeneric) -> []
-      | _ -> []
+    (* Collect pipeline_result values: from the return value or from env bindings *)
+    let pipelines : (string * Ast.pipeline_result) list = match result with
+      | Ast.VPipeline p -> [("pipeline", p)]
+      | Ast.VError _ -> []
+      | _ ->
+          (* Scan environment for pipeline values *)
+          let bindings = Ast.Env.bindings new_env in
+          List.filter_map (fun (name, v) ->
+            match v with
+            | Ast.VPipeline p -> Some (name, p)
+            | _ -> None
+          ) bindings
+    in
+    let diag_list : Diagnostics.diagnostic list =
+      (* Always collect error diagnostics from the result *)
+      let error_diags = match result with
+        | Ast.VError err -> [Diagnostics.of_verror ~file:filename err]
+        | _ -> []
+      in
+      (* Collect pipeline diagnostics and schema checks *)
+      let pipeline_diags = List.concat_map (fun (_name, p) ->
+        let wire_diags = Diagnostics.of_pipeline_result ~file:filename p in
+        let schema_diags =
+          if schema then Schema_check.check_pipeline_schemas ~file:filename p
+          else []
+        in
+        wire_diags @ schema_diags
+      ) pipelines in
+      error_diags @ pipeline_diags
     in
     let check_phase = Diagnostics.worst_phase diag_list in
     let tier = Diagnostics.worst_tier diag_list in
@@ -1444,18 +1466,19 @@ let () =
       Printf.eprintf "Unexpected arguments after `t run <file.t>`.\n";
       exit 1
   | _ :: "check" :: [] ->
-      Printf.eprintf "Usage: t check [--json] <file.t>\n";
+      Printf.eprintf "Usage: t check [--json] [--schema] <file.t>\n";
       exit 1
   | _ :: "check" :: rest ->
       let json = List.mem "--json" rest in
+      let schema = List.mem "--schema" rest in
       let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       (match filename with
        | None ->
-           Printf.eprintf "Usage: t check [--json] <file.t>\n";
+           Printf.eprintf "Usage: t check [--json] [--schema] <file.t>\n";
            exit 1
        | Some f ->
-           cmd_check ~json script_mode f env)
+           cmd_check ~json ~schema script_mode f env)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest

@@ -133,4 +133,47 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check_eq "diagnostic_message accessor"
     (Diagnostics.diagnostic_message test_diag) "test message";
 
+  Printf.printf "\nSchema check module:\n";
+
+  (* Test extract_col_refs extracts ColumnRef *)
+  let col_expr = { node = ColumnRef "mpg"; loc = None } in
+  let refs = Schema_check.extract_col_refs col_expr in
+  check_eq "extract_col_refs: ColumnRef" (String.concat "," refs) "mpg";
+
+  (* Test extract_col_refs extracts from DotAccess *)
+  let dot_expr = { node = DotAccess { target = { node = Var "row"; loc = None }; field = "hp" }; loc = None } in
+  let refs = Schema_check.extract_col_refs ~param:"row" dot_expr in
+  check_eq "extract_col_refs: DotAccess with matching param" (String.concat "," refs) "hp";
+
+  (* Test extract_col_refs extracts from nested BinOp *)
+  let bin_expr = { node = BinOp { op = Plus; left = col_expr; right = { node = Value (VInt 1); loc = None } }; loc = None } in
+  let refs = Schema_check.extract_col_refs bin_expr in
+  check_eq "extract_col_refs: nested BinOp" (String.concat "," refs) "mpg";
+
+  (* Test infer_output_schema for select *)
+  let select_expr = { node = Call { fn = { node = Var "select"; loc = None }; args = [(None, { node = ColumnRef "a"; loc = None }); (None, { node = ColumnRef "b"; loc = None })] }; loc = None } in
+  let out = Schema_check.infer_output_schema ["a"; "b"; "c"] select_expr in
+  check_eq "infer_output_schema: select" (String.concat "," out) "a,b";
+
+  (* Test infer_output_schema for filter *)
+  let filter_expr = { node = Call { fn = { node = Var "filter"; loc = None }; args = [(None, { node = ColumnRef "x"; loc = None })] }; loc = None } in
+  let out = Schema_check.infer_output_schema ["a"; "b"] filter_expr in
+  check_eq "infer_output_schema: filter passes through" (String.concat "," out) "a,b";
+
+  (* Test infer_output_schema for mutate adds columns *)
+  let mutate_expr = { node = Call { fn = { node = Var "mutate"; loc = None }; args = [(Some "new_col", { node = Value (VInt 1); loc = None })] }; loc = None } in
+  let out = Schema_check.infer_output_schema ["a"; "b"] mutate_expr in
+  check_eq "infer_output_schema: mutate adds new col" (String.concat "," out) "a,b,new_col";
+
+  (* Test infer_output_schema for summarize *)
+  let sum_expr = { node = Call { fn = { node = Var "summarize"; loc = None }; args = [(Some "avg", { node = Value (VInt 1); loc = None })] }; loc = None } in
+  let out = Schema_check.infer_output_schema ["a"; "b"] sum_expr in
+  check_eq "infer_output_schema: summarize" (String.concat "," out) "avg";
+
+  (* Test read_csv_header *)
+  let header = Schema_check.read_csv_header "/tmp/schema_test/data.csv" in
+  check_eq "read_csv_header reads header"
+    (match header with Some cols -> String.concat "," cols | None -> "NONE")
+    "mpg,cyl,hp";
+
   Printf.printf "\n";

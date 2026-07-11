@@ -3207,8 +3207,10 @@ Structural pipeline validation without triggering Nix builds. Runs the full eval
 **Usage:**
 
 ```bash
-t check path/to/script.t          # human-readable output
-t check --json path/to/script.t   # machine-readable JSON output
+t check path/to/script.t              # human-readable output
+t check --json path/to/script.t       # machine-readable JSON output
+t check --schema path/to/script.t     # include column-level schema validation
+t check --schema --json path/to/script.t  # combined: tier 1 + tier 2 in JSON
 ```
 
 **Exit codes:**
@@ -3249,6 +3251,16 @@ t check --json analysis/pipeline.t | jq '.diagnostics'
 **How it works:**
 
 `t check` runs the full evaluator with `--failfast` but skips Nix builds entirely. Pipeline construction (`build_pipeline`, `populate_pipeline`) is short-circuited, so the check completes instantly without requiring Nix or any runtime dependencies. Node bodies (R, Python, Julia, shell commands) are never evaluated — only the pipeline DAG structure is validated. This makes it suitable for pre-commit hooks, editor integration, and CI structural validation.
+
+**Schema validation (`--schema`):**
+
+When `--schema` is passed, `t check` additionally runs static schema propagation on all pipelines found in the environment. For each pipeline, it:
+
+1. Reads CSV headers from `read_csv(...)` calls to infer root node schemas.
+2. Propagates schemas through the DAG via colcraft verbs (`select`, `mutate`, `summarize`, `filter`, `arrange`, etc.).
+3. Checks all `$col` column references and formula variable references (`y ~ x`) against the inferred input schema at each node.
+
+Schema errors are reported as `phase: "schema"` diagnostics and trigger exit code 2.
 
 ---
 
