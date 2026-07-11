@@ -74,6 +74,9 @@ t repl
 
 t run path/to/script.t
 
+t check path/to/script.t        # structural validation (no Nix builds)
+t check --json path/to/script.t  # machine-readable diagnostics
+
 t test
 
 t doc --parse --generate

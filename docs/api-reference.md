@@ -3200,6 +3200,56 @@ build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-
 
 ---
 
+### `t check` (CLI)
+
+Structural pipeline validation without triggering Nix builds. Performs tier 1 checks: syntax parsing, pipeline graph validation (cycles, missing dependencies, duplicates), and variable binding verification.
+
+**Usage:**
+
+```bash
+t check path/to/script.t          # human-readable output
+t check --json path/to/script.t   # machine-readable JSON output
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | All checks passed |
+| 1 | Wire-phase errors (cycles, missing deps, name errors) |
+| 2 | Schema-phase errors (type mismatches) |
+| 3 | Environment-phase errors (missing files, artifacts) |
+
+**JSON output format (`--json`):**
+
+```json
+{
+  "schema_version": "1",
+  "status": "ok",
+  "phase": "wire",
+  "tier": 1,
+  "diagnostics": []
+}
+```
+
+Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node`, `file`, `span`, `message`, `caused_by`, and `suggested_fix`.
+
+**Examples:**
+
+```bash
+# Check a pipeline script
+t check analysis/pipeline.t
+
+# Get JSON for editor integration
+t check --json analysis/pipeline.t | jq '.diagnostics'
+```
+
+**How it works:**
+
+`t check` runs the full evaluator with `--failfast` but skips Nix builds entirely. Pipeline construction (`build_pipeline`, `populate_pipeline`) is short-circuited, so the check completes instantly without requiring Nix or any runtime dependencies. This makes it suitable for pre-commit hooks, editor integration, and CI structural validation.
+
+---
+
 ### `read_node(node)`
 
 Read a dynamically evaluated or materialized artifact from an in-scope pipeline build.

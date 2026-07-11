@@ -161,6 +161,9 @@ let () =
   Test_generic_diff.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_pipeline_diff.run_tests pass_count fail_count failures eval_string eval_string_env test;
 
+  (* t check / Diagnostics tests *)
+  Test_check.run_tests pass_count fail_count failures eval_string eval_string_env test;
+
   (* Summary *)
   let total = !pass_count + !fail_count in
   Printf.printf "\n=== Results: %d/%d passed ===\n" !pass_count total;

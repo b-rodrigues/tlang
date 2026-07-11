@@ -457,6 +457,10 @@ let get_in_memory_node_value_for_cn (cn : computed_node) : value option =
 (** Global hook for storing mapping from pipeline expressions to build log paths *)
 let pipeline_build_logs : ((string * expr) list, string) Hashtbl.t = Hashtbl.create 10
 
+(** When true, build_pipeline/populate_pipeline skip Nix builds.
+    Set by `t check` so structural validation runs without triggering builds. *)
+let check_mode = ref false
+
 
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.

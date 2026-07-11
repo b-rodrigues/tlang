@@ -52,6 +52,9 @@ let write_atelier_diagrams p env =
 *)
 let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> pipeline_result -> value) env =
   let build_fn named_args env =
+    if !Ast.check_mode then
+      VString "<check mode: build_pipeline skipped>"
+    else
     let named_keys = List.filter_map (fun (k, _) -> k) named_args in
     let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
     match List.find_opt (fun k -> not (List.mem k ["p"; "verbose"; "nix_options"; "dry_run"; "pipeline_name"])) named_keys with

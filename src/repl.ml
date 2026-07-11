@@ -506,6 +506,7 @@ let print_help () =
   Printf.printf "  repl              Start the interactive REPL (default)\n";
   Printf.printf "  run <file.t>      Execute a T source file\n";
   Printf.printf "  run --expr <expr> Execute a T expression directly\n";
+  Printf.printf "  check [--json] <file.t>  Validate pipeline structure (no Nix builds)\n";
   Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
@@ -706,6 +707,42 @@ let cmd_run_expr ?failfast mode expr env =
       Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
   | Ast.(VNA NAGeneric) -> ()
   | v -> print_string (Pretty_print.pretty_print_value v)
+
+let cmd_check ?(json=false) ?(tier=1) mode filename env =
+  Packages.ensure_docs_loaded ();
+  ensure_file_path filename;
+  Ast.check_mode := true;
+  let (result, _env) = run_file ~failfast:true mode filename env in
+  Ast.check_mode := false;
+  let check_result =
+    let diag_list : Diagnostics.diagnostic list = match result with
+      | Ast.VError err ->
+          [Diagnostics.of_verror ~file:filename err]
+      | Ast.VPipeline p ->
+          Diagnostics.of_pipeline_result ~file:filename p
+      | Ast.(VNA NAGeneric) -> []
+      | _ -> []
+    in
+    let check_phase = match diag_list with
+      | [] -> Diagnostics.Wire
+      | d :: _ -> Diagnostics.diagnostic_phase d
+    in
+    Diagnostics.make_result ~tier ~phase:check_phase diag_list
+  in
+  if json then
+    print_string (Yojson.Safe.pretty_to_string (Diagnostics.check_result_to_yojson check_result))
+  else begin
+    let cr_diags = Diagnostics.check_result_entries check_result in
+    List.iter (fun d ->
+      Printf.eprintf "%s [%s] %s\n"
+        (Diagnostics.severity_to_string (Diagnostics.diagnostic_severity d))
+        (Diagnostics.diagnostic_error_class d)
+        (Diagnostics.diagnostic_message d)
+    ) cr_diags;
+    if cr_diags <> [] then
+      Printf.eprintf "\n"
+  end;
+  exit (Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result))
 
 let cmd_debug ?(unsafe=false) ?failfast mode filename node_name env =
   let _ = unsafe in
@@ -1405,6 +1442,19 @@ let () =
   | _ :: "run" :: _ ->
       Printf.eprintf "Unexpected arguments after `t run <file.t>`.\n";
       exit 1
+  | _ :: "check" :: [] ->
+      Printf.eprintf "Usage: t check [--json] <file.t>\n";
+      exit 1
+  | _ :: "check" :: rest ->
+      let json = List.mem "--json" rest in
+      let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      (match filename with
+       | None ->
+           Printf.eprintf "Usage: t check [--json] <file.t>\n";
+           exit 1
+       | Some f ->
+           cmd_check ~json ~tier:1 script_mode f env)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest
