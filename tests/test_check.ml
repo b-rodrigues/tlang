@@ -135,6 +135,12 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
 
   Printf.printf "\nSchema check module:\n";
 
+  (* Set up temp fixture for read_csv_header test *)
+  ignore (Sys.command "mkdir -p /tmp/schema_test");
+  let oc = open_out "/tmp/schema_test/data.csv" in
+  Printf.fprintf oc "mpg,cyl,hp\n21.0,6,110\n21.0,6,93\n22.8,4,93\n";
+  close_out oc;
+
   (* Test extract_col_refs extracts ColumnRef *)
   let col_expr = { node = ColumnRef "mpg"; loc = None } in
   let refs = Schema_check.extract_col_refs col_expr in
@@ -175,5 +181,8 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check_eq "read_csv_header reads header"
     (match header with Some cols -> String.concat "," cols | None -> "NONE")
     "mpg,cyl,hp";
+
+  (* Cleanup temp fixture *)
+  ignore (Sys.command "rm -rf /tmp/schema_test");
 
   Printf.printf "\n";

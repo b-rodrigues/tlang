@@ -123,13 +123,15 @@ let extract_select_cols args =
   ) args
 
 (* Extract the new column name from a mutate() named argument.
-   mutate(df, $new = expr) → Some "new" *)
+   mutate(df, $new = expr) → Some "new"
+   Best-effort: also treats a bare positional $col as a new column assignment,
+   which may produce false positives on unusual mutate signatures. *)
 let extract_mutate_new_cols args =
   List.filter_map (fun (name, e) ->
     match name with
     | Some col -> Some col
     | None ->
-        (* Check if it's a column ref assignment: $col = expr *)
+        (* Best-effort heuristic: bare $col positional arg treated as assignment *)
         (match e.node with
          | ColumnRef col -> Some col
          | _ -> None)
@@ -311,8 +313,12 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
       (* Validate column references in the expression *)
       let all_refs = unwrap_pipe expr in
       List.iter (fun op ->
-        let validation_schema = if input_schema <> [] then input_schema
-          else try Hashtbl.find schemas (List.hd (dep_of name)) with Not_found -> [] in
+        let validation_schema =
+          if input_schema <> [] then input_schema
+          else match dep_of name with
+            | d :: _ -> (try Hashtbl.find schemas d with Not_found -> [])
+            | [] -> []
+        in
         if validation_schema <> [] then begin
           let errors = validate_col_refs ~node_name:name ~file:(Some file) ~schema:validation_schema op in
           diagnostics := errors @ !diagnostics
