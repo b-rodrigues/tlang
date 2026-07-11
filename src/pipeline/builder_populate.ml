@@ -9,169 +9,7 @@ let builtin_pipeline_strategies =
 
 let cold_start_warning_shown = ref false
 
-let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
-  let eval_string_list lst =
-    lst
-    |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))
-    |> List.map (function Ast.VString s -> s | _ -> "")
-    |> List.filter (fun s -> s <> "")
-  in
-  let get_all_files () =
-    (List.map snd p.p_functions @ List.map snd p.p_includes)
-    |> List.concat
-    |> eval_string_list
-  in
-  let script_files =
-    List.filter_map (fun (_, s) -> s) p.p_scripts
-  in
-  let missing_files =
-    (get_all_files () @ script_files)
-    |> List.filter (fun f -> not (Sys.file_exists f))
-  in
-  if missing_files <> [] then
-    Error (Printf.sprintf "The following required files are missing from the file system: %s" (String.concat ", " missing_files))
-  else
-  match Pipeline_dependency_requirements.ensure_project_requirements p with
-  | Error msg -> Error ("Pipeline dependency check failed: " ^ msg)
-  | Ok () ->
-  let () =
-    List.iter (fun (name, _) ->
-      let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
-      let des = match List.assoc_opt name p.p_deserializers with Some e -> e | None -> Ast.mk_expr (Ast.Var "default") in
-      let funcs = match List.assoc_opt name p.p_functions with Some f -> eval_string_list f | None -> [] in
-      let rec check_serializer_type expr =
-        match expr.Ast.node with
-        | Ast.Value (Ast.VString s) when List.mem (String.lowercase_ascii s) (builtin_pipeline_strategies @ ["serialize"]) ->
-            Printf.eprintf "Warning: Node `%s` uses a string literal for a built-in serializer (\"%s\").\nPlease use a symbol instead, e.g.: serializer = ^%s\n%!" 
-              name s (if s = "serialize" then "default" else s)
-        | Ast.ListLit items -> List.iter (fun (_, e) -> check_serializer_type e) items
-        | Ast.DictLit items -> List.iter (fun (_, e) -> check_serializer_type e) items
-        | _ -> ()
-      in
-      check_serializer_type ser;
-      
-      let rec requires_functions expr =
-        match expr.Ast.node with
-        | Ast.Value (Ast.VSymbol s) -> 
-            let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in
-            not (List.mem s builtin_pipeline_strategies)
-        | Ast.Value (Ast.VSerializer s) ->
-            not (List.mem s.s_format builtin_pipeline_strategies)
-        | Ast.Value (Ast.VString _) -> true
-        | Ast.Var _ -> false
-        | Ast.DotAccess _ | Ast.RawCode _ -> false
-        | Ast.ListLit items -> List.exists (fun (_, e) -> requires_functions e) items
-        | Ast.DictLit items -> List.exists (fun (_, e) -> requires_functions e) items
-        | _ -> false
-      in
-      let is_custom_ser = requires_functions ser in
-      let is_custom_des = requires_functions des in
-      if (is_custom_ser || is_custom_des) && funcs = [] then
-        Printf.eprintf "Warning: Node `%s` uses a custom or unknown strategy (not 'default', 'csv', 'json', 'arrow', 'pmml', 'onnx', etc.) but has no supporting `functions` specified.\nIf this is a built-in strategy, check the spelling (e.g., ^arrow or ^onnx).\nIf it is a custom function, ensure it is available in the runtime environment.\n%!" name
-    ) p.p_exprs
-  in
-
-  (* Ensure nodes with multiple dependencies use a dictionary for their deserializer strategy. *)
-  let check_multi_dep_strategies () =
-    List.find_map (fun (name, _) ->
-      let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
-      let des = match List.assoc_opt name p.p_deserializers with Some e -> e | None -> Ast.mk_expr (Ast.Var "default") in
-      
-      let is_dict_or_list = function
-        | Ast.DictLit _ | Ast.ListLit _
-        | Ast.Value (Ast.VDict _) | Ast.Value (Ast.VList _) -> true
-        | _ -> false
-      in
-      
-      if List.length deps >= 2 && not (is_dict_or_list des.Ast.node) then
-        let strategy = Nix_unparse.expr_to_string des in
-        if strategy <> "default" then
-          (match deps with
-           | d1 :: d2 :: _ ->
-               Some (Printf.sprintf "Node `%s` has multiple dependencies but uses a single deserializer strategy (\"%s\").\nThis strategy is applied to ALL dependencies, which may cause parse errors if they use different formats (e.g. Arrow vs PMML).\nPlease use a dictionary to specify the deserializer for each dependency, e.g.:\n  deserializer = [ %s: \"...\", %s: \"...\" ]"
-                      name strategy d1 d2)
-           | _ -> None)
-        else None
-      else None
-    ) p.p_exprs
-  in
-  
-  let check_serializer_coherence () =
-    let eval_expr e = Eval.eval_expr (ref Ast.Env.empty) e in
-    let get_ser name = 
-      match List.assoc_opt name p.p_serializers with
-      | Some e -> eval_expr e
-      | None -> Ast.(VNA NAGeneric)
-    in
-    let get_des name = 
-      match List.assoc_opt name p.p_deserializers with
-      | Some e -> eval_expr e
-      | None -> Ast.(VNA NAGeneric)
-    in
-    let extract_format = function
-      | Ast.VSerializer s -> Some s.s_format
-      | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
-      | Ast.VDict pairs ->
-          (match List.assoc_opt "format" pairs with
-           | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
-           | Some (VSerializer s) -> Some s.s_format
-           | _ -> None)
-      | _ -> None
-
-    in
-    List.find_map (fun (name, _) ->
-      let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
-      let node_des_val = get_des name in
-      List.find_map (fun dep_name ->
-        let producer_ser_val = get_ser dep_name in
-        let producer_fmt = extract_format producer_ser_val in
-        let consumer_fmt =
-          match node_des_val with
-          | Ast.VDict pairs ->
-              (match List.assoc_opt dep_name pairs with
-               | Some v -> extract_format v
-               | None -> extract_format node_des_val)
-          | _ -> extract_format node_des_val
-        in
-        match producer_fmt, consumer_fmt with
-        | Some pf, Some cf when pf <> cf && pf <> "default" && cf <> "default" -> 
-            Some (Printf.sprintf "Serializer coherence error: Node `%s` expects format `%s` for dependency `%s`, but `%s` produces format `%s`."
-                    name cf dep_name dep_name pf)
-        | _ -> None
-      ) deps
-    ) p.p_exprs
-  in
-
-  match check_multi_dep_strategies () with
-  | Some err -> Error (err)
-  | None ->
-  match check_serializer_coherence () with
-  | Some err -> Error (err)
-  | None ->
-  let check_bin_only_for_fetchurl () =
-    List.find_map (fun (name, _) ->
-      let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
-      let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-      let rec is_bin_format expr =
-        match expr.Ast.node with
-        | Ast.Value (Ast.VString s) -> String.lowercase_ascii s = "bin"
-        | Ast.Value (Ast.VSymbol s) ->
-            let s = String.lowercase_ascii (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s) in
-            s = "bin"
-        | Ast.Value (Ast.VSerializer s) -> s.s_format = "bin"
-        | Ast.ListLit items -> List.exists (fun (_, e) -> is_bin_format e) items
-        | Ast.DictLit items -> List.exists (fun (_, e) -> is_bin_format e) items
-        | _ -> false
-      in
-      if is_bin_format ser && runtime <> "fetchurl" then
-        Some (Printf.sprintf "The ^bin serializer is only supported for fetchurl nodes. Node `%s` uses runtime `%s`. Either set runtime = fetchurl or choose a different serializer." name runtime)
-      else
-        None
-    ) p.p_exprs
-  in
-  match check_bin_only_for_fetchurl () with
-  | Some err -> Error (err)
-  | None ->
+let generate_nix (p : Ast.pipeline_result) =
   ensure_pipeline_dir ();
   match write_dag p with
   | Error msg -> Error ("Failed to write dag.json: " ^ msg)
@@ -221,20 +59,209 @@ let populate_pipeline ?(build=false) ?verbose ?pipeline_name ?(nix_options : nix
       in
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
-      | Ok () ->
-          if build then
-            let has_per_node_flakes = List.exists (fun (_, f) -> f <> None) p.p_flakes in
-            if (has_per_node_flakes || use_uv) && not !cold_start_warning_shown then (
-              cold_start_warning_shown := true;
-              Printf.eprintf
-                "\n\
-                 This pipeline uses per-node flakes or UV Python workspaces.\n\
-                 The first build will download and compile all dependencies.\n\
-                 This is a one-time cold-start cost — subsequent runs will be\n\
-                 significantly faster. Go grab a coffee ☕\n\
-                 \n%!"
-            );
-            match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
-            | Ok result -> Ok result
-            | Error msg -> Error msg
-          else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))
+      | Ok () -> Ok (use_uv, pipeline_nix_path)
+
+let populate_pipeline ?(build=false) ?(skip_requirements=false) ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
+  let eval_string_list lst =
+    lst
+    |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))
+    |> List.map (function Ast.VString s -> s | _ -> "")
+    |> List.filter (fun s -> s <> "")
+  in
+  let get_all_files () =
+    (List.map snd p.p_functions @ List.map snd p.p_includes)
+    |> List.concat
+    |> eval_string_list
+  in
+  let script_files =
+    List.filter_map (fun (_, s) -> s) p.p_scripts
+  in
+  let missing_files =
+    (get_all_files () @ script_files)
+    |> List.filter (fun f -> not (Sys.file_exists f))
+  in
+  if missing_files <> [] then
+    Error (Printf.sprintf "The following required files are missing from the file system: %s" (String.concat ", " missing_files))
+  else begin
+  if not skip_requirements then begin
+    match Pipeline_dependency_requirements.ensure_project_requirements p with
+    | Error msg -> Error ("Pipeline dependency check failed: " ^ msg)
+    | Ok () ->
+    let () =
+      List.iter (fun (name, _) ->
+        let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
+        let des = match List.assoc_opt name p.p_deserializers with Some e -> e | None -> Ast.mk_expr (Ast.Var "default") in
+        let funcs = match List.assoc_opt name p.p_functions with Some f -> eval_string_list f | None -> [] in
+        let rec check_serializer_type expr =
+          match expr.Ast.node with
+          | Ast.Value (Ast.VString s) when List.mem (String.lowercase_ascii s) (builtin_pipeline_strategies @ ["serialize"]) ->
+              Printf.eprintf "Warning: Node `%s` uses a string literal for a built-in serializer (\"%s\").\nPlease use a symbol instead, e.g.: serializer = ^%s\n%!" 
+                name s (if s = "serialize" then "default" else s)
+          | Ast.ListLit items -> List.iter (fun (_, e) -> check_serializer_type e) items
+          | Ast.DictLit items -> List.iter (fun (_, e) -> check_serializer_type e) items
+          | _ -> ()
+        in
+        check_serializer_type ser;
+        
+        let rec requires_functions expr =
+          match expr.Ast.node with
+          | Ast.Value (Ast.VSymbol s) -> 
+              let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in
+              not (List.mem s builtin_pipeline_strategies)
+          | Ast.Value (Ast.VSerializer s) ->
+              not (List.mem s.s_format builtin_pipeline_strategies)
+          | Ast.Value (Ast.VString _) -> true
+          | Ast.Var _ -> false
+          | Ast.DotAccess _ | Ast.RawCode _ -> false
+          | Ast.ListLit items -> List.exists (fun (_, e) -> requires_functions e) items
+          | Ast.DictLit items -> List.exists (fun (_, e) -> requires_functions e) items
+          | _ -> false
+        in
+        let is_custom_ser = requires_functions ser in
+        let is_custom_des = requires_functions des in
+        if (is_custom_ser || is_custom_des) && funcs = [] then
+          Printf.eprintf "Warning: Node `%s` uses a custom or unknown strategy (not 'default', 'csv', 'json', 'arrow', 'pmml', 'onnx', etc.) but has no supporting `functions` specified.\nIf this is a built-in strategy, check the spelling (e.g., ^arrow or ^onnx).\nIf it is a custom function, ensure it is available in the runtime environment.\n%!" name
+      ) p.p_exprs
+    in
+
+    (* Ensure nodes with multiple dependencies use a dictionary for their deserializer strategy. *)
+    let check_multi_dep_strategies () =
+      List.find_map (fun (name, _) ->
+        let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+        let des = match List.assoc_opt name p.p_deserializers with Some e -> e | None -> Ast.mk_expr (Ast.Var "default") in
+        
+        let is_dict_or_list = function
+          | Ast.DictLit _ | Ast.ListLit _
+          | Ast.Value (Ast.VDict _) | Ast.Value (Ast.VList _) -> true
+          | _ -> false
+        in
+        
+        if List.length deps >= 2 && not (is_dict_or_list des.Ast.node) then
+          let strategy = Nix_unparse.expr_to_string des in
+          if strategy <> "default" then
+            (match deps with
+             | d1 :: d2 :: _ ->
+                 Some (Printf.sprintf "Node `%s` has multiple dependencies but uses a single deserializer strategy (\"%s\").\nThis strategy is applied to ALL dependencies, which may cause parse errors if they use different formats (e.g. Arrow vs PMML).\nPlease use a dictionary to specify the deserializer for each dependency, e.g.:\n  deserializer = [ %s: \"...\", %s: \"...\" ]"
+                        name strategy d1 d2)
+             | _ -> None)
+          else None
+        else None
+      ) p.p_exprs
+    in
+    
+    let check_serializer_coherence () =
+      let eval_expr e = Eval.eval_expr (ref Ast.Env.empty) e in
+      let get_ser name = 
+        match List.assoc_opt name p.p_serializers with
+        | Some e -> eval_expr e
+        | None -> Ast.(VNA NAGeneric)
+      in
+      let get_des name = 
+        match List.assoc_opt name p.p_deserializers with
+        | Some e -> eval_expr e
+        | None -> Ast.(VNA NAGeneric)
+      in
+      let extract_format = function
+        | Ast.VSerializer s -> Some s.s_format
+        | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
+        | Ast.VDict pairs ->
+            (match List.assoc_opt "format" pairs with
+             | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
+             | Some (VSerializer s) -> Some s.s_format
+             | _ -> None)
+        | _ -> None
+
+      in
+      List.find_map (fun (name, _) ->
+        let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+        let node_des_val = get_des name in
+        List.find_map (fun dep_name ->
+          let producer_ser_val = get_ser dep_name in
+          let producer_fmt = extract_format producer_ser_val in
+          let consumer_fmt =
+            match node_des_val with
+            | Ast.VDict pairs ->
+                (match List.assoc_opt dep_name pairs with
+                 | Some v -> extract_format v
+                 | None -> extract_format node_des_val)
+            | _ -> extract_format node_des_val
+          in
+          match producer_fmt, consumer_fmt with
+          | Some pf, Some cf when pf <> cf && pf <> "default" && cf <> "default" -> 
+              Some (Printf.sprintf "Serializer coherence error: Node `%s` expects format `%s` for dependency `%s`, but `%s` produces format `%s`."
+                      name cf dep_name dep_name pf)
+          | _ -> None
+        ) deps
+      ) p.p_exprs
+    in
+
+    match check_multi_dep_strategies () with
+    | Some err -> Error (err)
+    | None ->
+    match check_serializer_coherence () with
+    | Some err -> Error (err)
+    | None ->
+    let check_bin_only_for_fetchurl () =
+      List.find_map (fun (name, _) ->
+        let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
+        let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+        let rec is_bin_format expr =
+          match expr.Ast.node with
+          | Ast.Value (Ast.VString s) -> String.lowercase_ascii s = "bin"
+          | Ast.Value (Ast.VSymbol s) ->
+              let s = String.lowercase_ascii (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s) in
+              s = "bin"
+          | Ast.Value (Ast.VSerializer s) -> s.s_format = "bin"
+          | Ast.ListLit items -> List.exists (fun (_, e) -> is_bin_format e) items
+          | Ast.DictLit items -> List.exists (fun (_, e) -> is_bin_format e) items
+          | _ -> false
+        in
+        if is_bin_format ser && runtime <> "fetchurl" then
+          Some (Printf.sprintf "The ^bin serializer is only supported for fetchurl nodes. Node `%s` uses runtime `%s`. Either set runtime = fetchurl or choose a different serializer." name runtime)
+        else
+          None
+      ) p.p_exprs
+    in
+    match check_bin_only_for_fetchurl () with
+    | Some err -> Error (err)
+    | None ->
+      (match generate_nix p with
+       | Ok (use_uv, _nix_path) ->
+           if build then
+             let has_per_node_flakes = List.exists (fun (_, f) -> f <> None) p.p_flakes in
+             if (has_per_node_flakes || use_uv) && not !cold_start_warning_shown then (
+               cold_start_warning_shown := true;
+               Printf.eprintf
+                 "\n\
+                  This pipeline uses per-node flakes or UV Python workspaces.\n\
+                  The first build will download and compile all dependencies.\n\
+                  This is a one-time cold-start cost — subsequent runs will be\n\
+                  significantly faster. Go grab a coffee ☕\n\
+                  \n%!"
+             );
+             (match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
+              | Ok result -> Ok result
+              | Error msg -> Error msg)
+           else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))
+       | Error msg -> Error msg)
+  end else
+    match generate_nix p with
+    | Ok (use_uv, _nix_path) ->
+        if build then
+          let has_per_node_flakes = List.exists (fun (_, f) -> f <> None) p.p_flakes in
+          if (has_per_node_flakes || use_uv) && not !cold_start_warning_shown then (
+            cold_start_warning_shown := true;
+            Printf.eprintf
+              "\n\
+               This pipeline uses per-node flakes or UV Python workspaces.\n\
+               The first build will download and compile all dependencies.\n\
+               This is a one-time cold-start cost — subsequent runs will be\n\
+               significantly faster. Go grab a coffee ☕\n\
+               \n%!"
+          );
+          (match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
+           | Ok result -> Ok result
+           | Error msg -> Error msg)
+        else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))
+    | Error msg -> Error msg
+  end

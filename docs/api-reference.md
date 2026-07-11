@@ -3210,7 +3210,8 @@ Structural pipeline validation without triggering Nix builds. Runs the full eval
 t check path/to/script.t              # human-readable output
 t check --json path/to/script.t       # machine-readable JSON output
 t check --schema path/to/script.t     # include column-level schema validation
-t check --schema --json path/to/script.t  # combined: tier 1 + tier 2 in JSON
+t check --env path/to/script.t        # include environment resolution checks
+t check --schema --env --json path/to/script.t  # combined: tier 1+2+3 in JSON
 ```
 
 **Exit codes:**
@@ -3261,6 +3262,15 @@ When `--schema` is passed, `t check` additionally runs static schema propagation
 3. Checks all `$col` column references and formula variable references (`y ~ x`) against the inferred input schema at each node.
 
 Schema errors are reported as `phase: "schema"` diagnostics and trigger exit code 2.
+
+**Environment validation (`--env`):**
+
+When `--env` is passed, `t check` additionally runs environment resolution checks on all pipelines found in the environment:
+
+1. **Package declarations**: Checks that R/Python/Julia packages required by the pipeline are declared in `tproject.toml`.
+2. **Lockfile consistency**: For `r_resolver = "renv"`, verifies that declared R packages exist in `renv.lock`.
+
+Environment errors are reported as `phase: "env"` diagnostics and trigger exit code 3.
 
 ---
 

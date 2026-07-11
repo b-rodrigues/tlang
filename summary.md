@@ -76,6 +76,7 @@ t run path/to/script.t
 
 t check path/to/script.t                  # structural validation (no Nix builds)
 t check --schema path/to/script.t          # + column-level schema validation
+t check --env path/to/script.t             # + environment/lockfile checks
 t check --json path/to/script.t            # machine-readable diagnostics
 
 t test
