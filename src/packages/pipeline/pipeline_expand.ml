@@ -200,6 +200,7 @@ let make_branch (name : string) (orig_name : string) (i : int) (value_idx : int)
     un_pattern = None;
     un_iteration = "vector";
     un_flake = None;
+    un_contract = None;
   }}
 
 
@@ -561,7 +562,8 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                  p_iterations     = List.filter (fun (n, _) -> not (is_removed n)) p.p_iterations @
                    List.map (fun b -> (b.branch_name, "vector")) branches;
                  p_flakes         = List.filter (fun (n, _) -> not (is_removed n)) p.p_flakes @
-                   List.map (fun b -> (b.branch_name, None)) branches;
+                    List.map (fun b -> (b.branch_name, None)) branches;
+                 p_contracts      = List.filter (fun (n, _) -> not (is_removed n)) p.p_contracts;
                } in
 
                match to_script with

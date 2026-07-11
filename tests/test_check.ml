@@ -185,4 +185,51 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   (* Cleanup temp fixture *)
   ignore (Sys.command "rm -rf /tmp/schema_test");
 
+  Printf.printf "\nContract validation:\n";
+
+  (* Test validate_contracts detects missing columns *)
+  let schemas_tbl = Hashtbl.create 4 in
+  Hashtbl.add schemas_tbl "clean" ["mpg"; "cyl"];
+  let p_with_contract = {
+    p_nodes = []; p_exprs = []; p_deps = []; p_imports = [];
+    p_runtimes = []; p_serializers = []; p_deserializers = [];
+    p_env_vars = []; p_args = []; p_shells = []; p_shell_args = [];
+    p_functions = []; p_includes = []; p_noops = []; p_scripts = [];
+    p_explicit_deps = []; p_node_diagnostics = [];
+    p_has_patterns = false; p_patterns = []; p_iterations = [];
+    p_flakes = [];
+    p_contracts = ["clean", {
+      empty_contract with
+      contract_columns = Some ["mpg"; "cyl"; "hp"];
+    }];
+  } in
+  let contract_diags = Schema_check.validate_contracts
+    ~file:"test.t" p_with_contract schemas_tbl in
+  check_eq "validate_contracts: detects missing column"
+    (string_of_int (List.length contract_diags)) "1";
+  let missing_msg = Diagnostics.diagnostic_message (List.hd contract_diags) in
+  check "validate_contracts: message mentions missing column"
+    (Str.string_match (Str.regexp ".*Missing.*hp.*") missing_msg 0);
+
+  (* Test validate_contracts passes when all columns present *)
+  let schemas_tbl2 = Hashtbl.create 4 in
+  Hashtbl.add schemas_tbl2 "clean" ["mpg"; "cyl"; "hp"];
+  let p_pass = {
+    p_nodes = []; p_exprs = []; p_deps = []; p_imports = [];
+    p_runtimes = []; p_serializers = []; p_deserializers = [];
+    p_env_vars = []; p_args = []; p_shells = []; p_shell_args = [];
+    p_functions = []; p_includes = []; p_noops = []; p_scripts = [];
+    p_explicit_deps = []; p_node_diagnostics = [];
+    p_has_patterns = false; p_patterns = []; p_iterations = [];
+    p_flakes = [];
+    p_contracts = ["clean", {
+      empty_contract with
+      contract_columns = Some ["mpg"; "cyl"];
+    }];
+  } in
+  let pass_diags = Schema_check.validate_contracts
+    ~file:"test.t" p_pass schemas_tbl2 in
+  check_eq "validate_contracts: passes when all columns present"
+    (string_of_int (List.length pass_diags)) "0";
+
   Printf.printf "\n";

@@ -526,6 +526,7 @@ let build_ephemeral_plot_node node_name (un : unbuilt_node) =
       p_patterns = (match un.un_pattern with Some p -> [ (node_name, p) ] | None -> []);
       p_iterations = [ (node_name, un.un_iteration) ];
       p_flakes = [ (node_name, un.un_flake) ];
+      p_contracts = [];
     }
   in
   match Builder.populate_pipeline ~build:true pipeline with
