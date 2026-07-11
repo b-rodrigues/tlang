@@ -61,6 +61,27 @@ let generate_nix (p : Ast.pipeline_result) =
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () -> Ok (use_uv, pipeline_nix_path)
 
+let generate_and_maybe_build ?verbose ?pipeline_name ?nix_options ~build (p : Ast.pipeline_result) =
+  match generate_nix p with
+  | Error msg -> Error msg
+  | Ok (use_uv, _nix_path) ->
+      if build then
+        let has_per_node_flakes = List.exists (fun (_, f) -> f <> None) p.p_flakes in
+        if (has_per_node_flakes || use_uv) && not !cold_start_warning_shown then (
+          cold_start_warning_shown := true;
+          Printf.eprintf
+            "\n\
+             This pipeline uses per-node flakes or UV Python workspaces.\n\
+             The first build will download and compile all dependencies.\n\
+             This is a one-time cold-start cost — subsequent runs will be\n\
+             significantly faster. Go grab a coffee ☕\n\
+             \n%!"
+        );
+        (match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
+         | Ok result -> Ok result
+         | Error msg -> Error msg)
+      else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))
+
 let populate_pipeline ?(build=false) ?(skip_requirements=false) ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
   let eval_string_list lst =
     lst
@@ -225,43 +246,7 @@ let populate_pipeline ?(build=false) ?(skip_requirements=false) ?verbose ?pipeli
     match check_bin_only_for_fetchurl () with
     | Some err -> Error (err)
     | None ->
-      (match generate_nix p with
-       | Ok (use_uv, _nix_path) ->
-           if build then
-             let has_per_node_flakes = List.exists (fun (_, f) -> f <> None) p.p_flakes in
-             if (has_per_node_flakes || use_uv) && not !cold_start_warning_shown then (
-               cold_start_warning_shown := true;
-               Printf.eprintf
-                 "\n\
-                  This pipeline uses per-node flakes or UV Python workspaces.\n\
-                  The first build will download and compile all dependencies.\n\
-                  This is a one-time cold-start cost — subsequent runs will be\n\
-                  significantly faster. Go grab a coffee ☕\n\
-                  \n%!"
-             );
-             (match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
-              | Ok result -> Ok result
-              | Error msg -> Error msg)
-           else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))
-       | Error msg -> Error msg)
+      generate_and_maybe_build ?verbose ?pipeline_name ?nix_options ~build p
   end else
-    match generate_nix p with
-    | Ok (use_uv, _nix_path) ->
-        if build then
-          let has_per_node_flakes = List.exists (fun (_, f) -> f <> None) p.p_flakes in
-          if (has_per_node_flakes || use_uv) && not !cold_start_warning_shown then (
-            cold_start_warning_shown := true;
-            Printf.eprintf
-              "\n\
-               This pipeline uses per-node flakes or UV Python workspaces.\n\
-               The first build will download and compile all dependencies.\n\
-               This is a one-time cold-start cost — subsequent runs will be\n\
-               significantly faster. Go grab a coffee ☕\n\
-               \n%!"
-          );
-          (match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
-           | Ok result -> Ok result
-           | Error msg -> Error msg)
-        else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))
-    | Error msg -> Error msg
+    generate_and_maybe_build ?verbose ?pipeline_name ?nix_options ~build p
   end
