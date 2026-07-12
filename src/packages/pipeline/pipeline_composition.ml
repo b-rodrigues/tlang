@@ -287,11 +287,11 @@ let rec flatten_meta (v : value) : value =
              let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
              List.map (fun (n, pat) -> (ns n, namespace_pattern_expr sub_name local pat)) flat.p_patterns
            ) (@) in
-            let p_iterations = merge_fields (fun flat _ ns -> List.map (fun (n, it) -> (ns n, it)) flat.p_iterations) (@) in
-             let p_flakes = merge_fields (fun flat _ ns -> List.map (fun (n, f) -> (ns n, f)) flat.p_flakes) (@) in
-             let p_contracts = merge_fields (fun flat _ ns -> List.map (fun (n, c) -> (ns n, c)) flat.p_contracts) (@) in
-             let p_has_patterns = List.exists (fun (_, flat_sub, _, _) -> flat_sub.p_has_patterns) namespaced_subs in
-            VPipeline {
+           let p_iterations = merge_fields (fun flat _ ns -> List.map (fun (n, it) -> (ns n, it)) flat.p_iterations) (@) in
+           let p_flakes = merge_fields (fun flat _ ns -> List.map (fun (n, f) -> (ns n, f)) flat.p_flakes) (@) in
+           let p_contracts = merge_fields (fun flat _ ns -> List.map (fun (n, c) -> (ns n, c)) flat.p_contracts) (@) in
+           let p_has_patterns = List.exists (fun (_, flat_sub, _, _) -> flat_sub.p_has_patterns) namespaced_subs in
+           VPipeline {
              p_nodes;
              p_exprs;
              p_deps = final_deps;
@@ -310,10 +310,10 @@ let rec flatten_meta (v : value) : value =
              p_explicit_deps;
              p_node_diagnostics;
              p_has_patterns;
-              p_patterns;
-              p_iterations;
-              p_flakes;
-              p_contracts;
+             p_patterns;
+             p_iterations;
+             p_flakes;
+             p_contracts;
             })
   | other ->
       Error.type_error (Printf.sprintf "flatten_meta: expected a MetaPipeline or Pipeline value, got %s." (Utils.type_name other))
@@ -390,9 +390,9 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                  p_node_diagnostics = merge_new p1'.p_node_diagnostics p2'.p_node_diagnostics;
                  p_has_patterns = p1'.p_has_patterns || p2'.p_has_patterns;
                  p_patterns     = merge_new p1'.p_patterns p2'.p_patterns;
-                  p_iterations   = merge_new p1'.p_iterations p2'.p_iterations;
-                  p_flakes       = merge_new p1'.p_flakes p2'.p_flakes;
-                  p_contracts    = merge_new p1'.p_contracts p2'.p_contracts;
+                 p_iterations   = merge_new p1'.p_iterations p2'.p_iterations;
+                 p_flakes       = merge_new p1'.p_flakes p2'.p_flakes;
+                 p_contracts    = merge_new p1'.p_contracts p2'.p_contracts;
                 }
            end)
        | [_; _] -> Error.type_error "Function `chain` expects two Pipeline arguments."
@@ -457,9 +457,9 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                 p_node_diagnostics = merge_new p1'.p_node_diagnostics p2'.p_node_diagnostics;
                 p_has_patterns = p1'.p_has_patterns || p2'.p_has_patterns;
                 p_patterns     = merge_new p1'.p_patterns p2'.p_patterns;
-                 p_iterations   = merge_new p1'.p_iterations p2'.p_iterations;
-                 p_flakes       = merge_new p1'.p_flakes p2'.p_flakes;
-                 p_contracts    = merge_new p1'.p_contracts p2'.p_contracts;
+                p_iterations   = merge_new p1'.p_iterations p2'.p_iterations;
+                p_flakes       = merge_new p1'.p_flakes p2'.p_flakes;
+                p_contracts    = merge_new p1'.p_contracts p2'.p_contracts;
                }
            )
       | [_; _] -> Error.type_error "Function `parallel` expects two Pipeline arguments."

@@ -393,31 +393,6 @@ let write_file path content =
     Ok ()
   with Sys_error msg -> Error (Printf.sprintf "%s (%s)" msg path)
 
-(* Convenience wrapper for tier 3 env check: reads tproject.toml, merges renv, and analyzes *)
-let analyze_missing_requirements_with_renv (p : Ast.pipeline_result) ~project_root =
-  let tproject_path = Filename.concat project_root "tproject.toml" in
-  if not (Sys.file_exists tproject_path) then None
-  else
-    match read_file tproject_path with
-    | Error _ -> None
-    | Ok content ->
-        match Toml_parser.parse_tproject_toml ~root_dir:project_root content with
-        | Error _ -> None
-        | Ok cfg ->
-            let cfg =
-              if cfg.Package_types.proj_r_resolver = "renv" then
-                match Renv_resolver.split_packages ~project_root with
-                | Ok (renv_cran, renv_git) ->
-                    { cfg with
-                      Package_types.proj_r_dependencies = cfg.Package_types.proj_r_dependencies @ renv_cran;
-                      proj_r_git_dependencies = cfg.Package_types.proj_r_git_dependencies @ renv_git;
-                    }
-                | Error _ -> cfg
-              else cfg
-            in
-            let analysis = analyze_missing_requirements p cfg in
-            if analysis_is_empty analysis then None
-            else Some analysis
 
 let prompt_to_update ~tproject_path analysis =
   Printf.printf "%s\n\nAdd these entries to %s now? [y/N]: %!"

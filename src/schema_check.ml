@@ -316,9 +316,8 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
       (* Determine input schema from dependencies *)
       let input_schema = match dep_of name with
         | [] -> (match root_schema with Some s -> s | None -> [])
-        | deps ->
+        | primary :: _ ->
             (* Use the schema of the primary dependency (the piped-from node) *)
-            let primary = List.hd deps in
             (try Hashtbl.find schemas primary with Not_found -> [])
       in
 
@@ -391,7 +390,7 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
                        diag_phase = Schema;
                        diag_node_id = Some name;
                        diag_node_lang = None;
-                        diag_file = Some file;
+                       diag_file = Some file;
                        diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
                        diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
                        diag_message = Printf.sprintf "Formula variable '%s' in %s() not found in input schema [%s]"
