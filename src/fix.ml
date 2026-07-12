@@ -25,19 +25,16 @@ let apply_cast ~file ~line ~column ~cast_to =
                count l 0
              in
              let pad = String.make indent ' ' in
-             lines := !lines @ [
-               Printf.sprintf "%s|> mutate($%s = as.%s($%s))" pad column cast_to column;
-               l;
-             ]
+             lines := l :: Printf.sprintf "%s|> mutate($%s = as.%s($%s))" pad column cast_to column :: !lines
            else
-             lines := !lines @ [l];
+             lines := l :: !lines;
            incr i
          done
        with End_of_file -> ());
   let oc = open_out file in
   Fun.protect ~finally:(fun () -> close_out_noerr oc)
     (fun () ->
-       List.iter (fun l -> output_string oc (l ^ "\n")) !lines)
+       List.iter (fun l -> output_string oc (l ^ "\n")) (List.rev !lines))
 
 let apply_rename_column ~file ~old_name ~new_name =
   let content =
