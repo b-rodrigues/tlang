@@ -47,6 +47,152 @@ T treats LLMs as **first-class collaborators** with structured boundaries:
 2. **Local over Global**: LLMs generate pipeline nodes, not entire scripts
 3. **Inspectable over Opaque**: Intent blocks make assumptions explicit
 4. **Regenerable over Brittle**: Stable boundaries enable safe code updates
+5. **Validatable over Trusting**: Instant static checks catch errors before Nix builds
+
+---
+
+## Instant Feedback: `t check`
+
+Before an agent generates or modifies pipeline code, it should validate the result. T provides a tiered checking system that runs in seconds — no Nix builds required.
+
+### Three Tiers of Checking
+
+| Command | What it checks | Nix required? |
+| :--- | :--- | :--- |
+| `t check <file.t>` | Pipeline DAG structure, dependency cycles, node syntax | No |
+| `t check --schema <file.t>` | + column references, schema propagation, `expect()` contracts | No |
+| `t check --env <file.t>` | + `tproject.toml` declarations, lockfile consistency, Nix eval | Yes |
+| `t check --json <file.t>` | Structured JSON diagnostics (works with any tier) | Depends on tier |
+
+The first two tiers are the workhorses for agent iteration. They catch structural errors and schema mismatches in seconds, letting agents fix problems before triggering expensive Nix builds.
+
+### Watch Mode
+
+Use `--watch` during active development for continuous feedback:
+
+```bash
+t check --watch --schema src/pipeline.t
+```
+
+This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. The exit code reflects the last check's result, making it usable in CI and editor integrations.
+
+### Shape Contracts with `expect()`
+
+Agents declare expected output columns on pipeline nodes using `expect()`:
+
+```t
+clean = raw
+  |> filter($status == "complete")
+  |> mutate($score = as.numeric($score))
+  |> expect(columns = ["id", "name", "score"])
+```
+
+- `expect()` must appear at the **end** of a pipe chain
+- Checked statically via `t check --schema` — emits `contract_violation` if columns are missing
+- Mid-chain `expect()` (e.g., `raw |> expect(...) |> filter(...)`) produces a warning
+- `expect()` has no runtime effect — it is stripped during evaluation
+
+#### Type Contracts
+
+Declare expected column types to catch type mismatches statically:
+
+```t
+clean = raw
+  |> expect(
+       columns = ["id", "amount", "date"],
+       amount ~ double()
+     )
+```
+
+Type contracts like `amount ~ double()` are checked during `t check --schema`. If the column exists in the schema but has a different type, a `contract_violation` error is emitted with a mechanical fix suggestion.
+
+#### Null-Rate Contracts
+
+Declare acceptable null-rate thresholds (deferred to runtime):
+
+```t
+clean = raw
+  |> expect(
+       columns = ["id", "amount"],
+       null_rate("amount") < 0.05
+     )
+```
+
+Null-rate contracts emit a `contract_unverifiable` warning during `t check --schema` because they require runtime data to evaluate. The check still validates that the referenced column exists.
+
+### Structured Diagnostics
+
+`t check --json` emits machine-readable diagnostics:
+
+```json
+{
+  "diagnostics": [
+    {
+      "error_class": "contract_violation",
+      "message": "Node 'clean' contract expects columns [id, name, score] but output schema is [id, name]. Missing: [score]",
+      "node": "clean",
+      "span": { "start": [12, 5], "end": [12, 50] },
+      "suggested_fix": null
+    }
+  ],
+  "exit_code": 1
+}
+```
+
+Each diagnostic includes:
+- `error_class`: categorizes the issue (`contract_violation`, `type_mismatch`, `cycle_detected`, etc.)
+- `node`: the pipeline node where the issue was found
+- `span`: source location `[line, column]`
+- `suggested_fix`: a mechanical fix the agent can apply (see `t fix` below)
+
+Agents consume this output to make targeted decisions — no parsing of human-readable error strings required.
+
+### Mechanical Fixes with `t fix`
+
+When `t check --schema` emits a `suggested_fix`, the agent can apply it mechanically:
+
+```bash
+t fix src/pipeline.t          -- apply fixes and rewrite the file
+t fix --dry-run src/pipeline.t -- preview changes without modifying
+```
+
+Currently supported fix types:
+
+| Fix type | What it does |
+| :--- | :--- |
+| **Cast** | Inserts a type coercion (e.g., `mutate($amount = as.numeric($amount))`) when a type contract expects a different type |
+| **Rename_column** | Renames `$old_name` column references to `$new_name` throughout the file |
+| **Add_node_arg** | Adds a missing argument to a node function call |
+| **Pin_package_version** | Pins a dependency to a specific version in `tproject.toml` |
+
+The agent workflow is: run `t check --schema`, parse the JSON output for `suggested_fix` entries, then run `t fix` to apply them. Always review the diff before committing.
+
+### Build Diffing with `t diff`
+
+After iterative development, `t diff` compares the last two Nix builds of a pipeline:
+
+```bash
+t diff src/pipeline.t
+```
+
+It reports per-node status:
+
+| Status | Meaning |
+| :--- | :--- |
+| **Unchanged** | Same content hash in both builds |
+| **Changed** | Different content hash |
+| **Added** | Present in second build, absent in first |
+| **Removed** | Present in first build, absent in second |
+| **Errored** | Node failed in one or both builds |
+
+For programmatic access, use `diff_summary(p)` in the REPL:
+
+```t
+diff_summary(p)
+-- DataFrame with columns: name, status, hash_a, hash_b, class_a, class_b
+```
+
+This is useful for verifying that a code change only affected the intended nodes.
 
 ---
 
@@ -307,6 +453,55 @@ monthly = sales
 
 **Each iteration**: Intent updated, LLM regenerates, human verifies.
 
+### Pattern 4: Check-Fix-Verify
+
+This pattern uses T's static checking tools to catch and fix errors before running the pipeline.
+
+**Step 1**: Agent generates pipeline with `expect()` contracts
+
+```t
+analysis = pipeline {
+  raw = read_csv("sales.csv")
+  cleaned = raw
+    |> filter($amount > 0)
+    |> expect(columns = ["id", "region", "amount", "date"])
+  by_region = cleaned
+    |> group_by($region)
+    |> summarize($total = sum($amount))
+}
+```
+
+**Step 2**: Run `t check --schema` to validate
+
+```bash
+$ t check --schema src/pipeline.t
+error [contract_violation] Node 'cleaned' contract expects columns [id, region, amount, date]
+  but output schema is [id, region, amount]. Missing: [date]
+```
+
+**Step 3**: Agent fixes the missing column (localized change)
+
+```t
+  cleaned = raw
+    |> filter($amount > 0)
+    |> expect(columns = ["id", "region", "amount"])
+```
+
+**Step 4**: Run `t check --schema` again — clean
+
+```bash
+$ t check --schema src/pipeline.t
+$
+```
+
+**Step 5**: Only now trigger the Nix build
+
+```bash
+$ t run src/pipeline.t
+```
+
+This loop — **generate, check, fix, build** — ensures agents never waste time on Nix builds that would fail for structural or schema reasons. The check step takes seconds; the build step takes minutes.
+
 ---
 
 ## Introspection for LLMs
@@ -355,6 +550,34 @@ pipeline_deps(p, "z")
 -- LLM can understand dependency graph
 ```
 
+### Structured Diagnostics via CLI
+
+For machine consumption, agents use `t check --json` and `t fix --dry-run`:
+
+```bash
+$ t check --json --schema src/pipeline.t
+{
+  "diagnostics": [
+    {
+      "error_class": "contract_violation",
+      "message": "Node 'cleaned' contract expects columns [...] but output schema is [...]. Missing: [date]",
+      "node": "cleaned",
+      "span": { "start": [8, 5], "end": [8, 60] },
+      "suggested_fix": null
+    }
+  ],
+  "exit_code": 1
+}
+```
+
+```bash
+$ t fix --dry-run src/pipeline.t
+dry-run: would apply 1 fix to src/pipeline.t:
+  [Cast] line 12: insert mutate($amount = as.numeric($amount))
+```
+
+These tools give agents structured, parseable output instead of human-readable error strings. The agent can programmatically decide what to fix and verify the fix before applying it.
+
 ---
 
 ## LLM Best Practices
@@ -366,6 +589,8 @@ pipeline_deps(p, "z")
 3. **Review Generated Code**: Verify LLM understood correctly
 4. **Iterate Locally**: Request changes to specific nodes, not entire scripts
 5. **Version Intents**: Track intent changes in Git
+6. **Review `t fix` Diffs**: Use `t fix --dry-run` to preview changes before applying. Always review the diff before committing.
+7. **Use `--watch`**: Run `t check --watch --schema` during active development for continuous feedback
 
 ### For LLMs
 
@@ -374,6 +599,10 @@ pipeline_deps(p, "z")
 3. **Include Error Handling**: Use `na_rm`, validation checks
 4. **Preserve Intents**: Keep intent blocks in generated code
 5. **Explain Assumptions**: Document why specific approaches were chosen
+6. **Always `t check` First**: Run `t check --schema` before `build_pipeline` — it catches structural and schema errors in seconds
+7. **Declare Shapes**: Add `expect(columns = [...])` to pipeline nodes so downstream agents (and humans) know the output contract
+8. **Use `t fix` for Mechanical Changes**: When `t check --json` reports a `suggested_fix`, apply it with `t fix` rather than manually editing — it handles line-number drift and word-boundary safety
+9. **Verify with `t diff`**: After modifying a pipeline, run `t diff` to confirm only the intended nodes changed
 
 ---
 
@@ -381,7 +610,8 @@ pipeline_deps(p, "z")
 
 **Human**: "I need to analyze employee salaries by department and identify outliers"
 
-**LLM Response**:
+**LLM generates** with intent and `expect()` contracts:
+
 ```t
 intent {
   description: "Employee salary analysis with outlier detection",
@@ -402,56 +632,95 @@ intent {
     "outliers.csv: employees with salaries > 2 SD from mean"
   ],
   
-  created: "2024-01-15",
+  created: "2024-07-12",
   llm_assistant: "Claude"
 }
 
 salary_analysis = pipeline {
   -- Load data
   employees = read_csv("employees.csv", clean_colnames = true)
+    |> expect(columns = ["employee_id", "department", "salary"],
+              salary ~ double())
   
   -- Department statistics
   dept_stats = employees
     |> group_by($department)
-    |> summarize($mean_salary = mean($salary), $sd_salary = sd($salary), $count = nrow($department))
+    |> summarize($mean_salary = mean($salary),
+                 $sd_salary = sd($salary),
+                 $count = nrow($department))
+    |> expect(columns = ["department", "mean_salary", "sd_salary", "count"])
   
-  -- Identify outliers
-  -- (Join would be manual or use a join function if available)
-  -- For now, calculate globally
-  overall_mean = mean(employees.salary, na_rm = true)
-  overall_sd = sd(employees.salary, na_rm = true)
-  threshold = overall_mean + 2 * overall_sd
+  -- Per-department outliers (>2 SD from department mean)
+  with_stats = employees
+    |> group_by($department)
+    |> mutate($dept_mean = mean($salary, na_rm = true))
+    |> mutate($dept_sd = sd($salary, na_rm = true))
   
-  outliers = employees
-    |> filter($salary > threshold)
-    |> select($employee_id, $department, $salary)
+  outliers = with_stats
+    |> filter($salary > $dept_mean + 2 * $dept_sd)
+    |> select($employee_id, $department, $salary, $dept_mean, $dept_sd)
+    |> expect(columns = ["employee_id", "department", "salary",
+                         "dept_mean", "dept_sd"])
 }
 
 -- Export results
 write_csv(salary_analysis.dept_stats, "department_stats.csv")
 write_csv(salary_analysis.outliers, "outliers.csv")
-
-print("Analysis complete:")
-print("Department stats: department_stats.csv")
-print("Outliers: outliers.csv")
 ```
 
-**Human Review**: "Good! But I want outliers per department, not overall"
+**LLM validates** before building:
 
-**LLM Update** (regenerates `outliers` node):
+```bash
+$ t check --schema src/pipeline.t
+error [contract_violation] Node 'employees' contract expects columns
+  [employee_id, department, salary] but output schema could not be inferred
+  for read_csv. Missing columns cannot be verified statically.
+warning [contract_unverifiable] Node 'employees' type contract for column
+  'salary' (~ double) cannot be verified statically: column type is unknown
+```
+
+The `read_csv` output schema depends on the actual file contents, so the column contract can't be verified statically. The type contract for `salary` is also unverifiable without runtime data. These are expected warnings — the contracts will be enforced at build time via the pipeline assertions, and the type contract will be checked if a typed schema source (like Arrow) is used.
+
+**LLM confirms** the warnings are expected and runs the build:
+
+```bash
+$ t run src/pipeline.t
+```
+
+**Human Review**: "Good! But the outliers should only flag employees making more than $200k, not just 2 SD from mean"
+
+**LLM updates** the `outliers` node (localized change):
+
 ```t
-  -- Update: Per-department outliers
-  with_dept_stats = employees
-    |> group_by($department)
-    |> mutate($dept_mean, \(g) mean(g.salary, na_rm = true))
-    |> mutate($dept_sd, \(g) sd(g.salary, na_rm = true))
-  
-  outliers = with_dept_stats
-    |> filter($salary > $dept_mean + 2 * $dept_sd)
+  outliers = with_stats
+    |> filter($salary > 200000)
     |> select($employee_id, $department, $salary, $dept_mean, $dept_sd)
 ```
 
-**Note**: Only `outliers` node changed; `dept_stats` and `employees` nodes unchanged.
+**LLM validates** the change:
+
+```bash
+$ t check --schema src/pipeline.t
+$
+```
+
+Clean. The `expect()` contracts on `employees`, `dept_stats`, and `outliers` still hold. Only the filter predicate changed.
+
+**LLM builds and verifies** with `t diff`:
+
+```bash
+$ t run src/pipeline.t
+$ t diff src/pipeline.t
+Name          Status    Class_a  Class_b
+employees     Unchanged T        T
+dept_stats    Unchanged T        T
+with_stats    Unchanged T        T
+outliers      Changed   T        T
+```
+
+The diff confirms only `outliers` changed. `employees`, `dept_stats`, and `with_stats` are unchanged — their cached artifacts are reused.
+
+**Note**: The `expect()` contracts served as guardrails throughout. When the filter predicate changed, the contracts on `dept_stats` and `employees` were re-validated automatically. If the change had broken a downstream contract (e.g., by removing a column that `dept_stats` depends on), `t check --schema` would have caught it before the build.
 
 ---
 
@@ -476,3 +745,5 @@ git show abc123:src/pipeline.t
 - [Reproducibility](reproducibility.md) — Nix for reproducible environments
 - [Examples](examples.md) — Intent-driven analysis examples
 - [Pipeline Tutorial](pipeline_tutorial.md) — Pipeline structure
+- [Debugging](debugging.md) — `t debug` for interactive node debugging
+- [API Reference](api-reference.md) — `t check`, `t fix`, `t diff` CLI documentation
