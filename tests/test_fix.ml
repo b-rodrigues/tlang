@@ -1,0 +1,182 @@
+(* tests/test_fix.ml *)
+(* Tests for src/fix.ml — mechanical application of suggested_fix *)
+
+let run_tests pass_count fail_count failures _eval_string _eval_string_env _test =
+  Printf.printf "\n=== t fix tests ===\n\n";
+
+  let check name condition =
+    if condition then begin
+      incr pass_count;
+      Printf.printf "  ✓ %s\n" name
+    end else begin
+      incr fail_count;
+      let msg = Printf.sprintf "  ✗ %s\n" name in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
+    end
+  in
+
+  Printf.printf "apply_cast:\n";
+  let test_apply_cast () =
+    let tmp = Filename.temp_file "test_fix" ".t" in
+    let oc = open_out tmp in
+    output_string oc "clean = raw\n  |> read_csv(\"data.csv\")\n  |> expect(columns = [\"id\"])\n";
+    close_out oc;
+    Fix.apply_cast ~file:tmp ~line:3 ~column:"amount" ~cast_to:"double";
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    let lines = String.split_on_char '\n' content in
+    let line3 = List.nth lines 2 in
+    check "cast inserts mutate() before expect()" (String.length line3 > 0 && (try let _ = Str.search_forward (Str.regexp "mutate") line3 0 in true with Not_found -> false))
+  in
+  test_apply_cast ();
+
+  Printf.printf "\napply_rename_column:\n";
+  let test_apply_rename () =
+    let tmp = Filename.temp_file "test_fix" ".t" in
+    let oc = open_out tmp in
+    output_string oc "clean = raw\n  |> filter($id > 1)\n  |> mutate(valid = $id + 1)\n  |> expect(columns = [\"id\"])\n";
+    close_out oc;
+    Fix.apply_rename_column ~file:tmp ~old_name:"id" ~new_name:"record_id";
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    let has_new_ref = (try let _ = Str.search_forward (Str.regexp "\\$record_id") content 0 in true with Not_found -> false) in
+    let has_unchanged_valid = (try let _ = Str.search_forward (Str.regexp_string "valid") content 0 in true with Not_found -> false) in
+    check "rename_column replaces $id with $record_id" has_new_ref;
+    check "rename_column does not corrupt 'valid'" has_unchanged_valid
+  in
+  test_apply_rename ();
+
+  Printf.printf "\nsuggested_fix roundtrip:\n";
+  let test_roundtrip () =
+    let fixes : Diagnostics.suggested_fix list = [
+      Cast { column = "x"; cast_to = "double"; file = Some "test.t"; line = Some 5 };
+      Rename_column { old_name = "a"; new_name = "b"; file = Some "test.t"; line = None };
+      Add_node_arg { node = "filter"; arg = "na_rm=true"; file = Some "test.t"; line = None };
+      Pin_package_version { pkg = "dplyr"; version = "1.0.0"; file = Some "tproject.toml" };
+      NoFix;
+    ] in
+    let all_ok = List.for_all (fun fix ->
+      let json = Diagnostics.suggested_fix_to_yojson fix in
+      let roundtrip = Diagnostics.suggested_fix_of_yojson json in
+      match fix, roundtrip with
+      | NoFix, NoFix -> true
+      | Cast { column = c1; cast_to = t1; _ }, Cast { column = c2; cast_to = t2; _ } ->
+          c1 = c2 && t1 = t2
+      | Rename_column { old_name = o1; new_name = n1; _ }, Rename_column { old_name = o2; new_name = n2; _ } ->
+          o1 = o2 && n1 = n2
+      | Add_node_arg { node = n1; arg = a1; _ }, Add_node_arg { node = n2; arg = a2; _ } ->
+          n1 = n2 && a1 = a2
+      | Pin_package_version { pkg = p1; version = v1; _ }, Pin_package_version { pkg = p2; version = v2; _ } ->
+          p1 = p2 && v1 = v2
+      | _ -> false
+    ) fixes in
+    check "suggested_fix roundtrips through JSON" all_ok
+  in
+  test_roundtrip ();
+
+  Printf.printf "\napply_fix dispatch:\n";
+  let test_apply_fix_noop () =
+    let r = Fix.apply_fix ~file:"/dev/null" Diagnostics.NoFix in
+    check "apply_fix returns false for NoFix" (r = false)
+  in
+  test_apply_fix_noop ();
+
+  let test_apply_fix_node_arg () =
+    let r = Fix.apply_fix ~file:"/dev/null" (Diagnostics.Add_node_arg { node = "x"; arg = "y"; file = None; line = None }) in
+    check "apply_fix returns false for Add_node_arg (unimplemented)" (r = false)
+  in
+  test_apply_fix_node_arg ();
+
+  Printf.printf "\nsort_fixes_by_descending_line:\n";
+  let test_sort_fixes () =
+    let d1 = { Diagnostics.
+      diag_id = "T0001"; diag_error_class = "contract_violation"; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some "test.t"; diag_line = Some 3; diag_column = None;
+      diag_message = "first"; diag_caused_by = [];
+      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; file = Some "test.t"; line = Some 3 };
+    } in
+    let d2 = { d1 with diag_id = "T0002"; diag_line = Some 10;
+      diag_message = "second";
+      diag_suggested_fix = Cast { column = "y"; cast_to = "double"; file = Some "test.t"; line = Some 10 };
+    } in
+    let d3 = { d1 with diag_id = "T0003"; diag_line = Some 5;
+      diag_message = "third";
+      diag_suggested_fix = Cast { column = "z"; cast_to = "double"; file = Some "test.t"; line = Some 5 };
+    } in
+    let sorted = Fix.sort_fixes_by_descending_line [d1; d2; d3] in
+    let lines = List.filter_map (fun d -> d.Diagnostics.diag_line) sorted in
+    check "sort_descending: first element has highest line" (lines = [10; 5; 3])
+  in
+  test_sort_fixes ();
+
+  Printf.printf "\nword-boundary rename:\n";
+  let test_rename_word_boundary () =
+    let tmp = Filename.temp_file "test_fix_wb" ".t" in
+    let oc = open_out tmp in
+    output_string oc "clean = raw\n  |> filter($id > 1)\n  |> mutate($identity = $id + 1)\n";
+    close_out oc;
+    Fix.apply_rename_column ~file:tmp ~old_name:"id" ~new_name:"record_id";
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    let has_record_id = (try let _ = Str.search_forward (Str.regexp_string "$record_id") content 0 in true with Not_found -> false) in
+    let has_identity_unchanged = (try let _ = Str.search_forward (Str.regexp_string "$identity") content 0 in true with Not_found -> false) in
+    let no_record_identity = not (try let _ = Str.search_forward (Str.regexp_string "$record_identity") content 0 in true with Not_found -> false) in
+    check "rename replaces $id with $record_id" has_record_id;
+    check "rename does not corrupt $identity" has_identity_unchanged;
+    check "rename does not produce $record_identity" no_record_identity
+  in
+  test_rename_word_boundary ();
+
+  Printf.printf "\ndry-run counting:\n";
+  let test_dry_run_counting () =
+    let d1 = { Diagnostics.
+      diag_id = "T1001"; diag_error_class = "contract_violation"; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some "test.t"; diag_line = Some 5; diag_column = None;
+      diag_message = "Column 'x' expected double, got int"; diag_caused_by = [];
+      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; file = Some "test.t"; line = Some 5 };
+    } in
+    let d2 = { d1 with diag_id = "T1002"; diag_line = Some 8;
+      diag_message = "Column 'y' expected string, got int";
+      diag_suggested_fix = Cast { column = "y"; cast_to = "string"; file = Some "test.t"; line = Some 8 };
+    } in
+    let fixes = [d1; d2] in
+    let result = Fix.apply_fixes ~dry_run:true ~default_file:"test.t" fixes in
+    check "dry_run: applied = 0" (result.Fix.applied = 0);
+    check "dry_run: would_apply = 2" (result.Fix.would_apply = 2);
+    check "dry_run: skipped = 0" (result.Fix.skipped = 0)
+  in
+  test_dry_run_counting ();
+
+  Printf.printf "\napply_fixes non-dry-run:\n";
+  let test_apply_fixes_real () =
+    let tmp_cast = Filename.temp_file "test_fix_af" ".t" in
+    let oc = open_out tmp_cast in
+    output_string oc "clean = raw\n  |> read_csv(\"data.csv\")\n  |> expect(x = \"double\")\n";
+    close_out oc;
+    let d1 = { Diagnostics.
+      diag_id = "T1003"; diag_error_class = "contract_violation"; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some tmp_cast; diag_line = Some 3; diag_column = None;
+      diag_message = "type mismatch"; diag_caused_by = [];
+      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; file = Some tmp_cast; line = Some 3 };
+    } in
+    let result = Fix.apply_fixes ~dry_run:false ~default_file:tmp_cast [d1] in
+    check "non-dry-run: applied = 1" (result.Fix.applied = 1);
+    check "non-dry-run: would_apply = 0" (result.Fix.would_apply = 0);
+    let ch = open_in tmp_cast in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp_cast;
+    let has_mutate = (try let _ = Str.search_forward (Str.regexp "mutate") content 0 in true with Not_found -> false) in
+    check "non-dry-run: file patched with mutate()" has_mutate
+  in
+  test_apply_fixes_real ();

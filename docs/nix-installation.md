@@ -75,6 +75,90 @@ echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
 ---
 
+## Configuring Trusted Users
+
+Nix restricts certain operations (like using binary caches) to "trusted users." If
+you see warnings like `ignoring untrusted substituter` when running `nix shell` or
+`nix develop`, you need to add yourself as a trusted user.
+
+### Linux (Ubuntu, Debian)
+
+```bash
+sudo nano /etc/nix/nix.conf
+```
+
+Add your username to the `trusted-users` line:
+
+```text
+trusted-users = root your_username
+```
+
+Restart the Nix daemon:
+
+```bash
+sudo systemctl restart nix-daemon.service
+```
+
+> [!NOTE]
+> If you used the Determinate Systems installer, the daemon is managed by systemd. If
+> `nix-daemon.service` is not found, try `sudo determinate-nixd restart` or check
+> available units with `systemctl list-units | grep nix`.
+
+### Linux (Fedora, RHEL, CentOS)
+
+```bash
+sudo nano /etc/nix/nix.conf
+# Add: trusted-users = root your_username
+sudo systemctl restart nix-daemon.service
+```
+
+If `nix-daemon.service` is not found, try `sudo systemctl restart nix`.
+
+### Linux (Arch, Manjaro)
+
+```bash
+sudo nano /etc/nix/nix.conf
+# Add: trusted-users = root your_username
+sudo systemctl restart nix-daemon.service
+```
+
+### macOS
+
+```bash
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.custom.conf
+sudo launchctl kickstart -k system/org.nixos.nix-daemon
+```
+
+This works for both the standard installer and the Determinate Systems installer.
+
+### NixOS
+
+On NixOS, add the following to your `configuration.nix`:
+
+```nix
+nix.trustedUsers = [ "root" "your_username" ];
+```
+
+Then rebuild:
+
+```bash
+sudo nixos-rebuild switch
+```
+
+### Windows (WSL2)
+
+Inside your WSL2 terminal, follow the Linux instructions above for your WSL2 distribution (usually Ubuntu). After editing `nix.conf`, restart the daemon:
+
+```bash
+sudo systemctl restart nix-daemon.service
+```
+
+> [!NOTE]
+> If systemd is not enabled in your WSL2 setup, you need to enable it first. See the
+> [Windows (WSL2)](#windows-wsl2) section above.
+
+---
+
 ## Binary Caches (Cachix)
 
 To avoid building everything from source, we recommend configuring binary caches.
@@ -136,11 +220,8 @@ The installer usually updates your shell profile. Try restarting your terminal o
 . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 ```
 
-### Permission Denied
-If you encounter permission issues when using Nix, ensure your user is in the `trusted-users` list in `/etc/nix/nix.conf`:
-```text
-trusted-users = root @wheel your_username
-```
+### Permission Denied or "ignoring untrusted substituter"
+See [Configuring Trusted Users](#configuring-trusted-users) above.
 
 ## Next Steps
 

@@ -3200,6 +3200,78 @@ build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-
 
 ---
 
+### `t_check(file, json = false, schema = false, env = false)`
+
+REPL-callable version of `t check`. Runs structural, wire-phase, schema, and environment checks on a T script and returns the diagnostics as a string.
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to check |
+| `json` | Bool | `false` | Output diagnostics as JSON |
+| `schema` | Bool | `false` | Enable column-level schema validation |
+| `env` | Bool | `false` | Enable `tproject.toml` environment checks |
+
+**Returns:** `String` — formatted diagnostics (text or JSON, same as CLI `t check`).
+
+**Examples:**
+
+```t
+result = t_check("src/pipeline.t")
+result = t_check("src/pipeline.t", schema = true)
+result = t_check("src/pipeline.t", json = true, schema = true, env = true)
+```
+
+---
+
+### `t_diff(file, json = false, log_a = 2, log_b = 1)`
+
+REPL-callable version of `t diff`. Compares two builds of a pipeline using per-node Nix content hashes and returns the diff summary as a string.
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to diff |
+| `json` | Bool | `false` | Output diff as JSON |
+| `log_a` | Int | `2` | Rank of the first (older) build log |
+| `log_b` | Int | `1` | Rank of the second (newer) build log |
+
+**Returns:** `String` — formatted diff (text or JSON, same as CLI `t diff`).
+
+**Examples:**
+
+```t
+result = t_diff("src/pipeline.t")
+result = t_diff("src/pipeline.t", log_a = 1, log_b = 2)
+result = t_diff("src/pipeline.t", json = true)
+```
+
+---
+
+### `t_fix(file, dry_run = false)`
+
+REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically (e.g., inserting `|> mutate($col = as.type($col))` for type contract violations).
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to fix |
+| `dry_run` | Bool | `false` | Show what would be fixed without modifying the file |
+
+**Returns:** `String` — summary of fixes applied (or would be applied), same as CLI `t fix`.
+
+**Examples:**
+
+```t
+result = t_fix("src/pipeline.t")
+result = t_fix("src/pipeline.t", dry_run = true)
+```
+
+---
+
 ### `t check` (CLI)
 
 Structural pipeline validation without triggering Nix builds. Runs the full evaluator with `--failfast` but short-circuits Nix builds, so it can surface errors across all phases — syntax (parse), graph structure (wire), types (schema), and environment (missing files). The reported `tier` and `phase` reflect the deepest phase reached during evaluation, not a fixed depth limit.
@@ -3281,7 +3353,7 @@ When `--watch` is passed, `t check` runs immediately, then polls the input file 
 
 ### `expect()` — Pipeline shape contracts
 
-Attach a shape contract to a pipeline node to declare expected output column names.
+Attach a shape contract to a pipeline node to declare expected output properties.
 Contracts are checked statically via `t check --schema`.
 
 **Syntax:**
@@ -3293,6 +3365,15 @@ clean_data = raw_data
   |> expect(columns = ["id", "name", "score"])
 ```
 
+Type contracts and null-rate contracts can be mixed with column contracts:
+
+```t
+clean_data = raw_data
+  |> expect(columns = ["id", "amount", "region"],
+             amount ~ double(),
+             null_rate("amount") < 0.02)
+```
+
 `expect()` must appear at the **end** of a pipe chain.
 
 **Accepted arguments:**
@@ -3300,16 +3381,22 @@ clean_data = raw_data
 | Argument | Type | Description |
 |----------|------|-------------|
 | `columns` | `List[String]` | Expected column names in the output |
+| `col ~ type()` | Type contract | Asserts a column has a specific type (e.g., `amount ~ double()`, `id ~ int()`) |
+| `null_rate("col") < n` | Null-rate contract | Asserts the fraction of null values in a column is below a threshold |
 
 **Behavior:**
 
-- Checked only when `t check --schema` is used (tier 2)
-- If the inferred output schema is missing any declared columns, a `contract_violation` diagnostic is emitted
-- `expect()` is stripped from the pipe chain during evaluation — it has no runtime effect
+- Column contracts: checked when `t check --schema` is used (tier 2). If the inferred output schema is missing any declared columns, a `contract_violation` diagnostic is emitted.
+- Type contracts: checked statically when the column type is known (e.g., from CSV headers). If the type doesn't match, a `contract_violation` error is emitted. If the type is unknown (e.g., Python/Julia nodes), a `contract_unverifiable` warning is emitted.
+- Null-rate contracts: cannot be verified statically (require actual data). A `contract_unverifiable` warning is emitted during `t check --schema`. Runtime enforcement is planned for a future release.
+- `expect()` is stripped from the pipe chain during evaluation — it has no runtime effect.
+
+**Supported type names:** `double`, `int`, `string`, `bool`, `date`
 
 **Limitations:**
 
-- Only column names are checked; types, row counts, and null rates are not yet enforced
+- Null-rate contracts are checked at `t check --schema` time as warnings only; runtime enforcement is not yet implemented
+- Type inference from CSV headers is based on sampling; complex types may not be detected correctly
 - Column validation depends on accurate schema inference (CSV headers for root nodes, colcraft verb propagation for downstream nodes)
 
 ---
@@ -3517,27 +3604,88 @@ diff_model = node_diff(p.model_node, p.model_node, log_a = ".*train1.*", log_b =
 
 ---
 
-### `collect_exceptions(p)`
+### `diff_summary(p)`
 
-Collects all terminal error exceptions and non-terminal warning diagnostics from the computed nodes of a built pipeline.
+Compares the two most recent builds of a pipeline and returns a DataFrame summarizing which nodes changed, were added, or were removed. Uses per-node Nix content hashes stored in build logs for fast comparison without loading artifacts.
 
 **Parameters:**
 
-- `p` — The Pipeline object to collect diagnostics from.
+- `p` — The pipeline to compare builds for.
 
 **Returns:**
 
-`DataFrame` — A DataFrame with columns `node`, `status`, `code`, and `message` detailing the exceptions and warnings across all nodes.
+`DataFrame` — A summary with columns:
+- `name` (String) — Node name.
+- `status` (String) — One of `"unchanged"`, `"changed"`, `"added"`, `"removed"`.
+- `hash_a` (String) — Nix content hash from build A.
+- `hash_b` (String) — Nix content hash from build B.
+- `class_a` (String) — Output value class from build A.
+- `class_b` (String) — Output value class from build B.
 
 **Examples:**
 ```t
-p = pipeline { a = 1 / 0; b = a + 5 }
+p = pipeline { a = 1; b = 2 }
 build_pipeline(p)
-exceptions = collect_exceptions(p)
--- Returns a DataFrame with:
---   node | status  | code             | message
---   "a"  | "Error" | "DivisionByZero" | "Division by zero"
---   "b"  | "Error" | "UpstreamError"  | "Upstream dependency 'a' failed"
+-- ... edit pipeline ...
+build_pipeline(p)
+summary = diff_summary(p)
+print(summary)
+```
+
+---
+
+### CLI: `t diff`
+
+The `t diff` command provides the same functionality from the shell, without needing to write a T script:
+
+```bash
+t diff <file.t>                    # compare last two builds
+t diff <file.t> --json             # structured JSON output
+t diff <file.t> --log-a 2 --log-b 4  # compare specific build ranks
+```
+
+---
+
+### CLI: `t fix`
+
+Mechanically applies `suggested_fix` values from `t check --json` diagnostics. Runs `t check --json` internally, collects diagnostics with non-null `suggested_fix`, and applies them to the source file.
+
+```bash
+t fix <file.t>                     # apply all suggested fixes
+t fix --dry-run <file.t>           # preview fixes without applying
+```
+
+**Supported fix types:**
+
+| Fix Kind | Action |
+|----------|--------|
+| `cast` | Inserts `\|> mutate($col = as.type($col, "target"))` before the `expect()` node |
+| `rename_column` | Replaces all occurrences of the old column name with the new name |
+| `add_node_arg` | (planned) Adds an argument to a pipeline node |
+| `pin_package_version` | (planned) Adds or updates a package version in `tproject.toml` |
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Fixes applied (or `--dry-run` preview completed) |
+| 1 | No fixes available or `t check` failed |
+
+**Example:**
+
+```bash
+$ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
+{
+  "kind": "cast",
+  "column": "amount",
+  "cast_to": "double",
+  "file": "pipeline.t",
+  "line": 5
+}
+
+$ t fix pipeline.t
+Applied 1 fix(es), skipped 0.
+Run 't check pipeline.t' to verify.
 ```
 
 ---

@@ -3,8 +3,26 @@
 
 open Ast
 
-(* A schema is a list of column names. Types are not tracked statically. *)
-type schema = string list
+(* A schema tracks column names with optional type information.
+   Types are inferred from CSV headers and propagated through pipe chains. *)
+type schema_col = { sc_name : string; sc_type : string option }
+type schema = schema_col list
+
+let schema_names (s : schema) : string list = List.map (fun c -> c.sc_name) s
+
+let schema_has_col (col : string) (s : schema) : bool =
+  List.exists (fun c -> c.sc_name = col) s
+
+let schema_find_type (col : string) (s : schema) : string option =
+  match List.find_opt (fun c -> c.sc_name = col) s with
+  | Some c -> c.sc_type
+  | None -> None
+
+let make_schema ?(typed=[]) (cols : string list) : schema =
+  List.map (fun name ->
+    let sc_type = List.assoc_opt name typed in
+    { sc_name = name; sc_type }
+  ) cols
 
 (* ---------- AST column reference extraction ---------- *)
 
@@ -152,28 +170,37 @@ let infer_output_schema input_schema expr =
   | Select ->
       let cols = extract_select_cols
           (match expr.node with Call { args; _ } -> args | _ -> []) in
-      if cols = [] then input_schema else cols
+      if cols = [] then input_schema
+      else List.filter_map (fun c ->
+        if schema_has_col c input_schema then
+          Some { sc_name = c; sc_type = schema_find_type c input_schema }
+        else
+          Some { sc_name = c; sc_type = None }
+      ) cols
   | Filter | Ungroup | Slice | Arrange | GroupBy ->
       input_schema
   | Mutate ->
       let new_cols = extract_mutate_new_cols
           (match expr.node with Call { args; _ } -> args | _ -> []) in
       (* Remove any input cols being overwritten, then append new *)
-      let old_cols = List.filter (fun c -> not (List.mem c new_cols)) input_schema in
-      old_cols @ new_cols
+      let old_cols = List.filter (fun c -> not (List.mem c.sc_name new_cols)) input_schema in
+      old_cols @ List.map (fun name -> { sc_name = name; sc_type = None }) new_cols
   | Rename ->
       (* rename(df, $old, "new") — we can't fully parse this statically,
          just return input schema unchanged *)
       input_schema
   | Summarize ->
-      extract_summarize_cols
-        (match expr.node with Call { args; _ } -> args | _ -> [])
+      let cols = extract_summarize_cols
+          (match expr.node with Call { args; _ } -> args | _ -> []) in
+      List.map (fun name -> { sc_name = name; sc_type = None }) cols
   | Distinct ->
       input_schema
   | Count ->
       let named = extract_summarize_cols
           (match expr.node with Call { args; _ } -> args | _ -> []) in
-      if named <> [] then named else input_schema @ ["n"]
+      if named <> [] then
+        List.map (fun name -> { sc_name = name; sc_type = None }) named
+      else input_schema @ [{ sc_name = "n"; sc_type = Some "int" }]
   | Other _ ->
       (* Unknown function — schema is unknown *)
       []
@@ -202,7 +229,7 @@ let validate_col_refs ~node_name ~(file : string option) ~schema expr =
     if Hashtbl.mem seen col then None
     else begin
       Hashtbl.add seen col ();
-      if List.mem col schema then None
+      if schema_has_col col schema then None
       else Some (Diagnostics.{
         diag_id = Diagnostics.gen_id ();
         diag_error_class = "schema_mismatch";
@@ -214,7 +241,7 @@ let validate_col_refs ~node_name ~(file : string option) ~schema expr =
         diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
         diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
         diag_message = Printf.sprintf "Column '%s' referenced in node '%s' not found in input schema [%s]"
-          col node_name (String.concat ", " schema);
+          col node_name (String.concat ", " (schema_names schema));
         diag_caused_by = [];
         diag_suggested_fix = NoFix;
       })
@@ -224,36 +251,113 @@ let validate_col_refs ~node_name ~(file : string option) ~schema expr =
 (* ---------- Contract validation ---------- *)
 
 (* Validate contracts attached via expect() against inferred schemas.
-   Checks that all declared contract columns exist in the output schema. *)
+   Checks that all declared contract columns exist in the output schema,
+   and that type contracts match inferred column types. *)
 let validate_contracts ~file (p : pipeline_result) schemas =
-  List.filter_map (fun (node_name, contract) ->
+  let contract_line c = match c.Ast.contract_loc with Some l -> Some l.Ast.line | None -> None in
+  let contract_column c = match c.Ast.contract_loc with Some l -> Some l.Ast.column | None -> None in
+  List.concat_map (fun (node_name, contract) ->
     let output_schema =
       try Hashtbl.find schemas node_name with Not_found -> []
     in
-    match contract.contract_columns with
-    | None -> None
-    | Some required_cols ->
-        let missing = List.filter (fun col -> not (List.mem col output_schema)) required_cols in
-        if missing <> [] then
-          Some (Diagnostics.{
-            diag_id = Diagnostics.gen_id ();
-            diag_error_class = "contract_violation";
-            diag_severity = Error;
-            diag_phase = Schema;
-            diag_node_id = Some node_name;
-            diag_node_lang = None;
-            diag_file = Some file;
-            diag_line = None;
-            diag_column = None;
-            diag_message = Printf.sprintf "Node '%s' contract expects columns [%s] but output schema is [%s]. Missing: [%s]"
-              node_name
-              (String.concat ", " required_cols)
-              (String.concat ", " output_schema)
-              (String.concat ", " missing);
-            diag_caused_by = [];
-            diag_suggested_fix = NoFix;
-          })
-        else None
+    let col_names = schema_names output_schema in
+    (* Column presence check *)
+    let col_diag = match contract.contract_columns with
+      | None -> None
+      | Some required_cols ->
+          let missing = List.filter (fun col -> not (schema_has_col col output_schema)) required_cols in
+          if missing <> [] then
+            Some (Diagnostics.{
+              diag_id = Diagnostics.gen_id ();
+              diag_error_class = "contract_violation";
+              diag_severity = Error;
+              diag_phase = Schema;
+              diag_node_id = Some node_name;
+              diag_node_lang = None;
+              diag_file = Some file;
+              diag_line = contract_line contract;
+              diag_column = contract_column contract;
+              diag_message = Printf.sprintf "Node '%s' contract expects columns [%s] but output schema is [%s]. Missing: [%s]"
+                node_name
+                (String.concat ", " required_cols)
+                (String.concat ", " col_names)
+                (String.concat ", " missing);
+              diag_caused_by = [];
+              diag_suggested_fix = NoFix;
+            })
+          else None
+    in
+    (* Type contract check *)
+    let type_diags = match contract.contract_types with
+      | None -> []
+      | Some type_specs ->
+          List.filter_map (fun (col, expected_type) ->
+            match schema_find_type col output_schema with
+            | None ->
+                (* Type unknown — emit warning, not error *)
+                Some (Diagnostics.{
+                  diag_id = Diagnostics.gen_id ();
+                  diag_error_class = "contract_unverifiable";
+                  diag_severity = Warning;
+                  diag_phase = Schema;
+                  diag_node_id = Some node_name;
+                  diag_node_lang = None;
+                  diag_file = Some file;
+                  diag_line = contract_line contract;
+                  diag_column = contract_column contract;
+                  diag_message = Printf.sprintf "Node '%s' type contract for column '%s' (~ %s) cannot be verified statically: column type is unknown"
+                    node_name col expected_type;
+                  diag_caused_by = [];
+                  diag_suggested_fix = NoFix;
+                })
+            | Some actual_type ->
+                if actual_type <> expected_type then
+                  Some (Diagnostics.{
+                    diag_id = Diagnostics.gen_id ();
+                    diag_error_class = "contract_violation";
+                    diag_severity = Error;
+                    diag_phase = Schema;
+                    diag_node_id = Some node_name;
+                    diag_node_lang = None;
+                    diag_file = Some file;
+                    diag_line = contract_line contract;
+                    diag_column = contract_column contract;
+                    diag_message = Printf.sprintf "Node '%s' type contract for column '%s' expects ~ %s but output schema has type %s"
+                      node_name col expected_type actual_type;
+                    diag_caused_by = [];
+                    diag_suggested_fix = Cast {
+                      column = col;
+                      cast_to = expected_type;
+                      file = Some file;
+                      line = contract_line contract;
+                    };
+                  })
+                else None
+          ) type_specs
+    in
+    (* Null-rate contract: emit unverifiable warning (needs runtime data) *)
+    let null_rate_diags = match contract.contract_null_rates with
+      | None -> []
+      | Some specs ->
+          List.map (fun (col, threshold) ->
+            Diagnostics.{
+              diag_id = Diagnostics.gen_id ();
+              diag_error_class = "contract_unverifiable";
+              diag_severity = Warning;
+              diag_phase = Schema;
+              diag_node_id = Some node_name;
+              diag_node_lang = None;
+              diag_file = Some file;
+              diag_line = contract_line contract;
+              diag_column = contract_column contract;
+              diag_message = Printf.sprintf "Node '%s' null-rate contract for column '%s' (< %.2f) cannot be verified statically: requires runtime data"
+                node_name col threshold;
+              diag_caused_by = [];
+              diag_suggested_fix = NoFix;
+            }
+          ) specs
+    in
+    Option.to_list col_diag @ type_diags @ null_rate_diags
   ) p.p_contracts
 
 (* ---------- Main entry point ---------- *)
@@ -303,11 +407,11 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
               let dir = Filename.dirname file in
               let full_path = Filename.concat dir path in
               (match read_csv_header full_path with
-               | Some cols -> Some cols
+               | Some cols -> Some (make_schema cols)
                | None ->
                    (* Try the path as-is *)
                    match read_csv_header path with
-                   | Some cols -> Some cols
+                   | Some cols -> Some (make_schema cols)
                    | None -> None)
           | None -> None
         else None
@@ -380,26 +484,26 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
                    | d :: _ -> (try Hashtbl.find schemas d with Not_found -> [])
                    | [] -> []
                in
-               if validation_schema <> [] then begin
-                 let errors = List.filter_map (fun var ->
-                   if not (List.mem var validation_schema) then
-                     Some (Diagnostics.{
-                       diag_id = Diagnostics.gen_id ();
-                       diag_error_class = "schema_mismatch";
-                       diag_severity = Error;
-                       diag_phase = Schema;
-                       diag_node_id = Some name;
-                       diag_node_lang = None;
-                       diag_file = Some file;
-                       diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
-                       diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
-                       diag_message = Printf.sprintf "Formula variable '%s' in %s() not found in input schema [%s]"
-                         var fn_name (String.concat ", " validation_schema);
-                       diag_caused_by = [];
-                       diag_suggested_fix = NoFix;
-                     })
-                   else None
-                 ) all_vars in
+                if validation_schema <> [] then begin
+                  let errors = List.filter_map (fun var ->
+                    if not (schema_has_col var validation_schema) then
+                      Some (Diagnostics.{
+                        diag_id = Diagnostics.gen_id ();
+                        diag_error_class = "schema_mismatch";
+                        diag_severity = Error;
+                        diag_phase = Schema;
+                        diag_node_id = Some name;
+                        diag_node_lang = None;
+                        diag_file = Some file;
+                        diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
+                        diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
+                        diag_message = Printf.sprintf "Formula variable '%s' in %s() not found in input schema [%s]"
+                          var fn_name (String.concat ", " (schema_names validation_schema));
+                        diag_caused_by = [];
+                        diag_suggested_fix = NoFix;
+                      })
+                    else None
+                  ) all_vars in
                  diagnostics := errors @ !diagnostics
                end
            | None -> ())

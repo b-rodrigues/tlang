@@ -98,6 +98,63 @@ let read_log path =
     Ok entries
   with exn -> Error (Printexc.to_string exn)
 
+let read_log_with_hashes path =
+  try
+    let json = Yojson.Safe.from_file path in
+    let open Yojson.Safe.Util in
+    let timestamp =
+      match json |> member "timestamp" with
+      | `String s -> s
+      | _ -> ""
+    in
+    let top_hash =
+      match json |> member "hash" with
+      | `String s -> s
+      | _ -> ""
+    in
+    let nodes = json |> member "nodes" |> to_list in
+    let entries_and_hashes = List.map (fun node_json ->
+      let name = node_json |> member "node" |> to_string in
+      let status =
+        match node_json |> member "status" with
+        | `String s -> s
+        | _ -> ""
+      in
+      let err_code =
+        match node_json |> member "error_code" with
+        | `String s -> s
+        | _ -> ""
+      in
+      let cn_class =
+        if status = "Errored" then
+          (if err_code <> "" then err_code else "Error")
+        else
+          node_json |> member "class" |> to_string
+      in
+      let cn_path =
+        if status = "Errored" then ""
+        else node_json |> member "path" |> to_string
+      in
+      let node_hash =
+        match node_json |> member "hash" with
+        | `String s -> s
+        | _ -> ""
+      in
+      let cn = {
+        Ast.cn_name = name;
+        cn_runtime = node_json |> member "runtime" |> to_string;
+        cn_path;
+        cn_serializer = node_json |> member "serializer" |> to_string;
+        cn_class;
+        cn_dependencies = node_json |> member "dependencies" |> to_list |> filter_string;
+        cn_p_exprs = None;
+        cn_flake = None;
+      } in
+      (name, cn, node_hash)
+    ) nodes in
+    Ok (entries_and_hashes, timestamp, top_hash)
+  with exn -> Error (Printexc.to_string exn)
+
 let list_logs () =
   let logs_arr = Array.of_list (get_logs ()) in
   let nrows = Array.length logs_arr in

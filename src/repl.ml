@@ -17,73 +17,13 @@ let () =
   ignore (LNoise.history_load ~filename:history_file)
 
 (* --- Parsing and Evaluation --- *)
+(* Delegated to Check_utils (library module) so both the CLI and
+   REPL-callable functions share the same implementation. *)
 
-let source_location ?file pos : Ast.source_location =
-  {
-    file;
-    line = pos.Lexing.pos_lnum;
-    column = max 1 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1);
-  }
-
-let make_located_error ?file code message pos =
-  Ast.VError {
-    code;
-    message;
-    context = [];
-    location = Some (source_location ?file pos);
-    na_count = 0;
-  }
-
-let interrupt_error () =
-  Ast.VError {
-    code = Ast.RuntimeError;
-    message = "Interrupted.";
-    context = [];
-    location = None;
-    na_count = 0;
-  }
-
-let parse_and_eval ?filename ?(failfast=false) mode env input =
-  let lexbuf = Lexing.from_string input in
-  (match filename with
-   | Some file -> lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = file }
-   | None -> ());
-  try
-    let program = Parser.program Lexer.token lexbuf in
-    match Typecheck.validate_program ~mode program with
-    | Error err -> (Ast.VError err, env)
-    | Ok () -> Eval.eval_program ~resilient:(not failfast) program env
-  with
-  | Lexer.SyntaxError msg ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError ("Syntax Error: " ^ msg) pos, env)
-  | Parser.Error ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError "Parse Error" pos, env)
-  | Ast.Mixed_bracket_form ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos, env)
-  | Ast.Invalid_match_pattern msg ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError msg pos, env)
-  | Sys.Break ->
-      (interrupt_error (), env)
-
-let run_file ?failfast mode filename env =
-  try
-    let ch = open_in filename in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    parse_and_eval ~filename ?failfast mode env content
-  with
-  | Sys_error msg ->
-      (Ast.VError {
-         code = Ast.FileError;
-         message = "File Error: " ^ msg;
-         context = [];
-         location = None;
-         na_count = 0;
-       }, env)
+let make_located_error = Check_utils.make_located_error
+let interrupt_error = Check_utils.interrupt_error
+let parse_and_eval = Check_utils.parse_and_eval
+let run_file = Check_utils.run_file
 
 (* --- Pipeline Detection --- *)
 
@@ -507,6 +447,7 @@ let print_help () =
   Printf.printf "  run <file.t>      Execute a T source file\n";
   Printf.printf "  run --expr <expr> Execute a T expression directly\n";
   Printf.printf "  check [--json] [--schema] [--env] <file.t>  Validate pipeline structure (no Nix builds)\n";
+  Printf.printf "  diff [--json] [--log-a <n>] [--log-b <n>] <file.t>  Compare two builds (output diff)\n";
   Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
@@ -711,67 +652,14 @@ let cmd_run_expr ?failfast mode expr env =
 let run_check ?(schema=false) ?(env_check=false) mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
-  let run () =
-    Ast.check_mode := true;
-    Fun.protect ~finally:(fun () -> Ast.check_mode := false)
-      (fun () -> run_file ~failfast:true mode filename env)
-  in
-  let (result, new_env) = run () in
-  let check_result =
-    (* Collect pipeline_result values: from the return value or from env bindings *)
-    let pipelines : (string * Ast.pipeline_result) list = match result with
-      | Ast.VPipeline p -> [("pipeline", p)]
-      | Ast.VError _ -> []
-      | _ ->
-          (* Scan environment for pipeline values *)
-          let bindings = Ast.Env.bindings new_env in
-          List.filter_map (fun (name, v) ->
-            match v with
-            | Ast.VPipeline p -> Some (name, p)
-            | _ -> None
-          ) bindings
-    in
-    let diag_list : Diagnostics.diagnostic list =
-      (* Always collect error diagnostics from the result *)
-      let error_diags = match result with
-        | Ast.VError err -> [Diagnostics.of_verror ~file:filename err]
-        | _ -> []
-      in
-      (* Collect pipeline diagnostics, schema checks, and env checks *)
-      let pipeline_diags = List.concat_map (fun (_name, p) ->
-        let wire_diags = Diagnostics.of_pipeline_result ~file:filename p in
-        let schema_diags =
-          if schema then Schema_check.check_pipeline_schemas ~file:filename p
-          else []
-        in
-        let env_diags =
-          if env_check then Env_check.check_env ~file:filename p
-          else []
-        in
-        wire_diags @ schema_diags @ env_diags
-      ) pipelines in
-      error_diags @ pipeline_diags
-    in
-    let check_phase = Diagnostics.worst_phase diag_list in
-    let tier = Diagnostics.worst_tier diag_list in
-    Diagnostics.make_result ~tier ~phase:check_phase diag_list
-  in
-  check_result
+  Check_utils.run_check ~schema ~env_check mode filename env
 
 let print_check_result ?(json=false) check_result =
+  let output = Check_utils.format_check_result ~json check_result in
   if json then
-    print_string (Yojson.Safe.pretty_to_string (Diagnostics.check_result_to_yojson check_result))
-  else begin
-    let cr_diags = Diagnostics.check_result_entries check_result in
-    List.iter (fun d ->
-      Printf.eprintf "%s [%s] %s\n"
-        (Diagnostics.severity_to_string (Diagnostics.diagnostic_severity d))
-        (Diagnostics.diagnostic_error_class d)
-        (Diagnostics.diagnostic_message d)
-    ) cr_diags;
-    if cr_diags <> [] then
-      Printf.eprintf "\n"
-  end
+    print_string output
+  else
+    Printf.eprintf "%s" output
 
 let cmd_check ?(json=false) ?(schema=false) ?(env_check=false) mode filename env =
   let check_result = run_check ~schema ~env_check mode filename env in
@@ -805,6 +693,84 @@ let cmd_check_watch ?(json=false) ?(schema=false) ?(env_check=false) mode filena
   done;
   Printf.eprintf "\nStopped watching.\n%!";
   exit !last_exit_code
+
+let cmd_diff ?(json=false) ?(log_a=2) ?(log_b=1) filename env =
+  Packages.ensure_docs_loaded ();
+  ensure_file_path filename;
+  let (result, new_env) =
+    Ast.check_mode := true;
+    Fun.protect ~finally:(fun () -> Ast.check_mode := false)
+      (fun () -> run_file ~failfast:true Typecheck.Strict filename env)
+  in
+  let pipelines =
+    match result with
+    | Ast.VPipeline p -> [("pipeline", p)]
+    | Ast.VError _ -> []
+    | _ ->
+        let bindings = Ast.Env.bindings new_env in
+        List.filter_map (fun (name, v) ->
+          match v with
+          | Ast.VPipeline p -> Some (name, p)
+          | _ -> None
+        ) bindings
+  in
+  match pipelines with
+  | [] ->
+      Printf.eprintf "No pipeline found in %s.\n" filename;
+      exit 1
+  | (_, p) :: _ ->
+      let is_default = (log_a = 2 && log_b = 1) in
+      if is_default then
+        match Builder_diff.find_two_matching_logs p with
+        | None ->
+            Printf.eprintf "Need at least 2 matching build logs to diff.\n";
+            Printf.eprintf "Run build_pipeline(p) at least twice first.\n";
+            exit 1
+        | Some (path_a, path_b) ->
+            (match Builder_diff.compute_diff path_a path_b with
+             | Error msg ->
+                 Printf.eprintf "Error computing diff: %s\n" msg;
+                 exit 1
+             | Ok diff_result ->
+                 if json then
+                   print_string (Yojson.Safe.pretty_to_string (Builder_diff.diff_result_to_yojson diff_result))
+                 else
+                   Builder_diff.print_diff_result diff_result;
+                 exit 0)
+      else
+        let logs = Builder.get_logs () in
+        let try_log log_file =
+          let full_path = Filename.concat Builder.pipeline_dir log_file in
+          match Builder.read_log full_path with
+          | Ok entries when Builder_read_node.pipeline_matches_logged_entries p entries -> Some full_path
+          | _ -> None
+        in
+        let matching = List.filter_map try_log logs in
+        let n_matching = List.length matching in
+        if n_matching < 2 then begin
+          Printf.eprintf "Need at least 2 matching build logs to diff. Found %d.\n" n_matching;
+          Printf.eprintf "Run build_pipeline(p) at least twice first.\n";
+          exit 1
+        end else if log_a < 1 || log_b < 1 then begin
+          Printf.eprintf "Invalid rank: --log-a and --log-b must be >= 1 (got --log-a %d --log-b %d).\n" log_a log_b;
+          exit 1
+        end else if log_a > n_matching || log_b > n_matching then begin
+          Printf.eprintf "Requested rank exceeds available builds: --log-a %d --log-b %d but only %d matching builds found.\n" log_a log_b n_matching;
+          exit 1
+        end else begin
+          let path_a = List.nth matching (log_a - 1) in
+          let path_b = List.nth matching (log_b - 1) in
+          match Builder_diff.compute_diff path_a path_b with
+          | Error msg ->
+              Printf.eprintf "Error computing diff: %s\n" msg;
+              exit 1
+          | Ok diff_result ->
+              if json then
+                print_string (Yojson.Safe.pretty_to_string (Builder_diff.diff_result_to_yojson diff_result))
+              else
+                Builder_diff.print_diff_result diff_result;
+              exit 0
+        end
 
 let cmd_debug ?(unsafe=false) ?failfast mode filename node_name env =
   let _ = unsafe in
@@ -1523,6 +1489,57 @@ let () =
              cmd_check_watch ~json ~schema ~env_check:check_env script_mode f env
            else
              cmd_check ~json ~schema ~env_check:check_env script_mode f env)
+  | _ :: "diff" :: [] ->
+      Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
+      exit 1
+  | _ :: "diff" :: rest ->
+      let json = List.mem "--json" rest in
+      let extract_int_flag flag default =
+        let rec find_val = function
+          | [] -> default
+          | x :: y :: _ when x = flag -> (try int_of_string y with _ -> default)
+          | _ :: xs -> find_val xs
+        in
+        find_val rest
+      in
+      let log_a = extract_int_flag "--log-a" 2 in
+      let log_b = extract_int_flag "--log-b" 1 in
+      if log_a < 1 || log_b < 1 then begin
+        Printf.eprintf "Invalid rank: --log-a and --log-b must be >= 1 (got --log-a %d --log-b %d).\n" log_a log_b;
+        exit 1
+      end else begin
+        let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+       (match filename with
+        | None ->
+            Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
+            exit 1
+        | Some f -> cmd_diff ~json ~log_a ~log_b f env)
+      end
+  | _ :: "fix" :: [] ->
+      Printf.eprintf "Usage: t fix [--dry-run] <file.t>\n";
+      exit 1
+  | _ :: "fix" :: rest ->
+      let dry_run = List.mem "--dry-run" rest in
+      let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      (match filename with
+       | None ->
+           Printf.eprintf "Usage: t fix [--dry-run] <file.t>\n";
+           exit 1
+       | Some f ->
+            let check_fn = fun file -> run_check ~schema:true script_mode file env in
+            let result = Fix.cmd_fix ~dry_run ~check_fn f in
+            if result.Fix.applied = 0 && result.Fix.would_apply = 0 && result.Fix.skipped = 0 then
+              Printf.printf "No fixes to apply.\n"
+            else begin
+              if dry_run then
+                Printf.printf "Would apply %d fix(es), skipped %d.\n" result.Fix.would_apply result.Fix.skipped
+              else begin
+                Printf.printf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped;
+                Printf.printf "Run 't check %s' to verify.\n" f
+              end
+            end;
+            exit 0)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest

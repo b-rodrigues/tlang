@@ -41,13 +41,28 @@ echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 Append `--extra-experimental-features "nix-command flakes"` to each Nix command.
 
 ### Trusted Users and Binary Caches
-If you see warnings like `ignoring untrusted substituter`, you need to add yourself as a trusted user so Nix allows you to use the T binary cache. On macOS, run:
+If you see warnings like `ignoring untrusted substituter`, you need to add yourself as a trusted user so Nix allows you to use the T binary cache.
+
+**Linux (Ubuntu, Debian, Fedora, Arch):**
 
 ```bash
-echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.custom.conf && sudo launchctl kickstart -k system/org.nixos.nix-daemon
+sudo nano /etc/nix/nix.conf
+# Add: trusted-users = root your_username
+sudo systemctl restart nix-daemon.service
 ```
 
-This works for both standard and Determinate Nix installations.
+**macOS:**
+
+```bash
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.custom.conf
+sudo launchctl kickstart -k system/org.nixos.nix-daemon
+```
+
+**NixOS:**
+
+Add `nix.trustedUsers = [ "root" "your_username" ];` to your `configuration.nix` and run `sudo nixos-rebuild switch`.
+
+See the [Nix Installation Guide](nix-installation.md#configuring-trusted-users) for detailed per-distro instructions.
 
 ## Step 3: Clone T Repository
 
