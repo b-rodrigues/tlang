@@ -199,7 +199,6 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     p_has_patterns = false; p_patterns = []; p_iterations = [];
     p_flakes = [];
     p_contracts = ["clean", {
-      empty_contract with
       contract_columns = Some ["mpg"; "cyl"; "hp"];
     }];
   } in
@@ -223,7 +222,6 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     p_has_patterns = false; p_patterns = []; p_iterations = [];
     p_flakes = [];
     p_contracts = ["clean", {
-      empty_contract with
       contract_columns = Some ["mpg"; "cyl"];
     }];
   } in

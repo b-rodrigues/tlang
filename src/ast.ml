@@ -151,13 +151,9 @@ and meta_pipeline = {
 }
 
 
-(** Shape contract for expect() — checked against node output at exec time *)
+(** Shape contract for expect() — checked statically via t check --schema *)
 and contract = {
-  contract_columns : string list option;     (* expected column names *)
-  contract_types : (string * string) list;   (* column -> expected Arrow type *)
-  contract_min_rows : int option;
-  contract_max_rows : int option;
-  contract_null_rates : (string * float) list; (* column -> max null rate *)
+  contract_columns : string list option;
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)
@@ -405,10 +401,6 @@ and typ =
 
 let empty_contract = {
   contract_columns = None;
-  contract_types = [];
-  contract_min_rows = None;
-  contract_max_rows = None;
-  contract_null_rates = [];
 }
 
 type program = stmt list

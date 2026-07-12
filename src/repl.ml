@@ -784,8 +784,12 @@ let cmd_check_watch ?(json=false) ?(schema=false) ?(env_check=false) mode filena
   in
   let poll_interval = 0.5 in
   let last_mtime = ref (get_mtime filename) in
-  let first_run = ref true in
+  let last_exit_code = ref 0 in
   Printf.eprintf "Watching %s for changes (Ctrl+C to stop)...\n%!" filename;
+  (* Initial run *)
+  let check_result = run_check ~schema ~env_check mode filename env in
+  print_check_result ~json check_result;
+  last_exit_code := Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result);
   let forever = ref true in
   Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ -> forever := false));
   while !forever do
@@ -793,14 +797,14 @@ let cmd_check_watch ?(json=false) ?(schema=false) ?(env_check=false) mode filena
     let current_mtime = get_mtime filename in
     if current_mtime > !last_mtime then begin
       last_mtime := current_mtime;
-      if not !first_run then
-        Printf.eprintf "\n--- file changed, re-checking ---\n%!";
-      first_run := false;
+      Printf.eprintf "\n--- file changed, re-checking ---\n%!";
       let check_result = run_check ~schema ~env_check mode filename env in
-      print_check_result ~json check_result
+      print_check_result ~json check_result;
+      last_exit_code := Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result)
     end
   done;
-  Printf.eprintf "\nStopped watching.\n%!"
+  Printf.eprintf "\nStopped watching.\n%!";
+  exit !last_exit_code
 
 let cmd_debug ?(unsafe=false) ?failfast mode filename node_name env =
   let _ = unsafe in

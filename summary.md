@@ -78,7 +78,7 @@ t check path/to/script.t                  # structural validation (default: no N
 t check --schema path/to/script.t          # + column-level schema validation
 t check --env path/to/script.t             # + environment/lockfile checks + Nix eval
 t check --json path/to/script.t            # machine-readable diagnostics
-t check --watch path/to/script.t           # re-run on file save (Ctrl+C to stop)
+t check --watch path/to/script.t           # run immediately, then re-run on file save
 
 t test
 
@@ -206,6 +206,12 @@ build_pipeline(p)
 ```
 
 Pipelines are DAGs. Nodes can be declared in any order; dependencies are resolved automatically.
+
+**Shape Contracts**: Use `expect(columns = [...])` at the end of a pipe chain to declare expected output columns. Contracts are checked statically via `t check --schema`.
+
+```t
+clean = raw |> filter($age > 18) |> expect(columns = ["id", "name", "age"])
+```
 
 **Block Evaluation**: Blocks (`{ ... }`) abort immediately on encountering a `VError`, returning the error rather than continuing evaluation of remaining statements. Nodes that soft-fail and return `VError` conditionally fall back to binary serialization rather than triggering custom serializers like Arrow, preventing crashes.
 

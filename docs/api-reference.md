@@ -3277,7 +3277,40 @@ Environment errors are reported as `phase: "env"` diagnostics and trigger exit c
 
 **Watch mode (`--watch`):**
 
-When `--watch` is passed, `t check` runs once and then polls the input file for changes (every 0.5s). On each modification, it re-runs the check and prints updated results. Press Ctrl+C to stop. Watch mode can be combined with `--schema` and/or `--env`.
+When `--watch` is passed, `t check` runs immediately, then polls the input file for changes (every 0.5s). On each modification, it re-runs the check and prints updated results. Press Ctrl+C to stop. Watch mode can be combined with `--schema` and/or `--env`.
+
+### `expect()` — Pipeline shape contracts
+
+Attach a shape contract to a pipeline node to declare expected output column names.
+Contracts are checked statically via `t check --schema`.
+
+**Syntax:**
+
+```t
+clean_data = raw_data
+  |> read_csv("data.csv")
+  |> filter($status == "complete")
+  |> expect(columns = ["id", "name", "score"])
+```
+
+`expect()` must appear at the **end** of a pipe chain.
+
+**Accepted arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `columns` | `List[String]` | Expected column names in the output |
+
+**Behavior:**
+
+- Checked only when `t check --schema` is used (tier 2)
+- If the inferred output schema is missing any declared columns, a `contract_violation` diagnostic is emitted
+- `expect()` is stripped from the pipe chain during evaluation — it has no runtime effect
+
+**Limitations:**
+
+- Only column names are checked; types, row counts, and null rates are not yet enforced
+- Column validation depends on accurate schema inference (CSV headers for root nodes, colcraft verb propagation for downstream nodes)
 
 ---
 

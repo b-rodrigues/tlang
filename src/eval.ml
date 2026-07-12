@@ -1857,7 +1857,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
        r_script("clean.R") |> expect(columns = [...])
        becomes r_script("clean.R") with a contract attached. *)
     let extract_contract_from_args args =
-      let contract = ref Ast.empty_contract in
+      let columns = ref [] in
       List.iter (fun (param_name, arg_expr) ->
         match param_name with
         | Some "columns" ->
@@ -1868,24 +1868,18 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                    | Value (VString s) -> Some s
                    | _ -> None
                  ) items in
-                 contract := { !contract with contract_columns = Some cols }
-             | _ -> ())
-        | Some "min_rows" ->
-            (match eval_expr env_ref arg_expr with
-             | VInt n -> contract := { !contract with contract_min_rows = Some n }
-             | _ -> ())
-        | Some "max_rows" ->
-            (match eval_expr env_ref arg_expr with
-             | VInt n -> contract := { !contract with contract_max_rows = Some n }
+                 columns := cols
              | _ -> ())
         | _ -> ()
       ) args;
-      !contract
+      if !columns <> [] then
+        Some { Ast.contract_columns = Some !columns }
+      else None
     in
     let node_expr, contract_opt =
       match node_expr.node with
       | BinOp { op = Pipe; left; right = { node = Call { fn = { node = Var "expect"; _ }; args }; _ } } ->
-          (left, Some (extract_contract_from_args args))
+          (left, extract_contract_from_args args)
       | _ -> (node_expr, None)
     in
     let attach_contract un = match contract_opt with
