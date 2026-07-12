@@ -1634,12 +1634,14 @@ let () =
   | _ :: "fix" :: rest ->
       let dry_run = List.mem "--dry-run" rest in
       let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       (match filename with
        | None ->
            Printf.eprintf "Usage: t fix [--dry-run] <file.t>\n";
            exit 1
        | Some f ->
-           let result = Fix.cmd_fix ~dry_run f in
+           let check_fn = fun file -> run_check ~schema:true script_mode file env in
+           let result = Fix.cmd_fix ~dry_run ~check_fn f in
            if result.Fix.applied = 0 && result.Fix.skipped = 0 then
              Printf.printf "No fixes to apply.\n"
            else begin

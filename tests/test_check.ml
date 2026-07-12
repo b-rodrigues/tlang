@@ -202,6 +202,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
       contract_columns = Some ["mpg"; "cyl"; "hp"];
       contract_types = None;
       contract_null_rates = None;
+      contract_loc = None;
     }];
   } in
   let contract_diags = Schema_check.validate_contracts
@@ -227,6 +228,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
       contract_columns = Some ["mpg"; "cyl"];
       contract_types = None;
       contract_null_rates = None;
+      contract_loc = None;
     }];
   } in
   let pass_diags = Schema_check.validate_contracts
@@ -358,6 +360,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
       contract_columns = None;
       contract_types = Some [("mpg", "float")];
       contract_null_rates = None;
+      contract_loc = None;
     }];
   } in
   let type_match_diags = Schema_check.validate_contracts
@@ -378,6 +381,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
       contract_columns = None;
       contract_types = Some [("mpg", "string")];
       contract_null_rates = None;
+      contract_loc = None;
     }];
   } in
   let type_mismatch_diags = Schema_check.validate_contracts
@@ -400,6 +404,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
       contract_columns = None;
       contract_types = Some [("mpg", "double")];
       contract_null_rates = None;
+      contract_loc = None;
     }];
   } in
   let type_unknown_diags = Schema_check.validate_contracts
@@ -425,6 +430,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
       contract_columns = None;
       contract_types = None;
       contract_null_rates = Some [("mpg", 0.05)];
+      contract_loc = None;
     }];
   } in
   let nr_diags = Schema_check.validate_contracts

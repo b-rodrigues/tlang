@@ -37,15 +37,17 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   let test_apply_rename () =
     let tmp = Filename.temp_file "test_fix" ".t" in
     let oc = open_out tmp in
-    output_string oc "clean = raw |> expect(columns = [\"old_name\"])\n";
+    output_string oc "clean = raw\n  |> filter($id > 1)\n  |> mutate(valid = $id + 1)\n  |> expect(columns = [\"id\"])\n";
     close_out oc;
-    Fix.apply_rename_column ~file:tmp ~old_name:"old_name" ~new_name:"new_name";
+    Fix.apply_rename_column ~file:tmp ~old_name:"id" ~new_name:"record_id";
     let ch = open_in tmp in
     let content = really_input_string ch (in_channel_length ch) in
     close_in ch;
     Sys.remove tmp;
-    let has_new = (try let _ = Str.search_forward (Str.regexp_string "new_name") content 0 in true with Not_found -> false) in
-    check "rename_column replaces old with new" has_new
+    let has_new_ref = (try let _ = Str.search_forward (Str.regexp "\\$record_id") content 0 in true with Not_found -> false) in
+    let has_unchanged_valid = (try let _ = Str.search_forward (Str.regexp_string "valid") content 0 in true with Not_found -> false) in
+    check "rename_column replaces $id with $record_id" has_new_ref;
+    check "rename_column does not corrupt 'valid'" has_unchanged_valid
   in
   test_apply_rename ();
 
@@ -88,4 +90,27 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let r = Fix.apply_fix ~file:"/dev/null" (Diagnostics.Add_node_arg { node = "x"; arg = "y"; file = None; line = None }) in
     check "apply_fix returns false for Add_node_arg (unimplemented)" (r = false)
   in
-  test_apply_fix_node_arg ()
+  test_apply_fix_node_arg ();
+
+  Printf.printf "\nsort_fixes_by_descending_line:\n";
+  let test_sort_fixes () =
+    let d1 = { Diagnostics.
+      diag_id = "T0001"; diag_error_class = "contract_violation"; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some "test.t"; diag_line = Some 3; diag_column = None;
+      diag_message = "first"; diag_caused_by = [];
+      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; file = Some "test.t"; line = Some 3 };
+    } in
+    let d2 = { d1 with diag_id = "T0002"; diag_line = Some 10;
+      diag_message = "second";
+      diag_suggested_fix = Cast { column = "y"; cast_to = "double"; file = Some "test.t"; line = Some 10 };
+    } in
+    let d3 = { d1 with diag_id = "T0003"; diag_line = Some 5;
+      diag_message = "third";
+      diag_suggested_fix = Cast { column = "z"; cast_to = "double"; file = Some "test.t"; line = Some 5 };
+    } in
+    let sorted = Fix.sort_fixes_by_descending_line [d1; d2; d3] in
+    let lines = List.filter_map (fun d -> d.Diagnostics.diag_line) sorted in
+    check "sort_descending: first element has highest line" (lines = [10; 5; 3])
+  in
+  test_sort_fixes ()

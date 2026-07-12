@@ -156,6 +156,7 @@ and contract = {
   contract_columns : string list option;
   contract_types : (string * string) list option;    (* [(column, type_name)] *)
   contract_null_rates : (string * float) list option; (* [(column, threshold)] *)
+  contract_loc : source_location option;             (* location of the expect() call *)
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)
@@ -405,6 +406,7 @@ let empty_contract = {
   contract_columns = None;
   contract_types = None;
   contract_null_rates = None;
+  contract_loc = None;
 }
 
 type program = stmt list

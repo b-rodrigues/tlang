@@ -1880,7 +1880,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     (* Strip trailing expect(...) from pipe chains: e.g.
        r_script("clean.R") |> expect(columns = [...])
        becomes r_script("clean.R") with a contract attached. *)
-    let extract_contract_from_args args =
+    let extract_contract_from_args ?loc args =
       let columns = ref [] in
       let types = ref [] in
       let null_rates = ref [] in
@@ -1926,6 +1926,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
           Ast.contract_columns = (if !columns <> [] then Some !columns else None);
           contract_types = (if !types <> [] then Some !types else None);
           contract_null_rates = (if !null_rates <> [] then Some !null_rates else None);
+          contract_loc = loc;
         }
       else None
     in
@@ -1949,13 +1950,13 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     in
     let node_expr, contract_opt, expect_warnings =
       match node_expr.node with
-      | BinOp { op = Pipe; left; right = { node = Call { fn = { node = Var "expect"; _ }; args }; _ } } ->
+      | BinOp { op = Pipe; left; right = { node = Call { fn = { node = Var "expect"; _ }; args }; loc = expect_loc; _ } } ->
           (* Terminal expect() at end of chain — extract contract.
              args are the expect() call's own args (piped value is `left`, not in args). *)
           let mid_chain_warns =
             if contains_expect left then make_mid_chain_warn () else []
           in
-          (left, extract_contract_from_args args, mid_chain_warns)
+          (left, extract_contract_from_args ?loc:expect_loc args, mid_chain_warns)
       | other ->
           (* No terminal expect() — check if expect() appears anywhere mid-chain *)
           if contains_expect { node_expr with node = other } then

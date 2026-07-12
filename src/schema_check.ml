@@ -254,6 +254,8 @@ let validate_col_refs ~node_name ~(file : string option) ~schema expr =
    Checks that all declared contract columns exist in the output schema,
    and that type contracts match inferred column types. *)
 let validate_contracts ~file (p : pipeline_result) schemas =
+  let contract_line c = match c.Ast.contract_loc with Some l -> Some l.Ast.line | None -> None in
+  let contract_column c = match c.Ast.contract_loc with Some l -> Some l.Ast.column | None -> None in
   List.concat_map (fun (node_name, contract) ->
     let output_schema =
       try Hashtbl.find schemas node_name with Not_found -> []
@@ -273,8 +275,8 @@ let validate_contracts ~file (p : pipeline_result) schemas =
               diag_node_id = Some node_name;
               diag_node_lang = None;
               diag_file = Some file;
-              diag_line = None;
-              diag_column = None;
+              diag_line = contract_line contract;
+              diag_column = contract_column contract;
               diag_message = Printf.sprintf "Node '%s' contract expects columns [%s] but output schema is [%s]. Missing: [%s]"
                 node_name
                 (String.concat ", " required_cols)
@@ -301,8 +303,8 @@ let validate_contracts ~file (p : pipeline_result) schemas =
                   diag_node_id = Some node_name;
                   diag_node_lang = None;
                   diag_file = Some file;
-                  diag_line = None;
-                  diag_column = None;
+                  diag_line = contract_line contract;
+                  diag_column = contract_column contract;
                   diag_message = Printf.sprintf "Node '%s' type contract for column '%s' (~ %s) cannot be verified statically: column type is unknown"
                     node_name col expected_type;
                   diag_caused_by = [];
@@ -318,8 +320,8 @@ let validate_contracts ~file (p : pipeline_result) schemas =
                     diag_node_id = Some node_name;
                     diag_node_lang = None;
                     diag_file = Some file;
-                    diag_line = None;
-                    diag_column = None;
+                    diag_line = contract_line contract;
+                    diag_column = contract_column contract;
                     diag_message = Printf.sprintf "Node '%s' type contract for column '%s' expects ~ %s but output schema has type %s"
                       node_name col expected_type actual_type;
                     diag_caused_by = [];
@@ -327,7 +329,7 @@ let validate_contracts ~file (p : pipeline_result) schemas =
                       column = col;
                       cast_to = expected_type;
                       file = Some file;
-                      line = None;
+                      line = contract_line contract;
                     };
                   })
                 else None
@@ -346,8 +348,8 @@ let validate_contracts ~file (p : pipeline_result) schemas =
               diag_node_id = Some node_name;
               diag_node_lang = None;
               diag_file = Some file;
-              diag_line = None;
-              diag_column = None;
+              diag_line = contract_line contract;
+              diag_column = contract_column contract;
               diag_message = Printf.sprintf "Node '%s' null-rate contract for column '%s' (< %.2f) cannot be verified statically: requires runtime data"
                 node_name col threshold;
               diag_caused_by = [];
