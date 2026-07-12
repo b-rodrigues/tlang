@@ -140,6 +140,12 @@ T requires [Nix](docs/nix-installation.md) with flakes enabled. T is distributed
 
 We recommend using the [Determinate Systems Nix Installer](https://install.determinate.systems/nix) for the best experience. See the [Nix Installation Guide](docs/nix-installation.md) for detailed platform-specific steps.
 
+> [!NOTE]
+> After installing Nix, you may need to add yourself as a trusted user so that Nix
+> can use the T binary cache. See
+> [Configuring Trusted Users](docs/nix-installation.md#configuring-trusted-users) for
+> platform-specific steps.
+
 Start by launching a temporary shell that provides the `t` executable:
 
 ```bash
