@@ -266,4 +266,30 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check "terminal expect: contract attached with columns" has_contract;
   Ast.check_mode := false;
 
+  (* End-to-end: verify warning survives of_pipeline_result (the t check path) *)
+  Printf.printf "\nMid-chain expect() end-to-end (of_pipeline_result):\n";
+  Ast.check_mode := true;
+  let e2e_result = eval_string "pipeline { a = 1 |> expect(columns = [\"x\"]) |> as.integer() }" in
+  let e2e_diags = match e2e_result with
+    | VPipeline p -> Diagnostics.of_pipeline_result p
+    | _ -> []
+  in
+  let e2e_has_warn = List.exists (fun d ->
+    d.Diagnostics.diag_error_class = "invalid_expect_placement"
+    && d.Diagnostics.diag_phase = Diagnostics.Wire
+  ) e2e_diags in
+  check "of_pipeline_result surfaces invalid_expect_placement diagnostic" e2e_has_warn;
+
+  (* Verify terminal expect() does NOT produce a spurious diagnostic *)
+  let e2e_terminal = eval_string "pipeline { a = 1 |> expect(columns = [\"x\"]) }" in
+  let e2e_terminal_diags = match e2e_terminal with
+    | VPipeline p -> Diagnostics.of_pipeline_result p
+    | _ -> []
+  in
+  let e2e_no_spurious = not (List.exists (fun d ->
+    d.Diagnostics.diag_error_class = "invalid_expect_placement"
+  ) e2e_terminal_diags) in
+  check "of_pipeline_result: no spurious diagnostic for terminal expect" e2e_no_spurious;
+  Ast.check_mode := false;
+
   Printf.printf "\n";
