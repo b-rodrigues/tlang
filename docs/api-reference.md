@@ -3517,6 +3517,46 @@ diff_model = node_diff(p.model_node, p.model_node, log_a = ".*train1.*", log_b =
 
 ---
 
+### `diff_summary(p)`
+
+Compares the two most recent builds of a pipeline and returns a DataFrame summarizing which nodes changed, were added, or were removed. Uses per-node Nix content hashes stored in build logs for fast comparison without loading artifacts.
+
+**Parameters:**
+
+- `p` — The pipeline to compare builds for.
+
+**Returns:**
+
+`DataFrame` — A summary with columns:
+- `name` (String) — Node name.
+- `status` (String) — One of `"unchanged"`, `"changed"`, `"added"`, `"removed"`.
+- `hash_a` (String) — Nix content hash from build A.
+- `hash_b` (String) — Nix content hash from build B.
+- `class_a` (String) — Output value class from build A.
+- `class_b` (String) — Output value class from build B.
+
+**Examples:**
+```t
+p = pipeline { a = 1; b = 2 }
+build_pipeline(p)
+-- ... edit pipeline ...
+build_pipeline(p)
+summary = diff_summary(p)
+print(summary)
+```
+
+---
+
+### CLI: `t diff`
+
+The `t diff` command provides the same functionality from the shell, without needing to write a T script:
+
+```bash
+t diff <file.t>                    # compare last two builds
+t diff <file.t> --json             # structured JSON output
+t diff <file.t> --log-a 2 --log-b 4  # compare specific build ranks
+```
+
 ### `collect_exceptions(p)`
 
 Collects all terminal error exceptions and non-terminal warning diagnostics from the computed nodes of a built pipeline.

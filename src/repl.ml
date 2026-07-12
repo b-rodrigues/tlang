@@ -507,6 +507,7 @@ let print_help () =
   Printf.printf "  run <file.t>      Execute a T source file\n";
   Printf.printf "  run --expr <expr> Execute a T expression directly\n";
   Printf.printf "  check [--json] [--schema] [--env] <file.t>  Validate pipeline structure (no Nix builds)\n";
+  Printf.printf "  diff [--json] [--log-a <n>] [--log-b <n>] <file.t>  Compare two builds (output diff)\n";
   Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
@@ -805,6 +806,61 @@ let cmd_check_watch ?(json=false) ?(schema=false) ?(env_check=false) mode filena
   done;
   Printf.eprintf "\nStopped watching.\n%!";
   exit !last_exit_code
+
+let cmd_diff ?(json=false) ?(log_a=2) ?(log_b=1) filename env =
+  Packages.ensure_docs_loaded ();
+  ensure_file_path filename;
+  let (result, new_env) =
+    Ast.check_mode := true;
+    Fun.protect ~finally:(fun () -> Ast.check_mode := false)
+      (fun () -> run_file ~failfast:true Typecheck.Strict filename env)
+  in
+  let pipelines =
+    match result with
+    | Ast.VPipeline p -> [("pipeline", p)]
+    | Ast.VError _ -> []
+    | _ ->
+        let bindings = Ast.Env.bindings new_env in
+        List.filter_map (fun (name, v) ->
+          match v with
+          | Ast.VPipeline p -> Some (name, p)
+          | _ -> None
+        ) bindings
+  in
+  match pipelines with
+  | [] ->
+      Printf.eprintf "No pipeline found in %s.\n" filename;
+      exit 1
+  | (_, p) :: _ ->
+      let logs = Builder.get_logs () in
+      let try_log log_file =
+        let full_path = Filename.concat Builder.pipeline_dir log_file in
+        match Builder.read_log full_path with
+        | Ok entries when Builder_read_node.pipeline_matches_logged_entries p entries -> Some full_path
+        | _ -> None
+      in
+      let matching = List.filter_map try_log logs in
+      let n_matching = List.length matching in
+      if n_matching < 2 then begin
+        Printf.eprintf "Need at least 2 matching build logs to diff. Found %d.\n" n_matching;
+        Printf.eprintf "Run build_pipeline(p) at least twice first.\n";
+        exit 0
+      end else begin
+        let idx_a = min log_a n_matching in
+        let idx_b = min log_b n_matching in
+        let path_a = List.nth matching (idx_a - 1) in
+        let path_b = List.nth matching (idx_b - 1) in
+        match Builder.compute_diff path_a path_b with
+        | Error msg ->
+            Printf.eprintf "Error computing diff: %s\n" msg;
+            exit 1
+        | Ok diff_result ->
+            if json then
+              print_string (Yojson.Safe.pretty_to_string (Builder.diff_result_to_yojson diff_result))
+            else
+              Builder.print_diff_result diff_result;
+            exit 0
+      end
 
 let cmd_debug ?(unsafe=false) ?failfast mode filename node_name env =
   let _ = unsafe in
@@ -1523,6 +1579,27 @@ let () =
              cmd_check_watch ~json ~schema ~env_check:check_env script_mode f env
            else
              cmd_check ~json ~schema ~env_check:check_env script_mode f env)
+  | _ :: "diff" :: [] ->
+      Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
+      exit 1
+  | _ :: "diff" :: rest ->
+      let json = List.mem "--json" rest in
+      let extract_int_flag flag default =
+        let rec find_val = function
+          | [] -> default
+          | x :: y :: _ when x = flag -> (try int_of_string y with _ -> default)
+          | _ :: xs -> find_val xs
+        in
+        find_val rest
+      in
+      let log_a = extract_int_flag "--log-a" 2 in
+      let log_b = extract_int_flag "--log-b" 1 in
+      let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+      (match filename with
+       | None ->
+           Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
+           exit 1
+       | Some f -> cmd_diff ~json ~log_a ~log_b f env)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest

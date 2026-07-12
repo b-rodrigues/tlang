@@ -160,6 +160,7 @@ let () =
   Test_scalar_diff.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_generic_diff.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_pipeline_diff.run_tests pass_count fail_count failures eval_string eval_string_env test;
+  Test_builder_diff.run_tests pass_count fail_count failures eval_string eval_string_env test;
 
   (* t check / Diagnostics tests *)
   Test_check.run_tests pass_count fail_count failures eval_string eval_string_env test;

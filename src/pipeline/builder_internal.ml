@@ -486,6 +486,14 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
         let log_path = Filename.concat pipeline_dir log_name in
         
+        let node_hash name =
+          match Hashtbl.find_opt node_store_paths name with
+          | Some path ->
+              (match String.split_on_char '-' (Filename.basename path) with
+               | hd :: _ -> hd
+               | [] -> "no_hash")
+          | None -> "no_hash"
+        in
         let log_entries =
           List.map (fun (name, _) ->
             let node_path =
@@ -557,6 +565,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
             Serialization.json_dict ([
               ("node", "\"" ^ Serialization.json_escape name ^ "\"");
               ("path", "\"" ^ Serialization.json_escape artifact_path ^ "\"");
+              ("hash", "\"" ^ Serialization.json_escape (node_hash name) ^ "\"");
               ("runtime", "\"" ^ Serialization.json_escape runtime ^ "\"");
               ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
               ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");

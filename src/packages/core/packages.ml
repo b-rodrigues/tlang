@@ -851,6 +851,7 @@ let init_env () =
   let env = Pipeline_to_ga.register env in
   let env = Build_log.register env in
   let env = Pipeline_diff.register env in
+  let env = Diff_summary.register env in
   let env = Pipeline_report.register env in
   (* Colcraft package *)
   let env = T_select.register env in

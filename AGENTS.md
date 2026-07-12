@@ -50,6 +50,9 @@ t check --schema myfile.t
 # Watch mode: re-run on file save
 t check --watch myfile.t
 
+# Compare two builds (output diff)
+t diff myfile.t
+
 # Build with coverage instrumentation (Nix)
 nix build .#t-coverage
 ./result/bin/t run myfile.t

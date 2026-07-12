@@ -80,6 +80,9 @@ t check --env path/to/script.t             # + environment/lockfile checks + Nix
 t check --json path/to/script.t            # machine-readable diagnostics
 t check --watch path/to/script.t           # run immediately, then re-run on file save
 
+t diff path/to/script.t                   # compare last two builds (per-node content hashes)
+t diff path/to/script.t --json            # structured JSON output
+
 t test
 
 t doc --parse --generate
@@ -426,7 +429,7 @@ Purpose: node construction, pipeline execution, graph inspection, graph rewritin
 - Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false, flake = na())`, `rn(...)`, `pyn(...)`, `jln(command = ..., script = na(), serializer = ^csv, deserializer = ^csv, functions = [], include = [], noop = false, flake = na())`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = na())`
 - Per-node flake environments: nodes accept an optional `flake` parameter (e.g. `flake = "github:jbedo/rshells"`) to override the project-level Nix environment. Each runtime component (T binary, R packages, Julia path, nixpkgs) is resolved independently from the custom flake when available, falling back to the project-level binding otherwise. Supports `github:`, `gitlab:`, `sourcehut:`, `path:` (absolute and relative) references.
 - Static conditionals: `node_when(condition, node_value)` excludes a node from the DAG if condition is falsy at pipeline construction time. `node_fork(cond1, val1, cond2, val2, ..., .default = ...)` selects the first matching branch.
-- Execution and artifacts: `populate_pipeline(p, build = false, dry_run = false)`, `build_pipeline(p, targets = na(), force = na(), dry_run = false, max_jobs = na(), cache = na(), builders = na(), keep_env = na(), sandbox = na())`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(p.name)`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `warning_msg(node)`, `suppress_warnings(node)`, `build_log_history(p, n = na())`, `node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`, `debug_node(node)`, `build_log(p)`, `build_log_to_frame(log)`, `collect_errors(p)`, `error_summary(errors)`, `error_chain(err1, err2)`, `pipeline_to_drv(p)`, `pipeline_to_store(p)`, `set_nix_defaults(nix_options)`, `pipeline_cache_status(p)`, `pipeline_gc(p, dry_run = false)`, `t_gc()`, `export_artifacts(target, archive_path)`, `import_artifacts(target_or_archive, archive_path = na())`, `inspect_artifacts(archive_path)`
+- Execution and artifacts: `populate_pipeline(p, build = false, dry_run = false)`, `build_pipeline(p, targets = na(), force = na(), dry_run = false, max_jobs = na(), cache = na(), builders = na(), keep_env = na(), sandbox = na())`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(p.name)`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `warning_msg(node)`, `suppress_warnings(node)`, `build_log_history(p, n = na())`, `node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`, `diff_summary(p)`, `debug_node(node)`, `build_log(p)`, `build_log_to_frame(log)`, `collect_errors(p)`, `error_summary(errors)`, `error_chain(err1, err2)`, `pipeline_to_drv(p)`, `pipeline_to_store(p)`, `set_nix_defaults(nix_options)`, `pipeline_cache_status(p)`, `pipeline_gc(p, dry_run = false)`, `t_gc()`, `export_artifacts(target, archive_path)`, `import_artifacts(target_or_archive, archive_path = na())`, `inspect_artifacts(archive_path)`
 - Auto-expansion of dynamic branching patterns: pipelines with `map_pattern(...)`, `cross_pattern(...)`, `slice_pattern(...)`, `head_pattern(...)`, `tail_pattern(...)`, or `sample_pattern(...)` are automatically expanded on `populate_pipeline`, `build_pipeline`, `chain`, `parallel`, `union`, `difference`, `intersect`, and `patch`. `expand_pipeline(p)` still available for explicit use. Supports List, Vector, and DataFrame dependencies; non-T runtime branching requires explicit serializer/deserializer configuration.
 - Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_to_dot(p, title = na())`, `pipeline_to_mermaid(p, title = na(), flatten = false)`
 - Node-level transforms: `filter_node(p, predicate)`, `which_nodes(p, predicate)`, `errored_nodes(p)`,
@@ -442,6 +445,12 @@ Purpose: node construction, pipeline execution, graph inspection, graph rewritin
   - *PMML Models*: Compares model regression coefficients and intercepts for linear models, falling back to structural tree comparisons for tree-based models.
   - *Text & Strings*: Computes a colorized, unified diff showing exact line additions and removals.
   - *Scalars/Generic*: Direct value structural equivalence and numeric difference calculations.
+
+### Content-Addressed Build Diffing (`t diff` / `diff_summary`)
+
+- **CLI (`t diff <file.t>`)**: Compares the two most recent builds of a pipeline by reading per-node Nix content hashes from build logs. Reports unchanged, changed, added, and removed nodes. Supports `--json` for structured output and `--log-a`/`--log-b` flags to compare specific build ranks.
+- **T function (`diff_summary(p)`)**: Returns a DataFrame summarizing per-node differences between the two most recent builds, with columns `name`, `status`, `hash_a`, `hash_b`, `class_a`, `class_b`.
+- **Per-node hashes**: Extracted from `node_store_paths` after `nix-instantiate --eval` and stored in build log JSON alongside the top-level `pipeline_output` hash.
 
 Important LLM rule: when the goal is reproducible execution, prefer generating or editing pipeline nodes rather than a monolithic script.
 
