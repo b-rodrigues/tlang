@@ -83,6 +83,9 @@ t check --watch path/to/script.t           # run immediately, then re-run on fil
 t diff path/to/script.t                   # compare last two builds (per-node content hashes)
 t diff path/to/script.t --json            # structured JSON output
 
+t fix path/to/script.t                    # apply suggested fixes from t check diagnostics
+t fix --dry-run path/to/script.t          # preview fixes without applying
+
 t test
 
 t doc --parse --generate
@@ -460,6 +463,11 @@ Purpose: node construction, pipeline execution, graph inspection, graph rewritin
 - **CLI (`t diff <file.t>`)**: Compares the two most recent builds of a pipeline by reading per-node Nix content hashes from build logs. Reports unchanged, changed, added, and removed nodes. Supports `--json` for structured output and `--log-a`/`--log-b` flags to compare specific build ranks.
 - **T function (`diff_summary(p)`)**: Returns a DataFrame summarizing per-node differences between the two most recent builds, with columns `name`, `status`, `hash_a`, `hash_b`, `class_a`, `class_b`.
 - **Per-node hashes**: Extracted from `node_store_paths` after `nix-instantiate --eval` and stored in build log JSON alongside the top-level `pipeline_output` hash.
+
+### Mechanical Fix Application (`t fix`)
+
+- **CLI (`t fix <file.t>`)**: Runs `t check --json` internally, collects diagnostics with `suggested_fix` values, and applies them to the source file. Currently supports `cast` (inserts `mutate()` for type conversion) and `rename_column` (replaces column name). Use `--dry-run` to preview without modifying.
+- **Supported fix types**: `cast`, `rename_column`. `add_node_arg` and `pin_package_version` are planned.
 
 Important LLM rule: when the goal is reproducible execution, prefer generating or editing pipeline nodes rather than a monolithic script.
 

@@ -3572,27 +3572,48 @@ t diff <file.t> --json             # structured JSON output
 t diff <file.t> --log-a 2 --log-b 4  # compare specific build ranks
 ```
 
-### `collect_exceptions(p)`
+---
 
-Collects all terminal error exceptions and non-terminal warning diagnostics from the computed nodes of a built pipeline.
+### CLI: `t fix`
 
-**Parameters:**
+Mechanically applies `suggested_fix` values from `t check --json` diagnostics. Runs `t check --json` internally, collects diagnostics with non-null `suggested_fix`, and applies them to the source file.
 
-- `p` — The Pipeline object to collect diagnostics from.
+```bash
+t fix <file.t>                     # apply all suggested fixes
+t fix --dry-run <file.t>           # preview fixes without applying
+```
 
-**Returns:**
+**Supported fix types:**
 
-`DataFrame` — A DataFrame with columns `node`, `status`, `code`, and `message` detailing the exceptions and warnings across all nodes.
+| Fix Kind | Action |
+|----------|--------|
+| `cast` | Inserts `\|> mutate($col = as.type($col, "target"))` before the `expect()` node |
+| `rename_column` | Replaces all occurrences of the old column name with the new name |
+| `add_node_arg` | (planned) Adds an argument to a pipeline node |
+| `pin_package_version` | (planned) Adds or updates a package version in `tproject.toml` |
 
-**Examples:**
-```t
-p = pipeline { a = 1 / 0; b = a + 5 }
-build_pipeline(p)
-exceptions = collect_exceptions(p)
--- Returns a DataFrame with:
---   node | status  | code             | message
---   "a"  | "Error" | "DivisionByZero" | "Division by zero"
---   "b"  | "Error" | "UpstreamError"  | "Upstream dependency 'a' failed"
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Fixes applied (or `--dry-run` preview completed) |
+| 1 | No fixes available or `t check` failed |
+
+**Example:**
+
+```bash
+$ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
+{
+  "kind": "cast",
+  "column": "amount",
+  "cast_to": "double",
+  "file": "pipeline.t",
+  "line": 5
+}
+
+$ t fix pipeline.t
+Applied 1 fix(es), skipped 0.
+Run 't check pipeline.t' to verify.
 ```
 
 ---

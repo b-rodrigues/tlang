@@ -1622,12 +1622,32 @@ let () =
         exit 1
       end else begin
         let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
-        (match filename with
-         | None ->
-             Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
-             exit 1
-         | Some f -> cmd_diff ~json ~log_a ~log_b f env)
+       (match filename with
+        | None ->
+            Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
+            exit 1
+        | Some f -> cmd_diff ~json ~log_a ~log_b f env)
       end
+  | _ :: "fix" :: [] ->
+      Printf.eprintf "Usage: t fix [--dry-run] <file.t>\n";
+      exit 1
+  | _ :: "fix" :: rest ->
+      let dry_run = List.mem "--dry-run" rest in
+      let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+      (match filename with
+       | None ->
+           Printf.eprintf "Usage: t fix [--dry-run] <file.t>\n";
+           exit 1
+       | Some f ->
+           let result = Fix.cmd_fix ~dry_run f in
+           if result.Fix.applied = 0 && result.Fix.skipped = 0 then
+             Printf.printf "No fixes to apply.\n"
+           else begin
+             Printf.printf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped;
+             if not dry_run then
+               Printf.printf "Run 't check %s' to verify.\n" f
+           end;
+           exit 0)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest

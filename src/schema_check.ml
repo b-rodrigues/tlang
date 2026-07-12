@@ -323,7 +323,12 @@ let validate_contracts ~file (p : pipeline_result) schemas =
                     diag_message = Printf.sprintf "Node '%s' type contract for column '%s' expects ~ %s but output schema has type %s"
                       node_name col expected_type actual_type;
                     diag_caused_by = [];
-                    diag_suggested_fix = NoFix;
+                    diag_suggested_fix = Cast {
+                      column = col;
+                      cast_to = expected_type;
+                      file = Some file;
+                      line = None;
+                    };
                   })
                 else None
           ) type_specs

@@ -6,10 +6,10 @@ type diagnostic_phase = Parse | Wire | Schema | Env | Build | Exec
 type severity = Error | Warning
 
 type suggested_fix =
-  | Cast of { column: string; cast_to: string }
-  | Rename_column of { old_name: string; new_name: string }
-  | Add_node_arg of { node: string; arg: string }
-  | Pin_package_version of { pkg: string; version: string }
+  | Cast of { column: string; cast_to: string; file: string option; line: int option }
+  | Rename_column of { old_name: string; new_name: string; file: string option; line: int option }
+  | Add_node_arg of { node: string; arg: string; file: string option; line: int option }
+  | Pin_package_version of { pkg: string; version: string; file: string option }
   | NoFix
 
 type diagnostic = {
@@ -56,32 +56,94 @@ let severity_to_string = function
 let phase_to_yojson p = `String (phase_to_string p)
 let severity_to_yojson s = `String (severity_to_string s)
 
+let opt_string_to_yojson = function
+  | Some s -> `String s
+  | None -> `Null
+
+let opt_int_to_yojson = function
+  | Some i -> `Int i
+  | None -> `Null
+
 let suggested_fix_to_yojson = function
-  | Cast { column; cast_to } ->
+  | Cast { column; cast_to; file; line } ->
       `Assoc [
         ("kind", `String "cast");
         ("column", `String column);
         ("cast_to", `String cast_to);
+        ("file", opt_string_to_yojson file);
+        ("line", opt_int_to_yojson line);
       ]
-  | Rename_column { old_name; new_name } ->
+  | Rename_column { old_name; new_name; file; line } ->
       `Assoc [
         ("kind", `String "rename_column");
         ("old_name", `String old_name);
         ("new_name", `String new_name);
+        ("file", opt_string_to_yojson file);
+        ("line", opt_int_to_yojson line);
       ]
-  | Add_node_arg { node; arg } ->
+  | Add_node_arg { node; arg; file; line } ->
       `Assoc [
         ("kind", `String "add_node_arg");
         ("node", `String node);
         ("arg", `String arg);
+        ("file", opt_string_to_yojson file);
+        ("line", opt_int_to_yojson line);
       ]
-  | Pin_package_version { pkg; version } ->
+  | Pin_package_version { pkg; version; file } ->
       `Assoc [
         ("kind", `String "pin_package_version");
         ("pkg", `String pkg);
         ("version", `String version);
+        ("file", opt_string_to_yojson file);
       ]
   | NoFix -> `Null
+
+let opt_string_of_yojson json =
+  match json with
+  | `String s -> Some s
+  | `Null -> None
+  | _ -> None
+
+let opt_int_of_yojson json =
+  match json with
+  | `Int i -> Some i
+  | `Null -> None
+  | _ -> None
+
+let suggested_fix_of_yojson json =
+  let open Yojson.Safe.Util in
+  match json with
+  | `Null -> NoFix
+  | _ ->
+      let kind = json |> member "kind" |> to_string in
+      let file = json |> member "file" |> opt_string_of_yojson in
+      let line = json |> member "line" |> opt_int_of_yojson in
+      match kind with
+      | "cast" ->
+          Cast {
+            column = json |> member "column" |> to_string;
+            cast_to = json |> member "cast_to" |> to_string;
+            file; line;
+          }
+      | "rename_column" ->
+          Rename_column {
+            old_name = json |> member "old_name" |> to_string;
+            new_name = json |> member "new_name" |> to_string;
+            file; line;
+          }
+      | "add_node_arg" ->
+          Add_node_arg {
+            node = json |> member "node" |> to_string;
+            arg = json |> member "arg" |> to_string;
+            file; line;
+          }
+      | "pin_package_version" ->
+          Pin_package_version {
+            pkg = json |> member "pkg" |> to_string;
+            version = json |> member "version" |> to_string;
+            file;
+          }
+      | _ -> NoFix
 
 let diagnostic_to_yojson d =
   `Assoc [
