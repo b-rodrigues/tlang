@@ -45,6 +45,7 @@ Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize t
 
 ## Debugging and inspecting a node/pipeline
 
+0. **Quick structural check:** Run `t check --schema src/pipeline.t` for instant validation without Nix builds. Catches dependency cycles, missing columns, and `expect()` contract violations in seconds. Use `--watch` for continuous feedback during development.
 1. **Check pipeline status:** Use `inspect_pipeline(p)` to view node build states, cache locations, and execution times.
 2. **Examine evaluated data:** Use `read_node(p.name)` from the REPL/subshell to read and inspect the actual output of a built node.
 3. **Read diagnostic logs:** `t explain --node <name>` from the shell, or `explain(read_node(p.name))` from the REPL — the `diagnostics` field tells you what actually ran and what it produced.
@@ -82,6 +83,8 @@ When modifying a pipeline:
 
 ## Before calling a task done
 
+- `t check --schema src/pipeline.t` passes with no errors or warnings.
+- If pipeline nodes declare `expect()` contracts, the schema check confirms they hold.
 - `t run src/pipeline.t` (or the project's entry pipeline) completes without an unhandled `Error`.
 - If you touched `tproject.toml`, you ran `t update` afterward.
 - If the project already uses `intent { ... }` blocks, continue that convention when making analytical decisions.
