@@ -27,13 +27,16 @@
         # Use the Nix packages for the specified system
         pkgs = (import (builtins.fetchTarball {
           url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
-          sha256 = "sha256:0v9h52vk07ls9s1csymbjhazcx9z70r4ip2w8ghm4k1nk19wl68d";
+          sha256 = "sha256:1bss1ajjzrx4nq4y4s3yn19gx1rmzd1bgwka75df6vpp94h44pmb";
         }) { inherit system; }).extend (self: super: {
           lightgbm = super.lightgbm.overrideAttrs (old: {
             cudaSupport = false;
             openclSupport = false;
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
             buildInputs = (old.buildInputs or []) ++ [ self.boost ];
+          });
+          jpmml-statsmodels = super.jpmml-statsmodels.overrideAttrs (old: {
+            mvnHash = "sha256-6Dd3JFJSoYNn9i+jsb9yDLLnAqWS0oeHXGx/Xll5cBo=";
           });
         });
 
