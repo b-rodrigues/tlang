@@ -61,6 +61,15 @@ Before an agent generates or modifies pipeline code, it should validate the resu
 | :--- | :--- | :--- |
 | `t check <file.t>` | Pipeline DAG structure, dependency cycles, node syntax | No |
 | `t check --schema <file.t>` | + column references, schema propagation, `expect()` contracts | No |
+
+**REPL-callable versions** (same options, returns `String`):
+
+```t
+result = t_check("src/pipeline.t")             -- same as: t check
+result = t_check("src/pipeline.t", schema=true) -- same as: t check --schema
+result = t_diff("src/pipeline.t")              -- same as: t diff
+result = t_fix("src/pipeline.t")               -- same as: t fix
+```
 | `t check --env <file.t>` | + `tproject.toml` declarations, lockfile consistency, Nix eval | Yes |
 | `t check --json <file.t>` | Structured JSON diagnostics (works with any tier) | Depends on tier |
 
@@ -599,10 +608,10 @@ These tools give agents structured, parseable output instead of human-readable e
 3. **Include Error Handling**: Use `na_rm`, validation checks
 4. **Preserve Intents**: Keep intent blocks in generated code
 5. **Explain Assumptions**: Document why specific approaches were chosen
-6. **Always `t check` First**: Run `t check --schema` before `build_pipeline` — it catches structural and schema errors in seconds
+6. **Always `t check` First**: Run `t check --schema` before `build_pipeline` — it catches structural and schema errors in seconds. In the REPL, use `t_check(file, schema=true)` (same behavior, returns a string).
 7. **Declare Shapes**: Add `expect(columns = [...])` to pipeline nodes so downstream agents (and humans) know the output contract
-8. **Use `t fix` for Mechanical Changes**: When `t check --json` reports a `suggested_fix`, apply it with `t fix` rather than manually editing — it handles line-number drift and word-boundary safety
-9. **Verify with `t diff`**: After modifying a pipeline, run `t diff` to confirm only the intended nodes changed
+8. **Use `t fix` for Mechanical Changes**: When `t check --json` reports a `suggested_fix`, apply it with `t fix` rather than manually editing — it handles line-number drift and word-boundary safety. In the REPL, use `t_fix(file)`.
+9. **Verify with `t diff`**: After modifying a pipeline, run `t diff` to confirm only the intended nodes changed. In the REPL, use `t_diff(file)`.
 
 ---
 
@@ -746,4 +755,4 @@ git show abc123:src/pipeline.t
 - [Examples](examples.md) — Intent-driven analysis examples
 - [Pipeline Tutorial](pipeline_tutorial.md) — Pipeline structure
 - [Debugging](debugging.md) — `t debug` for interactive node debugging
-- [API Reference](api-reference.md) — `t check`, `t fix`, `t diff` CLI documentation
+- [API Reference](api-reference.md) — `t_check()`, `t_diff()`, `t_fix()` REPL functions and `t check`, `t fix`, `t diff` CLI documentation

@@ -202,8 +202,9 @@ let pipeline_package = {
                "chain"; "parallel";
                  "pipeline_edges"; "pipeline_roots"; "pipeline_leaves"; "pipeline_depth";
                  "pipeline_cycles"; "pipeline_validate"; "pipeline_assert";
-                 "pipeline_print"; "pipeline_to_dot"; "pipeline_to_mermaid";
-                 "pipeline_to_ga"];
+                  "pipeline_print"; "pipeline_to_dot"; "pipeline_to_mermaid";
+                  "pipeline_to_ga";
+                  "t_check"; "t_diff"; "t_fix"];
 }
 
 let explain_package = {
@@ -853,6 +854,9 @@ let init_env () =
   let env = Pipeline_diff.register env in
   let env = Diff_summary.register env in
   let env = Pipeline_report.register env in
+  let env = T_check.register env in
+  let env = T_diff.register env in
+  let env = T_fix.register env in
   (* Colcraft package *)
   let env = T_select.register env in
   let env = T_filter.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in

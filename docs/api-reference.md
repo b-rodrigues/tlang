@@ -3200,6 +3200,78 @@ build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-
 
 ---
 
+### `t_check(file, json = false, schema = false, env = false)`
+
+REPL-callable version of `t check`. Runs structural, wire-phase, schema, and environment checks on a T script and returns the diagnostics as a string.
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to check |
+| `json` | Bool | `false` | Output diagnostics as JSON |
+| `schema` | Bool | `false` | Enable column-level schema validation |
+| `env` | Bool | `false` | Enable `tproject.toml` environment checks |
+
+**Returns:** `String` — formatted diagnostics (text or JSON, same as CLI `t check`).
+
+**Examples:**
+
+```t
+result = t_check("src/pipeline.t")
+result = t_check("src/pipeline.t", schema = true)
+result = t_check("src/pipeline.t", json = true, schema = true, env = true)
+```
+
+---
+
+### `t_diff(file, json = false, log_a = 2, log_b = 1)`
+
+REPL-callable version of `t diff`. Compares two builds of a pipeline using per-node Nix content hashes and returns the diff summary as a string.
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to diff |
+| `json` | Bool | `false` | Output diff as JSON |
+| `log_a` | Int | `2` | Rank of the first (older) build log |
+| `log_b` | Int | `1` | Rank of the second (newer) build log |
+
+**Returns:** `String` — formatted diff (text or JSON, same as CLI `t diff`).
+
+**Examples:**
+
+```t
+result = t_diff("src/pipeline.t")
+result = t_diff("src/pipeline.t", log_a = 1, log_b = 2)
+result = t_diff("src/pipeline.t", json = true)
+```
+
+---
+
+### `t_fix(file, dry_run = false)`
+
+REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically (e.g., inserting `|> mutate($col = as.type($col))` for type contract violations).
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to fix |
+| `dry_run` | Bool | `false` | Show what would be fixed without modifying the file |
+
+**Returns:** `String` — summary of fixes applied (or would be applied), same as CLI `t fix`.
+
+**Examples:**
+
+```t
+result = t_fix("src/pipeline.t")
+result = t_fix("src/pipeline.t", dry_run = true)
+```
+
+---
+
 ### `t check` (CLI)
 
 Structural pipeline validation without triggering Nix builds. Runs the full evaluator with `--failfast` but short-circuits Nix builds, so it can surface errors across all phases — syntax (parse), graph structure (wire), types (schema), and environment (missing files). The reported `tier` and `phase` reflect the deepest phase reached during evaluation, not a fixed depth limit.

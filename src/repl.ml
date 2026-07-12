@@ -17,73 +17,13 @@ let () =
   ignore (LNoise.history_load ~filename:history_file)
 
 (* --- Parsing and Evaluation --- *)
+(* Delegated to Check_utils (library module) so both the CLI and
+   REPL-callable functions share the same implementation. *)
 
-let source_location ?file pos : Ast.source_location =
-  {
-    file;
-    line = pos.Lexing.pos_lnum;
-    column = max 1 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1);
-  }
-
-let make_located_error ?file code message pos =
-  Ast.VError {
-    code;
-    message;
-    context = [];
-    location = Some (source_location ?file pos);
-    na_count = 0;
-  }
-
-let interrupt_error () =
-  Ast.VError {
-    code = Ast.RuntimeError;
-    message = "Interrupted.";
-    context = [];
-    location = None;
-    na_count = 0;
-  }
-
-let parse_and_eval ?filename ?(failfast=false) mode env input =
-  let lexbuf = Lexing.from_string input in
-  (match filename with
-   | Some file -> lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = file }
-   | None -> ());
-  try
-    let program = Parser.program Lexer.token lexbuf in
-    match Typecheck.validate_program ~mode program with
-    | Error err -> (Ast.VError err, env)
-    | Ok () -> Eval.eval_program ~resilient:(not failfast) program env
-  with
-  | Lexer.SyntaxError msg ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError ("Syntax Error: " ^ msg) pos, env)
-  | Parser.Error ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError "Parse Error" pos, env)
-  | Ast.Mixed_bracket_form ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos, env)
-  | Ast.Invalid_match_pattern msg ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError msg pos, env)
-  | Sys.Break ->
-      (interrupt_error (), env)
-
-let run_file ?failfast mode filename env =
-  try
-    let ch = open_in filename in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    parse_and_eval ~filename ?failfast mode env content
-  with
-  | Sys_error msg ->
-      (Ast.VError {
-         code = Ast.FileError;
-         message = "File Error: " ^ msg;
-         context = [];
-         location = None;
-         na_count = 0;
-       }, env)
+let make_located_error = Check_utils.make_located_error
+let interrupt_error = Check_utils.interrupt_error
+let parse_and_eval = Check_utils.parse_and_eval
+let run_file = Check_utils.run_file
 
 (* --- Pipeline Detection --- *)
 
@@ -712,67 +652,14 @@ let cmd_run_expr ?failfast mode expr env =
 let run_check ?(schema=false) ?(env_check=false) mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
-  let run () =
-    Ast.check_mode := true;
-    Fun.protect ~finally:(fun () -> Ast.check_mode := false)
-      (fun () -> run_file ~failfast:true mode filename env)
-  in
-  let (result, new_env) = run () in
-  let check_result =
-    (* Collect pipeline_result values: from the return value or from env bindings *)
-    let pipelines : (string * Ast.pipeline_result) list = match result with
-      | Ast.VPipeline p -> [("pipeline", p)]
-      | Ast.VError _ -> []
-      | _ ->
-          (* Scan environment for pipeline values *)
-          let bindings = Ast.Env.bindings new_env in
-          List.filter_map (fun (name, v) ->
-            match v with
-            | Ast.VPipeline p -> Some (name, p)
-            | _ -> None
-          ) bindings
-    in
-    let diag_list : Diagnostics.diagnostic list =
-      (* Always collect error diagnostics from the result *)
-      let error_diags = match result with
-        | Ast.VError err -> [Diagnostics.of_verror ~file:filename err]
-        | _ -> []
-      in
-      (* Collect pipeline diagnostics, schema checks, and env checks *)
-      let pipeline_diags = List.concat_map (fun (_name, p) ->
-        let wire_diags = Diagnostics.of_pipeline_result ~file:filename p in
-        let schema_diags =
-          if schema then Schema_check.check_pipeline_schemas ~file:filename p
-          else []
-        in
-        let env_diags =
-          if env_check then Env_check.check_env ~file:filename p
-          else []
-        in
-        wire_diags @ schema_diags @ env_diags
-      ) pipelines in
-      error_diags @ pipeline_diags
-    in
-    let check_phase = Diagnostics.worst_phase diag_list in
-    let tier = Diagnostics.worst_tier diag_list in
-    Diagnostics.make_result ~tier ~phase:check_phase diag_list
-  in
-  check_result
+  Check_utils.run_check ~schema ~env_check mode filename env
 
 let print_check_result ?(json=false) check_result =
+  let output = Check_utils.format_check_result ~json check_result in
   if json then
-    print_string (Yojson.Safe.pretty_to_string (Diagnostics.check_result_to_yojson check_result))
-  else begin
-    let cr_diags = Diagnostics.check_result_entries check_result in
-    List.iter (fun d ->
-      Printf.eprintf "%s [%s] %s\n"
-        (Diagnostics.severity_to_string (Diagnostics.diagnostic_severity d))
-        (Diagnostics.diagnostic_error_class d)
-        (Diagnostics.diagnostic_message d)
-    ) cr_diags;
-    if cr_diags <> [] then
-      Printf.eprintf "\n"
-  end
+    print_string output
+  else
+    Printf.eprintf "%s" output
 
 let cmd_check ?(json=false) ?(schema=false) ?(env_check=false) mode filename env =
   let check_result = run_check ~schema ~env_check mode filename env in

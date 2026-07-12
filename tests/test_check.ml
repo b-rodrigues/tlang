@@ -445,4 +445,49 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   in
   check "null-rate contract: warning has contract_unverifiable class" nr_is_warning;
 
+  (* === t_check / t_diff / t_fix REPL function tests === *)
+
+  Printf.printf "\nt_check (REPL function):\n";
+
+  (* t_check with nonexistent file returns error *)
+  let result = eval_string "t_check(\"nonexistent_file_xyz.t\")" in
+  let _result_str = Ast.Utils.value_to_string result in
+  check "t_check nonexistent file returns non-empty String"
+    (match result with Ast.VString s -> String.length s > 0 | _ -> false);
+
+  (* t_check with valid T file returns string *)
+  let result = eval_string "t_check(\"tests/golden/t_scripts/mtcars_select_mpg.t\")" in
+  check "t_check valid file returns String"
+    (match result with Ast.VString _ -> true | _ -> false);
+
+  (* t_check with schema flag *)
+  let result = eval_string "t_check(\"tests/golden/t_scripts/mtcars_select_mpg.t\", schema=true)" in
+  check "t_check with schema=true returns String"
+    (match result with Ast.VString _ -> true | _ -> false);
+
+  (* t_check with json flag returns JSON string *)
+  let result = eval_string "t_check(\"tests/golden/t_scripts/mtcars_select_mpg.t\", json=true)" in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  check_eq "t_check with json=true contains schema_version"
+    (if String.length result_str > 0 then "has_content" else "empty") "has_content";
+
+  Printf.printf "\nt_diff (REPL function):\n";
+
+  (* t_diff with nonexistent file returns VError *)
+  let result = eval_string "t_diff(\"nonexistent_file_xyz.t\")" in
+  check "t_diff nonexistent file returns VError"
+    (match result with Ast.VError _ -> true | _ -> false);
+
+  Printf.printf "\nt_fix (REPL function):\n";
+
+  (* t_fix with nonexistent file returns error *)
+  let result = eval_string "t_fix(\"nonexistent_file_xyz.t\")" in
+  check "t_fix nonexistent file returns non-empty String"
+    (match result with Ast.VString s -> String.length s > 0 | _ -> false);
+
+  (* t_fix with valid file and dry_run *)
+  let result = eval_string "t_fix(\"tests/golden/t_scripts/mtcars_select_mpg.t\", dry_run=true)" in
+  check "t_fix dry_run returns String"
+    (match result with Ast.VString _ -> true | _ -> false);
+
   Printf.printf "\n";

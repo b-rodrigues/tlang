@@ -80,11 +80,23 @@ t check --env path/to/script.t             # + environment/lockfile checks + Nix
 t check --json path/to/script.t            # machine-readable diagnostics
 t check --watch path/to/script.t           # run immediately, then re-run on file save
 
+# REPL-callable versions (same options, returns String):
+result = t_check("path/to/script.t")
+result = t_check("path/to/script.t", schema = true, json = true)
+
 t diff path/to/script.t                   # compare last two builds (per-node content hashes)
 t diff path/to/script.t --json            # structured JSON output
 
+# REPL-callable version (same options, returns String):
+result = t_diff("path/to/script.t")
+result = t_diff("path/to/script.t", json = true, log_a = 1, log_b = 2)
+
 t fix path/to/script.t                    # apply suggested fixes from t check diagnostics
 t fix --dry-run path/to/script.t          # preview fixes without applying
+
+# REPL-callable version (same options, returns String):
+result = t_fix("path/to/script.t")
+result = t_fix("path/to/script.t", dry_run = true)
 
 t test
 
@@ -461,12 +473,14 @@ Purpose: node construction, pipeline execution, graph inspection, graph rewritin
 ### Content-Addressed Build Diffing (`t diff` / `diff_summary`)
 
 - **CLI (`t diff <file.t>`)**: Compares the two most recent builds of a pipeline by reading per-node Nix content hashes from build logs. Reports unchanged, changed, added, and removed nodes. Supports `--json` for structured output and `--log-a`/`--log-b` flags to compare specific build ranks.
+- **T function (`t_diff(file, json = false, log_a = 2, log_b = 1)`)**: REPL-callable version of `t diff`. Returns the formatted diff as a string. Same options as CLI.
 - **T function (`diff_summary(p)`)**: Returns a DataFrame summarizing per-node differences between the two most recent builds, with columns `name`, `status`, `hash_a`, `hash_b`, `class_a`, `class_b`.
 - **Per-node hashes**: Extracted from `node_store_paths` after `nix-instantiate --eval` and stored in build log JSON alongside the top-level `pipeline_output` hash.
 
 ### Mechanical Fix Application (`t fix`)
 
 - **CLI (`t fix <file.t>`)**: Runs `t check --json` internally, collects diagnostics with `suggested_fix` values, and applies them to the source file. Currently supports `cast` (inserts `mutate()` for type conversion) and `rename_column` (replaces column name). Use `--dry-run` to preview without modifying.
+- **T function (`t_fix(file, dry_run = false)`)**: REPL-callable version of `t fix`. Returns the fix summary as a string. Same options as CLI.
 - **Supported fix types**: `cast`, `rename_column`. `add_node_arg` and `pin_package_version` are planned.
 
 Important LLM rule: when the goal is reproducible execution, prefer generating or editing pipeline nodes rather than a monolithic script.
