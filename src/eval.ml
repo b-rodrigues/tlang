@@ -1882,6 +1882,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
        becomes r_script("clean.R") with a contract attached. *)
     let extract_contract_from_args args =
       let columns = ref [] in
+      let types = ref [] in
+      let null_rates = ref [] in
       List.iter (fun (param_name, arg_expr) ->
         match param_name with
         | Some "columns" ->
@@ -1894,10 +1896,37 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                  ) items in
                  columns := cols
              | _ -> ())
+        | None ->
+            (* Positional arg: check for type contract (col ~ type()) *)
+            (match arg_expr.node with
+             | BinOp { op = Formula; left; right } ->
+                 (match left.node, right.node with
+                  | Var col, Call { fn = { node = Var type_name; _ }; args = []; _ } ->
+                      types := (col, type_name) :: !types
+                  | _ -> ())
+             | _ ->
+                 (* Check for null-rate contract: null_rate("col") < threshold *)
+                 (match arg_expr.node with
+                  | BinOp { op = Lt; left; right } ->
+                      (match left.node, right.node with
+                       | Call { fn = { node = Var "null_rate"; _ };
+                                args = [(_, col_expr)]; _ },
+                         Value (VFloat threshold) ->
+                             (match col_expr.node with
+                              | Value (VString col) ->
+                                  null_rates := (col, threshold) :: !null_rates
+                              | _ -> ())
+                       | _ -> ())
+                  | _ -> ()))
         | _ -> ()
       ) args;
-      if !columns <> [] then
-        Some { Ast.contract_columns = Some !columns }
+      let has_contract = !columns <> [] || !types <> [] || !null_rates <> [] in
+      if has_contract then
+        Some {
+          Ast.contract_columns = (if !columns <> [] then Some !columns else None);
+          contract_types = (if !types <> [] then Some !types else None);
+          contract_null_rates = (if !null_rates <> [] then Some !null_rates else None);
+        }
       else None
     in
     let make_mid_chain_warn () =
@@ -1921,7 +1950,8 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     let node_expr, contract_opt, expect_warnings =
       match node_expr.node with
       | BinOp { op = Pipe; left; right = { node = Call { fn = { node = Var "expect"; _ }; args }; _ } } ->
-          (* Terminal expect() at end of chain — extract contract *)
+          (* Terminal expect() at end of chain — extract contract.
+             args are the expect() call's own args (piped value is `left`, not in args). *)
           let mid_chain_warns =
             if contains_expect left then make_mid_chain_warn () else []
           in

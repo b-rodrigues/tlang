@@ -210,11 +210,20 @@ build_pipeline(p)
 
 Pipelines are DAGs. Nodes can be declared in any order; dependencies are resolved automatically.
 
-**Shape Contracts**: Use `expect(columns = [...])` at the end of a pipe chain to declare expected output columns. Contracts are checked statically via `t check --schema`.
+**Shape Contracts**: Use `expect(...)` at the end of a pipe chain to declare expected output properties. Contracts are checked statically via `t check --schema`.
 
 ```t
+-- Column presence contract
 clean = raw |> filter($age > 18) |> expect(columns = ["id", "name", "age"])
+
+-- Type contract + null-rate contract
+clean = raw |> expect(columns = ["id", "amount"], amount ~ double(), null_rate("amount") < 0.02)
 ```
+
+Three contract types:
+- **Column contracts** (`columns = [...]`): verified statically — missing columns produce `contract_violation` errors
+- **Type contracts** (`col ~ type()`): verified statically when column type is known — mismatches produce `contract_violation` errors, unknown types produce `contract_unverifiable` warnings
+- **Null-rate contracts** (`null_rate("col") < threshold`): produce `contract_unverifiable` warnings at check time; runtime enforcement planned
 
 **Block Evaluation**: Blocks (`{ ... }`) abort immediately on encountering a `VError`, returning the error rather than continuing evaluation of remaining statements. Nodes that soft-fail and return `VError` conditionally fall back to binary serialization rather than triggering custom serializers like Arrow, preventing crashes.
 

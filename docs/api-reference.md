@@ -3281,7 +3281,7 @@ When `--watch` is passed, `t check` runs immediately, then polls the input file 
 
 ### `expect()` — Pipeline shape contracts
 
-Attach a shape contract to a pipeline node to declare expected output column names.
+Attach a shape contract to a pipeline node to declare expected output properties.
 Contracts are checked statically via `t check --schema`.
 
 **Syntax:**
@@ -3293,6 +3293,15 @@ clean_data = raw_data
   |> expect(columns = ["id", "name", "score"])
 ```
 
+Type contracts and null-rate contracts can be mixed with column contracts:
+
+```t
+clean_data = raw_data
+  |> expect(columns = ["id", "amount", "region"],
+             amount ~ double(),
+             null_rate("amount") < 0.02)
+```
+
 `expect()` must appear at the **end** of a pipe chain.
 
 **Accepted arguments:**
@@ -3300,16 +3309,22 @@ clean_data = raw_data
 | Argument | Type | Description |
 |----------|------|-------------|
 | `columns` | `List[String]` | Expected column names in the output |
+| `col ~ type()` | Type contract | Asserts a column has a specific type (e.g., `amount ~ double()`, `id ~ int()`) |
+| `null_rate("col") < n` | Null-rate contract | Asserts the fraction of null values in a column is below a threshold |
 
 **Behavior:**
 
-- Checked only when `t check --schema` is used (tier 2)
-- If the inferred output schema is missing any declared columns, a `contract_violation` diagnostic is emitted
-- `expect()` is stripped from the pipe chain during evaluation — it has no runtime effect
+- Column contracts: checked when `t check --schema` is used (tier 2). If the inferred output schema is missing any declared columns, a `contract_violation` diagnostic is emitted.
+- Type contracts: checked statically when the column type is known (e.g., from CSV headers). If the type doesn't match, a `contract_violation` error is emitted. If the type is unknown (e.g., Python/Julia nodes), a `contract_unverifiable` warning is emitted.
+- Null-rate contracts: cannot be verified statically (require actual data). A `contract_unverifiable` warning is emitted during `t check --schema`. Runtime enforcement is planned for a future release.
+- `expect()` is stripped from the pipe chain during evaluation — it has no runtime effect.
+
+**Supported type names:** `double`, `int`, `string`, `bool`, `date`
 
 **Limitations:**
 
-- Only column names are checked; types, row counts, and null rates are not yet enforced
+- Null-rate contracts are checked at `t check --schema` time as warnings only; runtime enforcement is not yet implemented
+- Type inference from CSV headers is based on sampling; complex types may not be detected correctly
 - Column validation depends on accurate schema inference (CSV headers for root nodes, colcraft verb propagation for downstream nodes)
 
 ---

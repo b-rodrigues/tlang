@@ -154,6 +154,8 @@ and meta_pipeline = {
 (** Shape contract for expect() — checked statically via t check --schema *)
 and contract = {
   contract_columns : string list option;
+  contract_types : (string * string) list option;    (* [(column, type_name)] *)
+  contract_null_rates : (string * float) list option; (* [(column, threshold)] *)
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)
@@ -401,6 +403,8 @@ and typ =
 
 let empty_contract = {
   contract_columns = None;
+  contract_types = None;
+  contract_null_rates = None;
 }
 
 type program = stmt list

@@ -158,23 +158,23 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
 
   (* Test infer_output_schema for select *)
   let select_expr = { node = Call { fn = { node = Var "select"; loc = None }; args = [(None, { node = ColumnRef "a"; loc = None }); (None, { node = ColumnRef "b"; loc = None })] }; loc = None } in
-  let out = Schema_check.infer_output_schema ["a"; "b"; "c"] select_expr in
-  check_eq "infer_output_schema: select" (String.concat "," out) "a,b";
+  let out = Schema_check.infer_output_schema (Schema_check.make_schema ["a"; "b"; "c"]) select_expr in
+  check_eq "infer_output_schema: select" (String.concat "," (Schema_check.schema_names out)) "a,b";
 
   (* Test infer_output_schema for filter *)
   let filter_expr = { node = Call { fn = { node = Var "filter"; loc = None }; args = [(None, { node = ColumnRef "x"; loc = None })] }; loc = None } in
-  let out = Schema_check.infer_output_schema ["a"; "b"] filter_expr in
-  check_eq "infer_output_schema: filter passes through" (String.concat "," out) "a,b";
+  let out = Schema_check.infer_output_schema (Schema_check.make_schema ["a"; "b"]) filter_expr in
+  check_eq "infer_output_schema: filter passes through" (String.concat "," (Schema_check.schema_names out)) "a,b";
 
   (* Test infer_output_schema for mutate adds columns *)
   let mutate_expr = { node = Call { fn = { node = Var "mutate"; loc = None }; args = [(Some "new_col", { node = Value (VInt 1); loc = None })] }; loc = None } in
-  let out = Schema_check.infer_output_schema ["a"; "b"] mutate_expr in
-  check_eq "infer_output_schema: mutate adds new col" (String.concat "," out) "a,b,new_col";
+  let out = Schema_check.infer_output_schema (Schema_check.make_schema ["a"; "b"]) mutate_expr in
+  check_eq "infer_output_schema: mutate adds new col" (String.concat "," (Schema_check.schema_names out)) "a,b,new_col";
 
   (* Test infer_output_schema for summarize *)
   let sum_expr = { node = Call { fn = { node = Var "summarize"; loc = None }; args = [(Some "avg", { node = Value (VInt 1); loc = None })] }; loc = None } in
-  let out = Schema_check.infer_output_schema ["a"; "b"] sum_expr in
-  check_eq "infer_output_schema: summarize" (String.concat "," out) "avg";
+  let out = Schema_check.infer_output_schema (Schema_check.make_schema ["a"; "b"]) sum_expr in
+  check_eq "infer_output_schema: summarize" (String.concat "," (Schema_check.schema_names out)) "avg";
 
   (* Test read_csv_header *)
   let header = Schema_check.read_csv_header "/tmp/schema_test/data.csv" in
@@ -189,7 +189,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
 
   (* Test validate_contracts detects missing columns *)
   let schemas_tbl = Hashtbl.create 4 in
-  Hashtbl.add schemas_tbl "clean" ["mpg"; "cyl"];
+  Hashtbl.add schemas_tbl "clean" (Schema_check.make_schema ["mpg"; "cyl"]);
   let p_with_contract = {
     p_nodes = []; p_exprs = []; p_deps = []; p_imports = [];
     p_runtimes = []; p_serializers = []; p_deserializers = [];
@@ -200,6 +200,8 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     p_flakes = [];
     p_contracts = ["clean", {
       contract_columns = Some ["mpg"; "cyl"; "hp"];
+      contract_types = None;
+      contract_null_rates = None;
     }];
   } in
   let contract_diags = Schema_check.validate_contracts
@@ -212,7 +214,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
 
   (* Test validate_contracts passes when all columns present *)
   let schemas_tbl2 = Hashtbl.create 4 in
-  Hashtbl.add schemas_tbl2 "clean" ["mpg"; "cyl"; "hp"];
+  Hashtbl.add schemas_tbl2 "clean" (Schema_check.make_schema ["mpg"; "cyl"; "hp"]);
   let p_pass = {
     p_nodes = []; p_exprs = []; p_deps = []; p_imports = [];
     p_runtimes = []; p_serializers = []; p_deserializers = [];
@@ -223,6 +225,8 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     p_flakes = [];
     p_contracts = ["clean", {
       contract_columns = Some ["mpg"; "cyl"];
+      contract_types = None;
+      contract_null_rates = None;
     }];
   } in
   let pass_diags = Schema_check.validate_contracts
@@ -291,5 +295,148 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   ) e2e_terminal_diags) in
   check "of_pipeline_result: no spurious diagnostic for terminal expect" e2e_no_spurious;
   Ast.check_mode := false;
+
+  (* ---- Expanded contract tests ---- *)
+  Printf.printf "\nExpanded contracts (type + null-rate):\n";
+
+  (* Test that type contract is extracted from expect() *)
+  Ast.check_mode := true;
+  let type_result = eval_string "pipeline { a = 1 |> expect(mpg ~ double()) }" in
+  let has_type_contract = match type_result with
+    | VPipeline p ->
+        List.exists (fun (_, c) ->
+          c.Ast.contract_types = Some [("mpg", "double")]
+        ) p.p_contracts
+    | _ -> false
+  in
+  check "expect: type contract extracted (mpg ~ double())" has_type_contract;
+  Ast.check_mode := false;
+
+  (* Test that null-rate contract is extracted from expect() *)
+  Ast.check_mode := true;
+  let nr_result = eval_string "pipeline { a = 1 |> expect(null_rate(\"mpg\") < 0.05) }" in
+  let has_nr_contract = match nr_result with
+    | VPipeline p ->
+        List.exists (fun (_, c) ->
+          match c.Ast.contract_null_rates with
+          | Some [("mpg", t)] -> t < 0.06 && t > 0.04
+          | _ -> false
+        ) p.p_contracts
+    | _ -> false
+  in
+  check "expect: null-rate contract extracted (null_rate(\"mpg\") < 0.05)" has_nr_contract;
+  Ast.check_mode := false;
+
+  (* Test mixed contracts: columns + type + null-rate *)
+  Ast.check_mode := true;
+  let mixed_result = eval_string "pipeline { a = 1 |> expect(columns = [\"mpg\"], cyl ~ int(), null_rate(\"hp\") < 0.1) }" in
+  let has_mixed = match mixed_result with
+    | VPipeline p ->
+        List.exists (fun (_, c) ->
+          c.Ast.contract_columns = Some ["mpg"]
+          && c.Ast.contract_types = Some [("cyl", "int")]
+          && (match c.Ast.contract_null_rates with Some [("hp", t)] -> t < 0.11 | _ -> false)
+        ) p.p_contracts
+    | _ -> false
+  in
+  check "expect: mixed contracts (columns + type + null-rate)" has_mixed;
+  Ast.check_mode := false;
+
+  (* Test type contract validation: matching type *)
+  Printf.printf "\nType contract validation:\n";
+  let type_match_tbl = Hashtbl.create 4 in
+  Hashtbl.add type_match_tbl "clean" (Schema_check.make_schema ~typed:[("mpg", "float")] ["mpg"; "cyl"]);
+  let p_type_match = {
+    p_nodes = []; p_exprs = []; p_deps = []; p_imports = [];
+    p_runtimes = []; p_serializers = []; p_deserializers = [];
+    p_env_vars = []; p_args = []; p_shells = []; p_shell_args = [];
+    p_functions = []; p_includes = []; p_noops = []; p_scripts = [];
+    p_explicit_deps = []; p_node_diagnostics = [];
+    p_has_patterns = false; p_patterns = []; p_iterations = [];
+    p_flakes = [];
+    p_contracts = ["clean", {
+      contract_columns = None;
+      contract_types = Some [("mpg", "float")];
+      contract_null_rates = None;
+    }];
+  } in
+  let type_match_diags = Schema_check.validate_contracts
+    ~file:"test.t" p_type_match type_match_tbl in
+  check_eq "type contract: matching type produces no error"
+    (string_of_int (List.length type_match_diags)) "0";
+
+  (* Test type contract validation: mismatching type *)
+  let p_type_mismatch = {
+    p_nodes = []; p_exprs = []; p_deps = []; p_imports = [];
+    p_runtimes = []; p_serializers = []; p_deserializers = [];
+    p_env_vars = []; p_args = []; p_shells = []; p_shell_args = [];
+    p_functions = []; p_includes = []; p_noops = []; p_scripts = [];
+    p_explicit_deps = []; p_node_diagnostics = [];
+    p_has_patterns = false; p_patterns = []; p_iterations = [];
+    p_flakes = [];
+    p_contracts = ["clean", {
+      contract_columns = None;
+      contract_types = Some [("mpg", "string")];
+      contract_null_rates = None;
+    }];
+  } in
+  let type_mismatch_diags = Schema_check.validate_contracts
+    ~file:"test.t" p_type_mismatch type_match_tbl in
+  check_eq "type contract: mismatching type produces 1 error"
+    (string_of_int (List.length type_mismatch_diags)) "1";
+
+  (* Test type contract validation: unknown type produces warning *)
+  let type_unknown_tbl = Hashtbl.create 4 in
+  Hashtbl.add type_unknown_tbl "clean" (Schema_check.make_schema ["mpg"]);
+  let p_type_unknown = {
+    p_nodes = []; p_exprs = []; p_deps = []; p_imports = [];
+    p_runtimes = []; p_serializers = []; p_deserializers = [];
+    p_env_vars = []; p_args = []; p_shells = []; p_shell_args = [];
+    p_functions = []; p_includes = []; p_noops = []; p_scripts = [];
+    p_explicit_deps = []; p_node_diagnostics = [];
+    p_has_patterns = false; p_patterns = []; p_iterations = [];
+    p_flakes = [];
+    p_contracts = ["clean", {
+      contract_columns = None;
+      contract_types = Some [("mpg", "double")];
+      contract_null_rates = None;
+    }];
+  } in
+  let type_unknown_diags = Schema_check.validate_contracts
+    ~file:"test.t" p_type_unknown type_unknown_tbl in
+  check_eq "type contract: unknown type produces 1 warning"
+    (string_of_int (List.length type_unknown_diags)) "1";
+  let is_warning = match type_unknown_diags with
+    | d :: _ -> d.Diagnostics.diag_severity = Diagnostics.Warning
+    | [] -> false
+  in
+  check "type contract: unknown type is Warning not Error" is_warning;
+
+  (* Test null-rate contract produces unverifiable warning *)
+  let p_null_rate = {
+    p_nodes = []; p_exprs = []; p_deps = []; p_imports = [];
+    p_runtimes = []; p_serializers = []; p_deserializers = [];
+    p_env_vars = []; p_args = []; p_shells = []; p_shell_args = [];
+    p_functions = []; p_includes = []; p_noops = []; p_scripts = [];
+    p_explicit_deps = []; p_node_diagnostics = [];
+    p_has_patterns = false; p_patterns = []; p_iterations = [];
+    p_flakes = [];
+    p_contracts = ["clean", {
+      contract_columns = None;
+      contract_types = None;
+      contract_null_rates = Some [("mpg", 0.05)];
+    }];
+  } in
+  let nr_diags = Schema_check.validate_contracts
+    ~file:"test.t" p_null_rate type_unknown_tbl in
+  check_eq "null-rate contract: produces 1 unverifiable warning"
+    (string_of_int (List.length nr_diags)) "1";
+  let nr_is_warning = match nr_diags with
+    | d :: _ ->
+        d.Diagnostics.diag_severity = Diagnostics.Warning
+        && d.Diagnostics.diag_error_class = "contract_unverifiable"
+    | [] -> false
+  in
+  check "null-rate contract: warning has contract_unverifiable class" nr_is_warning;
 
   Printf.printf "\n";
