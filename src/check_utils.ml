@@ -77,7 +77,7 @@ let run_file ?failfast mode filename env =
 
 (* --- Check mode --- *)
 
-let run_check ?(schema=false) ?(env_check=false) mode filename env =
+let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
   let run () =
     Ast.check_mode := true;
     Fun.protect ~finally:(fun () -> Ast.check_mode := false)
@@ -108,7 +108,7 @@ let run_check ?(schema=false) ?(env_check=false) mode filename env =
           else []
         in
         let env_diags =
-          if env_check then Env_check.check_env ~file:filename p
+          if env_check then Env_check.check_env ~offline ~file:filename p
           else []
         in
         wire_diags @ schema_diags @ env_diags

@@ -268,23 +268,23 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
           in
           Printf.sprintf "let p = import ./%s {}; in { %s }" pipeline_nix_path assignments
         in
-        let argv_eval = [| "nix-instantiate"; "--impure"; "--eval"; "--strict"; "--expr"; expr |] in
+        let argv_eval = [| "nix"; "eval"; "--impure"; "--json"; "--expr"; expr |] in
         match run_command_argv_capture argv_eval with
         | Ok output ->
-            let re = Str.regexp "\"?\\([a-zA-Z0-9_.-]+\\)\"?[ \t]*=[ \t]*\"\\([^\"]+\\)\"" in
-            let pos = ref 0 in
             (try
-               while true do
-                 let _ = Str.search_forward re output !pos in
-                 let name = Str.matched_group 1 output in
-                 let path = Str.matched_group 2 output in
-                 Hashtbl.replace node_store_paths name path;
-                 pos := Str.match_end ()
-               done
-             with Not_found -> ())
+               let json = Yojson.Safe.from_string output in
+               match json with
+               | `Assoc pairs ->
+                   List.iter (fun (name, path) ->
+                     match path with
+                     | `String p -> Hashtbl.replace node_store_paths name p
+                     | _ -> ()
+                   ) pairs
+               | _ -> ()
+             with Yojson.Json_error _ -> ())
         | Error msg ->
             if verbose > 0 then
-              Printf.eprintf "[Debug] nix-instantiate eval failed: %s\n%!" msg
+              Printf.eprintf "[Debug] nix eval failed: %s\n%!" msg
       )
     in
     if dry_run then begin

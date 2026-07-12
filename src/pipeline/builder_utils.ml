@@ -555,14 +555,14 @@ let escape_nix_string s =
 let eval_node_store_path name : (string, Ast.value) result =
   let abs_path = Filename.concat (Sys.getcwd ()) pipeline_nix_path in
   let expr = Printf.sprintf "(import %s {}).%s.outPath" (escape_nix_string abs_path) name in
-  let argv = [| "nix-instantiate"; "--eval"; "--impure"; "--json"; "-E"; expr |] in
+  let argv = [| "nix"; "eval"; "--impure"; "--json"; "--expr"; expr |] in
   match run_command_argv_capture argv with
   | Error msg ->
       Error (Error.make_error RuntimeError
-        (Printf.sprintf "nix-instantiate failed for node '%s': %s" name msg))
+        (Printf.sprintf "nix eval failed for node '%s': %s" name msg))
   | Ok "" ->
       Error (Error.make_error RuntimeError
-        (Printf.sprintf "nix-instantiate returned empty output for node '%s'" name))
+        (Printf.sprintf "nix eval returned empty output for node '%s'" name))
   | Ok res ->
       let len = String.length res in
       let clean =

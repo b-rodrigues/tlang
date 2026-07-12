@@ -69,7 +69,8 @@ let read_node_log node_name =
   | `Found None | `Missing ->
       (* Fallback: try to instantiate the derivation path from pipeline.nix *)
       if Sys.file_exists pipeline_nix_path then
-        let argv = [| "nix-instantiate"; "--impure"; pipeline_nix_path; "-A"; node_name |] in
+        let artifact_attr = node_name ^ ".drvPath" in
+        let argv = [| "nix"; "eval"; "--impure"; "--raw"; "-f"; pipeline_nix_path; artifact_attr |] in
         (match run_command_argv_capture argv with
          | Ok output ->
              let drv = String.trim output in
@@ -79,9 +80,9 @@ let read_node_log node_name =
                 | Ok log_output -> VString log_output
                 | Error msg -> Error.make_error ShellError (Printf.sprintf "Failed to fetch nix log: %s" msg))
              else
-               Error.make_error ValueError (Printf.sprintf "Node `%s` not found in last build attempt and could not be instantiated from `%s`." node_name pipeline_nix_path)
+               Error.make_error ValueError (Printf.sprintf "Node `%s` not found in last build attempt and could not be evaluated from `%s`." node_name pipeline_nix_path)
          | Error msg ->
-             Error.make_error ValueError (Printf.sprintf "Node `%s` not found in last build attempt and instantiation failed: %s" node_name msg))
+             Error.make_error ValueError (Printf.sprintf "Node `%s` not found in last build attempt and evaluation failed: %s" node_name msg))
       else
         Error.make_error FileError (Printf.sprintf "Node `%s` not found in last build attempt and `%s` is missing. Run `build_pipeline` first." node_name pipeline_nix_path)
 

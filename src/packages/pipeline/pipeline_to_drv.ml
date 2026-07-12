@@ -26,16 +26,17 @@ let register env =
            | Ok _ ->
                let drv_pairs =
                  List.map (fun (name, _) ->
-                   let argv = [| "nix-instantiate"; "--impure"; Builder_utils.pipeline_nix_path; "-A"; name |] in
-                   let v = match Builder_utils.run_command_argv_capture argv with
-                     | Error msg ->
-                         Error.make_error RuntimeError
-                           (Printf.sprintf "pipeline_to_drv: `nix-instantiate` failed for node '%s': %s" name msg)
-                     | Ok "" ->
-                         Error.make_error RuntimeError
-                           (Printf.sprintf "pipeline_to_drv: `nix-instantiate` returned empty output for node '%s'" name)
-                     | Ok drv_path ->
-                         VString (String.trim drv_path)
+                    let artifact_attr = name ^ ".drvPath" in
+                    let argv = [| "nix"; "eval"; "--impure"; "--raw"; "-f"; Builder_utils.pipeline_nix_path; artifact_attr |] in
+                    let v = match Builder_utils.run_command_argv_capture argv with
+                      | Error msg ->
+                          Error.make_error RuntimeError
+                            (Printf.sprintf "pipeline_to_drv: nix eval failed for node '%s': %s" name msg)
+                      | Ok "" ->
+                          Error.make_error RuntimeError
+                            (Printf.sprintf "pipeline_to_drv: nix eval returned empty output for node '%s'" name)
+                      | Ok drv_path ->
+                          VString (String.trim drv_path)
                    in
                    (name, v)
                  ) p.p_nodes

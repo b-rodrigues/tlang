@@ -118,8 +118,8 @@ let check_lockfile_consistency ~file ~tproject_cfg (p : Ast.pipeline_result) =
          ) missing)
   | _ -> []
 
-(* Validate Nix evaluation via nix-instantiate --eval *)
-let check_nix_evaluation ~file (p : Ast.pipeline_result) =
+(* Validate Nix evaluation via nix eval *)
+let check_nix_evaluation ?(offline = false) ~file (p : Ast.pipeline_result) =
   match Builder_populate.generate_nix p with
   | Error msg ->
       [Diagnostics.{
@@ -148,7 +148,12 @@ let check_nix_evaluation ~file (p : Ast.pipeline_result) =
         |> String.concat " "
       in
       let expr = Printf.sprintf "let p = import ./%s {}; in { %s }" nix_path assignments in
-      let argv = [| "nix-instantiate"; "--impure"; "--eval"; "--strict"; "--expr"; expr |] in
+      let argv =
+        if offline then
+          [| "nix"; "eval"; "--offline"; "--impure"; "--json"; "--expr"; expr |]
+        else
+          [| "nix"; "eval"; "--impure"; "--json"; "--expr"; expr |]
+      in
       match Builder_utils.run_command_argv_capture argv with
       | Ok _output -> []
       | Error msg ->
@@ -168,11 +173,11 @@ let check_nix_evaluation ~file (p : Ast.pipeline_result) =
           }]
 
 (* Main entry point: run all tier 3 env checks *)
-let check_env ~file (p : Ast.pipeline_result) =
+let check_env ?(offline = false) ~file (p : Ast.pipeline_result) =
   let project_root = Builder_utils.get_project_root () in
   let tproject_path = Filename.concat project_root "tproject.toml" in
   let tproject_cfg = parse_tproject ~project_root in
   let declared_diags = check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg p in
   let lockfile_diags = check_lockfile_consistency ~file ~tproject_cfg p in
-  let nix_diags = check_nix_evaluation ~file p in
+  let nix_diags = check_nix_evaluation ~offline ~file p in
   declared_diags @ lockfile_diags @ nix_diags
