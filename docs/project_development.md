@@ -65,7 +65,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.54.0"
+min_version = "0.54.1"
 ```
 
 ### 3.1 System Dependencies and LaTeX
