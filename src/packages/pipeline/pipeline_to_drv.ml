@@ -26,8 +26,8 @@ let register env =
            | Ok _ ->
                let drv_pairs =
                  List.map (fun (name, _) ->
-                    let artifact_attr = name ^ ".drvPath" in
-                    let argv = [| "nix"; "eval"; "--impure"; "--raw"; "-f"; Builder_utils.pipeline_nix_path; artifact_attr |] in
+                   let artifact_attr = name ^ ".drvPath" in
+                   let argv = [| "nix"; "eval"; "--impure"; "--raw"; "-f"; Builder_utils.pipeline_nix_path; artifact_attr |] in
                     let v = match Builder_utils.run_command_argv_capture argv with
                       | Error msg ->
                           Error.make_error RuntimeError

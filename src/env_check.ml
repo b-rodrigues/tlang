@@ -143,6 +143,7 @@ let check_nix_evaluation ?(offline = false) ~file (p : Ast.pipeline_result) =
         List.map (fun name ->
           let parts = String.split_on_char '.' name in
           let quoted_path = List.map (fun part -> Printf.sprintf "\"%s\"" part) parts |> String.concat "." in
+          (* toString p.<name> produces a string; the resulting attrset is trivially JSON-encodable *)
           Printf.sprintf "\"%s\" = toString p.%s;" name quoted_path
         ) node_names
         |> String.concat " "

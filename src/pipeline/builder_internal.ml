@@ -281,7 +281,9 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                      | _ -> ()
                    ) pairs
                | _ -> ()
-             with Yojson.Json_error _ -> ())
+             with Yojson.Json_error msg ->
+               if verbose > 0 then
+                 Printf.eprintf "[Debug] nix eval JSON parse failed: %s\n%!" msg)
         | Error msg ->
             if verbose > 0 then
               Printf.eprintf "[Debug] nix eval failed: %s\n%!" msg
