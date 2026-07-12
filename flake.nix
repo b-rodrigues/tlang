@@ -36,7 +36,9 @@
             buildInputs = (old.buildInputs or []) ++ [ self.boost ];
           });
           jpmml-statsmodels = super.jpmml-statsmodels.overrideAttrs (old: {
-            mvnHash = "sha256-6Dd3JFJSoYNn9i+jsb9yDLLnAqWS0oeHXGx/Xll5cBo=";
+            fetchedMavenDeps = old.fetchedMavenDeps.overrideAttrs (oldDeps: {
+              outputHash = "sha256-6Dd3JFJSoYNn9i+jsb9yDLLnAqWS0oeHXGx/Xll5cBo=";
+            });
           });
         });
 
