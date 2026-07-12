@@ -230,4 +230,40 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check_eq "validate_contracts: passes when all columns present"
     (string_of_int (List.length pass_diags)) "0";
 
+  Printf.printf "\nMid-chain expect() placement:\n";
+
+  (* Test that mid-chain expect() produces a warning *)
+  Ast.check_mode := true;
+  let result = eval_string "pipeline { a = 1 |> expect(columns = [\"x\"]) |> as.integer() }" in
+  let has_warn = match result with
+    | VPipeline p ->
+        List.exists (fun (_, diag) ->
+          List.exists (fun w -> w.Ast.nw_kind = "invalid_expect_placement") diag.Ast.nd_warnings
+        ) p.p_node_diagnostics
+    | _ -> false
+  in
+  check "mid-chain expect: produces invalid_expect_placement warning" has_warn;
+  Ast.check_mode := false;
+
+  (* Test that terminal expect() does NOT produce a mid-chain warning *)
+  Ast.check_mode := true;
+  let result2 = eval_string "pipeline { a = 1 |> expect(columns = [\"x\"]) }" in
+  let has_mid_warn = match result2 with
+    | VPipeline p ->
+        List.exists (fun (_, diag) ->
+          List.exists (fun w -> w.Ast.nw_kind = "invalid_expect_placement") diag.Ast.nd_warnings
+        ) p.p_node_diagnostics
+    | _ -> false
+  in
+  check "terminal expect: no mid-chain warning" (not has_mid_warn);
+
+  (* Test that terminal expect() attaches the contract *)
+  let has_contract = match result2 with
+    | VPipeline p ->
+        List.exists (fun (_, c) -> c.Ast.contract_columns = Some ["x"]) p.p_contracts
+    | _ -> false
+  in
+  check "terminal expect: contract attached with columns" has_contract;
+  Ast.check_mode := false;
+
   Printf.printf "\n";
