@@ -35,10 +35,19 @@
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
             buildInputs = (old.buildInputs or []) ++ [ self.boost ];
           });
-          jpmml-statsmodels = super.jpmml-statsmodels.overrideAttrs (old: {
-            fetchedMavenDeps = old.fetchedMavenDeps.overrideAttrs (oldDeps: {
+          jpmml-statsmodels = super.jpmml-statsmodels.overrideAttrs (old: let
+            newDeps = old.fetchedMavenDeps.overrideAttrs (_: {
               outputHash = "sha256-6Dd3JFJSoYNn9i+jsb9yDLLnAqWS0oeHXGx/Xll5cBo=";
             });
+          in {
+            fetchedMavenDeps = newDeps;
+            buildPhase = ''
+              runHook preBuild
+              mvnDeps=$(cp -dpR ${newDeps}/.m2 ./ && chmod +w -R .m2 && pwd)
+              runHook afterDepsSetup
+              mvn package -o -nsu "-Dmaven.repo.local=$mvnDeps/.m2" -B package
+              runHook postBuild
+            '';
           });
         });
 
