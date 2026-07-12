@@ -233,4 +233,76 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
          (try let _ = Str.search_forward (Str.regexp_string "\"summary\"") json_str 0 in true with Not_found -> false));
   remove_path dir5;
 
+  (* Test 6: errored node in both builds -> Errored, not Unchanged *)
+  Printf.printf "\nBuilder_diff — errored node handling:\n";
+  let dir6 = make_temp_dir () in
+  let log_a6 = Filename.concat dir6 "build_log_20260101_120000_aaa.json" in
+  let log_b6 = Filename.concat dir6 "build_log_20260101_130000_kkk.json" in
+  let log_both_errored = {|{
+    "timestamp": "20260101_120000",
+    "hash": "aaa111",
+    "out_path": "/nix/store/aaa111-pipeline_output",
+    "duration": 1.0,
+    "pipeline": "test_pipeline",
+    "nodes": [
+      {"node": "good_node", "path": "/nix/store/aaa111-pipeline_output/good_node/artifact", "hash": "aaa111", "runtime": "T", "serializer": "default", "class": "VDataFrame", "dependencies": [], "status": "Completed", "success": true, "warnings": false, "duration": 0.3},
+      {"node": "bad_node", "path": "", "hash": "no_hash", "runtime": "T", "serializer": "default", "class": "Error", "dependencies": [], "status": "Errored", "success": false, "warnings": false, "duration": 0.1}
+    ]
+  }|} in
+  write_file log_a6 log_both_errored;
+  write_file log_b6 log_both_errored;
+  (match Builder_diff.compute_diff log_a6 log_b6 with
+   | Error msg ->
+       Printf.printf "  \xe2\x9c\x97 errored both builds: %s\n" msg;
+       incr fail_count
+   | Ok result ->
+       check_eq "errored both: total nodes" (string_of_int result.dr_total) "2";
+       check_eq "errored both: unchanged count" (string_of_int result.dr_unchanged) "1";
+       check_eq "errored both: errored count" (string_of_int result.dr_errored) "1";
+       check_eq "errored both: changed count" (string_of_int result.dr_changed) "0";
+       let errored_node = List.find (fun e -> e.Builder_diff.nde_name = "bad_node") result.dr_nodes in
+       (match errored_node.Builder_diff.nde_status with
+        | Builder_diff.Errored _ -> check "errored both: bad_node is Errored" true
+        | _ -> check "errored both: bad_node should be Errored, not changed/unchanged" false));
+  remove_path dir6;
+
+  (* Test 7: errored in one build, succeeded in other -> Errored *)
+  let dir7 = make_temp_dir () in
+  let log_a7 = Filename.concat dir7 "build_log_20260101_120000_aaa.json" in
+  let log_b7 = Filename.concat dir7 "build_log_20260101_130000_lll.json" in
+  let log_errored_a = {|{
+    "timestamp": "20260101_120000",
+    "hash": "aaa111",
+    "out_path": "/nix/store/aaa111-pipeline_output",
+    "duration": 1.0,
+    "pipeline": "test_pipeline",
+    "nodes": [
+      {"node": "flaky_node", "path": "", "hash": "no_hash", "runtime": "T", "serializer": "default", "class": "Error", "dependencies": [], "status": "Errored", "success": false, "warnings": false, "duration": 0.1}
+    ]
+  }|} in
+  let log_succeeded_b = {|{
+    "timestamp": "20260101_130000",
+    "hash": "mmm999",
+    "out_path": "/nix/store/mmm999-pipeline_output",
+    "duration": 1.0,
+    "pipeline": "test_pipeline",
+    "nodes": [
+      {"node": "flaky_node", "path": "/nix/store/mmm999-pipeline_output/flaky_node/artifact", "hash": "mmm999", "runtime": "T", "serializer": "default", "class": "VDataFrame", "dependencies": [], "status": "Completed", "success": true, "warnings": false, "duration": 0.3}
+    ]
+  }|} in
+  write_file log_a7 log_errored_a;
+  write_file log_b7 log_succeeded_b;
+  (match Builder_diff.compute_diff log_a7 log_b7 with
+   | Error msg ->
+       Printf.printf "  \xe2\x9c\x97 errored then succeeded: %s\n" msg;
+       incr fail_count
+   | Ok result ->
+       check_eq "errored then succeeded: total nodes" (string_of_int result.dr_total) "1";
+       check_eq "errored then succeeded: errored count" (string_of_int result.dr_errored) "1";
+       let node = List.find (fun e -> e.Builder_diff.nde_name = "flaky_node") result.dr_nodes in
+       (match node.Builder_diff.nde_status with
+        | Builder_diff.Errored _ -> check "errored then succeeded: flaky_node is Errored" true
+        | _ -> check "errored then succeeded: flaky_node should be Errored" false));
+  remove_path dir7;
+
   Printf.printf "\n"

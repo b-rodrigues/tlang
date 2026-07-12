@@ -33,6 +33,7 @@ type diff_result = {
   dr_total : int;
   dr_unchanged : int;
   dr_changed : int;
+  dr_errored : int;
   dr_added : int;
   dr_removed : int;
 }
@@ -49,6 +50,10 @@ let find_two_matching_logs (p : pipeline_result) =
   match matching with
   | a :: b :: _ -> Some (b, a)
   | _ -> None
+
+let no_hash_sentinel = "no_hash"
+
+let is_no_hash h = h = no_hash_sentinel
 
 let load_log_with_hashes path =
   match Builder_logs.read_log_with_hashes path with
@@ -79,11 +84,13 @@ let compute_diff log_a_path log_b_path =
         | Some (cn_a, hash_a), Some (cn_b, hash_b) ->
             let class_a = cn_a.Ast.cn_class in
             let class_b = cn_b.Ast.cn_class in
-            if hash_a = hash_b && hash_a <> "" then
-              Some { nde_name = name; nde_status = Unchanged { hash = hash_a };
+            let a_errored = class_a = "Error" || is_no_hash hash_a in
+            let b_errored = class_b = "Error" || is_no_hash hash_b in
+            if a_errored || b_errored then
+              Some { nde_name = name; nde_status = Errored { error_class = class_a ^ " -> " ^ class_b };
                      nde_class_a = class_a; nde_class_b = class_b }
-            else if hash_a = "" || hash_b = "" then
-              Some { nde_name = name; nde_status = Changed { hash_a; hash_b };
+            else if hash_a = hash_b then
+              Some { nde_name = name; nde_status = Unchanged { hash = hash_a };
                      nde_class_a = class_a; nde_class_b = class_b }
             else
               Some { nde_name = name; nde_status = Changed { hash_a; hash_b };
@@ -96,24 +103,25 @@ let compute_diff log_a_path log_b_path =
                    nde_class_a = ""; nde_class_b = cn_b.Ast.cn_class }
         | None, None -> None
       ) all_names in
-      let counts = List.fold_left (fun (u, c, a, r) e ->
-        match e.nde_status with
-        | Unchanged _ -> (u + 1, c, a, r)
-        | Changed _ -> (u, c + 1, a, r)
-        | Added _ -> (u, c, a + 1, r)
-        | Removed _ -> (u, c, a, r + 1)
-        | Errored _ -> (u, c + 1, a, r)
-      ) (0, 0, 0, 0) entries in
+      let counts = List.fold_left (fun (u, c, er, a, r) entry ->
+        match entry.nde_status with
+        | Unchanged _ -> (u + 1, c, er, a, r)
+        | Changed _ -> (u, c + 1, er, a, r)
+        | Errored _ -> (u, c, er + 1, a, r)
+        | Added _ -> (u, c, er, a + 1, r)
+        | Removed _ -> (u, c, er, a, r + 1)
+      ) (0, 0, 0, 0, 0) entries in
       let total = List.length entries in
       Ok {
         dr_build_a = info_a;
         dr_build_b = info_b;
         dr_nodes = entries;
         dr_total = total;
-        dr_unchanged = (fun (u, _, _, _) -> u) counts;
-        dr_changed = (fun (_, c, _, _) -> c) counts;
-        dr_added = (fun (_, _, a, _) -> a) counts;
-        dr_removed = (fun (_, _, _, r) -> r) counts;
+        dr_unchanged = (fun (u, _, _, _, _) -> u) counts;
+        dr_changed = (fun (_, c, _, _, _) -> c) counts;
+        dr_errored = (fun (_, _, er, _, _) -> er) counts;
+        dr_added = (fun (_, _, _, a, _) -> a) counts;
+        dr_removed = (fun (_, _, _, _, r) -> r) counts;
       }
 
 let node_status_to_string = function
@@ -132,17 +140,16 @@ let print_diff_result (r : diff_result) =
     let detail = match e.nde_status with
       | Unchanged _ -> ""
       | Changed { hash_a; hash_b } ->
-          if hash_a = "" || hash_b = "" then "output hash differs"
-          else Printf.sprintf "hash %s -> %s" (String.sub hash_a 0 (min 7 (String.length hash_a)))
+          Printf.sprintf "hash %s -> %s" (String.sub hash_a 0 (min 7 (String.length hash_a)))
                                          (String.sub hash_b 0 (min 7 (String.length hash_b)))
       | Added _ -> "new node"
       | Removed _ -> "removed"
-      | Errored _ -> "errored"
+      | Errored { error_class } -> Printf.sprintf "error: %s" error_class
     in
     Printf.printf "%-20s %-12s %s\n" e.nde_name (node_status_to_string e.nde_status) detail
   ) r.dr_nodes;
-  Printf.printf "\nSummary: %d nodes, %d unchanged, %d changed, %d added, %d removed\n"
-    r.dr_total r.dr_unchanged r.dr_changed r.dr_added r.dr_removed
+  Printf.printf "\nSummary: %d nodes, %d unchanged, %d changed, %d errored, %d added, %d removed\n"
+    r.dr_total r.dr_unchanged r.dr_changed r.dr_errored r.dr_added r.dr_removed
 
 let diff_result_to_yojson (r : diff_result) =
   let node_to_yojson e =
@@ -178,6 +185,7 @@ let diff_result_to_yojson (r : diff_result) =
       ("total", `Int r.dr_total);
       ("unchanged", `Int r.dr_unchanged);
       ("changed", `Int r.dr_changed);
+      ("errored", `Int r.dr_errored);
       ("added", `Int r.dr_added);
       ("removed", `Int r.dr_removed);
     ]);

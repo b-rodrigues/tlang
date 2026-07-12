@@ -832,35 +832,58 @@ let cmd_diff ?(json=false) ?(log_a=2) ?(log_b=1) filename env =
       Printf.eprintf "No pipeline found in %s.\n" filename;
       exit 1
   | (_, p) :: _ ->
-      let logs = Builder.get_logs () in
-      let try_log log_file =
-        let full_path = Filename.concat Builder.pipeline_dir log_file in
-        match Builder.read_log full_path with
-        | Ok entries when Builder_read_node.pipeline_matches_logged_entries p entries -> Some full_path
-        | _ -> None
-      in
-      let matching = List.filter_map try_log logs in
-      let n_matching = List.length matching in
-      if n_matching < 2 then begin
-        Printf.eprintf "Need at least 2 matching build logs to diff. Found %d.\n" n_matching;
-        Printf.eprintf "Run build_pipeline(p) at least twice first.\n";
-        exit 0
-      end else begin
-        let idx_a = min log_a n_matching in
-        let idx_b = min log_b n_matching in
-        let path_a = List.nth matching (idx_a - 1) in
-        let path_b = List.nth matching (idx_b - 1) in
-        match Builder.compute_diff path_a path_b with
-        | Error msg ->
-            Printf.eprintf "Error computing diff: %s\n" msg;
+      let is_default = (log_a = 2 && log_b = 1) in
+      if is_default then
+        match Builder_diff.find_two_matching_logs p with
+        | None ->
+            Printf.eprintf "Need at least 2 matching build logs to diff.\n";
+            Printf.eprintf "Run build_pipeline(p) at least twice first.\n";
             exit 1
-        | Ok diff_result ->
-            if json then
-              print_string (Yojson.Safe.pretty_to_string (Builder.diff_result_to_yojson diff_result))
-            else
-              Builder.print_diff_result diff_result;
-            exit 0
-      end
+        | Some (path_a, path_b) ->
+            (match Builder_diff.compute_diff path_a path_b with
+             | Error msg ->
+                 Printf.eprintf "Error computing diff: %s\n" msg;
+                 exit 1
+             | Ok diff_result ->
+                 if json then
+                   print_string (Yojson.Safe.pretty_to_string (Builder_diff.diff_result_to_yojson diff_result))
+                 else
+                   Builder_diff.print_diff_result diff_result;
+                 exit 0)
+      else
+        let logs = Builder.get_logs () in
+        let try_log log_file =
+          let full_path = Filename.concat Builder.pipeline_dir log_file in
+          match Builder.read_log full_path with
+          | Ok entries when Builder_read_node.pipeline_matches_logged_entries p entries -> Some full_path
+          | _ -> None
+        in
+        let matching = List.filter_map try_log logs in
+        let n_matching = List.length matching in
+        if n_matching < 2 then begin
+          Printf.eprintf "Need at least 2 matching build logs to diff. Found %d.\n" n_matching;
+          Printf.eprintf "Run build_pipeline(p) at least twice first.\n";
+          exit 1
+        end else if log_a < 1 || log_b < 1 then begin
+          Printf.eprintf "Invalid rank: --log-a and --log-b must be >= 1 (got --log-a %d --log-b %d).\n" log_a log_b;
+          exit 1
+        end else if log_a > n_matching || log_b > n_matching then begin
+          Printf.eprintf "Requested rank exceeds available builds: --log-a %d --log-b %d but only %d matching builds found.\n" log_a log_b n_matching;
+          exit 1
+        end else begin
+          let path_a = List.nth matching (log_a - 1) in
+          let path_b = List.nth matching (log_b - 1) in
+          match Builder_diff.compute_diff path_a path_b with
+          | Error msg ->
+              Printf.eprintf "Error computing diff: %s\n" msg;
+              exit 1
+          | Ok diff_result ->
+              if json then
+                print_string (Yojson.Safe.pretty_to_string (Builder_diff.diff_result_to_yojson diff_result))
+              else
+                Builder_diff.print_diff_result diff_result;
+              exit 0
+        end
 
 let cmd_debug ?(unsafe=false) ?failfast mode filename node_name env =
   let _ = unsafe in
@@ -1594,12 +1617,17 @@ let () =
       in
       let log_a = extract_int_flag "--log-a" 2 in
       let log_b = extract_int_flag "--log-b" 1 in
-      let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
-      (match filename with
-       | None ->
-           Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
-           exit 1
-       | Some f -> cmd_diff ~json ~log_a ~log_b f env)
+      if log_a < 1 || log_b < 1 then begin
+        Printf.eprintf "Invalid rank: --log-a and --log-b must be >= 1 (got --log-a %d --log-b %d).\n" log_a log_b;
+        exit 1
+      end else begin
+        let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+        (match filename with
+         | None ->
+             Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
+             exit 1
+         | Some f -> cmd_diff ~json ~log_a ~log_b f env)
+      end
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest
