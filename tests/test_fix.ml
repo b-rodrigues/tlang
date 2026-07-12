@@ -113,4 +113,70 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let lines = List.filter_map (fun d -> d.Diagnostics.diag_line) sorted in
     check "sort_descending: first element has highest line" (lines = [10; 5; 3])
   in
-  test_sort_fixes ()
+  test_sort_fixes ();
+
+  Printf.printf "\nword-boundary rename:\n";
+  let test_rename_word_boundary () =
+    let tmp = Filename.temp_file "test_fix_wb" ".t" in
+    let oc = open_out tmp in
+    output_string oc "clean = raw\n  |> filter($id > 1)\n  |> mutate($identity = $id + 1)\n";
+    close_out oc;
+    Fix.apply_rename_column ~file:tmp ~old_name:"id" ~new_name:"record_id";
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    let has_record_id = (try let _ = Str.search_forward (Str.regexp_string "$record_id") content 0 in true with Not_found -> false) in
+    let has_identity_unchanged = (try let _ = Str.search_forward (Str.regexp_string "$identity") content 0 in true with Not_found -> false) in
+    let no_record_identity = not (try let _ = Str.search_forward (Str.regexp_string "$record_identity") content 0 in true with Not_found -> false) in
+    check "rename replaces $id with $record_id" has_record_id;
+    check "rename does not corrupt $identity" has_identity_unchanged;
+    check "rename does not produce $record_identity" no_record_identity
+  in
+  test_rename_word_boundary ();
+
+  Printf.printf "\ndry-run counting:\n";
+  let test_dry_run_counting () =
+    let d1 = { Diagnostics.
+      diag_id = "T1001"; diag_error_class = "contract_violation"; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some "test.t"; diag_line = Some 5; diag_column = None;
+      diag_message = "Column 'x' expected double, got int"; diag_caused_by = [];
+      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; file = Some "test.t"; line = Some 5 };
+    } in
+    let d2 = { d1 with diag_id = "T1002"; diag_line = Some 8;
+      diag_message = "Column 'y' expected string, got int";
+      diag_suggested_fix = Cast { column = "y"; cast_to = "string"; file = Some "test.t"; line = Some 8 };
+    } in
+    let fixes = [d1; d2] in
+    let result = Fix.apply_fixes ~dry_run:true ~default_file:"test.t" fixes in
+    check "dry_run: applied = 0" (result.Fix.applied = 0);
+    check "dry_run: would_apply = 2" (result.Fix.would_apply = 2);
+    check "dry_run: skipped = 0" (result.Fix.skipped = 0)
+  in
+  test_dry_run_counting ();
+
+  Printf.printf "\napply_fixes non-dry-run:\n";
+  let test_apply_fixes_real () =
+    let tmp_cast = Filename.temp_file "test_fix_af" ".t" in
+    let oc = open_out tmp_cast in
+    output_string oc "clean = raw\n  |> read_csv(\"data.csv\")\n  |> expect(x = \"double\")\n";
+    close_out oc;
+    let d1 = { Diagnostics.
+      diag_id = "T1003"; diag_error_class = "contract_violation"; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some tmp_cast; diag_line = Some 3; diag_column = None;
+      diag_message = "type mismatch"; diag_caused_by = [];
+      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; file = Some tmp_cast; line = Some 3 };
+    } in
+    let result = Fix.apply_fixes ~dry_run:false ~default_file:tmp_cast [d1] in
+    check "non-dry-run: applied = 1" (result.Fix.applied = 1);
+    check "non-dry-run: would_apply = 0" (result.Fix.would_apply = 0);
+    let ch = open_in tmp_cast in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp_cast;
+    let has_mutate = (try let _ = Str.search_forward (Str.regexp "mutate") content 0 in true with Not_found -> false) in
+    check "non-dry-run: file patched with mutate()" has_mutate
+  in
+  test_apply_fixes_real ();

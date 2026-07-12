@@ -1527,16 +1527,19 @@ let () =
            Printf.eprintf "Usage: t fix [--dry-run] <file.t>\n";
            exit 1
        | Some f ->
-           let check_fn = fun file -> run_check ~schema:true script_mode file env in
-           let result = Fix.cmd_fix ~dry_run ~check_fn f in
-           if result.Fix.applied = 0 && result.Fix.skipped = 0 then
-             Printf.printf "No fixes to apply.\n"
-           else begin
-             Printf.printf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped;
-             if not dry_run then
-               Printf.printf "Run 't check %s' to verify.\n" f
-           end;
-           exit 0)
+            let check_fn = fun file -> run_check ~schema:true script_mode file env in
+            let result = Fix.cmd_fix ~dry_run ~check_fn f in
+            if result.Fix.applied = 0 && result.Fix.would_apply = 0 && result.Fix.skipped = 0 then
+              Printf.printf "No fixes to apply.\n"
+            else begin
+              if dry_run then
+                Printf.printf "Would apply %d fix(es), skipped %d.\n" result.Fix.would_apply result.Fix.skipped
+              else begin
+                Printf.printf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped;
+                Printf.printf "Run 't check %s' to verify.\n" f
+              end
+            end;
+            exit 0)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest

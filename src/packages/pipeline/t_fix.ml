@@ -20,11 +20,14 @@ open Ast
 *)
 
 let format_fix_result (result : Fix.fix_result) =
-  if result.Fix.applied = 0 && result.Fix.skipped = 0 then
+  if result.Fix.applied = 0 && result.Fix.would_apply = 0 && result.Fix.skipped = 0 then
     "No fixes to apply.\n"
   else
     let buf = Buffer.create 256 in
-    Buffer.add_string buf (Printf.sprintf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped);
+    if result.Fix.would_apply > 0 then
+      Buffer.add_string buf (Printf.sprintf "Would apply %d fix(es), skipped %d.\n" result.Fix.would_apply result.Fix.skipped)
+    else
+      Buffer.add_string buf (Printf.sprintf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped);
     List.iter (fun (d : Diagnostics.diagnostic) ->
       let fix_desc = match d.diag_suggested_fix with
         | Diagnostics.Cast { column; cast_to; _ } ->
@@ -74,20 +77,7 @@ let register env =
                 match d.diag_suggested_fix with Diagnostics.NoFix -> None | _ -> Some d)
               |> Fix.sort_fixes_by_descending_line
             in
-            let applied = ref 0 in
-            let skipped = ref 0 in
-            List.iter (fun (d : Diagnostics.diagnostic) ->
-              if do_dry_run then
-                incr skipped
-              else begin
-                let file_to_fix = match d.diag_file with Some f -> f | None -> file in
-                if Fix.apply_fix ~file:file_to_fix d.diag_suggested_fix then
-                  incr applied
-                else
-                  incr skipped
-              end
-            ) fixes;
-            let result = { Fix.file; applied = !applied; skipped = !skipped; diagnostics = fixes } in
+            let result = Fix.apply_fixes ~dry_run:do_dry_run ~default_file:file fixes in
             VString (format_fix_result result)
         | (_, other) ->
             Error.type_error
