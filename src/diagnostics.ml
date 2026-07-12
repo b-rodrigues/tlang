@@ -227,27 +227,34 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
           }]
       | None -> []
     in
-    (* NOTE: NA counts are currently the only warning source in nd_warnings.
-       If additional warning kinds are added to the pipeline, this filter
-       should be extended to emit them as diagnostics. *)
+    (* NA-exclusion warnings with na_count=0 mean no rows were affected —
+       nothing to report.  All other warning kinds (e.g. invalid_expect_placement)
+       are surfaced unconditionally. *)
     let warnings = List.filter_map (fun nw ->
-      if nw.Ast.nw_na_count = 0 then None
-      else Some ({
-        diag_id = gen_id ();
-        diag_error_class = "na_warning";
-        diag_severity = Warning;
-        diag_phase = Exec;
-        diag_node_id = Some name;
-        diag_node_lang = None;
-        diag_file = file;
-        diag_line = None;
-        diag_column = None;
-        diag_message = nw.Ast.nw_message;
-        diag_caused_by = (match nw.Ast.nw_source with
-          | Ast.WarningUpstream upstream -> [upstream]
-          | Ast.WarningOwn -> []);
-        diag_suggested_fix = NoFix;
-      } : diagnostic)
+      if nw.Ast.nw_kind = "NAExcluded" && nw.Ast.nw_na_count = 0 then None
+      else
+        let diag_error_class, diag_phase =
+          match nw.Ast.nw_kind with
+          | "invalid_expect_placement" -> nw.Ast.nw_kind, Wire
+          | "NAExcluded" -> "na_warning", Exec
+          | other -> other, Exec
+        in
+        Some ({
+          diag_id = gen_id ();
+          diag_error_class;
+          diag_severity = Warning;
+          diag_phase;
+          diag_node_id = Some name;
+          diag_node_lang = None;
+          diag_file = file;
+          diag_line = None;
+          diag_column = None;
+          diag_message = nw.Ast.nw_message;
+          diag_caused_by = (match nw.Ast.nw_source with
+            | Ast.WarningUpstream upstream -> [upstream]
+            | Ast.WarningOwn -> []);
+          diag_suggested_fix = NoFix;
+        } : diagnostic)
     ) nd.Ast.nd_warnings in
     errors @ warnings
   ) p.Ast.p_node_diagnostics)

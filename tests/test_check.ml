@@ -185,4 +185,111 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   (* Cleanup temp fixture *)
   ignore (Sys.command "rm -rf /tmp/schema_test");
 
+  Printf.printf "\nContract validation:\n";
+
+  (* Test validate_contracts detects missing columns *)
+  let schemas_tbl = Hashtbl.create 4 in
+  Hashtbl.add schemas_tbl "clean" ["mpg"; "cyl"];
+  let p_with_contract = {
+    p_nodes = []; p_exprs = []; p_deps = []; p_imports = [];
+    p_runtimes = []; p_serializers = []; p_deserializers = [];
+    p_env_vars = []; p_args = []; p_shells = []; p_shell_args = [];
+    p_functions = []; p_includes = []; p_noops = []; p_scripts = [];
+    p_explicit_deps = []; p_node_diagnostics = [];
+    p_has_patterns = false; p_patterns = []; p_iterations = [];
+    p_flakes = [];
+    p_contracts = ["clean", {
+      contract_columns = Some ["mpg"; "cyl"; "hp"];
+    }];
+  } in
+  let contract_diags = Schema_check.validate_contracts
+    ~file:"test.t" p_with_contract schemas_tbl in
+  check_eq "validate_contracts: detects missing column"
+    (string_of_int (List.length contract_diags)) "1";
+  let missing_msg = Diagnostics.diagnostic_message (List.hd contract_diags) in
+  check "validate_contracts: message mentions missing column"
+    (Str.string_match (Str.regexp ".*Missing.*hp.*") missing_msg 0);
+
+  (* Test validate_contracts passes when all columns present *)
+  let schemas_tbl2 = Hashtbl.create 4 in
+  Hashtbl.add schemas_tbl2 "clean" ["mpg"; "cyl"; "hp"];
+  let p_pass = {
+    p_nodes = []; p_exprs = []; p_deps = []; p_imports = [];
+    p_runtimes = []; p_serializers = []; p_deserializers = [];
+    p_env_vars = []; p_args = []; p_shells = []; p_shell_args = [];
+    p_functions = []; p_includes = []; p_noops = []; p_scripts = [];
+    p_explicit_deps = []; p_node_diagnostics = [];
+    p_has_patterns = false; p_patterns = []; p_iterations = [];
+    p_flakes = [];
+    p_contracts = ["clean", {
+      contract_columns = Some ["mpg"; "cyl"];
+    }];
+  } in
+  let pass_diags = Schema_check.validate_contracts
+    ~file:"test.t" p_pass schemas_tbl2 in
+  check_eq "validate_contracts: passes when all columns present"
+    (string_of_int (List.length pass_diags)) "0";
+
+  Printf.printf "\nMid-chain expect() placement:\n";
+
+  (* Test that mid-chain expect() produces a warning *)
+  Ast.check_mode := true;
+  let result = eval_string "pipeline { a = 1 |> expect(columns = [\"x\"]) |> as.integer() }" in
+  let has_warn = match result with
+    | VPipeline p ->
+        List.exists (fun (_, diag) ->
+          List.exists (fun w -> w.Ast.nw_kind = "invalid_expect_placement") diag.Ast.nd_warnings
+        ) p.p_node_diagnostics
+    | _ -> false
+  in
+  check "mid-chain expect: produces invalid_expect_placement warning" has_warn;
+  Ast.check_mode := false;
+
+  (* Test that terminal expect() does NOT produce a mid-chain warning *)
+  Ast.check_mode := true;
+  let result2 = eval_string "pipeline { a = 1 |> expect(columns = [\"x\"]) }" in
+  let has_mid_warn = match result2 with
+    | VPipeline p ->
+        List.exists (fun (_, diag) ->
+          List.exists (fun w -> w.Ast.nw_kind = "invalid_expect_placement") diag.Ast.nd_warnings
+        ) p.p_node_diagnostics
+    | _ -> false
+  in
+  check "terminal expect: no mid-chain warning" (not has_mid_warn);
+
+  (* Test that terminal expect() attaches the contract *)
+  let has_contract = match result2 with
+    | VPipeline p ->
+        List.exists (fun (_, c) -> c.Ast.contract_columns = Some ["x"]) p.p_contracts
+    | _ -> false
+  in
+  check "terminal expect: contract attached with columns" has_contract;
+  Ast.check_mode := false;
+
+  (* End-to-end: verify warning survives of_pipeline_result (the t check path) *)
+  Printf.printf "\nMid-chain expect() end-to-end (of_pipeline_result):\n";
+  Ast.check_mode := true;
+  let e2e_result = eval_string "pipeline { a = 1 |> expect(columns = [\"x\"]) |> as.integer() }" in
+  let e2e_diags = match e2e_result with
+    | VPipeline p -> Diagnostics.of_pipeline_result p
+    | _ -> []
+  in
+  let e2e_has_warn = List.exists (fun d ->
+    d.Diagnostics.diag_error_class = "invalid_expect_placement"
+    && d.Diagnostics.diag_phase = Diagnostics.Wire
+  ) e2e_diags in
+  check "of_pipeline_result surfaces invalid_expect_placement diagnostic" e2e_has_warn;
+
+  (* Verify terminal expect() does NOT produce a spurious diagnostic *)
+  let e2e_terminal = eval_string "pipeline { a = 1 |> expect(columns = [\"x\"]) }" in
+  let e2e_terminal_diags = match e2e_terminal with
+    | VPipeline p -> Diagnostics.of_pipeline_result p
+    | _ -> []
+  in
+  let e2e_no_spurious = not (List.exists (fun d ->
+    d.Diagnostics.diag_error_class = "invalid_expect_placement"
+  ) e2e_terminal_diags) in
+  check "of_pipeline_result: no spurious diagnostic for terminal expect" e2e_no_spurious;
+  Ast.check_mode := false;
+
   Printf.printf "\n";

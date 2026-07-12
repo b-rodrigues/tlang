@@ -708,7 +708,7 @@ let cmd_run_expr ?failfast mode expr env =
   | Ast.(VNA NAGeneric) -> ()
   | v -> print_string (Pretty_print.pretty_print_value v)
 
-let cmd_check ?(json=false) ?(schema=false) ?(env_check=false) mode filename env =
+let run_check ?(schema=false) ?(env_check=false) mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
   let run () =
@@ -756,6 +756,9 @@ let cmd_check ?(json=false) ?(schema=false) ?(env_check=false) mode filename env
     let tier = Diagnostics.worst_tier diag_list in
     Diagnostics.make_result ~tier ~phase:check_phase diag_list
   in
+  check_result
+
+let print_check_result ?(json=false) check_result =
   if json then
     print_string (Yojson.Safe.pretty_to_string (Diagnostics.check_result_to_yojson check_result))
   else begin
@@ -768,8 +771,40 @@ let cmd_check ?(json=false) ?(schema=false) ?(env_check=false) mode filename env
     ) cr_diags;
     if cr_diags <> [] then
       Printf.eprintf "\n"
-  end;
+  end
+
+let cmd_check ?(json=false) ?(schema=false) ?(env_check=false) mode filename env =
+  let check_result = run_check ~schema ~env_check mode filename env in
+  print_check_result ~json check_result;
   exit (Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result))
+
+let cmd_check_watch ?(json=false) ?(schema=false) ?(env_check=false) mode filename env =
+  let get_mtime path =
+    try (Unix.stat path).Unix.st_mtime with Unix.Unix_error _ -> 0.0
+  in
+  let poll_interval = 0.5 in
+  let last_mtime = ref (get_mtime filename) in
+  let last_exit_code = ref 0 in
+  Printf.eprintf "Watching %s for changes (Ctrl+C to stop)...\n%!" filename;
+  (* Initial run *)
+  let check_result = run_check ~schema ~env_check mode filename env in
+  print_check_result ~json check_result;
+  last_exit_code := Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result);
+  let forever = ref true in
+  Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ -> forever := false));
+  while !forever do
+    Unix.sleepf poll_interval;
+    let current_mtime = get_mtime filename in
+    if current_mtime > !last_mtime then begin
+      last_mtime := current_mtime;
+      Printf.eprintf "\n--- file changed, re-checking ---\n%!";
+      let check_result = run_check ~schema ~env_check mode filename env in
+      print_check_result ~json check_result;
+      last_exit_code := Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result)
+    end
+  done;
+  Printf.eprintf "\nStopped watching.\n%!";
+  exit !last_exit_code
 
 let cmd_debug ?(unsafe=false) ?failfast mode filename node_name env =
   let _ = unsafe in
@@ -1470,20 +1505,24 @@ let () =
       Printf.eprintf "Unexpected arguments after `t run <file.t>`.\n";
       exit 1
   | _ :: "check" :: [] ->
-      Printf.eprintf "Usage: t check [--json] [--schema] [--env] <file.t>\n";
+      Printf.eprintf "Usage: t check [--json] [--schema] [--env] [--watch] <file.t>\n";
       exit 1
   | _ :: "check" :: rest ->
       let json = List.mem "--json" rest in
       let schema = List.mem "--schema" rest in
       let check_env = List.mem "--env" rest in
+      let watch = List.mem "--watch" rest in
       let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       (match filename with
        | None ->
-           Printf.eprintf "Usage: t check [--json] [--schema] [--env] <file.t>\n";
+           Printf.eprintf "Usage: t check [--json] [--schema] [--env] [--watch] <file.t>\n";
            exit 1
        | Some f ->
-           cmd_check ~json ~schema ~env_check:check_env script_mode f env)
+           if watch then
+             cmd_check_watch ~json ~schema ~env_check:check_env script_mode f env
+           else
+             cmd_check ~json ~schema ~env_check:check_env script_mode f env)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest

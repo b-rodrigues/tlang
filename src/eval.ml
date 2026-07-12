@@ -1501,6 +1501,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_pattern;
                       un_iteration;
                       un_flake;
+                      un_contract = None;
                     }
                 | Value (VString _) | Value (VSymbol _) | Value ((VNA NAGeneric)) when runtime = "sh" ->
                     VNode {
@@ -1517,6 +1518,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_pattern;
                       un_iteration;
                       un_flake;
+                      un_contract = None;
                     }
                 | _ when Option.is_some un_script ->
                     VNode {
@@ -1533,6 +1535,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_pattern;
                       un_iteration;
                       un_flake;
+                      un_contract = None;
                     }
                 | _ ->
                     let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, .sh, or .qmd file." runtime in
@@ -1552,6 +1555,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_pattern;
                   un_iteration;
                   un_flake;
+                  un_contract = None;
                 }
 )
     | Call { fn; args } ->
@@ -1812,6 +1816,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     un_pattern = None;
     un_iteration = "vector";
     un_flake = None;
+    un_contract = None;
   } in
 
   let wrap_computed_node cn = {
@@ -1831,6 +1836,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     un_pattern = None;
     un_iteration = "vector";
     un_flake = cn.cn_flake;
+    un_contract = None;
   } in
 
   (* Desugar nodes into enriched structures with defaults.
@@ -1844,9 +1850,95 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
      that errors in their condition expressions (including NameError from
      typos in condition references) propagate immediately rather than being
      misinterpreted as forward-references to sibling nodes. *)
+  let desugar_warnings : Diagnostics.diagnostic list ref = ref [] in
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node option, value) result =
     let node_names = List.map fst nodes in
     let node_expr = substitute_env_vars !env_ref node_names node_expr in
+    (* Check if an expression contains any expect(...) call anywhere *)
+    let rec contains_expect expr =
+      match expr.Ast.node with
+      | Call { fn = { node = Var "expect"; _ }; _ } -> true
+      | BinOp { left; right; _ } -> contains_expect left || contains_expect right
+      | BroadcastOp { left; right; _ } -> contains_expect left || contains_expect right
+      | UnOp { operand; _ } -> contains_expect operand
+      | Call { fn; args } ->
+          contains_expect fn || List.exists (fun (_, e) -> contains_expect e) args
+      | Lambda { body; _ } -> contains_expect body
+      | IfElse { cond; then_; else_ } ->
+          contains_expect cond || contains_expect then_ || contains_expect else_
+      | ListLit items -> List.exists (fun (_, e) -> contains_expect e) items
+      | DictLit pairs -> List.exists (fun (_, e) -> contains_expect e) pairs
+      | Block stmts ->
+          List.exists (fun s -> match s.Ast.node with
+            | Expression e -> contains_expect e
+            | Assignment { expr; _ } | Reassignment { expr; _ } -> contains_expect expr
+            | _ -> false) stmts
+      | Match { scrutinee; cases } ->
+          contains_expect scrutinee || List.exists (fun (_, body) -> contains_expect body) cases
+      | _ -> false
+    in
+    (* Strip trailing expect(...) from pipe chains: e.g.
+       r_script("clean.R") |> expect(columns = [...])
+       becomes r_script("clean.R") with a contract attached. *)
+    let extract_contract_from_args args =
+      let columns = ref [] in
+      List.iter (fun (param_name, arg_expr) ->
+        match param_name with
+        | Some "columns" ->
+            (match arg_expr.node with
+             | ListLit items ->
+                 let cols = List.filter_map (fun (_, e) ->
+                   match e.node with
+                   | Value (VString s) -> Some s
+                   | _ -> None
+                 ) items in
+                 columns := cols
+             | _ -> ())
+        | _ -> ()
+      ) args;
+      if !columns <> [] then
+        Some { Ast.contract_columns = Some !columns }
+      else None
+    in
+    let make_mid_chain_warn () =
+      [{ Diagnostics.
+         diag_id = Diagnostics.gen_id ();
+         diag_error_class = "invalid_expect_placement";
+         diag_severity = Warning;
+         diag_phase = Wire;
+         diag_node_id = Some name;
+         diag_node_lang = None;
+         diag_file = None;
+         diag_line = (match node_expr.loc with Some l -> Some l.line | None -> None);
+         diag_column = (match node_expr.loc with Some l -> Some l.column | None -> None);
+         diag_message = Printf.sprintf
+           "expect() in node '%s' appears mid-chain and will be ignored. \
+            Move it to the end of the pipe chain." name;
+         diag_caused_by = [];
+         diag_suggested_fix = NoFix;
+       }]
+    in
+    let node_expr, contract_opt, expect_warnings =
+      match node_expr.node with
+      | BinOp { op = Pipe; left; right = { node = Call { fn = { node = Var "expect"; _ }; args }; _ } } ->
+          (* Terminal expect() at end of chain — extract contract *)
+          let mid_chain_warns =
+            if contains_expect left then make_mid_chain_warn () else []
+          in
+          (left, extract_contract_from_args args, mid_chain_warns)
+      | other ->
+          (* No terminal expect() — check if expect() appears anywhere mid-chain *)
+          if contains_expect { node_expr with node = other } then
+            (node_expr, None, make_mid_chain_warn ())
+          else
+            (node_expr, None, [])
+    in
+    if expect_warnings <> [] then
+      desugar_warnings := expect_warnings @ !desugar_warnings;
+    let attach_contract un = match contract_opt with
+      | None -> un
+      | Some c -> { un with un_contract = Some c }
+    in
     (* node_when/node_fork — resolve conditions at construction time;
        any VError (including NameError) propagates immediately. *)
     let when_fork_fn_name = match node_expr.node with
@@ -1856,9 +1948,9 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     match when_fork_fn_name with
     | Some fn_name ->
         (match eval_expr env_ref node_expr with
-         | VNode un -> Ok (name, Some un)
+         | VNode un -> Ok (name, Some (attach_contract un))
          | VNullNode -> Ok (name, None)
-         | VComputedNode cn -> Ok (name, Some (wrap_computed_node cn))
+         | VComputedNode cn -> Ok (name, Some (attach_contract (wrap_computed_node cn)))
          | VError _ as e ->
              let annotated = match e with
                | VError err when not (List.mem_assoc "node_name" err.context) ->
@@ -1878,14 +1970,14 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
         in
         if is_node_call then
           match eval_expr env_ref node_expr with
-          | VNode un -> Ok (name, Some un)
+          | VNode un -> Ok (name, Some (attach_contract un))
           | VNullNode -> Ok (name, None)
-          | VComputedNode cn -> Ok (name, Some (wrap_computed_node cn))
-          | VError { code = NameError; _ } -> Ok (name, Some (default_un node_expr))
+          | VComputedNode cn -> Ok (name, Some (attach_contract (wrap_computed_node cn)))
+          | VError { code = NameError; _ } -> Ok (name, Some (attach_contract (default_un node_expr)))
           | VError _ as e -> Error e
-          | _ -> Ok (name, Some (default_un node_expr))
+          | _ -> Ok (name, Some (attach_contract (default_un node_expr)))
         else
-          Ok (name, Some (default_un node_expr))
+          Ok (name, Some (attach_contract (default_un node_expr)))
   in
 
   let rec desugar_all acc = function
@@ -2033,7 +2125,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
           un_serializer = Ast.mk_expr (Ast.Var "default"); un_deserializer = Ast.mk_expr (Ast.Var "default");
           un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
           un_functions = []; un_includes = []; un_noop = false; un_dependencies = None;
-          un_pattern = None; un_iteration = "vector"; un_flake = None } in
+          un_pattern = None; un_iteration = "vector"; un_flake = None; un_contract = None } in
       let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
       let (v, own_warnings) = capture_node_warnings (fun () -> eval_or_defer name un current_env_ref) in
       let node_diagnostics =
@@ -2045,6 +2137,30 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
 
     let p_nodes = List.rev results in
     let p_node_diagnostics = List.rev diagnostics in
+    (* Merge desugar-phase warnings (e.g. mid-chain expect()) into node diagnostics *)
+    let p_node_diagnostics = if !desugar_warnings <> [] then
+      let warn_by_node = Hashtbl.create 4 in
+      List.iter (fun d ->
+        match d.Diagnostics.diag_node_id with
+        | Some node_name ->
+            let nw = { Ast.nw_kind = d.Diagnostics.diag_error_class;
+                        nw_fn = "expect";
+                        nw_na_count = 0;
+                        nw_na_indices = [];
+                        nw_message = d.Diagnostics.diag_message;
+                        nw_source = Ast.WarningOwn } in
+            let existing = try Hashtbl.find warn_by_node node_name with Not_found -> [] in
+            Hashtbl.replace warn_by_node node_name (nw :: existing)
+        | None -> ()
+      ) !desugar_warnings;
+      List.map (fun (name, diag) ->
+        match Hashtbl.find_opt warn_by_node name with
+        | Some extra_warns ->
+            (name, { diag with Ast.nd_warnings = extra_warns @ diag.Ast.nd_warnings })
+        | None -> (name, diag)
+      ) p_node_diagnostics
+    else p_node_diagnostics
+    in
     if verbose then print_pipeline_diagnostics_summary p_node_diagnostics;
 
     (* Populate in-memory cache with VNodeResult entries so that
@@ -2080,6 +2196,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       p_patterns = List.filter_map (fun (name, un) -> match un.un_pattern with Some p -> Some (name, p) | None -> None) desugared_nodes;
       p_iterations = List.map (fun (name, un) -> (name, un.un_iteration)) desugared_nodes;
       p_flakes = List.map (fun (name, un) -> (name, un.un_flake)) desugared_nodes;
+      p_contracts = List.filter_map (fun (name, un) -> match un.un_contract with Some c -> Some (name, c) | None -> None) desugared_nodes;
     } in
     result
   end
@@ -2149,6 +2266,7 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
       un_pattern = (match List.assoc_opt name prev.p_patterns with Some p -> Some p | None -> None);
       un_iteration = (match List.assoc_opt name prev.p_iterations with Some it -> it | None -> "vector");
       un_flake = (match List.assoc_opt name prev.p_flakes with Some f -> f | None -> None);
+      un_contract = (match List.assoc_opt name prev.p_contracts with Some c -> Some c | None -> None);
     })
   ) prev.p_exprs in
 
@@ -2185,7 +2303,7 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
           un_serializer = Ast.mk_expr (Ast.Var "default"); un_deserializer = Ast.mk_expr (Ast.Var "default");
           un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
           un_functions = []; un_includes = []; un_noop = false; un_dependencies = None;
-          un_pattern = None; un_iteration = "vector"; un_flake = None } in
+          un_pattern = None; un_iteration = "vector"; un_flake = None; un_contract = None } in
       let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
       let deps_changed = List.exists (fun d -> List.mem d changed) node_deps in
       let fv = free_vars un.un_command in

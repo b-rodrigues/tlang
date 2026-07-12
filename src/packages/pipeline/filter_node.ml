@@ -85,6 +85,7 @@ let register ~eval_call env =
                       p_patterns     = List.filter (fun (n, _) -> keep_set n) p.p_patterns;
                       p_iterations   = List.filter (fun (n, _) -> keep_set n) p.p_iterations;
                       p_flakes       = List.filter (fun (n, _) -> keep_set n) p.p_flakes;
+                      p_contracts    = List.filter (fun (n, _) -> keep_set n) p.p_contracts;
                       p_has_patterns = (List.filter (fun (n, _) -> keep_set n) p.p_patterns <> []);
                     })
            | _ -> Error.type_error "Function `filter_node` expects a Pipeline as first argument.")

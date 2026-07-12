@@ -221,6 +221,41 @@ let validate_col_refs ~node_name ~(file : string option) ~schema expr =
     end
   ) refs
 
+(* ---------- Contract validation ---------- *)
+
+(* Validate contracts attached via expect() against inferred schemas.
+   Checks that all declared contract columns exist in the output schema. *)
+let validate_contracts ~file (p : pipeline_result) schemas =
+  List.filter_map (fun (node_name, contract) ->
+    let output_schema =
+      try Hashtbl.find schemas node_name with Not_found -> []
+    in
+    match contract.contract_columns with
+    | None -> None
+    | Some required_cols ->
+        let missing = List.filter (fun col -> not (List.mem col output_schema)) required_cols in
+        if missing <> [] then
+          Some (Diagnostics.{
+            diag_id = Diagnostics.gen_id ();
+            diag_error_class = "contract_violation";
+            diag_severity = Error;
+            diag_phase = Schema;
+            diag_node_id = Some node_name;
+            diag_node_lang = None;
+            diag_file = Some file;
+            diag_line = None;
+            diag_column = None;
+            diag_message = Printf.sprintf "Node '%s' contract expects columns [%s] but output schema is [%s]. Missing: [%s]"
+              node_name
+              (String.concat ", " required_cols)
+              (String.concat ", " output_schema)
+              (String.concat ", " missing);
+            diag_caused_by = [];
+            diag_suggested_fix = NoFix;
+          })
+        else None
+  ) p.p_contracts
+
 (* ---------- Main entry point ---------- *)
 
 (* Check schemas for a pipeline. Returns Schema-phase diagnostics. *)
@@ -372,4 +407,6 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
       | _ -> ()
   ) topo_order;
 
-  !diagnostics
+  (* Validate contracts (expect() annotations) against computed schemas *)
+  let contract_diags = validate_contracts ~file p schemas in
+  contract_diags @ !diagnostics

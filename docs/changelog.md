@@ -6,6 +6,8 @@
 
 - **Nix Evaluability Check**: `t check --env` now also generates `pipeline.nix` and `dag.json` and validates them via `nix-instantiate --eval`. This catches Nix expression errors (bad references, type mismatches) before a full build.
 - **Git-Sourced Lockfile Packages**: `check_lockfile_consistency` now includes packages resolved via GitHub/GitLab entries in `renv.lock`, preventing false-positive `missing_from_lockfile` diagnostics.
+- **Watch Mode (`--watch`)**: `t check --watch` runs immediately, then polls the input file for changes and re-runs the check on every modification. Can be combined with `--schema` and `--env`.
+- **Shape Contracts (`expect()`)**: New `expect(columns = [...])` syntax for pipeline nodes declares expected output columns. Contracts are checked statically via `t check --schema` and produce `contract_violation` diagnostics when the inferred schema is missing declared columns.
 
 ## [0.54.0] - 2026-07-08
 

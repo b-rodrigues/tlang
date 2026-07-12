@@ -143,12 +143,18 @@ and pipeline_result = {
   p_patterns     : (string * pattern_expr) list; (* Map node name -> pattern *)
   p_iterations   : (string * string) list;       (* Map node name -> iteration type *)
   p_flakes       : (string * string option) list; (* Map node name -> optional flake path *)
+  p_contracts    : (string * contract) list;      (* Map node name -> expect() contract *)
 }
 
 and meta_pipeline = {
   mp_pipelines : (string * value) list;      (* Map sub-pipeline name -> pipeline value (VPipeline) *)
 }
 
+
+(** Shape contract for expect() — checked statically via t check --schema *)
+and contract = {
+  contract_columns : string list option;
+}
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)
 and formula_spec = {
@@ -188,6 +194,7 @@ and unbuilt_node = {
   un_pattern : pattern_expr option;     (* None = no dynamic branching *)
   un_iteration : string;                (* "vector" | "list" *)
   un_flake : string option;             (* Optional path to a dedicated Nix flake *)
+  un_contract : contract option;        (* expect() shape contract *)
 }
 
 (** Result of a ?<{...}> shell escape — carries stdout, stderr, and exit code.
@@ -391,6 +398,10 @@ and typ =
   | TComputedNode
   | TSerializer
   | TExpr
+
+let empty_contract = {
+  contract_columns = None;
+}
 
 type program = stmt list
 
