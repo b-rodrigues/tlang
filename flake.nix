@@ -2,7 +2,7 @@
   description = "T — A Functional Language for Tabular Data";
 
   inputs = {
-    nixpkgs.url = "github:rstats-on-nix/nixpkgs";
+    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-06-23";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -34,20 +34,6 @@
             openclSupport = false;
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
             buildInputs = (old.buildInputs or []) ++ [ self.boost ];
-          });
-          jpmml-statsmodels = super.jpmml-statsmodels.overrideAttrs (old: let
-            newDeps = old.fetchedMavenDeps.overrideAttrs (_: {
-              outputHash = "sha256-6Dd3JFJSoYNn9i+jsb9yDLLnAqWS0oeHXGx/Xll5cBo=";
-            });
-          in {
-            fetchedMavenDeps = newDeps;
-            buildPhase = ''
-              runHook preBuild
-              mvnDeps=$(cp -dpR ${newDeps}/.m2 ./ && chmod +w -R .m2 && pwd)
-              runHook afterDepsSetup
-              mvn package -o -nsu "-Dmaven.repo.local=$mvnDeps/.m2" -B package
-              runHook postBuild
-            '';
           });
         });
 
