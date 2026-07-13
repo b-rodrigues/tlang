@@ -124,7 +124,34 @@ needed.</p>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">--proto</span> <span class="st">&#39;=https&#39;</span> <span class="at">--tlsv1.2</span> <span class="at">-sSf</span> <span class="dt">\</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-L</span> https://install.determinate.systems/nix <span class="kw">|</span> <span class="dt">\</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>     <span class="fu">sh</span> <span class="at">-s</span> <span class="at">--</span> install</span></code></pre></div>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sh</span> <span class="at">-s</span> <span class="at">--</span> install <span class="at">--no-confirm</span> <span class="at">--extra-conf</span> <span class="st">&quot;</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="st">trusted-users = root </span><span class="va">$USER</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="st">substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="st">trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span></span></code></pre></div>
+<p>This single command installs Nix and configures everything T
+needs:</p>
+<ul>
+<li><strong><code>--no-confirm</code></strong> runs the installer
+non-interactively, so you don’t have to answer any prompts.</li>
+<li><strong><code>--extra-conf</code></strong> injects configuration
+directly into your Nix config during installation. The three settings it
+applies are:
+<ul>
+<li><strong><code>trusted-users = root $USER</code></strong> — Marks
+your user as a trusted Nix user. This is required for binary caches and
+certain Nix operations to work without permission errors.</li>
+<li><strong><code>substituters = ...</code></strong> — Tells Nix to
+fetch pre-built packages from the NixOS cache and the
+<code>rstats-on-nix</code> Cachix cache (used by T for R and Python
+packages), avoiding long builds from source.</li>
+<li><strong><code>trusted-public-keys = ...</code></strong> — The
+cryptographic keys Nix uses to verify the authenticity of packages from
+those caches.</li>
+</ul></li>
+</ul>
+<p>Because the installer handles all of this in one step, there are
+<strong>no manual post-install configuration steps</strong> for trusted
+users or binary caches.</p>
 <hr />
 <h2 id="operating-system-specific-notes">Operating System Specific
 Notes</h2>
@@ -182,73 +209,6 @@ checking <code>~/.config/nix/nix.conf</code> or
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.config/nix</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;experimental-features = nix-command flakes&quot;</span> <span class="op">&gt;&gt;</span> ~/.config/nix/nix.conf</span></code></pre></div>
 <hr />
-<h2 id="configuring-trusted-users">Configuring Trusted Users</h2>
-<p>Nix restricts certain operations (like using binary caches) to
-“trusted users.” If you see warnings like
-<code>ignoring untrusted substituter</code> when running
-<code>nix shell</code> or <code>nix develop</code>, you need to add
-yourself as a trusted user.</p>
-<h3 id="linux-1">Linux</h3>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># If you used the Determinate Systems installer (recommended):</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;trusted-users = root </span><span class="va">$USER</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix.custom.conf</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># If you used the standard Nix installer:</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;trusted-users = root </span><span class="va">$USER</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.conf</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> systemctl restart nix-daemon.service</span></code></pre></div>
-<p>If <code>nix-daemon.service</code> is not found, try
-<code>sudo determinate-nixd restart</code> or
-<code>sudo systemctl restart nix</code>.</p>
-<h3 id="macos-1">macOS</h3>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;trusted-users = root </span><span class="va">$USER</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.custom.conf</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> launchctl kickstart <span class="at">-k</span> system/org.nixos.nix-daemon</span></code></pre></div>
-<p>This works for both the standard installer and the Determinate
-Systems installer.</p>
-<h3 id="nixos">NixOS</h3>
-<p>On NixOS, add the following to your
-<code>configuration.nix</code>:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode nix"><code class="sourceCode nix"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>nix<span class="op">.</span>trustedUsers = <span class="op">[</span> <span class="st">&quot;root&quot;</span> <span class="st">&quot;your_username&quot;</span> <span class="op">]</span>;</span></code></pre></div>
-<p>Then rebuild:</p>
-<div class="sourceCode" id="cb9"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> nixos-rebuild switch</span></code></pre></div>
-<h3 id="windows-wsl2-1">Windows (WSL2)</h3>
-<p>Inside your WSL2 terminal, follow the Linux instructions above for
-your WSL2 distribution (usually Ubuntu). After editing
-<code>nix.conf</code>, restart the daemon:</p>
-<div class="sourceCode" id="cb10"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> systemctl restart nix-daemon.service</span></code></pre></div>
-<blockquote>
-<p>[!NOTE] If systemd is not enabled in your WSL2 setup, you need to
-enable it first. See the <a href="#windows-wsl2">Windows (WSL2)</a>
-section above.</p>
-</blockquote>
-<hr />
-<h2 id="binary-caches-cachix">Binary Caches (Cachix)</h2>
-<p>To avoid building everything from source, we recommend configuring
-binary caches.</p>
-<h3 id="automatic-support-in-t-projects">Automatic Support in T
-Projects</h3>
-<p>When you initialize a T project (using <code>t init</code>), the
-generated <code>flake.nix</code> automatically includes the
-<code>rstats-on-nix</code> binary cache. This means that for
-project-specific operations, Nix will automatically attempt to fetch
-pre-built binaries.</p>
-<h3 id="global-configuration-recommended">Global Configuration
-(Recommended)</h3>
-<p>To benefit from the binary cache even outside of T projects (e.g.,
-when running
-<code>nix shell --accept-flake-config github:b-rodrigues/tlang</code>),
-you can configure the cache globally in your system’s
-<code>nix.conf</code>:</p>
-<pre class="text"><code>substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
-trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=</code></pre>
-<blockquote>
-<p>[!NOTE] If you used the Determinate Systems installer, you should add
-these to <code>/etc/nix.custom.conf</code>. You may need
-<code>sudo</code> to edit this file.</p>
-</blockquote>
-<hr />
 <h2 id="nix-and-docker">Nix and Docker</h2>
 <p>Nix and Docker are often seen as alternatives, but they work
 exceptionally well together. While Docker manages container isolation,
@@ -257,38 +217,40 @@ Nix handles the environment reproducibility <em>inside</em> or
 <p>To install Nix inside a <code>Dockerfile</code> (e.g., using
 <code>ubuntu:latest</code> as a base), use the Determinate Systems
 installer with specific flags for container environments:</p>
-<div class="sourceCode" id="cb12"><pre
-class="sourceCode dockerfile"><code class="sourceCode dockerfile"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> ubuntu:latest</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">apt</span> update <span class="kw">&amp;&amp;</span> <span class="ex">apt</span> install <span class="at">-y</span> curl</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Install Nix inside the container</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">curl</span> <span class="at">--proto</span> <span class="st">&#39;=https&#39;</span> <span class="at">--tlsv1.2</span> <span class="at">-sSf</span> <span class="at">-L</span> https://install.determinate.systems/nix <span class="kw">|</span> <span class="fu">sh</span> <span class="at">-s</span> <span class="at">--</span> install linux <span class="dt">\</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">--extra-conf</span> <span class="st">&quot;sandbox = false&quot;</span> <span class="dt">\</span></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">--init</span> none <span class="dt">\</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">--no-confirm</span></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Add Nix to the PATH</span></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">&quot;${PATH}:/nix/var/nix/profiles/default/bin&quot;</span></span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> user=root</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Optional: Configure the T binary cache</span></span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="fu">mkdir</span> <span class="at">-p</span> /root/.config/nix <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org&quot;</span> <span class="op">&gt;</span> /root/.config/nix/nix.conf <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span> <span class="op">&gt;&gt;</span> /root/.config/nix/nix.conf</span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="kw">CMD</span> [<span class="st">&quot;nix-shell&quot;</span>]</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode dockerfile"><code class="sourceCode dockerfile"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> ubuntu:latest</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">apt</span> update <span class="kw">&amp;&amp;</span> <span class="ex">apt</span> install <span class="at">-y</span> curl</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Install Nix inside the container</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">curl</span> <span class="at">--proto</span> <span class="st">&#39;=https&#39;</span> <span class="at">--tlsv1.2</span> <span class="at">-sSf</span> <span class="at">-L</span> https://install.determinate.systems/nix <span class="kw">|</span> <span class="fu">sh</span> <span class="at">-s</span> <span class="at">--</span> install linux <span class="dt">\</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">--extra-conf</span> <span class="st">&quot;sandbox = false&quot;</span> <span class="dt">\</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">--init</span> none <span class="dt">\</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">--no-confirm</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Add Nix to the PATH</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">&quot;${PATH}:/nix/var/nix/profiles/default/bin&quot;</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> user=root</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Optional: Configure the T binary cache</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="fu">mkdir</span> <span class="at">-p</span> /root/.config/nix <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org&quot;</span> <span class="op">&gt;</span> /root/.config/nix/nix.conf <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span> <span class="op">&gt;&gt;</span> /root/.config/nix/nix.conf</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="kw">CMD</span> [<span class="st">&quot;nix-shell&quot;</span>]</span></code></pre></div>
 <hr />
 <h2 id="troubleshooting">Troubleshooting</h2>
 <h3 id="command-not-found-nix">“command not found: nix”</h3>
 <p>The installer usually updates your shell profile. Try restarting your
 terminal or running:</p>
-<div class="sourceCode" id="cb13"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh</span></code></pre></div>
 <h3 id="permission-denied-or-ignoring-untrusted-substituter">Permission
 Denied or “ignoring untrusted substituter”</h3>
-<p>See <a href="#configuring-trusted-users">Configuring Trusted
-Users</a> above.</p>
+<p>This means you did not use the recommended installation command,
+which configures trusted users and binary caches automatically. Re-run
+the <a href="#installation-command">Installation Command</a> above to
+fix this in one step.</p>
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that Nix is installed, you are ready to <a
 href="getting-started.html">Get Started with T</a>!</p>

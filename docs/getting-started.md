@@ -14,12 +14,6 @@ platform-specific steps, please see our:
 
 👉 **[Nix Installation Guide](nix-installation.md)**
 
-> [!NOTE]
-> After installing Nix, you may need to add yourself as a trusted user so that Nix
-> can fetch pre-built binaries from the T cache. If you see warnings like
-> `ignoring untrusted substituter`, follow the steps in
-> [Configuring Trusted Users](nix-installation.md#configuring-trusted-users).
-
 ## Running T
 
 As a user, you don't need to clone the repository or build the compiler from
