@@ -21,14 +21,8 @@
     # (x86_64-linux, aarch64-darwin, etc.)
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # Single source of truth for the R-specific Nixpkgs snapshot.
-        rstats-nix-date   = nixpkgs.lib.removeSuffix "\n" (builtins.readFile ./RSTATS-NIX-DATE);
-
-        # Use the Nix packages for the specified system
-        pkgs = (import (builtins.fetchTarball {
-          url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
-          sha256 = "sha256:1bss1ajjzrx4nq4y4s3yn19gx1rmzd1bgwka75df6vpp94h44pmb";
-        }) { inherit system; }).extend (self: super: {
+        # Use the Nix packages from the flake input
+        pkgs = nixpkgs.legacyPackages.${system}.extend (self: super: {
           lightgbm = super.lightgbm.overrideAttrs (old: {
             cudaSupport = false;
             openclSupport = false;
