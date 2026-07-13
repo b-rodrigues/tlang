@@ -34,6 +34,30 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
+<h2 id="unreleased">[0.54.1] - Unreleased</h2>
+<h3 id="t-check-environment-validation"><code>t check</code> Environment
+Validation</h3>
+<ul>
+<li><strong>Nix Evaluability Check</strong>: <code>t check --env</code>
+now also generates <code>pipeline.nix</code> and <code>dag.json</code>
+and validates them via <code>nix-instantiate --eval</code>. This catches
+Nix expression errors (bad references, type mismatches) before a full
+build.</li>
+<li><strong>Git-Sourced Lockfile Packages</strong>:
+<code>check_lockfile_consistency</code> now includes packages resolved
+via GitHub/GitLab entries in <code>renv.lock</code>, preventing
+false-positive <code>missing_from_lockfile</code> diagnostics.</li>
+<li><strong>Watch Mode (<code>--watch</code>)</strong>:
+<code>t check --watch</code> runs immediately, then polls the input file
+for changes and re-runs the check on every modification. Can be combined
+with <code>--schema</code> and <code>--env</code>.</li>
+<li><strong>Shape Contracts (<code>expect()</code>)</strong>: New
+<code>expect(columns = [...])</code> syntax for pipeline nodes declares
+expected output columns. Contracts are checked statically via
+<code>t check --schema</code> and produce
+<code>contract_violation</code> diagnostics when the inferred schema is
+missing declared columns.</li>
+</ul>
 <h2 id="section">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
 <ul>

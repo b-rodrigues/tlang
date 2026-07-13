@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.54.0 "Le Tournoi".
+**Status:** Version 0.54.1 "Le Tournoi".
 
 ---
 
@@ -234,6 +234,12 @@ platform-specific steps, please see our:
 
 👉 **[Nix Installation Guide](nix-installation.md)**
 
+> [!NOTE]
+> After installing Nix, you may need to add yourself as a trusted user so that Nix
+> can fetch pre-built binaries from the T cache. If you see warnings like
+> `ignoring untrusted substituter`, follow the steps in
+> [Configuring Trusted Users](nix-installation.md#configuring-trusted-users).
+
 ## Running T
 
 As a user, you don't need to clone the repository or build the compiler from
@@ -410,7 +416,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.54.0
+> **Version**: 0.54.1
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -4768,6 +4774,207 @@ build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-
 
 ---
 
+### `t_check(file, json = false, schema = false, env = false)`
+
+REPL-callable version of `t check`. Runs structural, wire-phase, schema, and environment checks on a T script and returns the diagnostics as a string.
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to check |
+| `json` | Bool | `false` | Output diagnostics as JSON |
+| `schema` | Bool | `false` | Enable column-level schema validation |
+| `env` | Bool | `false` | Enable `tproject.toml` environment checks |
+
+**Returns:** `String` — formatted diagnostics (text or JSON, same as CLI `t check`).
+
+**Examples:**
+
+```t
+result = t_check("src/pipeline.t")
+result = t_check("src/pipeline.t", schema = true)
+result = t_check("src/pipeline.t", json = true, schema = true, env = true)
+```
+
+---
+
+### `t_diff(file, json = false, log_a = 2, log_b = 1)`
+
+REPL-callable version of `t diff`. Compares two builds of a pipeline using per-node Nix content hashes and returns the diff summary as a string.
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to diff |
+| `json` | Bool | `false` | Output diff as JSON |
+| `log_a` | Int | `2` | Rank of the first (older) build log |
+| `log_b` | Int | `1` | Rank of the second (newer) build log |
+
+**Returns:** `String` — formatted diff (text or JSON, same as CLI `t diff`).
+
+**Examples:**
+
+```t
+result = t_diff("src/pipeline.t")
+result = t_diff("src/pipeline.t", log_a = 1, log_b = 2)
+result = t_diff("src/pipeline.t", json = true)
+```
+
+---
+
+### `t_fix(file, dry_run = false)`
+
+REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically (e.g., inserting `|> mutate($col = as.type($col))` for type contract violations).
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to fix |
+| `dry_run` | Bool | `false` | Show what would be fixed without modifying the file |
+
+**Returns:** `String` — summary of fixes applied (or would be applied), same as CLI `t fix`.
+
+**Examples:**
+
+```t
+result = t_fix("src/pipeline.t")
+result = t_fix("src/pipeline.t", dry_run = true)
+```
+
+---
+
+### `t check` (CLI)
+
+Structural pipeline validation without triggering Nix builds. Runs the full evaluator with `--failfast` but short-circuits Nix builds, so it can surface errors across all phases — syntax (parse), graph structure (wire), types (schema), and environment (missing files). The reported `tier` and `phase` reflect the deepest phase reached during evaluation, not a fixed depth limit.
+
+**Usage:**
+
+```bash
+t check path/to/script.t              # human-readable output
+t check --json path/to/script.t       # machine-readable JSON output
+t check --schema path/to/script.t     # include column-level schema validation
+t check --env path/to/script.t        # include environment resolution checks
+t check --schema --env --json path/to/script.t  # combined: tier 1+2+3 in JSON
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | All checks passed |
+| 1 | Wire-phase errors (cycles, missing deps, name errors) |
+| 2 | Schema-phase errors (type mismatches) |
+| 3 | Environment-phase errors (missing files, artifacts) |
+
+**JSON output format (`--json`):**
+
+```json
+{
+  "schema_version": "1",
+  "status": "ok",
+  "phase": "wire",
+  "tier": 1,
+  "diagnostics": []
+}
+```
+
+The `tier` field is derived from the deepest phase that produced diagnostics: parse/wire errors yield `tier: 1`, schema errors yield `tier: 2`, and env/build/exec errors yield `tier: 3`. A clean run reports `"tier": 1` and `"phase": "wire"` as the default.
+
+Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node`, `file`, `span`, `message`, `caused_by`, and `suggested_fix`.
+
+**Examples:**
+
+```bash
+# Check a pipeline script
+t check analysis/pipeline.t
+
+# Get JSON for editor integration
+t check --json analysis/pipeline.t | jq '.diagnostics'
+```
+
+**How it works:**
+
+`t check` runs the full evaluator with `--failfast` but skips Nix builds entirely. Pipeline construction (`build_pipeline`, `populate_pipeline`) is short-circuited, so the check completes instantly without requiring Nix or any runtime dependencies. Node bodies (R, Python, Julia, shell commands) are never evaluated — only the pipeline DAG structure is validated. This makes it suitable for pre-commit hooks, editor integration, and CI structural validation.
+
+> **Note:** The `--env` flag additionally invokes `nix-instantiate --eval` and writes `pipeline.nix`/`dag.json` to `_pipeline/` (see below). If you need a tier-1-only check with zero side effects, use `t check` without `--env`.
+
+**Schema validation (`--schema`):**
+
+When `--schema` is passed, `t check` additionally runs static schema propagation on all pipelines found in the environment. For each pipeline, it:
+
+1. Reads CSV headers from `read_csv(...)` calls to infer root node schemas.
+2. Propagates schemas through the DAG via colcraft verbs (`select`, `mutate`, `summarize`, `filter`, `arrange`, etc.).
+3. Checks all `$col` column references and formula variable references (`y ~ x`) against the inferred input schema at each node.
+
+Schema errors are reported as `phase: "schema"` diagnostics and trigger exit code 2.
+
+**Environment validation (`--env`):**
+
+When `--env` is passed, `t check` additionally runs environment resolution checks on all pipelines found in the environment:
+
+1. **Package declarations**: Checks that R/Python/Julia packages required by the pipeline are declared in `tproject.toml`.
+2. **Lockfile consistency**: For `r_resolver = "renv"`, verifies that declared R packages exist in `renv.lock`.
+3. **Nix evaluation**: Generates `pipeline.nix` and `dag.json` in `_pipeline/`, then runs `nix-instantiate --impure --eval --strict` to validate that the Nix expressions evaluate correctly. This writes to the project's pipeline directory as a side effect.
+
+Environment errors are reported as `phase: "env"` diagnostics and trigger exit code 3.
+
+**Watch mode (`--watch`):**
+
+When `--watch` is passed, `t check` runs immediately, then polls the input file for changes (every 0.5s). On each modification, it re-runs the check and prints updated results. Press Ctrl+C to stop. Watch mode can be combined with `--schema` and/or `--env`.
+
+### `expect()` — Pipeline shape contracts
+
+Attach a shape contract to a pipeline node to declare expected output properties.
+Contracts are checked statically via `t check --schema`.
+
+**Syntax:**
+
+```t
+clean_data = raw_data
+  |> read_csv("data.csv")
+  |> filter($status == "complete")
+  |> expect(columns = ["id", "name", "score"])
+```
+
+Type contracts and null-rate contracts can be mixed with column contracts:
+
+```t
+clean_data = raw_data
+  |> expect(columns = ["id", "amount", "region"],
+             amount ~ double(),
+             null_rate("amount") < 0.02)
+```
+
+`expect()` must appear at the **end** of a pipe chain.
+
+**Accepted arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `columns` | `List[String]` | Expected column names in the output |
+| `col ~ type()` | Type contract | Asserts a column has a specific type (e.g., `amount ~ double()`, `id ~ int()`) |
+| `null_rate("col") < n` | Null-rate contract | Asserts the fraction of null values in a column is below a threshold |
+
+**Behavior:**
+
+- Column contracts: checked when `t check --schema` is used (tier 2). If the inferred output schema is missing any declared columns, a `contract_violation` diagnostic is emitted.
+- Type contracts: checked statically when the column type is known (e.g., from CSV headers). If the type doesn't match, a `contract_violation` error is emitted. If the type is unknown (e.g., Python/Julia nodes), a `contract_unverifiable` warning is emitted.
+- Null-rate contracts: cannot be verified statically (require actual data). A `contract_unverifiable` warning is emitted during `t check --schema`. Runtime enforcement is planned for a future release.
+- `expect()` is stripped from the pipe chain during evaluation — it has no runtime effect.
+
+**Supported type names:** `double`, `int`, `string`, `bool`, `date`
+
+**Limitations:**
+
+- Null-rate contracts are checked at `t check --schema` time as warnings only; runtime enforcement is not yet implemented
+- Type inference from CSV headers is based on sampling; complex types may not be detected correctly
+- Column validation depends on accurate schema inference (CSV headers for root nodes, colcraft verb propagation for downstream nodes)
+
+---
+
 ### `read_node(node)`
 
 Read a dynamically evaluated or materialized artifact from an in-scope pipeline build.
@@ -4971,27 +5178,88 @@ diff_model = node_diff(p.model_node, p.model_node, log_a = ".*train1.*", log_b =
 
 ---
 
-### `collect_exceptions(p)`
+### `diff_summary(p)`
 
-Collects all terminal error exceptions and non-terminal warning diagnostics from the computed nodes of a built pipeline.
+Compares the two most recent builds of a pipeline and returns a DataFrame summarizing which nodes changed, were added, or were removed. Uses per-node Nix content hashes stored in build logs for fast comparison without loading artifacts.
 
 **Parameters:**
 
-- `p` — The Pipeline object to collect diagnostics from.
+- `p` — The pipeline to compare builds for.
 
 **Returns:**
 
-`DataFrame` — A DataFrame with columns `node`, `status`, `code`, and `message` detailing the exceptions and warnings across all nodes.
+`DataFrame` — A summary with columns:
+- `name` (String) — Node name.
+- `status` (String) — One of `"unchanged"`, `"changed"`, `"added"`, `"removed"`.
+- `hash_a` (String) — Nix content hash from build A.
+- `hash_b` (String) — Nix content hash from build B.
+- `class_a` (String) — Output value class from build A.
+- `class_b` (String) — Output value class from build B.
 
 **Examples:**
 ```t
-p = pipeline { a = 1 / 0; b = a + 5 }
+p = pipeline { a = 1; b = 2 }
 build_pipeline(p)
-exceptions = collect_exceptions(p)
--- Returns a DataFrame with:
---   node | status  | code             | message
---   "a"  | "Error" | "DivisionByZero" | "Division by zero"
---   "b"  | "Error" | "UpstreamError"  | "Upstream dependency 'a' failed"
+-- ... edit pipeline ...
+build_pipeline(p)
+summary = diff_summary(p)
+print(summary)
+```
+
+---
+
+### CLI: `t diff`
+
+The `t diff` command provides the same functionality from the shell, without needing to write a T script:
+
+```bash
+t diff <file.t>                    # compare last two builds
+t diff <file.t> --json             # structured JSON output
+t diff <file.t> --log-a 2 --log-b 4  # compare specific build ranks
+```
+
+---
+
+### CLI: `t fix`
+
+Mechanically applies `suggested_fix` values from `t check --json` diagnostics. Runs `t check --json` internally, collects diagnostics with non-null `suggested_fix`, and applies them to the source file.
+
+```bash
+t fix <file.t>                     # apply all suggested fixes
+t fix --dry-run <file.t>           # preview fixes without applying
+```
+
+**Supported fix types:**
+
+| Fix Kind | Action |
+|----------|--------|
+| `cast` | Inserts `\|> mutate($col = as.type($col, "target"))` before the `expect()` node |
+| `rename_column` | Replaces all occurrences of the old column name with the new name |
+| `add_node_arg` | (planned) Adds an argument to a pipeline node |
+| `pin_package_version` | (planned) Adds or updates a package version in `tproject.toml` |
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Fixes applied (or `--dry-run` preview completed) |
+| 1 | No fixes available or `t check` failed |
+
+**Example:**
+
+```bash
+$ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
+{
+  "kind": "cast",
+  "column": "amount",
+  "cast_to": "double",
+  "file": "pipeline.t",
+  "line": 5
+}
+
+$ t fix pipeline.t
+Applied 1 fix(es), skipped 0.
+Run 't check pipeline.t' to verify.
 ```
 
 ---
@@ -8300,6 +8568,15 @@ For datasets exceeding 2-3 GB:
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.54.1] - Unreleased
+
+### `t check` Environment Validation
+
+- **Nix Evaluability Check**: `t check --env` now also generates `pipeline.nix` and `dag.json` and validates them via `nix-instantiate --eval`. This catches Nix expression errors (bad references, type mismatches) before a full build.
+- **Git-Sourced Lockfile Packages**: `check_lockfile_consistency` now includes packages resolved via GitHub/GitLab entries in `renv.lock`, preventing false-positive `missing_from_lockfile` diagnostics.
+- **Watch Mode (`--watch`)**: `t check --watch` runs immediately, then polls the input file for changes and re-runs the check on every modification. Can be combined with `--schema` and `--env`.
+- **Shape Contracts (`expect()`)**: New `expect(columns = [...])` syntax for pipeline nodes declares expected output columns. Contracts are checked statically via `t check --schema` and produce `contract_violation` diagnostics when the inferred schema is missing declared columns.
 
 ## [0.54.0] - 2026-07-08
 
@@ -14819,13 +15096,30 @@ echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 Append `--extra-experimental-features "nix-command flakes"` to each Nix command.
 
 ### Trusted Users and Binary Caches
-If you see warnings like `ignoring untrusted substituter`, you need to add yourself as a trusted user so Nix allows you to use the T binary cache. On macOS, run:
+If you see warnings like `ignoring untrusted substituter`, you need to add yourself as a trusted user so Nix allows you to use the T binary cache.
+
+**Linux (Ubuntu, Debian, Fedora, Arch):**
 
 ```bash
-echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.custom.conf && sudo launchctl kickstart -k system/org.nixos.nix-daemon
+# If you used the Determinate Systems installer (recommended):
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix.custom.conf
+# If you used the standard Nix installer:
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.conf
+sudo systemctl restart nix-daemon.service
 ```
 
-This works for both standard and Determinate Nix installations.
+**macOS:**
+
+```bash
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.custom.conf
+sudo launchctl kickstart -k system/org.nixos.nix-daemon
+```
+
+**NixOS:**
+
+Add `nix.trustedUsers = [ "root" "your_username" ];` to your `configuration.nix` and run `sudo nixos-rebuild switch`.
+
+See the [Nix Installation Guide](nix-installation.md#configuring-trusted-users) for detailed per-distro instructions.
 
 ## Step 3: Clone T Repository
 
@@ -14898,7 +15192,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.54.0 "Le Tournoi" using Nix <nix-version>
+Version 0.54.1 "Le Tournoi" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -14992,9 +15286,12 @@ Now `cd tlang` automatically activates the environment.
 T doesn't yet have a public binary cache, but you can set one up locally for your team:
 
 ```bash
-# In nix.conf
-substituters = https://cache.nixos.org/ https://your-cache.example.com/
-trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+# If you used the Determinate Systems installer (recommended):
+echo "substituters = https://cache.nixos.org/ https://your-cache.example.com/" | sudo tee -a /etc/nix.custom.conf
+echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" | sudo tee -a /etc/nix.custom.conf
+# If you used the standard Nix installer:
+echo "substituters = https://cache.nixos.org/ https://your-cache.example.com/" | sudo tee -a /etc/nix/nix.conf
+echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" | sudo tee -a /etc/nix/nix.conf
 ```
 
 ## Troubleshooting
@@ -15750,6 +16047,161 @@ T treats LLMs as **first-class collaborators** with structured boundaries:
 2. **Local over Global**: LLMs generate pipeline nodes, not entire scripts
 3. **Inspectable over Opaque**: Intent blocks make assumptions explicit
 4. **Regenerable over Brittle**: Stable boundaries enable safe code updates
+5. **Validatable over Trusting**: Instant static checks catch errors before Nix builds
+
+---
+
+## Instant Feedback: `t check`
+
+Before an agent generates or modifies pipeline code, it should validate the result. T provides a tiered checking system that runs in seconds — no Nix builds required.
+
+### Three Tiers of Checking
+
+| Command | What it checks | Nix required? |
+| :--- | :--- | :--- |
+| `t check <file.t>` | Pipeline DAG structure, dependency cycles, node syntax | No |
+| `t check --schema <file.t>` | + column references, schema propagation, `expect()` contracts | No |
+
+**REPL-callable versions** (same options, returns `String`):
+
+```t
+result = t_check("src/pipeline.t")             -- same as: t check
+result = t_check("src/pipeline.t", schema=true) -- same as: t check --schema
+result = t_diff("src/pipeline.t")              -- same as: t diff
+result = t_fix("src/pipeline.t")               -- same as: t fix
+```
+| `t check --env <file.t>` | + `tproject.toml` declarations, lockfile consistency, Nix eval | Yes |
+| `t check --json <file.t>` | Structured JSON diagnostics (works with any tier) | Depends on tier |
+
+The first two tiers are the workhorses for agent iteration. They catch structural errors and schema mismatches in seconds, letting agents fix problems before triggering expensive Nix builds.
+
+### Watch Mode
+
+Use `--watch` during active development for continuous feedback:
+
+```bash
+t check --watch --schema src/pipeline.t
+```
+
+This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. The exit code reflects the last check's result, making it usable in CI and editor integrations.
+
+### Shape Contracts with `expect()`
+
+Agents declare expected output columns on pipeline nodes using `expect()`:
+
+```t
+clean = raw
+  |> filter($status == "complete")
+  |> mutate($score = as.numeric($score))
+  |> expect(columns = ["id", "name", "score"])
+```
+
+- `expect()` must appear at the **end** of a pipe chain
+- Checked statically via `t check --schema` — emits `contract_violation` if columns are missing
+- Mid-chain `expect()` (e.g., `raw |> expect(...) |> filter(...)`) produces a warning
+- `expect()` has no runtime effect — it is stripped during evaluation
+
+#### Type Contracts
+
+Declare expected column types to catch type mismatches statically:
+
+```t
+clean = raw
+  |> expect(
+       columns = ["id", "amount", "date"],
+       amount ~ double()
+     )
+```
+
+Type contracts like `amount ~ double()` are checked during `t check --schema`. If the column exists in the schema but has a different type, a `contract_violation` error is emitted with a mechanical fix suggestion.
+
+#### Null-Rate Contracts
+
+Declare acceptable null-rate thresholds (deferred to runtime):
+
+```t
+clean = raw
+  |> expect(
+       columns = ["id", "amount"],
+       null_rate("amount") < 0.05
+     )
+```
+
+Null-rate contracts emit a `contract_unverifiable` warning during `t check --schema` because they require runtime data to evaluate. The check still validates that the referenced column exists.
+
+### Structured Diagnostics
+
+`t check --json` emits machine-readable diagnostics:
+
+```json
+{
+  "diagnostics": [
+    {
+      "error_class": "contract_violation",
+      "message": "Node 'clean' contract expects columns [id, name, score] but output schema is [id, name]. Missing: [score]",
+      "node": "clean",
+      "span": { "start": [12, 5], "end": [12, 50] },
+      "suggested_fix": null
+    }
+  ],
+  "exit_code": 1
+}
+```
+
+Each diagnostic includes:
+- `error_class`: categorizes the issue (`contract_violation`, `type_mismatch`, `cycle_detected`, etc.)
+- `node`: the pipeline node where the issue was found
+- `span`: source location `[line, column]`
+- `suggested_fix`: a mechanical fix the agent can apply (see `t fix` below)
+
+Agents consume this output to make targeted decisions — no parsing of human-readable error strings required.
+
+### Mechanical Fixes with `t fix`
+
+When `t check --schema` emits a `suggested_fix`, the agent can apply it mechanically:
+
+```bash
+t fix src/pipeline.t          -- apply fixes and rewrite the file
+t fix --dry-run src/pipeline.t -- preview changes without modifying
+```
+
+Currently supported fix types:
+
+| Fix type | What it does |
+| :--- | :--- |
+| **Cast** | Inserts a type coercion (e.g., `mutate($amount = as.numeric($amount))`) when a type contract expects a different type |
+| **Rename_column** | Renames `$old_name` column references to `$new_name` throughout the file |
+| **Add_node_arg** | Adds a missing argument to a node function call |
+| **Pin_package_version** | Pins a dependency to a specific version in `tproject.toml` |
+
+The agent workflow is: run `t check --schema`, parse the JSON output for `suggested_fix` entries, then run `t fix` to apply them. Always review the diff before committing.
+
+### Build Diffing with `t diff`
+
+After iterative development, `t diff` compares the last two Nix builds of a pipeline:
+
+```bash
+t diff src/pipeline.t
+```
+
+It reports per-node status:
+
+| Status | Meaning |
+| :--- | :--- |
+| **Unchanged** | Same content hash in both builds |
+| **Changed** | Different content hash |
+| **Added** | Present in second build, absent in first |
+| **Removed** | Present in first build, absent in second |
+| **Errored** | Node failed in one or both builds |
+
+For programmatic access, use `diff_summary(p)` in the REPL:
+
+```t
+diff_summary(p)
+-- DataFrame with columns: name, status, hash_a, hash_b, class_a, class_b
+```
+
+This is useful for verifying that a code change only affected the intended nodes.
 
 ---
 
@@ -16010,6 +16462,55 @@ monthly = sales
 
 **Each iteration**: Intent updated, LLM regenerates, human verifies.
 
+### Pattern 4: Check-Fix-Verify
+
+This pattern uses T's static checking tools to catch and fix errors before running the pipeline.
+
+**Step 1**: Agent generates pipeline with `expect()` contracts
+
+```t
+analysis = pipeline {
+  raw = read_csv("sales.csv")
+  cleaned = raw
+    |> filter($amount > 0)
+    |> expect(columns = ["id", "region", "amount", "date"])
+  by_region = cleaned
+    |> group_by($region)
+    |> summarize($total = sum($amount))
+}
+```
+
+**Step 2**: Run `t check --schema` to validate
+
+```bash
+$ t check --schema src/pipeline.t
+error [contract_violation] Node 'cleaned' contract expects columns [id, region, amount, date]
+  but output schema is [id, region, amount]. Missing: [date]
+```
+
+**Step 3**: Agent fixes the missing column (localized change)
+
+```t
+  cleaned = raw
+    |> filter($amount > 0)
+    |> expect(columns = ["id", "region", "amount"])
+```
+
+**Step 4**: Run `t check --schema` again — clean
+
+```bash
+$ t check --schema src/pipeline.t
+$
+```
+
+**Step 5**: Only now trigger the Nix build
+
+```bash
+$ t run src/pipeline.t
+```
+
+This loop — **generate, check, fix, build** — ensures agents never waste time on Nix builds that would fail for structural or schema reasons. The check step takes seconds; the build step takes minutes.
+
 ---
 
 ## Introspection for LLMs
@@ -16058,6 +16559,34 @@ pipeline_deps(p, "z")
 -- LLM can understand dependency graph
 ```
 
+### Structured Diagnostics via CLI
+
+For machine consumption, agents use `t check --json` and `t fix --dry-run`:
+
+```bash
+$ t check --json --schema src/pipeline.t
+{
+  "diagnostics": [
+    {
+      "error_class": "contract_violation",
+      "message": "Node 'cleaned' contract expects columns [...] but output schema is [...]. Missing: [date]",
+      "node": "cleaned",
+      "span": { "start": [8, 5], "end": [8, 60] },
+      "suggested_fix": null
+    }
+  ],
+  "exit_code": 1
+}
+```
+
+```bash
+$ t fix --dry-run src/pipeline.t
+dry-run: would apply 1 fix to src/pipeline.t:
+  [Cast] line 12: insert mutate($amount = as.numeric($amount))
+```
+
+These tools give agents structured, parseable output instead of human-readable error strings. The agent can programmatically decide what to fix and verify the fix before applying it.
+
 ---
 
 ## LLM Best Practices
@@ -16069,6 +16598,8 @@ pipeline_deps(p, "z")
 3. **Review Generated Code**: Verify LLM understood correctly
 4. **Iterate Locally**: Request changes to specific nodes, not entire scripts
 5. **Version Intents**: Track intent changes in Git
+6. **Review `t fix` Diffs**: Use `t fix --dry-run` to preview changes before applying. Always review the diff before committing.
+7. **Use `--watch`**: Run `t check --watch --schema` during active development for continuous feedback
 
 ### For LLMs
 
@@ -16077,6 +16608,10 @@ pipeline_deps(p, "z")
 3. **Include Error Handling**: Use `na_rm`, validation checks
 4. **Preserve Intents**: Keep intent blocks in generated code
 5. **Explain Assumptions**: Document why specific approaches were chosen
+6. **Always `t check` First**: Run `t check --schema` before `build_pipeline` — it catches structural and schema errors in seconds. In the REPL, use `t_check(file, schema=true)` (same behavior, returns a string).
+7. **Declare Shapes**: Add `expect(columns = [...])` to pipeline nodes so downstream agents (and humans) know the output contract
+8. **Use `t fix` for Mechanical Changes**: When `t check --json` reports a `suggested_fix`, apply it with `t fix` rather than manually editing — it handles line-number drift and word-boundary safety. In the REPL, use `t_fix(file)`.
+9. **Verify with `t diff`**: After modifying a pipeline, run `t diff` to confirm only the intended nodes changed. In the REPL, use `t_diff(file)`.
 
 ---
 
@@ -16084,7 +16619,8 @@ pipeline_deps(p, "z")
 
 **Human**: "I need to analyze employee salaries by department and identify outliers"
 
-**LLM Response**:
+**LLM generates** with intent and `expect()` contracts:
+
 ```t
 intent {
   description: "Employee salary analysis with outlier detection",
@@ -16105,56 +16641,95 @@ intent {
     "outliers.csv: employees with salaries > 2 SD from mean"
   ],
   
-  created: "2024-01-15",
+  created: "2024-07-12",
   llm_assistant: "Claude"
 }
 
 salary_analysis = pipeline {
   -- Load data
   employees = read_csv("employees.csv", clean_colnames = true)
+    |> expect(columns = ["employee_id", "department", "salary"],
+              salary ~ double())
   
   -- Department statistics
   dept_stats = employees
     |> group_by($department)
-    |> summarize($mean_salary = mean($salary), $sd_salary = sd($salary), $count = nrow($department))
+    |> summarize($mean_salary = mean($salary),
+                 $sd_salary = sd($salary),
+                 $count = nrow($department))
+    |> expect(columns = ["department", "mean_salary", "sd_salary", "count"])
   
-  -- Identify outliers
-  -- (Join would be manual or use a join function if available)
-  -- For now, calculate globally
-  overall_mean = mean(employees.salary, na_rm = true)
-  overall_sd = sd(employees.salary, na_rm = true)
-  threshold = overall_mean + 2 * overall_sd
+  -- Per-department outliers (>2 SD from department mean)
+  with_stats = employees
+    |> group_by($department)
+    |> mutate($dept_mean = mean($salary, na_rm = true))
+    |> mutate($dept_sd = sd($salary, na_rm = true))
   
-  outliers = employees
-    |> filter($salary > threshold)
-    |> select($employee_id, $department, $salary)
+  outliers = with_stats
+    |> filter($salary > $dept_mean + 2 * $dept_sd)
+    |> select($employee_id, $department, $salary, $dept_mean, $dept_sd)
+    |> expect(columns = ["employee_id", "department", "salary",
+                         "dept_mean", "dept_sd"])
 }
 
 -- Export results
 write_csv(salary_analysis.dept_stats, "department_stats.csv")
 write_csv(salary_analysis.outliers, "outliers.csv")
-
-print("Analysis complete:")
-print("Department stats: department_stats.csv")
-print("Outliers: outliers.csv")
 ```
 
-**Human Review**: "Good! But I want outliers per department, not overall"
+**LLM validates** before building:
 
-**LLM Update** (regenerates `outliers` node):
+```bash
+$ t check --schema src/pipeline.t
+error [contract_violation] Node 'employees' contract expects columns
+  [employee_id, department, salary] but output schema could not be inferred
+  for read_csv. Missing columns cannot be verified statically.
+warning [contract_unverifiable] Node 'employees' type contract for column
+  'salary' (~ double) cannot be verified statically: column type is unknown
+```
+
+The `read_csv` output schema depends on the actual file contents, so the column contract can't be verified statically. The type contract for `salary` is also unverifiable without runtime data. These are expected warnings — the contracts will be enforced at build time via the pipeline assertions, and the type contract will be checked if a typed schema source (like Arrow) is used.
+
+**LLM confirms** the warnings are expected and runs the build:
+
+```bash
+$ t run src/pipeline.t
+```
+
+**Human Review**: "Good! But the outliers should only flag employees making more than $200k, not just 2 SD from mean"
+
+**LLM updates** the `outliers` node (localized change):
+
 ```t
-  -- Update: Per-department outliers
-  with_dept_stats = employees
-    |> group_by($department)
-    |> mutate($dept_mean, \(g) mean(g.salary, na_rm = true))
-    |> mutate($dept_sd, \(g) sd(g.salary, na_rm = true))
-  
-  outliers = with_dept_stats
-    |> filter($salary > $dept_mean + 2 * $dept_sd)
+  outliers = with_stats
+    |> filter($salary > 200000)
     |> select($employee_id, $department, $salary, $dept_mean, $dept_sd)
 ```
 
-**Note**: Only `outliers` node changed; `dept_stats` and `employees` nodes unchanged.
+**LLM validates** the change:
+
+```bash
+$ t check --schema src/pipeline.t
+$
+```
+
+Clean. The `expect()` contracts on `employees`, `dept_stats`, and `outliers` still hold. Only the filter predicate changed.
+
+**LLM builds and verifies** with `t diff`:
+
+```bash
+$ t run src/pipeline.t
+$ t diff src/pipeline.t
+Name          Status    Class_a  Class_b
+employees     Unchanged T        T
+dept_stats    Unchanged T        T
+with_stats    Unchanged T        T
+outliers      Changed   T        T
+```
+
+The diff confirms only `outliers` changed. `employees`, `dept_stats`, and `with_stats` are unchanged — their cached artifacts are reused.
+
+**Note**: The `expect()` contracts served as guardrails throughout. When the filter predicate changed, the contracts on `dept_stats` and `employees` were re-validated automatically. If the change had broken a downstream contract (e.g., by removing a column that `dept_stats` depends on), `t check --schema` would have caught it before the build.
 
 ---
 
@@ -16179,6 +16754,8 @@ git show abc123:src/pipeline.t
 - [Reproducibility](reproducibility.md) — Nix for reproducible environments
 - [Examples](examples.md) — Intent-driven analysis examples
 - [Pipeline Tutorial](pipeline_tutorial.md) — Pipeline structure
+- [Debugging](debugging.md) — `t debug` for interactive node debugging
+- [API Reference](api-reference.md) — `t_check()`, `t_diff()`, `t_fix()` REPL functions and `t check`, `t fix`, `t diff` CLI documentation
 
 
 # FILE: docs/magic-cmds.md
@@ -16655,7 +17232,7 @@ Nix cannot run directly on Windows; it requires the **Windows Subsystem for Linu
 
 ## Post-Installation: Enabling Flakes
 
-T requires **Nix Flakes** to be enabled. The Determinate Systems installer usually enables these by default. You can verify by checking `~/.config/nix/nix.conf` or `/etc/nix/nix.conf`. It should contain:
+T requires **Nix Flakes** to be enabled. The Determinate Systems installer usually enables these by default. You can verify by checking `~/.config/nix/nix.conf` or `/etc/nix.conf`. It should contain:
 
 ```text
 experimental-features = nix-command flakes
@@ -16667,6 +17244,61 @@ If it's missing, add it with:
 mkdir -p ~/.config/nix
 echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 ```
+
+---
+
+## Configuring Trusted Users
+
+Nix restricts certain operations (like using binary caches) to "trusted users." If
+you see warnings like `ignoring untrusted substituter` when running `nix shell` or
+`nix develop`, you need to add yourself as a trusted user.
+
+### Linux
+
+```bash
+# If you used the Determinate Systems installer (recommended):
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix.custom.conf
+# If you used the standard Nix installer:
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.conf
+sudo systemctl restart nix-daemon.service
+```
+
+If `nix-daemon.service` is not found, try `sudo determinate-nixd restart` or `sudo systemctl restart nix`.
+
+### macOS
+
+```bash
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.custom.conf
+sudo launchctl kickstart -k system/org.nixos.nix-daemon
+```
+
+This works for both the standard installer and the Determinate Systems installer.
+
+### NixOS
+
+On NixOS, add the following to your `configuration.nix`:
+
+```nix
+nix.trustedUsers = [ "root" "your_username" ];
+```
+
+Then rebuild:
+
+```bash
+sudo nixos-rebuild switch
+```
+
+### Windows (WSL2)
+
+Inside your WSL2 terminal, follow the Linux instructions above for your WSL2 distribution (usually Ubuntu). After editing `nix.conf`, restart the daemon:
+
+```bash
+sudo systemctl restart nix-daemon.service
+```
+
+> [!NOTE]
+> If systemd is not enabled in your WSL2 setup, you need to enable it first. See the
+> [Windows (WSL2)](#windows-wsl2) section above.
 
 ---
 
@@ -16688,7 +17320,7 @@ trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDS
 ```
 
 > [!NOTE]
-> If you used the Determinate Systems installer, you should add these to `/etc/nix/nix.conf`. You may need `sudo` to edit this file.
+> If you used the Determinate Systems installer, you should add these to `/etc/nix.custom.conf`. You may need `sudo` to edit this file.
 
 ---
 
@@ -16731,11 +17363,8 @@ The installer usually updates your shell profile. Try restarting your terminal o
 . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 ```
 
-### Permission Denied
-If you encounter permission issues when using Nix, ensure your user is in the `trusted-users` list in `/etc/nix/nix.conf`:
-```text
-trusted-users = root @wheel your_username
-```
+### Permission Denied or "ignoring untrusted substituter"
+See [Configuring Trusted Users](#configuring-trusted-users) above.
 
 ## Next Steps
 
@@ -18853,7 +19482,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.54.0"
+min_version = "0.54.1"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -30658,7 +31287,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.54.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.54.1";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -30781,7 +31410,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.54.0",
+    t_version: "0.54.1",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -30824,7 +31453,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.54.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.54.1";
   };
   
   outputs = { self, nixpkgs, tlang }: {

@@ -46,8 +46,10 @@ If you see warnings like `ignoring untrusted substituter`, you need to add yours
 **Linux (Ubuntu, Debian, Fedora, Arch):**
 
 ```bash
-sudo nano /etc/nix/nix.conf
-# Add: trusted-users = root your_username
+# If you used the Determinate Systems installer (recommended):
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix.custom.conf
+# If you used the standard Nix installer:
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.conf
 sudo systemctl restart nix-daemon.service
 ```
 
@@ -229,9 +231,12 @@ Now `cd tlang` automatically activates the environment.
 T doesn't yet have a public binary cache, but you can set one up locally for your team:
 
 ```bash
-# In nix.conf
-substituters = https://cache.nixos.org/ https://your-cache.example.com/
-trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+# If you used the Determinate Systems installer (recommended):
+echo "substituters = https://cache.nixos.org/ https://your-cache.example.com/" | sudo tee -a /etc/nix.custom.conf
+echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" | sudo tee -a /etc/nix.custom.conf
+# If you used the standard Nix installer:
+echo "substituters = https://cache.nixos.org/ https://your-cache.example.com/" | sudo tee -a /etc/nix/nix.conf
+echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" | sudo tee -a /etc/nix/nix.conf
 ```
 
 ## Troubleshooting

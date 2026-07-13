@@ -60,7 +60,7 @@ Nix cannot run directly on Windows; it requires the **Windows Subsystem for Linu
 
 ## Post-Installation: Enabling Flakes
 
-T requires **Nix Flakes** to be enabled. The Determinate Systems installer usually enables these by default. You can verify by checking `~/.config/nix/nix.conf` or `/etc/nix/nix.conf`. It should contain:
+T requires **Nix Flakes** to be enabled. The Determinate Systems installer usually enables these by default. You can verify by checking `~/.config/nix/nix.conf` or `/etc/nix.conf`. It should contain:
 
 ```text
 experimental-features = nix-command flakes
@@ -81,46 +81,17 @@ Nix restricts certain operations (like using binary caches) to "trusted users." 
 you see warnings like `ignoring untrusted substituter` when running `nix shell` or
 `nix develop`, you need to add yourself as a trusted user.
 
-### Linux (Ubuntu, Debian)
+### Linux
 
 ```bash
-sudo nano /etc/nix/nix.conf
-```
-
-Add your username to the `trusted-users` line:
-
-```text
-trusted-users = root your_username
-```
-
-Restart the Nix daemon:
-
-```bash
+# If you used the Determinate Systems installer (recommended):
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix.custom.conf
+# If you used the standard Nix installer:
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.conf
 sudo systemctl restart nix-daemon.service
 ```
 
-> [!NOTE]
-> If you used the Determinate Systems installer, the daemon is managed by systemd. If
-> `nix-daemon.service` is not found, try `sudo determinate-nixd restart` or check
-> available units with `systemctl list-units | grep nix`.
-
-### Linux (Fedora, RHEL, CentOS)
-
-```bash
-sudo nano /etc/nix/nix.conf
-# Add: trusted-users = root your_username
-sudo systemctl restart nix-daemon.service
-```
-
-If `nix-daemon.service` is not found, try `sudo systemctl restart nix`.
-
-### Linux (Arch, Manjaro)
-
-```bash
-sudo nano /etc/nix/nix.conf
-# Add: trusted-users = root your_username
-sudo systemctl restart nix-daemon.service
-```
+If `nix-daemon.service` is not found, try `sudo determinate-nixd restart` or `sudo systemctl restart nix`.
 
 ### macOS
 
@@ -177,7 +148,7 @@ trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDS
 ```
 
 > [!NOTE]
-> If you used the Determinate Systems installer, you should add these to `/etc/nix/nix.conf`. You may need `sudo` to edit this file.
+> If you used the Determinate Systems installer, you should add these to `/etc/nix.custom.conf`. You may need `sudo` to edit this file.
 
 ---
 

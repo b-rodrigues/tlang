@@ -111,6 +111,14 @@ Installer</a>. For detailed, platform-specific steps, please see
 our:</p>
 <p>👉 <strong><a href="nix-installation.html">Nix Installation
 Guide</a></strong></p>
+<blockquote>
+<p>[!NOTE] After installing Nix, you may need to add yourself as a
+trusted user so that Nix can fetch pre-built binaries from the T cache.
+If you see warnings like <code>ignoring untrusted substituter</code>,
+follow the steps in <a
+href="nix-installation.md#configuring-trusted-users">Configuring Trusted
+Users</a>.</p>
+</blockquote>
 <h2 id="running-t">Running T</h2>
 <p>As a user, you don’t need to clone the repository or build the
 compiler from source! You can run the T shell directly from GitHub using
