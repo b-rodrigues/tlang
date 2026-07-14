@@ -3353,6 +3353,143 @@ Environment errors are reported as `phase: "env"` diagnostics and trigger exit c
 
 When `--watch` is passed, `t check` runs immediately, then polls the input file for changes (every 0.5s). On each modification, it re-runs the check and prints updated results. Press Ctrl+C to stop. Watch mode can be combined with `--schema` and/or `--env`.
 
+---
+
+### `t run` (CLI)
+
+Executes a T source file. By default, `t run` prints human-readable output as the pipeline builds. With `--json`, it emits newline-delimited JSON (NDJSON) events to stdout — one JSON object per line — so agents can react to the first failing node without waiting for the entire DAG to finish.
+
+**Usage:**
+
+```bash
+t run <file.t>              # human-readable output (default)
+t run --json <file.t>       # streaming NDJSON events to stdout
+t run <file.t> --json       # --json can also appear after the file
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Pipeline completed successfully |
+| 1 | Wire-phase error (missing deps, cycles) |
+| 2 | Schema-phase error (type mismatch) |
+| 3 | Environment/build error (Nix failure, missing runtime) |
+
+Exit codes are the same whether `--json` is used or not.
+
+**NDJSON event schema (`--json`):**
+
+Each line is a self-contained JSON object with a common envelope:
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 1,
+  "ts": "2026-07-10T14:32:01.123Z",
+  "event": "run_started",
+  ...
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `schema_version` | String | Always `"1.0"`. Reserved for future changes. |
+| `seq` | Int | Monotonically increasing sequence number across the entire run. Starts at 1. |
+| `ts` | String | ISO-8601 UTC timestamp of emission. |
+| `event` | String | One of: `run_started`, `node_failed`, `node_skipped`, `run_finished`. |
+
+**Event types:**
+
+#### `run_started` (emitted once, first line)
+
+Emitted before the first Nix build. Carries the full pipeline DAG so consumers can reason about root causes while the stream is still open.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 1,
+  "ts": "2026-07-10T14:32:01.123Z",
+  "event": "run_started",
+  "file": "pipeline.t",
+  "nodes": [
+    {"id": "a", "lang": "r"},
+    {"id": "b", "lang": "python", "depends_on": ["a"]},
+    {"id": "c", "lang": "r", "depends_on": ["b"]}
+  ]
+}
+```
+
+#### `node_failed` (emitted per failure)
+
+Emitted when a node's Nix build fails. Includes the error message and the last 200 lines of the build log inline.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 2,
+  "ts": "2026-07-10T14:32:05.456Z",
+  "event": "node_failed",
+  "node": {"id": "b", "lang": "python"},
+  "message": "Nix build failed for node 'b'",
+  "log_tail": "...last 200 lines of build log..."
+}
+```
+
+The `log_tail` field is a string containing the tail of `_pipeline/logs/<node>.log`. If the log is unavailable or empty, the field is an empty string.
+
+#### `node_skipped` (emitted per skip)
+
+Emitted when a downstream node is skipped because an upstream dependency failed. The `because` field names the first failed ancestor.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 3,
+  "ts": "2026-07-10T14:32:05.457Z",
+  "event": "node_skipped",
+  "node": {"id": "c", "lang": "r"},
+  "because": "b"
+}
+```
+
+#### `run_finished` (emitted once, last line)
+
+Emitted after all nodes have been attempted. The `root_causes` array is authoritative here (computed from the full graph, not emitted on `node_failed` events). The `status` field is one of `"ok"`, `"failed"`, or `"skipped"`.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 4,
+  "ts": "2026-07-10T14:32:06.789Z",
+  "event": "run_finished",
+  "file": "pipeline.t",
+  "status": "failed",
+  "total_nodes": 3,
+  "failed": 1,
+  "skipped": 1,
+  "root_causes": ["b"]
+}
+```
+
+**Per-node build logs:**
+
+During execution, each node's stderr is captured to `_pipeline/logs/<node>.log`. These logs persist after the run and can be inspected with `read_past_node(node, "build")` or `read_past_node(node, "run")`.
+
+**Example: agent usage**
+
+```bash
+t run --json pipeline.t 2>/dev/null | while IFS= read -r line; do
+  event=$(echo "$line" | jq -r '.event')
+  if [ "$event" = "node_failed" ]; then
+    node=$(echo "$line" | jq -r '.node.id')
+    echo "FAILED: $node"
+    echo "$line" | jq -r '.log_tail' | tail -5
+    break
+  fi
+done
+```
+
 ### `expect()` — Pipeline shape contracts
 
 Attach a shape contract to a pipeline node to declare expected output properties.

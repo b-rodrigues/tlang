@@ -478,6 +478,10 @@ let pipeline_build_logs : ((string * expr) list, string) Hashtbl.t = Hashtbl.cre
     Set by `t check` so structural validation runs without triggering builds. *)
 let check_mode = ref false
 
+(** When true, build_pipeline streams NDJSON events to stdout instead of
+    human-readable output to stderr.  Set by `t run --json`. *)
+let ndjson_mode = ref false
+
 
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.

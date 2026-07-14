@@ -36,6 +36,14 @@
 - **NixOS configuration**: Full `configuration.nix` snippets for trusted users, binary cache, and flakes.
 - **Binary cache setup**: Instructions for configuring the `rstats-on-nix` Cachix cache on NixOS and non-NixOS systems.
 
+### `t run --json` — Streaming NDJSON Build Diagnostics
+
+- **Streaming NDJSON output**: `t run --json` emits newline-delimited JSON events to stdout as the pipeline builds, enabling agents to react to the first failing node without waiting for the entire DAG. Events: `run_started` (DAG manifest), `node_failed` (error + inline log tail), `node_skipped` (propagation), `run_finished` (terminal summary with `root_causes`).
+- **Per-node build log capture**: Build logs are now captured to `_pipeline/logs/<node>.log` during execution, eliminating dependence on `nix log <drv>` after the fact. The `node_failed` event includes the last 200 lines of the log inline.
+- **`run_started` DAG manifest**: The first NDJSON line carries the full pipeline DAG (node IDs, languages, dependencies) so consumers can reason about root causes while the stream is still open.
+- **`root_causes` at `run_finished`**: Root cause computation is deferred to the terminal event, where the full picture is known. No provisional guesses on `node_failed` events.
+- **Exit codes unchanged**: 0=clean, 1=wire error, 2=schema error, 3=env/build error — independent of `--json`.
+
 ## [0.54.0] - 2026-07-08
 
 ### Pipeline & Diagnostics

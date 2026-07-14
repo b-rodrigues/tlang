@@ -444,8 +444,8 @@ let print_help () =
   Printf.printf "Usage: t <command> [arguments]\n\n";
   Printf.printf "Commands:\n";
   Printf.printf "  repl              Start the interactive REPL (default)\n";
-  Printf.printf "  run <file.t>      Execute a T source file\n";
-  Printf.printf "  run --expr <expr> Execute a T expression directly\n";
+  Printf.printf "  run [--json] <file.t>      Execute a T source file\n";
+  Printf.printf "  run [--json] --expr <expr> Execute a T expression directly\n";
   Printf.printf "  check [--json] [--schema] [--env] <file.t>  Validate pipeline structure (no Nix builds)\n";
   Printf.printf "  diff [--json] [--log-a <n>] [--log-b <n>] <file.t>  Compare two builds (output diff)\n";
   Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
@@ -612,9 +612,10 @@ let flush_warnings_to_out () =
       end
   | None -> ()
 
-let cmd_run ?(unsafe=false) ?failfast mode filename env =
+let cmd_run ?(unsafe=false) ?failfast ?(json=false) mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
+  if json then Ast.ndjson_mode := true;
   if not unsafe then begin
     try
       let ch = open_in filename in
@@ -632,12 +633,14 @@ let cmd_run ?(unsafe=false) ?failfast mode filename env =
     with _ -> ()
   end;
   let (result, _env) = run_file ?failfast mode filename env in
+  if json then Ast.ndjson_mode := false;
   flush_warnings_to_out ();
   match result with
   | Ast.VError _ ->
-      Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
+      if json then exit 1
+      else Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
   | Ast.(VNA NAGeneric) -> ()
-  | v -> print_string (Pretty_print.pretty_print_value v)
+  | v -> if not json then print_string (Pretty_print.pretty_print_value v)
 
 let cmd_run_expr ?failfast mode expr env =
   Packages.ensure_docs_loaded ();
@@ -1452,17 +1455,32 @@ let () =
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       cmd_debug ~unsafe ~failfast script_mode filename node_name env
   | _ :: "run" :: [] ->
-      Printf.eprintf "Usage: t run <file.t> | t run --expr <expr>\n";
+      Printf.eprintf "Usage: t run [--json] <file.t> | t run [--json] --expr <expr>\n";
       exit 1
   | _ :: "run" :: "--expr" :: [] ->
       Printf.eprintf "Missing expression after --expr.\n";
       exit 1
+  | _ :: "run" :: "--json" :: "--expr" :: [] ->
+      Printf.eprintf "Missing expression after --expr.\n";
+      exit 1
+  | _ :: "run" :: "--json" :: "--expr" :: expr :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_run_expr ~failfast script_mode expr env
   | _ :: "run" :: "--expr" :: expr :: [] ->
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       cmd_run_expr ~failfast script_mode expr env
+  | _ :: "run" :: "--json" :: "--expr" :: _ ->
+      Printf.eprintf "Unexpected arguments after `t run --json --expr <expr>`.\n";
+      exit 1
   | _ :: "run" :: "--expr" :: _ ->
       Printf.eprintf "Unexpected arguments after `t run --expr <expr>`.\n";
       exit 1
+  | _ :: "run" :: "--json" :: filename :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_run ~json:true ~unsafe ~failfast script_mode filename env
+  | _ :: "run" :: filename :: "--json" :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_run ~json:true ~unsafe ~failfast script_mode filename env
   | _ :: "run" :: filename :: [] ->
       (* Default to Strict mode for scripts, but allow --mode to override *)
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
