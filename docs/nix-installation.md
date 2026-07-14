@@ -33,7 +33,102 @@ This single command installs Nix and configures everything T needs:
   - **`substituters = ...`** — Tells Nix to fetch pre-built packages from the NixOS cache and the `rstats-on-nix` Cachix cache (used by T for R and Python packages), avoiding long builds from source.
   - **`trusted-public-keys = ...`** — The cryptographic keys Nix uses to verify the authenticity of packages from those caches.
 
-Because the installer handles all of this in one step, there are **no manual post-install configuration steps** for trusted users or binary caches.
+Because the installer handles all of this in one step, there are **no manual post-install configuration steps** when using the Determinate Systems installer. If you installed Nix through other means, see [Already Have Nix?](#already-have-nix) below.
+
+---
+
+## Already Have Nix?
+
+If you installed Nix through a method other than the Determinate Systems installer (e.g., the [official Nix installer](https://nixos.org/download/), Homebrew, your Linux distribution's package manager, or you're on NixOS), you need to manually configure two things for T to work: **trusted users** and the **binary cache**.
+
+### Step 1: Add yourself as a trusted user
+
+T uses binary caches that require your user to be in the `trusted-users` list. Without this, you'll get "ignoring untrusted substituter" errors.
+
+**On NixOS**, add this to your `/etc/nixos/configuration.nix`:
+
+```nix
+nix.settings.trusted-users = [ "root" "your-username" ];
+```
+
+Then rebuild:
+
+```bash
+sudo nixos-rebuild switch
+```
+
+**On non-NixOS Linux or macOS**, edit `/etc/nix/nix.conf` (you may need `sudo`):
+
+```bash
+# Add your username to the trusted-users line
+# If the line exists, append your username to it:
+sudo sed -i 's/^trusted-users = .*/& your-username/' /etc/nix/nix.conf
+
+# Or if no trusted-users line exists, add one:
+echo "trusted-users = root $(whoami)" | sudo tee -a /etc/nix/nix.conf
+```
+
+Then restart the Nix daemon:
+
+```bash
+# Linux (systemd)
+sudo systemctl restart nix-daemon
+
+# macOS (launchd)
+sudo launchctl kickstart -k system/org.nixos.nix-daemon
+```
+
+### Step 2: Add the binary cache
+
+T relies on pre-built R and Python packages from the `rstats-on-nix` Cachix cache. Without this cache, `nix develop` will try to build everything from source, which can take a very long time.
+
+**On NixOS**, add this to your `/etc/nixos/configuration.nix`:
+
+```nix
+nix.settings = {
+  substituters = [
+    "https://cache.nixos.org"
+    "https://rstats-on-nix.cachix.org"
+  ];
+  trustedPublicKeys = [
+    "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+    "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
+  ];
+};
+```
+
+Then rebuild:
+
+```bash
+sudo nixos-rebuild switch
+```
+
+**On non-NixOS Linux or macOS**, add these lines to `/etc/nix/nix.conf`:
+
+```bash
+echo "substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org" | sudo tee -a /etc/nix/nix.conf
+echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=" | sudo tee -a /etc/nix/nix.conf
+```
+
+Then restart the Nix daemon (same commands as above).
+
+### Verify your configuration
+
+After applying the changes, verify everything is set correctly:
+
+```bash
+# Check trusted users
+grep "trusted-users" /etc/nix/nix.conf
+# Should show: trusted-users = root your-username
+
+# Check cache is configured
+grep "rstats-on-nix" /etc/nix/nix.conf
+# Should show the substituters and trusted-public-keys lines
+
+# Check flakes are enabled
+grep "experimental-features" /etc/nix/nix.conf
+# Should show: experimental-features = nix-command flakes
+```
 
 ---
 
@@ -41,7 +136,34 @@ Because the installer handles all of this in one step, there are **no manual pos
 
 ### Linux
 
-The command above works on most modern Linux distributions (Ubuntu, Fedora, Debian, Arch, etc.).
+The Determinate Systems installer works on most modern Linux distributions (Ubuntu, Fedora, Debian, Arch, etc.). If you installed Nix through your distribution's package manager instead, follow the [Already Have Nix?](#already-have-nix) steps above.
+
+### NixOS
+
+On NixOS, Nix is already part of the system — **do not use the Determinate Systems installer**. Instead, configure everything in `/etc/nixos/configuration.nix`:
+
+```nix
+nix.settings = {
+  trusted-users = [ "root" "your-username" ];
+  experimental-features = [ "nix-command" "flakes" ];
+  substituters = [
+    "https://cache.nixos.org"
+    "https://rstats-on-nix.cachix.org"
+  ];
+  trustedPublicKeys = [
+    "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+    "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
+  ];
+};
+```
+
+Then rebuild:
+
+```bash
+sudo nixos-rebuild switch
+```
+
+See [Already Have Nix?](#already-have-nix) for step-by-step details on each setting.
 
 ### macOS
 
@@ -128,7 +250,12 @@ The installer usually updates your shell profile. Try restarting your terminal o
 ```
 
 ### Permission Denied or "ignoring untrusted substituter"
-This means you did not use the recommended installation command, which configures trusted users and binary caches automatically. Re-run the [Installation Command](#installation-command) above to fix this in one step.
+
+This means your user is not in the Nix `trusted-users` list. The fix depends on how you installed Nix:
+
+- **Determinate Systems installer**: Re-run the [Installation Command](#installation-command) — it will configure trusted users and caches in one step.
+- **Official Nix installer or other method**: Follow the [Already Have Nix?](#already-have-nix) steps to manually add your user to `trusted-users` and configure the cache.
+- **NixOS**: Add `nix.settings.trusted-users = [ "root" "your-username" ];` to your `configuration.nix` and run `sudo nixos-rebuild switch`.
 
 ## Next Steps
 

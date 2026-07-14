@@ -10,11 +10,11 @@ Solutions to common issues when using T.
 
 **Solution**:
 ```bash
-# Install Nix
-sh <(curl -L https://nixos.org/nix/install) --daemon
+# Install Nix (recommended: Determinate Systems installer)
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install --no-confirm
 
 # Restart shell or source profile
-source ~/.nix-profile/etc/profile.d/nix.sh
+source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 ```
 
 **Verify**:
@@ -44,6 +44,40 @@ Then rebuild:
 ```bash
 sudo nixos-rebuild switch
 ```
+
+---
+
+### "ignoring untrusted substituter" or cache fetch errors
+
+**Problem**: Your user is not in the Nix `trusted-users` list, or the `rstats-on-nix` binary cache is not configured.
+
+**Solution**:
+
+**On NixOS**, add to `/etc/nixos/configuration.nix`:
+```nix
+nix.settings = {
+  trusted-users = [ "root" "your-username" ];
+  substituters = [
+    "https://cache.nixos.org"
+    "https://rstats-on-nix.cachix.org"
+  ];
+  trustedPublicKeys = [
+    "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+    "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
+  ];
+};
+```
+Then rebuild: `sudo nixos-rebuild switch`
+
+**On non-NixOS Linux or macOS**, add to `/etc/nix/nix.conf`:
+```bash
+echo "trusted-users = root $(whoami)" | sudo tee -a /etc/nix/nix.conf
+echo "substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org" | sudo tee -a /etc/nix/nix.conf
+echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=" | sudo tee -a /etc/nix/nix.conf
+```
+Then restart the Nix daemon: `sudo systemctl restart nix-daemon` (Linux) or `sudo launchctl kickstart -k system/org.nixos.nix-daemon` (macOS).
+
+See the [Nix Installation Guide](nix-installation.md#already-have-nix) for detailed instructions.
 
 ---
 
