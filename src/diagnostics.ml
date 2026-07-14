@@ -343,6 +343,16 @@ let extract_cycle_nodes msg =
     [Str.matched_group 1 msg]
   with Not_found -> []
 
+(** Extract the dependency node name from a cross-runtime deserializer error message.
+    e.g. "Node `pyn` (Python) depends on `rn` (R) but has no explicit deserializer."
+    returns Some "rn" *)
+let extract_dep_name_from_cross_runtime_error msg =
+  let re = Str.regexp "depends on `\\([^`]+\\)`" in
+  try
+    ignore (Str.search_forward re msg 0);
+    Some (Str.matched_group 1 msg)
+  with Not_found -> None
+
 let extract_caused_by_from_context context =
   List.filter_map (fun (k, v) ->
     match k, v with
@@ -363,6 +373,20 @@ let of_verror ?file (err : Ast.error_info) : diagnostic =
     | [] -> extract_cycle_nodes err.message
   in
   let suggested_fix = match err.code with
+    | StructuralError when
+        let is_cross_runtime =
+          try
+            let re = Str.regexp "depends on `[^`]+` (.*) but has no explicit deserializer" in
+            ignore (Str.search_forward re err.message 0); true
+          with Not_found -> false
+        in
+        is_cross_runtime ->
+        (match extract_dep_name_from_cross_runtime_error err.message with
+         | Some _dep ->
+             let arg = "deserializer = ^csv" in
+             Add_node_arg { node = (match node_name with Some n -> n | None -> "");
+                            arg; target_node = node_name; file; line = None }
+         | None -> NoFix)
     | _ -> NoFix
   in
   {

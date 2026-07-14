@@ -80,6 +80,42 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   in
   test_roundtrip ();
 
+  Printf.printf "\napply_add_node_arg:\n";
+  let test_apply_add_node_arg () =
+    let tmp = Filename.temp_file "test_fix_add_arg" ".t" in
+    let oc = open_out tmp in
+    output_string oc "raw = node(\n  command = read_csv(\"data.csv\"),\n  runtime = T\n)\n";
+    close_out oc;
+    Fix.apply_add_node_arg ~file:tmp ~node:"raw" ~arg:"serializer = ^csv";
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    let has_serializer = (try let _ = Str.search_forward (Str.regexp_string "serializer = ^csv") content 0 in true with Not_found -> false) in
+    check "add_node_arg inserts serializer before closing )" has_serializer;
+    let has_runtime = (try let _ = Str.search_forward (Str.regexp_string "runtime = T") content 0 in true with Not_found -> false) in
+    check "add_node_arg preserves existing arguments" has_runtime
+  in
+  test_apply_add_node_arg ();
+
+  Printf.printf "\napply_add_node_arg (pyn):\n";
+  let test_apply_add_node_arg_pyn () =
+    let tmp = Filename.temp_file "test_fix_add_arg_pyn" ".t" in
+    let oc = open_out tmp in
+    output_string oc "calc = pyn(\n  command = <{\ndf = raw.copy()\ndf\n  }>,\n  runtime = Python\n)\n";
+    close_out oc;
+    Fix.apply_add_node_arg ~file:tmp ~node:"calc" ~arg:"deserializer = ^csv";
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    let has_deser = (try let _ = Str.search_forward (Str.regexp_string "deserializer = ^csv") content 0 in true with Not_found -> false) in
+    check "add_node_arg works for pyn with raw code block" has_deser;
+    let has_raw_code = (try let _ = Str.search_forward (Str.regexp_string "df = raw.copy()") content 0 in true with Not_found -> false) in
+    check "add_node_arg preserves raw code block" has_raw_code
+  in
+  test_apply_add_node_arg_pyn ();
+
   Printf.printf "\napply_fix dispatch:\n";
   let test_apply_fix_noop () =
     let r = Fix.apply_fix ~file:"/dev/null" Diagnostics.NoFix in
@@ -88,8 +124,18 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   test_apply_fix_noop ();
 
   let test_apply_fix_node_arg () =
-    let r = Fix.apply_fix ~file:"/dev/null" (Diagnostics.Add_node_arg { node = "x"; arg = "y"; target_node = None; file = None; line = None }) in
-    check "apply_fix returns false for Add_node_arg (unimplemented)" (r = false)
+    let tmp = Filename.temp_file "test_fix_dispatch_arg" ".t" in
+    let oc = open_out tmp in
+    output_string oc "raw = node(\n  command = read_csv(\"data.csv\"),\n  runtime = T\n)\n";
+    close_out oc;
+    let r = Fix.apply_fix ~file:tmp (Diagnostics.Add_node_arg { node = "raw"; arg = "serializer = ^csv"; target_node = Some "raw"; file = Some tmp; line = None }) in
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    check "apply_fix returns true for Add_node_arg" (r = true);
+    let has_serializer = (try let _ = Str.search_forward (Str.regexp_string "serializer = ^csv") content 0 in true with Not_found -> false) in
+    check "apply_fix patches file for Add_node_arg" has_serializer
   in
   test_apply_fix_node_arg ();
 
@@ -153,10 +199,14 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_message = "Column 'y' expected string, got int";
       diag_suggested_fix = Cast { column = "y"; cast_to = "string"; target_node = None; file = Some "test.t"; line = Some 8 };
     } in
-    let fixes = [d1; d2] in
+    let d3 = { d1 with diag_id = "T1003"; diag_line = Some 12;
+      diag_message = "Node `pyn` depends on `rn` but has no explicit deserializer";
+      diag_suggested_fix = Add_node_arg { node = "pyn"; arg = "deserializer = ^csv"; target_node = Some "pyn"; file = Some "test.t"; line = None };
+    } in
+    let fixes = [d1; d2; d3] in
     let result = Fix.apply_fixes ~dry_run:true ~default_file:"test.t" fixes in
     check "dry_run: applied = 0" (result.Fix.applied = 0);
-    check "dry_run: would_apply = 2" (result.Fix.would_apply = 2);
+    check "dry_run: would_apply = 3" (result.Fix.would_apply = 3);
     check "dry_run: skipped = 0" (result.Fix.skipped = 0)
   in
   test_dry_run_counting ();

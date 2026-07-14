@@ -189,6 +189,36 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check_eq "error_class_of_string: snake_case structural_error maps to Structural_error"
     (Diagnostics.error_class_to_string (Diagnostics.error_class_of_string "structural_error")) "structural_error";
 
+  Printf.printf "\nAdd_node_arg generation:\n";
+  let cross_runtime_msg = "Node `pyn` (Python) depends on `rn` (R) but has no explicit deserializer." in
+  let cross_runtime_err = { Ast.
+    code = StructuralError;
+    message = cross_runtime_msg;
+    context = [];
+    location = None;
+    na_count = 0;
+  } in
+  let cross_diag = Diagnostics.of_verror cross_runtime_err in
+  (match cross_diag.Diagnostics.diag_suggested_fix with
+   | Diagnostics.Add_node_arg { node; arg; target_node = _; _ } ->
+       check_eq "cross-runtime: node name extracted" node "pyn";
+       check_eq "cross-runtime: arg is deserializer" arg "deserializer = ^csv"
+   | _ -> check "cross-runtime: generates Add_node_arg" false);
+  check_eq "cross-runtime: error class is structural_error"
+    (Diagnostics.error_class_to_string cross_diag.Diagnostics.diag_error_class) "structural_error";
+  let non_cross_msg = "Some other structural error" in
+  let non_cross_err = { Ast.
+    code = StructuralError;
+    message = non_cross_msg;
+    context = [];
+    location = None;
+    na_count = 0;
+  } in
+  let non_cross_diag = Diagnostics.of_verror non_cross_err in
+  (match non_cross_diag.Diagnostics.diag_suggested_fix with
+   | Diagnostics.NoFix -> check "non-cross-runtime: no fix suggested" true
+   | _ -> check "non-cross-runtime: should be NoFix" false);
+
   Printf.printf "\nSchema check module:\n";
 
   (* Set up temp fixture for read_csv_header test *)
