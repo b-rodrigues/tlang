@@ -115,6 +115,8 @@ type diagnostic = {
   diag_file : string option;
   diag_line : int option;
   diag_column : int option;
+  diag_end_line : int option;
+  diag_end_column : int option;
   diag_message : string;
   diag_expected : string option;
   diag_actual : string option;
@@ -253,18 +255,19 @@ let diagnostic_to_yojson d =
     ("error_class", `String (error_class_to_string d.diag_error_class));
     ("severity", severity_to_yojson d.diag_severity);
     ("phase", phase_to_yojson d.diag_phase);
-    ("node", (match d.diag_node_id with
-      | Some n -> `Assoc [
-          ("id", `String n);
-          ("lang", (match d.diag_node_lang with Some l -> `String l | None -> `Null));
-        ]
-      | None -> `Null));
-    ("file", (match d.diag_file with Some f -> `String f | None -> `Null));
-    ("span", (match d.diag_line with
-      | Some l -> `Assoc [
-          ("start", `List [`Int l; `Int (Option.value ~default:1 d.diag_column)]);
-        ]
-      | None -> `Null));
+    ("node", `Assoc [
+        ("id", (match d.diag_node_id with Some n -> `String n | None -> `Null));
+        ("lang", (match d.diag_node_lang with Some l -> `String l | None -> `Null));
+        ("file", (match d.diag_file with Some f -> `String f | None -> `Null));
+        ("span", (match d.diag_line with
+          | Some l -> `Assoc [
+              ("start", `List [`Int l; `Int (Option.value ~default:1 d.diag_column)]);
+              ("end", (match d.diag_end_line with
+                | Some el -> `List [`Int el; `Int (Option.value ~default:1 d.diag_end_column)]
+                | None -> `Null));
+            ]
+          | None -> `Null));
+      ]);
     ("message", `String d.diag_message);
     ("expected", (match d.diag_expected with
       | Some v -> `Assoc [("kind", `String "arrow_type"); ("value", `String v)]
@@ -372,6 +375,8 @@ let of_verror ?file (err : Ast.error_info) : diagnostic =
     diag_file = file;
     diag_line = (match err.location with Some l -> Some l.Ast.line | None -> None);
     diag_column = (match err.location with Some l -> Some l.Ast.column | None -> None);
+    diag_end_line = None;
+    diag_end_column = None;
     diag_message = err.message;
     diag_expected = None;
     diag_actual = None;
@@ -393,6 +398,8 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
             diag_file = file;
             diag_line = None;
             diag_column = None;
+            diag_end_line = None;
+            diag_end_column = None;
             diag_message = ne.Ast.ne_message;
             diag_expected = None;
             diag_actual = None;
@@ -423,6 +430,8 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
           diag_file = file;
           diag_line = None;
           diag_column = None;
+          diag_end_line = None;
+          diag_end_column = None;
           diag_message = nw.Ast.nw_message;
           diag_expected = None;
           diag_actual = None;

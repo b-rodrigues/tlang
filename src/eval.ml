@@ -1939,9 +1939,11 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
          diag_node_id = Some name;
          diag_node_lang = None;
          diag_file = None;
-         diag_line = (match node_expr.loc with Some l -> Some l.line | None -> None);
-         diag_column = (match node_expr.loc with Some l -> Some l.column | None -> None);
-          diag_message = Printf.sprintf
+          diag_line = (match node_expr.loc with Some l -> Some l.line | None -> None);
+          diag_column = (match node_expr.loc with Some l -> Some l.column | None -> None);
+          diag_end_line = None;
+          diag_end_column = None;
+           diag_message = Printf.sprintf
             "expect() in node '%s' appears mid-chain and will be ignored. \
              Move it to the end of the pipe chain." name;
           diag_expected = None;

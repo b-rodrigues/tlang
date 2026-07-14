@@ -240,6 +240,8 @@ let validate_col_refs ~node_name ~(file : string option) ~schema expr =
         diag_file = file;
         diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
         diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
+        diag_end_line = None;
+        diag_end_column = None;
         diag_message = Printf.sprintf "Column '%s' referenced in node '%s' not found in input schema [%s]"
           col node_name (String.concat ", " (schema_names schema));
         diag_expected = None;
@@ -279,6 +281,8 @@ let validate_contracts ~file (p : pipeline_result) schemas =
               diag_file = Some file;
               diag_line = contract_line contract;
               diag_column = contract_column contract;
+              diag_end_line = None;
+              diag_end_column = None;
               diag_message = Printf.sprintf "Node '%s' contract expects columns [%s] but output schema is [%s]. Missing: [%s]"
                 node_name
                 (String.concat ", " required_cols)
@@ -309,6 +313,8 @@ let validate_contracts ~file (p : pipeline_result) schemas =
                   diag_file = Some file;
                   diag_line = contract_line contract;
                   diag_column = contract_column contract;
+                  diag_end_line = None;
+                  diag_end_column = None;
                   diag_message = Printf.sprintf "Node '%s' type contract for column '%s' (~ %s) cannot be verified statically: column type is unknown"
                     node_name col expected_type;
                   diag_expected = None;
@@ -328,6 +334,8 @@ let validate_contracts ~file (p : pipeline_result) schemas =
                     diag_file = Some file;
                     diag_line = contract_line contract;
                     diag_column = contract_column contract;
+                    diag_end_line = None;
+                    diag_end_column = None;
                     diag_message = Printf.sprintf "Node '%s' type contract for column '%s' expects ~ %s but output schema has type %s"
                       node_name col expected_type actual_type;
                     diag_expected = Some expected_type;
@@ -359,6 +367,8 @@ let validate_contracts ~file (p : pipeline_result) schemas =
               diag_file = Some file;
               diag_line = contract_line contract;
               diag_column = contract_column contract;
+              diag_end_line = None;
+              diag_end_column = None;
               diag_message = Printf.sprintf "Node '%s' null-rate contract for column '%s' (< %.2f) cannot be verified statically: requires runtime data"
                 node_name col threshold;
               diag_expected = None;
@@ -508,6 +518,8 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
                         diag_file = Some file;
                         diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
                         diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
+                        diag_end_line = None;
+                        diag_end_column = None;
                         diag_message = Printf.sprintf "Formula variable '%s' in %s() not found in input schema [%s]"
                           var fn_name (String.concat ", " (schema_names validation_schema));
                         diag_expected = None;
