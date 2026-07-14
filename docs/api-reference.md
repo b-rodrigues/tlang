@@ -3309,7 +3309,7 @@ t check --schema --env --json path/to/script.t  # combined: tier 1+2+3 in JSON
 
 The `tier` field is derived from the deepest phase that produced diagnostics: parse/wire errors yield `tier: 1`, schema errors yield `tier: 2`, and env/build/exec errors yield `tier: 3`. A clean run reports `"tier": 1` and `"phase": "wire"` as the default.
 
-Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node`, `file`, `span`, `message`, `expected`, `actual`, `caused_by`, and `suggested_fix`.
+Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node` (with nested `id`, `lang`, `file`, and `span` containing `start` and `end`), `message`, `expected`, `actual`, `caused_by`, and `suggested_fix`.
 
 **`error_class` enum values:** `structural_error`, `name_error`, `arity_error`, `type_error`, `parse_error`, `file_error`, `key_error`, `index_error`, `value_error`, `runtime_error`, `division_by_zero`, `assertion_error`, `match_error`, `shell_error`, `aggregation_error`, `na_predicate_error`, `missing_artifact`, `generic_error`, `schema_mismatch`, `contract_violation`, `contract_unverifiable`, `missing_tproject`, `missing_package`, `missing_from_lockfile`, `nix_generation_error`, `nix_eval_error`, `invalid_expect_placement`, `na_warning`, `unknown_error`.
 

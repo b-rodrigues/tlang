@@ -120,6 +120,8 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     diag_file = Some "test.t";
     diag_line = Some 5;
     diag_column = Some 10;
+    diag_end_line = None;
+    diag_end_column = None;
     diag_message = "test message";
     diag_expected = None;
     diag_actual = None;
@@ -154,6 +156,26 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   let actual_null = Yojson.Safe.Util.(json_none |> member "actual") in
   check "expected is null when None" (expected_null = `Null);
   check "actual is null when None" (actual_null = `Null);
+
+  Printf.printf "\nnode/span JSON structure:\n";
+  let json_node = Diagnostics.diagnostic_to_yojson test_diag in
+  let node_file = Yojson.Safe.Util.(json_node |> member "node" |> member "file" |> to_string_option) in
+  let node_id = Yojson.Safe.Util.(json_node |> member "node" |> member "id" |> to_string) in
+  let span_start = Yojson.Safe.Util.(json_node |> member "node" |> member "span" |> member "start") in
+  let span_end = Yojson.Safe.Util.(json_node |> member "node" |> member "span" |> member "end") in
+  check "node contains file" (node_file = Some "test.t");
+  check_eq "node contains id" node_id "my_node";
+  check "span has start array" (span_start = `List [`Int 5; `Int 10]);
+  check "span.end is null when no end position" (span_end = `Null);
+  check "top-level file field removed" (Yojson.Safe.Util.(json_node |> member "file") = `Null);
+
+  Printf.printf "\nerror_class_of_string fallback:\n";
+  check_eq "error_class_of_string: unknown string falls back to Unknown_error"
+    (Diagnostics.error_class_to_string (Diagnostics.error_class_of_string "totally_bogus")) "unknown_error";
+  check_eq "error_class_of_string: CamelCase TypeError maps to Type_error"
+    (Diagnostics.error_class_to_string (Diagnostics.error_class_of_string "TypeError")) "type_error";
+  check_eq "error_class_of_string: snake_case structural_error maps to Structural_error"
+    (Diagnostics.error_class_to_string (Diagnostics.error_class_of_string "structural_error")) "structural_error";
 
   Printf.printf "\nSchema check module:\n";
 
