@@ -63,25 +63,53 @@ id,region,amount,date,product
 
 Tell your agent what you want:
 
-> "Create a T pipeline that reads `data/sales.csv`, filters out zero and negative
-> amounts, converts the date column, groups by region, and summarizes total sales
-> per region. Add an expect() contract on the final output."
+> "Create a T pipeline that reads `data/sales.csv` with a T node, then uses Python
+> nodes to filter out zero and negative amounts, convert the date column, group by
+> region, and summarize total sales per region."
 
 The agent writes `pipeline.t`:
 
 ```t
-df = read_csv("data/sales.csv")
+p = pipeline {
+  raw = node(
+    command = read_csv("data/sales.csv"),
+    serializer = ^csv
+  )
 
-clean = df |>
-  filter($amount > 0) |>
-  mutate($date = as.Date($date)) |>
-  expect(columns = ["id", "region", "amount", "date", "product"])
+  clean = pyn(
+    command = <{
+import pandas as pd
+df = raw.copy()
+df = df[df["amount"] > 0]
+df["date"] = pd.to_datetme(df["date"])
+df
+    }>,
+    deserializer = ^csv,
+    serializer = ^csv
+  )
 
-summary = clean |>
-  group_by($region) |>
-  summarize(total = sum($amount)) |>
-  expect(columns = ["region", "total"])
+  summary = pyn(
+    command = <{
+import pandas as pd
+result = clean.groupby("region")["amount"].sum().reset_index()
+result.columns = ["region", "total"]
+result
+    }>,
+    deserializer = ^csv,
+    serializer = ^csv
+  )
+}
+
+build_pipeline(p)
 ```
+
+Notice the pipeline structure:
+- **`raw`** is a T node that reads the CSV (T handles file I/O natively)
+- **`clean`** is a Python node (`pyn`) that filters and transforms the data
+- **`summary`** is a Python node that groups and aggregates
+- Each Python node receives upstream data as a pandas DataFrame via `deserializer = ^csv`
+- The bare variable names (`raw`, `clean`) inside `<{ ... }>` blocks are auto-detected
+  as dependencies — T deserializes the upstream artifact and injects it as a variable
 
 > **What the human reviews:** Skim the pipeline. Does it do what you asked? Are the
 > node names clear? Is the data flow obvious? If the agent misunderstood the goal,
@@ -94,10 +122,52 @@ summary = clean |>
 The agent runs structural validation:
 
 ```bash
-$ t check --schema pipeline.t
+$ t check --json pipeline.t
 ```
 
-**If the pipeline has errors**, the agent gets structured JSON it can parse and fix:
+**The pipeline has a typo** — `pd.to_datetme` instead of `pd.to_datetime`:
+
+```json
+{
+  "schema_version": "1",
+  "status": "error",
+  "phase": "parse",
+  "tier": 1,
+  "diagnostics": [
+    {
+      "id": "T0101",
+      "error_class": "name_error",
+      "severity": "error",
+      "phase": "parse",
+      "node": {
+        "id": "clean",
+        "lang": "python",
+        "file": "pipeline.t",
+        "span": { "start": [12, 14], "end": [12, 30] }
+      },
+      "message": "Name 'pd.to_datetme' is not defined in node 'clean'",
+      "expected": null,
+      "actual": null,
+      "caused_by": [],
+      "suggested_fix": null
+    }
+  ]
+}
+```
+
+The agent sees:
+- **`error_class: "name_error"`** — an undefined name
+- **`node.id: "clean"`, `node.lang: "python"`** — the error is in the Python node
+- **`span: [12, 14]`** — line 12, column 14 in the pipeline file
+
+No `suggested_fix` for typos — the agent has to fix this itself. It corrects
+`pd.to_datetme` to `pd.to_datetime` and re-checks:
+
+```bash
+$ t check --json pipeline.t
+```
+
+Now a different error surfaces:
 
 ```json
 {
@@ -108,114 +178,47 @@ $ t check --schema pipeline.t
   "diagnostics": [
     {
       "id": "T0142",
-      "error_class": "name_error",
+      "error_class": "schema_mismatch",
       "severity": "error",
       "phase": "schema",
       "node": {
-        "id": "clean",
-        "lang": "t",
-        "file": "pipeline.t",
-        "span": { "start": [6, 14], "end": [6, 25] }
-      },
-      "message": "Function 'as.Date' is not defined. Did you mean 'as_date'?",
-      "expected": null,
-      "actual": null,
-      "caused_by": [],
-      "suggested_fix": {
-        "kind": "rename_column",
-        "old_name": "as.Date",
-        "new_name": "as_date",
-        "target_node": "clean"
-      }
-    }
-  ]
-}
-```
-
-The agent sees:
-- **`error_class: "name_error"`** — a function doesn't exist
-- **`node.id: "clean"`** — the error is in the `clean` node
-- **`span: [6, 14]`** — line 6, column 14
-- **`suggested_fix`** — rename `as.Date` to `as_date`
-
-The agent fixes it and re-checks:
-
-```bash
-$ t check --schema pipeline.t
-```
-
-Now it hits the next issue:
-
-```json
-{
-  "schema_version": "1",
-  "status": "error",
-  "phase": "schema",
-  "tier": 2,
-  "diagnostics": [
-    {
-      "id": "T0201",
-      "error_class": "na_predicate_error",
-      "severity": "warning",
-      "phase": "schema",
-      "node": {
         "id": "summary",
-        "lang": "t",
+        "lang": "python",
         "file": "pipeline.t",
-        "span": { "start": [12, 22], "end": [12, 36] }
+        "span": { "start": [20, 20], "end": [20, 40] }
       },
-      "message": "Function 'sum' in node 'summary' may propagate NA values. Consider adding na_rm = true.",
-      "expected": null,
-      "actual": null,
+      "message": "Column 'amount' expected type <double>, node 'clean' declares <string>",
+      "expected": { "kind": "arrow_type", "value": "double" },
+      "actual": { "kind": "arrow_type", "value": "string" },
       "caused_by": ["clean"],
       "suggested_fix": {
-        "kind": "add_node_arg",
-        "node": "summary",
-        "arg": "na_rm = true",
-        "target_node": "summary"
+        "kind": "cast",
+        "target_node": "clean",
+        "column": "amount",
+        "cast_to": "double"
       }
     }
-  ]
   ]
 }
 ```
 
 The agent sees:
-- **`error_class: "na_predicate_error"`** — NA propagation risk
-- **`caused_by: ["clean"]`** — the upstream `clean` node might produce NAs
-- **`suggested_fix`** — add `na_rm = true` to the `sum()` call
+- **`error_class: "schema_mismatch"`** — column type doesn't match downstream expectations
+- **`expected: "double"`, `actual: "string"`** — the `summary` node expects a numeric
+  `amount` column, but `clean` is producing it as a string
+- **`caused_by: ["clean"]`** — the upstream `clean` node is the source
+- **`suggested_fix`** — cast `amount` to double in the `clean` node
 
-The agent can apply this fix automatically with `t fix`, or edit manually.
+The agent fixes the upstream Python code to ensure `amount` stays numeric:
 
-> **What the human reviews:** The agent should show you what it's changing and why.
-> Check that the fixes make sense — a `rename_column` fix is usually safe, but
-> `add_node_arg` changes the function's behavior (NA handling). Make sure the agent
-> explains what `na_rm = true` does.
-
----
-
-## Step 3: Agent applies fixes with `t fix`
-
-The agent can preview fixes before applying:
-
-```bash
-$ t fix --dry-run pipeline.t
-dry-run: would apply 1 fix to pipeline.t:
-  [Add_node_arg] line 12: add na_rm = true to summary
+```python
+df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
 ```
 
-If it looks right, apply:
+Re-check:
 
 ```bash
-$ t fix pipeline.t
-Applied 1 fix(es), skipped 0.
-Run 't check pipeline.t' to verify.
-```
-
-Re-validate:
-
-```bash
-$ t check --schema pipeline.t
+$ t check --json pipeline.t
 ```
 
 ```json
@@ -230,17 +233,46 @@ $ t check --schema pipeline.t
 
 **Clean.** The pipeline is structurally sound. Time to build.
 
-> **What the human reviews:** Run `git diff` to see what `t fix` changed. The fix
-> is mechanical — it inserted a comma-separated argument — but you should confirm
-> the agent's intent matches the change.
+> **What the human reviews:** The agent should show you what it's changing and why.
+> A `cast` fix changes the data types flowing between nodes — make sure the agent
+> understands *why* the type mismatch happened, not just *how* to suppress it.
+
+---
+
+## Step 3: Agent applies fixes (or edits manually)
+
+In this case the agent edited the Python code directly (fixing the typo and adding
+`pd.to_numeric`). No `t fix` needed — the `suggested_fix` was a `cast`, but the agent
+chose to fix the root cause in the upstream node instead.
+
+If `t fix` had been applicable, the agent would preview first:
+
+```bash
+$ t fix --dry-run pipeline.t
+dry-run: would apply 1 fix to pipeline.t:
+  [Cast] line 20: cast column 'amount' to double in node 'clean'
+```
+
+Then apply:
+
+```bash
+$ t fix pipeline.t
+Applied 1 fix(es), skipped 0.
+Run 't check pipeline.t' to verify.
+```
+
+> **What the human reviews:** Always ask the agent to run `t fix --dry-run` before
+> applying. A `cast` fix inserts a `mutate()` call — mechanical, but you should
+> confirm it matches your intent. Sometimes fixing the root cause (as the agent did
+> here) is better than applying the suggested fix.
 
 ---
 
 ## Step 4: Human reviews, agent builds with `t run`
 
 Now that `t check --schema` passes, the pipeline is safe to build. This is the step
-that triggers Nix — it will download dependencies, build each node's environment, and
-execute the pipeline.
+that triggers Nix — it will download Python dependencies, build each node's sandbox,
+and execute the pipeline.
 
 ```bash
 $ t run pipeline.t
@@ -249,16 +281,17 @@ $ t run pipeline.t
 Output:
 
 ```
-Node 'df' building...
-Node 'df' completed (0.3s)
-Node 'clean' building...
-Node 'clean' completed (1.2s)
-Node 'summary' building...
-Node 'summary' completed (0.8s)
+Node 'raw' building...
+Node 'raw' completed (0.3s)
+Node 'clean' building... (Python environment)
+Node 'clean' completed (4.2s)
+Node 'summary' building... (Python environment)
+Node 'summary' completed (2.1s)
 Pipeline complete. 3/3 nodes succeeded.
 ```
 
 The pipeline ran successfully. Each node built its Nix environment and executed.
+The Python nodes took longer because Nix set up a Python environment with pandas.
 
 > **What the human reviews:** Check the output — did all nodes succeed? If a node
 > failed, the error message tells you which node and why. The agent should parse
@@ -277,7 +310,7 @@ $ t diff pipeline.t
 
 ```
 Name          Status    Class_a  Class_b
-df            Unchanged T        T
+raw           Unchanged T        T
 clean         Unchanged T        T
 summary       Unchanged T        T
 ```
@@ -287,7 +320,7 @@ After an edit, you'd see:
 
 ```
 Name          Status    Class_a  Class_b
-df            Unchanged T        T
+raw           Unchanged T        T
 clean         Changed   T        T
 summary       Changed   T        T
 ```
@@ -297,7 +330,7 @@ This tells you the blast radius: your edit to `clean` cascaded to `summary`.
 For programmatic access, use `diff_summary()` in the REPL:
 
 ```t
-p = pipeline { ... }
+p = build_pipeline(pipeline { ... })
 d = diff_summary(p)
 # Returns a DataFrame with columns: name, status, hash_a, hash_b
 ```
@@ -312,12 +345,13 @@ d = diff_summary(p)
 
 Say you want to add a `product` breakdown. You tell the agent:
 
-> "Add a second summary grouped by product instead of region."
+> "Add a fourth node that groups by product and sums the amount, same pattern as
+> the region summary."
 
-The agent edits `pipeline.t`, then immediately runs:
+The agent edits `pipeline.t`, adding a `by_product` Python node. It immediately runs:
 
 ```bash
-$ t check --schema pipeline.t
+$ t check --json pipeline.t
 ```
 
 If clean, it builds:
@@ -334,7 +368,7 @@ $ t diff pipeline.t
 
 ```
 Name          Status    Class_a  Class_b
-df            Unchanged T        T
+raw           Unchanged T        T
 clean         Unchanged T        T
 summary       Unchanged T        T
 by_product    Added     -        T
@@ -374,19 +408,20 @@ NDJSON events so the agent can react to the first failure without waiting:
 $ t run --json pipeline.t 2>/dev/null
 ```
 
-Each line is a JSON object:
+Each line is a JSON object. First, the run starts:
 
 ```json
-{"schema_version":"1.0","seq":1,"ts":"2026-07-14T12:00:00.000Z","event":"run_started","file":"pipeline.t","nodes":[{"id":"df","lang":"t"},{"id":"clean","lang":"t","depends_on":["df"]},{"id":"summary","lang":"t","depends_on":["clean"]}]}
+{"schema_version":"1.0","seq":1,"ts":"2026-07-14T12:00:00.000Z","event":"run_started","file":"pipeline.t","nodes":[{"id":"raw","lang":"t"},{"id":"clean","lang":"python","depends_on":["raw"]},{"id":"summary","lang":"python","depends_on":["clean"]}]}
 ```
 
 If a node fails:
 
 ```json
-{"schema_version":"1.0","seq":2,"ts":"2026-07-14T12:00:05.123Z","event":"node_failed","node":{"id":"clean","lang":"t"},"error_class":"runtime_error","message":"Column 'date' not found","log_tail":"...last 200 lines of build log..."}
+{"schema_version":"1.0","seq":2,"ts":"2026-07-14T12:00:05.123Z","event":"node_failed","node":{"id":"clean","lang":"python"},"error_class":"nix_error","message":"Nix build failed for node 'clean'","log_tail":"pandas.errors.ParserError: Error tokenizing data..."}
 ```
 
-The agent can parse this and react immediately — no need to wait for the full build.
+The `log_tail` contains the last 200 lines of the build log — enough to see the
+actual Python traceback without flooding the output.
 
 When everything finishes:
 
@@ -406,9 +441,8 @@ The `root_causes` field tells the agent which node is the actual source of the f
 - **Be specific about data shapes.** "The CSV has columns id, region, amount, date,
   product" is better than "read a CSV." The agent generates better code when it
   knows the schema.
-- **Ask for `expect()` contracts.** Agents won't add them by default. Tell it:
-  "Add an expect() on the final output with columns X, Y, Z." This catches schema
-  drift on future edits.
+- **Say which runtime to use.** "Use Python nodes for the processing" or "Use R for
+  the model training." The agent defaults to T-native code if you don't specify.
 - **Tell it to run `t check` before `t run`.** The agent should always validate
   structurally before building. Most agents will do this if you set the expectation.
 - **Correct early.** If the agent misunderstands the goal, fix it before it generates
@@ -416,7 +450,7 @@ The `root_causes` field tells the agent which node is the actual source of the f
 
 ### What to watch for
 
-- **The agent may not run `t check` automatically.** Remind it: "Run `t check --schema`
+- **The agent may not run `t check` automatically.** Remind it: "Run `t check --json`
   before building."
 - **The agent may not parse JSON output.** If it runs `t check --json` and ignores the
   diagnostics, tell it to parse the `diagnostics` array.
@@ -428,10 +462,10 @@ The `root_causes` field tells the agent which node is the actual source of the f
 
 | Mistake | How to catch it |
 |---------|----------------|
-| Uses a function that doesn't exist | `t check` catches it as `name_error` |
-| Missing `na_rm` on aggregate functions | `t check --schema` warns with `na_predicate_error` |
-| Wrong column name | `t check --schema` catches it as `schema_mismatch` |
-| Broken pipe chain | `t check` catches it as `structural_error` |
+| Typo in Python/pandas function name | `t check` catches it as `name_error` |
+| Wrong column name in downstream node | `t check --schema` catches it as `schema_mismatch` |
+| Missing serializer on a node | `t check` catches it as `structural_error` |
+| Wrong deserializer format | `t check` catches it as `structural_error` |
 | Forgets `expect()` contracts | Run `t check --schema` — it validates contracts |
 
 ### When to step in
@@ -469,11 +503,25 @@ The `root_causes` field tells the agent which node is the actual source of the f
 | 2 | Schema error — column/type mismatch |
 | 3 | Env error — Nix environment problem |
 
+### Node constructors
+
+| Constructor | Runtime | Syntax for code |
+|-------------|---------|-----------------|
+| `node()` | T | `command = expr` (no wrapping needed) |
+| `pyn()` | Python | `command = <{ ... }>` (raw code block) |
+| `rn()` | R | `command = <{ ... }>` (raw code block) |
+| `jln()` | Julia | `command = <{ ... }>` (raw code block) |
+| `shn()` | shell | `command = <{ ... }>` (raw code block) |
+| `qn()` | Quarto | `script = "file.qmd"` |
+
+All node constructors also accept `serializer`, `deserializer`, `env_vars`, and `deps`.
+
 ---
 
 ## Further reading
 
 - [LLM Collaboration Guide](llm-collaboration.md) — full reference for all agent-oriented features
 - [API Reference](api-reference.md) — `t check`, `t run`, `t diff`, `t fix` CLI docs
+- [Pipeline Tutorial](pipeline_tutorial.md) — step-by-step guide to pipelines
 - [Nix Installation](nix-installation.md) — setup instructions if Nix isn't working
 - [Spec: Agent-Facing Verification Surface](../spec_files/path-to-0.54.1.md) — the design rationale behind this workflow
