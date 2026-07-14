@@ -1,5 +1,49 @@
 (* src/pipeline/builder_utils.ml *)
 
+(* --- Shared string helpers for nix-build line parsing --- *)
+
+let contains_substring line pattern =
+  try
+    let len_p = String.length pattern in
+    let len_l = String.length line in
+    let rec loop i =
+      if i + len_p > len_l then false
+      else if String.sub line i len_p = pattern then true
+      else loop (i + 1)
+    in
+    loop 0
+  with _ -> false
+
+let contains_substring_idx line pattern =
+  let len_p = String.length pattern in
+  let len_l = String.length line in
+  let rec loop i =
+    if i + len_p > len_l then -1
+    else if String.sub line i len_p = pattern then i
+    else loop (i + 1)
+  in
+  loop 0
+
+let extract_nix_drv_path line =
+  try
+    let start_idx = contains_substring_idx line "/nix/store/" in
+    if start_idx >= 0 then
+      let sub = String.sub line start_idx (String.length line - start_idx) in
+      let end_idx = try String.index sub '\'' with _ ->
+                    try String.index sub ' ' with _ ->
+                    String.length sub in
+      String.sub sub 0 end_idx
+    else ""
+  with _ -> ""
+
+(* --- Nix build line classification --- *)
+
+type nix_line_event =
+  | Build_start of { node_name : string }
+  | Build_complete of { node_name : string }
+  | Build_error of { node_name : string }
+  | Nix_line_other
+
 type nix_opts = {
   targets   : Ast.value option;
   force     : Ast.value option;

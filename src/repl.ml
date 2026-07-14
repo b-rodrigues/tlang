@@ -637,10 +637,15 @@ let cmd_run ?(unsafe=false) ?failfast ?(json=false) mode filename env =
   flush_warnings_to_out ();
   match result with
   | Ast.VError _ ->
-      if json then exit 1
-      else Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
+      if json then
+        exit 1
+      else begin
+        Printf.eprintf "%s" (Pretty_print.pretty_print_value result);
+        exit 1
+      end
   | Ast.(VNA NAGeneric) -> ()
-  | v -> if not json then print_string (Pretty_print.pretty_print_value v)
+  | v ->
+      if not json then print_string (Pretty_print.pretty_print_value v)
 
 let cmd_run_expr ?failfast mode expr env =
   Packages.ensure_docs_loaded ();

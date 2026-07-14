@@ -48,6 +48,25 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   );
   check "timestamp ends with Z" (ts.[String.length ts - 1] = 'Z');
 
+  Printf.printf "\niso8601_timestamp ms:\n";
+  let ts1 = Ndjson_stream.iso8601_timestamp () in
+  let ts2 = Ndjson_stream.iso8601_timestamp () in
+  let ms_sub s = String.sub s 20 3 in
+  check "timestamp ms is not always 000" (ms_sub ts1 <> "000" || ms_sub ts2 <> "000");
+  check "two timestamps can differ in ms" (ts1 <> ts2 || ms_sub ts1 <> "000");
+
+  Printf.printf "\nerror_class enum:\n";
+  check "Nix_error serializes to nix_error"
+    (Diagnostics.error_class_to_string Diagnostics.Nix_error = "nix_error");
+  check "NixError deserializes to Nix_error"
+    (Diagnostics.error_class_of_string "NixError" = Diagnostics.Nix_error);
+  check "nix_error deserializes to Nix_error"
+    (Diagnostics.error_class_of_string "nix_error" = Diagnostics.Nix_error);
+  check "unknown string deserializes to Unknown_error"
+    (Diagnostics.error_class_of_string "bogus_class" = Diagnostics.Unknown_error);
+  check "Type_error serializes to type_error"
+    (Diagnostics.error_class_to_string Diagnostics.Type_error = "type_error");
+
   Printf.printf "\nlog_path_for_node:\n";
   let lp = Ndjson_stream.log_path_for_node "my_node" in
   check "log path contains node name" (lp = "_pipeline/logs/my_node.log");

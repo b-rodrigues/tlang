@@ -22,11 +22,13 @@ let next_seq () =
 (* --- Helpers --- *)
 
 let iso8601_timestamp () =
-  let tm = Unix.gmtime (Unix.gettimeofday ()) in
+  let t = Unix.gettimeofday () in
+  let tm = Unix.gmtime t in
+  let ms = int_of_float (Float.rem t 1.0 *. 1000.0) in
   Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ"
     (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
     tm.tm_hour tm.tm_min tm.tm_sec
-    0
+    ms
 
 let emit_json json =
   let line = Yojson.Safe.to_string json in
