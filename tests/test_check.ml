@@ -169,6 +169,18 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check "span.end is null when no end position" (span_end = `Null);
   check "top-level file field removed" (Yojson.Safe.Util.(json_node |> member "file") = `Null);
 
+  Printf.printf "\nnode without node_id:\n";
+  let test_diag_no_node = { test_diag with Diagnostics.diag_node_id = None } in
+  let json_no_node = Diagnostics.diagnostic_to_yojson test_diag_no_node in
+  let no_node_obj = Yojson.Safe.Util.(json_no_node |> member "node") in
+  check "node object always present" (no_node_obj <> `Null);
+  let no_node_id = Yojson.Safe.Util.(no_node_obj |> member "id") in
+  check "node.id is null without node" (no_node_id = `Null);
+  let no_node_file = Yojson.Safe.Util.(no_node_obj |> member "file" |> to_string_option) in
+  check "node.file still present without node" (no_node_file = Some "test.t");
+  let no_node_span = Yojson.Safe.Util.(no_node_obj |> member "span" |> member "start") in
+  check "node.span.start still present without node" (no_node_span = `List [`Int 5; `Int 10]);
+
   Printf.printf "\nerror_class_of_string fallback:\n";
   check_eq "error_class_of_string: unknown string falls back to Unknown_error"
     (Diagnostics.error_class_to_string (Diagnostics.error_class_of_string "totally_bogus")) "unknown_error";
