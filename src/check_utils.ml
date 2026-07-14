@@ -133,7 +133,7 @@ let format_check_result ?(json=false) check_result =
       Buffer.add_string buf
         (Printf.sprintf "%s [%s] %s\n"
            (Diagnostics.severity_to_string (Diagnostics.diagnostic_severity d))
-           (Diagnostics.diagnostic_error_class d)
+           (Diagnostics.error_class_to_string (Diagnostics.diagnostic_error_class d))
            (Diagnostics.diagnostic_message d))
     ) cr_diags;
     if cr_diags <> [] then Buffer.add_char buf '\n';

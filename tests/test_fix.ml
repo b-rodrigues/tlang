@@ -96,7 +96,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   Printf.printf "\nsort_fixes_by_descending_line:\n";
   let test_sort_fixes () =
     let d1 = { Diagnostics.
-      diag_id = "T0001"; diag_error_class = "contract_violation"; diag_severity = Error;
+      diag_id = "T0001"; diag_error_class = Diagnostics.Contract_violation; diag_severity = Error;
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some "test.t"; diag_line = Some 3; diag_column = None;
       diag_message = "first"; diag_expected = None; diag_actual = None;
@@ -140,7 +140,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   Printf.printf "\ndry-run counting:\n";
   let test_dry_run_counting () =
     let d1 = { Diagnostics.
-      diag_id = "T1001"; diag_error_class = "contract_violation"; diag_severity = Error;
+      diag_id = "T1001"; diag_error_class = Diagnostics.Contract_violation; diag_severity = Error;
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some "test.t"; diag_line = Some 5; diag_column = None;
       diag_message = "Column 'x' expected double, got int";
@@ -166,7 +166,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     output_string oc "clean = raw\n  |> read_csv(\"data.csv\")\n  |> expect(x = \"double\")\n";
     close_out oc;
     let d1 = { Diagnostics.
-      diag_id = "T1003"; diag_error_class = "contract_violation"; diag_severity = Error;
+      diag_id = "T1003"; diag_error_class = Diagnostics.Contract_violation; diag_severity = Error;
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some tmp_cast; diag_line = Some 3; diag_column = None;
       diag_message = "type mismatch"; diag_expected = None; diag_actual = None;

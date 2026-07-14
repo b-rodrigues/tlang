@@ -5,6 +5,99 @@ type diagnostic_phase = Parse | Wire | Schema | Env | Build | Exec
 
 type severity = Error | Warning
 
+type error_class =
+  | Structural_error
+  | Name_error
+  | Arity_error
+  | Type_error
+  | Parse_error
+  | File_error
+  | Key_error
+  | Index_error
+  | Value_error
+  | Runtime_error
+  | Division_by_zero
+  | Assertion_error
+  | Match_error
+  | Shell_error
+  | Aggregation_error
+  | Na_predicate_error
+  | Missing_artifact
+  | Generic_error
+  | Schema_mismatch
+  | Contract_violation
+  | Contract_unverifiable
+  | Missing_tproject
+  | Missing_package
+  | Missing_from_lockfile
+  | Nix_generation_error
+  | Nix_eval_error
+  | Invalid_expect_placement
+  | Na_warning
+  | Unknown_error
+
+let error_class_to_string = function
+  | Structural_error -> "structural_error"
+  | Name_error -> "name_error"
+  | Arity_error -> "arity_error"
+  | Type_error -> "type_error"
+  | Parse_error -> "parse_error"
+  | File_error -> "file_error"
+  | Key_error -> "key_error"
+  | Index_error -> "index_error"
+  | Value_error -> "value_error"
+  | Runtime_error -> "runtime_error"
+  | Division_by_zero -> "division_by_zero"
+  | Assertion_error -> "assertion_error"
+  | Match_error -> "match_error"
+  | Shell_error -> "shell_error"
+  | Aggregation_error -> "aggregation_error"
+  | Na_predicate_error -> "na_predicate_error"
+  | Missing_artifact -> "missing_artifact"
+  | Generic_error -> "generic_error"
+  | Schema_mismatch -> "schema_mismatch"
+  | Contract_violation -> "contract_violation"
+  | Contract_unverifiable -> "contract_unverifiable"
+  | Missing_tproject -> "missing_tproject"
+  | Missing_package -> "missing_package"
+  | Missing_from_lockfile -> "missing_from_lockfile"
+  | Nix_generation_error -> "nix_generation_error"
+  | Nix_eval_error -> "nix_eval_error"
+  | Invalid_expect_placement -> "invalid_expect_placement"
+  | Na_warning -> "na_warning"
+  | Unknown_error -> "unknown_error"
+
+let error_class_of_string = function
+  | "structural_error" | "StructuralError" -> Structural_error
+  | "name_error" | "NameError" -> Name_error
+  | "arity_error" | "ArityError" -> Arity_error
+  | "type_error" | "TypeError" -> Type_error
+  | "parse_error" | "SyntaxError" -> Parse_error
+  | "file_error" | "FileError" -> File_error
+  | "key_error" | "KeyError" -> Key_error
+  | "index_error" | "IndexError" -> Index_error
+  | "value_error" | "ValueError" -> Value_error
+  | "runtime_error" | "RuntimeError" -> Runtime_error
+  | "division_by_zero" | "DivisionByZero" -> Division_by_zero
+  | "assertion_error" | "AssertionError" -> Assertion_error
+  | "match_error" | "MatchError" -> Match_error
+  | "shell_error" | "ShellError" -> Shell_error
+  | "aggregation_error" | "AggregationError" -> Aggregation_error
+  | "na_predicate_error" | "NAPredicateError" -> Na_predicate_error
+  | "missing_artifact" | "MissingArtifactError" -> Missing_artifact
+  | "generic_error" | "GenericError" -> Generic_error
+  | "schema_mismatch" -> Schema_mismatch
+  | "contract_violation" -> Contract_violation
+  | "contract_unverifiable" -> Contract_unverifiable
+  | "missing_tproject" -> Missing_tproject
+  | "missing_package" -> Missing_package
+  | "missing_from_lockfile" -> Missing_from_lockfile
+  | "nix_generation_error" -> Nix_generation_error
+  | "nix_eval_error" -> Nix_eval_error
+  | "invalid_expect_placement" -> Invalid_expect_placement
+  | "na_warning" | "NAExcluded" -> Na_warning
+  | _ -> Unknown_error
+
 type suggested_fix =
   | Cast of { column: string; cast_to: string; target_node: string option; file: string option; line: int option }
   | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option }
@@ -14,7 +107,7 @@ type suggested_fix =
 
 type diagnostic = {
   diag_id : string;
-  diag_error_class : string;
+  diag_error_class : error_class;
   diag_severity : severity;
   diag_phase : diagnostic_phase;
   diag_node_id : string option;
@@ -157,7 +250,7 @@ let suggested_fix_of_yojson json =
 let diagnostic_to_yojson d =
   `Assoc [
     ("id", `String d.diag_id);
-    ("error_class", `String d.diag_error_class);
+    ("error_class", `String (error_class_to_string d.diag_error_class));
     ("severity", severity_to_yojson d.diag_severity);
     ("phase", phase_to_yojson d.diag_phase);
     ("node", (match d.diag_node_id with
@@ -205,24 +298,24 @@ let error_code_to_phase code =
 
 let error_code_to_error_class code =
   match code with
-  | Ast.StructuralError -> "structural_error"
-  | Ast.NameError -> "name_error"
-  | Ast.ArityError -> "arity_error"
-  | Ast.TypeError -> "type_error"
-  | Ast.SyntaxError -> "parse_error"
-  | Ast.FileError -> "file_error"
-  | Ast.KeyError -> "key_error"
-  | Ast.IndexError -> "index_error"
-  | Ast.ValueError -> "value_error"
-  | Ast.RuntimeError -> "runtime_error"
-  | Ast.DivisionByZero -> "division_by_zero"
-  | Ast.AssertionError -> "assertion_error"
-  | Ast.MatchError -> "match_error"
-  | Ast.ShellError -> "shell_error"
-  | Ast.AggregationError -> "aggregation_error"
-  | Ast.NAPredicateError -> "na_predicate_error"
-  | Ast.MissingArtifactError -> "missing_artifact"
-  | Ast.GenericError -> "generic_error"
+  | Ast.StructuralError -> Structural_error
+  | Ast.NameError -> Name_error
+  | Ast.ArityError -> Arity_error
+  | Ast.TypeError -> Type_error
+  | Ast.SyntaxError -> Parse_error
+  | Ast.FileError -> File_error
+  | Ast.KeyError -> Key_error
+  | Ast.IndexError -> Index_error
+  | Ast.ValueError -> Value_error
+  | Ast.RuntimeError -> Runtime_error
+  | Ast.DivisionByZero -> Division_by_zero
+  | Ast.AssertionError -> Assertion_error
+  | Ast.MatchError -> Match_error
+  | Ast.ShellError -> Shell_error
+  | Ast.AggregationError -> Aggregation_error
+  | Ast.NAPredicateError -> Na_predicate_error
+  | Ast.MissingArtifactError -> Missing_artifact
+  | Ast.GenericError -> Generic_error
 
 let extract_node_name_from_message msg =
   let patterns = [
@@ -292,7 +385,7 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
       | Some ne ->
           [{
             diag_id = gen_id ();
-            diag_error_class = ne.Ast.ne_kind;
+            diag_error_class = error_class_of_string ne.Ast.ne_kind;
             diag_severity = Error;
             diag_phase = Exec;
             diag_node_id = Some name;
@@ -316,9 +409,9 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
       else
         let diag_error_class, diag_phase =
           match nw.Ast.nw_kind with
-          | "invalid_expect_placement" -> nw.Ast.nw_kind, Wire
-          | "NAExcluded" -> "na_warning", Exec
-          | other -> other, Exec
+          | "invalid_expect_placement" -> Invalid_expect_placement, Wire
+          | "NAExcluded" -> Na_warning, Exec
+          | other -> error_class_of_string other, Exec
         in
         Some ({
           diag_id = gen_id ();

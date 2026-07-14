@@ -40,7 +40,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     end
   in
   check_eq "of_verror: error_class maps to structural_error"
-    (Diagnostics.diagnostic_error_class d) "structural_error";
+    (Diagnostics.error_class_to_string (Diagnostics.diagnostic_error_class d)) "structural_error";
   check_eq "of_verror: phase maps to Wire for StructuralError"
     (Diagnostics.phase_to_string (Diagnostics.diagnostic_phase d)) "wire";
   check_eq "of_verror: severity is Error"
@@ -112,7 +112,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   (* Test accessor functions work correctly *)
   let test_diag = {
     Diagnostics.diag_id = "T0001";
-    diag_error_class = "test_error";
+    diag_error_class = Unknown_error;
     diag_severity = Diagnostics.Warning;
     diag_phase = Diagnostics.Exec;
     diag_node_id = Some "my_node";
@@ -131,7 +131,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check_eq "diagnostic_severity accessor"
     (Diagnostics.severity_to_string (Diagnostics.diagnostic_severity test_diag)) "warning";
   check_eq "diagnostic_error_class accessor"
-    (Diagnostics.diagnostic_error_class test_diag) "test_error";
+    (Diagnostics.error_class_to_string (Diagnostics.diagnostic_error_class test_diag)) "unknown_error";
   check_eq "diagnostic_message accessor"
     (Diagnostics.diagnostic_message test_diag) "test message";
 
@@ -303,7 +303,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     | _ -> []
   in
   let e2e_has_warn = List.exists (fun d ->
-    d.Diagnostics.diag_error_class = "invalid_expect_placement"
+    d.Diagnostics.diag_error_class = Diagnostics.Invalid_expect_placement
     && d.Diagnostics.diag_phase = Diagnostics.Wire
   ) e2e_diags in
   check "of_pipeline_result surfaces invalid_expect_placement diagnostic" e2e_has_warn;
@@ -315,7 +315,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     | _ -> []
   in
   let e2e_no_spurious = not (List.exists (fun d ->
-    d.Diagnostics.diag_error_class = "invalid_expect_placement"
+    d.Diagnostics.diag_error_class = Diagnostics.Invalid_expect_placement
   ) e2e_terminal_diags) in
   check "of_pipeline_result: no spurious diagnostic for terminal expect" e2e_no_spurious;
   Ast.check_mode := false;
@@ -462,7 +462,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   let nr_is_warning = match nr_diags with
     | d :: _ ->
         d.Diagnostics.diag_severity = Diagnostics.Warning
-        && d.Diagnostics.diag_error_class = "contract_unverifiable"
+        && d.Diagnostics.diag_error_class = Diagnostics.Contract_unverifiable
     | [] -> false
   in
   check "null-rate contract: warning has contract_unverifiable class" nr_is_warning;

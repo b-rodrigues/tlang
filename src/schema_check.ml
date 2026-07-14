@@ -232,7 +232,7 @@ let validate_col_refs ~node_name ~(file : string option) ~schema expr =
       if schema_has_col col schema then None
       else Some (Diagnostics.{
         diag_id = Diagnostics.gen_id ();
-        diag_error_class = "schema_mismatch";
+        diag_error_class = Schema_mismatch;
         diag_severity = Error;
         diag_phase = Schema;
         diag_node_id = Some node_name;
@@ -271,7 +271,7 @@ let validate_contracts ~file (p : pipeline_result) schemas =
           if missing <> [] then
             Some (Diagnostics.{
               diag_id = Diagnostics.gen_id ();
-              diag_error_class = "contract_violation";
+              diag_error_class = Contract_violation;
               diag_severity = Error;
               diag_phase = Schema;
               diag_node_id = Some node_name;
@@ -301,7 +301,7 @@ let validate_contracts ~file (p : pipeline_result) schemas =
                 (* Type unknown — emit warning, not error *)
                 Some (Diagnostics.{
                   diag_id = Diagnostics.gen_id ();
-                  diag_error_class = "contract_unverifiable";
+                  diag_error_class = Contract_unverifiable;
                   diag_severity = Warning;
                   diag_phase = Schema;
                   diag_node_id = Some node_name;
@@ -320,7 +320,7 @@ let validate_contracts ~file (p : pipeline_result) schemas =
                 if actual_type <> expected_type then
                   Some (Diagnostics.{
                     diag_id = Diagnostics.gen_id ();
-                    diag_error_class = "contract_violation";
+                    diag_error_class = Contract_violation;
                     diag_severity = Error;
                     diag_phase = Schema;
                     diag_node_id = Some node_name;
@@ -351,7 +351,7 @@ let validate_contracts ~file (p : pipeline_result) schemas =
           List.map (fun (col, threshold) ->
             Diagnostics.{
               diag_id = Diagnostics.gen_id ();
-              diag_error_class = "contract_unverifiable";
+              diag_error_class = Contract_unverifiable;
               diag_severity = Warning;
               diag_phase = Schema;
               diag_node_id = Some node_name;
@@ -500,7 +500,7 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
                     if not (schema_has_col var validation_schema) then
                       Some (Diagnostics.{
                         diag_id = Diagnostics.gen_id ();
-                        diag_error_class = "schema_mismatch";
+                        diag_error_class = Schema_mismatch;
                         diag_severity = Error;
                         diag_phase = Schema;
                         diag_node_id = Some name;
