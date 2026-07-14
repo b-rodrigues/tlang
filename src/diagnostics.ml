@@ -23,6 +23,8 @@ type diagnostic = {
   diag_line : int option;
   diag_column : int option;
   diag_message : string;
+  diag_expected : string option;
+  diag_actual : string option;
   diag_caused_by : string list;
   diag_suggested_fix : suggested_fix;
 }
@@ -171,6 +173,12 @@ let diagnostic_to_yojson d =
         ]
       | None -> `Null));
     ("message", `String d.diag_message);
+    ("expected", (match d.diag_expected with
+      | Some v -> `Assoc [("kind", `String "arrow_type"); ("value", `String v)]
+      | None -> `Null));
+    ("actual", (match d.diag_actual with
+      | Some v -> `Assoc [("kind", `String "arrow_type"); ("value", `String v)]
+      | None -> `Null));
     ("caused_by", `List (List.map (fun s -> `String s) d.diag_caused_by));
     ("suggested_fix", suggested_fix_to_yojson d.diag_suggested_fix);
   ]
@@ -272,6 +280,8 @@ let of_verror ?file (err : Ast.error_info) : diagnostic =
     diag_line = (match err.location with Some l -> Some l.Ast.line | None -> None);
     diag_column = (match err.location with Some l -> Some l.Ast.column | None -> None);
     diag_message = err.message;
+    diag_expected = None;
+    diag_actual = None;
     diag_caused_by = caused_by;
     diag_suggested_fix = suggested_fix;
   }
@@ -291,6 +301,8 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
             diag_line = None;
             diag_column = None;
             diag_message = ne.Ast.ne_message;
+            diag_expected = None;
+            diag_actual = None;
             diag_caused_by = nd.Ast.nd_upstream_errors;
             diag_suggested_fix = NoFix;
           }]
@@ -319,6 +331,8 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
           diag_line = None;
           diag_column = None;
           diag_message = nw.Ast.nw_message;
+          diag_expected = None;
+          diag_actual = None;
           diag_caused_by = (match nw.Ast.nw_source with
             | Ast.WarningUpstream upstream -> [upstream]
             | Ast.WarningOwn -> []);

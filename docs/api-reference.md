@@ -3309,7 +3309,7 @@ t check --schema --env --json path/to/script.t  # combined: tier 1+2+3 in JSON
 
 The `tier` field is derived from the deepest phase that produced diagnostics: parse/wire errors yield `tier: 1`, schema errors yield `tier: 2`, and env/build/exec errors yield `tier: 3`. A clean run reports `"tier": 1` and `"phase": "wire"` as the default.
 
-Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node`, `file`, `span`, `message`, `caused_by`, and `suggested_fix`.
+Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node`, `file`, `span`, `message`, `expected`, `actual`, `caused_by`, and `suggested_fix`.
 
 **Examples:**
 

@@ -99,7 +99,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_id = "T0001"; diag_error_class = "contract_violation"; diag_severity = Error;
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some "test.t"; diag_line = Some 3; diag_column = None;
-      diag_message = "first"; diag_caused_by = [];
+      diag_message = "first"; diag_expected = None; diag_actual = None;
+      diag_caused_by = [];
       diag_suggested_fix = Cast { column = "x"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 3 };
     } in
     let d2 = { d1 with diag_id = "T0002"; diag_line = Some 10;
@@ -142,7 +143,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_id = "T1001"; diag_error_class = "contract_violation"; diag_severity = Error;
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some "test.t"; diag_line = Some 5; diag_column = None;
-      diag_message = "Column 'x' expected double, got int"; diag_caused_by = [];
+      diag_message = "Column 'x' expected double, got int";
+      diag_expected = None; diag_actual = None; diag_caused_by = [];
       diag_suggested_fix = Cast { column = "x"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 5 };
     } in
     let d2 = { d1 with diag_id = "T1002"; diag_line = Some 8;
@@ -167,7 +169,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_id = "T1003"; diag_error_class = "contract_violation"; diag_severity = Error;
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some tmp_cast; diag_line = Some 3; diag_column = None;
-      diag_message = "type mismatch"; diag_caused_by = [];
+      diag_message = "type mismatch"; diag_expected = None; diag_actual = None;
+      diag_caused_by = [];
       diag_suggested_fix = Cast { column = "x"; cast_to = "double"; target_node = None; file = Some tmp_cast; line = Some 3 };
     } in
     let result = Fix.apply_fixes ~dry_run:false ~default_file:tmp_cast [d1] in

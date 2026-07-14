@@ -121,6 +121,8 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     diag_line = Some 5;
     diag_column = Some 10;
     diag_message = "test message";
+    diag_expected = None;
+    diag_actual = None;
     diag_caused_by = ["upstream_node"];
     diag_suggested_fix = Diagnostics.NoFix;
   } in
@@ -132,6 +134,26 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     (Diagnostics.diagnostic_error_class test_diag) "test_error";
   check_eq "diagnostic_message accessor"
     (Diagnostics.diagnostic_message test_diag) "test message";
+
+  Printf.printf "\nexpected/actual fields:\n";
+  let test_diag_with_types = { test_diag with
+    Diagnostics.diag_expected = Some "double";
+    diag_actual = Some "string";
+  } in
+  let json = Diagnostics.diagnostic_to_yojson test_diag_with_types in
+  let expected_json = Yojson.Safe.Util.(json |> member "expected" |> member "value" |> to_string) in
+  let actual_json = Yojson.Safe.Util.(json |> member "actual" |> member "value" |> to_string) in
+  check_eq "expected field serializes correctly" expected_json "double";
+  check_eq "actual field serializes correctly" actual_json "string";
+  let test_diag_none_types = { test_diag with
+    Diagnostics.diag_expected = None;
+    diag_actual = None;
+  } in
+  let json_none = Diagnostics.diagnostic_to_yojson test_diag_none_types in
+  let expected_null = Yojson.Safe.Util.(json_none |> member "expected") in
+  let actual_null = Yojson.Safe.Util.(json_none |> member "actual") in
+  check "expected is null when None" (expected_null = `Null);
+  check "actual is null when None" (actual_null = `Null);
 
   Printf.printf "\nSchema check module:\n";
 
