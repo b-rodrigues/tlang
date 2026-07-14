@@ -1933,7 +1933,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     let make_mid_chain_warn () =
       [{ Diagnostics.
          diag_id = Diagnostics.gen_id ();
-         diag_error_class = "invalid_expect_placement";
+         diag_error_class = Invalid_expect_placement;
          diag_severity = Warning;
          diag_phase = Wire;
          diag_node_id = Some name;
@@ -2176,7 +2176,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       List.iter (fun d ->
         match d.Diagnostics.diag_node_id with
         | Some node_name ->
-            let nw = { Ast.nw_kind = d.Diagnostics.diag_error_class;
+            let nw = { Ast.nw_kind = Diagnostics.error_class_to_string d.Diagnostics.diag_error_class;
                         nw_fn = "expect";
                         nw_na_count = 0;
                         nw_na_indices = [];

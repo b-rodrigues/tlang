@@ -30,7 +30,7 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
     if has_any_requirements then
       [Diagnostics.{
         diag_id = Diagnostics.gen_id ();
-        diag_error_class = "missing_tproject";
+        diag_error_class = Missing_tproject;
         diag_severity = Error;
         diag_phase = Env;
         diag_node_id = None;
@@ -65,7 +65,7 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
         List.iter (fun pkg ->
           missing_diags := Diagnostics.{
             diag_id = Diagnostics.gen_id ();
-            diag_error_class = "missing_package";
+            diag_error_class = Missing_package;
             diag_severity = Error;
             diag_phase = Env;
             diag_node_id = None;
@@ -107,7 +107,7 @@ let check_lockfile_consistency ~file ~tproject_cfg (p : Ast.pipeline_result) =
          List.map (fun pkg ->
            Diagnostics.{
              diag_id = Diagnostics.gen_id ();
-             diag_error_class = "missing_from_lockfile";
+             diag_error_class = Missing_from_lockfile;
              diag_severity = Error;
              diag_phase = Env;
              diag_node_id = None;
@@ -130,7 +130,7 @@ let check_nix_evaluation ?(offline = false) ~file (p : Ast.pipeline_result) =
   | Error msg ->
       [Diagnostics.{
         diag_id = Diagnostics.gen_id ();
-        diag_error_class = "nix_generation_error";
+        diag_error_class = Nix_generation_error;
         diag_severity = Error;
         diag_phase = Env;
         diag_node_id = None;
@@ -168,7 +168,7 @@ let check_nix_evaluation ?(offline = false) ~file (p : Ast.pipeline_result) =
       | Error msg ->
           [Diagnostics.{
             diag_id = Diagnostics.gen_id ();
-            diag_error_class = "nix_eval_error";
+            diag_error_class = Nix_eval_error;
             diag_severity = Error;
             diag_phase = Env;
             diag_node_id = None;
