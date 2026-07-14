@@ -113,6 +113,8 @@ When you initialize a new T project, the CLI prompts you to select an **AI Agent
 
 This ensures that any AI assistant you pair-program with has the exact technical context required to be productive immediately.
 
+For a hands-on walkthrough, see the **[Agent Pairing Tutorial](docs/agent-pairing-tutorial.md)** — it walks through building a pipeline interactively with an agent, from first edit to verified build.
+
 ## Key Features
 
 ### Functional Safety & Errors
@@ -293,6 +295,7 @@ See [Development Guide](docs/development.md) for details.
 - **[API Reference](docs/api-reference.md)** — Complete function reference
 - **[Data Manipulation](docs/data_manipulation_examples.md)** — Practical examples with data verbs
 - **[Pipeline Tutorial](docs/pipeline_tutorial.md)** — Step-by-step guide to pipelines
+- **[Agent Pairing Tutorial](docs/agent-pairing-tutorial.md)** — Interactive development with an AI agent
 - **[Architecture](docs/architecture.md)** — Language design and implementation
 - **[Contributing](docs/contributing.md)** — How to contribute to T
 
