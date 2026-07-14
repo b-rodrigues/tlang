@@ -2,12 +2,37 @@
 
 ## [0.54.1] - Unreleased
 
+### `t check` CLI & Structured Diagnostics Protocol
+
+- **Tier 1 CLI (`t check <file>`)**: Structural pipeline validation without triggering Nix builds. Catches parse errors, DAG cycles, dangling node references, arity errors, and built-in name resolution. Exit codes: 0=clean, 1=wire error, 2=schema error, 3=env error.
+- **Tier 2 Schema Validation (`t check --schema`)**: Static column-name and type propagation through the pipeline DAG. Validates column references against inferred upstream schemas, checks `expect()` type contracts, and reports contract violations with `Cast` suggested fixes.
+- **Structured JSON Diagnostics (`--json`)**: Machine-readable output for all tiers, with `schema_version`, `status`, `phase`, `tier`, and per-diagnostic `error_class`, `severity`, `caused_by`, and `suggested_fix` fields. Designed for agent tooling.
+- **`t_check(file, json, schema, env)` REPL function**: Invoke `t check` from within a T session.
+
+### `t diff` — Content-Addressed Output Diffing
+
+- **`t diff <file>`**: Compares two builds of a pipeline using per-node Nix content hashes without loading artifacts. Reports each node as `unchanged`, `changed`, `added`, `removed`, or `errored`.
+- **`t_diff(file, json, log_a, log_b)` REPL function**: Invoke `t diff` from within a T session.
+- **`diff_summary(p)`**: Returns a DataFrame of per-node diff status for the two most recent builds.
+
+### `t fix` — Mechanical Suggested-Fix Application
+
+- **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Cast` (inserts `|> mutate(...)`) and `Rename_column` (replaces `$old` with `$new` in column references).
+- **`t_fix(file, dry_run)` REPL function**: Invoke `t fix` from within a T session.
+- **Word-boundary-safe rename**: Column renames only affect `$col` and `` $`col` `` forms, avoiding corruption of identifiers like `valid` when renaming `id`.
+
 ### `t check` Environment Validation
 
 - **Nix Evaluability Check**: `t check --env` now also generates `pipeline.nix` and `dag.json` and validates them via `nix-instantiate --eval`. This catches Nix expression errors (bad references, type mismatches) before a full build.
 - **Git-Sourced Lockfile Packages**: `check_lockfile_consistency` now includes packages resolved via GitHub/GitLab entries in `renv.lock`, preventing false-positive `missing_from_lockfile` diagnostics.
 - **Watch Mode (`--watch`)**: `t check --watch` runs immediately, then polls the input file for changes and re-runs the check on every modification. Can be combined with `--schema` and `--env`.
 - **Shape Contracts (`expect()`)**: New `expect(columns = [...])` syntax for pipeline nodes declares expected output columns. Contracts are checked statically via `t check --schema` and produce `contract_violation` diagnostics when the inferred schema is missing declared columns.
+
+### Nix Installation Documentation
+
+- **Comprehensive Nix installation guide** (`docs/nix-installation.md`): Platform-specific instructions for Linux, macOS, NixOS, and WSL2. Includes Determinate Systems installer, manual configuration for existing Nix installs, and Docker container setup.
+- **NixOS configuration**: Full `configuration.nix` snippets for trusted users, binary cache, and flakes.
+- **Binary cache setup**: Instructions for configuring the `rstats-on-nix` Cachix cache on NixOS and non-NixOS systems.
 
 ## [0.54.0] - 2026-07-08
 

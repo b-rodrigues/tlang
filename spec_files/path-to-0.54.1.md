@@ -273,3 +273,244 @@ already has.
   even that small step to the agent's model call?
 - Does `--env` (tier 3) need a `--offline` guarantee mode that hard-fails rather than falling back
   to network fetch, so agents in sandboxed/parallel contexts never accidentally trigger a slow path?
+
+---
+
+## 6. Implementation Plan — Remaining Features
+
+This section tracks the features from §2 (JSON diagnostics protocol) that are not yet
+fully implemented, ordered by effort (lowest first). Each feature includes the scope of
+changes, files to touch, test requirements, and documentation/changelog updates.
+
+### 6.1 `target_node` field on `suggested_fix` (spec §2.3)
+
+**Status:** Not implemented
+**Effort:** ~30 min
+
+**What:** Add an optional `target_node` field to `Cast`, `Rename_column`, and `Add_node_arg`
+variants of `suggested_fix`. The spec shows `"target_node": "clean_loans"` on fix objects;
+currently absent.
+
+**Changes:**
+- `src/diagnostics.ml`: Add `target_node: string option` to the three variants; update
+  `suggested_fix_to_yojson` to serialize it; update `suggested_fix_of_yojson` to deserialize it.
+- `src/schema_check.ml`: Thread `node_name` into the `Cast` constructor (line ~328).
+- `src/fix.ml`: Update pattern matches in `apply_fix` and `apply_fixes` to ignore the new field
+  (use `_` wildcards).
+- `src/packages/pipeline/t_fix.ml`: Update pattern matches.
+
+**Tests:**
+- `tests/test_fix.ml`: Update `test_roundtrip` to include `target_node` in fix values and verify
+  it survives JSON roundtrip.
+- `tests/test_check.ml`: No changes needed (existing tests use `NoFix`).
+
+**Docs:**
+- `docs/api-reference.md`: Update `t fix` section to mention `target_node` in the JSON output
+  example.
+- `docs/changelog.md`: Add entry under 0.54.1.
+
+---
+
+### 6.2 `expected` / `actual` fields on diagnostic (spec §2.3)
+
+**Status:** Not implemented (data exists in `schema_check.ml` but only in message string)
+**Effort:** ~1 hour
+
+**What:** Add structured `expected` and `actual` fields to the diagnostic JSON object, so agents
+can branch on the specific types without parsing the human-readable message.
+
+**Changes:**
+- `src/diagnostics.ml`: Add `diag_expected: string option` and `diag_actual: string option` to
+  the `diagnostic` type. Update `diagnostic_to_yojson` to serialize them as structured objects
+  (`{"kind": "arrow_type", "value": "double"}`). Update all diagnostic constructors (22 sites)
+  to pass `None` for the new fields.
+- `src/schema_check.ml` (lines ~309–330): In the type-contract violation branch, pass
+  `expected_type` and `actual_type` as `Some` values instead of only embedding them in the
+  message string.
+- `src/env_check.ml`, `src/eval.ml`: Pass `None` for new fields in existing constructors.
+
+**Tests:**
+- `tests/test_check.ml`: Add a test that constructs a diagnostic with `expected`/`actual` and
+  verifies they appear in JSON output. Verify existing tests still pass with `None` defaults.
+- `tests/test_fix.ml`: No changes needed.
+
+**Docs:**
+- `docs/api-reference.md`: Update the `t check` JSON output example to show `expected`/`actual`
+  fields on a type-mismatch diagnostic.
+- `docs/changelog.md`: Add entry under 0.54.1.
+
+---
+
+### 6.3 Centralized `error_class` enum (spec §2.3)
+
+**Status:** Not implemented (bare strings scattered across files)
+**Effort:** ~1.5 hours
+
+**What:** Replace ~22 ad-hoc `error_class` string literals with a proper OCaml variant type,
+as the spec requires a "stable enum documented alongside the OCaml error variants."
+
+**Changes:**
+- `src/diagnostics.ml`: Define `type error_class = Structural_error | Name_error | ... | NoFix`
+  with `error_class_to_string` and `error_class_of_string`. Update `diagnostic` type to use
+  `diag_error_class : error_class` instead of `string`.
+- `src/schema_check.ml`: Replace `"schema_mismatch"`, `"contract_violation"`,
+  `"contract_unverifiable"` with the new variant constructors.
+- `src/env_check.ml`: Replace `"missing_tproject"`, `"missing_package"`,
+  `"missing_from_lockfile"`, `"nix_generation_error"`, `"nix_eval_error"`.
+- `src/diagnostics.ml`: Replace `"invalid_expect_placement"`, `"na_warning"`.
+- `src/eval.ml`: Replace any bare error_class strings.
+- Update `error_code_to_error_class` to return the new type.
+- Update `diagnostic_to_yojson` to serialize via `error_class_to_string`.
+
+**Tests:**
+- `tests/test_check.ml`: Update `check_eq "of_verror: error_class maps to structural_error"` to
+  compare against the new type. Add tests for all error_class variants.
+- `tests/test_fix.ml`: No changes needed (uses `diag_error_class` but doesn't compare strings).
+
+**Docs:**
+- `docs/api-reference.md`: Update the error_class column in the JSON output documentation to list
+  all valid enum values.
+- `docs/changelog.md`: Add entry under 0.54.1.
+
+---
+
+### 6.4 `node.file` + `node.span.end` in diagnostic (spec §2.3)
+
+**Status:** Not implemented (file is at top level, span only has `start`)
+**Effort:** ~2 hours
+
+**What:** Restructure the diagnostic JSON to match the spec's shape: `file` and full `span`
+(both `start` and `end`) nested inside the `node` sub-object.
+
+**Changes:**
+- `src/diagnostics.ml`: Add `diag_end_line: int option` and `diag_end_column: int option` to
+  the `diagnostic` type. Restructure `diagnostic_to_yojson` to:
+  - Move `file` into the `node` sub-object.
+  - Add `end` to `span` (`"span": {"start": [l, c], "end": [el, ec]}`).
+- Update all diagnostic constructors to pass `None` for end line/column.
+- `src/schema_check.ml`: Where line/column info is available from AST locs, thread it through.
+
+**Tests:**
+- `tests/test_check.ml`: Add test verifying the new JSON structure (node contains file, span has
+  start and end). Update existing JSON structure tests.
+- `tests/test_fix.ml`: No changes needed.
+
+**Docs:**
+- `docs/api-reference.md`: Update the JSON output example to show the new node shape.
+- `docs/changelog.md`: Add entry under 0.54.1.
+
+**Note:** This is a **breaking change** to the JSON output shape. The `file` field moves from
+top-level to inside `node`, and `span` gains an `end` field. Agent tooling that parses the JSON
+will need to update. Document this in the changelog as a breaking change.
+
+---
+
+### 6.5 `Add_node_arg` and `Pin_package_version` fix application (spec §2.3)
+
+**Status:** Types exist, serialization works, but `apply_fix` returns `false` for both
+**Effort:** ~3–4 hours total
+
+**What:** Implement the mechanical application of two `suggested_fix` kinds that are currently
+stubs.
+
+**`Add_node_arg` (~1.5 hours):**
+- Parse the pipeline file to find the node definition matching the target node name.
+- Insert the argument (e.g., `na_rm=true`) into the node's argument list.
+- Requires understanding the pipeline AST or using regex-based insertion.
+
+**`Pin_package_version` (~2 hours):**
+- Parse `tproject.toml` to find the package section.
+- Update the version constraint for the specified package.
+- Requires TOML manipulation (the project uses `otoml`).
+
+**Changes:**
+- `src/fix.ml`: Implement `apply_add_node_arg` and `apply_pin_package_version`. Update
+  `apply_fix` to call them instead of returning `false`.
+- `tests/test_fix.ml`: Add tests for both new fix applications.
+
+**Tests:**
+- `tests/test_fix.ml`: Add `test_apply_add_node_arg` and `test_apply_pin_package_version` with
+  temp file fixtures.
+- Verify dry-run counting works for both.
+
+**Docs:**
+- `docs/api-reference.md`: Update `t fix` section to note that all fix kinds are now supported.
+- `docs/changelog.md`: Add entry under 0.54.1.
+
+---
+
+### 6.6 Streaming NDJSON for `t run` (spec §2.4)
+
+**Status:** Not implemented
+**Effort:** ~1–2 days
+
+**What:** Implement newline-delimited JSON streaming for `t run` diagnostics, so agents can
+react to the first failing node without waiting for the whole DAG.
+
+**Changes:**
+- `src/diagnostics.ml`: Add `diag_seq: int option` to the diagnostic type. Update serialization.
+- `src/eval.ml`: Emit diagnostics as JSON lines after each node completes (or fails).
+- `src/repl.ml`: Add `--json` flag to `t run` that enables streaming output mode.
+- Add a `seq` counter that increments monotonically across all diagnostics in a run.
+
+**Tests:**
+- Unit tests for `seq` field serialization.
+- Integration test: run a pipeline with `--json`, verify NDJSON output format.
+
+**Docs:**
+- `docs/api-reference.md`: Document `t run --json` streaming output.
+- `docs/changelog.md`: Add entry under 0.54.1.
+
+**Note:** This is the highest-effort item. Consider deferring to a future release if the other
+items are higher priority.
+
+---
+
+## 7. Changelog Updates for Already-Implemented Features
+
+The following features have been implemented since 0.54.0 but are not yet fully documented
+in `docs/changelog.md`. The current 0.54.1 changelog only covers `t check` environment
+validation. The following entries need to be added:
+
+### 7.1 `t check` — Full CLI & Structured Diagnostics Protocol
+
+- **Tier 1 CLI (`t check <file>`)**: Structural pipeline validation without triggering Nix
+  builds. Catches parse errors, DAG cycles, dangling node references, arity errors, and
+  built-in name resolution. Exit codes: 0=clean, 1=wire error, 2=schema error, 3=env error.
+- **Tier 2 Schema Validation (`t check --schema`)**: Static column-name and type propagation
+  through the pipeline DAG. Validates column references against inferred upstream schemas,
+  checks `expect()` type contracts, and reports contract violations with `Cast` suggested fixes.
+- **Structured JSON Diagnostics (`--json`)**: Machine-readable output for all tiers, with
+  `schema_version`, `status`, `phase`, `tier`, and per-diagnostic `error_class`, `severity`,
+  `caused_by`, and `suggested_fix` fields. Designed for agent tooling.
+- **`t_check(file, json, schema, env)` REPL function**: Invoke `t check` from within a T
+  session.
+
+### 7.2 `t diff` — Content-Addressed Output Diffing
+
+- **`t diff <file>`**: Compares two builds of a pipeline using per-node Nix content hashes
+  without loading artifacts. Reports each node as `unchanged`, `changed`, `added`, `removed`,
+  or `errored`.
+- **`t_diff(file, json, log_a, log_b)` REPL function**: Invoke `t diff` from within a T
+  session.
+- **`diff_summary(p)`**: Returns a DataFrame of per-node diff status for the two most recent
+  builds.
+
+### 7.3 `t fix` — Mechanical Suggested-Fix Application
+
+- **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and
+  applies them mechanically. Currently supports `Cast` (inserts `|> mutate(...)`) and
+  `Rename_column` (replaces `$old` with `$new` in column references).
+- **`t_fix(file, dry_run)` REPL function**: Invoke `t fix` from within a T session.
+- **Word-boundary-safe rename**: Column renames only affect `$col` and `` $`col` `` forms,
+  avoiding corruption of identifiers like `valid` when renaming `id`.
+
+### 7.4 Nix Installation Documentation
+
+- **Comprehensive Nix installation guide** (`docs/nix-installation.md`): Platform-specific
+  instructions for Linux, macOS, NixOS, and WSL2. Includes Determinate Systems installer,
+  manual configuration for existing Nix installs, and Docker container setup.
+- **NixOS configuration**: Full `configuration.nix` snippets for trusted users, binary cache,
+  and flakes.
+- **Binary cache setup**: Instructions for configuring the `rstats-on-nix` Cachix cache on
+  NixOS and non-NixOS systems.

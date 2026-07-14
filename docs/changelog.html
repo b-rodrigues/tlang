@@ -35,6 +35,61 @@
 <div class="container">
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">[0.54.1] - Unreleased</h2>
+<h3
+id="t-check-cli-structured-diagnostics-protocol"><code>t check</code>
+CLI &amp; Structured Diagnostics Protocol</h3>
+<ul>
+<li><strong>Tier 1 CLI (<code>t check &lt;file&gt;</code>)</strong>:
+Structural pipeline validation without triggering Nix builds. Catches
+parse errors, DAG cycles, dangling node references, arity errors, and
+built-in name resolution. Exit codes: 0=clean, 1=wire error, 2=schema
+error, 3=env error.</li>
+<li><strong>Tier 2 Schema Validation
+(<code>t check --schema</code>)</strong>: Static column-name and type
+propagation through the pipeline DAG. Validates column references
+against inferred upstream schemas, checks <code>expect()</code> type
+contracts, and reports contract violations with <code>Cast</code>
+suggested fixes.</li>
+<li><strong>Structured JSON Diagnostics (<code>--json</code>)</strong>:
+Machine-readable output for all tiers, with <code>schema_version</code>,
+<code>status</code>, <code>phase</code>, <code>tier</code>, and
+per-diagnostic <code>error_class</code>, <code>severity</code>,
+<code>caused_by</code>, and <code>suggested_fix</code> fields. Designed
+for agent tooling.</li>
+<li><strong><code>t_check(file, json, schema, env)</code> REPL
+function</strong>: Invoke <code>t check</code> from within a T
+session.</li>
+</ul>
+<h3 id="t-diff-content-addressed-output-diffing"><code>t diff</code> —
+Content-Addressed Output Diffing</h3>
+<ul>
+<li><strong><code>t diff &lt;file&gt;</code></strong>: Compares two
+builds of a pipeline using per-node Nix content hashes without loading
+artifacts. Reports each node as <code>unchanged</code>,
+<code>changed</code>, <code>added</code>, <code>removed</code>, or
+<code>errored</code>.</li>
+<li><strong><code>t_diff(file, json, log_a, log_b)</code> REPL
+function</strong>: Invoke <code>t diff</code> from within a T
+session.</li>
+<li><strong><code>diff_summary(p)</code></strong>: Returns a DataFrame
+of per-node diff status for the two most recent builds.</li>
+</ul>
+<h3 id="t-fix-mechanical-suggested-fix-application"><code>t fix</code> —
+Mechanical Suggested-Fix Application</h3>
+<ul>
+<li><strong><code>t fix &lt;file&gt;</code></strong>: Runs
+<code>t check --schema</code>, extracts diagnostics with
+<code>suggested_fix</code>, and applies them mechanically. Supports
+<code>Cast</code> (inserts <code>|&gt; mutate(...)</code>) and
+<code>Rename_column</code> (replaces <code>$old</code> with
+<code>$new</code> in column references).</li>
+<li><strong><code>t_fix(file, dry_run)</code> REPL function</strong>:
+Invoke <code>t fix</code> from within a T session.</li>
+<li><strong>Word-boundary-safe rename</strong>: Column renames only
+affect <code>$col</code> and <code>$`col`</code> forms, avoiding
+corruption of identifiers like <code>valid</code> when renaming
+<code>id</code>.</li>
+</ul>
 <h3 id="t-check-environment-validation"><code>t check</code> Environment
 Validation</h3>
 <ul>
@@ -57,6 +112,21 @@ expected output columns. Contracts are checked statically via
 <code>t check --schema</code> and produce
 <code>contract_violation</code> diagnostics when the inferred schema is
 missing declared columns.</li>
+</ul>
+<h3 id="nix-installation-documentation">Nix Installation
+Documentation</h3>
+<ul>
+<li><strong>Comprehensive Nix installation guide</strong>
+(<code>docs/nix-installation.md</code>): Platform-specific instructions
+for Linux, macOS, NixOS, and WSL2. Includes Determinate Systems
+installer, manual configuration for existing Nix installs, and Docker
+container setup.</li>
+<li><strong>NixOS configuration</strong>: Full
+<code>configuration.nix</code> snippets for trusted users, binary cache,
+and flakes.</li>
+<li><strong>Binary cache setup</strong>: Instructions for configuring
+the <code>rstats-on-nix</code> Cachix cache on NixOS and non-NixOS
+systems.</li>
 </ul>
 <h2 id="section">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
