@@ -1941,11 +1941,13 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
          diag_file = None;
          diag_line = (match node_expr.loc with Some l -> Some l.line | None -> None);
          diag_column = (match node_expr.loc with Some l -> Some l.column | None -> None);
-         diag_message = Printf.sprintf
-           "expect() in node '%s' appears mid-chain and will be ignored. \
-            Move it to the end of the pipe chain." name;
-         diag_caused_by = [];
-         diag_suggested_fix = NoFix;
+          diag_message = Printf.sprintf
+            "expect() in node '%s' appears mid-chain and will be ignored. \
+             Move it to the end of the pipe chain." name;
+          diag_expected = None;
+          diag_actual = None;
+          diag_caused_by = [];
+          diag_suggested_fix = NoFix;
        }]
     in
     let node_expr, contract_opt, expect_warnings =

@@ -39,6 +39,8 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
         diag_line = None;
         diag_column = None;
         diag_message = Printf.sprintf "Pipeline requires R/Python/Julia packages but tproject.toml not found at %s" tproject_path;
+        diag_expected = None;
+        diag_actual = None;
         diag_caused_by = [];
         diag_suggested_fix = NoFix;
       }]
@@ -72,6 +74,8 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
             diag_line = None;
             diag_column = None;
             diag_message = Printf.sprintf "Package '%s' required by pipeline not declared in %s %s" pkg tproject_path section;
+            diag_expected = None;
+            diag_actual = None;
             diag_caused_by = [];
             diag_suggested_fix = NoFix;
           } :: !missing_diags
@@ -111,9 +115,11 @@ let check_lockfile_consistency ~file ~tproject_cfg (p : Ast.pipeline_result) =
              diag_file = Some file;
              diag_line = None;
              diag_column = None;
-             diag_message = Printf.sprintf "R package '%s' required by pipeline not found in renv.lock" pkg;
-             diag_caused_by = [];
-             diag_suggested_fix = NoFix;
+              diag_message = Printf.sprintf "R package '%s' required by pipeline not found in renv.lock" pkg;
+              diag_expected = None;
+              diag_actual = None;
+              diag_caused_by = [];
+              diag_suggested_fix = NoFix;
            }
          ) missing)
   | _ -> []
@@ -133,6 +139,8 @@ let check_nix_evaluation ?(offline = false) ~file (p : Ast.pipeline_result) =
         diag_line = None;
         diag_column = None;
         diag_message = Printf.sprintf "Failed to generate pipeline.nix for evaluation: %s" msg;
+        diag_expected = None;
+        diag_actual = None;
         diag_caused_by = [];
         diag_suggested_fix = NoFix;
       }]
@@ -169,6 +177,8 @@ let check_nix_evaluation ?(offline = false) ~file (p : Ast.pipeline_result) =
             diag_line = None;
             diag_column = None;
             diag_message = Printf.sprintf "Nix expression evaluation failed: %s" msg;
+            diag_expected = None;
+            diag_actual = None;
             diag_caused_by = [];
             diag_suggested_fix = NoFix;
           }]
