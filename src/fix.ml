@@ -83,20 +83,20 @@ let apply_rename_column ~file ~old_name ~new_name =
 let apply_add_node_arg ~file ~node ~arg =
   let lines = ref [] in
   let ch = open_in file in
-  Fun.protect ~finally:(fun () -> close_in_noerr ch)
+  let result = Fun.protect ~finally:(fun () -> close_in_noerr ch)
     (fun () ->
-       let i = ref 1 in
        let found = ref false in
        let paren_depth = ref 0 in
-        let in_raw_code = ref false in
-        try
-           while true do
+       let in_raw_code = ref false in
+       let last_arg_indent = ref 0 in
+       let prev_line = ref "" in
+       (try
+          while true do
             let l = input_line ch in
             if not !found then begin
-              (* Look for "node_name = " followed by a node function call *)
               let trimmed = String.trim l in
               let prefix = node ^ " = " in
-              if String.length trimmed > String.length prefix
+              if String.length trimmed >= String.length prefix
                  && String.sub trimmed 0 (String.length prefix) = prefix then begin
                 let rest = String.sub trimmed (String.length prefix) (String.length trimmed - String.length prefix) in
                 let rest_stripped = String.trim rest in
@@ -105,31 +105,27 @@ let apply_add_node_arg ~file ~node ~arg =
                     && rest_stripped.[String.length fn] = '(')
                     ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] then begin
                   found := true;
-                  (* Count parens on this line *)
                   String.iter (function
                     | '(' when not !in_raw_code -> incr paren_depth
                     | ')' when not !in_raw_code -> decr paren_depth
-                    | '<' -> () (* will track <{ >} below *)
                     | _ -> ()) l;
-                  (* Track <{ >} raw code blocks *)
                   if String.length l >= 2 then
                     for k = 0 to String.length l - 2 do
                       if l.[k] = '<' && l.[k+1] = '{' then in_raw_code := true;
                       if l.[k] = '}' && l.[k+1] = '>' then in_raw_code := false
                     done;
+                  prev_line := l;
                   lines := l :: !lines
                 end else
                   lines := l :: !lines
               end else
                 lines := l :: !lines
             end else begin
-              (* Inside the node call — track parens and look for closing `)` at depth 0 *)
               if not !in_raw_code then begin
                 String.iter (function
                   | '(' -> incr paren_depth
                   | ')' -> decr paren_depth
                   | _ -> ()) l;
-                (* Track <{ >} raw code blocks *)
                 if String.length l >= 2 then
                   for k = 0 to String.length l - 2 do
                     if l.[k] = '<' && l.[k+1] = '{' then in_raw_code := true;
@@ -143,25 +139,38 @@ let apply_add_node_arg ~file ~node ~arg =
                   done;
               end;
               if !paren_depth = 0 && not !in_raw_code then begin
-                (* This line has the closing `)` — insert arg before it *)
-                let indent =
+                let trimmed_prev = String.trim !prev_line in
+                if String.length trimmed_prev > 0 then begin
+                  let last_char = trimmed_prev.[String.length trimmed_prev - 1] in
+                  if last_char <> ',' && last_char <> '(' then begin
+                    lines := (!prev_line ^ ",") :: List.tl !lines
+                  end
+                end;
+                let pad = String.make !last_arg_indent ' ' in
+                lines := l :: Printf.sprintf "%s%s" pad arg :: !lines
+              end else begin
+                let trimmed_l = String.trim l in
+                if trimmed_l <> "" && trimmed_l.[0] <> '-' then begin
                   let rec count s n =
                     if n < String.length s && s.[n] = ' ' then count s (n + 1) else n
                   in
-                  count l 0
-                in
-                let pad = String.make indent ' ' in
-                lines := l :: Printf.sprintf "%s%s" pad arg :: !lines
-              end else
+                  last_arg_indent := count l 0
+                end;
+                prev_line := l;
                 lines := l :: !lines
-            end;
-            incr i
+              end
+            end
           done
         with End_of_file -> ());
-  let oc = open_out file in
-  Fun.protect ~finally:(fun () -> close_out_noerr oc)
-    (fun () ->
-       List.iter (fun l -> output_string oc (l ^ "\n")) (List.rev !lines))
+       !found)
+  in
+  if result then begin
+    let oc = open_out file in
+    Fun.protect ~finally:(fun () -> close_out_noerr oc)
+      (fun () ->
+         List.iter (fun l -> output_string oc (l ^ "\n")) (List.rev !lines))
+  end;
+  result
 
 let apply_fix ~file (fix : Diagnostics.suggested_fix) =
   match fix with
@@ -172,7 +181,7 @@ let apply_fix ~file (fix : Diagnostics.suggested_fix) =
   | Rename_column { old_name; new_name; file = _; line = _; target_node = _ } ->
       apply_rename_column ~file ~old_name ~new_name; true
   | Add_node_arg { node; arg; file = _; line = _; target_node = _ } ->
-      apply_add_node_arg ~file ~node ~arg; true
+      apply_add_node_arg ~file ~node ~arg
   | Pin_package_version _ -> false
   | NoFix -> false
 

@@ -86,15 +86,19 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let oc = open_out tmp in
     output_string oc "raw = node(\n  command = read_csv(\"data.csv\"),\n  runtime = T\n)\n";
     close_out oc;
-    Fix.apply_add_node_arg ~file:tmp ~node:"raw" ~arg:"serializer = ^csv";
+    let r = Fix.apply_add_node_arg ~file:tmp ~node:"raw" ~arg:"serializer = ^csv" in
+    check "add_node_arg returns true when node found" r;
     let ch = open_in tmp in
     let content = really_input_string ch (in_channel_length ch) in
     close_in ch;
-    Sys.remove tmp;
     let has_serializer = (try let _ = Str.search_forward (Str.regexp_string "serializer = ^csv") content 0 in true with Not_found -> false) in
-    check "add_node_arg inserts serializer before closing )" has_serializer;
-    let has_runtime = (try let _ = Str.search_forward (Str.regexp_string "runtime = T") content 0 in true with Not_found -> false) in
-    check "add_node_arg preserves existing arguments" has_runtime
+    check "add_node_arg inserts serializer" has_serializer;
+    let has_comma_before = (try let _ = Str.search_forward (Str.regexp "runtime = T,") content 0 in true with Not_found -> false) in
+    check "add_node_arg adds comma to previous arg" has_comma_before;
+    let indent_re = Str.regexp "\\( +\\)serializer" in
+    let indent = (try ignore (Str.search_forward indent_re content 0); Str.matched_group 1 content with Not_found -> "") in
+    check "add_node_arg matches sibling indentation" (indent = "  ");
+    Sys.remove tmp
   in
   test_apply_add_node_arg ();
 
@@ -104,17 +108,41 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let oc = open_out tmp in
     output_string oc "calc = pyn(\n  command = <{\ndf = raw.copy()\ndf\n  }>,\n  runtime = Python\n)\n";
     close_out oc;
-    Fix.apply_add_node_arg ~file:tmp ~node:"calc" ~arg:"deserializer = ^csv";
+    let r = Fix.apply_add_node_arg ~file:tmp ~node:"calc" ~arg:"deserializer = ^csv" in
+    check "add_node_arg returns true for pyn" r;
     let ch = open_in tmp in
     let content = really_input_string ch (in_channel_length ch) in
     close_in ch;
-    Sys.remove tmp;
     let has_deser = (try let _ = Str.search_forward (Str.regexp_string "deserializer = ^csv") content 0 in true with Not_found -> false) in
     check "add_node_arg works for pyn with raw code block" has_deser;
     let has_raw_code = (try let _ = Str.search_forward (Str.regexp_string "df = raw.copy()") content 0 in true with Not_found -> false) in
-    check "add_node_arg preserves raw code block" has_raw_code
+    check "add_node_arg preserves raw code block" has_raw_code;
+    let has_comma_before = (try let _ = Str.search_forward (Str.regexp "runtime = Python,") content 0 in true with Not_found -> false) in
+    check "add_node_arg adds comma before deserializer (pyn)" has_comma_before;
+    Sys.remove tmp
   in
   test_apply_add_node_arg_pyn ();
+
+  Printf.printf "\napply_add_node_arg not found:\n";
+  let test_apply_add_node_arg_not_found () =
+    let tmp = Filename.temp_file "test_fix_add_arg_miss" ".t" in
+    let oc = open_out tmp in
+    output_string oc "other = node(\n  command = read_csv(\"data.csv\")\n)\n";
+    close_out oc;
+    let original_content =
+      let ch = open_in tmp in
+      let c = really_input_string ch (in_channel_length ch) in
+      close_in ch; c
+    in
+    let r = Fix.apply_add_node_arg ~file:tmp ~node:"nonexistent" ~arg:"serializer = ^csv" in
+    check "add_node_arg returns false when node not found" (r = false);
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    check "add_node_arg does not modify file when node not found" (content = original_content);
+    Sys.remove tmp
+  in
+  test_apply_add_node_arg_not_found ();
 
   Printf.printf "\napply_fix dispatch:\n";
   let test_apply_fix_noop () =
@@ -133,11 +161,24 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let content = really_input_string ch (in_channel_length ch) in
     close_in ch;
     Sys.remove tmp;
-    check "apply_fix returns true for Add_node_arg" (r = true);
+    check "apply_fix returns true for Add_node_arg" r;
     let has_serializer = (try let _ = Str.search_forward (Str.regexp_string "serializer = ^csv") content 0 in true with Not_found -> false) in
-    check "apply_fix patches file for Add_node_arg" has_serializer
+    check "apply_fix patches file for Add_node_arg" has_serializer;
+    let has_comma = (try let _ = Str.search_forward (Str.regexp "runtime = T,") content 0 in true with Not_found -> false) in
+    check "apply_fix produces valid comma separation" has_comma
   in
   test_apply_fix_node_arg ();
+
+  let test_apply_fix_node_arg_not_found () =
+    let tmp = Filename.temp_file "test_fix_dispatch_miss" ".t" in
+    let oc = open_out tmp in
+    output_string oc "other = node(\n  command = read_csv(\"data.csv\")\n)\n";
+    close_out oc;
+    let r = Fix.apply_fix ~file:tmp (Diagnostics.Add_node_arg { node = "nonexistent"; arg = "serializer = ^csv"; target_node = None; file = Some tmp; line = None }) in
+    Sys.remove tmp;
+    check "apply_fix returns false for non-existent node" (r = false)
+  in
+  test_apply_fix_node_arg_not_found ();
 
   Printf.printf "\nsort_fixes_by_descending_line:\n";
   let test_sort_fixes () =

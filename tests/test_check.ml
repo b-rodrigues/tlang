@@ -201,11 +201,41 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   let cross_diag = Diagnostics.of_verror cross_runtime_err in
   (match cross_diag.Diagnostics.diag_suggested_fix with
    | Diagnostics.Add_node_arg { node; arg; target_node = _; _ } ->
-       check_eq "cross-runtime: node name extracted" node "pyn";
-       check_eq "cross-runtime: arg is deserializer" arg "deserializer = ^csv"
-   | _ -> check "cross-runtime: generates Add_node_arg" false);
+       check_eq "cross-runtime (R dep): node name extracted" node "pyn";
+       check_eq "cross-runtime (R dep): arg uses ^csv" arg "deserializer = ^csv"
+   | _ -> check "cross-runtime (R dep): generates Add_node_arg" false);
   check_eq "cross-runtime: error class is structural_error"
     (Diagnostics.error_class_to_string cross_diag.Diagnostics.diag_error_class) "structural_error";
+
+  let julia_msg = "Node `rn` (R) depends on `jln` (Julia) but has no explicit deserializer." in
+  let julia_err = { Ast.
+    code = StructuralError;
+    message = julia_msg;
+    context = [];
+    location = None;
+    na_count = 0;
+  } in
+  let julia_diag = Diagnostics.of_verror julia_err in
+  (match julia_diag.Diagnostics.diag_suggested_fix with
+   | Diagnostics.Add_node_arg { node; arg; _ } ->
+       check_eq "cross-runtime (Julia dep): node name" node "rn";
+       check_eq "cross-runtime (Julia dep): arg uses ^arrow" arg "deserializer = ^arrow"
+   | _ -> check "cross-runtime (Julia dep): generates Add_node_arg" false);
+
+  let py_msg = "Node `jln` (Julia) depends on `pyn` (Python) but has no explicit deserializer." in
+  let py_err = { Ast.
+    code = StructuralError;
+    message = py_msg;
+    context = [];
+    location = None;
+    na_count = 0;
+  } in
+  let py_diag = Diagnostics.of_verror py_err in
+  (match py_diag.Diagnostics.diag_suggested_fix with
+   | Diagnostics.Add_node_arg { arg; _ } ->
+       check_eq "cross-runtime (Python dep): arg uses ^csv" arg "deserializer = ^csv"
+   | _ -> check "cross-runtime (Python dep): generates Add_node_arg" false);
+
   let non_cross_msg = "Some other structural error" in
   let non_cross_err = { Ast.
     code = StructuralError;
