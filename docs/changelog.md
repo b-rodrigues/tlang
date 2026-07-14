@@ -20,6 +20,7 @@
 - **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Cast` (inserts `|> mutate(...)`) and `Rename_column` (replaces `$old` with `$new` in column references).
 - **`t_fix(file, dry_run)` REPL function**: Invoke `t fix` from within a T session.
 - **Word-boundary-safe rename**: Column renames only affect `$col` and `` $`col` `` forms, avoiding corruption of identifiers like `valid` when renaming `id`.
+- **`target_node` on `suggested_fix`**: `Cast`, `Rename_column`, and `Add_node_arg` fixes now include a `target_node` field indicating which pipeline node the fix applies to.
 
 ### `t check` Environment Validation
 

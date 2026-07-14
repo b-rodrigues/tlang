@@ -328,6 +328,7 @@ let validate_contracts ~file (p : pipeline_result) schemas =
                     diag_suggested_fix = Cast {
                       column = col;
                       cast_to = expected_type;
+                      target_node = Some node_name;
                       file = Some file;
                       line = contract_line contract;
                     };

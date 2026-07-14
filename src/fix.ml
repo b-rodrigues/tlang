@@ -82,11 +82,11 @@ let apply_rename_column ~file ~old_name ~new_name =
 
 let apply_fix ~file (fix : Diagnostics.suggested_fix) =
   match fix with
-  | Cast { column; cast_to; file = _; line } ->
+  | Cast { column; cast_to; file = _; line; target_node = _ } ->
       (match line with
        | Some l -> apply_cast ~file ~line:l ~column ~cast_to; true
        | None -> false)
-  | Rename_column { old_name; new_name; file = _; line = _ } ->
+  | Rename_column { old_name; new_name; file = _; line = _; target_node = _ } ->
       apply_rename_column ~file ~old_name ~new_name; true
   | Add_node_arg _ -> false
   | Pin_package_version _ -> false
