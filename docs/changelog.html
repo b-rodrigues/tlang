@@ -53,9 +53,13 @@ suggested fixes.</li>
 <li><strong>Structured JSON Diagnostics (<code>--json</code>)</strong>:
 Machine-readable output for all tiers, with <code>schema_version</code>,
 <code>status</code>, <code>phase</code>, <code>tier</code>, and
-per-diagnostic <code>error_class</code>, <code>severity</code>,
-<code>caused_by</code>, and <code>suggested_fix</code> fields. Designed
-for agent tooling.</li>
+per-diagnostic <code>error_class</code> (stable enum),
+<code>severity</code>, <code>expected</code>, <code>actual</code>,
+<code>caused_by</code>, and <code>suggested_fix</code> fields.
+<strong>Breaking change:</strong> <code>file</code> and
+<code>span</code> (with <code>start</code> and <code>end</code>) are now
+nested inside the <code>node</code> sub-object. Designed for agent
+tooling.</li>
 <li><strong><code>t_check(file, json, schema, env)</code> REPL
 function</strong>: Invoke <code>t check</code> from within a T
 session.</li>
@@ -80,15 +84,26 @@ Mechanical Suggested-Fix Application</h3>
 <li><strong><code>t fix &lt;file&gt;</code></strong>: Runs
 <code>t check --schema</code>, extracts diagnostics with
 <code>suggested_fix</code>, and applies them mechanically. Supports
-<code>Cast</code> (inserts <code>|&gt; mutate(...)</code>) and
+<code>Cast</code> (inserts <code>|&gt; mutate(...)</code>),
 <code>Rename_column</code> (replaces <code>$old</code> with
-<code>$new</code> in column references).</li>
+<code>$new</code> in column references), and <code>Add_node_arg</code>
+(inserts missing arguments into node definitions).</li>
 <li><strong><code>t_fix(file, dry_run)</code> REPL function</strong>:
 Invoke <code>t fix</code> from within a T session.</li>
 <li><strong>Word-boundary-safe rename</strong>: Column renames only
 affect <code>$col</code> and <code>$`col`</code> forms, avoiding
 corruption of identifiers like <code>valid</code> when renaming
 <code>id</code>.</li>
+<li><strong><code>target_node</code> on
+<code>suggested_fix</code></strong>: <code>Cast</code>,
+<code>Rename_column</code>, and <code>Add_node_arg</code> fixes now
+include a <code>target_node</code> field indicating which pipeline node
+the fix applies to.</li>
+<li><strong>Cross-runtime deserializer suggestion</strong>: When a node
+depends on a node from a different runtime but has no explicit
+<code>deserializer</code>, <code>t check</code> now suggests adding
+<code>deserializer = ^csv</code> via an <code>Add_node_arg</code>
+fix.</li>
 </ul>
 <h3 id="t-check-environment-validation"><code>t check</code> Environment
 Validation</h3>
@@ -127,6 +142,34 @@ and flakes.</li>
 <li><strong>Binary cache setup</strong>: Instructions for configuring
 the <code>rstats-on-nix</code> Cachix cache on NixOS and non-NixOS
 systems.</li>
+</ul>
+<h3
+id="t-run---json-streaming-ndjson-build-diagnostics"><code>t run --json</code>
+— Streaming NDJSON Build Diagnostics</h3>
+<ul>
+<li><strong>Streaming NDJSON output</strong>: <code>t run --json</code>
+emits newline-delimited JSON events to stdout as the pipeline builds,
+enabling agents to react to the first failing node without waiting for
+the entire DAG. Events: <code>run_started</code> (DAG manifest),
+<code>node_failed</code> (error + inline log tail),
+<code>node_skipped</code> (propagation), <code>run_finished</code>
+(terminal summary with <code>root_causes</code>).</li>
+<li><strong>Per-node build log capture</strong>: Build logs are now
+captured to <code>_pipeline/logs/&lt;node&gt;.log</code> during
+execution, eliminating dependence on <code>nix log &lt;drv&gt;</code>
+after the fact. The <code>node_failed</code> event includes the last 200
+lines of the log inline.</li>
+<li><strong><code>run_started</code> DAG manifest</strong>: The first
+NDJSON line carries the full pipeline DAG (node IDs, languages,
+dependencies) so consumers can reason about root causes while the stream
+is still open.</li>
+<li><strong><code>root_causes</code> at
+<code>run_finished</code></strong>: Root cause computation is deferred
+to the terminal event, where the full picture is known. No provisional
+guesses on <code>node_failed</code> events.</li>
+<li><strong>Exit codes unchanged</strong>: 0=clean, 1=wire error,
+2=schema error, 3=env/build error — independent of
+<code>--json</code>.</li>
 </ul>
 <h2 id="section">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>

@@ -647,15 +647,22 @@ let cmd_run ?(unsafe=false) ?failfast ?(json=false) mode filename env =
   | v ->
       if not json then print_string (Pretty_print.pretty_print_value v)
 
-let cmd_run_expr ?failfast mode expr env =
+let cmd_run_expr ?failfast ?(json=false) mode expr env =
   Packages.ensure_docs_loaded ();
+  if json then Ast.ndjson_mode := true;
   let (result, _) = parse_and_eval ?failfast mode env expr in
+  if json then Ast.ndjson_mode := false;
   flush_warnings_to_out ();
   match result with
   | Ast.VError _ ->
-      Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
+      if json then
+        exit 1
+      else begin
+        Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
+      end
   | Ast.(VNA NAGeneric) -> ()
-  | v -> print_string (Pretty_print.pretty_print_value v)
+  | v ->
+      if not json then print_string (Pretty_print.pretty_print_value v)
 
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
   Packages.ensure_docs_loaded ();
@@ -1470,7 +1477,10 @@ let () =
       exit 1
   | _ :: "run" :: "--json" :: "--expr" :: expr :: [] ->
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
-      cmd_run_expr ~failfast script_mode expr env
+      cmd_run_expr ~json:true ~failfast script_mode expr env
+  | _ :: "run" :: "--expr" :: expr :: "--json" :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_run_expr ~json:true ~failfast script_mode expr env
   | _ :: "run" :: "--expr" :: expr :: [] ->
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       cmd_run_expr ~failfast script_mode expr env
