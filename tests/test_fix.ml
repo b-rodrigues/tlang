@@ -54,9 +54,10 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   Printf.printf "\nsuggested_fix roundtrip:\n";
   let test_roundtrip () =
     let fixes : Diagnostics.suggested_fix list = [
-      Cast { column = "x"; cast_to = "double"; file = Some "test.t"; line = Some 5 };
-      Rename_column { old_name = "a"; new_name = "b"; file = Some "test.t"; line = None };
-      Add_node_arg { node = "filter"; arg = "na_rm=true"; file = Some "test.t"; line = None };
+      Cast { column = "x"; cast_to = "double"; target_node = Some "clean"; file = Some "test.t"; line = Some 5 };
+      Cast { column = "y"; cast_to = "string"; target_node = None; file = Some "test.t"; line = Some 6 };
+      Rename_column { old_name = "a"; new_name = "b"; target_node = Some "step2"; file = Some "test.t"; line = None };
+      Add_node_arg { node = "filter"; arg = "na_rm=true"; target_node = None; file = Some "test.t"; line = None };
       Pin_package_version { pkg = "dplyr"; version = "1.0.0"; file = Some "tproject.toml" };
       NoFix;
     ] in
@@ -65,12 +66,12 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       let roundtrip = Diagnostics.suggested_fix_of_yojson json in
       match fix, roundtrip with
       | NoFix, NoFix -> true
-      | Cast { column = c1; cast_to = t1; _ }, Cast { column = c2; cast_to = t2; _ } ->
-          c1 = c2 && t1 = t2
-      | Rename_column { old_name = o1; new_name = n1; _ }, Rename_column { old_name = o2; new_name = n2; _ } ->
-          o1 = o2 && n1 = n2
-      | Add_node_arg { node = n1; arg = a1; _ }, Add_node_arg { node = n2; arg = a2; _ } ->
-          n1 = n2 && a1 = a2
+      | Cast { column = c1; cast_to = t1; target_node = tn1; _ }, Cast { column = c2; cast_to = t2; target_node = tn2; _ } ->
+          c1 = c2 && t1 = t2 && tn1 = tn2
+      | Rename_column { old_name = o1; new_name = n1; target_node = tn1; _ }, Rename_column { old_name = o2; new_name = n2; target_node = tn2; _ } ->
+          o1 = o2 && n1 = n2 && tn1 = tn2
+      | Add_node_arg { node = n1; arg = a1; target_node = tn1; _ }, Add_node_arg { node = n2; arg = a2; target_node = tn2; _ } ->
+          n1 = n2 && a1 = a2 && tn1 = tn2
       | Pin_package_version { pkg = p1; version = v1; _ }, Pin_package_version { pkg = p2; version = v2; _ } ->
           p1 = p2 && v1 = v2
       | _ -> false
@@ -87,7 +88,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   test_apply_fix_noop ();
 
   let test_apply_fix_node_arg () =
-    let r = Fix.apply_fix ~file:"/dev/null" (Diagnostics.Add_node_arg { node = "x"; arg = "y"; file = None; line = None }) in
+    let r = Fix.apply_fix ~file:"/dev/null" (Diagnostics.Add_node_arg { node = "x"; arg = "y"; target_node = None; file = None; line = None }) in
     check "apply_fix returns false for Add_node_arg (unimplemented)" (r = false)
   in
   test_apply_fix_node_arg ();
@@ -99,15 +100,15 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some "test.t"; diag_line = Some 3; diag_column = None;
       diag_message = "first"; diag_caused_by = [];
-      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; file = Some "test.t"; line = Some 3 };
+      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 3 };
     } in
     let d2 = { d1 with diag_id = "T0002"; diag_line = Some 10;
       diag_message = "second";
-      diag_suggested_fix = Cast { column = "y"; cast_to = "double"; file = Some "test.t"; line = Some 10 };
+      diag_suggested_fix = Cast { column = "y"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 10 };
     } in
     let d3 = { d1 with diag_id = "T0003"; diag_line = Some 5;
       diag_message = "third";
-      diag_suggested_fix = Cast { column = "z"; cast_to = "double"; file = Some "test.t"; line = Some 5 };
+      diag_suggested_fix = Cast { column = "z"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 5 };
     } in
     let sorted = Fix.sort_fixes_by_descending_line [d1; d2; d3] in
     let lines = List.filter_map (fun d -> d.Diagnostics.diag_line) sorted in
@@ -142,11 +143,11 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some "test.t"; diag_line = Some 5; diag_column = None;
       diag_message = "Column 'x' expected double, got int"; diag_caused_by = [];
-      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; file = Some "test.t"; line = Some 5 };
+      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 5 };
     } in
     let d2 = { d1 with diag_id = "T1002"; diag_line = Some 8;
       diag_message = "Column 'y' expected string, got int";
-      diag_suggested_fix = Cast { column = "y"; cast_to = "string"; file = Some "test.t"; line = Some 8 };
+      diag_suggested_fix = Cast { column = "y"; cast_to = "string"; target_node = None; file = Some "test.t"; line = Some 8 };
     } in
     let fixes = [d1; d2] in
     let result = Fix.apply_fixes ~dry_run:true ~default_file:"test.t" fixes in
@@ -167,7 +168,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some tmp_cast; diag_line = Some 3; diag_column = None;
       diag_message = "type mismatch"; diag_caused_by = [];
-      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; file = Some tmp_cast; line = Some 3 };
+      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; target_node = None; file = Some tmp_cast; line = Some 3 };
     } in
     let result = Fix.apply_fixes ~dry_run:false ~default_file:tmp_cast [d1] in
     check "non-dry-run: applied = 1" (result.Fix.applied = 1);

@@ -3679,6 +3679,7 @@ $ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
   "kind": "cast",
   "column": "amount",
   "cast_to": "double",
+  "target_node": "clean",
   "file": "pipeline.t",
   "line": 5
 }
