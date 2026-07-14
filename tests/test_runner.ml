@@ -167,6 +167,9 @@ let () =
   Test_check.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_fix.run_tests pass_count fail_count failures eval_string eval_string_env test;
 
+  (* NDJSON streaming tests *)
+  Test_ndjson.run_tests pass_count fail_count failures eval_string eval_string_env test;
+
   (* Summary *)
   let total = !pass_count + !fail_count in
   Printf.printf "\n=== Results: %d/%d passed ===\n" !pass_count total;

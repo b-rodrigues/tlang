@@ -4820,7 +4820,7 @@ result = t_diff("src/pipeline.t", json = true)
 
 ### `t_fix(file, dry_run = false)`
 
-REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically (e.g., inserting `|> mutate($col = as.type($col))` for type contract violations).
+REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Cast` (inserts `|> mutate(...)` for type contract violations), `Rename_column` (replaces `$old` with `$new`), and `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies).
 
 **Arguments:**
 
@@ -4877,7 +4877,9 @@ t check --schema --env --json path/to/script.t  # combined: tier 1+2+3 in JSON
 
 The `tier` field is derived from the deepest phase that produced diagnostics: parse/wire errors yield `tier: 1`, schema errors yield `tier: 2`, and env/build/exec errors yield `tier: 3`. A clean run reports `"tier": 1` and `"phase": "wire"` as the default.
 
-Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node`, `file`, `span`, `message`, `caused_by`, and `suggested_fix`.
+Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node` (with nested `id`, `lang`, `file`, and `span` containing `start` and `end`), `message`, `expected`, `actual`, `caused_by`, and `suggested_fix`.
+
+**`error_class` enum values:** `structural_error`, `name_error`, `arity_error`, `type_error`, `parse_error`, `file_error`, `key_error`, `index_error`, `value_error`, `runtime_error`, `division_by_zero`, `assertion_error`, `match_error`, `shell_error`, `aggregation_error`, `na_predicate_error`, `missing_artifact`, `generic_error`, `schema_mismatch`, `contract_violation`, `contract_unverifiable`, `missing_tproject`, `missing_package`, `missing_from_lockfile`, `nix_generation_error`, `nix_eval_error`, `invalid_expect_placement`, `na_warning`, `unknown_error`.
 
 **Examples:**
 
@@ -4918,6 +4920,143 @@ Environment errors are reported as `phase: "env"` diagnostics and trigger exit c
 **Watch mode (`--watch`):**
 
 When `--watch` is passed, `t check` runs immediately, then polls the input file for changes (every 0.5s). On each modification, it re-runs the check and prints updated results. Press Ctrl+C to stop. Watch mode can be combined with `--schema` and/or `--env`.
+
+---
+
+### `t run` (CLI)
+
+Executes a T source file. By default, `t run` prints human-readable output as the pipeline builds. With `--json`, it emits newline-delimited JSON (NDJSON) events to stdout — one JSON object per line — so agents can react to the first failing node without waiting for the entire DAG to finish.
+
+**Usage:**
+
+```bash
+t run <file.t>              # human-readable output (default)
+t run --json <file.t>       # streaming NDJSON events to stdout
+t run <file.t> --json       # --json can also appear after the file
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Pipeline completed successfully |
+| 1 | Wire-phase error (missing deps, cycles) |
+| 2 | Schema-phase error (type mismatch) |
+| 3 | Environment/build error (Nix failure, missing runtime) |
+
+Exit codes are the same whether `--json` is used or not.
+
+**NDJSON event schema (`--json`):**
+
+Each line is a self-contained JSON object with a common envelope:
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 1,
+  "ts": "2026-07-10T14:32:01.123Z",
+  "event": "run_started",
+  ...
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `schema_version` | String | Always `"1.0"`. Reserved for future changes. |
+| `seq` | Int | Monotonically increasing sequence number across the entire run. Starts at 1. |
+| `ts` | String | ISO-8601 UTC timestamp of emission. |
+| `event` | String | One of: `run_started`, `node_failed`, `node_skipped`, `run_finished`. |
+
+**Event types:**
+
+#### `run_started` (emitted once, first line)
+
+Emitted before the first Nix build. Carries the full pipeline DAG so consumers can reason about root causes while the stream is still open.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 1,
+  "ts": "2026-07-10T14:32:01.123Z",
+  "event": "run_started",
+  "file": "pipeline.t",
+  "nodes": [
+    {"id": "a", "lang": "r"},
+    {"id": "b", "lang": "python", "depends_on": ["a"]},
+    {"id": "c", "lang": "r", "depends_on": ["b"]}
+  ]
+}
+```
+
+#### `node_failed` (emitted per failure)
+
+Emitted when a node's Nix build fails. Includes the error message and the last 200 lines of the build log inline.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 2,
+  "ts": "2026-07-10T14:32:05.456Z",
+  "event": "node_failed",
+  "node": {"id": "b", "lang": "python"},
+  "message": "Nix build failed for node 'b'",
+  "log_tail": "...last 200 lines of build log..."
+}
+```
+
+The `log_tail` field is a string containing the tail of `_pipeline/logs/<node>.log`. If the log is unavailable or empty, the field is an empty string.
+
+#### `node_skipped` (emitted per skip)
+
+Emitted when a downstream node is skipped because an upstream dependency failed. The `because` field names the first failed ancestor.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 3,
+  "ts": "2026-07-10T14:32:05.457Z",
+  "event": "node_skipped",
+  "node": {"id": "c", "lang": "r"},
+  "because": "b"
+}
+```
+
+#### `run_finished` (emitted once, last line)
+
+Emitted after all nodes have been attempted. The `root_causes` array is authoritative here (computed from the full graph, not emitted on `node_failed` events). The `status` field is one of `"ok"`, `"failed"`, or `"skipped"`.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 4,
+  "ts": "2026-07-10T14:32:06.789Z",
+  "event": "run_finished",
+  "file": "pipeline.t",
+  "status": "failed",
+  "total_nodes": 3,
+  "failed": 1,
+  "skipped": 1,
+  "root_causes": ["b"]
+}
+```
+
+**Per-node build logs:**
+
+During execution, each node's stderr is captured to `_pipeline/logs/<node>.log`. These logs persist after the run and can be inspected with `read_past_node(node, "build")` or `read_past_node(node, "run")`.
+
+**Example: agent usage**
+
+```bash
+t run --json pipeline.t 2>/dev/null | while IFS= read -r line; do
+  event=$(echo "$line" | jq -r '.event')
+  if [ "$event" = "node_failed" ]; then
+    node=$(echo "$line" | jq -r '.node.id')
+    echo "FAILED: $node"
+    echo "$line" | jq -r '.log_tail' | tail -5
+    break
+  fi
+done
+```
 
 ### `expect()` — Pipeline shape contracts
 
@@ -5247,6 +5386,7 @@ $ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
   "kind": "cast",
   "column": "amount",
   "cast_to": "double",
+  "target_node": "clean",
   "file": "pipeline.t",
   "line": 5
 }
@@ -8569,7 +8709,7 @@ For datasets exceeding 2-3 GB:
 
 - **Tier 1 CLI (`t check <file>`)**: Structural pipeline validation without triggering Nix builds. Catches parse errors, DAG cycles, dangling node references, arity errors, and built-in name resolution. Exit codes: 0=clean, 1=wire error, 2=schema error, 3=env error.
 - **Tier 2 Schema Validation (`t check --schema`)**: Static column-name and type propagation through the pipeline DAG. Validates column references against inferred upstream schemas, checks `expect()` type contracts, and reports contract violations with `Cast` suggested fixes.
-- **Structured JSON Diagnostics (`--json`)**: Machine-readable output for all tiers, with `schema_version`, `status`, `phase`, `tier`, and per-diagnostic `error_class`, `severity`, `caused_by`, and `suggested_fix` fields. Designed for agent tooling.
+- **Structured JSON Diagnostics (`--json`)**: Machine-readable output for all tiers, with `schema_version`, `status`, `phase`, `tier`, and per-diagnostic `error_class` (stable enum), `severity`, `expected`, `actual`, `caused_by`, and `suggested_fix` fields. **Breaking change:** `file` and `span` (with `start` and `end`) are now nested inside the `node` sub-object. Designed for agent tooling.
 - **`t_check(file, json, schema, env)` REPL function**: Invoke `t check` from within a T session.
 
 ### `t diff` — Content-Addressed Output Diffing
@@ -8580,9 +8720,11 @@ For datasets exceeding 2-3 GB:
 
 ### `t fix` — Mechanical Suggested-Fix Application
 
-- **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Cast` (inserts `|> mutate(...)`) and `Rename_column` (replaces `$old` with `$new` in column references).
+- **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Cast` (inserts `|> mutate(...)`), `Rename_column` (replaces `$old` with `$new` in column references), and `Add_node_arg` (inserts missing arguments into node definitions).
 - **`t_fix(file, dry_run)` REPL function**: Invoke `t fix` from within a T session.
 - **Word-boundary-safe rename**: Column renames only affect `$col` and `` $`col` `` forms, avoiding corruption of identifiers like `valid` when renaming `id`.
+- **`target_node` on `suggested_fix`**: `Cast`, `Rename_column`, and `Add_node_arg` fixes now include a `target_node` field indicating which pipeline node the fix applies to.
+- **Cross-runtime deserializer suggestion**: When a node depends on a node from a different runtime but has no explicit `deserializer`, `t check` now suggests adding `deserializer = ^csv` via an `Add_node_arg` fix.
 
 ### `t check` Environment Validation
 
@@ -8596,6 +8738,14 @@ For datasets exceeding 2-3 GB:
 - **Comprehensive Nix installation guide** (`docs/nix-installation.md`): Platform-specific instructions for Linux, macOS, NixOS, and WSL2. Includes Determinate Systems installer, manual configuration for existing Nix installs, and Docker container setup.
 - **NixOS configuration**: Full `configuration.nix` snippets for trusted users, binary cache, and flakes.
 - **Binary cache setup**: Instructions for configuring the `rstats-on-nix` Cachix cache on NixOS and non-NixOS systems.
+
+### `t run --json` — Streaming NDJSON Build Diagnostics
+
+- **Streaming NDJSON output**: `t run --json` emits newline-delimited JSON events to stdout as the pipeline builds, enabling agents to react to the first failing node without waiting for the entire DAG. Events: `run_started` (DAG manifest), `node_failed` (error + inline log tail), `node_skipped` (propagation), `run_finished` (terminal summary with `root_causes`).
+- **Per-node build log capture**: Build logs are now captured to `_pipeline/logs/<node>.log` during execution, eliminating dependence on `nix log <drv>` after the fact. The `node_failed` event includes the last 200 lines of the log inline.
+- **`run_started` DAG manifest**: The first NDJSON line carries the full pipeline DAG (node IDs, languages, dependencies) so consumers can reason about root causes while the stream is still open.
+- **`root_causes` at `run_finished`**: Root cause computation is deferred to the terminal event, where the full picture is known. No provisional guesses on `node_failed` events.
+- **Exit codes unchanged**: 0=clean, 1=wire error, 2=schema error, 3=env/build error — independent of `--json`.
 
 ## [0.54.0] - 2026-07-08
 

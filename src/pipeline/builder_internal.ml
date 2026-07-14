@@ -51,13 +51,26 @@ let print_failed_node_logs drv_paths errored =
           Printf.eprintf "\n--- Logs for failed node `%s` ---\nNo derivation path was captured for this node.\n%!" name)
     errored
 
+let classify_nix_error last_lines =
+  match List.rev last_lines with
+  | last :: _ ->
+    let lower = String.lowercase_ascii last in
+    let has p = try let _ = Str.search_forward (Str.regexp p) lower 0 in true with Not_found -> false in
+    if has "^error:" then Diagnostics.Type_error
+    else if has "no such file" then Diagnostics.File_error
+    else if has "attribute.*missing" then Diagnostics.Key_error
+    else if has "is not a function" then Diagnostics.Type_error
+    else if has "syntax error" then Diagnostics.Parse_error
+    else Diagnostics.Nix_error
+  | [] -> Diagnostics.Nix_error
+
 let get_failed_node_error_info drv_path =
   let argv = [| "nix"; "log"; drv_path |] in
   match run_command_argv_capture argv with
   | Ok output ->
       let output = String.trim output in
       if output = "" then
-        ("NixError", "No log output returned from nix log.")
+        (Diagnostics.Nix_error, "No log output returned from nix log.")
       else
         let lines = String.split_on_char '\n' output |> List.map String.trim |> List.filter (fun s -> s <> "") in
         let last_lines =
@@ -68,25 +81,12 @@ let get_failed_node_error_info drv_path =
             lines
         in
         let error_msg = String.concat "\n" last_lines in
-        let error_code =
-          match List.rev last_lines with
-          | last :: _ ->
-              (match String.split_on_char ':' last with
-               | first :: _ ->
-                   let parts = String.split_on_char '.' first in
-                    (match List.rev parts with
-                     | last_part :: _ ->
-                         let trimmed = String.trim last_part in
-                         if trimmed = "" then "NixError" else trimmed
-                     | [] -> "NixError")
-               | _ -> "NixError")
-          | [] -> "NixError"
-        in
-        (error_code, error_msg)
+        let ec = classify_nix_error last_lines in
+        (ec, error_msg)
   | Error msg ->
-      ("NixError", "Failed to run nix log: " ^ msg)
+      (Diagnostics.Nix_error, "Failed to run nix log: " ^ msg)
 
-let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
+let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts option) ?(json=false) (p : Ast.pipeline_result) =
   let verbose =
     match verbose with
     | Some level -> level
@@ -120,28 +120,6 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         else
           Ok (List.filter_map (function VString s -> Some s | _ -> None) lst)
     | _ -> Error (Printf.sprintf "Expected `%s` to be a String, List, or Vector of strings." label)
-  in
-  let contains_substring line pattern =
-    try
-      let len_p = String.length pattern in
-      let len_l = String.length line in
-      let rec loop i =
-        if i + len_p > len_l then false
-        else if String.sub line i len_p = pattern then true
-        else loop (i + 1)
-      in
-      loop 0
-    with _ -> false
-  in
-  let contains_substring_idx line pattern =
-    let len_p = String.length pattern in
-    let len_l = String.length line in
-    let rec loop i =
-      if i + len_p > len_l then -1
-      else if String.sub line i len_p = pattern then i
-      else loop (i + 1)
-    in
-    loop 0
   in
   if not (command_exists "nix-build") then
     Error "build_pipeline requires `nix-build` to be available."
@@ -289,6 +267,17 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
               Printf.eprintf "[Debug] nix eval failed: %s\n%!" msg
       )
     in
+    (* Emit run_started NDJSON event before any builds begin *)
+    if json then begin
+      Ndjson_stream.reset ();
+      let nodes = List.map (fun name ->
+        let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+        let lang = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+        { Ndjson_stream.ns_id = name; ns_lang = lang; ns_deps = deps }
+      ) node_names in
+      Ndjson_stream.emit_run_started ?pipeline_name ~nodes ()
+    end;
+    if json then ignore (Ndjson_stream.ensure_build_logs_dir ());
     if dry_run then begin
       let lines = ref [] in
       let callback line =
@@ -381,96 +370,95 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
       let node_durations = Hashtbl.create (List.length node_names) in
       let node_was_built = Hashtbl.create (List.length node_names) in
       let started_building = ref false in
-      
-      let callback line =
-        Buffer.add_string captured_output line;
-        Buffer.add_char captured_output '\n';
-        
-        let line = String.trim line in
-        if String.starts_with ~prefix:"building '/nix/store/" line then (
-          if not !started_building then (
-            started_building := true;
-            Printf.eprintf "\nStarting pipeline build...\n%!";
-          );
-          match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
+
+      let is_failed name =
+        match Hashtbl.find_opt statuses name with
+        | Some "Completed" | Some "Cached" -> false
+        | _ -> true
+      in
+
+      let classify_and_update line =
+        let trimmed = String.trim line in
+        if String.starts_with ~prefix:"building '/nix/store/" trimmed then (
+          match List.find_opt (fun name -> contains_substring trimmed ("-" ^ name ^ ".drv")) sorted_node_names with
           | Some name ->
+              let prev_status = find_status name in
               Hashtbl.replace node_was_built name true;
               Hashtbl.replace node_start_times name (Unix.gettimeofday ());
-              let drv_path = 
-                try
-                  let start_idx = contains_substring_idx line "/nix/store/" in
-                  if start_idx >= 0 then
-                    let sub = String.sub line start_idx (String.length line - start_idx) in
-                    let end_idx = try String.index sub '\'' with _ ->
-                                  try String.index sub ' ' with _ ->
-                                  String.length sub in
-                    String.sub sub 0 end_idx
-                  else ""
-                with _ -> ""
-              in
-              if drv_path <> "" then Hashtbl.replace drv_paths name drv_path;
-
-              if find_status name = "Pending" then (
+              let dp = extract_nix_drv_path trimmed in
+              if dp <> "" then Hashtbl.replace drv_paths name dp;
+              if prev_status = "Pending" then
                 Hashtbl.replace statuses name "Building";
-                Printf.eprintf "  + %s building\n%!" name
-              )
-          | None -> ()
+              (Build_start { node_name = name }, prev_status)
+          | None -> (Nix_line_other, "")
         )
-        else if String.starts_with ~prefix:"/nix/store/" line
-             && not (String.ends_with ~suffix:".drv" line) then (
-          match List.find_opt (fun name -> contains_substring line ("-" ^ name)) sorted_node_names with
+        else if String.starts_with ~prefix:"/nix/store/" trimmed
+             && not (String.ends_with ~suffix:".drv" trimmed) then (
+          match List.find_opt (fun name -> contains_substring trimmed ("-" ^ name)) sorted_node_names with
           | Some name ->
-              Hashtbl.replace node_store_paths name line;
-              if find_status name <> "Completed" && 
-                 find_status name <> "SoftFailed" &&
-                 find_status name <> "Errored" then (
+              let prev_status = find_status name in
+              Hashtbl.replace node_store_paths name trimmed;
+              if prev_status <> "Completed" &&
+                 prev_status <> "SoftFailed" &&
+                 prev_status <> "Errored" then (
                 let duration =
                   match Hashtbl.find_opt node_start_times name with
                   | Some t -> Unix.gettimeofday () -. t
                   | None -> 0.0
                 in
                 Hashtbl.replace node_durations name duration;
-                Hashtbl.replace statuses name "Completed";
-                Printf.eprintf "  ✓ %s built\n%!" name
-              )
-          | None -> ()
+                Hashtbl.replace statuses name "Completed"
+              );
+              (Build_complete { node_name = name }, prev_status)
+          | None -> (Nix_line_other, "")
         )
-        else (
-          if contains_substring line "error:" || contains_substring line "failed" then (
-            match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) sorted_node_names with
-            | Some name ->
-                if find_status name <> "Errored" then (
-                  let duration =
-                    match Hashtbl.find_opt node_start_times name with
-                    | Some t -> Unix.gettimeofday () -. t
-                    | None -> 0.0
-                  in
-                  Hashtbl.replace node_durations name duration;
-                  Hashtbl.replace statuses name "Errored";
-                  let drv_path = 
-                    match Hashtbl.find_opt drv_paths name with
-                    | Some p -> p
-                    | None ->
-                      try
-                        let start_idx = contains_substring_idx line "/nix/store/" in
-                        if start_idx >= 0 then
-                          let sub = String.sub line start_idx (String.length line - start_idx) in
-                          let end_idx = try String.index sub '\'' with _ ->
-                                        try String.index sub ' ' with _ ->
-                                        String.length sub in
-                          String.sub sub 0 end_idx
-                        else "<path>"
-                      with _ -> "<path>"
-                  in
-                  if drv_path <> "" && drv_path <> "<path>" then Hashtbl.replace drv_paths name drv_path;
-                  if verbose > 0 then
-                    Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
-                  else
-                    Printf.eprintf "  ✖ %s failed\n%!" name
-                )
-            | None -> ()
-          )
+        else if contains_substring trimmed "error:" || contains_substring trimmed "failed" then (
+          match List.find_opt (fun name -> contains_substring trimmed ("-" ^ name ^ ".drv")) sorted_node_names with
+          | Some name ->
+              let prev_status = find_status name in
+              if prev_status <> "Errored" then (
+                let drv_path =
+                  match Hashtbl.find_opt drv_paths name with
+                  | Some p -> p
+                  | None ->
+                      let e = extract_nix_drv_path trimmed in
+                      if e = "" then "<path>" else e
+                in
+                if drv_path <> "" && drv_path <> "<path>" then Hashtbl.replace drv_paths name drv_path;
+                let duration =
+                  match Hashtbl.find_opt node_start_times name with
+                  | Some t -> Unix.gettimeofday () -. t
+                  | None -> 0.0
+                in
+                Hashtbl.replace node_durations name duration;
+                Hashtbl.replace statuses name "Errored"
+              );
+              (Build_error { node_name = name }, prev_status)
+          | None -> (Nix_line_other, "")
         )
+        else (Nix_line_other, "")
+      in
+
+      let callback line =
+        Buffer.add_string captured_output line;
+        Buffer.add_char captured_output '\n';
+        let event, prev_status = classify_and_update line in
+        match event with
+        | Build_start { node_name } ->
+            if not !started_building then (
+              started_building := true;
+              Printf.eprintf "\nStarting pipeline build...\n%!"
+            );
+            if prev_status = "Pending" then
+              Printf.eprintf "  + %s building\n%!" node_name
+        | Build_complete { node_name } ->
+            Printf.eprintf "  ✓ %s built\n%!" node_name
+        | Build_error { node_name } ->
+            if verbose > 0 then
+              Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" node_name node_name
+            else
+              Printf.eprintf "  ✖ %s failed\n%!" node_name
+        | Nix_line_other -> ()
       in
 
       let timestamp = get_timestamp () in
@@ -540,9 +528,9 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
               if status = "Errored" then
                 match Hashtbl.find_opt drv_paths name with
                 | Some drv_path ->
-                    let (err_code, err_msg) = get_failed_node_error_info drv_path in
+                    let (ec, err_msg) = get_failed_node_error_info drv_path in
                     [
-                      ("error_code", "\"" ^ Serialization.json_escape err_code ^ "\"");
+                      ("error_code", "\"" ^ Serialization.json_escape (Diagnostics.error_class_to_string ec) ^ "\"");
                       ("error_message", "\"" ^ Serialization.json_escape err_msg ^ "\"")
                     ]
                 | None -> []
@@ -595,7 +583,75 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         write_file log_path log_json
       in
 
-      match run_command_stream_argv argv callback with
+      let build_status =
+        if json then
+          let current_log_node = ref "" in
+          let node_log_bufs = Hashtbl.create (List.length node_names) in
+          let get_or_create_buf name =
+            match Hashtbl.find_opt node_log_bufs name with
+            | Some buf -> buf
+            | None ->
+                let buf = Buffer.create 256 in
+                Hashtbl.replace node_log_bufs name buf;
+                buf
+          in
+          run_command_stream_argv_separate argv
+            ~on_stdout:(fun line ->
+              Buffer.add_string captured_output line;
+              Buffer.add_char captured_output '\n';
+              let event, _prev_status = classify_and_update line in
+              match event with
+              | Build_start { node_name } ->
+                  if not !started_building then started_building := true;
+                  current_log_node := node_name
+              | Build_complete _ -> ()
+              | Build_error { node_name } ->
+                  let lang = match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T" in
+                  let (error_class, error_message, log_available, log_path, log_tail) =
+                    match Hashtbl.find_opt drv_paths node_name with
+                    | Some dp ->
+                        let (ec, em) = get_failed_node_error_info dp in
+                        let lp = Ndjson_stream.log_path_for_node node_name in
+                        let tail =
+                          match Hashtbl.find_opt node_log_bufs node_name with
+                          | Some buf ->
+                              let raw = Buffer.contents buf in
+                              Ndjson_stream.truncate_tail ~max_lines:200 raw
+                          | None -> em
+                        in
+                        (Diagnostics.error_class_to_string ec, em, Sys.file_exists lp, lp, tail)
+                    | None -> (Diagnostics.error_class_to_string Diagnostics.Nix_error, String.trim line, false, "", String.trim line)
+                  in
+                  let duration =
+                    match Hashtbl.find_opt node_start_times node_name with
+                    | Some t -> (Unix.gettimeofday () -. t) *. 1000.0
+                    | None -> 0.0
+                  in
+                  Ndjson_stream.emit_node_failed
+                    ~node_id:node_name ~lang
+                    ~duration_ms:duration
+                    ~error_class ~message:error_message
+                    ~log_available ~log_path ~log_tail
+              | Nix_line_other -> ()
+            )
+            ~on_stderr:(fun line ->
+              let name = !current_log_node in
+              if name <> "" then begin
+                let buf = get_or_create_buf name in
+                Buffer.add_string buf line;
+                Buffer.add_char buf '\n';
+                let log_file = Ndjson_stream.log_path_for_node name in
+                (try
+                   let oc = open_out_gen [Open_creat; Open_append; Open_text] 0o644 log_file in
+                   output_string oc line;
+                   output_char oc '\n';
+                   close_out oc
+                 with _ -> ())
+              end)
+        else
+          run_command_stream_argv argv callback
+      in
+      match build_status with
       | Ok status ->
           (* Save drv_paths for later tool use (e.g. read_log) *)
           if Hashtbl.length drv_paths > 0 then (
@@ -681,55 +737,89 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                   (* Order: check soft_failed/with_warnings first — built_count = 0 AND
                      soft_failed > 0 should be impossible (Nix never ran anything),
                      but if it somehow occurs we want to show errors, not "all cached". *)
-                  if List.length soft_failed > 0 || List.length with_warnings > 0 then (
-                    let msg = if List.length soft_failed > 0 then "\n✖ Pipeline build captured node errors" else "\n✓ Pipeline build completed" in
-                    Printf.eprintf "%s [%d succeeded, %d captured errors, %d had warnings%s]\n%!"
-                      msg (List.length completed) (List.length soft_failed) (List.length with_warnings)
-                      (if cached_count > 0 then Printf.sprintf ", %d cached" cached_count else "");
-                    List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
-                    List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
-                  ) else if built_count = 0 then
-                    Printf.eprintf "\n○ All nodes were already cached — nothing to build.\n%!"
-                  else begin
-                    let parts =
-                      [Printf.sprintf "%d built" built_count]
-                      @ (if cached_count > 0 then [Printf.sprintf "%d cached" cached_count] else [])
-                    in
-                    let summary_str =
-                      String.concat ", " parts ^ Printf.sprintf " / %d nodes" (List.length node_names)
-                    in
-                    Printf.eprintf "\n✓ Pipeline build completed [%s]\n%!" summary_str
+                  if not json then begin
+                    if List.length soft_failed > 0 || List.length with_warnings > 0 then (
+                      let msg = if List.length soft_failed > 0 then "\n✖ Pipeline build captured node errors" else "\n✓ Pipeline build completed" in
+                      Printf.eprintf "%s [%d succeeded, %d captured errors, %d had warnings%s]\n%!"
+                        msg (List.length completed) (List.length soft_failed) (List.length with_warnings)
+                        (if cached_count > 0 then Printf.sprintf ", %d cached" cached_count else "");
+                      List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
+                      List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
+                    ) else if built_count = 0 then
+                      Printf.eprintf "\n○ All nodes were already cached — nothing to build.\n%!"
+                    else begin
+                      let parts =
+                        [Printf.sprintf "%d built" built_count]
+                        @ (if cached_count > 0 then [Printf.sprintf "%d cached" cached_count] else [])
+                      in
+                      let summary_str =
+                        String.concat ", " parts ^ Printf.sprintf " / %d nodes" (List.length node_names)
+                      in
+                      Printf.eprintf "\n✓ Pipeline build completed [%s]\n%!" summary_str
+                    end;
+
+                    if List.length soft_failed > 0 then (
+                      let root_causes =
+                        List.filter (fun name ->
+                          if not (is_failed name) then false
+                          else
+                            let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+                            not (List.exists is_failed deps)
+                        ) node_names
+                      in
+                      let rec_msg =
+                        if root_causes <> [] then
+                          let lines =
+                            List.map (fun n ->
+                              Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM/Copilot for instant help!)" n n
+                            ) root_causes
+                          in
+                          "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"
+                        else ""
+                      in
+                      if rec_msg <> "" then Printf.eprintf "%s%!" rec_msg
+                    );
+
+                    if cached_count > 0 && built_count > 0 then
+                      Printf.eprintf "  (cached: %s)\n%!" (String.concat ", " cached_nodes)
                   end;
 
-                  if List.length soft_failed > 0 then (
-                    let is_failed name =
-                      match Hashtbl.find_opt statuses name with
-                      | Some "Completed" -> false
-                      | _ -> true
-                    in
-                    let root_causes =
+                  (* NDJSON: emit node_skipped + run_finished for success case *)
+                  if json then begin
+                    let skipped =
                       List.filter (fun name ->
-                        if not (is_failed name) then false
-                        else
-                          let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
-                          not (List.exists is_failed deps)
+                        let s = find_status name in
+                        s = "Pending" || s = "Skipped"
                       ) node_names
                     in
-                    let rec_msg =
-                      if root_causes <> [] then
-                        let lines =
-                          List.map (fun n ->
-                            Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM/Copilot for instant help!)" n n
-                          ) root_causes
-                        in
-                        "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"
-                      else ""
+                    List.iter (fun name ->
+                      let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+                      let caused_by = List.filter is_failed deps in
+                      Ndjson_stream.emit_node_skipped ~node_id:name ~caused_by
+                    ) skipped;
+                    let failed_count = List.length (List.filter (fun n -> find_status n = "Errored") node_names) in
+                    let soft_failed_count = List.length soft_failed in
+                    let total_failed = failed_count + soft_failed_count in
+                    let status_str = if total_failed > 0 then "failed" else "success" in
+                    let root_causes =
+                      if total_failed > 0 then
+                        List.filter (fun name ->
+                          if not (is_failed name) then false
+                          else
+                            let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+                            not (List.exists is_failed deps)
+                        ) node_names
+                      else []
                     in
-                    if rec_msg <> "" then Printf.eprintf "%s%!" rec_msg
-                  );
-
-                  if cached_count > 0 && built_count > 0 then
-                    Printf.eprintf "  (cached: %s)\n%!" (String.concat ", " cached_nodes);
+                    Ndjson_stream.emit_run_finished
+                      ~status:status_str
+                      ~total:(List.length node_names)
+                      ~succeeded:(List.length completed + cached_count)
+                      ~cached:cached_count
+                      ~failed:total_failed
+                      ~skipped_upstream:(List.length skipped)
+                      ~root_causes
+                  end;
 
                    if built_count > 0 || cached_count > 0 then
                      (match save_build_log (Some out_path) with
@@ -781,74 +871,105 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                 else "General Nix build failure (check dependencies or environment)."
               in
               let cache_summary = if cached_count > 0 then Printf.sprintf " [%d cached: %s]" cached_count (String.concat ", " cached_nodes) else "" in
-              if verbose > 0 then (
-                if errored <> [] then
-                  print_failed_node_logs drv_paths errored
-                else
-                  let output = String.trim (Buffer.contents captured_output) in
-                  if output <> "" then
-                    Printf.eprintf "\n--- nix-build failure output ---\n%s\n%!" output
-              );
-
-              if List.length soft_failed > 0 || List.length with_warnings > 0 then (
-                let soft_failed_str =
-                  if List.length soft_failed > 0 then
-                    Printf.sprintf " (%d captured errors)" (List.length soft_failed)
-                  else ""
-                in
-                let warnings_str =
-                  if List.length with_warnings > 0 then
-                    Printf.sprintf " (%d warnings)" (List.length with_warnings)
-                  else ""
-                in
-                Printf.eprintf "\n✖ Pipeline build failed [%s]%s%s%s\n%!" error_summary soft_failed_str warnings_str cache_summary;
-                List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
-                List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
-              ) else (
-                Printf.eprintf "\n✖ Pipeline build failed [%s]%s\n%!" error_summary cache_summary
-              );
-
-              let is_failed name =
-                match Hashtbl.find_opt statuses name with
-                | Some "Completed" -> false
-                | _ -> true
-              in
-              let root_causes =
-                List.filter (fun name ->
-                  if not (is_failed name) then false
+              if not json then begin
+                if verbose > 0 then (
+                  if errored <> [] then
+                    print_failed_node_logs drv_paths errored
                   else
-                    let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
-                    not (List.exists is_failed deps)
-                ) node_names
-              in
+                    let output = String.trim (Buffer.contents captured_output) in
+                    if output <> "" then
+                      Printf.eprintf "\n--- nix-build failure output ---\n%s\n%!" output
+                );
 
-              let rec_msg =
-                if root_causes <> [] then
-                  let lines =
-                    List.map (fun n ->
-                      Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM/Copilot for instant help!)" n n
-                    ) root_causes
+                if List.length soft_failed > 0 || List.length with_warnings > 0 then (
+                  let soft_failed_str =
+                    if List.length soft_failed > 0 then
+                      Printf.sprintf " (%d captured errors)" (List.length soft_failed)
+                    else ""
                   in
-                  "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"
-                else ""
-              in
-              if rec_msg <> "" then Printf.eprintf "%s%!" rec_msg;
+                  let warnings_str =
+                    if List.length with_warnings > 0 then
+                      Printf.sprintf " (%d warnings)" (List.length with_warnings)
+                    else ""
+                  in
+                  Printf.eprintf "\n✖ Pipeline build failed [%s]%s%s%s\n%!" error_summary soft_failed_str warnings_str cache_summary;
+                  List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
+                  List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
+                ) else (
+                  Printf.eprintf "\n✖ Pipeline build failed [%s]%s\n%!" error_summary cache_summary
+                );
 
-              let hint =
-                let base_hint =
-                  if verbose > 0 then "See logs above."
-                  else "Use collect_exceptions(p) and explain() for diagnostics."
+                let root_causes =
+                  List.filter (fun name ->
+                    if not (is_failed name) then false
+                    else
+                      let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+                      not (List.exists is_failed deps)
+                  ) node_names
                 in
-                match root_causes with
-                | rc :: _ ->
-                    Printf.sprintf "%s (Root cause: %s. Run 'error_msg(p.%s)' and share the traceback with an LLM for help!)"
-                      base_hint
-                      (String.concat ", " root_causes)
-                      rc
-                | [] -> base_hint
-              in
-              ignore (save_build_log None);
-              Error (Printf.sprintf "nix-build failed: %s %s" error_summary hint))
+
+                let rec_msg =
+                  if root_causes <> [] then
+                    let lines =
+                      List.map (fun n ->
+                        Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM/Copilot for instant help!)" n n
+                      ) root_causes
+                    in
+                    "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"
+                  else ""
+                in
+                if rec_msg <> "" then Printf.eprintf "%s%!" rec_msg;
+
+                let hint =
+                  let base_hint =
+                    if verbose > 0 then "See logs above."
+                    else "Use collect_exceptions(p) and explain() for diagnostics."
+                  in
+                  match root_causes with
+                  | rc :: _ ->
+                      Printf.sprintf "%s (Root cause: %s. Run 'error_msg(p.%s)' and share the traceback with an LLM for help!)"
+                        base_hint
+                        (String.concat ", " root_causes)
+                        rc
+                  | [] -> base_hint
+                in
+                ignore (save_build_log None);
+                Error (Printf.sprintf "nix-build failed: %s %s" error_summary hint)
+              end else begin
+                (* NDJSON: emit node_skipped + run_finished for failure case *)
+                let skipped =
+                  List.filter (fun name ->
+                    let s = find_status name in
+                    s = "Pending" || s = "Skipped"
+                  ) node_names
+                in
+                List.iter (fun name ->
+                  let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+                  let caused_by = List.filter is_failed deps in
+                  Ndjson_stream.emit_node_skipped ~node_id:name ~caused_by
+                ) skipped;
+                let failed_count = List.length errored in
+                let soft_failed_count = List.length soft_failed in
+                let total_failed = failed_count + soft_failed_count in
+                let root_causes =
+                  List.filter (fun name ->
+                    if not (is_failed name) then false
+                    else
+                      let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+                      not (List.exists is_failed deps)
+                  ) node_names
+                in
+                Ndjson_stream.emit_run_finished
+                  ~status:"failed"
+                  ~total:(List.length node_names)
+                  ~succeeded:(List.length (List.filter (fun n -> find_status n = "Completed") node_names) + cached_count)
+                  ~cached:cached_count
+                  ~failed:total_failed
+                  ~skipped_upstream:(List.length skipped)
+                  ~root_causes;
+                ignore (save_build_log None);
+                Error (Printf.sprintf "nix-build failed: %s" error_summary)
+              end)
       | Error msg ->
           Error (Printf.sprintf "Failed to run nix-build: %s" msg)
     end

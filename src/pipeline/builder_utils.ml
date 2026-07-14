@@ -1,5 +1,49 @@
 (* src/pipeline/builder_utils.ml *)
 
+(* --- Shared string helpers for nix-build line parsing --- *)
+
+let contains_substring line pattern =
+  try
+    let len_p = String.length pattern in
+    let len_l = String.length line in
+    let rec loop i =
+      if i + len_p > len_l then false
+      else if String.sub line i len_p = pattern then true
+      else loop (i + 1)
+    in
+    loop 0
+  with _ -> false
+
+let contains_substring_idx line pattern =
+  let len_p = String.length pattern in
+  let len_l = String.length line in
+  let rec loop i =
+    if i + len_p > len_l then -1
+    else if String.sub line i len_p = pattern then i
+    else loop (i + 1)
+  in
+  loop 0
+
+let extract_nix_drv_path line =
+  try
+    let start_idx = contains_substring_idx line "/nix/store/" in
+    if start_idx >= 0 then
+      let sub = String.sub line start_idx (String.length line - start_idx) in
+      let end_idx = try String.index sub '\'' with _ ->
+                    try String.index sub ' ' with _ ->
+                    String.length sub in
+      String.sub sub 0 end_idx
+    else ""
+  with _ -> ""
+
+(* --- Nix build line classification --- *)
+
+type nix_line_event =
+  | Build_start of { node_name : string }
+  | Build_complete of { node_name : string }
+  | Build_error of { node_name : string }
+  | Nix_line_other
+
 type nix_opts = {
   targets   : Ast.value option;
   force     : Ast.value option;
@@ -375,6 +419,105 @@ let run_command_stream_argv (argv : string array) callback =
           in
           flush_buf line_buf_in;
           flush_buf line_buf_err;
+          let s = Unix.close_process_full proc in
+          cleanup_done := true;
+          s)
+    in
+    Ok status
+  with exn ->
+    Error (Printexc.to_string exn)
+
+let run_command_stream_argv_separate (argv : string array)
+    ~on_stdout ~on_stderr =
+  if Array.length argv = 0 then Error "run_command_stream_argv_separate: empty argument vector"
+  else
+  try
+    let prog = argv.(0) in
+    let (ch_in, _ch_out, ch_err as proc) =
+      Unix.open_process_args_full prog argv (Unix.environment ())
+    in
+    close_out _ch_out;
+    let fd_in = Unix.descr_of_in_channel ch_in in
+    let fd_err = Unix.descr_of_in_channel ch_err in
+    let buf = Bytes.create 1024 in
+    let line_buf_in = Buffer.create 256 in
+    let line_buf_err = Buffer.create 256 in
+
+    let process_bytes_to_in line_buf n =
+      for i = 0 to n - 1 do
+        let c = Bytes.get buf i in
+        if c = '\n' || c = '\r' then (
+          let line = Buffer.contents line_buf in
+          if line <> "" then on_stdout line;
+          Buffer.clear line_buf
+        ) else Buffer.add_char line_buf c
+      done
+    in
+    let process_bytes_to_err line_buf n =
+      for i = 0 to n - 1 do
+        let c = Bytes.get buf i in
+        if c = '\n' || c = '\r' then (
+          let line = Buffer.contents line_buf in
+          if line <> "" then on_stderr line;
+          Buffer.clear line_buf
+        ) else Buffer.add_char line_buf c
+      done
+    in
+
+    let rec drain in_open err_open =
+      if not in_open && not err_open then ()
+      else
+        let read_fds =
+          [] |> (fun acc -> if in_open then fd_in :: acc else acc)
+             |> (fun acc -> if err_open then fd_err :: acc else acc)
+        in
+        let rec do_select () =
+          try Unix.select read_fds [] [] (-1.)
+          with Unix.Unix_error (Unix.EINTR, _, _) -> do_select ()
+        in
+        let ready, _, _ = do_select () in
+
+        let in_open =
+          if in_open && List.mem fd_in ready then (
+            let rec do_read () =
+              try Unix.read fd_in buf 0 1024
+              with Unix.Unix_error (Unix.EINTR, _, _) -> do_read ()
+                 | Unix.Unix_error _ as exn -> raise exn
+            in
+            let n = do_read () in
+            if n = 0 then false else (process_bytes_to_in line_buf_in n; true)
+          ) else in_open
+        in
+
+        let err_open =
+          if err_open && List.mem fd_err ready then (
+            let rec do_read () =
+              try Unix.read fd_err buf 0 1024
+              with Unix.Unix_error (Unix.EINTR, _, _) -> do_read ()
+                 | Unix.Unix_error _ as exn -> raise exn
+            in
+            let n = do_read () in
+            if n = 0 then false else (process_bytes_to_err line_buf_err n; true)
+          ) else err_open
+        in
+
+        drain in_open err_open
+    in
+
+    let cleanup_done = ref false in
+    let status =
+      Fun.protect
+        ~finally:(fun () ->
+          if not !cleanup_done then
+            (try ignore (Unix.close_process_full proc) with _ -> ()))
+        (fun () ->
+          drain true true;
+          let flush_buf process b =
+            let line = Buffer.contents b in
+            if line <> "" then process line
+          in
+          flush_buf on_stdout line_buf_in;
+          flush_buf on_stderr line_buf_err;
           let s = Unix.close_process_full proc in
           cleanup_done := true;
           s)

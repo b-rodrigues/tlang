@@ -34,6 +34,7 @@ type error_class =
   | Nix_eval_error
   | Invalid_expect_placement
   | Na_warning
+  | Nix_error
   | Unknown_error
 
 let error_class_to_string = function
@@ -65,6 +66,7 @@ let error_class_to_string = function
   | Nix_eval_error -> "nix_eval_error"
   | Invalid_expect_placement -> "invalid_expect_placement"
   | Na_warning -> "na_warning"
+  | Nix_error -> "nix_error"
   | Unknown_error -> "unknown_error"
 
 let error_class_of_string = function
@@ -96,6 +98,7 @@ let error_class_of_string = function
   | "nix_eval_error" -> Nix_eval_error
   | "invalid_expect_placement" -> Invalid_expect_placement
   | "na_warning" | "NAExcluded" -> Na_warning
+  | "nix_error" | "NixError" -> Nix_error
   | _ -> Unknown_error
 
 type suggested_fix =

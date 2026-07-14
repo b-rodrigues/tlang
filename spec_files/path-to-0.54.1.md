@@ -441,28 +441,25 @@ stubs.
 
 ### 6.6 Streaming NDJSON for `t run` (spec §2.4)
 
-**Status:** Not implemented
+**Status:** Implemented
 **Effort:** ~1–2 days
 
 **What:** Implement newline-delimited JSON streaming for `t run` diagnostics, so agents can
 react to the first failing node without waiting for the whole DAG.
 
 **Changes:**
-- `src/diagnostics.ml`: Add `diag_seq: int option` to the diagnostic type. Update serialization.
-- `src/eval.ml`: Emit diagnostics as JSON lines after each node completes (or fails).
-- `src/repl.ml`: Add `--json` flag to `t run` that enables streaming output mode.
-- Add a `seq` counter that increments monotonically across all diagnostics in a run.
+- `src/pipeline/ndjson_stream.ml`: New module with NDJSON event types (`run_started`, `node_failed`, `node_skipped`, `run_finished`) and emitters.
+- `src/ast.ml`: Added `ndjson_mode` global flag (similar to `check_mode`).
+- `src/pipeline/builder_utils.ml`: Added `run_command_stream_argv_separate` for separate stdout/stderr handling.
+- `src/pipeline/builder_internal.ml`: `build_pipeline_internal` reads `Ast.ndjson_mode` to emit NDJSON events, capture per-node build logs to `_pipeline/logs/<node>.log`, suppress human-readable output in JSON mode.
+- `src/repl.ml`: `--json` flag added to `t run`; sets `Ast.ndjson_mode` during evaluation; suppresses Pretty_print output.
 
 **Tests:**
-- Unit tests for `seq` field serialization.
-- Integration test: run a pipeline with `--json`, verify NDJSON output format.
+- `tests/test_ndjson.ml`: Unit tests for seq counter, truncate_tail, timestamp, log paths, node_spec type, and all four emit functions (stdout capture via pipe).
 
 **Docs:**
 - `docs/api-reference.md`: Document `t run --json` streaming output.
 - `docs/changelog.md`: Add entry under 0.54.1.
-
-**Note:** This is the highest-effort item. Consider deferring to a future release if the other
-items are higher priority.
 
 ---
 
