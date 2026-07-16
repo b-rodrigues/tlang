@@ -52,17 +52,18 @@ let print_failed_node_logs drv_paths errored =
     errored
 
 let classify_nix_error last_lines =
-  match List.rev last_lines with
-  | last :: _ ->
-    let lower = String.lowercase_ascii last in
-    let has p = try let _ = Str.search_forward (Str.regexp p) lower 0 in true with Not_found -> false in
-    if has "^error:" then Diagnostics.Type_error
-    else if has "no such file" then Diagnostics.File_error
-    else if has "attribute.*missing" then Diagnostics.Key_error
-    else if has "is not a function" then Diagnostics.Type_error
-    else if has "syntax error" then Diagnostics.Parse_error
-    else Diagnostics.Nix_error
-  | [] -> Diagnostics.Nix_error
+  let has p =
+    List.exists (fun line ->
+      let lower = String.lowercase_ascii line in
+      try let _ = Str.search_forward (Str.regexp p) lower 0 in true with Not_found -> false
+    ) last_lines
+  in
+  if has "^error:" then Diagnostics.Type_error
+  else if has "no such file" then Diagnostics.File_error
+  else if has "attribute.*missing" then Diagnostics.Key_error
+  else if has "is not a function" then Diagnostics.Type_error
+  else if has "syntax error" then Diagnostics.Parse_error
+  else Diagnostics.Nix_error
 
 let get_failed_node_error_info drv_path =
   let argv = [| "nix"; "log"; drv_path |] in
@@ -75,8 +76,8 @@ let get_failed_node_error_info drv_path =
         let lines = String.split_on_char '\n' output |> List.map String.trim |> List.filter (fun s -> s <> "") in
         let last_lines =
           let len = List.length lines in
-          if len > 3 then
-            List.filteri (fun i _ -> i >= len - 3) lines
+          if len > 10 then
+            List.filteri (fun i _ -> i >= len - 10) lines
           else
             lines
         in
@@ -369,12 +370,76 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
       let node_start_times = Hashtbl.create (List.length node_names) in
       let node_durations = Hashtbl.create (List.length node_names) in
       let node_was_built = Hashtbl.create (List.length node_names) in
+      let node_error_info : (string, string * string) Hashtbl.t = Hashtbl.create (List.length node_names) in
+      let node_log_bufs = Hashtbl.create (List.length node_names) in
+      let node_completed_emitted = Hashtbl.create (List.length node_names) in
       let started_building = ref false in
 
       let is_failed name =
         match Hashtbl.find_opt statuses name with
         | Some "Completed" | Some "Cached" -> false
         | _ -> true
+      in
+
+      let report_soft_failed_and_build_failed_nodes_list soft_failed =
+        List.iter (fun name ->
+          let lang = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+          let duration =
+            match Hashtbl.find_opt node_durations name with
+            | Some d -> d *. 1000.0
+            | None -> 0.0
+          in
+          let lp = Ndjson_stream.log_path_for_node name in
+          let log_tail =
+            match Hashtbl.find_opt node_log_bufs name with
+            | Some buf ->
+                let raw = Buffer.contents buf in
+                Ndjson_stream.truncate_tail ~max_lines:200 raw
+            | None -> ""
+          in
+          Ndjson_stream.emit_node_failed
+            ~node_id:name ~lang
+            ~disposition:"soft_failed"
+            ~duration_ms:duration
+            ~error_class:"VError"
+            ~message:(if log_tail <> "" then log_tail else "Soft failure - node produced VError output. Use error_msg(p." ^ name ^ ") for details.")
+            ~log_available:(Sys.file_exists lp)
+            ~log_path:lp
+            ~log_tail;
+          Hashtbl.replace node_error_info name
+            ("VError", "Soft failure - use error_msg(p." ^ name ^ ") for details.")
+        ) soft_failed;
+        List.filter_map (fun name ->
+          let s = find_status name in
+          if s = "Errored" || s = "SoftFailed" then
+            match Hashtbl.find_opt node_error_info name with
+            | Some (ec, msg) ->
+                Some { Ndjson_stream.
+                  fn_id = name;
+                  fn_disposition = (if s = "Errored" then "errored" else "soft_failed");
+                  fn_error_class = ec;
+                  fn_message = msg;
+                }
+            | None -> None
+          else None
+        ) node_names
+      in
+
+      let emit_remaining_completed_nodes () =
+        List.iter (fun name ->
+          if find_status name = "Completed" && not (Hashtbl.mem node_completed_emitted name) then begin
+            let lang = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+            let duration =
+              match Hashtbl.find_opt node_durations name with
+              | Some d -> d *. 1000.0
+              | None -> 0.0
+            in
+            let cached = not (Hashtbl.mem node_was_built name) in
+            Ndjson_stream.emit_node_completed
+              ~node_id:name ~lang ~duration_ms:duration ~cached;
+            Hashtbl.replace node_completed_emitted name true
+          end
+        ) node_names
       in
 
       let classify_and_update line =
@@ -586,7 +651,6 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
       let build_status =
         if json then
           let current_log_node = ref "" in
-          let node_log_bufs = Hashtbl.create (List.length node_names) in
           let get_or_create_buf name =
             match Hashtbl.find_opt node_log_bufs name with
             | Some buf -> buf
@@ -595,46 +659,42 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                 Hashtbl.replace node_log_bufs name buf;
                 buf
           in
+          let classify_error_from_buffer node_name raw_line =
+            let buffer_opt = Hashtbl.find_opt node_log_bufs node_name in
+            let lines =
+              match buffer_opt with
+              | Some buf ->
+                  let content = Buffer.contents buf in
+                  String.split_on_char '\n' content
+                  |> List.map String.trim
+                  |> List.filter (fun s -> s <> "")
+              | None -> []
+            in
+            let lines_to_classify =
+              if lines = [] then [String.trim raw_line]
+              else lines
+            in
+            let last_lines =
+              let len = List.length lines_to_classify in
+              if len > 10 then
+                List.filteri (fun i _ -> i >= len - 10) lines_to_classify
+              else
+                lines_to_classify
+            in
+            let error_msg = String.concat "\n" last_lines in
+            let ec = classify_nix_error last_lines in
+            (ec, error_msg)
+          in
           run_command_stream_argv_separate argv
             ~on_stdout:(fun line ->
               Buffer.add_string captured_output line;
               Buffer.add_char captured_output '\n';
-              let event, _prev_status = classify_and_update line in
-              match event with
-              | Build_start { node_name } ->
-                  if not !started_building then started_building := true;
-                  current_log_node := node_name
-              | Build_complete _ -> ()
-              | Build_error { node_name } ->
-                  let lang = match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T" in
-                  let (error_class, error_message, log_available, log_path, log_tail) =
-                    match Hashtbl.find_opt drv_paths node_name with
-                    | Some dp ->
-                        let (ec, em) = get_failed_node_error_info dp in
-                        let lp = Ndjson_stream.log_path_for_node node_name in
-                        let tail =
-                          match Hashtbl.find_opt node_log_bufs node_name with
-                          | Some buf ->
-                              let raw = Buffer.contents buf in
-                              Ndjson_stream.truncate_tail ~max_lines:200 raw
-                          | None -> em
-                        in
-                        (Diagnostics.error_class_to_string ec, em, Sys.file_exists lp, lp, tail)
-                    | None -> (Diagnostics.error_class_to_string Diagnostics.Nix_error, String.trim line, false, "", String.trim line)
-                  in
-                  let duration =
-                    match Hashtbl.find_opt node_start_times node_name with
-                    | Some t -> (Unix.gettimeofday () -. t) *. 1000.0
-                    | None -> 0.0
-                  in
-                  Ndjson_stream.emit_node_failed
-                    ~node_id:node_name ~lang
-                    ~duration_ms:duration
-                    ~error_class ~message:error_message
-                    ~log_available ~log_path ~log_tail
-              | Nix_line_other -> ()
-            )
-            ~on_stderr:(fun line ->
+              let event, prev_status = classify_and_update line in
+              (match event with
+               | Build_start { node_name } ->
+                   if not !started_building then started_building := true;
+                   current_log_node := node_name
+               | _ -> ());
               let name = !current_log_node in
               if name <> "" then begin
                 let buf = get_or_create_buf name in
@@ -647,7 +707,122 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                    output_char oc '\n';
                    close_out oc
                  with _ -> ())
-              end)
+              end;
+              match event with
+              | Build_start _ -> ()
+              | Build_complete { node_name } ->
+                  if prev_status <> "Completed" && prev_status <> "SoftFailed" && prev_status <> "Errored" then begin
+                    let lang = match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T" in
+                    let duration =
+                      match Hashtbl.find_opt node_durations node_name with
+                      | Some d -> d *. 1000.0
+                      | None ->
+                          (match Hashtbl.find_opt node_start_times node_name with
+                           | Some t -> (Unix.gettimeofday () -. t) *. 1000.0
+                           | None -> 0.0)
+                    in
+                    let cached = not (Hashtbl.mem node_was_built node_name) in
+                    Ndjson_stream.emit_node_completed
+                      ~node_id:node_name ~lang ~duration_ms:duration ~cached;
+                    Hashtbl.replace node_completed_emitted node_name true
+                  end
+              | Build_error { node_name } ->
+                  if prev_status <> "Errored" then begin
+                    let lang = match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T" in
+                    let ec, err_msg = classify_error_from_buffer node_name line in
+                    let ec_str = Diagnostics.error_class_to_string ec in
+                    let lp = Ndjson_stream.log_path_for_node node_name in
+                    let tail =
+                      match Hashtbl.find_opt node_log_bufs node_name with
+                      | Some buf ->
+                          let raw = Buffer.contents buf in
+                          Ndjson_stream.truncate_tail ~max_lines:200 raw
+                      | None -> err_msg
+                    in
+                    let duration =
+                      match Hashtbl.find_opt node_start_times node_name with
+                      | Some t -> (Unix.gettimeofday () -. t) *. 1000.0
+                      | None -> 0.0
+                    in
+                    Hashtbl.replace node_error_info node_name (ec_str, err_msg);
+                    Ndjson_stream.emit_node_failed
+                      ~node_id:node_name ~lang
+                      ~disposition:"errored"
+                      ~duration_ms:duration
+                      ~error_class:ec_str ~message:err_msg
+                      ~log_available:(Sys.file_exists lp)
+                      ~log_path:lp
+                      ~log_tail:tail
+                  end
+              | Nix_line_other -> ()
+            )
+            ~on_stderr:(fun line ->
+              let stderr_event, prev_status = classify_and_update line in
+              (match stderr_event with
+               | Build_start { node_name } ->
+                   if not !started_building then started_building := true;
+                   current_log_node := node_name
+               | _ -> ());
+              let name = !current_log_node in
+              if name <> "" then begin
+                let buf = get_or_create_buf name in
+                Buffer.add_string buf line;
+                Buffer.add_char buf '\n';
+                let log_file = Ndjson_stream.log_path_for_node name in
+                (try
+                   let oc = open_out_gen [Open_creat; Open_append; Open_text] 0o644 log_file in
+                   output_string oc line;
+                   output_char oc '\n';
+                   close_out oc
+                 with _ -> ())
+              end;
+              match stderr_event with
+              | Build_complete { node_name } ->
+                  if prev_status <> "Completed" && prev_status <> "SoftFailed" && prev_status <> "Errored" then begin
+                    let lang = match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T" in
+                    let duration =
+                      match Hashtbl.find_opt node_durations node_name with
+                      | Some d -> d *. 1000.0
+                      | None ->
+                          (match Hashtbl.find_opt node_start_times node_name with
+                           | Some t -> (Unix.gettimeofday () -. t) *. 1000.0
+                           | None -> 0.0)
+                    in
+                    let cached = not (Hashtbl.mem node_was_built node_name) in
+                    Ndjson_stream.emit_node_completed
+                      ~node_id:node_name ~lang ~duration_ms:duration ~cached;
+                    Hashtbl.replace node_completed_emitted node_name true
+                  end
+              | Build_error { node_name } ->
+                  if prev_status <> "Errored" then begin
+                    let lang = match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T" in
+                    let ec, err_msg = classify_error_from_buffer node_name line in
+                    let ec_str = Diagnostics.error_class_to_string ec in
+                    let lp = Ndjson_stream.log_path_for_node node_name in
+                    let tail =
+                      match Hashtbl.find_opt node_log_bufs node_name with
+                      | Some buf ->
+                          let raw = Buffer.contents buf in
+                          Ndjson_stream.truncate_tail ~max_lines:200 raw
+                      | None -> err_msg
+                    in
+                    let duration =
+                      match Hashtbl.find_opt node_start_times node_name with
+                      | Some t -> (Unix.gettimeofday () -. t) *. 1000.0
+                      | None -> 0.0
+                    in
+                    Hashtbl.replace node_error_info node_name (ec_str, err_msg);
+                    Ndjson_stream.emit_node_failed
+                      ~node_id:node_name ~lang
+                      ~disposition:"errored"
+                      ~duration_ms:duration
+                      ~error_class:ec_str ~message:err_msg
+                      ~log_available:(Sys.file_exists lp)
+                      ~log_path:lp
+                      ~log_tail:tail
+                  end
+              | _ -> ()
+            )
         else
           run_command_stream_argv argv callback
       in
@@ -811,14 +986,18 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                         ) node_names
                       else []
                     in
+                    emit_remaining_completed_nodes ();
+                    let failed_nodes = report_soft_failed_and_build_failed_nodes_list soft_failed in
                     Ndjson_stream.emit_run_finished
                       ~status:status_str
                       ~total:(List.length node_names)
-                      ~succeeded:(List.length completed + cached_count)
+                      ~succeeded:(List.length completed)
                       ~cached:cached_count
                       ~failed:total_failed
                       ~skipped_upstream:(List.length skipped)
                       ~root_causes
+                      ~failed_nodes
+                      ()
                   end;
 
                    if built_count > 0 || cached_count > 0 then
@@ -856,7 +1035,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                       
                       (match read_file_first_line class_path with
                        | Some "VError" | Some "Error" -> Hashtbl.replace statuses name "SoftFailed"
-                       | _ -> Hashtbl.replace statuses name "Completed")
+                       | _ -> if find_status name <> "Errored" then Hashtbl.replace statuses name "Completed")
                     )
                 | _ -> ()
               ) node_names;
@@ -959,14 +1138,18 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                       not (List.exists is_failed deps)
                   ) node_names
                 in
+                emit_remaining_completed_nodes ();
+                let failed_nodes = report_soft_failed_and_build_failed_nodes_list soft_failed in
                 Ndjson_stream.emit_run_finished
                   ~status:"failed"
                   ~total:(List.length node_names)
-                  ~succeeded:(List.length (List.filter (fun n -> find_status n = "Completed") node_names) + cached_count)
+                  ~succeeded:(List.length (List.filter (fun n -> find_status n = "Completed") node_names))
                   ~cached:cached_count
                   ~failed:total_failed
                   ~skipped_upstream:(List.length skipped)
-                  ~root_causes;
+                  ~root_causes
+                  ~failed_nodes
+                  ();
                 ignore (save_build_log None);
                 Error (Printf.sprintf "nix-build failed: %s" error_summary)
               end)

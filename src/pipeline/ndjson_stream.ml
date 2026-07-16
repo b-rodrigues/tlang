@@ -61,6 +61,13 @@ type node_spec = {
   ns_deps : string list;
 }
 
+type failed_node_info = {
+  fn_id : string;
+  fn_disposition : string;
+  fn_error_class : string;
+  fn_message : string;
+}
+
 (* --- Event emitters --- *)
 
 let emit_run_started ?pipeline_name ~(nodes : node_spec list) () =
@@ -87,7 +94,21 @@ let emit_run_started ?pipeline_name ~(nodes : node_spec list) () =
   in
   emit_json (`Assoc with_project)
 
-let emit_node_failed ~node_id ~lang ~duration_ms ~error_class ~message
+let emit_node_completed ~node_id ~lang ~duration_ms ~cached =
+  let seq = next_seq () in
+  emit_json (`Assoc [
+    ("seq", `Int seq);
+    ("ts", `String (iso8601_timestamp ()));
+    ("event", `String "node_completed");
+    ("node", `Assoc [
+      ("id", `String node_id);
+      ("lang", `String lang);
+    ]);
+    ("duration_ms", `Int (int_of_float duration_ms));
+    ("disposition", `String (if cached then "cached" else "built"));
+  ])
+
+let emit_node_failed ~node_id ~lang ~disposition ~duration_ms ~error_class ~message
     ~log_available ~log_path ~log_tail =
   let seq = next_seq () in
   let log_json = `Assoc [
@@ -107,6 +128,7 @@ let emit_node_failed ~node_id ~lang ~duration_ms ~error_class ~message
       ("id", `String node_id);
       ("lang", `String lang);
     ]);
+    ("disposition", `String disposition);
     ("duration_ms", `Int (int_of_float duration_ms));
     ("error", error_json);
     ("log", log_json);
@@ -125,8 +147,19 @@ let emit_node_skipped ~node_id ~caused_by =
   ])
 
 let emit_run_finished ~status ~total ~succeeded ~cached ~failed
-    ~skipped_upstream ~root_causes =
+    ~skipped_upstream ~root_causes ?(failed_nodes : failed_node_info list = []) () =
   let seq = next_seq () in
+  let failed_nodes_json =
+    List.map (fun fn ->
+      let base = [
+        ("id", `String fn.fn_id);
+        ("disposition", `String fn.fn_disposition);
+        ("error_class", `String fn.fn_error_class);
+      ] in
+      let with_message = if fn.fn_message <> "" then base @ [("message", `String fn.fn_message)] else base in
+      `Assoc with_message
+    ) failed_nodes
+  in
   emit_json (`Assoc [
     ("seq", `Int seq);
     ("ts", `String (iso8601_timestamp ()));
@@ -140,4 +173,5 @@ let emit_run_finished ~status ~total ~succeeded ~cached ~failed
       ("skipped_upstream", `Int skipped_upstream);
     ]);
     ("root_causes", `List (List.map (fun s -> `String s) root_causes));
+    ("failed_nodes", `List failed_nodes_json);
   ])

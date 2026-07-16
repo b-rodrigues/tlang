@@ -43,6 +43,10 @@
 - **`run_started` DAG manifest**: The first NDJSON line carries the full pipeline DAG (node IDs, languages, dependencies) so consumers can reason about root causes while the stream is still open.
 - **`root_causes` at `run_finished`**: Root cause computation is deferred to the terminal event, where the full picture is known. No provisional guesses on `node_failed` events.
 - **Exit codes unchanged**: 0=clean, 1=wire error, 2=schema error, 3=env/build error — independent of `--json`.
+- **Improved error classification and logs**: `node_failed` events classify error details in real-time using in-memory log buffers without blocking the execution stream. Captured log tails for stderr-detected errors are now complete and include the exact failure details.
+- **De-duplication of events**: Multiple `node_failed` events for the same failing node are prevented during streaming.
+- **Cached node completions**: Cached nodes receive `node_completed` events at the end of the build, ensuring that all successful nodes are represented.
+- **Breaking schema change to `succeeded` count**: The `succeeded` field in `run_finished` now correctly represents the number of completed nodes built from scratch, and no longer double-counts `cached` nodes.
 
 ## [0.54.0] - 2026-07-08
 

@@ -25,14 +25,11 @@ type error_class =
   | Missing_artifact
   | Generic_error
   | Schema_mismatch
-  | Contract_violation
-  | Contract_unverifiable
   | Missing_tproject
   | Missing_package
   | Missing_from_lockfile
   | Nix_generation_error
   | Nix_eval_error
-  | Invalid_expect_placement
   | Na_warning
   | Nix_error
   | Unknown_error
@@ -57,14 +54,11 @@ let error_class_to_string = function
   | Missing_artifact -> "missing_artifact"
   | Generic_error -> "generic_error"
   | Schema_mismatch -> "schema_mismatch"
-  | Contract_violation -> "contract_violation"
-  | Contract_unverifiable -> "contract_unverifiable"
   | Missing_tproject -> "missing_tproject"
   | Missing_package -> "missing_package"
   | Missing_from_lockfile -> "missing_from_lockfile"
   | Nix_generation_error -> "nix_generation_error"
   | Nix_eval_error -> "nix_eval_error"
-  | Invalid_expect_placement -> "invalid_expect_placement"
   | Na_warning -> "na_warning"
   | Nix_error -> "nix_error"
   | Unknown_error -> "unknown_error"
@@ -89,14 +83,11 @@ let error_class_of_string = function
   | "missing_artifact" | "MissingArtifactError" -> Missing_artifact
   | "generic_error" | "GenericError" -> Generic_error
   | "schema_mismatch" -> Schema_mismatch
-  | "contract_violation" -> Contract_violation
-  | "contract_unverifiable" -> Contract_unverifiable
   | "missing_tproject" -> Missing_tproject
   | "missing_package" -> Missing_package
   | "missing_from_lockfile" -> Missing_from_lockfile
   | "nix_generation_error" -> Nix_generation_error
   | "nix_eval_error" -> Nix_eval_error
-  | "invalid_expect_placement" -> Invalid_expect_placement
   | "na_warning" | "NAExcluded" -> Na_warning
   | "nix_error" | "NixError" -> Nix_error
   | _ -> Unknown_error
@@ -441,7 +432,6 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
       else
         let diag_error_class, diag_phase =
           match nw.Ast.nw_kind with
-          | "invalid_expect_placement" -> Invalid_expect_placement, Wire
           | "NAExcluded" -> Na_warning, Exec
           | other -> error_class_of_string other, Exec
         in

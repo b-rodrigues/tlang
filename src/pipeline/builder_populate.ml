@@ -5,7 +5,7 @@ open Builder_internal
 open Package_types
 
 let builtin_pipeline_strategies =
-  [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx"; "bin" ]
+  [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx"; "bin"; "text" ]
 
 let cold_start_warning_shown = ref false
 
@@ -77,7 +77,7 @@ let generate_and_maybe_build ?verbose ?pipeline_name ?nix_options ~build (p : As
              significantly faster. Go grab a coffee ☕\n\
              \n%!"
         );
-        (match build_pipeline_internal ?verbose ?pipeline_name ?nix_options p with
+        (match build_pipeline_internal ?verbose ?pipeline_name ?nix_options ~json:!Ast.ndjson_mode p with
          | Ok result -> Ok result
          | Error msg -> Error msg)
       else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))

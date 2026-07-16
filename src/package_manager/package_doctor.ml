@@ -454,7 +454,6 @@ let static_pipeline_for_doctor ~project_root nodes =
     p_patterns = [];
     p_iterations = [];
     p_flakes = [];
-    p_contracts = [];
   }
 
 let read_file path =
