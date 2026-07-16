@@ -143,8 +143,9 @@ warning_msg(p.clean_data)
 # Structural check (milliseconds, no Nix builds)
 t check --schema src/pipeline.t
 
-# Explain a specific node's diagnostics
-t explain --node clean_data
+# Explain a specific node's diagnostics (use --json for agent-readable output)
+t explain --node p.clean_data
+t explain --json --node p.clean_data
 
 # Catch environment drift
 t doctor
