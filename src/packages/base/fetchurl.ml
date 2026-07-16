@@ -10,6 +10,7 @@ open Ast
 --# @name fetchurl
 --# @param url :: String The URL to download.
 --# @param sha256 :: String (Optional) Expected SHA-256 hash (required in pipeline mode).
+--# @param serializer :: String (Optional) Serializer format for pipeline mode. Defaults to "bin". Use "text" for plain text files.
 --# @param output :: String (Optional) Output file path (REPL mode only). Defaults to the basename of the URL.
 --# @param dest :: String (Optional) Output directory (REPL mode only). Defaults to the current directory.
 --# @return :: String | Node In REPL mode, returns the file path as a String. In pipeline mode, returns a Node value.
@@ -43,6 +44,16 @@ let register env =
              (Ast.Utils.type_name other)))
     | None -> Ok ""
   in
+  let serializer_from_args args =
+    match List.find_opt (fun (n, _) -> n = Some "serializer") args with
+    | Some (_, VSymbol s) -> Ok ("^" ^ s)
+    | Some (_, VString s) -> Ok ("^" ^ s)
+    | Some (_, other) ->
+        Error (Error.type_error
+          (Printf.sprintf "Function `fetchurl`: `serializer` expects a Symbol or String, got %s."
+             (Ast.Utils.type_name other)))
+    | None -> Ok "^bin"
+  in
   let escape_shell s =
     "'" ^ String.concat "'\\''" (String.split_on_char '\'' s) ^ "'"
   in
@@ -54,31 +65,34 @@ let register env =
       (match sha256_from_args args with
        | Error e -> e
        | Ok sha256 ->
-         if !Eval.pipeline_construction_mode then begin
-           if sha256 = "" then
-             Error.make_error TypeError
-               "Function `fetchurl`: `sha256` is required in pipeline mode."
-           else
-             VNode {
-               un_command = mk_expr (Value (VString url));
-               un_script = None;
-               un_runtime = "fetchurl";
-               un_serializer = mk_expr (Value (VSymbol "^bin"));
-               un_deserializer = mk_expr (Var "default");
-               un_env_vars = [];
-               un_args = [("url", VString url); ("sha256", VString sha256)];
-               un_shell = None;
-               un_shell_args = [];
-               un_functions = [];
-               un_includes = [];
-               un_noop = false;
-               un_dependencies = None;
-               un_pattern = None;
-               un_iteration = "vector";
-               un_flake = None;
-               un_contract = None;
-             }
-         end else
+       (match serializer_from_args args with
+        | Error e -> e
+        | Ok serializer_str ->
+          if !Eval.pipeline_construction_mode then begin
+            if sha256 = "" then
+              Error.make_error TypeError
+                "Function `fetchurl`: `sha256` is required in pipeline mode."
+            else
+              VNode {
+                un_command = mk_expr (Value (VString url));
+                un_script = None;
+                un_runtime = "fetchurl";
+                un_serializer = mk_expr (Value (VSymbol serializer_str));
+                un_deserializer = mk_expr (Var "default");
+                un_env_vars = [];
+                un_args = [("url", VString url); ("sha256", VString sha256); ("serializer", VSymbol (String.sub serializer_str 1 (String.length serializer_str - 1)))];
+                un_shell = None;
+                un_shell_args = [];
+                un_functions = [];
+                un_includes = [];
+                un_noop = false;
+                un_dependencies = None;
+                un_pattern = None;
+                un_iteration = "vector";
+                un_flake = None;
+                un_contract = None;
+              }
+          end else
            let output_name = match
              List.find_opt (fun (n, _) -> n = Some "output") args,
              List.find_opt (fun (n, _) -> n = Some "dest") args
@@ -92,7 +106,8 @@ let register env =
             | 0 -> VString output_name
             | n ->
                 Error.make_error ShellError
-                  (Printf.sprintf "Function `fetchurl`: curl failed with exit code %d when fetching %s" n url))
+                   (Printf.sprintf "Function `fetchurl`: curl failed with exit code %d when fetching %s" n url))
+       )
       )
     ))
     env
