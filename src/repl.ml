@@ -858,18 +858,23 @@ let cmd_init_project args =
 let cmd_explain ?failfast mode rest env =
   Packages.ensure_docs_loaded ();
   let json = List.mem "--json" rest in
+  let has_node = List.mem "--node" rest in
   let rec get_node_arg = function
     | [] -> None
     | "--node" :: v :: _ -> Some v
     | _ :: xs -> get_node_arg xs
   in
-  match get_node_arg rest with
+  let node_arg_opt = get_node_arg rest in
+  if has_node && node_arg_opt = None then begin
+    Printf.eprintf "Usage: t explain --node <pipeline_var>.<node_name> [pipeline.t]\n";
+    exit 1
+  end;
+  match node_arg_opt with
   | Some node_arg ->
       let pipeline_var, node_name =
         match String.split_on_char '.' node_arg with
-        | [n] -> ("p", n)
-        | [v; n] -> (v, n)
-        | _ -> Printf.eprintf "Error: Invalid --node format. Expected <pipeline_var>.<node_name> or <node_name>.\n"; exit 1
+        | [v; n] when v <> "" && n <> "" -> (v, n)
+        | _ -> Printf.eprintf "Error: Invalid --node format. Expected <pipeline_var>.<node_name>.\n"; exit 1
       in
       let remaining = List.filter (fun s -> s <> "--json" && s <> "--node" && s <> node_arg) rest in
       let filename =
@@ -890,15 +895,7 @@ let cmd_explain ?failfast mode rest env =
          let pipeline_opt =
            match Ast.Env.find_opt pipeline_var env_val with
            | Some (Ast.VPipeline p) -> Some p
-           | _ ->
-               (* Fallback: search for any pipeline in the environment *)
-               let found = ref None in
-               Ast.Env.iter (fun _name value ->
-                 match value with
-                 | Ast.VPipeline p -> found := Some p
-                 | _ -> ()
-               ) env_val;
-               !found
+           | _ -> None
          in
          match pipeline_opt with
          | None ->
@@ -912,28 +909,32 @@ let cmd_explain ?failfast mode rest env =
                  exit 1
              | Some d ->
                  if json then begin
-                   let error_block =
-                     match d.nd_error with
-                     | Some err ->
-                         let fn_str =
-                           if err.ne_fn <> "" then Printf.sprintf ", \"function\": \"%s\"" (Serialization.json_escape err.ne_fn)
-                           else ""
-                         in
-                         Printf.sprintf "\"status\": \"failed\", \"error_code\": \"%s\", \"message\": \"%s\"%s"
-                           (Serialization.json_escape err.ne_kind)
-                           (Serialization.json_escape err.ne_message)
-                           fn_str
-                     | None -> "\"status\": \"success\""
-                   in
-                   let warnings_list =
+                   let fields = ref [
+                     ("pipeline", `String pipeline_var);
+                     ("node", `String node_name);
+                   ] in
+                   (match d.nd_error with
+                    | Some err ->
+                        fields := !fields @ [
+                          ("status", `String "failed");
+                          ("error_code", `String err.ne_kind);
+                          ("message", `String err.ne_message);
+                        ];
+                        if err.ne_fn <> "" then
+                          fields := !fields @ [("function", `String err.ne_fn)]
+                    | None ->
+                        fields := !fields @ [("status", `String "success")]);
+                   let warnings_json =
                      List.map (fun w ->
-                       Printf.sprintf "{\"code\": \"%s\", \"message\": \"%s\"}"
-                         (Serialization.json_escape w.Ast.nw_kind)
-                         (Serialization.json_escape w.Ast.nw_message)
+                       `Assoc [
+                         ("code", `String w.Ast.nw_kind);
+                         ("message", `String w.Ast.nw_message);
+                       ]
                      ) d.nd_warnings
                    in
-                   let warnings_str = "[" ^ String.concat ", " warnings_list ^ "]" in
-                   Printf.printf "{\n  %s,\n  \"warnings\": %s\n}\n" error_block warnings_str
+                   fields := !fields @ [("warnings", `List warnings_json)];
+                   let json_obj = `Assoc !fields in
+                   print_endline (Yojson.Safe.pretty_to_string json_obj)
                  end else begin
                    let has_output = ref false in
                    (match d.nd_error with
