@@ -5,7 +5,7 @@ open Builder_internal
 open Package_types
 
 let builtin_pipeline_strategies =
-  [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx"; "bin" ]
+  [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx"; "bin"; "text" ]
 
 let cold_start_warning_shown = ref false
 
