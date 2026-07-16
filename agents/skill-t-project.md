@@ -88,6 +88,7 @@ parse = pyn(
 - **Reassigning a variable with `=`:** T is immutable. Use `:=` to rebind, or give the new value a new name. E.g., `a = 1; a = 2` is invalid.
 - **Writing a `for` loop:** Loops do not exist in T. Use `map()`, `summarize()`, or a colcraft verb.
 - **Referencing a column as a bare name inside a colcraft verb:** E.g., `filter(df, amount > 0)` is invalid. It must be `filter(df, $amount > 0)`. The `$` is required for NSE.
+- **Adding trailing commas after nodes in `pipeline { }`:** Pipeline nodes are separated by newlines or semicolons, NOT commas. A trailing comma causes a parse error. `t check` will report: "Unexpected ',' in pipeline block."
 - **Writing output to `data/`:** Treat it as read-only. Pipeline outputs must go through `pipeline_copy(p, node, to)` into `outputs/`.
 - **Skipping the `pipeline { ... }` wrapper:** A bare script of T statements cannot run. Everything reproducible must be a node inside a pipeline.
 - **Writing to `/tmp` or absolute paths from nodes:** Nodes run inside a hermetic Nix sandbox with a read-only filesystem. For debugging, create a view script (`src/view.t`) that uses `t_make()` + `read_node(p.name)` + `glimpse()` to inspect node outputs.
