@@ -102,16 +102,63 @@ parse = pyn(
 - Bypass `tproject.toml` dependencies.
 - Use `read_node("node_name")` — the string form was removed. Only `read_node(p.node_name)` works.
 
-## Debugging and inspecting a node/pipeline
+## Node Inspection Playbook
 
-0. **Quick structural check:** Run `t check --schema src/pipeline.t` for instant validation without Nix builds. Catches dependency cycles, missing columns, and `expect()` contract violations in seconds. Use `--watch` for continuous feedback during development.
-1. **Check pipeline status:** Use `inspect_pipeline(p)` to view node build states, cache locations, and execution times.
-2. **Examine evaluated data:** Use `read_node(p.name)` from the REPL/subshell to read and inspect the actual output of a built node.
-3. **Read diagnostic logs:** `t explain --node <name>` from the shell, or `explain(read_node(p.name))` from the REPL — the `diagnostics` field tells you what actually ran and what it produced.
-4. **Resilient errors:** If a node errors, check `is_error()` on its output. T nodes return `Error` values rather than raising OCaml exceptions, so a run can complete while carrying an error downstream.
-5. **Nix env check:** `t doctor` catches environment drift (stale flake, missing Nix inputs) before you debug code.
-6. **Non-pipeline scripts:** Scripts without a `pipeline { }` block need `t run --unsafe` (e.g., `t run --unsafe src/view.t`).
-7. **`read_node` requires dot access:** Use `read_node(p.node_name)` — the string form `read_node("name")` was an intentional breaking change and throws a TypeError. To read from past builds, use `read_past_node(p.node_name, which_log = "...")`.
+Use this workflow to understand what a pipeline node does, what it produced, and whether anything went wrong. Start broad, then drill in.
+
+### Quick reference
+
+| Function | What it tells you | When to use |
+|---|---|---|
+| `inspect_pipeline(p)` | DataFrame: node, runtime, serializer, deps, has_script | First look — understand pipeline structure |
+| `inspect_node(p.node)` | Dict: name, runtime, path, serializer, class, dependencies, warnings | Drill into one node's metadata |
+| `read_node(p.node)` | The actual data (DataFrame, list, string, etc.) | Load and examine the node's output |
+| `warning_msg(p.node)` | Formatted warning text (own + upstream) | Diagnose warnings without raw diagnostics |
+| `explain(read_node(p.node))` | Structured dict of the value's type, shape, columns, preview | Understand what the data looks like |
+| `rebuild_node(p.node)` | Rebuilds a single node, returns updated ComputedNode | One node changed, don't rebuild entire pipeline |
+| `debug_node(p.node)` | Launches interactive REPL in the node's runtime env | Deep debugging of R/Python/Julia code |
+
+### Typical agent workflow
+
+```t
+# 1. See the whole pipeline at a glance
+inspect_pipeline(p)
+
+# 2. Pick a node and check its metadata
+inspect_node(p.clean_data)
+
+# 3. Load the actual data
+read_node(p.clean_data)
+
+# 4. Inspect the shape and contents
+explain(read_node(p.clean_data))
+
+# 5. Check for warnings
+warning_msg(p.clean_data)
+```
+
+### From the shell (no REPL needed)
+
+```bash
+# Structural check (milliseconds, no Nix builds)
+t check --schema src/pipeline.t
+
+# Explain a specific node's diagnostics
+t explain --node clean_data
+
+# Catch environment drift
+t doctor
+```
+
+### Gotchas
+
+- **`read_node` requires dot access:** Use `read_node(p.node_name)` — the string form `read_node("name")` throws a TypeError.
+- **`read_node` before build:** If the pipeline hasn't been built, `read_node` errors. Use `build_pipeline(p)` first, or `read_past_node(p.node_name, which_log = "...")` for historical builds.
+- **Non-pipeline scripts:** Scripts without a `pipeline { }` block need `t run --unsafe` (e.g., `t run --unsafe src/view.t`).
+- **Resilient errors:** T nodes return `Error` values rather than raising exceptions. A run can complete while carrying an error downstream. Check `is_error()` on outputs.
+- **Warning suppression:** Use `suppress_warnings()` at the end of a node definition to silence known warnings.
+- **Use `nix develop` first:** Always run `nix develop` (or `nix develop -c <command>`) to enter the T environment. Without it, `t`, R, Python, and Julia with tlang packages are not available.
+- **Inspect from R/Python/Julia directly:** The companion packages (`tlang` in R, `tlang` in Python, `Tlang` in Julia) expose `read_node()`, `inspect_node()`, and `inspect_pipeline()`. If you need to explore a node's contents interactively, it can be easier to load the data in R/Python/Julia than in the T REPL — especially for plotting, statistical summaries, or DataFrame manipulation. For example: `nix develop -c R -e 'library(tlang); p <- readRDS("pipeline.rds"); glimpse(read_node(p.clean_data))'`.
 
 ## Development workflow: check, fix, build, diff
 
@@ -189,7 +236,6 @@ When modifying a pipeline:
 ## Before calling a task done
 
 - `t check --schema src/pipeline.t` passes with no errors or warnings.
-- If pipeline nodes declare `expect()` contracts, the schema check confirms they hold.
 - `t run src/pipeline.t` (or the project's entry pipeline) completes without an unhandled `Error`.
 - `t diff src/pipeline.t` shows only the nodes you intended to change (no unexpected cascades).
 - If you touched `tproject.toml`, you ran `t update` afterward.

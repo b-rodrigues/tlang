@@ -91,7 +91,6 @@ let register env =
                 un_pattern = None;
                 un_iteration = "vector";
                 un_flake = None;
-                un_contract = None;
               }
           end else
            let output_name = match

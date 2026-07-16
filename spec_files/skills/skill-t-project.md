@@ -45,12 +45,14 @@ Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize t
 
 ## Debugging and inspecting a node/pipeline
 
-0. **Quick structural check:** Run `t check --schema src/pipeline.t` for instant validation without Nix builds. Catches dependency cycles, missing columns, and `expect()` contract violations in seconds. Use `--watch` for continuous feedback during development.
+0. **Quick structural check:** Run `t check --schema src/pipeline.t` for instant validation without Nix builds. Catches dependency cycles, missing columns, and type mismatches in seconds. Use `--watch` for continuous feedback during development.
 1. **Check pipeline status:** Use `inspect_pipeline(p)` to view node build states, cache locations, and execution times.
 2. **Examine evaluated data:** Use `read_node(p.name)` from the REPL/subshell to read and inspect the actual output of a built node.
 3. **Read diagnostic logs:** `t explain --node <name>` from the shell, or `explain(read_node(p.name))` from the REPL — the `diagnostics` field tells you what actually ran and what it produced.
 4. **Resilient errors:** If a node errors, check `is_error()` on its output. T nodes return `Error` values rather than raising OCaml exceptions, so a run can complete while carrying an error downstream.
 5. **Nix env check:** `t doctor` catches environment drift (stale flake, missing Nix inputs) before you debug code.
+6. **Use `nix develop` first:** Always run `nix develop` (or `nix develop -c <command>`) to enter the T environment. Without it, `t`, R, Python, and Julia with tlang packages are not available.
+7. **Inspect from R/Python/Julia directly:** The companion packages (`tlang` in R, `tlang` in Python, `Tlang` in Julia) expose `read_node()`, `inspect_node()`, and `inspect_pipeline()`. It can be easier to explore node contents in R/Python/Julia than in the T REPL — especially for plotting, statistical summaries, or DataFrame manipulation.
 
 ## Development workflow: check, fix, build, diff
 
@@ -110,7 +112,6 @@ When modifying a pipeline:
 ## Before calling a task done
 
 - `t check --schema src/pipeline.t` passes with no errors or warnings.
-- If pipeline nodes declare `expect()` contracts, the schema check confirms they hold.
 - `t run src/pipeline.t` (or the project's entry pipeline) completes without an unhandled `Error`.
 - `t diff src/pipeline.t` shows only the nodes you intended to change (no unexpected cascades).
 - If you touched `tproject.toml`, you ran `t update` afterward.
