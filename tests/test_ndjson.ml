@@ -128,6 +128,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     Ndjson_stream.reset ();
     Ndjson_stream.emit_node_failed
       ~node_id:"my_node" ~lang:"python"
+      ~disposition:"errored"
       ~duration_ms:1500.0
       ~error_class:"runtime_error"
       ~message:"ImportError: no module named 'foo'"
@@ -178,6 +179,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     Ndjson_stream.emit_run_finished
       ~status:"failed" ~total:5 ~succeeded:2 ~cached:1
       ~failed:1 ~skipped_upstream:1 ~root_causes:["bad_node"]
+      ()
   ) in
   check "emit_run_finished produces output" (String.length output_finished > 0);
   check "output contains run_finished event" (
@@ -195,4 +197,77 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   check "output contains summary total 5" (
     try let _ = Str.search_forward (Str.regexp "\"total\":\\s*5") output_finished 0 in true
     with Not_found -> false
+  );
+
+  Printf.printf "\nemit_node_completed:\n";
+  let output_completed = with_captured_stdout (fun () ->
+    Ndjson_stream.reset ();
+    Ndjson_stream.emit_node_completed
+      ~node_id:"my_node" ~lang:"python"
+      ~duration_ms:2500.0 ~cached:false
+  ) in
+  check "emit_node_completed produces output" (String.length output_completed > 0);
+  check "output contains node_completed event" (
+    try let _ = Str.search_forward (Str.regexp "node_completed") output_completed 0 in true
+    with Not_found -> false
+  );
+  check "output contains disposition built" (
+    try let _ = Str.search_forward (Str.regexp "\"built\"") output_completed 0 in true
+    with Not_found -> false
+  );
+
+  Printf.printf "\nemit_node_completed (cached):\n";
+  let output_cached = with_captured_stdout (fun () ->
+    Ndjson_stream.reset ();
+    Ndjson_stream.emit_node_completed
+      ~node_id:"cached_node" ~lang:"R"
+      ~duration_ms:100.0 ~cached:true
+  ) in
+  check "node_completed cached disposition" (
+    try let _ = Str.search_forward (Str.regexp "\"cached\"") output_cached 0 in true
+    with Not_found -> false
+  );
+
+  Printf.printf "\nemit_run_finished with failed_nodes:\n";
+  let output_with_failed = with_captured_stdout (fun () ->
+    Ndjson_stream.reset ();
+    Ndjson_stream.emit_run_finished
+      ~status:"failed" ~total:3 ~succeeded:1 ~cached:0
+      ~failed:2 ~skipped_upstream:0 ~root_causes:["err_node"]
+      ~failed_nodes:[
+        { Ndjson_stream.
+          fn_id = "err_node";
+          fn_disposition = "errored";
+          fn_error_class = "runtime_error";
+          fn_message = "build crashed";
+        };
+        { Ndjson_stream.
+          fn_id = "soft_node";
+          fn_disposition = "soft_failed";
+          fn_error_class = "VError";
+          fn_message = "";
+        };
+      ]
+      ()
+  ) in
+  check "failed_nodes: contains failed_nodes array" (
+    try let _ = Str.search_forward (Str.regexp "failed_nodes") output_with_failed 0 in true
+    with Not_found -> false
+  );
+  check "failed_nodes: contains errored node" (
+    try let _ = Str.search_forward (Str.regexp "\"errored\"") output_with_failed 0 in true
+    with Not_found -> false
+  );
+  check "failed_nodes: contains soft_failed node" (
+    try let _ = Str.search_forward (Str.regexp "\"soft_failed\"") output_with_failed 0 in true
+    with Not_found -> false
+  );
+  check "failed_nodes: contains error message" (
+    try let _ = Str.search_forward (Str.regexp "build crashed") output_with_failed 0 in true
+    with Not_found -> false
+  );
+  check "failed_nodes: soft_failed node has no message key" (
+    (* node with empty message should not have a message field *)
+    not (try let _ = Str.search_forward (Str.regexp "\"soft_node\".*\"message\"") output_with_failed 0 in true
+         with Not_found -> false)
   )
