@@ -48,6 +48,7 @@ let register env =
     match List.find_opt (fun (n, _) -> n = Some "serializer") args with
     | Some (_, VSymbol s) -> Ok ("^" ^ s)
     | Some (_, VString s) -> Ok ("^" ^ s)
+    | Some (_, VSerializer s) -> Ok ("^" ^ s.s_format)
     | Some (_, other) ->
         Error (Error.type_error
           (Printf.sprintf "Function `fetchurl`: `serializer` expects a Symbol or String, got %s."
