@@ -703,7 +703,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
               match event with
               | Build_start _ -> ()
               | Build_complete { node_name } ->
-                  if prev_status <> "Errored" then begin
+                  if prev_status <> "Completed" && prev_status <> "SoftFailed" && prev_status <> "Errored" then begin
                     let lang = match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T" in
                     let duration =
                       match Hashtbl.find_opt node_durations node_name with
@@ -768,6 +768,21 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                  with _ -> ())
               end;
               match stderr_event with
+              | Build_complete { node_name } ->
+                  if prev_status <> "Completed" && prev_status <> "SoftFailed" && prev_status <> "Errored" then begin
+                    let lang = match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T" in
+                    let duration =
+                      match Hashtbl.find_opt node_durations node_name with
+                      | Some d -> d *. 1000.0
+                      | None ->
+                          (match Hashtbl.find_opt node_start_times node_name with
+                           | Some t -> (Unix.gettimeofday () -. t) *. 1000.0
+                           | None -> 0.0)
+                    in
+                    let cached = not (Hashtbl.mem node_was_built node_name) in
+                    Ndjson_stream.emit_node_completed
+                      ~node_id:node_name ~lang ~duration_ms:duration ~cached
+                  end
               | Build_error { node_name } ->
                   if prev_status <> "Errored" then begin
                     let lang = match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T" in
