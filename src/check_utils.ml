@@ -33,6 +33,26 @@ let interrupt_error () =
 
 (* --- Parsing and evaluation --- *)
 
+(** Generate a helpful message for common parse errors.
+    Currently detects: trailing comma in pipeline blocks. *)
+let parse_error_message lexbuf =
+  let lexeme = try Lexing.lexeme lexbuf with _ -> "" in
+  if lexeme = "," then begin
+    let buf = Bytes.to_string lexbuf.Lexing.lex_buffer in
+    let offset = Lexing.lexeme_start lexbuf in
+    let before = String.sub buf 0 offset in
+    let rec find_pipeline i =
+      if i < 0 then false
+      else if i + 8 <= String.length before && String.sub before i 8 = "pipeline" then true
+      else find_pipeline (i - 1)
+    in
+    if find_pipeline (offset - 1) then
+      "Unexpected ',' in pipeline block. Pipeline nodes are separated by newlines or semicolons, not commas."
+    else
+      "Parse Error"
+  end else
+    "Parse Error"
+
 let parse_and_eval ?filename ?(failfast=false) mode env input =
   let lexbuf = Lexing.from_string input in
   (match filename with
@@ -49,7 +69,7 @@ let parse_and_eval ?filename ?(failfast=false) mode env input =
       (make_located_error ?file:filename SyntaxError ("Syntax Error: " ^ msg) pos, env)
   | Parser.Error ->
       let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename SyntaxError "Parse Error" pos, env)
+      (make_located_error ?file:filename SyntaxError (parse_error_message lexbuf) pos, env)
   | Mixed_bracket_form ->
       let pos = Lexing.lexeme_start_p lexbuf in
       (make_located_error ?file:filename SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos, env)

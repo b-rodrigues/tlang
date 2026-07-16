@@ -496,7 +496,7 @@ let parse_program_from_file filename =
         Error (make_located_error ~file:filename Ast.SyntaxError ("Syntax Error: " ^ msg) pos)
     | Parser.Error ->
         let pos = Lexing.lexeme_start_p lexbuf in
-        Error (make_located_error ~file:filename Ast.SyntaxError "Parse Error" pos)
+        Error (make_located_error ~file:filename Ast.SyntaxError (Check_utils.parse_error_message lexbuf) pos)
     | Ast.Mixed_bracket_form ->
         let pos = Lexing.lexeme_start_p lexbuf in
         Error (make_located_error ~file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos)
