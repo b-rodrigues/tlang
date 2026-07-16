@@ -37,7 +37,28 @@ T projects are not collections of ad-hoc scripts; they are **pipelines**.
 
 ---
 
-## 4. Coding Standards
+## 4. Fetching Remote Assets
+
+Use `fetchurl()` to download files during pipeline builds. The file is stored in a Nix
+store path and read via dependency injection — do NOT read the file inside your pipeline block.
+
+```t
+url = "https://example.com/data.csv"
+hash = prefetch(url)
+
+p = pipeline {
+  raw = fetchurl(url, sha256 = hash)
+}
+```
+
+- `prefetch(url)` computes the SHA256 hash **outside** the pipeline. Commit the hash.
+- Use `serializer = ^text` for HTML/JSON/plain text that downstream code reads as a string.
+- Access content via dependency injection: pass fetchurl nodes as upstream deps.
+- Do NOT call `prefetch()` inside `pipeline { }`.
+
+---
+
+## 5. Coding Standards
 
 - **Functional Style**: Use expression-oriented code. Avoid loops; use `map()`, `summarize()`, and `filter()`.
 - **Immutability**: Variable reassignment is forbidden. Transform data through pipes (`|>`).
@@ -46,7 +67,7 @@ T projects are not collections of ad-hoc scripts; they are **pipelines**.
 
 ---
 
-## 5. Standard Project Structure
+## 6. Standard Project Structure
 
 ```text
 .
@@ -60,7 +81,7 @@ T projects are not collections of ad-hoc scripts; they are **pipelines**.
 
 ---
 
-## 6. Common Commands for Agents
+## 7. Common Commands for Agents
 
 | Task | Command |
 | :--- | :--- |
@@ -74,7 +95,7 @@ T projects are not collections of ad-hoc scripts; they are **pipelines**.
 
 ---
 
-## 7. Intent and Auditability
+## 8. Intent and Auditability
 
 Always include `intent { ... }` blocks in your scripts to document:
 - **Assumptions**: What must be true about the data?

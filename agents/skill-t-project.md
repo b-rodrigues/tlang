@@ -27,6 +27,62 @@ Pick based on what language executes the code inside:
 
 Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize through CSV unless the user explicitly requests it.
 
+## Fetching remote assets
+
+Use `fetchurl()` to download files during pipeline builds. The file is stored in a Nix
+store path and read via dependency injection — do NOT read the file inside your pipeline block.
+
+### Text content (HTML, JSON, plain text)
+
+```t
+hash = prefetch(url)
+...
+data = fetchurl(url, sha256 = hash, serializer = ^text)
+```
+
+Use `serializer = ^text` when downstream nodes need the content as a string (e.g., for
+BeautifulSoup, JSON parsing). The default is `^bin` (binary).
+
+### Binary content (Excel, Parquet, etc.)
+
+```t
+hash = prefetch(url)
+...
+data = fetchurl(url, sha256 = hash)
+```
+
+### Accessing fetchurl output
+
+- **Via dependency injection:** Pass `fetchurl` nodes as upstream deps. The content is
+  injected as a variable (string for `^text`, file path for `^bin`).
+- **Via path:** Use `p.node_name.path` to get the Nix store path after build.
+
+### Multiple fetchurl deps with different serializers
+
+When a node depends on multiple `fetchurl` nodes with different serializers, use a
+dictionary deserializer:
+
+```t
+parse = pyn(
+  command = <{ ... }>,
+  deserializer = [ fetch_html: ^text, fetch_json: ^text ],
+  serializer = ^csv
+)
+```
+
+### Gotchas
+
+- `prefetch(url)` runs **outside** the pipeline (before `pipeline { }`). It computes
+  the SHA256 hash. You must commit this hash — it's part of the reproducible build.
+- The `^text` serializer emits a warning about "custom or unknown strategy". This is
+  expected and safe to ignore.
+- Do NOT use `read_node()` inside a pipeline block to read fetchurl output. Use
+  dependency injection (variable name) or `p.node_name.path` after build.
+- **Python text deserializer:** The Nix emitter template wraps deserializers in
+  `%(artifact_path)`, so `lambda path: open(path).read()` produces
+  `lambda path: open(path).read()(artifact_path)` — Python parses this as the full
+  lambda body, and the lambda is never invoked. Use `open` directly instead.
+
 ## Common mistakes
 
 - **Reassigning a variable with `=`:** T is immutable. Use `:=` to rebind, or give the new value a new name. E.g., `a = 1; a = 2` is invalid.
