@@ -34,6 +34,7 @@ Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize t
 - **Referencing a column as a bare name inside a colcraft verb:** E.g., `filter(df, amount > 0)` is invalid. It must be `filter(df, $amount > 0)`. The `$` is required for NSE.
 - **Writing output to `data/`:** Treat it as read-only. Pipeline outputs must go through `pipeline_copy(p, node, to)` into `outputs/`.
 - **Skipping the `pipeline { ... }` wrapper:** A bare script of T statements cannot run. Everything reproducible must be a node inside a pipeline.
+- **Writing to `/tmp` or absolute paths from nodes:** Nodes run inside a hermetic Nix sandbox with a read-only filesystem. For debugging, create a view script (`src/view.t`) that uses `t_make()` + `read_node(p.name)` + `glimpse()` to inspect node outputs.
 
 ## Never do this
 
@@ -42,6 +43,7 @@ Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize t
 - Create multiple `pipeline { }` blocks in a single script.
 - Guess stdlib function signatures.
 - Bypass `tproject.toml` dependencies.
+- Use `read_node("node_name")` — the string form was removed. Only `read_node(p.node_name)` works.
 
 ## Debugging and inspecting a node/pipeline
 
@@ -51,6 +53,8 @@ Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize t
 3. **Read diagnostic logs:** `t explain --node <name>` from the shell, or `explain(read_node(p.name))` from the REPL — the `diagnostics` field tells you what actually ran and what it produced.
 4. **Resilient errors:** If a node errors, check `is_error()` on its output. T nodes return `Error` values rather than raising OCaml exceptions, so a run can complete while carrying an error downstream.
 5. **Nix env check:** `t doctor` catches environment drift (stale flake, missing Nix inputs) before you debug code.
+6. **Non-pipeline scripts:** Scripts without a `pipeline { }` block need `t run --unsafe` (e.g., `t run --unsafe src/view.t`).
+7. **`read_node` requires dot access:** Use `read_node(p.node_name)` — the string form `read_node("name")` was an intentional breaking change and throws a TypeError. To read from past builds, use `read_past_node(p.node_name, which_log = "...")`.
 
 ## Development workflow: check, fix, build, diff
 
@@ -78,6 +82,8 @@ then apply with `t fix`. Supported fix types:
 **After `t run`:** Run `t diff` to see what changed. This is free (uses Nix content
 hashes) and tells you whether your edit had the intended effect or cascaded downstream.
 
+**`t check --schema` limitation:** This validates structure and type contracts in milliseconds, but does NOT build the pipeline. Calls to `read_node()` in post-build sections will error during `t check` — these are expected. Verify with `t run` instead.
+
 ## Worked example: adding a node
 
 When adding a node to an existing pipeline, write:
@@ -96,6 +102,22 @@ Notes:
   - **Avoid:** `read -> clean -> feature engineer -> model`
 - Always place new nodes inside the existing `pipeline { ... }` block.
 - `deps = [clean]` makes the upstream node's output available to the R code as `clean`.
+
+**Accessing upstream data:** Inside `<{ }>` blocks, upstream node outputs are available as variables by their node name. Do NOT use `read_node()` inside node code — T automatically deserializes and injects the data:
+
+```t
+clean_data = rn(
+  command = <{
+    # 'read_excel' is available as a data.frame automatically
+    read_excel |>
+      standardize_locality() |>
+      filter_commune_level()
+  }>,
+  functions = ["src/functions.R"],
+  deserializer = ^csv,
+  serializer = ^csv
+)
+```
 
 ## Design principles
 

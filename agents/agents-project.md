@@ -23,7 +23,8 @@ T projects are not collections of ad-hoc scripts; they are **pipelines**.
 - **The Pipeline Block**: Core logic belongs inside `pipeline { ... }`.
 - **Node Granularity**: Prefer many small, single-purpose nodes over one large "do-it-all" script.
 - **Polyglot Execution**: Use `rn()` for R, `pyn()` for Python, and `shn()` for Shell.
-- **Artifact Access**: Use `read_node("node_name")` to consume data from upstream nodes and `pipeline_copy()` to bring final results into the local workspace.
+- **Artifact Access**: Use `read_node(p.node_name)` to consume data from upstream nodes and `pipeline_copy()` to bring final results into the local workspace.
+- **Upstream Data Access**: Inside `<{ }>` blocks, upstream nodes are available as variables by name (e.g., `read_excel` for a node named `read_excel`). Do NOT use `read_node()` inside node code.
 
 ---
 
@@ -68,6 +69,8 @@ T projects are not collections of ad-hoc scripts; they are **pipelines**.
 | **Run Tests** | `t test` |
 | **Debug a Node** | `t explain --node name` |
 | **Check Health** | `t doctor` |
+| **Schema Check** | `t check --schema src/pipeline.t` |
+| **Inspect Node** | `t run --unsafe src/view.t` (with `t_make()` + `glimpse(read_node(p.name))`) |
 
 ---
 
