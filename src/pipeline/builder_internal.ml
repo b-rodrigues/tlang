@@ -52,17 +52,18 @@ let print_failed_node_logs drv_paths errored =
     errored
 
 let classify_nix_error last_lines =
-  match List.rev last_lines with
-  | last :: _ ->
-    let lower = String.lowercase_ascii last in
-    let has p = try let _ = Str.search_forward (Str.regexp p) lower 0 in true with Not_found -> false in
-    if has "^error:" then Diagnostics.Type_error
-    else if has "no such file" then Diagnostics.File_error
-    else if has "attribute.*missing" then Diagnostics.Key_error
-    else if has "is not a function" then Diagnostics.Type_error
-    else if has "syntax error" then Diagnostics.Parse_error
-    else Diagnostics.Nix_error
-  | [] -> Diagnostics.Nix_error
+  let has p =
+    List.exists (fun line ->
+      let lower = String.lowercase_ascii line in
+      try let _ = Str.search_forward (Str.regexp p) lower 0 in true with Not_found -> false
+    ) last_lines
+  in
+  if has "^error:" then Diagnostics.Type_error
+  else if has "no such file" then Diagnostics.File_error
+  else if has "attribute.*missing" then Diagnostics.Key_error
+  else if has "is not a function" then Diagnostics.Type_error
+  else if has "syntax error" then Diagnostics.Parse_error
+  else Diagnostics.Nix_error
 
 let get_failed_node_error_info drv_path =
   let argv = [| "nix"; "log"; drv_path |] in
@@ -75,8 +76,8 @@ let get_failed_node_error_info drv_path =
         let lines = String.split_on_char '\n' output |> List.map String.trim |> List.filter (fun s -> s <> "") in
         let last_lines =
           let len = List.length lines in
-          if len > 3 then
-            List.filteri (fun i _ -> i >= len - 3) lines
+          if len > 10 then
+            List.filteri (fun i _ -> i >= len - 10) lines
           else
             lines
         in
@@ -427,6 +428,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         let cached_nodes = List.filter (fun n -> not (Hashtbl.mem node_was_built n) && find_status n = "Completed") node_names in
         List.iter (fun name ->
           let lang = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+          (* A cache hit is near-instant, so duration_ms = 0.0 is used as an intentional sentinel *)
           Ndjson_stream.emit_node_completed
             ~node_id:name ~lang ~duration_ms:0.0 ~cached:true
         ) cached_nodes
@@ -666,8 +668,8 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
             in
             let last_lines =
               let len = List.length lines_to_classify in
-              if len > 3 then
-                List.filteri (fun i _ -> i >= len - 3) lines_to_classify
+              if len > 10 then
+                List.filteri (fun i _ -> i >= len - 10) lines_to_classify
               else
                 lines_to_classify
             in
@@ -701,7 +703,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
               match event with
               | Build_start _ -> ()
               | Build_complete { node_name } ->
-                  if find_status node_name <> "Errored" then begin
+                  if prev_status <> "Errored" then begin
                     let lang = match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T" in
                     let duration =
                       match Hashtbl.find_opt node_durations node_name with
