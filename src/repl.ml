@@ -857,15 +857,117 @@ let cmd_init_project args =
 
 let cmd_explain ?failfast mode rest env =
   Packages.ensure_docs_loaded ();
-  let expr_str = String.concat " " (List.filter (fun s -> s <> "--json") rest) in
-  if expr_str = "" then (Printf.eprintf "Usage: t explain <expr>\n"; exit 1)
-  else begin
-    let (result, env') = parse_and_eval ?failfast mode env expr_str in
-    let explain_expr = "explain(__explain_target__)" in
-    let env'' = Ast.Env.add "__explain_target__" result env' in
-    let (explain_result, _) = parse_and_eval ?failfast mode env'' explain_expr in
-    print_string (Pretty_print.pretty_print_value explain_result)
-  end
+  let json = List.mem "--json" rest in
+  let rec get_node_arg = function
+    | [] -> None
+    | "--node" :: v :: _ -> Some v
+    | _ :: xs -> get_node_arg xs
+  in
+  match get_node_arg rest with
+  | Some node_arg ->
+      let pipeline_var, node_name =
+        match String.split_on_char '.' node_arg with
+        | [n] -> ("p", n)
+        | [v; n] -> (v, n)
+        | _ -> Printf.eprintf "Error: Invalid --node format. Expected <pipeline_var>.<node_name> or <node_name>.\n"; exit 1
+      in
+      let remaining = List.filter (fun s -> s <> "--json" && s <> "--node" && s <> node_arg) rest in
+      let filename =
+        match remaining with
+        | [] -> "src/pipeline.t"
+        | [f] -> f
+        | _ -> Printf.eprintf "Usage: t explain --node <pipeline_var>.<node_name> [pipeline.t]\n"; exit 1
+      in
+      if not (Sys.file_exists filename) then begin
+        Printf.eprintf "Error: File '%s' not found.\n" filename;
+        exit 1
+      end;
+      let old_check_mode = !Ast.check_mode in
+      Ast.check_mode := true;
+      (try
+         let (_, env_val) = Check_utils.run_file ?failfast mode filename env in
+         Ast.check_mode := old_check_mode;
+         let pipeline_opt =
+           match Ast.Env.find_opt pipeline_var env_val with
+           | Some (Ast.VPipeline p) -> Some p
+           | _ ->
+               (* Fallback: search for any pipeline in the environment *)
+               let found = ref None in
+               Ast.Env.iter (fun _name value ->
+                 match value with
+                 | Ast.VPipeline p -> found := Some p
+                 | _ -> ()
+               ) env_val;
+               !found
+         in
+         match pipeline_opt with
+         | None ->
+             Printf.eprintf "Error: Pipeline variable '%s' not found or is not a Pipeline.\n" pipeline_var;
+             exit 1
+         | Some p ->
+             let diagnostics_map = Builder_read_node.merge_pipeline_node_diagnostics_with_latest_log p in
+             match List.assoc_opt node_name diagnostics_map with
+             | None ->
+                 Printf.eprintf "Error: Node '%s' not found in the pipeline.\n" node_name;
+                 exit 1
+             | Some d ->
+                 if json then begin
+                   let error_block =
+                     match d.nd_error with
+                     | Some err ->
+                         let fn_str =
+                           if err.ne_fn <> "" then Printf.sprintf ", \"function\": \"%s\"" (Serialization.json_escape err.ne_fn)
+                           else ""
+                         in
+                         Printf.sprintf "\"status\": \"failed\", \"error_code\": \"%s\", \"message\": \"%s\"%s"
+                           (Serialization.json_escape err.ne_kind)
+                           (Serialization.json_escape err.ne_message)
+                           fn_str
+                     | None -> "\"status\": \"success\""
+                   in
+                   let warnings_list =
+                     List.map (fun w ->
+                       Printf.sprintf "{\"code\": \"%s\", \"message\": \"%s\"}"
+                         (Serialization.json_escape w.Ast.nw_kind)
+                         (Serialization.json_escape w.Ast.nw_message)
+                     ) d.nd_warnings
+                   in
+                   let warnings_str = "[" ^ String.concat ", " warnings_list ^ "]" in
+                   Printf.printf "{\n  %s,\n  \"warnings\": %s\n}\n" error_block warnings_str
+                 end else begin
+                   let has_output = ref false in
+                   (match d.nd_error with
+                    | Some err ->
+                        has_output := true;
+                        Printf.printf "Node '%s' failed:\n" node_name;
+                        Printf.printf "  Error Code: %s\n" err.ne_kind;
+                        Printf.printf "  Message: %s\n" err.ne_message;
+                        if err.ne_fn <> "" then Printf.printf "  Function: %s\n" err.ne_fn
+                    | None -> ());
+                   if d.nd_warnings <> [] then begin
+                     has_output := true;
+                     Printf.printf "Node '%s' has warning(s):\n" node_name;
+                     List.iter (fun w ->
+                       Printf.printf "  - [%s] %s\n" w.Ast.nw_kind w.Ast.nw_message
+                     ) d.nd_warnings
+                   end;
+                   if not !has_output then
+                     Printf.printf "Node '%s' compiled/built successfully with no errors or warnings.\n" node_name
+                 end
+       with e ->
+         Ast.check_mode := old_check_mode;
+         Printf.eprintf "Error loading '%s': %s\n" filename (Printexc.to_string e);
+         exit 1)
+  | None ->
+      let expr_str = String.concat " " (List.filter (fun s -> s <> "--json") rest) in
+      if expr_str = "" then (Printf.eprintf "Usage: t explain <expr> | t explain --node <pipeline_var>.<node_name> [pipeline.t]\n"; exit 1)
+      else begin
+        let (result, env') = parse_and_eval ?failfast mode env expr_str in
+        let explain_expr = "explain(__explain_target__)" in
+        let env'' = Ast.Env.add "__explain_target__" result env' in
+        let (explain_result, _) = parse_and_eval ?failfast mode env'' explain_expr in
+        print_string (Pretty_print.pretty_print_value explain_result)
+      end
 
 let cmd_test args =
   let cwd = Sys.getcwd () in
