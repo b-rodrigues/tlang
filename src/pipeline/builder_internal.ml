@@ -372,6 +372,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
       let node_was_built = Hashtbl.create (List.length node_names) in
       let node_error_info : (string, string * string) Hashtbl.t = Hashtbl.create (List.length node_names) in
       let node_log_bufs = Hashtbl.create (List.length node_names) in
+      let node_completed_emitted = Hashtbl.create (List.length node_names) in
       let started_building = ref false in
 
       let is_failed name =
@@ -424,14 +425,21 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         ) node_names
       in
 
-      let emit_cached_nodes_completed () =
-        let cached_nodes = List.filter (fun n -> not (Hashtbl.mem node_was_built n) && find_status n = "Completed") node_names in
+      let emit_remaining_completed_nodes () =
         List.iter (fun name ->
-          let lang = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-          (* A cache hit is near-instant, so duration_ms = 0.0 is used as an intentional sentinel *)
-          Ndjson_stream.emit_node_completed
-            ~node_id:name ~lang ~duration_ms:0.0 ~cached:true
-        ) cached_nodes
+          if find_status name = "Completed" && not (Hashtbl.mem node_completed_emitted name) then begin
+            let lang = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+            let duration =
+              match Hashtbl.find_opt node_durations name with
+              | Some d -> d *. 1000.0
+              | None -> 0.0
+            in
+            let cached = not (Hashtbl.mem node_was_built name) in
+            Ndjson_stream.emit_node_completed
+              ~node_id:name ~lang ~duration_ms:duration ~cached;
+            Hashtbl.replace node_completed_emitted name true
+          end
+        ) node_names
       in
 
       let classify_and_update line =
@@ -715,7 +723,8 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                     in
                     let cached = not (Hashtbl.mem node_was_built node_name) in
                     Ndjson_stream.emit_node_completed
-                      ~node_id:node_name ~lang ~duration_ms:duration ~cached
+                      ~node_id:node_name ~lang ~duration_ms:duration ~cached;
+                    Hashtbl.replace node_completed_emitted node_name true
                   end
               | Build_error { node_name } ->
                   if prev_status <> "Errored" then begin
@@ -781,7 +790,8 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                     in
                     let cached = not (Hashtbl.mem node_was_built node_name) in
                     Ndjson_stream.emit_node_completed
-                      ~node_id:node_name ~lang ~duration_ms:duration ~cached
+                      ~node_id:node_name ~lang ~duration_ms:duration ~cached;
+                    Hashtbl.replace node_completed_emitted node_name true
                   end
               | Build_error { node_name } ->
                   if prev_status <> "Errored" then begin
@@ -976,7 +986,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                         ) node_names
                       else []
                     in
-                    emit_cached_nodes_completed ();
+                    emit_remaining_completed_nodes ();
                     let failed_nodes = report_soft_failed_and_build_failed_nodes_list soft_failed in
                     Ndjson_stream.emit_run_finished
                       ~status:status_str
@@ -1128,7 +1138,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                       not (List.exists is_failed deps)
                   ) node_names
                 in
-                emit_cached_nodes_completed ();
+                emit_remaining_completed_nodes ();
                 let failed_nodes = report_soft_failed_and_build_failed_nodes_list soft_failed in
                 Ndjson_stream.emit_run_finished
                   ~status:"failed"
