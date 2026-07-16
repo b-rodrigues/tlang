@@ -814,7 +814,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                     Ndjson_stream.emit_run_finished
                       ~status:status_str
                       ~total:(List.length node_names)
-                      ~succeeded:(List.length completed + cached_count)
+                      ~succeeded:(List.length completed)
                       ~cached:cached_count
                       ~failed:total_failed
                       ~skipped_upstream:(List.length skipped)
