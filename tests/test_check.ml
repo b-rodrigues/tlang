@@ -329,11 +329,12 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   Printf.printf "\nschema check rename tests:\n";
 
   (* Schema rename: positive case — rename() + select() pipe chain, zero diagnostics *)
-  let result = eval_string "t_check(\"tests/golden/t_scripts/schema_rename_pipe.t\", schema=true)" in
+  let result = eval_string "t_check(\"tests/golden/t_scripts/schema_rename_pipe.t\", schema=true, json=true)" in
   let result_str = match result with Ast.VString s -> s | _ -> "" in
   let no_schema_mismatch =
-    try ignore (Str.search_forward (Str.regexp "schema_mismatch") result_str 0); false
-    with Not_found -> String.length result_str >= 0
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "schema_mismatch") result_str 0); false
+        with Not_found -> true)
   in
   check "schema rename pipe: no schema_mismatch errors" no_schema_mismatch;
   flush stdout;
