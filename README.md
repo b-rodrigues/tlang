@@ -12,7 +12,9 @@
 
 **T** is an experimental, reproducibility-by-design DSL for polyglot data science. It provides a functional, immutable language for constructing composable micropipelines—first-class, introspectable computation graphs that coordinate R, Python, and Shell execution within a unified system. Pipelines in T are not configuration artifacts but executable program structures with explicit dataflow, typed nodes, and content-addressed outputs.
 
-**T’s source code is 100% AI-generated.**
+> [!IMPORTANT]
+> **T’s source code is 100% AI-generated. It is thouroughly tested with almost 3000 unit tests and +/- 80 end-to-end integration tests.**
+
 
 Built on Nix, T integrates declarative environment management and deterministic builds at the language level, enabling reproducible execution across machines without external orchestration layers. The result is a system where workflow structure, dependency resolution, and provenance tracking are intrinsic properties of the language rather than concerns delegated to external tools.
 
