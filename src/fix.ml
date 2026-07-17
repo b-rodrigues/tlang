@@ -69,13 +69,45 @@ let apply_rename_column ~file ~old_name ~new_name =
   (* Only replace $old_name and $`old_name` — the T column reference forms.
      Avoids corrupting unrelated identifiers like `valid`, `hidden`, etc.
      Uses manual word-boundary check: the character after the match must not be
-     [a-zA-Z0-9_], so $id is not matched inside $identity. *)
+     [a-zA-Z0-9_], so $id is not matched inside $identity.
+     Also skips references that are the RHS of a named argument
+     (= $old), which are definition sites (e.g. rename(mpg2 = $mpg)). *)
+  let replace_safely ~content ~old ~replacement =
+    let buf = Buffer.create (String.length content) in
+    let old_len = String.length old in
+    let i = ref 0 in
+    while !i < String.length content do
+      if !i + old_len <= String.length content
+         && String.sub content !i old_len = old
+         && (!i + old_len >= String.length content
+             || not (is_word_char content.[!i + old_len]))
+      then begin
+        (* Check if preceded by '=' (with optional whitespace) — skip definition sites *)
+        let rec skip_ws j =
+          if j > 0 && (content.[j-1] = ' ' || content.[j-1] = '\t') then skip_ws (j-1)
+          else j
+        in
+        let eq_candidate = skip_ws !i in
+        if eq_candidate > 0 && content.[eq_candidate - 1] = '=' then begin
+          Buffer.add_string buf old;
+          i := !i + old_len
+        end else begin
+          Buffer.add_string buf replacement;
+          i := !i + old_len
+        end
+      end else begin
+        Buffer.add_char buf content.[!i];
+        incr i
+      end
+    done;
+    Buffer.contents buf
+  in
   let dollar_old = "$" ^ old_name in
   let dollar_new = "$" ^ new_name in
   let backtick_old = "$`" ^ old_name ^ "`" in
   let backtick_new = "$`" ^ new_name ^ "`" in
-  let content = replace_word_bound ~content ~old:dollar_old ~replacement:dollar_new in
-  let content = replace_word_bound ~content ~old:backtick_old ~replacement:backtick_new in
+  let content = replace_safely ~content ~old:dollar_old ~replacement:dollar_new in
+  let content = replace_safely ~content ~old:backtick_old ~replacement:backtick_new in
   let oc = open_out file in
   Fun.protect ~finally:(fun () -> close_out_noerr oc)
     (fun () -> output_string oc content)
@@ -182,7 +214,6 @@ let apply_fix ~file (fix : Diagnostics.suggested_fix) =
       apply_rename_column ~file ~old_name ~new_name; true
   | Add_node_arg { node; arg; file = _; line = _; target_node = _ } ->
       apply_add_node_arg ~file ~node ~arg
-  | Pin_package_version _ -> false
   | NoFix -> false
 
 (* Sort fixes by descending line within each file, so bottom-up application

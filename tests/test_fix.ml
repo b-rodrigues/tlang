@@ -51,6 +51,23 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   in
   test_apply_rename ();
 
+  let test_apply_rename_preserves_rhs () =
+    let tmp = Filename.temp_file "test_fix" ".t" in
+    let oc = open_out tmp in
+    output_string oc "renamed = source |> rename(mpg2 = $mpg) |> filter($mpg > 20)\n";
+    close_out oc;
+    Fix.apply_rename_column ~file:tmp ~old_name:"mpg" ~new_name:"mpg2";
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    let has_rename_def = (try let _ = Str.search_forward (Str.regexp "rename(mpg2 = \\$mpg)") content 0 in true with Not_found -> false) in
+    let has_filter_fixed = (try let _ = Str.search_forward (Str.regexp "filter(\\$mpg2") content 0 in true with Not_found -> false) in
+    check "rename_column preserves $col in rename() RHS (= $old)" has_rename_def;
+    check "rename_column fixes stale $col in filter()" has_filter_fixed
+  in
+  test_apply_rename_preserves_rhs ();
+
   Printf.printf "\nsuggested_fix roundtrip:\n";
   let test_roundtrip () =
     let fixes : Diagnostics.suggested_fix list = [
@@ -58,7 +75,6 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       Cast { column = "y"; cast_to = "string"; target_node = None; file = Some "test.t"; line = Some 6 };
       Rename_column { old_name = "a"; new_name = "b"; target_node = Some "step2"; file = Some "test.t"; line = None };
       Add_node_arg { node = "filter"; arg = "na_rm=true"; target_node = None; file = Some "test.t"; line = None };
-      Pin_package_version { pkg = "dplyr"; version = "1.0.0"; file = Some "tproject.toml" };
       NoFix;
     ] in
     let all_ok = List.for_all (fun fix ->
@@ -72,8 +88,6 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
           o1 = o2 && n1 = n2 && tn1 = tn2
       | Add_node_arg { node = n1; arg = a1; target_node = tn1; _ }, Add_node_arg { node = n2; arg = a2; target_node = tn2; _ } ->
           n1 = n2 && a1 = a2 && tn1 = tn2
-      | Pin_package_version { pkg = p1; version = v1; _ }, Pin_package_version { pkg = p2; version = v2; _ } ->
-          p1 = p2 && v1 = v2
       | _ -> false
     ) fixes in
     check "suggested_fix roundtrips through JSON" all_ok

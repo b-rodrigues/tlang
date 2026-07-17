@@ -349,6 +349,32 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check "schema rename stale: detects stale column ref after rename" has_col_error;
   flush stdout;
 
+  Printf.printf "\nschema check rename fix suggestion:\n";
+
+  (* Schema rename: verify Rename_column is attached as suggested fix *)
+  let result = eval_string "t_check(\"tests/golden/t_scripts/schema_rename_stale.t\", schema=true, json=true)" in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let has_rename_fix =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "\"rename_column\"") result_str 0); true
+        with Not_found -> false)
+  in
+  check "schema rename stale: suggested_fix is rename_column" has_rename_fix;
+  flush stdout;
+
+  Printf.printf "\nmissing package detection:\n";
+
+  (* Missing package: undeclared R package should get Missing_package *)
+  let result = eval_string "t_check(\"tests/golden/t_scripts/missing_package.t\", env=true, json=true)" in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let has_missing_pkg =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "missing_package") result_str 0); true
+        with Not_found -> false)
+  in
+  check "missing package: diagnostic has missing_package" has_missing_pkg;
+  flush stdout;
+
   (* t_diff with nonexistent file returns VError *)
   let result = eval_string "t_diff(\"nonexistent_file_xyz.t\")" in
   check "t_diff nonexistent file returns VError"

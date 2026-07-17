@@ -96,7 +96,6 @@ type suggested_fix =
   | Cast of { column: string; cast_to: string; target_node: string option; file: string option; line: int option }
   | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option }
   | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option }
-  | Pin_package_version of { pkg: string; version: string; file: string option }
   | NoFix
 
 type diagnostic = {
@@ -183,13 +182,6 @@ let suggested_fix_to_yojson = function
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
       ]
-  | Pin_package_version { pkg; version; file } ->
-      `Assoc [
-        ("kind", `String "pin_package_version");
-        ("pkg", `String pkg);
-        ("version", `String version);
-        ("file", opt_string_to_yojson file);
-      ]
   | NoFix -> `Null
 
 let opt_string_of_yojson json =
@@ -234,12 +226,6 @@ let suggested_fix_of_yojson json =
             arg = json |> member "arg" |> to_string;
             target_node;
             file; line;
-          }
-      | "pin_package_version" ->
-          Pin_package_version {
-            pkg = json |> member "pkg" |> to_string;
-            version = json |> member "version" |> to_string;
-            file;
           }
       | _ -> NoFix
 

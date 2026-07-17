@@ -339,8 +339,22 @@ let apply_pipe_op schema op =
 
 (* ---------- Column reference validation ---------- *)
 
+(* Extract the (old_name, new_name) mapping from a rename() call *)
+let extract_rename_mapping expr =
+  match classify_verb expr with
+  | Rename ->
+    (match expr.node with
+     | Call { args; _ } ->
+       List.filter_map (fun (name_opt, e) ->
+         match name_opt, e.node with
+         | Some new_name, ColumnRef old_name -> Some (old_name, new_name)
+         | _ -> None
+       ) args
+     | _ -> [])
+  | _ -> []
+
 (* Validate that all column references in an expression exist in the schema *)
-let validate_col_refs ~node_name ~(file : string option) ~schema expr =
+let validate_col_refs ~node_name ~(file : string option) ~schema ?(rename_mapping = []) expr =
   let refs = extract_col_refs expr in
   let seen = Hashtbl.create 8 in
   List.filter_map (fun col ->
@@ -348,25 +362,36 @@ let validate_col_refs ~node_name ~(file : string option) ~schema expr =
     else begin
       Hashtbl.add seen col ();
       if schema_has_col col schema then None
-      else Some (Diagnostics.{
-        diag_id = Diagnostics.gen_id ();
-        diag_error_class = Schema_mismatch;
-        diag_severity = Error;
-        diag_phase = Schema;
-        diag_node_id = Some node_name;
-        diag_node_lang = None;
-        diag_file = file;
-        diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
-        diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
-        diag_end_line = None;
-        diag_end_column = None;
-        diag_message = Printf.sprintf "Column '%s' referenced in node '%s' not found in input schema [%s]"
-          col node_name (String.concat ", " (schema_names schema));
-        diag_expected = None;
-        diag_actual = None;
-        diag_caused_by = [];
-        diag_suggested_fix = NoFix;
-      })
+      else
+        let suggested_fix = match List.assoc_opt col rename_mapping with
+          | Some new_name -> Diagnostics.Rename_column {
+              old_name = col;
+              new_name;
+              target_node = Some node_name;
+              file;
+              line = (match expr.loc with Some l -> Some l.line | None -> None);
+            }
+          | None -> NoFix
+        in
+        Some (Diagnostics.{
+          diag_id = Diagnostics.gen_id ();
+          diag_error_class = Schema_mismatch;
+          diag_severity = Error;
+          diag_phase = Schema;
+          diag_node_id = Some node_name;
+          diag_node_lang = None;
+          diag_file = file;
+          diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
+          diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
+          diag_end_line = None;
+          diag_end_column = None;
+          diag_message = Printf.sprintf "Column '%s' referenced in node '%s' not found in input schema [%s]"
+            col node_name (String.concat ", " (schema_names schema));
+          diag_expected = None;
+          diag_actual = None;
+          diag_caused_by = [];
+          diag_suggested_fix = suggested_fix;
+        })
     end
   ) refs
 
@@ -489,6 +514,7 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
          schemas through pipe chains so that rename() |> select() works correctly. *)
       let all_refs = unwrap_pipe expr in
       let current_validation_schema = ref input_schema in
+      let last_rename_mapping = ref [] in
       List.iter (fun op ->
         let validation_schema =
           if !current_validation_schema <> [] then !current_validation_schema
@@ -497,9 +523,10 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
             | [] -> []
         in
         if validation_schema <> [] then begin
-          let errors = validate_col_refs ~node_name:name ~file:(Some file) ~schema:validation_schema op in
+          let errors = validate_col_refs ~node_name:name ~file:(Some file) ~schema:validation_schema ~rename_mapping:!last_rename_mapping op in
           diagnostics := errors @ !diagnostics
         end;
+        last_rename_mapping := extract_rename_mapping op;
         current_validation_schema := apply_pipe_op !current_validation_schema op
       ) all_refs;
 

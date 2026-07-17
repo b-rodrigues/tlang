@@ -35,7 +35,6 @@ let format_fix_result (result : Fix.fix_result) =
         | Diagnostics.Rename_column { old_name; new_name; _ } ->
             Printf.sprintf "  Rename column '%s' to '%s'" old_name new_name
         | Diagnostics.Add_node_arg _ -> "  Add node argument"
-        | Diagnostics.Pin_package_version _ -> "  Pin package version"
         | Diagnostics.NoFix -> "  No fix"
       in
       Buffer.add_string buf (Printf.sprintf "%s:%d: %s\n"
