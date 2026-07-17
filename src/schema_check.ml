@@ -76,25 +76,60 @@ let extract_read_csv_path expr =
        | _ -> None)
   | _ -> None
 
-(* ---------- CSV header reading ---------- *)
+(* ---------- CSV schema reading with type inference ---------- *)
 
-(* Read the first line of a CSV file to extract column names.
-   This is fast (~ms) and doesn't require Nix. *)
+(* Strip quotes and whitespace from a CSV cell *)
+let clean_csv_cell s =
+  let s = String.trim s in
+  if String.length s >= 2 && s.[0] = '"' && s.[String.length s - 1] = '"'
+  then String.sub s 1 (String.length s - 2)
+  else s
+
+(* Infer basic arrow type from a cell value string *)
+let infer_type_from_cell value =
+  let trimmed = String.trim value in
+  try let _ = int_of_string trimmed in "int"
+  with Failure _ ->
+    try let _ = float_of_string trimmed in "double"
+    with Failure _ -> "string"
+
+(* Read the first line of a CSV file to extract column names (fast, no types).
+   Kept for backward compatibility — prefer read_csv_schema for typed schemas. *)
 let read_csv_header path =
   try
     let ic = open_in path in
     let line = input_line ic in
     close_in ic;
-    (* Split on comma, trim whitespace, strip quotes *)
     let cols = String.split_on_char ',' line in
-    let cols = List.map (fun s ->
-      let s = String.trim s in
-      (* Strip surrounding quotes *)
-      if String.length s >= 2 && s.[0] = '"' && s.[String.length s - 1] = '"'
-      then String.sub s 1 (String.length s - 2)
-      else s
-    ) cols in
-    Some cols
+    Some (List.map clean_csv_cell cols)
+  with _ -> None
+
+(* Read CSV header + first data row to infer column types.
+   This is fast (~ms) and doesn't require Nix.
+   Returns a schema with types inferred from the first data row. *)
+let read_csv_schema path =
+  try
+    let ic = open_in path in
+    let header_line = input_line ic in
+    let header_cols = String.split_on_char ',' header_line in
+    let header_cols = List.map clean_csv_cell header_cols in
+    (try
+       let data_line = input_line ic in
+       let values = String.split_on_char ',' data_line in
+       let values = List.map clean_csv_cell values in
+       close_in ic;
+       let cols = List.mapi (fun i name ->
+         let sc_type =
+           if i < List.length values
+           then Some (infer_type_from_cell (List.nth values i))
+           else None
+         in
+         { sc_name = name; sc_type }
+       ) header_cols in
+       Some cols
+     with End_of_file ->
+       close_in ic;
+       Some (List.map (fun name -> { sc_name = name; sc_type = None }) header_cols))
   with _ -> None
 
 (* ---------- Schema inference for colcraft verbs ---------- *)
@@ -140,27 +175,50 @@ let extract_select_cols args =
     | _ -> None
   ) args
 
-(* Extract the new column name from a mutate() named argument.
-   mutate(df, $new = expr) → Some "new"
+(* Extract the new column name and optionally its reported type from a mutate() arg.
+   mutate(df, $new = expr) → Some ("new", expr_type)
+   Detects as.TYPE() calls to propagate the target type.
    Best-effort: also treats a bare positional $col as a new column assignment,
    which may produce false positives on unusual mutate signatures. *)
 let extract_mutate_new_cols args =
+  let detect_coercion_type e =
+    match e.node with
+    | Call { fn = { node = Var fn_name; _ }; _ } ->
+        (match fn_name with
+         | "as.int" -> Some "int"
+         | "as.double" | "as_numeric" -> Some "double"
+         | "as.string" | "as_character" -> Some "string"
+         | "as_logical" | "as_bool" -> Some "bool"
+         | _ -> None)
+    | _ -> None
+  in
   List.filter_map (fun (name, e) ->
+    let inferred_type = detect_coercion_type e in
     match name with
-    | Some col -> Some col
+    | Some col -> Some (col, inferred_type)
     | None ->
-        (* Best-effort heuristic: bare $col positional arg treated as assignment *)
         (match e.node with
-         | ColumnRef col -> Some col
+         | ColumnRef col -> Some (col, None)
          | _ -> None)
   ) args
 
-(* Extract the new column names from a summarize() call.
-   summarize(df, $avg = mean($mpg)) → ["avg"] *)
-let extract_summarize_cols args =
-  List.filter_map (fun (name, _e) ->
+(* Infer types for summarize() aggregation columns.
+   mean()/median() → double, n()/first()/last() → depends, others → None
+   Returns the column name and its inferred type. *)
+let extract_summarize_cols_with_types args =
+  let detect_agg_type e =
+    match e.node with
+    | Call { fn = { node = Var fn_name; _ }; _ } ->
+        (match fn_name with
+         | "mean" | "median" | "sd" | "var" -> Some "double"
+         | "n" | "n_distinct" | "first" | "last" -> Some "int"
+         | "min" | "max" | "sum" -> None  (* depends on input type *)
+         | _ -> None)
+    | _ -> None
+  in
+  List.filter_map (fun (name, e) ->
     match name with
-    | Some col -> Some col
+    | Some col -> Some (col, detect_agg_type e)
     | None -> None
   ) args
 
@@ -182,24 +240,26 @@ let infer_output_schema input_schema expr =
   | Mutate ->
       let new_cols = extract_mutate_new_cols
           (match expr.node with Call { args; _ } -> args | _ -> []) in
+      let new_col_names = List.map fst new_cols in
+      let new_col_types = List.map (fun (n, t) -> (n, t)) new_cols in
       (* Remove any input cols being overwritten, then append new *)
-      let old_cols = List.filter (fun c -> not (List.mem c.sc_name new_cols)) input_schema in
-      old_cols @ List.map (fun name -> { sc_name = name; sc_type = None }) new_cols
+      let old_cols = List.filter (fun c -> not (List.mem c.sc_name new_col_names)) input_schema in
+      old_cols @ List.map (fun (name, t) -> { sc_name = name; sc_type = t }) new_col_types
   | Rename ->
       (* rename(df, $old, "new") — we can't fully parse this statically,
          just return input schema unchanged *)
       input_schema
   | Summarize ->
-      let cols = extract_summarize_cols
+      let cols = extract_summarize_cols_with_types
           (match expr.node with Call { args; _ } -> args | _ -> []) in
-      List.map (fun name -> { sc_name = name; sc_type = None }) cols
+      List.map (fun (name, t) -> { sc_name = name; sc_type = t }) cols
   | Distinct ->
       input_schema
   | Count ->
-      let named = extract_summarize_cols
+      let named = extract_summarize_cols_with_types
           (match expr.node with Call { args; _ } -> args | _ -> []) in
       if named <> [] then
-        List.map (fun name -> { sc_name = name; sc_type = None }) named
+        List.map (fun (name, t) -> { sc_name = name; sc_type = t }) named
       else input_schema @ [{ sc_name = "n"; sc_type = Some "int" }]
   | Other _ ->
       (* Unknown function — schema is unknown *)
@@ -295,15 +355,13 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
         if is_read_csv expr then
           match extract_read_csv_path expr with
           | Some path ->
-              (* Try relative to the file's directory *)
               let dir = Filename.dirname file in
               let full_path = Filename.concat dir path in
-              (match read_csv_header full_path with
-               | Some cols -> Some (make_schema cols)
+              (match read_csv_schema full_path with
+               | Some cols -> Some cols
                | None ->
-                   (* Try the path as-is *)
-                   match read_csv_header path with
-                   | Some cols -> Some (make_schema cols)
+                   match read_csv_schema path with
+                   | Some cols -> Some cols
                    | None -> None)
           | None -> None
         else None
@@ -339,6 +397,44 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
       (* Store the schema *)
       if output_schema <> [] then
         Hashtbl.add schemas name output_schema;
+
+      (* Check for type mismatches between input and output schemas *)
+      if input_schema <> [] && output_schema <> [] then begin
+        let mismatches = List.filter_map (fun in_col ->
+          match in_col.sc_type with
+          | Some expected_type ->
+              (match List.find_opt (fun out_col -> out_col.sc_name = in_col.sc_name) output_schema with
+               | Some out_col ->
+                   (match out_col.sc_type with
+                    | Some actual_type when actual_type <> expected_type ->
+                        Some (in_col.sc_name, expected_type, actual_type)
+                    | _ -> None)
+               | None -> None)
+          | None -> None
+        ) input_schema in
+        List.iter (fun (col_name, expected_type, actual_type) ->
+          diagnostics := (Diagnostics.{
+            diag_id = Diagnostics.gen_id ();
+            diag_error_class = Schema_mismatch;
+            diag_severity = Warning;
+            diag_phase = Schema;
+            diag_node_id = Some name;
+            diag_node_lang = None;
+            diag_file = Some file;
+            diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
+            diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
+            diag_end_line = None;
+            diag_end_column = None;
+            diag_message =
+              Printf.sprintf "Column '%s' type changed from '%s' to '%s' in node '%s'"
+                col_name expected_type actual_type name;
+            diag_expected = Some expected_type;
+            diag_actual = Some actual_type;
+            diag_caused_by = [];
+            diag_suggested_fix = NoFix;
+          } : Diagnostics.diagnostic) :: !diagnostics
+        ) mismatches
+      end;
 
       (* Validate column references in the expression *)
       let all_refs = unwrap_pipe expr in
