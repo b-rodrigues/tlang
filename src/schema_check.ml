@@ -330,6 +330,13 @@ let rec unwrap_pipe expr =
 let is_read_csv expr =
   Option.is_some (extract_read_csv_path expr)
 
+(* Apply a single pipe-chain operation, advancing the schema.
+   Skips Var references (data sources) since they don't transform the schema. *)
+let apply_pipe_op schema op =
+  match op.node with
+  | Var _ -> schema
+  | _ -> infer_output_schema schema op
+
 (* ---------- Column reference validation ---------- *)
 
 (* Validate that all column references in an expression exist in the schema *)
@@ -429,18 +436,10 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
       let output_schema = match root_schema with
         | Some cols -> cols
         | None ->
-            (* Check if this is a pipe chain *)
             let ops = unwrap_pipe expr in
-            if List.length ops > 1 then begin
-              (* Pipe chain: the first element is the data source (Var ref),
-                 subsequent elements are transformations. Start with input_schema. *)
-              let final_schema = List.fold_left (fun acc_schema op ->
-                match op.node with
-                | Var _ -> acc_schema  (* Skip variable references — use accumulated schema *)
-                | _ -> infer_output_schema acc_schema op
-              ) input_schema ops in
-              final_schema
-            end else
+            if List.length ops > 1 then
+              List.fold_left apply_pipe_op input_schema ops
+            else
               infer_output_schema input_schema expr
       in
 
@@ -501,10 +500,7 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
           let errors = validate_col_refs ~node_name:name ~file:(Some file) ~schema:validation_schema op in
           diagnostics := errors @ !diagnostics
         end;
-        (* Accumulate schema through the pipe chain for subsequent ops *)
-        (match op.node with
-         | Var _ -> ()
-         | _ -> current_validation_schema := infer_output_schema !current_validation_schema op)
+        current_validation_schema := apply_pipe_op !current_validation_schema op
       ) all_refs;
 
       (* Also validate formula variables if this is a lm() or similar call *)
