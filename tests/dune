@@ -72,6 +72,6 @@
 
 (rule
  (alias runtest)
- (deps docs.json)
+ (deps docs.json ../src/repl.exe)
  (action (run ./test_runner.exe))
 )

@@ -143,8 +143,9 @@ warning_msg(p.clean_data)
 # Structural check (milliseconds, no Nix builds)
 t check --schema src/pipeline.t
 
-# Explain a specific node's diagnostics
-t explain --node clean_data
+# Explain a specific node's diagnostics (use --json for agent-readable output)
+t explain --node p.clean_data
+t explain --json --node p.clean_data
 
 # Catch environment drift
 t doctor
@@ -153,6 +154,7 @@ t doctor
 ### Gotchas
 
 - **`read_node` requires dot access:** Use `read_node(p.node_name)` — the string form `read_node("name")` throws a TypeError.
+- **`t explain --node` requires explicit prefix:** You must specify `t explain --node <pipeline_var>.<node_name>` (e.g. `p.clean_data`). Omitting the prefix or using a non-existent variable name will result in an error.
 - **`read_node` before build:** If the pipeline hasn't been built, `read_node` errors. Use `build_pipeline(p)` first, or `read_past_node(p.node_name, which_log = "...")` for historical builds.
 - **Non-pipeline scripts:** Scripts without a `pipeline { }` block need `t run --unsafe` (e.g., `t run --unsafe src/view.t`).
 - **Resilient errors:** T nodes return `Error` values rather than raising exceptions. A run can complete while carrying an error downstream. Check `is_error()` on outputs.

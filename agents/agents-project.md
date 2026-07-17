@@ -88,7 +88,7 @@ p = pipeline {
 | **Sync Environment** | `t update` |
 | **Run Analysis** | `t run src/pipeline.t` |
 | **Run Tests** | `t test` |
-| **Debug a Node** | `t explain --node name` |
+| **Debug a Node** | `t explain --node p.name` (add `--json` for machine-readable JSON) |
 | **Check Health** | `t doctor` |
 | **Schema Check** | `t check --schema src/pipeline.t` |
 | **Inspect Node** | `t run --unsafe src/view.t` (with `t_make()` + `glimpse(read_node(p.name))`) |
