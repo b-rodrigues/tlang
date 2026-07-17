@@ -68,6 +68,44 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   in
   test_apply_rename_preserves_rhs ();
 
+  let test_rename_comparison_operators () =
+    let test_one ~op partial_line =
+      let tmp = Filename.temp_file "test_fix" ".t" in
+      let oc = open_out tmp in
+      output_string oc (Printf.sprintf "x = df |> rename(mpg2 = $mpg) |> %s\n" partial_line);
+      close_out oc;
+      Fix.apply_rename_column ~file:tmp ~old_name:"mpg" ~new_name:"mpg2";
+      let ch = open_in tmp in
+      let content = really_input_string ch (in_channel_length ch) in
+      close_in ch;
+      Sys.remove tmp;
+      let is_word_char = function
+        | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' -> true
+        | _ -> false
+      in
+      let count_word_boundary needle =
+        let need_len = String.length needle in
+        let rec count_all pos n =
+          try
+            let pos = Str.search_forward (Str.regexp_string needle) content pos in
+            if pos + need_len >= String.length content
+               || not (is_word_char content.[pos + need_len])
+            then count_all (pos + 1) (n + 1)
+            else count_all (pos + need_len) n
+          with Not_found -> n
+        in count_all 0 0
+      in
+      let new_count = count_word_boundary "$mpg2" in
+      let old_count = count_word_boundary "$mpg" in
+      check (Printf.sprintf "rename replaces both $mpg with $mpg2 (%s operator)" op) (new_count = 2 && old_count = 1)
+    in
+    test_one ~op:"==" "filter($mpg == $mpg)";
+    test_one ~op:"!=" "filter($mpg != $mpg)";
+    test_one ~op:"<=" "filter($mpg <= $mpg)";
+    test_one ~op:">=" "filter($mpg >= $mpg)"
+  in
+  test_rename_comparison_operators ();
+
   Printf.printf "\nsuggested_fix roundtrip:\n";
   let test_roundtrip () =
     let fixes : Diagnostics.suggested_fix list = [

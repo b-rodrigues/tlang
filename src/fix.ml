@@ -88,7 +88,13 @@ let apply_rename_column ~file ~old_name ~new_name =
           else j
         in
         let eq_candidate = skip_ws !i in
-        if eq_candidate > 0 && content.[eq_candidate - 1] = '=' then begin
+        let is_comparison_eq =
+          eq_candidate > 1
+          && (let prev = content.[eq_candidate - 2] in
+              prev = '!' || prev = '=' || prev = '<' || prev = '>')
+          && content.[eq_candidate - 1] = '='
+        in
+        if not is_comparison_eq && eq_candidate > 0 && content.[eq_candidate - 1] = '=' then begin
           Buffer.add_string buf old;
           i := !i + old_len
         end else begin

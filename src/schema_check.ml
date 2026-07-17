@@ -514,6 +514,11 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
          schemas through pipe chains so that rename() |> select() works correctly. *)
       let all_refs = unwrap_pipe expr in
       let current_validation_schema = ref input_schema in
+      (* Note: last_rename_mapping only covers the immediately preceding pipe op.
+         A rename earlier in a longer chain (with intervening non-rename ops) will
+         still emit a schema_mismatch error, but the suggested_fix will be NoFix
+         since the mapping is lost.  The error detection is schema-based and always
+         correct; only the automatic fix attachment is affected. *)
       let last_rename_mapping = ref [] in
       List.iter (fun op ->
         let validation_schema =
