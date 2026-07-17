@@ -5,6 +5,7 @@ open Ast
 
 let run_tests pass_count fail_count failures eval_string _eval_string_env _test =
   Printf.printf "=== t check / Diagnostics tests ===\n\n";
+  flush stdout;
 
   Printf.printf "Diagnostics module:\n";
 
@@ -325,7 +326,27 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check_eq "t_check with json=true contains schema_version"
     (if String.length result_str > 0 then "has_content" else "empty") "has_content";
 
-  Printf.printf "\nt_diff (REPL function):\n";
+  Printf.printf "\nschema check rename tests:\n";
+
+  (* Schema rename: positive case — rename() + select() pipe chain, zero diagnostics *)
+  let result = eval_string "t_check(\"tests/golden/t_scripts/schema_rename_pipe.t\", schema=true)" in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let no_schema_mismatch =
+    try ignore (Str.search_forward (Str.regexp "schema_mismatch") result_str 0); false
+    with Not_found -> String.length result_str >= 0
+  in
+  check "schema rename pipe: no schema_mismatch errors" no_schema_mismatch;
+  flush stdout;
+
+  (* Schema rename: negative case — stale col ref after rename should error *)
+  let result = eval_string "t_check(\"tests/golden/t_scripts/schema_rename_stale.t\", schema=true)" in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let has_col_error =
+    try ignore (Str.search_forward (Str.regexp "schema_mismatch") result_str 0); true
+    with Not_found -> false
+  in
+  check "schema rename stale: detects stale column ref after rename" has_col_error;
+  flush stdout;
 
   (* t_diff with nonexistent file returns VError *)
   let result = eval_string "t_diff(\"nonexistent_file_xyz.t\")" in
