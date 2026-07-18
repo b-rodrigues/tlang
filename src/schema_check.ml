@@ -85,6 +85,22 @@ let clean_csv_cell s =
   then String.sub s 1 (String.length s - 2)
   else s
 
+(* Split a CSV line into fields, respecting quoted strings that may contain commas.
+   Does not handle escaped quotes within quoted fields. *)
+let split_csv_line line =
+  let buf = Buffer.create 64 in
+  let cols = ref [] in
+  let in_quotes = ref false in
+  String.iter (fun c ->
+    match c with
+    | '"' -> in_quotes := not !in_quotes
+    | ',' when not !in_quotes ->
+        cols := Buffer.contents buf :: !cols;
+        Buffer.clear buf
+    | c -> Buffer.add_char buf c
+  ) line;
+  List.rev (Buffer.contents buf :: !cols)
+
 (* Infer basic arrow type from a cell value string *)
 let infer_type_from_cell value =
   let trimmed = String.trim value in
@@ -100,36 +116,55 @@ let read_csv_header path =
     let ic = open_in path in
     let line = input_line ic in
     close_in ic;
-    let cols = String.split_on_char ',' line in
+    let cols = split_csv_line line in
     Some (List.map clean_csv_cell cols)
   with _ -> None
 
-(* Read CSV header + first data row to infer column types.
-   This is fast (~ms) and doesn't require Nix.
-   Returns a schema with types inferred from the first data row. *)
+(* Read CSV header + sample up to 5 data rows to infer column types.
+   Peeks past empty/NA cells in the first row to find non-empty values per column.
+   Fast (~ms) and doesn't require Nix. *)
 let read_csv_schema path =
   try
     let ic = open_in path in
-    let header_line = input_line ic in
-    let header_cols = String.split_on_char ',' header_line in
-    let header_cols = List.map clean_csv_cell header_cols in
-    (try
-       let data_line = input_line ic in
-       let values = String.split_on_char ',' data_line in
-       let values = List.map clean_csv_cell values in
-       close_in ic;
-       let cols = List.mapi (fun i name ->
-         let sc_type =
-           if i < List.length values
-           then Some (infer_type_from_cell (List.nth values i))
-           else None
-         in
-         { sc_name = name; sc_type }
-       ) header_cols in
-       Some cols
-     with End_of_file ->
-       close_in ic;
-       Some (List.map (fun name -> { sc_name = name; sc_type = None }) header_cols))
+    Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
+      let header_line = input_line ic in
+      let header_cols = split_csv_line header_line |> List.map clean_csv_cell in
+      let num_cols = List.length header_cols in
+      if num_cols = 0 then Some []
+      else begin
+        let samples = Array.init num_cols (fun _ -> "") in
+        let remaining = ref num_cols in
+        let max_peek = 5 in
+        (try
+           for _row = 1 to max_peek do
+             if !remaining = 0 then raise Exit;
+             (match try Some (input_line ic) with End_of_file -> None with
+              | None -> raise Exit
+              | Some line ->
+                  let vals = split_csv_line line |> List.map clean_csv_cell in
+                  let n = min num_cols (List.length vals) in
+                  for i = 0 to n - 1 do
+                    if String.length samples.(i) = 0 then begin
+                      let v = String.trim (List.nth vals i) in
+                      if String.length v > 0 then begin
+                        samples.(i) <- v;
+                        decr remaining
+                      end
+                    end
+                  done)
+           done
+         with Exit -> ());
+        let cols = List.mapi (fun i name ->
+          let sc_type =
+            if String.length samples.(i) > 0
+            then Some (infer_type_from_cell samples.(i))
+            else None
+          in
+          { sc_name = name; sc_type }
+        ) header_cols in
+        Some cols
+      end
+    )
   with _ -> None
 
 (* ---------- Schema inference for colcraft verbs ---------- *)
@@ -229,11 +264,13 @@ let infer_output_schema input_schema expr =
       let cols = extract_select_cols
           (match expr.node with Call { args; _ } -> args | _ -> []) in
       if cols = [] then input_schema
-      else List.filter_map (fun c ->
+      (* limitation: exclusion syntax (-$col, -c(...), and selections helpers like
+         everything()/starts_with()) are not parsed — falls back to full input schema *)
+      else List.map (fun c ->
         if schema_has_col c input_schema then
-          Some { sc_name = c; sc_type = schema_find_type c input_schema }
+          { sc_name = c; sc_type = schema_find_type c input_schema }
         else
-          Some { sc_name = c; sc_type = None }
+          { sc_name = c; sc_type = None }
       ) cols
   | Filter | Ungroup | Slice | Arrange | GroupBy ->
       input_schema
@@ -246,9 +283,21 @@ let infer_output_schema input_schema expr =
       let old_cols = List.filter (fun c -> not (List.mem c.sc_name new_col_names)) input_schema in
       old_cols @ List.map (fun (name, t) -> { sc_name = name; sc_type = t }) new_col_types
   | Rename ->
-      (* rename(df, $old, "new") — we can't fully parse this statically,
-         just return input schema unchanged *)
-      input_schema
+      let args = match expr.node with Call { args; _ } -> args | _ -> [] in
+      let mapping = List.filter_map (fun (name_opt, e) ->
+        match name_opt, e.node with
+        | Some new_name, ColumnRef old_name -> Some (old_name, new_name)
+        | _ -> None
+      ) args in
+      if mapping = [] then input_schema
+      else
+        let old_names = List.map fst mapping in
+        let preserved = List.filter (fun c -> not (List.mem c.sc_name old_names)) input_schema in
+        let renamed = List.map (fun (old, new_) ->
+          let sc_type = schema_find_type old input_schema in
+          { sc_name = new_; sc_type }
+        ) mapping in
+        preserved @ renamed
   | Summarize ->
       let cols = extract_summarize_cols_with_types
           (match expr.node with Call { args; _ } -> args | _ -> []) in
@@ -256,6 +305,8 @@ let infer_output_schema input_schema expr =
   | Distinct ->
       input_schema
   | Count ->
+      (* approximation: real count() collapses to group-by columns + n.
+         Keeping full input schema is overly permissive but safe. *)
       let named = extract_summarize_cols_with_types
           (match expr.node with Call { args; _ } -> args | _ -> []) in
       if named <> [] then
@@ -279,10 +330,31 @@ let rec unwrap_pipe expr =
 let is_read_csv expr =
   Option.is_some (extract_read_csv_path expr)
 
+(* Apply a single pipe-chain operation, advancing the schema.
+   Skips Var references (data sources) since they don't transform the schema. *)
+let apply_pipe_op schema op =
+  match op.node with
+  | Var _ -> schema
+  | _ -> infer_output_schema schema op
+
 (* ---------- Column reference validation ---------- *)
 
+(* Extract the (old_name, new_name) mapping from a rename() call *)
+let extract_rename_mapping expr =
+  match classify_verb expr with
+  | Rename ->
+    (match expr.node with
+     | Call { args; _ } ->
+       List.filter_map (fun (name_opt, e) ->
+         match name_opt, e.node with
+         | Some new_name, ColumnRef old_name -> Some (old_name, new_name)
+         | _ -> None
+       ) args
+     | _ -> [])
+  | _ -> []
+
 (* Validate that all column references in an expression exist in the schema *)
-let validate_col_refs ~node_name ~(file : string option) ~schema expr =
+let validate_col_refs ~node_name ~(file : string option) ~schema ?(rename_mapping = []) expr =
   let refs = extract_col_refs expr in
   let seen = Hashtbl.create 8 in
   List.filter_map (fun col ->
@@ -290,25 +362,36 @@ let validate_col_refs ~node_name ~(file : string option) ~schema expr =
     else begin
       Hashtbl.add seen col ();
       if schema_has_col col schema then None
-      else Some (Diagnostics.{
-        diag_id = Diagnostics.gen_id ();
-        diag_error_class = Schema_mismatch;
-        diag_severity = Error;
-        diag_phase = Schema;
-        diag_node_id = Some node_name;
-        diag_node_lang = None;
-        diag_file = file;
-        diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
-        diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
-        diag_end_line = None;
-        diag_end_column = None;
-        diag_message = Printf.sprintf "Column '%s' referenced in node '%s' not found in input schema [%s]"
-          col node_name (String.concat ", " (schema_names schema));
-        diag_expected = None;
-        diag_actual = None;
-        diag_caused_by = [];
-        diag_suggested_fix = NoFix;
-      })
+      else
+        let suggested_fix = match List.assoc_opt col rename_mapping with
+          | Some new_name -> Diagnostics.Rename_column {
+              old_name = col;
+              new_name;
+              target_node = Some node_name;
+              file;
+              line = (match expr.loc with Some l -> Some l.line | None -> None);
+            }
+          | None -> NoFix
+        in
+        Some (Diagnostics.{
+          diag_id = Diagnostics.gen_id ();
+          diag_error_class = Schema_mismatch;
+          diag_severity = Error;
+          diag_phase = Schema;
+          diag_node_id = Some node_name;
+          diag_node_lang = None;
+          diag_file = file;
+          diag_line = (match expr.loc with Some l -> Some l.line | None -> None);
+          diag_column = (match expr.loc with Some l -> Some l.column | None -> None);
+          diag_end_line = None;
+          diag_end_column = None;
+          diag_message = Printf.sprintf "Column '%s' referenced in node '%s' not found in input schema [%s]"
+            col node_name (String.concat ", " (schema_names schema));
+          diag_expected = None;
+          diag_actual = None;
+          diag_caused_by = [];
+          diag_suggested_fix = suggested_fix;
+        })
     end
   ) refs
 
@@ -374,23 +457,14 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
             (* Use the schema of the primary dependency (the piped-from node) *)
             (try Hashtbl.find schemas primary with Not_found -> [])
       in
-
       (* Infer output schema *)
       let output_schema = match root_schema with
         | Some cols -> cols
         | None ->
-            (* Check if this is a pipe chain *)
             let ops = unwrap_pipe expr in
-            if List.length ops > 1 then begin
-              (* Pipe chain: the first element is the data source (Var ref),
-                 subsequent elements are transformations. Start with input_schema. *)
-              let final_schema = List.fold_left (fun acc_schema op ->
-                match op.node with
-                | Var _ -> acc_schema  (* Skip variable references — use accumulated schema *)
-                | _ -> infer_output_schema acc_schema op
-              ) input_schema ops in
-              final_schema
-            end else
+            if List.length ops > 1 then
+              List.fold_left apply_pipe_op input_schema ops
+            else
               infer_output_schema input_schema expr
       in
 
@@ -436,19 +510,29 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
         ) mismatches
       end;
 
-      (* Validate column references in the expression *)
+      (* Validate column references in the expression, tracking intermediate
+         schemas through pipe chains so that rename() |> select() works correctly. *)
       let all_refs = unwrap_pipe expr in
+      let current_validation_schema = ref input_schema in
+      (* Note: last_rename_mapping only covers the immediately preceding pipe op.
+         A rename earlier in a longer chain (with intervening non-rename ops) will
+         still emit a schema_mismatch error, but the suggested_fix will be NoFix
+         since the mapping is lost.  The error detection is schema-based and always
+         correct; only the automatic fix attachment is affected. *)
+      let last_rename_mapping = ref [] in
       List.iter (fun op ->
         let validation_schema =
-          if input_schema <> [] then input_schema
+          if !current_validation_schema <> [] then !current_validation_schema
           else match dep_of name with
             | d :: _ -> (try Hashtbl.find schemas d with Not_found -> [])
             | [] -> []
         in
         if validation_schema <> [] then begin
-          let errors = validate_col_refs ~node_name:name ~file:(Some file) ~schema:validation_schema op in
+          let errors = validate_col_refs ~node_name:name ~file:(Some file) ~schema:validation_schema ~rename_mapping:!last_rename_mapping op in
           diagnostics := errors @ !diagnostics
-        end
+        end;
+        last_rename_mapping := extract_rename_mapping op;
+        current_validation_schema := apply_pipe_op !current_validation_schema op
       ) all_refs;
 
       (* Also validate formula variables if this is a lm() or similar call *)

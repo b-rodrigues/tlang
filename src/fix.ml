@@ -69,13 +69,88 @@ let apply_rename_column ~file ~old_name ~new_name =
   (* Only replace $old_name and $`old_name` — the T column reference forms.
      Avoids corrupting unrelated identifiers like `valid`, `hidden`, etc.
      Uses manual word-boundary check: the character after the match must not be
-     [a-zA-Z0-9_], so $id is not matched inside $identity. *)
+     [a-zA-Z0-9_], so $id is not matched inside $identity.
+     Skips references that are the RHS of rename()'s named argument
+     (= $old), which are definition sites (e.g. rename(mpg2 = $mpg)).
+     Other named-argument forms like mutate(flag = $mpg > 20) are genuine
+     data references and ARE renamed. *)
+  (* Walk backward from [pos] to check if this $col is inside a rename() call.
+     Finds the nearest unmatched '(', then checks if the identifier before it
+     is "rename". Handles nested calls by tracking paren depth. *)
+  let is_in_rename_call content pos =
+    let found = ref false in
+    let depth = ref 0 in
+    let j = ref (pos - 1) in
+    while !j >= 0 && not !found do
+      (match content.[!j] with
+       | ')' -> incr depth
+       | '(' ->
+           if !depth = 0 then begin
+             (* Found the matching open-paren — check identifier before it *)
+             let k = ref (!j - 1) in
+             while !k >= 0 && (let c = content.[!k] in
+               c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' ||
+               c >= '0' && c <= '9' || c = '_')
+             do
+               decr k
+             done;
+             let name_start = !k + 1 in
+             let name_len = !j - name_start in
+             found :=
+               name_len = 6
+               && content.[name_start] = 'r'
+               && content.[name_start + 1] = 'e'
+               && content.[name_start + 2] = 'n'
+               && content.[name_start + 3] = 'a'
+               && content.[name_start + 4] = 'm'
+               && content.[name_start + 5] = 'e'
+               && (!k < 0 || not (is_word_char content.[!k]));
+             if not !found then j := 0 (* stop — found enclosing non-rename call *)
+           end else
+             decr depth
+       | _ -> ());
+      decr j
+    done;
+    !found
+  in
+  let replace_safely ~content ~old ~replacement =
+    let buf = Buffer.create (String.length content) in
+    let old_len = String.length old in
+    let i = ref 0 in
+    while !i < String.length content do
+      if !i + old_len <= String.length content
+         && String.sub content !i old_len = old
+         && (!i + old_len >= String.length content
+             || not (is_word_char content.[!i + old_len]))
+      then begin
+        (* Skip definition sites inside rename() calls: rename(new = $old).
+           Only skip when preceded by = AND the = is inside rename(). *)
+        let rec skip_ws j =
+          if j > 0 && (content.[j-1] = ' ' || content.[j-1] = '\t') then skip_ws (j-1)
+          else j
+        in
+        let eq_candidate = skip_ws !i in
+        if eq_candidate > 0 && content.[eq_candidate - 1] = '='
+           && is_in_rename_call content !i then begin
+          Buffer.add_string buf old;
+          i := !i + old_len
+        end else begin
+          Buffer.add_string buf replacement;
+          i := !i + old_len
+        end
+      end else begin
+        Buffer.add_char buf content.[!i];
+        incr i
+      end
+    done;
+    Buffer.contents buf
+  in
   let dollar_old = "$" ^ old_name in
   let dollar_new = "$" ^ new_name in
   let backtick_old = "$`" ^ old_name ^ "`" in
   let backtick_new = "$`" ^ new_name ^ "`" in
-  let content = replace_word_bound ~content ~old:dollar_old ~replacement:dollar_new in
-  let content = replace_word_bound ~content ~old:backtick_old ~replacement:backtick_new in
+  let content = replace_safely ~content ~old:dollar_old ~replacement:dollar_new in
+  let content = replace_safely ~content ~old:backtick_old ~replacement:backtick_new in
   let oc = open_out file in
   Fun.protect ~finally:(fun () -> close_out_noerr oc)
     (fun () -> output_string oc content)
@@ -182,7 +257,6 @@ let apply_fix ~file (fix : Diagnostics.suggested_fix) =
       apply_rename_column ~file ~old_name ~new_name; true
   | Add_node_arg { node; arg; file = _; line = _; target_node = _ } ->
       apply_add_node_arg ~file ~node ~arg
-  | Pin_package_version _ -> false
   | NoFix -> false
 
 (* Sort fixes by descending line within each file, so bottom-up application

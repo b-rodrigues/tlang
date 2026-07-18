@@ -3,8 +3,14 @@
 
 open Ast
 
+let golden name =
+  Filename.concat
+    (Filename.concat (Test_helpers.find_repo_root ()) "tests/golden/t_scripts")
+    name
+
 let run_tests pass_count fail_count failures eval_string _eval_string_env _test =
   Printf.printf "=== t check / Diagnostics tests ===\n\n";
+  flush stdout;
 
   Printf.printf "Diagnostics module:\n";
 
@@ -310,22 +316,69 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     (match result with Ast.VString s -> String.length s > 0 | _ -> false);
 
   (* t_check with valid T file returns string *)
-  let result = eval_string "t_check(\"tests/golden/t_scripts/mtcars_select_mpg.t\")" in
+  let result = eval_string (Printf.sprintf "t_check(\"%s\")" (golden "mtcars_select_mpg.t")) in
   check "t_check valid file returns String"
     (match result with Ast.VString _ -> true | _ -> false);
 
   (* t_check with schema flag *)
-  let result = eval_string "t_check(\"tests/golden/t_scripts/mtcars_select_mpg.t\", schema=true)" in
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true)" (golden "mtcars_select_mpg.t")) in
   check "t_check with schema=true returns String"
     (match result with Ast.VString _ -> true | _ -> false);
 
   (* t_check with json flag returns JSON string *)
-  let result = eval_string "t_check(\"tests/golden/t_scripts/mtcars_select_mpg.t\", json=true)" in
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", json=true)" (golden "mtcars_select_mpg.t")) in
   let result_str = match result with Ast.VString s -> s | _ -> "" in
   check_eq "t_check with json=true contains schema_version"
     (if String.length result_str > 0 then "has_content" else "empty") "has_content";
 
-  Printf.printf "\nt_diff (REPL function):\n";
+  Printf.printf "\nschema check rename tests:\n";
+
+  (* Schema rename: positive case — rename() + select() pipe chain, zero diagnostics *)
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" (golden "schema_rename_pipe.t")) in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let no_schema_mismatch =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "schema_mismatch") result_str 0); false
+        with Not_found -> true)
+  in
+  check "schema rename pipe: no schema_mismatch errors" no_schema_mismatch;
+  flush stdout;
+
+  (* Schema rename: negative case — stale col ref after rename should error *)
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true)" (golden "schema_rename_stale.t")) in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let has_col_error =
+    try ignore (Str.search_forward (Str.regexp "schema_mismatch") result_str 0); true
+    with Not_found -> false
+  in
+  check "schema rename stale: detects stale column ref after rename" has_col_error;
+  flush stdout;
+
+  Printf.printf "\nschema check rename fix suggestion:\n";
+
+  (* Schema rename: verify Rename_column is attached as suggested fix *)
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" (golden "schema_rename_stale.t")) in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let has_rename_fix =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "\"rename_column\"") result_str 0); true
+        with Not_found -> false)
+  in
+  check "schema rename stale: suggested_fix is rename_column" has_rename_fix;
+  flush stdout;
+
+  Printf.printf "\nmissing package detection:\n";
+
+  (* Missing package: undeclared R package should get Missing_package *)
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", env=true, json=true)" (golden "missing_package.t")) in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let has_missing_pkg =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "missing_package") result_str 0); true
+        with Not_found -> false)
+  in
+  check "missing package: diagnostic has missing_package" has_missing_pkg;
+  flush stdout;
 
   (* t_diff with nonexistent file returns VError *)
   let result = eval_string "t_diff(\"nonexistent_file_xyz.t\")" in
@@ -340,7 +393,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     (match result with Ast.VString s -> String.length s > 0 | _ -> false);
 
   (* t_fix with valid file and dry_run *)
-  let result = eval_string "t_fix(\"tests/golden/t_scripts/mtcars_select_mpg.t\", dry_run=true)" in
+  let result = eval_string (Printf.sprintf "t_fix(\"%s\", dry_run=true)" (golden "mtcars_select_mpg.t")) in
   check "t_fix dry_run returns String"
     (match result with Ast.VString _ -> true | _ -> false);
 
