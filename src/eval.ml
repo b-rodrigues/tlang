@@ -88,7 +88,7 @@ let rec expr_uses_named_scope_fields fields (expr : Ast.expr) : bool =
       ) stmts
   | Lambda _ | Value _ | RawCode _ | ShellExpr _ -> false
   | Unquote e | UnquoteSplice e -> expr_uses_named_scope_fields fields e
-  | PipelineDef _ | PipelineOfDef _ | IntentDef _ | ListComp _ -> false
+  | PipelineDef _ | PipelineOfDef _ | IntentDef _ -> false
 
 (** Rewrite bare field names from a scoped predicate to [root.field], while
     leaving all other variables unchanged.
@@ -191,7 +191,7 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
       Ast.mk_expr ?loc (Unquote (desugar_named_scope_expr ~root ~fields e))
   | UnquoteSplice e ->
       Ast.mk_expr ?loc (UnquoteSplice (desugar_named_scope_expr ~root ~fields e))
-  | Lambda _ | Value _ | RawCode _ | ShellExpr _ | ColumnRef _ | PipelineDef _ | PipelineOfDef _ | IntentDef _ | ListComp _ ->
+  | Lambda _ | Value _ | RawCode _ | ShellExpr _ | ColumnRef _ | PipelineDef _ | PipelineOfDef _ | IntentDef _ ->
       expr
 
 (** Field names exposed on read-pipeline node records and available for
@@ -1572,7 +1572,6 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
     | DictLit pairs -> eval_dict_lit env_ref pairs
     | DotAccess { target; field } -> eval_dot_access env_ref target field
     | RawCode { raw_text; _ } -> VRawCode raw_text
-    | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
     | Block stmts -> eval_block env_ref stmts
     | PipelineDef nodes -> eval_pipeline env_ref nodes
     | PipelineOfDef nodes -> eval_pipeline_of env_ref nodes
@@ -1649,7 +1648,6 @@ and free_vars (expr : Ast.expr) : string list =
         in
         collect false scrutinee @ List.concat_map collect_case cases
     | { node = ListLit items; _ } -> List.concat_map (fun (_, e) -> collect false e) items
-    | { node = ListComp _; _ } -> []
     | { node = DictLit pairs; _ } -> List.concat_map (fun (_, e) -> collect false e) pairs
     | { node = BinOp { left; right; _ }; _ } -> collect false left @ collect false right
     | { node = UnOp { operand; _ }; _ } -> collect false operand
@@ -1778,12 +1776,6 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
           IfElse { cond = sub cond; then_ = sub then_; else_ = sub else_ }
       | Match { scrutinee; cases } ->
           Match { scrutinee = sub scrutinee; cases = List.map (fun (pat, body) -> (pat, sub body)) cases }
-      | ListComp { expr = c_expr; clauses } ->
-          let clauses' = List.map (function
-            | CFor { var; iter } -> CFor { var; iter = sub iter }
-            | CFilter e -> CFilter (sub e)
-          ) clauses in
-          ListComp { expr = sub c_expr; clauses = clauses' }
       | Lambda l ->
           let inner_node_names = l.params @ node_names in
           Lambda { l with body = substitute_env_vars env inner_node_names l.body }
@@ -2381,14 +2373,6 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
   | PipelineDef nodes  -> Ast.mk_expr ?loc (PipelineDef (List.map qpair nodes))
   | PipelineOfDef nodes -> Ast.mk_expr ?loc (PipelineOfDef (List.map qpair nodes))
   | IntentDef fields   -> Ast.mk_expr ?loc (IntentDef (List.map qpair fields))
-
-  (* ── List comprehension ────────────────────────────────────── *)
-  | ListComp { expr = e; clauses } ->
-      let qclause = function
-        | CFor { var; iter }  -> CFor { var; iter = q iter }
-        | CFilter filter_expr -> CFilter (q filter_expr)
-      in
-      Ast.mk_expr ?loc (ListComp { expr = q e; clauses = List.map qclause clauses })
 
   (* ── Leaves (Value, Var, ColumnRef, RawCode) pass through ── *)
   | _ -> expr
@@ -3049,14 +3033,6 @@ and expand_autoquoted_unquotes (env_ref : environment ref) (expr : Ast.expr) : A
       Ast.mk_expr ?loc (Match { scrutinee = expand scrutinee; cases = List.map (fun (pattern, body) -> (pattern, expand body)) cases })
   | ListLit items ->
       Ast.mk_expr ?loc (ListLit (List.map (fun (name, e) -> (name, expand e)) items))
-  | ListComp { expr = inner; clauses } ->
-      let clauses =
-        List.map (function
-          | CFor { var; iter } -> CFor { var; iter = expand iter }
-          | CFilter filter_expr -> CFilter (expand filter_expr)
-        ) clauses
-      in
-      Ast.mk_expr ?loc (ListComp { expr = expand inner; clauses })
   | DictLit pairs ->
       Ast.mk_expr ?loc (DictLit (List.map (fun (name, e) -> (name, expand e)) pairs))
   | DotAccess { target; field } ->
