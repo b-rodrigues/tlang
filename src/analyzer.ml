@@ -115,27 +115,80 @@ let rec infer_type scope expr =
       ignore (infer_type scope body);
       TFunction (args, TUnknown)
   | ListLit items ->
-      List.iter (fun (_, e) -> ignore (infer_type scope e)) items;
-      TAny
+      let types = List.filter_map (fun (_, e) ->
+        let t = infer_type scope e in
+        if t = TUnknown || t = TAny then None else Some t
+      ) items in
+      (match types with
+       | [] -> TAny
+       | t :: rest when List.for_all ((=) t) rest -> t
+       | _ -> TAny)
   | IfElse { cond; then_; else_ } ->
       ignore (infer_type scope cond);
-      ignore (infer_type scope then_);
-      ignore (infer_type scope else_);
-      TUnknown
+      let tt = infer_type scope then_ in
+      let et = infer_type scope else_ in
+      begin match (tt, et) with
+      | (t1, t2) when t1 = t2 -> t1
+      | (TInt, TFloat) | (TFloat, TInt) -> TFloat
+      | (TUnknown, t) | (t, TUnknown) -> t
+      | _ -> TUnknown
+      end
   | Match { scrutinee; cases } ->
       ignore (infer_type scope scrutinee);
-      List.iter (fun (_, body) -> ignore (infer_type scope body)) cases;
-      TUnknown
-  | BinOp { left; right; _ } | BroadcastOp { left; right; _ } ->
+      let types = List.filter_map (fun (_, body) ->
+        let t = infer_type scope body in
+        if t = TUnknown then None else Some t
+      ) cases in
+      begin match types with
+      | [] -> TUnknown
+      | t :: rest when List.for_all ((=) t) rest -> t
+      | _ -> TUnknown
+      end
+  | BinOp { op = (Plus | Minus | Mul); left; right } ->
+      let lt = infer_type scope left in
+      let rt = infer_type scope right in
+      begin match (lt, rt) with
+      | (TInt, TInt) -> TInt
+      | (TFloat, _) | (_, TFloat) -> TFloat
+      | _ -> TUnknown
+      end
+  | BinOp { op = Div; left; right } ->
+      ignore (infer_type scope left);
+      ignore (infer_type scope right);
+      TFloat  (* Division always returns Float in T *)
+  | BinOp { op = Mod; left; right } ->
+      let lt = infer_type scope left in
+      let rt = infer_type scope right in
+      begin match (lt, rt) with
+      | (TInt, TInt) -> TInt
+      | (TFloat, _) | (_, TFloat) -> TFloat
+      | _ -> TUnknown
+      end
+  | BinOp { op = (Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | In); left; right } ->
+      ignore (infer_type scope left);
+      ignore (infer_type scope right);
+      TBool
+  | BroadcastOp { left; right; _ } ->
       ignore (infer_type scope left);
       ignore (infer_type scope right);
       TUnknown
-  | UnOp { operand; _ } ->
-      ignore (infer_type scope operand);
-      TUnknown
-  | DotAccess { target; _ } ->
-      ignore (infer_type scope target);
-      TUnknown
+  | UnOp { op = Not; _ } ->
+      TBool
+  | UnOp { op = Neg; operand } ->
+      infer_type scope operand
+  | DotAccess { target; field } ->
+      let tt = infer_type scope target in
+      begin match tt with
+      | TDataFrame cols ->
+          (match List.find_opt (fun c -> c.name = field) cols with
+           | Some c -> c.col_typ
+           | None -> TUnknown)
+      | TGroupedDataFrame (cols, _) ->
+          (match List.find_opt (fun c -> c.name = field) cols with
+           | Some c -> c.col_typ
+           | None -> TUnknown)
+      | _ -> TUnknown
+      end
   | PipelineDef nodes | PipelineOfDef nodes | IntentDef nodes ->
       List.iter (fun (_, e) -> ignore (infer_type scope e)) nodes;
       TUnknown
