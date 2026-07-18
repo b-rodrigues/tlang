@@ -395,6 +395,7 @@ and typ =
   | TComputedNode
   | TSerializer
   | TExpr
+  | TArrow of typ list * typ
 
 type program = stmt list
 
@@ -787,6 +788,9 @@ module Utils = struct
     | TComputedNode -> "ComputedNode"
     | TSerializer -> "Serializer"
     | TExpr -> "Expression"
+    | TArrow (params, ret) ->
+        let params_str = String.concat ", " (List.map typ_to_string params) in
+        "(" ^ params_str ^ ") -> " ^ typ_to_string ret
 
   let rec type_name = function
     | VBuildLog _ -> "BuildLog"
@@ -1263,6 +1267,8 @@ let rec is_compatible (v : value) (t : typ) : bool =
   
   | VLambda _, TCustom "Function" -> true
   | VBuiltin _, TCustom "Function" -> true
+  | VLambda _, TArrow _ -> true
+  | VBuiltin _, TArrow _ -> true
 
   (* Relaxed numeric matching: Int can often be used where Float is expected in T *)
   | VInt _, TFloat -> true

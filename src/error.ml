@@ -51,6 +51,10 @@ let if_condition_error ?location received_type =
 let not_callable_error ?location received_type =
   make_error ?location TypeError (Printf.sprintf "Value of type %s is not callable." received_type)
 
+let type_mismatch ?location ~expected ~actual context =
+  let msg = Printf.sprintf "%s expected %s, got %s." context expected actual in
+  make_error ?location TypeError msg
+
 (** Arity Errors *)
 
 let arity_error ?location expected received =

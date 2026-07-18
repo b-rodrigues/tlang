@@ -80,7 +80,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "conditional with comparison" "x = 5; if ((x > 3) && (x < 10)) \"in range\" else \"out\"" {|"in range"|};
   test "non-bool if condition"
     "if (1) 42 else 0"
-    {|Error(TypeError: "If condition must be Bool, got Int")|};
+    {|Error(TypeError: "`if` condition expected Bool, got Int.")|};
   print_newline ();
 
   Printf.printf "Phase 8 — Core Semantics: List edge cases:\n";

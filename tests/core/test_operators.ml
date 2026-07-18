@@ -39,8 +39,8 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "Not False" "!false" "true";
 
   (* Strict Type Checks *)
-  test "And Invalid Left" "1 && true" {|Error(TypeError: "Left operand of && must be Bool, got Int")|};
-  test "And Invalid Right" "true && 1" {|Error(TypeError: "Right operand of && must be Bool, got Int")|};
+  test "And Invalid Left" "1 && true" {|Error(TypeError: "Left operand of `&&` expected Bool, got Int.")|};
+  test "And Invalid Right" "true && 1" {|Error(TypeError: "Right operand of `&&` expected Bool, got Int.")|};
   test "Not Invalid" "!1" {|Error(TypeError: "Operand of 'not' must be Bool, got Int")|};
 
   (* --- Bitwise/Strict Boolean Operators --- *)
