@@ -1115,8 +1115,14 @@ let cmd_add args =
               | "julia" | "jl" -> ("[jl-dependencies]",
                                    (fun c -> c.Package_types.proj_julia_dependencies),
                                    (fun pkg c -> { c with Package_types.proj_julia_dependencies = c.Package_types.proj_julia_dependencies @ [pkg] }))
+              | "tool" -> ("[additional-tools]",
+                           (fun c -> c.Package_types.proj_additional_tools),
+                           (fun pkg c -> { c with Package_types.proj_additional_tools = c.Package_types.proj_additional_tools @ [pkg] }))
+              | "latex" -> ("[latex]",
+                            (fun c -> c.Package_types.proj_latex_packages),
+                            (fun pkg c -> { c with Package_types.proj_latex_packages = c.Package_types.proj_latex_packages @ [pkg] }))
               | _ ->
-                  Printf.eprintf "Error: Unknown runtime '%s'. Use R, Python, or Julia.\n" runtime;
+                  Printf.eprintf "Error: Unknown runtime '%s'. Use R, Python, Julia, tool, or latex.\n" runtime;
                   exit 1
             in
             let existing = list_getter cfg in

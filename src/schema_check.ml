@@ -675,11 +675,10 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
       let ops = unwrap_pipe expr in
       let ops_len = List.length ops in
       let contract_diags = ref [] in
-      let is_first = ref true in
-      List.iter (fun op ->
+      List.iteri (fun idx op ->
         if classify_verb op = Expect then begin
-          if not !is_first || ops_len > 1 then begin
-            (* Mid-chain or chained expect(): warn placement *)
+          if idx <> ops_len - 1 then begin
+            (* Mid-chain expect(): warn placement *)
             contract_diags := (Diagnostics.{
               diag_id = gen_id ();
               diag_error_class = Invalid_expect_placement;
@@ -699,15 +698,14 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
               diag_suggested_fix = NoFix;
             } : Diagnostics.diagnostic) :: !contract_diags
           end else
-            (* Sole expect() at the end: validate contracts *)
+            (* Last position: validate contracts against final schema *)
             let contracts = match op.node with
               | Call { args; _ } -> extract_contracts args
               | _ -> []
             in
             let diags = validate_contracts ~node_name:name ~file:(Some file) contracts !current_validation_schema in
             contract_diags := diags @ !contract_diags
-        end;
-        is_first := false
+        end
       ) ops;
       diagnostics := !contract_diags @ !diagnostics;
 
