@@ -397,4 +397,57 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check "t_fix dry_run returns String"
     (match result with Ast.VString _ -> true | _ -> false);
 
+  Printf.printf "\nName_error suggestions:\n";
+  let test_name_suggestion () =
+    let (name, suggestion) = Diagnostics.extract_name_and_suggestion "Variable 'prnt' is not defined" in
+    check "prnt extracts name" (name = "prnt");
+    check "prnt suggests print" (suggestion = Some "print");
+    let (_name2, suggestion2) = Diagnostics.extract_name_and_suggestion "Variable 'flter' is not defined" in
+    check "flter suggests filter" (suggestion2 = Some "filter");
+    let (_name3, suggestion3) = Diagnostics.extract_name_and_suggestion "Variable 'mutat' is not defined" in
+    check "mutat suggests mutate" (suggestion3 = Some "mutate");
+    let (_name4, suggestion4) = Diagnostics.extract_name_and_suggestion "Variable 'xyzzy_unknown' is not defined" in
+    check "unknown name has no suggestion" (suggestion4 = None)
+  in
+  test_name_suggestion ();
+
+  Printf.printf "\nSuggest_identifier fix:\n";
+  let test_suggest_identifier () =
+    let d = { Diagnostics.
+      diag_id = "T9001"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
+      diag_phase = Wire; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some "test.t"; diag_line = Some 1; diag_column = None;
+      diag_end_line = None; diag_end_column = None;
+      diag_message = "Variable 'prnt' is not defined"; diag_expected = None; diag_actual = None;
+      diag_caused_by = [];
+      diag_suggested_fix = Diagnostics.Suggest_identifier { name = "prnt"; suggestion = "print"; target_node = None; file = Some "test.t"; line = Some 1 };
+    } in
+    let json = Diagnostics.diagnostic_to_yojson d in
+    let fix_json = Yojson.Safe.Util.member "suggested_fix" json in
+    let kind = Yojson.Safe.Util.member "kind" fix_json |> Yojson.Safe.Util.to_string in
+    check "Suggest_identifier serializes kind=suggest_identifier" (kind = "suggest_identifier");
+    let suggestion = Yojson.Safe.Util.member "suggestion" fix_json |> Yojson.Safe.Util.to_string in
+    check "Suggest_identifier serializes suggestion=print" (suggestion = "print");
+    let roundtrip = Diagnostics.suggested_fix_of_yojson fix_json in
+    (match roundtrip with
+     | Diagnostics.Suggest_identifier { name; suggestion = s; _ } ->
+         check "Suggest_identifier roundtrip name" (name = "prnt");
+         check "Suggest_identifier roundtrip suggestion" (s = "print")
+     | _ -> check "Suggest_identifier roundtrip fails" false)
+  in
+  test_suggest_identifier ();
+
+  Printf.printf "\nRun_command fix:\n";
+  let test_run_command () =
+    let fix = Diagnostics.Run_command { command = "t init ."; description = "Initialize tproject.toml"; target_node = None; file = Some "test.t"; line = None } in
+    let json = Diagnostics.suggested_fix_to_yojson fix in
+    let roundtrip = Diagnostics.suggested_fix_of_yojson json in
+    (match roundtrip with
+     | Diagnostics.Run_command { command; description; _ } ->
+         check "Run_command roundtrip command" (command = "t init .");
+         check "Run_command roundtrip description" (description = "Initialize tproject.toml")
+     | _ -> check "Run_command roundtrip fails" false)
+  in
+  test_run_command ();
+
   Printf.printf "\n";

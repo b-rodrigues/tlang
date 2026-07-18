@@ -257,6 +257,8 @@ let apply_fix ~file (fix : Diagnostics.suggested_fix) =
       apply_rename_column ~file ~old_name ~new_name; true
   | Add_node_arg { node; arg; file = _; line = _; target_node = _ } ->
       apply_add_node_arg ~file ~node ~arg
+  | Suggest_identifier _ -> false
+  | Run_command _ -> false
   | NoFix -> false
 
 (* Sort fixes by descending line within each file, so bottom-up application

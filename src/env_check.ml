@@ -28,6 +28,11 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
       || not (Pipeline_dependency_requirements.String_set.is_empty required.latex_pkgs)
     in
     if has_any_requirements then
+      let tools = ref [] in
+      if not (Pipeline_dependency_requirements.String_set.is_empty required.r_deps) then tools := "R" :: !tools;
+      if not (Pipeline_dependency_requirements.String_set.is_empty required.py_deps) then tools := "Python" :: !tools;
+      if not (Pipeline_dependency_requirements.String_set.is_empty required.julia_deps) then tools := "Julia" :: !tools;
+      let tool_list = String.concat ", " (List.rev !tools) in
       [Diagnostics.{
         diag_id = Diagnostics.gen_id ();
         diag_error_class = Missing_tproject;
@@ -40,11 +45,17 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
         diag_column = None;
         diag_end_line = None;
         diag_end_column = None;
-        diag_message = Printf.sprintf "Pipeline requires R/Python/Julia packages but tproject.toml not found at %s" tproject_path;
-        diag_expected = None;
+        diag_message = Printf.sprintf "Pipeline requires %s packages but tproject.toml not found at %s" tool_list tproject_path;
+        diag_expected = Some "tproject.toml";
         diag_actual = None;
         diag_caused_by = [];
-        diag_suggested_fix = NoFix;
+        diag_suggested_fix = Run_command {
+          command = Printf.sprintf "t init %s" project_root;
+          description = "Initialize tproject.toml in project root";
+          target_node = None;
+          file = Some file;
+          line = None;
+        };
       }]
     else []
   | Some cfg ->
@@ -65,6 +76,14 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
       let missing_diags = ref [] in
       let add_missing section pkgs =
         List.iter (fun pkg ->
+          let section_cmd = match section with
+            | "[r-dependencies]" -> "R"
+            | "[py-dependencies]" -> "Python"
+            | "[jl-dependencies]" -> "Julia"
+            | "[additional-tools]" -> "tool"
+            | "[latex]" -> "latex"
+            | _ -> "package"
+          in
           missing_diags := Diagnostics.{
             diag_id = Diagnostics.gen_id ();
             diag_error_class = Missing_package;
@@ -78,10 +97,16 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
             diag_end_line = None;
             diag_end_column = None;
             diag_message = Printf.sprintf "Package '%s' required by pipeline not declared in %s %s" pkg tproject_path section;
-            diag_expected = None;
+            diag_expected = Some (Printf.sprintf "%s %s" section pkg);
             diag_actual = None;
             diag_caused_by = [];
-            diag_suggested_fix = NoFix;
+            diag_suggested_fix = Run_command {
+              command = Printf.sprintf "t add %s %s" section_cmd pkg;
+              description = Printf.sprintf "Add %s to %s" pkg section;
+              target_node = None;
+              file = Some file;
+              line = None;
+            };
           } :: !missing_diags
         ) pkgs
       in

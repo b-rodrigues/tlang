@@ -2794,6 +2794,15 @@ and eval_dot_access_val env_ref target_val field =
                           String.sub c 0 pfx_len = pfx)
       (Arrow_table.column_names arrow_table)
   in
+  let suggest_closest_column arrow_table field =
+    let cols = Arrow_table.column_names arrow_table in
+    let lower_cols = List.map (fun c -> (String.lowercase_ascii c, c)) cols in
+    let candidates = List.map fst lower_cols in
+    let lower_field = String.lowercase_ascii field in
+    match Ast.suggest_name lower_field candidates with
+    | Some lower_match -> Some (List.assoc lower_match lower_cols)
+    | None -> None
+  in
   let has_node_prefix p prefix =
     let pfx = prefix ^ "." in
     List.exists (fun (n, _) -> String.starts_with ~prefix:pfx n) p.p_nodes ||
@@ -2873,7 +2882,12 @@ and eval_dot_access_val env_ref target_val field =
          if has_column_prefix arrow_table field
          then VDict [("__partial_dot_df__", VDataFrame df);
                      ("__partial_dot_prefix__", VString field)]
-         else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
+         else
+           let hint = match suggest_closest_column arrow_table field with
+             | Some suggestion -> Printf.sprintf " Did you mean `%s`?" suggestion
+             | None -> ""
+           in
+           Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame.%s" field hint))
   | VPipeline p ->
        (match get_pipeline_member p field with
         | Some v -> v
