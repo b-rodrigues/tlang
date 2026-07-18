@@ -397,14 +397,6 @@ let rec pipeline_defs_in_expr expr =
   | Ast.UnquoteSplice operand
   | Ast.Lambda { body = operand; _ } ->
       pipeline_defs_in_expr operand
-  | Ast.ListComp { expr; clauses } ->
-      pipeline_defs_in_expr expr
-      @ List.concat
-          (List.map
-             (function
-               | Ast.CFor { iter; _ }
-               | Ast.CFilter iter -> pipeline_defs_in_expr iter)
-             clauses)
   | Ast.Block stmts ->
       pipeline_defs_in_program stmts
   | Ast.Value _

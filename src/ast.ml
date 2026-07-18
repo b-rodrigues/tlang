@@ -119,6 +119,12 @@ and node_diagnostics = {
   nd_upstream_errors : string list;
 }
 
+(** Contracts extracted from expect() calls for static schema validation *)
+and expect_contract =
+  | Contract_columns of string list
+  | Contract_type of string * string
+  | Contract_null_rate of string * float
+
 
 (** Phase 3: Pipeline result with cached values and dependency info *)
 and pipeline_result = {
@@ -340,7 +346,6 @@ and expr_node =
   | IfElse of { cond : expr; then_ : expr; else_ : expr }
   | Match of { scrutinee : expr; cases : (match_pattern * expr) list }
   | ListLit of (string option * expr) list
-  | ListComp of { expr : expr; clauses : comp_clause list }
   | DictLit of (string * expr) list
   | BinOp of { op : binop; left : expr; right : expr }
   | UnOp of { op : unop; operand : expr }
@@ -375,7 +380,6 @@ and import_spec = {
 and binop = Plus | Minus | Mul | Div | Mod | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | BitAnd | BitOr
   | In (* New: membership check *) | Pipe | MaybePipe | Formula | FatArrow
 and unop = Not | Neg
-and comp_clause = CFor of { var : symbol; iter : expr } | CFilter of expr
 
 and typ =
   | TInt
@@ -906,7 +910,6 @@ module Utils = struct
     | Unquote e -> "!!" ^ unparse_expr e
     | UnquoteSplice e -> "!!!" ^ unparse_expr e
     | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
-    | ListComp _ -> "[...]"
     | ShellExpr cmd -> "?<{ " ^ cmd ^ " }>"
     | IntentDef _ -> "intent { ... }"
 

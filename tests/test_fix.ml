@@ -153,6 +153,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       Cast { column = "y"; cast_to = "string"; target_node = None; file = Some "test.t"; line = Some 6 };
       Rename_column { old_name = "a"; new_name = "b"; target_node = Some "step2"; file = Some "test.t"; line = None };
       Add_node_arg { node = "filter"; arg = "na_rm=true"; target_node = None; file = Some "test.t"; line = None };
+      Suggest_identifier { name = "prnt"; suggestion = "print"; target_node = None; file = Some "test.t"; line = None };
+      Run_command { command = "t init ."; description = "Initialize tproject.toml"; target_node = None; file = Some "test.t"; line = None };
       NoFix;
     ] in
     let all_ok = List.for_all (fun fix ->
@@ -166,6 +168,10 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
           o1 = o2 && n1 = n2 && tn1 = tn2
       | Add_node_arg { node = n1; arg = a1; target_node = tn1; _ }, Add_node_arg { node = n2; arg = a2; target_node = tn2; _ } ->
           n1 = n2 && a1 = a2 && tn1 = tn2
+      | Suggest_identifier { name = nm1; suggestion = s1; _ }, Suggest_identifier { name = nm2; suggestion = s2; _ } ->
+          nm1 = nm2 && s1 = s2
+      | Run_command { command = cmd1; description = desc1; _ }, Run_command { command = cmd2; description = desc2; _ } ->
+          cmd1 = cmd2 && desc1 = desc2
       | _ -> false
     ) fixes in
     check "suggested_fix roundtrips through JSON" all_ok

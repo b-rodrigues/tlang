@@ -33,6 +33,9 @@ type error_class =
   | Na_warning
   | Nix_error
   | Unknown_error
+  | Contract_violation
+  | Contract_unverifiable
+  | Invalid_expect_placement
 
 let error_class_to_string = function
   | Structural_error -> "structural_error"
@@ -62,6 +65,9 @@ let error_class_to_string = function
   | Na_warning -> "na_warning"
   | Nix_error -> "nix_error"
   | Unknown_error -> "unknown_error"
+  | Contract_violation -> "contract_violation"
+  | Contract_unverifiable -> "contract_unverifiable"
+  | Invalid_expect_placement -> "invalid_expect_placement"
 
 let error_class_of_string = function
   | "structural_error" | "StructuralError" -> Structural_error
@@ -90,12 +96,17 @@ let error_class_of_string = function
   | "nix_eval_error" -> Nix_eval_error
   | "na_warning" | "NAExcluded" -> Na_warning
   | "nix_error" | "NixError" -> Nix_error
+  | "contract_violation" -> Contract_violation
+  | "contract_unverifiable" -> Contract_unverifiable
+  | "invalid_expect_placement" -> Invalid_expect_placement
   | _ -> Unknown_error
 
 type suggested_fix =
   | Cast of { column: string; cast_to: string; target_node: string option; file: string option; line: int option }
   | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option }
   | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option }
+  | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option }
+  | Run_command of { command: string; description: string; target_node: string option; file: string option; line: int option }
   | NoFix
 
 type diagnostic = {
@@ -182,6 +193,24 @@ let suggested_fix_to_yojson = function
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
       ]
+  | Suggest_identifier { name; suggestion; target_node; file; line } ->
+      `Assoc [
+        ("kind", `String "suggest_identifier");
+        ("name", `String name);
+        ("suggestion", `String suggestion);
+        ("target_node", opt_string_to_yojson target_node);
+        ("file", opt_string_to_yojson file);
+        ("line", opt_int_to_yojson line);
+      ]
+  | Run_command { command; description; target_node; file; line } ->
+      `Assoc [
+        ("kind", `String "run_command");
+        ("command", `String command);
+        ("description", `String description);
+        ("target_node", opt_string_to_yojson target_node);
+        ("file", opt_string_to_yojson file);
+        ("line", opt_int_to_yojson line);
+      ]
   | NoFix -> `Null
 
 let opt_string_of_yojson json =
@@ -224,6 +253,20 @@ let suggested_fix_of_yojson json =
           Add_node_arg {
             node = json |> member "node" |> to_string;
             arg = json |> member "arg" |> to_string;
+            target_node;
+            file; line;
+          }
+      | "suggest_identifier" ->
+          Suggest_identifier {
+            name = json |> member "name" |> to_string;
+            suggestion = json |> member "suggestion" |> to_string;
+            target_node;
+            file; line;
+          }
+      | "run_command" ->
+          Run_command {
+            command = json |> member "command" |> to_string;
+            description = json |> member "description" |> to_string;
             target_node;
             file; line;
           }
@@ -350,6 +393,72 @@ let extract_caused_by_from_context context =
     | _ -> None
   ) context
 
+let known_identifiers = [
+  "summary"; "mean"; "sd"; "var"; "median"; "sum"; "min"; "max"; "length";
+  "nrow"; "ncol"; "read_csv"; "write_csv"; "print"; "paste"; "paste0";
+  "toupper"; "tolower"; "nchar"; "substr"; "grep"; "gsub"; "strsplit";
+  "is.na"; "is.numeric"; "is.character"; "is.logical"; "as.numeric";
+  "as.character"; "as.logical"; "seq"; "rep"; "c"; "list"; "data.frame";
+  "filter"; "mutate"; "select"; "arrange"; "group_by"; "ungroup";
+  "summarise"; "summarize"; "pivot_longer"; "pivot_wider"; "rename";
+  "slice"; "head"; "tail"; "distinct"; "count"; "tally"; "pull";
+  "left_join"; "right_join"; "inner_join"; "full_join"; "anti_join";
+  "bind_rows"; "bind_cols"; "do.call"; "apply"; "lapply"; "sapply";
+  "vapply"; "tapply"; "mapply"; "Reduce"; "Map";
+  "which"; "ifelse"; "case_when"; "between"; "near";
+  "row_number"; "rank"; "dense_rank"; "lag"; "lead";
+  "cumsum"; "cumprod"; "cummax"; "cummin";
+  "table"; "prop.table"; "addmargins"; "margin.table";
+  "class"; "typeof"; "str"; "names"; "colnames"; "rownames";
+  "dim"; "nlevels"; "levels"; "attributes"; "attr";
+  "list.files"; "dir.exists"; "file.exists"; "readLines";
+  "writeLines"; "cat"; "message"; "warning"; "stop";
+  "tryCatch"; "withCallingHandlers"; "suppressWarnings";
+  "suppressMessages"; "system"; "system.time"; "proc.time";
+  "Sys.time"; "Sys.sleep"; "date"; "Sys.Date";
+  "library"; "require"; "install.packages"; "available.packages";
+  "optim"; "nlm"; "uniroot"; "integrate"; "deriv";
+  "solve"; "qr"; "svd"; "eigen"; "chol"; "det"; "norm";
+  "crossprod"; "tcrossprod"; "outer"; "inner"; "%*%";
+  "which.min"; "which.max"; "pmax"; "pmin"; "pmax.int"; "pmin.int";
+  "xor"; "all"; "any"; "identical"; "equal"; "setdiff";
+  "union"; "intersect"; "match"; "%in%";
+  "Rev"; "sort"; "order"; "duplicated"; "unique";
+  "tabulate"; "findInterval"; "cut"; "find";
+  "grepl"; "regexpr"; "gregexpr"; "regmatches";
+  "sprintf"; "format"; "formatC"; "prettyNum"; "pretty";
+  "hcl.colors"; "rainbow"; "heat.colors"; "terrain.colors";
+  "topo.colors"; "cm.colors"; "colorRampPalette";
+  "par"; "plot"; "points"; "lines"; "abline"; "curve";
+  "hist"; "barplot"; "boxplot"; "pie"; "stripchart";
+  "text"; "legend"; "title"; "axis"; "mtext"; "grid";
+  "polygon"; "rect"; "segments"; "arrows";
+  "locator"; "identify"; "dev.new"; "dev.off"; "pdf"; "png"; "jpeg"
+]
+
+let known_identifiers_lower_table =
+  let tbl = Hashtbl.create (List.length known_identifiers) in
+  List.iter (fun k ->
+    Hashtbl.replace tbl (String.lowercase_ascii k) k
+  ) known_identifiers;
+  tbl
+
+(** Extract the variable name and an optional correction from an error message.
+    Returns (name, suggestion option). *)
+let extract_name_and_suggestion msg =
+  let re = Str.regexp "Variable '\\([^']+\\)' is not defined" in
+  try
+    ignore (Str.search_forward re msg 0);
+    let name = Str.matched_group 1 msg in
+    let lower_name = String.lowercase_ascii name in
+    let candidates = Hashtbl.fold (fun lk _ acc -> lk :: acc) known_identifiers_lower_table [] in
+    let suggestion = match Ast.suggest_name lower_name candidates with
+      | Some lower_match -> Some (Hashtbl.find known_identifiers_lower_table lower_match)
+      | None -> None
+    in
+    (name, suggestion)
+  with Not_found -> ("", None)
+
 let of_verror ?file (err : Ast.error_info) : diagnostic =
   let diag_phase = error_code_to_phase err.code in
   let node_name = extract_node_name_from_message err.message in
@@ -364,6 +473,12 @@ let of_verror ?file (err : Ast.error_info) : diagnostic =
              let arg = "deserializer = " ^ serializer in
              Add_node_arg { node = (match node_name with Some n -> n | None -> "");
                             arg; target_node = node_name; file; line = None }
+         | None -> NoFix)
+    | NameError ->
+        let (name, suggestion) = extract_name_and_suggestion err.message in
+        (match suggestion with
+         | Some s ->
+             Suggest_identifier { name; suggestion = s; target_node = node_name; file; line = None }
          | None -> NoFix)
     | _ -> NoFix
   in

@@ -182,6 +182,7 @@ type verb =
   | Distinct
   | Slice
   | Count
+  | Expect
   | Other of string
 
 let classify_verb expr =
@@ -199,6 +200,7 @@ let classify_verb expr =
        | "distinct" -> Distinct
        | "slice" | "slice_min" | "slice_max" | "slice_sample" -> Slice
        | "count" -> Count
+       | "expect" -> Expect
        | _ -> Other name)
   | _ -> Other "unknown"
 
@@ -312,6 +314,9 @@ let infer_output_schema input_schema expr =
       if named <> [] then
         List.map (fun (name, t) -> { sc_name = name; sc_type = t }) named
       else input_schema @ [{ sc_name = "n"; sc_type = Some "int" }]
+  | Expect ->
+      (* expect() is a schema annotation — pass through unchanged *)
+      input_schema
   | Other _ ->
       (* Unknown function — schema is unknown *)
       []
@@ -352,6 +357,128 @@ let extract_rename_mapping expr =
        ) args
      | _ -> [])
   | _ -> []
+
+(* ---------- expect() contract extraction and validation ---------- *)
+
+let extract_contracts args =
+  List.filter_map (fun (name, e) ->
+    match name, e.node with
+    | Some "columns", ListLit items ->
+        let cols = List.filter_map (fun (_, item) ->
+          match item.node with
+          | Value (VString s) -> Some s
+          | _ -> None
+        ) items in
+        if cols <> [] then Some (Ast.Contract_columns cols) else None
+    | _, BinOp { op = Formula; left = { node = Var col; _ }; right = { node = Call { fn = { node = Var t; _ }; _ }; _ } } ->
+        Some (Ast.Contract_type (col, t))
+    | _, BinOp { op = Lt;
+              left = { node = Call { fn = { node = Var "null_rate"; _ };
+                           args = [(_, { node = Value (VString col); _ })] }; _ };
+              right = { node = Value (VFloat threshold); _ } } ->
+        Some (Ast.Contract_null_rate (col, threshold))
+    | _ -> None
+  ) args
+
+let validate_contracts ~node_name ~file contracts output_schema =
+  let diags = ref [] in
+  List.iter (fun contract ->
+    match contract with
+    | Ast.Contract_columns cols ->
+        List.iter (fun col ->
+          if not (schema_has_col col output_schema) then
+            diags := (Diagnostics.{
+              diag_id = Diagnostics.gen_id ();
+              diag_error_class = Contract_violation;
+              diag_severity = Error;
+              diag_phase = Schema;
+              diag_node_id = Some node_name;
+              diag_node_lang = None;
+              diag_file = file;
+              diag_line = None;
+              diag_column = None;
+              diag_end_line = None;
+              diag_end_column = None;
+              diag_message = Printf.sprintf "Expected column '%s' not found in output schema" col;
+              diag_expected = Some col;
+              diag_actual = None;
+              diag_caused_by = [];
+              diag_suggested_fix = NoFix;
+            } : Diagnostics.diagnostic) :: !diags
+        ) cols
+    | Ast.Contract_type (col, expected_type) ->
+        (match schema_find_type col output_schema with
+         | Some actual_type when actual_type <> expected_type ->
+             diags := (Diagnostics.{
+               diag_id = Diagnostics.gen_id ();
+               diag_error_class = Contract_violation;
+               diag_severity = Warning;
+               diag_phase = Schema;
+               diag_node_id = Some node_name;
+               diag_node_lang = None;
+               diag_file = file;
+               diag_line = None;
+               diag_column = None;
+               diag_end_line = None;
+               diag_end_column = None;
+               diag_message = Printf.sprintf "Column '%s' type contract: expected '%s', got '%s'"
+                 col expected_type actual_type;
+               diag_expected = Some expected_type;
+               diag_actual = Some actual_type;
+               diag_caused_by = [];
+               diag_suggested_fix =
+                 if List.mem expected_type ["int"; "double"; "string"; "bool"]
+                 then Diagnostics.Cast {
+                   column = col;
+                   cast_to = expected_type;
+                   target_node = Some node_name;
+                   file;
+                   line = None;
+                 }
+                 else NoFix;
+             } : Diagnostics.diagnostic) :: !diags
+         | _ -> ())
+    | Ast.Contract_null_rate (col, _threshold) ->
+        if not (schema_has_col col output_schema) then
+          diags := (Diagnostics.{
+            diag_id = Diagnostics.gen_id ();
+            diag_error_class = Contract_violation;
+            diag_severity = Error;
+            diag_phase = Schema;
+            diag_node_id = Some node_name;
+            diag_node_lang = None;
+            diag_file = file;
+            diag_line = None;
+            diag_column = None;
+            diag_end_line = None;
+            diag_end_column = None;
+            diag_message = Printf.sprintf "null_rate contract: column '%s' not found in output schema" col;
+            diag_expected = Some col;
+            diag_actual = None;
+            diag_caused_by = [];
+            diag_suggested_fix = NoFix;
+          } : Diagnostics.diagnostic) :: !diags
+        else
+          diags := (Diagnostics.{
+            diag_id = Diagnostics.gen_id ();
+            diag_error_class = Contract_unverifiable;
+            diag_severity = Warning;
+            diag_phase = Schema;
+            diag_node_id = Some node_name;
+            diag_node_lang = None;
+            diag_file = file;
+            diag_line = None;
+            diag_column = None;
+            diag_end_line = None;
+            diag_end_column = None;
+            diag_message = Printf.sprintf "null_rate contract for '%s' cannot be verified statically; requires runtime data" col;
+            diag_expected = None;
+            diag_actual = None;
+            diag_caused_by = [];
+            diag_suggested_fix = NoFix;
+          } : Diagnostics.diagnostic) :: !diags
+  ) contracts;
+  !diags
 
 (* Validate that all column references in an expression exist in the schema *)
 let validate_col_refs ~node_name ~(file : string option) ~schema ?(rename_mapping = []) expr =
@@ -505,7 +632,16 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
             diag_expected = Some expected_type;
             diag_actual = Some actual_type;
             diag_caused_by = [];
-            diag_suggested_fix = NoFix;
+            diag_suggested_fix =
+              if List.mem expected_type ["int"; "double"; "string"; "bool"]
+              then Diagnostics.Cast {
+                column = col_name;
+                cast_to = expected_type;
+                target_node = Some name;
+                file = Some file;
+                line = (match expr.loc with Some l -> Some l.line | None -> None);
+              }
+              else NoFix;
           } : Diagnostics.diagnostic) :: !diagnostics
         ) mismatches
       end;
@@ -534,6 +670,44 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
         last_rename_mapping := extract_rename_mapping op;
         current_validation_schema := apply_pipe_op !current_validation_schema op
       ) all_refs;
+
+      (* Validate expect() contracts: last position validates, mid-chain warns *)
+      let ops = unwrap_pipe expr in
+      let ops_len = List.length ops in
+      let contract_diags = ref [] in
+      List.iteri (fun idx op ->
+        if classify_verb op = Expect then begin
+          if idx <> ops_len - 1 then begin
+            (* Mid-chain expect(): warn placement *)
+            contract_diags := (Diagnostics.{
+              diag_id = gen_id ();
+              diag_error_class = Invalid_expect_placement;
+              diag_severity = Warning;
+              diag_phase = Schema;
+              diag_node_id = Some name;
+              diag_node_lang = None;
+              diag_file = Some file;
+              diag_line = (match op.loc with Some l -> Some l.line | None -> None);
+              diag_column = None;
+              diag_end_line = None;
+              diag_end_column = None;
+              diag_message = "expect() must be the last step in a pipeline. Contracts from this position will not be validated.";
+              diag_expected = None;
+              diag_actual = None;
+              diag_caused_by = [];
+              diag_suggested_fix = NoFix;
+            } : Diagnostics.diagnostic) :: !contract_diags
+          end else
+            (* Last position: validate contracts against final schema *)
+            let contracts = match op.node with
+              | Call { args; _ } -> extract_contracts args
+              | _ -> []
+            in
+            let diags = validate_contracts ~node_name:name ~file:(Some file) contracts !current_validation_schema in
+            contract_diags := diags @ !contract_diags
+        end
+      ) ops;
+      diagnostics := !contract_diags @ !diagnostics;
 
       (* Also validate formula variables if this is a lm() or similar call *)
       match expr.node with

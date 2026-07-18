@@ -92,8 +92,6 @@ let rec substitute_vars_in_expr
       Ast.mk_expr (Ast.ListLit (List.map (fun (n, e) -> (n, subst e)) items))
   | DictLit items ->
       Ast.mk_expr (Ast.DictLit (List.map (fun (k, e) -> (k, subst e)) items))
-  | ListComp { expr; clauses } ->
-      Ast.mk_expr (Ast.ListComp { expr = subst expr; clauses })
   | Lambda l ->
       Ast.mk_expr (Ast.Lambda { l with body = subst l.body })
   | BroadcastOp { op; left; right } ->

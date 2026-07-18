@@ -51,7 +51,6 @@ let rec expr_has_build_pipeline = function
   | { Ast.node = Ast.Block stmts; _ } -> List.exists stmt_has_build_pipeline stmts
   | { Ast.node = Ast.PipelineDef _; _ }
   | { Ast.node = Ast.PipelineOfDef _; _ } -> true
-  | { Ast.node = Ast.ListComp { expr; _ }; _ } -> expr_has_build_pipeline expr
   | { Ast.node = Ast.IntentDef pairs; _ } -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs
   | _ -> false
 
@@ -459,6 +458,7 @@ let print_help () =
   Printf.printf "  test              Run tests in the current directory\n";
   Printf.printf "  update            Update dependencies and nixpkgs date from tproject.toml\n";
   Printf.printf "  upgrade           Upgrade T version and nixpkgs date to today's date\n";
+  Printf.printf "  add <runtime> <pkg>  Add a package to tproject.toml (R, Python, or Julia)\n";
   Printf.printf "  doctor            Check package health\n";
   Printf.printf "  docs              Open documentation\n";
   Printf.printf "  --help, -h        Show this help message\n";
@@ -1060,6 +1060,82 @@ let cmd_update () =
   match Update_manager.update_flake_lock () with
   | Ok () -> Printf.printf "Updated.\n"
   | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+
+let cmd_add args =
+  let usage () =
+    Printf.eprintf "Usage: t add <runtime> <package>\n";
+    Printf.eprintf "  <runtime>  R, Python, or Julia\n";
+    Printf.eprintf "  <package>  Package name to add to tproject.toml\n";
+    exit 1
+  in
+  let has_flag s = String.length s > 2 && s.[0] = '-' && s.[1] = '-' in
+  let positional = List.filter (fun s -> not (has_flag s)) args in
+  (match positional with
+   | [runtime; pkg] ->
+       let dir = Sys.getcwd () in
+       let tproject_path = Filename.concat dir "tproject.toml" in
+       if not (Sys.file_exists tproject_path) then begin
+         Printf.eprintf "Error: tproject.toml not found. Run 't init --project <name>' first.\n";
+         exit 1
+       end;
+       let read_file path =
+         try
+           let ch = open_in path in
+           Fun.protect ~finally:(fun () -> close_in_noerr ch)
+             (fun () -> Ok (really_input_string ch (in_channel_length ch)))
+         with Sys_error msg -> Error msg
+       in
+       let write_file path content =
+         try
+           let oc = open_out path in
+           Fun.protect ~finally:(fun () -> close_out_noerr oc)
+             (fun () -> output_string oc content; Ok ())
+         with Sys_error msg -> Error msg
+       in
+       let cfg_result =
+         match read_file tproject_path with
+         | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)
+         | Ok content ->
+             (match Toml_parser.parse_tproject_toml ~root_dir:dir content with
+             | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
+             | Ok cfg -> Ok cfg)
+       in
+       (match cfg_result with
+        | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+        | Ok cfg ->
+            let (runtime_key, list_getter, list_setter) =
+              match String.lowercase_ascii runtime with
+              | "r" -> ("[r-dependencies]",
+                        (fun c -> c.Package_types.proj_r_dependencies),
+                        (fun pkg c -> { c with Package_types.proj_r_dependencies = c.Package_types.proj_r_dependencies @ [pkg] }))
+              | "python" | "py" -> ("[py-dependencies]",
+                                    (fun c -> c.Package_types.proj_py_dependencies),
+                                    (fun pkg c -> { c with Package_types.proj_py_dependencies = c.Package_types.proj_py_dependencies @ [pkg] }))
+              | "julia" | "jl" -> ("[jl-dependencies]",
+                                   (fun c -> c.Package_types.proj_julia_dependencies),
+                                   (fun pkg c -> { c with Package_types.proj_julia_dependencies = c.Package_types.proj_julia_dependencies @ [pkg] }))
+              | "tool" -> ("[additional-tools]",
+                           (fun c -> c.Package_types.proj_additional_tools),
+                           (fun pkg c -> { c with Package_types.proj_additional_tools = c.Package_types.proj_additional_tools @ [pkg] }))
+              | "latex" -> ("[latex]",
+                            (fun c -> c.Package_types.proj_latex_packages),
+                            (fun pkg c -> { c with Package_types.proj_latex_packages = c.Package_types.proj_latex_packages @ [pkg] }))
+              | _ ->
+                  Printf.eprintf "Error: Unknown runtime '%s'. Use R, Python, Julia, tool, or latex.\n" runtime;
+                  exit 1
+            in
+            let existing = list_getter cfg in
+            if List.mem pkg existing then
+              Printf.printf "'%s' is already declared in %s.\n" pkg runtime_key
+            else begin
+              let new_cfg = list_setter pkg cfg in
+              let new_content = Toml_parser.serialize_tproject_toml new_cfg in
+              match write_file tproject_path new_content with
+              | Error msg -> Printf.eprintf "Error writing tproject.toml: %s\n" msg; exit 1
+              | Ok () ->
+                  Printf.printf "'%s' added to %s in tproject.toml.\nRun 't update' to sync flake.nix.\n" pkg runtime_key
+            end)
+   | _ -> usage ())
 
 let cmd_upgrade () =
   match Update_manager.cmd_upgrade () with
@@ -1682,6 +1758,7 @@ let () =
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest
   | _ :: "init" :: "--project" :: rest -> cmd_init_project rest
   | _ :: "test" :: rest -> cmd_test rest
+  | _ :: "add" :: rest -> cmd_add rest
   | _ :: "doctor" :: _ -> cmd_doctor ()
   | _ :: "docs" :: _ -> cmd_docs ()
   | _ :: "doc" :: rest -> cmd_doc rest
