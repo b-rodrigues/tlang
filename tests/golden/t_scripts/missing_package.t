@@ -1,6 +1,6 @@
 pipeline {
   data = rn(
-    command = <{ library(meadowlark); mtcars },
+    command = <{ library(xyzzy_nonexistent_pkg); mtcars },
     functions = []
   )
 }

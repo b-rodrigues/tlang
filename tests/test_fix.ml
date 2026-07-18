@@ -68,6 +68,46 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   in
   test_apply_rename_preserves_rhs ();
 
+  let test_rename_skips_non_rename_named_args () =
+    let tmp = Filename.temp_file "test_fix" ".t" in
+    let oc = open_out tmp in
+    output_string oc "x = source |> rename(mpg2 = $mpg) |> mutate(flag = $mpg > 20)\n";
+    close_out oc;
+    Fix.apply_rename_column ~file:tmp ~old_name:"mpg" ~new_name:"mpg2";
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    let has_rename_def = (try let _ = Str.search_forward (Str.regexp "rename(mpg2 = \\$mpg)") content 0 in true with Not_found -> false) in
+    let has_mutate_fixed = (try let _ = Str.search_forward (Str.regexp "mutate(flag = \\$mpg2") content 0 in true with Not_found -> false) in
+    check "rename_column preserves $col in rename() RHS (= $old)" has_rename_def;
+    check "rename_column fixes $col in mutate() named arg" has_mutate_fixed
+  in
+  test_rename_skips_non_rename_named_args ();
+
+  let test_rename_mutate_lhs_and_rhs () =
+    let tmp = Filename.temp_file "test_fix" ".t" in
+    let oc = open_out tmp in
+    output_string oc "x = source |> rename(mpg2 = $mpg) |> mutate($mpg = $mpg + 1)\n";
+    close_out oc;
+    Fix.apply_rename_column ~file:tmp ~old_name:"mpg" ~new_name:"mpg2";
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    let has_rename_def = (try let _ = Str.search_forward (Str.regexp "rename(mpg2 = \\$mpg)") content 0 in true with Not_found -> false) in
+    let mutate_content =
+      (try let _ = Str.search_forward (Str.regexp_string "mutate(") content 0 in
+           String.sub content (Str.match_end ()) (String.length content - Str.match_end ())
+       with Not_found -> "")
+    in
+    let mutate_both_fixed = (try let _ = Str.search_forward (Str.regexp_string "$mpg2 = $mpg2") mutate_content 0 in true
+                             with Not_found -> false) in
+    check "rename_column preserves $col in rename() RHS" has_rename_def;
+    check "rename_column fixes $col in mutate() LHS and RHS" mutate_both_fixed
+  in
+  test_rename_mutate_lhs_and_rhs ();
+
   let test_rename_comparison_operators () =
     let test_one ~op partial_line =
       let tmp = Filename.temp_file "test_fix" ".t" in
