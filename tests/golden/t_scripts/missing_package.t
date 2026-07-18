@@ -1,6 +1,6 @@
 pipeline {
   data = rn(
-    command = <{ library(xyzzy_nonexistent_pkg); mtcars },
+    command = <{ library(ggplot2); mtcars }>,
     functions = []
   )
 }
