@@ -454,4 +454,18 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   in
   test_run_command ();
 
+  Printf.printf "\nCast and Rename_column confidence:\n";
+  let test_cast_and_rename_confidence () =
+    let cast_fix = Diagnostics.Cast { column = "x"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 1 } in
+    let cast_json = Diagnostics.suggested_fix_to_yojson cast_fix in
+    let cast_conf = Yojson.Safe.Util.member "confidence" cast_json |> Yojson.Safe.Util.to_string in
+    check "Cast serializes confidence=high" (cast_conf = "high");
+
+    let rename_fix = Diagnostics.Rename_column { old_name = "x"; new_name = "y"; target_node = None; file = Some "test.t"; line = Some 1 } in
+    let rename_json = Diagnostics.suggested_fix_to_yojson rename_fix in
+    let rename_conf = Yojson.Safe.Util.member "confidence" rename_json |> Yojson.Safe.Util.to_string in
+    check "Rename_column serializes confidence=high" (rename_conf = "high")
+  in
+  test_cast_and_rename_confidence ();
+
   Printf.printf "\n";
