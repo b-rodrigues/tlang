@@ -3311,6 +3311,16 @@ The `tier` field is derived from the deepest phase that produced diagnostics: pa
 
 Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node` (with nested `id`, `lang`, `file`, and `span` containing `start` and `end`), `message`, `expected`, `actual`, `caused_by`, and `suggested_fix`.
 
+**`suggested_fix` structure:** When non-null, a `suggested_fix` is a JSON object with a `kind` field and fix-specific fields. Every fix also carries a `confidence` field (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is deterministic or heuristic. Confidence is computed dynamically from diagnostic context (e.g., schema chain integrity, edit distance) rather than being a static label per fix kind:
+
+| `kind` | Typical confidence | When it drops | Key fields |
+|--------|-------------------|---------------|------------|
+| `cast` | `"high"` | `"medium"` when schema chain is broken (missing upstream column) | `column`, `cast_to`, `target_node`, `line` |
+| `rename_column` | `"high"` | `"medium"` at edit distance 2; `"low"` at distance 3+ | `old_name`, `new_name`, `target_node` |
+| `add_node_arg` | `"medium"` | Always `"medium"` | `node`, `arg`, `target_node` |
+| `suggest_identifier` | varies | Scales with edit distance and uniqueness | `name`, `suggestion`, `target_node` |
+| `run_command` | `"low"` | Always `"low"` | `command`, `description`, `target_node` |
+
 **`error_class` enum values:** `structural_error`, `name_error`, `arity_error`, `type_error`, `parse_error`, `file_error`, `key_error`, `index_error`, `value_error`, `runtime_error`, `division_by_zero`, `assertion_error`, `match_error`, `shell_error`, `aggregation_error`, `na_predicate_error`, `missing_artifact`, `generic_error`, `schema_mismatch`, `contract_violation`, `contract_unverifiable`, `missing_tproject`, `missing_package`, `missing_from_lockfile`, `nix_generation_error`, `nix_eval_error`, `invalid_expect_placement`, `na_warning`, `unknown_error`.
 
 **Examples:**
@@ -3820,7 +3830,8 @@ $ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
   "cast_to": "double",
   "target_node": "clean",
   "file": "pipeline.t",
-  "line": 5
+  "line": 5,
+  "confidence": "high"
 }
 
 $ t fix pipeline.t

@@ -49,13 +49,11 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
         diag_expected = Some "tproject.toml";
         diag_actual = None;
         diag_caused_by = [];
-        diag_suggested_fix = Run_command {
-          command = Printf.sprintf "t init %s" project_root;
-          description = "Initialize tproject.toml in project root";
-          target_node = None;
-          file = Some file;
-          line = None;
-        };
+        diag_suggested_fix = Diagnostics.make_run_command_fix
+          ~command:(Printf.sprintf "t init %s" project_root)
+          ~description:"Initialize tproject.toml in project root"
+          ?file:(Some file)
+          ();
       }]
     else []
   | Some cfg ->
@@ -100,13 +98,11 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
             diag_expected = Some (Printf.sprintf "%s %s" section pkg);
             diag_actual = None;
             diag_caused_by = [];
-            diag_suggested_fix = Run_command {
-              command = Printf.sprintf "t add %s %s" section_cmd pkg;
-              description = Printf.sprintf "Add %s to %s" pkg section;
-              target_node = None;
-              file = Some file;
-              line = None;
-            };
+            diag_suggested_fix = Diagnostics.make_run_command_fix
+              ~command:(Printf.sprintf "t add %s %s" section_cmd pkg)
+              ~description:(Printf.sprintf "Add %s to %s" pkg section)
+              ?file:(Some file)
+              ();
           } :: !missing_diags
         ) pkgs
       in
@@ -150,7 +146,7 @@ let check_lockfile_consistency ~file ~tproject_cfg (p : Ast.pipeline_result) =
               diag_expected = None;
               diag_actual = None;
               diag_caused_by = [];
-              diag_suggested_fix = NoFix;
+              diag_suggested_fix = Diagnostics.no_fix;
            }
          ) missing)
   | _ -> []
@@ -175,7 +171,7 @@ let check_nix_evaluation ?(offline = false) ~file (p : Ast.pipeline_result) =
         diag_expected = None;
         diag_actual = None;
         diag_caused_by = [];
-        diag_suggested_fix = NoFix;
+        diag_suggested_fix = Diagnostics.no_fix;
       }]
   | Ok (_use_uv, nix_path) ->
       let node_names = List.map fst p.Ast.p_exprs in
@@ -215,7 +211,7 @@ let check_nix_evaluation ?(offline = false) ~file (p : Ast.pipeline_result) =
             diag_expected = None;
             diag_actual = None;
             diag_caused_by = [];
-            diag_suggested_fix = NoFix;
+            diag_suggested_fix = Diagnostics.no_fix;
           }]
 
 (* Main entry point: run all tier 3 env checks *)

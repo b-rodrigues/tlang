@@ -245,14 +245,18 @@ let apply_add_node_arg ~file ~node ~arg =
   result
 
 let apply_fix ~file (fix : Diagnostics.suggested_fix) =
+  (* NOTE: t fix applies ALL non-NoFix suggestions regardless of confidence.
+     Confidence is informational for agents/tools to decide whether to auto-apply
+     or review first. The fix-kind filtering below (Suggest_identifier -> false,
+     Run_command -> false) is based on fix type, not confidence level. *)
   match fix with
-  | Cast { column; cast_to; file = _; line; target_node = _ } ->
+  | Cast { column; cast_to; line; _ } ->
       (match line with
        | Some l -> apply_cast ~file ~line:l ~column ~cast_to; true
        | None -> false)
-  | Rename_column { old_name; new_name; file = _; line = _; target_node = _ } ->
+  | Rename_column { old_name; new_name; _ } ->
       apply_rename_column ~file ~old_name ~new_name; true
-  | Add_node_arg { node; arg; file = _; line = _; target_node = _ } ->
+  | Add_node_arg { node; arg; _ } ->
       apply_add_node_arg ~file ~node ~arg
   | Suggest_identifier _ -> false
   | Run_command _ -> false

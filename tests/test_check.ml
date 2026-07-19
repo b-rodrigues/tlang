@@ -132,7 +132,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     diag_expected = None;
     diag_actual = None;
     diag_caused_by = ["upstream_node"];
-    diag_suggested_fix = Diagnostics.NoFix;
+    diag_suggested_fix = Diagnostics.no_fix;
   } in
   check_eq "diagnostic_phase accessor"
     (Diagnostics.phase_to_string (Diagnostics.diagnostic_phase test_diag)) "exec";
@@ -367,6 +367,30 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check "schema rename stale: suggested_fix is rename_column" has_rename_fix;
   flush stdout;
 
+  Printf.printf "\nschema check cast confidence tests:\n";
+
+  (* Schema cast unbroken: Cast fix has high confidence *)
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" (golden "schema_cast_unbroken.t")) in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let is_cast_high =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "\"confidence\"[ \t]*:[ \t]*\"high\"") result_str 0); true
+        with Not_found -> false)
+  in
+  check "schema cast unbroken: Cast fix has confidence=high" is_cast_high;
+  flush stdout;
+
+  (* Schema cast broken: Cast fix has medium confidence *)
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" (golden "schema_cast_broken.t")) in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let is_cast_medium =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "\"confidence\"[ \t]*:[ \t]*\"medium\"") result_str 0); true
+        with Not_found -> false)
+  in
+  check "schema cast broken: Cast fix has confidence=medium" is_cast_medium;
+  flush stdout;
+
   Printf.printf "\nmissing package detection:\n";
 
   (* Missing package: undeclared R package should get Missing_package *)
@@ -401,11 +425,11 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   let test_name_suggestion () =
     let (name, suggestion) = Diagnostics.extract_name_and_suggestion "Variable 'prnt' is not defined" in
     check "prnt extracts name" (name = "prnt");
-    check "prnt suggests print" (suggestion = Some "print");
+    check "prnt suggests print" (suggestion = Some ("print", 1, true));
     let (_name2, suggestion2) = Diagnostics.extract_name_and_suggestion "Variable 'flter' is not defined" in
-    check "flter suggests filter" (suggestion2 = Some "filter");
+    check "flter suggests filter" (suggestion2 = Some ("filter", 1, true));
     let (_name3, suggestion3) = Diagnostics.extract_name_and_suggestion "Variable 'mutat' is not defined" in
-    check "mutat suggests mutate" (suggestion3 = Some "mutate");
+    check "mutat suggests mutate" (suggestion3 = Some ("mutate", 1, true));
     let (_name4, suggestion4) = Diagnostics.extract_name_and_suggestion "Variable 'xyzzy_unknown' is not defined" in
     check "unknown name has no suggestion" (suggestion4 = None)
   in
@@ -420,7 +444,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
       diag_end_line = None; diag_end_column = None;
       diag_message = "Variable 'prnt' is not defined"; diag_expected = None; diag_actual = None;
       diag_caused_by = [];
-      diag_suggested_fix = Diagnostics.Suggest_identifier { name = "prnt"; suggestion = "print"; target_node = None; file = Some "test.t"; line = Some 1 };
+      diag_suggested_fix = Diagnostics.make_suggest_identifier_fix ~name:"prnt" ~suggestion:"print" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) ();
     } in
     let json = Diagnostics.diagnostic_to_yojson d in
     let fix_json = Yojson.Safe.Util.member "suggested_fix" json in
@@ -428,6 +452,8 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     check "Suggest_identifier serializes kind=suggest_identifier" (kind = "suggest_identifier");
     let suggestion = Yojson.Safe.Util.member "suggestion" fix_json |> Yojson.Safe.Util.to_string in
     check "Suggest_identifier serializes suggestion=print" (suggestion = "print");
+    let confidence = Yojson.Safe.Util.member "confidence" fix_json |> Yojson.Safe.Util.to_string in
+    check "Suggest_identifier serializes confidence=high" (confidence = "high");
     let roundtrip = Diagnostics.suggested_fix_of_yojson fix_json in
     (match roundtrip with
      | Diagnostics.Suggest_identifier { name; suggestion = s; _ } ->
@@ -439,15 +465,58 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
 
   Printf.printf "\nRun_command fix:\n";
   let test_run_command () =
-    let fix = Diagnostics.Run_command { command = "t init ."; description = "Initialize tproject.toml"; target_node = None; file = Some "test.t"; line = None } in
+    let fix = Diagnostics.make_run_command_fix ~command:"t init ." ~description:"Initialize tproject.toml" ?file:(Some "test.t") () in
     let json = Diagnostics.suggested_fix_to_yojson fix in
+    let confidence = Yojson.Safe.Util.member "confidence" json |> Yojson.Safe.Util.to_string in
+    check "Run_command serializes confidence=low" (confidence = "low");
     let roundtrip = Diagnostics.suggested_fix_of_yojson json in
     (match roundtrip with
-     | Diagnostics.Run_command { command; description; _ } ->
-         check "Run_command roundtrip command" (command = "t init .");
-         check "Run_command roundtrip description" (description = "Initialize tproject.toml")
+     | Diagnostics.Run_command { command = cmd; description = desc; _ } ->
+         check "Run_command roundtrip command" (cmd = "t init .");
+         check "Run_command roundtrip description" (desc = "Initialize tproject.toml")
      | _ -> check "Run_command roundtrip fails" false)
   in
   test_run_command ();
 
-  Printf.printf "\n";
+  Printf.printf "\nCast and Rename_column confidence:\n";
+  let test_cast_and_rename_confidence () =
+    let cast_fix = Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 1) () in
+    let cast_json = Diagnostics.suggested_fix_to_yojson cast_fix in
+    let cast_conf = Yojson.Safe.Util.member "confidence" cast_json |> Yojson.Safe.Util.to_string in
+    check "Cast unbroken serializes confidence=high" (cast_conf = "high");
+
+    let cast_broken = Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:true ?file:(Some "test.t") ?line:(Some 1) () in
+    let cast_broken_json = Diagnostics.suggested_fix_to_yojson cast_broken in
+    let cast_broken_conf = Yojson.Safe.Util.member "confidence" cast_broken_json |> Yojson.Safe.Util.to_string in
+    check "Cast broken serializes confidence=medium" (cast_broken_conf = "medium");
+
+    let rename_fix = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) () in
+    let rename_json = Diagnostics.suggested_fix_to_yojson rename_fix in
+    let rename_conf = Yojson.Safe.Util.member "confidence" rename_json |> Yojson.Safe.Util.to_string in
+    check "Rename dist=1 unique=true confidence=high" (rename_conf = "high");
+
+    let rename_fix2 = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:2 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) () in
+    let rename_json2 = Diagnostics.suggested_fix_to_yojson rename_fix2 in
+    let rename_conf2 = Yojson.Safe.Util.member "confidence" rename_json2 |> Yojson.Safe.Util.to_string in
+    check "Rename dist=2 unique=true confidence=medium" (rename_conf2 = "medium");
+
+    let rename_fix3 = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:1 ~is_unique:false ?file:(Some "test.t") ?line:(Some 1) () in
+    let rename_json3 = Diagnostics.suggested_fix_to_yojson rename_fix3 in
+    let rename_conf3 = Yojson.Safe.Util.member "confidence" rename_json3 |> Yojson.Safe.Util.to_string in
+    check "Rename dist=1 unique=false confidence=medium" (rename_conf3 = "medium");
+
+    let rename_fix4 = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:2 ~is_unique:false ?file:(Some "test.t") ?line:(Some 1) () in
+    let rename_json4 = Diagnostics.suggested_fix_to_yojson rename_fix4 in
+    let rename_conf4 = Yojson.Safe.Util.member "confidence" rename_json4 |> Yojson.Safe.Util.to_string in
+    check "Rename dist=2 unique=false confidence=low" (rename_conf4 = "low");
+
+    let rename_fix5 = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:3 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) () in
+    let rename_json5 = Diagnostics.suggested_fix_to_yojson rename_fix5 in
+    let rename_conf5 = Yojson.Safe.Util.member "confidence" rename_json5 |> Yojson.Safe.Util.to_string in
+    check "Rename dist=3 unique=true confidence=low" (rename_conf5 = "low");
+
+    ()
+  in
+  test_cast_and_rename_confidence ();
+
+  Printf.printf "\n";;

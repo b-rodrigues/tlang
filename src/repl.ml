@@ -716,7 +716,7 @@ let check_type_annotations filename =
               diag_expected = Some expected;
               diag_actual = Some actual;
               diag_caused_by = [];
-              diag_suggested_fix = Diagnostics.NoFix;
+              diag_suggested_fix = Diagnostics.no_fix;
             } :: !diags
           end
       | _ -> ()
