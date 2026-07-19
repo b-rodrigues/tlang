@@ -276,7 +276,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   (* ── select narrows columns ────────────────────────────── *)
   Printf.printf "Analyzer — select narrowing:\n";
 
-  let select_scope, _ = analyze "df = read_csv(\"tests/golden/data/mtcars.csv\")\ns = select(df, \"mpg\", \"cyl\")" in
+  let tmp_csv = Filename.temp_file "test_lsp" ".csv" in
+  let oc = open_out tmp_csv in
+  output_string oc "mpg,cyl,disp,hp\n1,4,100,80\n";
+  close_out oc;
+
+  let select_scope, _ = analyze (Printf.sprintf "df = read_csv(\"%s\")\ns = select(df, \"mpg\", \"cyl\")" tmp_csv) in
   test_message "select narrows DataFrame to 2 columns"
     (match Symbol_table.lookup select_scope "s" with
      | Some { Symbol_table.typ = Some (Semantic_type.TDataFrame cols); _ } ->
@@ -286,7 +291,8 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   (* ── mutate infers column types ─────────────────────────── *)
   Printf.printf "Analyzer — mutate column types:\n";
 
-  let mutate_scope, _ = analyze "df = read_csv(\"tests/golden/data/mtcars.csv\")\nm = mutate(df, $new_col = $mpg > 20)" in
+  let mutate_scope, _ = analyze (Printf.sprintf "df = read_csv(\"%s\")\nm = mutate(df, $new_col = $mpg > 20)" tmp_csv) in
+  (try Sys.remove tmp_csv with _ -> ());
   test_message "mutate infers new column as TBool"
     (match Symbol_table.lookup mutate_scope "m" with
      | Some { Symbol_table.typ = Some (Semantic_type.TDataFrame cols); _ } ->
