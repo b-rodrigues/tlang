@@ -350,7 +350,11 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   output_string oc "a: Int = 42\nb: Int = \"oops\"\n";
   close_out oc;
   let env = Packages.init_env () in
-  (* Test that the hook produces diagnostics *)
+  (* NOTE: This re-implements check_type_annotations from repl.ml instead of
+     calling it directly, because Analyzer is in the t_lang library and cannot
+     be referenced from library modules without creating a dune dependency cycle.
+     repl.ml is a separate executable outside the library, so it can reference
+     Analyzer freely. If the shipped function changes, this copy must be updated. *)
   Check_utils.extra_diagnostics_hook := (fun filename ->
     try
       let ch = open_in filename in

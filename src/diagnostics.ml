@@ -613,5 +613,3 @@ let make_result ~tier ~phase entries =
     cr_tier = tier;
     cr_diagnostics = entries;
   }
-
-
