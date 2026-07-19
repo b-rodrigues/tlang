@@ -1123,7 +1123,7 @@ Arrow interoperability is implemented using the Feather V2 (IPC) format for file
 2. **Deserialization (Input)**:
    - When a node consumes a dependency with `deserializer = "arrow"` (or by default if the upstream used `serializer = "arrow"` and matches), it reads from the upstream's `$out/artifact`.
    - For **R**: Uses `arrow::read_ipc_file(path)`.
-   - For **Python**: Uses `pyarrow.ipc.open_file(path).read_pandas()`.
+   - For **Python**: Uses `pyarrow.ipc.open_file(path).read_all()` (returns `pyarrow.Table`).
    - For **T**: Uses `Arrow_io.read_ipc`.
 
 ## 9.2 Type Mapping
