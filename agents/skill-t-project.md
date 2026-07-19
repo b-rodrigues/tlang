@@ -27,6 +27,143 @@ Pick based on what language executes the code inside:
 
 Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize through CSV unless the user explicitly requests it.
 
+## Serialization & Language Boundaries
+
+Each serializer returns a specific type on each runtime. Choose the right serializer
+for your data type and cross-language pattern.
+
+### Serializer reference — Python side
+
+| Serializer | Python returns | Use case |
+|---|---|---|
+| `^arrow` | `pandas.DataFrame` | Tabular data (zero-copy from R) |
+| `^csv` | `pandas.DataFrame` | Tabular data (text-based, human-readable) |
+| `^json` | `dict` / `list` | Arbitrary structured data |
+| `^pmml` | `JPMMLModel` wrapper | Statistical models (R ↔ Python) |
+| `^onnx` | `onnxruntime.InferenceSession` | ML/deep learning models |
+
+### Serializer reference — R side
+
+| Serializer | R returns | Use case |
+|---|---|---|
+| `^arrow` | tibble | Tabular data |
+| `^csv` | data.frame | Tabular data (text-based) |
+| `^json` | list | Arbitrary structured data |
+| `^pmml` | T `Model` value | Statistical models (R ↔ Python ↔ T) |
+| `^onnx` | T `Model` value | ML models (R ↔ Python ↔ T) |
+
+### Cross-language patterns
+
+**R → Python (tabular):** Use `^csv` or `^arrow` on the R side:
+
+```t
+read_data = rn(
+  command = <{ readxl::read_excel("data.xlsx") }>,
+  serializer = ^csv
+)
+
+process = pyn(
+  command = <{
+import polars as pl
+df = pl.from_pandas(read_data)  # both ^csv and ^arrow return pandas in Python
+  }>,
+  deserializer = ^csv,
+  serializer = ^arrow
+)
+```
+
+**Python → Python (tabular, Arrow):** Use `^arrow` on both sides:
+
+```t
+clean = pyn(
+  command = <{
+import polars as pl
+df = pl.from_pandas(raw)  # ^arrow returns pandas.DataFrame
+  }>,
+  deserializer = ^arrow,
+  serializer = ^arrow
+)
+```
+
+**R → R:** Default serializer or `^arrow`. Returns tibble.
+
+**R → Python (model):** Use `^pmml` for statistical models:
+
+```t
+train_r = rn(
+  command = <{ lm(price ~ area, data = train) }>,
+  serializer = ^pmml
+)
+
+predict_py = pyn(
+  command = <{
+# train_r is a JPMMLModel with a .predict() method
+predictions = train_r.predict(test_data)
+  }>,
+  deserializer = ^pmml
+)
+```
+
+**Python → R (model):** Use `^onnx` for ML models:
+
+```t
+train_py = pyn(
+  command = <{
+from sklearn.linear_model import LogisticRegression
+model = LogisticRegression().fit(X_train, y_train)
+  }>,
+  serializer = ^onnx
+)
+
+score_r = rn(
+  command = <{
+# train_py is an ONNX model usable with predict()
+  }>,
+  deserializer = ^onnx
+)
+```
+
+**Arbitrary structured data:** Use `^json` for dicts, lists, config objects:
+
+```t
+config = pyn(
+  command = <{
+result = {"threshold": 0.5, "features": ["x1", "x2"]}
+  }>,
+  serializer = ^json
+)
+
+consume = rn(
+  command = <{
+# config is an R list: list(threshold = 0.5, features = c("x1", "x2"))
+  }>,
+  deserializer = ^json
+)
+```
+
+### Non-tabular outputs
+
+ggplot objects and other R objects serialize fine via R's default serializer. They
+cannot use `^arrow` or `^csv` (tabular-only). For cross-language consumption, save
+the plot as a file (PDF/PNG via `ggsave()`) inside the node and use
+`pipeline_copy()` to extract it. Otherwise, the default serializer preserves the
+object for `read_node(p.node)` access in post-build.
+
+**No serializer for your object type?** Pass the underlying data instead and recreate the
+object in the consuming runtime. For example, don't try to serialize a ggplot from R to
+Python — pass the DataFrame as `^arrow` and create the plot with matplotlib/plotnine in
+Python, or keep the ggplot in R. The same applies to any non-interchangeable object:
+pass data, not artifacts.
+
+### Gotchas
+
+- `t check --schema` does NOT validate serializer compatibility. A `^arrow` → `^csv`
+  mismatch surfaces at runtime. Verify via `inspect_pipeline(p)`.
+- Python's `^arrow` and `^csv` both return `pandas.DataFrame`. Use `pl.from_pandas()`
+  to convert to Polars.
+- R's `^arrow` serializer calls `as.data.frame()` before writing — it coerces tibbles
+  and other framed objects to plain data.frames.
+
 ## Fetching remote assets
 
 Use `fetchurl()` to download files during pipeline builds. The file is stored in a Nix
@@ -92,6 +229,7 @@ parse = pyn(
 - **Writing output to `data/`:** Treat it as read-only. Pipeline outputs must go through `pipeline_copy(p, node, to)` into `outputs/`.
 - **Skipping the `pipeline { ... }` wrapper:** A bare script of T statements cannot run. Everything reproducible must be a node inside a pipeline.
 - **Writing to `/tmp` or absolute paths from nodes:** Nodes run inside a hermetic Nix sandbox with a read-only filesystem. For debugging, create a view script (`src/view.t`) that uses `t_make()` + `read_node(p.name)` + `glimpse()` to inspect node outputs.
+- **Mismatched serializers between nodes:** `t check --schema` does not catch serializer mismatches. Verify via `inspect_pipeline(p)`.
 
 ## Never do this
 
