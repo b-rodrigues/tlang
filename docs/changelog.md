@@ -18,6 +18,18 @@
 - **Dynamic confidence levels**: Every `suggested_fix` now carries a `confidence` field (`"high"`, `"medium"`, `"low"`) computed from diagnostic context. `Cast` is `"high"` when the schema chain is intact, drops to `"medium"` when broken. `Rename_column` and `Suggest_identifier` scale with edit distance and uniqueness. `Add_node_arg` is always `"medium"`, `Run_command` always `"low"`.
 - **`t_check(file, json, schema, env)` REPL function**: Invoke `t check` from within a T session.
 
+### `t explain` — Node Introspection
+
+- **`t explain --node <pipeline>.t:<node_id>`**: Prints a human-readable summary of a pipeline node's inputs, outputs, language, and dependencies. Supports `--json` for machine-readable output (YAML front matter style with `node_id`, `language`, `inputs`, `outputs`, `dependencies`, and `command`).
+
+### `t add` — Package & Tool Management CLI
+
+- **`t add <runtime> <package>`**: Adds a dependency to `tproject.toml` from the command line. Supports `R`, `Python`, `T`, `Julia`, and `Quarto` runtimes. Example: `t add R dplyr`, `t add Python quarto`.
+
+### REPL Enhancements
+
+- **`--json` flag for expression mode**: `t run --json --expr 'expr'` now correctly enables NDJSON streaming output, matching the behavior of file-mode execution.
+
 ### `t diff` — Content-Addressed Output Diffing
 
 - **`t diff <file>`**: Compares two builds of a pipeline using per-node Nix content hashes without loading artifacts. Reports each node as `unchanged`, `changed`, `added`, `removed`, or `errored`.
@@ -31,6 +43,7 @@
 - **Word-boundary-safe rename**: Column renames only affect `$col` and `` $`col` `` forms, avoiding corruption of identifiers like `valid` when renaming `id`.
 - **`target_node` on `suggested_fix`**: `Cast`, `Rename_column`, and `Add_node_arg` fixes now include a `target_node` field indicating which pipeline node the fix applies to.
 - **Cross-runtime deserializer suggestion**: When a node depends on a node from a different runtime but has no explicit `deserializer`, `t check` now suggests adding `deserializer = ^csv` via an `Add_node_arg` fix.
+- **`fetchurl` serializer parameter**: `fetchurl()` now accepts a `serializer` argument for pipeline mode, allowing explicit control over the download format (e.g., `serializer = ^text`).
 
 ### `t check` Environment Validation
 
@@ -57,6 +70,19 @@
 - **Cached node completions**: Cached nodes receive `node_completed` events at the end of the build, ensuring that all successful nodes are represented.
 - **Breaking schema change to `succeeded` count**: The `succeeded` field in `run_finished` now correctly represents the number of completed nodes built from scratch, and no longer double-counts `cached` nodes.
 
+### REPL %magic Commands
+
+- **`%history`**: Display REPL session history with line numbers.
+- **`%save [filename]`**: Save session transcript to a file.
+- **`%reset`**: Clear all variables from the session.
+- **`%who [pattern]`**: List defined variables with optional fuzzy name matching.
+- **`%objects [pattern]`**: List defined variables with type information and optional fuzzy matching.
+- **`%magic`**: List all available magic commands.
+
+### DataFrames
+
+- **`write_parquet(data, path)`**: Write a DataFrame to a Parquet file via Arrow.
+
 ## [0.54.0] - 2026-07-08
 
 ### Pipeline & Diagnostics
@@ -67,6 +93,7 @@
 
 ### Code Safety & Runtime Robustness
 
+- **Agent Skill Scaffolding**: `t init --project` now copies agent skill files (SKILL.md templates) into `.claude/skills/` and `.opencode/` directories, providing ready-to-use AI agent context for new projects.
 - **Scientific Float Notation Support**: Parser and lexer now support standard scientific notation for floating-point literals (e.g. `1e-5`, `3.14e+2`, `2.7E-3`).
 - **String Escape Sequence Validation**: The string parser now validates escape sequences at parse time, throwing a clear syntax error for invalid or unrecognized escape sequences.
 - **Hex Byte Escape (`\xHH`)**: String literals now support `\x` followed by exactly two hexadecimal digits (e.g. `"\x48\x69"` → `"Hi"`), enabling embedding of arbitrary byte sequences.
