@@ -725,9 +725,7 @@ let check_type_annotations filename =
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
-  let check_result = Check_utils.run_check ~schema ~env_check ~offline mode filename env in
-  let type_diags = check_type_annotations filename in
-  Diagnostics.prepend_diagnostics type_diags check_result
+  Check_utils.run_check ~schema ~env_check ~offline mode filename env
 
 let print_check_result ?(json=false) check_result =
   let output = Check_utils.format_check_result ~json check_result in
@@ -1510,6 +1508,7 @@ let () =
    | Ok () -> ()
    | Error msg -> exit_with_error msg);
   let env = Packages.init_env () in
+  Check_utils.extra_diagnostics_hook := check_type_annotations;
   (* Register interactive CLI wrappers — must be here (not in packages.ml)
      to avoid dependency cycles with Test_discovery *)
 (*

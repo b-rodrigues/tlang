@@ -261,4 +261,144 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
        List.length args = 1
      | _ -> false);
 
+  let lambda_ret_scope, _ = analyze "x = \\(n) n > 0" in
+  test_message "lambda infers return type TBool from body"
+    (match Symbol_table.lookup lambda_ret_scope "x" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TFunction (_, Semantic_type.TBool)); _ } -> true
+     | _ -> false);
+
+  let lambda_int_ret, _ = analyze "x = \\(a, b) a + b" in
+  test_message "lambda with untyped params infers TUnknown from body"
+    (match Symbol_table.lookup lambda_int_ret "x" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TFunction (_, Semantic_type.TUnknown)); _ } -> true
+     | _ -> false);
+
+  (* ── select narrows columns ────────────────────────────── *)
+  Printf.printf "Analyzer — select narrowing:\n";
+
+  let select_scope, _ = analyze "df = read_csv(\"tests/golden/data/mtcars.csv\")\ns = select(df, \"mpg\", \"cyl\")" in
+  test_message "select narrows DataFrame to 2 columns"
+    (match Symbol_table.lookup select_scope "s" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TDataFrame cols); _ } ->
+       List.length cols = 2 && List.exists (fun c -> c.Semantic_type.name = "mpg") cols
+     | _ -> false);
+
+  (* ── mutate infers column types ─────────────────────────── *)
+  Printf.printf "Analyzer — mutate column types:\n";
+
+  let mutate_scope, _ = analyze "df = read_csv(\"tests/golden/data/mtcars.csv\")\nm = mutate(df, $new_col = $mpg > 20)" in
+  test_message "mutate infers new column as TBool"
+    (match Symbol_table.lookup mutate_scope "m" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TDataFrame cols); _ } ->
+       (match List.find_opt (fun c -> c.Semantic_type.name = "new_col") cols with
+        | Some c -> c.Semantic_type.col_typ = Semantic_type.TBool
+        | None -> false)
+     | _ -> false);
+
+  (* ── types_compatible ───────────────────────────────────── *)
+  Printf.printf "Ast.types_compatible:\n";
+
+  test_message "Int compatible with Int"
+    (Ast.types_compatible Ast.TInt Ast.TInt);
+  test_message "Int compatible with Float (relaxed)"
+    (Ast.types_compatible Ast.TInt Ast.TFloat);
+  test_message "Float not compatible with Int"
+    (not (Ast.types_compatible Ast.TFloat Ast.TInt));
+  test_message "String not compatible with Int"
+    (not (Ast.types_compatible Ast.TString Ast.TInt));
+  test_message "Any compatible with anything (right)"
+    (Ast.types_compatible Ast.TString (Ast.TCustom "Any"));
+  test_message "Anything compatible with Any (left)"
+    (Ast.types_compatible (Ast.TCustom "Any") Ast.TInt);
+  test_message "TArrow structural match"
+    (Ast.types_compatible
+       (Ast.TArrow ([Ast.TInt; Ast.TInt], Ast.TInt))
+       (Ast.TArrow ([Ast.TInt; Ast.TInt], Ast.TInt)));
+  test_message "TArrow mismatch on param"
+    (not (Ast.types_compatible
+       (Ast.TArrow ([Ast.TString; Ast.TInt], Ast.TInt))
+       (Ast.TArrow ([Ast.TInt; Ast.TInt], Ast.TInt))));
+  test_message "TArrow mismatch on return"
+    (not (Ast.types_compatible
+       (Ast.TArrow ([Ast.TInt], Ast.TInt))
+       (Ast.TArrow ([Ast.TInt], Ast.TString))));
+
+  (* ── Semantic_type.to_ast_typ ────────────────────────────── *)
+  Printf.printf "Semantic_type.to_ast_typ:\n";
+
+  test_message "TInt maps to Ast.TInt"
+    (Semantic_type.to_ast_typ Semantic_type.TInt = Ast.TInt);
+  test_message "TFloat maps to Ast.TFloat"
+    (Semantic_type.to_ast_typ Semantic_type.TFloat = Ast.TFloat);
+  test_message "TString maps to Ast.TString"
+    (Semantic_type.to_ast_typ Semantic_type.TString = Ast.TString);
+  test_message "TBool maps to Ast.TBool"
+    (Semantic_type.to_ast_typ Semantic_type.TBool = Ast.TBool);
+  test_message "TAny maps to Ast.TCustom \"Any\""
+    (Semantic_type.to_ast_typ Semantic_type.TAny = Ast.TCustom "Any");
+  test_message "TUnknown maps to Ast.TCustom \"Any\""
+    (Semantic_type.to_ast_typ Semantic_type.TUnknown = Ast.TCustom "Any");
+  test_message "TFunction maps to Ast.TArrow"
+    (match Semantic_type.to_ast_typ (Semantic_type.TFunction ([("a", Semantic_type.TInt)], Semantic_type.TString)) with
+     | Ast.TArrow ([Ast.TInt], Ast.TString) -> true
+     | _ -> false);
+
+  (* ── Annotation check via Check_utils ──────────────────── *)
+  Printf.printf "Annotation check (via hook):\n";
+  let tmp_file = Filename.temp_file "t_type_test" ".t" in
+  let oc = open_out tmp_file in
+  output_string oc "a: Int = 42\nb: Int = \"oops\"\n";
+  close_out oc;
+  let env = Packages.init_env () in
+  (* Test that the hook produces diagnostics *)
+  Check_utils.extra_diagnostics_hook := (fun filename ->
+    try
+      let ch = open_in filename in
+      let content = really_input_string ch (in_channel_length ch) in
+      close_in ch;
+      let lexbuf = Lexing.from_string content in
+      lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+      let program = Parser.program Lexer.token lexbuf in
+      let scope = Symbol_table.create_scope () in
+      Symbol_table.register_keywords scope;
+      let _ = Analyzer.analyze program scope in
+      let diags = ref [] in
+      List.iter (fun (stmt : Ast.stmt) ->
+        match stmt.node with
+        | Ast.Assignment { name; typ = Some annotation; _ } ->
+            let inferred_ast = match Symbol_table.lookup scope name with
+              | Some { Symbol_table.typ = Some st; _ } -> Semantic_type.to_ast_typ st
+              | _ -> Ast.TCustom "Any"
+            in
+            if not (Ast.types_compatible inferred_ast annotation) then
+              diags := { Diagnostics.diag_id = "test"; diag_error_class = Diagnostics.Type_error;
+                         diag_severity = Warning; diag_phase = Schema; diag_node_id = None;
+                         diag_node_lang = None; diag_file = Some filename; diag_line = None;
+                         diag_column = None; diag_end_line = None; diag_end_column = None;
+                         diag_message = Printf.sprintf "Variable `%s` annotated as %s, but expression infers to %s."
+                           name (Ast.Utils.typ_to_string annotation) (Ast.Utils.typ_to_string inferred_ast);
+                         diag_expected = None; diag_actual = None; diag_caused_by = [];
+                         diag_suggested_fix = Diagnostics.NoFix } :: !diags
+        | _ -> ()
+      ) program;
+      List.rev !diags
+    with _ -> []);
+  let cr = Check_utils.run_check Typecheck.Strict tmp_file env in
+  let diags = Diagnostics.check_result_entries cr in
+  test_message "run_check with hook: emits annotation warning for mismatch"
+    (List.exists (fun d ->
+      d.Diagnostics.diag_error_class = Diagnostics.Type_error &&
+      d.Diagnostics.diag_severity = Warning &&
+      d.Diagnostics.diag_message |> fun s ->
+        String.length s > 10 && String.sub s 0 10 = "Variable `") diags);
+  (* Reset hook *)
+  Check_utils.extra_diagnostics_hook := (fun _ -> []);
+  let cr2 = Check_utils.run_check Typecheck.Strict tmp_file env in
+  let diags2 = Diagnostics.check_result_entries cr2 in
+  test_message "run_check without hook: no annotation warnings"
+    (not (List.exists (fun d ->
+      d.Diagnostics.diag_severity = Warning && d.Diagnostics.diag_message |> fun s ->
+        String.length s > 10 && String.sub s 0 10 = "Variable `") diags2));
+  Sys.remove tmp_file;
+
   print_newline ()
