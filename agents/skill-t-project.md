@@ -189,9 +189,12 @@ then apply with `t fix`. Supported fix types carry a `confidence` field (`"high"
 
 ### ⚠️ Critical Rules for Agentic Check-Fix Loops
 
-1. **`t fix` is Not Idempotent:** `t fix` will mechanically insert code even if an identical correction was already applied in a previous step. You must re-run `t check` after every `t fix` and monitor the error count. If the error count does not decrease, **stop immediately** and do not run `t fix` again, otherwise you will corrupt the file.
-2. **Never Use `--watch`:** Running `t check --watch` will start an infinite loop monitoring file changes, which blocks execution and hangs the agent.
-3. **Schema Silencing on Unrecognized Verbs:** If the pipe chain uses a custom/unrecognized function (i.e. not standard `select`, `filter`, `mutate`, `arrange`, etc.), the schema compiler drops the schema to empty (`[]`). This disables subsequent column-reference checks downstream. Always verify column references manually when custom functions are introduced.
+Before running check-fix loops or applying mechanical fixes, you MUST read and follow the **Agent Check-Fix Loop Rules** defined in the project's root [AGENTS.md](file:///home/brodrigues/Documents/repos/tlang/AGENTS.md#agent-check-fix-loop-rules). 
+
+These rules contain critical constraints regarding:
+- The non-idempotency of `t fix` and how to prevent code corruption.
+- Avoiding `--watch` mode which hangs agent execution.
+- Schema silencing limitations on custom/unrecognized verbs.
 
 **After `t run`:** Run `t diff` (or `t diff --json` for structured agent output) to see what changed. This is free (uses Nix content hashes) and tells you whether your edit had the intended effect or cascaded downstream.
 
