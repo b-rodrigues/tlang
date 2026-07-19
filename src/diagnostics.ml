@@ -122,9 +122,18 @@ type suggested_fix =
   | NoFix
 let no_fix = NoFix
 
+(** Compute confidence for a Cast fix based on schema chain integrity.
+    When [chain_broken] is [true] (missing upstream column or custom verb
+    in the pipeline), the fix may not be applicable, so confidence drops
+    to [Medium]. When the chain is intact, the fix is deterministic. *)
 let confidence_for_cast ~chain_broken =
   if chain_broken then Medium else High
 
+(** Compute confidence for typo-based fixes (Rename_column, Suggest_identifier).
+    Scales with edit distance and match uniqueness:
+    - distance 1 + unique = [High]
+    - distance 2 + unique, or distance 1 + ambiguous = [Medium]
+    - everything else = [Low] *)
 let confidence_for_typo ~edit_distance ~is_unique =
   if edit_distance = 1 && is_unique then High
   else if edit_distance = 2 && is_unique then Medium

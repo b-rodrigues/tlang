@@ -245,6 +245,10 @@ let apply_add_node_arg ~file ~node ~arg =
   result
 
 let apply_fix ~file (fix : Diagnostics.suggested_fix) =
+  (* NOTE: t fix applies ALL non-NoFix suggestions regardless of confidence.
+     Confidence is informational for agents/tools to decide whether to auto-apply
+     or review first. The fix-kind filtering below (Suggest_identifier -> false,
+     Run_command -> false) is based on fix type, not confidence level. *)
   match fix with
   | Cast { column; cast_to; line; _ } ->
       (match line with

@@ -180,12 +180,14 @@ builds Python/R/Julia environments per node). Never trigger `t run` until `t che
 passes clean — you're wasting minutes on errors that could be caught in seconds.
 
 **When `t check --json` emits a `suggested_fix`:** Preview it with `t fix --dry-run`,
-then apply with `t fix`. Supported fix types carry a `confidence` field (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is highly deterministic or heuristic:
-- `Cast` (High confidence) — inserts a type coercion (`mutate($col = as.double($col))`)
-- `Rename_column` (High confidence) — renames `$old` to `$new` in column references
-- `Add_node_arg` (Medium confidence) — adds a missing argument (e.g. deserializer) to a node definition
-- `Suggest_identifier` (Medium confidence) — suggests spelling corrections for names
-- `Run_command` (Low confidence) — suggests shell commands
+then apply with `t fix`. Supported fix types carry a `confidence` field (`"high"`, `"medium"`, or `"low"`) computed dynamically from diagnostic context:
+- `Cast` — `"high"` when schema chain is intact, `"medium"` when broken (missing upstream column). Inserts a type coercion (`mutate($col = as.double($col))`)
+- `Rename_column` — `"high"` at edit distance 1 and unique, `"medium"` at distance 2, `"low"` at 3+. Renames `$old` to `$new` in column references
+- `Add_node_arg` — always `"medium"`. Adds a missing argument (e.g. deserializer) to a node definition
+- `Suggest_identifier` — scales with edit distance and uniqueness. Suggests spelling corrections for names
+- `Run_command` — always `"low"`. Suggests shell commands
+
+**Note:** `t fix` applies all non-`NoFix` suggestions regardless of confidence. Confidence is informational for you to decide whether to auto-apply or review first.
 
 ### ⚠️ Critical Rules for Agentic Check-Fix Loops
 

@@ -15,6 +15,7 @@
 - **Tier 1 CLI (`t check <file>`)**: Structural pipeline validation without triggering Nix builds. Catches parse errors, DAG cycles, dangling node references, arity errors, and built-in name resolution. Exit codes: 0=clean, 1=wire error, 2=schema error, 3=env error.
 - **Tier 2 Schema Validation (`t check --schema`)**: Static column-name and type propagation through the pipeline DAG. Validates column references against inferred upstream schemas, checks `expect()` type contracts, and reports contract violations with `Cast` suggested fixes.
 - **Structured JSON Diagnostics (`--json`)**: Machine-readable output for all tiers, with `schema_version`, `status`, `phase`, `tier`, and per-diagnostic `error_class` (stable enum), `severity`, `expected`, `actual`, `caused_by`, and `suggested_fix` fields. **Breaking change:** `file` and `span` (with `start` and `end`) are now nested inside the `node` sub-object. Designed for agent tooling.
+- **Dynamic confidence levels**: Every `suggested_fix` now carries a `confidence` field (`"high"`, `"medium"`, `"low"`) computed from diagnostic context. `Cast` is `"high"` when the schema chain is intact, drops to `"medium"` when broken. `Rename_column` and `Suggest_identifier` scale with edit distance and uniqueness. `Add_node_arg` is always `"medium"`, `Run_command` always `"low"`.
 - **`t_check(file, json, schema, env)` REPL function**: Invoke `t check` from within a T session.
 
 ### `t diff` — Content-Addressed Output Diffing
