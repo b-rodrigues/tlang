@@ -678,12 +678,14 @@ let check_type_annotations filename =
     let diags = ref [] in
     List.iter (fun (stmt : Ast.stmt) ->
       match stmt.node with
-      | Ast.Assignment { name; typ = Some annotation; expr; _ } ->
-          let inferred = Analyzer.infer_type scope expr in
-          let inferred_ast = Semantic_type.to_ast_typ inferred in
+      | Ast.Assignment { name; typ = Some annotation; _ } ->
+          let inferred_ast = match Symbol_table.lookup scope name with
+            | Some { Symbol_table.typ = Some st; _ } -> Semantic_type.to_ast_typ st
+            | _ -> Ast.TCustom "Any"
+          in
           if not (Ast.types_compatible inferred_ast annotation) then begin
             let expected = Ast.Utils.typ_to_string annotation in
-            let actual = Semantic_type.to_string inferred in
+            let actual = Ast.Utils.typ_to_string inferred_ast in
             let line = match stmt.loc with
               | Some l -> Some l.Ast.line
               | None -> None
@@ -716,7 +718,9 @@ let check_type_annotations filename =
       | _ -> ()
     ) program;
     List.rev !diags
-  with _ -> []
+  with exn ->
+    Printf.eprintf "Warning: type annotation check skipped: %s\n" (Printexc.to_string exn);
+    []
 
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
   Packages.ensure_docs_loaded ();

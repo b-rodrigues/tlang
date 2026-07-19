@@ -42,6 +42,7 @@ let rec infer_type scope expr =
       infer_type scope data_expr
   | Call { fn = { node = Var "select"; _ }; args = (None, data_expr) :: rest; _ } ->
       let base_ty = infer_type scope data_expr in
+      List.iter (fun (_, e) -> ignore (infer_type scope e)) rest;
       let selected = List.filter_map (fun (_, e) ->
         match e.node with Value (VString col_name) -> Some col_name | _ -> None
       ) rest in
@@ -185,7 +186,8 @@ let rec infer_type scope expr =
       ignore (infer_type scope left);
       ignore (infer_type scope right);
       TUnknown
-  | UnOp { op = Not; _ } ->
+  | UnOp { op = Not; operand } ->
+      ignore (infer_type scope operand);
       TBool
   | UnOp { op = Neg; operand } ->
       infer_type scope operand

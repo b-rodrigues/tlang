@@ -2973,7 +2973,8 @@ and eval_dot_access_val env_ref target_val field =
             | None -> VNA NAGeneric)
        | _ -> VError err)
   | VNA _ -> Error.type_error "Cannot access field on NA."
-  | other -> Error.type_mismatch ~expected:"a value with field access" ~actual:(Utils.type_name other) (Printf.sprintf "Cannot access field `%s`" field)
+  | other -> Error.make_error TypeError
+      (Printf.sprintf "Cannot access field `%s` on value of type %s" field (Utils.type_name other))
 
 and lambda_arity_error params args =
   Error.arity_error (List.length params) (List.length args)
