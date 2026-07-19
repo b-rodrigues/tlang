@@ -40,7 +40,7 @@ We have successfully implemented dynamic, evidence-based confidence scores for a
 All tests were run and passed successfully using `dune runtest`.
 
 ### 1. Verification of Truth Tables & Confidence Degradation
-We added a comprehensive suite of unit tests in [test_check.ml](file:///home/brodrigues/Documents/repos/tlang/tests/test_check.ml) which asserts:
+We added a comprehensive suite of unit tests in [test_check.ml](./tests/test_check.ml) which asserts:
 - **`Cast` confidence mapping:** Unbroken chain $\rightarrow$ `high`; broken chain $\rightarrow$ `medium`.
 - **`Rename_column` confidence matrix:** All combinations of `edit_distance` and `is_unique` map precisely to their expected confidence value (`high`, `medium`, or `low`).
 

@@ -45,13 +45,13 @@ The centralized helper functions in `diagnostics.ml` will map compiler signals t
 
 ### AST Layer
 
-#### [MODIFY] [ast.ml](file:///home/brodrigues/Documents/repos/tlang/src/ast.ml)
+#### [MODIFY] [ast.ml](./src/ast.ml)
 - Add `suggest_names_with_scores : string -> string list -> (string * int) list` returning all matches within Levenshtein range, sorted by distance.
 - Re-implement `suggest_name` in terms of `suggest_names_with_scores` to ensure 100% backward compatibility with `eval.ml`.
 
 ### Diagnostics Layer
 
-#### [MODIFY] [diagnostics.ml](file:///home/brodrigues/Documents/repos/tlang/src/diagnostics.ml)
+#### [MODIFY] [diagnostics.ml](./src/diagnostics.ml)
 - Define `type confidence = High | Medium | Low`.
 - Update `type suggested_fix` constructor payloads to include `confidence` and their respective signal fields:
   ```ocaml
@@ -74,25 +74,25 @@ The centralized helper functions in `diagnostics.ml` will map compiler signals t
 
 ### Schema Checking Layer
 
-#### [MODIFY] [schema_check.ml](file:///home/brodrigues/Documents/repos/tlang/src/schema_check.ml)
+#### [MODIFY] [schema_check.ml](./src/schema_check.ml)
 - Track schema chain integrity: `chain_broken` is set to `true` if a schema was derived downstream of any unrecognized or custom function (which drops schema propagation to `[]`).
 - Update `Cast` and `Rename_column` fix instantiation to use the new smart constructors, passing calculated signal metrics.
 
 ### Mechanical Fix Application Layer
 
-#### [MODIFY] [fix.ml](file:///home/brodrigues/Documents/repos/tlang/src/fix.ml)
+#### [MODIFY] [fix.ml](./src/fix.ml)
 - Update `suggested_fix` pattern matching in `apply_fix` and `apply_fixes` to match the new constructor payloads.
 
-#### [MODIFY] [t_fix.ml](file:///home/brodrigues/Documents/repos/tlang/src/packages/pipeline/t_fix.ml)
+#### [MODIFY] [t_fix.ml](./src/packages/pipeline/t_fix.ml)
 - Update `suggested_fix` pattern matching in `format_fix_result` to match the new constructor payloads.
 
 ### Unit Tests
 
-#### [MODIFY] [test_check.ml](file:///home/brodrigues/Documents/repos/tlang/tests/test_check.ml)
+#### [MODIFY] [test_check.ml](./tests/test_check.ml)
 - Update test cases constructing `suggested_fix` records.
 - Add test cases explicitly checking that confidence degrades correctly under chain-broken or ambiguous typo scenarios.
 
-#### [MODIFY] [test_fix.ml](file:///home/brodrigues/Documents/repos/tlang/tests/test_fix.ml)
+#### [MODIFY] [test_fix.ml](./tests/test_fix.ml)
 - Update test cases constructing `suggested_fix` records.
 
 ---

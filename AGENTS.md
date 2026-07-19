@@ -523,12 +523,12 @@ Safe changes (no approval needed):
 
 T uses a single source of truth for its version. To release a new version:
 
-1.  **Bump the Version**: Update the version string in the root [VERSION](file:///home/brodrigues/Documents/repos/tlang/VERSION) file (e.g., `0.51.1`).
+1.  **Bump the Version**: Update the version string in the root [VERSION](./VERSION) file (e.g., `0.51.1`).
 2.  **Sync Documentation**: Run the synchronization script to propagate the version to READMEs and documentation:
     ```bash
     ./scripts/sync_version.sh
     ```
-3.  **Update Changelog**: Add the release notes and date to [docs/changelog.md](file:///home/brodrigues/Documents/repos/tlang/docs/changelog.md).
+3.  **Update Changelog**: Add the release notes and date to [docs/changelog.md](./docs/changelog.md).
 4.  **Commit and Push**:
     ```bash
     git add .

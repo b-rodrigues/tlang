@@ -189,7 +189,7 @@ then apply with `t fix`. Supported fix types carry a `confidence` field (`"high"
 
 ### ⚠️ Critical Rules for Agentic Check-Fix Loops
 
-Before running check-fix loops or applying mechanical fixes, you MUST read and follow the **Agent Check-Fix Loop Rules** defined in the project's root [AGENTS.md](file:///home/brodrigues/Documents/repos/tlang/AGENTS.md#agent-check-fix-loop-rules). 
+Before running check-fix loops or applying mechanical fixes, you MUST read and follow the **Agent Check-Fix Loop Rules** defined in the project's root [AGENTS.md](../AGENTS.md#agent-check-fix-loop-rules). 
 
 These rules contain critical constraints regarding:
 - The non-idempotency of `t fix` and how to prevent code corruption.

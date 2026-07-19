@@ -497,6 +497,7 @@ let validate_col_refs ~node_name ~(file : string option) ~schema ?(rename_mappin
         let suggested_fix = match List.assoc_opt col rename_mapping with
           | Some new_name ->
               let line = match expr.loc with Some l -> Some l.line | None -> None in
+              (* structural rename, not a typo match — distance/uniqueness fields unused *)
               Diagnostics.make_rename_column_fix ~old_name:col ~new_name ~edit_distance:0 ~is_unique:true ~confidence:High ~target_node:node_name ?file ?line ()
           | None -> Diagnostics.no_fix
         in
@@ -567,10 +568,10 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
       let expr = try List.assoc name p_exprs with Not_found -> mk_expr (Value (VNA NAGeneric)) in
 
       (* Determine if any dependency's schema was broken *)
-      let dep_is_broken = match dep_of name with
-        | [] -> false
-        | primary :: _ ->
-            (try Hashtbl.find broken_nodes primary with Not_found -> false)
+      let dep_is_broken =
+        List.exists (fun dep ->
+          try Hashtbl.find broken_nodes dep with Not_found -> false
+        ) (dep_of name)
       in
 
       (* Determine if the current node expression contains unrecognized verbs *)
@@ -597,14 +598,19 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
               (match read_csv_schema full_path with
                | Some cols -> Some cols
                | None ->
-                   let project_root = Builder_utils.get_project_root () in
-                   let proj_path = Filename.concat project_root path in
-                   match read_csv_schema proj_path with
-                   | Some cols -> Some cols
-                   | None ->
-                       match read_csv_schema path with
-                       | Some cols -> Some cols
-                       | None -> None)
+                   let proj_schema =
+                     try
+                       let project_root = Builder_utils.get_project_root () in
+                       let proj_path = Filename.concat project_root path in
+                       read_csv_schema proj_path
+                     with _ -> None
+                   in
+                   (match proj_schema with
+                    | Some cols -> Some cols
+                    | None ->
+                        match read_csv_schema path with
+                        | Some cols -> Some cols
+                        | None -> None))
           | None -> None
         else None
       in
