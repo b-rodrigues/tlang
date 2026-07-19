@@ -428,13 +428,7 @@ let validate_contracts ~node_name ~file contracts output_schema =
                diag_caused_by = [];
                diag_suggested_fix =
                  if List.mem expected_type ["int"; "double"; "string"; "bool"]
-                 then Diagnostics.Cast {
-                   column = col;
-                   cast_to = expected_type;
-                   target_node = Some node_name;
-                   file;
-                   line = None;
-                 }
+                 then Diagnostics.make_cast_fix ~column:col ~cast_to:expected_type ~chain_broken:false ~target_node:node_name ?file ()
                  else NoFix;
              } : Diagnostics.diagnostic) :: !diags
          | _ -> ())
@@ -491,13 +485,9 @@ let validate_col_refs ~node_name ~(file : string option) ~schema ?(rename_mappin
       if schema_has_col col schema then None
       else
         let suggested_fix = match List.assoc_opt col rename_mapping with
-          | Some new_name -> Diagnostics.Rename_column {
-              old_name = col;
-              new_name;
-              target_node = Some node_name;
-              file;
-              line = (match expr.loc with Some l -> Some l.line | None -> None);
-            }
+          | Some new_name ->
+              let line = match expr.loc with Some l -> Some l.line | None -> None in
+              Diagnostics.make_rename_column_fix ~old_name:col ~new_name ~edit_distance:1 ~is_unique:true ~target_node:node_name ?file ?line ()
           | None -> NoFix
         in
         Some (Diagnostics.{
@@ -634,13 +624,9 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
             diag_caused_by = [];
             diag_suggested_fix =
               if List.mem expected_type ["int"; "double"; "string"; "bool"]
-              then Diagnostics.Cast {
-                column = col_name;
-                cast_to = expected_type;
-                target_node = Some name;
-                file = Some file;
-                line = (match expr.loc with Some l -> Some l.line | None -> None);
-              }
+              then
+                let line = match expr.loc with Some l -> Some l.line | None -> None in
+                Diagnostics.make_cast_fix ~column:col_name ~cast_to:expected_type ~chain_broken:false ~target_node:name ?file:(Some file) ?line ()
               else NoFix;
           } : Diagnostics.diagnostic) :: !diagnostics
         ) mismatches

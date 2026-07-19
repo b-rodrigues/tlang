@@ -149,13 +149,13 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   Printf.printf "\nsuggested_fix roundtrip:\n";
   let test_roundtrip () =
     let fixes : Diagnostics.suggested_fix list = [
-      Cast { column = "x"; cast_to = "double"; target_node = Some "clean"; file = Some "test.t"; line = Some 5 };
-      Cast { column = "y"; cast_to = "string"; target_node = None; file = Some "test.t"; line = Some 6 };
-      Rename_column { old_name = "a"; new_name = "b"; target_node = Some "step2"; file = Some "test.t"; line = None };
-      Add_node_arg { node = "filter"; arg = "na_rm=true"; target_node = None; file = Some "test.t"; line = None };
-      Suggest_identifier { name = "prnt"; suggestion = "print"; target_node = None; file = Some "test.t"; line = None };
-      Run_command { command = "t init ."; description = "Initialize tproject.toml"; target_node = None; file = Some "test.t"; line = None };
-      NoFix;
+      Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:false ?target_node:(Some "clean") ?file:(Some "test.t") ?line:(Some 5) ();
+      Diagnostics.make_cast_fix ~column:"y" ~cast_to:"string" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 6) ();
+      Diagnostics.make_rename_column_fix ~old_name:"a" ~new_name:"b" ~edit_distance:1 ~is_unique:true ?target_node:(Some "step2") ?file:(Some "test.t") ();
+      Diagnostics.make_add_node_arg_fix ~node:"filter" ~arg:"na_rm=true" ?file:(Some "test.t") ();
+      Diagnostics.make_suggest_identifier_fix ~name:"prnt" ~suggestion:"print" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ();
+      Diagnostics.make_run_command_fix ~command:"t init ." ~description:"Initialize tproject.toml" ?file:(Some "test.t") ();
+      Diagnostics.NoFix;
     ] in
     let all_ok = List.for_all (fun fix ->
       let json = Diagnostics.suggested_fix_to_yojson fix in
@@ -254,7 +254,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let oc = open_out tmp in
     output_string oc "raw = node(\n  command = read_csv(\"data.csv\"),\n  runtime = T\n)\n";
     close_out oc;
-    let r = Fix.apply_fix ~file:tmp (Diagnostics.Add_node_arg { node = "raw"; arg = "serializer = ^csv"; target_node = Some "raw"; file = Some tmp; line = None }) in
+    let r = Fix.apply_fix ~file:tmp (Diagnostics.make_add_node_arg_fix ~node:"raw" ~arg:"serializer = ^csv" ?target_node:(Some "raw") ?file:(Some tmp) ()) in
     let ch = open_in tmp in
     let content = really_input_string ch (in_channel_length ch) in
     close_in ch;
@@ -272,7 +272,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let oc = open_out tmp in
     output_string oc "other = node(\n  command = read_csv(\"data.csv\")\n)\n";
     close_out oc;
-    let r = Fix.apply_fix ~file:tmp (Diagnostics.Add_node_arg { node = "nonexistent"; arg = "serializer = ^csv"; target_node = None; file = Some tmp; line = None }) in
+    let r = Fix.apply_fix ~file:tmp (Diagnostics.make_add_node_arg_fix ~node:"nonexistent" ~arg:"serializer = ^csv" ?file:(Some tmp) ()) in
     Sys.remove tmp;
     check "apply_fix returns false for non-existent node" (r = false)
   in
@@ -287,15 +287,15 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_end_line = None; diag_end_column = None;
       diag_message = "first"; diag_expected = None; diag_actual = None;
       diag_caused_by = [];
-      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 3 };
+      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 3) ();
     } in
     let d2 = { d1 with diag_id = "T0002"; diag_line = Some 10;
       diag_message = "second";
-      diag_suggested_fix = Cast { column = "y"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 10 };
+      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"y" ~cast_to:"double" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 10) ();
     } in
     let d3 = { d1 with diag_id = "T0003"; diag_line = Some 5;
       diag_message = "third";
-      diag_suggested_fix = Cast { column = "z"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 5 };
+      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"z" ~cast_to:"double" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 5) ();
     } in
     let sorted = Fix.sort_fixes_by_descending_line [d1; d2; d3] in
     let lines = List.filter_map (fun d -> d.Diagnostics.diag_line) sorted in
@@ -332,15 +332,15 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_end_line = None; diag_end_column = None;
       diag_message = "Column 'x' expected double, got int";
       diag_expected = None; diag_actual = None; diag_caused_by = [];
-      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; target_node = None; file = Some "test.t"; line = Some 5 };
+      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 5) ();
     } in
     let d2 = { d1 with diag_id = "T1002"; diag_line = Some 8;
       diag_message = "Column 'y' expected string, got int";
-      diag_suggested_fix = Cast { column = "y"; cast_to = "string"; target_node = None; file = Some "test.t"; line = Some 8 };
+      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"y" ~cast_to:"string" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 8) ();
     } in
     let d3 = { d1 with diag_id = "T1003"; diag_line = Some 12;
       diag_message = "Node `pyn` depends on `rn` but has no explicit deserializer";
-      diag_suggested_fix = Add_node_arg { node = "pyn"; arg = "deserializer = ^csv"; target_node = Some "pyn"; file = Some "test.t"; line = None };
+      diag_suggested_fix = Diagnostics.make_add_node_arg_fix ~node:"pyn" ~arg:"deserializer = ^csv" ?file:(Some "test.t") ();
     } in
     let fixes = [d1; d2; d3] in
     let result = Fix.apply_fixes ~dry_run:true ~default_file:"test.t" fixes in
@@ -363,7 +363,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_end_line = None; diag_end_column = None;
       diag_message = "type mismatch"; diag_expected = None; diag_actual = None;
       diag_caused_by = [];
-      diag_suggested_fix = Cast { column = "x"; cast_to = "double"; target_node = None; file = Some tmp_cast; line = Some 3 };
+      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:false ?file:(Some tmp_cast) ?line:(Some 3) ();
     } in
     let result = Fix.apply_fixes ~dry_run:false ~default_file:tmp_cast [d1] in
     check "non-dry-run: applied = 1" (result.Fix.applied = 1);

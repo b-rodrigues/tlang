@@ -101,13 +101,52 @@ let error_class_of_string = function
   | "invalid_expect_placement" -> Invalid_expect_placement
   | _ -> Unknown_error
 
+type confidence = High | Medium | Low
+
+let confidence_to_string = function
+  | High -> "high"
+  | Medium -> "medium"
+  | Low -> "low"
+
+let confidence_of_string = function
+  | "high" -> High
+  | "medium" -> Medium
+  | "low" | _ -> Low
+
 type suggested_fix =
-  | Cast of { column: string; cast_to: string; target_node: string option; file: string option; line: int option }
-  | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option }
-  | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option }
-  | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option }
-  | Run_command of { command: string; description: string; target_node: string option; file: string option; line: int option }
+  | Cast of { column: string; cast_to: string; target_node: string option; file: string option; line: int option; chain_broken: bool; confidence: confidence }
+  | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
+  | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option; confidence: confidence }
+  | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
+  | Run_command of { command: string; description: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | NoFix
+
+let confidence_for_cast ~chain_broken =
+  if chain_broken then Medium else High
+
+let confidence_for_typo ~edit_distance ~is_unique =
+  if edit_distance = 1 && is_unique then High
+  else if edit_distance = 2 && is_unique then Medium
+  else if edit_distance = 1 then Medium
+  else Low
+
+let make_cast_fix ~column ~cast_to ~chain_broken ?target_node ?file ?line () =
+  let confidence = confidence_for_cast ~chain_broken in
+  Cast { column; cast_to; target_node; file; line; chain_broken; confidence }
+
+let make_rename_column_fix ~old_name ~new_name ~edit_distance ~is_unique ?target_node ?file ?line () =
+  let confidence = confidence_for_typo ~edit_distance ~is_unique in
+  Rename_column { old_name; new_name; target_node; file; line; edit_distance; is_unique; confidence }
+
+let make_suggest_identifier_fix ~name ~suggestion ~edit_distance ~is_unique ?target_node ?file ?line () =
+  let confidence = confidence_for_typo ~edit_distance ~is_unique in
+  Suggest_identifier { name; suggestion; target_node; file; line; edit_distance; is_unique; confidence }
+
+let make_add_node_arg_fix ~node ~arg ?target_node ?file ?line () =
+  Add_node_arg { node; arg; target_node; file; line; confidence = Medium }
+
+let make_run_command_fix ~command ~description ?target_node ?file ?line () =
+  Run_command { command; description; target_node; file; line; confidence = Low }
 
 type diagnostic = {
   diag_id : string;
@@ -166,7 +205,7 @@ let opt_int_to_yojson = function
   | None -> `Null
 
 let suggested_fix_to_yojson = function
-  | Cast { column; cast_to; target_node; file; line } ->
+  | Cast { column; cast_to; target_node; file; line; chain_broken = _; confidence } ->
       `Assoc [
         ("kind", `String "cast");
         ("column", `String column);
@@ -174,9 +213,9 @@ let suggested_fix_to_yojson = function
         ("target_node", opt_string_to_yojson target_node);
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
-        ("confidence", `String "high");
+        ("confidence", `String (confidence_to_string confidence));
       ]
-  | Rename_column { old_name; new_name; target_node; file; line } ->
+  | Rename_column { old_name; new_name; target_node; file; line; edit_distance = _; is_unique = _; confidence } ->
       `Assoc [
         ("kind", `String "rename_column");
         ("old_name", `String old_name);
@@ -184,9 +223,9 @@ let suggested_fix_to_yojson = function
         ("target_node", opt_string_to_yojson target_node);
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
-        ("confidence", `String "high");
+        ("confidence", `String (confidence_to_string confidence));
       ]
-  | Add_node_arg { node; arg; target_node; file; line } ->
+  | Add_node_arg { node; arg; target_node; file; line; confidence } ->
       `Assoc [
         ("kind", `String "add_node_arg");
         ("node", `String node);
@@ -194,9 +233,9 @@ let suggested_fix_to_yojson = function
         ("target_node", opt_string_to_yojson target_node);
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
-        ("confidence", `String "medium");
+        ("confidence", `String (confidence_to_string confidence));
       ]
-  | Suggest_identifier { name; suggestion; target_node; file; line } ->
+  | Suggest_identifier { name; suggestion; target_node; file; line; edit_distance = _; is_unique = _; confidence } ->
       `Assoc [
         ("kind", `String "suggest_identifier");
         ("name", `String name);
@@ -204,9 +243,9 @@ let suggested_fix_to_yojson = function
         ("target_node", opt_string_to_yojson target_node);
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
-        ("confidence", `String "medium");
+        ("confidence", `String (confidence_to_string confidence));
       ]
-  | Run_command { command; description; target_node; file; line } ->
+  | Run_command { command; description; target_node; file; line; confidence } ->
       `Assoc [
         ("kind", `String "run_command");
         ("command", `String command);
@@ -214,7 +253,7 @@ let suggested_fix_to_yojson = function
         ("target_node", opt_string_to_yojson target_node);
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
-        ("confidence", `String "low");
+        ("confidence", `String (confidence_to_string confidence));
       ]
   | NoFix -> `Null
 
@@ -239,6 +278,11 @@ let suggested_fix_of_yojson json =
       let file = json |> member "file" |> opt_string_of_yojson in
       let line = json |> member "line" |> opt_int_of_yojson in
       let target_node = json |> member "target_node" |> opt_string_of_yojson in
+      let confidence =
+        match json |> member "confidence" |> opt_string_of_yojson with
+        | Some c -> confidence_of_string c
+        | None -> Low
+      in
       match kind with
       | "cast" ->
           Cast {
@@ -246,6 +290,9 @@ let suggested_fix_of_yojson json =
             cast_to = json |> member "cast_to" |> to_string;
             target_node;
             file; line;
+            (* Signal fields are not recoverable from JSON; safe defaults are assigned *)
+            chain_broken = false;
+            confidence;
           }
       | "rename_column" ->
           Rename_column {
@@ -253,6 +300,10 @@ let suggested_fix_of_yojson json =
             new_name = json |> member "new_name" |> to_string;
             target_node;
             file; line;
+            (* Signal fields are not recoverable from JSON; safe defaults are assigned *)
+            edit_distance = 0;
+            is_unique = true;
+            confidence;
           }
       | "add_node_arg" ->
           Add_node_arg {
@@ -260,6 +311,7 @@ let suggested_fix_of_yojson json =
             arg = json |> member "arg" |> to_string;
             target_node;
             file; line;
+            confidence;
           }
       | "suggest_identifier" ->
           Suggest_identifier {
@@ -267,6 +319,10 @@ let suggested_fix_of_yojson json =
             suggestion = json |> member "suggestion" |> to_string;
             target_node;
             file; line;
+            (* Signal fields are not recoverable from JSON; safe defaults are assigned *)
+            edit_distance = 0;
+            is_unique = true;
+            confidence;
           }
       | "run_command" ->
           Run_command {
@@ -274,6 +330,7 @@ let suggested_fix_of_yojson json =
             description = json |> member "description" |> to_string;
             target_node;
             file; line;
+            confidence;
           }
       | _ -> NoFix
 
@@ -449,19 +506,30 @@ let known_identifiers_lower_table =
   tbl
 
 (** Extract the variable name and an optional correction from an error message.
-    Returns (name, suggestion option). *)
+    Returns (name, (suggestion * edit_distance * is_unique) option). *)
 let extract_name_and_suggestion msg =
-  let re = Str.regexp "Variable '\\([^']+\\)' is not defined" in
+  let re_var = Str.regexp "Variable '\\([^']+\\)' is not defined" in
+  let re_name = Str.regexp "Name `\\([^`]+\\)` is not defined" in
   try
-    ignore (Str.search_forward re msg 0);
-    let name = Str.matched_group 1 msg in
+    let name =
+      if (try ignore (Str.search_forward re_var msg 0); true with Not_found -> false) then
+        Str.matched_group 1 msg
+      else if (try ignore (Str.search_forward re_name msg 0); true with Not_found -> false) then
+        Str.matched_group 1 msg
+      else
+        raise Not_found
+    in
     let lower_name = String.lowercase_ascii name in
     let candidates = Hashtbl.fold (fun lk _ acc -> lk :: acc) known_identifiers_lower_table [] in
-    let suggestion = match Ast.suggest_name lower_name candidates with
-      | Some lower_match -> Some (Hashtbl.find known_identifiers_lower_table lower_match)
-      | None -> None
-    in
-    (name, suggestion)
+    match Ast.suggest_names_with_scores lower_name candidates with
+    | (best_match, dist) :: runner_up :: _ ->
+        let suggestion = Hashtbl.find known_identifiers_lower_table best_match in
+        let is_unique = snd runner_up > dist in
+        (name, Some (suggestion, dist, is_unique))
+    | [(best_match, dist)] ->
+        let suggestion = Hashtbl.find known_identifiers_lower_table best_match in
+        (name, Some (suggestion, dist, true))
+    | [] -> (name, None)
   with Not_found -> ("", None)
 
 let of_verror ?file (err : Ast.error_info) : diagnostic =
@@ -476,14 +544,14 @@ let of_verror ?file (err : Ast.error_info) : diagnostic =
         (match extract_cross_runtime_info err.message with
          | Some (_dep_runtime, serializer) ->
              let arg = "deserializer = " ^ serializer in
-             Add_node_arg { node = (match node_name with Some n -> n | None -> "");
-                            arg; target_node = node_name; file; line = None }
+             let node = match node_name with Some n -> n | None -> "" in
+             make_add_node_arg_fix ~node ~arg ?target_node:node_name ?file ()
          | None -> NoFix)
     | NameError ->
-        let (name, suggestion) = extract_name_and_suggestion err.message in
-        (match suggestion with
-         | Some s ->
-             Suggest_identifier { name; suggestion = s; target_node = node_name; file; line = None }
+        let (name, suggestion_info) = extract_name_and_suggestion err.message in
+        (match suggestion_info with
+         | Some (s, edit_distance, is_unique) ->
+             make_suggest_identifier_fix ~name ~suggestion:s ~edit_distance ~is_unique ?target_node:node_name ?file ()
          | None -> NoFix)
     | _ -> NoFix
   in

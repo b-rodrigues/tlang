@@ -1181,13 +1181,16 @@ let levenshtein s t =
 (** Find the closest matching name from a list of candidates.
     Returns Some name if there is a match within a reasonable edit distance.
     The threshold is max(2, len/3) — allowing up to ~33% character changes. *)
-let suggest_name name candidates =
+let suggest_names_with_scores name candidates =
   let max_dist = max 2 (String.length name / 3) in
   let scored = List.filter_map (fun c ->
     let d = levenshtein name c in
     if d > 0 && d <= max_dist then Some (c, d) else None
   ) candidates in
-  match List.sort (fun (_, d1) (_, d2) -> compare d1 d2) scored with
+  List.sort (fun (_, d1) (_, d2) -> compare d1 d2) scored
+
+let suggest_name name candidates =
+  match suggest_names_with_scores name candidates with
   | (best, _) :: _ -> Some best
   | [] -> None
 

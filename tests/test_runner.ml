@@ -165,7 +165,9 @@ let () =
 
   (* t check / Diagnostics tests *)
   Test_check.run_tests pass_count fail_count failures eval_string eval_string_env test;
+  flush stdout;
   Test_fix.run_tests pass_count fail_count failures eval_string eval_string_env test;
+  flush stdout;
 
   (* NDJSON streaming tests *)
   Test_ndjson.run_tests pass_count fail_count failures eval_string eval_string_env test;
