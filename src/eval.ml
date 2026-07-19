@@ -1031,7 +1031,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
          | VNA _ -> Error.na_predicate_error "Cannot use NA as a condition"
          | VBool true -> eval_expr env_ref then_
          | VBool false -> eval_expr env_ref else_
-         | _ -> make_error TypeError ("If condition must be Bool, got " ^ Utils.type_name cond_val))
+         | _ -> Error.type_mismatch ~expected:"Bool" ~actual:(Utils.type_name cond_val) "`if` condition")
     | Match { scrutinee; cases } ->
         eval_match env_ref scrutinee cases
 
@@ -2973,7 +2973,8 @@ and eval_dot_access_val env_ref target_val field =
             | None -> VNA NAGeneric)
        | _ -> VError err)
   | VNA _ -> Error.type_error "Cannot access field on NA."
-  | other -> Error.type_error (Printf.sprintf "Cannot access field `%s` on %s." field (Utils.type_name other))
+  | other -> Error.make_error TypeError
+      (Printf.sprintf "Cannot access field `%s` on value of type %s" field (Utils.type_name other))
 
 and lambda_arity_error params args =
   Error.arity_error (List.length params) (List.length args)
@@ -3327,8 +3328,8 @@ and eval_call env_ref fn_val raw_args =
             (match return_type with
              | Some t when not (Error.is_error_value result) && not (Ast.is_compatible result t) ->
                  let expected = Ast.Utils.typ_to_string t in
-                 let got = Ast.Utils.type_name result in
-                 Error.type_error (Printf.sprintf "Function returned %s, but expected %s" got expected)
+                 let actual = Ast.Utils.type_name result in
+                 Error.type_mismatch ~expected ~actual "Function return value"
              | _ -> result)
   in
 
@@ -3474,9 +3475,9 @@ and eval_binop env_ref op left right =
             | VError _ as e -> e
             | VBool b -> VBool b
             | VNA _ -> Error.na_predicate_error "Cannot use NA as a condition in &&"
-            | _ -> make_error TypeError ("Right operand of && must be Bool, got " ^ Utils.type_name rval))
+             | _ -> Error.type_mismatch ~expected:"Bool" ~actual:(Utils.type_name rval) "Right operand of `&&`")
        | VNA _ -> Error.na_predicate_error "Cannot use NA as a condition in &&"
-       | _ -> make_error TypeError ("Left operand of && must be Bool, got " ^ Utils.type_name lval))
+        | _ -> Error.type_mismatch ~expected:"Bool" ~actual:(Utils.type_name lval) "Left operand of `&&`")
   | Or ->
       let lval = eval_expr env_ref left in
       (match lval with
@@ -3488,9 +3489,9 @@ and eval_binop env_ref op left right =
             | VError _ as e -> e
             | VBool b -> VBool b
             | VNA _ -> Error.na_predicate_error "Cannot use NA as a condition in ||"
-            | _ -> make_error TypeError ("Right operand of || must be Bool, got " ^ Utils.type_name rval))
+             | _ -> Error.type_mismatch ~expected:"Bool" ~actual:(Utils.type_name rval) "Right operand of `||`")
        | VNA _ -> Error.na_predicate_error "Cannot use NA as a condition in ||"
-       | _ -> make_error TypeError ("Left operand of || must be Bool, got " ^ Utils.type_name lval))
+        | _ -> Error.type_mismatch ~expected:"Bool" ~actual:(Utils.type_name lval) "Left operand of `||`")
   (* Membership Operator *)
   | In ->
       let lval = Utils.unwrap_value (eval_expr env_ref left) in
@@ -3578,7 +3579,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
               | VShellResult sr -> print_string sr.sr_stdout; flush stdout; ((VNA NAGeneric), !env_ref)
               | _ -> (v, !env_ref))
          | _ -> (v, !env_ref))
-    | Assignment { name; expr; _ } ->
+    | Assignment { name; typ; expr; _ } ->
         if Import_registry.find_origin env name = Some Import_registry.Builtin then
           let msg = Printf.sprintf "Cannot overwrite %s: it's a reserved keyword!" name in
           (make_error NameError msg, env)
@@ -3588,10 +3589,18 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
         else
           let env_ref = ref env in
           let v = eval_expr env_ref expr in
+          let type_err = match typ, v with
+            | Some t, v when not (Error.is_error_value v) && not (Ast.is_compatible v t) ->
+                let expected = Ast.Utils.typ_to_string t in
+                let actual = Ast.Utils.type_name v in
+                Some (Error.type_mismatch ~expected ~actual (Printf.sprintf "Variable `%s`" name))
+            | _ -> None
+          in
           let new_env = Env.add name v !env_ref in
-            (match v with
-             | VError _ -> (v, new_env)
-             | _ -> ((VNA NAGeneric), new_env))
+            (match type_err, v with
+            | Some err, _ -> (err, new_env)
+            | None, VError _ -> (v, new_env)
+            | None, _ -> ((VNA NAGeneric), new_env))
      | Reassignment { name; expr } ->
         if Import_registry.find_origin env name = Some Import_registry.Builtin then
           let msg = Printf.sprintf "Cannot overwrite %s: it's a reserved keyword!" name in

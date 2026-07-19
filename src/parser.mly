@@ -569,6 +569,7 @@ typ:
     | "DataFrame", [schema] -> TDataFrame (Some schema)
     | other, _ -> TCustom other
   }
+  | LPAREN ts = type_args RPAREN ARROW r = typ { TArrow (ts, r) }
   ;
 
 type_args:

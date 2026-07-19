@@ -22,7 +22,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
 
   test "typed lambda enforces return type at runtime"
     "f = \\(x: Int -> Int) 1.1; f(1)"
-    {|Error(TypeError: "Function returned Float, but expected Int")|};
+    {|Error(TypeError: "Function return value expected Int, got Float.")|};
 
   test "typed lambda allows NA even if type is annotated"
     "f = \\(x: Int -> Int) x; f(NA)"

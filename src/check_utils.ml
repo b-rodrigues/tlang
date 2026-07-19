@@ -97,6 +97,8 @@ let run_file ?failfast mode filename env =
 
 (* --- Check mode --- *)
 
+let extra_diagnostics_hook : (string -> Diagnostics.diagnostic list) ref = ref (fun _ -> [])
+
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
   let run () =
     Ast.check_mode := true;
@@ -133,7 +135,8 @@ let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename 
         in
         wire_diags @ schema_diags @ env_diags
       ) pipelines in
-      error_diags @ pipeline_diags
+      let extra_diags = !extra_diagnostics_hook filename in
+      extra_diags @ error_diags @ pipeline_diags
     in
     let check_phase = Diagnostics.worst_phase diag_list in
     let tier = Diagnostics.worst_tier diag_list in

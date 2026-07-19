@@ -21,6 +21,7 @@ let rec contains_type_var = function
   | TDict (Some k, Some v) -> contains_type_var k || contains_type_var v
   | TTuple ts -> List.exists contains_type_var ts
   | TDataFrame (Some schema) -> contains_type_var schema
+  | TArrow (params, ret) -> List.exists contains_type_var params || contains_type_var ret
   | _ -> false
 
 (** Recursively collect all type variable names used inside a type structure.
@@ -33,6 +34,7 @@ let rec collect_type_vars = function
   | TDict (Some k, Some v) -> collect_type_vars k @ collect_type_vars v
   | TTuple ts -> List.concat_map collect_type_vars ts
   | TDataFrame (Some schema) -> collect_type_vars schema
+  | TArrow (params, ret) -> List.concat_map collect_type_vars params @ collect_type_vars ret
   | _ -> []
 
 (** Helper to construct a type error info record.

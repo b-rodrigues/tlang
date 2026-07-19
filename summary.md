@@ -155,6 +155,31 @@ match([1, 2]) { [h, ..t] => h, [] => 0 }
 
 String literals support escape sequences: `\n` (newline), `\r` (carriage return), `\t` (tab), `\\` (backslash), `\"` (double quote), `\xHH` (hex byte, e.g. `\x48` for `H`).
 
+### Type annotations and inference
+
+T supports optional type annotations on variable assignments. The type checker runs during `t check` and compares annotations against inferred types.
+
+```t
+x: Int = 42
+y: String = "hello"
+z: Bool = x > 10
+add = \(a, b) a + b
+```
+
+- `x: Int = expr` — annotation is checked against the inferred type of `expr`
+- Function types use arrow syntax: `\(Int, Int) -> Int`
+- `Int` is compatible with `Float` (relaxed numeric matching), but not vice versa
+- `Any` annotation matches anything
+- Lambda return types are inferred from the body expression
+- Mismatches produce warnings: `Variable 'z' annotated as Int, but expression infers to string.`
+- Type annotations are optional — unannotated variables are inferred freely
+- Expression-level inference covers `BinOp`, `UnOp`, `IfElse`, `Match`, `ListLit`, `DotAccess`, and `Lambda` return types. Division always infers `Float`; comparison operators infer `Bool`
+
+The analyzer also propagates types through pipeline operations:
+- `mutate` infers column types from expressions
+- `select` narrows DataFrame columns to only the selected ones
+- `filter`, `arrange`, `group_by`, `ungroup` pass through the base DataFrame type
+
 ### Three different literal/block forms
 
 - `[a, b, c]` = List

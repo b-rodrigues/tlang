@@ -3202,7 +3202,7 @@ build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-
 
 ### `t_check(file, json = false, schema = false, env = false)`
 
-REPL-callable version of `t check`. Runs structural, wire-phase, schema, and environment checks on a T script and returns the diagnostics as a string.
+REPL-callable version of `t check`. Runs structural, wire-phase, schema, environment, and **type annotation** checks on a T script and returns the diagnostics as a string. Type annotation checks compare `x: Int = expr` annotations against inferred types and emit `Warning` diagnostics for mismatches.
 
 **Arguments:**
 

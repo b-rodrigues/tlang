@@ -395,6 +395,7 @@ and typ =
   | TComputedNode
   | TSerializer
   | TExpr
+  | TArrow of typ list * typ
 
 type program = stmt list
 
@@ -787,6 +788,9 @@ module Utils = struct
     | TComputedNode -> "ComputedNode"
     | TSerializer -> "Serializer"
     | TExpr -> "Expression"
+    | TArrow (params, ret) ->
+        let params_str = String.concat ", " (List.map typ_to_string params) in
+        "(" ^ params_str ^ ") -> " ^ typ_to_string ret
 
   let rec type_name = function
     | VBuildLog _ -> "BuildLog"
@@ -1263,6 +1267,8 @@ let rec is_compatible (v : value) (t : typ) : bool =
   
   | VLambda _, TCustom "Function" -> true
   | VBuiltin _, TCustom "Function" -> true
+  | VLambda _, TArrow _ -> true
+  | VBuiltin _, TArrow _ -> true
 
   (* Relaxed numeric matching: Int can often be used where Float is expected in T *)
   | VInt _, TFloat -> true
@@ -1276,3 +1282,26 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VMetaPipeline _, TCustom ("Pipeline" | "MetaPipeline") -> true
 
   | _ -> false
+
+(** Check if two AST types are compatible.
+
+    Used to compare inferred types against user-provided annotations.
+    Allows Int where Float is expected (T's relaxed numeric matching).
+    [TCustom "Any"] matches anything.
+
+    @param a The first type (typically inferred).
+    @param b The second type (typically the annotation).
+    @return [true] if the types are compatible. *)
+let rec types_compatible a b =
+  match a, b with
+  | _, TCustom "Any" -> true
+  | TCustom "Any", _ -> true
+  | _, TVar _ -> true
+  | TVar _, _ -> true
+  | TInt, TFloat -> true
+  | TFloat, TInt -> false
+  | TArrow (p1, r1), TArrow (p2, r2) ->
+      List.length p1 = List.length p2 &&
+      List.for_all2 types_compatible p1 p2 &&
+      types_compatible r1 r2
+  | _ -> a = b
