@@ -37,9 +37,19 @@ let rec infer_type scope expr =
       Symbol_table.add_observed_column scope name;
       TUnknown
 
-  | Call { fn = { node = Var ("filter" | "select" | "arrange" | "group_by" | "ungroup"); _ }; args = (None, data_expr) :: rest; _ } ->
+  | Call { fn = { node = Var ("filter" | "arrange" | "group_by" | "ungroup"); _ }; args = (None, data_expr) :: rest; _ } ->
       List.iter (fun (_, e) -> ignore (infer_type scope e)) rest;
       infer_type scope data_expr
+  | Call { fn = { node = Var "select"; _ }; args = (None, data_expr) :: rest; _ } ->
+      let base_ty = infer_type scope data_expr in
+      let selected = List.filter_map (fun (_, e) ->
+        match e.node with Value (VString col_name) -> Some col_name | _ -> None
+      ) rest in
+      (match base_ty, selected with
+       | TDataFrame cols, names ->
+           let filtered = List.filter (fun c -> List.mem c.name names) cols in
+           TDataFrame filtered
+       | _ -> base_ty)
   | Call { fn = { node = Var "read_csv"; _ }; args = (None, { node = Value (VString path); _ }) :: rest; _ } ->
       List.iter (fun (_, e) -> ignore (infer_type scope e)) rest;
       let cols =
@@ -93,11 +103,14 @@ let rec infer_type scope expr =
   | Call { fn = { node = Var "mutate"; _ }; args; _ } ->
       let base_ty = match args with (None, data_expr) :: _ -> infer_type scope data_expr | _ -> TUnknown in
       let mut_args = match args with _ :: rest -> rest | [] -> [] in
-      List.iter (fun (_, e) -> ignore (infer_type scope e)) mut_args;
       let new_cols = List.filter_map (function
+        | (Some col_name, expr) ->
+            let col_typ = infer_type scope expr in
+            Some { name = col_name; col_typ }
         | (None, { node = Value (VString col_name); _ }) -> Some { name = col_name; col_typ = TUnknown }
-        | (Some col_name, _) -> Some { name = col_name; col_typ = TUnknown }
-        | _ -> None
+        | (None, expr) ->
+            ignore (infer_type scope expr);
+            None
       ) mut_args in
       (match base_ty with
        | TDataFrame cols -> TDataFrame (new_cols @ cols)
