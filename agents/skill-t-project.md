@@ -180,13 +180,20 @@ builds Python/R/Julia environments per node). Never trigger `t run` until `t che
 passes clean — you're wasting minutes on errors that could be caught in seconds.
 
 **When `t check --json` emits a `suggested_fix`:** Preview it with `t fix --dry-run`,
-then apply with `t fix`. Supported fix types:
-- `Cast` — inserts a type coercion (`mutate($col = as.double($col))`)
-- `Rename_column` — renames `$old` to `$new` in column references
-- `Add_node_arg` — adds a missing argument to a node definition
+then apply with `t fix`. Supported fix types carry a `confidence` field (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is highly deterministic or heuristic:
+- `Cast` (High confidence) — inserts a type coercion (`mutate($col = as.double($col))`)
+- `Rename_column` (High confidence) — renames `$old` to `$new` in column references
+- `Add_node_arg` (Medium confidence) — adds a missing argument (e.g. deserializer) to a node definition
+- `Suggest_identifier` (Medium confidence) — suggests spelling corrections for names
+- `Run_command` (Low confidence) — suggests shell commands
 
-**After `t run`:** Run `t diff` to see what changed. This is free (uses Nix content
-hashes) and tells you whether your edit had the intended effect or cascaded downstream.
+### ⚠️ Critical Rules for Agentic Check-Fix Loops
+
+1. **`t fix` is Not Idempotent:** `t fix` will mechanically insert code even if a identical correction was already applied in a previous step. You must re-run `t check` after every `t fix` and monitor the error count. If the error count does not decrease, **stop immediately** and do not run `t fix` again, otherwise you will corrupt the file.
+2. **Never Use `--watch`:** Running `t check --watch` will start an infinite loop monitoring file changes, which blocks execution and hangs the agent.
+3. **Schema Silencing on Unrecognized Verbs:** If the pipe chain uses a custom/unrecognized function (i.e. not standard `select`, `filter`, `mutate`, `arrange`, etc.), the schema compiler drops the schema to empty (`[]`). This disables subsequent column-reference checks downstream. Always verify column references manually when custom functions are introduced.
+
+**After `t run`:** Run `t diff` (or `t diff --json` for structured agent output) to see what changed. This is free (uses Nix content hashes) and tells you whether your edit had the intended effect or cascaded downstream.
 
 **`t check --schema` limitation:** This validates structure and type contracts in milliseconds, but does NOT build the pipeline. Calls to `read_node()` in post-build sections will error during `t check` — these are expected. Verify with `t run` instead.
 

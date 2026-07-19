@@ -114,6 +114,12 @@ clean = raw
 5. Run `dune runtest` — full test suite
 6. Run `build_pipeline(p)` — Nix build (only when structural checks pass)
 
+### Agent Check-Fix Loop Rules (Critical for LLMs)
+
+- **`t fix` is Not Idempotent:** `t fix` does not check if a suggestion was already applied. If you run `t check` -> `t fix` in a loop, you must count the number of diagnostics/errors returned. If the count does not decrease after a fix, **stop immediately** and do not run `t fix` again; otherwise, you will insert duplicate code blocks (e.g. repeated cast mutations).
+- **Avoid Watch Mode:** Do NOT use `--watch` (e.g., `t check --watch`). It runs a blocking loop that waits for file changes and requires a manual `Ctrl+C` interrupt, which hangs agent execution.
+- **Schema Silencing on Custom Verbs:** If you use a custom or unrecognized function in a pipe chain, the schema compiler drops the schema to empty (`[]`). This silences subsequent column-reference checks downstream. Always manually verify column references if custom verbs are introduced.
+
 ---
 
 ## Project Overview

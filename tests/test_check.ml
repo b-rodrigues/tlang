@@ -428,6 +428,8 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     check "Suggest_identifier serializes kind=suggest_identifier" (kind = "suggest_identifier");
     let suggestion = Yojson.Safe.Util.member "suggestion" fix_json |> Yojson.Safe.Util.to_string in
     check "Suggest_identifier serializes suggestion=print" (suggestion = "print");
+    let confidence = Yojson.Safe.Util.member "confidence" fix_json |> Yojson.Safe.Util.to_string in
+    check "Suggest_identifier serializes confidence=medium" (confidence = "medium");
     let roundtrip = Diagnostics.suggested_fix_of_yojson fix_json in
     (match roundtrip with
      | Diagnostics.Suggest_identifier { name; suggestion = s; _ } ->
@@ -441,11 +443,13 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   let test_run_command () =
     let fix = Diagnostics.Run_command { command = "t init ."; description = "Initialize tproject.toml"; target_node = None; file = Some "test.t"; line = None } in
     let json = Diagnostics.suggested_fix_to_yojson fix in
+    let confidence = Yojson.Safe.Util.member "confidence" json |> Yojson.Safe.Util.to_string in
+    check "Run_command serializes confidence=low" (confidence = "low");
     let roundtrip = Diagnostics.suggested_fix_of_yojson json in
     (match roundtrip with
-     | Diagnostics.Run_command { command; description; _ } ->
-         check "Run_command roundtrip command" (command = "t init .");
-         check "Run_command roundtrip description" (description = "Initialize tproject.toml")
+     | Diagnostics.Run_command { command = cmd; description = desc; _ } ->
+         check "Run_command roundtrip command" (cmd = "t init .");
+         check "Run_command roundtrip description" (desc = "Initialize tproject.toml")
      | _ -> check "Run_command roundtrip fails" false)
   in
   test_run_command ();

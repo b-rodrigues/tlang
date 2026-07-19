@@ -174,6 +174,7 @@ let suggested_fix_to_yojson = function
         ("target_node", opt_string_to_yojson target_node);
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
+        ("confidence", `String "high");
       ]
   | Rename_column { old_name; new_name; target_node; file; line } ->
       `Assoc [
@@ -183,6 +184,7 @@ let suggested_fix_to_yojson = function
         ("target_node", opt_string_to_yojson target_node);
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
+        ("confidence", `String "high");
       ]
   | Add_node_arg { node; arg; target_node; file; line } ->
       `Assoc [
@@ -192,6 +194,7 @@ let suggested_fix_to_yojson = function
         ("target_node", opt_string_to_yojson target_node);
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
+        ("confidence", `String "medium");
       ]
   | Suggest_identifier { name; suggestion; target_node; file; line } ->
       `Assoc [
@@ -201,6 +204,7 @@ let suggested_fix_to_yojson = function
         ("target_node", opt_string_to_yojson target_node);
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
+        ("confidence", `String "medium");
       ]
   | Run_command { command; description; target_node; file; line } ->
       `Assoc [
@@ -210,6 +214,7 @@ let suggested_fix_to_yojson = function
         ("target_node", opt_string_to_yojson target_node);
         ("file", opt_string_to_yojson file);
         ("line", opt_int_to_yojson line);
+        ("confidence", `String "low");
       ]
   | NoFix -> `Null
 
