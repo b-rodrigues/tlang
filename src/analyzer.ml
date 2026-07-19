@@ -112,8 +112,8 @@ let rec infer_type scope expr =
 
   | Lambda { params; body; _ } ->
       let args = List.map (fun name -> (name, TUnknown)) params in
-      ignore (infer_type scope body);
-      TFunction (args, TUnknown)
+      let ret = infer_type scope body in
+      TFunction (args, ret)
   | ListLit items ->
       let types = List.filter_map (fun (_, e) ->
         let t = infer_type scope e in
