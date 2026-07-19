@@ -632,8 +632,10 @@ let cmd_run ?(unsafe=false) ?failfast ?(json=false) mode filename env =
       with _ -> ())
     with _ -> ()
   end;
-  let (result, _env) = run_file ?failfast mode filename env in
-  if json then Ast.ndjson_mode := false;
+  let (result, _env) =
+    Fun.protect ~finally:(fun () -> if json then Ast.ndjson_mode := false)
+      (fun () -> run_file ?failfast mode filename env)
+  in
   flush_warnings_to_out ();
   match result with
   | Ast.VError _ ->
@@ -650,8 +652,10 @@ let cmd_run ?(unsafe=false) ?failfast ?(json=false) mode filename env =
 let cmd_run_expr ?failfast ?(json=false) mode expr env =
   Packages.ensure_docs_loaded ();
   if json then Ast.ndjson_mode := true;
-  let (result, _) = parse_and_eval ?failfast mode env expr in
-  if json then Ast.ndjson_mode := false;
+  let (result, _) =
+    Fun.protect ~finally:(fun () -> if json then Ast.ndjson_mode := false)
+      (fun () -> parse_and_eval ?failfast mode env expr)
+  in
   flush_warnings_to_out ();
   match result with
   | Ast.VError _ ->

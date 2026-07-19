@@ -155,6 +155,13 @@ let apply_rename_column ~file ~old_name ~new_name =
   Fun.protect ~finally:(fun () -> close_out_noerr oc)
     (fun () -> output_string oc content)
 
+let scan_raw_delimiters l in_raw_code =
+  if String.length l >= 2 then
+    for k = 0 to String.length l - 2 do
+      if l.[k] = '<' && l.[k+1] = '{' then in_raw_code := true;
+      if l.[k] = '}' && l.[k+1] = '>' then in_raw_code := false
+    done
+
 let apply_add_node_arg ~file ~node ~arg =
   let lines = ref [] in
   let ch = open_in file in
@@ -184,11 +191,7 @@ let apply_add_node_arg ~file ~node ~arg =
                     | '(' when not !in_raw_code -> incr paren_depth
                     | ')' when not !in_raw_code -> decr paren_depth
                     | _ -> ()) l;
-                  if String.length l >= 2 then
-                    for k = 0 to String.length l - 2 do
-                      if l.[k] = '<' && l.[k+1] = '{' then in_raw_code := true;
-                      if l.[k] = '}' && l.[k+1] = '>' then in_raw_code := false
-                    done;
+                  scan_raw_delimiters l in_raw_code;
                   prev_line := l;
                   lines := l :: !lines
                 end else
@@ -196,29 +199,23 @@ let apply_add_node_arg ~file ~node ~arg =
               end else
                 lines := l :: !lines
             end else begin
-              if not !in_raw_code then begin
+              if not !in_raw_code then
                 String.iter (function
                   | '(' -> incr paren_depth
                   | ')' -> decr paren_depth
                   | _ -> ()) l;
-                if String.length l >= 2 then
-                  for k = 0 to String.length l - 2 do
-                    if l.[k] = '<' && l.[k+1] = '{' then in_raw_code := true;
-                    if l.[k] = '}' && l.[k+1] = '>' then in_raw_code := false
-                  done;
-              end else begin
-                if String.length l >= 2 then
-                  for k = 0 to String.length l - 2 do
-                    if l.[k] = '<' && l.[k+1] = '{' then in_raw_code := true;
-                    if l.[k] = '}' && l.[k+1] = '>' then in_raw_code := false
-                  done;
-              end;
+              scan_raw_delimiters l in_raw_code;
               if !paren_depth = 0 && not !in_raw_code then begin
                 let trimmed_prev = String.trim !prev_line in
                 if String.length trimmed_prev > 0 then begin
                   let last_char = trimmed_prev.[String.length trimmed_prev - 1] in
                   if last_char <> ',' && last_char <> '(' then begin
-                    lines := (!prev_line ^ ",") :: List.tl !lines
+                    (* Replace the head of lines (prev_line) with a comma-terminated version.
+                       Guard: lines is guaranteed non-empty here because found=true requires
+                       having pushed at least the definition line, but be defensive. *)
+                    match !lines with
+                    | _ :: rest -> lines := (!prev_line ^ ",") :: rest
+                    | [] -> ()
                   end
                 end;
                 let pad = String.make !last_arg_indent ' ' in
