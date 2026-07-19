@@ -718,8 +718,14 @@ let check_type_annotations filename =
       | _ -> ()
     ) program;
     List.rev !diags
-  with exn ->
-    Printf.eprintf "Warning: type annotation check skipped: %s\n" (Printexc.to_string exn);
+  with
+  | Lexer.SyntaxError _ ->
+    (* Parse/syntax errors are already reported by check_utils normal flow. *)
+    []
+  | Parser.Error | Ast.Mixed_bracket_form ->
+    []
+  | exn ->
+    Printf.eprintf "Warning: type annotation check unexpected exception: %s\n" (Printexc.to_string exn);
     []
 
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =

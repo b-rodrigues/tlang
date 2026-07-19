@@ -614,8 +614,4 @@ let make_result ~tier ~phase entries =
     cr_diagnostics = entries;
   }
 
-let prepend_diagnostics extra cr =
-  let all = extra @ cr.cr_diagnostics in
-  let phase = worst_phase all in
-  let tier = worst_tier all in
-  make_result ~tier ~phase all
+
