@@ -7,7 +7,7 @@
 - **Type annotation checking**: `t check` now compares type annotations (`x: Int = expr`) against inferred types and emits `Warning` diagnostics for mismatches. Works via the CLI `t check` and the REPL `t_check()` function.
 - **TArrow type**: Function types can be expressed as `(Int, String) -> Bool`. Parsed, typechecked, and used for lambda signature validation.
 - **Expression-level type inference**: `infer_type` now covers `BinOp`, `UnOp`, `IfElse`, `Match`, `ListLit`, `DotAccess`, and `Lambda` return types. Division always infers `Float`; comparison operators infer `Bool`.
-- **Pipeline type propagation**: `mutate` infers new column types from expressions; `select` narrows DataFrame columns to the selected set.
+- **Pipeline type propagation**: `mutate` infers new column types from expressions; `select` narrows DataFrame columns to the selected set; `filter`, `arrange`, `group_by`, `ungroup` pass through the base DataFrame type.
 - **`types_compatible`**: Asymmetric numeric matching — `Int` is compatible with `Float` (relaxed widening), but not vice versa. `Any` matches everything. `TArrow` compares structurally.
 
 ### `t check` CLI & Structured Diagnostics Protocol

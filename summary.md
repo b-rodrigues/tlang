@@ -173,6 +173,7 @@ add = \(a, b) a + b
 - Lambda return types are inferred from the body expression
 - Mismatches produce warnings: `Variable 'z' annotated as Int, but expression infers to string.`
 - Type annotations are optional — unannotated variables are inferred freely
+- Expression-level inference covers `BinOp`, `UnOp`, `IfElse`, `Match`, `ListLit`, `DotAccess`, and `Lambda` return types. Division always infers `Float`; comparison operators infer `Bool`
 
 The analyzer also propagates types through pipeline operations:
 - `mutate` infers column types from expressions
