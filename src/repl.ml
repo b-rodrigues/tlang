@@ -664,10 +664,66 @@ let cmd_run_expr ?failfast ?(json=false) mode expr env =
   | v ->
       if not json then print_string (Pretty_print.pretty_print_value v)
 
+let check_type_annotations filename =
+  try
+    let ch = open_in filename in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    let lexbuf = Lexing.from_string content in
+    lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+    let program = Parser.program Lexer.token lexbuf in
+    let scope = Symbol_table.create_scope () in
+    Symbol_table.register_keywords scope;
+    let _ = Analyzer.analyze program scope in
+    let diags = ref [] in
+    List.iter (fun (stmt : Ast.stmt) ->
+      match stmt.node with
+      | Ast.Assignment { name; typ = Some annotation; expr; _ } ->
+          let inferred = Analyzer.infer_type scope expr in
+          let inferred_ast = Semantic_type.to_ast_typ inferred in
+          if not (Ast.types_compatible inferred_ast annotation) then begin
+            let expected = Ast.Utils.typ_to_string annotation in
+            let actual = Semantic_type.to_string inferred in
+            let line = match stmt.loc with
+              | Some l -> Some l.Ast.line
+              | None -> None
+            in
+            let col = match stmt.loc with
+              | Some l -> Some l.Ast.column
+              | None -> None
+            in
+            diags := {
+              Diagnostics.diag_id = Diagnostics.gen_id ();
+              diag_error_class = Diagnostics.Type_error;
+              diag_severity = Warning;
+              diag_phase = Schema;
+              diag_node_id = None;
+              diag_node_lang = None;
+              diag_file = Some filename;
+              diag_line = line;
+              diag_column = col;
+              diag_end_line = None;
+              diag_end_column = None;
+              diag_message = Printf.sprintf
+                "Variable `%s` annotated as %s, but expression infers to %s."
+                name expected actual;
+              diag_expected = Some expected;
+              diag_actual = Some actual;
+              diag_caused_by = [];
+              diag_suggested_fix = Diagnostics.NoFix;
+            } :: !diags
+          end
+      | _ -> ()
+    ) program;
+    List.rev !diags
+  with _ -> []
+
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
-  Check_utils.run_check ~schema ~env_check ~offline mode filename env
+  let check_result = Check_utils.run_check ~schema ~env_check ~offline mode filename env in
+  let type_diags = check_type_annotations filename in
+  Diagnostics.prepend_diagnostics type_diags check_result
 
 let print_check_result ?(json=false) check_result =
   let output = Check_utils.format_check_result ~json check_result in

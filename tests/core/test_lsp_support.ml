@@ -136,4 +136,129 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   test_message "add_observed_column ignores empty and whitespace-only names"
     (Symbol_table.get_observed_columns empty_scope = []);
 
+  (* ── Arithmetic type inference ─────────────────────────── *)
+  Printf.printf "Analyzer — type inference:\n";
+
+  let int_scope, _ = analyze "x = 1 + 2" in
+  test_message "Int + Int infers TInt"
+    (match Symbol_table.lookup int_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TInt; _ } -> true
+     | _ -> false);
+
+  let float_scope, _ = analyze "x = 1 + 2.5" in
+  test_message "Int + Float infers TFloat"
+    (match Symbol_table.lookup float_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TFloat; _ } -> true
+     | _ -> false);
+
+  let div_scope, _ = analyze "x = 10 / 2" in
+  test_message "Int / Int infers TFloat (division always float)"
+    (match Symbol_table.lookup div_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TFloat; _ } -> true
+     | _ -> false);
+
+  let mod_scope, _ = analyze "x = 5 % 2" in
+  test_message "Int mod Int infers TInt"
+    (match Symbol_table.lookup mod_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TInt; _ } -> true
+     | _ -> false);
+
+  (* ── Comparison type inference ─────────────────────────── *)
+  let cmp_scope, _ = analyze "x = 1 == 2" in
+  test_message "Int == Int infers TBool"
+    (match Symbol_table.lookup cmp_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TBool; _ } -> true
+     | _ -> false);
+
+  let and_scope, _ = analyze "x = true && false" in
+  test_message "Bool && Bool infers TBool"
+    (match Symbol_table.lookup and_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TBool; _ } -> true
+     | _ -> false);
+
+  (* ── Unary operator inference ──────────────────────────── *)
+  let not_scope, _ = analyze "x = !true" in
+  test_message "!Bool infers TBool"
+    (match Symbol_table.lookup not_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TBool; _ } -> true
+     | _ -> false);
+
+  let neg_scope, _ = analyze "x = -5" in
+  test_message "negate Int infers TInt"
+    (match Symbol_table.lookup neg_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TInt; _ } -> true
+     | _ -> false);
+
+  (* ── IfElse type inference ─────────────────────────────── *)
+  let if_scope, _ = analyze "x = if (true) 1 else 2" in
+  test_message "if(Int, Int) infers TInt"
+    (match Symbol_table.lookup if_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TInt; _ } -> true
+     | _ -> false);
+
+  let if_mixed_scope, _ = analyze "x = if (true) 1 else 2.5" in
+  test_message "if(Int, Float) infers TFloat"
+    (match Symbol_table.lookup if_mixed_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TFloat; _ } -> true
+     | _ -> false);
+
+  (* ── Match type inference ──────────────────────────────── *)
+  Printf.printf "Analyzer — match inference:\n";
+
+  let match_scope, _ = analyze "x = match([1,2]) { [head, ..tail] => head, [] => 0 }" in
+  test_message "match(Int, Int) infers TInt"
+    (match Symbol_table.lookup match_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TInt; _ } -> true
+     | _ -> false);
+
+  let match_bool_scope, _ = analyze "x = match([1,2]) { [head, ..tail] => head > 0, [] => false }" in
+  test_message "match(Bool, Bool) infers TBool"
+    (match Symbol_table.lookup match_bool_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TBool; _ } -> true
+     | _ -> false);
+
+  (* ── ListLit type inference ────────────────────────────── *)
+  Printf.printf "Analyzer — ListLit inference:\n";
+
+  let list_int_scope, _ = analyze "x = [1, 2, 3]" in
+  test_message "ListLit[Int, Int, Int] infers TInt"
+    (match Symbol_table.lookup list_int_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TInt; _ } -> true
+     | _ -> false);
+
+  let list_mixed_scope, _ = analyze "x = [1, 2.5]" in
+  test_message "ListLit[Int, Float] infers TAny (mixed)"
+    (match Symbol_table.lookup list_mixed_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TAny; _ } -> true
+     | _ -> false);
+
+  let list_str_scope, _ = analyze {|x = ["a", "b"]|} in
+  test_message "ListLit[String, String] infers TString"
+    (match Symbol_table.lookup list_str_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TString; _ } -> true
+     | _ -> false);
+
+  let list_empty_scope, _ = analyze "x = []" in
+  test_message "ListLit[] (empty) infers TAny"
+    (match Symbol_table.lookup list_empty_scope "x" with
+     | Some { Symbol_table.typ = Some Semantic_type.TAny; _ } -> true
+     | _ -> false);
+
+  (* ── Lambda type inference ─────────────────────────────── *)
+  Printf.printf "Analyzer — Lambda inference:\n";
+
+  let lambda_scope, _ = analyze "x = \\(a, b) a + b" in
+  test_message "lambda infers TFunction with 2 params"
+    (match Symbol_table.lookup lambda_scope "x" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TFunction (args, _)); _ } ->
+       List.length args = 2
+     | _ -> false);
+
+  let lambda_scope2, _ = analyze "x = \\(n) n > 0" in
+  test_message "lambda with 1 param infers TFunction"
+    (match Symbol_table.lookup lambda_scope2 "x" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TFunction (args, _)); _ } ->
+       List.length args = 1
+     | _ -> false);
+
   print_newline ()
