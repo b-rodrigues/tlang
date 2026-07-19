@@ -155,7 +155,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       Diagnostics.make_add_node_arg_fix ~node:"filter" ~arg:"na_rm=true" ?file:(Some "test.t") ();
       Diagnostics.make_suggest_identifier_fix ~name:"prnt" ~suggestion:"print" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ();
       Diagnostics.make_run_command_fix ~command:"t init ." ~description:"Initialize tproject.toml" ?file:(Some "test.t") ();
-      Diagnostics.NoFix;
+      Diagnostics.no_fix;
     ] in
     let all_ok = List.for_all (fun fix ->
       let json = Diagnostics.suggested_fix_to_yojson fix in
@@ -244,7 +244,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
 
   Printf.printf "\napply_fix dispatch:\n";
   let test_apply_fix_noop () =
-    let r = Fix.apply_fix ~file:"/dev/null" Diagnostics.NoFix in
+    let r = Fix.apply_fix ~file:"/dev/null" Diagnostics.no_fix in
     check "apply_fix returns false for NoFix" (r = false)
   in
   test_apply_fix_noop ();

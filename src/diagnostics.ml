@@ -120,6 +120,7 @@ type suggested_fix =
   | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Run_command of { command: string; description: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | NoFix
+let no_fix = NoFix
 
 let confidence_for_cast ~chain_broken =
   if chain_broken then Medium else High
@@ -134,8 +135,11 @@ let make_cast_fix ~column ~cast_to ~chain_broken ?target_node ?file ?line () =
   let confidence = confidence_for_cast ~chain_broken in
   Cast { column; cast_to; target_node; file; line; chain_broken; confidence }
 
-let make_rename_column_fix ~old_name ~new_name ~edit_distance ~is_unique ?target_node ?file ?line () =
-  let confidence = confidence_for_typo ~edit_distance ~is_unique in
+let make_rename_column_fix ~old_name ~new_name ~edit_distance ~is_unique ?confidence ?target_node ?file ?line () =
+  let confidence = match confidence with
+    | Some c -> c
+    | None -> confidence_for_typo ~edit_distance ~is_unique
+  in
   Rename_column { old_name; new_name; target_node; file; line; edit_distance; is_unique; confidence }
 
 let make_suggest_identifier_fix ~name ~suggestion ~edit_distance ~is_unique ?target_node ?file ?line () =

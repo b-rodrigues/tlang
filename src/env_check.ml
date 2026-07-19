@@ -146,7 +146,7 @@ let check_lockfile_consistency ~file ~tproject_cfg (p : Ast.pipeline_result) =
               diag_expected = None;
               diag_actual = None;
               diag_caused_by = [];
-              diag_suggested_fix = NoFix;
+              diag_suggested_fix = Diagnostics.no_fix;
            }
          ) missing)
   | _ -> []
@@ -171,7 +171,7 @@ let check_nix_evaluation ?(offline = false) ~file (p : Ast.pipeline_result) =
         diag_expected = None;
         diag_actual = None;
         diag_caused_by = [];
-        diag_suggested_fix = NoFix;
+        diag_suggested_fix = Diagnostics.no_fix;
       }]
   | Ok (_use_uv, nix_path) ->
       let node_names = List.map fst p.Ast.p_exprs in
@@ -211,7 +211,7 @@ let check_nix_evaluation ?(offline = false) ~file (p : Ast.pipeline_result) =
             diag_expected = None;
             diag_actual = None;
             diag_caused_by = [];
-            diag_suggested_fix = NoFix;
+            diag_suggested_fix = Diagnostics.no_fix;
           }]
 
 (* Main entry point: run all tier 3 env checks *)

@@ -183,6 +183,7 @@ type verb =
   | Slice
   | Count
   | Expect
+  | DataSource
   | Other of string
 
 let classify_verb expr =
@@ -201,6 +202,7 @@ let classify_verb expr =
        | "slice" | "slice_min" | "slice_max" | "slice_sample" -> Slice
        | "count" -> Count
        | "expect" -> Expect
+       | "read_csv" | "t_read_csv" -> DataSource
        | _ -> Other name)
   | _ -> Other "unknown"
 
@@ -226,6 +228,14 @@ let extract_mutate_new_cols args =
          | "as.double" | "as_numeric" -> Some "double"
          | "as.string" | "as_character" -> Some "string"
          | "as_logical" | "as_bool" -> Some "bool"
+         | _ -> None)
+    | Call { fn = { node = DotAccess { target = { node = Var "as"; _ }; field }; _ }; _ } ->
+        (match field with
+         | "int" -> Some "int"
+         | "double" -> Some "double"
+         | "string" -> Some "string"
+         | "character" -> Some "string"
+         | "logical" | "bool" -> Some "bool"
          | _ -> None)
     | _ -> None
   in
@@ -274,7 +284,7 @@ let infer_output_schema input_schema expr =
         else
           { sc_name = c; sc_type = None }
       ) cols
-  | Filter | Ungroup | Slice | Arrange | GroupBy ->
+  | Filter | Ungroup | Slice | Arrange | GroupBy | DataSource ->
       input_schema
   | Mutate ->
       let new_cols = extract_mutate_new_cols
@@ -380,7 +390,7 @@ let extract_contracts args =
     | _ -> None
   ) args
 
-let validate_contracts ~node_name ~file contracts output_schema =
+let validate_contracts ~node_name ~file ~chain_broken contracts output_schema =
   let diags = ref [] in
   List.iter (fun contract ->
     match contract with
@@ -403,7 +413,7 @@ let validate_contracts ~node_name ~file contracts output_schema =
               diag_expected = Some col;
               diag_actual = None;
               diag_caused_by = [];
-              diag_suggested_fix = NoFix;
+              diag_suggested_fix = Diagnostics.no_fix;
             } : Diagnostics.diagnostic) :: !diags
         ) cols
     | Ast.Contract_type (col, expected_type) ->
@@ -428,8 +438,8 @@ let validate_contracts ~node_name ~file contracts output_schema =
                diag_caused_by = [];
                diag_suggested_fix =
                  if List.mem expected_type ["int"; "double"; "string"; "bool"]
-                 then Diagnostics.make_cast_fix ~column:col ~cast_to:expected_type ~chain_broken:false ~target_node:node_name ?file ()
-                 else NoFix;
+                 then Diagnostics.make_cast_fix ~column:col ~cast_to:expected_type ~chain_broken ~target_node:node_name ?file ()
+                 else Diagnostics.no_fix;
              } : Diagnostics.diagnostic) :: !diags
          | _ -> ())
     | Ast.Contract_null_rate (col, _threshold) ->
@@ -450,7 +460,7 @@ let validate_contracts ~node_name ~file contracts output_schema =
             diag_expected = Some col;
             diag_actual = None;
             diag_caused_by = [];
-            diag_suggested_fix = NoFix;
+            diag_suggested_fix = Diagnostics.no_fix;
           } : Diagnostics.diagnostic) :: !diags
         else
           diags := (Diagnostics.{
@@ -469,7 +479,7 @@ let validate_contracts ~node_name ~file contracts output_schema =
             diag_expected = None;
             diag_actual = None;
             diag_caused_by = [];
-            diag_suggested_fix = NoFix;
+            diag_suggested_fix = Diagnostics.no_fix;
           } : Diagnostics.diagnostic) :: !diags
   ) contracts;
   !diags
@@ -487,8 +497,8 @@ let validate_col_refs ~node_name ~(file : string option) ~schema ?(rename_mappin
         let suggested_fix = match List.assoc_opt col rename_mapping with
           | Some new_name ->
               let line = match expr.loc with Some l -> Some l.line | None -> None in
-              Diagnostics.make_rename_column_fix ~old_name:col ~new_name ~edit_distance:1 ~is_unique:true ~target_node:node_name ?file ?line ()
-          | None -> NoFix
+              Diagnostics.make_rename_column_fix ~old_name:col ~new_name ~edit_distance:0 ~is_unique:true ~confidence:High ~target_node:node_name ?file ?line ()
+          | None -> Diagnostics.no_fix
         in
         Some (Diagnostics.{
           diag_id = Diagnostics.gen_id ();
@@ -522,7 +532,11 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
 
   (* Topological order from deps *)
   let node_names = List.map fst p_exprs in
-  let dep_of name = List.assoc_opt name p_deps |> Option.value ~default:[] in
+  let dep_of name =
+    List.assoc_opt name p_deps
+    |> Option.value ~default:[]
+    |> List.filter (fun d -> List.mem d node_names)
+  in
 
   (* Compute topological order *)
   let topo_order =
@@ -541,14 +555,37 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
 
   (* Propagate schemas through the DAG *)
   let schemas : (string, schema) Hashtbl.t = Hashtbl.create 16 in
+  let broken_nodes : (string, bool) Hashtbl.t = Hashtbl.create 16 in
   let diagnostics = ref [] in
 
   List.iter (fun name ->
     let is_noop = try List.assoc name p_noops with Not_found -> false in
-    if is_noop then
-      Hashtbl.add schemas name []
-    else
+    if is_noop then begin
+      Hashtbl.add schemas name [];
+      Hashtbl.add broken_nodes name false
+    end else begin
       let expr = try List.assoc name p_exprs with Not_found -> mk_expr (Value (VNA NAGeneric)) in
+
+      (* Determine if any dependency's schema was broken *)
+      let dep_is_broken = match dep_of name with
+        | [] -> false
+        | primary :: _ ->
+            (try Hashtbl.find broken_nodes primary with Not_found -> false)
+      in
+
+      (* Determine if the current node expression contains unrecognized verbs *)
+      let ops = unwrap_pipe expr in
+      let has_custom_verb = List.exists (fun op ->
+        match op.node with
+        | Var _ -> false
+        | _ ->
+            (match classify_verb op with
+             | Other _ -> true
+             | _ -> false)
+      ) ops in
+
+      let current_chain_broken = dep_is_broken || has_custom_verb in
+      Hashtbl.add broken_nodes name current_chain_broken;
 
       (* First, try to read CSV header for root nodes *)
       let root_schema =
@@ -560,9 +597,14 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
               (match read_csv_schema full_path with
                | Some cols -> Some cols
                | None ->
-                   match read_csv_schema path with
+                   let project_root = Builder_utils.get_project_root () in
+                   let proj_path = Filename.concat project_root path in
+                   match read_csv_schema proj_path with
                    | Some cols -> Some cols
-                   | None -> None)
+                   | None ->
+                       match read_csv_schema path with
+                       | Some cols -> Some cols
+                       | None -> None)
           | None -> None
         else None
       in
@@ -578,7 +620,6 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
       let output_schema = match root_schema with
         | Some cols -> cols
         | None ->
-            let ops = unwrap_pipe expr in
             if List.length ops > 1 then
               List.fold_left apply_pipe_op input_schema ops
             else
@@ -625,9 +666,8 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
             diag_suggested_fix =
               if List.mem expected_type ["int"; "double"; "string"; "bool"]
               then
-                let line = match expr.loc with Some l -> Some l.line | None -> None in
-                Diagnostics.make_cast_fix ~column:col_name ~cast_to:expected_type ~chain_broken:false ~target_node:name ?file:(Some file) ?line ()
-              else NoFix;
+                 Diagnostics.make_cast_fix ~column:col_name ~cast_to:expected_type ~chain_broken:current_chain_broken ~target_node:name ?file:(Some file) ?line:(match expr.loc with Some l -> Some l.line | None -> None) ()
+              else Diagnostics.no_fix;
           } : Diagnostics.diagnostic) :: !diagnostics
         ) mismatches
       end;
@@ -681,7 +721,7 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
               diag_expected = None;
               diag_actual = None;
               diag_caused_by = [];
-              diag_suggested_fix = NoFix;
+              diag_suggested_fix = Diagnostics.no_fix;
             } : Diagnostics.diagnostic) :: !contract_diags
           end else
             (* Last position: validate contracts against final schema *)
@@ -689,7 +729,7 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
               | Call { args; _ } -> extract_contracts args
               | _ -> []
             in
-            let diags = validate_contracts ~node_name:name ~file:(Some file) contracts !current_validation_schema in
+            let diags = validate_contracts ~node_name:name ~file:(Some file) ~chain_broken:current_chain_broken contracts !current_validation_schema in
             contract_diags := diags @ !contract_diags
         end
       ) ops;
@@ -736,7 +776,7 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
                         diag_expected = None;
                         diag_actual = None;
                         diag_caused_by = [];
-                        diag_suggested_fix = NoFix;
+                        diag_suggested_fix = Diagnostics.no_fix;
                       })
                     else None
                   ) all_vars in
@@ -744,6 +784,7 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
                end
            | None -> ())
       | _ -> ()
+    end
   ) topo_order;
 
   !diagnostics

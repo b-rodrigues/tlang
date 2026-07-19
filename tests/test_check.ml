@@ -132,7 +132,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     diag_expected = None;
     diag_actual = None;
     diag_caused_by = ["upstream_node"];
-    diag_suggested_fix = Diagnostics.NoFix;
+    diag_suggested_fix = Diagnostics.no_fix;
   } in
   check_eq "diagnostic_phase accessor"
     (Diagnostics.phase_to_string (Diagnostics.diagnostic_phase test_diag)) "exec";
@@ -365,6 +365,30 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
         with Not_found -> false)
   in
   check "schema rename stale: suggested_fix is rename_column" has_rename_fix;
+  flush stdout;
+
+  Printf.printf "\nschema check cast confidence tests:\n";
+
+  (* Schema cast unbroken: Cast fix has high confidence *)
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" (golden "schema_cast_unbroken.t")) in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let is_cast_high =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "\"confidence\"[ \t]*:[ \t]*\"high\"") result_str 0); true
+        with Not_found -> false)
+  in
+  check "schema cast unbroken: Cast fix has confidence=high" is_cast_high;
+  flush stdout;
+
+  (* Schema cast broken: Cast fix has medium confidence *)
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" (golden "schema_cast_broken.t")) in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let is_cast_medium =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "\"confidence\"[ \t]*:[ \t]*\"medium\"") result_str 0); true
+        with Not_found -> false)
+  in
+  check "schema cast broken: Cast fix has confidence=medium" is_cast_medium;
   flush stdout;
 
   Printf.printf "\nmissing package detection:\n";

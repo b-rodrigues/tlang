@@ -388,7 +388,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
                          diag_message = Printf.sprintf "Variable `%s` annotated as %s, but expression infers to %s."
                            name (Ast.Utils.typ_to_string annotation) (Ast.Utils.typ_to_string inferred_ast);
                          diag_expected = None; diag_actual = None; diag_caused_by = [];
-                         diag_suggested_fix = Diagnostics.NoFix } :: !diags
+                         diag_suggested_fix = Diagnostics.no_fix } :: !diags
         | _ -> ()
       ) program;
       List.rev !diags
