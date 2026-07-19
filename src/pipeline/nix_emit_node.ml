@@ -583,7 +583,7 @@ def py_write_arrow(df, path):
 
 def py_read_arrow(path):
     with pa.OSFile(path, 'rb') as f:
-        return ipc.open_file(f).read_all()
+        return ipc.open_file(f).read_pandas()
 |} in
 
   let t_pmml_r_code = {|
