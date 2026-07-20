@@ -55,6 +55,10 @@ id,region,amount,date,product
 8,East,175.50,2026-01-22,Gadget
 ```
 
+Add the required packages in `tproject.toml` and rebuild the environment using `t update`.
+Agents are capable of doing it, but doing it yourself reduces friction. If you know exactly what
+you need, clearly instruct your agent to not add packages to `tproject.toml`.
+
 ---
 
 ## Step 1: Agent generates the pipeline
