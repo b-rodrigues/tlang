@@ -37,3 +37,17 @@ let nix_double_quote s =
     | c -> Buffer.add_char buffer c
   ) s;
   "\"" ^ Buffer.contents buffer ^ "\""
+
+(** Escape user code for safe embedding inside Nix ''...'' strings.
+    Every ' is replaced by ${"'"}, which Nix interpolates back to a literal '.
+    This prevents user code containing '' (e.g. Python empty strings) from
+    terminating the Nix indented string prematurely. *)
+let nix_escape_indented_code s =
+  let buf = Buffer.create (String.length s * 5) in
+  String.iter (fun c ->
+    if c = '\'' then
+      Buffer.add_string buf "${\"'\"}"
+    else
+      Buffer.add_char buf c
+  ) s;
+  Buffer.contents buf
