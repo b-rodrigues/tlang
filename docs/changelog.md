@@ -38,10 +38,10 @@
 
 ### `t fix` — Mechanical Suggested-Fix Application
 
-- **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Cast` (inserts `|> mutate(...)`), `Rename_column` (replaces `$old` with `$new` in column references), and `Add_node_arg` (inserts missing arguments into node definitions).
+- **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new` in column references) and `Add_node_arg` (inserts missing arguments into node definitions).
 - **`t_fix(file, dry_run)` REPL function**: Invoke `t fix` from within a T session.
 - **Word-boundary-safe rename**: Column renames only affect `$col` and `` $`col` `` forms, avoiding corruption of identifiers like `valid` when renaming `id`.
-- **`target_node` on `suggested_fix`**: `Cast`, `Rename_column`, and `Add_node_arg` fixes now include a `target_node` field indicating which pipeline node the fix applies to.
+- **`target_node` on `suggested_fix`**: `Rename_column` and `Add_node_arg` fixes now include a `target_node` field indicating which pipeline node the fix applies to.
 - **Cross-runtime deserializer suggestion**: When a node depends on a node from a different runtime but has no explicit `deserializer`, `t check` now suggests adding `deserializer = ^csv` via an `Add_node_arg` fix.
 - **`fetchurl` serializer parameter**: `fetchurl()` now accepts a `serializer` argument for pipeline mode, allowing explicit control over the download format (e.g., `serializer = ^text`).
 

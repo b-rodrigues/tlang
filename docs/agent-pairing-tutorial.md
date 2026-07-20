@@ -187,15 +187,17 @@ Now a different error surfaces:
         "file": "pipeline.t",
         "span": { "start": [20, 20], "end": [20, 40] }
       },
-      "message": "Column 'amount' expected type <double>, node 'clean' declares <string>",
-      "expected": { "kind": "arrow_type", "value": "double" },
-      "actual": { "kind": "arrow_type", "value": "string" },
+      "message": "Column 'mg' not found. Did you mean 'mpg'?",
+      "expected": null,
+      "actual": null,
       "caused_by": ["clean"],
       "suggested_fix": {
-        "kind": "cast",
-        "target_node": "clean",
-        "column": "amount",
-        "cast_to": "double"
+        "kind": "rename_column",
+        "old_name": "mg",
+        "new_name": "mpg",
+        "edit_distance": 1,
+        "is_unique": true,
+        "target_node": "clean"
       }
     }
   ]
@@ -203,16 +205,14 @@ Now a different error surfaces:
 ```
 
 The agent sees:
-- **`error_class: "schema_mismatch"`** — column type doesn't match downstream expectations
-- **`expected: "double"`, `actual: "string"`** — the `summary` node expects a numeric
-  `amount` column, but `clean` is producing it as a string
+- **`error_class: "schema_mismatch"`** — column name doesn't match upstream schema
 - **`caused_by: ["clean"]`** — the upstream `clean` node is the source
-- **`suggested_fix`** — cast `amount` to double in the `clean` node
+- **`suggested_fix`** — rename `mg` to `mpg` in the clean node
 
-The agent fixes the upstream Python code to ensure `amount` stays numeric:
+The agent fixes the typo in the upstream Python code:
 
 ```python
-df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+df["mpg"] = pd.to_numeric(df["mpg"], errors="coerce")
 ```
 
 Re-check:
@@ -234,15 +234,14 @@ $ t check --json pipeline.t
 **Clean.** The pipeline is structurally sound. Time to build.
 
 > **What the human reviews:** The agent should show you what it's changing and why.
-> A `cast` fix changes the data types flowing between nodes — make sure the agent
-> understands *why* the type mismatch happened, not just *how* to suppress it.
+> A rename fix changes column references throughout the file — make sure the agent
+> understands *why* the name mismatch happened, not just *how* to suppress it.
 
 ---
 
 ## Step 3: Agent applies fixes (or edits manually)
 
-In this case the agent edited the Python code directly (fixing the typo and adding
-`pd.to_numeric`). No `t fix` needed — the `suggested_fix` was a `cast`, but the agent
+In this case the agent edited the Python code directly (fixing the typo). No `t fix` needed — the `suggested_fix` was a `rename_column`, but the agent
 chose to fix the root cause in the upstream node instead.
 
 If `t fix` had been applicable, the agent would preview first:
@@ -250,7 +249,7 @@ If `t fix` had been applicable, the agent would preview first:
 ```bash
 $ t fix --dry-run pipeline.t
 dry-run: would apply 1 fix to pipeline.t:
-  [Cast] line 20: cast column 'amount' to double in node 'clean'
+  [Rename_column] line 20: rename column 'mg' to 'mpg' in node 'clean'
 ```
 
 Then apply:
@@ -262,7 +261,7 @@ Run 't check pipeline.t' to verify.
 ```
 
 > **What the human reviews:** Always ask the agent to run `t fix --dry-run` before
-> applying. A `cast` fix inserts a `mutate()` call — mechanical, but you should
+> applying. A rename fix modifies column references in the file — mechanical, but you should
 > confirm it matches your intent. Sometimes fixing the root cause (as the agent did
 > here) is better than applying the suggested fix.
 
@@ -466,7 +465,6 @@ The `root_causes` field tells the agent which node is the actual source of the f
 | Wrong column name in downstream node | `t check --schema` catches it as `schema_mismatch` |
 | Missing serializer on a node | `t check` catches it as `structural_error` |
 | Wrong deserializer format | `t check` catches it as `structural_error` |
-| Forgets `expect()` contracts | Run `t check --schema` — it validates contracts |
 
 ### When to step in
 
