@@ -2238,7 +2238,7 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
               let expr_str = to_t_expr child in
               Printf.sprintf {|      cat <<'EOF' >> node_script.t
 %s = %s
-EOF|} k expr_str
+EOF|} k (Nix_utils.nix_escape_indented_code expr_str)
             ) children
       in
 
@@ -2372,7 +2372,7 @@ EOF|} k expr_str
       if imports = [] then ""
       else
         let code = String.concat "\n" (List.map String.trim imports) in
-        Printf.sprintf "      cat <<'EOF' >> node_script.%s\n%s\nEOF\n" ext code
+        Printf.sprintf "      cat <<'EOF' >> node_script.%s\n%s\nEOF\n" ext (Nix_utils.nix_escape_indented_code code)
     else ""
   in
 
@@ -2590,7 +2590,7 @@ EOF
 EOF
        echo "  writeLines(r_visual_class(node_result), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
        echo "  r_write_warnings(captured_warns, file.path(Sys.getenv('out'), 'warnings'))" >> node_script.R
-       echo "}" >> node_script.R|} expr_s_no_imports (r_emit_artifact "node_result")
+       echo "}" >> node_script.R|} (Nix_utils.nix_escape_indented_code expr_s_no_imports) (Nix_utils.nix_escape_indented_code (r_emit_artifact "node_result"))
       else
         Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
       echo "tryCatch({" >> node_script.R
@@ -2614,7 +2614,7 @@ EOF
 EOF
        echo "  writeLines(r_visual_class(node_result), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
        echo "  r_write_warnings(captured_warns, file.path(Sys.getenv('out'), 'warnings'))" >> node_script.R
-       echo "}" >> node_script.R|} expr_s (r_emit_artifact "node_result")
+       echo "}" >> node_script.R|} (Nix_utils.nix_escape_indented_code expr_s) (Nix_utils.nix_escape_indented_code (r_emit_artifact "node_result"))
     else if runtime = "Python" then
       if is_raw_code then
         if raw_assigns_to name expr_s then
@@ -2637,7 +2637,7 @@ EOF
 %s
 EOF
       echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(__node_result))" >> node_script.py
-      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string expr_s 8) name (py_emit_artifact "__node_result")
+      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (Nix_utils.nix_escape_indented_code (indent_string expr_s 8)) name (Nix_utils.nix_escape_indented_code (py_emit_artifact "__node_result"))
         else
           let globals_decl =
             if deps = [] then ""
@@ -2664,8 +2664,8 @@ EOF
 EOF
       echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(__node_result))" >> node_script.py
       echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|}
-            (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (shell_single_quote globals_decl))
-            (indent_string expr_s_no_imports 4) (py_emit_artifact "__node_result")
+            (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (Nix_utils.nix_escape_indented_code (shell_single_quote globals_decl)))
+            (Nix_utils.nix_escape_indented_code (indent_string expr_s_no_imports 4)) (Nix_utils.nix_escape_indented_code (py_emit_artifact "__node_result"))
       else
         Printf.sprintf {|      echo "import warnings" >> node_script.py
       echo "try:" >> node_script.py
@@ -2684,10 +2684,10 @@ EOF
 %s
 EOF
       echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(__node_result))" >> node_script.py
-      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string (Printf.sprintf "__node_result = %s" expr_s) 8) (py_emit_artifact "__node_result")
+      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (Nix_utils.nix_escape_indented_code (indent_string (Printf.sprintf "__node_result = %s" expr_s) 8)) (Nix_utils.nix_escape_indented_code (py_emit_artifact "__node_result"))
     else if runtime = "Julia" then
-      let emitted_expr = indent_string expr_s_no_imports 12 in
-      let emitted_artifact = julia_emit_artifact "__node_result" in
+      let emitted_expr = Nix_utils.nix_escape_indented_code (indent_string expr_s_no_imports 12) in
+      let emitted_artifact = Nix_utils.nix_escape_indented_code (julia_emit_artifact "__node_result") in
       String.concat "\n"
         [
           {|      echo "captured_logger = TCaptureLogger()" >> node_script.jl|};
@@ -2717,7 +2717,7 @@ EOF
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
-          Printf.sprintf "      cat <<'EOF' >> node_script.sh\n%s\nEOF" raw_text
+          Printf.sprintf "      cat <<'EOF' >> node_script.sh\n%s\nEOF" (Nix_utils.nix_escape_indented_code raw_text)
       | Value (VString cmd) | Value (VSymbol cmd) ->
           if shell = None && shell_args_tokens = [] && sh_cli_args_tokens <> [] && is_simple_exec_command cmd then
             let set_args = shell_set_args_block sh_cli_args_tokens in
@@ -2728,7 +2728,7 @@ EOF
             let set_args = shell_set_args_block sh_cli_args_tokens in
             Printf.sprintf {|%s      cat <<'EOF' >> node_script.sh
 %s
-EOF|} set_args cmd
+EOF|} set_args (Nix_utils.nix_escape_indented_code cmd)
       | _ -> "      printf '%%s\\n' true >> node_script.sh")
     else (* T runtime *)
       if is_raw_code then
@@ -2741,7 +2741,7 @@ EOF
       echo "%s" >> node_script.t
       echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
       echo "      res2 = write_text(\"$out/class\", type(__node_result))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} expr_s_no_imports res1_line_local
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} (Nix_utils.nix_escape_indented_code expr_s_no_imports) res1_line_local
       else
         let res1_line_local = res1_line_for "__node_result" in
         Printf.sprintf {|      cat <<'EOF' >> node_script.t
@@ -2750,7 +2750,7 @@ EOF
       echo "%s" >> node_script.t
       echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
       echo "      res2 = write_text(\"$out/class\", type(__node_result))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} expr_s res1_line_local
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} (Nix_utils.nix_escape_indented_code expr_s) res1_line_local
   in
 
   let runtime_base_packages =

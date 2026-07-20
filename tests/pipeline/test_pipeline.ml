@@ -1356,7 +1356,7 @@ p_cross = pipeline {
          contains_substring nix "r_extract_plot_metadata <- function(object)" &&
          contains_substring nix "r_save_viz_metadata <- function(object, path)" &&
          contains_substring nix "file.path(Sys.getenv('out'), 'class')" &&
-         contains_substring nix "r_save_viz_metadata(node_result, file.path(Sys.getenv('out'), 'viz'))"
+          contains_substring nix {|r_save_viz_metadata(node_result, file.path(Sys.getenv(${"'"}out${"'"}), ${"'"}viz${"'"})|}
        in
         let has_py_plot_helpers =
           contains_substring nix "def py_extract_plot_metadata(obj):" &&
@@ -1364,7 +1364,7 @@ p_cross = pipeline {
           contains_substring nix "\"class\": \"plotnine\"" &&
           contains_substring nix "\"backend\": \"Python\"" &&
           contains_substring nix "py_visual_class(__node_result)" &&
-          contains_substring nix "py_save_viz_metadata(__node_result, os.path.join(os.environ['out'], 'viz'))"
+           contains_substring nix {|py_save_viz_metadata(__node_result, os.path.join(os.environ[${"'"}out${"'"}], ${"'"}viz${"'"})|}
         in
         let has_jl_plot_helpers =
           contains_substring nix "function jl_extract_plot_metadata(obj)" &&
