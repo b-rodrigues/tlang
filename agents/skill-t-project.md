@@ -220,13 +220,37 @@ parse = pyn(
   `lambda path: open(path).read()(artifact_path)` — Python parses this as the full
   lambda body, and the lambda is never invoked. Use `open` directly instead.
 
+## Copying artifacts from the store (`pipeline_copy`)
+
+Because T pipelines execute inside a hermetic Nix sandbox, node outputs and rendered files remain stored in the read-only Nix store (`/nix/store/...`). To extract generated files (CSVs, Parquet files, plots, rendered HTML/PDF reports, models) from the Nix store into your local project workspace for inspection, sharing, or publishing, use `pipeline_copy()`.
+
+### Usage
+
+```t
+# Copy all built node artifacts to the default directory ("pipeline-output/")
+pipeline_copy()
+
+# Copy all node artifacts to a custom directory
+pipeline_copy(target_dir = "outputs")
+
+# Copy a specific node's output to a custom directory
+pipeline_copy(node = "clean_data", target_dir = "outputs")
+```
+
+### Key parameters
+
+- `node`: (Optional) Node name as a string or symbol. If omitted or NA, copies all built nodes.
+- `target_dir`: (Optional) Destination folder path in your local workspace (default: `"pipeline-output"`).
+- `dir_mode`: (Optional) POSIX permissions mode for directories (default: `"0755"`).
+- `file_mode`: (Optional) POSIX permissions mode for files (default: `"0644"`).
+
 ## Common mistakes
 
 - **Reassigning a variable with `=`:** T is immutable. Use `:=` to rebind, or give the new value a new name. E.g., `a = 1; a = 2` is invalid.
 - **Writing a `for` loop:** Loops do not exist in T. Use `map()`, `summarize()`, or a colcraft verb.
 - **Referencing a column as a bare name inside a colcraft verb:** E.g., `filter(df, amount > 0)` is invalid. It must be `filter(df, $amount > 0)`. The `$` is required for NSE.
 - **Adding trailing commas after nodes in `pipeline { }`:** Pipeline nodes are separated by newlines or semicolons, NOT commas. A trailing comma causes a parse error. `t check` will report: "Unexpected ',' in pipeline block."
-- **Writing output to `data/`:** Treat it as read-only. Pipeline outputs must go through `pipeline_copy(p, node, to)` into `outputs/`.
+- **Writing output to `data/`:** Treat it as read-only. Pipeline outputs must go through `pipeline_copy(target_dir = "outputs")` into `outputs/`.
 - **Skipping the `pipeline { ... }` wrapper:** A bare script of T statements cannot run. Everything reproducible must be a node inside a pipeline.
 - **Writing to `/tmp` or absolute paths from nodes:** Nodes run inside a hermetic Nix sandbox with a read-only filesystem. For debugging, create a view script (`src/view.t`) that uses `t_make()` + `read_node(p.name)` + `glimpse()` to inspect node outputs.
 - **Mismatched serializers between nodes:** `t check --schema` does not catch serializer mismatches. Verify via `inspect_pipeline(p)`.
@@ -251,6 +275,7 @@ Use this workflow to understand what a pipeline node does, what it produced, and
 | `inspect_pipeline(p)` | DataFrame: node, runtime, serializer, deps, has_script | First look — understand pipeline structure |
 | `inspect_node(p.node)` | Dict: name, runtime, path, serializer, class, dependencies, warnings | Drill into one node's metadata |
 | `read_node(p.node)` | The actual data (DataFrame, list, string, etc.) | Load and examine the node's output |
+| `pipeline_copy(node?, target_dir?)` | Copies built artifacts from Nix store to local directory | Export files (HTML, CSV, plots) to workspace |
 | `warning_msg(p.node)` | Formatted warning text (own + upstream) | Diagnose warnings without raw diagnostics |
 | `explain(read_node(p.node))` | Structured dict of the value's type, shape, columns, preview | Understand what the data looks like |
 | `rebuild_node(p.node)` | Rebuilds a single node, returns updated ComputedNode | One node changed, don't rebuild entire pipeline |

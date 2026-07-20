@@ -32,7 +32,7 @@ Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize t
 - **Reassigning a variable with `=`:** T is immutable. Use `:=` to rebind, or give the new value a new name. E.g., `a = 1; a = 2` is invalid.
 - **Writing a `for` loop:** Loops do not exist in T. Use `map()`, `summarize()`, or a colcraft verb.
 - **Referencing a column as a bare name inside a colcraft verb:** E.g., `filter(df, amount > 0)` is invalid. It must be `filter(df, $amount > 0)`. The `$` is required for NSE.
-- **Writing output to `data/`:** Treat it as read-only. Pipeline outputs must go through `pipeline_copy(p, node, to)` into `outputs/`.
+- **Writing output to `data/`:** Treat it as read-only. Pipeline outputs must go through `pipeline_copy(target_dir = "outputs")` into `outputs/`.
 - **Skipping the `pipeline { ... }` wrapper:** A bare script of T statements cannot run. Everything reproducible must be a node inside a pipeline.
 
 ## Never do this
