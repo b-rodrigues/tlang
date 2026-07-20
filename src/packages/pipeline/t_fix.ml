@@ -1,6 +1,6 @@
 (* src/packages/pipeline/t_fix.ml *)
 (* REPL-callable version of `t fix` — mechanically applies suggested fixes
-   from check diagnostics (type casts, column renames). *)
+   from check diagnostics (column renames, node argument additions). *)
 
 open Ast
 
@@ -8,8 +8,8 @@ open Ast
 --# Mechanically Apply Suggested Fixes
 --#
 --# Runs `t check --schema` on a file, extracts diagnostics with suggested_fix,
---# and applies them (e.g., inserting `|> mutate($col = as.type($col))` for type
---# contract violations). Uses bottom-up line order to avoid line-number drift.
+--# and applies them (e.g., renaming columns, adding missing node arguments).
+--# Uses bottom-up line order to avoid line-number drift.
 --#
 --# @name t_fix
 --# @param file :: String The path to the .t file to fix.
@@ -30,8 +30,6 @@ let format_fix_result (result : Fix.fix_result) =
       Buffer.add_string buf (Printf.sprintf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped);
     List.iter (fun (d : Diagnostics.diagnostic) ->
       let fix_desc = match d.diag_suggested_fix with
-        | Diagnostics.Cast { column; cast_to; _ } ->
-            Printf.sprintf "  Cast column '%s' to %s" column cast_to
         | Diagnostics.Rename_column { old_name; new_name; _ } ->
             Printf.sprintf "  Rename column '%s' to '%s'" old_name new_name
         | Diagnostics.Add_node_arg _ -> "  Add node argument"

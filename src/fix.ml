@@ -9,34 +9,6 @@ type fix_result = {
   diagnostics : Diagnostics.diagnostic list;
 }
 
-let apply_cast ~file ~line ~column ~cast_to =
-  let lines = ref [] in
-  let ch = open_in file in
-  Fun.protect ~finally:(fun () -> close_in_noerr ch)
-    (fun () ->
-       let i = ref 1 in
-       try
-         while true do
-           let l = input_line ch in
-           if !i = line then
-             let indent =
-               let rec count s n =
-                 if n < String.length s && s.[n] = ' ' then count s (n + 1) else n
-               in
-               count l 0
-             in
-             let pad = String.make indent ' ' in
-             lines := l :: Printf.sprintf "%s|> mutate($%s = as.%s($%s))" pad column cast_to column :: !lines
-           else
-             lines := l :: !lines;
-           incr i
-         done
-       with End_of_file -> ());
-  let oc = open_out file in
-  Fun.protect ~finally:(fun () -> close_out_noerr oc)
-    (fun () ->
-       List.iter (fun l -> output_string oc (l ^ "\n")) (List.rev !lines))
-
 let is_word_char = function
   | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' -> true
   | _ -> false
@@ -250,10 +222,6 @@ let apply_fix ~file (fix : Diagnostics.suggested_fix) =
      or review first. The fix-kind filtering below (Suggest_identifier -> false,
      Run_command -> false) is based on fix type, not confidence level. *)
   match fix with
-  | Cast { column; cast_to; line; _ } ->
-      (match line with
-       | Some l -> apply_cast ~file ~line:l ~column ~cast_to; true
-       | None -> false)
   | Rename_column { old_name; new_name; _ } ->
       apply_rename_column ~file ~old_name ~new_name; true
   | Add_node_arg { node; arg; _ } ->
@@ -285,7 +253,6 @@ let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
       Printf.printf "Would apply: %s on %s\n" d.diag_message
         (match d.diag_file with Some f -> f | None -> "<unknown>");
       let would_work = match d.diag_suggested_fix with
-        | Diagnostics.Cast { line = Some _; _ } -> true
         | Diagnostics.Rename_column _ -> true
         | Diagnostics.Add_node_arg _ -> true
         | _ -> false

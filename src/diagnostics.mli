@@ -32,9 +32,6 @@ type error_class =
   | Na_warning
   | Nix_error
   | Unknown_error
-  | Contract_violation
-  | Contract_unverifiable
-  | Invalid_expect_placement
 
 val error_class_to_string : error_class -> string
 val error_class_of_string : string -> error_class
@@ -42,8 +39,8 @@ val severity_to_string : severity -> string
 val phase_to_string : diagnostic_phase -> string
 
 (** Confidence level for a suggested fix, indicating how deterministic it is.
-    - [High]: highly deterministic — safe to apply automatically (e.g., Cast with intact schema chain, Rename at edit distance 1 with unique match)
-    - [Medium]: heuristic — verify before applying (e.g., Add_node_arg, Cast with broken chain, Rename at edit distance 2)
+    - [High]: highly deterministic — safe to apply automatically (e.g., Rename at edit distance 1 with unique match)
+    - [Medium]: heuristic — verify before applying (e.g., Add_node_arg, Rename at edit distance 2)
     - [Low]: informational — check manually (e.g., Run_command, Suggest_identifier at distance 3+)
     Confidence is computed dynamically from diagnostic context, not static per fix kind. *)
 type confidence = High | Medium | Low
@@ -52,7 +49,6 @@ val confidence_to_string : confidence -> string
 val confidence_of_string : string -> confidence
 
 type suggested_fix = private
-  | Cast of { column: string; cast_to: string; target_node: string option; file: string option; line: int option; chain_broken: bool; confidence: confidence }
   | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
@@ -62,10 +58,6 @@ type suggested_fix = private
 (** Smart constructors for suggested_fix. These are the only way to build
     suggested_fix values — the type is private to enforce this constraint.
     Each constructor computes confidence automatically from its inputs. *)
-
-(** Cast: inserts a type coercion. Confidence is [High] when [chain_broken]
-    is false (schema propagates through the pipeline), [Medium] otherwise. *)
-val make_cast_fix : column:string -> cast_to:string -> chain_broken:bool -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix
 
 (** Rename_column: replaces column references. Confidence computed from edit
     distance and uniqueness unless explicitly overridden via [?confidence]. *)

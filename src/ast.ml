@@ -119,13 +119,6 @@ and node_diagnostics = {
   nd_upstream_errors : string list;
 }
 
-(** Contracts extracted from expect() calls for static schema validation *)
-and expect_contract =
-  | Contract_columns of string list
-  | Contract_type of string * string
-  | Contract_null_rate of string * float
-
-
 (** Phase 3: Pipeline result with cached values and dependency info *)
 and pipeline_result = {
   p_nodes : (string * value) list;           (* Cached node results *)

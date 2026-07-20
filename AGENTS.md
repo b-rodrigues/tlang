@@ -72,7 +72,7 @@ When implementing or modifying pipeline nodes, use `t check` for instant structu
 | Command | What it checks | Nix required? |
 |---------|---------------|---------------|
 | `t check <file.t>` | Pipeline DAG structure, dependency cycles, node syntax | No |
-| `t check --schema <file.t>` | + column references, schema propagation, `expect()` contracts | No |
+| `t check --schema <file.t>` | + column references, schema propagation | No |
 | `t check --env <file.t>` | + `tproject.toml` declarations, lockfile consistency, Nix eval | Yes |
 | `t check --json <file.t>` | Structured JSON diagnostics (works with any tier) | Depends on tier |
 
@@ -88,30 +88,11 @@ t check --watch --schema src/pipeline.t
 
 This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. Exit code reflects the last check's diagnostics.
 
-### Shape contracts with `expect()`
-
-Declare expected output columns on pipeline nodes to catch schema drift:
-
-```t
-clean = raw
-  |> read_csv("data.csv")
-  |> filter($status == "complete")
-  |> mutate($score = as.numeric($score))
-  |> expect(columns = ["id", "name", "score"])
-```
-
-- `expect()` must appear at the **end** of a pipe chain
-- Checked statically via `t check --schema` — emits `contract_violation` if columns are missing
-- Mid-chain `expect()` (e.g., `raw |> expect(...) |> filter(...)`) produces a `Wire`-phase warning
-- `expect()` has no runtime effect — it is stripped during evaluation
-
 ### Workflow for implementing a new pipeline node
 
 1. Write the node in your pipeline script
 2. Run `t check --schema src/pipeline.t` — verify no errors
-3. Add `expect(columns = [...])` to declare the expected output shape
-4. Run `t check --schema` again — verify the contract passes
-5. Run `dune runtest` — full test suite
+3. Run `dune runtest` — full test suite
 6. Run `build_pipeline(p)` — Nix build (only when structural checks pass)
 
 ### Agent Check-Fix Loop Rules (Critical for LLMs)

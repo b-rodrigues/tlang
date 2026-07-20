@@ -13,9 +13,9 @@
 ### `t check` CLI & Structured Diagnostics Protocol
 
 - **Tier 1 CLI (`t check <file>`)**: Structural pipeline validation without triggering Nix builds. Catches parse errors, DAG cycles, dangling node references, arity errors, and built-in name resolution. Exit codes: 0=clean, 1=wire error, 2=schema error, 3=env error.
-- **Tier 2 Schema Validation (`t check --schema`)**: Static column-name and type propagation through the pipeline DAG. Validates column references against inferred upstream schemas, checks `expect()` type contracts, and reports contract violations with `Cast` suggested fixes.
+- **Tier 2 Schema Validation (`t check --schema`)**: Static column-name and type propagation through the pipeline DAG. Validates column references against inferred upstream schemas and reports type mismatches with suggested fixes.
 - **Structured JSON Diagnostics (`--json`)**: Machine-readable output for all tiers, with `schema_version`, `status`, `phase`, `tier`, and per-diagnostic `error_class` (stable enum), `severity`, `expected`, `actual`, `caused_by`, and `suggested_fix` fields. **Breaking change:** `file` and `span` (with `start` and `end`) are now nested inside the `node` sub-object. Designed for agent tooling.
-- **Dynamic confidence levels**: Every `suggested_fix` now carries a `confidence` field (`"high"`, `"medium"`, `"low"`) computed from diagnostic context. `Cast` is `"high"` when the schema chain is intact, drops to `"medium"` when broken. `Rename_column` and `Suggest_identifier` scale with edit distance and uniqueness. `Add_node_arg` is always `"medium"`, `Run_command` always `"low"`.
+- **Dynamic confidence levels**: Every `suggested_fix` now carries a `confidence` field (`"high"`, `"medium"`, `"low"`) computed from diagnostic context. `Rename_column` and `Suggest_identifier` scale with edit distance and uniqueness. `Add_node_arg` is always `"medium"`, `Run_command` always `"low"`.
 - **`t_check(file, json, schema, env)` REPL function**: Invoke `t check` from within a T session.
 
 ### `t explain` — Node Introspection
@@ -50,7 +50,6 @@
 - **Nix Evaluability Check**: `t check --env` now also generates `pipeline.nix` and `dag.json` and validates them via `nix-instantiate --eval`. This catches Nix expression errors (bad references, type mismatches) before a full build.
 - **Git-Sourced Lockfile Packages**: `check_lockfile_consistency` now includes packages resolved via GitHub/GitLab entries in `renv.lock`, preventing false-positive `missing_from_lockfile` diagnostics.
 - **Watch Mode (`--watch`)**: `t check --watch` runs immediately, then polls the input file for changes and re-runs the check on every modification. Can be combined with `--schema` and `--env`.
-- **Shape Contracts (`expect()`)**: New `expect(columns = [...])` syntax for pipeline nodes declares expected output columns. Contracts are checked statically via `t check --schema` and produce `contract_violation` diagnostics when the inferred schema is missing declared columns.
 
 ### Nix Installation Documentation
 

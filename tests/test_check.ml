@@ -367,30 +367,6 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check "schema rename stale: suggested_fix is rename_column" has_rename_fix;
   flush stdout;
 
-  Printf.printf "\nschema check cast confidence tests:\n";
-
-  (* Schema cast unbroken: Cast fix has high confidence *)
-  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" (golden "schema_cast_unbroken.t")) in
-  let result_str = match result with Ast.VString s -> s | _ -> "" in
-  let is_cast_high =
-    String.length result_str > 0
-    && (try ignore (Str.search_forward (Str.regexp "\"confidence\"[ \t]*:[ \t]*\"high\"") result_str 0); true
-        with Not_found -> false)
-  in
-  check "schema cast unbroken: Cast fix has confidence=high" is_cast_high;
-  flush stdout;
-
-  (* Schema cast broken: Cast fix has medium confidence *)
-  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" (golden "schema_cast_broken.t")) in
-  let result_str = match result with Ast.VString s -> s | _ -> "" in
-  let is_cast_medium =
-    String.length result_str > 0
-    && (try ignore (Str.search_forward (Str.regexp "\"confidence\"[ \t]*:[ \t]*\"medium\"") result_str 0); true
-        with Not_found -> false)
-  in
-  check "schema cast broken: Cast fix has confidence=medium" is_cast_medium;
-  flush stdout;
-
   Printf.printf "\nmissing package detection:\n";
 
   (* Missing package: undeclared R package should get Missing_package *)
@@ -478,18 +454,8 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   in
   test_run_command ();
 
-  Printf.printf "\nCast and Rename_column confidence:\n";
-  let test_cast_and_rename_confidence () =
-    let cast_fix = Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 1) () in
-    let cast_json = Diagnostics.suggested_fix_to_yojson cast_fix in
-    let cast_conf = Yojson.Safe.Util.member "confidence" cast_json |> Yojson.Safe.Util.to_string in
-    check "Cast unbroken serializes confidence=high" (cast_conf = "high");
-
-    let cast_broken = Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:true ?file:(Some "test.t") ?line:(Some 1) () in
-    let cast_broken_json = Diagnostics.suggested_fix_to_yojson cast_broken in
-    let cast_broken_conf = Yojson.Safe.Util.member "confidence" cast_broken_json |> Yojson.Safe.Util.to_string in
-    check "Cast broken serializes confidence=medium" (cast_broken_conf = "medium");
-
+  Printf.printf "\nRename_column confidence:\n";
+  let test_rename_confidence () =
     let rename_fix = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) () in
     let rename_json = Diagnostics.suggested_fix_to_yojson rename_fix in
     let rename_conf = Yojson.Safe.Util.member "confidence" rename_json |> Yojson.Safe.Util.to_string in
@@ -517,6 +483,6 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
 
     ()
   in
-  test_cast_and_rename_confidence ();
+  test_rename_confidence ();
 
   Printf.printf "\n";;

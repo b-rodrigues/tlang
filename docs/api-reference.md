@@ -3252,7 +3252,7 @@ result = t_diff("src/pipeline.t", json = true)
 
 ### `t_fix(file, dry_run = false)`
 
-REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Cast` (inserts `|> mutate(...)` for type contract violations), `Rename_column` (replaces `$old` with `$new`), and `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies).
+REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new`) and `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies).
 
 **Arguments:**
 
@@ -3315,13 +3315,12 @@ Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node`
 
 | `kind` | Typical confidence | When it drops | Key fields |
 |--------|-------------------|---------------|------------|
-| `cast` | `"high"` | `"medium"` when schema chain is broken (missing upstream column) | `column`, `cast_to`, `target_node`, `line` |
 | `rename_column` | `"high"` | `"medium"` at edit distance 2; `"low"` at distance 3+ | `old_name`, `new_name`, `target_node` |
 | `add_node_arg` | `"medium"` | Always `"medium"` | `node`, `arg`, `target_node` |
 | `suggest_identifier` | varies | Scales with edit distance and uniqueness | `name`, `suggestion`, `target_node` |
 | `run_command` | `"low"` | Always `"low"` | `command`, `description`, `target_node` |
 
-**`error_class` enum values:** `structural_error`, `name_error`, `arity_error`, `type_error`, `parse_error`, `file_error`, `key_error`, `index_error`, `value_error`, `runtime_error`, `division_by_zero`, `assertion_error`, `match_error`, `shell_error`, `aggregation_error`, `na_predicate_error`, `missing_artifact`, `generic_error`, `schema_mismatch`, `contract_violation`, `contract_unverifiable`, `missing_tproject`, `missing_package`, `missing_from_lockfile`, `nix_generation_error`, `nix_eval_error`, `invalid_expect_placement`, `na_warning`, `unknown_error`.
+**`error_class` enum values:** `structural_error`, `name_error`, `arity_error`, `type_error`, `parse_error`, `file_error`, `key_error`, `index_error`, `value_error`, `runtime_error`, `division_by_zero`, `assertion_error`, `match_error`, `shell_error`, `aggregation_error`, `na_predicate_error`, `missing_artifact`, `generic_error`, `schema_mismatch`, `missing_tproject`, `missing_package`, `missing_from_lockfile`, `nix_generation_error`, `nix_eval_error`, `na_warning`, `unknown_error`.
 
 **Examples:**
 
@@ -3499,54 +3498,6 @@ t run --json pipeline.t 2>/dev/null | while IFS= read -r line; do
   fi
 done
 ```
-
-### `expect()` — Pipeline shape contracts
-
-Attach a shape contract to a pipeline node to declare expected output properties.
-Contracts are checked statically via `t check --schema`.
-
-**Syntax:**
-
-```t
-clean_data = raw_data
-  |> read_csv("data.csv")
-  |> filter($status == "complete")
-  |> expect(columns = ["id", "name", "score"])
-```
-
-Type contracts and null-rate contracts can be mixed with column contracts:
-
-```t
-clean_data = raw_data
-  |> expect(columns = ["id", "amount", "region"],
-             amount ~ double(),
-             null_rate("amount") < 0.02)
-```
-
-`expect()` must appear at the **end** of a pipe chain.
-
-**Accepted arguments:**
-
-| Argument | Type | Description |
-|----------|------|-------------|
-| `columns` | `List[String]` | Expected column names in the output |
-| `col ~ type()` | Type contract | Asserts a column has a specific type (e.g., `amount ~ double()`, `id ~ int()`) |
-| `null_rate("col") < n` | Null-rate contract | Asserts the fraction of null values in a column is below a threshold |
-
-**Behavior:**
-
-- Column contracts: checked when `t check --schema` is used (tier 2). If the inferred output schema is missing any declared columns, a `contract_violation` diagnostic is emitted.
-- Type contracts: checked statically when the column type is known (e.g., from CSV headers). If the type doesn't match, a `contract_violation` error is emitted. If the type is unknown (e.g., Python/Julia nodes), a `contract_unverifiable` warning is emitted.
-- Null-rate contracts: cannot be verified statically (require actual data). A `contract_unverifiable` warning is emitted during `t check --schema`. Runtime enforcement is planned for a future release.
-- `expect()` is stripped from the pipe chain during evaluation — it has no runtime effect.
-
-**Supported type names:** `double`, `int`, `string`, `bool`, `date`
-
-**Limitations:**
-
-- Null-rate contracts are checked at `t check --schema` time as warnings only; runtime enforcement is not yet implemented
-- Type inference from CSV headers is based on sampling; complex types may not be detected correctly
-- Column validation depends on accurate schema inference (CSV headers for root nodes, colcraft verb propagation for downstream nodes)
 
 ---
 
@@ -3808,7 +3759,6 @@ t fix --dry-run <file.t>           # preview fixes without applying
 
 | Fix Kind | Action |
 |----------|--------|
-| `cast` | Inserts `\|> mutate($col = as.type($col, "target"))` before the `expect()` node |
 | `rename_column` | Replaces all occurrences of the old column name with the new name |
 | `add_node_arg` | (planned) Adds an argument to a pipeline node |
 | `pin_package_version` | (planned) Adds or updates a package version in `tproject.toml` |
@@ -3825,18 +3775,14 @@ t fix --dry-run <file.t>           # preview fixes without applying
 ```bash
 $ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
 {
-  "kind": "cast",
-  "column": "amount",
-  "cast_to": "double",
+  "kind": "rename_column",
+  "old_name": "mpg",
+  "new_name": "MPG",
   "target_node": "clean",
   "file": "pipeline.t",
   "line": 5,
   "confidence": "high"
 }
-
-$ t fix pipeline.t
-Applied 1 fix(es), skipped 0.
-Run 't check pipeline.t' to verify.
 ```
 
 ---

@@ -33,9 +33,6 @@ type error_class =
   | Na_warning
   | Nix_error
   | Unknown_error
-  | Contract_violation
-  | Contract_unverifiable
-  | Invalid_expect_placement
 
 let error_class_to_string = function
   | Structural_error -> "structural_error"
@@ -65,9 +62,6 @@ let error_class_to_string = function
   | Na_warning -> "na_warning"
   | Nix_error -> "nix_error"
   | Unknown_error -> "unknown_error"
-  | Contract_violation -> "contract_violation"
-  | Contract_unverifiable -> "contract_unverifiable"
-  | Invalid_expect_placement -> "invalid_expect_placement"
 
 let error_class_of_string = function
   | "structural_error" | "StructuralError" -> Structural_error
@@ -94,11 +88,8 @@ let error_class_of_string = function
   | "missing_from_lockfile" -> Missing_from_lockfile
   | "nix_generation_error" -> Nix_generation_error
   | "nix_eval_error" -> Nix_eval_error
-  | "na_warning" | "NAExcluded" -> Na_warning
+  | "Na_warning" | "na_warning" -> Na_warning
   | "nix_error" | "NixError" -> Nix_error
-  | "contract_violation" -> Contract_violation
-  | "contract_unverifiable" -> Contract_unverifiable
-  | "invalid_expect_placement" -> Invalid_expect_placement
   | _ -> Unknown_error
 
 type confidence = High | Medium | Low
@@ -114,20 +105,12 @@ let confidence_of_string = function
   | "low" | _ -> Low
 
 type suggested_fix =
-  | Cast of { column: string; cast_to: string; target_node: string option; file: string option; line: int option; chain_broken: bool; confidence: confidence }
   | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Run_command of { command: string; description: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | NoFix
 let no_fix = NoFix
-
-(** Compute confidence for a Cast fix based on schema chain integrity.
-    When [chain_broken] is [true] (missing upstream column or custom verb
-    in the pipeline), the fix may not be applicable, so confidence drops
-    to [Medium]. When the chain is intact, the fix is deterministic. *)
-let confidence_for_cast ~chain_broken =
-  if chain_broken then Medium else High
 
 (** Compute confidence for typo-based fixes (Rename_column, Suggest_identifier).
     Scales with edit distance and match uniqueness:
@@ -139,10 +122,6 @@ let confidence_for_typo ~edit_distance ~is_unique =
   else if edit_distance = 2 && is_unique then Medium
   else if edit_distance = 1 then Medium
   else Low
-
-let make_cast_fix ~column ~cast_to ~chain_broken ?target_node ?file ?line () =
-  let confidence = confidence_for_cast ~chain_broken in
-  Cast { column; cast_to; target_node; file; line; chain_broken; confidence }
 
 let make_rename_column_fix ~old_name ~new_name ~edit_distance ~is_unique ?confidence ?target_node ?file ?line () =
   let confidence = match confidence with
@@ -218,16 +197,6 @@ let opt_int_to_yojson = function
   | None -> `Null
 
 let suggested_fix_to_yojson = function
-  | Cast { column; cast_to; target_node; file; line; chain_broken = _; confidence } ->
-      `Assoc [
-        ("kind", `String "cast");
-        ("column", `String column);
-        ("cast_to", `String cast_to);
-        ("target_node", opt_string_to_yojson target_node);
-        ("file", opt_string_to_yojson file);
-        ("line", opt_int_to_yojson line);
-        ("confidence", `String (confidence_to_string confidence));
-      ]
   | Rename_column { old_name; new_name; target_node; file; line; edit_distance = _; is_unique = _; confidence } ->
       `Assoc [
         ("kind", `String "rename_column");
@@ -297,16 +266,6 @@ let suggested_fix_of_yojson json =
         | None -> Low
       in
       match kind with
-      | "cast" ->
-          Cast {
-            column = json |> member "column" |> to_string;
-            cast_to = json |> member "cast_to" |> to_string;
-            target_node;
-            file; line;
-            (* Signal fields are not recoverable from JSON; safe defaults are assigned *)
-            chain_broken = false;
-            confidence;
-          }
       | "rename_column" ->
           Rename_column {
             old_name = json |> member "old_name" |> to_string;

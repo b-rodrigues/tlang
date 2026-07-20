@@ -16,28 +16,11 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     end
   in
 
-  Printf.printf "apply_cast:\n";
-  let test_apply_cast () =
-    let tmp = Filename.temp_file "test_fix" ".t" in
-    let oc = open_out tmp in
-    output_string oc "clean = raw\n  |> read_csv(\"data.csv\")\n  |> expect(columns = [\"id\"])\n";
-    close_out oc;
-    Fix.apply_cast ~file:tmp ~line:3 ~column:"amount" ~cast_to:"double";
-    let ch = open_in tmp in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    Sys.remove tmp;
-    let lines = String.split_on_char '\n' content in
-    let line3 = List.nth lines 2 in
-    check "cast inserts mutate() before expect()" (String.length line3 > 0 && (try let _ = Str.search_forward (Str.regexp "mutate") line3 0 in true with Not_found -> false))
-  in
-  test_apply_cast ();
-
   Printf.printf "\napply_rename_column:\n";
   let test_apply_rename () =
     let tmp = Filename.temp_file "test_fix" ".t" in
     let oc = open_out tmp in
-    output_string oc "clean = raw\n  |> filter($id > 1)\n  |> mutate(valid = $id + 1)\n  |> expect(columns = [\"id\"])\n";
+    output_string oc "clean = raw\n  |> filter($id > 1)\n  |> mutate(valid = $id + 1)\n";
     close_out oc;
     Fix.apply_rename_column ~file:tmp ~old_name:"id" ~new_name:"record_id";
     let ch = open_in tmp in
@@ -149,8 +132,6 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   Printf.printf "\nsuggested_fix roundtrip:\n";
   let test_roundtrip () =
     let fixes : Diagnostics.suggested_fix list = [
-      Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:false ?target_node:(Some "clean") ?file:(Some "test.t") ?line:(Some 5) ();
-      Diagnostics.make_cast_fix ~column:"y" ~cast_to:"string" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 6) ();
       Diagnostics.make_rename_column_fix ~old_name:"a" ~new_name:"b" ~edit_distance:1 ~is_unique:true ?target_node:(Some "step2") ?file:(Some "test.t") ();
       Diagnostics.make_add_node_arg_fix ~node:"filter" ~arg:"na_rm=true" ?file:(Some "test.t") ();
       Diagnostics.make_suggest_identifier_fix ~name:"prnt" ~suggestion:"print" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ();
@@ -162,8 +143,6 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       let roundtrip = Diagnostics.suggested_fix_of_yojson json in
       match fix, roundtrip with
       | NoFix, NoFix -> true
-      | Cast { column = c1; cast_to = t1; target_node = tn1; _ }, Cast { column = c2; cast_to = t2; target_node = tn2; _ } ->
-          c1 = c2 && t1 = t2 && tn1 = tn2
       | Rename_column { old_name = o1; new_name = n1; target_node = tn1; _ }, Rename_column { old_name = o2; new_name = n2; target_node = tn2; _ } ->
           o1 = o2 && n1 = n2 && tn1 = tn2
       | Add_node_arg { node = n1; arg = a1; target_node = tn1; _ }, Add_node_arg { node = n2; arg = a2; target_node = tn2; _ } ->
@@ -281,21 +260,21 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   Printf.printf "\nsort_fixes_by_descending_line:\n";
   let test_sort_fixes () =
     let d1 = { Diagnostics.
-      diag_id = "T0001"; diag_error_class = Diagnostics.Type_error; diag_severity = Error;
+      diag_id = "T0001"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some "test.t"; diag_line = Some 3; diag_column = None;
       diag_end_line = None; diag_end_column = None;
       diag_message = "first"; diag_expected = None; diag_actual = None;
       diag_caused_by = [];
-      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 3) ();
+      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"a" ~new_name:"b" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 3) ();
     } in
     let d2 = { d1 with diag_id = "T0002"; diag_line = Some 10;
       diag_message = "second";
-      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"y" ~cast_to:"double" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 10) ();
+      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"c" ~new_name:"d" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 10) ();
     } in
     let d3 = { d1 with diag_id = "T0003"; diag_line = Some 5;
       diag_message = "third";
-      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"z" ~cast_to:"double" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 5) ();
+      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"e" ~new_name:"f" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 5) ();
     } in
     let sorted = Fix.sort_fixes_by_descending_line [d1; d2; d3] in
     let lines = List.filter_map (fun d -> d.Diagnostics.diag_line) sorted in
@@ -326,17 +305,17 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   Printf.printf "\ndry-run counting:\n";
   let test_dry_run_counting () =
     let d1 = { Diagnostics.
-      diag_id = "T1001"; diag_error_class = Diagnostics.Type_error; diag_severity = Error;
+      diag_id = "T1001"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
       diag_file = Some "test.t"; diag_line = Some 5; diag_column = None;
       diag_end_line = None; diag_end_column = None;
-      diag_message = "Column 'x' expected double, got int";
+      diag_message = "Column 'x' not found, did you mean 'x_new'?";
       diag_expected = None; diag_actual = None; diag_caused_by = [];
-      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 5) ();
+      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"x_new" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 5) ();
     } in
     let d2 = { d1 with diag_id = "T1002"; diag_line = Some 8;
-      diag_message = "Column 'y' expected string, got int";
-      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"y" ~cast_to:"string" ~chain_broken:false ?file:(Some "test.t") ?line:(Some 8) ();
+      diag_message = "Column 'y' not found, did you mean 'y_new'?";
+      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"y" ~new_name:"y_new" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 8) ();
     } in
     let d3 = { d1 with diag_id = "T1003"; diag_line = Some 12;
       diag_message = "Node `pyn` depends on `rn` but has no explicit deserializer";
@@ -352,27 +331,27 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
 
   Printf.printf "\napply_fixes non-dry-run:\n";
   let test_apply_fixes_real () =
-    let tmp_cast = Filename.temp_file "test_fix_af" ".t" in
-    let oc = open_out tmp_cast in
-    output_string oc "clean = raw\n  |> read_csv(\"data.csv\")\n  |> expect(x = \"double\")\n";
+    let tmp_rename = Filename.temp_file "test_fix_af" ".t" in
+    let oc = open_out tmp_rename in
+    output_string oc "clean = raw\n  |> filter($mg > 1)\n  |> mutate($name = $mg)\n";
     close_out oc;
     let d1 = { Diagnostics.
-      diag_id = "T1003"; diag_error_class = Diagnostics.Type_error; diag_severity = Error;
+      diag_id = "T1003"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
       diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
-      diag_file = Some tmp_cast; diag_line = Some 3; diag_column = None;
+      diag_file = Some tmp_rename; diag_line = Some 3; diag_column = None;
       diag_end_line = None; diag_end_column = None;
-      diag_message = "type mismatch"; diag_expected = None; diag_actual = None;
+      diag_message = "did you mean 'mpg' instead of 'mg'?"; diag_expected = None; diag_actual = None;
       diag_caused_by = [];
-      diag_suggested_fix = Diagnostics.make_cast_fix ~column:"x" ~cast_to:"double" ~chain_broken:false ?file:(Some tmp_cast) ?line:(Some 3) ();
+      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"mg" ~new_name:"mpg" ~edit_distance:1 ~is_unique:true ?file:(Some tmp_rename) ?line:(Some 3) ();
     } in
-    let result = Fix.apply_fixes ~dry_run:false ~default_file:tmp_cast [d1] in
+    let result = Fix.apply_fixes ~dry_run:false ~default_file:tmp_rename [d1] in
     check "non-dry-run: applied = 1" (result.Fix.applied = 1);
     check "non-dry-run: would_apply = 0" (result.Fix.would_apply = 0);
-    let ch = open_in tmp_cast in
+    let ch = open_in tmp_rename in
     let content = really_input_string ch (in_channel_length ch) in
     close_in ch;
-    Sys.remove tmp_cast;
-    let has_mutate = (try let _ = Str.search_forward (Str.regexp "mutate") content 0 in true with Not_found -> false) in
-    check "non-dry-run: file patched with mutate()" has_mutate
+    Sys.remove tmp_rename;
+    let has_rename = (try let _ = Str.search_forward (Str.regexp "mpg") content 0 in true with Not_found -> false) in
+    check "non-dry-run: file patched with rename_column()" has_rename
   in
   test_apply_fixes_real ();
