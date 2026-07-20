@@ -2664,7 +2664,7 @@ EOF
 EOF
       echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(__node_result))" >> node_script.py
       echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|}
-            (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (shell_single_quote globals_decl))
+            (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (Nix_utils.nix_escape_indented_code (shell_single_quote globals_decl)))
             (Nix_utils.nix_escape_indented_code (indent_string expr_s_no_imports 4)) (Nix_utils.nix_escape_indented_code (py_emit_artifact "__node_result"))
       else
         Printf.sprintf {|      echo "import warnings" >> node_script.py

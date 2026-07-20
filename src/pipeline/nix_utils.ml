@@ -39,13 +39,17 @@ let nix_double_quote s =
   "\"" ^ Buffer.contents buffer ^ "\""
 
 (** Escape user code for safe embedding inside Nix ''...'' strings.
-    Every ' is replaced by ${"'"}, which Nix interpolates back to a literal '.
+    Every $ is replaced by ${"$"}, and every ' is replaced by ${"'"},
+    which Nix interpolates back to their literal values.
     This prevents user code containing '' (e.g. Python empty strings) from
-    terminating the Nix indented string prematurely. *)
+    terminating the Nix indented string, and ${...} from triggering Nix
+    interpolation. Order matters: $ must be escaped before '. *)
 let nix_escape_indented_code s =
-  let buf = Buffer.create (String.length s * 5) in
+  let buf = Buffer.create (String.length s * 7) in
   String.iter (fun c ->
-    if c = '\'' then
+    if c = '$' then
+      Buffer.add_string buf "${\"$\"}"
+    else if c = '\'' then
       Buffer.add_string buf "${\"'\"}"
     else
       Buffer.add_char buf c

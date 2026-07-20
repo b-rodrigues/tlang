@@ -126,4 +126,43 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     (replace_var_wb prefix "pkgs" "pkgs.bash and ${pkgs.gcc}")
     "env_foo.pkgs.bash and ${env_foo.pkgs.gcc}";
 
+  (* --- nix_escape_indented_code --- *)
+  Printf.printf "  nix_escape_indented_code:\n";
+
+  check "no quotes or dollars"
+    (Nix_utils.nix_escape_indented_code "hello world")
+    "hello world";
+
+  check "single quote"
+    (Nix_utils.nix_escape_indented_code "a'b")
+    "a${\"'\"}b";
+
+  check "double single quotes (Python empty string)"
+    (Nix_utils.nix_escape_indented_code "''")
+    "${\"'\"}${\"'\"}";
+
+  check "triple single quotes"
+    (Nix_utils.nix_escape_indented_code "'''")
+    "${\"'\"}${\"'\"}${\"'\"}";
+
+  check "quote at end"
+    (Nix_utils.nix_escape_indented_code "abc'")
+    "abc${\"'\"}";
+
+  check "dollar alone"
+    (Nix_utils.nix_escape_indented_code "$")
+    "${\"$\"}";
+
+  check "dollar-brace (Nix interpolation)"
+    (Nix_utils.nix_escape_indented_code "${expr}")
+    "${\"$\"}{expr}";
+
+  check "mixed quotes and dollars"
+    (Nix_utils.nix_escape_indented_code "$'hello'")
+    "${\"$\"}${\"'\"}hello${\"'\"}";
+
+  check "Python str.replace pattern"
+    (Nix_utils.nix_escape_indented_code "df['col'].str.replace('', '')")
+    "df[${\"'\"}col${\"'\"}].str.replace(${\"'\"}${\"'\"}, ${\"'\"}${\"'\"})";
+
   print_newline ()
