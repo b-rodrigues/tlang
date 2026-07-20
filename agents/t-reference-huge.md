@@ -7381,9 +7381,7 @@ keeps the feedback loop fast — seconds, not minutes.
 Create a project directory and a sample CSV:
 
 ```bash
-mkdir -p ~/sales-analysis/data
-cd ~/sales-analysis
-t init
+t init  --project sales-analysis
 ```
 
 Create a sample data file at `data/sales.csv`:
@@ -7400,11 +7398,19 @@ id,region,amount,date,product
 8,East,175.50,2026-01-22,Gadget
 ```
 
+Add the required packages in `tproject.toml` and rebuild the environment using `t update`.
+Agents are capable of doing it, but doing it yourself reduces friction. If you know exactly what
+you need, clearly instruct your agent to not add packages to `tproject.toml`.
+
 ---
 
 ## Step 1: Agent generates the pipeline
 
-Tell your agent what you want:
+Verify that your agent knows about the included `SKILL.md` file:
+
+> "What skills are available to you in this project?"
+
+Then tell your agent what you want:
 
 > "Create a T pipeline that reads `data/sales.csv` with a T node, then uses Python
 > nodes to filter out zero and negative amounts, convert the date column, group by
@@ -7457,6 +7463,10 @@ Notice the pipeline structure:
 > **What the human reviews:** Skim the pipeline. Does it do what you asked? Are the
 > node names clear? Is the data flow obvious? If the agent misunderstood the goal,
 > correct it now — it's cheap to regenerate.
+
+Pay close attention to the serializers used, and if you need to download assets from the internet,
+make sure the agent correctly plans to use `fetchurl()` and `prefetch()`. Downloading from a node
+will not work, as the build sandboxes are hermetic.
 
 ---
 
@@ -9189,7 +9199,7 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.54.1] - Unreleased
+## [0.54.1] - 2026-07-20
 
 ### Type System: Annotations and Inference
 

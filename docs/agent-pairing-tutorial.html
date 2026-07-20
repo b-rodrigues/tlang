@@ -131,9 +131,7 @@ etc.)</li>
 project</h2>
 <p>Create a project directory and a sample CSV:</p>
 <div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/sales-analysis/data</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/sales-analysis</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init  <span class="at">--project</span> sales-analysis</span></code></pre></div>
 <p>Create a sample data file at <code>data/sales.csv</code>:</p>
 <pre class="csv"><code>id,region,amount,date,product
 1,North,250.00,2026-01-15,Widget
@@ -144,10 +142,20 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="
 6,North,310.25,2026-01-20,Gadget
 7,South,0.00,2026-01-21,Widget
 8,East,175.50,2026-01-22,Gadget</code></pre>
+<p>Add the required packages in <code>tproject.toml</code> and rebuild
+the environment using <code>t update</code>. Agents are capable of doing
+it, but doing it yourself reduces friction. If you know exactly what you
+need, clearly instruct your agent to not add packages to
+<code>tproject.toml</code>.</p>
 <hr />
 <h2 id="step-1-agent-generates-the-pipeline">Step 1: Agent generates the
 pipeline</h2>
-<p>Tell your agent what you want:</p>
+<p>Verify that your agent knows about the included <code>SKILL.md</code>
+file:</p>
+<blockquote>
+<p>“What skills are available to you in this project?”</p>
+</blockquote>
+<p>Then tell your agent what you want:</p>
 <blockquote>
 <p>“Create a T pipeline that reads <code>data/sales.csv</code> with a T
 node, then uses Python nodes to filter out zero and negative amounts,
@@ -202,6 +210,10 @@ do what you asked? Are the node names clear? Is the data flow obvious?
 If the agent misunderstood the goal, correct it now — it’s cheap to
 regenerate.</p>
 </blockquote>
+<p>Pay close attention to the serializers used, and if you need to
+download assets from the internet, make sure the agent correctly plans
+to use <code>fetchurl()</code> and <code>prefetch()</code>. Downloading
+from a node will not work, as the build sandboxes are hermetic.</p>
 <hr />
 <h2 id="step-2-agent-validates-with-t-check---schema">Step 2: Agent
 validates with <code>t check --schema</code></h2>

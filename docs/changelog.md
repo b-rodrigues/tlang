@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.54.1] - Unreleased
+## [0.54.1] - 2026-07-20
 
 ### Type System: Annotations and Inference
 
