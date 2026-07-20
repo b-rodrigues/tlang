@@ -149,17 +149,21 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     (Nix_utils.nix_escape_indented_code "abc'")
     "abc${\"'\"}";
 
-  check "dollar alone"
+  check "dollar alone (bare $ is safe)"
     (Nix_utils.nix_escape_indented_code "$")
-    "${\"$\"}";
+    "$";
 
   check "dollar-brace (Nix interpolation)"
     (Nix_utils.nix_escape_indented_code "${expr}")
     "${\"$\"}{expr}";
 
+  check "dollar followed by non-brace"
+    (Nix_utils.nix_escape_indented_code "$PATH")
+    "$PATH";
+
   check "mixed quotes and dollars"
     (Nix_utils.nix_escape_indented_code "$'hello'")
-    "${\"$\"}${\"'\"}hello${\"'\"}";
+    "$${\"'\"}hello${\"'\"}";
 
   check "Python str.replace pattern"
     (Nix_utils.nix_escape_indented_code "df['col'].str.replace('', '')")
