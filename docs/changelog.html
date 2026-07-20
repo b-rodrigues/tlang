@@ -35,6 +35,33 @@
 <div class="container">
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">[0.54.1] - Unreleased</h2>
+<h3 id="type-system-annotations-and-inference">Type System: Annotations
+and Inference</h3>
+<ul>
+<li><strong>Type annotation checking</strong>: <code>t check</code> now
+compares type annotations (<code>x: Int = expr</code>) against inferred
+types and emits <code>Warning</code> diagnostics for mismatches. Works
+via the CLI <code>t check</code> and the REPL <code>t_check()</code>
+function.</li>
+<li><strong>TArrow type</strong>: Function types can be expressed as
+<code>(Int, String) -&gt; Bool</code>. Parsed, typechecked, and used for
+lambda signature validation.</li>
+<li><strong>Expression-level type inference</strong>:
+<code>infer_type</code> now covers <code>BinOp</code>,
+<code>UnOp</code>, <code>IfElse</code>, <code>Match</code>,
+<code>ListLit</code>, <code>DotAccess</code>, and <code>Lambda</code>
+return types. Division always infers <code>Float</code>; comparison
+operators infer <code>Bool</code>.</li>
+<li><strong>Pipeline type propagation</strong>: <code>mutate</code>
+infers new column types from expressions; <code>select</code> narrows
+DataFrame columns to the selected set; <code>filter</code>,
+<code>arrange</code>, <code>group_by</code>, <code>ungroup</code> pass
+through the base DataFrame type.</li>
+<li><strong><code>types_compatible</code></strong>: Asymmetric numeric
+matching — <code>Int</code> is compatible with <code>Float</code>
+(relaxed widening), but not vice versa. <code>Any</code> matches
+everything. <code>TArrow</code> compares structurally.</li>
+</ul>
 <h3
 id="t-check-cli-structured-diagnostics-protocol"><code>t check</code>
 CLI &amp; Structured Diagnostics Protocol</h3>
@@ -47,8 +74,7 @@ error, 3=env error.</li>
 <li><strong>Tier 2 Schema Validation
 (<code>t check --schema</code>)</strong>: Static column-name and type
 propagation through the pipeline DAG. Validates column references
-against inferred upstream schemas, checks <code>expect()</code> type
-contracts, and reports contract violations with <code>Cast</code>
+against inferred upstream schemas and reports type mismatches with
 suggested fixes.</li>
 <li><strong>Structured JSON Diagnostics (<code>--json</code>)</strong>:
 Machine-readable output for all tiers, with <code>schema_version</code>,
@@ -60,9 +86,42 @@ per-diagnostic <code>error_class</code> (stable enum),
 <code>span</code> (with <code>start</code> and <code>end</code>) are now
 nested inside the <code>node</code> sub-object. Designed for agent
 tooling.</li>
+<li><strong>Dynamic confidence levels</strong>: Every
+<code>suggested_fix</code> now carries a <code>confidence</code> field
+(<code>"high"</code>, <code>"medium"</code>, <code>"low"</code>)
+computed from diagnostic context. <code>Rename_column</code> and
+<code>Suggest_identifier</code> scale with edit distance and uniqueness.
+<code>Add_node_arg</code> is always <code>"medium"</code>,
+<code>Run_command</code> always <code>"low"</code>.</li>
 <li><strong><code>t_check(file, json, schema, env)</code> REPL
 function</strong>: Invoke <code>t check</code> from within a T
 session.</li>
+</ul>
+<h3 id="t-explain-node-introspection"><code>t explain</code> — Node
+Introspection</h3>
+<ul>
+<li><strong><code>t explain --node &lt;pipeline&gt;.t:&lt;node_id&gt;</code></strong>:
+Prints a human-readable summary of a pipeline node’s inputs, outputs,
+language, and dependencies. Supports <code>--json</code> for
+machine-readable output (YAML front matter style with
+<code>node_id</code>, <code>language</code>, <code>inputs</code>,
+<code>outputs</code>, <code>dependencies</code>, and
+<code>command</code>).</li>
+</ul>
+<h3 id="t-add-package-tool-management-cli"><code>t add</code> — Package
+&amp; Tool Management CLI</h3>
+<ul>
+<li><strong><code>t add &lt;runtime&gt; &lt;package&gt;</code></strong>:
+Adds a dependency to <code>tproject.toml</code> from the command line.
+Supports <code>R</code>, <code>Python</code>, <code>T</code>,
+<code>Julia</code>, and <code>Quarto</code> runtimes. Example:
+<code>t add R dplyr</code>, <code>t add Python quarto</code>.</li>
+</ul>
+<h3 id="repl-enhancements">REPL Enhancements</h3>
+<ul>
+<li><strong><code>--json</code> flag for expression mode</strong>:
+<code>t run --json --expr 'expr'</code> now correctly enables NDJSON
+streaming output, matching the behavior of file-mode execution.</li>
 </ul>
 <h3 id="t-diff-content-addressed-output-diffing"><code>t diff</code> —
 Content-Addressed Output Diffing</h3>
@@ -84,9 +143,8 @@ Mechanical Suggested-Fix Application</h3>
 <li><strong><code>t fix &lt;file&gt;</code></strong>: Runs
 <code>t check --schema</code>, extracts diagnostics with
 <code>suggested_fix</code>, and applies them mechanically. Supports
-<code>Cast</code> (inserts <code>|&gt; mutate(...)</code>),
 <code>Rename_column</code> (replaces <code>$old</code> with
-<code>$new</code> in column references), and <code>Add_node_arg</code>
+<code>$new</code> in column references) and <code>Add_node_arg</code>
 (inserts missing arguments into node definitions).</li>
 <li><strong><code>t_fix(file, dry_run)</code> REPL function</strong>:
 Invoke <code>t fix</code> from within a T session.</li>
@@ -95,15 +153,18 @@ affect <code>$col</code> and <code>$`col`</code> forms, avoiding
 corruption of identifiers like <code>valid</code> when renaming
 <code>id</code>.</li>
 <li><strong><code>target_node</code> on
-<code>suggested_fix</code></strong>: <code>Cast</code>,
-<code>Rename_column</code>, and <code>Add_node_arg</code> fixes now
-include a <code>target_node</code> field indicating which pipeline node
-the fix applies to.</li>
+<code>suggested_fix</code></strong>: <code>Rename_column</code> and
+<code>Add_node_arg</code> fixes now include a <code>target_node</code>
+field indicating which pipeline node the fix applies to.</li>
 <li><strong>Cross-runtime deserializer suggestion</strong>: When a node
 depends on a node from a different runtime but has no explicit
 <code>deserializer</code>, <code>t check</code> now suggests adding
 <code>deserializer = ^csv</code> via an <code>Add_node_arg</code>
 fix.</li>
+<li><strong><code>fetchurl</code> serializer parameter</strong>:
+<code>fetchurl()</code> now accepts a <code>serializer</code> argument
+for pipeline mode, allowing explicit control over the download format
+(e.g., <code>serializer = ^text</code>).</li>
 </ul>
 <h3 id="t-check-environment-validation"><code>t check</code> Environment
 Validation</h3>
@@ -121,12 +182,6 @@ false-positive <code>missing_from_lockfile</code> diagnostics.</li>
 <code>t check --watch</code> runs immediately, then polls the input file
 for changes and re-runs the check on every modification. Can be combined
 with <code>--schema</code> and <code>--env</code>.</li>
-<li><strong>Shape Contracts (<code>expect()</code>)</strong>: New
-<code>expect(columns = [...])</code> syntax for pipeline nodes declares
-expected output columns. Contracts are checked statically via
-<code>t check --schema</code> and produce
-<code>contract_violation</code> diagnostics when the inferred schema is
-missing declared columns.</li>
 </ul>
 <h3 id="nix-installation-documentation">Nix Installation
 Documentation</h3>
@@ -170,6 +225,42 @@ guesses on <code>node_failed</code> events.</li>
 <li><strong>Exit codes unchanged</strong>: 0=clean, 1=wire error,
 2=schema error, 3=env/build error — independent of
 <code>--json</code>.</li>
+<li><strong>Improved error classification and logs</strong>:
+<code>node_failed</code> events classify error details in real-time
+using in-memory log buffers without blocking the execution stream.
+Captured log tails for stderr-detected errors are now complete and
+include the exact failure details.</li>
+<li><strong>De-duplication of events</strong>: Multiple
+<code>node_failed</code> events for the same failing node are prevented
+during streaming.</li>
+<li><strong>Cached node completions</strong>: Cached nodes receive
+<code>node_completed</code> events at the end of the build, ensuring
+that all successful nodes are represented.</li>
+<li><strong>Breaking schema change to <code>succeeded</code>
+count</strong>: The <code>succeeded</code> field in
+<code>run_finished</code> now correctly represents the number of
+completed nodes built from scratch, and no longer double-counts
+<code>cached</code> nodes.</li>
+</ul>
+<h3 id="repl-magic-commands">REPL %magic Commands</h3>
+<ul>
+<li><strong><code>%history</code></strong>: Display REPL session history
+with line numbers.</li>
+<li><strong><code>%save [filename]</code></strong>: Save session
+transcript to a file.</li>
+<li><strong><code>%reset</code></strong>: Clear all variables from the
+session.</li>
+<li><strong><code>%who [pattern]</code></strong>: List defined variables
+with optional fuzzy name matching.</li>
+<li><strong><code>%objects [pattern]</code></strong>: List defined
+variables with type information and optional fuzzy matching.</li>
+<li><strong><code>%magic</code></strong>: List all available magic
+commands.</li>
+</ul>
+<h3 id="dataframes">DataFrames</h3>
+<ul>
+<li><strong><code>write_parquet(data, path)</code></strong>: Write a
+DataFrame to a Parquet file via Arrow.</li>
 </ul>
 <h2 id="section">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
@@ -192,6 +283,11 @@ shown at most once per REPL session to prevent noise.</li>
 <h3 id="code-safety-runtime-robustness">Code Safety &amp; Runtime
 Robustness</h3>
 <ul>
+<li><strong>Agent Skill Scaffolding</strong>:
+<code>t init --project</code> now copies agent skill files (SKILL.md
+templates) into <code>.claude/skills/</code> and <code>.opencode/</code>
+directories, providing ready-to-use AI agent context for new
+projects.</li>
 <li><strong>Scientific Float Notation Support</strong>: Parser and lexer
 now support standard scientific notation for floating-point literals
 (e.g. <code>1e-5</code>, <code>3.14e+2</code>,

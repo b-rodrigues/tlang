@@ -224,8 +224,8 @@ node syntax</td>
 <tr>
 <td
 style="text-align: left;"><code>t check --schema &lt;file.t&gt;</code></td>
-<td style="text-align: left;">+ column references, schema propagation,
-<code>expect()</code> contracts</td>
+<td style="text-align: left;">+ column references, schema
+propagation</td>
 <td style="text-align: left;">No</td>
 </tr>
 </tbody>
@@ -252,65 +252,29 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="
 <p>This runs immediately, then re-runs on every file save. Press Ctrl+C
 to stop. The exit code reflects the last check’s result, making it
 usable in CI and editor integrations.</p>
-<h3 id="shape-contracts-with-expect">Shape Contracts with
-<code>expect()</code></h3>
-<p>Agents declare expected output columns on pipeline nodes using
-<code>expect()</code>:</p>
-<pre class="t"><code>clean = raw
-  |&gt; filter($status == &quot;complete&quot;)
-  |&gt; mutate($score = as.numeric($score))
-  |&gt; expect(columns = [&quot;id&quot;, &quot;name&quot;, &quot;score&quot;])</code></pre>
-<ul>
-<li><code>expect()</code> must appear at the <strong>end</strong> of a
-pipe chain</li>
-<li>Checked statically via <code>t check --schema</code> — emits
-<code>contract_violation</code> if columns are missing</li>
-<li>Mid-chain <code>expect()</code> (e.g.,
-<code>raw |&gt; expect(...) |&gt; filter(...)</code>) produces a
-warning</li>
-<li><code>expect()</code> has no runtime effect — it is stripped during
-evaluation</li>
-</ul>
-<h4 id="type-contracts">Type Contracts</h4>
-<p>Declare expected column types to catch type mismatches
-statically:</p>
-<pre class="t"><code>clean = raw
-  |&gt; expect(
-       columns = [&quot;id&quot;, &quot;amount&quot;, &quot;date&quot;],
-       amount ~ double()
-     )</code></pre>
-<p>Type contracts like <code>amount ~ double()</code> are checked during
-<code>t check --schema</code>. If the column exists in the schema but
-has a different type, a <code>contract_violation</code> error is emitted
-with a mechanical fix suggestion.</p>
-<h4 id="null-rate-contracts">Null-Rate Contracts</h4>
-<p>Declare acceptable null-rate thresholds (deferred to runtime):</p>
-<pre class="t"><code>clean = raw
-  |&gt; expect(
-       columns = [&quot;id&quot;, &quot;amount&quot;],
-       null_rate(&quot;amount&quot;) &lt; 0.05
-     )</code></pre>
-<p>Null-rate contracts emit a <code>contract_unverifiable</code> warning
-during <code>t check --schema</code> because they require runtime data
-to evaluate. The check still validates that the referenced column
-exists.</p>
 <h3 id="structured-diagnostics">Structured Diagnostics</h3>
 <p><code>t check --json</code> emits machine-readable diagnostics:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;diagnostics&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;error_class&quot;</span><span class="fu">:</span> <span class="st">&quot;contract_violation&quot;</span><span class="fu">,</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Node &#39;clean&#39; contract expects columns [id, name, score] but output schema is [id, name]. Missing: [score]&quot;</span><span class="fu">,</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;node&quot;</span><span class="fu">:</span> <span class="st">&quot;clean&quot;</span><span class="fu">,</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;span&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;start&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="dv">12</span><span class="ot">,</span> <span class="dv">5</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;end&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="dv">12</span><span class="ot">,</span> <span class="dv">50</span><span class="ot">]</span> <span class="fu">},</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;suggested_fix&quot;</span><span class="fu">:</span> <span class="kw">null</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;exit_code&quot;</span><span class="fu">:</span> <span class="dv">1</span></span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;diagnostics&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;error_class&quot;</span><span class="fu">:</span> <span class="st">&quot;schema_mismatch&quot;</span><span class="fu">,</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Column &#39;score&#39; not found in DataFrame. Did you mean &#39;scorer&#39;?&quot;</span><span class="fu">,</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;node&quot;</span><span class="fu">:</span> <span class="st">&quot;clean&quot;</span><span class="fu">,</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;span&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;start&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="dv">12</span><span class="ot">,</span> <span class="dv">5</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;end&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="dv">12</span><span class="ot">,</span> <span class="dv">50</span><span class="ot">]</span> <span class="fu">},</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;suggested_fix&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;rename_column&quot;</span><span class="fu">,</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;old_name&quot;</span><span class="fu">:</span> <span class="st">&quot;score&quot;</span><span class="fu">,</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;new_name&quot;</span><span class="fu">:</span> <span class="st">&quot;scorer&quot;</span><span class="fu">,</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;edit_distance&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;is_unique&quot;</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;exit_code&quot;</span><span class="fu">:</span> <span class="dv">1</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <p>Each diagnostic includes: - <code>error_class</code>: categorizes the
-issue (<code>contract_violation</code>, <code>type_mismatch</code>,
+issue (<code>schema_mismatch</code>, <code>type_mismatch</code>,
 <code>cycle_detected</code>, etc.) - <code>node</code>: the pipeline
 node where the issue was found - <code>span</code>: source location
 <code>[line, column]</code> - <code>suggested_fix</code>: a mechanical
@@ -321,9 +285,9 @@ human-readable error strings required.</p>
 <code>t fix</code></h3>
 <p>When <code>t check --schema</code> emits a
 <code>suggested_fix</code>, the agent can apply it mechanically:</p>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix src/pipeline.t          <span class="at">--</span> apply fixes and rewrite the file</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="at">--dry-run</span> src/pipeline.t <span class="at">--</span> preview changes without modifying</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix src/pipeline.t          <span class="at">--</span> apply fixes and rewrite the file</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="at">--dry-run</span> src/pipeline.t <span class="at">--</span> preview changes without modifying</span></code></pre></div>
 <p>Currently supported fix types:</p>
 <table>
 <colgroup>
@@ -337,12 +301,6 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="
 </tr>
 </thead>
 <tbody>
-<tr>
-<td style="text-align: left;"><strong>Cast</strong></td>
-<td style="text-align: left;">Inserts a type coercion (e.g.,
-<code>mutate($amount = as.numeric($amount))</code>) when a type contract
-expects a different type</td>
-</tr>
 <tr>
 <td style="text-align: left;"><strong>Rename_column</strong></td>
 <td style="text-align: left;">Renames <code>$old_name</code> column
@@ -368,8 +326,8 @@ committing.</p>
 <code>t diff</code></h3>
 <p>After iterative development, <code>t diff</code> compares the last
 two Nix builds of a pipeline:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff src/pipeline.t</span></code></pre></div>
 <p>It reports per-node status:</p>
 <table>
 <thead>
@@ -501,14 +459,14 @@ nodes</strong>.</p>
 (Problematic)</h3>
 <p><strong>Human prompt</strong>: “Analyze sales by region”</p>
 <p><strong>LLM generates</strong> (entire script):</p>
-<div class="sourceCode" id="cb12"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pd.read_csv(<span class="st">&quot;sales.csv&quot;</span>)</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> df[df[<span class="st">&#39;amount&#39;</span>] <span class="op">&gt;</span> <span class="dv">0</span>]</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>df_grouped <span class="op">=</span> df.groupby(<span class="st">&#39;region&#39;</span>)[<span class="st">&#39;amount&#39;</span>].<span class="bu">sum</span>()</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>df_grouped <span class="op">=</span> df_grouped.sort_values(ascending<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(df_grouped)</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pd.read_csv(<span class="st">&quot;sales.csv&quot;</span>)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> df[df[<span class="st">&#39;amount&#39;</span>] <span class="op">&gt;</span> <span class="dv">0</span>]</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>df_grouped <span class="op">=</span> df.groupby(<span class="st">&#39;region&#39;</span>)[<span class="st">&#39;amount&#39;</span>].<span class="bu">sum</span>()</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>df_grouped <span class="op">=</span> df_grouped.sort_values(ascending<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(df_grouped)</span></code></pre></div>
 <p><strong>Problems</strong>: - If requirements change, LLM rewrites
 everything - No separation between data loading, cleaning, analysis -
 Hard to modify one step without breaking others</p>
@@ -610,36 +568,32 @@ human verifies.</p>
 <h3 id="pattern-4-check-fix-verify">Pattern 4: Check-Fix-Verify</h3>
 <p>This pattern uses T’s static checking tools to catch and fix errors
 before running the pipeline.</p>
-<p><strong>Step 1</strong>: Agent generates pipeline with
-<code>expect()</code> contracts</p>
+<p><strong>Step 1</strong>: Agent generates pipeline</p>
 <pre class="t"><code>analysis = pipeline {
   raw = read_csv(&quot;sales.csv&quot;)
   cleaned = raw
     |&gt; filter($amount &gt; 0)
-    |&gt; expect(columns = [&quot;id&quot;, &quot;region&quot;, &quot;amount&quot;, &quot;date&quot;])
   by_region = cleaned
     |&gt; group_by($region)
     |&gt; summarize($total = sum($amount))
 }</code></pre>
 <p><strong>Step 2</strong>: Run <code>t check --schema</code> to
 validate</p>
-<div class="sourceCode" id="cb26"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--schema</span> src/pipeline.t</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="ex">error</span> <span class="pp">[</span><span class="ss">contract_violation</span><span class="pp">]</span> Node <span class="st">&#39;cleaned&#39;</span> contract expects columns [id, region, amount, date]</span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="ex">but</span> output schema is [id, region, amount]. Missing: <span class="pp">[</span><span class="ss">date</span><span class="pp">]</span></span></code></pre></div>
-<p><strong>Step 3</strong>: Agent fixes the missing column (localized
-change)</p>
-<pre class="t"><code>  cleaned = raw
-    |&gt; filter($amount &gt; 0)
-    |&gt; expect(columns = [&quot;id&quot;, &quot;region&quot;, &quot;amount&quot;])</code></pre>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--schema</span> src/pipeline.t</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="ex">error</span> <span class="pp">[</span><span class="ss">schema_mismatch</span><span class="pp">]</span> Column <span class="st">&#39;regin&#39;</span> not found. Did you mean <span class="st">&#39;region&#39;</span><span class="pp">?</span></span></code></pre></div>
+<p><strong>Step 3</strong>: Agent fixes the typo (localized change)</p>
+<pre class="t"><code>  by_region = cleaned
+    |&gt; group_by($region)
+    |&gt; summarize($total = sum($amount))</code></pre>
 <p><strong>Step 4</strong>: Run <code>t check --schema</code> again —
 clean</p>
-<div class="sourceCode" id="cb28"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--schema</span> src/pipeline.t</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span></span></code></pre></div>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--schema</span> src/pipeline.t</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span></span></code></pre></div>
 <p><strong>Step 5</strong>: Only now trigger the Nix build</p>
-<div class="sourceCode" id="cb29"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>This loop — <strong>generate, check, fix, build</strong> — ensures
 agents never waste time on Nix builds that would fail for structural or
 schema reasons. The check step takes seconds; the build step takes
@@ -681,24 +635,34 @@ pipeline_deps(p, &quot;z&quot;)
 CLI</h3>
 <p>For machine consumption, agents use <code>t check --json</code> and
 <code>t fix --dry-run</code>:</p>
-<div class="sourceCode" id="cb33"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--json</span> <span class="at">--schema</span> src/pipeline.t</span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
-<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;diagnostics&quot;</span><span class="ex">:</span> [</span>
-<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">{</span></span>
-<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;error_class&quot;</span><span class="ex">:</span> <span class="st">&quot;contract_violation&quot;</span>,</span>
-<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;message&quot;</span><span class="ex">:</span> <span class="st">&quot;Node &#39;cleaned&#39; contract expects columns [...] but output schema is [...]. Missing: [date]&quot;</span>,</span>
-<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;node&quot;</span><span class="ex">:</span> <span class="st">&quot;cleaned&quot;</span>,</span>
-<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;span&quot;</span><span class="ex">:</span> { <span class="st">&quot;start&quot;</span>: [8, 5], <span class="st">&quot;end&quot;</span>: [8, 60] },</span>
-<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;suggested_fix&quot;</span><span class="ex">:</span> null</span>
-<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">}</span></span>
-<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>  <span class="ex">],</span></span>
-<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;exit_code&quot;</span><span class="ex">:</span> 1</span>
-<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
-<div class="sourceCode" id="cb34"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t fix <span class="at">--dry-run</span> src/pipeline.t</span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dry-run:</span> would apply 1 fix to src/pipeline.t:</span>
-<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>  <span class="ex">[Cast]</span> line 12: insert mutate<span class="er">(</span><span class="va">$amount</span> = as.numeric<span class="er">(</span><span class="va">$amount</span><span class="kw">))</span></span></code></pre></div>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--json</span> <span class="at">--schema</span> src/pipeline.t</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;diagnostics&quot;</span><span class="ex">:</span> [</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">{</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;error_class&quot;</span><span class="ex">:</span> <span class="st">&quot;schema_mismatch&quot;</span>,</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;message&quot;</span><span class="ex">:</span> <span class="st">&quot;Column &#39;regin&#39; not found. Did you mean &#39;region&#39;?&quot;</span>,</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;node&quot;</span><span class="ex">:</span> <span class="st">&quot;by_region&quot;</span>,</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;span&quot;</span><span class="ex">:</span> { <span class="st">&quot;start&quot;</span>: [12, 5], <span class="st">&quot;end&quot;</span>: [12, 60] },</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;suggested_fix&quot;</span><span class="ex">:</span> {</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;kind&quot;</span><span class="ex">:</span> <span class="st">&quot;rename_column&quot;</span>,</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;old_name&quot;</span><span class="ex">:</span> <span class="st">&quot;regin&quot;</span>,</span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;new_name&quot;</span><span class="ex">:</span> <span class="st">&quot;region&quot;</span>,</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;edit_distance&quot;</span><span class="ex">:</span> 1,</span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;is_unique&quot;</span><span class="ex">:</span> true</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>      <span class="kw">}</span></span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">}</span></span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>  <span class="ex">],</span></span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;exit_code&quot;</span><span class="ex">:</span> 1</span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a><span class="er">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t fix <span class="at">--dry-run</span> src/pipeline.t</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dry-run:</span> would apply 1 fix to src/pipeline.t:</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>  <span class="ex">[Rename_column]</span> line 12: rename column <span class="st">&#39;regin&#39;</span> to <span class="st">&#39;region&#39;</span></span></code></pre></div>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t fix <span class="at">--dry-run</span> src/pipeline.t</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dry-run:</span> would apply 1 fix to src/pipeline.t:</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>  <span class="ex">[Cast]</span> line 12: insert mutate<span class="er">(</span><span class="va">$amount</span> = as.numeric<span class="er">(</span><span class="va">$amount</span><span class="kw">))</span></span></code></pre></div>
 <p>These tools give agents structured, parseable output instead of
 human-readable error strings. The agent can programmatically decide what
 to fix and verify the fix before applying it.</p>
@@ -738,9 +702,6 @@ approaches were chosen</li>
 catches structural and schema errors in seconds. In the REPL, use
 <code>t_check(file, schema=true)</code> (same behavior, returns a
 string).</li>
-<li><strong>Declare Shapes</strong>: Add
-<code>expect(columns = [...])</code> to pipeline nodes so downstream
-agents (and humans) know the output contract</li>
 <li><strong>Use <code>t fix</code> for Mechanical Changes</strong>: When
 <code>t check --json</code> reports a <code>suggested_fix</code>, apply
 it with <code>t fix</code> rather than manually editing — it handles
@@ -755,8 +716,7 @@ changed. In the REPL, use <code>t_diff(file)</code>.</li>
 Collaboration</h2>
 <p><strong>Human</strong>: “I need to analyze employee salaries by
 department and identify outliers”</p>
-<p><strong>LLM generates</strong> with intent and <code>expect()</code>
-contracts:</p>
+<p><strong>LLM generates</strong> with intent:</p>
 <pre class="t"><code>intent {
   description: &quot;Employee salary analysis with outlier detection&quot;,
   
@@ -783,8 +743,6 @@ contracts:</p>
 salary_analysis = pipeline {
   -- Load data
   employees = read_csv(&quot;employees.csv&quot;, clean_colnames = true)
-    |&gt; expect(columns = [&quot;employee_id&quot;, &quot;department&quot;, &quot;salary&quot;],
-              salary ~ double())
   
   -- Department statistics
   dept_stats = employees
@@ -792,7 +750,6 @@ salary_analysis = pipeline {
     |&gt; summarize($mean_salary = mean($salary),
                  $sd_salary = sd($salary),
                  $count = nrow($department))
-    |&gt; expect(columns = [&quot;department&quot;, &quot;mean_salary&quot;, &quot;sd_salary&quot;, &quot;count&quot;])
   
   -- Per-department outliers (&gt;2 SD from department mean)
   with_stats = employees
@@ -803,31 +760,20 @@ salary_analysis = pipeline {
   outliers = with_stats
     |&gt; filter($salary &gt; $dept_mean + 2 * $dept_sd)
     |&gt; select($employee_id, $department, $salary, $dept_mean, $dept_sd)
-    |&gt; expect(columns = [&quot;employee_id&quot;, &quot;department&quot;, &quot;salary&quot;,
-                         &quot;dept_mean&quot;, &quot;dept_sd&quot;])
 }
 
 -- Export results
 write_csv(salary_analysis.dept_stats, &quot;department_stats.csv&quot;)
 write_csv(salary_analysis.outliers, &quot;outliers.csv&quot;)</code></pre>
 <p><strong>LLM validates</strong> before building:</p>
-<div class="sourceCode" id="cb36"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--schema</span> src/pipeline.t</span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">error</span> <span class="pp">[</span><span class="ss">contract_violation</span><span class="pp">]</span> Node <span class="st">&#39;employees&#39;</span> contract expects columns</span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>  <span class="ex">[employee_id,</span> department, salary] but output schema could not be inferred</span>
-<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> read_csv<span class="ex">.</span> Missing columns cannot be verified statically.</span>
-<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="ex">warning</span> <span class="pp">[</span><span class="ss">contract_unverifiable</span><span class="pp">]</span> Node <span class="st">&#39;employees&#39;</span> type contract for column</span>
-<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&#39;salary&#39;</span> <span class="er">(</span><span class="ex">~</span> double<span class="kw">)</span> <span class="ex">cannot</span> be verified statically: column type is unknown</span></code></pre></div>
-<p>The <code>read_csv</code> output schema depends on the actual file
-contents, so the column contract can’t be verified statically. The type
-contract for <code>salary</code> is also unverifiable without runtime
-data. These are expected warnings — the contracts will be enforced at
-build time via the pipeline assertions, and the type contract will be
-checked if a typed schema source (like Arrow) is used.</p>
-<p><strong>LLM confirms</strong> the warnings are expected and runs the
-build:</p>
-<div class="sourceCode" id="cb37"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--schema</span> src/pipeline.t</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span></span></code></pre></div>
+<p>Clean. The pipeline structure is valid. Schema propagation confirms
+all column references are resolvable.</p>
+<p><strong>LLM builds and runs</strong>:</p>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p><strong>Human Review</strong>: “Good! But the outliers should only
 flag employees making more than $200k, not just 2 SD from mean”</p>
 <p><strong>LLM updates</strong> the <code>outliers</code> node
@@ -836,44 +782,37 @@ flag employees making more than $200k, not just 2 SD from mean”</p>
     |&gt; filter($salary &gt; 200000)
     |&gt; select($employee_id, $department, $salary, $dept_mean, $dept_sd)</code></pre>
 <p><strong>LLM validates</strong> the change:</p>
-<div class="sourceCode" id="cb39"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--schema</span> src/pipeline.t</span>
-<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span></span></code></pre></div>
-<p>Clean. The <code>expect()</code> contracts on <code>employees</code>,
-<code>dept_stats</code>, and <code>outliers</code> still hold. Only the
-filter predicate changed.</p>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--schema</span> src/pipeline.t</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span></span></code></pre></div>
+<p>Clean. The filter predicate changed but the column references are
+still valid.</p>
 <p><strong>LLM builds and verifies</strong> with
 <code>t diff</code>:</p>
-<div class="sourceCode" id="cb40"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span>
-<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t diff src/pipeline.t</span>
-<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Name</span>          Status    Class_a  Class_b</span>
-<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="ex">employees</span>     Unchanged T        T</span>
-<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dept_stats</span>    Unchanged T        T</span>
-<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a><span class="ex">with_stats</span>    Unchanged T        T</span>
-<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a><span class="ex">outliers</span>      Changed   T        T</span></code></pre></div>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t diff src/pipeline.t</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Name</span>          Status    Class_a  Class_b</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="ex">employees</span>     Unchanged T        T</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dept_stats</span>    Unchanged T        T</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a><span class="ex">with_stats</span>    Unchanged T        T</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="ex">outliers</span>      Changed   T        T</span></code></pre></div>
 <p>The diff confirms only <code>outliers</code> changed.
 <code>employees</code>, <code>dept_stats</code>, and
 <code>with_stats</code> are unchanged — their cached artifacts are
 reused.</p>
-<p><strong>Note</strong>: The <code>expect()</code> contracts served as
-guardrails throughout. When the filter predicate changed, the contracts
-on <code>dept_stats</code> and <code>employees</code> were re-validated
-automatically. If the change had broken a downstream contract (e.g., by
-removing a column that <code>dept_stats</code> depends on),
-<code>t check --schema</code> would have caught it before the build.</p>
 <hr />
 <h2 id="audit-trail">Audit Trail</h2>
 <p>Intent blocks + version control = complete audit trail:</p>
-<div class="sourceCode" id="cb41"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> log <span class="at">--oneline</span> intent_blocks/</span>
-<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a><span class="ex">abc123</span> Update: Exclude test accounts from churn analysis</span>
-<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a><span class="ex">def456</span> Add validation: minimum transaction amount <span class="va">$1</span></span>
-<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="ex">789ghi</span> Initial: Customer churn analysis</span>
-<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> show abc123:src/pipeline.t</span>
-<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Shows exactly what assumptions changed and why</span></span></code></pre></div>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> log <span class="at">--oneline</span> intent_blocks/</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="ex">abc123</span> Update: Exclude test accounts from churn analysis</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a><span class="ex">def456</span> Add validation: minimum transaction amount <span class="va">$1</span></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a><span class="ex">789ghi</span> Initial: Customer churn analysis</span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> show abc123:src/pipeline.t</span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Shows exactly what assumptions changed and why</span></span></code></pre></div>
 <hr />
 <p><strong>See Also</strong>: - <a
 href="reproducibility.html">Reproducibility</a> — Nix for reproducible

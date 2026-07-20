@@ -2692,8 +2692,11 @@ build_pipeline(p, nix_options = [targets: [&quot;c&quot;], max_jobs: 4, cache: &
 <h3
 id="t_checkfile-json-false-schema-false-env-false"><code>t_check(file, json = false, schema = false, env = false)</code></h3>
 <p>REPL-callable version of <code>t check</code>. Runs structural,
-wire-phase, schema, and environment checks on a T script and returns the
-diagnostics as a string.</p>
+wire-phase, schema, environment, and <strong>type annotation</strong>
+checks on a T script and returns the diagnostics as a string. Type
+annotation checks compare <code>x: Int = expr</code> annotations against
+inferred types and emit <code>Warning</code> diagnostics for
+mismatches.</p>
 <p><strong>Arguments:</strong></p>
 <table>
 <thead>
@@ -2792,10 +2795,9 @@ id="t_fixfile-dry_run-false"><code>t_fix(file, dry_run = false)</code></h3>
 <p>REPL-callable version of <code>t fix</code>. Runs
 <code>t check --schema</code> on a file, extracts diagnostics with
 <code>suggested_fix</code>, and applies them mechanically. Supports
-<code>Cast</code> (inserts <code>|&gt; mutate(...)</code> for type
-contract violations), <code>Rename_column</code> (replaces
-<code>$old</code> with <code>$new</code>), and <code>Add_node_arg</code>
-(inserts missing arguments into node definitions, e.g., adding a
+<code>Rename_column</code> (replaces <code>$old</code> with
+<code>$new</code>) and <code>Add_node_arg</code> (inserts missing
+arguments into node definitions, e.g., adding a
 <code>deserializer</code> for cross-runtime dependencies).</p>
 <p><strong>Arguments:</strong></p>
 <table>
@@ -2896,6 +2898,60 @@ and <code>"phase": "wire"</code> as the default.</p>
 and <code>end</code>), <code>message</code>, <code>expected</code>,
 <code>actual</code>, <code>caused_by</code>, and
 <code>suggested_fix</code>.</p>
+<p><strong><code>suggested_fix</code> structure:</strong> When non-null,
+a <code>suggested_fix</code> is a JSON object with a <code>kind</code>
+field and fix-specific fields. Every fix also carries a
+<code>confidence</code> field (<code>"high"</code>,
+<code>"medium"</code>, or <code>"low"</code>) indicating whether the fix
+is deterministic or heuristic. Confidence is computed dynamically from
+diagnostic context (e.g., schema chain integrity, edit distance) rather
+than being a static label per fix kind:</p>
+<table>
+<colgroup>
+<col style="width: 14%" />
+<col style="width: 35%" />
+<col style="width: 27%" />
+<col style="width: 22%" />
+</colgroup>
+<thead>
+<tr>
+<th><code>kind</code></th>
+<th>Typical confidence</th>
+<th>When it drops</th>
+<th>Key fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rename_column</code></td>
+<td><code>"high"</code></td>
+<td><code>"medium"</code> at edit distance 2; <code>"low"</code> at
+distance 3+</td>
+<td><code>old_name</code>, <code>new_name</code>,
+<code>target_node</code></td>
+</tr>
+<tr>
+<td><code>add_node_arg</code></td>
+<td><code>"medium"</code></td>
+<td>Always <code>"medium"</code></td>
+<td><code>node</code>, <code>arg</code>, <code>target_node</code></td>
+</tr>
+<tr>
+<td><code>suggest_identifier</code></td>
+<td>varies</td>
+<td>Scales with edit distance and uniqueness</td>
+<td><code>name</code>, <code>suggestion</code>,
+<code>target_node</code></td>
+</tr>
+<tr>
+<td><code>run_command</code></td>
+<td><code>"low"</code></td>
+<td>Always <code>"low"</code></td>
+<td><code>command</code>, <code>description</code>,
+<code>target_node</code></td>
+</tr>
+</tbody>
+</table>
 <p><strong><code>error_class</code> enum values:</strong>
 <code>structural_error</code>, <code>name_error</code>,
 <code>arity_error</code>, <code>type_error</code>,
@@ -2906,12 +2962,10 @@ and <code>end</code>), <code>message</code>, <code>expected</code>,
 <code>match_error</code>, <code>shell_error</code>,
 <code>aggregation_error</code>, <code>na_predicate_error</code>,
 <code>missing_artifact</code>, <code>generic_error</code>,
-<code>schema_mismatch</code>, <code>contract_violation</code>,
-<code>contract_unverifiable</code>, <code>missing_tproject</code>,
+<code>schema_mismatch</code>, <code>missing_tproject</code>,
 <code>missing_package</code>, <code>missing_from_lockfile</code>,
 <code>nix_generation_error</code>, <code>nix_eval_error</code>,
-<code>invalid_expect_placement</code>, <code>na_warning</code>,
-<code>unknown_error</code>.</p>
+<code>na_warning</code>, <code>unknown_error</code>.</p>
 <p><strong>Examples:</strong></p>
 <div class="sourceCode" id="cb92"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check a pipeline script</span></span>
@@ -3153,87 +3207,6 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb99-1"><a href=
 <span id="cb99-7"><a href="#cb99-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">break</span></span>
 <span id="cb99-8"><a href="#cb99-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
 <span id="cb99-9"><a href="#cb99-9" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span></code></pre></div>
-<h3 id="expect-pipeline-shape-contracts"><code>expect()</code> —
-Pipeline shape contracts</h3>
-<p>Attach a shape contract to a pipeline node to declare expected output
-properties. Contracts are checked statically via
-<code>t check --schema</code>.</p>
-<p><strong>Syntax:</strong></p>
-<pre class="t"><code>clean_data = raw_data
-  |&gt; read_csv(&quot;data.csv&quot;)
-  |&gt; filter($status == &quot;complete&quot;)
-  |&gt; expect(columns = [&quot;id&quot;, &quot;name&quot;, &quot;score&quot;])</code></pre>
-<p>Type contracts and null-rate contracts can be mixed with column
-contracts:</p>
-<pre class="t"><code>clean_data = raw_data
-  |&gt; expect(columns = [&quot;id&quot;, &quot;amount&quot;, &quot;region&quot;],
-             amount ~ double(),
-             null_rate(&quot;amount&quot;) &lt; 0.02)</code></pre>
-<p><code>expect()</code> must appear at the <strong>end</strong> of a
-pipe chain.</p>
-<p><strong>Accepted arguments:</strong></p>
-<table>
-<colgroup>
-<col style="width: 34%" />
-<col style="width: 20%" />
-<col style="width: 44%" />
-</colgroup>
-<thead>
-<tr>
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>columns</code></td>
-<td><code>List[String]</code></td>
-<td>Expected column names in the output</td>
-</tr>
-<tr>
-<td><code>col ~ type()</code></td>
-<td>Type contract</td>
-<td>Asserts a column has a specific type (e.g.,
-<code>amount ~ double()</code>, <code>id ~ int()</code>)</td>
-</tr>
-<tr>
-<td><code>null_rate("col") &lt; n</code></td>
-<td>Null-rate contract</td>
-<td>Asserts the fraction of null values in a column is below a
-threshold</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Behavior:</strong></p>
-<ul>
-<li>Column contracts: checked when <code>t check --schema</code> is used
-(tier 2). If the inferred output schema is missing any declared columns,
-a <code>contract_violation</code> diagnostic is emitted.</li>
-<li>Type contracts: checked statically when the column type is known
-(e.g., from CSV headers). If the type doesn’t match, a
-<code>contract_violation</code> error is emitted. If the type is unknown
-(e.g., Python/Julia nodes), a <code>contract_unverifiable</code> warning
-is emitted.</li>
-<li>Null-rate contracts: cannot be verified statically (require actual
-data). A <code>contract_unverifiable</code> warning is emitted during
-<code>t check --schema</code>. Runtime enforcement is planned for a
-future release.</li>
-<li><code>expect()</code> is stripped from the pipe chain during
-evaluation — it has no runtime effect.</li>
-</ul>
-<p><strong>Supported type names:</strong> <code>double</code>,
-<code>int</code>, <code>string</code>, <code>bool</code>,
-<code>date</code></p>
-<p><strong>Limitations:</strong></p>
-<ul>
-<li>Null-rate contracts are checked at <code>t check --schema</code>
-time as warnings only; runtime enforcement is not yet implemented</li>
-<li>Type inference from CSV headers is based on sampling; complex types
-may not be detected correctly</li>
-<li>Column validation depends on accurate schema inference (CSV headers
-for root nodes, colcraft verb propagation for downstream nodes)</li>
-</ul>
 <hr />
 <h3 id="read_nodenode-1"><code>read_node(node)</code></h3>
 <p>Read a dynamically evaluated or materialized artifact from an
@@ -3460,10 +3433,10 @@ print(summary)</code></pre>
 <h3 id="cli-t-diff">CLI: <code>t diff</code></h3>
 <p>The <code>t diff</code> command provides the same functionality from
 the shell, without needing to write a T script:</p>
-<div class="sourceCode" id="cb110"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb110-1"><a href="#cb110-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                    <span class="co"># compare last two builds</span></span>
-<span id="cb110-2"><a href="#cb110-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --json             <span class="co"># structured JSON output</span></span>
-<span id="cb110-3"><a href="#cb110-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --log-a 2 <span class="at">--log-b</span> 4  <span class="co"># compare specific build ranks</span></span></code></pre></div>
+<div class="sourceCode" id="cb108"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb108-1"><a href="#cb108-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                    <span class="co"># compare last two builds</span></span>
+<span id="cb108-2"><a href="#cb108-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --json             <span class="co"># structured JSON output</span></span>
+<span id="cb108-3"><a href="#cb108-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --log-a 2 <span class="at">--log-b</span> 4  <span class="co"># compare specific build ranks</span></span></code></pre></div>
 <hr />
 <h3 id="cli-t-fix">CLI: <code>t fix</code></h3>
 <p>Mechanically applies <code>suggested_fix</code> values from
@@ -3471,9 +3444,9 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb110-1"><a href
 <code>t check --json</code> internally, collects diagnostics with
 non-null <code>suggested_fix</code>, and applies them to the source
 file.</p>
-<div class="sourceCode" id="cb111"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb111-1"><a href="#cb111-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                     <span class="co"># apply all suggested fixes</span></span>
-<span id="cb111-2"><a href="#cb111-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="at">--dry-run</span> <span class="op">&lt;</span>file.t<span class="op">&gt;</span>           <span class="co"># preview fixes without applying</span></span></code></pre></div>
+<div class="sourceCode" id="cb109"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb109-1"><a href="#cb109-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                     <span class="co"># apply all suggested fixes</span></span>
+<span id="cb109-2"><a href="#cb109-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="at">--dry-run</span> <span class="op">&lt;</span>file.t<span class="op">&gt;</span>           <span class="co"># preview fixes without applying</span></span></code></pre></div>
 <p><strong>Supported fix types:</strong></p>
 <table>
 <colgroup>
@@ -3487,11 +3460,6 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb111-1"><a href
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>cast</code></td>
-<td>Inserts <code>\|&gt; mutate($col = as.type($col, "target"))</code>
-before the <code>expect()</code> node</td>
-</tr>
 <tr>
 <td><code>rename_column</code></td>
 <td>Replaces all occurrences of the old column name with the new
@@ -3528,20 +3496,17 @@ name</td>
 </tbody>
 </table>
 <p><strong>Example:</strong></p>
-<div class="sourceCode" id="cb112"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb112-1"><a href="#cb112-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--json</span> pipeline.t <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.diagnostics[].suggested_fix&#39;</span></span>
-<span id="cb112-2"><a href="#cb112-2" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
-<span id="cb112-3"><a href="#cb112-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;kind&quot;</span><span class="ex">:</span> <span class="st">&quot;cast&quot;</span>,</span>
-<span id="cb112-4"><a href="#cb112-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;column&quot;</span><span class="ex">:</span> <span class="st">&quot;amount&quot;</span>,</span>
-<span id="cb112-5"><a href="#cb112-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;cast_to&quot;</span><span class="ex">:</span> <span class="st">&quot;double&quot;</span>,</span>
-<span id="cb112-6"><a href="#cb112-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;target_node&quot;</span><span class="ex">:</span> <span class="st">&quot;clean&quot;</span>,</span>
-<span id="cb112-7"><a href="#cb112-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;file&quot;</span><span class="ex">:</span> <span class="st">&quot;pipeline.t&quot;</span>,</span>
-<span id="cb112-8"><a href="#cb112-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;line&quot;</span><span class="ex">:</span> 5</span>
-<span id="cb112-9"><a href="#cb112-9" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
-<span id="cb112-10"><a href="#cb112-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb112-11"><a href="#cb112-11" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t fix pipeline.t</span>
-<span id="cb112-12"><a href="#cb112-12" aria-hidden="true" tabindex="-1"></a><span class="ex">Applied</span> 1 fix<span class="er">(</span><span class="ex">es</span><span class="kw">)</span><span class="ex">,</span> skipped 0.</span>
-<span id="cb112-13"><a href="#cb112-13" aria-hidden="true" tabindex="-1"></a><span class="ex">Run</span> <span class="st">&#39;t check pipeline.t&#39;</span> to verify.</span></code></pre></div>
+<div class="sourceCode" id="cb110"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb110-1"><a href="#cb110-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--json</span> pipeline.t <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.diagnostics[].suggested_fix&#39;</span></span>
+<span id="cb110-2"><a href="#cb110-2" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
+<span id="cb110-3"><a href="#cb110-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;kind&quot;</span><span class="ex">:</span> <span class="st">&quot;rename_column&quot;</span>,</span>
+<span id="cb110-4"><a href="#cb110-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;old_name&quot;</span><span class="ex">:</span> <span class="st">&quot;mpg&quot;</span>,</span>
+<span id="cb110-5"><a href="#cb110-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;new_name&quot;</span><span class="ex">:</span> <span class="st">&quot;MPG&quot;</span>,</span>
+<span id="cb110-6"><a href="#cb110-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;target_node&quot;</span><span class="ex">:</span> <span class="st">&quot;clean&quot;</span>,</span>
+<span id="cb110-7"><a href="#cb110-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;file&quot;</span><span class="ex">:</span> <span class="st">&quot;pipeline.t&quot;</span>,</span>
+<span id="cb110-8"><a href="#cb110-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;line&quot;</span><span class="ex">:</span> 5,</span>
+<span id="cb110-9"><a href="#cb110-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;confidence&quot;</span><span class="ex">:</span> <span class="st">&quot;high&quot;</span></span>
+<span id="cb110-10"><a href="#cb110-10" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
 <hr />
 <h2 id="explain-package">Explain Package</h2>
 <p>Introspection and LLM tooling.</p>

@@ -4770,7 +4770,7 @@ build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-
 
 ### `t_check(file, json = false, schema = false, env = false)`
 
-REPL-callable version of `t check`. Runs structural, wire-phase, schema, and environment checks on a T script and returns the diagnostics as a string.
+REPL-callable version of `t check`. Runs structural, wire-phase, schema, environment, and **type annotation** checks on a T script and returns the diagnostics as a string. Type annotation checks compare `x: Int = expr` annotations against inferred types and emit `Warning` diagnostics for mismatches.
 
 **Arguments:**
 
@@ -4878,6 +4878,15 @@ t check --schema --env --json path/to/script.t  # combined: tier 1+2+3 in JSON
 The `tier` field is derived from the deepest phase that produced diagnostics: parse/wire errors yield `tier: 1`, schema errors yield `tier: 2`, and env/build/exec errors yield `tier: 3`. A clean run reports `"tier": 1` and `"phase": "wire"` as the default.
 
 Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node` (with nested `id`, `lang`, `file`, and `span` containing `start` and `end`), `message`, `expected`, `actual`, `caused_by`, and `suggested_fix`.
+
+**`suggested_fix` structure:** When non-null, a `suggested_fix` is a JSON object with a `kind` field and fix-specific fields. Every fix also carries a `confidence` field (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is deterministic or heuristic. Confidence is computed dynamically from diagnostic context (e.g., schema chain integrity, edit distance) rather than being a static label per fix kind:
+
+| `kind` | Typical confidence | When it drops | Key fields |
+|--------|-------------------|---------------|------------|
+| `rename_column` | `"high"` | `"medium"` at edit distance 2; `"low"` at distance 3+ | `old_name`, `new_name`, `target_node` |
+| `add_node_arg` | `"medium"` | Always `"medium"` | `node`, `arg`, `target_node` |
+| `suggest_identifier` | varies | Scales with edit distance and uniqueness | `name`, `suggestion`, `target_node` |
+| `run_command` | `"low"` | Always `"low"` | `command`, `description`, `target_node` |
 
 **`error_class` enum values:** `structural_error`, `name_error`, `arity_error`, `type_error`, `parse_error`, `file_error`, `key_error`, `index_error`, `value_error`, `runtime_error`, `division_by_zero`, `assertion_error`, `match_error`, `shell_error`, `aggregation_error`, `na_predicate_error`, `missing_artifact`, `generic_error`, `schema_mismatch`, `missing_tproject`, `missing_package`, `missing_from_lockfile`, `nix_generation_error`, `nix_eval_error`, `na_warning`, `unknown_error`.
 
@@ -5057,6 +5066,8 @@ t run --json pipeline.t 2>/dev/null | while IFS= read -r line; do
   fi
 done
 ```
+
+---
 
 ### `read_node(node)`
 
@@ -5333,18 +5344,13 @@ t fix --dry-run <file.t>           # preview fixes without applying
 $ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
 {
   "kind": "rename_column",
-  "old_name": "mg",
-  "new_name": "mpg",
-  "edit_distance": 1,
-  "is_unique": true,
+  "old_name": "mpg",
+  "new_name": "MPG",
   "target_node": "clean",
   "file": "pipeline.t",
-  "line": 5
+  "line": 5,
+  "confidence": "high"
 }
-
-$ t fix pipeline.t
-Applied 1 fix(es), skipped 0.
-Run 't check pipeline.t' to verify.
 ```
 
 ---
@@ -7546,7 +7552,7 @@ The agent sees:
 - **`caused_by: ["clean"]`** — the upstream `clean` node is the source
 - **`suggested_fix`** — rename `mg` to `mpg` in the clean node
 
-The agent fixes the typo in the upstream Python code, changing `mg` to `mpg`:
+The agent fixes the typo in the upstream Python code:
 
 ```python
 df["mpg"] = pd.to_numeric(df["mpg"], errors="coerce")
@@ -7578,8 +7584,7 @@ $ t check --json pipeline.t
 
 ## Step 3: Agent applies fixes (or edits manually)
 
-In this case the agent edited the Python code directly (fixing the typo and the
-column reference). No `t fix` needed — the `suggested_fix` was a `rename_column`, but the agent
+In this case the agent edited the Python code directly (fixing the typo). No `t fix` needed — the `suggested_fix` was a `rename_column`, but the agent
 chose to fix the root cause in the upstream node instead.
 
 If `t fix` had been applicable, the agent would preview first:
@@ -7802,6 +7807,7 @@ The `root_causes` field tells the agent which node is the actual source of the f
 | Typo in Python/pandas function name | `t check` catches it as `name_error` |
 | Wrong column name in downstream node | `t check --schema` catches it as `schema_mismatch` |
 | Missing serializer on a node | `t check` catches it as `structural_error` |
+| Wrong deserializer format | `t check` catches it as `structural_error` |
 
 ### When to step in
 
@@ -9185,12 +9191,33 @@ For datasets exceeding 2-3 GB:
 
 ## [0.54.1] - Unreleased
 
+### Type System: Annotations and Inference
+
+- **Type annotation checking**: `t check` now compares type annotations (`x: Int = expr`) against inferred types and emits `Warning` diagnostics for mismatches. Works via the CLI `t check` and the REPL `t_check()` function.
+- **TArrow type**: Function types can be expressed as `(Int, String) -> Bool`. Parsed, typechecked, and used for lambda signature validation.
+- **Expression-level type inference**: `infer_type` now covers `BinOp`, `UnOp`, `IfElse`, `Match`, `ListLit`, `DotAccess`, and `Lambda` return types. Division always infers `Float`; comparison operators infer `Bool`.
+- **Pipeline type propagation**: `mutate` infers new column types from expressions; `select` narrows DataFrame columns to the selected set; `filter`, `arrange`, `group_by`, `ungroup` pass through the base DataFrame type.
+- **`types_compatible`**: Asymmetric numeric matching — `Int` is compatible with `Float` (relaxed widening), but not vice versa. `Any` matches everything. `TArrow` compares structurally.
+
 ### `t check` CLI & Structured Diagnostics Protocol
 
 - **Tier 1 CLI (`t check <file>`)**: Structural pipeline validation without triggering Nix builds. Catches parse errors, DAG cycles, dangling node references, arity errors, and built-in name resolution. Exit codes: 0=clean, 1=wire error, 2=schema error, 3=env error.
-- **Tier 2 Schema Validation (`t check --schema`)**: Static column-name and type propagation through the pipeline DAG. Validates column references against inferred upstream schemas, checks cross-node type consistency, and reports mismatches with suggested fixes.
+- **Tier 2 Schema Validation (`t check --schema`)**: Static column-name and type propagation through the pipeline DAG. Validates column references against inferred upstream schemas and reports type mismatches with suggested fixes.
 - **Structured JSON Diagnostics (`--json`)**: Machine-readable output for all tiers, with `schema_version`, `status`, `phase`, `tier`, and per-diagnostic `error_class` (stable enum), `severity`, `expected`, `actual`, `caused_by`, and `suggested_fix` fields. **Breaking change:** `file` and `span` (with `start` and `end`) are now nested inside the `node` sub-object. Designed for agent tooling.
+- **Dynamic confidence levels**: Every `suggested_fix` now carries a `confidence` field (`"high"`, `"medium"`, `"low"`) computed from diagnostic context. `Rename_column` and `Suggest_identifier` scale with edit distance and uniqueness. `Add_node_arg` is always `"medium"`, `Run_command` always `"low"`.
 - **`t_check(file, json, schema, env)` REPL function**: Invoke `t check` from within a T session.
+
+### `t explain` — Node Introspection
+
+- **`t explain --node <pipeline>.t:<node_id>`**: Prints a human-readable summary of a pipeline node's inputs, outputs, language, and dependencies. Supports `--json` for machine-readable output (YAML front matter style with `node_id`, `language`, `inputs`, `outputs`, `dependencies`, and `command`).
+
+### `t add` — Package & Tool Management CLI
+
+- **`t add <runtime> <package>`**: Adds a dependency to `tproject.toml` from the command line. Supports `R`, `Python`, `T`, `Julia`, and `Quarto` runtimes. Example: `t add R dplyr`, `t add Python quarto`.
+
+### REPL Enhancements
+
+- **`--json` flag for expression mode**: `t run --json --expr 'expr'` now correctly enables NDJSON streaming output, matching the behavior of file-mode execution.
 
 ### `t diff` — Content-Addressed Output Diffing
 
@@ -9203,15 +9230,15 @@ For datasets exceeding 2-3 GB:
 - **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new` in column references) and `Add_node_arg` (inserts missing arguments into node definitions).
 - **`t_fix(file, dry_run)` REPL function**: Invoke `t fix` from within a T session.
 - **Word-boundary-safe rename**: Column renames only affect `$col` and `` $`col` `` forms, avoiding corruption of identifiers like `valid` when renaming `id`.
-- **`target_node` on `suggested_fix`**: `Rename_column` and `Add_node_arg` fixes include a `target_node` field indicating which pipeline node the fix applies to.
+- **`target_node` on `suggested_fix`**: `Rename_column` and `Add_node_arg` fixes now include a `target_node` field indicating which pipeline node the fix applies to.
 - **Cross-runtime deserializer suggestion**: When a node depends on a node from a different runtime but has no explicit `deserializer`, `t check` now suggests adding `deserializer = ^csv` via an `Add_node_arg` fix.
+- **`fetchurl` serializer parameter**: `fetchurl()` now accepts a `serializer` argument for pipeline mode, allowing explicit control over the download format (e.g., `serializer = ^text`).
 
 ### `t check` Environment Validation
 
 - **Nix Evaluability Check**: `t check --env` now also generates `pipeline.nix` and `dag.json` and validates them via `nix-instantiate --eval`. This catches Nix expression errors (bad references, type mismatches) before a full build.
 - **Git-Sourced Lockfile Packages**: `check_lockfile_consistency` now includes packages resolved via GitHub/GitLab entries in `renv.lock`, preventing false-positive `missing_from_lockfile` diagnostics.
 - **Watch Mode (`--watch`)**: `t check --watch` runs immediately, then polls the input file for changes and re-runs the check on every modification. Can be combined with `--schema` and `--env`.
-- **Shape Contracts**: Removed `expect()` syntax (previously declared expected output columns on pipeline nodes).
 
 ### Nix Installation Documentation
 
@@ -9226,6 +9253,23 @@ For datasets exceeding 2-3 GB:
 - **`run_started` DAG manifest**: The first NDJSON line carries the full pipeline DAG (node IDs, languages, dependencies) so consumers can reason about root causes while the stream is still open.
 - **`root_causes` at `run_finished`**: Root cause computation is deferred to the terminal event, where the full picture is known. No provisional guesses on `node_failed` events.
 - **Exit codes unchanged**: 0=clean, 1=wire error, 2=schema error, 3=env/build error — independent of `--json`.
+- **Improved error classification and logs**: `node_failed` events classify error details in real-time using in-memory log buffers without blocking the execution stream. Captured log tails for stderr-detected errors are now complete and include the exact failure details.
+- **De-duplication of events**: Multiple `node_failed` events for the same failing node are prevented during streaming.
+- **Cached node completions**: Cached nodes receive `node_completed` events at the end of the build, ensuring that all successful nodes are represented.
+- **Breaking schema change to `succeeded` count**: The `succeeded` field in `run_finished` now correctly represents the number of completed nodes built from scratch, and no longer double-counts `cached` nodes.
+
+### REPL %magic Commands
+
+- **`%history`**: Display REPL session history with line numbers.
+- **`%save [filename]`**: Save session transcript to a file.
+- **`%reset`**: Clear all variables from the session.
+- **`%who [pattern]`**: List defined variables with optional fuzzy name matching.
+- **`%objects [pattern]`**: List defined variables with type information and optional fuzzy matching.
+- **`%magic`**: List all available magic commands.
+
+### DataFrames
+
+- **`write_parquet(data, path)`**: Write a DataFrame to a Parquet file via Arrow.
 
 ## [0.54.0] - 2026-07-08
 
@@ -9237,6 +9281,7 @@ For datasets exceeding 2-3 GB:
 
 ### Code Safety & Runtime Robustness
 
+- **Agent Skill Scaffolding**: `t init --project` now copies agent skill files (SKILL.md templates) into `.claude/skills/` and `.opencode/` directories, providing ready-to-use AI agent context for new projects.
 - **Scientific Float Notation Support**: Parser and lexer now support standard scientific notation for floating-point literals (e.g. `1e-5`, `3.14e+2`, `2.7E-3`).
 - **String Escape Sequence Validation**: The string parser now validates escape sequences at parse time, throwing a clear syntax error for invalid or unrecognized escape sequences.
 - **Hex Byte Escape (`\xHH`)**: String literals now support `\x` followed by exactly two hexadecimal digits (e.g. `"\x48\x69"` → `"Hi"`), enabling embedding of arbitrary byte sequences.
@@ -17202,6 +17247,12 @@ $ t check --json --schema src/pipeline.t
 $ t fix --dry-run src/pipeline.t
 dry-run: would apply 1 fix to src/pipeline.t:
   [Rename_column] line 12: rename column 'regin' to 'region'
+```
+
+```bash
+$ t fix --dry-run src/pipeline.t
+dry-run: would apply 1 fix to src/pipeline.t:
+  [Cast] line 12: insert mutate($amount = as.numeric($amount))
 ```
 
 These tools give agents structured, parseable output instead of human-readable error strings. The agent can programmatically decide what to fix and verify the fix before applying it.
