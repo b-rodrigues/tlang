@@ -54,3 +54,21 @@ let from_string str =
       if String.starts_with ~prefix:"vector" str then TAny
       else if String.starts_with ~prefix:"list" str then TAny
       else TUnknown
+
+(** Convert a semantic type to an AST type for comparison with annotations.
+
+    @param t The semantic type to convert.
+    @return The corresponding AST type [Ast.typ]. *)
+let rec to_ast_typ (t : t) : Ast.typ =
+  match t with
+  | TInt -> Ast.TInt
+  | TString -> Ast.TString
+  | TBool -> Ast.TBool
+  | TFloat -> Ast.TFloat
+  | TDataFrame _ -> Ast.TDataFrame None
+  | TGroupedDataFrame _ -> Ast.TDataFrame None
+  | TFunction (args, ret) ->
+      let param_types = List.map (fun (_, t) -> to_ast_typ t) args in
+      Ast.TArrow (param_types, to_ast_typ ret)
+  | TAny -> Ast.TCustom "Any"
+  | TUnknown -> Ast.TCustom "Any"

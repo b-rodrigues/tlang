@@ -516,4 +516,82 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   test "help: apropos with invalid type returns error"
     "apropos(42)"
     {|Error(TypeError: "apropos expects a query string.")|};
+
+  Printf.printf "CLI — t explain --node functionality:\n";
+  let run_t_explain args =
+    let repl_path =
+      if Sys.file_exists "../src/repl.exe" then "../src/repl.exe"
+      else if Sys.file_exists "_build/default/src/repl.exe" then "_build/default/src/repl.exe"
+      else if Sys.file_exists "src/repl.exe" then "src/repl.exe"
+      else "./repl.exe"
+    in
+    let cmd = String.concat " " (List.map Filename.quote (repl_path :: "explain" :: args)) ^ " 2>&1" in
+    let ic = Unix.open_process_in cmd in
+    let lines = ref [] in
+    (try
+       while true do
+         lines := input_line ic :: !lines
+       done
+     with End_of_file -> ());
+    let status = Unix.close_process_in ic in
+    let output = String.concat "\n" (List.rev !lines) in
+    let exit_code =
+      match status with
+      | Unix.WEXITED code -> code
+      | _ -> -1
+    in
+    (exit_code, output)
+  in
+
+  (* 1. Missing node value (trailing flag) *)
+  let (code1, out1) = run_t_explain ["--node"] in
+  test_message "explain --node with no value prints usage"
+    (code1 = 1 && contains out1 "Usage: t explain --node");
+
+  (* 2. Missing prefix format *)
+  let (code2, out2) = run_t_explain ["--node"; "clean_data"] in
+  test_message "explain --node with missing pipeline prefix errors out"
+    (code2 = 1 && contains out2 "Error: Invalid --node format");
+
+  (* 3. Non-existent file *)
+  let (code3, out3) = run_t_explain ["--node"; "p.clean_data"; "non_existent.t"] in
+  test_message "explain --node with non-existent file errors out"
+    (code3 = 1 && contains out3 "Error: File 'non_existent.t' not found");
+
+  (* Set up a temporary pipeline file *)
+  let temp_pipeline_path = "/tmp/explain_test_pipeline.t" in
+  (try
+     let oc = open_out temp_pipeline_path in
+     output_string oc "p = pipeline { clean_data = node(command = 1, serializer = ^csv) }\n";
+     close_out oc;
+
+     (* 4. Non-existent pipeline variable *)
+     let (code4, out4) = run_t_explain ["--node"; "q.clean_data"; temp_pipeline_path] in
+     test_message "explain --node with non-existent pipeline variable errors out"
+       (code4 = 1 && contains out4 "Error: Pipeline variable 'q' not found");
+
+     (* 5. Non-existent node *)
+     let (code5, out5) = run_t_explain ["--node"; "p.other_node"; temp_pipeline_path] in
+     test_message "explain --node with non-existent node errors out"
+       (code5 = 1 && contains out5 "Error: Node 'other_node' not found in the pipeline");
+
+     (* 6. Successful plain-text explain *)
+     let (code6, out6) = run_t_explain ["--node"; "p.clean_data"; temp_pipeline_path] in
+     test_message "explain --node successful plain-text output"
+       (code6 = 0 && contains out6 "Node 'clean_data' compiled/built successfully");
+
+     (* 7. Successful JSON explain *)
+     let (code7, out7) = run_t_explain ["--json"; "--node"; "p.clean_data"; temp_pipeline_path] in
+     test_message "explain --json --node successful JSON fields"
+       (code7 = 0 &&
+        contains out7 "\"pipeline\": \"p\"" &&
+        contains out7 "\"node\": \"clean_data\"" &&
+        contains out7 "\"status\": \"success\"" &&
+        contains out7 "\"warnings\": []");
+
+     Sys.remove temp_pipeline_path
+   with e ->
+     if Sys.file_exists temp_pipeline_path then Sys.remove temp_pipeline_path;
+     raise e);
+
   print_newline ()

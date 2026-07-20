@@ -71,6 +71,7 @@ bug from whoever calls it next.
 ## Before calling a task done
 
 - `t test` passes, and the new/changed function has at least one test exercising it.
+- If the package exports functions used in pipelines, `t check --schema` on a sample pipeline confirms the functions integrate correctly with schema propagation.
 - `t_doc("parse")` and `t_doc("generate")` run clean — this is the fastest way to catch a malformed
   T-Doc block before a human notices.
 - If you added a dependency, it's declared in `DESCRIPTION.toml` and you ran `t update`.

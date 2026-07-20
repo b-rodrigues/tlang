@@ -119,7 +119,6 @@ and node_diagnostics = {
   nd_upstream_errors : string list;
 }
 
-
 (** Phase 3: Pipeline result with cached values and dependency info *)
 and pipeline_result = {
   p_nodes : (string * value) list;           (* Cached node results *)
@@ -340,7 +339,6 @@ and expr_node =
   | IfElse of { cond : expr; then_ : expr; else_ : expr }
   | Match of { scrutinee : expr; cases : (match_pattern * expr) list }
   | ListLit of (string option * expr) list
-  | ListComp of { expr : expr; clauses : comp_clause list }
   | DictLit of (string * expr) list
   | BinOp of { op : binop; left : expr; right : expr }
   | UnOp of { op : unop; operand : expr }
@@ -375,7 +373,6 @@ and import_spec = {
 and binop = Plus | Minus | Mul | Div | Mod | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | BitAnd | BitOr
   | In (* New: membership check *) | Pipe | MaybePipe | Formula | FatArrow
 and unop = Not | Neg
-and comp_clause = CFor of { var : symbol; iter : expr } | CFilter of expr
 
 and typ =
   | TInt
@@ -391,6 +388,7 @@ and typ =
   | TComputedNode
   | TSerializer
   | TExpr
+  | TArrow of typ list * typ
 
 type program = stmt list
 
@@ -456,6 +454,14 @@ let get_in_memory_node_value_for_cn (cn : computed_node) : value option =
 
 (** Global hook for storing mapping from pipeline expressions to build log paths *)
 let pipeline_build_logs : ((string * expr) list, string) Hashtbl.t = Hashtbl.create 10
+
+(** When true, build_pipeline/populate_pipeline skip Nix builds.
+    Set by `t check` so structural validation runs without triggering builds. *)
+let check_mode = ref false
+
+(** When true, build_pipeline streams NDJSON events to stdout instead of
+    human-readable output to stderr.  Set by `t run --json`. *)
+let ndjson_mode = ref false
 
 
 (** Extract identifier-like tokens from a raw code string.
@@ -775,6 +781,9 @@ module Utils = struct
     | TComputedNode -> "ComputedNode"
     | TSerializer -> "Serializer"
     | TExpr -> "Expression"
+    | TArrow (params, ret) ->
+        let params_str = String.concat ", " (List.map typ_to_string params) in
+        "(" ^ params_str ^ ") -> " ^ typ_to_string ret
 
   let rec type_name = function
     | VBuildLog _ -> "BuildLog"
@@ -898,7 +907,6 @@ module Utils = struct
     | Unquote e -> "!!" ^ unparse_expr e
     | UnquoteSplice e -> "!!!" ^ unparse_expr e
     | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
-    | ListComp _ -> "[...]"
     | ShellExpr cmd -> "?<{ " ^ cmd ^ " }>"
     | IntentDef _ -> "intent { ... }"
 
@@ -1166,13 +1174,16 @@ let levenshtein s t =
 (** Find the closest matching name from a list of candidates.
     Returns Some name if there is a match within a reasonable edit distance.
     The threshold is max(2, len/3) — allowing up to ~33% character changes. *)
-let suggest_name name candidates =
+let suggest_names_with_scores name candidates =
   let max_dist = max 2 (String.length name / 3) in
   let scored = List.filter_map (fun c ->
     let d = levenshtein name c in
     if d > 0 && d <= max_dist then Some (c, d) else None
   ) candidates in
-  match List.sort (fun (_, d1) (_, d2) -> compare d1 d2) scored with
+  List.sort (fun (_, d1) (_, d2) -> compare d1 d2) scored
+
+let suggest_name name candidates =
+  match suggest_names_with_scores name candidates with
   | (best, _) :: _ -> Some best
   | [] -> None
 
@@ -1252,6 +1263,8 @@ let rec is_compatible (v : value) (t : typ) : bool =
   
   | VLambda _, TCustom "Function" -> true
   | VBuiltin _, TCustom "Function" -> true
+  | VLambda _, TArrow _ -> true
+  | VBuiltin _, TArrow _ -> true
 
   (* Relaxed numeric matching: Int can often be used where Float is expected in T *)
   | VInt _, TFloat -> true
@@ -1265,3 +1278,26 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VMetaPipeline _, TCustom ("Pipeline" | "MetaPipeline") -> true
 
   | _ -> false
+
+(** Check if two AST types are compatible.
+
+    Used to compare inferred types against user-provided annotations.
+    Allows Int where Float is expected (T's relaxed numeric matching).
+    [TCustom "Any"] matches anything.
+
+    @param a The first type (typically inferred).
+    @param b The second type (typically the annotation).
+    @return [true] if the types are compatible. *)
+let rec types_compatible a b =
+  match a, b with
+  | _, TCustom "Any" -> true
+  | TCustom "Any", _ -> true
+  | _, TVar _ -> true
+  | TVar _, _ -> true
+  | TInt, TFloat -> true
+  | TFloat, TInt -> false
+  | TArrow (p1, r1), TArrow (p2, r2) ->
+      List.length p1 = List.length p2 &&
+      List.for_all2 types_compatible p1 p2 &&
+      types_compatible r1 r2
+  | _ -> a = b

@@ -1,5 +1,87 @@
 # Changelog
 
+## [0.54.1] - 2026-07-20
+
+### Type System: Annotations and Inference
+
+- **Type annotation checking**: `t check` now compares type annotations (`x: Int = expr`) against inferred types and emits `Warning` diagnostics for mismatches. Works via the CLI `t check` and the REPL `t_check()` function.
+- **TArrow type**: Function types can be expressed as `(Int, String) -> Bool`. Parsed, typechecked, and used for lambda signature validation.
+- **Expression-level type inference**: `infer_type` now covers `BinOp`, `UnOp`, `IfElse`, `Match`, `ListLit`, `DotAccess`, and `Lambda` return types. Division always infers `Float`; comparison operators infer `Bool`.
+- **Pipeline type propagation**: `mutate` infers new column types from expressions; `select` narrows DataFrame columns to the selected set; `filter`, `arrange`, `group_by`, `ungroup` pass through the base DataFrame type.
+- **`types_compatible`**: Asymmetric numeric matching — `Int` is compatible with `Float` (relaxed widening), but not vice versa. `Any` matches everything. `TArrow` compares structurally.
+
+### `t check` CLI & Structured Diagnostics Protocol
+
+- **Tier 1 CLI (`t check <file>`)**: Structural pipeline validation without triggering Nix builds. Catches parse errors, DAG cycles, dangling node references, arity errors, and built-in name resolution. Exit codes: 0=clean, 1=wire error, 2=schema error, 3=env error.
+- **Tier 2 Schema Validation (`t check --schema`)**: Static column-name and type propagation through the pipeline DAG. Validates column references against inferred upstream schemas and reports type mismatches with suggested fixes.
+- **Structured JSON Diagnostics (`--json`)**: Machine-readable output for all tiers, with `schema_version`, `status`, `phase`, `tier`, and per-diagnostic `error_class` (stable enum), `severity`, `expected`, `actual`, `caused_by`, and `suggested_fix` fields. **Breaking change:** `file` and `span` (with `start` and `end`) are now nested inside the `node` sub-object. Designed for agent tooling.
+- **Dynamic confidence levels**: Every `suggested_fix` now carries a `confidence` field (`"high"`, `"medium"`, `"low"`) computed from diagnostic context. `Rename_column` and `Suggest_identifier` scale with edit distance and uniqueness. `Add_node_arg` is always `"medium"`, `Run_command` always `"low"`.
+- **`t_check(file, json, schema, env)` REPL function**: Invoke `t check` from within a T session.
+
+### `t explain` — Node Introspection
+
+- **`t explain --node <pipeline>.t:<node_id>`**: Prints a human-readable summary of a pipeline node's inputs, outputs, language, and dependencies. Supports `--json` for machine-readable output (YAML front matter style with `node_id`, `language`, `inputs`, `outputs`, `dependencies`, and `command`).
+
+### `t add` — Package & Tool Management CLI
+
+- **`t add <runtime> <package>`**: Adds a dependency to `tproject.toml` from the command line. Supports `R`, `Python`, `T`, `Julia`, and `Quarto` runtimes. Example: `t add R dplyr`, `t add Python quarto`.
+
+### REPL Enhancements
+
+- **`--json` flag for expression mode**: `t run --json --expr 'expr'` now correctly enables NDJSON streaming output, matching the behavior of file-mode execution.
+
+### `t diff` — Content-Addressed Output Diffing
+
+- **`t diff <file>`**: Compares two builds of a pipeline using per-node Nix content hashes without loading artifacts. Reports each node as `unchanged`, `changed`, `added`, `removed`, or `errored`.
+- **`t_diff(file, json, log_a, log_b)` REPL function**: Invoke `t diff` from within a T session.
+- **`diff_summary(p)`**: Returns a DataFrame of per-node diff status for the two most recent builds.
+
+### `t fix` — Mechanical Suggested-Fix Application
+
+- **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new` in column references) and `Add_node_arg` (inserts missing arguments into node definitions).
+- **`t_fix(file, dry_run)` REPL function**: Invoke `t fix` from within a T session.
+- **Word-boundary-safe rename**: Column renames only affect `$col` and `` $`col` `` forms, avoiding corruption of identifiers like `valid` when renaming `id`.
+- **`target_node` on `suggested_fix`**: `Rename_column` and `Add_node_arg` fixes now include a `target_node` field indicating which pipeline node the fix applies to.
+- **Cross-runtime deserializer suggestion**: When a node depends on a node from a different runtime but has no explicit `deserializer`, `t check` now suggests adding `deserializer = ^csv` via an `Add_node_arg` fix.
+- **`fetchurl` serializer parameter**: `fetchurl()` now accepts a `serializer` argument for pipeline mode, allowing explicit control over the download format (e.g., `serializer = ^text`).
+
+### `t check` Environment Validation
+
+- **Nix Evaluability Check**: `t check --env` now also generates `pipeline.nix` and `dag.json` and validates them via `nix-instantiate --eval`. This catches Nix expression errors (bad references, type mismatches) before a full build.
+- **Git-Sourced Lockfile Packages**: `check_lockfile_consistency` now includes packages resolved via GitHub/GitLab entries in `renv.lock`, preventing false-positive `missing_from_lockfile` diagnostics.
+- **Watch Mode (`--watch`)**: `t check --watch` runs immediately, then polls the input file for changes and re-runs the check on every modification. Can be combined with `--schema` and `--env`.
+
+### Nix Installation Documentation
+
+- **Comprehensive Nix installation guide** (`docs/nix-installation.md`): Platform-specific instructions for Linux, macOS, NixOS, and WSL2. Includes Determinate Systems installer, manual configuration for existing Nix installs, and Docker container setup.
+- **NixOS configuration**: Full `configuration.nix` snippets for trusted users, binary cache, and flakes.
+- **Binary cache setup**: Instructions for configuring the `rstats-on-nix` Cachix cache on NixOS and non-NixOS systems.
+
+### `t run --json` — Streaming NDJSON Build Diagnostics
+
+- **Streaming NDJSON output**: `t run --json` emits newline-delimited JSON events to stdout as the pipeline builds, enabling agents to react to the first failing node without waiting for the entire DAG. Events: `run_started` (DAG manifest), `node_failed` (error + inline log tail), `node_skipped` (propagation), `run_finished` (terminal summary with `root_causes`).
+- **Per-node build log capture**: Build logs are now captured to `_pipeline/logs/<node>.log` during execution, eliminating dependence on `nix log <drv>` after the fact. The `node_failed` event includes the last 200 lines of the log inline.
+- **`run_started` DAG manifest**: The first NDJSON line carries the full pipeline DAG (node IDs, languages, dependencies) so consumers can reason about root causes while the stream is still open.
+- **`root_causes` at `run_finished`**: Root cause computation is deferred to the terminal event, where the full picture is known. No provisional guesses on `node_failed` events.
+- **Exit codes unchanged**: 0=clean, 1=wire error, 2=schema error, 3=env/build error — independent of `--json`.
+- **Improved error classification and logs**: `node_failed` events classify error details in real-time using in-memory log buffers without blocking the execution stream. Captured log tails for stderr-detected errors are now complete and include the exact failure details.
+- **De-duplication of events**: Multiple `node_failed` events for the same failing node are prevented during streaming.
+- **Cached node completions**: Cached nodes receive `node_completed` events at the end of the build, ensuring that all successful nodes are represented.
+- **Breaking schema change to `succeeded` count**: The `succeeded` field in `run_finished` now correctly represents the number of completed nodes built from scratch, and no longer double-counts `cached` nodes.
+
+### REPL %magic Commands
+
+- **`%history`**: Display REPL session history with line numbers.
+- **`%save [filename]`**: Save session transcript to a file.
+- **`%reset`**: Clear all variables from the session.
+- **`%who [pattern]`**: List defined variables with optional fuzzy name matching.
+- **`%objects [pattern]`**: List defined variables with type information and optional fuzzy matching.
+- **`%magic`**: List all available magic commands.
+
+### DataFrames
+
+- **`write_parquet(data, path)`**: Write a DataFrame to a Parquet file via Arrow.
+
 ## [0.54.0] - 2026-07-08
 
 ### Pipeline & Diagnostics
@@ -10,6 +92,7 @@
 
 ### Code Safety & Runtime Robustness
 
+- **Agent Skill Scaffolding**: `t init --project` now copies agent skill files (SKILL.md templates) into `.claude/skills/` and `.opencode/` directories, providing ready-to-use AI agent context for new projects.
 - **Scientific Float Notation Support**: Parser and lexer now support standard scientific notation for floating-point literals (e.g. `1e-5`, `3.14e+2`, `2.7E-3`).
 - **String Escape Sequence Validation**: The string parser now validates escape sequences at parse time, throwing a clear syntax error for invalid or unrecognized escape sequences.
 - **Hex Byte Escape (`\xHH`)**: String literals now support `\x` followed by exactly two hexadecimal digits (e.g. `"\x48\x69"` → `"Hi"`), enabling embedding of arbitrary byte sequences.

@@ -9,11 +9,12 @@ let failures = ref []
 let () =
   Eval.show_warnings := false
 
+let shared_env = Packages.init_env ()
+
 let eval_string input =
-  let env = Packages.init_env () in
   let lexbuf = Lexing.from_string input in
   let program = Parser.program Lexer.token lexbuf in
-  let (result, _env) = Eval.eval_program ~resilient:false program env in
+  let (result, _env) = Eval.eval_program ~resilient:false program shared_env in
   result
 
 let eval_string_env input env =
@@ -160,6 +161,16 @@ let () =
   Test_scalar_diff.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_generic_diff.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_pipeline_diff.run_tests pass_count fail_count failures eval_string eval_string_env test;
+  Test_builder_diff.run_tests pass_count fail_count failures eval_string eval_string_env test;
+
+  (* t check / Diagnostics tests *)
+  Test_check.run_tests pass_count fail_count failures eval_string eval_string_env test;
+  flush stdout;
+  Test_fix.run_tests pass_count fail_count failures eval_string eval_string_env test;
+  flush stdout;
+
+  (* NDJSON streaming tests *)
+  Test_ndjson.run_tests pass_count fail_count failures eval_string eval_string_env test;
 
   (* Summary *)
   let total = !pass_count + !fail_count in

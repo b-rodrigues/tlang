@@ -74,6 +74,30 @@ t repl
 
 t run path/to/script.t
 
+t check path/to/script.t                  # structural validation (default: no Nix builds)
+t check --schema path/to/script.t          # + column-level schema validation
+t check --env path/to/script.t             # + environment/lockfile checks + Nix eval
+t check --json path/to/script.t            # machine-readable diagnostics
+t check --watch path/to/script.t           # run immediately, then re-run on file save
+
+# REPL-callable versions (same options, returns String):
+result = t_check("path/to/script.t")
+result = t_check("path/to/script.t", schema = true, json = true)
+
+t diff path/to/script.t                   # compare last two builds (per-node content hashes)
+t diff path/to/script.t --json            # structured JSON output
+
+# REPL-callable version (same options, returns String):
+result = t_diff("path/to/script.t")
+result = t_diff("path/to/script.t", json = true, log_a = 1, log_b = 2)
+
+t fix path/to/script.t                    # apply suggested fixes from t check diagnostics
+t fix --dry-run path/to/script.t          # preview fixes without applying
+
+# REPL-callable version (same options, returns String):
+result = t_fix("path/to/script.t")
+result = t_fix("path/to/script.t", dry_run = true)
+
 t test
 
 t doc --parse --generate
@@ -130,6 +154,31 @@ match([1, 2]) { [h, ..t] => h, [] => 0 }
 ```
 
 String literals support escape sequences: `\n` (newline), `\r` (carriage return), `\t` (tab), `\\` (backslash), `\"` (double quote), `\xHH` (hex byte, e.g. `\x48` for `H`).
+
+### Type annotations and inference
+
+T supports optional type annotations on variable assignments. The type checker runs during `t check` and compares annotations against inferred types.
+
+```t
+x: Int = 42
+y: String = "hello"
+z: Bool = x > 10
+add = \(a, b) a + b
+```
+
+- `x: Int = expr` — annotation is checked against the inferred type of `expr`
+- Function types use arrow syntax: `\(Int, Int) -> Int`
+- `Int` is compatible with `Float` (relaxed numeric matching), but not vice versa
+- `Any` annotation matches anything
+- Lambda return types are inferred from the body expression
+- Mismatches produce warnings: `Variable 'z' annotated as Int, but expression infers to string.`
+- Type annotations are optional — unannotated variables are inferred freely
+- Expression-level inference covers `BinOp`, `UnOp`, `IfElse`, `Match`, `ListLit`, `DotAccess`, and `Lambda` return types. Division always infers `Float`; comparison operators infer `Bool`
+
+The analyzer also propagates types through pipeline operations:
+- `mutate` infers column types from expressions
+- `select` narrows DataFrame columns to only the selected ones
+- `filter`, `arrange`, `group_by`, `ungroup` pass through the base DataFrame type
 
 ### Three different literal/block forms
 
@@ -414,7 +463,7 @@ Purpose: node construction, pipeline execution, graph inspection, graph rewritin
 - Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false, flake = na())`, `rn(...)`, `pyn(...)`, `jln(command = ..., script = na(), serializer = ^csv, deserializer = ^csv, functions = [], include = [], noop = false, flake = na())`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = na())`
 - Per-node flake environments: nodes accept an optional `flake` parameter (e.g. `flake = "github:jbedo/rshells"`) to override the project-level Nix environment. Each runtime component (T binary, R packages, Julia path, nixpkgs) is resolved independently from the custom flake when available, falling back to the project-level binding otherwise. Supports `github:`, `gitlab:`, `sourcehut:`, `path:` (absolute and relative) references.
 - Static conditionals: `node_when(condition, node_value)` excludes a node from the DAG if condition is falsy at pipeline construction time. `node_fork(cond1, val1, cond2, val2, ..., .default = ...)` selects the first matching branch.
-- Execution and artifacts: `populate_pipeline(p, build = false, dry_run = false)`, `build_pipeline(p, targets = na(), force = na(), dry_run = false, max_jobs = na(), cache = na(), builders = na(), keep_env = na(), sandbox = na())`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(p.name)`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `warning_msg(node)`, `suppress_warnings(node)`, `build_log_history(p, n = na())`, `node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`, `debug_node(node)`, `build_log(p)`, `build_log_to_frame(log)`, `collect_errors(p)`, `error_summary(errors)`, `error_chain(err1, err2)`, `pipeline_to_drv(p)`, `pipeline_to_store(p)`, `set_nix_defaults(nix_options)`, `pipeline_cache_status(p)`, `pipeline_gc(p, dry_run = false)`, `t_gc()`, `export_artifacts(target, archive_path)`, `import_artifacts(target_or_archive, archive_path = na())`, `inspect_artifacts(archive_path)`
+- Execution and artifacts: `populate_pipeline(p, build = false, dry_run = false)`, `build_pipeline(p, targets = na(), force = na(), dry_run = false, max_jobs = na(), cache = na(), builders = na(), keep_env = na(), sandbox = na())`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(p.name)`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `warning_msg(node)`, `suppress_warnings(node)`, `build_log_history(p, n = na())`, `node_diff(node_a, node_b, log_a = "latest", log_b = "latest")`, `diff_summary(p)`, `debug_node(node)`, `build_log(p)`, `build_log_to_frame(log)`, `collect_errors(p)`, `error_summary(errors)`, `error_chain(err1, err2)`, `pipeline_to_drv(p)`, `pipeline_to_store(p)`, `set_nix_defaults(nix_options)`, `pipeline_cache_status(p)`, `pipeline_gc(p, dry_run = false)`, `t_gc()`, `export_artifacts(target, archive_path)`, `import_artifacts(target_or_archive, archive_path = na())`, `inspect_artifacts(archive_path)`
 - Auto-expansion of dynamic branching patterns: pipelines with `map_pattern(...)`, `cross_pattern(...)`, `slice_pattern(...)`, `head_pattern(...)`, `tail_pattern(...)`, or `sample_pattern(...)` are automatically expanded on `populate_pipeline`, `build_pipeline`, `chain`, `parallel`, `union`, `difference`, `intersect`, and `patch`. `expand_pipeline(p)` still available for explicit use. Supports List, Vector, and DataFrame dependencies; non-T runtime branching requires explicit serializer/deserializer configuration.
 - Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_to_dot(p, title = na())`, `pipeline_to_mermaid(p, title = na(), flatten = false)`
 - Node-level transforms: `filter_node(p, predicate)`, `which_nodes(p, predicate)`, `errored_nodes(p)`,
@@ -430,6 +479,19 @@ Purpose: node construction, pipeline execution, graph inspection, graph rewritin
   - *PMML Models*: Compares model regression coefficients and intercepts for linear models, falling back to structural tree comparisons for tree-based models.
   - *Text & Strings*: Computes a colorized, unified diff showing exact line additions and removals.
   - *Scalars/Generic*: Direct value structural equivalence and numeric difference calculations.
+
+### Content-Addressed Build Diffing (`t diff` / `diff_summary`)
+
+- **CLI (`t diff <file.t>`)**: Compares the two most recent builds of a pipeline by reading per-node Nix content hashes from build logs. Reports unchanged, changed, added, and removed nodes. Supports `--json` for structured output and `--log-a`/`--log-b` flags to compare specific build ranks.
+- **T function (`t_diff(file, json = false, log_a = 2, log_b = 1)`)**: REPL-callable version of `t diff`. Returns the formatted diff as a string. Same options as CLI.
+- **T function (`diff_summary(p)`)**: Returns a DataFrame summarizing per-node differences between the two most recent builds, with columns `name`, `status`, `hash_a`, `hash_b`, `class_a`, `class_b`.
+- **Per-node hashes**: Extracted from `node_store_paths` after `nix-instantiate --eval` and stored in build log JSON alongside the top-level `pipeline_output` hash.
+
+### Mechanical Fix Application (`t fix`)
+
+- **CLI (`t fix <file.t>`)**: Runs `t check --json` internally, collects diagnostics with `suggested_fix` values, and applies them to the source file. Currently supports `cast` (inserts `mutate()` for type conversion) and `rename_column` (replaces column name). Use `--dry-run` to preview without modifying.
+- **T function (`t_fix(file, dry_run = false)`)**: REPL-callable version of `t fix`. Returns the fix summary as a string. Same options as CLI.
+- **Supported fix types**: `cast`, `rename_column`. `add_node_arg` and `pin_package_version` are planned.
 
 Important LLM rule: when the goal is reproducible execution, prefer generating or editing pipeline nodes rather than a monolithic script.
 

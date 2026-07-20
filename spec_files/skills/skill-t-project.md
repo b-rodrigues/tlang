@@ -32,7 +32,7 @@ Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize t
 - **Reassigning a variable with `=`:** T is immutable. Use `:=` to rebind, or give the new value a new name. E.g., `a = 1; a = 2` is invalid.
 - **Writing a `for` loop:** Loops do not exist in T. Use `map()`, `summarize()`, or a colcraft verb.
 - **Referencing a column as a bare name inside a colcraft verb:** E.g., `filter(df, amount > 0)` is invalid. It must be `filter(df, $amount > 0)`. The `$` is required for NSE.
-- **Writing output to `data/`:** Treat it as read-only. Pipeline outputs must go through `pipeline_copy(p, node, to)` into `outputs/`.
+- **Writing output to `data/`:** Treat it as read-only. Pipeline outputs must go through `pipeline_copy(target_dir = "outputs")` into `outputs/`.
 - **Skipping the `pipeline { ... }` wrapper:** A bare script of T statements cannot run. Everything reproducible must be a node inside a pipeline.
 
 ## Never do this
@@ -45,11 +45,40 @@ Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize t
 
 ## Debugging and inspecting a node/pipeline
 
+0. **Quick structural check:** Run `t check --schema src/pipeline.t` for instant validation without Nix builds. Catches dependency cycles, missing columns, and type mismatches in seconds. Use `--watch` for continuous feedback during development.
 1. **Check pipeline status:** Use `inspect_pipeline(p)` to view node build states, cache locations, and execution times.
 2. **Examine evaluated data:** Use `read_node(p.name)` from the REPL/subshell to read and inspect the actual output of a built node.
 3. **Read diagnostic logs:** `t explain --node <name>` from the shell, or `explain(read_node(p.name))` from the REPL — the `diagnostics` field tells you what actually ran and what it produced.
 4. **Resilient errors:** If a node errors, check `is_error()` on its output. T nodes return `Error` values rather than raising OCaml exceptions, so a run can complete while carrying an error downstream.
 5. **Nix env check:** `t doctor` catches environment drift (stale flake, missing Nix inputs) before you debug code.
+6. **Use `nix develop` first:** Always run `nix develop` (or `nix develop -c <command>`) to enter the T environment. Without it, `t`, R, Python, and Julia with tlang packages are not available.
+7. **Inspect from R/Python/Julia directly:** The companion packages (`tlang` in R, `tlang` in Python, `Tlang` in Julia) expose `read_node()`, `inspect_node()`, and `inspect_pipeline()`. It can be easier to explore node contents in R/Python/Julia than in the T REPL — especially for plotting, statistical summaries, or DataFrame manipulation.
+
+## Development workflow: check, fix, build, diff
+
+T's feedback loop is tiered: cheap checks first, expensive builds last. Always follow this order:
+
+```
+1. t check --schema pipeline.t    ← milliseconds, no Nix. Catches structural + schema errors.
+2. t fix --dry-run pipeline.t     ← preview mechanical fixes (Cast, Rename_column, Add_node_arg).
+3. t fix pipeline.t               ← apply fixes (only if dry-run looks right).
+4. t check --schema pipeline.t    ← re-validate after fixes.
+5. t run pipeline.t               ← NOW trigger the Nix build. Only invalidated nodes rebuild.
+6. t diff pipeline.t              ← confirm blast radius: which nodes actually changed?
+```
+
+**Why this order matters:** `t check` costs milliseconds. `t run` costs minutes (Nix
+builds Python/R/Julia environments per node). Never trigger `t run` until `t check`
+passes clean — you're wasting minutes on errors that could be caught in seconds.
+
+**When `t check --json` emits a `suggested_fix`:** Preview it with `t fix --dry-run`,
+then apply with `t fix`. Supported fix types:
+- `Cast` — inserts a type coercion (`mutate($col = as.double($col))`)
+- `Rename_column` — renames `$old` to `$new` in column references
+- `Add_node_arg` — adds a missing argument to a node definition
+
+**After `t run`:** Run `t diff` to see what changed. This is free (uses Nix content
+hashes) and tells you whether your edit had the intended effect or cascaded downstream.
 
 ## Worked example: adding a node
 
@@ -82,6 +111,8 @@ When modifying a pipeline:
 
 ## Before calling a task done
 
+- `t check --schema src/pipeline.t` passes with no errors or warnings.
 - `t run src/pipeline.t` (or the project's entry pipeline) completes without an unhandled `Error`.
+- `t diff src/pipeline.t` shows only the nodes you intended to change (no unexpected cascades).
 - If you touched `tproject.toml`, you ran `t update` afterward.
 - If the project already uses `intent { ... }` blocks, continue that convention when making analytical decisions.

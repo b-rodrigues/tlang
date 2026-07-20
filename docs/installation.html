@@ -142,29 +142,26 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="
 <p><strong>Option 2: Use a command flag</strong> Append
 <code>--extra-experimental-features "nix-command flakes"</code> to each
 Nix command.</p>
-<h3 id="trusted-users-and-binary-caches">Trusted Users and Binary
-Caches</h3>
-<p>If you see warnings like <code>ignoring untrusted substituter</code>,
-you need to add yourself as a trusted user so Nix allows you to use the
-T binary cache. On macOS, run:</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;trusted-users = root </span><span class="va">$USER</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.custom.conf <span class="kw">&amp;&amp;</span> <span class="fu">sudo</span> launchctl kickstart <span class="at">-k</span> system/org.nixos.nix-daemon</span></code></pre></div>
-<p>This works for both standard and Determinate Nix installations.</p>
+<p><strong>Note:</strong> If you installed Nix through a method other
+than the Determinate Systems installer, you also need to configure
+trusted users and the binary cache. See the <a
+href="nix-installation.md#already-have-nix">Nix Installation Guide</a>
+for details.</p>
 <h2 id="step-3-clone-t-repository">Step 3: Clone T Repository</h2>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Choose a directory for T (e.g., ~/projects)</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/projects</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/projects</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Clone the repository</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/b-rodrigues/tlang.git</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> tlang</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Choose a directory for T (e.g., ~/projects)</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/projects</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/projects</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Clone the repository</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/b-rodrigues/tlang.git</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> tlang</span></code></pre></div>
 <h2 id="step-4-enter-development-environment">Step 4: Enter Development
 Environment</h2>
 <p>The Nix flake provides a complete, isolated development
 environment:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
 <p><strong>First run</strong> will take several minutes to: - Download
 and compile OCaml toolchain - Build Apache Arrow and dependencies - Set
 up development tools (dune, menhir, etc.)</p>
@@ -176,8 +173,8 @@ up development tools (dune, menhir, etc.)</p>
 (nix development shell activated)</code></pre>
 <h2 id="step-5-build-t">Step 5: Build T</h2>
 <p>Inside the development environment:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span></code></pre></div>
 <p>This compiles: - Lexer and parser - Evaluator and runtime - Standard
 library packages - REPL</p>
 <p><strong>Expected output:</strong></p>
@@ -186,12 +183,12 @@ Building...</code></pre>
 <p>Build artifacts are placed in <code>_build/default/</code>.</p>
 <h2 id="step-6-verify-installation">Step 6: Verify Installation</h2>
 <h3 id="start-the-repl">Start the REPL</h3>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe</span></code></pre></div>
 <p>You should see:</p>
 <pre><code>T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.54.0 &quot;Le Tournoi&quot; using Nix &lt;nix-version&gt;
+Version 0.54.1 &quot;Le Tournoi&quot; using Nix &lt;nix-version&gt;
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -213,49 +210,70 @@ T&gt; </code></pre>
 <p>If all commands work, installation is successful! 🎉</p>
 <h2 id="step-7-run-tests-optional">Step 7: Run Tests (Optional)</h2>
 <p>Verify everything works correctly:</p>
-<div class="sourceCode" id="cb11"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> runtest</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> runtest</span></code></pre></div>
 <p>Expected behavior: - All tests should pass - Golden tests compare T
 output against R results - Test execution may take 1-2 minutes</p>
 <h2 id="development-workflow">Development Workflow</h2>
 <h3 id="entering-the-environment">Entering the Environment</h3>
 <p>Every time you want to work with T:</p>
-<div class="sourceCode" id="cb12"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/projects/tlang</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/projects/tlang</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
 <h3 id="updating-dependencies">Updating Dependencies</h3>
 <p>If <code>flake.nix</code> changes (e.g., after pulling updates):</p>
-<div class="sourceCode" id="cb13"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> flake update</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> flake update</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
 <h3 id="cleaning-build-artifacts">Cleaning Build Artifacts</h3>
-<div class="sourceCode" id="cb14"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> clean</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> clean</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span></code></pre></div>
 <h2 id="advanced-configuration">Advanced Configuration</h2>
 <h3 id="direnv-integration-optional">Direnv Integration (Optional)</h3>
 <p>Automatically enter the Nix shell when entering the directory:</p>
-<div class="sourceCode" id="cb15"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install direnv</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix-env</span> <span class="at">-iA</span> nixpkgs.direnv</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Enable direnv in your shell (bash/zsh)</span></span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&#39;eval &quot;$(direnv hook bash)&quot;&#39;</span> <span class="op">&gt;&gt;</span> ~/.bashrc  <span class="co"># for bash</span></span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&#39;eval &quot;$(direnv hook zsh)&quot;&#39;</span> <span class="op">&gt;&gt;</span> ~/.zshrc   <span class="co"># for zsh</span></span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Create .envrc in tlang directory</span></span>
-<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/projects/tlang</span>
-<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;use flake&quot;</span> <span class="op">&gt;</span> .envrc</span>
-<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="ex">direnv</span> allow</span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install direnv</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix-env</span> <span class="at">-iA</span> nixpkgs.direnv</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Enable direnv in your shell (bash/zsh)</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&#39;eval &quot;$(direnv hook bash)&quot;&#39;</span> <span class="op">&gt;&gt;</span> ~/.bashrc  <span class="co"># for bash</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&#39;eval &quot;$(direnv hook zsh)&quot;&#39;</span> <span class="op">&gt;&gt;</span> ~/.zshrc   <span class="co"># for zsh</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Create .envrc in tlang directory</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/projects/tlang</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;use flake&quot;</span> <span class="op">&gt;</span> .envrc</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="ex">direnv</span> allow</span></code></pre></div>
 <p>Now <code>cd tlang</code> automatically activates the
 environment.</p>
 <h3 id="binary-cache-faster-builds">Binary Cache (Faster Builds)</h3>
-<p>T doesn’t yet have a public binary cache, but you can set one up
-locally for your team:</p>
+<p>T’s flake declares the <code>rstats-on-nix</code> Cachix cache, so
+<code>nix develop</code> will automatically pull pre-built R and Python
+packages when you use <code>--accept-flake-config</code> (which is the
+default). However, if you want the cache configured system-wide, or if
+you’re not using the Determinate Systems installer, you may need to add
+it manually.</p>
+<p><strong>On NixOS</strong>, add to
+<code>/etc/nixos/configuration.nix</code>:</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode nix"><code class="sourceCode nix"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>nix<span class="op">.</span>settings = <span class="op">{</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="va">substituters</span> <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;https://cache.nixos.org&quot;</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;https://rstats-on-nix.cachix.org&quot;</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  <span class="op">];</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>  <span class="va">trustedPublicKeys</span> <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=&quot;</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>  <span class="op">];</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="op">}</span>;</span></code></pre></div>
+<p><strong>On non-NixOS Linux or macOS</strong>, add to
+<code>/etc/nix/nix.conf</code>:</p>
 <div class="sourceCode" id="cb16"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># In nix.conf</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">substituters</span> = https://cache.nixos.org/ https://your-cache.example.com/</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">trusted-public-keys</span> = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.conf</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.conf</span></code></pre></div>
+<p>See the <a href="nix-installation.md#already-have-nix">Nix
+Installation Guide</a> for detailed instructions on trusted users and
+cache configuration.</p>
 <h2 id="troubleshooting">Troubleshooting</h2>
 <h3 id="command-not-found-nix">“command not found: nix”</h3>
 <p>The Nix installation may not have updated your PATH. Try:</p>
@@ -315,13 +333,27 @@ filesystem (<code>/home/user/...</code>), not Windows mount
 significantly faster</li>
 </ul>
 <h3 id="nixos">NixOS</h3>
-<p>T works natively on NixOS:</p>
+<p>T works natively on NixOS. Since Nix is already part of the system,
+do not use the Determinate Systems installer. Instead, add the required
+settings to <code>/etc/nixos/configuration.nix</code>:</p>
 <div class="sourceCode" id="cb23"><pre
-class="sourceCode nix"><code class="sourceCode nix"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Add to configuration.nix or home-manager</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>environment<span class="op">.</span>systemPackages = <span class="kw">with</span> pkgs<span class="op">;</span> <span class="op">[</span></span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="co"># T will be added to nixpkgs eventually</span></span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="op">]</span>;</span></code></pre></div>
-<p>For now, use <code>nix develop</code> as above.</p>
+class="sourceCode nix"><code class="sourceCode nix"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>nix<span class="op">.</span>settings = <span class="op">{</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="va">trusted-users</span> <span class="op">=</span> <span class="op">[</span> <span class="st">&quot;root&quot;</span> <span class="st">&quot;your-username&quot;</span> <span class="op">];</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="va">experimental-features</span> <span class="op">=</span> <span class="op">[</span> <span class="st">&quot;nix-command&quot;</span> <span class="st">&quot;flakes&quot;</span> <span class="op">];</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">substituters</span> <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;https://cache.nixos.org&quot;</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;https://rstats-on-nix.cachix.org&quot;</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">];</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  <span class="va">trustedPublicKeys</span> <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=&quot;</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>  <span class="op">];</span></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span>;</span></code></pre></div>
+<p>Then rebuild:</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> nixos-rebuild switch</span></code></pre></div>
+<p>For step-by-step details, see the <a
+href="nix-installation.md#nixos">Nix Installation Guide</a>.</p>
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that T is installed:</p>
 <ol type="1">
@@ -334,24 +366,24 @@ code</li>
 </ol>
 <h2 id="uninstalling">Uninstalling</h2>
 <h3 id="remove-t-repository">Remove T Repository</h3>
-<div class="sourceCode" id="cb24"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span> <span class="at">-rf</span> ~/projects/tlang</span></code></pre></div>
-<h3 id="remove-nix-store-entries">Remove Nix Store Entries</h3>
 <div class="sourceCode" id="cb25"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Remove just T&#39;s dependencies (preserves other Nix packages)</span></span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix-store</span> <span class="at">--gc</span></span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Or remove all unused packages</span></span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="ex">nix-collect-garbage</span> <span class="at">-d</span></span></code></pre></div>
-<h3 id="uninstall-nix-completely">Uninstall Nix Completely</h3>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span> <span class="at">-rf</span> ~/projects/tlang</span></code></pre></div>
+<h3 id="remove-nix-store-entries">Remove Nix Store Entries</h3>
 <div class="sourceCode" id="cb26"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># For multi-user install</span></span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> rm <span class="at">-rf</span> /nix</span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> rm /etc/profile.d/nix.sh</span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> rm /etc/nix</span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="co"># For single-user install</span></span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span> <span class="at">-rf</span> ~/.nix-profile ~/.nix-defexpr ~/.nix-channels ~/.config/nix</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Remove just T&#39;s dependencies (preserves other Nix packages)</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix-store</span> <span class="at">--gc</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Or remove all unused packages</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="ex">nix-collect-garbage</span> <span class="at">-d</span></span></code></pre></div>
+<h3 id="uninstall-nix-completely">Uninstall Nix Completely</h3>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># For multi-user install</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> rm <span class="at">-rf</span> /nix</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> rm /etc/profile.d/nix.sh</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> rm /etc/nix</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="co"># For single-user install</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span> <span class="at">-rf</span> ~/.nix-profile ~/.nix-defexpr ~/.nix-channels ~/.config/nix</span></code></pre></div>
 <hr />
 <p><strong>Ready to start?</strong> Head to the <a
 href="getting-started.html">Getting Started Guide</a>!</p>

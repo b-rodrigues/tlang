@@ -3200,6 +3200,307 @@ build_pipeline(p, nix_options = [targets: ["c"], max_jobs: 4, cache: "rstats-on-
 
 ---
 
+### `t_check(file, json = false, schema = false, env = false)`
+
+REPL-callable version of `t check`. Runs structural, wire-phase, schema, environment, and **type annotation** checks on a T script and returns the diagnostics as a string. Type annotation checks compare `x: Int = expr` annotations against inferred types and emit `Warning` diagnostics for mismatches.
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to check |
+| `json` | Bool | `false` | Output diagnostics as JSON |
+| `schema` | Bool | `false` | Enable column-level schema validation |
+| `env` | Bool | `false` | Enable `tproject.toml` environment checks |
+
+**Returns:** `String` — formatted diagnostics (text or JSON, same as CLI `t check`).
+
+**Examples:**
+
+```t
+result = t_check("src/pipeline.t")
+result = t_check("src/pipeline.t", schema = true)
+result = t_check("src/pipeline.t", json = true, schema = true, env = true)
+```
+
+---
+
+### `t_diff(file, json = false, log_a = 2, log_b = 1)`
+
+REPL-callable version of `t diff`. Compares two builds of a pipeline using per-node Nix content hashes and returns the diff summary as a string.
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to diff |
+| `json` | Bool | `false` | Output diff as JSON |
+| `log_a` | Int | `2` | Rank of the first (older) build log |
+| `log_b` | Int | `1` | Rank of the second (newer) build log |
+
+**Returns:** `String` — formatted diff (text or JSON, same as CLI `t diff`).
+
+**Examples:**
+
+```t
+result = t_diff("src/pipeline.t")
+result = t_diff("src/pipeline.t", log_a = 1, log_b = 2)
+result = t_diff("src/pipeline.t", json = true)
+```
+
+---
+
+### `t_fix(file, dry_run = false)`
+
+REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new`) and `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies).
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `file` | String | *(required)* | Path to the `.t` file to fix |
+| `dry_run` | Bool | `false` | Show what would be fixed without modifying the file |
+
+**Returns:** `String` — summary of fixes applied (or would be applied), same as CLI `t fix`.
+
+**Examples:**
+
+```t
+result = t_fix("src/pipeline.t")
+result = t_fix("src/pipeline.t", dry_run = true)
+```
+
+---
+
+### `t check` (CLI)
+
+Structural pipeline validation without triggering Nix builds. Runs the full evaluator with `--failfast` but short-circuits Nix builds, so it can surface errors across all phases — syntax (parse), graph structure (wire), types (schema), and environment (missing files). The reported `tier` and `phase` reflect the deepest phase reached during evaluation, not a fixed depth limit.
+
+**Usage:**
+
+```bash
+t check path/to/script.t              # human-readable output
+t check --json path/to/script.t       # machine-readable JSON output
+t check --schema path/to/script.t     # include column-level schema validation
+t check --env path/to/script.t        # include environment resolution checks
+t check --schema --env --json path/to/script.t  # combined: tier 1+2+3 in JSON
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | All checks passed |
+| 1 | Wire-phase errors (cycles, missing deps, name errors) |
+| 2 | Schema-phase errors (type mismatches) |
+| 3 | Environment-phase errors (missing files, artifacts) |
+
+**JSON output format (`--json`):**
+
+```json
+{
+  "schema_version": "1",
+  "status": "ok",
+  "phase": "wire",
+  "tier": 1,
+  "diagnostics": []
+}
+```
+
+The `tier` field is derived from the deepest phase that produced diagnostics: parse/wire errors yield `tier: 1`, schema errors yield `tier: 2`, and env/build/exec errors yield `tier: 3`. A clean run reports `"tier": 1` and `"phase": "wire"` as the default.
+
+Each diagnostic entry contains: `id`, `error_class`, `severity`, `phase`, `node` (with nested `id`, `lang`, `file`, and `span` containing `start` and `end`), `message`, `expected`, `actual`, `caused_by`, and `suggested_fix`.
+
+**`suggested_fix` structure:** When non-null, a `suggested_fix` is a JSON object with a `kind` field and fix-specific fields. Every fix also carries a `confidence` field (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is deterministic or heuristic. Confidence is computed dynamically from diagnostic context (e.g., schema chain integrity, edit distance) rather than being a static label per fix kind:
+
+| `kind` | Typical confidence | When it drops | Key fields |
+|--------|-------------------|---------------|------------|
+| `rename_column` | `"high"` | `"medium"` at edit distance 2; `"low"` at distance 3+ | `old_name`, `new_name`, `target_node` |
+| `add_node_arg` | `"medium"` | Always `"medium"` | `node`, `arg`, `target_node` |
+| `suggest_identifier` | varies | Scales with edit distance and uniqueness | `name`, `suggestion`, `target_node` |
+| `run_command` | `"low"` | Always `"low"` | `command`, `description`, `target_node` |
+
+**`error_class` enum values:** `structural_error`, `name_error`, `arity_error`, `type_error`, `parse_error`, `file_error`, `key_error`, `index_error`, `value_error`, `runtime_error`, `division_by_zero`, `assertion_error`, `match_error`, `shell_error`, `aggregation_error`, `na_predicate_error`, `missing_artifact`, `generic_error`, `schema_mismatch`, `missing_tproject`, `missing_package`, `missing_from_lockfile`, `nix_generation_error`, `nix_eval_error`, `na_warning`, `unknown_error`.
+
+**Examples:**
+
+```bash
+# Check a pipeline script
+t check analysis/pipeline.t
+
+# Get JSON for editor integration
+t check --json analysis/pipeline.t | jq '.diagnostics'
+```
+
+**How it works:**
+
+`t check` runs the full evaluator with `--failfast` but skips Nix builds entirely. Pipeline construction (`build_pipeline`, `populate_pipeline`) is short-circuited, so the check completes instantly without requiring Nix or any runtime dependencies. Node bodies (R, Python, Julia, shell commands) are never evaluated — only the pipeline DAG structure is validated. This makes it suitable for pre-commit hooks, editor integration, and CI structural validation.
+
+> **Note:** The `--env` flag additionally invokes `nix-instantiate --eval` and writes `pipeline.nix`/`dag.json` to `_pipeline/` (see below). If you need a tier-1-only check with zero side effects, use `t check` without `--env`.
+
+**Schema validation (`--schema`):**
+
+When `--schema` is passed, `t check` additionally runs static schema propagation on all pipelines found in the environment. For each pipeline, it:
+
+1. Reads CSV headers from `read_csv(...)` calls to infer root node schemas.
+2. Propagates schemas through the DAG via colcraft verbs (`select`, `mutate`, `summarize`, `filter`, `arrange`, etc.).
+3. Checks all `$col` column references and formula variable references (`y ~ x`) against the inferred input schema at each node.
+
+Schema errors are reported as `phase: "schema"` diagnostics and trigger exit code 2.
+
+**Environment validation (`--env`):**
+
+When `--env` is passed, `t check` additionally runs environment resolution checks on all pipelines found in the environment:
+
+1. **Package declarations**: Checks that R/Python/Julia packages required by the pipeline are declared in `tproject.toml`.
+2. **Lockfile consistency**: For `r_resolver = "renv"`, verifies that declared R packages exist in `renv.lock`.
+3. **Nix evaluation**: Generates `pipeline.nix` and `dag.json` in `_pipeline/`, then runs `nix-instantiate --impure --eval --strict` to validate that the Nix expressions evaluate correctly. This writes to the project's pipeline directory as a side effect.
+
+Environment errors are reported as `phase: "env"` diagnostics and trigger exit code 3.
+
+**Watch mode (`--watch`):**
+
+When `--watch` is passed, `t check` runs immediately, then polls the input file for changes (every 0.5s). On each modification, it re-runs the check and prints updated results. Press Ctrl+C to stop. Watch mode can be combined with `--schema` and/or `--env`.
+
+---
+
+### `t run` (CLI)
+
+Executes a T source file. By default, `t run` prints human-readable output as the pipeline builds. With `--json`, it emits newline-delimited JSON (NDJSON) events to stdout — one JSON object per line — so agents can react to the first failing node without waiting for the entire DAG to finish.
+
+**Usage:**
+
+```bash
+t run <file.t>              # human-readable output (default)
+t run --json <file.t>       # streaming NDJSON events to stdout
+t run <file.t> --json       # --json can also appear after the file
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Pipeline completed successfully |
+| 1 | Wire-phase error (missing deps, cycles) |
+| 2 | Schema-phase error (type mismatch) |
+| 3 | Environment/build error (Nix failure, missing runtime) |
+
+Exit codes are the same whether `--json` is used or not.
+
+**NDJSON event schema (`--json`):**
+
+Each line is a self-contained JSON object with a common envelope:
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 1,
+  "ts": "2026-07-10T14:32:01.123Z",
+  "event": "run_started",
+  ...
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `schema_version` | String | Always `"1.0"`. Reserved for future changes. |
+| `seq` | Int | Monotonically increasing sequence number across the entire run. Starts at 1. |
+| `ts` | String | ISO-8601 UTC timestamp of emission. |
+| `event` | String | One of: `run_started`, `node_failed`, `node_skipped`, `run_finished`. |
+
+**Event types:**
+
+#### `run_started` (emitted once, first line)
+
+Emitted before the first Nix build. Carries the full pipeline DAG so consumers can reason about root causes while the stream is still open.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 1,
+  "ts": "2026-07-10T14:32:01.123Z",
+  "event": "run_started",
+  "file": "pipeline.t",
+  "nodes": [
+    {"id": "a", "lang": "r"},
+    {"id": "b", "lang": "python", "depends_on": ["a"]},
+    {"id": "c", "lang": "r", "depends_on": ["b"]}
+  ]
+}
+```
+
+#### `node_failed` (emitted per failure)
+
+Emitted when a node's Nix build fails. Includes the error message and the last 200 lines of the build log inline.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 2,
+  "ts": "2026-07-10T14:32:05.456Z",
+  "event": "node_failed",
+  "node": {"id": "b", "lang": "python"},
+  "message": "Nix build failed for node 'b'",
+  "log_tail": "...last 200 lines of build log..."
+}
+```
+
+The `log_tail` field is a string containing the tail of `_pipeline/logs/<node>.log`. If the log is unavailable or empty, the field is an empty string.
+
+#### `node_skipped` (emitted per skip)
+
+Emitted when a downstream node is skipped because an upstream dependency failed. The `because` field names the first failed ancestor.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 3,
+  "ts": "2026-07-10T14:32:05.457Z",
+  "event": "node_skipped",
+  "node": {"id": "c", "lang": "r"},
+  "because": "b"
+}
+```
+
+#### `run_finished` (emitted once, last line)
+
+Emitted after all nodes have been attempted. The `root_causes` array is authoritative here (computed from the full graph, not emitted on `node_failed` events). The `status` field is one of `"ok"`, `"failed"`, or `"skipped"`.
+
+```json
+{
+  "schema_version": "1.0",
+  "seq": 4,
+  "ts": "2026-07-10T14:32:06.789Z",
+  "event": "run_finished",
+  "file": "pipeline.t",
+  "status": "failed",
+  "total_nodes": 3,
+  "failed": 1,
+  "skipped": 1,
+  "root_causes": ["b"]
+}
+```
+
+**Per-node build logs:**
+
+During execution, each node's stderr is captured to `_pipeline/logs/<node>.log`. These logs persist after the run and can be inspected with `read_past_node(node, "build")` or `read_past_node(node, "run")`.
+
+**Example: agent usage**
+
+```bash
+t run --json pipeline.t 2>/dev/null | while IFS= read -r line; do
+  event=$(echo "$line" | jq -r '.event')
+  if [ "$event" = "node_failed" ]; then
+    node=$(echo "$line" | jq -r '.node.id')
+    echo "FAILED: $node"
+    echo "$line" | jq -r '.log_tail' | tail -5
+    break
+  fi
+done
+```
+
+---
+
 ### `read_node(node)`
 
 Read a dynamically evaluated or materialized artifact from an in-scope pipeline build.
@@ -3403,27 +3704,85 @@ diff_model = node_diff(p.model_node, p.model_node, log_a = ".*train1.*", log_b =
 
 ---
 
-### `collect_exceptions(p)`
+### `diff_summary(p)`
 
-Collects all terminal error exceptions and non-terminal warning diagnostics from the computed nodes of a built pipeline.
+Compares the two most recent builds of a pipeline and returns a DataFrame summarizing which nodes changed, were added, or were removed. Uses per-node Nix content hashes stored in build logs for fast comparison without loading artifacts.
 
 **Parameters:**
 
-- `p` — The Pipeline object to collect diagnostics from.
+- `p` — The pipeline to compare builds for.
 
 **Returns:**
 
-`DataFrame` — A DataFrame with columns `node`, `status`, `code`, and `message` detailing the exceptions and warnings across all nodes.
+`DataFrame` — A summary with columns:
+- `name` (String) — Node name.
+- `status` (String) — One of `"unchanged"`, `"changed"`, `"added"`, `"removed"`.
+- `hash_a` (String) — Nix content hash from build A.
+- `hash_b` (String) — Nix content hash from build B.
+- `class_a` (String) — Output value class from build A.
+- `class_b` (String) — Output value class from build B.
 
 **Examples:**
 ```t
-p = pipeline { a = 1 / 0; b = a + 5 }
+p = pipeline { a = 1; b = 2 }
 build_pipeline(p)
-exceptions = collect_exceptions(p)
--- Returns a DataFrame with:
---   node | status  | code             | message
---   "a"  | "Error" | "DivisionByZero" | "Division by zero"
---   "b"  | "Error" | "UpstreamError"  | "Upstream dependency 'a' failed"
+-- ... edit pipeline ...
+build_pipeline(p)
+summary = diff_summary(p)
+print(summary)
+```
+
+---
+
+### CLI: `t diff`
+
+The `t diff` command provides the same functionality from the shell, without needing to write a T script:
+
+```bash
+t diff <file.t>                    # compare last two builds
+t diff <file.t> --json             # structured JSON output
+t diff <file.t> --log-a 2 --log-b 4  # compare specific build ranks
+```
+
+---
+
+### CLI: `t fix`
+
+Mechanically applies `suggested_fix` values from `t check --json` diagnostics. Runs `t check --json` internally, collects diagnostics with non-null `suggested_fix`, and applies them to the source file.
+
+```bash
+t fix <file.t>                     # apply all suggested fixes
+t fix --dry-run <file.t>           # preview fixes without applying
+```
+
+**Supported fix types:**
+
+| Fix Kind | Action |
+|----------|--------|
+| `rename_column` | Replaces all occurrences of the old column name with the new name |
+| `add_node_arg` | (planned) Adds an argument to a pipeline node |
+| `pin_package_version` | (planned) Adds or updates a package version in `tproject.toml` |
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Fixes applied (or `--dry-run` preview completed) |
+| 1 | No fixes available or `t check` failed |
+
+**Example:**
+
+```bash
+$ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
+{
+  "kind": "rename_column",
+  "old_name": "mpg",
+  "new_name": "MPG",
+  "target_node": "clean",
+  "file": "pipeline.t",
+  "line": 5,
+  "confidence": "high"
+}
 ```
 
 ---

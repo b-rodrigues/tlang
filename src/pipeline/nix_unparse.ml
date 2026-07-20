@@ -127,7 +127,6 @@ and unparse_expr expr =
   | PipelineOfDef nodes ->
       "pipeline_of { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
   | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
-  | ListComp _ -> "[...]"
   | IntentDef _ -> "intent { ... }"
 
 and unparse_stmt stmt =

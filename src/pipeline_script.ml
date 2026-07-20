@@ -134,20 +134,6 @@ let rec analyze_expr_for_pipeline_call expr =
         (fun acc (_, item) -> combine_t_make_pipeline_contract acc (analyze_expr_for_pipeline_call item))
         MissingPipelineBuildCall
         nodes
-  | ListComp { expr; clauses } ->
-      let clause_contract =
-        List.fold_left
-          (fun acc clause ->
-            let clause_expr =
-              match clause with
-              | CFor { iter; _ } -> analyze_expr_for_pipeline_call iter
-              | CFilter filter_expr -> analyze_expr_for_pipeline_call filter_expr
-            in
-            combine_t_make_pipeline_contract acc clause_expr)
-          MissingPipelineBuildCall
-          clauses
-      in
-      combine_t_make_pipeline_contract clause_contract (analyze_expr_for_pipeline_call expr)
   | Block stmts ->
       List.fold_left
         (fun acc stmt -> combine_t_make_pipeline_contract acc (analyze_stmt_for_pipeline_call stmt))

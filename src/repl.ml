@@ -17,73 +17,13 @@ let () =
   ignore (LNoise.history_load ~filename:history_file)
 
 (* --- Parsing and Evaluation --- *)
+(* Delegated to Check_utils (library module) so both the CLI and
+   REPL-callable functions share the same implementation. *)
 
-let source_location ?file pos : Ast.source_location =
-  {
-    file;
-    line = pos.Lexing.pos_lnum;
-    column = max 1 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1);
-  }
-
-let make_located_error ?file code message pos =
-  Ast.VError {
-    code;
-    message;
-    context = [];
-    location = Some (source_location ?file pos);
-    na_count = 0;
-  }
-
-let interrupt_error () =
-  Ast.VError {
-    code = Ast.RuntimeError;
-    message = "Interrupted.";
-    context = [];
-    location = None;
-    na_count = 0;
-  }
-
-let parse_and_eval ?filename ?(failfast=false) mode env input =
-  let lexbuf = Lexing.from_string input in
-  (match filename with
-   | Some file -> lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = file }
-   | None -> ());
-  try
-    let program = Parser.program Lexer.token lexbuf in
-    match Typecheck.validate_program ~mode program with
-    | Error err -> (Ast.VError err, env)
-    | Ok () -> Eval.eval_program ~resilient:(not failfast) program env
-  with
-  | Lexer.SyntaxError msg ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError ("Syntax Error: " ^ msg) pos, env)
-  | Parser.Error ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError "Parse Error" pos, env)
-  | Ast.Mixed_bracket_form ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos, env)
-  | Ast.Invalid_match_pattern msg ->
-      let pos = Lexing.lexeme_start_p lexbuf in
-      (make_located_error ?file:filename Ast.SyntaxError msg pos, env)
-  | Sys.Break ->
-      (interrupt_error (), env)
-
-let run_file ?failfast mode filename env =
-  try
-    let ch = open_in filename in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    parse_and_eval ~filename ?failfast mode env content
-  with
-  | Sys_error msg ->
-      (Ast.VError {
-         code = Ast.FileError;
-         message = "File Error: " ^ msg;
-         context = [];
-         location = None;
-         na_count = 0;
-       }, env)
+let make_located_error = Check_utils.make_located_error
+let interrupt_error = Check_utils.interrupt_error
+let parse_and_eval = Check_utils.parse_and_eval
+let run_file = Check_utils.run_file
 
 (* --- Pipeline Detection --- *)
 
@@ -111,7 +51,6 @@ let rec expr_has_build_pipeline = function
   | { Ast.node = Ast.Block stmts; _ } -> List.exists stmt_has_build_pipeline stmts
   | { Ast.node = Ast.PipelineDef _; _ }
   | { Ast.node = Ast.PipelineOfDef _; _ } -> true
-  | { Ast.node = Ast.ListComp { expr; _ }; _ } -> expr_has_build_pipeline expr
   | { Ast.node = Ast.IntentDef pairs; _ } -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs
   | _ -> false
 
@@ -504,8 +443,10 @@ let print_help () =
   Printf.printf "Usage: t <command> [arguments]\n\n";
   Printf.printf "Commands:\n";
   Printf.printf "  repl              Start the interactive REPL (default)\n";
-  Printf.printf "  run <file.t>      Execute a T source file\n";
-  Printf.printf "  run --expr <expr> Execute a T expression directly\n";
+  Printf.printf "  run [--json] <file.t>      Execute a T source file\n";
+  Printf.printf "  run [--json] --expr <expr> Execute a T expression directly\n";
+  Printf.printf "  check [--json] [--schema] [--env] <file.t>  Validate pipeline structure (no Nix builds)\n";
+  Printf.printf "  diff [--json] [--log-a <n>] [--log-b <n>] <file.t>  Compare two builds (output diff)\n";
   Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
@@ -517,6 +458,7 @@ let print_help () =
   Printf.printf "  test              Run tests in the current directory\n";
   Printf.printf "  update            Update dependencies and nixpkgs date from tproject.toml\n";
   Printf.printf "  upgrade           Upgrade T version and nixpkgs date to today's date\n";
+  Printf.printf "  add <runtime> <pkg>  Add a package to tproject.toml (R, Python, or Julia)\n";
   Printf.printf "  doctor            Check package health\n";
   Printf.printf "  docs              Open documentation\n";
   Printf.printf "  --help, -h        Show this help message\n";
@@ -554,7 +496,7 @@ let parse_program_from_file filename =
         Error (make_located_error ~file:filename Ast.SyntaxError ("Syntax Error: " ^ msg) pos)
     | Parser.Error ->
         let pos = Lexing.lexeme_start_p lexbuf in
-        Error (make_located_error ~file:filename Ast.SyntaxError "Parse Error" pos)
+        Error (make_located_error ~file:filename Ast.SyntaxError (Check_utils.parse_error_message lexbuf) pos)
     | Ast.Mixed_bracket_form ->
         let pos = Lexing.lexeme_start_p lexbuf in
         Error (make_located_error ~file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos)
@@ -670,9 +612,10 @@ let flush_warnings_to_out () =
       end
   | None -> ()
 
-let cmd_run ?(unsafe=false) ?failfast mode filename env =
+let cmd_run ?(unsafe=false) ?failfast ?(json=false) mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
+  if json then Ast.ndjson_mode := true;
   if not unsafe then begin
     try
       let ch = open_in filename in
@@ -689,23 +632,228 @@ let cmd_run ?(unsafe=false) ?failfast mode filename env =
       with _ -> ())
     with _ -> ()
   end;
-  let (result, _env) = run_file ?failfast mode filename env in
+  let (result, _env) =
+    Fun.protect ~finally:(fun () -> if json then Ast.ndjson_mode := false)
+      (fun () -> run_file ?failfast mode filename env)
+  in
   flush_warnings_to_out ();
   match result with
   | Ast.VError _ ->
-      Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
+      if json then
+        exit 1
+      else begin
+        Printf.eprintf "%s" (Pretty_print.pretty_print_value result);
+        exit 1
+      end
   | Ast.(VNA NAGeneric) -> ()
-  | v -> print_string (Pretty_print.pretty_print_value v)
+  | v ->
+      if not json then print_string (Pretty_print.pretty_print_value v)
 
-let cmd_run_expr ?failfast mode expr env =
+let cmd_run_expr ?failfast ?(json=false) mode expr env =
   Packages.ensure_docs_loaded ();
-  let (result, _) = parse_and_eval ?failfast mode env expr in
+  if json then Ast.ndjson_mode := true;
+  let (result, _) =
+    Fun.protect ~finally:(fun () -> if json then Ast.ndjson_mode := false)
+      (fun () -> parse_and_eval ?failfast mode env expr)
+  in
   flush_warnings_to_out ();
   match result with
   | Ast.VError _ ->
-      Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
+      if json then
+        exit 1
+      else begin
+        Printf.eprintf "%s" (Pretty_print.pretty_print_value result); exit 1
+      end
   | Ast.(VNA NAGeneric) -> ()
-  | v -> print_string (Pretty_print.pretty_print_value v)
+  | v ->
+      if not json then print_string (Pretty_print.pretty_print_value v)
+
+let check_type_annotations filename =
+  try
+    let ch = open_in filename in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    let lexbuf = Lexing.from_string content in
+    lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+    let program = Parser.program Lexer.token lexbuf in
+    let scope = Symbol_table.create_scope () in
+    Symbol_table.register_keywords scope;
+    let _ = Analyzer.analyze program scope in
+    let diags = ref [] in
+    List.iter (fun (stmt : Ast.stmt) ->
+      match stmt.node with
+      | Ast.Assignment { name; typ = Some annotation; _ } ->
+          let inferred_ast = match Symbol_table.lookup scope name with
+            | Some { Symbol_table.typ = Some st; _ } -> Semantic_type.to_ast_typ st
+            | _ -> Ast.TCustom "Any"
+          in
+          if not (Ast.types_compatible inferred_ast annotation) then begin
+            let expected = Ast.Utils.typ_to_string annotation in
+            let actual = Ast.Utils.typ_to_string inferred_ast in
+            let line = match stmt.loc with
+              | Some l -> Some l.Ast.line
+              | None -> None
+            in
+            let col = match stmt.loc with
+              | Some l -> Some l.Ast.column
+              | None -> None
+            in
+            diags := {
+              Diagnostics.diag_id = Diagnostics.gen_id ();
+              diag_error_class = Diagnostics.Type_error;
+              diag_severity = Warning;
+              diag_phase = Schema;
+              diag_node_id = None;
+              diag_node_lang = None;
+              diag_file = Some filename;
+              diag_line = line;
+              diag_column = col;
+              diag_end_line = None;
+              diag_end_column = None;
+              diag_message = Printf.sprintf
+                "Variable `%s` annotated as %s, but expression infers to %s."
+                name expected actual;
+              diag_expected = Some expected;
+              diag_actual = Some actual;
+              diag_caused_by = [];
+              diag_suggested_fix = Diagnostics.no_fix;
+            } :: !diags
+          end
+      | _ -> ()
+    ) program;
+    List.rev !diags
+  with
+  | Lexer.SyntaxError _ ->
+    (* Parse/syntax errors are already reported by check_utils normal flow. *)
+    []
+  | Parser.Error | Ast.Mixed_bracket_form ->
+    []
+  | exn ->
+    Printf.eprintf "Warning: type annotation check unexpected exception: %s\n" (Printexc.to_string exn);
+    []
+
+let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
+  Packages.ensure_docs_loaded ();
+  ensure_file_path filename;
+  Check_utils.run_check ~schema ~env_check ~offline mode filename env
+
+let print_check_result ?(json=false) check_result =
+  let output = Check_utils.format_check_result ~json check_result in
+  if json then
+    print_string output
+  else
+    Printf.eprintf "%s" output
+
+let cmd_check ?(json=false) ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
+  let check_result = run_check ~schema ~env_check ~offline mode filename env in
+  print_check_result ~json check_result;
+  exit (Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result))
+
+let cmd_check_watch ?(json=false) ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
+  let get_mtime path =
+    try (Unix.stat path).Unix.st_mtime with Unix.Unix_error _ -> 0.0
+  in
+  let poll_interval = 0.5 in
+  let last_mtime = ref (get_mtime filename) in
+  let last_exit_code = ref 0 in
+  Printf.eprintf "Watching %s for changes (Ctrl+C to stop)...\n%!" filename;
+  (* Initial run *)
+  let check_result = run_check ~schema ~env_check ~offline mode filename env in
+  print_check_result ~json check_result;
+  last_exit_code := Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result);
+  let forever = ref true in
+  Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ -> forever := false));
+  while !forever do
+    Unix.sleepf poll_interval;
+    let current_mtime = get_mtime filename in
+    if current_mtime > !last_mtime then begin
+      last_mtime := current_mtime;
+      Printf.eprintf "\n--- file changed, re-checking ---\n%!";
+      let check_result = run_check ~schema ~env_check ~offline mode filename env in
+      print_check_result ~json check_result;
+      last_exit_code := Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result)
+    end
+  done;
+  Printf.eprintf "\nStopped watching.\n%!";
+  exit !last_exit_code
+
+let cmd_diff ?(json=false) ?(log_a=2) ?(log_b=1) filename env =
+  Packages.ensure_docs_loaded ();
+  ensure_file_path filename;
+  let (result, new_env) =
+    Ast.check_mode := true;
+    Fun.protect ~finally:(fun () -> Ast.check_mode := false)
+      (fun () -> run_file ~failfast:true Typecheck.Strict filename env)
+  in
+  let pipelines =
+    match result with
+    | Ast.VPipeline p -> [("pipeline", p)]
+    | Ast.VError _ -> []
+    | _ ->
+        let bindings = Ast.Env.bindings new_env in
+        List.filter_map (fun (name, v) ->
+          match v with
+          | Ast.VPipeline p -> Some (name, p)
+          | _ -> None
+        ) bindings
+  in
+  match pipelines with
+  | [] ->
+      Printf.eprintf "No pipeline found in %s.\n" filename;
+      exit 1
+  | (_, p) :: _ ->
+      let is_default = (log_a = 2 && log_b = 1) in
+      if is_default then
+        match Builder_diff.find_two_matching_logs p with
+        | None ->
+            Printf.eprintf "Need at least 2 matching build logs to diff.\n";
+            Printf.eprintf "Run build_pipeline(p) at least twice first.\n";
+            exit 1
+        | Some (path_a, path_b) ->
+            (match Builder_diff.compute_diff path_a path_b with
+             | Error msg ->
+                 Printf.eprintf "Error computing diff: %s\n" msg;
+                 exit 1
+             | Ok diff_result ->
+                 if json then
+                   print_string (Yojson.Safe.pretty_to_string (Builder_diff.diff_result_to_yojson diff_result))
+                 else
+                   Builder_diff.print_diff_result diff_result;
+                 exit 0)
+      else
+        let logs = Builder.get_logs () in
+        let try_log log_file =
+          let full_path = Filename.concat Builder.pipeline_dir log_file in
+          match Builder.read_log full_path with
+          | Ok entries when Builder_read_node.pipeline_matches_logged_entries p entries -> Some full_path
+          | _ -> None
+        in
+        let matching = List.filter_map try_log logs in
+        let n_matching = List.length matching in
+        if n_matching < 2 then begin
+          Printf.eprintf "Need at least 2 matching build logs to diff. Found %d.\n" n_matching;
+          Printf.eprintf "Run build_pipeline(p) at least twice first.\n";
+          exit 1
+        end else if log_a < 1 || log_b < 1 then begin
+          Printf.eprintf "Invalid rank: --log-a and --log-b must be >= 1 (got --log-a %d --log-b %d).\n" log_a log_b;
+          exit 1
+        end else if log_a > n_matching || log_b > n_matching then begin
+          Printf.eprintf "Requested rank exceeds available builds: --log-a %d --log-b %d but only %d matching builds found.\n" log_a log_b n_matching;
+          exit 1
+        end else begin
+          let path_a = List.nth matching (log_a - 1) in
+          let path_b = List.nth matching (log_b - 1) in
+          match Builder_diff.compute_diff path_a path_b with
+          | Error msg ->
+              Printf.eprintf "Error computing diff: %s\n" msg;
+              exit 1
+          | Ok diff_result ->
+              if json then
+                print_string (Yojson.Safe.pretty_to_string (Builder_diff.diff_result_to_yojson diff_result))
+              else
+                Builder_diff.print_diff_result diff_result;
+              exit 0
+        end
 
 let cmd_debug ?(unsafe=false) ?failfast mode filename node_name env =
   let _ = unsafe in
@@ -777,15 +925,118 @@ let cmd_init_project args =
 
 let cmd_explain ?failfast mode rest env =
   Packages.ensure_docs_loaded ();
-  let expr_str = String.concat " " (List.filter (fun s -> s <> "--json") rest) in
-  if expr_str = "" then (Printf.eprintf "Usage: t explain <expr>\n"; exit 1)
-  else begin
-    let (result, env') = parse_and_eval ?failfast mode env expr_str in
-    let explain_expr = "explain(__explain_target__)" in
-    let env'' = Ast.Env.add "__explain_target__" result env' in
-    let (explain_result, _) = parse_and_eval ?failfast mode env'' explain_expr in
-    print_string (Pretty_print.pretty_print_value explain_result)
-  end
+  let json = List.mem "--json" rest in
+  let has_node = List.mem "--node" rest in
+  let rec get_node_arg = function
+    | [] -> None
+    | "--node" :: v :: _ -> Some v
+    | _ :: xs -> get_node_arg xs
+  in
+  let node_arg_opt = get_node_arg rest in
+  if has_node && node_arg_opt = None then begin
+    Printf.eprintf "Usage: t explain --node <pipeline_var>.<node_name> [pipeline.t]\n";
+    exit 1
+  end;
+  match node_arg_opt with
+  | Some node_arg ->
+      let pipeline_var, node_name =
+        match String.split_on_char '.' node_arg with
+        | [v; n] when v <> "" && n <> "" -> (v, n)
+        | _ -> Printf.eprintf "Error: Invalid --node format. Expected <pipeline_var>.<node_name>.\n"; exit 1
+      in
+      let remaining = List.filter (fun s -> s <> "--json" && s <> "--node" && s <> node_arg) rest in
+      let filename =
+        match remaining with
+        | [] -> "src/pipeline.t"
+        | [f] -> f
+        | _ -> Printf.eprintf "Usage: t explain --node <pipeline_var>.<node_name> [pipeline.t]\n"; exit 1
+      in
+      if not (Sys.file_exists filename) then begin
+        Printf.eprintf "Error: File '%s' not found.\n" filename;
+        exit 1
+      end;
+      let old_check_mode = !Ast.check_mode in
+      Ast.check_mode := true;
+      (try
+         let (_, env_val) = Check_utils.run_file ?failfast mode filename env in
+         Ast.check_mode := old_check_mode;
+         let pipeline_opt =
+           match Ast.Env.find_opt pipeline_var env_val with
+           | Some (Ast.VPipeline p) -> Some p
+           | _ -> None
+         in
+         match pipeline_opt with
+         | None ->
+             Printf.eprintf "Error: Pipeline variable '%s' not found or is not a Pipeline.\n" pipeline_var;
+             exit 1
+         | Some p ->
+             let diagnostics_map = Builder_read_node.merge_pipeline_node_diagnostics_with_latest_log p in
+             match List.assoc_opt node_name diagnostics_map with
+             | None ->
+                 Printf.eprintf "Error: Node '%s' not found in the pipeline.\n" node_name;
+                 exit 1
+             | Some d ->
+                 if json then begin
+                   let fields = ref [
+                     ("pipeline", `String pipeline_var);
+                     ("node", `String node_name);
+                   ] in
+                   (match d.nd_error with
+                    | Some err ->
+                        fields := !fields @ [
+                          ("status", `String "failed");
+                          ("error_code", `String err.ne_kind);
+                          ("message", `String err.ne_message);
+                        ];
+                        if err.ne_fn <> "" then
+                          fields := !fields @ [("function", `String err.ne_fn)]
+                    | None ->
+                        fields := !fields @ [("status", `String "success")]);
+                   let warnings_json =
+                     List.map (fun w ->
+                       `Assoc [
+                         ("code", `String w.Ast.nw_kind);
+                         ("message", `String w.Ast.nw_message);
+                       ]
+                     ) d.nd_warnings
+                   in
+                   fields := !fields @ [("warnings", `List warnings_json)];
+                   let json_obj = `Assoc !fields in
+                   print_endline (Yojson.Safe.pretty_to_string json_obj)
+                 end else begin
+                   let has_output = ref false in
+                   (match d.nd_error with
+                    | Some err ->
+                        has_output := true;
+                        Printf.printf "Node '%s' failed:\n" node_name;
+                        Printf.printf "  Error Code: %s\n" err.ne_kind;
+                        Printf.printf "  Message: %s\n" err.ne_message;
+                        if err.ne_fn <> "" then Printf.printf "  Function: %s\n" err.ne_fn
+                    | None -> ());
+                   if d.nd_warnings <> [] then begin
+                     has_output := true;
+                     Printf.printf "Node '%s' has warning(s):\n" node_name;
+                     List.iter (fun w ->
+                       Printf.printf "  - [%s] %s\n" w.Ast.nw_kind w.Ast.nw_message
+                     ) d.nd_warnings
+                   end;
+                   if not !has_output then
+                     Printf.printf "Node '%s' compiled/built successfully with no errors or warnings.\n" node_name
+                 end
+       with e ->
+         Ast.check_mode := old_check_mode;
+         Printf.eprintf "Error loading '%s': %s\n" filename (Printexc.to_string e);
+         exit 1)
+  | None ->
+      let expr_str = String.concat " " (List.filter (fun s -> s <> "--json") rest) in
+      if expr_str = "" then (Printf.eprintf "Usage: t explain <expr> | t explain --node <pipeline_var>.<node_name> [pipeline.t]\n"; exit 1)
+      else begin
+        let (result, env') = parse_and_eval ?failfast mode env expr_str in
+        let explain_expr = "explain(__explain_target__)" in
+        let env'' = Ast.Env.add "__explain_target__" result env' in
+        let (explain_result, _) = parse_and_eval ?failfast mode env'' explain_expr in
+        print_string (Pretty_print.pretty_print_value explain_result)
+      end
 
 let cmd_test args =
   let cwd = Sys.getcwd () in
@@ -877,6 +1128,82 @@ let cmd_update () =
   match Update_manager.update_flake_lock () with
   | Ok () -> Printf.printf "Updated.\n"
   | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+
+let cmd_add args =
+  let usage () =
+    Printf.eprintf "Usage: t add <runtime> <package>\n";
+    Printf.eprintf "  <runtime>  R, Python, or Julia\n";
+    Printf.eprintf "  <package>  Package name to add to tproject.toml\n";
+    exit 1
+  in
+  let has_flag s = String.length s > 2 && s.[0] = '-' && s.[1] = '-' in
+  let positional = List.filter (fun s -> not (has_flag s)) args in
+  (match positional with
+   | [runtime; pkg] ->
+       let dir = Sys.getcwd () in
+       let tproject_path = Filename.concat dir "tproject.toml" in
+       if not (Sys.file_exists tproject_path) then begin
+         Printf.eprintf "Error: tproject.toml not found. Run 't init --project <name>' first.\n";
+         exit 1
+       end;
+       let read_file path =
+         try
+           let ch = open_in path in
+           Fun.protect ~finally:(fun () -> close_in_noerr ch)
+             (fun () -> Ok (really_input_string ch (in_channel_length ch)))
+         with Sys_error msg -> Error msg
+       in
+       let write_file path content =
+         try
+           let oc = open_out path in
+           Fun.protect ~finally:(fun () -> close_out_noerr oc)
+             (fun () -> output_string oc content; Ok ())
+         with Sys_error msg -> Error msg
+       in
+       let cfg_result =
+         match read_file tproject_path with
+         | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)
+         | Ok content ->
+             (match Toml_parser.parse_tproject_toml ~root_dir:dir content with
+             | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
+             | Ok cfg -> Ok cfg)
+       in
+       (match cfg_result with
+        | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+        | Ok cfg ->
+            let (runtime_key, list_getter, list_setter) =
+              match String.lowercase_ascii runtime with
+              | "r" -> ("[r-dependencies]",
+                        (fun c -> c.Package_types.proj_r_dependencies),
+                        (fun pkg c -> { c with Package_types.proj_r_dependencies = c.Package_types.proj_r_dependencies @ [pkg] }))
+              | "python" | "py" -> ("[py-dependencies]",
+                                    (fun c -> c.Package_types.proj_py_dependencies),
+                                    (fun pkg c -> { c with Package_types.proj_py_dependencies = c.Package_types.proj_py_dependencies @ [pkg] }))
+              | "julia" | "jl" -> ("[jl-dependencies]",
+                                   (fun c -> c.Package_types.proj_julia_dependencies),
+                                   (fun pkg c -> { c with Package_types.proj_julia_dependencies = c.Package_types.proj_julia_dependencies @ [pkg] }))
+              | "tool" -> ("[additional-tools]",
+                           (fun c -> c.Package_types.proj_additional_tools),
+                           (fun pkg c -> { c with Package_types.proj_additional_tools = c.Package_types.proj_additional_tools @ [pkg] }))
+              | "latex" -> ("[latex]",
+                            (fun c -> c.Package_types.proj_latex_packages),
+                            (fun pkg c -> { c with Package_types.proj_latex_packages = c.Package_types.proj_latex_packages @ [pkg] }))
+              | _ ->
+                  Printf.eprintf "Error: Unknown runtime '%s'. Use R, Python, Julia, tool, or latex.\n" runtime;
+                  exit 1
+            in
+            let existing = list_getter cfg in
+            if List.mem pkg existing then
+              Printf.printf "'%s' is already declared in %s.\n" pkg runtime_key
+            else begin
+              let new_cfg = list_setter pkg cfg in
+              let new_content = Toml_parser.serialize_tproject_toml new_cfg in
+              match write_file tproject_path new_content with
+              | Error msg -> Printf.eprintf "Error writing tproject.toml: %s\n" msg; exit 1
+              | Ok () ->
+                  Printf.printf "'%s' added to %s in tproject.toml.\nRun 't update' to sync flake.nix.\n" pkg runtime_key
+            end)
+   | _ -> usage ())
 
 let cmd_upgrade () =
   match Update_manager.cmd_upgrade () with
@@ -1191,6 +1518,7 @@ let () =
    | Ok () -> ()
    | Error msg -> exit_with_error msg);
   let env = Packages.init_env () in
+  Check_utils.extra_diagnostics_hook := check_type_annotations;
   (* Register interactive CLI wrappers — must be here (not in packages.ml)
      to avoid dependency cycles with Test_discovery *)
 (*
@@ -1387,17 +1715,35 @@ let () =
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       cmd_debug ~unsafe ~failfast script_mode filename node_name env
   | _ :: "run" :: [] ->
-      Printf.eprintf "Usage: t run <file.t> | t run --expr <expr>\n";
+      Printf.eprintf "Usage: t run [--json] <file.t> | t run [--json] --expr <expr>\n";
       exit 1
   | _ :: "run" :: "--expr" :: [] ->
       Printf.eprintf "Missing expression after --expr.\n";
       exit 1
+  | _ :: "run" :: "--json" :: "--expr" :: [] ->
+      Printf.eprintf "Missing expression after --expr.\n";
+      exit 1
+  | _ :: "run" :: "--json" :: "--expr" :: expr :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_run_expr ~json:true ~failfast script_mode expr env
+  | _ :: "run" :: "--expr" :: expr :: "--json" :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_run_expr ~json:true ~failfast script_mode expr env
   | _ :: "run" :: "--expr" :: expr :: [] ->
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       cmd_run_expr ~failfast script_mode expr env
+  | _ :: "run" :: "--json" :: "--expr" :: _ ->
+      Printf.eprintf "Unexpected arguments after `t run --json --expr <expr>`.\n";
+      exit 1
   | _ :: "run" :: "--expr" :: _ ->
       Printf.eprintf "Unexpected arguments after `t run --expr <expr>`.\n";
       exit 1
+  | _ :: "run" :: "--json" :: filename :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_run ~json:true ~unsafe ~failfast script_mode filename env
+  | _ :: "run" :: filename :: "--json" :: [] ->
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      cmd_run ~json:true ~unsafe ~failfast script_mode filename env
   | _ :: "run" :: filename :: [] ->
       (* Default to Strict mode for scripts, but allow --mode to override *)
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
@@ -1405,11 +1751,83 @@ let () =
   | _ :: "run" :: _ ->
       Printf.eprintf "Unexpected arguments after `t run <file.t>`.\n";
       exit 1
+  | _ :: "check" :: [] ->
+      Printf.eprintf "Usage: t check [--json] [--schema] [--env] [--offline] [--watch] <file.t>\n";
+      exit 1
+  | _ :: "check" :: rest ->
+      let json = List.mem "--json" rest in
+      let schema = List.mem "--schema" rest in
+      let check_env = List.mem "--env" rest in
+      let offline = List.mem "--offline" rest in
+      let watch = List.mem "--watch" rest in
+      let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      (match filename with
+       | None ->
+           Printf.eprintf "Usage: t check [--json] [--schema] [--env] [--offline] [--watch] <file.t>\n";
+           exit 1
+       | Some f ->
+           if watch then
+             cmd_check_watch ~json ~schema ~env_check:check_env ~offline script_mode f env
+           else
+             cmd_check ~json ~schema ~env_check:check_env ~offline script_mode f env)
+  | _ :: "diff" :: [] ->
+      Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
+      exit 1
+  | _ :: "diff" :: rest ->
+      let json = List.mem "--json" rest in
+      let extract_int_flag flag default =
+        let rec find_val = function
+          | [] -> default
+          | x :: y :: _ when x = flag -> (try int_of_string y with _ -> default)
+          | _ :: xs -> find_val xs
+        in
+        find_val rest
+      in
+      let log_a = extract_int_flag "--log-a" 2 in
+      let log_b = extract_int_flag "--log-b" 1 in
+      if log_a < 1 || log_b < 1 then begin
+        Printf.eprintf "Invalid rank: --log-a and --log-b must be >= 1 (got --log-a %d --log-b %d).\n" log_a log_b;
+        exit 1
+      end else begin
+        let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+       (match filename with
+        | None ->
+            Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
+            exit 1
+        | Some f -> cmd_diff ~json ~log_a ~log_b f env)
+      end
+  | _ :: "fix" :: [] ->
+      Printf.eprintf "Usage: t fix [--dry-run] <file.t>\n";
+      exit 1
+  | _ :: "fix" :: rest ->
+      let dry_run = List.mem "--dry-run" rest in
+      let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
+      (match filename with
+       | None ->
+           Printf.eprintf "Usage: t fix [--dry-run] <file.t>\n";
+           exit 1
+       | Some f ->
+            let check_fn = fun file -> run_check ~schema:true script_mode file env in
+            let result = Fix.cmd_fix ~dry_run ~check_fn f in
+            if result.Fix.applied = 0 && result.Fix.would_apply = 0 && result.Fix.skipped = 0 then
+              Printf.printf "No fixes to apply.\n"
+            else begin
+              if dry_run then
+                Printf.printf "Would apply %d fix(es), skipped %d.\n" result.Fix.would_apply result.Fix.skipped
+              else begin
+                Printf.printf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped;
+                Printf.printf "Run 't check %s' to verify.\n" f
+              end
+            end;
+            exit 0)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest
   | _ :: "init" :: "--project" :: rest -> cmd_init_project rest
   | _ :: "test" :: rest -> cmd_test rest
+  | _ :: "add" :: rest -> cmd_add rest
   | _ :: "doctor" :: _ -> cmd_doctor ()
   | _ :: "docs" :: _ -> cmd_docs ()
   | _ :: "doc" :: rest -> cmd_doc rest

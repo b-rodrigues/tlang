@@ -91,19 +91,6 @@ let rec rewrite_expr sub_name local_names (expr : Ast.expr) : Ast.expr =
         Unquote (rewrite_expr sub_name local_names e)
     | UnquoteSplice e ->
         UnquoteSplice (rewrite_expr sub_name local_names e)
-    | ListComp { expr; clauses } ->
-        let rec filter_clauses local_acc = function
-          | [] -> (local_acc, [])
-          | CFor { var; iter } :: rest ->
-              let next_local = List.filter (fun n -> n <> var) local_acc in
-              let (final_local, rest_clauses) = filter_clauses next_local rest in
-              (final_local, CFor { var; iter = rewrite_expr sub_name local_acc iter } :: rest_clauses)
-          | CFilter filter_expr :: rest ->
-              let (final_local, rest_clauses) = filter_clauses local_acc rest in
-              (final_local, CFilter (rewrite_expr sub_name local_acc filter_expr) :: rest_clauses)
-        in
-        let (filtered_local, rewritten_clauses) = filter_clauses local_names clauses in
-        ListComp { expr = rewrite_expr sub_name filtered_local expr; clauses = rewritten_clauses }
   in
   Ast.mk_expr ?loc node
 
@@ -174,11 +161,6 @@ let rec find_dot_access_targets (expr : Ast.expr) : string list =
   | PipelineDef nodes | PipelineOfDef nodes | IntentDef nodes ->
       List.concat_map (fun (_, e) -> find_dot_access_targets e) nodes
   | Unquote e | UnquoteSplice e -> find_dot_access_targets e
-  | ListComp { expr; clauses } ->
-      find_dot_access_targets expr @ List.concat_map (function
-        | CFor { iter; _ } -> find_dot_access_targets iter
-        | CFilter f -> find_dot_access_targets f
-      ) clauses
 
 and find_dot_access_targets_stmt (stmt : Ast.stmt) : string list =
   match stmt.node with
@@ -287,10 +269,10 @@ let rec flatten_meta (v : value) : value =
              let sub_name = String.sub (ns "") 0 (String.length (ns "") - 1) in
              List.map (fun (n, pat) -> (ns n, namespace_pattern_expr sub_name local pat)) flat.p_patterns
            ) (@) in
-            let p_iterations = merge_fields (fun flat _ ns -> List.map (fun (n, it) -> (ns n, it)) flat.p_iterations) (@) in
-            let p_flakes = merge_fields (fun flat _ ns -> List.map (fun (n, f) -> (ns n, f)) flat.p_flakes) (@) in
-            let p_has_patterns = List.exists (fun (_, flat_sub, _, _) -> flat_sub.p_has_patterns) namespaced_subs in
-            VPipeline {
+           let p_iterations = merge_fields (fun flat _ ns -> List.map (fun (n, it) -> (ns n, it)) flat.p_iterations) (@) in
+           let p_flakes = merge_fields (fun flat _ ns -> List.map (fun (n, f) -> (ns n, f)) flat.p_flakes) (@) in
+           let p_has_patterns = List.exists (fun (_, flat_sub, _, _) -> flat_sub.p_has_patterns) namespaced_subs in
+           VPipeline {
              p_nodes;
              p_exprs;
              p_deps = final_deps;
@@ -309,9 +291,9 @@ let rec flatten_meta (v : value) : value =
              p_explicit_deps;
              p_node_diagnostics;
              p_has_patterns;
-              p_patterns;
-              p_iterations;
-              p_flakes;
+             p_patterns;
+             p_iterations;
+             p_flakes;
             })
   | other ->
       Error.type_error (Printf.sprintf "flatten_meta: expected a MetaPipeline or Pipeline value, got %s." (Utils.type_name other))
@@ -456,7 +438,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                 p_patterns     = merge_new p1'.p_patterns p2'.p_patterns;
                 p_iterations   = merge_new p1'.p_iterations p2'.p_iterations;
                 p_flakes       = merge_new p1'.p_flakes p2'.p_flakes;
-              }
+               }
            )
       | [_; _] -> Error.type_error "Function `parallel` expects two Pipeline arguments."
       | _ -> Error.arity_error_named "parallel" 2 (List.length args)

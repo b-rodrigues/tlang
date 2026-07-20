@@ -92,8 +92,6 @@ let rec substitute_vars_in_expr
       Ast.mk_expr (Ast.ListLit (List.map (fun (n, e) -> (n, subst e)) items))
   | DictLit items ->
       Ast.mk_expr (Ast.DictLit (List.map (fun (k, e) -> (k, subst e)) items))
-  | ListComp { expr; clauses } ->
-      Ast.mk_expr (Ast.ListComp { expr = subst expr; clauses })
   | Lambda l ->
       Ast.mk_expr (Ast.Lambda { l with body = subst l.body })
   | BroadcastOp { op; left; right } ->
@@ -561,7 +559,7 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                  p_iterations     = List.filter (fun (n, _) -> not (is_removed n)) p.p_iterations @
                    List.map (fun b -> (b.branch_name, "vector")) branches;
                  p_flakes         = List.filter (fun (n, _) -> not (is_removed n)) p.p_flakes @
-                   List.map (fun b -> (b.branch_name, None)) branches;
+                    List.map (fun b -> (b.branch_name, None)) branches;
                } in
 
                match to_script with

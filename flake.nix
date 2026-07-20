@@ -2,7 +2,7 @@
   description = "T — A Functional Language for Tabular Data";
 
   inputs = {
-    nixpkgs.url = "github:rstats-on-nix/nixpkgs";
+    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-06-23";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -21,14 +21,8 @@
     # (x86_64-linux, aarch64-darwin, etc.)
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # Single source of truth for the R-specific Nixpkgs snapshot.
-        rstats-nix-date   = nixpkgs.lib.removeSuffix "\n" (builtins.readFile ./RSTATS-NIX-DATE);
-
-        # Use the Nix packages for the specified system
-        pkgs = (import (builtins.fetchTarball {
-          url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
-          sha256 = "sha256:0v9h52vk07ls9s1csymbjhazcx9z70r4ip2w8ghm4k1nk19wl68d";
-        }) { inherit system; }).extend (self: super: {
+        # Use the Nix packages from the flake input
+        pkgs = nixpkgs.legacyPackages.${system}.extend (self: super: {
           lightgbm = super.lightgbm.overrideAttrs (old: {
             cudaSupport = false;
             openclSupport = false;

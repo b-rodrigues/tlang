@@ -41,4 +41,13 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
       type(p.data)|}
     {|"ComputedNode"|};
 
+  test "fetchurl in pipeline with text serializer"
+    {|p = pipeline { data = fetchurl("https://example.com/data.csv", sha256 = "abc123", serializer = ^text) }
+      type(p.data)|}
+    {|"ComputedNode"|};
+
+  test "fetchurl: serializer wrong type"
+    {|fetchurl("https://example.com", sha256 = "abc123", serializer = 42)|}
+    {|Error(TypeError: "Function `fetchurl`: `serializer` expects a Symbol or String, got Int.")|};
+
   print_newline ()

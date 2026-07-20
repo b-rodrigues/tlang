@@ -2,7 +2,7 @@
 
 [![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.54.0%20%22Le%20Tournoi%22-blue.svg)](https://tstats-project.org/changelog.html)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.54.1%20%22Le%20Tournoi%22-blue.svg)](https://tstats-project.org/changelog.html)
 [![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
@@ -11,6 +11,10 @@
 [![Watch the T Orchestration Engine Trailer](https://img.youtube.com/vi/LIatS0k0JEI/maxresdefault.jpg)](https://youtu.be/LIatS0k0JEI?si=tk11_vqRb1JY75Hq)
 
 **T** is an experimental, reproducibility-by-design DSL for polyglot data science. It provides a functional, immutable language for constructing composable micropipelines—first-class, introspectable computation graphs that coordinate R, Python, and Shell execution within a unified system. Pipelines in T are not configuration artifacts but executable program structures with explicit dataflow, typed nodes, and content-addressed outputs.
+
+> [!IMPORTANT]
+> **T’s source code is 100% AI-generated. It is thouroughly tested with almost 3000 unit tests and +/- 80 end-to-end integration tests.**
+
 
 Built on Nix, T integrates declarative environment management and deterministic builds at the language level, enabling reproducible execution across machines without external orchestration layers. The result is a system where workflow structure, dependency resolution, and provenance tracking are intrinsic properties of the language rather than concerns delegated to external tools.
 
@@ -113,6 +117,8 @@ When you initialize a new T project, the CLI prompts you to select an **AI Agent
 
 This ensures that any AI assistant you pair-program with has the exact technical context required to be productive immediately.
 
+For a hands-on walkthrough, see the **[Agent Pairing Tutorial](docs/agent-pairing-tutorial.md)** — it walks through building a pipeline interactively with an agent, from first edit to verified build.
+
 ## Key Features
 
 ### Functional Safety & Errors
@@ -212,7 +218,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 
 ## Status & Missing Features
 
-**Beta 0.54.0 "Le Tournoi"** — The core syntax and functional semantics are stable. T is not just a DSL for reproducible, polyglot data science, but it also provides extensive native support for standard data manipulation verbs:
+**Beta 0.54.1 "Le Tournoi"** — The core syntax and functional semantics are stable. T is not just a DSL for reproducible, polyglot data science, but it also provides extensive native support for standard data manipulation verbs:
 
 - **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`, and more — heavily inspired by `dplyr`, `tidyr`, and `forcats`).
 - **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc. — inspired by `lubridate`).
@@ -293,6 +299,7 @@ See [Development Guide](docs/development.md) for details.
 - **[API Reference](docs/api-reference.md)** — Complete function reference
 - **[Data Manipulation](docs/data_manipulation_examples.md)** — Practical examples with data verbs
 - **[Pipeline Tutorial](docs/pipeline_tutorial.md)** — Step-by-step guide to pipelines
+- **[Agent Pairing Tutorial](docs/agent-pairing-tutorial.md)** — Interactive development with an AI agent
 - **[Architecture](docs/architecture.md)** — Language design and implementation
 - **[Contributing](docs/contributing.md)** — How to contribute to T
 

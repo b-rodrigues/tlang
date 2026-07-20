@@ -77,16 +77,22 @@ df
   -- `rn(...)` is a convenience wrapper for `node(runtime = R, ...)`.
   -- We consume the result of `python_processing` (which is automatically loaded 
   -- as an R data.frame named `python_processing`).
+  --
+  -- Use `functions = [...]` to include external script files containing functions
+  -- (e.g. `src/functions.R`) to be sourced into the node's execution environment.
   r_transformation = rn(
     command = <{
       library(dplyr)
       # python_processing is available as a data.frame
+      # my_head() is defined inside src/functions.R
       result <- python_processing %>%
         filter(scaled_value > 10.0) %>%
-        mutate(category = ifelse(scaled_value > 50.0, "High", "Low"))
+        mutate(category = ifelse(scaled_value > 50.0, "High", "Low")) %>%
+        my_head()
       
       result
     }>,
+    functions = ["src/functions.R"],
     deserializer = ^csv,
     serializer = ^csv
   )

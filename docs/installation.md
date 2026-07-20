@@ -40,14 +40,7 @@ echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 **Option 2: Use a command flag**
 Append `--extra-experimental-features "nix-command flakes"` to each Nix command.
 
-### Trusted Users and Binary Caches
-If you see warnings like `ignoring untrusted substituter`, you need to add yourself as a trusted user so Nix allows you to use the T binary cache. On macOS, run:
-
-```bash
-echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.custom.conf && sudo launchctl kickstart -k system/org.nixos.nix-daemon
-```
-
-This works for both standard and Determinate Nix installations.
+**Note:** If you installed Nix through a method other than the Determinate Systems installer, you also need to configure trusted users and the binary cache. See the [Nix Installation Guide](nix-installation.md#already-have-nix) for details.
 
 ## Step 3: Clone T Repository
 
@@ -120,7 +113,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.54.0 "Le Tournoi" using Nix <nix-version>
+Version 0.54.1 "Le Tournoi" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -211,13 +204,31 @@ Now `cd tlang` automatically activates the environment.
 
 ### Binary Cache (Faster Builds)
 
-T doesn't yet have a public binary cache, but you can set one up locally for your team:
+T's flake declares the `rstats-on-nix` Cachix cache, so `nix develop` will automatically pull pre-built R and Python packages when you use `--accept-flake-config` (which is the default). However, if you want the cache configured system-wide, or if you're not using the Determinate Systems installer, you may need to add it manually.
+
+**On NixOS**, add to `/etc/nixos/configuration.nix`:
+
+```nix
+nix.settings = {
+  substituters = [
+    "https://cache.nixos.org"
+    "https://rstats-on-nix.cachix.org"
+  ];
+  trustedPublicKeys = [
+    "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+    "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
+  ];
+};
+```
+
+**On non-NixOS Linux or macOS**, add to `/etc/nix/nix.conf`:
 
 ```bash
-# In nix.conf
-substituters = https://cache.nixos.org/ https://your-cache.example.com/
-trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+echo "substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org" | sudo tee -a /etc/nix/nix.conf
+echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=" | sudo tee -a /etc/nix/nix.conf
 ```
+
+See the [Nix Installation Guide](nix-installation.md#already-have-nix) for detailed instructions on trusted users and cache configuration.
 
 ## Troubleshooting
 
@@ -303,16 +314,30 @@ Known issues:
 
 ### NixOS
 
-T works natively on NixOS:
+T works natively on NixOS. Since Nix is already part of the system, do not use the Determinate Systems installer. Instead, add the required settings to `/etc/nixos/configuration.nix`:
 
 ```nix
-# Add to configuration.nix or home-manager
-environment.systemPackages = with pkgs; [
-  # T will be added to nixpkgs eventually
-];
+nix.settings = {
+  trusted-users = [ "root" "your-username" ];
+  experimental-features = [ "nix-command" "flakes" ];
+  substituters = [
+    "https://cache.nixos.org"
+    "https://rstats-on-nix.cachix.org"
+  ];
+  trustedPublicKeys = [
+    "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+    "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
+  ];
+};
 ```
 
-For now, use `nix develop` as above.
+Then rebuild:
+
+```bash
+sudo nixos-rebuild switch
+```
+
+For step-by-step details, see the [Nix Installation Guide](nix-installation.md#nixos).
 
 ## Next Steps
 

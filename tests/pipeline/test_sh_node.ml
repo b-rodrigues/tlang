@@ -187,9 +187,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (match v_sh_shell_args_nix with
    | Ast.VPipeline p ->
        let nix = Nix_emit_pipeline.emit_pipeline p in
-       if contains_substring nix "set -- 'alpha' 'line1" &&
-          contains_substring nix {|printf '%s|%s' "$1" "$2"|} &&
-          contains_substring nix ". ./node_script.sh"
+        if contains_substring nix "set -- 'alpha' 'line1" &&
+           contains_substring nix {|printf ${"'"}%s|%s${"'"} "$1" "$2"|} &&
+           contains_substring nix ". ./node_script.sh"
        then
          begin incr pass_count; Printf.printf "  ✓ sh shell mode passes args positionally\n" end
        else

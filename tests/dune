@@ -47,7 +47,8 @@
     test_agent_scaffold
     test_coverage_boost
     test_misc_coverage
-    test_dataframe_diff test_model_diff test_scalar_diff test_generic_diff test_pipeline_diff
+    test_dataframe_diff test_model_diff test_scalar_diff test_generic_diff test_pipeline_diff test_builder_diff
+    test_check test_fix test_ndjson
   )
   (libraries t_lang menhirLib otoml unix str)
 )
@@ -71,6 +72,6 @@
 
 (rule
  (alias runtest)
- (deps docs.json)
+ (deps docs.json ../src/repl.exe)
  (action (run ./test_runner.exe))
 )

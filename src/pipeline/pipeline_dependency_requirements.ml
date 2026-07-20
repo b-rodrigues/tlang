@@ -393,6 +393,7 @@ let write_file path content =
     Ok ()
   with Sys_error msg -> Error (Printf.sprintf "%s (%s)" msg path)
 
+
 let prompt_to_update ~tproject_path analysis =
   Printf.printf "%s\n\nAdd these entries to %s now? [y/N]: %!"
     (format_analysis analysis) tproject_path;

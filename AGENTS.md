@@ -7,6 +7,7 @@ This file provides instructions for AI agents (and human contributors) working o
 ## Table of Contents
 
 - [Development Environment](#development-environment)
+- [Quick Feedback with t check](#quick-feedback-with-t-check)
 - [Project Overview](#project-overview)
 - [Code Safety Rules](#code-safety-rules)
 - [Function Conventions](#function-conventions)
@@ -40,6 +41,18 @@ dune exec src/repl.exe
 # Run a T script
 dune exec src/repl.exe -- run myfile.t
 
+# Check a T script for structural errors (instant, no Nix builds)
+t check myfile.t
+
+# Check with column-level schema validation
+t check --schema myfile.t
+
+# Watch mode: re-run on file save
+t check --watch myfile.t
+
+# Compare two builds (output diff)
+t diff myfile.t
+
 # Build with coverage instrumentation (Nix)
 nix build .#t-coverage
 ./result/bin/t run myfile.t
@@ -47,6 +60,53 @@ nix build .#t-coverage
 ```
 
 **Do not edit `flake.nix` unless absolutely necessary.** The only valid reason to touch it is to add a new system-level dependency required by newly developed functionality (e.g., a new C library or OCaml package). Any such change must be discussed and justified in the PR description.
+
+---
+
+## Quick Feedback with `t check`
+
+When implementing or modifying pipeline nodes, use `t check` for instant structural validation **without triggering Nix builds**. This is the fastest way to catch errors during development.
+
+### Three tiers of checking
+
+| Command | What it checks | Nix required? |
+|---------|---------------|---------------|
+| `t check <file.t>` | Pipeline DAG structure, dependency cycles, node syntax | No |
+| `t check --schema <file.t>` | + column references, schema propagation | No |
+| `t check --env <file.t>` | + `tproject.toml` declarations, lockfile consistency, Nix eval | Yes |
+| `t check --json <file.t>` | Structured JSON diagnostics (works with any tier) | Depends on tier |
+
+**Always run `t check` before `dune runtest`.** It catches structural errors in seconds without needing Nix or runtime dependencies.
+
+### Watch mode
+
+Use `--watch` during active development for continuous feedback:
+
+```bash
+t check --watch --schema src/pipeline.t
+```
+
+This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. Exit code reflects the last check's diagnostics.
+
+### Workflow for implementing a new pipeline node
+
+1. Write the node in your pipeline script
+2. Run `t check --schema src/pipeline.t` — verify no errors
+3. Run `dune runtest` — full test suite
+6. Run `build_pipeline(p)` — Nix build (only when structural checks pass)
+
+### Agent Check-Fix Loop Rules (Critical for LLMs)
+
+- **`t fix` is Not Idempotent:** `t fix` does not check if a suggestion was already applied. If you run `t check` -> `t fix` in a loop, you must count the number of diagnostics/errors returned. If the count does not decrease after a fix, **stop immediately** and do not run `t fix` again; otherwise, you will insert duplicate code blocks (e.g. repeated cast mutations).
+- **Suggested Fix Confidence Levels:** Every suggested fix contains a `"confidence"` string field in JSON (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is deterministic or heuristic. Confidence is computed dynamically from diagnostic context, not static per fix kind:
+  - `Cast`: `"high"` when schema chain is intact, `"medium"` when broken (missing upstream column)
+  - `Rename_column`: `"high"` at edit distance 1 and unique, `"medium"` at distance 2, `"low"` at 3+
+  - `Add_node_arg`: always `"medium"` (heuristic, verify before applying)
+  - `Suggest_identifier`: `"high"` at distance 1 and unique, scales down with distance/uniqueness
+  - `Run_command`: always `"low"` (actionable commands, check manual commands before execution)
+  - **Note:** `t fix` applies all non-`NoFix` suggestions regardless of confidence. Confidence is informational for agents/tools to decide whether to auto-apply or review first.
+- **Avoid Watch Mode:** Do NOT use `--watch` (e.g., `t check --watch`). It runs a blocking loop that waits for file changes and requires a manual `Ctrl+C` interrupt, which hangs agent execution.
+- **Schema Silencing on Custom Verbs:** If you use a custom or unrecognized function in a pipe chain, the schema compiler drops the schema to empty (`[]`). This silences subsequent column-reference checks downstream. Always manually verify column references if custom verbs are introduced.
 
 ---
 
@@ -447,12 +507,12 @@ Safe changes (no approval needed):
 
 T uses a single source of truth for its version. To release a new version:
 
-1.  **Bump the Version**: Update the version string in the root [VERSION](file:///home/brodrigues/Documents/repos/tlang/VERSION) file (e.g., `0.51.1`).
+1.  **Bump the Version**: Update the version string in the root [VERSION](./VERSION) file (e.g., `0.51.1`).
 2.  **Sync Documentation**: Run the synchronization script to propagate the version to READMEs and documentation:
     ```bash
     ./scripts/sync_version.sh
     ```
-3.  **Update Changelog**: Add the release notes and date to [docs/changelog.md](file:///home/brodrigues/Documents/repos/tlang/docs/changelog.md).
+3.  **Update Changelog**: Add the release notes and date to [docs/changelog.md](./docs/changelog.md).
 4.  **Commit and Push**:
     ```bash
     git add .
