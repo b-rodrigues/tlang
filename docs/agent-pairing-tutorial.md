@@ -38,9 +38,7 @@ keeps the feedback loop fast — seconds, not minutes.
 Create a project directory and a sample CSV:
 
 ```bash
-mkdir -p ~/sales-analysis/data
-cd ~/sales-analysis
-t init
+t init  --project sales-analysis
 ```
 
 Create a sample data file at `data/sales.csv`:
@@ -61,7 +59,11 @@ id,region,amount,date,product
 
 ## Step 1: Agent generates the pipeline
 
-Tell your agent what you want:
+Verify that your agent knows about the included `SKILL.md` file:
+
+> "What skills are available to you in this project?"
+
+Then tell your agent what you want:
 
 > "Create a T pipeline that reads `data/sales.csv` with a T node, then uses Python
 > nodes to filter out zero and negative amounts, convert the date column, group by
