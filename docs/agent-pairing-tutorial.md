@@ -117,6 +117,10 @@ Notice the pipeline structure:
 > node names clear? Is the data flow obvious? If the agent misunderstood the goal,
 > correct it now — it's cheap to regenerate.
 
+Pay close attention to the serializers used, and if you need to download assets from the internet,
+make sure the agent correctly plans to use `fetchurl()` and `prefetch()`. Downloading from a node
+will not work, as the build sandboxes are hermetic.
+
 ---
 
 ## Step 2: Agent validates with `t check --schema`
