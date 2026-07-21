@@ -1,0 +1,764 @@
+diff --git a/docs/api-reference.md b/docs/api-reference.md
+index 4117e63..55da8af 100644
+--- a/docs/api-reference.md
++++ b/docs/api-reference.md
+@@ -22,6 +22,7 @@ Package-oriented guide to T's standard library.
+ - [Lens Package](#lens-package) — Composable access and update lenses
+ - [Pipeline Package](#pipeline-package) — Pipeline introspection
+ - [Explain Package](#explain-package) — Introspection and debugging tools
++- [Testcraft Package](#testcraft-package) — Unit-testing primitives
+ 
+ ---
+ 
+@@ -3891,6 +3892,104 @@ intent_get(i, "description")  -- "Customer analysis"
+ 
+ ---
+ 
++## Testcraft Package
++
++Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons return an `Expect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg`) rather than raising directly, so results can be inspected, combined, or passed straight to `assert()`.
++
++### `expect_equal(actual, expected, tolerance = 1e-9)`
++
++Compare `actual` against `expected`, returning an `Expect` value.
++
++**Parameters:**
++
++- `actual` — The computed value to check
++- `expected` — The value `actual` is expected to equal
++- `tolerance` (optional, named) — Absolute tolerance used for Float comparisons (default `1e-9`)
++
++**Returns:**
++
++An `Expect` value: `Expect_pass` (values matched), `Expect_stop` (values differed), or `Expect_hold` (comparison involved NA)
++
++**Comparison rules:**
++
++- `Error` arguments always stop: `` `actual`/`expected` is an error: ... ``
++- `NA` arguments always hold: `` `actual` is NA, cannot compare `actual` != `expected` ``
++- `Int`/`Float` are compared with tolerance (cross-numeric promotes to `Float`); `Bool`, `String`, `Date`, `Datetime` compare directly
++- `Factor` compares against a `String` or another `Factor` by resolved level
++- `DataFrame`, `Vector`, and `List` are compared element-wise, reporting the location of the first difference (column/row, index, or label)
++- Mismatched types always stop: `` `actual` (Int) != `expected` (String) ``
++
++**Examples:**
++```t
++expect_equal(1, 1)                              -- Expect_pass
++expect_equal(1, 2)                               -- Expect_stop("`1` != `2`")
++expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9)   -- Expect_pass
++expect_equal(NA, 1)                              -- Expect_hold
++assert(expect_equal(1, 1))                       -- true
++assert(expect_equal(1, 2))                       -- Error(AssertionError: `1` != `2`.)
++```
++
++---
++
++### `expect_pass(x)`
++
++Check whether an `Expect` value passed.
++
++**Parameters:**
++
++- `x` — An `Expect` value
++
++**Returns:**
++
++`true` if `x` is `Expect_pass`, `false` otherwise
++
++**Examples:**
++```t
++expect_pass(expect_equal(1, 1))   -- true
++expect_pass(expect_equal(1, 2))   -- false
++```
++
++---
++
++### `expect_fail(x)`
++
++Check whether an `Expect` value failed (stopped or held).
++
++**Parameters:**
++
++- `x` — An `Expect` value
++
++**Returns:**
++
++`true` if `x` is `Expect_stop` or `Expect_hold`, `false` otherwise
++
++**Examples:**
++```t
++expect_fail(expect_equal(1, 2))   -- true
++expect_fail(expect_equal(1, 1))   -- false
++```
++
++---
++
++### `expect_msg(x)`
++
++Get the diagnostic message from a failing `Expect` value.
++
++**Parameters:**
++
++- `x` — An `Expect` value
++
++**Returns:**
++
++The `Stop`/`Hold` message (String), or an error if `x` is `Expect_pass`
++
++**Examples:**
++```t
++expect_msg(expect_equal(1, 2))   -- "`1` != `2`"
++```
++
++---
++
+ ## Operators
+ 
+ ### Arithmetic
+@@ -3983,6 +4082,7 @@ Standard operators can be broadcasted over lists/vectors by prefixing with `.`.
+ | `Intent` | `intent { ... }` | LLM metadata block |
+ | `Pipeline` | `pipeline { ... }` | DAG computation graph |
+ | `Formula` | `y ~ x` | Statistical model specification |
++| `Expect` | `expect_equal(a, b)` | Result of a testcraft comparison (pass/stop/hold) |
+ 
+ ---
+ 
+diff --git a/src/ast.ml b/src/ast.ml
+index d7f75c6..4e6abd2 100644
+--- a/src/ast.ml
++++ b/src/ast.ml
+@@ -91,6 +91,12 @@ and intent_block = {
+   intent_fields : (string * string) list;  (* Key-value pairs of metadata *)
+ }
+ 
++(** testcraft: outcome of an expect_* comparison *)
++and expect_kind =
++  | Expect_pass
++  | Expect_stop of string
++  | Expect_hold of string
++
+ and node_warning_source =
+   | WarningOwn
+   | WarningUpstream of string
+@@ -300,6 +306,8 @@ and value =
+       node_name : string;
+       diagnostics : node_diagnostics;
+     }
++  (* testcraft: result of an expect_* comparison *)
++  | VExpect of expect_kind
+ 
+ 
+ 
+@@ -603,6 +611,8 @@ module Utils = struct
+     | VNA _ -> false
+     | VNullNode -> false
+     | VNodeResult { v; _ } -> is_truthy v
++    | VExpect Expect_pass -> true
++    | VExpect (Expect_stop _ | Expect_hold _) -> false
+     | _ -> true
+ 
+   (** Check if an expression is a column reference and extract the column name.
+@@ -814,6 +824,7 @@ module Utils = struct
+     | VDynamicArg _ -> "DynamicArg"
+     | VEnv _ -> "Environment"
+     | VNodeResult { v; _ } -> type_name v
++    | VExpect _ -> "Expect"
+ 
+   let escape_string_utf8 s =
+     let buf = Buffer.create (String.length s * 2) in
+@@ -1129,6 +1140,9 @@ module Utils = struct
+     | VDynamicArg (n, v) -> n ^ " := " ^ value_to_string v
+     | VEnv _ -> "<environment>"
+     | VNodeResult { v; _ } -> value_to_string v
++    | VExpect Expect_pass -> "PASS"
++    | VExpect (Expect_stop msg) -> Printf.sprintf "STOP(%s)" msg
++    | VExpect (Expect_hold msg) -> Printf.sprintf "HOLD(%s)" msg
+ 
+   let value_to_raw_string = function
+     | VString s -> s
+diff --git a/src/dune b/src/dune
+index 83da16d..d9ea8f3 100644
+--- a/src/dune
++++ b/src/dune
+@@ -81,6 +81,8 @@
+     lens
+     ; packages/explain
+     intent_fields intent_get t_explain explain_json
++    ; packages/testcraft
++    t_expect_equal t_expect_pass t_expect_fail t_expect_msg
+    ; package_manager
+    version nixpkgs_date uv2nix_commit package_types toml_parser template_engine scaffold nix_generator renv_resolver r_description_resolver test_discovery package_doctor release_manager documentation_manager update_manager package_loader
+    ; tdoc
+diff --git a/src/packages/base/t_assert.ml b/src/packages/base/t_assert.ml
+index cbbbe3d..bd6ebad 100644
+--- a/src/packages/base/t_assert.ml
++++ b/src/packages/base/t_assert.ml
+@@ -85,6 +85,14 @@ let register env =
+     Env.add "assert"
+       (make_builtin ~name:"assert" ~variadic:true 1 (fun args _env ->
+         match args with
++        | [VExpect Expect_pass] -> VBool true
++        | [VExpect (Expect_stop msg)] -> Error.make_error AssertionError ("Assertion failed: " ^ msg ^ ".")
++        | [VExpect (Expect_hold msg)] -> Error.make_error AssertionError ("Assertion failed: " ^ msg ^ ".")
++        | [VExpect Expect_pass; VString _] -> VBool true
++        | [VExpect (Expect_stop msg); VString custom] ->
++            Error.make_error AssertionError ("Assertion failed: " ^ custom ^ " (" ^ msg ^ ").")
++        | [VExpect (Expect_hold msg); VString custom] ->
++            Error.make_error AssertionError ("Assertion failed: " ^ custom ^ " (" ^ msg ^ ").")
+         | [v] ->
+             if is_na_value v then
+               Error.make_error AssertionError "Assertion received NA."
+diff --git a/src/packages/core/packages.ml b/src/packages/core/packages.ml
+index 1f98bd8..4d46c05 100644
+--- a/src/packages/core/packages.ml
++++ b/src/packages/core/packages.ml
+@@ -92,7 +92,7 @@ let package_families = function
+   | "stats" -> ["stats"; "descriptive-statistics"]
+   | "base" -> ["base"; "json"; "serialization"]
+   | "to_dataframe" | "dataframe" -> ["dataframe"; "to_dataframe"]
+-  | "math" | "colcraft" | "pipeline" | "explain" | "chrono" | "lens" as pkg -> [pkg]
++  | "math" | "colcraft" | "pipeline" | "explain" | "chrono" | "lens" | "testcraft" as pkg -> [pkg]
+   | _ -> []
+ 
+ let dedup_sort_strings xs =
+@@ -219,6 +219,12 @@ let lens_package = {
+   functions = ["col_lens"; "over"; "get"; "compose"; "set"; "modify"; "node_lens"; "env_var_lens"; "idx_lens"; "row_lens"; "filter_lens"];
+ }
+ 
++let testcraft_package = {
++  name = "testcraft";
++  description = "Unit-testing primitives: expect_* comparisons and assertions";
++  functions = ["expect_equal"; "expect_pass"; "expect_fail"; "expect_msg"];
++}
++
+ (** All standard packages *)
+ let all_packages = [
+   core_package;
+@@ -232,6 +238,7 @@ let all_packages = [
+   pipeline_package;
+   explain_package;
+   lens_package;
++  testcraft_package;
+ ]
+ 
+ (** Convert a package to a T value *)
+@@ -974,6 +981,11 @@ let init_env () =
+   let env = Explain_json.register ~eval_call:Eval.eval_call_immutable env in
+   (* Lens package *)
+   let env = Lens.register ~eval_call:Eval.eval_call_immutable env in
++  (* Testcraft package *)
++  let env = T_expect_equal.register env in
++  let env = T_expect_pass.register env in
++  let env = T_expect_fail.register env in
++  let env = T_expect_msg.register env in
+   (* Phase 7: Pretty-print and packages *)
+   (* Using Pretty_print.register fully qualified *)
+   let env = Pretty_print.register env in
+diff --git a/src/packages/testcraft/README.md b/src/packages/testcraft/README.md
+new file mode 100644
+index 0000000..138c5f3
+--- /dev/null
++++ b/src/packages/testcraft/README.md
+@@ -0,0 +1,50 @@
++# testcraft
++
++Lightweight unit-testing primitives, inspired by R's `testthat`.
++
++Comparisons don't raise directly — `expect_equal()` returns a `VExpect`
++value (`Expect_pass`, `Expect_stop`, or `Expect_hold`) describing the
++outcome, so it can be inspected, combined, or passed straight to `assert()`.
++
++| Kind | Meaning | Truthy |
++|---|---|---|
++| `Expect_pass` | values matched | yes |
++| `Expect_stop msg` | values differed; `msg` explains how | no |
++| `Expect_hold msg` | comparison involved NA; `msg` explains | no |
++
++## Functions
++
++| Function | Description |
++|----------|-------------|
++| `expect_equal(actual, expected, tolerance = 1e-9)` | Compare two values, returning an Expect value |
++| `expect_pass(x)` | `true` if `x` is a passing Expect value |
++| `expect_fail(x)` | `true` if `x` is a stopping or holding Expect value |
++| `expect_msg(x)` | The Stop/Hold message of a failing Expect value |
++
++`assert()` understands `VExpect` directly: on `Expect_pass` it returns
++`true`, on `Expect_stop`/`Expect_hold` it raises an `AssertionError` using
++the comparison's own diagnostic message.
++
++## Examples
++
++```t
++assert(expect_equal(1, 1))
++assert(expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9))
++
++-- explicit checks
++expect_pass(expect_equal(1, 1))     -- true
++expect_fail(expect_equal(1, 2))     -- true
++expect_msg(expect_equal(1, 2))      -- "`1` != `2`"
++
++-- a failing comparison, asserted directly
++assert(expect_equal(1, 2))
++-- AssertionError: Assertion failed: `1` != `2`.
++```
++
++`expect_equal` compares DataFrames, Vectors, and Lists element-wise and
++reports the location of the first difference (e.g. which column/row, or
++which vector index, differs) rather than dumping the whole value.
++
++## Status
++
++Built-in package — included with T by default.
+diff --git a/src/packages/testcraft/t_expect_equal.ml b/src/packages/testcraft/t_expect_equal.ml
+new file mode 100644
+index 0000000..e8caf12
+--- /dev/null
++++ b/src/packages/testcraft/t_expect_equal.ml
+@@ -0,0 +1,222 @@
++open Ast
++
++(* Default absolute tolerance used for Float comparisons when the caller
++   does not supply one explicitly. *)
++let default_tolerance = 1e-9
++
++(* Render a scalar value for diagnostic messages, backtick-quoted in the
++   style of R's testthat. *)
++let fmt v = "`" ^ Utils.value_to_string v ^ "`"
++
++let scalar_mismatch actual expected =
++  Expect_stop (Printf.sprintf "%s != %s" (fmt actual) (fmt expected))
++
++let type_mismatch actual expected =
++  Expect_stop
++    (Printf.sprintf "%s (%s) != %s (%s)"
++       (fmt actual) (Utils.type_name actual)
++       (fmt expected) (Utils.type_name expected))
++
++(* Recursively compare two T-Lang values, returning an [expect_kind]
++   describing the first point of difference (if any). Collections
++   (DataFrame, Vector, List) report the location of their first differing
++   element so failures are actionable without dumping the whole value. *)
++let rec compare_values ~tolerance (actual : value) (expected : value) : expect_kind =
++  match actual, expected with
++  | VError err, _ ->
++      Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message)
++  | _, VError err ->
++      Expect_stop (Printf.sprintf "`expected` is an error: %s" err.message)
++  | VNA _, _ ->
++      Expect_hold "`actual` is NA, cannot compare `actual` != `expected`"
++  | _, VNA _ ->
++      Expect_hold "`expected` is NA, cannot compare `actual` != `expected`"
++  | VInt a, VInt b ->
++      if a = b then Expect_pass else scalar_mismatch actual expected
++  | VFloat a, VFloat b ->
++      if Float.abs (a -. b) < tolerance then Expect_pass
++      else scalar_mismatch actual expected
++  | VInt a, VFloat b ->
++      if Float.abs (float_of_int a -. b) < tolerance then Expect_pass
++      else scalar_mismatch actual expected
++  | VFloat a, VInt b ->
++      if Float.abs (a -. float_of_int b) < tolerance then Expect_pass
++      else scalar_mismatch actual expected
++  | VBool a, VBool b ->
++      if a = b then Expect_pass else scalar_mismatch actual expected
++  | VString a, VString b ->
++      if a = b then Expect_pass else scalar_mismatch actual expected
++  | VDate a, VDate b ->
++      if a = b then Expect_pass else scalar_mismatch actual expected
++  | VDatetime (a, tz_a), VDatetime (b, tz_b) ->
++      if a = b && tz_a = tz_b then Expect_pass else scalar_mismatch actual expected
++  | VFactor (idx, levels, _), VString s ->
++      let level = match List.nth_opt levels idx with Some l -> l | None -> "NA" in
++      if level = s then Expect_pass else scalar_mismatch actual expected
++  | VFactor (idx_a, levels_a, _), VFactor (idx_b, levels_b, _) ->
++      let level_a = match List.nth_opt levels_a idx_a with Some l -> l | None -> "NA" in
++      let level_b = match List.nth_opt levels_b idx_b with Some l -> l | None -> "NA" in
++      if level_a = level_b then Expect_pass else scalar_mismatch actual expected
++  | VDataFrame df_a, VDataFrame df_b ->
++      compare_dataframes ~tolerance df_a df_b
++  | VVector arr_a, VVector arr_b ->
++      compare_vectors ~tolerance arr_a arr_b
++  | VList list_a, VList list_b ->
++      compare_lists ~tolerance list_a list_b
++  | _ when Utils.type_name actual <> Utils.type_name expected ->
++      type_mismatch actual expected
++  | _ ->
++      (* Other same-type constructors (VPeriod, VDuration, VInterval,
++         VSymbol, VRawCode, ...) contain only plain OCaml data, so
++         structural equality is safe here. *)
++      if actual = expected then Expect_pass else scalar_mismatch actual expected
++
++and compare_vectors ~tolerance (arr_a : value array) (arr_b : value array) : expect_kind =
++  let len_a = Array.length arr_a and len_b = Array.length arr_b in
++  if len_a <> len_b then
++    Expect_stop
++      (Printf.sprintf "Vector: length mismatch (%d != %d)" len_a len_b)
++  else
++    let rec scan i =
++      if i >= len_a then Expect_pass
++      else
++        match compare_values ~tolerance arr_a.(i) arr_b.(i) with
++        | Expect_pass -> scan (i + 1)
++        | Expect_stop msg ->
++            Expect_stop (Printf.sprintf "Vector: element at index %d differs: %s" i msg)
++        | Expect_hold msg ->
++            Expect_hold (Printf.sprintf "Vector: element at index %d could not be compared: %s" i msg)
++    in
++    scan 0
++
++and compare_lists ~tolerance
++    (list_a : (string option * value) list) (list_b : (string option * value) list) : expect_kind =
++  let len_a = List.length list_a and len_b = List.length list_b in
++  if len_a <> len_b then
++    Expect_stop
++      (Printf.sprintf "List: length mismatch (%d != %d)" len_a len_b)
++  else
++    let rec scan i la lb =
++      match la, lb with
++      | [], [] -> Expect_pass
++      | (label, va) :: rest_a, (_, vb) :: rest_b ->
++          let location =
++            match label with
++            | Some name -> Printf.sprintf "`%s`" name
++            | None -> Printf.sprintf "at index %d" i
++          in
++          (match compare_values ~tolerance va vb with
++           | Expect_pass -> scan (i + 1) rest_a rest_b
++           | Expect_stop msg ->
++               Expect_stop (Printf.sprintf "List: element %s differs: %s" location msg)
++           | Expect_hold msg ->
++               Expect_hold (Printf.sprintf "List: element %s could not be compared: %s" location msg))
++      | _ -> Expect_pass (* unreachable: lengths already checked equal *)
++    in
++    scan 0 list_a list_b
++
++and compare_dataframes ~tolerance (df_a : dataframe) (df_b : dataframe) : expect_kind =
++  if Utils.dataframe_equal df_a df_b then Expect_pass
++  else
++    let table_a = df_a.arrow_table and table_b = df_b.arrow_table in
++    let cols_a = Arrow_table.column_names table_a in
++    let cols_b = Arrow_table.column_names table_b in
++    if cols_a <> cols_b then
++      Expect_stop
++        (Printf.sprintf "DataFrame: column names differ: [%s] != [%s]"
++           (String.concat ", " cols_a) (String.concat ", " cols_b))
++    else
++      let nrows_a = Arrow_table.num_rows table_a in
++      let nrows_b = Arrow_table.num_rows table_b in
++      if nrows_a <> nrows_b then
++        Expect_stop
++          (Printf.sprintf "DataFrame: row count differs: %d != %d" nrows_a nrows_b)
++      else
++        let rec scan_columns = function
++          | [] -> Expect_pass (* unreachable: dataframe_equal already returned false *)
++          | col_name :: rest ->
++              (match Arrow_table.get_column table_a col_name, Arrow_table.get_column table_b col_name with
++               | Some col_a, Some col_b ->
++                   let rec scan_rows row =
++                     if row >= nrows_a then scan_columns rest
++                     else
++                       let va = Arrow_bridge.value_at col_a row in
++                       let vb = Arrow_bridge.value_at col_b row in
++                       match compare_values ~tolerance va vb with
++                       | Expect_pass -> scan_rows (row + 1)
++                       | Expect_stop msg ->
++                           Expect_stop
++                             (Printf.sprintf "DataFrame: column `%s` differs at row %d: %s" col_name row msg)
++                       | Expect_hold msg ->
++                           Expect_hold
++                             (Printf.sprintf "DataFrame: column `%s` at row %d could not be compared: %s" col_name row msg)
++                   in
++                   scan_rows 0
++               | _ -> scan_columns rest)
++        in
++        scan_columns cols_a
++
++(* Strip selected named arguments and return the remaining positional
++   values in their original order (mirrors Math_common.positional_args_without). *)
++let positional_args_without names named_args =
++  named_args
++  |> List.filter (fun (name, _) ->
++       match name with
++       | Some n -> not (List.mem n names)
++       | None -> true)
++  |> List.map snd
++
++(*
++--# Compare two values for testing
++--#
++--# Compares `actual` against `expected` and returns a testcraft Expect
++--# value (`Expect_pass`, `Expect_stop`, or `Expect_hold`) describing the
++--# outcome. Designed to be used with `assert()`: `assert(expect_equal(a, b))`.
++--#
++--# @name expect_equal
++--# @param actual :: Any The computed value to check.
++--# @param expected :: Any The value `actual` is expected to equal.
++--# @param tolerance :: Float = 1e-9 Absolute tolerance used for Float comparisons.
++--# @return :: Expect A `VExpect` value: passing, stopping, or holding (on NA).
++--# @example
++--#   expect_equal(1, 1)
++--#   assert(expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9))
++--# @family testcraft
++--# @seealso expect_pass, expect_fail, expect_msg, assert
++--# @export
++*)
++let register env =
++  Env.add "expect_equal"
++    (make_builtin_named ~name:"expect_equal" ~variadic:true 2 (fun named_args _env ->
++       let unknown_named =
++         List.filter
++           (fun (n, _) ->
++             match n with
++             | None -> false
++             | Some "tolerance" -> false
++             | Some _ -> true)
++           named_args
++       in
++       match unknown_named with
++       | (Some arg_name, _) :: _ ->
++           Error.type_error
++             (Printf.sprintf "Function `expect_equal` received unknown named argument `%s`." arg_name)
++       | _ ->
++           let tolerance_opt = List.find_opt (fun (n, _) -> n = Some "tolerance") named_args in
++           (match tolerance_opt with
++            | Some (_, other) when (match other with VFloat _ | VInt _ -> false | _ -> true) ->
++                Error.type_error
++                  (Printf.sprintf
++                     "Function `expect_equal` expects the `tolerance` argument to be numeric, got %s."
++                     (Utils.type_name other))
++            | _ ->
++                let tolerance =
++                  match tolerance_opt with
++                  | Some (_, VFloat f) -> f
++                  | Some (_, VInt i) -> float_of_int i
++                  | _ -> default_tolerance
++                in
++                (match positional_args_without [ "tolerance" ] named_args with
++                 | [ actual; expected ] -> VExpect (compare_values ~tolerance actual expected)
++                 | args -> Error.arity_error_named "expect_equal" 2 (List.length args)))))
++    env
+diff --git a/src/packages/testcraft/t_expect_fail.ml b/src/packages/testcraft/t_expect_fail.ml
+new file mode 100644
+index 0000000..563c145
+--- /dev/null
++++ b/src/packages/testcraft/t_expect_fail.ml
+@@ -0,0 +1,31 @@
++open Ast
++
++(*
++--# Check whether an Expect value failed
++--#
++--# Returns `true` if `x` is a `VExpect Expect_stop` or `VExpect Expect_hold`
++--# value (i.e. an `expect_*` comparison that did not pass). Useful for
++--# explicit checks alongside `assert()`.
++--#
++--# @name expect_fail
++--# @param x :: Expect The Expect value to inspect.
++--# @return :: Bool True if `x` is a stopping or holding Expect value.
++--# @example
++--#   assert(expect_fail(expect_equal(1, 2)))
++--# @family testcraft
++--# @seealso expect_equal, expect_pass, expect_msg
++--# @export
++*)
++let register env =
++  Env.add "expect_fail"
++    (make_builtin ~name:"expect_fail" 1 (fun args _env ->
++       match args with
++       | [ VExpect (Expect_stop _ | Expect_hold _) ] -> VBool true
++       | [ VExpect Expect_pass ] -> VBool false
++       | [ other ] ->
++           Error.type_error
++             (Printf.sprintf
++                "Function `expect_fail` expects an Expect value, got %s."
++                (Utils.type_name other))
++       | args -> Error.arity_error_named "expect_fail" 1 (List.length args)))
++    env
+diff --git a/src/packages/testcraft/t_expect_msg.ml b/src/packages/testcraft/t_expect_msg.ml
+new file mode 100644
+index 0000000..429ca02
+--- /dev/null
++++ b/src/packages/testcraft/t_expect_msg.ml
+@@ -0,0 +1,32 @@
++open Ast
++
++(*
++--# Get the diagnostic message from a failing Expect value
++--#
++--# Returns the `Stop`/`Hold` message carried by a failing `VExpect` value.
++--# If `x` passed (`Expect_pass`), there is no message to extract and a
++--# `VError` is returned instead.
++--#
++--# @name expect_msg
++--# @param x :: Expect The Expect value to inspect.
++--# @return :: String The diagnostic message, or an error if `x` is not a failure.
++--# @example
++--#   expect_msg(expect_equal(1, 2))
++--# @family testcraft
++--# @seealso expect_equal, expect_pass, expect_fail
++--# @export
++*)
++let register env =
++  Env.add "expect_msg"
++    (make_builtin ~name:"expect_msg" 1 (fun args _env ->
++       match args with
++       | [ VExpect (Expect_stop msg | Expect_hold msg) ] -> VString msg
++       | [ VExpect Expect_pass ] ->
++           Error.value_error "Function `expect_msg` has no message: the Expect value passed."
++       | [ other ] ->
++           Error.type_error
++             (Printf.sprintf
++                "Function `expect_msg` expects an Expect value, got %s."
++                (Utils.type_name other))
++       | args -> Error.arity_error_named "expect_msg" 1 (List.length args)))
++    env
+diff --git a/src/packages/testcraft/t_expect_pass.ml b/src/packages/testcraft/t_expect_pass.ml
+new file mode 100644
+index 0000000..b550c7d
+--- /dev/null
++++ b/src/packages/testcraft/t_expect_pass.ml
+@@ -0,0 +1,31 @@
++open Ast
++
++(*
++--# Check whether an Expect value passed
++--#
++--# Returns `true` if `x` is a `VExpect Expect_pass` value (i.e. an
++--# `expect_*` comparison that succeeded). Useful for explicit checks
++--# alongside `assert()`.
++--#
++--# @name expect_pass
++--# @param x :: Expect The Expect value to inspect.
++--# @return :: Bool True if `x` is a passing Expect value.
++--# @example
++--#   assert(expect_pass(expect_equal(a, b)))
++--# @family testcraft
++--# @seealso expect_equal, expect_fail, expect_msg
++--# @export
++*)
++let register env =
++  Env.add "expect_pass"
++    (make_builtin ~name:"expect_pass" 1 (fun args _env ->
++       match args with
++       | [ VExpect Expect_pass ] -> VBool true
++       | [ VExpect (Expect_stop _ | Expect_hold _) ] -> VBool false
++       | [ other ] ->
++           Error.type_error
++             (Printf.sprintf
++                "Function `expect_pass` expects an Expect value, got %s."
++                (Utils.type_name other))
++       | args -> Error.arity_error_named "expect_pass" 1 (List.length args)))
++    env
+diff --git a/src/repl.ml b/src/repl.ml
+index 5d54126..70109f5 100644
+--- a/src/repl.ml
++++ b/src/repl.ml
+@@ -290,6 +290,9 @@ let rec value_summary v =
+   | Ast.VDynamicArg (n, v) -> n ^ " := " ^ value_summary v
+   | Ast.VEnv _ -> "<environment>"
+   | Ast.VNodeResult { v; _ } -> value_summary v
++  | Ast.VExpect Ast.Expect_pass -> "PASS"
++  | Ast.VExpect (Ast.Expect_stop msg) -> Printf.sprintf "STOP(%s)" msg
++  | Ast.VExpect (Ast.Expect_hold msg) -> Printf.sprintf "HOLD(%s)" msg
+ 
+ (* --- Session Transcript and Base Env --- *)
+ 
+diff --git a/src/serialization.ml b/src/serialization.ml
+index f8c6a6e..eef50bc 100644
+--- a/src/serialization.ml
++++ b/src/serialization.ml
+@@ -311,6 +311,12 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
+       in
+       `Assoc [("class", `String "VLens"); ("data", lens_to_yojson l)]
+   | VNodeResult { v; _ } -> value_to_yojson v
++  | VExpect Expect_pass ->
++      `Assoc [("type", `String "VExpect"); ("kind", `String "pass")]
++  | VExpect (Expect_stop msg) ->
++      `Assoc [("type", `String "VExpect"); ("kind", `String "stop"); ("message", `String msg)]
++  | VExpect (Expect_hold msg) ->
++      `Assoc [("type", `String "VExpect"); ("kind", `String "hold"); ("message", `String msg)]
+ 
+ and column_data_to_yojson (col : Arrow_table.column_data) (row : int) : Yojson.Safe.t option =
+   match col with
+diff --git a/summary.md b/summary.md
+index 8e9d213..5477a4a 100644
+--- a/summary.md
++++ b/summary.md
+@@ -518,6 +518,14 @@ Note the overloaded names:
+ - `slice` is both a `colcraft` row helper and a `strcraft` substring helper.
+ - `length` works on strings and collections in `core`, while `str_nchar` is the dedicated string-character-count helper.
+ 
++### `testcraft`
++
++Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons don't raise directly — they return a `VExpect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg` on NA) that is truthy/falsy and understood directly by `assert()`.
++
++- Comparison: `expect_equal(actual, expected, tolerance = 1e-9)` — compares scalars, Dates/Datetimes, Factors, DataFrames, Vectors, and Lists, reporting the location of the first difference for collections (e.g. which DataFrame column/row or Vector index).
++- Inspecting an Expect value: `expect_pass(x)`, `expect_fail(x)`, `expect_msg(x)`
++- Standard usage: `assert(expect_equal(a, b))` — passes silently on `Expect_pass`, raises `AssertionError` with the comparison's own diagnostic message otherwise.
++
+ Disambiguation rule of thumb for LLMs:
+ - inside `select(...)`/selection-helper contexts, prefer the `colcraft` helper meaning;
+ - with a `DataFrame` first argument, `slice(df, ...)` means row slicing;
+diff --git a/tests/base/test_expect_equal.ml b/tests/base/test_expect_equal.ml
+new file mode 100644
+index 0000000..9ab9af8
+--- /dev/null
++++ b/tests/base/test_expect_equal.ml
+@@ -0,0 +1,32 @@
++let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
++  Printf.printf "Testcraft — expect_equal:\n";
++
++  test "expect_equal ints pass" "expect_equal(1, 1)" "PASS";
++  test "expect_equal ints stop" "expect_equal(1, 2)" {|STOP(`1` != `2`)|};
++  test "expect_equal floats pass" "expect_equal(1.0, 1.0)" "PASS";
++  test "expect_equal floats within tolerance"
++    "expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9)" "PASS";
++  test "expect_equal floats stop" "expect_equal(1.0, 2.0)" "STOP(";
++  test "expect_equal strings pass" {|expect_equal("a", "a")|} "PASS";
++  test "expect_equal strings stop" {|expect_equal("a", "b")|} "STOP(";
++  test "expect_equal actual NA holds" "expect_equal(NA, 1)" "HOLD(";
++  test "expect_equal expected NA holds" "expect_equal(1, NA)" "HOLD(";
++  test "expect_equal actual error stops"
++    {|expect_equal(error("boom"), 1)|} "STOP(";
++  test "expect_equal expected error stops"
++    {|expect_equal(1, error("boom"))|} "STOP(";
++  test "expect_equal type mismatch stops"
++    {|expect_equal(1, "1")|} {|STOP(`1` (Int) != `"1"` (String))|};
++  test "expect_equal bools pass" "expect_equal(true, true)" "PASS";
++
++  test "assert of passing expect_equal" "assert(expect_equal(1, 1))" "true";
++  test "assert of failing expect_equal"
++    "assert(expect_equal(1, 2))" {|Error(AssertionError|};
++
++  test "expect_pass on pass" "expect_pass(expect_equal(1, 1))" "true";
++  test "expect_pass on stop" "expect_pass(expect_equal(1, 2))" "false";
++  test "expect_fail on stop" "expect_fail(expect_equal(1, 2))" "true";
++  test "expect_fail on pass" "expect_fail(expect_equal(1, 1))" "false";
++  test "expect_msg on stop" "expect_msg(expect_equal(1, 2))" {|`1` != `2`|};
++
++  Printf.printf "\n"
+diff --git a/tests/dune b/tests/dune
+index 53a90f8..d22e9dc 100644
+--- a/tests/dune
++++ b/tests/dune
+@@ -49,6 +49,7 @@
+     test_misc_coverage
+     test_dataframe_diff test_model_diff test_scalar_diff test_generic_diff test_pipeline_diff test_builder_diff
+     test_check test_fix test_ndjson
++    test_expect_equal
+   )
+   (libraries t_lang menhirLib otoml unix str)
+ )
+diff --git a/tests/test_runner.ml b/tests/test_runner.ml
+index e270cb3..0a6584d 100644
+--- a/tests/test_runner.ml
++++ b/tests/test_runner.ml
+@@ -86,6 +86,7 @@ let () =
+   Test_na.run_tests pass_count fail_count failures eval_string eval_string_env test;
+   Test_na_edge_cases.run_tests pass_count fail_count failures eval_string eval_string_env test;
+   Test_errors.run_tests pass_count fail_count failures eval_string eval_string_env test;
++  Test_expect_equal.run_tests pass_count fail_count failures eval_string eval_string_env test;
+   Test_fetchurl.run_tests pass_count fail_count failures eval_string eval_string_env test;
+ 
+   (* Domain-specific tests *)
