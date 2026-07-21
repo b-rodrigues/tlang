@@ -128,7 +128,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "expect_in second arg type error"
     "expect_in(1, 2)" "expects a Vector or List as second argument";
   test "expect_equal lambda"
-    "expect_equal(x => x, x => x)" "STOP(Cannot compare functional values";
+    "expect_equal(\\(x) x, \\(x) x)" "STOP(Cannot compare functional values";
   test "expect_equal builtin"
     "expect_equal(map, map)" "STOP(Cannot compare functional values";
 
