@@ -161,6 +161,33 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
   assert_pass "expect_warning upstream"
     (call "expect_warning" [(None, upstream_warn_node)]);
 
+  (* Empty string filters treated as omitted *)
+  assert_pass "expect_warning empty kind works"
+    (call "expect_warning" [(Some "kind", VString ""); (None, make_warning_node ())]);
+
+  assert_pass "expect_warning empty message works"
+    (call "expect_warning" [(Some "message", VString ""); (None, make_warning_node ())]);
+
+  (* Computed node: resolved with warning *)
+  let cn_record = {
+    Ast.cn_name = "test_cn";
+    cn_runtime = "T";
+    cn_path = "";
+    cn_serializer = "csv";
+    cn_class = "";
+    cn_dependencies = [];
+    cn_p_exprs = None;
+    cn_flake = None;
+  } in
+  Ast.set_in_memory_node_value ~p_exprs:[] ~node_name:"test_cn" (make_warning_node ());
+  assert_pass "expect_warning computed node resolved"
+    (call "expect_warning" [(None, VComputedNode cn_record)]);
+
+  (* Computed node: unresolved *)
+  let unresolved_cn = { cn_record with cn_name = "unresolved_cn" } in
+  assert_stop "expect_warning computed node unresolved" ~contains:"has not been evaluated"
+    (call "expect_warning" [(None, VComputedNode unresolved_cn)]);
+
   (* Error cases *)
   let assert_error name ?contains result =
     match result with
@@ -188,7 +215,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
   assert_error "expect_warning message wrong type"
     (call "expect_warning" [(Some "message", VInt 1); (None, make_warning_node ())]);
 
-  assert_error "expect_warning wrong positional type" ~contains:"NodeResult"
+  assert_error "expect_warning wrong positional type" ~contains:"expects a NodeResult"
     (call "expect_warning" [(None, VInt 123)]);
 
   Printf.printf "\n"
