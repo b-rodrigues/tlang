@@ -1,0 +1,164 @@
+open Ast
+
+let make_warning_node ?(kind = "NAExcluded") ?(message = "filter() excluded 1 row") () =
+  VNodeResult {
+    v = VInt 42;
+    node_name = "test";
+    diagnostics = {
+      nd_warnings = [{
+        nw_kind = kind;
+        nw_fn = "filter";
+        nw_na_count = 1;
+        nw_na_indices = [0];
+        nw_message = message;
+        nw_source = WarningOwn;
+      }];
+      nd_error = None;
+      nd_warnings_suppressed = false;
+      nd_recovered = false;
+      nd_upstream_errors = [];
+    };
+  }
+
+let make_node_without_warnings () =
+  VNodeResult {
+    v = VInt 42;
+    node_name = "test";
+    diagnostics = Ast.Utils.empty_node_diagnostics;
+  }
+
+let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _test =
+  Printf.printf "Testcraft — condition:\n";
+  let env = Packages.init_env () in
+  let call name args = match Env.find_opt name env with
+    | Some (VBuiltin { b_func; _ }) -> b_func args (ref env)
+    | _ -> VError { code = NameError; message = "not found"; context = []; location = None; na_count = 0 }
+  in
+  let assert_pass name result =
+    match result with
+    | VExpect Expect_pass ->
+        Printf.printf "  ✓ %s\n" name
+    | VExpect (Expect_stop msg) ->
+        Printf.printf "  ✗ %s: STOP(%s)\n" name msg
+    | VExpect (Expect_hold msg) ->
+        Printf.printf "  ✗ %s: HOLD(%s)\n" name msg
+    | other ->
+        Printf.printf "  ✗ %s: unexpected %s\n" name (Utils.value_to_string other)
+  in
+  let assert_stop name ?contains result =
+    match result with
+    | VExpect (Expect_stop msg) ->
+        let ok = match contains with
+          | Some pat -> (try ignore (Str.search_forward (Str.regexp pat) msg 0); true
+                         with Not_found -> false)
+          | None -> true
+        in
+        if ok then Printf.printf "  ✓ %s\n" name
+        else Printf.printf "  ✗ %s: STOP message did not contain expected pattern.\n    Got: %s\n" name msg
+    | VExpect (Expect_hold msg) ->
+        Printf.printf "  ✗ %s: expected STOP, got HOLD(%s)\n" name msg
+    | other ->
+        Printf.printf "  ✗ %s: expected STOP, got %s\n" name (Utils.value_to_string other)
+  in
+  let assert_hold name result =
+    match result with
+    | VExpect (Expect_hold _) ->
+        Printf.printf "  ✓ %s\n" name
+    | VExpect (Expect_stop msg) ->
+        Printf.printf "  ✗ %s: expected HOLD, got STOP(%s)\n" name msg
+    | other ->
+        Printf.printf "  ✗ %s: expected HOLD, got %s\n" name (Utils.value_to_string other)
+  in
+
+  (* Basic pass: node with a warning *)
+  assert_pass "expect_warning pass"
+    (call "expect_warning" [(None, make_warning_node ())]);
+
+  (* Stop: node with no warnings *)
+  assert_stop "expect_warning no warnings"
+    (call "expect_warning" [(None, make_node_without_warnings ())]);
+
+  (* Kind matching *)
+  assert_pass "expect_warning kind match"
+    (call "expect_warning" [(Some "kind", VString "NAExcluded"); (None, make_warning_node ())]);
+
+  assert_stop "expect_warning kind mismatch"
+    (call "expect_warning" [(Some "kind", VString "WrongKind"); (None, make_warning_node ())]);
+
+  (* Message regex matching *)
+  assert_pass "expect_warning message match"
+    (call "expect_warning" [(Some "message", VString "excluded"); (None, make_warning_node ())]);
+
+  assert_stop "expect_warning message no match"
+    (call "expect_warning" [(Some "message", VString "nonexistent"); (None, make_warning_node ())]);
+
+  (* Kind + message combined *)
+  assert_pass "expect_warning kind+message match"
+    (call "expect_warning"
+       [(Some "kind", VString "NAExcluded");
+        (Some "message", VString "excluded");
+        (None, make_warning_node ())]);
+
+  assert_stop "expect_warning kind+message mismatch"
+    (call "expect_warning"
+       [(Some "kind", VString "NAExcluded");
+        (Some "message", VString "nonexistent");
+        (None, make_warning_node ())]);
+
+  (* NA handling *)
+  assert_hold "expect_warning NA"
+    (call "expect_warning" [(None, VNA NAGeneric)]);
+
+  (* Error handling *)
+  assert_stop "expect_warning Error" ~contains:"error"
+    (call "expect_warning" [(None, Error.make_error GenericError "boom")]);
+
+  (* Multiple warnings: should match any *)
+  let multi_warn_node = VNodeResult {
+    v = VInt 42;
+    node_name = "multi";
+    diagnostics = {
+      nd_warnings = [
+        { nw_kind = "KindA"; nw_fn = "fn1"; nw_na_count = 0; nw_na_indices = [];
+          nw_message = "first warning"; nw_source = WarningOwn };
+        { nw_kind = "KindB"; nw_fn = "fn2"; nw_na_count = 1; nw_na_indices = [0];
+          nw_message = "second warning"; nw_source = WarningOwn };
+      ];
+      nd_error = None;
+      nd_warnings_suppressed = false;
+      nd_recovered = false;
+      nd_upstream_errors = [];
+    };
+  } in
+  assert_pass "expect_warning multi match kindA"
+    (call "expect_warning" [(Some "kind", VString "KindA"); (None, multi_warn_node)]);
+  assert_pass "expect_warning multi match kindB"
+    (call "expect_warning" [(Some "kind", VString "KindB"); (None, multi_warn_node)]);
+  assert_pass "expect_warning multi match message"
+    (call "expect_warning" [(Some "message", VString "second"); (None, multi_warn_node)]);
+  assert_stop "expect_warning multi no match"
+    (call "expect_warning" [(Some "kind", VString "KindC"); (None, multi_warn_node)]);
+
+  (* Upstream warnings *)
+  let upstream_warn_node = VNodeResult {
+    v = VInt 42;
+    node_name = "upstream";
+    diagnostics = {
+      nd_warnings = [{
+        nw_kind = "NAExcluded";
+        nw_fn = "filter";
+        nw_na_count = 1;
+        nw_na_indices = [0];
+        nw_message = "filter() excluded 1 row";
+        nw_source = WarningUpstream "ancestor_node";
+      }];
+      nd_error = None;
+      nd_warnings_suppressed = false;
+      nd_recovered = false;
+      nd_upstream_errors = [];
+    };
+  } in
+  assert_pass "expect_warning upstream"
+    (call "expect_warning" [(None, upstream_warn_node)]);
+
+  Printf.printf "\n"
