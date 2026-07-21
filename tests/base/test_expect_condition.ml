@@ -161,4 +161,34 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
   assert_pass "expect_warning upstream"
     (call "expect_warning" [(None, upstream_warn_node)]);
 
+  (* Error cases *)
+  let assert_error name ?contains result =
+    match result with
+    | VError err ->
+        let ok = match contains with
+          | Some pat -> (try ignore (Str.search_forward (Str.regexp pat) err.message 0); true
+                         with Not_found -> false)
+          | None -> true
+        in
+        if ok then Printf.printf "  ✓ %s\n" name
+        else Printf.printf "  ✗ %s: VError message did not contain expected pattern.\n    Got: %s\n" name err.message
+    | other ->
+        Printf.printf "  ✗ %s: expected VError, got %s\n" name (Utils.value_to_string other)
+  in
+
+  assert_error "expect_warning invalid regex"
+    (call "expect_warning" [(Some "message", VString "["); (None, make_warning_node ())]);
+
+  assert_error "expect_warning unknown named arg"
+    (call "expect_warning" [(Some "foo", VInt 1); (None, make_warning_node ())]);
+
+  assert_error "expect_warning kind wrong type"
+    (call "expect_warning" [(Some "kind", VInt 1); (None, make_warning_node ())]);
+
+  assert_error "expect_warning message wrong type"
+    (call "expect_warning" [(Some "message", VInt 1); (None, make_warning_node ())]);
+
+  assert_error "expect_warning wrong positional type"
+    (call "expect_warning" [(None, VInt 123)]);
+
   Printf.printf "\n"
