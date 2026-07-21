@@ -176,7 +176,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
         Printf.printf "  ✗ %s: expected VError, got %s\n" name (Utils.value_to_string other)
   in
 
-  assert_error "expect_warning invalid regex"
+  assert_error "expect_warning invalid regex" ~contains:"Invalid regex pattern"
     (call "expect_warning" [(Some "message", VString "["); (None, make_warning_node ())]);
 
   assert_error "expect_warning unknown named arg"
@@ -188,7 +188,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
   assert_error "expect_warning message wrong type"
     (call "expect_warning" [(Some "message", VInt 1); (None, make_warning_node ())]);
 
-  assert_error "expect_warning wrong positional type"
+  assert_error "expect_warning wrong positional type" ~contains:"NodeResult"
     (call "expect_warning" [(None, VInt 123)]);
 
   Printf.printf "\n"

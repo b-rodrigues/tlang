@@ -225,7 +225,7 @@ let testcraft_package = {
   functions = ["expect_equal"; "expect_pass"; "expect_fail"; "expect_msg";
                "expect_lt"; "expect_lte"; "expect_gt"; "expect_gte";
                "expect_true"; "expect_false"; "expect_truthy"; "expect_falsy";
-               "expect_type"; "expect_error"; "expect_length";
+                "expect_type"; "expect_error"; "expect_length";
                 "expect_nrow"; "expect_ncol"; "expect_colnames"; "expect_fields"; "expect_in";
                 "expect_warning"];
 }
