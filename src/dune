@@ -82,7 +82,7 @@
     ; packages/explain
     intent_fields intent_get t_explain explain_json
     ; packages/testcraft
-    t_expect_equal t_expect_pass t_expect_fail t_expect_msg
+    t_expect_equal t_expect_pass t_expect_fail t_expect_msg t_expect_relational t_expect_type t_expect_ds
    ; package_manager
    version nixpkgs_date uv2nix_commit package_types toml_parser template_engine scaffold nix_generator renv_resolver r_description_resolver test_discovery package_doctor release_manager documentation_manager update_manager package_loader
    ; tdoc

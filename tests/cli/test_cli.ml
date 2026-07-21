@@ -99,7 +99,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     {|"List"|};
   test "packages count"
     "length(packages())"
-    "11";
+    "12";
   test "package_info stats"
     {|package_info("stats").name|}
     {|"stats"|};

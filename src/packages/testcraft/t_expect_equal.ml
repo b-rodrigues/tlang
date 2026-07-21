@@ -63,6 +63,10 @@ let rec compare_values ~tolerance (actual : value) (expected : value) : expect_k
       compare_vectors ~tolerance arr_a arr_b
   | VList list_a, VList list_b ->
       compare_lists ~tolerance list_a list_b
+  | VLambda _, _ | _, VLambda _
+  | VBuiltin _, _ | _, VBuiltin _
+  | VLens _, _ | _, VLens _ ->
+      Expect_stop "Cannot compare functional values (Lambdas, Builtins, or Lenses)"
   | _ when Utils.type_name actual <> Utils.type_name expected ->
       type_mismatch actual expected
   | _ ->
@@ -70,6 +74,7 @@ let rec compare_values ~tolerance (actual : value) (expected : value) : expect_k
          VSymbol, VRawCode, ...) contain only plain OCaml data, so
          structural equality is safe here. *)
       if actual = expected then Expect_pass else scalar_mismatch actual expected
+
 
 and compare_vectors ~tolerance (arr_a : value array) (arr_b : value array) : expect_kind =
   let len_a = Array.length arr_a and len_b = Array.length arr_b in
@@ -156,16 +161,6 @@ and compare_dataframes ~tolerance (df_a : dataframe) (df_b : dataframe) : expect
         in
         scan_columns cols_a
 
-(* Strip selected named arguments and return the remaining positional
-   values in their original order (mirrors Math_common.positional_args_without). *)
-let positional_args_without names named_args =
-  named_args
-  |> List.filter (fun (name, _) ->
-       match name with
-       | Some n -> not (List.mem n names)
-       | None -> true)
-  |> List.map snd
-
 (*
 --# Compare two values for testing
 --#
@@ -216,7 +211,8 @@ let register env =
                   | Some (_, VInt i) -> float_of_int i
                   | _ -> default_tolerance
                 in
-                (match positional_args_without [ "tolerance" ] named_args with
+                (match Math_common.positional_args_without [ "tolerance" ] named_args with
                  | [ actual; expected ] -> VExpect (compare_values ~tolerance actual expected)
                  | args -> Error.arity_error_named "expect_equal" 2 (List.length args)))))
     env
+
