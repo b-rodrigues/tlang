@@ -138,8 +138,20 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "expect_equal dict value diff"
     "expect_equal([a: 1, b: 2], [a: 1, b: 3])" "STOP(Dict: key `b` value differs";
   test "expect_equal dict key mismatch"
-    "expect_equal([a: 1, b: 2], [a: 1, c: 2])" "STOP(Dict: key names differ";
+    "expect_equal([a: 1, b: 2], [a: 1, c: 2])" "STOP(Dict: keys differ: expected `b`, got `c`";
   test "expect_equal dict nested lambda crash-safety"
     "expect_equal([a: \\(x) x], [a: \\(x) x])" "STOP(Dict: key `a` value differs: Cannot compare functional values";
+  test "expect_equal dict nested pass"
+    "expect_equal([a: [x: 1]], [a: [x: 1]])" "PASS";
+  test "expect_equal dict nested mismatch"
+    "expect_equal([a: [x: 1]], [a: [x: 2]])" "STOP(Dict: key `a` value differs: Dict: key `x` value differs";
+  test "expect_equal dict size mismatch"
+    "expect_equal([a: 1], [a: 1, b: 2])" "STOP(Dict: size mismatch (1 != 2)";
+  test "expect_equal dict empty pass"
+    "expect_equal([:], [:])" "PASS";
+  test "expect_equal dict empty mismatch"
+    "expect_equal([:], [a: 1])" "STOP(Dict: size mismatch (0 != 1)";
+  test "expect_equal dict containing vector"
+    "expect_equal([a: [1, 2]], [a: [1, 2]])" "PASS";
 
   Printf.printf "\n"

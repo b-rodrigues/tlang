@@ -118,13 +118,14 @@ and compare_lists ~tolerance
                Expect_stop (Printf.sprintf "List: element %s differs: %s" location msg)
            | Expect_hold msg ->
                Expect_hold (Printf.sprintf "List: element %s could not be compared: %s" location msg))
-      | _ -> Expect_pass (* unreachable: lengths already checked equal *)
+      | _ -> assert false (* unreachable: lengths already checked equal *)
     in
     scan 0 list_a list_b
 
 and compare_dicts ~tolerance
     (dict_a : (string * value) list) (dict_b : (string * value) list) : expect_kind =
-  let len_a = List.length dict_a and len_b = List.length dict_b in
+  let len_a = List.length dict_a in
+  let len_b = List.length dict_b in
   if len_a <> len_b then
     Expect_stop
       (Printf.sprintf "Dict: size mismatch (%d != %d)" len_a len_b)
@@ -132,22 +133,22 @@ and compare_dicts ~tolerance
     let cmp_key (k1, _) (k2, _) = String.compare k1 k2 in
     let da = List.sort cmp_key dict_a in
     let db = List.sort cmp_key dict_b in
-    let rec scan i la lb =
+    let rec scan la lb =
       match la, lb with
       | [], [] -> Expect_pass
       | (k1, v1) :: rest_a, (k2, v2) :: rest_b ->
           if k1 <> k2 then
-            Expect_stop (Printf.sprintf "Dict: key names differ: `%s` != `%s`" k1 k2)
+            Expect_stop (Printf.sprintf "Dict: keys differ: expected `%s`, got `%s`" k1 k2)
           else
             (match compare_values ~tolerance v1 v2 with
-             | Expect_pass -> scan (i + 1) rest_a rest_b
+             | Expect_pass -> scan rest_a rest_b
              | Expect_stop msg ->
                  Expect_stop (Printf.sprintf "Dict: key `%s` value differs: %s" k1 msg)
              | Expect_hold msg ->
                  Expect_hold (Printf.sprintf "Dict: key `%s` value could not be compared: %s" k1 msg))
-      | _ -> Expect_pass (* unreachable: lengths already checked equal *)
+      | _ -> assert false (* unreachable: lengths already checked equal *)
     in
-    scan 0 da db
+    scan da db
 
 and compare_dataframes ~tolerance (df_a : dataframe) (df_b : dataframe) : expect_kind =
   if Utils.dataframe_equal df_a df_b then Expect_pass
