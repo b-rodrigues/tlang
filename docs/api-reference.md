@@ -22,6 +22,7 @@ Package-oriented guide to T's standard library.
 - [Lens Package](#lens-package) — Composable access and update lenses
 - [Pipeline Package](#pipeline-package) — Pipeline introspection
 - [Explain Package](#explain-package) — Introspection and debugging tools
+- [Testcraft Package](#testcraft-package) — Unit-testing primitives
 
 ---
 
@@ -3891,6 +3892,104 @@ intent_get(i, "description")  -- "Customer analysis"
 
 ---
 
+## Testcraft Package
+
+Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons return an `Expect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg`) rather than raising directly, so results can be inspected, combined, or passed straight to `assert()`.
+
+### `expect_equal(actual, expected, tolerance = 1e-9)`
+
+Compare `actual` against `expected`, returning an `Expect` value.
+
+**Parameters:**
+
+- `actual` — The computed value to check
+- `expected` — The value `actual` is expected to equal
+- `tolerance` (optional, named) — Absolute tolerance used for Float comparisons (default `1e-9`)
+
+**Returns:**
+
+An `Expect` value: `Expect_pass` (values matched), `Expect_stop` (values differed), or `Expect_hold` (comparison involved NA)
+
+**Comparison rules:**
+
+- `Error` arguments always stop: `` `actual`/`expected` is an error: ... ``
+- `NA` arguments always hold: `` `actual` is NA, cannot compare `actual` != `expected` ``
+- `Int`/`Float` are compared with tolerance (cross-numeric promotes to `Float`); `Bool`, `String`, `Date`, `Datetime` compare directly
+- `Factor` compares against a `String` or another `Factor` by resolved level
+- `DataFrame`, `Vector`, and `List` are compared element-wise, reporting the location of the first difference (column/row, index, or label)
+- Mismatched types always stop: `` `actual` (Int) != `expected` (String) ``
+
+**Examples:**
+```t
+expect_equal(1, 1)                              -- Expect_pass
+expect_equal(1, 2)                               -- Expect_stop("`1` != `2`")
+expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9)   -- Expect_pass
+expect_equal(NA, 1)                              -- Expect_hold
+assert(expect_equal(1, 1))                       -- true
+assert(expect_equal(1, 2))                       -- Error(AssertionError: `1` != `2`.)
+```
+
+---
+
+### `expect_pass(x)`
+
+Check whether an `Expect` value passed.
+
+**Parameters:**
+
+- `x` — An `Expect` value
+
+**Returns:**
+
+`true` if `x` is `Expect_pass`, `false` otherwise
+
+**Examples:**
+```t
+expect_pass(expect_equal(1, 1))   -- true
+expect_pass(expect_equal(1, 2))   -- false
+```
+
+---
+
+### `expect_fail(x)`
+
+Check whether an `Expect` value failed (stopped or held).
+
+**Parameters:**
+
+- `x` — An `Expect` value
+
+**Returns:**
+
+`true` if `x` is `Expect_stop` or `Expect_hold`, `false` otherwise
+
+**Examples:**
+```t
+expect_fail(expect_equal(1, 2))   -- true
+expect_fail(expect_equal(1, 1))   -- false
+```
+
+---
+
+### `expect_msg(x)`
+
+Get the diagnostic message from a failing `Expect` value.
+
+**Parameters:**
+
+- `x` — An `Expect` value
+
+**Returns:**
+
+The `Stop`/`Hold` message (String), or an error if `x` is `Expect_pass`
+
+**Examples:**
+```t
+expect_msg(expect_equal(1, 2))   -- "`1` != `2`"
+```
+
+---
+
 ## Operators
 
 ### Arithmetic
@@ -3983,6 +4082,7 @@ Standard operators can be broadcasted over lists/vectors by prefixing with `.`.
 | `Intent` | `intent { ... }` | LLM metadata block |
 | `Pipeline` | `pipeline { ... }` | DAG computation graph |
 | `Formula` | `y ~ x` | Statistical model specification |
+| `Expect` | `expect_equal(a, b)` | Result of a testcraft comparison (pass/stop/hold) |
 
 ---
 

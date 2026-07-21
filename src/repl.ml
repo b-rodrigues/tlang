@@ -290,6 +290,9 @@ let rec value_summary v =
   | Ast.VDynamicArg (n, v) -> n ^ " := " ^ value_summary v
   | Ast.VEnv _ -> "<environment>"
   | Ast.VNodeResult { v; _ } -> value_summary v
+  | Ast.VExpect Ast.Expect_pass -> "PASS"
+  | Ast.VExpect (Ast.Expect_stop msg) -> Printf.sprintf "STOP(%s)" msg
+  | Ast.VExpect (Ast.Expect_hold msg) -> Printf.sprintf "HOLD(%s)" msg
 
 (* --- Session Transcript and Base Env --- *)
 

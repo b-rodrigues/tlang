@@ -92,7 +92,7 @@ let package_families = function
   | "stats" -> ["stats"; "descriptive-statistics"]
   | "base" -> ["base"; "json"; "serialization"]
   | "to_dataframe" | "dataframe" -> ["dataframe"; "to_dataframe"]
-  | "math" | "colcraft" | "pipeline" | "explain" | "chrono" | "lens" as pkg -> [pkg]
+  | "math" | "colcraft" | "pipeline" | "explain" | "chrono" | "lens" | "testcraft" as pkg -> [pkg]
   | _ -> []
 
 let dedup_sort_strings xs =
@@ -219,6 +219,12 @@ let lens_package = {
   functions = ["col_lens"; "over"; "get"; "compose"; "set"; "modify"; "node_lens"; "env_var_lens"; "idx_lens"; "row_lens"; "filter_lens"];
 }
 
+let testcraft_package = {
+  name = "testcraft";
+  description = "Unit-testing primitives: expect_* comparisons and assertions";
+  functions = ["expect_equal"; "expect_pass"; "expect_fail"; "expect_msg"];
+}
+
 (** All standard packages *)
 let all_packages = [
   core_package;
@@ -232,6 +238,7 @@ let all_packages = [
   pipeline_package;
   explain_package;
   lens_package;
+  testcraft_package;
 ]
 
 (** Convert a package to a T value *)
@@ -974,6 +981,11 @@ let init_env () =
   let env = Explain_json.register ~eval_call:Eval.eval_call_immutable env in
   (* Lens package *)
   let env = Lens.register ~eval_call:Eval.eval_call_immutable env in
+  (* Testcraft package *)
+  let env = T_expect_equal.register env in
+  let env = T_expect_pass.register env in
+  let env = T_expect_fail.register env in
+  let env = T_expect_msg.register env in
   (* Phase 7: Pretty-print and packages *)
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in

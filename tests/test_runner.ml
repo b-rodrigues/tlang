@@ -86,6 +86,7 @@ let () =
   Test_na.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_na_edge_cases.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_errors.run_tests pass_count fail_count failures eval_string eval_string_env test;
+  Test_expect_equal.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_fetchurl.run_tests pass_count fail_count failures eval_string eval_string_env test;
 
   (* Domain-specific tests *)

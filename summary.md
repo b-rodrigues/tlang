@@ -518,6 +518,14 @@ Note the overloaded names:
 - `slice` is both a `colcraft` row helper and a `strcraft` substring helper.
 - `length` works on strings and collections in `core`, while `str_nchar` is the dedicated string-character-count helper.
 
+### `testcraft`
+
+Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons don't raise directly — they return a `VExpect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg` on NA) that is truthy/falsy and understood directly by `assert()`.
+
+- Comparison: `expect_equal(actual, expected, tolerance = 1e-9)` — compares scalars, Dates/Datetimes, Factors, DataFrames, Vectors, and Lists, reporting the location of the first difference for collections (e.g. which DataFrame column/row or Vector index).
+- Inspecting an Expect value: `expect_pass(x)`, `expect_fail(x)`, `expect_msg(x)`
+- Standard usage: `assert(expect_equal(a, b))` — passes silently on `Expect_pass`, raises `AssertionError` with the comparison's own diagnostic message otherwise.
+
 Disambiguation rule of thumb for LLMs:
 - inside `select(...)`/selection-helper contexts, prefer the `colcraft` helper meaning;
 - with a `DataFrame` first argument, `slice(df, ...)` means row slicing;
