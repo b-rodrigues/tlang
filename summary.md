@@ -524,6 +524,12 @@ Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` compari
 
 - Comparison: `expect_equal(actual, expected, tolerance = 1e-9)` — compares scalars, Dates/Datetimes, Factors, DataFrames, Vectors, and Lists, reporting the location of the first difference for collections (e.g. which DataFrame column/row or Vector index).
 - Inspecting an Expect value: `expect_pass(x)`, `expect_fail(x)`, `expect_msg(x)`
+- Numeric relations: `expect_lt(a, b)`, `expect_lte(a, b)`, `expect_gt(a, b)`, `expect_gte(a, b)` — numeric-only comparisons.
+- Type/truth: `expect_true(x)`, `expect_false(x)` (strict VBool), `expect_truthy(x)`, `expect_falsy(x)` (loose `is_truthy`), `expect_type(x, t)` (type name match).
+- Error checking: `expect_error(expr, class = "", message = "")` — passes if `expr` is an error, optionally filtered by class string or message regex.
+- Length: `expect_length(x, n)` — checks length of Vector, List, String, DataFrame, Dict.
+- Data frames: `expect_nrow(df, n)`, `expect_ncol(df, n)`, `expect_colnames(df, names)` — row/column/count/names checks.
+- Collections: `expect_fields(x, names)` — Dict keys or List labels; `expect_in(x, values)` — set membership.
 - Standard usage: `assert(expect_equal(a, b))` — passes silently on `Expect_pass`, raises `AssertionError` with the comparison's own diagnostic message otherwise.
 
 Disambiguation rule of thumb for LLMs:

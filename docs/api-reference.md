@@ -3990,6 +3990,197 @@ expect_msg(expect_equal(1, 2))   -- "`1` != `2`"
 
 ---
 
+### `expect_lt(a, b)`
+
+Pass if `a < b` (numeric only).
+
+**Parameters:**
+- `a`, `b` — Numeric values (Int or Float)
+
+**Returns:**
+An `Expect` value, `Expect_hold` on NA/Error, `Expect_stop` if not strictly less.
+
+**Examples:**
+```t
+assert(expect_lt(1, 2))
+assert(expect_lt(1.5, 2.5))
+```
+
+---
+
+### `expect_lte(a, b)`
+
+Pass if `a <= b` (numeric only).
+
+### `expect_gt(a, b)`
+
+Pass if `a > b` (numeric only).
+
+### `expect_gte(a, b)`
+
+Pass if `a >= b` (numeric only).
+
+---
+
+### `expect_true(x)`
+
+Pass only if `x` is `VBool true`. For a looser truthiness check, use `expect_truthy`.
+
+**Parameters:**
+- `x` — Value to check
+
+**Returns:**
+`Expect_pass` only when `x` is `VBool true`; `Expect_hold` on NA; `Expect_stop` otherwise.
+
+**Examples:**
+```t
+assert(expect_true(true))
+```
+
+---
+
+### `expect_false(x)`
+
+Pass only if `x` is `VBool false`. For a looser falsiness check, use `expect_falsy`.
+
+---
+
+### `expect_truthy(x)`
+
+Pass if `x` is truthy per `is_truthy` (`1`, `"a"`, non-empty containers, etc.).
+
+---
+
+### `expect_falsy(x)`
+
+Pass if `x` is falsy (`0`, `false`, `VNullNode`, etc.). NA still holds.
+
+---
+
+### `expect_type(x, type_name)`
+
+Pass if `type_name(x)` matches the given `type_name` string.
+
+**Parameters:**
+- `x` — Value to inspect
+- `type_name` (String) — Expected type name (e.g. `"Int"`, `"String"`, `"DataFrame"`)
+
+**Examples:**
+```t
+assert(expect_type(42, "Int"))
+assert(expect_type("hello", "String"))
+```
+
+---
+
+### `expect_error(expr, class = "", message = "")`
+
+Pass if `expr` is a `VError`. Optionally filter by error class or message pattern.
+
+**Parameters:**
+- `expr` — Any value (typically the result of calling `error(...)`)
+- `class` (optional, named) — Expected error code string (e.g. `"TypeError"`, `"RuntimeError"`)
+- `message` (optional, named) — Regex pattern to match against the error message
+
+**Returns:**
+`Expect_pass` if all checks pass; `Expect_stop` describing what didn't match.
+
+**Examples:**
+```t
+assert(expect_error(error("boom")))
+assert(expect_error(error("boom"), class = "RuntimeError"))
+assert(expect_error(error("invalid"), message = "invalid"))
+```
+
+---
+
+### `expect_length(x, n)`
+
+Pass if the length/size/row-count of `x` equals `n`.
+
+**Parameters:**
+- `x` — A container (Vector, List, String, DataFrame, Dict)
+- `n` (Int) — Expected length
+
+**Examples:**
+```t
+assert(expect_length(1:5, 5))
+assert(expect_length("hello", 5))
+```
+
+---
+
+### `expect_nrow(df, n)`
+
+Pass if DataFrame has exactly `n` rows.
+
+**Parameters:**
+- `df` — A DataFrame
+- `n` (Int) — Expected row count
+
+**Examples:**
+```t
+assert(expect_nrow(to_dataframe(col1 = 1:3), 3))
+```
+
+---
+
+### `expect_ncol(df, n)`
+
+Pass if DataFrame has exactly `n` columns.
+
+**Examples:**
+```t
+assert(expect_ncol(to_dataframe(col1 = 1:3, col2 = 4:6), 2))
+```
+
+---
+
+### `expect_colnames(df, names)`
+
+Pass if DataFrame column names match the given list of strings exactly (order-sensitive).
+
+**Parameters:**
+- `df` — A DataFrame
+- `names` — List or Vector of Strings
+
+**Examples:**
+```t
+assert(expect_colnames(to_dataframe(col1 = 1:3, col2 = 4:6), ["col1", "col2"]))
+```
+
+---
+
+### `expect_fields(x, names)`
+
+Pass if a Dict's keys or a named List's labels match the given list of strings exactly.
+
+**Parameters:**
+- `x` — A Dict or named List
+- `names` — List or Vector of Strings
+
+**Examples:**
+```t
+assert(expect_fields({"a": 1, "b": 2}, ["a", "b"]))
+```
+
+---
+
+### `expect_in(x, values)`
+
+Pass if `x` (or every element of a Vector `x`) is present in `values`.
+
+**Parameters:**
+- `x` — A scalar value or Vector
+- `values` — A Vector of values to search in
+
+**Examples:**
+```t
+assert(expect_in(3, 1:5))
+```
+
+---
+
 ## Operators
 
 ### Arithmetic

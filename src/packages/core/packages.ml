@@ -222,7 +222,11 @@ let lens_package = {
 let testcraft_package = {
   name = "testcraft";
   description = "Unit-testing primitives: expect_* comparisons and assertions";
-  functions = ["expect_equal"; "expect_pass"; "expect_fail"; "expect_msg"];
+  functions = ["expect_equal"; "expect_pass"; "expect_fail"; "expect_msg";
+               "expect_lt"; "expect_lte"; "expect_gt"; "expect_gte";
+               "expect_true"; "expect_false"; "expect_truthy"; "expect_falsy";
+               "expect_type"; "expect_error"; "expect_length";
+               "expect_nrow"; "expect_ncol"; "expect_colnames"; "expect_fields"; "expect_in"];
 }
 
 (** All standard packages *)
@@ -986,6 +990,9 @@ let init_env () =
   let env = T_expect_pass.register env in
   let env = T_expect_fail.register env in
   let env = T_expect_msg.register env in
+  let env = T_expect_relational.register env in
+  let env = T_expect_type.register env in
+  let env = T_expect_ds.register env in
   (* Phase 7: Pretty-print and packages *)
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in
