@@ -1,7 +1,93 @@
+(*
+--# DataFrame row count assertion
+--#
+--# Passes if the DataFrame has exactly `n` rows.
+--#
+--# @name expect_nrow
+--# @param df :: DataFrame The DataFrame to check.
+--# @param n :: Int Expected row count.
+--# @return :: Expect `Expect_pass` when row count matches; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_nrow(to_dataframe([x: [1, 2, 3]]), 3))
+--# @family testcraft
+--# @seealso expect_ncol, expect_colnames, expect_length
+--# @export
+*)
+
+(*
+--# DataFrame column count assertion
+--#
+--# Passes if the DataFrame has exactly `n` columns.
+--#
+--# @name expect_ncol
+--# @param df :: DataFrame The DataFrame to check.
+--# @param n :: Int Expected column count.
+--# @return :: Expect `Expect_pass` when column count matches; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_ncol(to_dataframe([x: [1], y: [2]]), 2))
+--# @family testcraft
+--# @seealso expect_nrow, expect_colnames, expect_length
+--# @export
+*)
+
+(*
+--# DataFrame column names assertion
+--#
+--# Passes if the DataFrame column names match the given list of strings
+--# exactly (order-sensitive).
+--#
+--# @name expect_colnames
+--# @param df :: DataFrame The DataFrame to check.
+--# @param names :: List | Vector A list or vector of expected column name strings.
+--# @return :: Expect `Expect_pass` when names match; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_colnames(to_dataframe([x: [1], y: [2]]), ["x", "y"]))
+--# @family testcraft
+--# @seealso expect_nrow, expect_ncol, expect_fields
+--# @export
+*)
+
+(*
+--# Dict key / named List label assertion
+--#
+--# Passes if a Dict's keys or a named List's labels match the given list
+--# of strings exactly (order-sensitive).
+--#
+--# @name expect_fields
+--# @param x :: Dict | List The Dict or named List to inspect.
+--# @param names :: List | Vector A list or vector of expected field name strings.
+--# @return :: Expect `Expect_pass` when fields match; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_fields([a: 1, b: 2], ["a", "b"]))
+--# @family testcraft
+--# @seealso expect_colnames, expect_in
+--# @export
+*)
+
+(*
+--# Set membership assertion
+--#
+--# Passes if `x` (or every element of a Vector/List `x`) is present in
+--# `values`. Checks each element of collections individually.
+--#
+--# @name expect_in
+--# @param x :: Any A scalar value, Vector, or List to look for.
+--# @param values :: Vector | List The haystack collection to search in.
+--# @return :: Expect `Expect_pass` when all elements are found; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_in(3, [1, 2, 3, 4, 5]))
+--# @family testcraft
+--# @seealso expect_fields, expect_equal
+--# @export
+*)
+
 open Ast
 
 let fmt v = "`" ^ Utils.value_to_string v ^ "`"
 
+(* Extract a list of strings from a VList or VVector. Returns None if
+   any element is not a VString. Unlike the previous implementation,
+   this correctly handles empty strings as valid elements. *)
 let extract_string_list = function
   | VList items ->
       let rec go acc = function
@@ -11,12 +97,13 @@ let extract_string_list = function
       in
       go [] items
   | VVector arr ->
-      let strings = Array.to_list arr |> List.map (function
-        | VString s -> s
-        | _ -> "")
+      let rec go i acc =
+        if i >= Array.length arr then Some (List.rev acc)
+        else match arr.(i) with
+          | VString s -> go (i + 1) (s :: acc)
+          | _ -> None
       in
-      if List.exists (fun s -> s = "") strings then None
-      else Some strings
+      go 0 []
   | VString s -> Some [s]
   | _ -> None
 
@@ -32,6 +119,8 @@ let register env =
     Env.add "expect_nrow"
       (make_builtin ~name:"expect_nrow" 2 (fun args _env ->
          match args with
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check row count")
+         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check row count")
          | [VDataFrame df; VInt n] ->
              let rows = Arrow_table.num_rows df.arrow_table in
              if rows = n then VExpect Expect_pass
@@ -53,6 +142,8 @@ let register env =
     Env.add "expect_ncol"
       (make_builtin ~name:"expect_ncol" 2 (fun args _env ->
          match args with
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check column count")
+         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check column count")
          | [VDataFrame df; VInt n] ->
              let cols = Arrow_table.num_columns df.arrow_table in
              if cols = n then VExpect Expect_pass
@@ -74,6 +165,8 @@ let register env =
     Env.add "expect_colnames"
       (make_builtin ~name:"expect_colnames" 2 (fun args _env ->
          match args with
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check column names")
+         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check column names")
          | [VDataFrame df; names_val] ->
              (match extract_string_list names_val with
               | Some expected_names ->
@@ -98,6 +191,8 @@ let register env =
     Env.add "expect_fields"
       (make_builtin ~name:"expect_fields" 2 (fun args _env ->
          match args with
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check fields")
+         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check fields")
          | [VDict entries; names_val] ->
              (match extract_string_list names_val with
               | Some expected_names ->
@@ -158,6 +253,8 @@ let register env =
     Env.add "expect_in"
       (make_builtin ~name:"expect_in" 2 (fun args _env ->
          match args with
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check membership")
+         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check membership")
          | [VVector elems; VVector _ as haystack] ->
              let rec scan i =
                if i >= Array.length elems then Expect_pass

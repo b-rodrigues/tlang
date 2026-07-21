@@ -1,3 +1,127 @@
+(*
+--# Strict boolean true assertion
+--#
+--# Passes only if `x` is `VBool true`. For a looser truthiness check,
+--# use `expect_truthy` instead.
+--#
+--# @name expect_true
+--# @param x :: Any The value to check.
+--# @return :: Expect `Expect_pass` only when `x` is `true`; `Expect_hold` on NA; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_true(true))
+--#   assert(expect_true(1 < 2))
+--# @family testcraft
+--# @seealso expect_false, expect_truthy, expect_falsy
+--# @export
+*)
+
+(*
+--# Strict boolean false assertion
+--#
+--# Passes only if `x` is `VBool false`. For a looser falsiness check,
+--# use `expect_falsy` instead.
+--#
+--# @name expect_false
+--# @param x :: Any The value to check.
+--# @return :: Expect `Expect_pass` only when `x` is `false`; `Expect_hold` on NA; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_false(false))
+--#   assert(expect_false(2 < 1))
+--# @family testcraft
+--# @seealso expect_true, expect_truthy, expect_falsy
+--# @export
+*)
+
+(*
+--# Loose truthiness assertion
+--#
+--# Passes if `x` is truthy per `is_truthy` (non-zero numbers, non-empty
+--# strings, non-empty containers, etc.).
+--#
+--# @name expect_truthy
+--# @param x :: Any The value to check.
+--# @return :: Expect `Expect_pass` when `x` is truthy; `Expect_hold` on NA; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_truthy(42))
+--#   assert(expect_truthy("hello"))
+--# @family testcraft
+--# @seealso expect_true, expect_false, expect_falsy
+--# @export
+*)
+
+(*
+--# Loose falsiness assertion
+--#
+--# Passes if `x` is falsy per `is_truthy` (`0`, `false`, `VNullNode`,
+--# empty containers, etc.). NA produces `Expect_hold`.
+--#
+--# @name expect_falsy
+--# @param x :: Any The value to check.
+--# @return :: Expect `Expect_pass` when `x` is falsy; `Expect_hold` on NA; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_falsy(0))
+--#   assert(expect_falsy(false))
+--# @family testcraft
+--# @seealso expect_true, expect_false, expect_truthy
+--# @export
+*)
+
+(*
+--# Type name assertion
+--#
+--# Passes if the runtime type name of `x` matches the given string
+--# (e.g. `"Int"`, `"String"`, `"DataFrame"`).
+--#
+--# @name expect_type
+--# @param x :: Any The value to inspect.
+--# @param type_name :: String Expected type name.
+--# @return :: Expect `Expect_pass` when types match; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_type(42, "Int"))
+--#   assert(expect_type("hello", "String"))
+--# @family testcraft
+--# @seealso expect_true, expect_error
+--# @export
+*)
+
+(*
+--# Error assertion with optional class and message filtering
+--#
+--# Passes if `expr` is a `VError`. Optionally verifies the error class
+--# string and/or applies a regex pattern match against the error message.
+--#
+--# @name expect_error
+--# @param expr :: Any The value to check (typically the result of an expression that may error).
+--# @param class :: String = "" Optional error class to match (e.g. `"TypeError"`, `"RuntimeError"`).
+--# @param message :: String = "" Optional regex pattern to match against the error message.
+--# @return :: Expect `Expect_pass` when all checks pass; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_error(error("boom")))
+--#   assert(expect_error(error("boom"), class = "GenericError"))
+--#   assert(expect_error(error("invalid value"), message = "invalid"))
+--# @family testcraft
+--# @seealso expect_type, expect_true
+--# @export
+*)
+
+(*
+--# Container length assertion
+--#
+--# Passes if the length/size/row-count of `x` equals `n`. Supports
+--# Vector, List, String, DataFrame (row count), and Dict (entry count).
+--#
+--# @name expect_length
+--# @param x :: Vector | List | String | DataFrame | Dict The container to measure.
+--# @param n :: Int Expected length.
+--# @return :: Expect `Expect_pass` when length matches; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @example
+--#   assert(expect_length([1, 2, 3], 3))
+--#   assert(expect_length("hello", 5))
+--# @family testcraft
+--# @seealso expect_nrow, expect_ncol
+--# @export
+*)
+
 open Ast
 
 let fmt v = "`" ^ Utils.value_to_string v ^ "`"
@@ -141,15 +265,15 @@ let register env =
                                    (match expected_message_pattern with
                                     | Some pat ->
                                         (try
-                                           if Str.string_match (Str.regexp pat) err.message 0 then
-                                             VExpect Expect_pass
-                                           else
+                                           ignore (Str.search_forward (Str.regexp pat) err.message 0);
+                                           VExpect Expect_pass
+                                         with
+                                         | Not_found ->
                                              VExpect
                                                (Expect_stop
                                                   (Printf.sprintf
                                                      "Expected error message matching /%s/, got: %s"
                                                      pat err.message))
-                                         with
                                          | Failure _ ->
                                              Error.value_error
                                                (Printf.sprintf
