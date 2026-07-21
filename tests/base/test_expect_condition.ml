@@ -27,48 +27,97 @@ let make_node_without_warnings () =
     diagnostics = Ast.Utils.empty_node_diagnostics;
   }
 
-let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   Printf.printf "Testcraft — condition:\n";
   let env = Packages.init_env () in
   let call name args = match Env.find_opt name env with
     | Some (VBuiltin { b_func; _ }) -> b_func args (ref env)
     | _ -> VError { code = NameError; message = "not found"; context = []; location = None; na_count = 0 }
   in
+  let assert_result name result_str expected =
+    let match_found =
+      if result_str = expected then true
+      else try
+        let _ = Str.search_forward (Str.regexp expected) result_str 0 in
+        true
+      with Not_found | Failure _ -> false
+    in
+    if match_found then begin
+      incr pass_count;
+      Printf.printf "  ✓ %s\n" name
+    end else begin
+      incr fail_count;
+      let msg = Printf.sprintf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result_str in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
+    end
+  in
   let assert_pass name result =
-    match result with
-    | VExpect Expect_pass ->
-        Printf.printf "  ✓ %s\n" name
-    | VExpect (Expect_stop msg) ->
-        Printf.printf "  ✗ %s: STOP(%s)\n" name msg
-    | VExpect (Expect_hold msg) ->
-        Printf.printf "  ✗ %s: HOLD(%s)\n" name msg
-    | other ->
-        Printf.printf "  ✗ %s: unexpected %s\n" name (Utils.value_to_string other)
+    assert_result name (Ast.Utils.value_to_string result) "PASS"
   in
   let assert_stop name ?contains result =
-    match result with
-    | VExpect (Expect_stop msg) ->
-        let ok = match contains with
-          | Some pat -> (try ignore (Str.search_forward (Str.regexp pat) msg 0); true
-                         with Not_found -> false)
-          | None -> true
+    let result_str = Ast.Utils.value_to_string result in
+    match contains with
+    | Some pat ->
+        let inner = match result with
+          | VExpect (Expect_stop msg) -> msg
+          | _ -> ""
         in
-        if ok then Printf.printf "  ✓ %s\n" name
-        else Printf.printf "  ✗ %s: STOP message did not contain expected pattern.\n    Got: %s\n" name msg
-    | VExpect (Expect_hold msg) ->
-        Printf.printf "  ✗ %s: expected STOP, got HOLD(%s)\n" name msg
-    | other ->
-        Printf.printf "  ✗ %s: expected STOP, got %s\n" name (Utils.value_to_string other)
+        let ok = try ignore (Str.search_forward (Str.regexp pat) inner 0); true
+                 with Not_found | Failure _ -> false
+        in
+        if ok then begin
+          incr pass_count;
+          Printf.printf "  ✓ %s\n" name
+        end else begin
+          incr fail_count;
+          let msg = Printf.sprintf "  ✗ %s\n    Expected STOP containing: %s\n    Got: %s\n" name pat result_str in
+          failures := msg :: !failures;
+          Printf.printf "%s" msg
+        end
+    | None -> assert_result name result_str "STOP("
   in
   let assert_hold name result =
-    match result with
-    | VExpect (Expect_hold _) ->
-        Printf.printf "  ✓ %s\n" name
-    | VExpect (Expect_stop msg) ->
-        Printf.printf "  ✗ %s: expected HOLD, got STOP(%s)\n" name msg
-    | other ->
-        Printf.printf "  ✗ %s: expected HOLD, got %s\n" name (Utils.value_to_string other)
+    assert_result name (Ast.Utils.value_to_string result) "HOLD("
   in
+  let assert_error name ?contains result =
+    let result_str = Ast.Utils.value_to_string result in
+    match contains with
+    | Some pat ->
+        let inner = match result with
+          | VError err -> err.message
+          | VExpect (Expect_stop msg) -> msg
+          | _ -> ""
+        in
+        let ok = try ignore (Str.search_forward (Str.regexp pat) inner 0); true
+                 with Not_found | Failure _ -> false
+        in
+        if ok then begin
+          incr pass_count;
+          Printf.printf "  ✓ %s\n" name
+        end else begin
+          incr fail_count;
+          let msg = Printf.sprintf "  ✗ %s\n    Expected VError containing: %s\n    Got: %s\n" name pat result_str in
+          failures := msg :: !failures;
+          Printf.printf "%s" msg
+        end
+    | None -> assert_result name result_str "Error("
+  in
+
+  (* T-level tests through the evaluator (validates ~unwrap:false integration) *)
+  test "expect_warning NA holds" "expect_warning(NA)" "HOLD(";
+  test "expect_warning Error stops" "expect_warning(error(\"boom\"))" "STOP(`node` is an error: boom";
+  test "expect_warning wrong type" "expect_warning(123)" "Error(TypeError:";
+
+  (* Integration test: ~unwrap:false via evaluator with custom helper *)
+  let integration_env = Env.add "make_test_warning_node"
+    (Ast.make_builtin ~name:"make_test_warning_node" ~unwrap:false 0
+       (fun _ _ -> make_warning_node ()))
+    (Packages.init_env ())
+  in
+  let integ_result = fst (eval_string_env
+    "expect_warning(make_test_warning_node())" integration_env) in
+  assert_pass "expect_warning via evaluator" integ_result;
 
   (* Basic pass: node with a warning *)
   assert_pass "expect_warning pass"
@@ -189,20 +238,6 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
     (call "expect_warning" [(None, VComputedNode unresolved_cn)]);
 
   (* Error cases *)
-  let assert_error name ?contains result =
-    match result with
-    | VError err ->
-        let ok = match contains with
-          | Some pat -> (try ignore (Str.search_forward (Str.regexp pat) err.message 0); true
-                         with Not_found -> false)
-          | None -> true
-        in
-        if ok then Printf.printf "  ✓ %s\n" name
-        else Printf.printf "  ✗ %s: VError message did not contain expected pattern.\n    Got: %s\n" name err.message
-    | other ->
-        Printf.printf "  ✗ %s: expected VError, got %s\n" name (Utils.value_to_string other)
-  in
-
   assert_error "expect_warning invalid regex" ~contains:"Invalid regex pattern"
     (call "expect_warning" [(Some "message", VString "["); (None, make_warning_node ())]);
 
