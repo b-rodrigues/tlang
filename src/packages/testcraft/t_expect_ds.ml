@@ -6,7 +6,7 @@
 --# @name expect_nrow
 --# @param df :: DataFrame The DataFrame to check.
 --# @param n :: Int Expected row count.
---# @return :: Expect `Expect_pass` when row count matches; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @return :: Expect `Expect_pass` when row count matches; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
 --# @example
 --#   assert(expect_nrow(to_dataframe([x: [1, 2, 3]]), 3))
 --# @family testcraft
@@ -22,7 +22,7 @@
 --# @name expect_ncol
 --# @param df :: DataFrame The DataFrame to check.
 --# @param n :: Int Expected column count.
---# @return :: Expect `Expect_pass` when column count matches; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @return :: Expect `Expect_pass` when column count matches; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
 --# @example
 --#   assert(expect_ncol(to_dataframe([x: [1], y: [2]]), 2))
 --# @family testcraft
@@ -39,7 +39,7 @@
 --# @name expect_colnames
 --# @param df :: DataFrame The DataFrame to check.
 --# @param names :: List | Vector A list or vector of expected column name strings.
---# @return :: Expect `Expect_pass` when names match; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @return :: Expect `Expect_pass` when names match; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
 --# @example
 --#   assert(expect_colnames(to_dataframe([x: [1], y: [2]]), ["x", "y"]))
 --# @family testcraft
@@ -56,7 +56,7 @@
 --# @name expect_fields
 --# @param x :: Dict | List The Dict or named List to inspect.
 --# @param names :: List | Vector A list or vector of expected field name strings.
---# @return :: Expect `Expect_pass` when fields match; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @return :: Expect `Expect_pass` when fields match; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
 --# @example
 --#   assert(expect_fields([a: 1, b: 2], ["a", "b"]))
 --# @family testcraft
@@ -73,9 +73,11 @@
 --# @name expect_in
 --# @param x :: Any A scalar value, Vector, or List to look for.
 --# @param values :: Vector | List The haystack collection to search in.
---# @return :: Expect `Expect_pass` when all elements are found; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @param tolerance :: Float = 1e-9 Absolute tolerance used for Float comparisons.
+--# @return :: Expect `Expect_pass` when all elements are found; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
 --# @example
 --#   assert(expect_in(3, [1, 2, 3, 4, 5]))
+--#   assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
 --# @family testcraft
 --# @seealso expect_fields, expect_equal
 --# @export
@@ -120,7 +122,7 @@ let register env =
       (make_builtin ~name:"expect_nrow" 2 (fun args _env ->
          match args with
          | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check row count")
-         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check row count")
+         | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [VDataFrame df; VInt n] ->
              let rows = Arrow_table.num_rows df.arrow_table in
              if rows = n then VExpect Expect_pass
@@ -143,7 +145,7 @@ let register env =
       (make_builtin ~name:"expect_ncol" 2 (fun args _env ->
          match args with
          | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check column count")
-         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check column count")
+         | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [VDataFrame df; VInt n] ->
              let cols = Arrow_table.num_columns df.arrow_table in
              if cols = n then VExpect Expect_pass
@@ -166,7 +168,7 @@ let register env =
       (make_builtin ~name:"expect_colnames" 2 (fun args _env ->
          match args with
          | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check column names")
-         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check column names")
+         | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [VDataFrame df; names_val] ->
              (match extract_string_list names_val with
               | Some expected_names ->
@@ -192,7 +194,7 @@ let register env =
       (make_builtin ~name:"expect_fields" 2 (fun args _env ->
          match args with
          | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check fields")
-         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check fields")
+         | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [VDict entries; names_val] ->
              (match extract_string_list names_val with
               | Some expected_names ->
@@ -229,9 +231,9 @@ let register env =
          | args -> Error.arity_error_named "expect_fields" 2 (List.length args)))
       env
   in
-  let haystack_mem v haystack = match haystack with
-    | VVector arr -> Array.exists (fun h -> h = v) arr
-    | VList items -> List.exists (fun (_, h) -> h = v) items
+  let haystack_mem ~tolerance v haystack = match haystack with
+    | VVector arr -> Array.exists (fun h -> T_expect_equal.compare_values ~tolerance h v = Expect_pass) arr
+    | VList items -> List.exists (fun (_, h) -> T_expect_equal.compare_values ~tolerance h v = Expect_pass) items
     | _ -> false
   in
 
@@ -242,67 +244,89 @@ let register env =
          (Utils.type_name other))
   in
 
-  let first_arg_type other =
-    Error.type_error
-      (Printf.sprintf "Function `expect_in` expects a Vector, List, or scalar as first argument, got %s."
-         (Utils.type_name other))
-  in
-
   (* expect_in: check that each value in `actual` is present in `values` *)
   let env =
     Env.add "expect_in"
-      (make_builtin ~name:"expect_in" 2 (fun args _env ->
-         match args with
-         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check membership")
-         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check membership")
-         | [VVector elems; VVector _ as haystack] ->
-             let rec scan i =
-               if i >= Array.length elems then Expect_pass
-               else if haystack_mem elems.(i) haystack then scan (i + 1)
-               else
-                 Expect_stop
-                   (Printf.sprintf "%s was not found in the given set" (fmt elems.(i)))
-             in
-             VExpect (scan 0)
-         | [VVector elems; VList _ as haystack] ->
-             let rec scan i =
-               if i >= Array.length elems then Expect_pass
-               else if haystack_mem elems.(i) haystack then scan (i + 1)
-               else
-                 Expect_stop
-                   (Printf.sprintf "%s was not found in the given set" (fmt elems.(i)))
-             in
-             VExpect (scan 0)
-         | [VList elems; VVector _ as haystack] ->
-             let rec scan = function
-               | [] -> Expect_pass
-               | (_, v) :: rest ->
-                   if haystack_mem v haystack then scan rest
-                   else
-                     Expect_stop
-                       (Printf.sprintf "%s was not found in the given set" (fmt v))
-             in
-             VExpect (scan elems)
-         | [VList elems; VList _ as haystack] ->
-             let rec scan = function
-               | [] -> Expect_pass
-               | (_, v) :: rest ->
-                   if haystack_mem v haystack then scan rest
-                   else
-                     Expect_stop
-                       (Printf.sprintf "%s was not found in the given set" (fmt v))
-             in
-             VExpect (scan elems)
-         | [v; VVector _ as haystack] ->
-             if haystack_mem v haystack then VExpect Expect_pass
-             else VExpect (Expect_stop (Printf.sprintf "%s was not found in the given set" (fmt v)))
-         | [v; VList _ as haystack] ->
-             if haystack_mem v haystack then VExpect Expect_pass
-             else VExpect (Expect_stop (Printf.sprintf "%s was not found in the given set" (fmt v)))
-         | [VVector _; other] -> haystack_second_arg_type other
-         | [VList _; other] -> haystack_second_arg_type other
-         | [other; _] -> first_arg_type other
-         | args -> Error.arity_error_named "expect_in" 2 (List.length args)))
+      (make_builtin_named ~name:"expect_in" ~variadic:true 2 (fun named_args _env ->
+         let unknown_named =
+           List.filter
+             (fun (n, _) ->
+               match n with
+               | None -> false
+               | Some "tolerance" -> false
+               | Some _ -> true)
+             named_args
+         in
+         match unknown_named with
+         | (Some arg_name, _) :: _ ->
+             Error.type_error
+               (Printf.sprintf "Function `expect_in` received unknown named argument `%s`." arg_name)
+         | _ ->
+             let tolerance_opt = List.find_opt (fun (n, _) -> n = Some "tolerance") named_args in
+             (match tolerance_opt with
+              | Some (_, other) when (match other with VFloat _ | VInt _ -> false | _ -> true) ->
+                  Error.type_error
+                    (Printf.sprintf
+                       "Function `expect_in` expects the `tolerance` argument to be numeric, got %s."
+                       (Utils.type_name other))
+              | _ ->
+                  let tolerance =
+                    match tolerance_opt with
+                    | Some (_, VFloat f) -> f
+                    | Some (_, VInt i) -> float_of_int i
+                    | _ -> 1e-9
+                  in
+                  (match Math_common.positional_args_without [ "tolerance" ] named_args with
+                   | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check membership")
+                   | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+                   | [VVector elems; VVector _ as haystack] ->
+                       let rec scan i =
+                         if i >= Array.length elems then Expect_pass
+                         else if haystack_mem ~tolerance elems.(i) haystack then scan (i + 1)
+                         else
+                           Expect_stop
+                             (Printf.sprintf "%s was not found in the given set" (fmt elems.(i)))
+                       in
+                       VExpect (scan 0)
+                   | [VVector elems; VList _ as haystack] ->
+                       let rec scan i =
+                         if i >= Array.length elems then Expect_pass
+                         else if haystack_mem ~tolerance elems.(i) haystack then scan (i + 1)
+                         else
+                           Expect_stop
+                             (Printf.sprintf "%s was not found in the given set" (fmt elems.(i)))
+                       in
+                       VExpect (scan 0)
+                   | [VList elems; VVector _ as haystack] ->
+                       let rec scan = function
+                         | [] -> Expect_pass
+                         | (_, v) :: rest ->
+                             if haystack_mem ~tolerance v haystack then scan rest
+                             else
+                               Expect_stop
+                                 (Printf.sprintf "%s was not found in the given set" (fmt v))
+                       in
+                       VExpect (scan elems)
+                   | [VList elems; VList _ as haystack] ->
+                       let rec scan = function
+                         | [] -> Expect_pass
+                         | (_, v) :: rest ->
+                             if haystack_mem ~tolerance v haystack then scan rest
+                             else
+                               Expect_stop
+                                 (Printf.sprintf "%s was not found in the given set" (fmt v))
+                       in
+                       VExpect (scan elems)
+                   | [v; VVector _ as haystack] ->
+                       if haystack_mem ~tolerance v haystack then VExpect Expect_pass
+                       else VExpect (Expect_stop (Printf.sprintf "%s was not found in the given set" (fmt v)))
+                   | [v; VList _ as haystack] ->
+                       if haystack_mem ~tolerance v haystack then VExpect Expect_pass
+                       else VExpect (Expect_stop (Printf.sprintf "%s was not found in the given set" (fmt v)))
+                   | [VVector _; other] -> haystack_second_arg_type other
+                   | [VList _; other] -> haystack_second_arg_type other
+                   | [_; other] -> haystack_second_arg_type other
+                   | args -> Error.arity_error_named "expect_in" 2 (List.length args)))))
       env
   in
   env

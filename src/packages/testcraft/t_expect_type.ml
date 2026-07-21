@@ -6,7 +6,7 @@
 --#
 --# @name expect_true
 --# @param x :: Any The value to check.
---# @return :: Expect `Expect_pass` only when `x` is `true`; `Expect_hold` on NA; `Expect_stop` otherwise.
+--# @return :: Expect `Expect_pass` only when `x` is `true`; `Expect_hold` on NA; `Expect_stop` on errors or non-true values.
 --# @example
 --#   assert(expect_true(true))
 --#   assert(expect_true(1 < 2))
@@ -23,7 +23,7 @@
 --#
 --# @name expect_false
 --# @param x :: Any The value to check.
---# @return :: Expect `Expect_pass` only when `x` is `false`; `Expect_hold` on NA; `Expect_stop` otherwise.
+--# @return :: Expect `Expect_pass` only when `x` is `false`; `Expect_hold` on NA; `Expect_stop` on errors or non-false values.
 --# @example
 --#   assert(expect_false(false))
 --#   assert(expect_false(2 < 1))
@@ -40,7 +40,7 @@
 --#
 --# @name expect_truthy
 --# @param x :: Any The value to check.
---# @return :: Expect `Expect_pass` when `x` is truthy; `Expect_hold` on NA; `Expect_stop` otherwise.
+--# @return :: Expect `Expect_pass` when `x` is truthy; `Expect_hold` on NA; `Expect_stop` on errors or falsy values.
 --# @example
 --#   assert(expect_truthy(42))
 --#   assert(expect_truthy("hello"))
@@ -57,7 +57,7 @@
 --#
 --# @name expect_falsy
 --# @param x :: Any The value to check.
---# @return :: Expect `Expect_pass` when `x` is falsy; `Expect_hold` on NA; `Expect_stop` otherwise.
+--# @return :: Expect `Expect_pass` when `x` is falsy; `Expect_hold` on NA; `Expect_stop` on errors or truthy values.
 --# @example
 --#   assert(expect_falsy(0))
 --#   assert(expect_falsy(false))
@@ -75,7 +75,7 @@
 --# @name expect_type
 --# @param x :: Any The value to inspect.
 --# @param type_name :: String Expected type name.
---# @return :: Expect `Expect_pass` when types match; `Expect_stop` otherwise.
+--# @return :: Expect `Expect_pass` when types match; `Expect_hold` on NA; `Expect_stop` on errors or type mismatch.
 --# @example
 --#   assert(expect_type(42, "Int"))
 --#   assert(expect_type("hello", "String"))
@@ -113,7 +113,7 @@
 --# @name expect_length
 --# @param x :: Vector | List | String | DataFrame | Dict The container to measure.
 --# @param n :: Int Expected length.
---# @return :: Expect `Expect_pass` when length matches; `Expect_hold` on NA/Error; `Expect_stop` otherwise.
+--# @return :: Expect `Expect_pass` when length matches; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
 --# @example
 --#   assert(expect_length([1, 2, 3], 3))
 --#   assert(expect_length("hello", 5))
@@ -134,6 +134,8 @@ let register env =
          match args with
          | [VBool true] -> VExpect Expect_pass
          | [VNA _] -> VExpect (Expect_hold "`actual` is NA, cannot check truth")
+         | [VError err] ->
+             VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [v] -> VExpect (Expect_stop (Printf.sprintf "Expected %s to be true (VBool true)" (fmt v)))
          | args -> Error.arity_error_named "expect_true" 1 (List.length args)))
       env
@@ -145,6 +147,8 @@ let register env =
          match args with
          | [VBool false] -> VExpect Expect_pass
          | [VNA _] -> VExpect (Expect_hold "`actual` is NA, cannot check falsity")
+         | [VError err] ->
+             VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [v] -> VExpect (Expect_stop (Printf.sprintf "Expected %s to be false (VBool false)" (fmt v)))
          | args -> Error.arity_error_named "expect_false" 1 (List.length args)))
       env
@@ -155,6 +159,8 @@ let register env =
       (make_builtin ~name:"expect_truthy" 1 (fun args _env ->
          match args with
          | [VNA _] -> VExpect (Expect_hold "`actual` is NA, cannot check truthiness")
+         | [VError err] ->
+             VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [v] ->
              if Utils.is_truthy v then VExpect Expect_pass
              else VExpect (Expect_stop (Printf.sprintf "%s is not truthy" (fmt v)))
@@ -167,6 +173,8 @@ let register env =
       (make_builtin ~name:"expect_falsy" 1 (fun args _env ->
          match args with
          | [VNA _] -> VExpect (Expect_hold "`actual` is NA, cannot check falsiness")
+         | [VError err] ->
+             VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [v] ->
              if not (Utils.is_truthy v) then VExpect Expect_pass
              else VExpect (Expect_stop (Printf.sprintf "%s is not falsy" (fmt v)))
@@ -178,6 +186,9 @@ let register env =
     Env.add "expect_type"
       (make_builtin ~name:"expect_type" 2 (fun args _env ->
          match args with
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check type")
+         | [VError err; _] ->
+             VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [v; VString expected_type] ->
              let actual_type = Utils.type_name v in
              if actual_type = expected_type then VExpect Expect_pass
@@ -251,6 +262,8 @@ let register env =
                         |> List.map snd
                       in
                       match positional with
+                      | [VNA _] ->
+                          VExpect (Expect_hold "`actual` is NA, cannot check for error")
                       | [v] ->
                           (match v with
                            | VError err ->
@@ -313,7 +326,8 @@ let register env =
              if len = n then VExpect Expect_pass
              else VExpect (Expect_stop (Printf.sprintf "Expected %d entries, got %d" n len))
          | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check length")
-         | [VError _; _] -> VExpect (Expect_hold "`actual` is an error, cannot check length")
+         | [VError err; _] ->
+             VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [VInt _; _] -> VExpect (Expect_stop "Cannot get length of an Int")
          | [VFloat _; _] -> VExpect (Expect_stop "Cannot get length of a Float")
          | [VBool _; _] -> VExpect (Expect_stop "Cannot get length of a Bool")

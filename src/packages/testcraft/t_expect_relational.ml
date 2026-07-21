@@ -2,7 +2,7 @@
 --# Numeric less-than assertion
 --#
 --# Passes if `a < b` for numeric arguments (Int or Float). Returns
---# `Expect_hold` when either argument is NA or an error.
+--# `Expect_hold` when either argument is NA; `Expect_stop` on errors.
 --#
 --# @name expect_lt
 --# @param a :: Int | Float The left-hand numeric value.
@@ -75,10 +75,10 @@ let fmt v = "`" ^ Utils.value_to_string v ^ "`"
    precision loss when comparing large integers via float_of_int. *)
 let expect_binop name op_str op_int op_float actual expected =
   match actual, expected with
-  | VError _, _ ->
-      Expect_hold (Printf.sprintf "`actual` is an error, cannot compare")
-  | _, VError _ ->
-      Expect_hold (Printf.sprintf "`expected` is an error, cannot compare")
+  | VError err, _ ->
+      Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message)
+  | _, VError err ->
+      Expect_stop (Printf.sprintf "`expected` is an error: %s" err.message)
   | VNA _, _ | _, VNA _ ->
       Expect_hold "One of the arguments is NA."
   | VInt a, VInt b ->
