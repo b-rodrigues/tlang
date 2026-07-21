@@ -530,6 +530,7 @@ Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` compari
 - Length: `expect_length(x, n)` — checks length of Vector, List, String, DataFrame, Dict.
 - Data frames: `expect_nrow(df, n)`, `expect_ncol(df, n)`, `expect_colnames(df, names)` — row/column/count/names checks.
 - Collections: `expect_fields(x, names)` — Dict keys or List labels; `expect_in(x, values)` — set membership.
+- Pipeline node diagnostics: `expect_warning(node, kind = "", message = "")` — passes if node produced a warning, optionally filtering by warning kind string or message regex.
 - Standard usage: `assert(expect_equal(a, b))` — passes silently on `Expect_pass`, raises `AssertionError` with the comparison's own diagnostic message otherwise.
 
 Disambiguation rule of thumb for LLMs:

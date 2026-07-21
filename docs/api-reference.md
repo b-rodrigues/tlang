@@ -4181,6 +4181,23 @@ assert(expect_in(3, 1:5))
 assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
 ```
 
+### `expect_warning(node, kind = "", message = "")`
+
+Pass if the given pipeline node produced at least one warning during execution.
+Optionally filter by warning `kind` string (exact match) or `message` regex pattern.
+
+**Parameters:**
+- `node` — A `NodeResult` or `ComputedNode` value (obtained from `read_node()` or a pipeline result)
+- `kind` (optional, named) — Exact warning kind to match (e.g. `"NAExcluded"`)
+- `message` (optional, named) — Regex pattern to match against the warning message
+
+**Examples:**
+```t
+assert(expect_warning(read_node(p.my_node)))
+assert(expect_warning(read_node(p.my_node), kind = "NAExcluded"))
+assert(expect_warning(read_node(p.my_node), message = "excluded"))
+```
+
 ---
 
 ## Operators

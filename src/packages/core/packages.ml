@@ -226,7 +226,8 @@ let testcraft_package = {
                "expect_lt"; "expect_lte"; "expect_gt"; "expect_gte";
                "expect_true"; "expect_false"; "expect_truthy"; "expect_falsy";
                "expect_type"; "expect_error"; "expect_length";
-               "expect_nrow"; "expect_ncol"; "expect_colnames"; "expect_fields"; "expect_in"];
+               "expect_nrow"; "expect_ncol"; "expect_colnames"; "expect_fields"; "expect_in";
+               "expect_warning"];
 }
 
 (** All standard packages *)
@@ -993,6 +994,7 @@ let init_env () =
   let env = T_expect_relational.register env in
   let env = T_expect_type.register env in
   let env = T_expect_ds.register env in
+  let env = T_expect_condition.register env in
   (* Phase 7: Pretty-print and packages *)
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in

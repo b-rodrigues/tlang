@@ -54,6 +54,12 @@ outcome, so it can be inspected, combined, or passed straight to `assert()`.
 | `expect_fields(x, names)` | Pass if Dict keys or List labels match `names` |
 | `expect_in(x, values)` | Pass if `x` (or every element of `x`) is in `values` |
 
+### Pipeline node diagnostics
+
+| Function | Description |
+|----------|-------------|
+| `expect_warning(node, kind = "", message = "")` | Pass if node produced a warning; optionally match `kind` and/or regex on `message` |
+
 `assert()` understands `VExpect` directly: on `Expect_pass` it returns
 `true`, on `Expect_stop`/`Expect_hold` it raises an `AssertionError` using
 the comparison's own diagnostic message.
