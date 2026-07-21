@@ -1,19 +1,17 @@
 open Ast
 
-let is_node = function
-  | VNodeResult _ | VComputedNode _ -> true
-  | _ -> false
-
-let get_warnings = function
+let warnings_from_result = function
   | VNodeResult { diagnostics = { nd_warnings = []; _ }; _ } -> None
   | VNodeResult { diagnostics = { nd_warnings; _ }; _ } -> Some nd_warnings
+  | _ -> None
+
+let get_warnings v = match v with
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
       (match Ast.get_in_memory_node_value_for_cn cn with
-       | Some (VNodeResult { diagnostics = { nd_warnings = []; _ }; _ }) -> None
-       | Some (VNodeResult { diagnostics = { nd_warnings; _ }; _ }) -> Some nd_warnings
-       | _ -> None)
-  | _ -> None
+       | Some v -> warnings_from_result v
+       | None -> None)
+  | _ -> warnings_from_result v
 
 (*
 --# Assert that a pipeline node produced a warning
@@ -111,61 +109,60 @@ let register env =
                   | VNA _ -> VExpect (Expect_hold "`node` is NA, cannot check for warnings")
                   | VError err ->
                       VExpect (Expect_stop (Printf.sprintf "`node` is an error: %s" err.message))
-                  | _ ->
-                      if not (is_node v) then
+                    | VNodeResult _ | VComputedNode _ ->
+                          (match get_warnings v with
+                          | None ->
+                              VExpect (Expect_stop "No warnings found on this node")
+                          | Some warnings ->
+                              let matches =
+                                match kind_opt, re_opt with
+                                | Some kind, Some re ->
+                                    List.exists (fun w ->
+                                      w.nw_kind = kind &&
+                                      (try ignore (Str.search_forward re w.nw_message 0); true
+                                       with Not_found -> false)
+                                    ) warnings
+                                | Some kind, None ->
+                                    List.exists (fun w -> w.nw_kind = kind) warnings
+                                | None, Some re ->
+                                    List.exists (fun w ->
+                                      try ignore (Str.search_forward re w.nw_message 0); true
+                                      with Not_found -> false
+                                    ) warnings
+                                | None, None -> true
+                              in
+                              if matches then VExpect Expect_pass
+                              else
+                                let kinds = warnings
+                                              |> List.map (fun w -> w.nw_kind)
+                                              |> List.sort_uniq String.compare
+                                              |> String.concat ", "
+                                in
+                                let msg =
+                                  match kind_opt, message_opt with
+                                  | Some k, Some p ->
+                                      Printf.sprintf
+                                        "No warning of kind `%s` matching message pattern `%s` found. Available warning kinds: [%s]"
+                                        k p kinds
+                                  | Some k, None ->
+                                      Printf.sprintf
+                                        "No warning of kind `%s` found. Available warning kinds: [%s]"
+                                        k kinds
+                                  | None, Some p ->
+                                      Printf.sprintf
+                                        "No warning matching message pattern `%s` found. Available warning kinds: [%s]"
+                                        p kinds
+                                  | None, None ->
+                                      Printf.sprintf
+                                        "No matching warning found on node. Available warning kinds: [%s]"
+                                        kinds
+                                in
+                                VExpect (Expect_stop msg))
+                    | _ ->
                         Error.type_error
                           (Printf.sprintf
                              "Function `expect_warning` expects a NodeResult or ComputedNode, got %s."
-                             (Utils.type_name v))
-                      else
-                        (match get_warnings v with
-                         | None ->
-                             VExpect (Expect_stop "No warnings found on this node")
-                         | Some warnings ->
-                             let matches =
-                               match kind_opt, re_opt with
-                               | Some kind, Some re ->
-                                   List.exists (fun w ->
-                                     w.nw_kind = kind &&
-                                     (try ignore (Str.search_forward re w.nw_message 0); true
-                                      with Not_found -> false)
-                                   ) warnings
-                               | Some kind, None ->
-                                   List.exists (fun w -> w.nw_kind = kind) warnings
-                               | None, Some re ->
-                                   List.exists (fun w ->
-                                     try ignore (Str.search_forward re w.nw_message 0); true
-                                     with Not_found -> false
-                                   ) warnings
-                               | None, None -> true
-                             in
-                             if matches then VExpect Expect_pass
-                             else
-                               let kinds = warnings
-                                             |> List.map (fun w -> w.nw_kind)
-                                             |> List.sort_uniq String.compare
-                                             |> String.concat ", "
-                               in
-                               let msg =
-                                 match kind_opt, message_opt with
-                                 | Some k, Some p ->
-                                     Printf.sprintf
-                                       "No warning of kind `%s` matching message pattern `%s` found. Available warning kinds: [%s]"
-                                       k p kinds
-                                 | Some k, None ->
-                                     Printf.sprintf
-                                       "No warning of kind `%s` found. Available warning kinds: [%s]"
-                                       k kinds
-                                 | None, Some p ->
-                                     Printf.sprintf
-                                       "No warning matching message pattern `%s` found. Available warning kinds: [%s]"
-                                       p kinds
-                                 | None, None ->
-                                     Printf.sprintf
-                                       "No matching warning found on node. Available warning kinds: [%s]"
-                                       kinds
-                               in
-                                VExpect (Expect_stop msg)))
+                             (Utils.type_name v)))
              | args -> Error.arity_error_named "expect_warning" 1 (List.length args)))
       env
   in
