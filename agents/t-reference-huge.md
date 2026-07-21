@@ -1590,6 +1590,7 @@ Package-oriented guide to T's standard library.
 - [Lens Package](#lens-package) — Composable access and update lenses
 - [Pipeline Package](#pipeline-package) — Pipeline introspection
 - [Explain Package](#explain-package) — Introspection and debugging tools
+- [Testcraft Package](#testcraft-package) — Unit-testing primitives
 
 ---
 
@@ -5459,6 +5460,434 @@ intent_get(i, "description")  -- "Customer analysis"
 
 ---
 
+## Testcraft Package
+
+Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons return an `Expect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg`) rather than raising directly, so results can be inspected, combined, or passed straight to `assert()`.
+
+### `expect_equal(actual, expected, tolerance = 1e-9)`
+
+Compare `actual` against `expected`, returning an `Expect` value.
+
+**Parameters:**
+
+- `actual` — The computed value to check
+- `expected` — The value `actual` is expected to equal
+- `tolerance` (optional, named) — Absolute tolerance used for Float comparisons (default `1e-9`)
+
+**Returns:**
+
+An `Expect` value: `Expect_pass` (values matched), `Expect_stop` (values differed), or `Expect_hold` (comparison involved NA)
+
+**Comparison rules:**
+
+- `Error` arguments always stop: `` `actual`/`expected` is an error: ... ``
+- `NA` arguments always hold: `` `actual` is NA, cannot compare `actual` != `expected` ``
+- `Int`/`Float` are compared with tolerance (cross-numeric promotes to `Float`); `Bool`, `String`, `Date`, `Datetime` compare directly
+- `Factor` compares against a `String` or another `Factor` by resolved level
+- `DataFrame`, `Vector`, `List`, and `Dict` are compared element-wise (Dict comparison is order-insensitive), reporting the location of the first difference (column/row, index, label, or key)
+- Mismatched types always stop: `` `actual` (Int) != `expected` (String) ``
+
+**Examples:**
+```t
+expect_equal(1, 1)                              -- Expect_pass
+expect_equal(1, 2)                               -- Expect_stop("`1` != `2`")
+expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9)   -- Expect_pass
+expect_equal(NA, 1)                              -- Expect_hold
+assert(expect_equal(1, 1))                       -- true
+assert(expect_equal(1, 2))                       -- Error(AssertionError: `1` != `2`.)
+```
+
+---
+
+### `expect_pass(x)`
+
+Check whether an `Expect` value passed.
+
+**Parameters:**
+
+- `x` — An `Expect` value
+
+**Returns:**
+
+`true` if `x` is `Expect_pass`, `false` otherwise
+
+**Examples:**
+```t
+expect_pass(expect_equal(1, 1))   -- true
+expect_pass(expect_equal(1, 2))   -- false
+```
+
+---
+
+### `expect_fail(x)`
+
+Check whether an `Expect` value failed (stopped or held).
+
+**Parameters:**
+
+- `x` — An `Expect` value
+
+**Returns:**
+
+`true` if `x` is `Expect_stop` or `Expect_hold`, `false` otherwise
+
+**Examples:**
+```t
+expect_fail(expect_equal(1, 2))   -- true
+expect_fail(expect_equal(1, 1))   -- false
+```
+
+---
+
+### `expect_msg(x)`
+
+Get the diagnostic message from a failing `Expect` value.
+
+**Parameters:**
+
+- `x` — An `Expect` value
+
+**Returns:**
+
+The `Stop`/`Hold` message (String), or an error if `x` is `Expect_pass`
+
+**Examples:**
+```t
+expect_msg(expect_equal(1, 2))   -- "`1` != `2`"
+```
+
+---
+
+### `expect_lt(a, b)`
+
+Pass if `a < b` (numeric only).
+
+**Parameters:**
+- `a`, `b` — Numeric values (Int or Float)
+
+**Returns:**
+An `Expect` value, `Expect_hold` on NA/Error, `Expect_stop` if not strictly less.
+
+**Examples:**
+```t
+assert(expect_lt(1, 2))
+assert(expect_lt(1.5, 2.5))
+```
+
+---
+
+### `expect_lte(a, b)`
+
+Pass if `a <= b` (numeric only).
+
+### `expect_gt(a, b)`
+
+Pass if `a > b` (numeric only).
+
+### `expect_gte(a, b)`
+
+Pass if `a >= b` (numeric only).
+
+---
+
+### `expect_true(x)`
+
+Pass only if `x` is `VBool true`. For a looser truthiness check, use `expect_truthy`.
+
+**Parameters:**
+- `x` — Value to check
+
+**Returns:**
+`Expect_pass` only when `x` is `VBool true`; `Expect_hold` on NA; `Expect_stop` otherwise.
+
+**Examples:**
+```t
+assert(expect_true(true))
+```
+
+---
+
+### `expect_false(x)`
+
+Pass only if `x` is `VBool false`. For a looser falsiness check, use `expect_falsy`.
+
+---
+
+### `expect_truthy(x)`
+
+Pass if `x` is truthy per `is_truthy` (`1`, `"a"`, non-empty containers, etc.).
+
+---
+
+### `expect_falsy(x)`
+
+Pass if `x` is falsy (`0`, `false`, `VNullNode`, etc.). NA still holds.
+
+---
+
+### `expect_type(x, type_name)`
+
+Pass if `type_name(x)` matches the given `type_name` string.
+
+**Parameters:**
+- `x` — Value to inspect
+- `type_name` (String) — Expected type name (e.g. `"Int"`, `"String"`, `"DataFrame"`)
+
+**Examples:**
+```t
+assert(expect_type(42, "Int"))
+assert(expect_type("hello", "String"))
+```
+
+---
+
+### `expect_error(expr, class = "", message = "")`
+
+Pass if `expr` is a `VError`. Optionally filter by error class or message pattern.
+
+**Parameters:**
+- `expr` — Any value (typically the result of calling `error(...)`)
+- `class` (optional, named) — Expected error code string (e.g. `"TypeError"`, `"RuntimeError"`)
+- `message` (optional, named) — Regex pattern to match against the error message
+
+**Returns:**
+`Expect_pass` if all checks pass; `Expect_stop` describing what didn't match.
+
+**Examples:**
+```t
+assert(expect_error(error("boom")))
+assert(expect_error(error("boom"), class = "RuntimeError"))
+assert(expect_error(error("invalid"), message = "invalid"))
+```
+
+---
+
+### `expect_length(x, n)`
+
+Pass if the length/size/row-count of `x` equals `n`.
+
+**Parameters:**
+- `x` — A container (Vector, List, String, DataFrame, Dict)
+- `n` (Int) — Expected length
+
+**Examples:**
+```t
+assert(expect_length(1:5, 5))
+assert(expect_length("hello", 5))
+```
+
+---
+
+### `expect_nrow(df, n)`
+
+Pass if DataFrame has exactly `n` rows.
+
+**Parameters:**
+- `df` — A DataFrame
+- `n` (Int) — Expected row count
+
+**Examples:**
+```t
+assert(expect_nrow(to_dataframe(col1 = 1:3), 3))
+```
+
+---
+
+### `expect_ncol(df, n)`
+
+Pass if DataFrame has exactly `n` columns.
+
+**Examples:**
+```t
+assert(expect_ncol(to_dataframe(col1 = 1:3, col2 = 4:6), 2))
+```
+
+---
+
+### `expect_colnames(df, names)`
+
+Pass if DataFrame column names match the given list of strings exactly (order-sensitive).
+
+**Parameters:**
+- `df` — A DataFrame
+- `names` — List or Vector of Strings
+
+**Examples:**
+```t
+assert(expect_colnames(to_dataframe(col1 = 1:3, col2 = 4:6), ["col1", "col2"]))
+```
+
+---
+
+### `expect_fields(x, names)`
+
+Pass if a Dict's keys or a named List's labels match the given list of strings exactly.
+
+**Parameters:**
+- `x` — A Dict or named List
+- `names` — List or Vector of Strings
+
+**Examples:**
+```t
+assert(expect_fields({"a": 1, "b": 2}, ["a", "b"]))
+```
+
+---
+
+### `expect_in(x, values, tolerance = 1e-9)`
+
+Pass if `x` (or every element of a Vector or List `x`) is present in `values`. Checks each element of collections individually.
+
+**Parameters:**
+- `x` — A scalar value, Vector, or List to look for
+- `values` — A Vector or List of values to search in
+- `tolerance` (optional, named) — Absolute tolerance used for Float comparisons (default `1e-9`)
+
+**Examples:**
+```t
+assert(expect_in(3, 1:5))
+assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
+```
+
+### `expect_warning(node, kind = "", message = "")`
+
+Pass if the given pipeline node produced at least one warning during execution.
+Optionally filter by warning `kind` string (exact match) or `message` regex pattern.
+
+**Parameters:**
+- `node` — A `NodeResult` or `ComputedNode` value (obtained from `read_node()` or a pipeline result)
+- `kind` (optional, named) — Exact warning kind to match (e.g. `"NAExcluded"`)
+- `message` (optional, named) — Regex pattern to match against the warning message
+
+**Examples:**
+```t
+assert(expect_warning(read_node(p.my_node)))
+assert(expect_warning(read_node(p.my_node), kind = "NAExcluded"))
+assert(expect_warning(read_node(p.my_node), message = "excluded"))
+```
+
+### `expect_pipeline(x)`
+
+Pass if the given value `x` is a `Pipeline` value.
+
+**Parameters:**
+- `x` — The value to inspect.
+
+**Examples:**
+```t
+assert(expect_pipeline(p))
+```
+
+### `expect_nodes(p, expected_names)`
+
+Pass if the pipeline contains exactly the expected node names (including dynamic branch nodes).
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `expected_names` — List or Vector of expected node names.
+
+**Examples:**
+```t
+assert(expect_nodes(p, ["load", "clean", "model"]))
+```
+
+### `expect_dependency(p, from_node, to_node)`
+
+Pass if `to_node` directly or transitively depends on `from_node` in the pipeline DAG.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `from_node` — The upstream node name (String).
+- `to_node` — The downstream node name (String).
+
+**Examples:**
+```t
+assert(expect_dependency(p, "load", "model"))
+```
+
+### `expect_has_pattern(p, node_name)`
+
+Pass if `node_name` is defined with a dynamic branching pattern (e.g. mapping or crossing).
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name to inspect.
+
+**Examples:**
+```t
+assert(expect_has_pattern(p, "train_model"))
+```
+
+### `expect_runtime(p, node_name, expected)`
+
+Pass if `node_name` runtime matches the expected runtime name (e.g. `"R"`, `"Python"`, `"T"`, `"sh"`).
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected` — Expected runtime (String).
+
+**Examples:**
+```t
+assert(expect_runtime(p, "model", "Python"))
+```
+
+### `expect_serializer(p, node_name, expected)`
+
+Pass if `node_name` serializer matches the expected serializer.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected` — Expected serializer (String or Symbol, e.g. `^arrow`, `^csv`).
+
+**Examples:**
+```t
+assert(expect_serializer(p, "data", ^csv))
+```
+
+### `expect_deserializer(p, node_name, expected)`
+
+Pass if `node_name` deserializer matches the expected deserializer.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected` — Expected deserializer (String or Symbol).
+
+**Examples:**
+```t
+assert(expect_deserializer(p, "model", ^onnx))
+```
+
+### `expect_noop(p, node_name, expected_noop)`
+
+Pass if `node_name` noop flag matches the expected boolean value.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected_noop` — Expected noop boolean value.
+
+**Examples:**
+```t
+assert(expect_noop(p, "heavy_job", true))
+```
+
+### `expect_computed(node)`
+
+Pass if the node is computed and has a finished value.
+
+**Parameters:**
+- `node` — A `ComputedNode` or `NodeResult` to check.
+
+**Examples:**
+```t
+assert(expect_computed(res.heavy_job))
+```
+
+---
+
 ## Operators
 
 ### Arithmetic
@@ -5551,6 +5980,7 @@ Standard operators can be broadcasted over lists/vectors by prefixing with `.`.
 | `Intent` | `intent { ... }` | LLM metadata block |
 | `Pipeline` | `pipeline { ... }` | DAG computation graph |
 | `Formula` | `y ~ x` | Statistical model specification |
+| `Expect` | `expect_equal(a, b)` | Result of a testcraft comparison (pass/stop/hold) |
 
 ---
 
@@ -18465,6 +18895,30 @@ Run all tests with:
 $ t test
 ```
 
+### Skipping Pipeline Tests Conditionally
+
+Since pipeline nodes are compiled and executed via Nix, tests that build or run pipelines might fail or block in sandboxed environments or systems lacking Nix. You can conditionally skip the execution of specific pipeline nodes using the `noop` parameter with any T expression.
+
+Because `noop` accepts T expressions (evaluated at runtime), you can pass conditions referencing environment variables:
+
+```t
+import my_package
+
+p = pipeline {
+  heavy_node = node(
+    command = <{ run_heavy_nix_job() }>,
+    # Skip execution if not running in CI
+    noop = (env_var("CI") == "")
+  )
+}
+
+res = build_pipeline(p)
+
+# Because errors are first-class values in T, skipped nodes propagate VError values cleanly.
+# You can check if the node was skipped using expect_error or custom checks:
+assert(expect_error(read_node(res.heavy_node), class = "TypeError", message = "was skipped"))
+```
+
 ## 5. Documentation
 
 T packages use **T-Doc**, a comment-based documentation system. Documentation lives in source files close to the code and is generated into Markdown.
@@ -20516,6 +20970,30 @@ Run them with:
 
 ```bash
 $ t test
+```
+
+### Skipping Pipeline Tests Conditionally
+
+Since pipeline nodes are compiled and executed via Nix, tests that build or run pipelines might fail or block in sandboxed environments or systems lacking Nix. You can conditionally skip the execution of specific pipeline nodes using the `noop` parameter with any T expression.
+
+Because `noop` accepts T expressions (evaluated at runtime), you can pass conditions referencing environment variables:
+
+```t
+import my_project
+
+p = pipeline {
+  heavy_node = node(
+    command = <{ run_heavy_nix_job() }>,
+    # Skip execution if not running in CI
+    noop = (env_var("CI") == "")
+  )
+}
+
+res = build_pipeline(p)
+
+# Because errors are first-class values in T, skipped nodes propagate VError values cleanly.
+# You can check if the node was skipped using expect_error or custom checks:
+assert(expect_error(read_node(res.heavy_node), class = "TypeError", message = "was skipped"))
 ```
 
 ## 7. Reproducibility
@@ -22726,6 +23204,25 @@ Returns the nodes that appear in the first pipeline but not the second.
 
 
 
+# FILE: docs/reference/diff_summary.md
+
+# diff_summary
+
+Summarize Output Changes Across Builds
+
+Compares the two most recent builds of a pipeline and returns a DataFrame summarizing which nodes changed, were added, or were removed.  Uses per-node Nix content hashes stored in build logs to detect changes without loading artifacts. Only loads artifacts for nodes that actually changed.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to compare builds for.
+
+
+## Returns
+
+A summary with columns: name, status, hash_a, hash_b.
+
+
+
 # FILE: docs/reference/dir_exists.md
 
 # dir_exists
@@ -23173,6 +23670,915 @@ A Pipeline with branches in place of patterned nodes. `p_has_patterns` is set to
 ## See Also
 
 [pipeline_nodes](pipeline_nodes.html), [populate_pipeline](populate_pipeline.html), [build_pipeline](build_pipeline.html)
+
+
+# FILE: docs/reference/expect_colnames.md
+
+# expect_colnames
+
+DataFrame column names assertion
+
+Passes if the DataFrame column names match the given list of strings exactly (order-sensitive).
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to check.
+
+- **names** (`List`): | Vector A list or vector of expected column name strings.
+
+
+## Returns
+
+`Expect_pass` when names match; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_colnames(to_dataframe([x: [1], y = [2]]), ["x", "y"]))
+```
+
+## See Also
+
+[expect_fields](expect_fields.html), [expect_ncol](expect_ncol.html), [expect_nrow](expect_nrow.html)
+
+
+
+# FILE: docs/reference/expect_computed.md
+
+# expect_computed
+
+Computed node assertion
+
+Passes if the node is computed and has a finished value.
+
+## Parameters
+
+- **node** (`ComputedNode`): | NodeResult The node to check.
+
+
+## Returns
+
+`Expect_pass` if computed; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_computed(res.heavy_job))
+```
+
+
+
+# FILE: docs/reference/expect_dependency.md
+
+# expect_dependency
+
+Node dependency assertion
+
+Passes if `to_node` directly or transitively depends on `from_node` in the pipeline DAG.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **from_node** (`String`): The upstream node name.
+
+- **to_node** (`String`): The downstream node name.
+
+
+## Returns
+
+`Expect_pass` if dependency exists; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_dependency(p, "load", "model"))
+```
+
+
+
+# FILE: docs/reference/expect_deserializer.md
+
+# expect_deserializer
+
+Node deserializer assertion
+
+Passes if `node_name` deserializer matches the expected deserializer.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **node_name** (`String`): The node name.
+
+- **expected** (`String`): | Symbol The expected deserializer.
+
+
+## Returns
+
+`Expect_pass` if matches; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_deserializer(p, "model", ^onnx))
+```
+
+
+
+# FILE: docs/reference/expect_equal.md
+
+# expect_equal
+
+Compare two values for testing
+
+Compares `actual` against `expected` and returns a testcraft Expect value (`Expect_pass`, `Expect_stop`, or `Expect_hold`) describing the outcome. Designed to be used with `assert()`: `assert(expect_equal(a, b))`.
+
+## Parameters
+
+- **actual** (`Any`): The computed value to check.
+
+- **expected** (`Any`): The value `actual` is expected to equal.
+
+- **tolerance** (`Float`): = 1e-9 Absolute tolerance used for Float comparisons.
+
+
+## Returns
+
+A `VExpect` value: passing, stopping, or holding (on NA).
+
+## Examples
+
+```t
+expect_equal(1, 1)
+assert(expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9))
+```
+
+## See Also
+
+[assert](assert.html), [expect_msg](expect_msg.html), [expect_fail](expect_fail.html), [expect_pass](expect_pass.html)
+
+
+
+# FILE: docs/reference/expect_error.md
+
+# expect_error
+
+Error assertion with optional class and message filtering
+
+Passes if `expr` is a `VError`. Optionally verifies the error class string and/or applies a regex pattern match against the error message.
+
+## Parameters
+
+- **expr** (`Any`): The value to check (typically the result of an expression that may error).
+
+- **class** (`String`): = "" Optional error class to match (e.g. `"TypeError"`, `"RuntimeError"`).
+
+- **message** (`String`): = "" Optional regex pattern to match against the error message.
+
+
+## Returns
+
+`Expect_pass` when all checks pass; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_error(error("boom")))
+assert(expect_error(error("boom"), class = "GenericError"))
+assert(expect_error(error("invalid value"), message = "invalid"))
+```
+
+## See Also
+
+[expect_true](expect_true.html), [expect_type](expect_type.html)
+
+
+
+# FILE: docs/reference/expect_fail.md
+
+# expect_fail
+
+Check whether an Expect value failed
+
+Returns `true` if `x` is a `VExpect Expect_stop` or `VExpect Expect_hold` value (i.e. an `expect_*` comparison that did not pass). Useful for explicit checks alongside `assert()`.
+
+## Parameters
+
+- **x** (`Expect`): The Expect value to inspect.
+
+
+## Returns
+
+True if `x` is a stopping or holding Expect value.
+
+## Examples
+
+```t
+assert(expect_fail(expect_equal(1, 2)))
+```
+
+## See Also
+
+[expect_msg](expect_msg.html), [expect_pass](expect_pass.html), [expect_equal](expect_equal.html)
+
+
+
+# FILE: docs/reference/expect_false.md
+
+# expect_false
+
+Strict boolean false assertion
+
+Passes only if `x` is `VBool false`. For a looser falsiness check, use `expect_falsy` instead.
+
+## Parameters
+
+- **x** (`Any`): The value to check.
+
+
+## Returns
+
+`Expect_pass` only when `x` is `false`; `Expect_hold` on NA; `Expect_stop` on errors or non-false values.
+
+## Examples
+
+```t
+assert(expect_false(false))
+assert(expect_false(2 < 1))
+```
+
+## See Also
+
+[expect_falsy](expect_falsy.html), [expect_truthy](expect_truthy.html), [expect_true](expect_true.html)
+
+
+
+# FILE: docs/reference/expect_falsy.md
+
+# expect_falsy
+
+Loose falsiness assertion
+
+Passes if `x` is falsy per `is_truthy` (`0`, `false`, `VNullNode`, empty containers, etc.). NA produces `Expect_hold`.
+
+## Parameters
+
+- **x** (`Any`): The value to check.
+
+
+## Returns
+
+`Expect_pass` when `x` is falsy; `Expect_hold` on NA; `Expect_stop` on errors or truthy values.
+
+## Examples
+
+```t
+assert(expect_falsy(0))
+assert(expect_falsy(false))
+```
+
+## See Also
+
+[expect_truthy](expect_truthy.html), [expect_false](expect_false.html), [expect_true](expect_true.html)
+
+
+
+# FILE: docs/reference/expect_fields.md
+
+# expect_fields
+
+Dict key / named List label assertion
+
+Passes if a Dict's keys or a named List's labels match the given list of strings exactly (order-sensitive).
+
+## Parameters
+
+- **x** (`Dict`): | List The Dict or named List to inspect.
+
+- **names** (`List`): | Vector A list or vector of expected field name strings.
+
+
+## Returns
+
+`Expect_pass` when fields match; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_fields([a: 1, b = 2], ["a", "b"]))
+```
+
+## See Also
+
+[expect_in](expect_in.html), [expect_colnames](expect_colnames.html)
+
+
+
+# FILE: docs/reference/expect_gte.md
+
+# expect_gte
+
+Numeric greater-than-or-equal assertion
+
+Passes if `a >= b` for numeric arguments (Int or Float).
+
+## Parameters
+
+- **a** (`Int`): | Float The left-hand numeric value.
+
+- **b** (`Int`): | Float The right-hand numeric value.
+
+
+## Returns
+
+`Expect_pass` when `a >= b`, `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_gte(2, 1))
+assert(expect_gte(1, 1))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_gt](expect_gt.html), [expect_lte](expect_lte.html), [expect_lt](expect_lt.html)
+
+
+
+# FILE: docs/reference/expect_gt.md
+
+# expect_gt
+
+Numeric greater-than assertion
+
+Passes if `a > b` for numeric arguments (Int or Float).
+
+## Parameters
+
+- **a** (`Int`): | Float The left-hand numeric value.
+
+- **b** (`Int`): | Float The right-hand numeric value.
+
+
+## Returns
+
+`Expect_pass` when `a > b`, `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_gt(2, 1))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_gte](expect_gte.html), [expect_lte](expect_lte.html), [expect_lt](expect_lt.html)
+
+
+
+# FILE: docs/reference/expect_has_pattern.md
+
+# expect_has_pattern
+
+Node dynamic branching pattern assertion
+
+Passes if `node_name` is defined with a dynamic branching pattern (e.g. mapping or crossing).
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **node_name** (`String`): The node name to inspect.
+
+
+## Returns
+
+`Expect_pass` if pattern exists; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_has_pattern(p, "train_model"))
+```
+
+
+
+# FILE: docs/reference/expect_in.md
+
+# expect_in
+
+Set membership assertion
+
+Passes if `x` (or every element of a Vector/List `x`) is present in `values`. Checks each element of collections individually.
+
+## Parameters
+
+- **x** (`Any`): A scalar value, Vector, or List to look for.
+
+- **values** (`Vector`): | List The haystack collection to search in.
+
+- **tolerance** (`Float`): = 1e-9 Absolute tolerance used for Float comparisons.
+
+
+## Returns
+
+`Expect_pass` when all elements are found; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_in(3, [1, 2, 3, 4, 5]))
+assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_fields](expect_fields.html)
+
+
+
+# FILE: docs/reference/expect_length.md
+
+# expect_length
+
+Container length assertion
+
+Passes if the length/size/row-count of `x` equals `n`. Supports Vector, List, String, DataFrame (row count), and Dict (entry count).
+
+## Parameters
+
+- **x** (`Vector`): | List | String | DataFrame | Dict The container to measure.
+
+- **n** (`Int`): Expected length.
+
+
+## Returns
+
+`Expect_pass` when length matches; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_length([1, 2, 3], 3))
+assert(expect_length("hello", 5))
+```
+
+## See Also
+
+[expect_ncol](expect_ncol.html), [expect_nrow](expect_nrow.html)
+
+
+
+# FILE: docs/reference/expect_lte.md
+
+# expect_lte
+
+Numeric less-than-or-equal assertion
+
+Passes if `a <= b` for numeric arguments (Int or Float).
+
+## Parameters
+
+- **a** (`Int`): | Float The left-hand numeric value.
+
+- **b** (`Int`): | Float The right-hand numeric value.
+
+
+## Returns
+
+`Expect_pass` when `a <= b`, `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_lte(1, 1))
+assert(expect_lte(1, 2))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_gte](expect_gte.html), [expect_gt](expect_gt.html), [expect_lt](expect_lt.html)
+
+
+
+# FILE: docs/reference/expect_lt.md
+
+# expect_lt
+
+Numeric less-than assertion
+
+Passes if `a < b` for numeric arguments (Int or Float). Returns `Expect_hold` when either argument is NA; `Expect_stop` on errors.
+
+## Parameters
+
+- **a** (`Int`): | Float The left-hand numeric value.
+
+- **b** (`Int`): | Float The right-hand numeric value.
+
+
+## Returns
+
+`Expect_pass` when `a < b`, `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_lt(1, 2))
+assert(expect_lt(1.5, 2.5))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_gte](expect_gte.html), [expect_gt](expect_gt.html), [expect_lte](expect_lte.html)
+
+
+
+# FILE: docs/reference/expect_msg.md
+
+# expect_msg
+
+Get the diagnostic message from a failing Expect value
+
+Returns the `Stop`/`Hold` message carried by a failing `VExpect` value. If `x` passed (`Expect_pass`), there is no message to extract and a `VError` is returned instead.
+
+## Parameters
+
+- **x** (`Expect`): The Expect value to inspect.
+
+
+## Returns
+
+The diagnostic message, or an error if `x` is not a failure.
+
+## Examples
+
+```t
+expect_msg(expect_equal(1, 2))
+```
+
+## See Also
+
+[expect_fail](expect_fail.html), [expect_pass](expect_pass.html), [expect_equal](expect_equal.html)
+
+
+
+# FILE: docs/reference/expect_ncol.md
+
+# expect_ncol
+
+DataFrame column count assertion
+
+Passes if the DataFrame has exactly `n` columns.
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to check.
+
+- **n** (`Int`): Expected column count.
+
+
+## Returns
+
+`Expect_pass` when column count matches; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_ncol(to_dataframe([x: [1], y = [2]]), 2))
+```
+
+## See Also
+
+[expect_length](expect_length.html), [expect_colnames](expect_colnames.html), [expect_nrow](expect_nrow.html)
+
+
+
+# FILE: docs/reference/expect_nodes.md
+
+# expect_nodes
+
+Pipeline nodes assertion
+
+Passes if a pipeline contains exactly the expected node names (including dynamic branch nodes).
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to check.
+
+- **expected_names** (`List`): | Vector Expected node names.
+
+
+## Returns
+
+`Expect_pass` if match; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_nodes(p, ["load", "clean", "model"]))
+```
+
+
+
+# FILE: docs/reference/expect_noop.md
+
+# expect_noop
+
+Node noop assertion
+
+Passes if `node_name` noop flag matches the expected value.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **node_name** (`String`): The node name.
+
+- **expected** (`Bool`): Expected noop value.
+
+
+## Returns
+
+`Expect_pass` if matches; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_noop(p, "heavy_job", true))
+```
+
+
+
+# FILE: docs/reference/expect_nrow.md
+
+# expect_nrow
+
+DataFrame row count assertion
+
+Passes if the DataFrame has exactly `n` rows.
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to check.
+
+- **n** (`Int`): Expected row count.
+
+
+## Returns
+
+`Expect_pass` when row count matches; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_nrow(to_dataframe([x: [1, 2, 3]]), 3))
+```
+
+## See Also
+
+[expect_length](expect_length.html), [expect_colnames](expect_colnames.html), [expect_ncol](expect_ncol.html)
+
+
+
+# FILE: docs/reference/expect_pass.md
+
+# expect_pass
+
+Check whether an Expect value passed
+
+Returns `true` if `x` is a `VExpect Expect_pass` value (i.e. an `expect_*` comparison that succeeded). Useful for explicit checks alongside `assert()`.
+
+## Parameters
+
+- **x** (`Expect`): The Expect value to inspect.
+
+
+## Returns
+
+True if `x` is a passing Expect value.
+
+## Examples
+
+```t
+assert(expect_pass(expect_equal(a, b)))
+```
+
+## See Also
+
+[expect_msg](expect_msg.html), [expect_fail](expect_fail.html), [expect_equal](expect_equal.html)
+
+
+
+# FILE: docs/reference/expect_pipeline.md
+
+# expect_pipeline
+
+Pipeline assertion
+
+Passes if `x` is a Pipeline value.
+
+## Parameters
+
+- **x** (`Any`): The value to check.
+
+
+## Returns
+
+`Expect_pass` if a Pipeline; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_pipeline(p))
+```
+
+
+
+# FILE: docs/reference/expect_runtime.md
+
+# expect_runtime
+
+Node runtime assertion
+
+Passes if `node_name` runtime matches the expected runtime.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **node_name** (`String`): The node name.
+
+- **expected** (`String`): The expected runtime name (e.g. "R", "Python").
+
+
+## Returns
+
+`Expect_pass` if matches; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_runtime(p, "model", "Python"))
+```
+
+
+
+# FILE: docs/reference/expect_serializer.md
+
+# expect_serializer
+
+Node serializer assertion
+
+Passes if `node_name` serializer matches the expected serializer.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **node_name** (`String`): The node name.
+
+- **expected** (`String`): | Symbol The expected serializer.
+
+
+## Returns
+
+`Expect_pass` if matches; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_serializer(p, "data", ^csv))
+```
+
+
+
+# FILE: docs/reference/expect_true.md
+
+# expect_true
+
+Strict boolean true assertion
+
+Passes only if `x` is `VBool true`. For a looser truthiness check, use `expect_truthy` instead.
+
+## Parameters
+
+- **x** (`Any`): The value to check.
+
+
+## Returns
+
+`Expect_pass` only when `x` is `true`; `Expect_hold` on NA; `Expect_stop` on errors or non-true values.
+
+## Examples
+
+```t
+assert(expect_true(true))
+assert(expect_true(1 < 2))
+```
+
+## See Also
+
+[expect_falsy](expect_falsy.html), [expect_truthy](expect_truthy.html), [expect_false](expect_false.html)
+
+
+
+# FILE: docs/reference/expect_truthy.md
+
+# expect_truthy
+
+Loose truthiness assertion
+
+Passes if `x` is truthy per `is_truthy` (non-zero numbers, non-empty strings, non-empty containers, etc.).
+
+## Parameters
+
+- **x** (`Any`): The value to check.
+
+
+## Returns
+
+`Expect_pass` when `x` is truthy; `Expect_hold` on NA; `Expect_stop` on errors or falsy values.
+
+## Examples
+
+```t
+assert(expect_truthy(42))
+assert(expect_truthy("hello"))
+```
+
+## See Also
+
+[expect_falsy](expect_falsy.html), [expect_false](expect_false.html), [expect_true](expect_true.html)
+
+
+
+# FILE: docs/reference/expect_type.md
+
+# expect_type
+
+Type name assertion
+
+Passes if the runtime type name of `x` matches the given string (e.g. `"Int"`, `"String"`, `"DataFrame"`).
+
+## Parameters
+
+- **x** (`Any`): The value to inspect.
+
+- **type_name** (`String`): Expected type name.
+
+
+## Returns
+
+`Expect_pass` when types match; `Expect_hold` on NA; `Expect_stop` on errors or type mismatch.
+
+## Examples
+
+```t
+assert(expect_type(42, "Int"))
+assert(expect_type("hello", "String"))
+```
+
+## See Also
+
+[expect_error](expect_error.html), [expect_true](expect_true.html)
+
+
+
+# FILE: docs/reference/expect_warning.md
+
+# expect_warning
+
+Assert that a pipeline node produced a warning diagnostic
+
+Passes if the node's diagnostics contain at least one warning. Optionally filters by warning `kind` string and/or regex on the warning `message`.  This only checks pipeline node warning diagnostics (stored in `nd_warnings` on `NodeResult`/`ComputedNode`). It does not capture runtime warnings or print output.  `ComputedNode` values must already have been evaluated (e.g. via `build_pipeline` or `run_pipeline`); otherwise the expectation fails.  The `message` pattern uses OCaml's standard `Str` regular expression syntax (not PCRE). Matching is substring-based (searches anywhere in the message). Empty string values for `kind` or `message` are treated as omitted filters (match any).
+
+## Parameters
+
+- **node** (`NodeResult`): | ComputedNode The computed node to inspect.
+
+- **kind** (`String`): = "" Optional warning kind to match exactly (e.g. "NAExcluded").
+
+- **message** (`String`): = "" Optional regex pattern to match against the warning message.
+
+
+## Returns
+
+Pass if warnings are present and match any provided filters.
+
+## Examples
+
+```t
+assert(expect_warning(read_node(p.my_node)))
+assert(expect_warning(read_node(p.my_node), kind = "NAExcluded"))
+assert(expect_warning(read_node(p.my_node), message = "excluded"))
+```
+
+## See Also
+
+[expect_error](expect_error.html)
+
 
 
 # FILE: docs/reference/explain_json.md
@@ -23638,6 +25044,42 @@ A factor vector with levels in reverse order.
 
 ```t
 fct_rev(fct)
+```
+
+
+
+# FILE: docs/reference/fetchurl.md
+
+# fetchurl
+
+Fetch a URL
+
+Downloads a file from a URL. In the REPL, wraps curl. In a pipeline, creates a node that uses Nix's builtins.fetchurl to fetch the asset into the Nix store, making it available downstream.
+
+## Parameters
+
+- **url** (`String`): The URL to download.
+
+- **sha256** (`String`): (Optional) Expected SHA-256 hash (required in pipeline mode).
+
+- **serializer** (`String`): (Optional) Serializer format for pipeline mode. Defaults to "bin". Use "text" for plain text files.
+
+- **output** (`String`): (Optional) Output file path (REPL mode only). Defaults to the basename of the URL.
+
+- **dest** (`String`): (Optional) Output directory (REPL mode only). Defaults to the current directory.
+
+
+## Returns
+
+| Node In REPL mode, returns the file path as a String. In pipeline mode, returns a Node value.
+
+## Examples
+
+```t
+data = fetchurl("https://example.com/data.csv", output = "data.csv")
+p = pipeline {
+data = fetchurl("https://example.com/data.csv", sha256 = "abc123...")
+}
 ```
 
 
@@ -27881,6 +29323,36 @@ Calculates predicted values for a model object. Standardized on JPMML as the sol
 
 
 
+# FILE: docs/reference/prefetch.md
+
+# prefetch
+
+Prefetch a URL and compute its SHA-256 hash
+
+Downloads a URL via nix-prefetch-url and returns its SHA-256 hash. The file is stored in the Nix store so that fetchurl in pipeline mode finds it cached and does not re-download.
+
+## Parameters
+
+- **url** (`String`): The URL to prefetch.
+
+
+## Returns
+
+The SHA-256 hash of the downloaded content.
+
+## Examples
+
+```t
+hash = prefetch("https://example.com/data.csv")
+print(hash)
+```
+
+## See Also
+
+[fetchurl](fetchurl.html)
+
+
+
 # FILE: docs/reference/pretty_print.md
 
 # pretty_print
@@ -30534,6 +32006,58 @@ Compute tangent (radians).
 
 
 
+# FILE: docs/reference/t_check.md
+
+# t_check
+
+Check a T Script for Errors
+
+Runs structural, wire-phase, schema, and environment checks on a T script. Returns the same diagnostics as the CLI `t check` command.
+
+## Parameters
+
+- **file** (`String`): The path to the .t file to check.
+
+- **json** (`Bool`): = false Output diagnostics as JSON.
+
+- **schema** (`Bool`): = false Enable column-level schema validation.
+
+- **env** (`Bool`): = false Enable tproject.toml environment checks.
+
+- **offline** (`Bool`): = false Prevent network access during env checks.
+
+
+## Returns
+
+The formatted diagnostics (text or JSON).
+
+
+
+# FILE: docs/reference/t_diff.md
+
+# t_diff
+
+Compare Two Builds of a Pipeline
+
+Compares two builds of a pipeline and returns a summary of which nodes changed, were added, or were removed. Uses per-node Nix content hashes.
+
+## Parameters
+
+- **file** (`String`): The path to the .t file to diff.
+
+- **json** (`Bool`): = false Output diff as JSON.
+
+- **log_a** (`Int`): = 2 Rank of the first (older) build log.
+
+- **log_b** (`Int`): = 1 Rank of the second (newer) build log.
+
+
+## Returns
+
+The formatted diff (text or JSON).
+
+
+
 # FILE: docs/reference/t_doc.md
 
 # t_doc
@@ -30557,6 +32081,27 @@ Documentation tools. Call with "parse" to extract docs from `src/`, or "generate
 t_doc("parse")
 t_doc("generate")
 ```
+
+
+
+# FILE: docs/reference/t_fix.md
+
+# t_fix
+
+Mechanically Apply Suggested Fixes
+
+Runs `t check --schema` on a file, extracts diagnostics with suggested_fix, and applies them (e.g., renaming columns, adding missing node arguments). Uses bottom-up line order to avoid line-number drift.
+
+## Parameters
+
+- **file** (`String`): The path to the .t file to fix.
+
+- **dry_run** (`Bool`): = false Show what would be fixed without modifying the file.
+
+
+## Returns
+
+Summary of fixes applied (or would be applied).
 
 
 

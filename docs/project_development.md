@@ -370,6 +370,30 @@ Run them with:
 $ t test
 ```
 
+### Skipping Pipeline Tests Conditionally
+
+Since pipeline nodes are compiled and executed via Nix, tests that build or run pipelines might fail or block in sandboxed environments or systems lacking Nix. You can conditionally skip the execution of specific pipeline nodes using the `noop` parameter with any T expression.
+
+Because `noop` accepts T expressions (evaluated at runtime), you can pass conditions referencing environment variables:
+
+```t
+import my_project
+
+p = pipeline {
+  heavy_node = node(
+    command = <{ run_heavy_nix_job() }>,
+    # Skip execution if not running in CI
+    noop = (env_var("CI") == "")
+  )
+}
+
+res = build_pipeline(p)
+
+# Because errors are first-class values in T, skipped nodes propagate VError values cleanly.
+# You can check if the node was skipped using expect_error or custom checks:
+assert(expect_error(read_node(res.heavy_node), class = "TypeError", message = "was skipped"))
+```
+
 ## 7. Reproducibility
 
 Your project is fully reproducible through Nix:

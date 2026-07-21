@@ -439,6 +439,30 @@ assert(result == 1.7)</code></pre>
 <p>Run them with:</p>
 <div class="sourceCode" id="cb30"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+<h3 id="skipping-pipeline-tests-conditionally">Skipping Pipeline Tests
+Conditionally</h3>
+<p>Since pipeline nodes are compiled and executed via Nix, tests that
+build or run pipelines might fail or block in sandboxed environments or
+systems lacking Nix. You can conditionally skip the execution of
+specific pipeline nodes using the <code>noop</code> parameter with any T
+expression.</p>
+<p>Because <code>noop</code> accepts T expressions (evaluated at
+runtime), you can pass conditions referencing environment variables:</p>
+<pre class="t"><code>import my_project
+
+p = pipeline {
+  heavy_node = node(
+    command = &lt;{ run_heavy_nix_job() }&gt;,
+    # Skip execution if not running in CI
+    noop = (env_var(&quot;CI&quot;) == &quot;&quot;)
+  )
+}
+
+res = build_pipeline(p)
+
+# Because errors are first-class values in T, skipped nodes propagate VError values cleanly.
+# You can check if the node was skipped using expect_error or custom checks:
+assert(expect_error(read_node(res.heavy_node), class = &quot;TypeError&quot;, message = &quot;was skipped&quot;))</code></pre>
 <h2 id="reproducibility">7. Reproducibility</h2>
 <p>Your project is fully reproducible through Nix:</p>
 <ul>
@@ -450,11 +474,11 @@ inputs</li>
 source of truth for dependencies</li>
 </ul>
 <p>Anyone can reproduce your environment:</p>
-<div class="sourceCode" id="cb31"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
-<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>The same T version, same package versions, same R packages, and same
 system libraries are used every time.</p>
 <h2 id="ide-support-autocompletion">8. IDE Support &amp;

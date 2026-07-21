@@ -531,6 +531,9 @@ Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` compari
 - Data frames: `expect_nrow(df, n)`, `expect_ncol(df, n)`, `expect_colnames(df, names)` — row/column/count/names checks.
 - Collections: `expect_fields(x, names)` — Dict keys or List labels; `expect_in(x, values)` — set membership.
 - Pipeline node diagnostics: `expect_warning(node, kind = "", message = "")` — passes if node produced a warning, optionally filtering by warning kind string or message regex.
+- Pipeline & DAG structure: `expect_pipeline(x)` — checks if `x` is a Pipeline; `expect_nodes(p, expected_names)` — checks all node names (including dynamic branch names); `expect_dependency(p, from, to)` — checks if `to` directly/transitively depends on `from` in the DAG; `expect_has_pattern(p, name)` — checks if node has a dynamic branching pattern (e.g. mapping/crossing).
+- Node & runtime configs: `expect_runtime(p, name, rt)` — checks node runtime; `expect_serializer(p, name, ser)` — checks node serializer format; `expect_deserializer(p, name, deser)` — checks node deserializer format; `expect_noop(p, name, bool)` — checks node noop flag.
+- Build state: `expect_computed(node)` — checks if node has been successfully built and evaluated.
 - Standard usage: `assert(expect_equal(a, b))` — passes silently on `Expect_pass`, raises `AssertionError` with the comparison's own diagnostic message otherwise.
 
 Disambiguation rule of thumb for LLMs:
