@@ -522,7 +522,7 @@ Note the overloaded names:
 
 Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons don't raise directly — they return a `VExpect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg` on NA) that is truthy/falsy and understood directly by `assert()`.
 
-- Comparison: `expect_equal(actual, expected, tolerance = 1e-9)` — compares scalars, Dates/Datetimes, Factors, DataFrames, Vectors, and Lists, reporting the location of the first difference for collections (e.g. which DataFrame column/row or Vector index).
+- Comparison: `expect_equal(actual, expected, tolerance = 1e-9)` — compares scalars, Dates/Datetimes, Factors, DataFrames, Vectors, Lists, and Dicts, reporting the location of the first difference for collections (e.g. which DataFrame column/row, Vector index, or Dict key).
 - Inspecting an Expect value: `expect_pass(x)`, `expect_fail(x)`, `expect_msg(x)`
 - Numeric relations: `expect_lt(a, b)`, `expect_lte(a, b)`, `expect_gt(a, b)`, `expect_gte(a, b)` — numeric-only comparisons.
 - Type/truth: `expect_true(x)`, `expect_false(x)` (strict VBool), `expect_truthy(x)`, `expect_falsy(x)` (loose `is_truthy`), `expect_type(x, t)` (type name match).

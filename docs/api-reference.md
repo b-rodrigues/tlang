@@ -3916,7 +3916,7 @@ An `Expect` value: `Expect_pass` (values matched), `Expect_stop` (values differe
 - `NA` arguments always hold: `` `actual` is NA, cannot compare `actual` != `expected` ``
 - `Int`/`Float` are compared with tolerance (cross-numeric promotes to `Float`); `Bool`, `String`, `Date`, `Datetime` compare directly
 - `Factor` compares against a `String` or another `Factor` by resolved level
-- `DataFrame`, `Vector`, and `List` are compared element-wise, reporting the location of the first difference (column/row, index, or label)
+- `DataFrame`, `Vector`, `List`, and `Dict` are compared element-wise (Dict comparison is order-insensitive), reporting the location of the first difference (column/row, index, label, or key)
 - Mismatched types always stop: `` `actual` (Int) != `expected` (String) ``
 
 **Examples:**
@@ -4166,17 +4166,19 @@ assert(expect_fields({"a": 1, "b": 2}, ["a", "b"]))
 
 ---
 
-### `expect_in(x, values)`
+### `expect_in(x, values, tolerance = 1e-9)`
 
-Pass if `x` (or every element of a Vector `x`) is present in `values`.
+Pass if `x` (or every element of a Vector or List `x`) is present in `values`. Checks each element of collections individually.
 
 **Parameters:**
-- `x` — A scalar value or Vector
-- `values` — A Vector of values to search in
+- `x` — A scalar value, Vector, or List to look for
+- `values` — A Vector or List of values to search in
+- `tolerance` (optional, named) — Absolute tolerance used for Float comparisons (default `1e-9`)
 
 **Examples:**
 ```t
 assert(expect_in(3, 1:5))
+assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
 ```
 
 ---
