@@ -64,6 +64,11 @@ the comparison's own diagnostic message.
 assert(expect_equal(1, 1))
 assert(expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9))
 
+-- inspecting expect values
+expect_pass(expect_equal(1, 1))     -- true
+expect_fail(expect_equal(1, 2))     -- true
+expect_msg(expect_equal(1, 2))      -- "`1` != `2`"
+
 -- relational
 assert(expect_lt(1, 2))
 assert(expect_gte(5, 5))
