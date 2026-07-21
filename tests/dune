@@ -49,7 +49,7 @@
     test_misc_coverage
     test_dataframe_diff test_model_diff test_scalar_diff test_generic_diff test_pipeline_diff test_builder_diff
     test_check test_fix test_ndjson
-    test_expect_equal test_expect_more test_expect_condition
+    test_expect_equal test_expect_more test_expect_condition test_expect_pipeline
   )
   (libraries t_lang menhirLib otoml unix str)
 )

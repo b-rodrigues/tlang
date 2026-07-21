@@ -3830,6 +3830,83 @@ named) — Regex pattern to match against the warning message</p>
 <pre class="t"><code>assert(expect_warning(read_node(p.my_node)))
 assert(expect_warning(read_node(p.my_node), kind = &quot;NAExcluded&quot;))
 assert(expect_warning(read_node(p.my_node), message = &quot;excluded&quot;))</code></pre>
+<h3 id="expect_pipelinex"><code>expect_pipeline(x)</code></h3>
+<p>Pass if the given value <code>x</code> is a <code>Pipeline</code>
+value.</p>
+<p><strong>Parameters:</strong> - <code>x</code> — The value to
+inspect.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_pipeline(p))</code></pre>
+<h3
+id="expect_nodesp-expected_names"><code>expect_nodes(p, expected_names)</code></h3>
+<p>Pass if the pipeline contains exactly the expected node names
+(including dynamic branch nodes).</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>expected_names</code> — List or Vector of expected node
+names.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_nodes(p, [&quot;load&quot;, &quot;clean&quot;, &quot;model&quot;]))</code></pre>
+<h3
+id="expect_dependencyp-from_node-to_node"><code>expect_dependency(p, from_node, to_node)</code></h3>
+<p>Pass if <code>to_node</code> directly or transitively depends on
+<code>from_node</code> in the pipeline DAG.</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>from_node</code> — The upstream node name (String). -
+<code>to_node</code> — The downstream node name (String).</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_dependency(p, &quot;load&quot;, &quot;model&quot;))</code></pre>
+<h3
+id="expect_has_patternp-node_name"><code>expect_has_pattern(p, node_name)</code></h3>
+<p>Pass if <code>node_name</code> is defined with a dynamic branching
+pattern (e.g. mapping or crossing).</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>node_name</code> — The node name to inspect.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_has_pattern(p, &quot;train_model&quot;))</code></pre>
+<h3
+id="expect_runtimep-node_name-expected"><code>expect_runtime(p, node_name, expected)</code></h3>
+<p>Pass if <code>node_name</code> runtime matches the expected runtime
+name (e.g. <code>"R"</code>, <code>"Python"</code>, <code>"T"</code>,
+<code>"sh"</code>).</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>node_name</code> — The node name. - <code>expected</code>
+— Expected runtime (String).</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_runtime(p, &quot;model&quot;, &quot;Python&quot;))</code></pre>
+<h3
+id="expect_serializerp-node_name-expected"><code>expect_serializer(p, node_name, expected)</code></h3>
+<p>Pass if <code>node_name</code> serializer matches the expected
+serializer.</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>node_name</code> — The node name. - <code>expected</code>
+— Expected serializer (String or Symbol, e.g. <code>^arrow</code>,
+<code>^csv</code>).</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_serializer(p, &quot;data&quot;, ^csv))</code></pre>
+<h3
+id="expect_deserializerp-node_name-expected"><code>expect_deserializer(p, node_name, expected)</code></h3>
+<p>Pass if <code>node_name</code> deserializer matches the expected
+deserializer.</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>node_name</code> — The node name. - <code>expected</code>
+— Expected deserializer (String or Symbol).</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_deserializer(p, &quot;model&quot;, ^onnx))</code></pre>
+<h3
+id="expect_noopp-node_name-expected_noop"><code>expect_noop(p, node_name, expected_noop)</code></h3>
+<p>Pass if <code>node_name</code> noop flag matches the expected boolean
+value.</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>node_name</code> — The node name. -
+<code>expected_noop</code> — Expected noop boolean value.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_noop(p, &quot;heavy_job&quot;, true))</code></pre>
+<h3 id="expect_computednode"><code>expect_computed(node)</code></h3>
+<p>Pass if the node is computed and has a finished value.</p>
+<p><strong>Parameters:</strong> - <code>node</code> — A
+<code>ComputedNode</code> or <code>NodeResult</code> to check.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_computed(res.heavy_job))</code></pre>
 <hr />
 <h2 id="operators">Operators</h2>
 <h3 id="arithmetic">Arithmetic</h3>

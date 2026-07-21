@@ -4198,6 +4198,126 @@ assert(expect_warning(read_node(p.my_node), kind = "NAExcluded"))
 assert(expect_warning(read_node(p.my_node), message = "excluded"))
 ```
 
+### `expect_pipeline(x)`
+
+Pass if the given value `x` is a `Pipeline` value.
+
+**Parameters:**
+- `x` — The value to inspect.
+
+**Examples:**
+```t
+assert(expect_pipeline(p))
+```
+
+### `expect_nodes(p, expected_names)`
+
+Pass if the pipeline contains exactly the expected node names (including dynamic branch nodes).
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `expected_names` — List or Vector of expected node names.
+
+**Examples:**
+```t
+assert(expect_nodes(p, ["load", "clean", "model"]))
+```
+
+### `expect_dependency(p, from_node, to_node)`
+
+Pass if `to_node` directly or transitively depends on `from_node` in the pipeline DAG.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `from_node` — The upstream node name (String).
+- `to_node` — The downstream node name (String).
+
+**Examples:**
+```t
+assert(expect_dependency(p, "load", "model"))
+```
+
+### `expect_has_pattern(p, node_name)`
+
+Pass if `node_name` is defined with a dynamic branching pattern (e.g. mapping or crossing).
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name to inspect.
+
+**Examples:**
+```t
+assert(expect_has_pattern(p, "train_model"))
+```
+
+### `expect_runtime(p, node_name, expected)`
+
+Pass if `node_name` runtime matches the expected runtime name (e.g. `"R"`, `"Python"`, `"T"`, `"sh"`).
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected` — Expected runtime (String).
+
+**Examples:**
+```t
+assert(expect_runtime(p, "model", "Python"))
+```
+
+### `expect_serializer(p, node_name, expected)`
+
+Pass if `node_name` serializer matches the expected serializer.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected` — Expected serializer (String or Symbol, e.g. `^arrow`, `^csv`).
+
+**Examples:**
+```t
+assert(expect_serializer(p, "data", ^csv))
+```
+
+### `expect_deserializer(p, node_name, expected)`
+
+Pass if `node_name` deserializer matches the expected deserializer.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected` — Expected deserializer (String or Symbol).
+
+**Examples:**
+```t
+assert(expect_deserializer(p, "model", ^onnx))
+```
+
+### `expect_noop(p, node_name, expected_noop)`
+
+Pass if `node_name` noop flag matches the expected boolean value.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected_noop` — Expected noop boolean value.
+
+**Examples:**
+```t
+assert(expect_noop(p, "heavy_job", true))
+```
+
+### `expect_computed(node)`
+
+Pass if the node is computed and has a finished value.
+
+**Parameters:**
+- `node` — A `ComputedNode` or `NodeResult` to check.
+
+**Examples:**
+```t
+assert(expect_computed(res.heavy_job))
+```
+
 ---
 
 ## Operators
