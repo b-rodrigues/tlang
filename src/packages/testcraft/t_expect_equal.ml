@@ -156,16 +156,6 @@ and compare_dataframes ~tolerance (df_a : dataframe) (df_b : dataframe) : expect
         in
         scan_columns cols_a
 
-(* Strip selected named arguments and return the remaining positional
-   values in their original order (mirrors Math_common.positional_args_without). *)
-let positional_args_without names named_args =
-  named_args
-  |> List.filter (fun (name, _) ->
-       match name with
-       | Some n -> not (List.mem n names)
-       | None -> true)
-  |> List.map snd
-
 (*
 --# Compare two values for testing
 --#
@@ -216,7 +206,8 @@ let register env =
                   | Some (_, VInt i) -> float_of_int i
                   | _ -> default_tolerance
                 in
-                (match positional_args_without [ "tolerance" ] named_args with
+                (match Math_common.positional_args_without [ "tolerance" ] named_args with
                  | [ actual; expected ] -> VExpect (compare_values ~tolerance actual expected)
                  | args -> Error.arity_error_named "expect_equal" 2 (List.length args)))))
     env
+

@@ -317,14 +317,9 @@ let register env =
                                  (Printf.sprintf "%s was not found in the given set" (fmt v))
                        in
                        VExpect (scan elems)
-                   | [v; VVector _ as haystack] ->
+                   | [v; (VVector _ | VList _) as haystack] ->
                        if haystack_mem ~tolerance v haystack then VExpect Expect_pass
                        else VExpect (Expect_stop (Printf.sprintf "%s was not found in the given set" (fmt v)))
-                   | [v; VList _ as haystack] ->
-                       if haystack_mem ~tolerance v haystack then VExpect Expect_pass
-                       else VExpect (Expect_stop (Printf.sprintf "%s was not found in the given set" (fmt v)))
-                   | [VVector _; other] -> haystack_second_arg_type other
-                   | [VList _; other] -> haystack_second_arg_type other
                    | [_; other] -> haystack_second_arg_type other
                    | args -> Error.arity_error_named "expect_in" 2 (List.length args)))))
       env
