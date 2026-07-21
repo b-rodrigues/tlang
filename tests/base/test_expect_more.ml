@@ -132,4 +132,14 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "expect_equal builtin"
     "expect_equal(map, map)" "STOP(Cannot compare functional values";
 
+  (* Dict recursive comparison *)
+  test "expect_equal dict pass (order-insensitive)"
+    "expect_equal([a: 1, b: 2], [b: 2, a: 1])" "PASS";
+  test "expect_equal dict value diff"
+    "expect_equal([a: 1, b: 2], [a: 1, b: 3])" "STOP(Dict: key `b` value differs";
+  test "expect_equal dict key mismatch"
+    "expect_equal([a: 1, b: 2], [a: 1, c: 2])" "STOP(Dict: key names differ";
+  test "expect_equal dict nested lambda crash-safety"
+    "expect_equal([a: \\(x) x], [a: \\(x) x])" "STOP(Dict: key `a` value differs: Cannot compare functional values";
+
   Printf.printf "\n"
