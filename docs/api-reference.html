@@ -3825,6 +3825,28 @@ exactly (order-sensitive).</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>assert(expect_colnames(to_dataframe(col1 = 1:3, col2 = 4:6), [&quot;col1&quot;, &quot;col2&quot;]))</code></pre>
 <hr />
+<h3
+id="expect_has_colnamesdata-names"><code>expect_has_colnames(data, names)</code></h3>
+<p>Pass if a DataFrame, Dict, or named List contains at least all of the
+expected column/field names. Order is not required, and additional
+columns are permitted.</p>
+<p><strong>Parameters:</strong> - <code>data</code> — A DataFrame, Dict,
+or named List - <code>names</code> — String, or List/Vector of
+Strings</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_has_colnames(df, [&quot;id&quot;, &quot;val&quot;]))
+assert(expect_has_colnames(df, &quot;id&quot;))</code></pre>
+<hr />
+<h3 id="expect_uniquex"><code>expect_unique(x)</code></h3>
+<p>Pass if all elements in a Vector, List, or DataFrame are distinct.
+Returns <code>Expect_stop</code> detailing the location of duplicate
+values if any are found.</p>
+<p><strong>Parameters:</strong> - <code>x</code> — A Vector, List, or
+DataFrame</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_unique([1, 2, 3, 4]))
+assert(expect_unique(df.$id))</code></pre>
+<hr />
 <h3 id="expect_fieldsx-names"><code>expect_fields(x, names)</code></h3>
 <p>Pass if a Dict’s keys or a named List’s labels match the given list
 of strings exactly.</p>

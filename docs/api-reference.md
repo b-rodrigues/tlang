@@ -4163,6 +4163,37 @@ assert(expect_colnames(to_dataframe(col1 = 1:3, col2 = 4:6), ["col1", "col2"]))
 
 ---
 
+### `expect_has_colnames(data, names)`
+
+Pass if a DataFrame, Dict, or named List contains at least all of the expected column/field names. Order is not required, and additional columns are permitted.
+
+**Parameters:**
+- `data` — A DataFrame, Dict, or named List
+- `names` — String, or List/Vector of Strings
+
+**Examples:**
+```t
+assert(expect_has_colnames(df, ["id", "val"]))
+assert(expect_has_colnames(df, "id"))
+```
+
+---
+
+### `expect_unique(x)`
+
+Pass if all elements in a Vector, List, or DataFrame are distinct. Returns `Expect_stop` detailing the location of duplicate values if any are found.
+
+**Parameters:**
+- `x` — A Vector, List, or DataFrame
+
+**Examples:**
+```t
+assert(expect_unique([1, 2, 3, 4]))
+assert(expect_unique(df.$id))
+```
+
+---
+
 ### `expect_fields(x, names)`
 
 Pass if a Dict's keys or a named List's labels match the given list of strings exactly.

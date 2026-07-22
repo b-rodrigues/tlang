@@ -226,7 +226,7 @@ let testcraft_package = {
                "expect_lt"; "expect_lte"; "expect_gt"; "expect_gte";
                "expect_true"; "expect_false"; "expect_truthy"; "expect_falsy";
                "expect_type"; "expect_error"; "expect_length";
-               "expect_nrow"; "expect_ncol"; "expect_colnames"; "expect_fields"; "expect_in";
+               "expect_nrow"; "expect_ncol"; "expect_colnames"; "expect_has_colnames"; "expect_unique"; "expect_fields"; "expect_in";
                "expect_warning"; "expect_pipeline"; "expect_nodes"; "expect_dependency";
                "expect_has_pattern"; "expect_runtime"; "expect_serializer"; "expect_deserializer";
                "expect_noop"; "expect_computed"];
