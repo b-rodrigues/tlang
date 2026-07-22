@@ -3844,39 +3844,14 @@ t test --only "stats" --not "anova"  # combine filters (OR semantics for --only)
 
 **`.tignore` support:**
 
-Create `tests/.tignore` to automatically exclude test files. One pattern per line, `#` comments, blank lines ignored. Patterns match against the relative path from `tests/`.
+Create `tests/.tignore` to automatically exclude test files. One pattern per line, `#` comments, blank lines ignored. Patterns match against the relative path from `tests/`. Directory patterns (e.g. `legacy/`) match at any depth, similar to `.gitignore` semantics.
 
 ```
 # tests/.tignore
 slow_integration.t      # exact filename
 *_benchmark.t           # glob pattern
-legacy/                 # entire directory
+legacy/                 # directory at any depth
 ```
-
-**JSON schema (when using `--json` or `--format json`):**
-
-```json
-{
-  "schema_version": "1",
-  "status": "passed|failed",
-  "total": N,
-  "passed": N,
-  "failed": N,
-  "duration_ms": N,
-  "results": [
-    {
-      "file": "tests/test_arithmetic.t",
-      "status": "passed",
-      "duration_ms": 120,
-      "error": null
-    }
-  ]
-}
-```
-
-All fields except `error` are present in every result object. `duration_ms` is an integer (milliseconds, rounded). `error` is `null` for passed tests, or a string containing the error message for failed tests.
-
-The `--json` flag produces clean JSON output with no preamble, making it safe for piping to `jq` or parsing with agent tooling. Note: `--verbose` combined with `--json` is a no-op — verbose per-test error printing is suppressed when JSON mode is active.
 
 **JUnit XML schema (when using `--format junit`):**
 

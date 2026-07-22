@@ -33,36 +33,36 @@ let relative_path (dir : string) (full_path : string) : string =
 (** Wildcard matching ('*' matches any substring) *)
 let glob_match pattern str =
   let parts = String.split_on_char '*' pattern in
-  let rec match_parts str_pos parts =
+  let len_str = String.length str in
+  let rec match_parts str_pos is_first parts =
     match parts with
     | [] -> true
     | [last] ->
         if last = "" then true
         else
           let len_last = String.length last in
-          let len_str = String.length str in
           len_str - str_pos >= len_last &&
           String.sub str (len_str - len_last) len_last = last
     | first :: rest ->
-        if str_pos = 0 && first <> "" then
+        if is_first && first <> "" then
           let len_first = String.length first in
-          if String.length str >= len_first && String.sub str 0 len_first = first then
-            match_parts len_first rest
-          else false
+          len_str >= len_first &&
+          String.sub str 0 len_first = first &&
+          match_parts len_first false rest
         else if first = "" then
-          match_parts str_pos rest
+          match_parts str_pos false rest
         else
           let len_first = String.length first in
           let rec search idx =
-            if idx + len_first > String.length str then None
+            if idx + len_first > len_str then None
             else if String.sub str idx len_first = first then Some idx
             else search (idx + 1)
           in
           match search str_pos with
-          | Some found_idx -> match_parts (found_idx + len_first) rest
+          | Some found_idx -> match_parts (found_idx + len_first) false rest
           | None -> false
   in
-  match_parts 0 parts
+  match_parts 0 true parts
 
 (** Check if relative path or filename matches an ignore pattern from .tignore *)
 let matches_ignore_pattern pat rel_path =
@@ -359,8 +359,7 @@ let suite_result_to_xml r =
         | None -> "Test failed"
       in
       Buffer.add_string buf (Printf.sprintf "    <testcase name=\"%s\" time=\"%s\">\n" name t_time);
-      Buffer.add_string buf (Printf.sprintf "      <failure message=\"%s\" type=\"TestFailure\">\n"
-        (xml_escape (match tr.error_msg with Some m -> m | None -> "Test failed")));
+      Buffer.add_string buf (Printf.sprintf "      <failure message=\"%s\" type=\"TestFailure\">\n" message);
       Buffer.add_string buf (Printf.sprintf "        %s\n" message);
       Buffer.add_string buf "      </failure>\n";
       Buffer.add_string buf "    </testcase>\n"

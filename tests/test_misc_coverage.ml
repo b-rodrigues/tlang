@@ -1104,4 +1104,21 @@ min_version = "0.51.0"
     (* Verify only test_valid.t is discovered *)
     List.length discovered = 1 && String.ends_with ~suffix:"test_valid.t" (List.hd discovered)
   );
+  test_case "glob_match handles multi-wildcard patterns correctly" (fun () ->
+    (* Pattern starting with * should allow any prefix *)
+    Test_discovery.glob_match "*abc*def" "xabcxdef"
+    (* Pattern with wildcards in the middle *)
+    && Test_discovery.glob_match "a*b*c" "axbxc"
+    (* Single wildcard still works *)
+    && Test_discovery.glob_match "*.t" "test_foo.t"
+    (* Trailing wildcard *)
+    && Test_discovery.glob_match "test_*" "test_foo.t"
+    (* Leading wildcard with multiple segments *)
+    && Test_discovery.glob_match "*_test_*_slow" "integration_test_unit_slow"
+    (* No wildcards - exact match *)
+    && Test_discovery.glob_match "test_foo.t" "test_foo.t"
+    && not (Test_discovery.glob_match "test_foo.t" "test_bar.t")
+    (* Multiple wildcards where match should fail *)
+    && not (Test_discovery.glob_match "*abc*def" "xabxdxf")
+  );
   print_newline ()
