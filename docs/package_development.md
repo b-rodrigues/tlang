@@ -142,6 +142,15 @@ $ t test --format junit
 # Run only specific tests:
 $ t test --only "stats"      # run tests matching "stats"
 $ t test --not "slow"        # skip tests matching "slow"
+
+# Stop on first failure:
+$ t test --failfast
+
+# List discovered tests without running:
+$ t test --list
+
+# Mark tests exceeding 30s as failed:
+$ t test --timeout 30
 ```
 
 Create `tests/.tignore` to automatically exclude test files (one pattern per line):
@@ -173,6 +182,10 @@ In the REPL, `t_test()` returns a DataFrame with test results:
 ```t
 results = t_test()
 results |> filter($status == "failed")
+
+-- Filter from the REPL
+results = t_test(only = ["arithmetic"])
+results = t_test(not = ["slow"])
 ```
 
 ### Why Use `expect_*` Functions with `assert()`?

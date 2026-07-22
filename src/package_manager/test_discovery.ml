@@ -386,7 +386,7 @@ let matches_any_pattern dir file patterns =
   List.exists (fun pat -> contains_substring rel_lower (String.lowercase_ascii pat)) patterns
 
 (** Run a full test suite: discover + execute all tests *)
-let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) (dir : string) : suite_result =
+let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) ?(failfast=false) ?(timeout=None) (dir : string) : suite_result =
   let test_dir = Filename.concat dir "tests" in
   if not (Sys.file_exists test_dir && Sys.is_directory test_dir) then begin
     if not quiet then Printf.printf "No tests/ directory found.\n";
@@ -413,8 +413,15 @@ let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) (dir : strin
         let start_total = Unix.gettimeofday () in
         if not quiet then Printf.printf "Running %d test file%s...\n\n"
           (List.length files) (if List.length files > 1 then "s" else "");
-        let results = List.map (fun file ->
+        let results = List.fold_left (fun acc file ->
           let r = run_test_file file in
+          let r = match timeout with
+            | Some secs when r.duration > secs ->
+                { r with success = false;
+                  error_msg = Some (Printf.sprintf "Timeout: exceeded %.0fs limit (%.2fs)"
+                    secs r.duration) }
+            | _ -> r
+          in
           let short_name = relative_path dir file in
           if not quiet then begin
             if r.success then
@@ -427,8 +434,12 @@ let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) (dir : strin
                 | None -> ()
             end
           end;
-          r
-        ) files in
+          if failfast && not r.success then
+            List.rev (r :: acc)
+          else
+            r :: acc
+        ) [] files in
+        let results = List.rev results in
         let total_duration = Unix.gettimeofday () -. start_total in
         let passed_results = List.filter (fun r -> r.success) results in
         let passed = List.length passed_results in
@@ -443,7 +454,6 @@ let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) (dir : strin
               failed (List.length results)
               (if List.length results > 1 then "s" else "")
               (format_duration total_duration);
-            (* Show failure details *)
             List.iter (fun r ->
               if not r.success then begin
                 Printf.printf "FAIL: %s\n" r.file;

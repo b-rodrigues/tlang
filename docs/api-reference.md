@@ -3808,6 +3808,12 @@ nrow(failed)  -- 0 if all tests passed
 
 -- Count passed tests
 results |> filter($status == "passed") |> nrow()
+
+-- Run only specific tests
+results = t_test(only = ["arithmetic", "strings"])
+
+-- Exclude slow tests
+results = t_test(not = ["slow"])
 ```
 
 ---
@@ -3824,6 +3830,9 @@ t test --json tests/          # specify project directory
 t test --only "stats"         # run only tests matching "stats"
 t test --not "slow"           # skip tests matching "slow"
 t test --only "stats" --not "anova"  # combine filters (OR semantics for --only)
+t test --failfast             # stop on first failure
+t test --list                 # list discovered tests without running
+t test --timeout 30           # mark tests exceeding 30s as failed
 ```
 
 **Output formats:**
@@ -3841,6 +3850,14 @@ t test --only "stats" --not "anova"  # combine filters (OR semantics for --only)
 |------|-------------|
 | `--only PATTERN` | Run only tests whose path contains PATTERN (case-insensitive). Multiple `--only` flags use OR semantics. |
 | `--not PATTERN` | Skip tests whose path contains PATTERN (case-insensitive). Multiple `--not` flags use OR semantics. |
+
+**Execution flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--failfast` | Stop running tests after the first failure. |
+| `--list` | List discovered test files without running them. Respects `--only` and `--not` filters. |
+| `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. |
 
 **`.tignore` support:**
 

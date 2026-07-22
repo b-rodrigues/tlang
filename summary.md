@@ -110,6 +110,15 @@ t test --format junit tests/
 t test --only "stats"     # run only tests matching "stats"
 t test --not "slow"       # skip tests matching "slow"
 
+# Stop on first failure:
+t test --failfast
+
+# List discovered tests without running:
+t test --list
+
+# Mark tests exceeding 30s as failed:
+t test --timeout 30
+
 # Exclude tests with tests/.tignore (one pattern per line)
 
 t doc --parse --generate

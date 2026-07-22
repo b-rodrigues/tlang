@@ -1051,20 +1051,41 @@ let cmd_test args =
   (match Cli_args.validate_path ~kind:Cli_args.Directory opts.target_dir with
    | Ok () -> ()
    | Error msg -> exit_with_error msg);
-  let quiet = opts.format <> Human in
-  let suite_result =
-    Test_discovery.run_suite ~verbose:opts.verbose ~quiet
-      ~only:opts.only_patterns ~not_:opts.not_patterns opts.target_dir
-  in
-  (match opts.format with
-   | Human -> ()
-   | Json ->
-       let json = Test_discovery.suite_result_to_yojson suite_result in
-       print_endline (Yojson.Safe.pretty_to_string json)
-   | Junit ->
-       let xml = Test_discovery.suite_result_to_xml suite_result in
-       print_endline xml);
-  if suite_result.failed > 0 then exit 1
+  if opts.list_only then begin
+    let test_dir = Filename.concat opts.target_dir "tests" in
+    let ignore_patterns = Test_discovery.read_tignore test_dir in
+    let files = Test_discovery.discover_tests ~ignore_patterns test_dir in
+    let files =
+      if opts.only_patterns <> [] then
+        List.filter (fun f -> Test_discovery.matches_any_pattern opts.target_dir f opts.only_patterns) files
+      else files
+    in
+    let files =
+      if opts.not_patterns <> [] then
+        List.filter (fun f -> not (Test_discovery.matches_any_pattern opts.target_dir f opts.not_patterns)) files
+      else files
+    in
+    List.iter (fun f ->
+      print_endline (Test_discovery.relative_path opts.target_dir f)
+    ) files
+  end else begin
+    let quiet = opts.format <> Human in
+    let suite_result =
+      Test_discovery.run_suite ~verbose:opts.verbose ~quiet
+        ~only:opts.only_patterns ~not_:opts.not_patterns
+        ~failfast:opts.failfast ~timeout:opts.timeout
+        opts.target_dir
+    in
+    (match opts.format with
+     | Human -> ()
+     | Json ->
+         let json = Test_discovery.suite_result_to_yojson suite_result in
+         print_endline (Yojson.Safe.pretty_to_string json)
+     | Junit ->
+         let xml = Test_discovery.suite_result_to_xml suite_result in
+         print_endline xml);
+    if suite_result.failed > 0 then exit 1
+  end
 
 let cmd_doctor () = Package_doctor.run_doctor ()
 
@@ -1627,18 +1648,36 @@ let () =
 --# Wraps the CLI `t test` command for use within the REPL.
 --#
 --# @name t_test
+--# @param only :: List = [] Filter to tests whose path contains any of these substrings.
+--# @param not :: List = [] Exclude tests whose path contains any of these substrings.
 --# @return :: DataFrame A DataFrame with columns: file, status, duration_ms, error.
 --# @example
 --#   results = t_test()
 --#   results |> filter($status == "failed")
+--#   results = t_test(only = ["arithmetic"])
+--#   results = t_test(not = ["slow"])
 --# @family repl
 --# @export
 *)
   let env = Ast.Env.add "t_test"
-    (Ast.VBuiltin { b_name = Some "t_test"; b_arity = 0; b_variadic = false;
-      b_func = (fun _named_args _env_ref ->
+    (Ast.VBuiltin { b_name = Some "t_test"; b_arity = 0; b_variadic = true;
+      b_func = (fun named_args _env_ref ->
+        let only = ref [] in
+        let not_ = ref [] in
+        List.iter (fun (k, v) ->
+          match k with
+          | Some ("only" | "not") ->
+              let lst = match v with
+                | Ast.VList lst -> List.filter_map (fun (_, v) ->
+                    match v with Ast.VString s -> Some s | _ -> None) lst
+                | _ -> []
+              in
+              if k = Some "not" then not_ := lst else only := lst
+          | _ -> ()
+        ) named_args;
         let dir = Sys.getcwd () in
-        let suite_result = Test_discovery.run_suite ~verbose:false ~quiet:true dir in
+        let suite_result = Test_discovery.run_suite ~verbose:false ~quiet:true
+          ~only:!only ~not_:!not_ dir in
         let results_arr = Array.of_list suite_result.results in
         let n = Array.length results_arr in
         if n = 0 then begin

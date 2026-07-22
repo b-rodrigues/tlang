@@ -459,6 +459,9 @@ $ t test --format junit tests/  # JUnit XML for CI
 ```bash
 $ t test --only "stats"     # run only tests matching "stats"
 $ t test --not "slow"       # skip tests matching "slow"
+$ t test --failfast         # stop on first failure
+$ t test --list             # list tests without running
+$ t test --timeout 30       # mark slow tests as failed
 ```
 
 **Excluding tests with `.tignore`:**

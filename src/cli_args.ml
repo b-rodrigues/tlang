@@ -13,6 +13,9 @@ type test_options = {
   target_dir : string;
   only_patterns : string list;
   not_patterns : string list;
+  failfast : bool;
+  list_only : bool;
+  timeout : float option;
 }
 
 type mode_parse = {
@@ -108,6 +111,12 @@ let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string lis
     | Some "-v" -> true
     | _ -> false
   in
+  let failfast_allowed =
+    match command with
+    | Some "test" | Some "run" | Some "repl" | Some "explain" -> true
+    | None -> true
+    | _ -> false
+  in
   let unsafe_allowed =
     match command with
     | None | Some "run" | Some "repl" -> true
@@ -119,8 +128,8 @@ let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string lis
     Error "--unsafe cannot be used with `t run --expr`."
   else if mode_flag && (not mode_allowed) then
     Error "--mode only applies to repl/run/explain."
-  else if failfast_flag && (not mode_allowed) then
-    Error "--failfast only applies to repl/run/explain."
+  else if failfast_flag && not failfast_allowed then
+    Error "--failfast only applies to repl/run/explain/test."
   else
     Ok ()
 
@@ -135,6 +144,9 @@ let parse_test_args ~cwd (args : string list) : (test_options, string) result =
   let target_dir = ref None in
   let only_patterns = ref [] in
   let not_patterns = ref [] in
+  let failfast = ref false in
+  let list_only = ref false in
+  let timeout = ref None in
   let rec parse = function
     | [] ->
         Ok {
@@ -143,6 +155,9 @@ let parse_test_args ~cwd (args : string list) : (test_options, string) result =
           target_dir = (match !target_dir with Some dir -> dir | None -> cwd);
           only_patterns = List.rev !only_patterns;
           not_patterns = List.rev !not_patterns;
+          failfast = !failfast;
+          list_only = !list_only;
+          timeout = !timeout;
         }
     | ("--verbose" | "-v") :: rest ->
         verbose := true;
@@ -170,6 +185,20 @@ let parse_test_args ~cwd (args : string list) : (test_options, string) result =
         parse rest
     | "--not" :: [] ->
         Error "Missing value for --not"
+    | "--failfast" :: rest ->
+        failfast := true;
+        parse rest
+    | "--list" :: rest ->
+        list_only := true;
+        parse rest
+    | "--timeout" :: secs :: rest ->
+        (match Float.of_string_opt secs with
+         | Some s when s > 0.0 ->
+             timeout := Some s;
+             parse rest
+         | _ -> Error (Printf.sprintf "Invalid timeout value: %s (must be a positive number)" secs))
+    | "--timeout" :: [] ->
+        Error "Missing value for --timeout. Use --timeout <seconds>"
     | arg :: _ when String.length arg > 0 && arg.[0] = '-' ->
         Error (Printf.sprintf "Unknown option: %s" arg)
     | arg :: rest ->

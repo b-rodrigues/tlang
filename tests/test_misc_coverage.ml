@@ -1037,6 +1037,24 @@ min_version = "0.51.0"
      | Ok opts -> opts.only_patterns = ["stats"] && opts.not_patterns = ["slow"]
      | Error _ -> false)
   );
+  test_case "cli_args parse_test_args handles --failfast, --list, --timeout" (fun () ->
+    let ok_ff = Cli_args.parse_test_args ~cwd:"/tmp" ["--failfast"] in
+    let ok_list = Cli_args.parse_test_args ~cwd:"/tmp" ["--list"] in
+    let ok_timeout = Cli_args.parse_test_args ~cwd:"/tmp" ["--timeout"; "10"] in
+    let err_timeout_bad = Cli_args.parse_test_args ~cwd:"/tmp" ["--timeout"; "abc"] in
+    (match ok_ff with
+     | Ok opts -> opts.failfast = true
+     | Error _ -> false)
+    && (match ok_list with
+     | Ok opts -> opts.list_only = true
+     | Error _ -> false)
+    && (match ok_timeout with
+     | Ok opts -> opts.timeout = Some 10.0
+     | Error _ -> false)
+    && (match err_timeout_bad with
+     | Error _ -> true
+     | Ok _ -> false)
+  );
   test_case "test_discovery JUnit XML serialization" (fun () ->
     let suite_result : Test_discovery.suite_result = {
       total = 2;
