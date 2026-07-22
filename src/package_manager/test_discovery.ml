@@ -194,7 +194,7 @@ let test_result_to_yojson r =
   `Assoc [
     ("file", `String r.file);
     ("status", `String (if r.success then "passed" else "failed"));
-    ("duration_ms", `Int (int_of_float (r.duration *. 1000.0)));
+    ("duration_ms", `Int (Int.of_float (Float.round (r.duration *. 1000.0))));
     ("error", (match r.error_msg with Some e -> `String e | None -> `Null));
   ]
 
@@ -205,24 +205,24 @@ let suite_result_to_yojson r =
     ("total", `Int r.total);
     ("passed", `Int r.passed);
     ("failed", `Int r.failed);
-    ("duration_ms", `Int (int_of_float (r.total_duration *. 1000.0)));
+    ("duration_ms", `Int (Int.of_float (Float.round (r.total_duration *. 1000.0))));
     ("results", `List (List.map test_result_to_yojson r.results));
   ]
 
 (** Run a full test suite: discover + execute all tests *)
-let run_suite ?(verbose=false) (dir : string) : suite_result =
+let run_suite ?(verbose=false) ?(quiet=false) (dir : string) : suite_result =
   let test_dir = Filename.concat dir "tests" in
   if not (Sys.file_exists test_dir && Sys.is_directory test_dir) then begin
-    Printf.printf "No tests/ directory found.\n";
+    if not quiet then Printf.printf "No tests/ directory found.\n";
     { total = 0; passed = 0; failed = 0; results = []; total_duration = 0.0 }
   end else begin
     let files = discover_tests test_dir in
     if files = [] then begin
-      Printf.printf "No test files found (looking for test-*.t, test_*.t, or *_test.t).\n";
+      if not quiet then Printf.printf "No test files found (looking for test-*.t, test_*.t, or *_test.t).\n";
       { total = 0; passed = 0; failed = 0; results = []; total_duration = 0.0 }
     end else begin
       let start_total = Unix.gettimeofday () in
-      Printf.printf "Running %d test file%s...\n\n"
+      if not quiet then Printf.printf "Running %d test file%s...\n\n"
         (List.length files) (if List.length files > 1 then "s" else "");
       let results = List.map (fun file ->
         let r = run_test_file file in
@@ -231,14 +231,16 @@ let run_suite ?(verbose=false) (dir : string) : suite_result =
             String.sub file (String.length dir + 1) (String.length file - String.length dir - 1)
           else file
         in
-        if r.success then
-          Printf.printf "  ✓ %s (%s)\n" short_name (format_duration r.duration)
-        else begin
-          Printf.printf "  ✗ %s (%s)\n" short_name (format_duration r.duration);
-          if verbose then
-            match r.error_msg with
-            | Some msg -> Printf.printf "    → %s\n" msg
-            | None -> ()
+        if not quiet then begin
+          if r.success then
+            Printf.printf "  ✓ %s (%s)\n" short_name (format_duration r.duration)
+          else begin
+            Printf.printf "  ✗ %s (%s)\n" short_name (format_duration r.duration);
+            if verbose then
+              match r.error_msg with
+              | Some msg -> Printf.printf "    → %s\n" msg
+              | None -> ()
+          end
         end;
         r
       ) files in
@@ -246,24 +248,26 @@ let run_suite ?(verbose=false) (dir : string) : suite_result =
       let passed_results = List.filter (fun r -> r.success) results in
       let passed = List.length passed_results in
       let failed = List.length results - passed in
-      Printf.printf "\n";
-      if failed = 0 then
-        Printf.printf "✓ All %d test%s passed (%s)\n"
-          passed (if passed > 1 then "s" else "") (format_duration total_duration)
-      else begin
-        Printf.printf "✗ %d/%d test%s failed (%s)\n\n"
-          failed (List.length results)
-          (if List.length results > 1 then "s" else "")
-          (format_duration total_duration);
-        (* Show failure details *)
-        List.iter (fun r ->
-          if not r.success then begin
-            Printf.printf "FAIL: %s\n" r.file;
-            match r.error_msg with
-            | Some msg -> Printf.printf "  %s\n" msg
-            | None -> ()
-          end
-        ) results
+      if not quiet then begin
+        Printf.printf "\n";
+        if failed = 0 then
+          Printf.printf "✓ All %d test%s passed (%s)\n"
+            passed (if passed > 1 then "s" else "") (format_duration total_duration)
+        else begin
+          Printf.printf "✗ %d/%d test%s failed (%s)\n\n"
+            failed (List.length results)
+            (if List.length results > 1 then "s" else "")
+            (format_duration total_duration);
+          (* Show failure details *)
+          List.iter (fun r ->
+            if not r.success then begin
+              Printf.printf "FAIL: %s\n" r.file;
+              match r.error_msg with
+              | Some msg -> Printf.printf "  %s\n" msg
+              | None -> ()
+            end
+          ) results
+        end
       end;
       { total = List.length results; passed; failed; results; total_duration }
     end

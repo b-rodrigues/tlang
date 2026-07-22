@@ -1051,7 +1051,7 @@ let cmd_test args =
   (match Cli_args.validate_path ~kind:Cli_args.Directory opts.target_dir with
    | Ok () -> ()
    | Error msg -> exit_with_error msg);
-  let suite_result = Test_discovery.run_suite ~verbose:opts.verbose opts.target_dir in
+  let suite_result = Test_discovery.run_suite ~verbose:opts.verbose ~quiet:opts.json opts.target_dir in
   if opts.json then begin
     let json = Test_discovery.suite_result_to_yojson suite_result in
     print_endline (Yojson.Safe.pretty_to_string json)
@@ -1630,28 +1630,25 @@ let () =
     (Ast.VBuiltin { b_name = Some "t_test"; b_arity = 0; b_variadic = false;
       b_func = (fun _named_args _env_ref ->
         let dir = Sys.getcwd () in
-        let suite_result = Test_discovery.run_suite ~verbose:false dir in
-        let n = List.length suite_result.results in
+        let suite_result = Test_discovery.run_suite ~verbose:false ~quiet:true dir in
+        let results_arr = Array.of_list suite_result.results in
+        let n = Array.length results_arr in
         if n = 0 then begin
           Printf.printf "No test files found.\n";
           flush stdout;
           Ast.VDataFrame { arrow_table = Arrow_table.empty; group_keys = [] }
         end else begin
           let files = Array.init n (fun i ->
-            let r = List.nth suite_result.results i in
-            Ast.VString r.file
+            Ast.VString results_arr.(i).file
           ) in
           let statuses = Array.init n (fun i ->
-            let r = List.nth suite_result.results i in
-            Ast.VString (if r.success then "passed" else "failed")
+            Ast.VString (if results_arr.(i).success then "passed" else "failed")
           ) in
           let durations = Array.init n (fun i ->
-            let r = List.nth suite_result.results i in
-            Ast.VFloat (r.duration *. 1000.0)
+            Ast.VFloat (results_arr.(i).duration *. 1000.0)
           ) in
           let errors = Array.init n (fun i ->
-            let r = List.nth suite_result.results i in
-            match r.error_msg with
+            match results_arr.(i).error_msg with
             | Some msg -> Ast.VString msg
             | None -> Ast.VNA NAGeneric
           ) in
