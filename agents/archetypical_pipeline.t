@@ -137,7 +137,19 @@ df
 
 
   -- --------------------------------------------------------------------------
-  -- F. Quarto Rendering Node (qn)
+  -- F. Test / Data Quality Assertion Node
+  -- --------------------------------------------------------------------------
+  -- Inline test nodes use testcraft functions (expect_gt, expect_equal, expect_type)
+  -- to validate data quality and invariants as the pipeline runs.
+  -- If an expectation fails, assert() returns an error.
+  check_data_quality = node(
+    command = assert(expect_gt(nrow(r_transformation), 0)),
+    runtime = T
+  )
+
+
+  -- --------------------------------------------------------------------------
+  -- G. Quarto Rendering Node (qn)
   -- --------------------------------------------------------------------------
   -- `qn(...)` is a wrapper for `node(runtime = Quarto, ...)`.
   -- Points directly to an external file using `script = ...` (mutually exclusive with `command`).

@@ -120,7 +120,26 @@ let run_test_file (file : string) : test_result =
         in
         run_stmts new_env errs' rest
     in
-    let (errors, _) = run_stmts env [] program in
+    let (stmt_errors, final_env) = run_stmts env [] program in
+    let pipeline_errors =
+      Ast.Env.fold (fun var_name value acc ->
+        match value with
+        | Ast.VPipeline p ->
+            let p_to_run =
+              if p.Ast.p_has_patterns then
+                match Pipeline_expand.expand_pipeline_for_build p final_env with
+                | Ok p_exp -> p_exp
+                | Error _ -> p
+              else p
+            in
+            (match Builder.populate_pipeline ~build:false p_to_run with
+             | Error msg ->
+                 Printf.sprintf "Pipeline '%s' validation error: %s" var_name msg :: acc
+             | Ok _ -> acc)
+        | _ -> acc
+      ) final_env []
+    in
+    let errors = stmt_errors @ pipeline_errors in
     let duration = Unix.gettimeofday () -. start in
     if errors = [] then
       { file; success = true; error_msg = None; duration }

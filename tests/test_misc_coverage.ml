@@ -759,6 +759,22 @@ min_version = "0.51.0"
       pass_ok && fail_ok && syntax_ok && missing_ok
       && suite.total = 3 && suite.passed = 1 && suite.failed = 2)
   );
+  test_case "test_discovery auto-evaluates pipelines in test files and reports node failures" (fun () ->
+    with_temp_dir "test_pipeline_discovery" (fun dir ->
+      let tests_dir = Filename.concat dir "tests" in
+      Unix.mkdir tests_dir 0o755;
+      write_text
+        (Filename.concat tests_dir "test-pipe-pass.t")
+        "p = pipeline { a = 1; b = a + 1 }\n";
+      write_text
+        (Filename.concat tests_dir "test-pipe-fail.t")
+        "p = pipeline { a = node(command = <{ 1 }>, runtime = ^Python); b = node(command = <{ a + 1 }>, runtime = ^R) }\n";
+      let pass_res = Test_discovery.run_test_file (Filename.concat tests_dir "test-pipe-pass.t") in
+      let fail_res = Test_discovery.run_test_file (Filename.concat tests_dir "test-pipe-fail.t") in
+      pass_res.success = true
+      && fail_res.success = false
+      && (match fail_res.error_msg with Some msg -> contains msg "deserializer" || contains msg "validation error" | None -> false))
+  );
   test_case "package_doctor project helpers report file and directory issues" (fun () ->
     with_temp_dir "doctor" (fun dir ->
       let src_path = Filename.concat dir "src" in
