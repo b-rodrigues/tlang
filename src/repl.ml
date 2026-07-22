@@ -1053,7 +1053,15 @@ let cmd_test args =
    | Error msg -> exit_with_error msg);
   if opts.coverage then begin
     print_endline "Cleaning old coverage data...";
-    let _ = Sys.command (Printf.sprintf "find %s -name '*.coverage' -delete" (Filename.quote opts.target_dir)) in
+    let target_q = Filename.quote opts.target_dir in
+    let cwd_q = Filename.quote cwd in
+    let cmd =
+      if opts.target_dir <> cwd then
+        Printf.sprintf "find %s %s -name '*.coverage' -delete 2>/dev/null" target_q cwd_q
+      else
+        Printf.sprintf "find %s -name '*.coverage' -delete 2>/dev/null" target_q
+    in
+    let _ = Sys.command cmd in
     ()
   end;
   if opts.list_only then begin
@@ -1094,8 +1102,16 @@ let cmd_test args =
          let xml = Test_discovery.suite_result_to_xml suite_result in
          print_endline xml);
     if opts.coverage then begin
-      let coverage_files = Array.to_list (Sys.readdir opts.target_dir)
-        |> List.filter (fun f -> Filename.check_suffix f ".coverage") in
+      let find_coverage_files dir =
+        if Sys.file_exists dir && Sys.is_directory dir then
+          Array.to_list (Sys.readdir dir)
+          |> List.filter (fun f -> Filename.check_suffix f ".coverage")
+        else []
+      in
+      let coverage_files =
+        find_coverage_files opts.target_dir @
+        (if opts.target_dir <> cwd then find_coverage_files cwd else [])
+      in
       if coverage_files = [] then
         print_endline "\nNo coverage data found. Build with `nix build .#t-coverage` first,\nor run `dune build --instrument-with bisect_ppx` for a local build."
       else begin
