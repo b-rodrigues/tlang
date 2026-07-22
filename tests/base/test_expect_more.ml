@@ -154,4 +154,29 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "expect_equal dict containing vector"
     "expect_equal([a: [1, 2]], [a: [1, 2]])" "PASS";
 
+  (* expect_has_colnames *)
+  test "expect_has_colnames pass"
+    "df = to_dataframe([x: [1], y: [2], z: [3]]); expect_has_colnames(df, [\"x\", \"z\"])" "PASS";
+  test "expect_has_colnames single string pass"
+    "df = to_dataframe([x: [1], y: [2]]); expect_has_colnames(df, \"x\")" "PASS";
+  test "expect_has_colnames stop"
+    "df = to_dataframe([x: [1], y: [2]]); expect_has_colnames(df, [\"x\", \"w\"])" "STOP(Missing expected column(s)";
+  test "expect_has_colnames NA"
+    "expect_has_colnames(NA, [\"x\"])" "HOLD(";
+
+  (* expect_unique *)
+  test "expect_unique vector pass"
+    "v = [1, 2, 3, 4]; expect_unique(v)" "PASS";
+  test "expect_unique vector stop"
+    "v = [1, 2, 3, 2]; expect_unique(v)" "STOP(Found duplicate value `2` at index 3";
+  test "expect_unique dataframe pass"
+    "df = to_dataframe([x: [1, 2], y: [3, 4]]); expect_unique(df)" "PASS";
+  test "expect_unique dataframe stop"
+    "df = to_dataframe([x: [1, 1], y: [2, 2]]); expect_unique(df)" "STOP(DataFrame contains duplicate row at index 1";
+  (* check *)
+  test "check pass"
+    "check(expect_equal(1, 1))" "true";
+  test "check failure"
+    "check(expect_equal(1, 2))" "Error(AssertionError: \"Assertion failed: `1` != `2`.\")";
+
   Printf.printf "\n"

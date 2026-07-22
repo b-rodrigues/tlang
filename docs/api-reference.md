@@ -3896,6 +3896,18 @@ intent_get(i, "description")  -- "Customer analysis"
 
 Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons return an `Expect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg`) rather than raising directly, so results can be inspected, combined, or passed straight to `assert()`.
 
+### Why `assert(expect_*(...))` instead of plain `assert(condition)`?
+
+While a raw boolean expression like `assert(colnames(df) == ["a", "b", "c"])` works, it evaluates to a bare `Bool`. When it fails, `assert` can only report a generic `AssertionError: expression evaluated to false`, giving no details on which element or column differed.
+
+By contrast, `expect_*` functions perform detailed element-wise and structural comparisons. When wrapped in `assert()`, they provide rich diagnostic feedback:
+
+- **Detailed Diff Messages**: `assert(expect_colnames(df, ["a", "b", "c"]))` or `assert(expect_equal(colnames(df), ["a", "b", "c"]))` reports exact mismatched column names, row counts, index differences, or type mismatches.
+- **First-Class Expect Values**: Return `Expect_pass`, `Expect_stop msg`, or `Expect_hold msg` (used when comparisons involve `NA`), allowing tests to inspect outcomes or handle missingness explicitly.
+- **Domain-Specific Expectations**: Dedicated helpers for type checking (`expect_type`), error matching (`expect_error`), dataset dimensions (`expect_nrow`, `expect_colnames`), and pipeline DAG structures (`expect_pipeline`, `expect_nodes`, `expect_dependency`).
+
+---
+
 ### `expect_equal(actual, expected, tolerance = 1e-9)`
 
 Compare `actual` against `expected`, returning an `Expect` value.
@@ -4147,6 +4159,37 @@ Pass if DataFrame column names match the given list of strings exactly (order-se
 **Examples:**
 ```t
 assert(expect_colnames(to_dataframe(col1 = 1:3, col2 = 4:6), ["col1", "col2"]))
+```
+
+---
+
+### `expect_has_colnames(data, names)`
+
+Pass if a DataFrame, Dict, or named List contains at least all of the expected column/field names. Order is not required, and additional columns are permitted.
+
+**Parameters:**
+- `data` — A DataFrame, Dict, or named List
+- `names` — String, or List/Vector of Strings
+
+**Examples:**
+```t
+assert(expect_has_colnames(df, ["id", "val"]))
+assert(expect_has_colnames(df, "id"))
+```
+
+---
+
+### `expect_unique(x)`
+
+Pass if all elements in a Vector, List, or DataFrame are distinct. Returns `Expect_stop` detailing the location of duplicate values if any are found.
+
+**Parameters:**
+- `x` — A Vector, List, or DataFrame
+
+**Examples:**
+```t
+assert(expect_unique([1, 2, 3, 4]))
+assert(expect_unique(df.$id))
 ```
 
 ---

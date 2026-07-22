@@ -1205,6 +1205,7 @@ workspace = "python"
         && Sys.file_exists (Filename.concat dir "README.md")
         && Sys.file_exists (Filename.concat dir "LICENSE")
         && Sys.file_exists (Filename.concat dir "src/main.t")
+        && Sys.file_exists (Filename.concat dir (Printf.sprintf "tests/test-%s.t" (Filename.basename dir)))
         && Sys.is_directory (Filename.concat dir "tests")
         && Sys.is_directory (Filename.concat dir "examples")
         && Sys.is_directory (Filename.concat dir "docs")
@@ -1243,7 +1244,7 @@ workspace = "python"
         && Sys.file_exists (Filename.concat dir "src/pipeline.t")
         && Sys.is_directory (Filename.concat dir "data")
         && Sys.is_directory (Filename.concat dir "outputs")
-        && Sys.is_directory (Filename.concat dir "tests")
+        && not (Sys.file_exists (Filename.concat dir "tests"))
         && parsed
       | Error _ -> false
     in

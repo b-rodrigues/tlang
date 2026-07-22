@@ -528,7 +528,7 @@ Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` compari
 - Type/truth: `expect_true(x)`, `expect_false(x)` (strict VBool), `expect_truthy(x)`, `expect_falsy(x)` (loose `is_truthy`), `expect_type(x, t)` (type name match).
 - Error checking: `expect_error(expr, class = "", message = "")` — passes if `expr` is an error, optionally filtered by class string or message regex.
 - Length: `expect_length(x, n)` — checks length of Vector, List, String, DataFrame, Dict.
-- Data frames: `expect_nrow(df, n)`, `expect_ncol(df, n)`, `expect_colnames(df, names)` — row/column/count/names checks.
+- Data frames & Collections: `expect_nrow(df, n)`, `expect_ncol(df, n)`, `expect_colnames(df, names)` (exact order), `expect_has_colnames(data, names)` (subset check), `expect_unique(x)` (uniqueness of Vector/List/DataFrame).
 - Collections: `expect_fields(x, names)` — Dict keys or List labels; `expect_in(x, values)` — set membership.
 - Pipeline node diagnostics: `expect_warning(node, kind = "", message = "")` — passes if node produced a warning, optionally filtering by warning kind string or message regex.
 - Pipeline & DAG structure: `expect_pipeline(x)` — checks if `x` is a Pipeline; `expect_nodes(p, expected_names)` — checks all node names (including dynamic branch names); `expect_dependency(p, from, to)` — checks if `to` directly/transitively depends on `from` in the DAG; `expect_has_pattern(p, name)` — checks if node has a dynamic branching pattern (e.g. mapping/crossing).

@@ -5464,6 +5464,18 @@ intent_get(i, "description")  -- "Customer analysis"
 
 Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons return an `Expect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg`) rather than raising directly, so results can be inspected, combined, or passed straight to `assert()`.
 
+### Why `assert(expect_*(...))` instead of plain `assert(condition)`?
+
+While a raw boolean expression like `assert(colnames(df) == ["a", "b", "c"])` works, it evaluates to a bare `Bool`. When it fails, `assert` can only report a generic `AssertionError: expression evaluated to false`, giving no details on which element or column differed.
+
+By contrast, `expect_*` functions perform detailed element-wise and structural comparisons. When wrapped in `assert()`, they provide rich diagnostic feedback:
+
+- **Detailed Diff Messages**: `assert(expect_colnames(df, ["a", "b", "c"]))` or `assert(expect_equal(colnames(df), ["a", "b", "c"]))` reports exact mismatched column names, row counts, index differences, or type mismatches.
+- **First-Class Expect Values**: Return `Expect_pass`, `Expect_stop msg`, or `Expect_hold msg` (used when comparisons involve `NA`), allowing tests to inspect outcomes or handle missingness explicitly.
+- **Domain-Specific Expectations**: Dedicated helpers for type checking (`expect_type`), error matching (`expect_error`), dataset dimensions (`expect_nrow`, `expect_colnames`), and pipeline DAG structures (`expect_pipeline`, `expect_nodes`, `expect_dependency`).
+
+---
+
 ### `expect_equal(actual, expected, tolerance = 1e-9)`
 
 Compare `actual` against `expected`, returning an `Expect` value.
@@ -5715,6 +5727,37 @@ Pass if DataFrame column names match the given list of strings exactly (order-se
 **Examples:**
 ```t
 assert(expect_colnames(to_dataframe(col1 = 1:3, col2 = 4:6), ["col1", "col2"]))
+```
+
+---
+
+### `expect_has_colnames(data, names)`
+
+Pass if a DataFrame, Dict, or named List contains at least all of the expected column/field names. Order is not required, and additional columns are permitted.
+
+**Parameters:**
+- `data` — A DataFrame, Dict, or named List
+- `names` — String, or List/Vector of Strings
+
+**Examples:**
+```t
+assert(expect_has_colnames(df, ["id", "val"]))
+assert(expect_has_colnames(df, "id"))
+```
+
+---
+
+### `expect_unique(x)`
+
+Pass if all elements in a Vector, List, or DataFrame are distinct. Returns `Expect_stop` detailing the location of duplicate values if any are found.
+
+**Parameters:**
+- `x` — A Vector, List, or DataFrame
+
+**Examples:**
+```t
+assert(expect_unique([1, 2, 3, 4]))
+assert(expect_unique(df.$id))
 ```
 
 ---
@@ -18885,8 +18928,9 @@ Example `tests/test-mean.t`:
 ```t
 import "src/stats.t"
 
-assert(stats.mean([1, 2, 3]) == 2.0)
-assert(stats.mean([-1, -1]) == -1.0)
+-- Using specialized expect_* functions provides rich diagnostic diffs when tests fail:
+assert(expect_equal(stats.mean([1, 2, 3]), 2.0))
+assert(expect_equal(stats.mean([-1, -1]), -1.0))
 ```
 
 Run all tests with:
@@ -18894,6 +18938,23 @@ Run all tests with:
 ```bash
 $ t test
 ```
+
+### Why Use `expect_*` Functions with `assert()`?
+
+While a plain boolean check like `assert(colnames(df) == ["a", "b", "c"])` works, it only evaluates to `true` or `false`. When it fails, `assert` produces a generic error (`AssertionError: expression evaluated to false`), providing no detail on what differed.
+
+By contrast, `expect_*` functions (such as `expect_equal`, `expect_colnames`, `expect_nrow`, `expect_type`, etc.) perform deep structural comparisons and provide rich diagnostic diffs:
+
+```t
+-- Plain assert: fails with unhelpful generic "expression evaluated to false"
+assert(colnames(df) == ["a", "b", "c"])
+
+-- Recommended: produces exact structural diff on failure (e.g. expected "b" at index 2, got "x")
+assert(expect_colnames(df, ["a", "b", "c"]))
+assert(expect_equal(colnames(df), ["a", "b", "c"]))
+```
+
+`expect_*` functions also return first-class `Expect` values (`Expect_pass`, `Expect_stop msg`, `Expect_hold msg`) that allow soft failure, NA handling, or programmatic inspection before passing to `assert()`.
 
 ### Skipping Pipeline Tests Conditionally
 
