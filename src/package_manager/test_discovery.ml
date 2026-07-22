@@ -123,7 +123,8 @@ let run_test_file (file : string) : test_result =
     let (stmt_errors, final_env) = run_stmts env [] program in
     let pipeline_errors =
       Ast.Env.fold (fun var_name value acc ->
-        match value with
+        if Ast.Env.mem var_name env then acc
+        else match value with
         | Ast.VPipeline p ->
             let p_to_run =
               if p.Ast.p_has_patterns then

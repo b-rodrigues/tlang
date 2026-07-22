@@ -222,12 +222,12 @@ let lens_package = {
 let testcraft_package = {
   name = "testcraft";
   description = "Unit-testing primitives: expect_* comparisons and assertions";
-  functions = ["expect_equal"; "expect_pass"; "expect_fail"; "expect_msg";
+  functions = ["expect_equal"; "expect_pass"; "expect_fail"; "expect_msg"; "check";
                "expect_lt"; "expect_lte"; "expect_gt"; "expect_gte";
                "expect_true"; "expect_false"; "expect_truthy"; "expect_falsy";
                "expect_type"; "expect_error"; "expect_length";
                "expect_nrow"; "expect_ncol"; "expect_colnames"; "expect_has_colnames"; "expect_unique"; "expect_fields"; "expect_in";
-               "check"; "expect_warning"; "expect_pipeline"; "expect_nodes"; "expect_dependency";
+               "expect_warning"; "expect_pipeline"; "expect_nodes"; "expect_dependency";
                "expect_has_pattern"; "expect_runtime"; "expect_serializer"; "expect_deserializer";
                "expect_noop"; "expect_computed"];
 }

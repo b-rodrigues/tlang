@@ -266,6 +266,8 @@ let register env =
       env
   in
   (* expect_unique: check that elements in Vector/List/DataFrame are all distinct *)
+  (* Note: Uses O(N^2) structural comparison via compare_values. Suitable for test/validation sizes.
+     TODO: Implement hash-set indexing if extended to large-scale production DataFrames. *)
   let env =
     Env.add "expect_unique"
       (make_builtin ~name:"expect_unique" 1 (fun args _env ->
@@ -463,7 +465,7 @@ let register env =
                    | args -> Error.arity_error_named "expect_in" 2 (List.length args)))))
       env
   in
-  (* check: evaluates assert(val), prints true on success, returns RuntimeError on failure *)
+  (* check: evaluates assert(val), prints true on success, preserves original VError on failure *)
   let env =
     Env.add "check"
       (make_builtin ~name:"check" ~variadic:true 1 (fun args env ->
@@ -477,8 +479,7 @@ let register env =
          | VBool true ->
              Printf.printf "true\n";
              VBool true
-         | VError err ->
-             VError { err with code = RuntimeError }
+         | VError _ as err -> err
          | other -> other))
       env
   in

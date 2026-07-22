@@ -498,27 +498,6 @@ assert(expect_nodes(test_p, ["input_val", "greeting"]))
 assert(expect_dependency(test_p, "input_val", "greeting"))
 |}
 
-let project_test_example = {|-- tests/test-pipeline.t
--- Test suite for project '{{name}}'
---
--- Run tests with: t test (or t_test() in the REPL)
---
--- T automatically discovers and executes all test scripts and test pipelines in tests/.
-
--- Demo Test Pipeline: Verifies pipeline structure and data transformation
-test_p = pipeline {
-  raw_data = [10, 20, 30]
-  doubled  = map(raw_data, \x -> x * 2)
-  total    = sum(doubled)
-}
-
--- Validate pipeline DAG structure statically
-assert(expect_pipeline(test_p))
-assert(expect_nodes(test_p, ["raw_data", "doubled", "total"]))
-assert(expect_dependency(test_p, "raw_data", "doubled"))
-assert(expect_dependency(test_p, "doubled", "total"))
-|}
-
 (* ================================================================ *)
 (* Project Templates                                                *)
 (* ================================================================ *)
@@ -614,7 +593,6 @@ t repl
 - `src/` — T source files
 - `data/` — Input data files
 - `outputs/` — Generated outputs
-- `tests/` — Test files
 
 ## Dependencies
 
@@ -678,15 +656,18 @@ p = pipeline {
 
   -- Inline Test Node: Asserts raw data length using testcraft expect_gt
   check_raw = node(
-    command = assert(expect_gt(length(raw), 0)),
+    command = check(expect_gt(length(raw), 0)),
     runtime = T
   )
 
   cleaned = map(raw, \x -> x * 2)
 
-  -- Inline Test Node: Asserts calculation result invariants using expect_gt & expect_equal
+  -- Inline Test Node: Asserts calculation result invariants using check
   check_cleaned = node(
-    command = assert(expect_gt(mean(cleaned), 0) && expect_equal(length(cleaned), 4)),
+    command = {
+      check(expect_gt(mean(cleaned), 0))
+      check(expect_equal(length(cleaned), 4))
+    },
     runtime = T
   )
 

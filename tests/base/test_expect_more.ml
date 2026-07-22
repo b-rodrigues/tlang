@@ -177,6 +177,6 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "check pass"
     "check(expect_equal(1, 1))" "true";
   test "check failure"
-    "check(expect_equal(1, 2))" "Error(RuntimeError: \"Assertion failed: `1` != `2`.\")";
+    "check(expect_equal(1, 2))" "Error(AssertionError: \"Assertion failed: `1` != `2`.\")";
 
   Printf.printf "\n"
