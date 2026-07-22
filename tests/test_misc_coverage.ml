@@ -950,4 +950,72 @@ min_version = "0.51.0"
         in
         inspect_ok && invalid_regex_ok && missing_drv_ok && copy_ok && copy_missing_ok && invalid_mode_ok))
   );
+  test_case "test_discovery JSON serialization produces valid JSON" (fun () ->
+    let test_result : Test_discovery.test_result = {
+      file = "tests/test-example.t";
+      success = true;
+      error_msg = None;
+      duration = 0.123;
+    } in
+    let json = Test_discovery.test_result_to_yojson test_result in
+    let json_str = Yojson.Safe.pretty_to_string json in
+    let has_file = contains json_str "test-example.t" in
+    let has_status = contains json_str "\"passed\"" in
+    let has_duration = contains json_str "duration_ms" in
+    has_file && has_status && has_duration
+  );
+  test_case "test_discovery JSON serialization handles failures" (fun () ->
+    let test_result : Test_discovery.test_result = {
+      file = "tests/test-fail.t";
+      success = false;
+      error_msg = Some "AssertionError: test failed";
+      duration = 0.456;
+    } in
+    let json = Test_discovery.test_result_to_yojson test_result in
+    let json_str = Yojson.Safe.pretty_to_string json in
+    let has_file = contains json_str "test-fail.t" in
+    let has_status = contains json_str "\"failed\"" in
+    let has_error = contains json_str "AssertionError" in
+    has_file && has_status && has_error
+  );
+  test_case "test_discovery suite_result_to_yojson produces valid JSON" (fun () ->
+    let suite_result : Test_discovery.suite_result = {
+      total = 3;
+      passed = 2;
+      failed = 1;
+      results = [
+        { file = "test-pass1.t"; success = true; error_msg = None; duration = 0.1 };
+        { file = "test-pass2.t"; success = true; error_msg = None; duration = 0.2 };
+        { file = "test-fail.t"; success = false; error_msg = Some "Error"; duration = 0.3 };
+      ];
+      total_duration = 0.6;
+    } in
+    let json = Test_discovery.suite_result_to_yojson suite_result in
+    let json_str = Yojson.Safe.pretty_to_string json in
+    let has_schema = contains json_str "\"schema_version\": \"1\"" in
+    let has_status = contains json_str "\"status\": \"failed\"" in
+    let has_total = contains json_str "\"total\": 3" in
+    let has_passed = contains json_str "\"passed\": 2" in
+    let has_failed = contains json_str "\"failed\": 1" in
+    let has_results = contains json_str "results" in
+    has_schema && has_status && has_total && has_passed && has_failed && has_results
+  );
+  test_case "cli_args parse_test_args handles --json flag" (fun () ->
+    let ok_json = Cli_args.parse_test_args ~cwd:"/tmp" ["--json"] in
+    let ok_verbose_json = Cli_args.parse_test_args ~cwd:"/tmp" ["--verbose"; "--json"] in
+    let ok_json_verbose = Cli_args.parse_test_args ~cwd:"/tmp" ["--json"; "--verbose"] in
+    let err_unknown = Cli_args.parse_test_args ~cwd:"/tmp" ["--unknown"] in
+    (match ok_json with
+     | Ok opts -> opts.json = true && opts.verbose = false
+     | Error _ -> false)
+    && (match ok_verbose_json with
+     | Ok opts -> opts.json = true && opts.verbose = true
+     | Error _ -> false)
+    && (match ok_json_verbose with
+     | Ok opts -> opts.json = true && opts.verbose = true
+     | Error _ -> false)
+    && (match err_unknown with
+     | Error _ -> true
+     | Ok _ -> false)
+  );
   print_newline ()

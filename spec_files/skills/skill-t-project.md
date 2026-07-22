@@ -53,6 +53,7 @@ Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize t
 5. **Nix env check:** `t doctor` catches environment drift (stale flake, missing Nix inputs) before you debug code.
 6. **Use `nix develop` first:** Always run `nix develop` (or `nix develop -c <command>`) to enter the T environment. Without it, `t`, R, Python, and Julia with tlang packages are not available.
 7. **Inspect from R/Python/Julia directly:** The companion packages (`tlang` in R, `tlang` in Python, `Tlang` in Julia) expose `read_node()`, `inspect_node()`, and `inspect_pipeline()`. It can be easier to explore node contents in R/Python/Julia than in the T REPL — especially for plotting, statistical summaries, or DataFrame manipulation.
+8. **Verify tests pass:** Run `t test --json` for structured output, or `t_test()` in the REPL for a DataFrame. Check `"status": "passed"` or filter `results |> filter($status == "failed")`.
 
 ## Development workflow: check, fix, build, diff
 

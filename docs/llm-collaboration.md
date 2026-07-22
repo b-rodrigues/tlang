@@ -166,6 +166,68 @@ This is useful for verifying that a code change only affected the intended nodes
 
 ---
 
+## Programmatic Test Results: `t test --json`
+
+When agents modify code, they need to verify that existing tests still pass. T provides
+structured test output via `t test --json`:
+
+```bash
+t test --json tests/
+```
+
+This returns a JSON object with test results:
+
+```json
+{
+  "schema_version": "1",
+  "status": "passed",
+  "total": 15,
+  "passed": 14,
+  "failed": 1,
+  "duration_ms": 2340,
+  "results": [
+    {
+      "file": "tests/test_arithmetic.t",
+      "status": "passed",
+      "duration_ms": 120,
+      "error": null
+    },
+    {
+      "file": "tests/test_strings.t",
+      "status": "failed",
+      "duration_ms": 85,
+      "error": "Assertion failed at line 42: expected \"hello\" but got \"world\""
+    }
+  ]
+}
+```
+
+**Agent workflow:**
+
+1. Agent modifies code
+2. Agent runs `t test --json tests/`
+3. Agent parses JSON to check `status` field
+4. If `status` is `"failed"`, agent reads `error` field from failed results
+5. Agent fixes the issue and re-runs tests
+
+The JSON output follows the same schema version as `t check --json` and `t run --json`,
+enabling consistent tooling across all T commands.
+
+### REPL-callable version
+
+For agents working in the REPL, `t_test()` returns a DataFrame with the same results:
+
+```t
+results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |> filter($status == "failed")
+nrow(failed)  -- 0 if all tests passed
+```
+
+---
+
 ## Intent Blocks
 
 Intent blocks are **machine-readable metadata** that capture analytical goals.

@@ -3788,6 +3788,67 @@ $ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
 
 ---
 
+### `t_test()`
+
+REPL-callable version of `t test`. Runs the test suite and returns a DataFrame with structured results for programmatic inspection.
+
+**Returns:** `DataFrame` — columns: `file` (String), `status` ("passed" or "failed"), `duration_ms` (Float), `error` (String or NA)
+
+Note: `duration_ms` is a Float in the REPL DataFrame, but an integer in CLI `--json` output. Both represent milliseconds.
+
+**Examples:**
+
+```t
+results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |> filter($status == "failed")
+nrow(failed)  -- 0 if all tests passed
+
+-- Count passed tests
+results |> filter($status == "passed") |> nrow()
+```
+
+---
+
+### CLI: `t test`
+
+Runs the test suite for the current project. Discovers test files (`test-*.t`, `test_*.t`, or `*_test.t`) recursively in the `tests/` directory.
+
+```bash
+t test                        # human-readable output
+t test --json                 # structured JSON output (no preamble)
+t test --json tests/          # specify project directory
+```
+
+**JSON schema (when using `--json`):**
+
+```json
+{
+  "schema_version": "1",
+  "status": "passed|failed",
+  "total": N,
+  "passed": N,
+  "failed": N,
+  "duration_ms": N,
+  "results": [
+    {
+      "file": "tests/test_arithmetic.t",
+      "status": "passed",
+      "duration_ms": 120,
+      "error": null
+    }
+  ]
+}
+```
+
+All fields except `error` are present in every result object. `duration_ms` is an integer (milliseconds, rounded). `error` is `null` for passed tests, or a string containing the error message for failed tests.
+
+The `--json` flag produces clean JSON output with no preamble, making it safe for piping to `jq` or parsing with agent tooling. Note: `--verbose` combined with `--json` is a no-op — verbose per-test error printing is suppressed when JSON mode is active.
+
+---
+
 ## Explain Package
 
 Introspection and LLM tooling.
