@@ -1139,4 +1139,32 @@ min_version = "0.51.0"
     (* Multiple wildcards where match should fail *)
     && not (Test_discovery.glob_match "*abc*def" "xabxdxf")
   );
+  test_case "test_discovery run_suite failfast halts on first failure" (fun () ->
+    let temp_dir = Filename.concat (Filename.get_temp_dir_name ()) (Printf.sprintf "failfast_test_%d" (Random.int 100000)) in
+    let tests_dir = Filename.concat temp_dir "tests" in
+    Sys.mkdir temp_dir 0o755;
+    Sys.mkdir tests_dir 0o755;
+
+    let f1 = Filename.concat tests_dir "test_1_pass.t" in
+    let f2 = Filename.concat tests_dir "test_2_fail.t" in
+    let f3 = Filename.concat tests_dir "test_3_should_not_run.t" in
+
+    let ch1 = open_out f1 in output_string ch1 "assert(true)\n"; close_out ch1;
+    let ch2 = open_out f2 in output_string ch2 "assert(false)\n"; close_out ch2;
+    let ch3 = open_out f3 in output_string ch3 "assert(true)\n"; close_out ch3;
+
+    let suite_res = Test_discovery.run_suite ~quiet:true ~failfast:true temp_dir in
+
+    (try
+      Sys.remove f1; Sys.remove f2; Sys.remove f3;
+      Sys.rmdir tests_dir; Sys.rmdir temp_dir
+    with _ -> ());
+
+    suite_res.total = 2
+    && suite_res.passed = 1
+    && suite_res.failed = 1
+    && List.length suite_res.results = 2
+    && String.ends_with ~suffix:"test_1_pass.t" (List.hd suite_res.results).file
+    && (List.nth suite_res.results 1).success = false
+  );
   print_newline ()

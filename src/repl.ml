@@ -1053,21 +1053,25 @@ let cmd_test args =
    | Error msg -> exit_with_error msg);
   if opts.list_only then begin
     let test_dir = Filename.concat opts.target_dir "tests" in
-    let ignore_patterns = Test_discovery.read_tignore test_dir in
-    let files = Test_discovery.discover_tests ~ignore_patterns test_dir in
-    let files =
-      if opts.only_patterns <> [] then
-        List.filter (fun f -> Test_discovery.matches_any_pattern opts.target_dir f opts.only_patterns) files
-      else files
-    in
-    let files =
-      if opts.not_patterns <> [] then
-        List.filter (fun f -> not (Test_discovery.matches_any_pattern opts.target_dir f opts.not_patterns)) files
-      else files
-    in
-    List.iter (fun f ->
-      print_endline (Test_discovery.relative_path opts.target_dir f)
-    ) files
+    if not (Sys.file_exists test_dir && Sys.is_directory test_dir) then
+      print_endline "No tests/ directory found."
+    else begin
+      let ignore_patterns = Test_discovery.read_tignore test_dir in
+      let files = Test_discovery.discover_tests ~ignore_patterns test_dir in
+      let files =
+        if opts.only_patterns <> [] then
+          List.filter (fun f -> Test_discovery.matches_any_pattern opts.target_dir f opts.only_patterns) files
+        else files
+      in
+      let files =
+        if opts.not_patterns <> [] then
+          List.filter (fun f -> not (Test_discovery.matches_any_pattern opts.target_dir f opts.not_patterns)) files
+        else files
+      in
+      List.iter (fun f ->
+        print_endline (Test_discovery.relative_path opts.target_dir f)
+      ) files
+    end
   end else begin
     let quiet = opts.format <> Human in
     let suite_result =
@@ -1670,6 +1674,7 @@ let () =
               let lst = match v with
                 | Ast.VList lst -> List.filter_map (fun (_, v) ->
                     match v with Ast.VString s -> Some s | _ -> None) lst
+                | Ast.VString s -> [s]
                 | _ -> []
               in
               if k = Some "not" then not_ := lst else only := lst

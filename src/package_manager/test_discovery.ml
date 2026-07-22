@@ -413,33 +413,35 @@ let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) ?(failfast=f
         let start_total = Unix.gettimeofday () in
         if not quiet then Printf.printf "Running %d test file%s...\n\n"
           (List.length files) (if List.length files > 1 then "s" else "");
-        let results = List.fold_left (fun acc file ->
-          let r = run_test_file file in
-          let r = match timeout with
-            | Some secs when r.duration > secs ->
-                { r with success = false;
-                  error_msg = Some (Printf.sprintf "Timeout: exceeded %.0fs limit (%.2fs)"
-                    secs r.duration) }
-            | _ -> r
-          in
-          let short_name = relative_path dir file in
-          if not quiet then begin
-            if r.success then
-              Printf.printf "  ✓ %s (%s)\n" short_name (format_duration r.duration)
-            else begin
-              Printf.printf "  ✗ %s (%s)\n" short_name (format_duration r.duration);
-              if verbose then
-                match r.error_msg with
-                | Some msg -> Printf.printf "    → %s\n" msg
-                | None -> ()
-            end
-          end;
-          if failfast && not r.success then
-            List.rev (r :: acc)
-          else
-            r :: acc
-        ) [] files in
-        let results = List.rev results in
+        let rec execute_files acc = function
+          | [] -> List.rev acc
+          | file :: rest ->
+              let r = run_test_file file in
+              let r = match timeout with
+                | Some secs when r.duration > secs ->
+                    { r with success = false;
+                      error_msg = Some (Printf.sprintf "Timeout: exceeded %.0fs limit (%.2fs)"
+                        secs r.duration) }
+                | _ -> r
+              in
+              let short_name = relative_path dir file in
+              if not quiet then begin
+                if r.success then
+                  Printf.printf "  ✓ %s (%s)\n" short_name (format_duration r.duration)
+                else begin
+                  Printf.printf "  ✗ %s (%s)\n" short_name (format_duration r.duration);
+                  if verbose then
+                    match r.error_msg with
+                    | Some msg -> Printf.printf "    → %s\n" msg
+                    | None -> ()
+                end
+              end;
+              if failfast && not r.success then
+                List.rev (r :: acc)
+              else
+                execute_files (r :: acc) rest
+        in
+        let results = execute_files [] files in
         let total_duration = Unix.gettimeofday () -. start_total in
         let passed_results = List.filter (fun r -> r.success) results in
         let passed = List.length passed_results in
