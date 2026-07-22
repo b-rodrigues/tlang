@@ -132,6 +132,16 @@ Run all tests with:
 
 ```bash
 $ t test
+
+# Structured JSON output for agents and automation:
+$ t test --json
+```
+
+In the REPL, `t_test()` returns a DataFrame with test results:
+
+```t
+results = t_test()
+results |> filter($status == "failed")
 ```
 
 ### Why Use `expect_*` Functions with `assert()`?

@@ -3788,6 +3788,63 @@ $ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
 
 ---
 
+### `t_test()`
+
+REPL-callable version of `t test`. Runs the test suite and returns a DataFrame with structured results for programmatic inspection.
+
+**Returns:** `DataFrame` — columns: `file` (String), `status` ("passed" or "failed"), `duration_ms` (Float), `error` (String or NA)
+
+**Examples:**
+
+```t
+results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |> filter($status == "failed")
+nrow(failed)  -- 0 if all tests passed
+
+-- Count passed tests
+results |> filter($status == "passed") |> nrow()
+```
+
+---
+
+### CLI: `t test`
+
+Runs the test suite for the current project. Discovers test files (`test-*.t`, `test_*.t`, or `*_test.t`) recursively in the `tests/` directory.
+
+```bash
+t test                        # human-readable output
+t test --json                 # structured JSON output (no preamble)
+t test --json <dir>           # specify project directory
+```
+
+**JSON schema (when using `--json`):**
+
+```json
+{
+  "schema_version": "1",
+  "status": "passed|failed",
+  "total": N,
+  "passed": N,
+  "failed": N,
+  "duration_ms": N,
+  "results": [
+    {
+      "file": "tests/test_arithmetic.t",
+      "status": "passed",
+      "duration_ms": 120,
+      "error": null
+    }
+  ]
+}
+```
+
+The `--json` flag produces clean JSON output with no preamble, making it safe for piping to `jq` or parsing with agent tooling.
+
+---
+
 ## Explain Package
 
 Introspection and LLM tooling.

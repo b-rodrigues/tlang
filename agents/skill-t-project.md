@@ -415,5 +415,6 @@ When modifying a pipeline:
 - `t check --schema src/pipeline.t` passes with no errors or warnings.
 - `t run src/pipeline.t` (or the project's entry pipeline) completes without an unhandled `Error`.
 - `t diff src/pipeline.t` shows only the nodes you intended to change (no unexpected cascades).
+- If you modified test files or test-related code, run `t test --json` and verify `"status": "passed"`.
 - If you touched `tproject.toml`, you ran `t update` afterward.
 - If the project already uses `intent { ... }` blocks, continue that convention when making analytical decisions.
