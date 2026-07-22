@@ -3887,8 +3887,8 @@ fixture = pipeline {
 test_filter = pipeline {
   check = node(
     command = {
-      df = read_csv(data) |> filter($mpg > 20)
-      assert(nrow(df) > 0)
+      result = data |> filter($mpg > 20)
+      assert(nrow(result) > 0)
     },
     serializer = ^csv
   )
@@ -3897,8 +3897,8 @@ test_filter = pipeline {
 test_mutate = pipeline {
   check = node(
     command = {
-      df = read_csv(data) |> mutate($kpg = $mpg * 1.609)
-      assert("kpg" in colnames(df))
+      result = data |> mutate($kpg = $mpg * 1.609)
+      assert("kpg" in colnames(result))
     },
     serializer = ^csv
   )
@@ -3910,8 +3910,9 @@ build_pipeline(combined)
 ```
 
 Each node runs in an isolated Nix sandbox. The `fixture` pipeline's `data` node
-is built once and its output is available to downstream test nodes via the
-dependency DAG.
+builds a dataframe (via `read_csv`), serializes it to CSV for cross-sandbox
+transfer, and downstream test nodes receive it as a dataframe they can pipe
+directly — no redundant `read_csv()` wrapper needed.
 
 ---
 

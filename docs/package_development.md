@@ -166,7 +166,7 @@ test_b = pipeline { ... }
 build_pipeline(chain(fixture, parallel(test_a, test_b)))
 ```
 
-Each node runs in an isolated Nix sandbox. The fixture's output is available to downstream test nodes via the dependency DAG. See the [API reference](api-reference.md#test-fixtures) for a full example.
+Each node runs in an isolated Nix sandbox. The fixture's output is available to downstream test nodes via the dependency DAG — no redundant `read_csv()` wrapper needed. See the [API reference](api-reference.md#test-fixtures) for a full example.
 
 In the REPL, `t_test()` returns a DataFrame with test results:
 
