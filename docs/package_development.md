@@ -153,6 +153,21 @@ slow_integration.t
 legacy/
 ```
 
+### Test Fixtures
+
+Share expensive setup (like loading large datasets) across tests using `chain()`:
+
+```t
+fixture = pipeline {
+  data = node(command = read_csv("data/large.csv"), serializer = ^csv)
+}
+test_a = pipeline { ... }
+test_b = pipeline { ... }
+build_pipeline(chain(fixture, parallel(test_a, test_b)))
+```
+
+Each node runs in an isolated Nix sandbox. The fixture's output is available to downstream test nodes via the dependency DAG. See the [API reference](api-reference.md#test-fixtures) for a full example.
+
 In the REPL, `t_test()` returns a DataFrame with test results:
 
 ```t

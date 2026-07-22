@@ -3869,6 +3869,50 @@ legacy/                 # directory at any depth
 </testsuites>
 ```
 
+### Test Fixtures
+
+T doesn't have a dedicated `before_each`/`after_each` fixture mechanism because
+pipelines already provide the necessary isolation and composition. Use `chain()`
+to share a setup pipeline across test nodes:
+
+```t
+-- tests/test_with_fixture.t
+fixture = pipeline {
+  data = node(
+    command = read_csv("tests/data/mtcars.csv"),
+    serializer = ^csv
+  )
+}
+
+test_filter = pipeline {
+  check = node(
+    command = {
+      df = read_csv(data) |> filter($mpg > 20)
+      assert(nrow(df) > 0)
+    },
+    serializer = ^csv
+  )
+}
+
+test_mutate = pipeline {
+  check = node(
+    command = {
+      df = read_csv(data) |> mutate($kpg = $mpg * 1.609)
+      assert("kpg" in colnames(df))
+    },
+    serializer = ^csv
+  )
+}
+
+-- Wire fixture output into each test
+combined = chain(fixture, parallel(test_filter, test_mutate))
+build_pipeline(combined)
+```
+
+Each node runs in an isolated Nix sandbox. The `fixture` pipeline's `data` node
+is built once and its output is available to downstream test nodes via the
+dependency DAG.
+
 ---
 
 ## Explain Package
