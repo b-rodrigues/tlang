@@ -100,6 +100,9 @@ result = t_fix("path/to/script.t", dry_run = true)
 
 t test
 
+# Run tests with structured JSON output (for agents and automation):
+t test --json tests/
+
 t doc --parse --generate
 
 t doctor
@@ -397,7 +400,7 @@ Purpose: printing, introspection, collections, metaprogramming, filesystem/path 
 - Converters: `to_integer(x)`, `to_float(x)`, `to_numeric(x)`
 - Execution and shell/file helpers: `run(command, ...)`, `exit(code = 0)`, `getwd()`, `file_exists(path)`, `dir_exists(path)`, `read_file(path)`, `list_files(path = ".")`, `env(name)`
 - Path helpers: `path_join(...)`, `path_basename(path)`, `path_dirname(path)`, `path_ext(path)`, `path_stem(path)`, `path_abs(path)`
-- Tooling wrappers discussed in the docs/reference: `t_run(path)`, `t_test(path = na())`, `t_doc(...)`
+- Tooling wrappers discussed in the docs/reference: `t_run(path)`, `t_test()`, `t_doc(...)`
 
 ### `dataframe`
 

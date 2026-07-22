@@ -4,6 +4,7 @@ type path_kind =
 
 type test_options = {
   verbose : bool;
+  json : bool;
   target_dir : string;
 }
 
@@ -123,15 +124,20 @@ let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string lis
     @return [Ok test_options] if successfully parsed, or [Error message] on unexpected arguments. *)
 let parse_test_args ~cwd (args : string list) : (test_options, string) result =
   let verbose = ref false in
+  let json = ref false in
   let target_dir = ref None in
   let rec parse = function
     | [] ->
         Ok {
           verbose = !verbose;
+          json = !json;
           target_dir = (match !target_dir with Some dir -> dir | None -> cwd);
         }
     | ("--verbose" | "-v") :: rest ->
         verbose := true;
+        parse rest
+    | "--json" :: rest ->
+        json := true;
         parse rest
     | arg :: _ when String.length arg > 0 && arg.[0] = '-' ->
         Error (Printf.sprintf "Unknown option: %s" arg)

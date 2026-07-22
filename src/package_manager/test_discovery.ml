@@ -1,5 +1,5 @@
 (* src/package_manager/test_discovery.ml *)
-(* Test runner for T packages: discovers and runs test-*.t files *)
+(* Test runner for T packages: discovers and runs test-*.t, test_*.t, or *_test.t files *)
 
 (** Single test result *)
 type test_result = {
@@ -19,7 +19,7 @@ type suite_result = {
 }
 
 (** Discover test files in a directory.
-    Matches files named test-*.t or *_test.t, recursively. *)
+    Matches files named test-*.t, test_*.t, or *_test.t, recursively. *)
 let discover_tests (dir : string) : string list =
   let results = ref [] in
   let rec scan path =
@@ -34,15 +34,18 @@ let discover_tests (dir : string) : string list =
         if Sys.is_directory full_path then
           scan full_path
         else if Filename.check_suffix entry ".t" then begin
-          (* Match test-*.t or *_test.t *)
+          (* Match test-*.t, test_*.t, or *_test.t *)
           let base = Filename.remove_extension entry in
           let is_test_prefix =
             String.length base >= 5 &&
             String.sub base 0 5 = "test-" in
+          let is_test_underscore =
+            String.length base >= 5 &&
+            String.sub base 0 5 = "test_" in
           let is_test_suffix =
             String.length base >= 5 &&
             String.sub base (String.length base - 5) 5 = "_test" in
-          if is_test_prefix || is_test_suffix then
+          if is_test_prefix || is_test_underscore || is_test_suffix then
             results := full_path :: !results
         end
       ) entries
@@ -186,6 +189,26 @@ let format_duration d =
   else if d < 1.0 then Printf.sprintf "%.0fms" (d *. 1000.0)
   else Printf.sprintf "%.2fs" d
 
+(** JSON serialization for test results *)
+let test_result_to_yojson r =
+  `Assoc [
+    ("file", `String r.file);
+    ("status", `String (if r.success then "passed" else "failed"));
+    ("duration_ms", `Int (int_of_float (r.duration *. 1000.0)));
+    ("error", (match r.error_msg with Some e -> `String e | None -> `Null));
+  ]
+
+let suite_result_to_yojson r =
+  `Assoc [
+    ("schema_version", `String "1");
+    ("status", `String (if r.failed = 0 then "passed" else "failed"));
+    ("total", `Int r.total);
+    ("passed", `Int r.passed);
+    ("failed", `Int r.failed);
+    ("duration_ms", `Int (int_of_float (r.total_duration *. 1000.0)));
+    ("results", `List (List.map test_result_to_yojson r.results));
+  ]
+
 (** Run a full test suite: discover + execute all tests *)
 let run_suite ?(verbose=false) (dir : string) : suite_result =
   let test_dir = Filename.concat dir "tests" in
@@ -195,7 +218,7 @@ let run_suite ?(verbose=false) (dir : string) : suite_result =
   end else begin
     let files = discover_tests test_dir in
     if files = [] then begin
-      Printf.printf "No test files found (looking for test-*.t or *_test.t).\n";
+      Printf.printf "No test files found (looking for test-*.t, test_*.t, or *_test.t).\n";
       { total = 0; passed = 0; failed = 0; results = []; total_duration = 0.0 }
     end else begin
       let start_total = Unix.gettimeofday () in

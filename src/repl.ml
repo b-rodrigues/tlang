@@ -1052,6 +1052,10 @@ let cmd_test args =
    | Ok () -> ()
    | Error msg -> exit_with_error msg);
   let suite_result = Test_discovery.run_suite ~verbose:opts.verbose opts.target_dir in
+  if opts.json then begin
+    let json = Test_discovery.suite_result_to_yojson suite_result in
+    print_endline (Yojson.Safe.pretty_to_string json)
+  end;
   if suite_result.failed > 0 then exit 1
 
 let cmd_doctor () = Package_doctor.run_doctor ()
@@ -1611,11 +1615,14 @@ let () =
 (*
 --# Run tests
 --#
---# Runs the test suite for the current package.
+--# Runs the test suite for the current package and returns a DataFrame with results.
 --# Wraps the CLI `t test` command for use within the REPL.
 --#
 --# @name t_test
---# @return :: NA Returns NA on success, or an Error if tests fail.
+--# @return :: DataFrame A DataFrame with columns: file, status, duration_ms, error.
+--# @example
+--#   results = t_test()
+--#   results |> filter($status == "failed")
 --# @family repl
 --# @export
 *)
@@ -1624,12 +1631,44 @@ let () =
       b_func = (fun _named_args _env_ref ->
         let dir = Sys.getcwd () in
         let suite_result = Test_discovery.run_suite ~verbose:false dir in
-        if suite_result.failed > 0 then
-          Ast.VError { code = Ast.GenericError; message = Printf.sprintf "%d test(s) failed." suite_result.failed; context = []; location = None; na_count = 0 }
-        else begin
-          Printf.printf "All %d test(s) passed.\n" suite_result.passed;
+        let n = List.length suite_result.results in
+        if n = 0 then begin
+          Printf.printf "No test files found.\n";
           flush stdout;
-          Ast.(VNA NAGeneric)
+          Ast.VDataFrame { arrow_table = Arrow_table.empty; group_keys = [] }
+        end else begin
+          let files = Array.init n (fun i ->
+            let r = List.nth suite_result.results i in
+            Ast.VString r.file
+          ) in
+          let statuses = Array.init n (fun i ->
+            let r = List.nth suite_result.results i in
+            Ast.VString (if r.success then "passed" else "failed")
+          ) in
+          let durations = Array.init n (fun i ->
+            let r = List.nth suite_result.results i in
+            Ast.VFloat (r.duration *. 1000.0)
+          ) in
+          let errors = Array.init n (fun i ->
+            let r = List.nth suite_result.results i in
+            match r.error_msg with
+            | Some msg -> Ast.VString msg
+            | None -> Ast.VNA NAGeneric
+          ) in
+          let columns = [
+            ("file", files);
+            ("status", statuses);
+            ("duration_ms", durations);
+            ("error", errors);
+          ] in
+          (match Arrow_bridge.table_from_value_columns columns n with
+           | Ok arrow_table -> begin
+               Printf.printf "Ran %d test(s): %d passed, %d failed.\n"
+                 suite_result.total suite_result.passed suite_result.failed;
+               flush stdout;
+               Ast.VDataFrame { arrow_table; group_keys = [] }
+           end
+           | Error err -> err)
         end)
     })
     env

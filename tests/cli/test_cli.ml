@@ -49,11 +49,11 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      | Ok _ -> false);
   test_message "parse_test_args defaults to cwd"
     (match Cli_args.parse_test_args ~cwd [] with
-     | Ok { Cli_args.verbose = verbose; target_dir } -> (not verbose) && target_dir = cwd
+     | Ok { Cli_args.verbose = verbose; json; target_dir } -> (not verbose) && (not json) && target_dir = cwd
      | Error _ -> false);
   test_message "parse_test_args accepts verbose flag and explicit directory"
     (match Cli_args.parse_test_args ~cwd ["--verbose"; "tests"] with
-     | Ok { Cli_args.verbose = verbose; target_dir } -> verbose && target_dir = "tests"
+     | Ok { Cli_args.verbose = verbose; json; target_dir } -> verbose && (not json) && target_dir = "tests"
      | Error _ -> false);
   test_message "parse_test_args rejects unknown flags"
     (match Cli_args.parse_test_args ~cwd ["--wat"] with
