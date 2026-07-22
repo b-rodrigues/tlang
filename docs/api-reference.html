@@ -3611,6 +3611,37 @@ intent_get(i, &quot;description&quot;)  -- &quot;Customer analysis&quot;</code><
 <code>Expect_stop msg</code>, or <code>Expect_hold msg</code>) rather
 than raising directly, so results can be inspected, combined, or passed
 straight to <code>assert()</code>.</p>
+<h3 id="why-assertexpect_...-instead-of-plain-assertcondition">Why
+<code>assert(expect_*(...))</code> instead of plain
+<code>assert(condition)</code>?</h3>
+<p>While a raw boolean expression like
+<code>assert(colnames(df) == ["a", "b", "c"])</code> works, it evaluates
+to a bare <code>Bool</code>. When it fails, <code>assert</code> can only
+report a generic
+<code>AssertionError: expression evaluated to false</code>, giving no
+details on which element or column differed.</p>
+<p>By contrast, <code>expect_*</code> functions perform detailed
+element-wise and structural comparisons. When wrapped in
+<code>assert()</code>, they provide rich diagnostic feedback:</p>
+<ul>
+<li><strong>Detailed Diff Messages</strong>:
+<code>assert(expect_colnames(df, ["a", "b", "c"]))</code> or
+<code>assert(expect_equal(colnames(df), ["a", "b", "c"]))</code> reports
+exact mismatched column names, row counts, index differences, or type
+mismatches.</li>
+<li><strong>First-Class Expect Values</strong>: Return
+<code>Expect_pass</code>, <code>Expect_stop msg</code>, or
+<code>Expect_hold msg</code> (used when comparisons involve
+<code>NA</code>), allowing tests to inspect outcomes or handle
+missingness explicitly.</li>
+<li><strong>Domain-Specific Expectations</strong>: Dedicated helpers for
+type checking (<code>expect_type</code>), error matching
+(<code>expect_error</code>), dataset dimensions
+(<code>expect_nrow</code>, <code>expect_colnames</code>), and pipeline
+DAG structures (<code>expect_pipeline</code>, <code>expect_nodes</code>,
+<code>expect_dependency</code>).</li>
+</ul>
+<hr />
 <h3
 id="expect_equalactual-expected-tolerance-1e-9"><code>expect_equal(actual, expected, tolerance = 1e-9)</code></h3>
 <p>Compare <code>actual</code> against <code>expected</code>, returning

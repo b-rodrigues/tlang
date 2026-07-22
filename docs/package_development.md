@@ -123,8 +123,9 @@ Example `tests/test-mean.t`:
 ```t
 import "src/stats.t"
 
-assert(stats.mean([1, 2, 3]) == 2.0)
-assert(stats.mean([-1, -1]) == -1.0)
+-- Using specialized expect_* functions provides rich diagnostic diffs when tests fail:
+assert(expect_equal(stats.mean([1, 2, 3]), 2.0))
+assert(expect_equal(stats.mean([-1, -1]), -1.0))
 ```
 
 Run all tests with:
@@ -132,6 +133,23 @@ Run all tests with:
 ```bash
 $ t test
 ```
+
+### Why Use `expect_*` Functions with `assert()`?
+
+While a plain boolean check like `assert(colnames(df) == ["a", "b", "c"])` works, it only evaluates to `true` or `false`. When it fails, `assert` produces a generic error (`AssertionError: expression evaluated to false`), providing no detail on what differed.
+
+By contrast, `expect_*` functions (such as `expect_equal`, `expect_colnames`, `expect_nrow`, `expect_type`, etc.) perform deep structural comparisons and provide rich diagnostic diffs:
+
+```t
+-- Plain assert: fails with unhelpful generic "expression evaluated to false"
+assert(colnames(df) == ["a", "b", "c"])
+
+-- Recommended: produces exact structural diff on failure (e.g. expected "b" at index 2, got "x")
+assert(expect_colnames(df, ["a", "b", "c"]))
+assert(expect_equal(colnames(df), ["a", "b", "c"]))
+```
+
+`expect_*` functions also return first-class `Expect` values (`Expect_pass`, `Expect_stop msg`, `Expect_hold msg`) that allow soft failure, NA handling, or programmatic inspection before passing to `assert()`.
 
 ### Skipping Pipeline Tests Conditionally
 

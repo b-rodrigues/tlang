@@ -3896,6 +3896,18 @@ intent_get(i, "description")  -- "Customer analysis"
 
 Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons return an `Expect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg`) rather than raising directly, so results can be inspected, combined, or passed straight to `assert()`.
 
+### Why `assert(expect_*(...))` instead of plain `assert(condition)`?
+
+While a raw boolean expression like `assert(colnames(df) == ["a", "b", "c"])` works, it evaluates to a bare `Bool`. When it fails, `assert` can only report a generic `AssertionError: expression evaluated to false`, giving no details on which element or column differed.
+
+By contrast, `expect_*` functions perform detailed element-wise and structural comparisons. When wrapped in `assert()`, they provide rich diagnostic feedback:
+
+- **Detailed Diff Messages**: `assert(expect_colnames(df, ["a", "b", "c"]))` or `assert(expect_equal(colnames(df), ["a", "b", "c"]))` reports exact mismatched column names, row counts, index differences, or type mismatches.
+- **First-Class Expect Values**: Return `Expect_pass`, `Expect_stop msg`, or `Expect_hold msg` (used when comparisons involve `NA`), allowing tests to inspect outcomes or handle missingness explicitly.
+- **Domain-Specific Expectations**: Dedicated helpers for type checking (`expect_type`), error matching (`expect_error`), dataset dimensions (`expect_nrow`, `expect_colnames`), and pipeline DAG structures (`expect_pipeline`, `expect_nodes`, `expect_dependency`).
+
+---
+
 ### `expect_equal(actual, expected, tolerance = 1e-9)`
 
 Compare `actual` against `expected`, returning an `Expect` value.
