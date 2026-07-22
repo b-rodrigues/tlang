@@ -466,6 +466,9 @@ let register env =
       env
   in
   (* check: evaluates assert(val), prints true on success, preserves original VError on failure *)
+  (* Note: Env.find_opt "assert" returns a VBuiltin whose b_func is the low-level AST dispatcher
+     with signature (string option * value) list -> environment ref -> value.
+     We convert positional `args` into `(None, v)` tuples and pass `ref env`. *)
   let env =
     Env.add "check"
       (make_builtin ~name:"check" ~variadic:true 1 (fun args env ->
