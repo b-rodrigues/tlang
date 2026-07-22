@@ -463,4 +463,23 @@ let register env =
                    | args -> Error.arity_error_named "expect_in" 2 (List.length args)))))
       env
   in
+  (* check: evaluates assert(val), prints true on success, returns RuntimeError on failure *)
+  let env =
+    Env.add "check"
+      (make_builtin ~name:"check" ~variadic:true 1 (fun args env ->
+         let assert_fn = match Env.find_opt "assert" env with
+           | Some (VBuiltin { b_func; _ }) -> b_func
+           | _ -> fun _ _ -> Error.make_error RuntimeError "assert function not found"
+         in
+         let named_args = List.map (fun a -> (None, a)) args in
+         let res = assert_fn named_args (ref env) in
+         match res with
+         | VBool true ->
+             Printf.printf "true\n";
+             VBool true
+         | VError err ->
+             VError { err with code = RuntimeError }
+         | other -> other))
+      env
+  in
   env

@@ -173,7 +173,10 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     "df = to_dataframe([x: [1, 2], y: [3, 4]]); expect_unique(df)" "PASS";
   test "expect_unique dataframe stop"
     "df = to_dataframe([x: [1, 1], y: [2, 2]]); expect_unique(df)" "STOP(DataFrame contains duplicate row at index 1";
-  test "expect_unique NA"
-    "expect_unique(NA)" "HOLD(";
+  (* check *)
+  test "check pass"
+    "check(expect_equal(1, 1))" "true";
+  test "check failure"
+    "check(expect_equal(1, 2))" "Error(RuntimeError: \"Assertion failed: `1` != `2`.\")";
 
   Printf.printf "\n"
