@@ -1058,4 +1058,50 @@ min_version = "0.51.0"
     let has_failed = contains xml "test-fail.t" in
     has_header && has_testsuites && has_testsuite && has_testcase && has_failure && has_passed && has_failed
   );
+  test_case "test_discovery .tignore handling of directory patterns, comments, and wildcards" (fun () ->
+    let temp_dir = Filename.concat (Filename.get_temp_dir_name ()) (Printf.sprintf "tignore_test_%d" (Random.int 100000)) in
+    let tests_dir = Filename.concat temp_dir "tests" in
+    let legacy_dir = Filename.concat tests_dir "legacy" in
+    Sys.mkdir temp_dir 0o755;
+    Sys.mkdir tests_dir 0o755;
+    Sys.mkdir legacy_dir 0o755;
+    
+    (* Write .tignore file *)
+    let tignore_path = Filename.concat tests_dir ".tignore" in
+    let ch = open_out tignore_path in
+    output_string ch "# Comment line\n";
+    output_string ch "legacy/ # ignore legacy folder\n";
+    output_string ch "test_ignored.t # exact file comment\n";
+    output_string ch "*_bench # wildcard without extension\n";
+    close_out ch;
+    
+    (* Create test files *)
+    let create_file p =
+      let ch = open_out p in
+      output_string ch "1 + 1\n";
+      close_out ch
+    in
+    create_file (Filename.concat tests_dir "test_valid.t");
+    create_file (Filename.concat tests_dir "test_ignored.t");
+    create_file (Filename.concat tests_dir "test_my_bench.t");
+    create_file (Filename.concat legacy_dir "test_old.t");
+    
+    let ignore_pats = Test_discovery.read_tignore tests_dir in
+    let discovered = Test_discovery.discover_tests ~ignore_patterns:ignore_pats tests_dir in
+    
+    (* Clean up *)
+    (try
+      Sys.remove (Filename.concat tests_dir "test_valid.t");
+      Sys.remove (Filename.concat tests_dir "test_ignored.t");
+      Sys.remove (Filename.concat tests_dir "test_my_bench.t");
+      Sys.remove (Filename.concat legacy_dir "test_old.t");
+      Sys.remove tignore_path;
+      Sys.rmdir legacy_dir;
+      Sys.rmdir tests_dir;
+      Sys.rmdir temp_dir
+    with _ -> ());
+    
+    (* Verify only test_valid.t is discovered *)
+    List.length discovered = 1 && String.ends_with ~suffix:"test_valid.t" (List.hd discovered)
+  );
   print_newline ()
