@@ -2,10 +2,17 @@ type path_kind =
   | File
   | Directory
 
+type test_output_format =
+  | Human
+  | Json
+  | Junit
+
 type test_options = {
   verbose : bool;
-  json : bool;
+  format : test_output_format;
   target_dir : string;
+  only_patterns : string list;
+  not_patterns : string list;
 }
 
 type mode_parse = {
@@ -124,21 +131,45 @@ let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string lis
     @return [Ok test_options] if successfully parsed, or [Error message] on unexpected arguments. *)
 let parse_test_args ~cwd (args : string list) : (test_options, string) result =
   let verbose = ref false in
-  let json = ref false in
+  let format = ref Human in
   let target_dir = ref None in
+  let only_patterns = ref [] in
+  let not_patterns = ref [] in
   let rec parse = function
     | [] ->
         Ok {
           verbose = !verbose;
-          json = !json;
+          format = !format;
           target_dir = (match !target_dir with Some dir -> dir | None -> cwd);
+          only_patterns = List.rev !only_patterns;
+          not_patterns = List.rev !not_patterns;
         }
     | ("--verbose" | "-v") :: rest ->
         verbose := true;
         parse rest
     | "--json" :: rest ->
-        json := true;
+        format := Json;
         parse rest
+    | "--format" :: "json" :: rest ->
+        format := Json;
+        parse rest
+    | "--format" :: "junit" :: rest ->
+        format := Junit;
+        parse rest
+    | "--format" :: fmt :: _ ->
+        Error (Printf.sprintf "Unknown format '%s'. Use: json, junit" fmt)
+    | "--format" :: [] ->
+        Error "Missing value for --format. Use --format json|junit"
+    | "--only" :: pat :: rest ->
+        only_patterns := pat :: !only_patterns;
+        parse rest
+    | "--only" :: [] ->
+        Error "Missing value for --only"
+    | "--not" :: pat :: rest ->
+        not_patterns := pat :: !not_patterns;
+        parse rest
+    | "--not" :: [] ->
+        Error "Missing value for --not"
     | arg :: _ when String.length arg > 0 && arg.[0] = '-' ->
         Error (Printf.sprintf "Unknown option: %s" arg)
     | arg :: rest ->

@@ -1006,16 +1006,56 @@ min_version = "0.51.0"
     let ok_json_verbose = Cli_args.parse_test_args ~cwd:"/tmp" ["--json"; "--verbose"] in
     let err_unknown = Cli_args.parse_test_args ~cwd:"/tmp" ["--unknown"] in
     (match ok_json with
-     | Ok opts -> opts.json = true && opts.verbose = false
+     | Ok opts -> opts.format = Json && opts.verbose = false
      | Error _ -> false)
     && (match ok_verbose_json with
-     | Ok opts -> opts.json = true && opts.verbose = true
+     | Ok opts -> opts.format = Json && opts.verbose = true
      | Error _ -> false)
     && (match ok_json_verbose with
-     | Ok opts -> opts.json = true && opts.verbose = true
+     | Ok opts -> opts.format = Json && opts.verbose = true
      | Error _ -> false)
     && (match err_unknown with
      | Error _ -> true
      | Ok _ -> false)
+  );
+  test_case "cli_args parse_test_args handles --format junit" (fun () ->
+    match Cli_args.parse_test_args ~cwd:"/tmp" ["--format"; "junit"] with
+    | Ok opts -> opts.format = Junit
+    | Error _ -> false
+  );
+  test_case "cli_args parse_test_args handles --only and --not" (fun () ->
+    let ok_only = Cli_args.parse_test_args ~cwd:"/tmp" ["--only"; "stats"; "--only"; "math"] in
+    let ok_not = Cli_args.parse_test_args ~cwd:"/tmp" ["--not"; "slow"] in
+    let ok_both = Cli_args.parse_test_args ~cwd:"/tmp" ["--only"; "stats"; "--not"; "slow"] in
+    (match ok_only with
+     | Ok opts -> opts.only_patterns = ["stats"; "math"]
+     | Error _ -> false)
+    && (match ok_not with
+     | Ok opts -> opts.not_patterns = ["slow"]
+     | Error _ -> false)
+    && (match ok_both with
+     | Ok opts -> opts.only_patterns = ["stats"] && opts.not_patterns = ["slow"]
+     | Error _ -> false)
+  );
+  test_case "test_discovery JUnit XML serialization" (fun () ->
+    let suite_result : Test_discovery.suite_result = {
+      total = 2;
+      passed = 1;
+      failed = 1;
+      results = [
+        { file = "tests/test-pass.t"; success = true; error_msg = None; duration = 0.1 };
+        { file = "tests/test-fail.t"; success = false; error_msg = Some "Assertion failed"; duration = 0.2 };
+      ];
+      total_duration = 0.3;
+    } in
+    let xml = Test_discovery.suite_result_to_xml suite_result in
+    let has_header = contains xml "<?xml version=\"1.0\"" in
+    let has_testsuites = contains xml "<testsuites" in
+    let has_testsuite = contains xml "<testsuite" in
+    let has_testcase = contains xml "<testcase" in
+    let has_failure = contains xml "<failure" in
+    let has_passed = contains xml "test-pass.t" in
+    let has_failed = contains xml "test-fail.t" in
+    has_header && has_testsuites && has_testsuite && has_testcase && has_failure && has_passed && has_failed
   );
   print_newline ()

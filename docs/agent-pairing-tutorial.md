@@ -451,6 +451,25 @@ workflows where test results must be consumed programmatically.
 
 ```bash
 $ t test --json tests/
+$ t test --format junit tests/  # JUnit XML for CI
+```
+
+**Filtering tests:**
+
+```bash
+$ t test --only "stats"     # run only tests matching "stats"
+$ t test --not "slow"       # skip tests matching "slow"
+```
+
+**Excluding tests with `.tignore`:**
+
+Create `tests/.tignore` to automatically exclude test files:
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
 ```
 
 The output is a JSON object with the test suite summary:

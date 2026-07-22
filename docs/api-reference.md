@@ -3819,10 +3819,41 @@ Runs the test suite for the current project. Discovers test files (`test-*.t`, `
 ```bash
 t test                        # human-readable output
 t test --json                 # structured JSON output (no preamble)
+t test --format junit         # JUnit XML output for CI
 t test --json tests/          # specify project directory
+t test --only "stats"         # run only tests matching "stats"
+t test --not "slow"           # skip tests matching "slow"
+t test --only "stats" --not "anova"  # combine filters (OR semantics for --only)
 ```
 
-**JSON schema (when using `--json`):**
+**Output formats:**
+
+| Flag | Description |
+|------|-------------|
+| (default) | Human-readable output with ✓/✗ indicators |
+| `--json` | Structured JSON output (shorthand for `--format json`) |
+| `--format json` | Structured JSON output |
+| `--format junit` | JUnit XML output for CI/CD pipelines |
+
+**Filtering flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--only PATTERN` | Run only tests whose path contains PATTERN (case-insensitive). Multiple `--only` flags use OR semantics. |
+| `--not PATTERN` | Skip tests whose path contains PATTERN (case-insensitive). Multiple `--not` flags use OR semantics. |
+
+**`.tignore` support:**
+
+Create `tests/.tignore` to automatically exclude test files. One pattern per line, `#` comments, blank lines ignored. Patterns match against the relative path from `tests/`.
+
+```
+# tests/.tignore
+slow_integration.t      # exact filename
+*_benchmark.t           # glob pattern
+legacy/                 # entire directory
+```
+
+**JSON schema (when using `--json` or `--format json`):**
 
 ```json
 {
@@ -3846,6 +3877,22 @@ t test --json tests/          # specify project directory
 All fields except `error` are present in every result object. `duration_ms` is an integer (milliseconds, rounded). `error` is `null` for passed tests, or a string containing the error message for failed tests.
 
 The `--json` flag produces clean JSON output with no preamble, making it safe for piping to `jq` or parsing with agent tooling. Note: `--verbose` combined with `--json` is a no-op — verbose per-test error printing is suppressed when JSON mode is active.
+
+**JUnit XML schema (when using `--format junit`):**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="t test" tests="2" failures="1" time="0.123">
+  <testsuite name="t test" tests="2" failures="1" time="0.123">
+    <testcase name="tests/test_pass.t" time="0.050" />
+    <testcase name="tests/test_fail.t" time="0.073">
+      <failure message="Assertion failed" type="TestFailure">
+        AssertionError: test failed
+      </failure>
+    </testcase>
+  </testsuite>
+</testsuites>
+```
 
 ---
 

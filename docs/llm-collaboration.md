@@ -173,6 +173,26 @@ structured test output via `t test --json`:
 
 ```bash
 t test --json tests/
+t test --format junit tests/  # JUnit XML for CI
+```
+
+**Filtering tests:**
+
+```bash
+t test --only "stats"     # run only tests matching "stats"
+t test --not "slow"       # skip tests matching "slow"
+t test --only "stats" --not "anova"  # combine filters
+```
+
+**Excluding tests with `.tignore`:**
+
+Create `tests/.tignore` to automatically exclude test files:
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
 ```
 
 This returns a JSON object with test results:

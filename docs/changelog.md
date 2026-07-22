@@ -2,6 +2,13 @@
 
 ## [0.54.1] - 2026-07-20
 
+### `t test` — Test Runner Enhancements
+
+- **Test filtering (`--only`, `--not`)**: Run a subset of tests by substring matching. `--only "stats"` runs only tests whose path contains "stats". Multiple `--only` flags use OR semantics. `--not "slow"` excludes tests matching "slow".
+- **JUnit XML output (`--format junit`)**: Machine-readable test output for CI/CD pipelines. Use `--format junit` or combine with `--json` for JSON output.
+- **`.tignore` support**: Create `tests/.tignore` to automatically exclude test files. One pattern per line, `#` comments, blank lines ignored.
+- **Backward-compatible `--json`**: `--json` continues to work as shorthand for `--format json`.
+
 ### Type System: Annotations and Inference
 
 - **Type annotation checking**: `t check` now compares type annotations (`x: Int = expr`) against inferred types and emits `Warning` diagnostics for mismatches. Works via the CLI `t check` and the REPL `t_check()` function.

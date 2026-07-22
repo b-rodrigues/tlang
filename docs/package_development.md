@@ -135,6 +135,22 @@ $ t test
 
 # Structured JSON output for agents and automation:
 $ t test --json
+
+# JUnit XML output for CI/CD:
+$ t test --format junit
+
+# Run only specific tests:
+$ t test --only "stats"      # run tests matching "stats"
+$ t test --not "slow"        # skip tests matching "slow"
+```
+
+Create `tests/.tignore` to automatically exclude test files (one pattern per line):
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
 ```
 
 In the REPL, `t_test()` returns a DataFrame with test results:

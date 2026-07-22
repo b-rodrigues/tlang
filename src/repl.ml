@@ -1051,11 +1051,19 @@ let cmd_test args =
   (match Cli_args.validate_path ~kind:Cli_args.Directory opts.target_dir with
    | Ok () -> ()
    | Error msg -> exit_with_error msg);
-  let suite_result = Test_discovery.run_suite ~verbose:opts.verbose ~quiet:opts.json opts.target_dir in
-  if opts.json then begin
-    let json = Test_discovery.suite_result_to_yojson suite_result in
-    print_endline (Yojson.Safe.pretty_to_string json)
-  end;
+  let quiet = opts.format <> Human in
+  let suite_result =
+    Test_discovery.run_suite ~verbose:opts.verbose ~quiet
+      ~only:opts.only_patterns ~not_:opts.not_patterns opts.target_dir
+  in
+  (match opts.format with
+   | Human -> ()
+   | Json ->
+       let json = Test_discovery.suite_result_to_yojson suite_result in
+       print_endline (Yojson.Safe.pretty_to_string json)
+   | Junit ->
+       let xml = Test_discovery.suite_result_to_xml suite_result in
+       print_endline xml);
   if suite_result.failed > 0 then exit 1
 
 let cmd_doctor () = Package_doctor.run_doctor ()
