@@ -1051,6 +1051,11 @@ let cmd_test args =
   (match Cli_args.validate_path ~kind:Cli_args.Directory opts.target_dir with
    | Ok () -> ()
    | Error msg -> exit_with_error msg);
+  if opts.coverage then begin
+    print_endline "Cleaning old coverage data...";
+    let _ = Sys.command (Printf.sprintf "find %s -name '*.coverage' -delete" (Filename.quote opts.target_dir)) in
+    ()
+  end;
   if opts.list_only then begin
     let test_dir = Filename.concat opts.target_dir "tests" in
     if not (Sys.file_exists test_dir && Sys.is_directory test_dir) then
@@ -1088,6 +1093,25 @@ let cmd_test args =
      | Junit ->
          let xml = Test_discovery.suite_result_to_xml suite_result in
          print_endline xml);
+    if opts.coverage then begin
+      let coverage_files = Array.to_list (Sys.readdir opts.target_dir)
+        |> List.filter (fun f -> Filename.check_suffix f ".coverage") in
+      if coverage_files = [] then
+        print_endline "\nNo coverage data found. Build with `nix build .#t-coverage` first,\nor run `dune build --instrument-with bisect_ppx` for a local build."
+      else begin
+        print_endline "\nCoverage summary:";
+        let cmd = "bisect-ppx-report summary 2>&1" in
+        let ic = Unix.open_process_in cmd in
+        let buf = Buffer.create 256 in
+        (try
+           while true do
+             Buffer.add_char buf (input_char ic)
+           done
+         with End_of_file -> ());
+        let _ = Unix.close_process_in ic in
+        print_string (Buffer.contents buf)
+      end
+    end;
     if suite_result.failed > 0 then exit 1
   end
 

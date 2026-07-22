@@ -16,6 +16,7 @@ type test_options = {
   failfast : bool;
   list_only : bool;
   timeout : float option;
+  coverage : bool;
 }
 
 type mode_parse = {
@@ -147,6 +148,7 @@ let parse_test_args ~cwd (args : string list) : (test_options, string) result =
   let failfast = ref false in
   let list_only = ref false in
   let timeout = ref None in
+  let coverage = ref false in
   let rec parse = function
     | [] ->
         Ok {
@@ -158,6 +160,7 @@ let parse_test_args ~cwd (args : string list) : (test_options, string) result =
           failfast = !failfast;
           list_only = !list_only;
           timeout = !timeout;
+          coverage = !coverage;
         }
     | ("--verbose" | "-v") :: rest ->
         verbose := true;
@@ -199,6 +202,9 @@ let parse_test_args ~cwd (args : string list) : (test_options, string) result =
          | _ -> Error (Printf.sprintf "Invalid timeout value: %s (must be a positive number)" secs))
     | "--timeout" :: [] ->
         Error "Missing value for --timeout. Use --timeout <seconds>"
+    | "--coverage" :: rest ->
+        coverage := true;
+        parse rest
     | arg :: _ when String.length arg > 0 && arg.[0] = '-' ->
         Error (Printf.sprintf "Unknown option: %s" arg)
     | arg :: rest ->

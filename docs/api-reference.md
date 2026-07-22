@@ -3833,6 +3833,7 @@ t test --only "stats" --not "anova"  # combine filters (OR semantics for --only)
 t test --failfast             # stop on first failure
 t test --list                 # list discovered tests without running
 t test --timeout 30           # mark tests exceeding 30s as failed
+t test --coverage             # generate Bisect_ppx coverage summary after tests
 ```
 
 **Output formats:**
@@ -3858,6 +3859,7 @@ t test --timeout 30           # mark tests exceeding 30s as failed
 | `--failfast` | Stop running tests after the first failure. |
 | `--list` | List discovered test files without running them. Respects `--only` and `--not` filters. |
 | `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. |
+| `--coverage` | Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage` or `dune build --instrument-with bisect_ppx`). |
 
 **`.tignore` support:**
 

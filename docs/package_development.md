@@ -151,6 +151,9 @@ $ t test --list
 
 # Mark tests exceeding 30s as failed:
 $ t test --timeout 30
+
+# Generate coverage summary (requires instrumented build):
+$ t test --coverage
 ```
 
 Create `tests/.tignore` to automatically exclude test files (one pattern per line):

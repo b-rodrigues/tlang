@@ -11,6 +11,7 @@
 - **`--failfast`**: Stop running tests after the first failure.
 - **`--list`**: List discovered test files without running them. Respects `--only` and `--not` filters.
 - **`--timeout SECONDS`**: Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure.
+- **`--coverage`**: Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage`).
 - **`t_test()` filtering**: `t_test(only = ["arithmetic"])` and `t_test(not = ["slow"])` for programmatic filtering from the REPL.
 
 ### Type System: Annotations and Inference

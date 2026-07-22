@@ -119,6 +119,9 @@ t test --list
 # Mark tests exceeding 30s as failed:
 t test --timeout 30
 
+# Generate coverage summary (requires instrumented build):
+t test --coverage
+
 # Exclude tests with tests/.tignore (one pattern per line)
 
 t doc --parse --generate
