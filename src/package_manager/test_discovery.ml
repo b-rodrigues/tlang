@@ -18,6 +18,79 @@ type suite_result = {
   total_duration : float;
 }
 
+(** Compute relative path of full_path with respect to dir *)
+let relative_path (dir : string) (full_path : string) : string =
+  let dir_clean =
+    if String.ends_with ~suffix:"/" dir then
+      String.sub dir 0 (String.length dir - 1)
+    else dir
+  in
+  let dir_len = String.length dir_clean in
+  if dir_len > 0 && String.length full_path > dir_len + 1 && String.starts_with ~prefix:(dir_clean ^ "/") full_path then
+    String.sub full_path (dir_len + 1) (String.length full_path - dir_len - 1)
+  else full_path
+
+(** Wildcard matching ('*' matches any substring) *)
+let glob_match pattern str =
+  let parts = String.split_on_char '*' pattern in
+  let rec match_parts str_pos parts =
+    match parts with
+    | [] -> true
+    | [last] ->
+        if last = "" then true
+        else
+          let len_last = String.length last in
+          let len_str = String.length str in
+          len_str - str_pos >= len_last &&
+          String.sub str (len_str - len_last) len_last = last
+    | first :: rest ->
+        if str_pos = 0 && first <> "" then
+          let len_first = String.length first in
+          if String.length str >= len_first && String.sub str 0 len_first = first then
+            match_parts len_first rest
+          else false
+        else if first = "" then
+          match_parts str_pos rest
+        else
+          let len_first = String.length first in
+          let rec search idx =
+            if idx + len_first > String.length str then None
+            else if String.sub str idx len_first = first then Some idx
+            else search (idx + 1)
+          in
+          match search str_pos with
+          | Some found_idx -> match_parts (found_idx + len_first) rest
+          | None -> false
+  in
+  match_parts 0 parts
+
+(** Check if relative path or filename matches an ignore pattern from .tignore *)
+let matches_ignore_pattern pat rel_path =
+  if String.length pat = 0 then false
+  else if pat.[0] = '#' then false
+  else
+    let file_base = Filename.basename rel_path in
+    let file_no_ext = Filename.remove_extension file_base in
+    let rel_no_ext = Filename.remove_extension rel_path in
+    let pat_clean =
+      if String.ends_with ~suffix:"/" pat then
+        String.sub pat 0 (String.length pat - 1)
+      else pat
+    in
+    if String.contains pat_clean '*' then
+      if String.contains pat_clean '/' then
+        glob_match pat_clean rel_path || glob_match pat_clean rel_no_ext
+      else
+        glob_match pat_clean file_base || glob_match pat_clean file_no_ext
+    else
+      let path_components = String.split_on_char '/' rel_path in
+      pat_clean = rel_path
+      || pat_clean = rel_no_ext
+      || pat_clean = file_base
+      || pat_clean = file_no_ext
+      || String.starts_with ~prefix:(pat_clean ^ "/") rel_path
+      || List.mem pat_clean path_components
+
 (** Discover test files in a directory.
     Matches files named test-*.t, test_*.t, or *_test.t, recursively.
     Respects ignore patterns from tests/.tignore *)
@@ -25,74 +98,43 @@ let discover_tests ?(ignore_patterns=[]) (dir : string) : string list =
   let results = ref [] in
   let rec scan path =
     if Sys.file_exists path && Sys.is_directory path then begin
-      let entries =
-        try Sys.readdir path
-        with Sys_error _ -> [||]
+      let rel_path = relative_path dir path in
+      let is_root = (rel_path = path || rel_path = "") in
+      let ignored_dir =
+        if is_root then false
+        else List.exists (fun pat -> matches_ignore_pattern pat rel_path) ignore_patterns
       in
-      Array.sort String.compare entries;
-      Array.iter (fun entry ->
-        let full_path = Filename.concat path entry in
-        if Sys.is_directory full_path then
-          scan full_path
-        else if Filename.check_suffix entry ".t" then begin
-          (* Match test-*.t, test_*.t, or *_test.t *)
-          let base = Filename.remove_extension entry in
-          let is_test_prefix =
-            String.length base >= 5 &&
-            String.sub base 0 5 = "test-" in
-          let is_test_underscore =
-            String.length base >= 5 &&
-            String.sub base 0 5 = "test_" in
-          let is_test_suffix =
-            String.length base >= 5 &&
-            String.sub base (String.length base - 5) 5 = "_test" in
-          if is_test_prefix || is_test_underscore || is_test_suffix then begin
-            (* Check against ignore patterns *)
-            let rel_path =
-              if String.length full_path > String.length dir + 1 then
-                String.sub full_path (String.length dir + 1) (String.length full_path - String.length dir - 1)
-              else full_path
-            in
-            let ignored = List.exists (fun pat ->
-              (* Simple glob matching: * matches anything except / *)
-              let pat_len = String.length pat in
-              if pat_len = 0 then false
-              else if pat.[0] = '#' then false
-              else
-                (* Check if pattern matches the filename or relative path *)
-                let pat_base =
-                  if Filename.is_relative pat then Filename.basename pat
-                  else pat
-                in
-                let pat_base_len = String.length pat_base in
-                if pat_base_len = 0 then false
-                else
-                  (* Try to match the pattern against the filename *)
-                  let file_base = Filename.basename rel_path in
-                  let file_base_len = String.length file_base in
-                  if pat_base = file_base then true
-                  else if pat_base = rel_path then true
-                  else if Filename.check_suffix pat_base ".t" then begin
-                    (* Try matching with * wildcard *)
-                    let star_pos = try Some (String.index pat_base '*') with Not_found -> None in
-                    match star_pos with
-                    | None -> false
-                    | Some sp ->
-                      let prefix = String.sub pat_base 0 sp in
-                      let suffix = String.sub pat_base (sp + 1) (pat_base_len - sp - 1) in
-                      let prefix_len = String.length prefix in
-                      let suffix_len = String.length suffix in
-                      file_base_len >= prefix_len + suffix_len &&
-                      String.sub file_base 0 prefix_len = prefix &&
-                      (suffix_len = 0 || String.sub file_base (file_base_len - suffix_len) suffix_len = suffix)
-                  end
-                  else false
-            ) ignore_patterns in
-            if not ignored then
-              results := full_path :: !results
+      if not ignored_dir then begin
+        let entries =
+          try Sys.readdir path
+          with Sys_error _ -> [||]
+        in
+        Array.sort String.compare entries;
+        Array.iter (fun entry ->
+          let full_path = Filename.concat path entry in
+          if Sys.is_directory full_path then
+            scan full_path
+          else if Filename.check_suffix entry ".t" then begin
+            (* Match test-*.t, test_*.t, or *_test.t *)
+            let base = Filename.remove_extension entry in
+            let is_test_prefix =
+              String.length base >= 5 &&
+              String.sub base 0 5 = "test-" in
+            let is_test_underscore =
+              String.length base >= 5 &&
+              String.sub base 0 5 = "test_" in
+            let is_test_suffix =
+              String.length base >= 5 &&
+              String.sub base (String.length base - 5) 5 = "_test" in
+            if is_test_prefix || is_test_underscore || is_test_suffix then begin
+              let rel_file = relative_path dir full_path in
+              let ignored = List.exists (fun pat -> matches_ignore_pattern pat rel_file) ignore_patterns in
+              if not ignored then
+                results := full_path :: !results
+            end
           end
-        end
-      ) entries
+        ) entries
+      end
     end
   in
   scan dir;
@@ -110,8 +152,13 @@ let read_tignore (dir : string) : string list =
         (try
            while true do
              let line = input_line ch in
-             let trimmed = String.trim line in
-             if trimmed <> "" && not (String.starts_with ~prefix:"#" trimmed) then
+             let code_part =
+               match String.split_on_char '#' line with
+               | hd :: _ -> hd
+               | [] -> ""
+             in
+             let trimmed = String.trim code_part in
+             if trimmed <> "" then
                lines := trimmed :: !lines
            done
          with End_of_file -> ());
@@ -283,6 +330,10 @@ let xml_escape s =
     | '>' -> Buffer.add_string buf "&gt;"
     | '"' -> Buffer.add_string buf "&quot;"
     | '\'' -> Buffer.add_string buf "&apos;"
+    | '\n' -> Buffer.add_string buf "&#10;"
+    | '\r' -> Buffer.add_string buf "&#13;"
+    | '\t' -> Buffer.add_string buf "&#9;"
+    | c when Char.code c < 0x20 -> ()
     | c -> Buffer.add_char buf c
   ) s;
   Buffer.contents buf
@@ -319,6 +370,22 @@ let suite_result_to_xml r =
   Buffer.add_string buf "</testsuites>\n";
   Buffer.contents buf
 
+(** Check if substring exists in string (case-insensitive) *)
+let contains_substring s sub =
+  let s_len = String.length s in
+  let sub_len = String.length sub in
+  let rec loop i =
+    if i + sub_len > s_len then false
+    else if String.sub s i sub_len = sub then true
+    else loop (i + 1)
+  in
+  loop 0
+
+(** Check if a file matches any of the filter patterns *)
+let matches_any_pattern dir file patterns =
+  let rel_lower = String.lowercase_ascii (relative_path dir file) in
+  List.exists (fun pat -> contains_substring rel_lower (String.lowercase_ascii pat)) patterns
+
 (** Run a full test suite: discover + execute all tests *)
 let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) (dir : string) : suite_result =
   let test_dir = Filename.concat dir "tests" in
@@ -332,52 +399,13 @@ let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) (dir : strin
       if not quiet then Printf.printf "No test files found (looking for test-*.t, test_*.t, or *_test.t).\n";
       { total = 0; passed = 0; failed = 0; results = []; total_duration = 0.0 }
     end else begin
-      (* Apply --only filter (OR semantics: match any pattern) *)
       let files =
-        if only = [] then files
-        else List.filter (fun file ->
-          List.exists (fun pat ->
-            let rel =
-              if String.length file > String.length dir + 1 then
-                String.sub file (String.length dir + 1) (String.length file - String.length dir - 1)
-              else file
-            in
-            let pat_lower = String.lowercase_ascii pat in
-            let rel_lower = String.lowercase_ascii rel in
-            (* Check if pattern is contained in the path *)
-            let rec has_substring s sub start =
-              let s_len = String.length s in
-              let sub_len = String.length sub in
-              if start + sub_len > s_len then false
-              else if String.sub s start sub_len = sub then true
-              else has_substring s sub (start + 1)
-            in
-            has_substring rel_lower pat_lower 0
-          ) only
-        ) files
+        if only <> [] then List.filter (fun f -> matches_any_pattern dir f only) files
+        else files
       in
-      (* Apply --not filter (skip files matching any pattern) *)
       let files =
-        if not_ = [] then files
-        else List.filter (fun file ->
-          not (List.exists (fun pat ->
-            let rel =
-              if String.length file > String.length dir + 1 then
-                String.sub file (String.length dir + 1) (String.length file - String.length dir - 1)
-              else file
-            in
-            let pat_lower = String.lowercase_ascii pat in
-            let rel_lower = String.lowercase_ascii rel in
-            let rec has_substring s sub start =
-              let s_len = String.length s in
-              let sub_len = String.length sub in
-              if start + sub_len > s_len then false
-              else if String.sub s start sub_len = sub then true
-              else has_substring s sub (start + 1)
-            in
-            has_substring rel_lower pat_lower 0
-          ) not_)
-        ) files
+        if not_ <> [] then List.filter (fun f -> not (matches_any_pattern dir f not_)) files
+        else files
       in
       if files = [] then begin
         if not quiet then Printf.printf "No test files matched the filters.\n";
@@ -388,11 +416,7 @@ let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) (dir : strin
           (List.length files) (if List.length files > 1 then "s" else "");
         let results = List.map (fun file ->
           let r = run_test_file file in
-          let short_name = 
-            if String.length file > String.length dir + 1 then
-              String.sub file (String.length dir + 1) (String.length file - String.length dir - 1)
-            else file
-          in
+          let short_name = relative_path dir file in
           if not quiet then begin
             if r.success then
               Printf.printf "  ✓ %s (%s)\n" short_name (format_duration r.duration)
