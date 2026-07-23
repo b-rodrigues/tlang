@@ -3808,6 +3808,12 @@ nrow(failed)  -- 0 if all tests passed
 
 -- Count passed tests
 results |> filter($status == "passed") |> nrow()
+
+-- Run only specific tests
+results = t_test(only = ["arithmetic", "strings"])
+
+-- Exclude slow tests
+results = t_test(not = ["slow"])
 ```
 
 ---
@@ -3819,33 +3825,113 @@ Runs the test suite for the current project. Discovers test files (`test-*.t`, `
 ```bash
 t test                        # human-readable output
 t test --json                 # structured JSON output (no preamble)
+t test --format junit         # JUnit XML output for CI
 t test --json tests/          # specify project directory
+t test --only "stats"         # run only tests matching "stats"
+t test --not "slow"           # skip tests matching "slow"
+t test --only "stats" --not "anova"  # combine filters (OR semantics for --only)
+t test --failfast             # stop on first failure
+t test --list                 # list discovered tests without running
+t test --timeout 30           # mark tests exceeding 30s as failed
+t test --coverage             # generate Bisect_ppx coverage summary after tests
 ```
 
-**JSON schema (when using `--json`):**
+**Output formats:**
 
-```json
-{
-  "schema_version": "1",
-  "status": "passed|failed",
-  "total": N,
-  "passed": N,
-  "failed": N,
-  "duration_ms": N,
-  "results": [
-    {
-      "file": "tests/test_arithmetic.t",
-      "status": "passed",
-      "duration_ms": 120,
-      "error": null
-    }
-  ]
+| Flag | Description |
+|------|-------------|
+| (default) | Human-readable output with ✓/✗ indicators |
+| `--json` | Structured JSON output (shorthand for `--format json`) |
+| `--format json` | Structured JSON output |
+| `--format junit` | JUnit XML output for CI/CD pipelines |
+
+**Filtering flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--only PATTERN` | Run only tests whose path contains PATTERN (case-insensitive). Multiple `--only` flags use OR semantics. |
+| `--not PATTERN` | Skip tests whose path contains PATTERN (case-insensitive). Multiple `--not` flags use OR semantics. |
+
+**Execution flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--failfast` | Stop running tests after the first failure. |
+| `--list` | List discovered test files without running them. Respects `--only` and `--not` filters. |
+| `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. |
+| `--coverage` | Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage` or `dune build --instrument-with bisect_ppx`). |
+
+**`.tignore` support:**
+
+Create `tests/.tignore` to automatically exclude test files. One pattern per line, `#` comments, blank lines ignored. Patterns match against the relative path from `tests/`. Directory patterns (e.g. `legacy/`) match at any depth, similar to `.gitignore` semantics.
+
+```
+# tests/.tignore
+slow_integration.t      # exact filename
+*_benchmark.t           # glob pattern
+legacy/                 # directory at any depth
+```
+
+**JUnit XML schema (when using `--format junit`):**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="t test" tests="2" failures="1" time="0.123">
+  <testsuite name="t test" tests="2" failures="1" time="0.123">
+    <testcase name="tests/test_pass.t" time="0.050" />
+    <testcase name="tests/test_fail.t" time="0.073">
+      <failure message="Assertion failed" type="TestFailure">
+        AssertionError: test failed
+      </failure>
+    </testcase>
+  </testsuite>
+</testsuites>
+```
+
+### Test Fixtures
+
+T doesn't have a dedicated `before_each`/`after_each` fixture mechanism because
+pipelines already provide the necessary isolation and composition. Use `chain()`
+to share a setup pipeline across test nodes:
+
+```t
+-- tests/test_with_fixture.t
+fixture = pipeline {
+  data = node(
+    command = read_csv("tests/data/mtcars.csv"),
+    serializer = ^csv
+  )
 }
+
+test_filter = pipeline {
+  check = node(
+    command = {
+      result = data |> filter($mpg > 20)
+      assert(nrow(result) > 0)
+    },
+    serializer = ^csv
+  )
+}
+
+test_mutate = pipeline {
+  check = node(
+    command = {
+      result = data |> mutate($kpg = $mpg * 1.609)
+      assert("kpg" in colnames(result))
+    },
+    serializer = ^csv
+  )
+}
+
+-- Wire fixture output into each test
+combined = chain(fixture, parallel(test_filter, test_mutate))
+build_pipeline(combined)
 ```
 
-All fields except `error` are present in every result object. `duration_ms` is an integer (milliseconds, rounded). `error` is `null` for passed tests, or a string containing the error message for failed tests.
-
-The `--json` flag produces clean JSON output with no preamble, making it safe for piping to `jq` or parsing with agent tooling. Note: `--verbose` combined with `--json` is a no-op — verbose per-test error printing is suppressed when JSON mode is active.
+Each node runs in an isolated Nix sandbox. The `fixture` pipeline's `data` node
+builds a dataframe (via `read_csv`), serializes it to CSV for cross-sandbox
+transfer, and downstream test nodes receive it as a dataframe they can pipe
+directly — no redundant `read_csv()` wrapper needed.
 
 ---
 

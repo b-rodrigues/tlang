@@ -49,11 +49,17 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      | Ok _ -> false);
   test_message "parse_test_args defaults to cwd"
     (match Cli_args.parse_test_args ~cwd [] with
-     | Ok { Cli_args.verbose = verbose; json; target_dir } -> (not verbose) && (not json) && target_dir = cwd
+     | Ok { Cli_args.verbose = verbose; format; target_dir; only_patterns; not_patterns;
+            failfast; list_only; timeout; coverage } ->
+         (not verbose) && format = Human && target_dir = cwd && only_patterns = [] && not_patterns = []
+         && (not failfast) && (not list_only) && timeout = None && (not coverage)
      | Error _ -> false);
   test_message "parse_test_args accepts verbose flag and explicit directory"
     (match Cli_args.parse_test_args ~cwd ["--verbose"; "tests"] with
-     | Ok { Cli_args.verbose = verbose; json; target_dir } -> verbose && (not json) && target_dir = "tests"
+     | Ok { Cli_args.verbose = verbose; format; target_dir; only_patterns; not_patterns;
+            failfast; list_only; timeout; coverage } ->
+         verbose && format = Human && target_dir = "tests" && only_patterns = [] && not_patterns = []
+         && (not failfast) && (not list_only) && timeout = None && (not coverage)
      | Error _ -> false);
   test_message "parse_test_args rejects unknown flags"
     (match Cli_args.parse_test_args ~cwd ["--wat"] with
@@ -63,6 +69,70 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     (match Cli_args.parse_test_args ~cwd ["tests"; "extra"] with
      | Error msg -> contains msg "Unexpected argument: extra"
      | Ok _ -> false);
+  test_message "parse_test_args accepts --json as format shorthand"
+    (match Cli_args.parse_test_args ~cwd ["--json"] with
+     | Ok { Cli_args.format; _ } -> format = Json
+     | Error _ -> false);
+  test_message "parse_test_args accepts --format junit"
+    (match Cli_args.parse_test_args ~cwd ["--format"; "junit"] with
+     | Ok { Cli_args.format; _ } -> format = Junit
+     | Error _ -> false);
+  test_message "parse_test_args rejects unknown --format"
+    (match Cli_args.parse_test_args ~cwd ["--format"; "xml"] with
+     | Error msg -> contains msg "Unknown format"
+     | Ok _ -> false);
+  test_message "parse_test_args accepts --only"
+    (match Cli_args.parse_test_args ~cwd ["--only"; "stats"] with
+     | Ok { Cli_args.only_patterns; _ } -> only_patterns = ["stats"]
+     | Error _ -> false);
+  test_message "parse_test_args accepts multiple --only (OR)"
+    (match Cli_args.parse_test_args ~cwd ["--only"; "stats"; "--only"; "math"] with
+     | Ok { Cli_args.only_patterns; _ } -> only_patterns = ["stats"; "math"]
+     | Error _ -> false);
+  test_message "parse_test_args accepts --not"
+    (match Cli_args.parse_test_args ~cwd ["--not"; "slow"] with
+     | Ok { Cli_args.not_patterns; _ } -> not_patterns = ["slow"]
+     | Error _ -> false);
+  test_message "parse_test_args accepts multiple --not"
+    (match Cli_args.parse_test_args ~cwd ["--not"; "slow"; "--not"; "integration"] with
+     | Ok { Cli_args.not_patterns; _ } -> not_patterns = ["slow"; "integration"]
+     | Error _ -> false);
+  test_message "parse_test_args rejects --only without value"
+    (match Cli_args.parse_test_args ~cwd ["--only"] with
+     | Error msg -> contains msg "Missing value for --only"
+     | Ok _ -> false);
+  test_message "parse_test_args rejects --not without value"
+    (match Cli_args.parse_test_args ~cwd ["--not"] with
+     | Error msg -> contains msg "Missing value for --not"
+     | Ok _ -> false);
+  test_message "parse_test_args accepts --failfast"
+    (match Cli_args.parse_test_args ~cwd ["--failfast"] with
+     | Ok { Cli_args.failfast; _ } -> failfast
+     | Error _ -> false);
+  test_message "parse_test_args accepts --list"
+    (match Cli_args.parse_test_args ~cwd ["--list"] with
+     | Ok { Cli_args.list_only; _ } -> list_only
+     | Error _ -> false);
+  test_message "parse_test_args accepts --timeout"
+    (match Cli_args.parse_test_args ~cwd ["--timeout"; "30"] with
+     | Ok { Cli_args.timeout; _ } -> timeout = Some 30.0
+     | Error _ -> false);
+  test_message "parse_test_args rejects --timeout without value"
+    (match Cli_args.parse_test_args ~cwd ["--timeout"] with
+     | Error msg -> contains msg "Missing value for --timeout"
+     | Ok _ -> false);
+  test_message "parse_test_args rejects --timeout with negative value"
+    (match Cli_args.parse_test_args ~cwd ["--timeout"; "-5"] with
+     | Error msg -> contains msg "Invalid timeout"
+     | Ok _ -> false);
+  test_message "parse_test_args accepts --coverage"
+    (match Cli_args.parse_test_args ~cwd ["--coverage"] with
+     | Ok { Cli_args.coverage; _ } -> coverage
+     | Error _ -> false);
+  test_message "validate_cli_flags allows --failfast with test"
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:false ~failfast_flag:true ["t"; "test"] with
+     | Ok () -> true
+     | Error _ -> false);
   test_message "validate_cli_flags rejects --unsafe outside run"
     (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ["t"; "test"] with
      | Error msg -> contains msg "--unsafe"

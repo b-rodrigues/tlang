@@ -187,6 +187,36 @@ dune runtest --verbose
 dune runtest --watch
 ```
 
+### Coverage
+
+Build with Bisect_ppx instrumentation:
+
+```bash
+nix build .#t-coverage
+```
+
+Or locally:
+
+```bash
+dune build --instrument-with bisect_ppx src/repl.exe
+```
+
+Run tests and print a coverage summary:
+
+```bash
+t test --coverage
+```
+
+Generate an HTML report:
+
+```bash
+bisect-ppx-report html
+```
+
+The report is written to `_coverage/`. The Nix `t-coverage` output bundles
+`bisect-ppx-report` with the source path pre-configured, so no extra flags
+are needed.
+
 ### Writing Unit Tests
 
 **`tests/unit/test_example.ml`**:

@@ -135,13 +135,60 @@ $ t test
 
 # Structured JSON output for agents and automation:
 $ t test --json
+
+# JUnit XML output for CI/CD:
+$ t test --format junit
+
+# Run only specific tests:
+$ t test --only "stats"      # run tests matching "stats"
+$ t test --not "slow"        # skip tests matching "slow"
+
+# Stop on first failure:
+$ t test --failfast
+
+# List discovered tests without running:
+$ t test --list
+
+# Mark tests exceeding 30s as failed:
+$ t test --timeout 30
+
+# Generate coverage summary (requires instrumented build):
+$ t test --coverage
 ```
+
+Create `tests/.tignore` to automatically exclude test files (one pattern per line):
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
+```
+
+### Test Fixtures
+
+Share expensive setup (like loading large datasets) across tests using `chain()`:
+
+```t
+fixture = pipeline {
+  data = node(command = read_csv("data/large.csv"), serializer = ^csv)
+}
+test_a = pipeline { ... }
+test_b = pipeline { ... }
+build_pipeline(chain(fixture, parallel(test_a, test_b)))
+```
+
+Each node runs in an isolated Nix sandbox. The fixture's output is available to downstream test nodes via the dependency DAG — no redundant `read_csv()` wrapper needed. See the [API reference](api-reference.md#test-fixtures) for a full example.
 
 In the REPL, `t_test()` returns a DataFrame with test results:
 
 ```t
 results = t_test()
 results |> filter($status == "failed")
+
+-- Filter from the REPL
+results = t_test(only = ["arithmetic"])
+results = t_test(not = ["slow"])
 ```
 
 ### Why Use `expect_*` Functions with `assert()`?

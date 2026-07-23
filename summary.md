@@ -103,6 +103,27 @@ t test
 # Run tests with structured JSON output (for agents and automation):
 t test --json tests/
 
+# JUnit XML output for CI/CD:
+t test --format junit tests/
+
+# Filter tests:
+t test --only "stats"     # run only tests matching "stats"
+t test --not "slow"       # skip tests matching "slow"
+
+# Stop on first failure:
+t test --failfast
+
+# List discovered tests without running:
+t test --list
+
+# Mark tests exceeding 30s as failed:
+t test --timeout 30
+
+# Generate coverage summary (requires instrumented build):
+t test --coverage
+
+# Exclude tests with tests/.tignore (one pattern per line)
+
 t doc --parse --generate
 
 t doctor

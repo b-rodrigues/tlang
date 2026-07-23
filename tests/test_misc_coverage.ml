@@ -1006,16 +1006,165 @@ min_version = "0.51.0"
     let ok_json_verbose = Cli_args.parse_test_args ~cwd:"/tmp" ["--json"; "--verbose"] in
     let err_unknown = Cli_args.parse_test_args ~cwd:"/tmp" ["--unknown"] in
     (match ok_json with
-     | Ok opts -> opts.json = true && opts.verbose = false
+     | Ok opts -> opts.format = Json && opts.verbose = false
      | Error _ -> false)
     && (match ok_verbose_json with
-     | Ok opts -> opts.json = true && opts.verbose = true
+     | Ok opts -> opts.format = Json && opts.verbose = true
      | Error _ -> false)
     && (match ok_json_verbose with
-     | Ok opts -> opts.json = true && opts.verbose = true
+     | Ok opts -> opts.format = Json && opts.verbose = true
      | Error _ -> false)
     && (match err_unknown with
      | Error _ -> true
      | Ok _ -> false)
+  );
+  test_case "cli_args parse_test_args handles --format junit" (fun () ->
+    match Cli_args.parse_test_args ~cwd:"/tmp" ["--format"; "junit"] with
+    | Ok opts -> opts.format = Junit
+    | Error _ -> false
+  );
+  test_case "cli_args parse_test_args handles --only and --not" (fun () ->
+    let ok_only = Cli_args.parse_test_args ~cwd:"/tmp" ["--only"; "stats"; "--only"; "math"] in
+    let ok_not = Cli_args.parse_test_args ~cwd:"/tmp" ["--not"; "slow"] in
+    let ok_both = Cli_args.parse_test_args ~cwd:"/tmp" ["--only"; "stats"; "--not"; "slow"] in
+    (match ok_only with
+     | Ok opts -> opts.only_patterns = ["stats"; "math"]
+     | Error _ -> false)
+    && (match ok_not with
+     | Ok opts -> opts.not_patterns = ["slow"]
+     | Error _ -> false)
+    && (match ok_both with
+     | Ok opts -> opts.only_patterns = ["stats"] && opts.not_patterns = ["slow"]
+     | Error _ -> false)
+  );
+  test_case "cli_args parse_test_args handles --failfast, --list, --timeout" (fun () ->
+    let ok_ff = Cli_args.parse_test_args ~cwd:"/tmp" ["--failfast"] in
+    let ok_list = Cli_args.parse_test_args ~cwd:"/tmp" ["--list"] in
+    let ok_timeout = Cli_args.parse_test_args ~cwd:"/tmp" ["--timeout"; "10"] in
+    let err_timeout_bad = Cli_args.parse_test_args ~cwd:"/tmp" ["--timeout"; "abc"] in
+    (match ok_ff with
+     | Ok opts -> opts.failfast = true
+     | Error _ -> false)
+    && (match ok_list with
+     | Ok opts -> opts.list_only = true
+     | Error _ -> false)
+    && (match ok_timeout with
+     | Ok opts -> opts.timeout = Some 10.0
+     | Error _ -> false)
+    && (match err_timeout_bad with
+     | Error _ -> true
+     | Ok _ -> false)
+  );
+  test_case "test_discovery JUnit XML serialization" (fun () ->
+    let suite_result : Test_discovery.suite_result = {
+      total = 2;
+      passed = 1;
+      failed = 1;
+      results = [
+        { file = "tests/test-pass.t"; success = true; error_msg = None; duration = 0.1 };
+        { file = "tests/test-fail.t"; success = false; error_msg = Some "Assertion failed"; duration = 0.2 };
+      ];
+      total_duration = 0.3;
+    } in
+    let xml = Test_discovery.suite_result_to_xml suite_result in
+    let has_header = contains xml "<?xml version=\"1.0\"" in
+    let has_testsuites = contains xml "<testsuites" in
+    let has_testsuite = contains xml "<testsuite" in
+    let has_testcase = contains xml "<testcase" in
+    let has_failure = contains xml "<failure" in
+    let has_passed = contains xml "test-pass.t" in
+    let has_failed = contains xml "test-fail.t" in
+    has_header && has_testsuites && has_testsuite && has_testcase && has_failure && has_passed && has_failed
+  );
+  test_case "test_discovery .tignore handling of directory patterns, comments, and wildcards" (fun () ->
+    let temp_dir = Filename.concat (Filename.get_temp_dir_name ()) (Printf.sprintf "tignore_test_%d" (Random.int 100000)) in
+    let tests_dir = Filename.concat temp_dir "tests" in
+    let legacy_dir = Filename.concat tests_dir "legacy" in
+    Sys.mkdir temp_dir 0o755;
+    Sys.mkdir tests_dir 0o755;
+    Sys.mkdir legacy_dir 0o755;
+    
+    (* Write .tignore file *)
+    let tignore_path = Filename.concat tests_dir ".tignore" in
+    let ch = open_out tignore_path in
+    output_string ch "# Comment line\n";
+    output_string ch "legacy/ # ignore legacy folder\n";
+    output_string ch "test_ignored.t # exact file comment\n";
+    output_string ch "*_bench # wildcard without extension\n";
+    close_out ch;
+    
+    (* Create test files *)
+    let create_file p =
+      let ch = open_out p in
+      output_string ch "1 + 1\n";
+      close_out ch
+    in
+    create_file (Filename.concat tests_dir "test_valid.t");
+    create_file (Filename.concat tests_dir "test_ignored.t");
+    create_file (Filename.concat tests_dir "test_my_bench.t");
+    create_file (Filename.concat legacy_dir "test_old.t");
+    
+    let ignore_pats = Test_discovery.read_tignore tests_dir in
+    let discovered = Test_discovery.discover_tests ~ignore_patterns:ignore_pats tests_dir in
+    
+    (* Clean up *)
+    (try
+      Sys.remove (Filename.concat tests_dir "test_valid.t");
+      Sys.remove (Filename.concat tests_dir "test_ignored.t");
+      Sys.remove (Filename.concat tests_dir "test_my_bench.t");
+      Sys.remove (Filename.concat legacy_dir "test_old.t");
+      Sys.remove tignore_path;
+      Sys.rmdir legacy_dir;
+      Sys.rmdir tests_dir;
+      Sys.rmdir temp_dir
+    with _ -> ());
+    
+    (* Verify only test_valid.t is discovered *)
+    List.length discovered = 1 && String.ends_with ~suffix:"test_valid.t" (List.hd discovered)
+  );
+  test_case "glob_match handles multi-wildcard patterns correctly" (fun () ->
+    (* Pattern starting with * should allow any prefix *)
+    Test_discovery.glob_match "*abc*def" "xabcxdef"
+    (* Pattern with wildcards in the middle *)
+    && Test_discovery.glob_match "a*b*c" "axbxc"
+    (* Single wildcard still works *)
+    && Test_discovery.glob_match "*.t" "test_foo.t"
+    (* Trailing wildcard *)
+    && Test_discovery.glob_match "test_*" "test_foo.t"
+    (* Leading wildcard with multiple segments *)
+    && Test_discovery.glob_match "*_test_*_slow" "integration_test_unit_slow"
+    (* No wildcards - exact match *)
+    && Test_discovery.glob_match "test_foo.t" "test_foo.t"
+    && not (Test_discovery.glob_match "test_foo.t" "test_bar.t")
+    (* Multiple wildcards where match should fail *)
+    && not (Test_discovery.glob_match "*abc*def" "xabxdxf")
+  );
+  test_case "test_discovery run_suite failfast halts on first failure" (fun () ->
+    let temp_dir = Filename.concat (Filename.get_temp_dir_name ()) (Printf.sprintf "failfast_test_%d" (Random.int 100000)) in
+    let tests_dir = Filename.concat temp_dir "tests" in
+    Sys.mkdir temp_dir 0o755;
+    Sys.mkdir tests_dir 0o755;
+
+    let f1 = Filename.concat tests_dir "test_1_pass.t" in
+    let f2 = Filename.concat tests_dir "test_2_fail.t" in
+    let f3 = Filename.concat tests_dir "test_3_should_not_run.t" in
+
+    let ch1 = open_out f1 in output_string ch1 "assert(true)\n"; close_out ch1;
+    let ch2 = open_out f2 in output_string ch2 "assert(false)\n"; close_out ch2;
+    let ch3 = open_out f3 in output_string ch3 "assert(true)\n"; close_out ch3;
+
+    let suite_res = Test_discovery.run_suite ~quiet:true ~failfast:true temp_dir in
+
+    (try
+      Sys.remove f1; Sys.remove f2; Sys.remove f3;
+      Sys.rmdir tests_dir; Sys.rmdir temp_dir
+    with _ -> ());
+
+    suite_res.total = 2
+    && suite_res.passed = 1
+    && suite_res.failed = 1
+    && List.length suite_res.results = 2
+    && String.ends_with ~suffix:"test_1_pass.t" (List.hd suite_res.results).file
+    && (List.nth suite_res.results 1).success = false
   );
   print_newline ()
