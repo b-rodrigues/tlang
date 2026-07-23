@@ -5939,6 +5939,111 @@ assert(expect_in(3, 1:5))
 assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
 ```
 
+---
+
+### `expect_no_na(actual, col = "")`
+
+Pass if the actual value, Vector, List, or DataFrame (optional column) contains zero NA values.
+
+**Parameters:**
+- `actual` — Any value, Vector, List, or DataFrame to check
+- `col` (optional) — String column name when checking a specific DataFrame column
+
+**Examples:**
+```t
+assert(expect_no_na([1, 2, 3]))
+assert(expect_no_na(df, "val"))
+```
+
+---
+
+### `expect_between(actual, min, max)`
+
+Pass if the numeric value or vector elements fall inside the closed range `[min, max]`.
+
+**Parameters:**
+- `actual` — Int, Float, or Vector to check
+- `min` — Numeric lower bound (inclusive)
+- `max` — Numeric upper bound (inclusive)
+
+**Examples:**
+```t
+assert(expect_between(25.0, 10.0, 50.0))
+```
+
+---
+
+### `expect_match(actual, pattern)`
+
+Pass if the actual String matches the given regular expression pattern.
+
+**Parameters:**
+- `actual` — String value to inspect
+- `pattern` — Regular expression pattern string
+
+**Examples:**
+```t
+assert(expect_match("user@example.com", ".*@.*"))
+```
+
+---
+
+### `expect_str_contains(actual, substring)`
+
+Pass if the actual String contains the specified substring.
+
+**Parameters:**
+- `actual` — String value to inspect
+- `substring` — Substring to search for
+
+**Examples:**
+```t
+assert(expect_str_contains("hello world", "world"))
+```
+
+---
+
+### `expect_set_equal(list1, list2)`
+
+Pass if two Lists or Vectors contain the exact same unique elements regardless of order.
+
+**Parameters:**
+- `list1` — First List or Vector
+- `list2` — Second List or Vector
+
+**Examples:**
+```t
+assert(expect_set_equal([1, 2, 3], [3, 2, 1]))
+```
+
+---
+
+### `expect_empty(actual)`
+
+Pass if a List, Dict, Vector, String, or DataFrame is empty (0 elements/rows/length).
+
+**Parameters:**
+- `actual` — List, Dict, Vector, String, or DataFrame
+
+**Examples:**
+```t
+assert(expect_empty([]))
+```
+
+---
+
+### `expect_summary(checks)`
+
+Summarize a List or Dict of `Expect` values / check results into a DataFrame report table.
+
+**Parameters:**
+- `checks` — Dict or List of expectation check results
+
+**Examples:**
+```t
+summary_df = expect_summary([c1: expect_equal(1, 1), c2: expect_equal(2, 2)])
+```
+
 ### `expect_warning(node, kind = "", message = "")`
 
 Pass if the given pipeline node produced at least one warning during execution.
@@ -24224,6 +24329,39 @@ A Pipeline with branches in place of patterned nodes. `p_has_patterns` is set to
 [pipeline_nodes](pipeline_nodes.html), [populate_pipeline](populate_pipeline.html), [build_pipeline](build_pipeline.html)
 
 
+# FILE: docs/reference/expect_between.md
+
+# expect_between
+
+Closed range numerical bounds assertion
+
+Passes if the numeric value or vector elements fall inside [min, max].
+
+## Parameters
+
+- **actual** (`Int`): | Float | Vector The numeric value or vector to check.
+
+- **min** (`Int`): | Float Lower bound (inclusive).
+
+- **max** (`Int`): | Float Upper bound (inclusive).
+
+
+## Returns
+
+`Expect_pass` when within bounds; `Expect_hold` on NA; `Expect_stop` if out of bounds.
+
+## Examples
+
+```t
+assert(expect_between(25.0, 10.0, 50.0))
+```
+
+## See Also
+
+[expect_lt](expect_lt.html), [expect_gt](expect_gt.html)
+
+
+
 # FILE: docs/reference/expect_colnames.md
 
 # expect_colnames
@@ -24251,7 +24389,7 @@ assert(expect_colnames(to_dataframe([x: [1], y = [2]]), ["x", "y"]))
 
 ## See Also
 
-[expect_fields](expect_fields.html), [expect_ncol](expect_ncol.html), [expect_nrow](expect_nrow.html)
+[expect_fields](expect_fields.html), [expect_has_colnames](expect_has_colnames.html), [expect_ncol](expect_ncol.html), [expect_nrow](expect_nrow.html)
 
 
 
@@ -24335,6 +24473,35 @@ Passes if `node_name` deserializer matches the expected deserializer.
 ```t
 assert(expect_deserializer(p, "model", ^onnx))
 ```
+
+
+
+# FILE: docs/reference/expect_empty.md
+
+# expect_empty
+
+Empty container / string assertion
+
+Passes if a List, Dict, Vector, String, or DataFrame is empty (0 elements/rows/length).
+
+## Parameters
+
+- **actual** (`List`): | Dict | Vector | String | DataFrame The container to check.
+
+
+## Returns
+
+`Expect_pass` when empty; `Expect_hold` on NA; `Expect_stop` if non-empty.
+
+## Examples
+
+```t
+assert(expect_empty([]))
+```
+
+## See Also
+
+[expect_nrow](expect_nrow.html), [expect_length](expect_length.html)
 
 
 
@@ -24590,6 +24757,38 @@ assert(expect_gt(2, 1))
 
 
 
+# FILE: docs/reference/expect_has_colnames.md
+
+# expect_has_colnames
+
+DataFrame / Dict subset column names assertion
+
+Passes if the DataFrame, Dict, or named List contains at least all of the expected column/field names. Order is not required, and additional columns/fields are permitted.
+
+## Parameters
+
+- **data** (`DataFrame`): | Dict | List The container to check.
+
+- **names** (`String`): | List | Vector The required column/field name or list/vector of required names.
+
+
+## Returns
+
+`Expect_pass` when all expected columns exist; `Expect_hold` on NA; `Expect_stop` on missing columns.
+
+## Examples
+
+```t
+assert(expect_has_colnames(to_dataframe([x: [1], y = [2]]), ["x"]))
+assert(expect_has_colnames(to_dataframe([x: [1], y = [2]]), "y"))
+```
+
+## See Also
+
+[expect_ncol](expect_ncol.html), [expect_nrow](expect_nrow.html), [expect_fields](expect_fields.html), [expect_colnames](expect_colnames.html)
+
+
+
 # FILE: docs/reference/expect_has_pattern.md
 
 # expect_has_pattern
@@ -24747,6 +24946,37 @@ assert(expect_lt(1.5, 2.5))
 
 
 
+# FILE: docs/reference/expect_match.md
+
+# expect_match
+
+Regex string match assertion
+
+Passes if the actual String matches the given regular expression pattern.
+
+## Parameters
+
+- **actual** (`String`): The string value to inspect.
+
+- **pattern** (`String`): Regular expression pattern string.
+
+
+## Returns
+
+`Expect_pass` when matching; `Expect_hold` on NA; `Expect_stop` on mismatch or invalid pattern.
+
+## Examples
+
+```t
+assert(expect_match("user@example.com", ".*@.*"))
+```
+
+## See Also
+
+[expect_type](expect_type.html), [expect_str_contains](expect_str_contains.html)
+
+
+
 # FILE: docs/reference/expect_msg.md
 
 # expect_msg
@@ -24831,6 +25061,38 @@ Passes if a pipeline contains exactly the expected node names (including dynamic
 ```t
 assert(expect_nodes(p, ["load", "clean", "model"]))
 ```
+
+
+
+# FILE: docs/reference/expect_no_na.md
+
+# expect_no_na
+
+Absence of NA values assertion
+
+Passes if the actual value, Vector, List, or DataFrame (optional column) contains zero NA values.
+
+## Parameters
+
+- **actual** (`Any`): The value, container, or DataFrame to check.
+
+- **col** (`String`): (Optional) Column name when checking a DataFrame.
+
+
+## Returns
+
+`Expect_pass` when no NA values exist; `Expect_stop` if NA values are found.
+
+## Examples
+
+```t
+assert(expect_no_na([1, 2, 3]))
+assert(expect_no_na(df, "val"))
+```
+
+## See Also
+
+[expect_true](expect_true.html), [expect_type](expect_type.html)
 
 
 
@@ -25006,6 +25268,97 @@ assert(expect_serializer(p, "data", ^csv))
 
 
 
+# FILE: docs/reference/expect_set_equal.md
+
+# expect_set_equal
+
+Order-independent set equality assertion
+
+Passes if two Lists or Vectors contain the exact same unique elements regardless of order.
+
+## Parameters
+
+- **list1** (`List`): | Vector First collection.
+
+- **list2** (`List`): | Vector Second collection.
+
+
+## Returns
+
+`Expect_pass` when sets match; `Expect_hold` on NA; `Expect_stop` if elements differ.
+
+## Examples
+
+```t
+assert(expect_set_equal([1, 2, 3], [3, 2, 1]))
+```
+
+## See Also
+
+[expect_in](expect_in.html), [expect_equal](expect_equal.html)
+
+
+
+# FILE: docs/reference/expect_str_contains.md
+
+# expect_str_contains
+
+Substring search assertion
+
+Passes if the actual String contains the specified substring.
+
+## Parameters
+
+- **actual** (`String`): The string value to inspect.
+
+- **substring** (`String`): Substring to search for.
+
+
+## Returns
+
+`Expect_pass` when found; `Expect_hold` on NA; `Expect_stop` if missing.
+
+## Examples
+
+```t
+assert(expect_str_contains("hello world", "world"))
+```
+
+## See Also
+
+[expect_match](expect_match.html)
+
+
+
+# FILE: docs/reference/expect_summary.md
+
+# expect_summary
+
+Expectation test suite summary report
+
+Summarizes a List or Dict of Expect values / check results into a DataFrame report table.
+
+## Parameters
+
+- **checks** (`Dict`): | List A dictionary or list of expectation check results.
+
+
+## Returns
+
+A DataFrame with columns `check`, `status`, and `message`.
+
+## Examples
+
+```t
+summary_df = expect_summary([c1: expect_equal(1, 1), c2 = expect_equal(2, 2)])
+```
+
+## See Also
+
+[expect_fail](expect_fail.html), [expect_pass](expect_pass.html)
+
+
+
 # FILE: docs/reference/expect_true.md
 
 # expect_true
@@ -25095,6 +25448,36 @@ assert(expect_type("hello", "String"))
 ## See Also
 
 [expect_error](expect_error.html), [expect_true](expect_true.html)
+
+
+
+# FILE: docs/reference/expect_unique.md
+
+# expect_unique
+
+Element uniqueness assertion
+
+Passes if all elements in a Vector, List, or DataFrame are distinct. Returns `Expect_stop` detailing duplicate values if any are found.
+
+## Parameters
+
+- **x** (`Vector`): | List | DataFrame The container or vector to check for uniqueness.
+
+
+## Returns
+
+`Expect_pass` if all elements are unique; `Expect_hold` on NA; `Expect_stop` if duplicates exist.
+
+## Examples
+
+```t
+assert(expect_unique([1, 2, 3, 4]))
+assert(expect_unique(df.$id))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_in](expect_in.html), [expect_length](expect_length.html)
 
 
 
@@ -33318,11 +33701,27 @@ Evaluates a PMML model against a DataFrame using the JPMML-evaluator library. Re
 
 Run tests
 
-Runs the test suite for the current package. Wraps the CLI `t test` command for use within the REPL.
+Runs the test suite for the current package and returns a DataFrame with results. Wraps the CLI `t test` command for use within the REPL.
+
+## Parameters
+
+- **only** (`List`): = [] Filter to tests whose path contains any of these substrings.
+
+- **not** (`List`): = [] Exclude tests whose path contains any of these substrings.
+
 
 ## Returns
 
-Returns NA on success, or an Error if tests fail.
+A DataFrame with columns: file, status, duration_ms, error.
+
+## Examples
+
+```t
+results = t_test()
+results |> filter($status == "failed")
+results = t_test(only = ["arithmetic"])
+results = t_test(not = ["slow"])
+```
 
 
 
