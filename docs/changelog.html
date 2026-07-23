@@ -34,7 +34,93 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.54.1] - 2026-07-20</h2>
+<h2 id="section">[0.54.2] - 2026-07-23</h2>
+<h3 id="testcraft-testing-package"><code>testcraft</code> — Testing
+Package</h3>
+<ul>
+<li><strong>32 <code>expect_*</code> functions</strong>: First-class
+assertion primitives for T tests. Returns <code>VExpect</code> values
+(<code>Expect_pass</code>, <code>Expect_stop</code>,
+<code>Expect_hold</code>) that integrate with <code>assert()</code>.
+Covers equality (<code>expect_equal</code>), comparison
+(<code>expect_lt</code>, <code>expect_gt</code>), type checks
+(<code>expect_type</code>, <code>expect_true</code>,
+<code>expect_false</code>, <code>expect_truthy</code>,
+<code>expect_falsy</code>), error handling (<code>expect_error</code>),
+collections (<code>expect_length</code>, <code>expect_nrow</code>,
+<code>expect_ncol</code>, <code>expect_colnames</code>,
+<code>expect_has_colnames</code>, <code>expect_unique</code>,
+<code>expect_fields</code>, <code>expect_in</code>), pipelines
+(<code>expect_pipeline</code>, <code>expect_nodes</code>,
+<code>expect_dependency</code>, <code>expect_runtime</code>,
+<code>expect_serializer</code>, <code>expect_deserializer</code>,
+<code>expect_noop</code>, <code>expect_computed</code>,
+<code>expect_has_pattern</code>), and diagnostics
+(<code>expect_warning</code>).</li>
+<li><strong><code>check()</code> builtin</strong>: Inline assertion
+wrapper that prints <code>true</code> on success and preserves
+<code>VError</code> on failure, suitable for pipeline node
+commands.</li>
+<li><strong>Recursive VDict comparison</strong>:
+<code>expect_equal</code> performs order-insensitive, deep structural
+comparison of Dicts with nested crash safety.</li>
+<li><strong>Three-tier Expect system</strong>: <code>Expect_pass</code>
+(comparison succeeded), <code>Expect_stop msg</code> (failed with
+diagnostic), <code>Expect_hold msg</code> (NA involved, cannot
+determine). <code>assert()</code> passes on <code>Expect_pass</code>,
+raises <code>AssertionError</code> with the diagnostic message on
+<code>Expect_stop</code>/<code>Expect_hold</code>.</li>
+</ul>
+<h3 id="t-test-test-runner-enhancements"><code>t test</code> — Test
+Runner Enhancements</h3>
+<ul>
+<li><strong>Test pipeline auto-evaluation</strong>: <code>t test</code>
+now auto-evaluates pipeline definitions in test files and reports node
+failures inline.</li>
+</ul>
+<h3 id="bug-fixes">Bug Fixes</h3>
+<ul>
+<li><strong><code>t test --coverage</code> target directory
+fix</strong>: Coverage cleaning and discovery now check both the project
+directory and the current working directory for <code>.coverage</code>
+files.</li>
+</ul>
+<h2 id="section-1">[0.54.1] - 2026-07-20</h2>
+<h3 id="t-test-test-runner-enhancements-1"><code>t test</code> — Test
+Runner Enhancements</h3>
+<ul>
+<li><strong>Test filtering (<code>--only</code>,
+<code>--not</code>)</strong>: Run a subset of tests by substring
+matching. <code>--only "stats"</code> runs only tests whose path
+contains “stats”. Multiple <code>--only</code> flags use OR semantics.
+<code>--not "slow"</code> excludes tests matching “slow”.</li>
+<li><strong>JUnit XML output (<code>--format junit</code>)</strong>:
+Machine-readable test output for CI/CD pipelines. Use
+<code>--format junit</code> or combine with <code>--json</code> for JSON
+output.</li>
+<li><strong><code>.tignore</code> support</strong>: Create
+<code>tests/.tignore</code> to automatically exclude test files. One
+pattern per line, <code>#</code> comments, blank lines ignored.</li>
+<li><strong>Backward-compatible <code>--json</code></strong>:
+<code>--json</code> continues to work as shorthand for
+<code>--format json</code>.</li>
+<li><strong><code>--failfast</code></strong>: Stop running tests after
+the first failure.</li>
+<li><strong><code>--list</code></strong>: List discovered test files
+without running them. Respects <code>--only</code> and
+<code>--not</code> filters.</li>
+<li><strong><code>--timeout SECONDS</code></strong>: Mark any test
+exceeding SECONDS as failed. Does not interrupt execution — the test
+runs to completion but is reported as a timeout failure.</li>
+<li><strong><code>--coverage</code></strong>: Clean old
+<code>.coverage</code> files, run tests, then generate a Bisect_ppx
+coverage summary. Requires a coverage-instrumented build
+(<code>nix build .#t-coverage</code>).</li>
+<li><strong><code>t_test()</code> filtering</strong>:
+<code>t_test(only = ["arithmetic"])</code> and
+<code>t_test(not = ["slow"])</code> for programmatic filtering from the
+REPL.</li>
+</ul>
 <h3 id="type-system-annotations-and-inference">Type System: Annotations
 and Inference</h3>
 <ul>
@@ -262,7 +348,7 @@ commands.</li>
 <li><strong><code>write_parquet(data, path)</code></strong>: Write a
 DataFrame to a Parquet file via Arrow.</li>
 </ul>
-<h2 id="section-1">[0.54.0] - 2026-07-08</h2>
+<h2 id="section-2">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
 <ul>
 <li><strong>SoftFailed Node Classification</strong>: Fixed
@@ -436,7 +522,7 @@ returns its SHA-256 hash, usable as the <code>sha256</code> argument to
 <code>fetchurl</code>. Enables a two-step workflow: compute the hash
 upfront, then pin it in a pipeline for reproducible builds.</li>
 </ul>
-<h2 id="section-2">[0.53.3] - 2026-06-26</h2>
+<h2 id="section-3">[0.53.3] - 2026-06-26</h2>
 <h3 id="toolchain-ci-updates">Toolchain &amp; CI Updates</h3>
 <ul>
 <li><strong>Nixpkgs Snapshot &amp; Package Updates</strong>: Updated the
@@ -489,7 +575,7 @@ distribution quantile, via binary search on <code>pchisq</code>.</li>
 <li>Enables power analysis and exact p-value thresholds natively in T
 without calling R.</li>
 </ul>
-<h2 id="section-3">[0.53.2] - 2026-06-24</h2>
+<h2 id="section-4">[0.53.2] - 2026-06-24</h2>
 <h3 id="hotfix">Hotfix</h3>
 <ul>
 <li><strong>Nix Flake Update / Maven Dependency Parity</strong>: Fixed
@@ -498,7 +584,7 @@ for the <code>jpmml-evaluator</code> library (used for PMML model
 scoring). The nixpkgs fetch source hash has been updated to restore
 local build compatibility.</li>
 </ul>
-<h2 id="section-4">[0.53.1] - 2026-06-24</h2>
+<h2 id="section-5">[0.53.1] - 2026-06-24</h2>
 <h3 id="hotfix-1">Hotfix</h3>
 <p>Fix for https://github.com/b-rodrigues/tlang/issues/434</p>
 <p>jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master
@@ -551,7 +637,7 @@ Fixes</h3>
 before the global environment, enabling dynamic column name
 resolution.</li>
 </ul>
-<h2 id="section-5">[0.53.0] - 2026-06-22</h2>
+<h2 id="section-6">[0.53.0] - 2026-06-22</h2>
 <p>This release:</p>
 <ul>
 <li><strong>Atelier TUI IDE Integration</strong>: This release
@@ -653,7 +739,7 @@ inside assignment/reassignment statements. The error is bound to the
 variable and propagated correctly, enabling robust recovery patterns via
 subsequent <code>match</code> blocks.</li>
 </ul>
-<h2 id="section-6">[0.52.3] - 2026-06-12</h2>
+<h2 id="section-7">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature
@@ -916,7 +1002,7 @@ first-class function in the CLI or T-Lang AST. It is an internal
 implementation detail of the pipeline engine that is automatically
 invoked when working with <code>pipeline_of</code>.</li>
 </ul>
-<h3 id="bug-fixes">Bug Fixes</h3>
+<h3 id="bug-fixes-1">Bug Fixes</h3>
 <ul>
 <li><strong>Stats — fivenum alignment with R</strong>: Replaced the
 defective gammp series computation with a correct implementation and
@@ -1002,7 +1088,7 @@ code.</li>
 Checklist to <code>AGENTS.md</code> as a permanent reference for future
 contributions.</li>
 </ul>
-<h2 id="section-7">[0.52.2] - 2026-05-31</h2>
+<h2 id="section-8">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -1225,7 +1311,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-8">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-9">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -1579,7 +1665,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-9">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-10">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -1808,7 +1894,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-10">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-11">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -2071,7 +2157,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-11">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-12">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -2368,7 +2454,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-12">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-13">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

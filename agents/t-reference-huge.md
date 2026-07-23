@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.54.1 "Le Tournoi".
+**Status:** Version 0.54.2 "Le Tournoi".
 
 ---
 
@@ -410,7 +410,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.54.1
+> **Version**: 0.54.2
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -5356,6 +5356,153 @@ $ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
 
 ---
 
+### `t_test()`
+
+REPL-callable version of `t test`. Runs the test suite and returns a DataFrame with structured results for programmatic inspection.
+
+**Returns:** `DataFrame` — columns: `file` (String), `status` ("passed" or "failed"), `duration_ms` (Float), `error` (String or NA)
+
+Note: `duration_ms` is a Float in the REPL DataFrame, but an integer in CLI `--json` output. Both represent milliseconds.
+
+**Examples:**
+
+```t
+results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |> filter($status == "failed")
+nrow(failed)  -- 0 if all tests passed
+
+-- Count passed tests
+results |> filter($status == "passed") |> nrow()
+
+-- Run only specific tests
+results = t_test(only = ["arithmetic", "strings"])
+
+-- Exclude slow tests
+results = t_test(not = ["slow"])
+```
+
+---
+
+### CLI: `t test`
+
+Runs the test suite for the current project. Discovers test files (`test-*.t`, `test_*.t`, or `*_test.t`) recursively in the `tests/` directory.
+
+```bash
+t test                        # human-readable output
+t test --json                 # structured JSON output (no preamble)
+t test --format junit         # JUnit XML output for CI
+t test --json tests/          # specify project directory
+t test --only "stats"         # run only tests matching "stats"
+t test --not "slow"           # skip tests matching "slow"
+t test --only "stats" --not "anova"  # combine filters (OR semantics for --only)
+t test --failfast             # stop on first failure
+t test --list                 # list discovered tests without running
+t test --timeout 30           # mark tests exceeding 30s as failed
+t test --coverage             # generate Bisect_ppx coverage summary after tests
+```
+
+**Output formats:**
+
+| Flag | Description |
+|------|-------------|
+| (default) | Human-readable output with ✓/✗ indicators |
+| `--json` | Structured JSON output (shorthand for `--format json`) |
+| `--format json` | Structured JSON output |
+| `--format junit` | JUnit XML output for CI/CD pipelines |
+
+**Filtering flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--only PATTERN` | Run only tests whose path contains PATTERN (case-insensitive). Multiple `--only` flags use OR semantics. |
+| `--not PATTERN` | Skip tests whose path contains PATTERN (case-insensitive). Multiple `--not` flags use OR semantics. |
+
+**Execution flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--failfast` | Stop running tests after the first failure. |
+| `--list` | List discovered test files without running them. Respects `--only` and `--not` filters. |
+| `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. |
+| `--coverage` | Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage` or `dune build --instrument-with bisect_ppx`). |
+
+**`.tignore` support:**
+
+Create `tests/.tignore` to automatically exclude test files. One pattern per line, `#` comments, blank lines ignored. Patterns match against the relative path from `tests/`. Directory patterns (e.g. `legacy/`) match at any depth, similar to `.gitignore` semantics.
+
+```
+# tests/.tignore
+slow_integration.t      # exact filename
+*_benchmark.t           # glob pattern
+legacy/                 # directory at any depth
+```
+
+**JUnit XML schema (when using `--format junit`):**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="t test" tests="2" failures="1" time="0.123">
+  <testsuite name="t test" tests="2" failures="1" time="0.123">
+    <testcase name="tests/test_pass.t" time="0.050" />
+    <testcase name="tests/test_fail.t" time="0.073">
+      <failure message="Assertion failed" type="TestFailure">
+        AssertionError: test failed
+      </failure>
+    </testcase>
+  </testsuite>
+</testsuites>
+```
+
+### Test Fixtures
+
+T doesn't have a dedicated `before_each`/`after_each` fixture mechanism because
+pipelines already provide the necessary isolation and composition. Use `chain()`
+to share a setup pipeline across test nodes:
+
+```t
+-- tests/test_with_fixture.t
+fixture = pipeline {
+  data = node(
+    command = read_csv("tests/data/mtcars.csv"),
+    serializer = ^csv
+  )
+}
+
+test_filter = pipeline {
+  check = node(
+    command = {
+      result = data |> filter($mpg > 20)
+      assert(nrow(result) > 0)
+    },
+    serializer = ^csv
+  )
+}
+
+test_mutate = pipeline {
+  check = node(
+    command = {
+      result = data |> mutate($kpg = $mpg * 1.609)
+      assert("kpg" in colnames(result))
+    },
+    serializer = ^csv
+  )
+}
+
+-- Wire fixture output into each test
+combined = chain(fixture, parallel(test_filter, test_mutate))
+build_pipeline(combined)
+```
+
+Each node runs in an isolated Nix sandbox. The `fixture` pipeline's `data` node
+builds a dataframe (via `read_csv`), serializes it to CSV for cross-sandbox
+transfer, and downstream test nodes receive it as a dataframe they can pipe
+directly — no redundant `read_csv()` wrapper needed.
+
+---
+
 ## Explain Package
 
 Introspection and LLM tooling.
@@ -8259,6 +8406,97 @@ The `root_causes` field tells the agent which node is the actual source of the f
 
 ---
 
+## Programmatic test results with `t test --json`
+
+When an agent needs to verify that its changes don't break existing tests, it can
+use `t test --json` to get structured test results. This is essential for agent
+workflows where test results must be consumed programmatically.
+
+```bash
+$ t test --json tests/
+$ t test --format junit tests/  # JUnit XML for CI
+```
+
+**Filtering tests:**
+
+```bash
+$ t test --only "stats"     # run only tests matching "stats"
+$ t test --not "slow"       # skip tests matching "slow"
+$ t test --failfast         # stop on first failure
+$ t test --list             # list tests without running
+$ t test --timeout 30       # mark slow tests as failed
+```
+
+**Excluding tests with `.tignore`:**
+
+Create `tests/.tignore` to automatically exclude test files:
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
+```
+
+The output is a JSON object with the test suite summary:
+
+```json
+{
+  "schema_version": "1",
+  "status": "passed",
+  "total": 15,
+  "passed": 14,
+  "failed": 1,
+  "duration_ms": 2340,
+  "results": [
+    {
+      "file": "tests/test_arithmetic.t",
+      "status": "passed",
+      "duration_ms": 120,
+      "error": null
+    },
+    {
+      "file": "tests/test_strings.t",
+      "status": "failed",
+      "duration_ms": 85,
+      "error": "Assertion failed at line 42: expected \"hello\" but got \"world\""
+    }
+  ]
+}
+```
+
+**Agent workflow for test-driven iteration:**
+
+1. Agent modifies code
+2. Agent runs `t test --json tests/`
+3. Agent parses JSON to check `status` field
+4. If `status` is `"failed"`, agent reads `error` field from failed results
+5. Agent fixes the issue and re-runs tests
+
+The JSON output follows the same schema version as `t check --json` and `t run --json`,
+making it easy to integrate with existing agent tooling.
+
+### REPL-callable version
+
+For agents working in the REPL, `t_test()` returns a DataFrame with the same results:
+
+```t
+results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |> filter($status == "failed")
+nrow(failed)  -- 0 if all tests passed
+```
+
+The DataFrame columns are:
+- `file`: Path to the test file
+- `status`: "passed" or "failed"
+- `duration_ms`: Duration in milliseconds
+- `error`: Error message (NA for passed tests)
+
+---
+
 ## Tips for effective pairing
 
 ### What to tell the agent
@@ -9672,7 +9910,36 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
+## [0.54.2] - 2026-07-23
+
+### `testcraft` — Testing Package
+
+- **32 `expect_*` functions**: First-class assertion primitives for T tests. Returns `VExpect` values (`Expect_pass`, `Expect_stop`, `Expect_hold`) that integrate with `assert()`. Covers equality (`expect_equal`), comparison (`expect_lt`, `expect_gt`), type checks (`expect_type`, `expect_true`, `expect_false`, `expect_truthy`, `expect_falsy`), error handling (`expect_error`), collections (`expect_length`, `expect_nrow`, `expect_ncol`, `expect_colnames`, `expect_has_colnames`, `expect_unique`, `expect_fields`, `expect_in`), pipelines (`expect_pipeline`, `expect_nodes`, `expect_dependency`, `expect_runtime`, `expect_serializer`, `expect_deserializer`, `expect_noop`, `expect_computed`, `expect_has_pattern`), and diagnostics (`expect_warning`).
+- **`check()` builtin**: Inline assertion wrapper that prints `true` on success and preserves `VError` on failure, suitable for pipeline node commands.
+- **Recursive VDict comparison**: `expect_equal` performs order-insensitive, deep structural comparison of Dicts with nested crash safety.
+- **Three-tier Expect system**: `Expect_pass` (comparison succeeded), `Expect_stop msg` (failed with diagnostic), `Expect_hold msg` (NA involved, cannot determine). `assert()` passes on `Expect_pass`, raises `AssertionError` with the diagnostic message on `Expect_stop`/`Expect_hold`.
+
+### `t test` — Test Runner Enhancements
+
+- **Test pipeline auto-evaluation**: `t test` now auto-evaluates pipeline definitions in test files and reports node failures inline.
+
+### Bug Fixes
+
+- **`t test --coverage` target directory fix**: Coverage cleaning and discovery now check both the project directory and the current working directory for `.coverage` files.
+
 ## [0.54.1] - 2026-07-20
+
+### `t test` — Test Runner Enhancements
+
+- **Test filtering (`--only`, `--not`)**: Run a subset of tests by substring matching. `--only "stats"` runs only tests whose path contains "stats". Multiple `--only` flags use OR semantics. `--not "slow"` excludes tests matching "slow".
+- **JUnit XML output (`--format junit`)**: Machine-readable test output for CI/CD pipelines. Use `--format junit` or combine with `--json` for JSON output.
+- **`.tignore` support**: Create `tests/.tignore` to automatically exclude test files. One pattern per line, `#` comments, blank lines ignored.
+- **Backward-compatible `--json`**: `--json` continues to work as shorthand for `--format json`.
+- **`--failfast`**: Stop running tests after the first failure.
+- **`--list`**: List discovered test files without running them. Respects `--only` and `--not` filters.
+- **`--timeout SECONDS`**: Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure.
+- **`--coverage`**: Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage`).
+- **`t_test()` filtering**: `t_test(only = ["arithmetic"])` and `t_test(not = ["slow"])` for programmatic filtering from the REPL.
 
 ### Type System: Annotations and Inference
 
@@ -10961,8 +11228,10 @@ See the [Development Guide](development.md) for detailed setup instructions.
    cd tlang
    nix develop
    dune build
-   dune runtest
-   ```
+    dune runtest
+    ```
+
+3. **Coverage**: See the [Development Guide](development.md#coverage) for building with coverage instrumentation.
 
 ---
 
@@ -12512,6 +12781,36 @@ dune runtest --verbose
 ```bash
 dune runtest --watch
 ```
+
+### Coverage
+
+Build with Bisect_ppx instrumentation:
+
+```bash
+nix build .#t-coverage
+```
+
+Or locally:
+
+```bash
+dune build --instrument-with bisect_ppx src/repl.exe
+```
+
+Run tests and print a coverage summary:
+
+```bash
+t test --coverage
+```
+
+Generate an HTML report:
+
+```bash
+bisect-ppx-report html
+```
+
+The report is written to `_coverage/`. The Nix `t-coverage` output bundles
+`bisect-ppx-report` with the source path pre-configured, so no extra flags
+are needed.
 
 ### Writing Unit Tests
 
@@ -16345,7 +16644,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.54.1 "Le Tournoi" using Nix <nix-version>
+Version 0.54.2 "Le Tournoi" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -17345,6 +17644,91 @@ diff_summary(p)
 ```
 
 This is useful for verifying that a code change only affected the intended nodes.
+
+---
+
+## Programmatic Test Results: `t test --json`
+
+When agents modify code, they need to verify that existing tests still pass. T provides
+structured test output via `t test --json`:
+
+```bash
+t test --json tests/
+t test --format junit tests/  # JUnit XML for CI
+```
+
+**Filtering tests:**
+
+```bash
+t test --only "stats"     # run only tests matching "stats"
+t test --not "slow"       # skip tests matching "slow"
+t test --only "stats" --not "anova"  # combine filters
+t test --failfast         # stop on first failure
+t test --list             # list tests without running
+t test --timeout 30       # mark slow tests as failed
+```
+
+**Excluding tests with `.tignore`:**
+
+Create `tests/.tignore` to automatically exclude test files:
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
+```
+
+This returns a JSON object with test results:
+
+```json
+{
+  "schema_version": "1",
+  "status": "passed",
+  "total": 15,
+  "passed": 14,
+  "failed": 1,
+  "duration_ms": 2340,
+  "results": [
+    {
+      "file": "tests/test_arithmetic.t",
+      "status": "passed",
+      "duration_ms": 120,
+      "error": null
+    },
+    {
+      "file": "tests/test_strings.t",
+      "status": "failed",
+      "duration_ms": 85,
+      "error": "Assertion failed at line 42: expected \"hello\" but got \"world\""
+    }
+  ]
+}
+```
+
+**Agent workflow:**
+
+1. Agent modifies code
+2. Agent runs `t test --json tests/`
+3. Agent parses JSON to check `status` field
+4. If `status` is `"failed"`, agent reads `error` field from failed results
+5. Agent fixes the issue and re-runs tests
+
+The JSON output follows the same schema version as `t check --json` and `t run --json`,
+enabling consistent tooling across all T commands.
+
+### REPL-callable version
+
+For agents working in the REPL, `t_test()` returns a DataFrame with the same results:
+
+```t
+results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |> filter($status == "failed")
+nrow(failed)  -- 0 if all tests passed
+```
 
 ---
 
@@ -18937,6 +19321,63 @@ Run all tests with:
 
 ```bash
 $ t test
+
+# Structured JSON output for agents and automation:
+$ t test --json
+
+# JUnit XML output for CI/CD:
+$ t test --format junit
+
+# Run only specific tests:
+$ t test --only "stats"      # run tests matching "stats"
+$ t test --not "slow"        # skip tests matching "slow"
+
+# Stop on first failure:
+$ t test --failfast
+
+# List discovered tests without running:
+$ t test --list
+
+# Mark tests exceeding 30s as failed:
+$ t test --timeout 30
+
+# Generate coverage summary (requires instrumented build):
+$ t test --coverage
+```
+
+Create `tests/.tignore` to automatically exclude test files (one pattern per line):
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
+```
+
+### Test Fixtures
+
+Share expensive setup (like loading large datasets) across tests using `chain()`:
+
+```t
+fixture = pipeline {
+  data = node(command = read_csv("data/large.csv"), serializer = ^csv)
+}
+test_a = pipeline { ... }
+test_b = pipeline { ... }
+build_pipeline(chain(fixture, parallel(test_a, test_b)))
+```
+
+Each node runs in an isolated Nix sandbox. The fixture's output is available to downstream test nodes via the dependency DAG — no redundant `read_csv()` wrapper needed. See the [API reference](api-reference.md#test-fixtures) for a full example.
+
+In the REPL, `t_test()` returns a DataFrame with test results:
+
+```t
+results = t_test()
+results |> filter($status == "failed")
+
+-- Filter from the REPL
+results = t_test(only = ["arithmetic"])
+results = t_test(not = ["slow"])
 ```
 
 ### Why Use `expect_*` Functions with `assert()`?
@@ -20728,7 +21169,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.54.1"
+min_version = "0.54.2"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -33624,7 +34065,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.54.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.54.2";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -33747,7 +34188,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.54.1",
+    t_version: "0.54.2",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -33790,7 +34231,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.54.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.54.2";
   };
   
   outputs = { self, nixpkgs, tlang }: {
