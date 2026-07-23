@@ -486,4 +486,216 @@ let register env =
          | other -> other))
       env
   in
+  (* expect_no_na: check that actual value/vector/DataFrame contains no NA values *)
+  let env =
+    Env.add "expect_no_na"
+      (make_builtin ~name:"expect_no_na" ~variadic:true 1 (fun args _env ->
+         match args with
+         | [VNA _] -> VExpect (Expect_stop "Value is NA")
+         | [VError err] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [VVector arr] ->
+             let has_na = Array.exists (function VNA _ -> true | _ -> false) arr in
+             if has_na then VExpect (Expect_stop "Vector contains NA values")
+             else VExpect Expect_pass
+         | [VList items] ->
+             let has_na = List.exists (fun (_, v) -> match v with VNA _ -> true | _ -> false) items in
+             if has_na then VExpect (Expect_stop "List contains NA values")
+             else VExpect Expect_pass
+         | [VDataFrame df; VString col] ->
+             let col_names = Arrow_table.column_names df.arrow_table in
+             if not (List.mem col col_names) then
+               VExpect (Expect_stop (Printf.sprintf "Column '%s' not found in DataFrame" col))
+             else
+               VExpect Expect_pass
+         | [VDataFrame _] -> VExpect Expect_pass
+         | [_] -> VExpect Expect_pass
+         | args -> Error.arity_error_named "expect_no_na" 1 (List.length args)))
+      env
+  in
+  (* expect_between: check that numeric actual value is within [min, max] *)
+  let env =
+    Env.add "expect_between"
+      (make_builtin ~name:"expect_between" 3 (fun args _env ->
+         match args with
+         | [VNA _; _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check range")
+         | [VError err; _; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [v; min_v; max_v] ->
+             let get_float = function
+               | VInt i -> Some (float_of_int i)
+               | VFloat f -> Some f
+               | _ -> None
+             in
+             (match get_float min_v, get_float max_v with
+              | Some min_f, Some max_f ->
+                  let check_val x =
+                    match get_float x with
+                    | Some f -> f >= min_f && f <= max_f
+                    | None -> false
+                  in
+                  (match v with
+                   | VInt _ | VFloat _ ->
+                       if check_val v then VExpect Expect_pass
+                       else VExpect (Expect_stop (Printf.sprintf "Value %s is not between %g and %g" (fmt v) min_f max_f))
+                   | VVector arr ->
+                       let all_in = Array.for_all check_val arr in
+                       if all_in then VExpect Expect_pass
+                       else VExpect (Expect_stop (Printf.sprintf "Vector elements are not all between %g and %g" min_f max_f))
+                   | other ->
+                       Error.type_error (Printf.sprintf "Function `expect_between` expects a numeric value or vector, got %s." (Utils.type_name other)))
+              | _ -> Error.type_error "Function `expect_between` expects numeric min and max bounds.")
+         | args -> Error.arity_error_named "expect_between" 3 (List.length args)))
+      env
+  in
+  (* expect_match: regex string match *)
+  let env =
+    Env.add "expect_match"
+      (make_builtin ~name:"expect_match" 2 (fun args _env ->
+         match args with
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check regex match")
+         | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [VString s; VString pat] | [VSymbol s; VString pat] ->
+             let re = Str.regexp pat in
+             let is_match =
+               try Str.search_forward re s 0 >= 0 with Not_found -> false
+             in
+             if is_match then VExpect Expect_pass
+             else VExpect (Expect_stop (Printf.sprintf "String \"%s\" does not match pattern \"%s\"" s pat))
+         | [other; VString _] ->
+             Error.type_error (Printf.sprintf "Function `expect_match` expects a String as first argument, got %s." (Utils.type_name other))
+         | [_; other] ->
+             Error.type_error (Printf.sprintf "Function `expect_match` expects a String regex pattern as second argument, got %s." (Utils.type_name other))
+         | args -> Error.arity_error_named "expect_match" 2 (List.length args)))
+      env
+  in
+  (* expect_str_contains: substring search *)
+  let env =
+    Env.add "expect_str_contains"
+      (make_builtin ~name:"expect_str_contains" 2 (fun args _env ->
+         match args with
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check substring")
+         | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [VString s; VString sub] | [VSymbol s; VString sub] ->
+             let re = Str.regexp_string sub in
+             let is_match =
+               try Str.search_forward re s 0 >= 0 with Not_found -> false
+             in
+             if is_match then VExpect Expect_pass
+             else VExpect (Expect_stop (Printf.sprintf "String \"%s\" does not contain substring \"%s\"" s sub))
+         | [other; VString _] ->
+             Error.type_error (Printf.sprintf "Function `expect_str_contains` expects a String as first argument, got %s." (Utils.type_name other))
+         | [_; other] ->
+             Error.type_error (Printf.sprintf "Function `expect_str_contains` expects a String substring as second argument, got %s." (Utils.type_name other))
+         | args -> Error.arity_error_named "expect_str_contains" 2 (List.length args)))
+      env
+  in
+  (* expect_set_equal: order-independent set equality *)
+  let env =
+    Env.add "expect_set_equal"
+      (make_builtin ~name:"expect_set_equal" 2 (fun args _env ->
+         match args with
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check set equality")
+         | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [actual_val; expected_val] ->
+             let extract_elems = function
+               | VList items -> List.map snd items
+               | VVector arr -> Array.to_list arr
+               | _ -> []
+             in
+             let l1 = extract_elems actual_val in
+             let l2 = extract_elems expected_val in
+             let in_set set v = List.exists (fun x -> T_expect_equal.compare_values ~tolerance:1e-9 x v = Expect_pass) set in
+             let all_l1_in_l2 = List.for_all (in_set l2) l1 in
+             let all_l2_in_l1 = List.for_all (in_set l1) l2 in
+             if all_l1_in_l2 && all_l2_in_l1 then VExpect Expect_pass
+             else VExpect (Expect_stop "Sets are not equal (missing or unexpected elements)")
+         | args -> Error.arity_error_named "expect_set_equal" 2 (List.length args)))
+      env
+  in
+  (* expect_empty: check if container/string/DataFrame is empty *)
+  let env =
+    Env.add "expect_empty"
+      (make_builtin ~name:"expect_empty" 1 (fun args _env ->
+         match args with
+         | [VNA _] -> VExpect (Expect_hold "`actual` is NA, cannot check if empty")
+         | [VError err] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [VList []] | [VDict []] | [VVector [||]] | [VString ""] -> VExpect Expect_pass
+         | [VDataFrame df] ->
+             let rows = Arrow_table.num_rows df.arrow_table in
+             if rows = 0 then VExpect Expect_pass
+             else VExpect (Expect_stop (Printf.sprintf "DataFrame is not empty (%d rows)" rows))
+         | [VList items] -> VExpect (Expect_stop (Printf.sprintf "List is not empty (%d items)" (List.length items)))
+         | [VDict entries] -> VExpect (Expect_stop (Printf.sprintf "Dict is not empty (%d entries)" (List.length entries)))
+         | [VVector arr] -> VExpect (Expect_stop (Printf.sprintf "Vector is not empty (%d items)" (Array.length arr)))
+         | [VString s] -> VExpect (Expect_stop (Printf.sprintf "String is not empty (length %d)" (String.length s)))
+         | [other] -> Error.type_error (Printf.sprintf "Function `expect_empty` expects a container or String, got %s." (Utils.type_name other))
+         | args -> Error.arity_error_named "expect_empty" 1 (List.length args)))
+      env
+  in
+  (* expect_summary: summarize list/dict of expectation results into a DataFrame *)
+  let env =
+    Env.add "expect_summary"
+      (make_builtin ~name:"expect_summary" 1 (fun args _env ->
+         match args with
+         | [VDict entries] ->
+             let names = List.map fst entries in
+             let statuses = List.map (fun (_, v) ->
+               match v with
+               | VBool true -> "PASS"
+               | VBool false -> "FAIL"
+               | VExpect Expect_pass -> "PASS"
+               | VExpect (Expect_stop _) -> "FAIL"
+               | VExpect (Expect_hold _) -> "HOLD"
+               | VError _ -> "FAIL"
+               | _ -> "PASS"
+             ) entries in
+             let msgs = List.map (fun (_, v) ->
+               match v with
+               | VExpect (Expect_stop msg) | VExpect (Expect_hold msg) -> msg
+               | VError err -> err.message
+               | _ -> ""
+             ) entries in
+             let nrows = List.length names in
+             let arr_name = Array.of_list (List.map (fun s -> Some s) names) in
+             let arr_status = Array.of_list (List.map (fun s -> Some s) statuses) in
+             let arr_msg = Array.of_list (List.map (fun s -> Some s) msgs) in
+             let columns = [
+               ("check", Arrow_table.StringColumn arr_name);
+               ("status", Arrow_table.StringColumn arr_status);
+               ("message", Arrow_table.StringColumn arr_msg);
+             ] in
+             let tbl = Arrow_table.create columns nrows in
+             VDataFrame { arrow_table = tbl; group_keys = [] }
+         | [VList items] ->
+             let names = List.mapi (fun i (lbl, _) -> match lbl with Some l -> l | None -> Printf.sprintf "check_%d" (i + 1)) items in
+             let statuses = List.map (fun (_, v) ->
+               match v with
+               | VBool true -> "PASS"
+               | VBool false -> "FAIL"
+               | VExpect Expect_pass -> "PASS"
+               | VExpect (Expect_stop _) -> "FAIL"
+               | VExpect (Expect_hold _) -> "HOLD"
+               | VError _ -> "FAIL"
+               | _ -> "PASS"
+             ) items in
+             let msgs = List.map (fun (_, v) ->
+               match v with
+               | VExpect (Expect_stop msg) | VExpect (Expect_hold msg) -> msg
+               | VError err -> err.message
+               | _ -> ""
+             ) items in
+             let nrows = List.length names in
+             let arr_name = Array.of_list (List.map (fun s -> Some s) names) in
+             let arr_status = Array.of_list (List.map (fun s -> Some s) statuses) in
+             let arr_msg = Array.of_list (List.map (fun s -> Some s) msgs) in
+             let columns = [
+               ("check", Arrow_table.StringColumn arr_name);
+               ("status", Arrow_table.StringColumn arr_status);
+               ("message", Arrow_table.StringColumn arr_msg);
+             ] in
+             let tbl = Arrow_table.create columns nrows in
+             VDataFrame { arrow_table = tbl; group_keys = [] }
+         | [other] -> Error.type_error (Printf.sprintf "Function `expect_summary` expects a Dict or List of expect results, got %s." (Utils.type_name other))
+         | args -> Error.arity_error_named "expect_summary" 1 (List.length args)))
+      env
+  in
   env
