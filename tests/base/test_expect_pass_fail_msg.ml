@@ -58,7 +58,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "expect_msg on stopping expect_gt"
     "expect_msg(expect_gt(1, 2))" {|`1` > `2`|};
   test "expect_msg on stopping expect_type"
-    "expect_msg(expect_type(42, \"String\"))" "Int";
+    "expect_msg(expect_type(42, \"String\"))" {|Expected type `String`, got type `Int`|};
   test "expect_msg on non-Expect type error"
     "expect_msg(42)" "Error(TypeError:";
   test "expect_msg with no args arity error"
