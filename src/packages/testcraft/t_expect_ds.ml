@@ -490,6 +490,20 @@ let register env =
   let env =
     Env.add "expect_no_na"
       (make_builtin ~name:"expect_no_na" ~variadic:true 1 (fun args _env ->
+         let check_col table col_name =
+           match Arrow_table.get_column table col_name with
+           | Some (Arrow_table.FloatColumn a) ->
+               Array.exists (function None -> true | Some f -> Float.is_nan f) a
+           | Some (Arrow_table.IntColumn a) ->
+               Array.exists (function None -> true | _ -> false) a
+           | Some (Arrow_table.StringColumn a) ->
+               Array.exists (function None -> true | _ -> false) a
+           | Some (Arrow_table.BoolColumn a) ->
+               Array.exists (function None -> true | _ -> false) a
+           | Some (Arrow_table.NAColumn _) -> true
+           | Some _ -> true
+           | None -> true
+         in
          match args with
          | [VNA _] -> VExpect (Expect_stop "Value is NA")
          | [VError err] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
@@ -505,9 +519,17 @@ let register env =
              let col_names = Arrow_table.column_names df.arrow_table in
              if not (List.mem col col_names) then
                VExpect (Expect_stop (Printf.sprintf "Column '%s' not found in DataFrame" col))
+             else if check_col df.arrow_table col then
+               VExpect (Expect_stop (Printf.sprintf "Column '%s' contains NA values" col))
              else
                VExpect Expect_pass
-         | [VDataFrame _] -> VExpect Expect_pass
+         | [VDataFrame df] ->
+             let col_names = Arrow_table.column_names df.arrow_table in
+             let na_cols = List.filter (check_col df.arrow_table) col_names in
+             if na_cols <> [] then
+               VExpect (Expect_stop (Printf.sprintf "DataFrame contains NA values in column(s): %s" (String.concat ", " na_cols)))
+             else
+               VExpect Expect_pass
          | [_] -> VExpect Expect_pass
          | args -> Error.arity_error_named "expect_no_na" 1 (List.length args)))
       env
@@ -537,9 +559,12 @@ let register env =
                        if check_val v then VExpect Expect_pass
                        else VExpect (Expect_stop (Printf.sprintf "Value %s is not between %g and %g" (fmt v) min_f max_f))
                    | VVector arr ->
-                       let all_in = Array.for_all check_val arr in
-                       if all_in then VExpect Expect_pass
-                       else VExpect (Expect_stop (Printf.sprintf "Vector elements are not all between %g and %g" min_f max_f))
+                       let has_na = Array.exists (function VNA _ -> true | _ -> false) arr in
+                       if has_na then VExpect (Expect_hold "`actual` vector contains NA, cannot check range")
+                       else
+                         let all_in = Array.for_all check_val arr in
+                         if all_in then VExpect Expect_pass
+                         else VExpect (Expect_stop (Printf.sprintf "Vector elements are not all between %g and %g" min_f max_f))
                    | other ->
                        Error.type_error (Printf.sprintf "Function `expect_between` expects a numeric value or vector, got %s." (Utils.type_name other)))
               | _ -> Error.type_error "Function `expect_between` expects numeric min and max bounds.")
@@ -554,12 +579,15 @@ let register env =
          | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check regex match")
          | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [VString s; VString pat] | [VSymbol s; VString pat] ->
-             let re = Str.regexp pat in
-             let is_match =
-               try Str.search_forward re s 0 >= 0 with Not_found -> false
-             in
-             if is_match then VExpect Expect_pass
-             else VExpect (Expect_stop (Printf.sprintf "String \"%s\" does not match pattern \"%s\"" s pat))
+             (try
+                let re = Str.regexp pat in
+                let is_match =
+                  try Str.search_forward re s 0 >= 0 with Not_found -> false
+                in
+                if is_match then VExpect Expect_pass
+                else VExpect (Expect_stop (Printf.sprintf "String \"%s\" does not match pattern \"%s\"" s pat))
+              with _ ->
+                VExpect (Expect_stop (Printf.sprintf "Invalid regex pattern: \"%s\"" pat)))
          | [other; VString _] ->
              Error.type_error (Printf.sprintf "Function `expect_match` expects a String as first argument, got %s." (Utils.type_name other))
          | [_; other] ->
@@ -575,12 +603,15 @@ let register env =
          | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check substring")
          | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [VString s; VString sub] | [VSymbol s; VString sub] ->
-             let re = Str.regexp_string sub in
-             let is_match =
-               try Str.search_forward re s 0 >= 0 with Not_found -> false
-             in
-             if is_match then VExpect Expect_pass
-             else VExpect (Expect_stop (Printf.sprintf "String \"%s\" does not contain substring \"%s\"" s sub))
+             (try
+                let re = Str.regexp_string sub in
+                let is_match =
+                  try Str.search_forward re s 0 >= 0 with Not_found -> false
+                in
+                if is_match then VExpect Expect_pass
+                else VExpect (Expect_stop (Printf.sprintf "String \"%s\" does not contain substring \"%s\"" s sub))
+              with _ ->
+                VExpect (Expect_stop (Printf.sprintf "Invalid substring: \"%s\"" sub)))
          | [other; VString _] ->
              Error.type_error (Printf.sprintf "Function `expect_str_contains` expects a String as first argument, got %s." (Utils.type_name other))
          | [_; other] ->
@@ -597,17 +628,21 @@ let register env =
          | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
          | [actual_val; expected_val] ->
              let extract_elems = function
-               | VList items -> List.map snd items
-               | VVector arr -> Array.to_list arr
-               | _ -> []
+               | VList items -> Some (List.map snd items)
+               | VVector arr -> Some (Array.to_list arr)
+               | _ -> None
              in
-             let l1 = extract_elems actual_val in
-             let l2 = extract_elems expected_val in
-             let in_set set v = List.exists (fun x -> T_expect_equal.compare_values ~tolerance:1e-9 x v = Expect_pass) set in
-             let all_l1_in_l2 = List.for_all (in_set l2) l1 in
-             let all_l2_in_l1 = List.for_all (in_set l1) l2 in
-             if all_l1_in_l2 && all_l2_in_l1 then VExpect Expect_pass
-             else VExpect (Expect_stop "Sets are not equal (missing or unexpected elements)")
+             (match extract_elems actual_val, extract_elems expected_val with
+              | Some l1, Some l2 ->
+                  let in_set set v = List.exists (fun x -> T_expect_equal.compare_values ~tolerance:1e-9 x v = Expect_pass) set in
+                  let all_l1_in_l2 = List.for_all (in_set l2) l1 in
+                  let all_l2_in_l1 = List.for_all (in_set l1) l2 in
+                  if all_l1_in_l2 && all_l2_in_l1 then VExpect Expect_pass
+                  else VExpect (Expect_stop "Sets are not equal (missing or unexpected elements)")
+              | None, _ ->
+                  Error.type_error (Printf.sprintf "Function `expect_set_equal` expects a List or Vector as first argument, got %s." (Utils.type_name actual_val))
+              | _, None ->
+                  Error.type_error (Printf.sprintf "Function `expect_set_equal` expects a List or Vector as second argument, got %s." (Utils.type_name expected_val)))
          | args -> Error.arity_error_named "expect_set_equal" 2 (List.length args)))
       env
   in
@@ -646,7 +681,7 @@ let register env =
                | VExpect (Expect_stop _) -> "FAIL"
                | VExpect (Expect_hold _) -> "HOLD"
                | VError _ -> "FAIL"
-               | _ -> "PASS"
+               | _ -> "UNKNOWN"
              ) entries in
              let msgs = List.map (fun (_, v) ->
                match v with
@@ -675,7 +710,7 @@ let register env =
                | VExpect (Expect_stop _) -> "FAIL"
                | VExpect (Expect_hold _) -> "HOLD"
                | VError _ -> "FAIL"
-               | _ -> "PASS"
+               | _ -> "UNKNOWN"
              ) items in
              let msgs = List.map (fun (_, v) ->
                match v with
