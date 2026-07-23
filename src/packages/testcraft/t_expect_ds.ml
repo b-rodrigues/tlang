@@ -500,7 +500,12 @@ let register env =
                Array.exists (function None -> true | _ -> false) a
            | Some (Arrow_table.BoolColumn a) ->
                Array.exists (function None -> true | _ -> false) a
+           | Some (Arrow_table.DateColumn a) ->
+               Array.exists (function None -> true | _ -> false) a
+           | Some (Arrow_table.DatetimeColumn (a, _)) ->
+               Array.exists (function None -> true | _ -> false) a
            | Some (Arrow_table.NAColumn _) -> true
+           (* Fail-closed fallback for complex/unrecognized column types *)
            | Some _ -> true
            | None -> true
          in
@@ -586,7 +591,7 @@ let register env =
                 in
                 if is_match then VExpect Expect_pass
                 else VExpect (Expect_stop (Printf.sprintf "String \"%s\" does not match pattern \"%s\"" s pat))
-              with _ ->
+              with Failure _ | Invalid_argument _ ->
                 VExpect (Expect_stop (Printf.sprintf "Invalid regex pattern: \"%s\"" pat)))
          | [other; VString _] ->
              Error.type_error (Printf.sprintf "Function `expect_match` expects a String as first argument, got %s." (Utils.type_name other))
@@ -610,7 +615,7 @@ let register env =
                 in
                 if is_match then VExpect Expect_pass
                 else VExpect (Expect_stop (Printf.sprintf "String \"%s\" does not contain substring \"%s\"" s sub))
-              with _ ->
+              with Failure _ | Invalid_argument _ ->
                 VExpect (Expect_stop (Printf.sprintf "Invalid substring: \"%s\"" sub)))
          | [other; VString _] ->
              Error.type_error (Printf.sprintf "Function `expect_str_contains` expects a String as first argument, got %s." (Utils.type_name other))
