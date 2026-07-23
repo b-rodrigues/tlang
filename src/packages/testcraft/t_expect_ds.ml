@@ -115,6 +115,9 @@
 --#   assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
 --# @family testcraft
 --# @seealso expect_fields, expect_equal
+--# @export
+*)
+
 (*
 --# Absence of NA values assertion
 --#

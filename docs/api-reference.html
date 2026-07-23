@@ -4068,6 +4068,69 @@ Absolute tolerance used for Float comparisons (default
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>assert(expect_in(3, 1:5))
 assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))</code></pre>
+<hr />
+<h3
+id="expect_no_naactual-col"><code>expect_no_na(actual, col = "")</code></h3>
+<p>Pass if the actual value, Vector, List, or DataFrame (optional
+column) contains zero NA values.</p>
+<p><strong>Parameters:</strong> - <code>actual</code> — Any value,
+Vector, List, or DataFrame to check - <code>col</code> (optional) —
+String column name when checking a specific DataFrame column</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_no_na([1, 2, 3]))
+assert(expect_no_na(df, &quot;val&quot;))</code></pre>
+<hr />
+<h3
+id="expect_betweenactual-min-max"><code>expect_between(actual, min, max)</code></h3>
+<p>Pass if the numeric value or vector elements fall inside the closed
+range <code>[min, max]</code>.</p>
+<p><strong>Parameters:</strong> - <code>actual</code> — Int, Float, or
+Vector to check - <code>min</code> — Numeric lower bound (inclusive) -
+<code>max</code> — Numeric upper bound (inclusive)</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_between(25.0, 10.0, 50.0))</code></pre>
+<hr />
+<h3
+id="expect_matchactual-pattern"><code>expect_match(actual, pattern)</code></h3>
+<p>Pass if the actual String matches the given regular expression
+pattern.</p>
+<p><strong>Parameters:</strong> - <code>actual</code> — String value to
+inspect - <code>pattern</code> — Regular expression pattern string</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_match(&quot;user@example.com&quot;, &quot;.*@.*&quot;))</code></pre>
+<hr />
+<h3
+id="expect_str_containsactual-substring"><code>expect_str_contains(actual, substring)</code></h3>
+<p>Pass if the actual String contains the specified substring.</p>
+<p><strong>Parameters:</strong> - <code>actual</code> — String value to
+inspect - <code>substring</code> — Substring to search for</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_str_contains(&quot;hello world&quot;, &quot;world&quot;))</code></pre>
+<hr />
+<h3
+id="expect_set_equallist1-list2"><code>expect_set_equal(list1, list2)</code></h3>
+<p>Pass if two Lists or Vectors contain the exact same unique elements
+regardless of order.</p>
+<p><strong>Parameters:</strong> - <code>list1</code> — First List or
+Vector - <code>list2</code> — Second List or Vector</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_set_equal([1, 2, 3], [3, 2, 1]))</code></pre>
+<hr />
+<h3 id="expect_emptyactual"><code>expect_empty(actual)</code></h3>
+<p>Pass if a List, Dict, Vector, String, or DataFrame is empty (0
+elements/rows/length).</p>
+<p><strong>Parameters:</strong> - <code>actual</code> — List, Dict,
+Vector, String, or DataFrame</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_empty([]))</code></pre>
+<hr />
+<h3 id="expect_summarychecks"><code>expect_summary(checks)</code></h3>
+<p>Summarize a List or Dict of <code>Expect</code> values / check
+results into a DataFrame report table.</p>
+<p><strong>Parameters:</strong> - <code>checks</code> — Dict or List of
+expectation check results</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>summary_df = expect_summary([c1: expect_equal(1, 1), c2: expect_equal(2, 2)])</code></pre>
 <h3
 id="expect_warningnode-kind-message"><code>expect_warning(node, kind = "", message = "")</code></h3>
 <p>Pass if the given pipeline node produced at least one warning during
