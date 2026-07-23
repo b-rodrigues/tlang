@@ -439,6 +439,37 @@ assert(result == 1.7)</code></pre>
 <p>Run them with:</p>
 <div class="sourceCode" id="cb30"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+<h3 id="pipeline-verification-nodes-assertion-dictionaries">6.1 Pipeline
+Verification Nodes &amp; Assertion Dictionaries</h3>
+<p>When testing pipeline workflows, separate data transformation nodes
+from check/assertion nodes. In verification nodes, return a named
+dictionary of <code>assert(expect_*(...))</code> calls serialized as
+JSON (<code>serializer = ^json</code>):</p>
+<pre class="t"><code>test_filter = pipeline {
+  -- Data transformation node (produces CSV filtered_data)
+  filtered_data = node(
+    command = data |&gt; filter($score &gt;= 88),
+    serializer = ^csv,
+    deserializer = ^csv
+  )
+  -- Test node (returns named Dict of assertion results)
+  -- On success: serializes [ nrow_check: true, colnames_check: true ] as JSON
+  -- On failure: assert short-circuits and records VError failure object in build log
+  check_filter = node(
+    command = [
+      nrow_check: assert(expect_nrow(filtered_data, 2)),
+      colnames_check: assert(expect_colnames(filtered_data, [&quot;name&quot;, &quot;score&quot;, &quot;grade&quot;]))
+    ],
+    serializer = ^json,
+    deserializer = ^csv
+  )
+}</code></pre>
+<p>This pattern provides a clean duality: - <strong>Passing
+builds</strong> output a structured JSON status artifact mapping check
+names to <code>true</code> (accessible via
+<code>read_node(p.check_filter)</code>). - <strong>Failing
+assertions</strong> short-circuit execution immediately, recording the
+full <code>AssertionError</code> object in the node’s build log.</p>
 <h3 id="skipping-pipeline-tests-conditionally">Skipping Pipeline Tests
 Conditionally</h3>
 <p>Since pipeline nodes are compiled and executed via Nix, tests that
@@ -474,11 +505,11 @@ inputs</li>
 source of truth for dependencies</li>
 </ul>
 <p>Anyone can reproduce your environment:</p>
-<div class="sourceCode" id="cb32"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
-<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
-<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>The same T version, same package versions, same R packages, and same
 system libraries are used every time.</p>
 <h2 id="ide-support-autocompletion">8. IDE Support &amp;

@@ -1018,21 +1018,47 @@ previous successful builds.</li>
 <hr />
 <h2 id="best-practices">Best Practices</h2>
 <ol type="1">
-<li><strong>Name nodes descriptively</strong>: Use names like
+<li><p><strong>Name nodes descriptively</strong>: Use names like
 <code>raw_data</code>, <code>filtered_sales</code>,
-<code>summary_stats</code></li>
-<li><strong>Keep nodes focused</strong>: Each node should do one
-thing</li>
-<li><strong>Use pipes within nodes</strong>: Combine pipeline structure
-with pipe operator for readability</li>
-<li><strong>Inspect before consuming</strong>: Use
+<code>summary_stats</code></p></li>
+<li><p><strong>Keep nodes focused</strong>: Each node should do one
+thing</p></li>
+<li><p><strong>Use pipes within nodes</strong>: Combine pipeline
+structure with pipe operator for readability</p></li>
+<li><p><strong>Inspect before consuming</strong>: Use
 <code>pipeline_nodes()</code>, <code>pipeline_deps()</code>, and
-<code>pipeline_to_frame()</code> to understand pipeline structure</li>
-<li><strong>Build incrementally</strong>: Start with data loading, add
-transformations one node at a time</li>
-<li><strong>Validate at construction time</strong>: Use
+<code>pipeline_to_frame()</code> to understand pipeline
+structure</p></li>
+<li><p><strong>Build incrementally</strong>: Start with data loading,
+add transformations one node at a time</p></li>
+<li><p><strong>Validate at construction time</strong>: Use
 <code>pipeline_assert</code> at the end of a construction chain to catch
-structural errors early</li>
+structural errors early</p></li>
+<li><p><strong>Separate data nodes from verification nodes</strong>:
+Keep data transformation nodes (<code>serializer = ^csv</code>) separate
+from assertion check nodes. Verification nodes should return named
+dictionaries of <code>assert(expect_*(...))</code> calls
+(<code>serializer = ^json</code>) so that passing builds output a
+structured <code>{ check: true }</code> JSON artifact, while failing
+assertions immediately short-circuit to record detailed
+<code>AssertionError</code> tracebacks in the build log:</p>
+<pre class="t"><code>test_filter = pipeline {
+  -- Transformation node
+  filtered_data = node(
+    command = data |&gt; filter($score &gt;= 88),
+    serializer = ^csv,
+    deserializer = ^csv
+  )
+  -- Verification node
+  check_filter = node(
+    command = [
+      nrow_check: assert(expect_nrow(filtered_data, 2)),
+      colnames_check: assert(expect_colnames(filtered_data, [&quot;name&quot;, &quot;score&quot;, &quot;grade&quot;]))
+    ],
+    serializer = ^json,
+    deserializer = ^csv
+  )
+}</code></pre></li>
 </ol>
 <hr />
 <h2 id="complete-example">Complete Example</h2>

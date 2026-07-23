@@ -140,11 +140,16 @@ df
   -- F. Test / Data Quality Assertion Node
   -- --------------------------------------------------------------------------
   -- Inline test nodes use testcraft functions (expect_gt, expect_equal, expect_type)
-  -- to validate data quality and invariants as the pipeline runs.
-  -- If an expectation fails, assert() returns an error.
+  -- wrapped in assert() inside a named dictionary.
+  -- On success: serializes [ check_name: true ] as a JSON artifact.
+  -- On failure: assert() short-circuits to record an AssertionError failure object in build log.
   check_data_quality = node(
-    command = assert(expect_gt(nrow(r_transformation), 0)),
-    runtime = T
+    command = [
+      row_count_check: assert(expect_gt(nrow(r_transformation), 0)),
+      data_type_check: assert(expect_type(r_transformation, "DataFrame"))
+    ],
+    serializer = ^json,
+    deserializer = ^csv
   )
 
 
