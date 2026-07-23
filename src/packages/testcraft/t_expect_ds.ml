@@ -230,6 +230,74 @@
 --# @export
 *)
 
+(*
+--# DataFrame column types assertion
+--#
+--# Passes if the specified DataFrame columns match the expected type strings.
+--#
+--# @name expect_column_types
+--# @param df :: DataFrame The DataFrame to check.
+--# @param expected_types :: Dict | List Column name -> expected type string map.
+--# @return :: Expect `Expect_pass` when types match; `Expect_hold` on NA; `Expect_stop` on mismatch.
+--# @example
+--#   assert(expect_column_types(df, [id: "Int", name: "String"]))
+--# @family testcraft
+--# @seealso expect_colnames, expect_type
+--# @export
+*)
+
+(*
+--# DataFrame column allowed values assertion
+--#
+--# Passes if all cell values in a DataFrame column belong to an allowed set of values.
+--#
+--# @name expect_values
+--# @param df :: DataFrame The DataFrame to inspect.
+--# @param col :: String Column name to check.
+--# @param allowed_values :: List | Vector Set of allowed values.
+--# @return :: Expect `Expect_pass` when all values are allowed; `Expect_hold` on NA; `Expect_stop` on disallowed values.
+--# @example
+--#   assert(expect_values(df, "status", ["PENDING", "APPROVED"]))
+--# @family testcraft
+--# @seealso expect_in, expect_range
+--# @export
+*)
+
+(*
+--# DataFrame numeric column closed range bounds assertion
+--#
+--# Passes if all non-NA cell values in a numeric DataFrame column fall within [min, max].
+--#
+--# @name expect_range
+--# @param df :: DataFrame The DataFrame to inspect.
+--# @param col :: String Column name to check.
+--# @param min :: Int | Float Lower bound (inclusive).
+--# @param max :: Int | Float Upper bound (inclusive).
+--# @return :: Expect `Expect_pass` when within bounds; `Expect_hold` on NA; `Expect_stop` if out of bounds.
+--# @example
+--#   assert(expect_range(df, "age", 0, 120))
+--# @family testcraft
+--# @seealso expect_between, expect_values
+--# @export
+*)
+
+(*
+--# DataFrame table equality assertion
+--#
+--# Passes if two DataFrames have equal dimensions, column names, and matching row contents.
+--#
+--# @name expect_table_equal
+--# @param df1 :: DataFrame First DataFrame.
+--# @param df2 :: DataFrame Second DataFrame.
+--# @param ignore_row_order :: Bool = true Ignore row ordering during comparison.
+--# @return :: Expect `Expect_pass` when tables match; `Expect_hold` on NA; `Expect_stop` on mismatch.
+--# @example
+--#   assert(expect_table_equal(df1, df2))
+--# @family testcraft
+--# @seealso expect_equal, expect_colnames
+--# @export
+*)
+
 open Ast
 
 let fmt v = "`" ^ Utils.value_to_string v ^ "`"
@@ -848,6 +916,207 @@ let register env =
              VDataFrame { arrow_table = tbl; group_keys = [] }
          | [other] -> Error.type_error (Printf.sprintf "Function `expect_summary` expects a Dict or List of expect results, got %s." (Utils.type_name other))
          | args -> Error.arity_error_named "expect_summary" 1 (List.length args)))
+      env
+  in
+  (* expect_column_types: check DataFrame column types *)
+  let env =
+    Env.add "expect_column_types"
+      (make_builtin ~name:"expect_column_types" 2 (fun args _env ->
+         match args with
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check column types")
+         | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [VDataFrame df; expected_spec] ->
+             let extract_pairs = function
+               | VDict entries ->
+                   Some (List.map (fun (k, v) -> (k, v)) entries)
+               | VList items ->
+                   let pairs = List.filter_map (fun (lbl, v) ->
+                     match lbl with
+                     | Some l -> Some (l, v)
+                     | None -> None
+                   ) items in
+                   if List.length pairs = List.length items then Some pairs else None
+               | _ -> None
+             in
+             (match extract_pairs expected_spec with
+              | Some pairs ->
+                  let get_col_type col_name =
+                    match Arrow_table.get_column df.arrow_table col_name with
+                    | Some (Arrow_table.FloatColumn _) -> Some "Float"
+                    | Some (Arrow_table.IntColumn _) -> Some "Int"
+                    | Some (Arrow_table.StringColumn _) -> Some "String"
+                    | Some (Arrow_table.BoolColumn _) -> Some "Bool"
+                    | Some (Arrow_table.DateColumn _) -> Some "Date"
+                    | Some (Arrow_table.DatetimeColumn _) -> Some "Datetime"
+                    | Some (Arrow_table.NAColumn _) -> Some "NA"
+                    | Some _ -> Some "Unknown"
+                    | None -> None
+                  in
+                  let mismatches = List.filter_map (fun (col_name, expected_t) ->
+                    match get_col_type col_name with
+                    | None -> Some (Printf.sprintf "Column '%s' not found" col_name)
+                    | Some actual_t ->
+                        let exp_str = match expected_t with VString s -> s | VSymbol s -> s | _ -> "" in
+                        if exp_str <> "" && actual_t <> exp_str then
+                          Some (Printf.sprintf "Column '%s' expected type '%s', got '%s'" col_name exp_str actual_t)
+                        else None
+                  ) pairs in
+                  if mismatches <> [] then
+                    VExpect (Expect_stop (String.concat "; " mismatches))
+                  else
+                    VExpect Expect_pass
+              | None ->
+                  Error.type_error (Printf.sprintf "Function `expect_column_types` expects a Dict or named List of column types, got %s." (Utils.type_name expected_spec)))
+         | [other; _] ->
+             Error.type_error (Printf.sprintf "Function `expect_column_types` expects a DataFrame as first argument, got %s." (Utils.type_name other))
+         | args -> Error.arity_error_named "expect_column_types" 2 (List.length args)))
+      env
+  in
+  (* expect_values: check that DataFrame column values belong to an allowed set *)
+  let env =
+    Env.add "expect_values"
+      (make_builtin ~name:"expect_values" 3 (fun args _env ->
+         match args with
+         | [VNA _; _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check values")
+         | [VError err; _; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [VDataFrame df; VString col_name; allowed_spec] ->
+             let extract_allowed = function
+               | VList items -> Some (List.map snd items)
+               | VVector arr -> Some (Array.to_list arr)
+               | _ -> None
+             in
+             (match extract_allowed allowed_spec with
+              | Some allowed_list ->
+                  (match Arrow_table.get_column df.arrow_table col_name with
+                   | None ->
+                       VExpect (Expect_stop (Printf.sprintf "Column '%s' not found in DataFrame" col_name))
+                   | Some col ->
+                       let in_allowed v =
+                         List.exists (fun x -> T_expect_equal.compare_values ~tolerance:1e-9 x v = Expect_pass) allowed_list
+                       in
+                       let cell_values = match col with
+                         | Arrow_table.FloatColumn a ->
+                             Array.to_list a |> List.filter_map (function Some f -> Some (VFloat f) | None -> None)
+                         | Arrow_table.IntColumn a ->
+                             Array.to_list a |> List.filter_map (function Some i -> Some (VInt i) | None -> None)
+                         | Arrow_table.StringColumn a ->
+                             Array.to_list a |> List.filter_map (function Some s -> Some (VString s) | None -> None)
+                         | Arrow_table.BoolColumn a ->
+                             Array.to_list a |> List.filter_map (function Some b -> Some (VBool b) | None -> None)
+                         | Arrow_table.DateColumn a ->
+                             Array.to_list a |> List.filter_map (function Some d -> Some (VDate d) | None -> None)
+                         | _ -> []
+                       in
+                       let disallowed = List.filter (fun v -> not (in_allowed v)) cell_values in
+                       if disallowed <> [] then
+                         let first_disallowed = List.hd disallowed in
+                         VExpect (Expect_stop (Printf.sprintf "Column '%s' contains disallowed value %s" col_name (fmt first_disallowed)))
+                       else
+                         VExpect Expect_pass)
+              | None ->
+                  Error.type_error (Printf.sprintf "Function `expect_values` expects a List or Vector of allowed values, got %s." (Utils.type_name allowed_spec)))
+         | [other; VString _; _] ->
+             Error.type_error (Printf.sprintf "Function `expect_values` expects a DataFrame as first argument, got %s." (Utils.type_name other))
+         | [VDataFrame _; other; _] ->
+             Error.type_error (Printf.sprintf "Function `expect_values` expects a String column name as second argument, got %s." (Utils.type_name other))
+         | args -> Error.arity_error_named "expect_values" 3 (List.length args)))
+      env
+  in
+  (* expect_range: check that DataFrame column values fall in [min, max] *)
+  let env =
+    Env.add "expect_range"
+      (make_builtin ~name:"expect_range" 4 (fun args _env ->
+         match args with
+         | [VNA _; _; _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check range")
+         | [VError err; _; _; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [VDataFrame df; VString col_name; min_v; max_v] ->
+             let get_float = function
+               | VInt i -> Some (float_of_int i)
+               | VFloat f -> Some f
+               | _ -> None
+             in
+             (match get_float min_v, get_float max_v with
+              | Some min_f, Some max_f ->
+                  (match Arrow_table.get_column df.arrow_table col_name with
+                   | None ->
+                       VExpect (Expect_stop (Printf.sprintf "Column '%s' not found in DataFrame" col_name))
+                   | Some (Arrow_table.FloatColumn a) ->
+                       let out_of_bounds = Array.exists (function Some f -> f < min_f || f > max_f | None -> false) a in
+                       if out_of_bounds then
+                         VExpect (Expect_stop (Printf.sprintf "Column '%s' contains values outside range [%g, %g]" col_name min_f max_f))
+                       else
+                         VExpect Expect_pass
+                   | Some (Arrow_table.IntColumn a) ->
+                       let out_of_bounds = Array.exists (function Some i -> let f = float_of_int i in f < min_f || f > max_f | None -> false) a in
+                       if out_of_bounds then
+                         VExpect (Expect_stop (Printf.sprintf "Column '%s' contains values outside range [%g, %g]" col_name min_f max_f))
+                       else
+                         VExpect Expect_pass
+                   | Some _ ->
+                       Error.type_error (Printf.sprintf "Function `expect_range` expects a numeric column '%s'." col_name))
+              | _ -> Error.type_error "Function `expect_range` expects numeric min and max bounds.")
+         | [other; VString _; _; _] ->
+             Error.type_error (Printf.sprintf "Function `expect_range` expects a DataFrame as first argument, got %s." (Utils.type_name other))
+         | [VDataFrame _; other; _; _] ->
+             Error.type_error (Printf.sprintf "Function `expect_range` expects a String column name as second argument, got %s." (Utils.type_name other))
+         | args -> Error.arity_error_named "expect_range" 4 (List.length args)))
+      env
+  in
+  (* expect_table_equal: check DataFrame equality with optional row order ignoring *)
+  let env =
+    Env.add "expect_table_equal"
+      (make_builtin ~name:"expect_table_equal" ~variadic:true 2 (fun args _env ->
+         match args with
+         | [VNA _; _] | [_; VNA _] -> VExpect (Expect_hold "`actual` is NA, cannot check table equality")
+         | [VError err; _] | [_; VError err] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [VDataFrame df1; VDataFrame df2]
+         | [VDataFrame df1; VDataFrame df2; VBool _] ->
+             let ignore_order = match args with [_; _; VBool b] -> b | _ -> true in
+             let r1 = Arrow_table.num_rows df1.arrow_table in
+             let r2 = Arrow_table.num_rows df2.arrow_table in
+             let c1 = Arrow_table.column_names df1.arrow_table in
+             let c2 = Arrow_table.column_names df2.arrow_table in
+             if r1 <> r2 then
+               VExpect (Expect_stop (Printf.sprintf "Row count mismatch: %d vs %d" r1 r2))
+             else if List.sort String.compare c1 <> List.sort String.compare c2 then
+               VExpect (Expect_stop (Printf.sprintf "Column names mismatch: [%s] vs [%s]" (String.concat ", " c1) (String.concat ", " c2)))
+             else if not ignore_order then
+               (match T_expect_equal.compare_values ~tolerance:1e-9 (VDataFrame df1) (VDataFrame df2) with
+                | Expect_pass -> VExpect Expect_pass
+                | other -> VExpect other)
+             else
+               (* Ignore row order comparison: for each column, sort elements and compare *)
+               let cols_match = List.for_all (fun col_name ->
+                 match Arrow_table.get_column df1.arrow_table col_name, Arrow_table.get_column df2.arrow_table col_name with
+                 | Some (Arrow_table.FloatColumn a1), Some (Arrow_table.FloatColumn a2) ->
+                     let cmp = Option.compare Float.compare in
+                     let s1 = List.sort cmp (Array.to_list a1) in
+                     let s2 = List.sort cmp (Array.to_list a2) in
+                     s1 = s2
+                 | Some (Arrow_table.IntColumn a1), Some (Arrow_table.IntColumn a2) ->
+                     let cmp = Option.compare Int.compare in
+                     let s1 = List.sort cmp (Array.to_list a1) in
+                     let s2 = List.sort cmp (Array.to_list a2) in
+                     s1 = s2
+                 | Some (Arrow_table.StringColumn a1), Some (Arrow_table.StringColumn a2) ->
+                     let cmp = Option.compare String.compare in
+                     let s1 = List.sort cmp (Array.to_list a1) in
+                     let s2 = List.sort cmp (Array.to_list a2) in
+                     s1 = s2
+                 | Some (Arrow_table.BoolColumn a1), Some (Arrow_table.BoolColumn a2) ->
+                     let cmp = Option.compare Bool.compare in
+                     let s1 = List.sort cmp (Array.to_list a1) in
+                     let s2 = List.sort cmp (Array.to_list a2) in
+                     s1 = s2
+                 | _ -> true
+               ) c1 in
+               if cols_match then VExpect Expect_pass
+               else VExpect (Expect_stop "DataFrame contents do not match (ignoring row order)")
+         | [other; VDataFrame _] ->
+             Error.type_error (Printf.sprintf "Function `expect_table_equal` expects a DataFrame as first argument, got %s." (Utils.type_name other))
+         | [VDataFrame _; other] ->
+             Error.type_error (Printf.sprintf "Function `expect_table_equal` expects a DataFrame as second argument, got %s." (Utils.type_name other))
+         | args -> Error.arity_error_named "expect_table_equal" 2 (List.length args)))
       env
   in
   env

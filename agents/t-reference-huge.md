@@ -24393,6 +24393,37 @@ assert(expect_colnames(to_dataframe([x: [1], y = [2]]), ["x", "y"]))
 
 
 
+# FILE: docs/reference/expect_column_types.md
+
+# expect_column_types
+
+DataFrame column types assertion
+
+Passes if the specified DataFrame columns match the expected type strings.
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to check.
+
+- **expected_types** (`Dict`): | List Column name -> expected type string map.
+
+
+## Returns
+
+`Expect_pass` when types match; `Expect_hold` on NA; `Expect_stop` on mismatch.
+
+## Examples
+
+```t
+assert(expect_column_types(df, [id: "Int", name = "String"]))
+```
+
+## See Also
+
+[expect_type](expect_type.html), [expect_colnames](expect_colnames.html)
+
+
+
 # FILE: docs/reference/expect_computed.md
 
 # expect_computed
@@ -25210,6 +25241,41 @@ assert(expect_pipeline(p))
 
 
 
+# FILE: docs/reference/expect_range.md
+
+# expect_range
+
+DataFrame numeric column closed range bounds assertion
+
+Passes if all non-NA cell values in a numeric DataFrame column fall within [min, max].
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to inspect.
+
+- **col** (`String`): Column name to check.
+
+- **min** (`Int`): | Float Lower bound (inclusive).
+
+- **max** (`Int`): | Float Upper bound (inclusive).
+
+
+## Returns
+
+`Expect_pass` when within bounds; `Expect_hold` on NA; `Expect_stop` if out of bounds.
+
+## Examples
+
+```t
+assert(expect_range(df, "age", 0, 120))
+```
+
+## See Also
+
+[expect_values](expect_values.html), [expect_between](expect_between.html)
+
+
+
 # FILE: docs/reference/expect_runtime.md
 
 # expect_runtime
@@ -25359,6 +25425,39 @@ summary_df = expect_summary([c1: expect_equal(1, 1), c2 = expect_equal(2, 2)])
 
 
 
+# FILE: docs/reference/expect_table_equal.md
+
+# expect_table_equal
+
+DataFrame table equality assertion
+
+Passes if two DataFrames have equal dimensions, column names, and matching row contents.
+
+## Parameters
+
+- **df1** (`DataFrame`): First DataFrame.
+
+- **df2** (`DataFrame`): Second DataFrame.
+
+- **ignore_row_order** (`Bool`): = true Ignore row ordering during comparison.
+
+
+## Returns
+
+`Expect_pass` when tables match; `Expect_hold` on NA; `Expect_stop` on mismatch.
+
+## Examples
+
+```t
+assert(expect_table_equal(df1, df2))
+```
+
+## See Also
+
+[expect_colnames](expect_colnames.html), [expect_equal](expect_equal.html)
+
+
+
 # FILE: docs/reference/expect_true.md
 
 # expect_true
@@ -25478,6 +25577,39 @@ assert(expect_unique(df.$id))
 ## See Also
 
 [expect_equal](expect_equal.html), [expect_in](expect_in.html), [expect_length](expect_length.html)
+
+
+
+# FILE: docs/reference/expect_values.md
+
+# expect_values
+
+DataFrame column allowed values assertion
+
+Passes if all cell values in a DataFrame column belong to an allowed set of values.
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to inspect.
+
+- **col** (`String`): Column name to check.
+
+- **allowed_values** (`List`): | Vector Set of allowed values.
+
+
+## Returns
+
+`Expect_pass` when all values are allowed; `Expect_hold` on NA; `Expect_stop` on disallowed values.
+
+## Examples
+
+```t
+assert(expect_values(df, "status", ["PENDING", "APPROVED"]))
+```
+
+## See Also
+
+[expect_range](expect_range.html), [expect_in](expect_in.html)
 
 
 
