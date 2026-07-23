@@ -115,6 +115,115 @@
 --#   assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
 --# @family testcraft
 --# @seealso expect_fields, expect_equal
+(*
+--# Absence of NA values assertion
+--#
+--# Passes if the actual value, Vector, List, or DataFrame (optional column) contains zero NA values.
+--#
+--# @name expect_no_na
+--# @param actual :: Any The value, container, or DataFrame to check.
+--# @param col :: String (Optional) Column name when checking a DataFrame.
+--# @return :: Expect `Expect_pass` when no NA values exist; `Expect_stop` if NA values are found.
+--# @example
+--#   assert(expect_no_na([1, 2, 3]))
+--#   assert(expect_no_na(df, "val"))
+--# @family testcraft
+--# @seealso expect_type, expect_true
+--# @export
+*)
+
+(*
+--# Closed range numerical bounds assertion
+--#
+--# Passes if the numeric value or vector elements fall inside [min, max].
+--#
+--# @name expect_between
+--# @param actual :: Int | Float | Vector The numeric value or vector to check.
+--# @param min :: Int | Float Lower bound (inclusive).
+--# @param max :: Int | Float Upper bound (inclusive).
+--# @return :: Expect `Expect_pass` when within bounds; `Expect_hold` on NA; `Expect_stop` if out of bounds.
+--# @example
+--#   assert(expect_between(25.0, 10.0, 50.0))
+--# @family testcraft
+--# @seealso expect_gt, expect_lt
+--# @export
+*)
+
+(*
+--# Regex string match assertion
+--#
+--# Passes if the actual String matches the given regular expression pattern.
+--#
+--# @name expect_match
+--# @param actual :: String The string value to inspect.
+--# @param pattern :: String Regular expression pattern string.
+--# @return :: Expect `Expect_pass` when matching; `Expect_hold` on NA; `Expect_stop` on mismatch or invalid pattern.
+--# @example
+--#   assert(expect_match("user@example.com", ".*@.*"))
+--# @family testcraft
+--# @seealso expect_str_contains, expect_type
+--# @export
+*)
+
+(*
+--# Substring search assertion
+--#
+--# Passes if the actual String contains the specified substring.
+--#
+--# @name expect_str_contains
+--# @param actual :: String The string value to inspect.
+--# @param substring :: String Substring to search for.
+--# @return :: Expect `Expect_pass` when found; `Expect_hold` on NA; `Expect_stop` if missing.
+--# @example
+--#   assert(expect_str_contains("hello world", "world"))
+--# @family testcraft
+--# @seealso expect_match
+--# @export
+*)
+
+(*
+--# Order-independent set equality assertion
+--#
+--# Passes if two Lists or Vectors contain the exact same unique elements regardless of order.
+--#
+--# @name expect_set_equal
+--# @param list1 :: List | Vector First collection.
+--# @param list2 :: List | Vector Second collection.
+--# @return :: Expect `Expect_pass` when sets match; `Expect_hold` on NA; `Expect_stop` if elements differ.
+--# @example
+--#   assert(expect_set_equal([1, 2, 3], [3, 2, 1]))
+--# @family testcraft
+--# @seealso expect_equal, expect_in
+--# @export
+*)
+
+(*
+--# Empty container / string assertion
+--#
+--# Passes if a List, Dict, Vector, String, or DataFrame is empty (0 elements/rows/length).
+--#
+--# @name expect_empty
+--# @param actual :: List | Dict | Vector | String | DataFrame The container to check.
+--# @return :: Expect `Expect_pass` when empty; `Expect_hold` on NA; `Expect_stop` if non-empty.
+--# @example
+--#   assert(expect_empty([]))
+--# @family testcraft
+--# @seealso expect_length, expect_nrow
+--# @export
+*)
+
+(*
+--# Expectation test suite summary report
+--#
+--# Summarizes a List or Dict of Expect values / check results into a DataFrame report table.
+--#
+--# @name expect_summary
+--# @param checks :: Dict | List A dictionary or list of expectation check results.
+--# @return :: DataFrame A DataFrame with columns `check`, `status`, and `message`.
+--# @example
+--#   summary_df = expect_summary([c1: expect_equal(1, 1), c2: expect_equal(2, 2)])
+--# @family testcraft
+--# @seealso expect_pass, expect_fail
 --# @export
 *)
 
