@@ -83,7 +83,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "expect_values stop"
     "df = to_dataframe([x: [1, 2, 3]]); expect_values(df, \"x\", [1, 2])" "STOP(";
   test "expect_values datetime pass"
-    "dt = parse_datetime(\"2023-01-01T10:00:00Z\"); df = to_dataframe([ts: [dt]]); expect_values(df, \"ts\", [dt])" "PASS";
+    "dt = parse_datetime(\"2023-01-01T10:00:00Z\", \"%Y-%m-%dT%H:%M:%SZ\"); df = to_dataframe([ts: [dt]]); expect_values(df, \"ts\", [dt])" "PASS";
   test "expect_values NA"
     "expect_values(NA, \"x\", [1, 2])" "HOLD(";
   test "expect_values Error"
