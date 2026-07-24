@@ -926,19 +926,24 @@ let register env =
                     | Some _ -> Some "Unknown"
                     | None -> None
                   in
-                  let mismatches = List.filter_map (fun (col_name, expected_t) ->
-                    match get_col_type col_name with
-                    | None -> Some (Printf.sprintf "Column '%s' not found" col_name)
-                    | Some actual_t ->
-                        let exp_str = match expected_t with VString s -> s | VSymbol s -> s | _ -> "" in
-                        if exp_str <> "" && actual_t <> exp_str then
-                          Some (Printf.sprintf "Column '%s' expected type '%s', got '%s'" col_name exp_str actual_t)
-                        else None
-                  ) pairs in
-                  if mismatches <> [] then
-                    VExpect (Expect_stop (String.concat "; " mismatches))
-                  else
-                    VExpect Expect_pass
+                  let invalid_spec = List.find_opt (fun (_, t) -> match t with VString _ | VSymbol _ -> false | _ -> true) pairs in
+                  (match invalid_spec with
+                   | Some (col_name, expected_t) ->
+                       Error.type_error (Printf.sprintf "Function `expect_column_types` expects column types as String or Symbol, got %s for column '%s'." (Utils.type_name expected_t) col_name)
+                   | None ->
+                       let mismatches = List.filter_map (fun (col_name, expected_t) ->
+                         let exp_str = match expected_t with VString s -> s | VSymbol s -> s | _ -> "" in
+                         match get_col_type col_name with
+                         | None -> Some (Printf.sprintf "Column '%s' not found" col_name)
+                         | Some actual_t ->
+                             if actual_t <> exp_str then
+                               Some (Printf.sprintf "Column '%s' expected type '%s', got '%s'" col_name exp_str actual_t)
+                             else None
+                       ) pairs in
+                       if mismatches <> [] then
+                         VExpect (Expect_stop (String.concat "; " mismatches))
+                       else
+                         VExpect Expect_pass)
               | None ->
                   Error.type_error (Printf.sprintf "Function `expect_column_types` expects a Dict or named List of column types, got %s." (Utils.type_name expected_spec)))
          | [other; _] ->
@@ -979,6 +984,8 @@ let register env =
                              Array.to_list a |> List.filter_map (function Some b -> Some (VBool b) | None -> None)
                          | Arrow_table.DateColumn a ->
                              Array.to_list a |> List.filter_map (function Some d -> Some (VDate d) | None -> None)
+                         | Arrow_table.DatetimeColumn (a, tz) ->
+                             Array.to_list a |> List.filter_map (function Some dt -> Some (VDatetime (dt, tz)) | None -> None)
                          | _ -> []
                        in
                         let disallowed = List.filter (fun v -> not (in_allowed v)) cell_values in
