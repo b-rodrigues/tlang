@@ -123,8 +123,7 @@
 *)
 
 open Ast
-
-let fmt v = "`" ^ Utils.value_to_string v ^ "`"
+open Testcraft_utils
 
 let register env =
   (* expect_true: only VBool true passes *)

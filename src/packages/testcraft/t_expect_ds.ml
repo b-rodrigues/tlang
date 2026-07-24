@@ -299,33 +299,7 @@
 *)
 
 open Ast
-
-let fmt v = "`" ^ Utils.value_to_string v ^ "`"
-
-(* Extract a list of strings from a VList or VVector. Returns None if
-   any element is not a VString. Unlike the previous implementation,
-   this correctly handles empty strings as valid elements. *)
-let extract_string_list = function
-  | VList items ->
-      let rec go acc = function
-        | [] -> Some (List.rev acc)
-        | (_, VString s) :: rest -> go (s :: acc) rest
-        | (_, _) :: _ -> None
-      in
-      go [] items
-  | VVector arr ->
-      let rec go i acc =
-        if i >= Array.length arr then Some (List.rev acc)
-        else match arr.(i) with
-          | VString s -> go (i + 1) (s :: acc)
-          | _ -> None
-      in
-      go 0 []
-  | VString s -> Some [s]
-  | _ -> None
-
-let list_of_strings_to_string items =
-  "[" ^ String.concat ", " (List.map (fun s -> "\"" ^ s ^ "\"") items) ^ "]"
+open Testcraft_utils
 
 let names_error () =
   Error.type_error "Expected a list or vector of strings for the names argument."
@@ -1007,13 +981,12 @@ let register env =
                              Array.to_list a |> List.filter_map (function Some d -> Some (VDate d) | None -> None)
                          | _ -> []
                        in
-                       let disallowed = List.filter (fun v -> not (in_allowed v)) cell_values in
-                       if disallowed <> [] then
-                         let first_disallowed = List.hd disallowed in
-                         VExpect (Expect_stop (Printf.sprintf "Column '%s' contains disallowed value %s" col_name (fmt first_disallowed)))
-                       else
-                         VExpect Expect_pass)
-              | None ->
+                        let disallowed = List.filter (fun v -> not (in_allowed v)) cell_values in
+                        (match disallowed with
+                         | first_disallowed :: _ ->
+                             VExpect (Expect_stop (Printf.sprintf "Column '%s' contains disallowed value %s" col_name (fmt first_disallowed)))
+                         | [] -> VExpect Expect_pass))
+               | None ->
                   Error.type_error (Printf.sprintf "Function `expect_values` expects a List or Vector of allowed values, got %s." (Utils.type_name allowed_spec)))
          | [other; VString _; _] ->
              Error.type_error (Printf.sprintf "Function `expect_values` expects a DataFrame as first argument, got %s." (Utils.type_name other))
@@ -1067,8 +1040,10 @@ let register env =
     Env.add "expect_table_equal"
       (make_builtin ~name:"expect_table_equal" ~variadic:true 2 (fun args _env ->
          match args with
-         | [VNA _; _] | [_; VNA _] -> VExpect (Expect_hold "`actual` is NA, cannot check table equality")
-         | [VError err; _] | [_; VError err] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [VNA _; _] -> VExpect (Expect_hold "`actual` is NA, cannot check table equality")
+         | [_; VNA _] -> VExpect (Expect_hold "`expected` is NA, cannot check table equality")
+         | [VError err; _] -> VExpect (Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message))
+         | [_; VError err] -> VExpect (Expect_stop (Printf.sprintf "`expected` is an error: %s" err.message))
          | [VDataFrame df1; VDataFrame df2]
          | [VDataFrame df1; VDataFrame df2; VBool _] ->
              let ignore_order = match args with [_; _; VBool b] -> b | _ -> true in
@@ -1084,34 +1059,45 @@ let register env =
                (match T_expect_equal.compare_values ~tolerance:1e-9 (VDataFrame df1) (VDataFrame df2) with
                 | Expect_pass -> VExpect Expect_pass
                 | other -> VExpect other)
-             else
-               (* Ignore row order comparison: for each column, sort elements and compare *)
-               let cols_match = List.for_all (fun col_name ->
-                 match Arrow_table.get_column df1.arrow_table col_name, Arrow_table.get_column df2.arrow_table col_name with
-                 | Some (Arrow_table.FloatColumn a1), Some (Arrow_table.FloatColumn a2) ->
-                     let cmp = Option.compare Float.compare in
-                     let s1 = List.sort cmp (Array.to_list a1) in
-                     let s2 = List.sort cmp (Array.to_list a2) in
-                     s1 = s2
-                 | Some (Arrow_table.IntColumn a1), Some (Arrow_table.IntColumn a2) ->
-                     let cmp = Option.compare Int.compare in
-                     let s1 = List.sort cmp (Array.to_list a1) in
-                     let s2 = List.sort cmp (Array.to_list a2) in
-                     s1 = s2
-                 | Some (Arrow_table.StringColumn a1), Some (Arrow_table.StringColumn a2) ->
-                     let cmp = Option.compare String.compare in
-                     let s1 = List.sort cmp (Array.to_list a1) in
-                     let s2 = List.sort cmp (Array.to_list a2) in
-                     s1 = s2
-                 | Some (Arrow_table.BoolColumn a1), Some (Arrow_table.BoolColumn a2) ->
-                     let cmp = Option.compare Bool.compare in
-                     let s1 = List.sort cmp (Array.to_list a1) in
-                     let s2 = List.sort cmp (Array.to_list a2) in
-                     s1 = s2
-                 | _ -> true
-               ) c1 in
-               if cols_match then VExpect Expect_pass
-               else VExpect (Expect_stop "DataFrame contents do not match (ignoring row order)")
+              else
+                (* Ignore row order comparison: for each column, sort elements and compare *)
+                let cols_match = List.for_all (fun col_name ->
+                  match Arrow_table.get_column df1.arrow_table col_name, Arrow_table.get_column df2.arrow_table col_name with
+                  | Some (Arrow_table.FloatColumn a1), Some (Arrow_table.FloatColumn a2) ->
+                      let cmp = Option.compare Float.compare in
+                      let s1 = List.sort cmp (Array.to_list a1) in
+                      let s2 = List.sort cmp (Array.to_list a2) in
+                      s1 = s2
+                  | Some (Arrow_table.IntColumn a1), Some (Arrow_table.IntColumn a2) ->
+                      let cmp = Option.compare Int.compare in
+                      let s1 = List.sort cmp (Array.to_list a1) in
+                      let s2 = List.sort cmp (Array.to_list a2) in
+                      s1 = s2
+                  | Some (Arrow_table.StringColumn a1), Some (Arrow_table.StringColumn a2) ->
+                      let cmp = Option.compare String.compare in
+                      let s1 = List.sort cmp (Array.to_list a1) in
+                      let s2 = List.sort cmp (Array.to_list a2) in
+                      s1 = s2
+                  | Some (Arrow_table.BoolColumn a1), Some (Arrow_table.BoolColumn a2) ->
+                      let cmp = Option.compare Bool.compare in
+                      let s1 = List.sort cmp (Array.to_list a1) in
+                      let s2 = List.sort cmp (Array.to_list a2) in
+                      s1 = s2
+                  | Some (Arrow_table.DateColumn a1), Some (Arrow_table.DateColumn a2) ->
+                      let cmp = Option.compare Int.compare in
+                      let s1 = List.sort cmp (Array.to_list a1) in
+                      let s2 = List.sort cmp (Array.to_list a2) in
+                      s1 = s2
+                  | Some (Arrow_table.DatetimeColumn (a1, _)), Some (Arrow_table.DatetimeColumn (a2, _)) ->
+                      let cmp = Option.compare Int64.compare in
+                      let s1 = List.sort cmp (Array.to_list a1) in
+                      let s2 = List.sort cmp (Array.to_list a2) in
+                      s1 = s2
+                  | Some _, Some _ -> false
+                  | _ -> false
+                ) c1 in
+                if cols_match then VExpect Expect_pass
+                else VExpect (Expect_stop "DataFrame contents do not match (ignoring row order)")
          | [other; VDataFrame _] ->
              Error.type_error (Printf.sprintf "Function `expect_table_equal` expects a DataFrame as first argument, got %s." (Utils.type_name other))
          | [VDataFrame _; other] ->

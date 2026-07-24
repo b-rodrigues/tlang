@@ -1,12 +1,9 @@
 open Ast
+open Testcraft_utils
 
 (* Default absolute tolerance used for Float comparisons when the caller
    does not supply one explicitly. *)
 let default_tolerance = 1e-9
-
-(* Render a scalar value for diagnostic messages, backtick-quoted in the
-   style of R's testthat. *)
-let fmt v = "`" ^ Utils.value_to_string v ^ "`"
 
 let scalar_mismatch actual expected =
   Expect_stop (Printf.sprintf "%s != %s" (fmt actual) (fmt expected))
@@ -105,7 +102,6 @@ and compare_lists ~tolerance
   else
     let rec scan i la lb =
       match la, lb with
-      | [], [] -> Expect_pass
       | (label, va) :: rest_a, (_, vb) :: rest_b ->
           let location =
             match label with
@@ -117,8 +113,9 @@ and compare_lists ~tolerance
            | Expect_stop msg ->
                Expect_stop (Printf.sprintf "List: element %s differs: %s" location msg)
            | Expect_hold msg ->
-               Expect_hold (Printf.sprintf "List: element %s could not be compared: %s" location msg))
-      | _ -> assert false (* unreachable: lengths already checked equal *)
+                Expect_hold (Printf.sprintf "List: element %s could not be compared: %s" location msg))
+      | [], [] -> Expect_pass
+      | _ -> Expect_pass (* unreachable: lengths already checked equal *)
     in
     scan 0 list_a list_b
 
@@ -135,7 +132,6 @@ and compare_dicts ~tolerance
     let db = List.sort cmp_key dict_b in
     let rec scan la lb =
       match la, lb with
-      | [], [] -> Expect_pass
       | (k1, v1) :: rest_a, (k2, v2) :: rest_b ->
           if k1 <> k2 then
             Expect_stop (Printf.sprintf "Dict: keys differ: expected `%s`, got `%s`" k1 k2)
@@ -144,9 +140,10 @@ and compare_dicts ~tolerance
              | Expect_pass -> scan rest_a rest_b
              | Expect_stop msg ->
                  Expect_stop (Printf.sprintf "Dict: key `%s` value differs: %s" k1 msg)
-             | Expect_hold msg ->
-                 Expect_hold (Printf.sprintf "Dict: key `%s` value could not be compared: %s" k1 msg))
-      | _ -> assert false (* unreachable: lengths already checked equal *)
+           | Expect_hold msg ->
+                Expect_hold (Printf.sprintf "Dict: key `%s` value could not be compared: %s" k1 msg))
+      | [], [] -> Expect_pass
+      | _ -> Expect_pass (* unreachable: lengths already checked equal *)
     in
     scan da db
 
