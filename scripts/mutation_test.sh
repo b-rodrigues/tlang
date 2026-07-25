@@ -30,14 +30,25 @@ run_tests() {
   nix develop --command dune exec tests/test_runner.exe 2>&1 | grep -E "^=== Results:" | head -1
 }
 
+all_passed() {
+  local line="$1"
+  if [ -z "$line" ]; then return 1; fi
+  local nums=($(echo "$line" | grep -oE '[0-9]+'))
+  if [ ${#nums[@]} -ge 2 ] && [ "${nums[0]}" -gt 0 ] && [ "${nums[0]}" -eq "${nums[1]}" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 echo "=== Mutation Test ==="
 echo ""
 
 # Step 1: Verify tests pass before mutation
 echo -e "${YELLOW}Step 1: Verifying tests pass before mutation...${NC}"
 RESULT=$(run_tests)
-if echo "$RESULT" | grep -q "3110/3110"; then
-  echo -e "${GREEN}  ✓ All tests pass before mutation${NC}"
+if all_passed "$RESULT"; then
+  echo -e "${GREEN}  ✓ All tests pass before mutation ($RESULT)${NC}"
 else
   echo -e "${RED}  ✗ Tests already fail before mutation: $RESULT. Aborting.${NC}"
   exit 1
@@ -63,7 +74,7 @@ echo ""
 echo -e "${YELLOW}Step 3: Building and running tests with mutated code...${NC}"
 nix develop --command dune build 2>/dev/null
 RESULT=$(run_tests)
-if echo "$RESULT" | grep -q "3110/3110"; then
+if all_passed "$RESULT"; then
   echo -e "${RED}  ✗ MUTATION SURVIVED: Tests still pass with broken integer addition!${NC}"
   echo "  Result: $RESULT"
   exit 1
@@ -85,7 +96,7 @@ echo ""
 echo -e "${YELLOW}Step 5: Verifying tests pass after restoration...${NC}"
 nix develop --command dune build 2>/dev/null
 RESULT=$(run_tests)
-if echo "$RESULT" | grep -q "3110/3110"; then
+if all_passed "$RESULT"; then
   echo -e "${GREEN}  ✓ All tests pass after restoration${NC}"
 else
   echo -e "${RED}  ✗ Tests fail after restoration: $RESULT${NC}"

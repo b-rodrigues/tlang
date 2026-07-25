@@ -28,9 +28,11 @@ skipped=0
 for script in "$SCRIPT_DIR"/*.t; do
   test_name=$(basename "$script" .t)
   
-  # Skip structural tests (pipeline definitions tested by t_check unit tests)
-  if head -5 "$script" | grep -q "^-- skip:"; then
-    echo "Skipping: $test_name (structural test)"
+  # Skip annotated tests (extract reason from -- skip: comment)
+  skip_line=$(head -5 "$script" | grep "^-- skip:" | head -1)
+  if [ -n "$skip_line" ]; then
+    reason=$(echo "$skip_line" | sed 's/^-- skip:[[:space:]]*//')
+    echo "Skipping: $test_name ($reason)"
     ((skipped++))
     continue
   fi

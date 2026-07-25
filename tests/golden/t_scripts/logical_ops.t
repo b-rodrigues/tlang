@@ -1,4 +1,8 @@
 -- Check Scalar Logic
+assert((true && false) == false, "Scalar && failed")
+assert((true || false) == true, "Scalar || failed")
+assert((!true) == false, "Scalar ! failed")
+
 v1 = [true, false, true, false]
 v2 = [true, true, false, false]
 

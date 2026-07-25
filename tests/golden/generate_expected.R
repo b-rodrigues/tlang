@@ -15,7 +15,8 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 message("Generating expected outputs from R/dplyr...\n")
 
-# Helper to save with metadata
+# Note: readr::write_csv formats floating-point (double) numbers with integral values using a trailing dot (e.g., 20. or 79.).
+# This is standard readr representation for double types without fractional components and roundtrips cleanly in both R and T.
 save_output <- function(df, name, operation) {
   filepath <- file.path(output_dir, paste0(name, ".csv"))
   write_csv(df, filepath)
