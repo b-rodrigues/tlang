@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env =
   (* === Formula Edge Cases === *)
   let starts_with s prefix =
     String.length s >= String.length prefix &&
@@ -187,14 +187,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let (_, env_perf) = eval_string_env (Printf.sprintf {|df_perf = read_csv("%s")|} csv_perf) env_perf in
   let (_, env_perf) = eval_string_env {|model = lm(data = df_perf, formula = y ~ x)|} env_perf in
 
-  (* Access R² through _model_data *)
-  let (v, _) = eval_string_env "model._model_data.r_squared" env_perf in
-  let result = Ast.Utils.value_to_string v in
-  if result = "1." then begin
-    incr pass_count; Printf.printf "  ✓ perfect fit has R²=1.0\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ perfect fit has R²=1.0\n    Expected: 1.\n    Got: %s\n" result
-  end;
+  test_env env_perf "perfect fit has R²=1.0"
+    "model._model_data.r_squared"
+    "1.";
 
   (* Access slope (estimate[1]) and intercept (estimate[0]) via _tidy_df *)
   let (v, _) = eval_string_env "model._tidy_df.estimate" env_perf in

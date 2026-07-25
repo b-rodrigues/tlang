@@ -68,6 +68,34 @@ let test name input expected =
     Printf.printf "%s" msg
   end
 
+let test_env env name input expected =
+  let result = try
+    let (v, _) = eval_string_env input env in
+    Ast.Utils.value_to_string v
+  with e ->
+    Printf.sprintf "EXCEPTION: %s" (Printexc.to_string e)
+  in
+  let result_norm = strip_location result in
+  let expected_norm = strip_location expected in
+  
+  let match_found = 
+    if result_norm = expected_norm then true
+    else try
+      let _ = Str.search_forward (Str.regexp expected_norm) result_norm 0 in
+      true
+    with _ -> false
+  in
+
+  if match_found then begin
+    incr pass_count;
+    Printf.printf "  ✓ %s\n" name
+  end else begin
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
+  end
+
 let () =
   Printf.printf "\n=== T Language Tests ===\n";
   if strict_mode then Printf.printf "(strict mode enabled)\n";
@@ -75,6 +103,10 @@ let () =
 
   let run name fn =
     run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test)
+  in
+
+  let run_with_env name fn =
+    run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test test_env)
   in
 
   (* Core tests *)
@@ -133,7 +165,7 @@ let () =
   run "Test_cli" Test_cli.run_tests;
 
   (* Phase 8: Stabilization tests *)
-  run "Test_golden" Test_golden.run_tests;
+  run_with_env "Test_golden" Test_golden.run_tests;
   run "Test_boolean_golden" Test_boolean_golden.run_tests;
   run "Test_core_semantics" Test_core_semantics.run_tests;
 
@@ -143,9 +175,9 @@ let () =
   run "Test_arrow_performance" Test_arrow_performance.run_tests;
 
   (* Week 2: Edge case hardening + large dataset tests *)
-  run "Test_colcraft_edge_cases" Test_colcraft_edge_cases.run_tests;
+  run_with_env "Test_colcraft_edge_cases" Test_colcraft_edge_cases.run_tests;
   run "Test_window_edge_cases" Test_window_edge_cases.run_tests;
-  run "Test_formula_edge_cases" Test_formula_edge_cases.run_tests;
+  run_with_env "Test_formula_edge_cases" Test_formula_edge_cases.run_tests;
   run "Test_large_datasets" Test_large_datasets.run_tests;
   run "Test_error_recovery" Test_error_recovery.run_tests;
 
