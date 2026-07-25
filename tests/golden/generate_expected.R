@@ -547,5 +547,70 @@ wald_df <- data.frame(
 )
 save_output(wald_df, "mtcars_wald_wt_hp", "wald_test(m2, terms=['wt', 'hp'])")
 
+# ============================================================================
+# Test Suite 26.1: Julia ONNX Export Predictions
+# ============================================================================
+julia_onnx_out <- data.frame(pred = 119.118408203)
+save_output(julia_onnx_out, "julia_onnx_export_predictions", "Julia ONNX export prediction")
+
+# ============================================================================
+# Test Suite 27: TIDYR EXTENDED
+# ============================================================================
+mtcars_sep <- read_delim("data/mtcars.csv", delim = "|", show_col_types = FALSE)
+
+mtcars_sep %>%
+  rename(miles_per_gallon = mpg, cylinders = cyl) %>%
+  head(4) %>%
+  select(miles_per_gallon, cylinders, disp, hp) %>%
+  save_output("tidyr_rename", "tidyr rename")
+
+mtcars_sep %>%
+  relocate(gear, carb, .before = mpg) %>%
+  head(4) %>%
+  select(gear, carb, mpg, cyl) %>%
+  save_output("tidyr_relocate", "tidyr relocate")
+
+data.frame(a = c(1, 1, 2), b = c(1, 1, 2)) %>%
+  distinct() %>%
+  save_output("tidyr_distinct", "tidyr distinct")
+
+mtcars_sep %>%
+  slice(1:3) %>%
+  save_output("tidyr_slice", "tidyr slice")
+
+mtcars_sep %>%
+  count(cyl) %>%
+  save_output("tidyr_count", "tidyr count")
+
+mtcars_sep %>%
+  slice_max(mpg, n = 3, with_ties = FALSE) %>%
+  save_output("tidyr_slice_max", "tidyr slice_max")
+
+mtcars_sep %>%
+  nest(data = starts_with("mpg")) %>%
+  unnest(data) %>%
+  save_output("tidyr_nest_unnest", "tidyr nest/unnest")
+
+data.frame(id = c(1L, 2L), tags = c("a,b,c", "d,e")) %>%
+  tidyr::separate_rows(tags, sep = ",") %>%
+  save_output("tidyr_separate_rows", "tidyr separate_rows")
+
+data.frame(x = c("a", "b"), w = c(3L, 2L)) %>%
+  tidyr::uncount(w) %>%
+  save_output("tidyr_uncount", "tidyr uncount")
+
+# ============================================================================
+# Test Suite 28: LOGICAL OPERATIONS
+# ============================================================================
+data.frame(
+  v1 = c(TRUE, FALSE, TRUE, FALSE),
+  v2 = c(TRUE, TRUE, FALSE, FALSE),
+  v_and = c(TRUE, FALSE, FALSE, FALSE),
+  v_or = c(TRUE, TRUE, TRUE, FALSE),
+  v_not = c(FALSE, TRUE, FALSE, TRUE)
+) %>%
+  save_output("logical_ops", "logical operations")
+
 message("\n✅ All expected outputs generated!")
 message(sprintf("   Location: %s", normalizePath(output_dir)))
+

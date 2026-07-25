@@ -1,0 +1,2 @@
+v1,v2,v_and,v_or,v_not
+"[true, false, true, false]","[true, true, false, false]","[true, false, false, false]","[true, true, true, false]","[false, true, false, true]"
