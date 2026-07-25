@@ -367,7 +367,7 @@ Use `test`/`test_env` for all simple assertions. Keep OCaml-level assertions (ma
 - **Multi-step try/with with env injection** — e.g. evaluating an expression, catching an exception, then injecting the result into a new env for a follow-up check (see `test_colcraft_edge_cases.ml`)
 - **Substring/contains checks** — `test_env` does substring matching, but if you need to assert the *absence* of a substring, or use a custom predicate, use OCaml-level code
 
-Never use manual `incr pass_count` for assertions that `test`/`test_env` can express — it's error-prone (easy to increment on both branches of an if/else) and bypasses strict-mode detection.
+Never use manual `incr pass_count` for assertions that `test`/`test_env` can express — it's error-prone (easy to increment on both branches of an if/else) and can hide individual hollow branches that strict mode's module-level check won't catch.
 
 ### Unit Tests (OCaml)
 
@@ -481,7 +481,7 @@ Or just re-run T scripts and compare (when data already exists):
 make golden-quick
 ```
 
-**When T and R disagree:** If T's behavior is correct but differs from R (e.g. tie-breaking, NA handling, sort stability), maintain the expected CSV manually (checked-in) and remove the corresponding entry from `generate_expected.R` and `test_golden_r.R`. Add a `#` comment explaining why.
+**When T and R disagree:** If T's behavior is correct but differs from R (e.g. tie-breaking, NA handling, sort stability), maintain the expected CSV manually (checked-in) and remove the generation block from `generate_expected.R` (so it isn't auto-overwritten), but keep the `compare_csvs(...)` call in `test_golden_r.R` so the manually-maintained CSV is still enforced. Add a `#` comment in both files explaining why.
 
 ---
 
