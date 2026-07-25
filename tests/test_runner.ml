@@ -81,7 +81,7 @@ let test_env env name input expected =
   let match_found = 
     if result_norm = expected_norm then true
     else try
-      let _ = Str.search_forward (Str.regexp expected_norm) result_norm 0 in
+      let _ = Str.search_forward (Str.regexp (Str.quote expected_norm)) result_norm 0 in
       true
     with _ -> false
   in
@@ -91,7 +91,7 @@ let test_env env name input expected =
     Printf.printf "  ✓ %s\n" name
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result in
+    let msg = Printf.sprintf "  ✗ %s\n    Expected (substring): %s\n    Got:                       %s\n" name expected result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end

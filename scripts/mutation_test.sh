@@ -65,6 +65,12 @@ apply_mutation() {
       ;;
   esac
 
+  if diff -q "$BACKUP_FILE" "$EVAL_FILE" > /dev/null 2>&1; then
+    echo -e "${RED}  ✗ Mutation pattern did not match — no change applied ($name)${NC}"
+    mv "$BACKUP_FILE" "$EVAL_FILE"
+    return 1
+  fi
+
   nix develop --command dune build 2>/dev/null
   local result
   result=$(run_tests)
@@ -136,6 +142,14 @@ fi
 
 echo ""
 TOTAL=$((KILLED + SURVIVED))
+if [ "$TOTAL" -eq 0 ]; then
+  echo -e "${RED}=== No mutations matched${NC}"
+  if [ -n "$SINGLE_MUTATION" ]; then
+    echo -e "${RED}  Unknown mutation name: $SINGLE_MUTATION${NC}"
+    echo -e "${RED}  Available: ${MUTATION_NAMES[*]}${NC}"
+  fi
+  exit 1
+fi
 if [ "$SURVIVED" -gt 0 ]; then
   echo -e "${RED}=== Mutation test: $KILLED/$TOTAL killed, $SURVIVED survived: ${FAILED_MUTATIONS[*]} ===${NC}"
   exit 1
