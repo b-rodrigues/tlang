@@ -588,10 +588,10 @@ mtcars_sep %>%
 # R's `with_ties = FALSE` picks a different tied row, so R generation would
 # produce a different expected file that T can never match.
 
-mtcars_sep %>%
-  nest(data = starts_with("mpg")) %>%
-  unnest(data) %>%
-  save_output("tidyr_nest_unnest", "tidyr nest/unnest")
+# tidyr_nest_unnest: expected CSV is maintained manually (checked-in) because
+# R's tidyr::nest implicitly reorders rows by non-nested columns, whereas T's nest
+# preserves original row order. R generation would overwrite the expected CSV with
+# reordered rows.
 
 data.frame(id = c(1L, 2L), tags = c("a,b,c", "d,e")) %>%
   tidyr::separate_rows(tags, sep = ",") %>%
