@@ -773,6 +773,58 @@ test_that("JULIA: Tidier @arrange parity", {
   compare_csvs("julia_tidier_arrange")
 })
 
+test_that("JULIA: ONNX export and predict", {
+  compare_csvs("julia_onnx_export_predictions")
+})
+
+# ============================================================================
+# Test Suite 27: TIDYR EXTENDED (more_tidyr_basic / more_tidyr_complex)
+# ============================================================================
+
+test_that("TIDYR: rename columns", {
+  compare_csvs("tidyr_rename")
+})
+
+test_that("TIDYR: relocate columns", {
+  compare_csvs("tidyr_relocate")
+})
+
+test_that("TIDYR: distinct rows", {
+  compare_csvs("tidyr_distinct")
+})
+
+test_that("TIDYR: slice rows", {
+  compare_csvs("tidyr_slice")
+})
+
+test_that("TIDYR: count occurrences", {
+  compare_csvs("tidyr_count")
+})
+
+test_that("TIDYR: slice_max", {
+  compare_csvs("tidyr_slice_max")
+})
+
+test_that("TIDYR: nest and unnest roundtrip", {
+  compare_csvs("tidyr_nest_unnest")
+})
+
+test_that("TIDYR: separate_rows", {
+  compare_csvs("tidyr_separate_rows")
+})
+
+test_that("TIDYR: uncount", {
+  compare_csvs("tidyr_uncount")
+})
+
+# ============================================================================
+# Test Suite 28: LOGICAL OPERATIONS
+# ============================================================================
+
+test_that("LOGICAL: vectorized &&, ||, ! operations", {
+  compare_csvs("logical_ops")
+})
+
 # ============================================================================
 # SUMMARY REPORT
 # ============================================================================

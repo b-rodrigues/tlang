@@ -27,6 +27,14 @@ skipped=0
 
 for script in "$SCRIPT_DIR"/*.t; do
   test_name=$(basename "$script" .t)
+  
+  # Skip structural tests (pipeline definitions tested by t_check unit tests)
+  if head -5 "$script" | grep -q "^-- skip:"; then
+    echo "Skipping: $test_name (structural test)"
+    ((skipped++))
+    continue
+  fi
+  
   echo -n "Running: $test_name ... "
   
   # Run the script and capture output and exit status

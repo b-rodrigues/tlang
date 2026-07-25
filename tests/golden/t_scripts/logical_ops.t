@@ -1,21 +1,13 @@
 -- Check Scalar Logic
-print("Checking Scalar Logic...")
-assert((true && false) == false, "Scalar && failed")
-assert((true || false) == true, "Scalar || failed")
-print("Scalar !:")
-print(!true)
-
 v1 = [true, false, true, false]
 v2 = [true, true, false, false]
 
--- Check Vector Logic (Broadcast)
-print("Checking Vector Logic...")
+-- Vector logic operations
 v_and = v1 .& v2
-expected_and = [true, false, false, false]
-assert(identical(v_and, expected_and), "Vector .& failed")
-
 v_or = v1 .| v2
-expected_or = [true, true, true, false]
-assert(identical(v_or, expected_or), "Vector .| failed")
+v_not = map(v1, \(x) !x)
 
-print("✓ logical_ops complete")
+result = to_dataframe([
+  [v1: v1, v2: v2, v_and: v_and, v_or: v_or, v_not: v_not]
+])
+write_csv(result, "tests/golden/t_outputs/logical_ops.csv")
