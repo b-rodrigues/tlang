@@ -4371,6 +4371,111 @@ assert(expect_in(3, 1:5))
 assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
 ```
 
+---
+
+### `expect_no_na(actual, col = "")`
+
+Pass if the actual value, Vector, List, or DataFrame (optional column) contains zero NA values.
+
+**Parameters:**
+- `actual` — Any value, Vector, List, or DataFrame to check
+- `col` (optional) — String column name when checking a specific DataFrame column
+
+**Examples:**
+```t
+assert(expect_no_na([1, 2, 3]))
+assert(expect_no_na(df, "val"))
+```
+
+---
+
+### `expect_between(actual, min, max)`
+
+Pass if the numeric value or vector elements fall inside the closed range `[min, max]`.
+
+**Parameters:**
+- `actual` — Int, Float, or Vector to check
+- `min` — Numeric lower bound (inclusive)
+- `max` — Numeric upper bound (inclusive)
+
+**Examples:**
+```t
+assert(expect_between(25.0, 10.0, 50.0))
+```
+
+---
+
+### `expect_match(actual, pattern)`
+
+Pass if the actual String matches the given regular expression pattern.
+
+**Parameters:**
+- `actual` — String value to inspect
+- `pattern` — Regular expression pattern string
+
+**Examples:**
+```t
+assert(expect_match("user@example.com", ".*@.*"))
+```
+
+---
+
+### `expect_str_contains(actual, substring)`
+
+Pass if the actual String contains the specified substring.
+
+**Parameters:**
+- `actual` — String value to inspect
+- `substring` — Substring to search for
+
+**Examples:**
+```t
+assert(expect_str_contains("hello world", "world"))
+```
+
+---
+
+### `expect_set_equal(list1, list2)`
+
+Pass if two Lists or Vectors contain the exact same unique elements regardless of order.
+
+**Parameters:**
+- `list1` — First List or Vector
+- `list2` — Second List or Vector
+
+**Examples:**
+```t
+assert(expect_set_equal([1, 2, 3], [3, 2, 1]))
+```
+
+---
+
+### `expect_empty(actual)`
+
+Pass if a List, Dict, Vector, String, or DataFrame is empty (0 elements/rows/length).
+
+**Parameters:**
+- `actual` — List, Dict, Vector, String, or DataFrame
+
+**Examples:**
+```t
+assert(expect_empty([]))
+```
+
+---
+
+### `expect_summary(checks)`
+
+Summarize a List or Dict of `Expect` values / check results into a DataFrame report table.
+
+**Parameters:**
+- `checks` — Dict or List of expectation check results
+
+**Examples:**
+```t
+summary_df = expect_summary([c1: expect_equal(1, 1), c2: expect_equal(2, 2)])
+```
+
 ### `expect_warning(node, kind = "", message = "")`
 
 Pass if the given pipeline node produced at least one warning during execution.

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - expect_colnames</title>
+  <title>T Function Reference - expect_summary</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,27 +33,23 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="expect_colnames">expect_colnames</h1>
-<p>DataFrame column names assertion</p>
-<p>Passes if the DataFrame column names match the given list of strings
-exactly (order-sensitive).</p>
+<h1 id="expect_summary">expect_summary</h1>
+<p>Expectation test suite summary report</p>
+<p>Summarizes a List or Dict of Expect values / check results into a
+DataFrame report table.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>df</strong> (<code>DataFrame</code>): The DataFrame to
-check.</p></li>
-<li><p><strong>names</strong> (<code>List</code>): | Vector A list or
-vector of expected column name strings.</p></li>
+<li><strong>checks</strong> (<code>Dict</code>): | List A dictionary or
+list of expectation check results.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p><code>Expect_pass</code> when names match; <code>Expect_hold</code>
-on NA; <code>Expect_stop</code> on errors or mismatch.</p>
+<p>A DataFrame with columns <code>check</code>, <code>status</code>, and
+<code>message</code>.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>assert(expect_colnames(to_dataframe([x: [1], y = [2]]), [&quot;x&quot;, &quot;y&quot;]))</code></pre>
+<pre class="t"><code>summary_df = expect_summary([c1: expect_equal(1, 1), c2 = expect_equal(2, 2)])</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="expect_fields.html">expect_fields</a>, <a
-href="expect_has_colnames.html">expect_has_colnames</a>, <a
-href="expect_ncol.html">expect_ncol</a>, <a
-href="expect_nrow.html">expect_nrow</a></p>
+<p><a href="expect_fail.html">expect_fail</a>, <a
+href="expect_pass.html">expect_pass</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - expect_colnames</title>
+  <title>T Function Reference - expect_column_types</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,27 +33,25 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="expect_colnames">expect_colnames</h1>
-<p>DataFrame column names assertion</p>
-<p>Passes if the DataFrame column names match the given list of strings
-exactly (order-sensitive).</p>
+<h1 id="expect_column_types">expect_column_types</h1>
+<p>DataFrame column types assertion</p>
+<p>Passes if the specified DataFrame columns match the expected type
+strings.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>df</strong> (<code>DataFrame</code>): The DataFrame to
 check.</p></li>
-<li><p><strong>names</strong> (<code>List</code>): | Vector A list or
-vector of expected column name strings.</p></li>
+<li><p><strong>expected_types</strong> (<code>Dict</code>): | List
+Column name -&gt; expected type string map.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p><code>Expect_pass</code> when names match; <code>Expect_hold</code>
-on NA; <code>Expect_stop</code> on errors or mismatch.</p>
+<p><code>Expect_pass</code> when types match; <code>Expect_hold</code>
+on NA; <code>Expect_stop</code> on mismatch.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>assert(expect_colnames(to_dataframe([x: [1], y = [2]]), [&quot;x&quot;, &quot;y&quot;]))</code></pre>
+<pre class="t"><code>assert(expect_column_types(df, [id: &quot;Int&quot;, name = &quot;String&quot;]))</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="expect_fields.html">expect_fields</a>, <a
-href="expect_has_colnames.html">expect_has_colnames</a>, <a
-href="expect_ncol.html">expect_ncol</a>, <a
-href="expect_nrow.html">expect_nrow</a></p>
+<p><a href="expect_type.html">expect_type</a>, <a
+href="expect_colnames.html">expect_colnames</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

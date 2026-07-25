@@ -67,13 +67,17 @@
 *)
 
 open Ast
-
-let fmt v = "`" ^ Utils.value_to_string v ^ "`"
+open Testcraft_utils
 
 (* Generic relational comparison for expect_lt/lte/gt/gte.
    Takes separate int and float comparison operators to avoid
-   precision loss when comparing large integers via float_of_int. *)
+   precision loss when comparing large integers via float_of_int.
+   NaN values are treated as Hold (uncomparable) rather than silently
+   passing comparisons via Stdlib.compare's total ordering. *)
 let expect_binop name op_str op_int op_float actual expected =
+  let nan_hold =
+    Expect_hold "One of the arguments is NaN, which is not comparable."
+  in
   match actual, expected with
   | VError err, _ ->
       Expect_stop (Printf.sprintf "`actual` is an error: %s" err.message)
@@ -85,13 +89,16 @@ let expect_binop name op_str op_int op_float actual expected =
       if op_int a b then Expect_pass
       else Expect_stop (Printf.sprintf "%s %s %s" (fmt actual) op_str (fmt expected))
   | VFloat a, VFloat b ->
-      if op_float a b then Expect_pass
+      if Float.is_nan a || Float.is_nan b then nan_hold
+      else if op_float a b then Expect_pass
       else Expect_stop (Printf.sprintf "%s %s %s" (fmt actual) op_str (fmt expected))
   | VInt a, VFloat b ->
-      if op_float (float_of_int a) b then Expect_pass
+      if Float.is_nan b then nan_hold
+      else if op_float (float_of_int a) b then Expect_pass
       else Expect_stop (Printf.sprintf "%s %s %s" (fmt actual) op_str (fmt expected))
   | VFloat a, VInt b ->
-      if op_float a (float_of_int b) then Expect_pass
+      if Float.is_nan a then nan_hold
+      else if op_float a (float_of_int b) then Expect_pass
       else Expect_stop (Printf.sprintf "%s %s %s" (fmt actual) op_str (fmt expected))
   | _ ->
       Expect_stop

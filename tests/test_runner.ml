@@ -91,6 +91,7 @@ let () =
   Test_expect_condition.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_expect_pipeline.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_expect_pass_fail_msg.run_tests pass_count fail_count failures eval_string eval_string_env test;
+  Test_expect_ds_coverage.run_tests pass_count fail_count failures eval_string eval_string_env test;
   Test_fetchurl.run_tests pass_count fail_count failures eval_string eval_string_env test;
 
   (* Domain-specific tests *)

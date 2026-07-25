@@ -1,23 +1,5 @@
 open Ast
-
-let extract_string_list = function
-  | VList items ->
-      let rec go acc = function
-        | [] -> Some (List.rev acc)
-        | (_, VString s) :: rest -> go (s :: acc) rest
-        | (_, _) :: _ -> None
-      in
-      go [] items
-  | VVector arr ->
-      let rec go i acc =
-        if i >= Array.length arr then Some (List.rev acc)
-        else match arr.(i) with
-          | VString s -> go (i + 1) (s :: acc)
-          | _ -> None
-      in
-      go 0 []
-  | VString s -> Some [s]
-  | _ -> None
+open Testcraft_utils
 
 let get_pipeline_node_names env p =
   let base_names = List.map fst p.p_nodes in

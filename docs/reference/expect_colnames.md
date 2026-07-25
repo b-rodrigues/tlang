@@ -23,5 +23,5 @@ assert(expect_colnames(to_dataframe([x: [1], y = [2]]), ["x", "y"]))
 
 ## See Also
 
-[expect_fields](expect_fields.html), [expect_ncol](expect_ncol.html), [expect_nrow](expect_nrow.html)
+[expect_fields](expect_fields.html), [expect_has_colnames](expect_has_colnames.html), [expect_ncol](expect_ncol.html), [expect_nrow](expect_nrow.html)
 

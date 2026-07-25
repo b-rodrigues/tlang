@@ -35,10 +35,23 @@
 <div class="container">
 <h1 id="t_test">t_test</h1>
 <p>Run tests</p>
-<p>Runs the test suite for the current package. Wraps the CLI
-<code>t test</code> command for use within the REPL.</p>
+<p>Runs the test suite for the current package and returns a DataFrame
+with results. Wraps the CLI <code>t test</code> command for use within
+the REPL.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>only</strong> (<code>List</code>): = [] Filter to tests
+whose path contains any of these substrings.</p></li>
+<li><p><strong>not</strong> (<code>List</code>): = [] Exclude tests
+whose path contains any of these substrings.</p></li>
+</ul>
 <h2 id="returns">Returns</h2>
-<p>Returns NA on success, or an Error if tests fail.</p>
+<p>A DataFrame with columns: file, status, duration_ms, error.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>results = t_test()
+results |&gt; filter($status == &quot;failed&quot;)
+results = t_test(only = [&quot;arithmetic&quot;])
+results = t_test(not = [&quot;slow&quot;])</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>
