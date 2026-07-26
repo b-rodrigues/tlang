@@ -314,5 +314,32 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   test "cor available" "type(cor([1, 2, 3], [4, 5, 6]))" {|"Float"|};
   print_newline ();
 
+  Printf.printf "Phase 5 — Stats: Arity Errors:\n";
+  test "mean rejects multiple positional args"
+    "mean(1, 2)"
+    {|Error(ArityError: "Function `mean` expects 1 arguments but received 2.")|};
+  test "var rejects multiple positional args"
+    "var(1, 2)"
+    {|Error(ArityError: "Function `var` expects 1 arguments but received 2.")|};
+  test "median rejects multiple positional args"
+    "median(1, 2)"
+    {|Error(ArityError: "Function `median` expects 1 arguments but received 2.")|};
+  test "range rejects multiple positional args"
+    "range([1, 2], [3, 4])"
+    {|Error(ArityError: "Function `range` expects 1 arguments but received 2.")|};
+  test "quantile rejects single positional arg"
+    "quantile([1, 2, 3])"
+    {|Error(ArityError: "Function `quantile` expects 2 arguments but received 1.")|};
+  test "cor rejects three positional args"
+    "cor([1, 2, 3])"
+    {|Error(ArityError: "Function `cor` expects 2 arguments but received 1.")|};
+  test "min rejects multiple positional args"
+    "min(1, 2)"
+    {|Error(ArityError: "Function `min` expects 1 arguments but received 2.")|};
+  test "max rejects multiple positional args"
+    "max(1, 2)"
+    {|Error(ArityError: "Function `max` expects 1 arguments but received 2.")|};
+  print_newline ();
+
   (* Clean up Phase 5 CSV *)
   (try Sys.remove csv_p5_lm with _ -> ())

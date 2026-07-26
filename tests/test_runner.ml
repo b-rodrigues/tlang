@@ -229,6 +229,13 @@ let () =
   (* NDJSON streaming tests *)
   run "Test_ndjson" Test_ndjson.run_tests;
 
+  (* Full coverage push — new test modules *)
+  run_with_env "Test_model_accessors" Test_model_accessors.run_tests;
+  run_with_env "Test_drop_na_and_factors" Test_drop_na_and_factors.run_tests;
+  run "Test_chrono_components" Test_chrono_components.run_tests;
+  run "Test_trig_hyperbolic" Test_trig_hyperbolic.run_tests;
+  run "Test_misc_functions" Test_misc_functions.run_tests;
+
   (* Summary *)
   let total = !pass_count + !fail_count in
   Printf.printf "\n=== Results: %d/%d passed ===\n" !pass_count total;
