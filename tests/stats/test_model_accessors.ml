@@ -2,10 +2,9 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Printf.printf "Phase 1 — Stats Model Accessors:\n";
 
   let env = Packages.init_env () in
-  let (_, env) = eval_string_env {|df = to_dataframe([x: [1, 2, 3, 4, 5], y: [2, 4, 5, 4, 5]])|} env in
+  let (_, env) = eval_string_env {|df = to_dataframe([x: [1, 2, 3, 4, 5], z: [3, 1, 4, 2, 5], y: [2, 4, 5, 4, 5]])|} env in
   let (_, env) = eval_string_env {|m1 = lm(data = df, formula = y ~ x)|} env in
-  let (_, env) = eval_string_env {|df2 = to_dataframe([x: [1, 2, 3, 4, 5], y: [2, 4, 5, 4, 5]])|} env in
-  let (_, env) = eval_string_env {|m2 = lm(data = df2, formula = y ~ 1)|} env in
+  let (_, env) = eval_string_env {|m2 = lm(data = df, formula = y ~ x + z)|} env in
   test_env env "coef returns DataFrame with term and estimate columns"
     "colnames(coef(m1))"
     {|["term", "estimate"]|};
@@ -42,6 +41,15 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   print_newline ();
 
   Printf.printf "  anova():\n";
+  test_env env "anova returns DataFrame comparing two models"
+    "type(anova(m1, m2))"
+    "DataFrame";
+  test_env env "anova has 2 rows for 2 models"
+    "nrow(anova(m1, m2))"
+    "2";
+  test_env env "anova has correct columns"
+    "colnames(anova(m1, m2))"
+    {|["model", "df_residual", "deviance", "delta_df", "delta_deviance", "statistic", "p_value"]|};
   test_env env "anova rejects single model"
     "anova(m1)"
     {|Error(ValueError: "Function `anova` requires at least two models to compare.")|};
