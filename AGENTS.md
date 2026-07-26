@@ -431,20 +431,25 @@ TLANG_TEST_STRICT=1 dune exec tests/test_runner.exe
 `scripts/mutation_test.sh` verifies the test suite catches real regressions by temporarily breaking known code paths and confirming tests fail.
 
 ```bash
-./scripts/mutation_test.sh              # run all 4 mutations
+./scripts/mutation_test.sh              # run all 9 mutations
 ./scripts/mutation_test.sh integer_add  # run a single mutation
 ```
 
-Current mutation targets (all in `src/eval.ml`):
+Current mutation targets:
 
-| Name | What it breaks | What catches it |
-|------|---------------|-----------------|
-| `integer_add` | `a + b` → `a * b` | Arithmetic tests |
-| `if_else_swap` | Swaps `then_`/`else_` branches | Conditional logic tests |
-| `unary_not` | `not b` → `b` (identity) | Boolean negation tests |
-| `na_silent_pass` | NA error → silent `VNA` return | NA propagation tests |
+| Name | File | What it breaks | What catches it |
+|------|------|---------------|-----------------|
+| `integer_add` | `src/eval.ml` | `a + b` → `a * b` | Arithmetic tests |
+| `if_else_swap` | `src/eval.ml` | Swaps `then_`/`else_` branches | Conditional logic tests |
+| `unary_not` | `src/eval.ml` | `not b` → `b` (identity) | Boolean negation tests |
+| `na_silent_pass` | `src/eval.ml` | NA error → silent `VNA` return | NA propagation tests |
+| `arrow_add_scalar` | `src/arrow/arrow_compute.ml` | Float add → subtract in `add_scalar` | Scalar operation tests |
+| `arrow_compare_gt` | `src/arrow/arrow_compute.ml` | `Gt` comparison → `Lt` | Comparison/filter tests |
+| `clean_safe_char` | `src/packages/dataframe/clean_colnames.ml` | `c >= 'a'` → `c > 'a'` (excludes `'a'`) | Column name cleaning tests |
+| `clean_collision` | `src/packages/dataframe/clean_colnames.ml` | Collision counter `count + 1` → `count - 1` | Duplicate column name tests |
+| `csv_type_fallback` | `src/packages/dataframe/t_read_csv.ml` | String fallback → `VInt 0` | CSV type inference tests |
 
-The script verifies each mutation was actually applied (via `diff -q`) before building/testing. If a mutation pattern doesn't match the current source, it reports "pattern did not match" instead of a false SURVIVED.
+The script verifies each mutation was actually applied (via `diff -q`) before building/testing. If a mutation pattern doesn't match the current source, it reports "pattern did not match" instead of a false SURVIVED. The backup/restore mechanism uses an associative array to support mutations across multiple source files.
 
 ### Golden Tests (T vs R)
 

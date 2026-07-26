@@ -9,8 +9,6 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-EVAL_FILE="$REPO_ROOT/src/eval.ml"
-BACKUP_FILE="$REPO_ROOT/src/eval.ml.bak"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -19,11 +17,31 @@ NC='\033[0m'
 
 cd "$REPO_ROOT"
 
+# Associative array tracking all backed-up files for current mutation
+declare -A BACKUPS=()
+
+backup_file() {
+  local filepath="$1"
+  local bak="${filepath}.bak"
+  cp "$filepath" "$bak"
+  BACKUPS["$filepath"]="$bak"
+}
+
+restore_all() {
+  for filepath in "${!BACKUPS[@]}"; do
+    local bak="${BACKUPS[$filepath]}"
+    if [ -f "$bak" ]; then
+      mv "$bak" "$filepath"
+    fi
+  done
+  BACKUPS=()
+}
+
 cleanup() {
-  if [ -f "$BACKUP_FILE" ]; then
+  if [ ${#BACKUPS[@]} -gt 0 ]; then
     echo ""
-    echo -e "${YELLOW}Restoring original eval.ml (caught signal/error)...${NC}"
-    mv "$BACKUP_FILE" "$EVAL_FILE"
+    echo -e "${YELLOW}Restoring mutated files (caught signal/error)...${NC}"
+    restore_all
     echo -e "${GREEN}  ✓ Restored${NC}"
   fi
 }
@@ -48,26 +66,65 @@ apply_mutation() {
   local name="$1"
 
   echo -e "${YELLOW}  Applying: $name${NC}"
-  cp "$EVAL_FILE" "$BACKUP_FILE"
 
   case "$name" in
+    # ── eval.ml mutations ──────────────────────────────────────────────
     integer_add)
-      perl -i -pe 's/\| \(Plus, VInt a, VInt b\) -> VInt \(a \+ b\)/| (Plus, VInt a, VInt b) -> VInt (a * b)/' "$EVAL_FILE"
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| \(Plus, VInt a, VInt b\) -> VInt \(a \+ b\)/| (Plus, VInt a, VInt b) -> VInt (a * b)/' "$REPO_ROOT/src/eval.ml"
       ;;
     if_else_swap)
-      perl -i -0pe 's/\| VBool true -> eval_expr env_ref then_\n(\s*)\| VBool false -> eval_expr env_ref else_/| VBool true -> eval_expr env_ref else_\n$1| VBool false -> eval_expr env_ref then_/' "$EVAL_FILE"
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -0pe 's/\| VBool true -> eval_expr env_ref then_\n(\s*)\| VBool false -> eval_expr env_ref else_/| VBool true -> eval_expr env_ref else_\n$1| VBool false -> eval_expr env_ref then_/' "$REPO_ROOT/src/eval.ml"
       ;;
     unary_not)
-      perl -i -pe 's/\(Not, VBool b\) -> VBool \(not b\)/(Not, VBool b) -> VBool b/' "$EVAL_FILE"
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\(Not, VBool b\) -> VBool \(not b\)/(Not, VBool b) -> VBool b/' "$REPO_ROOT/src/eval.ml"
       ;;
     na_silent_pass)
-      perl -i -0pe 's/Error\.na_predicate_error "Operation on NA: NA values do not propagate implicitly\. Handle missingness explicitly\."/VNA NAGeneric/' "$EVAL_FILE"
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -0pe 's/Error\.na_predicate_error "Operation on NA: NA values do not propagate implicitly\. Handle missingness explicitly\."/VNA NAGeneric/' "$REPO_ROOT/src/eval.ml"
+      ;;
+
+    # ── arrow_compute.ml mutations ─────────────────────────────────────
+    arrow_add_scalar)
+      backup_file "$REPO_ROOT/src/arrow/arrow_compute.ml"
+      perl -i -0pe 's/(let add_scalar.*?column_scalar_op table name scalar_value) \( \+\. \)/$1 (-.)/s' "$REPO_ROOT/src/arrow/arrow_compute.ml"
+      ;;
+    arrow_compare_gt)
+      backup_file "$REPO_ROOT/src/arrow/arrow_compute.ml"
+      perl -i -pe 's/\| Gt -> \( > \)/| Gt -> ( < )/' "$REPO_ROOT/src/arrow/arrow_compute.ml"
+      ;;
+
+    # ── clean_colnames.ml mutations ────────────────────────────────────
+    clean_safe_char)
+      backup_file "$REPO_ROOT/src/packages/dataframe/clean_colnames.ml"
+      perl -i -pe 's/c >= .a. && c <= .z./c > '\''a'\'' \&\& c <= '\''z'\''/' "$REPO_ROOT/src/packages/dataframe/clean_colnames.ml"
+      ;;
+    clean_collision)
+      backup_file "$REPO_ROOT/src/packages/dataframe/clean_colnames.ml"
+      perl -i -pe 's/Hashtbl\.replace seen name \(count \+ 1\)/Hashtbl.replace seen name (count - 1)/' "$REPO_ROOT/src/packages/dataframe/clean_colnames.ml"
+      ;;
+
+    # ── t_read_csv.ml mutations ────────────────────────────────────────
+    csv_type_fallback)
+      backup_file "$REPO_ROOT/src/packages/dataframe/t_read_csv.ml"
+      perl -i -pe 's/\| _ -> VString trimmed/| _ -> VInt 0/' "$REPO_ROOT/src/packages/dataframe/t_read_csv.ml"
       ;;
   esac
 
-  if diff -q "$BACKUP_FILE" "$EVAL_FILE" > /dev/null 2>&1; then
+  # Verify at least one file was changed
+  local changed=false
+  for filepath in "${!BACKUPS[@]}"; do
+    if ! diff -q "${BACKUPS[$filepath]}" "$filepath" > /dev/null 2>&1; then
+      changed=true
+      break
+    fi
+  done
+
+  if [ "$changed" = false ]; then
     echo -e "${RED}  ✗ Mutation pattern did not match — no change applied ($name)${NC}"
-    mv "$BACKUP_FILE" "$EVAL_FILE"
+    restore_all
     return 1
   fi
 
@@ -77,12 +134,12 @@ apply_mutation() {
   if all_passed "$result"; then
     echo -e "${RED}  ✗ MUTATION SURVIVED ($name): Tests still pass!${NC}"
     echo "    Result: $result"
-    mv "$BACKUP_FILE" "$EVAL_FILE"
+    restore_all
     return 1
   else
     echo -e "${GREEN}  ✓ MUTATION KILLED ($name): Tests correctly fail${NC}"
     echo "    Result: $result"
-    mv "$BACKUP_FILE" "$EVAL_FILE"
+    restore_all
     return 0
   fi
 }
@@ -108,6 +165,11 @@ declare -a MUTATION_NAMES=(
   "if_else_swap"
   "unary_not"
   "na_silent_pass"
+  "arrow_add_scalar"
+  "arrow_compare_gt"
+  "clean_safe_char"
+  "clean_collision"
+  "csv_type_fallback"
 )
 
 KILLED=0
@@ -121,9 +183,9 @@ for name in "${MUTATION_NAMES[@]}"; do
   fi
   echo -e "${YELLOW}Testing mutation: $name${NC}"
   if apply_mutation "$name"; then
-    ((KILLED++))
+    KILLED=$((KILLED + 1))
   else
-    ((SURVIVED++))
+    SURVIVED=$((SURVIVED + 1))
     FAILED_MUTATIONS+=("$name")
   fi
   echo ""
