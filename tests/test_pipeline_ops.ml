@@ -362,10 +362,22 @@ p |> prune |> pipeline_nodes|}
 
   Printf.printf "Phase 3 — upstream_of:\n";
 
-  test "upstream_of includes node and ancestors"
+  let (v, _) = eval_string_env
     {|p = pipeline { a = 1; b = a + 1; c = b + 1; d = 4 }
 p |> upstream_of("c") |> pipeline_nodes|}
-    {|.*"a".*"b".*"c".*|};
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if contains result "\"a\"" && contains result "\"b\"" && contains result "\"c\"" &&
+     not (contains result "\"d\"")
+  then begin
+    incr pass_count;
+    Printf.printf "  ✓ upstream_of includes node and ancestors\n"
+  end else begin
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ upstream_of includes node and ancestors\n    Got: %s\n" result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
+  end;
 
   test "upstream_of errors on missing node"
     {|p = pipeline { a = 1 }; p |> upstream_of("z")|}
