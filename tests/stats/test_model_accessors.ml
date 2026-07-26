@@ -43,7 +43,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Printf.printf "  anova():\n";
   test_env env "anova returns DataFrame comparing two models"
     "type(anova(m1, m2))"
-    "DataFrame";
+    {|"DataFrame"|};
   test_env env "anova has 2 rows for 2 models"
     "nrow(anova(m1, m2))"
     "2";
