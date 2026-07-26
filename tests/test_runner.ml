@@ -152,7 +152,7 @@ let () =
   run_with_env "Test_colcraft" Test_colcraft.run_tests;
   run "Test_colcraft_coverage" Test_colcraft_coverage.run_tests;
   run "Test_window" Test_window.run_tests;
-  run "Test_math" Test_math.run_tests;
+  run_with_env "Test_math" Test_math.run_tests;
   run_with_env "Test_stats" Test_stats.run_tests;
   run "Test_stats_coverage" Test_stats_coverage.run_tests;
   run "Test_pmml_random_forest" Test_pmml_random_forest.run_tests;
@@ -178,7 +178,7 @@ let () =
   run_with_env "Test_colcraft_edge_cases" Test_colcraft_edge_cases.run_tests;
   run "Test_window_edge_cases" Test_window_edge_cases.run_tests;
   run_with_env "Test_formula_edge_cases" Test_formula_edge_cases.run_tests;
-  run "Test_large_datasets" Test_large_datasets.run_tests;
+  run_with_env "Test_large_datasets" Test_large_datasets.run_tests;
   run "Test_error_recovery" Test_error_recovery.run_tests;
 
   (* Package manager tests *)
@@ -206,7 +206,7 @@ let () =
   run "Test_nix_emit" Test_nix_emit.run_tests;
 
   (* ImportFileFrom tests *)
-  run "Test_import_file_from" Test_import_file_from.run_tests;
+  run_with_env "Test_import_file_from" Test_import_file_from.run_tests;
   
   (* Structural Integrity & Error category tests *)
   run "Test_structural_integrity" Test_structural_integrity.run_tests;

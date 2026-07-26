@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env test test_env =
   Printf.printf "Phase 5 — Math: sqrt():\n";
   test "sqrt of integer" "sqrt(4)" "2.";
   test "sqrt of float" "sqrt(2.0)" "1.41421356237";
@@ -53,29 +53,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let env_p5 = Packages.init_env () in
   let (_, env_p5) = eval_string_env (Printf.sprintf {|vdf = read_csv("%s")|} csv_p5_vec) env_p5 in
 
-  let (v, _) = eval_string_env "sqrt(vdf.a)" env_p5 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "Vector[1., 2., 3.]" then begin
-    incr pass_count; Printf.printf "  ✓ sqrt on vector\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ sqrt on vector\n    Expected: Vector[1., 2., 3.]\n    Got: %s\n" result
-  end;
+  test_env env_p5 "sqrt on vector"
+    "sqrt(vdf.a)"
+    "Vector[1., 2., 3.]";
 
-  let (v, _) = eval_string_env "abs(vdf.c)" env_p5 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "Vector[1, 2, 3]" then begin
-    incr pass_count; Printf.printf "  ✓ abs on vector\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ abs on vector\n    Expected: Vector[1, 2, 3]\n    Got: %s\n" result
-  end;
+  test_env env_p5 "abs on vector"
+    "abs(vdf.c)"
+    "Vector[1, 2, 3]";
 
-  let (v, _) = eval_string_env "pow(vdf.b, 2)" env_p5 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "Vector[4., 9., 16.]" then begin
-    incr pass_count; Printf.printf "  ✓ pow on vector\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ pow on vector\n    Expected: Vector[4., 9., 16.]\n    Got: %s\n" result
-  end;
+  test_env env_p5 "pow on vector"
+    "pow(vdf.b, 2)"
+    "Vector[4., 9., 16.]";
   (try Sys.remove csv_p5_vec with _ -> ());
   print_newline ();
 
