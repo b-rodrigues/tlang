@@ -396,6 +396,11 @@ mtcars %>%
   arrange(car_name) %>%
   save_output("mtcars_nest_grouped", "group_by(cyl) %>% nest() %>% unnest()")
 
+# mtcars_nest_grouped_implicit: expected CSV is identical to mtcars_nest_grouped.csv
+# because nest() with no columns nests all non-grouped columns, producing the same
+# result as nest(data = c(mpg, hp)) after unnest+select+arrange. The expected CSV
+# is maintained manually (copied from mtcars_nest_grouped.csv).
+
 # ============================================================================
 # Test Suite 23: FACTOR operations
 # ============================================================================
