@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test test_env =
   Printf.printf "Phase 5 — Stats: mean():\n";
   test "mean of int list" "mean([1, 2, 3, 4, 5])" "3.";
   test "mean of float list" "mean([1.0, 2.0, 3.0])" "2.";
@@ -54,27 +54,12 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   let env_cor = Packages.init_env () in
   let (_, env_cor) = eval_string_env (Printf.sprintf {|cdf = read_csv("%s")|} csv_p5_cor) env_cor in
 
-  let (v, _) = eval_string_env "cor(cdf.x, cdf.y)" env_cor in
-  let result = Ast.Utils.value_to_string v in
-  if result = "1." then begin
-    incr pass_count; Printf.printf "  ✓ perfect positive correlation\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ perfect positive correlation\n    Expected: 1.\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
-
-  let (v, _) = eval_string_env "cor(cdf.x, cdf.z)" env_cor in
-  let result = Ast.Utils.value_to_string v in
-  if result = "-1." then begin
-    incr pass_count; Printf.printf "  ✓ perfect negative correlation\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ perfect negative correlation\n    Expected: -1.\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_cor "perfect positive correlation"
+    "cor(cdf.x, cdf.y)"
+    "1.";
+  test_env env_cor "perfect negative correlation"
+    "cor(cdf.x, cdf.z)"
+    "-1.";
 
   test "cor non-numeric"
     {|cor("hello", "world")|}
@@ -134,13 +119,13 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
   let (_, env_lm) = eval_string_env {|weighted_df = to_dataframe([x: [1, 2, 3, 4], y: [1, 2, 2, 4]])|} env_lm in
   let (_, env_lm) = eval_string_env {|weighted_model = lm(data = weighted_df, formula = y ~ x, weights = [1, 1, 2, 2])|} env_lm in
-  
-  let test_env name input expected =
+
+  let test_env_regex name input expected =
     let (v, _) = eval_string_env input env_lm in
     let result = Ast.Utils.value_to_string v in
     let expected_norm = String.trim expected in
     let result_norm = String.trim result in
-    let match_found = 
+    let match_found =
       if result_norm = expected_norm then true
       else try
         let _ = Str.search_forward (Str.regexp expected_norm) result_norm 0 in
@@ -158,164 +143,73 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   in
 
   (* lm() now returns a VDict with _tidy_df and _model_data *)
-  let (v, _) = eval_string_env "type(model)" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"Dict"|} then begin
-    incr pass_count; Printf.printf "  ✓ lm() returns a Dict (model object)\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ lm() returns a Dict (model object)\n    Expected: \"Dict\"\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "lm() returns a Dict (model object)"
+    "type(model)"
+    {|"Dict"|};
 
   (* Model object has accessible formula *)
-  let (v, _) = eval_string_env "model.formula" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "y ~ x" then begin
-    incr pass_count; Printf.printf "  ✓ model.formula shows formula\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ model.formula shows formula\n    Expected: y ~ x\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "model.formula shows formula"
+    "model.formula"
+    "y ~ x";
 
   (* Model object has R² *)
-  let (v, _) = eval_string_env "model.r_squared" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "1." then begin
-    incr pass_count; Printf.printf "  ✓ model.r_squared = 1.0 (perfect fit)\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ model.r_squared = 1.0 (perfect fit)\n    Expected: 1.\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "model.r_squared = 1.0 (perfect fit)"
+    "model.r_squared"
+    "1.";
 
   (* Model object has nobs *)
-  let (v, _) = eval_string_env "model.nobs" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "5" then begin
-    incr pass_count; Printf.printf "  ✓ model.nobs = 5\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ model.nobs = 5\n    Expected: 5\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "model.nobs = 5"
+    "model.nobs"
+    "5";
 
   (* summary(model) returns a tidy Dict *)
-  let (v, _) = eval_string_env "type(summary(model))" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"Dict"|} then begin
-    incr pass_count; Printf.printf "  ✓ summary(model) returns a Dict\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ summary(model) returns a Dict\n    Expected: \"Dict\"\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "summary(model) returns a Dict"
+    "type(summary(model))"
+    {|"Dict"|};
 
   (* summary() has correct columns *)
-  let (v, _) = eval_string_env "colnames(summary(model)._tidy_df)" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|["term", "estimate", "std_error", "statistic", "p_value"]|} then begin
-    incr pass_count; Printf.printf "  ✓ summary() tidy DataFrame has correct columns\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ summary() tidy DataFrame has correct columns\n    Expected: [\"term\", \"estimate\", \"std_error\", \"statistic\", \"p_value\"]\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "summary() tidy DataFrame has correct columns"
+    "colnames(summary(model)._tidy_df)"
+    {|["term", "estimate", "std_error", "statistic", "p_value"]|};
 
   (* summary() has 2 rows (intercept + x) *)
-  let (v, _) = eval_string_env "nrow(summary(model)._tidy_df)" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "2" then begin
-    incr pass_count; Printf.printf "  ✓ summary() has 2 rows\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ summary() has 2 rows\n    Expected: 2\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "summary() has 2 rows"
+    "nrow(summary(model)._tidy_df)"
+    "2";
 
   (* Test fit_stats() *)
-  let (v, _) = eval_string_env "type(fit_stats(model))" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"DataFrame"|} then begin
-    incr pass_count; Printf.printf "  ✓ fit_stats() returns a DataFrame\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ fit_stats() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "fit_stats() returns a DataFrame"
+    "type(fit_stats(model))"
+    {|"DataFrame"|};
 
-  let (v, _) = eval_string_env "nrow(fit_stats(model))" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "1" then begin
-    incr pass_count; Printf.printf "  ✓ fit_stats() returns 1 row\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ fit_stats() returns 1 row\n    Expected: 1\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
-  
+  test_env env_lm "fit_stats() returns 1 row"
+    "nrow(fit_stats(model))"
+    "1";
+
   (* Test deviance() *)
-  let (v, _) = eval_string_env "model.deviance" env_lm in
-  let result = Ast.Utils.value_to_string v in
   (* For y=2x on [1,2,3,4,5], deviance should be 0 (perfect fit) *)
-  if result = "0." then begin
-    incr pass_count; Printf.printf "  ✓ model.deviance = 0.0\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ model.deviance = 0.0\n    Expected: 0.\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "model.deviance = 0.0"
+    "model.deviance"
+    "0.";
 
-  let (v, _) = eval_string_env "deviance(model)" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "0." then begin
-    incr pass_count; Printf.printf "  ✓ deviance(model) = 0.0\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ deviance(model) = 0.0\n    Expected: 0.\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "deviance(model) = 0.0"
+    "deviance(model)"
+    "0.";
 
   test "deviance non-dict" "deviance(\"hello\")" {|Error(TypeError: "Function `deviance` expects a model (Dict).")|};
   test "deviance missing key" "deviance([a: 1])" {|Error(TypeError: "Function `deviance` could not find 'deviance' in model object.")|};
-  test_env "weighted lm fit method" "weighted_model.fit_method" {|\"wls\"|};
-  test_env "weighted lm intercept" "head(weighted_model._tidy_df.estimate)" "-0.19512195122";
-  test_env "weighted lm coefficients" "head(tail(weighted_model._tidy_df.estimate))" "0.951219512195";
+  test_env_regex "weighted lm fit method" "weighted_model.fit_method" {|\"wls\"|};
+  test_env_regex "weighted lm intercept" "head(weighted_model._tidy_df.estimate)" "-0.19512195122";
+  test_env_regex "weighted lm coefficients" "head(tail(weighted_model._tidy_df.estimate))" "0.951219512195";
 
   (* Test add_diagnostics() *)
-  let (v, _) = eval_string_env "type(add_diagnostics(model, data = df))" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"DataFrame"|} then begin
-    incr pass_count; Printf.printf "  ✓ add_diagnostics() returns a DataFrame\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ add_diagnostics() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "add_diagnostics() returns a DataFrame"
+    "type(add_diagnostics(model, data = df))"
+    {|"DataFrame"|};
 
-  let (v, _) = eval_string_env "nrow(add_diagnostics(model, data = df))" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "5" then begin
-    incr pass_count; Printf.printf "  ✓ add_diagnostics() preserves row count\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ add_diagnostics() preserves row count\n    Expected: 5\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  test_env env_lm "add_diagnostics() preserves row count"
+    "nrow(add_diagnostics(model, data = df))"
+    "5";
 
   (* Check add_diagnostics has diagnostic columns *)
   let (v, _) = eval_string_env "colnames(add_diagnostics(model, data = df))" env_lm in
@@ -418,6 +312,33 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test =
   test "sd available" "type(sd([1, 2, 3]))" {|"Float"|};
   test "quantile available" "type(quantile([1, 2, 3], 0.5))" {|"Float"|};
   test "cor available" "type(cor([1, 2, 3], [4, 5, 6]))" {|"Float"|};
+  print_newline ();
+
+  Printf.printf "Phase 5 — Stats: Arity Errors:\n";
+  test "mean rejects multiple positional args"
+    "mean(1, 2)"
+    {|Error(ArityError: "Function `mean` expects 1 arguments but received 2.")|};
+  test "var rejects multiple positional args"
+    "var(1, 2)"
+    {|Error(ArityError: "Function `var` expects 1 arguments but received 2.")|};
+  test "median rejects multiple positional args"
+    "median(1, 2)"
+    {|Error(ArityError: "Function `median` expects 1 arguments but received 2.")|};
+  test "range rejects multiple positional args"
+    "range([1, 2], [3, 4])"
+    {|Error(ArityError: "Function `range` expects 1 arguments but received 2.")|};
+  test "quantile rejects single positional arg"
+    "quantile([1, 2, 3])"
+    {|Error(ArityError: "Function `quantile` expects 2 arguments but received 1.")|};
+  test "cor rejects three positional args"
+    "cor([1, 2, 3])"
+    {|Error(ArityError: "Function `cor` expects 2 arguments but received 1.")|};
+  test "min rejects multiple positional args"
+    "min(1, 2)"
+    {|Error(ArityError: "Function `min` expects 1 arguments but received 2.")|};
+  test "max rejects multiple positional args"
+    "max(1, 2)"
+    {|Error(ArityError: "Function `max` expects 1 arguments but received 2.")|};
   print_newline ();
 
   (* Clean up Phase 5 CSV *)

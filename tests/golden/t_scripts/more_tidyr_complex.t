@@ -1,36 +1,22 @@
 mt = read_csv("data/mtcars.csv", sep = "|")
 
-print("--- nest/unnest ---")
--- Matchers! This will nest 'mpg'
+-- nest/unnest
 mt_nested = nest(mt, data = starts_with("mpg"))
-print("Nested nrow:")
-print(nrow(mt_nested))
-print("Nested colnames:")
-print(colnames(mt_nested))
-
 mt_un = unnest(mt_nested, $data)
-print("Unnested nrow:")
-print(nrow(mt_un))
-print("Unnested ncol:")
-print(ncol(mt_un))
+write_csv(mt_un, "tests/golden/t_outputs/tidyr_nest_unnest.csv")
 
-print("--- separate_rows ---")
+-- separate_rows
 df_sep = to_dataframe([
   [id: 1, tags: "a,b,c"],
   [id: 2, tags: "d,e"]
 ])
 df_seped = separate_rows(df_sep, $tags, sep = ",")
-print("Separated rows nrow:")
-print(nrow(df_seped))
-print(df_seped)
+write_csv(df_seped, "tests/golden/t_outputs/tidyr_separate_rows.csv")
 
-print("--- uncount ---")
+-- uncount
 df_weights = to_dataframe([
   [x: "a", w: 3],
   [x: "b", w: 2]
 ])
 df_expanded = uncount(df_weights, $w)
-print("Uncounted nrow:")
-print(nrow(df_expanded))
-print(df_expanded)
-print("✓ more_tidyr_complex complete")
+write_csv(df_expanded, "tests/golden/t_outputs/tidyr_uncount.csv")

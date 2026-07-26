@@ -1,31 +1,27 @@
 mt = read_csv("data/mtcars.csv", sep = "|")
 
-print("--- rename ---")
+-- rename
 mt_renamed = rename(mt, miles_per_gallon = $mpg, cylinders = $cyl)
-print(head(colnames(mt_renamed), 4))
+write_csv(mt_renamed |> head(4) |> select($miles_per_gallon, $cylinders, $disp, $hp), "tests/golden/t_outputs/tidyr_rename.csv")
 
-print("--- relocate ---")
+-- relocate
 mt_relocated = relocate(mt, $gear, $carb, .before = $mpg)
-print(head(colnames(mt_relocated), 4))
+write_csv(mt_relocated |> head(4) |> select($gear, $carb, $mpg, $cyl), "tests/golden/t_outputs/tidyr_relocate.csv")
 
-print("--- distinct ---")
+-- distinct
 df_dup = to_dataframe([
   [a: 1, b: 1],
   [a: 1, b: 1],
   [a: 2, b: 2]
 ])
-print("Original nrow:")
-print(nrow(df_dup))
-print("Distinct nrow:")
-print(nrow(distinct(df_dup)))
+write_csv(distinct(df_dup), "tests/golden/t_outputs/tidyr_distinct.csv")
 
-print("--- slice ---")
+-- slice
 mt_sliced = slice(mt, [0, 1, 2])
-print(nrow(mt_sliced))
+write_csv(mt_sliced, "tests/golden/t_outputs/tidyr_slice.csv")
 
-print("--- count ---")
-print(count(mt, $cyl))
+-- count
+write_csv(count(mt, $cyl), "tests/golden/t_outputs/tidyr_count.csv")
 
-print("--- slice_max ---")
-print(slice_max(mt, $mpg, n = 3))
-print("✓ more_tidyr_basic complete")
+-- slice_max
+write_csv(slice_max(mt, $mpg, n = 3), "tests/golden/t_outputs/tidyr_slice_max.csv")

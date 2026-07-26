@@ -1,9 +1,5 @@
 
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
-  let strip_location s =
-    let re = Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\] " in
-    Str.global_replace re "" s
-  in
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env =
   (* === Grouped Operations Edge Cases === *)
 
   (* Create test CSV for edge case tests *)
@@ -18,26 +14,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Edge Cases — Empty Groups (filter to zero rows):\n";
 
   (* Filter to nonexistent category then group_by *)
-  let (v2, _) = eval_string_env
+  test_env env0 "filter to empty then group_by+summarize returns 0 rows"
     {|df |> filter($category == "nonexistent") |> group_by($category) |> summarize($count = nrow($category)) |> nrow|}
-    env0 in
-  let result2 = Ast.Utils.value_to_string v2 in
-  if result2 = "0" then begin
-    incr pass_count; Printf.printf "  ✓ filter to empty then group_by+summarize returns 0 rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ filter to empty then group_by+summarize should return 0 rows\n    Got: %s\n" result2
-  end;
+    "0";
 
   (* Filter to zero rows produces 0-row DataFrame *)
-  let (v, _) = eval_string_env
+  test_env env0 "filter to zero rows gives nrow=0"
     {|df |> filter($category == "nonexistent") |> nrow|}
-    env0 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "0" then begin
-    incr pass_count; Printf.printf "  ✓ filter to zero rows gives nrow=0\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ filter to zero rows gives nrow=0\n    Expected: 0\n    Got: %s\n" result
-  end;
+    "0";
 
   print_newline ();
 
@@ -71,15 +55,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   | Error msg ->
     incr fail_count; Printf.printf "  ✗ grouped summarize with all-NA values\n    EXCEPTION: %s\n" msg);
 
-  let (v_repeat_agg, _) = eval_string_env
+  test_env env_na "repeated grouped aggs on nullable column preserve NA error semantics"
     {|df_na |> group_by($name) |> summarize($min_val = min($value), $max_val = max($value))|}
-    env_na in
-  let result_repeat_agg = strip_location (Ast.Utils.value_to_string v_repeat_agg) in
-  if result_repeat_agg = {|Error(AggregationError: "Function `min` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|} then begin
-    incr pass_count; Printf.printf "  ✓ repeated grouped aggs on nullable column preserve NA error semantics\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ repeated grouped aggs on nullable column preserve NA error semantics\n    Expected min() NA error, got %s\n" result_repeat_agg
-  end;
+    {|Error(AggregationError: "Function `min` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   (* mean on all-NA with na_rm=true returns NA *)
   test "mean all-NA na_rm=true returns NA(Float)"
@@ -100,26 +78,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let (_, env_single) = eval_string_env (Printf.sprintf {|df_single = read_csv("%s")|} csv_single) env_single in
 
   (* group_by unique id, then summarize with sd — each group has 1 row *)
-  let (v, _) = eval_string_env
+  test_env env_single "single-row groups summarize produces 3 rows"
     {|df_single |> group_by($id) |> summarize($count = nrow($id)) |> nrow|}
-    env_single in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ single-row groups summarize produces 3 rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ single-row groups summarize produces 3 rows\n    Expected: 3, Got: %s\n" result
-  end;
+    "3";
 
   (* Check single-row group count values *)
-  let (v, _) = eval_string_env
+  test_env env_single "single-row groups each have count=1"
     {|result = df_single |> group_by($id) |> summarize($count = nrow($id)); result.count|}
-    env_single in
-  let result = Ast.Utils.value_to_string v in
-  if result = "Vector[1, 1, 1]" then begin
-    incr pass_count; Printf.printf "  ✓ single-row groups each have count=1\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ single-row groups each have count=1\n    Expected: Vector[1, 1, 1]\n    Got: %s\n" result
-  end;
+    "Vector[1, 1, 1]";
 
   (* sd of single value should return Error *)
   test "sd of single value"
@@ -140,15 +106,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let (_, env_multi) = eval_string_env (Printf.sprintf {|df_multi = read_csv("%s")|} csv_multi) env_multi in
 
   (* group_by two columns *)
-  let (v, _) = eval_string_env
+  test_env env_multi "group_by two columns produces 4 rows"
     {|df_multi |> group_by($dept, $role) |> summarize($count = nrow($dept)) |> nrow|}
-    env_multi in
-  let result = Ast.Utils.value_to_string v in
-  if result = "4" then begin
-    incr pass_count; Printf.printf "  ✓ group_by two columns produces 4 rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ group_by two columns produces 4 rows\n    Expected: 4, Got: %s\n" result
-  end;
+    "4";
 
   (try Sys.remove csv_multi with _ -> ());
   print_newline ();
@@ -164,26 +124,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let env_gm = Packages.init_env () in
   let (_, env_gm) = eval_string_env (Printf.sprintf {|df_gm = read_csv("%s")|} csv_gm) env_gm in
 
-  let (v, _) = eval_string_env
+  test_env env_gm "grouped mutate on single-row groups returns 3 rows"
     {|df_gm |> group_by($id) |> mutate($grp_size = nrow($id)) |> nrow|}
-    env_gm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate on single-row groups returns 3 rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate on single-row groups returns 3 rows\n    Expected: 3, Got: %s\n" result
-  end;
+    "3";
 
   (* Check grouped mutate broadcasts correct values *)
-  let (v, _) = eval_string_env
+  test_env env_gm "grouped mutate broadcasts 1 for single-row groups"
     {|result = df_gm |> group_by($id) |> mutate($grp_size = nrow($id)); result.grp_size|}
-    env_gm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "Vector[1, 1, 1]" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate broadcasts 1 for single-row groups\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate broadcasts 1 for single-row groups\n    Expected: Vector[1, 1, 1]\n    Got: %s\n" result
-  end;
+    "Vector[1, 1, 1]";
 
   (try Sys.remove csv_gm with _ -> ());
   print_newline ();
@@ -191,74 +139,38 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Edge Cases — Summarize with Multiple Aggregation Functions:\n";
 
   (* Multiple aggregation pairs in a single summarize *)
-  let (v, _) = eval_string_env
+  test_env env0 "summarize with multiple aggregation pairs returns 2 rows"
     {|df |> group_by($category) |> summarize($count = nrow($category), $total = sum($value)) |> nrow|}
-    env0 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "2" then begin
-    incr pass_count; Printf.printf "  ✓ summarize with multiple aggregation pairs returns 2 rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ summarize with multiple aggregation pairs returns 2 rows\n    Expected: 2, Got: %s\n" result
-  end;
+    "2";
 
   (* Ungrouped summarize on empty DataFrame *)
-  let (v, _) = eval_string_env
+  test_env env0 "ungrouped summarize on filtered-empty DataFrame returns 1 row"
     {|df |> filter($category == "nonexistent") |> summarize($count = nrow($category)) |> nrow|}
-    env0 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "1" then begin
-    incr pass_count; Printf.printf "  ✓ ungrouped summarize on filtered-empty DataFrame returns 1 row\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ ungrouped summarize on filtered-empty DataFrame returns 1 row\n    Expected: 1, Got: %s\n" result
-  end;
+    "1";
 
   print_newline ();
 
   Printf.printf "Edge Cases — Mutate Constant/Scalar Column Assignment:\n";
 
   (* mutate with numeric constant *)
-  let (v, _) = eval_string_env
+  test_env env0 "mutate constant float replicates across all rows"
     {|result = mutate(df, $const_num = 1.0); result.const_num|}
-    env0 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "Vector[1., 1., 1., 1., 1.]" then begin
-    incr pass_count; Printf.printf "  ✓ mutate constant float replicates across all rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ mutate constant float replicates across all rows\n    Expected: Vector[1., 1., 1., 1., 1.]\n    Got: %s\n" result
-  end;
+    "Vector[1., 1., 1., 1., 1.]";
 
   (* mutate with string constant *)
-  let (v, _) = eval_string_env
+  test_env env0 "mutate constant string replicates across all rows"
     {|result = mutate(df, $const_str = "x"); result.const_str|}
-    env0 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|Vector["x", "x", "x", "x", "x"]|} then begin
-    incr pass_count; Printf.printf "  ✓ mutate constant string replicates across all rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ mutate constant string replicates across all rows\n    Expected: Vector[\"x\", \"x\", \"x\", \"x\", \"x\"]\n    Got: %s\n" result
-  end;
+    {|Vector["x", "x", "x", "x", "x"]|};
 
   (* mutate with integer constant *)
-  let (v, _) = eval_string_env
+  test_env env0 "mutate constant integer replicates across all rows"
     {|result = mutate(df, $const_int = 42); result.const_int|}
-    env0 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "Vector[42, 42, 42, 42, 42]" then begin
-    incr pass_count; Printf.printf "  ✓ mutate constant integer replicates across all rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ mutate constant integer replicates across all rows\n    Expected: Vector[42, 42, 42, 42, 42]\n    Got: %s\n" result
-  end;
+    "Vector[42, 42, 42, 42, 42]";
 
   (* grouped mutate with constant — constant must replicate within each group *)
-  let (v, _) = eval_string_env
+  test_env env0 "grouped mutate constant string replicates across all rows"
     {|result = df |> group_by($category) |> mutate($label = "fixed"); result.label|}
-    env0 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|Vector["fixed", "fixed", "fixed", "fixed", "fixed"]|} then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate constant string replicates across all rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate constant string replicates across all rows\n    Expected: Vector[\"fixed\", \"fixed\", \"fixed\", \"fixed\", \"fixed\"]\n    Got: %s\n" result
-  end;
+    {|Vector["fixed", "fixed", "fixed", "fixed", "fixed"]|};
 
   print_newline ();
 

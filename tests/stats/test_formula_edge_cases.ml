@@ -1,15 +1,5 @@
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env =
   (* === Formula Edge Cases === *)
-  let starts_with s prefix =
-    String.length s >= String.length prefix &&
-    String.sub s 0 (String.length prefix) = prefix
-  in
-  let contains haystack needle =
-    try
-      let _ = Str.search_forward (Str.regexp_string needle) haystack 0 in
-      true
-    with Not_found -> false
-  in
 
   Printf.printf "Formula Edge Cases — Multi-variable formulas:\n";
 
@@ -24,7 +14,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "type(y ~ x1 * x2)"
     {|"Formula"|};
 
-  (* lm() with multi-variable formula should succeed (multi-variable formulas supported) *)
+  (* lm() with multi-variable formula should succeed *)
   let csv_mv = "test_formula_edge_mv.csv" in
   let oc_mv = open_out csv_mv in
   output_string oc_mv "y,x1,x2\n1,2,5\n4,5,3\n7,8,7\n10,11,2\n";
@@ -35,8 +25,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   let (v, _) = eval_string_env {|lm(data = df, formula = y ~ x1 + x2)|} env_mv in
   let result = Ast.Utils.value_to_string v in
-  (* lm now supports multi-variable formulas *)
-  if not (starts_with result "Error(") then begin
+  if not (String.length result >= 6 && String.sub result 0 6 = "Error(") then begin
     incr pass_count; Printf.printf "  ✓ lm() accepts multi-variable formula\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ lm() accepts multi-variable formula\n    Expected: success\n    Got: %s\n" result
@@ -55,21 +44,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let env_inter = Packages.init_env () in
   let (_, env_inter) = eval_string_env (Printf.sprintf {|df_inter = read_csv("%s")|} csv_inter) env_inter in
   let (_, env_inter) = eval_string_env {|model_inter = lm(data = df_inter, formula = y ~ x1 * x2)|} env_inter in
-  let (v_inter_terms, _) = eval_string_env {|model_inter._tidy_df.term|} env_inter in
-  let inter_terms = Ast.Utils.value_to_string v_inter_terms in
-  if contains inter_terms "x1:x2" then begin
-    incr pass_count; Printf.printf "  ✓ lm() includes interaction term in tidy output\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ lm() includes interaction term in tidy output\n    Got: %s\n" inter_terms
-  end;
 
-  let (v_inter_coef, _) = eval_string_env {|model_inter.coefficients|} env_inter in
-  let inter_coef = Ast.Utils.value_to_string v_inter_coef in
-  if contains inter_coef "x1:x2" then begin
-    incr pass_count; Printf.printf "  ✓ lm() exposes interaction coefficient\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ lm() exposes interaction coefficient\n    Got: %s\n" inter_coef
-  end;
+  test_env env_inter "lm() includes interaction term in tidy output"
+    {|model_inter._tidy_df.term|}
+    {|x1:x2|};
+
+  test_env env_inter "lm() exposes interaction coefficient"
+    {|model_inter.coefficients|}
+    {|x1:x2|};
 
   (try Sys.remove csv_inter with _ -> ());
   print_newline ();
@@ -83,13 +65,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   let env_collinear = Packages.init_env () in
   let (_, env_collinear) = eval_string_env (Printf.sprintf {|df_collinear = read_csv("%s")|} csv_collinear) env_collinear in
-  let (v_collinear, _) = eval_string_env {|lm(data = df_collinear, formula = y ~ x1 + x2)|} env_collinear in
-  let collinear_result = Ast.Utils.value_to_string v_collinear in
-  if contains collinear_result "detected collinearity" then begin
-    incr pass_count; Printf.printf "  ✓ lm() reports collinearity explicitly\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ lm() reports collinearity explicitly\n    Got: %s\n" collinear_result
-  end;
+
+  test_env env_collinear "lm() reports collinearity explicitly"
+    {|lm(data = df_collinear, formula = y ~ x1 + x2)|}
+    {|detected collinearity|};
 
   (try Sys.remove csv_collinear with _ -> ());
   print_newline ();
@@ -104,13 +83,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let env_na = Packages.init_env () in
   let (_, env_na) = eval_string_env (Printf.sprintf {|df_na = read_csv("%s")|} csv_na) env_na in
 
-  (* lm() should handle NA in columns *)
+  (* lm() should handle NA in columns — either error or success is acceptable *)
   let (v, _) = eval_string_env {|lm(data = df_na, formula = y ~ x)|} env_na in
   let result = Ast.Utils.value_to_string v in
-  if starts_with result "Error(" then begin
+  if String.length result >= 6 && String.sub result 0 6 = "Error(" then begin
     incr pass_count; Printf.printf "  ✓ lm() with NA in predictor returns error\n"
   end else begin
-    (* If it succeeds, that's also acceptable (e.g., if NA rows are dropped) *)
     incr pass_count; Printf.printf "  ✓ lm() with NA in predictor completes (may drop NA rows)\n"
   end;
 
@@ -129,7 +107,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   let (v, _) = eval_string_env {|lm(data = df_zv, formula = y ~ x)|} env_zv in
   let result = Ast.Utils.value_to_string v in
-  if starts_with result "Error(" then begin
+  if String.length result >= 6 && String.sub result 0 6 = "Error(" then begin
     incr pass_count; Printf.printf "  ✓ lm() with zero-variance predictor returns error\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ lm() with zero-variance predictor should return error\n    Got: %s\n" result
@@ -150,7 +128,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   let (v, _) = eval_string_env {|lm(data = df_small, formula = y ~ x)|} env_small in
   let result = Ast.Utils.value_to_string v in
-  if starts_with result "Error(" then begin
+  if String.length result >= 6 && String.sub result 0 6 = "Error(" then begin
     incr pass_count; Printf.printf "  ✓ lm() with 1 observation returns error\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ lm() with 1 observation should return error\n    Got: %s\n" result
@@ -187,14 +165,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let (_, env_perf) = eval_string_env (Printf.sprintf {|df_perf = read_csv("%s")|} csv_perf) env_perf in
   let (_, env_perf) = eval_string_env {|model = lm(data = df_perf, formula = y ~ x)|} env_perf in
 
-  (* Access R² through _model_data *)
-  let (v, _) = eval_string_env "model._model_data.r_squared" env_perf in
-  let result = Ast.Utils.value_to_string v in
-  if result = "1." then begin
-    incr pass_count; Printf.printf "  ✓ perfect fit has R²=1.0\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ perfect fit has R²=1.0\n    Expected: 1.\n    Got: %s\n" result
-  end;
+  test_env env_perf "perfect fit has R²=1.0"
+    "model._model_data.r_squared"
+    "1.";
 
   (* Access slope (estimate[1]) and intercept (estimate[0]) via _tidy_df *)
   let (v, _) = eval_string_env "model._tidy_df.estimate" env_perf in

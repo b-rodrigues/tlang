@@ -1,5 +1,5 @@
 
-let run_tests pass_count fail_count _failures eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures eval_string _eval_string_env test test_env =
   Printf.printf "Phase 1 — Structured Errors:\n";
   test "error() constructor" {|error("something went wrong")|} {|Error(GenericError: "something went wrong")|};
   test "error() with code" {|error("TypeError", "expected Int")|} {|Error(TypeError: "expected Int")|};
@@ -205,13 +205,8 @@ Use '.+' for element-wise (broadcast) operations.")|};
   let env0 = Packages.init_env () in
   let env2 = Ast.Env.add "e1" e1 (Ast.Env.add "e2" e2 env0) in
 
-  let (v_chain, _) = eval_string_env "error_msg(error_context(error_chain(e1, e2)).cause)" env2 in
-  if Ast.Utils.value_to_string v_chain = {|"inner"|} then begin
-    incr pass_count;
-    Printf.printf "  ✓ error_chain links two errors\n"
-  end else begin
-    incr fail_count;
-    Printf.printf "  ✗ error_chain links two errors\n    Expected: \"inner\"\n    Got: %s\n" (Ast.Utils.value_to_string v_chain)
-  end;
+  test_env env2 "error_chain links two errors"
+    "error_msg(error_context(error_chain(e1, e2)).cause)"
+    {|"inner"|};
 
   print_newline ()
