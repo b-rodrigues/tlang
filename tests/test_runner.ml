@@ -153,7 +153,7 @@ let () =
   run "Test_colcraft_coverage" Test_colcraft_coverage.run_tests;
   run "Test_window" Test_window.run_tests;
   run "Test_math" Test_math.run_tests;
-  run "Test_stats" Test_stats.run_tests;
+  run_with_env "Test_stats" Test_stats.run_tests;
   run "Test_stats_coverage" Test_stats_coverage.run_tests;
   run "Test_pmml_random_forest" Test_pmml_random_forest.run_tests;
   run "Test_pmml_io" Test_pmml_io.run_tests;
@@ -161,7 +161,7 @@ let () =
   run "Test_pmml_lightgbm" Test_pmml_lightgbm.run_tests;
   run "Test_onnx_native" Test_onnx_native.run_tests;
   run "Test_broom_golden" Test_broom_golden.run_tests;
-  run "Test_explain_tests" Test_explain_tests.run_tests;
+  run_with_env "Test_explain_tests" Test_explain_tests.run_tests;
   run "Test_cli" Test_cli.run_tests;
 
   (* Phase 8: Stabilization tests *)

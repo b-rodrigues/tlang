@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env test test_env =
   Printf.printf "Phase 6 — Intent Blocks:\n";
   test "intent block creation"
     {|intent { description: "Load data", assumes: "File exists" }|}
@@ -92,158 +92,70 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   let env_p6 = Packages.init_env () in
   let (_, env_p6) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p6) env_p6 in
-  let (v, _) = eval_string_env "e = explain(df); e.kind" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"to_dataframe"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame kind\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame kind\n    Expected: \"to_dataframe\"\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "e = explain(df); e.nrow" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame nrow\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame nrow\n    Expected: 3\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "e = explain(df); e.ncol" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame ncol\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame ncol\n    Expected: 3\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "e = explain(df); type(e.storage_backend)" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"String"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame storage_backend is a String\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame storage_backend is a String\n    Expected: \"String\"\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "e = explain(df); type(e.native_path_active)" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"Bool"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame native_path_active is a Bool\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame native_path_active is a Bool\n    Expected: \"Bool\"\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "e = explain(df); type(e.performance_note)" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"String"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame performance_note is a String\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame performance_note is a String\n    Expected: \"String\"\n    Got: %s\n" result
-  end;
-
+  test_env env_p6 "explain DataFrame kind"
+    "e = explain(df); e.kind"
+    {|"to_dataframe"|};
+  test_env env_p6 "explain DataFrame nrow"
+    "e = explain(df); e.nrow"
+    "3";
+  test_env env_p6 "explain DataFrame ncol"
+    "e = explain(df); e.ncol"
+    "3";
+  test_env env_p6 "explain DataFrame storage_backend is a String"
+    "e = explain(df); type(e.storage_backend)"
+    {|"String"|};
+  test_env env_p6 "explain DataFrame native_path_active is a Bool"
+    "e = explain(df); type(e.native_path_active)"
+    {|"Bool"|};
+  test_env env_p6 "explain DataFrame performance_note is a String"
+    "e = explain(df); type(e.performance_note)"
+    {|"String"|};
   (* Check NA stats *)
-  let (v, _) = eval_string_env "e = explain(df); e.na_stats.age" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "1" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame NA stats (age has 1 NA)\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame NA stats (age has 1 NA)\n    Expected: 1\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "e = explain(df); e.na_stats.score" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "1" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame NA stats (score has 1 NA)\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame NA stats (score has 1 NA)\n    Expected: 1\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "e = explain(df); e.na_stats.name" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "0" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame NA stats (name has 0 NAs)\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame NA stats (name has 0 NAs)\n    Expected: 0\n    Got: %s\n" result
-  end;
-
+  test_env env_p6 "explain DataFrame NA stats (age has 1 NA)"
+    "e = explain(df); e.na_stats.age"
+    "1";
+  test_env env_p6 "explain DataFrame NA stats (score has 1 NA)"
+    "e = explain(df); e.na_stats.score"
+    "1";
+  test_env env_p6 "explain DataFrame NA stats (name has 0 NAs)"
+    "e = explain(df); e.na_stats.name"
+    "0";
   (* Check schema *)
-  let (v, _) = eval_string_env "e = explain(df); type(e.schema)" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"List"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame schema is a List\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame schema is a List\n    Expected: \"List\"\n    Got: %s\n" result
-  end;
-
+  test_env env_p6 "explain DataFrame schema is a List"
+    "e = explain(df); type(e.schema)"
+    {|"List"|};
   (* Check example rows *)
-  let (v, _) = eval_string_env "e = explain(df); type(e.example_rows)" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"List"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame example_rows is a List\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame example_rows is a List\n    Expected: \"List\"\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "e = explain(df); length(e.example_rows)" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame example_rows length (3 rows)\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame example_rows length (3 rows)\n    Expected: 3\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "df_mutated = mutate(df, $score_copy = $score); e2 = explain(df_mutated); type(e2.storage_backend)" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"String"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain mutated DataFrame storage_backend is a String\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain mutated DataFrame storage_backend is a String\n    Expected: \"String\"\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "df_mutated = mutate(df, $score_copy = $score); e2 = explain(df_mutated); type(e2.native_path_active)" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"Bool"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain mutated DataFrame native_path_active is a Bool\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain mutated DataFrame native_path_active is a Bool\n    Expected: \"Bool\"\n    Got: %s\n" result
-  end;
-
+  test_env env_p6 "explain DataFrame example_rows is a List"
+    "e = explain(df); type(e.example_rows)"
+    {|"List"|};
+  test_env env_p6 "explain DataFrame example_rows length (3 rows)"
+    "e = explain(df); length(e.example_rows)"
+    "3";
+  test_env env_p6 "explain mutated DataFrame storage_backend is a String"
+    "df_mutated = mutate(df, $score_copy = $score); e2 = explain(df_mutated); type(e2.storage_backend)"
+    {|"String"|};
+  test_env env_p6 "explain mutated DataFrame native_path_active is a Bool"
+    "df_mutated = mutate(df, $score_copy = $score); e2 = explain(df_mutated); type(e2.native_path_active)"
+    {|"Bool"|};
   (* A DataFrame whose only column is NA in every row can now stay on the
      native Arrow path via the NAColumn builder path. *)
-  let (v, _) = eval_string_env "df_na_only = to_dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.storage_backend" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"native_arrow"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain NA-only DataFrame storage_backend\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain NA-only DataFrame storage_backend\n    Expected: \"native_arrow\"\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "df_na_only = to_dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.native_path_active" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "true" then begin
-    incr pass_count; Printf.printf "  ✓ explain NA-only DataFrame native_path_active\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain NA-only DataFrame native_path_active\n    Expected: true\n    Got: %s\n" result
-  end;
+  test_env env_p6 "explain NA-only DataFrame storage_backend"
+    "df_na_only = to_dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.storage_backend"
+    {|"native_arrow"|};
+  test_env env_p6 "explain NA-only DataFrame native_path_active"
+    "df_na_only = to_dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.native_path_active"
+    "true";
   (try Sys.remove csv_p6 with _ -> ());
   print_newline ();
 
   Printf.printf "Phase 6 — Explain: Pipeline:\n";
   let (_, env_p6_pipe) = eval_string_env "p = pipeline {\n  x = 10\n  y = x + 5\n  z = y * 2\n}" (Packages.init_env ()) in
-  let (v, _) = eval_string_env "e = explain(p); e.kind" env_p6_pipe in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"pipeline"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain Pipeline kind\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain Pipeline kind\n    Expected: \"pipeline\"\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "e = explain(p); e.node_count" env_p6_pipe in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ explain Pipeline node_count\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ explain Pipeline node_count\n    Expected: 3\n    Got: %s\n" result
-  end;
+  test_env env_p6_pipe "explain Pipeline kind"
+    "e = explain(p); e.kind"
+    {|"pipeline"|};
+  test_env env_p6_pipe "explain Pipeline node_count"
+    "e = explain(p); e.node_count"
+    "3";
   print_newline ();
 
   Printf.printf "Phase 6 — Explain: Intent:\n";
