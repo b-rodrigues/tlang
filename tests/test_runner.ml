@@ -137,7 +137,7 @@ let () =
   run "Test_converters" Test_converters.run_tests;
   run "Test_na" Test_na.run_tests;
   run "Test_na_edge_cases" Test_na_edge_cases.run_tests;
-  run "Test_errors" Test_errors.run_tests;
+  run_with_env "Test_errors" Test_errors.run_tests;
   run "Test_expect_equal" Test_expect_equal.run_tests;
   run "Test_expect_more" Test_expect_more.run_tests;
   run "Test_expect_condition" Test_expect_condition.run_tests;
@@ -179,7 +179,7 @@ let () =
   run "Test_window_edge_cases" Test_window_edge_cases.run_tests;
   run_with_env "Test_formula_edge_cases" Test_formula_edge_cases.run_tests;
   run_with_env "Test_large_datasets" Test_large_datasets.run_tests;
-  run "Test_error_recovery" Test_error_recovery.run_tests;
+  run_with_env "Test_error_recovery" Test_error_recovery.run_tests;
 
   (* Package manager tests *)
   run "Test_package_manager" Test_package_manager.run_tests;

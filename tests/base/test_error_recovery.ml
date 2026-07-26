@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env test test_env =
   (* === Error Recovery Edge Cases === *)
 
   Printf.printf "Error Recovery — Deep pipe error propagation:\n";
@@ -33,16 +33,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let (_, env0) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_err) env0 in
 
   (* Summarize with function that produces error on some groups *)
-  let (v, _) = eval_string_env
+  test_env env0 "grouped summarize with sd (2 rows per group) returns DataFrame"
     {|df |> group_by($group) |> summarize($result = sd($value))|}
-    env0 in
-  let result = Ast.Utils.value_to_string v in
-  (* Each group has 2 values, so sd() should work for all groups *)
-  if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ grouped summarize with sd (2 rows per group) returns DataFrame\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ grouped summarize with sd (2 rows per group) returns DataFrame\n    Got: %s\n" result
-  end;
+    "DataFrame";
 
   (* Error propagation rules changed: arithmetic now propagates errors instead of TypeError *)
   test "error value in arithmetic" "(1/0) + 1" "Error(DivisionByZero: \"Division by zero.\")";
