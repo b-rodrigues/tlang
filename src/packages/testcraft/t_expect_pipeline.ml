@@ -19,6 +19,7 @@ let match_serializer_deserializer expr expected =
   let canonical_str = Nix_unparse.expr_to_string expr in
   match expected with
   | VString s | VSymbol s -> s = canonical_str
+  | VSerializer s -> s.s_format = canonical_str
   | _ -> false
 
 (*
