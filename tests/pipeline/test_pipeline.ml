@@ -208,6 +208,13 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     incr fail_count; Printf.printf "  ✗ lens set (new node) then read_node\n    Got: %s\n" (Ast.Utils.value_to_string v5)
   end;
 
+  test "get_pipeline_member: dot-access on unbuilt node returns unresolved computed_node"
+    "p_gpm = pipeline { x = 1 }; p_gpm.x"
+    "computed_node<T>";
+  test "read_node on unbuilt computed node uses diagnostics path (not passthrough)"
+    "p_rn = pipeline { x = 1 }; read_node(p_rn.x)"
+    "not been built yet";
+
   let (v, _) = eval_string_env "p_drv = pipeline { a = 1 }; pipeline_to_drv(p_drv)" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if Test_helpers.contains result "a" && Test_helpers.contains result ".drv" then begin
