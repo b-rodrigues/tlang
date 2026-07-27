@@ -103,6 +103,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "date less-equal same" "to_date(\"2024-01-01\") <= to_date(\"2024-01-01\")" "true";
   test "date greater-equal" "to_date(\"2024-01-02\") >= to_date(\"2024-01-01\")" "true";
   test "date not less than" "to_date(\"2024-01-02\") < to_date(\"2024-01-01\")" "false";
+  test "date not equal" "to_date(\"2024-01-01\") != to_date(\"2024-01-02\")" "true";
   test "date equal" "to_date(\"2024-01-01\") == to_date(\"2024-01-01\")" "true";
   print_newline ();
 

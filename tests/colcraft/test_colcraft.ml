@@ -566,6 +566,9 @@ df |> filter($age > 25)
   test "factor string equality symmetric"
     {|f = to_factor(["a", "b"]); "a" .== f|}
     "[true, false]";
+  test "factor equals missing level returns false"
+    {|f = to_factor(["a", "b", "c"]); f .== "missing"|}
+    "[false, false, false]";
 
   print_newline ();
 
