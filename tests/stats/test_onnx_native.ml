@@ -1,6 +1,6 @@
 
 
-let run_tests pass_count fail_count _failures _eval_string eval_string_env _test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
   Printf.printf "ONNX Native:\n";
 
   (* Create a dummy ONNX file *)
@@ -23,5 +23,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
   ) ~finally:(fun () ->
     if Sys.file_exists filename then Sys.remove filename
   );
-  
+
+  test "t_write_onnx returns not-implemented error"
+    "t_write_onnx({}, \"model.onnx\")"
+    {|Error(RuntimeError: "Serializer ^onnx does not have a T-native writer implementation yet. Use ^onnx within R or Python nodes to export models.")|};
+
   print_newline ()

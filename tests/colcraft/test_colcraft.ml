@@ -546,6 +546,30 @@ df |> filter($age > 25)
     {|levels(fct_c(to_factor(["a"], levels = ["a", "b"]), to_factor(["c"])))|}
     {|Vector["a", "b", "c"]|};
 
+  Printf.printf "  ordered():\n";
+  test "ordered creates ordered factor"
+    {|levels(ordered(["low", "medium", "high"]))|}
+    {|Vector["high", "low", "medium"]|};
+  test "ordered with custom levels"
+    {|levels(ordered(["b", "a", "c"], levels = ["a", "b", "c"]))|}
+    {|Vector["a", "b", "c"]|};
+  test "ordered type check"
+    "type(ordered([\"low\"]))" {|"Vector"|};
+
+  Printf.printf "  Factor equality:\n";
+  test "factor broadcast equals matching string"
+    {|f = to_factor(["a", "b", "c"]); f .== "a"|}
+    "[true, false, false]";
+  test "factor broadcast not-equals"
+    {|f = to_factor(["a", "b", "c"]); f .!= "a"|}
+    "[false, true, true]";
+  test "factor string equality symmetric"
+    {|f = to_factor(["a", "b"]); "a" .== f|}
+    "[true, false]";
+  test "factor equals missing level returns false"
+    {|f = to_factor(["a", "b", "c"]); f .== "missing"|}
+    "[false, false, false]";
+
   print_newline ();
 
   Printf.printf "Phase 4 — Vectorized Processing:\n";

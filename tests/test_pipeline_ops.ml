@@ -753,6 +753,42 @@ pipeline_edges(p)|}
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
+  Printf.printf "Phase 4 — suppress_warnings:\n";
+
+  test "suppress_warnings passthrough"
+    "suppress_warnings(42)"
+    "42";
+
+  test "suppress_warnings with string"
+    {|suppress_warnings("hello")|}
+    {|"hello"|};
+
+  test "suppress_warnings with NA"
+    "suppress_warnings(NA)"
+    "NA";
+
+  test "suppress_warnings rejects too many args"
+    "suppress_warnings(1, 2)"
+    {|Error(ArityError: "Function `suppress_warnings` expects 1 arguments but received 2.")|};
+
+  Printf.printf "Phase 4 — trace_nodes and pipeline_print:\n";
+
+  test "trace_nodes returns NA"
+    {|p = pipeline { a = 1; b = a + 1 }; trace_nodes(p)|}
+    "NA";
+
+  test "trace_nodes rejects non-pipeline"
+    "trace_nodes(42)"
+    {|Error(TypeError: "Function `trace_nodes` expects a Pipeline as its first argument, but got Int.")|};
+
+  test "pipeline_print returns NA"
+    {|p = pipeline { a = 1; b = a + 1 }; pipeline_print(p)|}
+    "NA";
+
+  test "pipeline_print rejects non-pipeline"
+    "pipeline_print(42)"
+    {|Error(TypeError: "Function `pipeline_print` expects a Pipeline, but got Int.")|};
+
    Printf.printf "Phase 4 — meta_flatten:\n";
 
   (* meta_flatten: namespaces nodes correctly *)

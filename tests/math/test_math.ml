@@ -137,5 +137,32 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test "reshape 3d"
     "shape(reshape(ndarray([[[1,2,3,4],[5,6,7,8],[9,10,11,12]],[[13,14,15,16],[17,18,19,20],[21,22,23,24]]]), [3,2,4]))"
     "[3, 2, 4]";
-  
+
+  Printf.printf "Phase 5 — Math: transpose and cbind:\n";
+  test "transpose 2x3 matrix"
+    "transpose(ndarray([[1,2,3],[4,5,6]]))"
+    "NDArray(shape=[3, 2], data=[1., 4., 2., 5., 3., 6.])";
+  test "transpose square matrix"
+    "transpose(ndarray([[1,2],[3,4]]))"
+    "NDArray(shape=[2, 2], data=[1., 3., 2., 4.])";
+  test "transpose 1D array errors"
+    "transpose(ndarray([1,2,3]))"
+    {|Error(ValueError: "transpose expects a 2D NDArray.")|};
+  test "transpose non-NDArray errors"
+    "transpose([1,2,3])"
+    {|Error(TypeError: "transpose expects an NDArray.")|};
+
+  test "cbind two 2x2 matrices"
+    "cbind(ndarray([[1,2],[3,4]]), ndarray([[5,6],[7,8]]))"
+    "NDArray(shape=[2, 4], data=[1., 2., 5., 6., 3., 4., 7., 8.])";
+  test "cbind row count mismatch errors"
+    "cbind(ndarray([[1,2]]), ndarray([[3,4],[5,6]]))"
+    {|Error(ValueError: "cbind expects matrices with same number of rows.")|};
+  test "cbind non-2D errors"
+    "cbind(ndarray([1,2]), ndarray([3,4]))"
+    {|Error(ValueError: "cbind expects two 2D NDArrays.")|};
+  test "cbind non-NDArray errors"
+    "cbind([1,2], [3,4])"
+    {|Error(TypeError: "cbind expects two NDArrays.")|};
+
   print_newline ()

@@ -85,6 +85,38 @@ apply_mutation() {
       backup_file "$REPO_ROOT/src/eval.ml"
       perl -i -0pe 's/Error\.na_predicate_error "Operation on NA: NA values do not propagate implicitly\. Handle missingness explicitly\."/VNA NAGeneric/' "$REPO_ROOT/src/eval.ml"
       ;;
+    div_zero_mixed)
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| \(Div, VInt a, VFloat b\) -> if Float\.equal b 0\.0 then Error\.division_by_zero \(\) else VFloat \(float_of_int a \/\. b\)/| (Div, VInt a, VFloat b) -> VFloat (float_of_int a \/\. b)/' "$REPO_ROOT/src/eval.ml"
+      ;;
+    div_zero_mixed_reverse)
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| \(Div, VFloat a, VInt b\) -> if b = 0 then Error\.division_by_zero \(\) else VFloat \(a \/\. float_of_int b\)/| (Div, VFloat a, VInt b) -> VFloat (a \/\. float_of_int b)/' "$REPO_ROOT/src/eval.ml"
+      ;;
+    mod_zero_mixed)
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| \(Mod, VInt a, VFloat b\) -> if Float\.equal b 0\.0 then Error\.division_by_zero \(\) else VFloat \(mod_float \(float_of_int a\) b\)/| (Mod, VInt a, VFloat b) -> VFloat (mod_float (float_of_int a) b)/' "$REPO_ROOT/src/eval.ml"
+      ;;
+    mod_zero_mixed_reverse)
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| \(Mod, VFloat a, VInt b\) -> if b = 0 then Error\.division_by_zero \(\) else VFloat \(mod_float a \(float_of_int b\)\)/| (Mod, VFloat a, VInt b) -> VFloat (mod_float a (float_of_int b))/' "$REPO_ROOT/src/eval.ml"
+      ;;
+    negate_float)
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| \(Neg, VFloat f\) -> VFloat \(-\.f\)/| (Neg, VFloat f) -> VFloat f/' "$REPO_ROOT/src/eval.ml"
+      ;;
+    negate_type_guard)
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| \(Neg, other\) -> make_error TypeError \(Printf\.sprintf "Cannot negate %s" \(Utils\.type_name other\)\)/| (Neg, other) -> VInt 0/' "$REPO_ROOT/src/eval.ml"
+      ;;
+    date_lt_swap)
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| \(Lt, VDate a, VDate b\) -> VBool \(a < b\)/| (Lt, VDate a, VDate b) -> VBool (a > b)/' "$REPO_ROOT/src/eval.ml"
+      ;;
+    factor_eq_invert)
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| Some fs -> VBool \(fs = s\)/| Some fs -> VBool (fs <> s)/' "$REPO_ROOT/src/eval.ml"
+      ;;
 
     # ── arrow_compute.ml mutations ─────────────────────────────────────
     arrow_add_scalar)
@@ -94,6 +126,18 @@ apply_mutation() {
     arrow_compare_gt)
       backup_file "$REPO_ROOT/src/arrow/arrow_compute.ml"
       perl -i -pe 's/\| Gt -> \( > \)/| Gt -> ( < )/' "$REPO_ROOT/src/arrow/arrow_compute.ml"
+      ;;
+    arrow_multiply_scalar)
+      backup_file "$REPO_ROOT/src/arrow/arrow_compute.ml"
+      perl -i -pe 's/\(fun table name scalar_value -> column_scalar_op table name scalar_value \( \*\. \)\)/(fun table name scalar_value -> column_scalar_op table name scalar_value (\/.))/s' "$REPO_ROOT/src/arrow/arrow_compute.ml"
+      ;;
+    arrow_subtract_scalar)
+      backup_file "$REPO_ROOT/src/arrow/arrow_compute.ml"
+      perl -i -pe 's/\(fun table name scalar_value -> column_scalar_op table name scalar_value \( -\. \)\)/(fun table name scalar_value -> column_scalar_op table name scalar_value (+.))/s' "$REPO_ROOT/src/arrow/arrow_compute.ml"
+      ;;
+    arrow_le_compare)
+      backup_file "$REPO_ROOT/src/arrow/arrow_compute.ml"
+      perl -i -pe 's/\| Le -> \( <= \) \| Ge -> \( >= \)/| Le -> ( >= ) | Ge -> ( <= )/' "$REPO_ROOT/src/arrow/arrow_compute.ml"
       ;;
 
     # ── clean_colnames.ml mutations ────────────────────────────────────
@@ -165,8 +209,19 @@ declare -a MUTATION_NAMES=(
   "if_else_swap"
   "unary_not"
   "na_silent_pass"
+  "div_zero_mixed"
+  "div_zero_mixed_reverse"
+  "mod_zero_mixed"
+  "mod_zero_mixed_reverse"
+  "negate_float"
+  "negate_type_guard"
+  "date_lt_swap"
+  "factor_eq_invert"
   "arrow_add_scalar"
   "arrow_compare_gt"
+  "arrow_multiply_scalar"
+  "arrow_subtract_scalar"
+  "arrow_le_compare"
   "clean_safe_char"
   "clean_collision"
   "csv_type_fallback"
