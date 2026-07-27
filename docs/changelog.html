@@ -34,29 +34,36 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.54.2] - 2026-07-23</h2>
+<h2 id="section">[0.54.2] - 2026-07-27</h2>
 <h3 id="testcraft-testing-package"><code>testcraft</code> — Testing
 Package</h3>
 <ul>
-<li><strong>32 <code>expect_*</code> functions</strong>: First-class
+<li><strong>40 <code>expect_*</code> functions</strong>: First-class
 assertion primitives for T tests. Returns <code>VExpect</code> values
 (<code>Expect_pass</code>, <code>Expect_stop</code>,
 <code>Expect_hold</code>) that integrate with <code>assert()</code>.
 Covers equality (<code>expect_equal</code>), comparison
-(<code>expect_lt</code>, <code>expect_gt</code>), type checks
+(<code>expect_lt</code>, <code>expect_gt</code>,
+<code>expect_lte</code>, <code>expect_gte</code>), type checks
 (<code>expect_type</code>, <code>expect_true</code>,
 <code>expect_false</code>, <code>expect_truthy</code>,
 <code>expect_falsy</code>), error handling (<code>expect_error</code>),
 collections (<code>expect_length</code>, <code>expect_nrow</code>,
 <code>expect_ncol</code>, <code>expect_colnames</code>,
 <code>expect_has_colnames</code>, <code>expect_unique</code>,
-<code>expect_fields</code>, <code>expect_in</code>), pipelines
-(<code>expect_pipeline</code>, <code>expect_nodes</code>,
-<code>expect_dependency</code>, <code>expect_runtime</code>,
-<code>expect_serializer</code>, <code>expect_deserializer</code>,
-<code>expect_noop</code>, <code>expect_computed</code>,
-<code>expect_has_pattern</code>), and diagnostics
-(<code>expect_warning</code>).</li>
+<code>expect_fields</code>, <code>expect_in</code>,
+<code>expect_no_na</code>, <code>expect_empty</code>,
+<code>expect_summary</code>), pipelines (<code>expect_pipeline</code>,
+<code>expect_nodes</code>, <code>expect_dependency</code>,
+<code>expect_runtime</code>, <code>expect_serializer</code>,
+<code>expect_deserializer</code>, <code>expect_noop</code>,
+<code>expect_computed</code>, <code>expect_has_pattern</code>),
+diagnostics (<code>expect_warning</code>), datasets
+(<code>expect_column_types</code>, <code>expect_values</code>,
+<code>expect_range</code>, <code>expect_table_equal</code>), and
+string/comparison (<code>expect_between</code>,
+<code>expect_match</code>, <code>expect_str_contains</code>,
+<code>expect_set_equal</code>).</li>
 <li><strong><code>check()</code> builtin</strong>: Inline assertion
 wrapper that prints <code>true</code> on success and preserves
 <code>VError</code> on failure, suitable for pipeline node
@@ -74,21 +81,16 @@ raises <code>AssertionError</code> with the diagnostic message on
 <h3 id="t-test-test-runner-enhancements"><code>t test</code> — Test
 Runner Enhancements</h3>
 <ul>
-<li><strong>Test pipeline auto-evaluation</strong>: <code>t test</code>
-now auto-evaluates pipeline definitions in test files and reports node
-failures inline.</li>
-</ul>
-<h3 id="bug-fixes">Bug Fixes</h3>
-<ul>
-<li><strong><code>t test --coverage</code> target directory
-fix</strong>: Coverage cleaning and discovery now check both the project
-directory and the current working directory for <code>.coverage</code>
-files.</li>
-</ul>
-<h2 id="section-1">[0.54.1] - 2026-07-20</h2>
-<h3 id="t-test-test-runner-enhancements-1"><code>t test</code> — Test
-Runner Enhancements</h3>
-<ul>
+<li><strong>Agentic test output (<code>t test --json</code>)</strong>:
+Structured JSON output (schema version 1) with per-file
+<code>status</code>, <code>duration_ms</code>, and <code>error</code>
+fields, designed for agent tooling and CI automation.</li>
+<li><strong><code>t_test()</code> returns a DataFrame</strong>: The REPL
+function now returns a DataFrame with columns <code>file</code>,
+<code>status</code>, <code>duration_ms</code>, and <code>error</code>
+instead of printing pass/fail text. Use
+<code>t_test() |&gt; filter($status == "failed")</code> for programmatic
+inspection.</li>
 <li><strong>Test filtering (<code>--only</code>,
 <code>--not</code>)</strong>: Run a subset of tests by substring
 matching. <code>--only "stats"</code> runs only tests whose path
@@ -120,7 +122,21 @@ coverage summary. Requires a coverage-instrumented build
 <code>t_test(only = ["arithmetic"])</code> and
 <code>t_test(not = ["slow"])</code> for programmatic filtering from the
 REPL.</li>
+<li><strong>Test pipeline auto-evaluation</strong>: <code>t test</code>
+now auto-evaluates pipeline definitions in test files and reports node
+failures inline.</li>
+<li><strong>Expanded test discovery</strong>: Matches
+<code>test_*.t</code> pattern in addition to <code>test-*.t</code> and
+<code>*_test.t</code>.</li>
 </ul>
+<h3 id="bug-fixes">Bug Fixes</h3>
+<ul>
+<li><strong><code>t test --coverage</code> target directory
+fix</strong>: Coverage cleaning and discovery now check both the project
+directory and the current working directory for <code>.coverage</code>
+files.</li>
+</ul>
+<h2 id="section-1">[0.54.1] - 2026-07-20</h2>
 <h3 id="type-system-annotations-and-inference">Type System: Annotations
 and Inference</h3>
 <ul>

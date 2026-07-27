@@ -10015,27 +10015,19 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.54.2] - 2026-07-23
+## [0.54.2] - 2026-07-27
 
 ### `testcraft` — Testing Package
 
-- **32 `expect_*` functions**: First-class assertion primitives for T tests. Returns `VExpect` values (`Expect_pass`, `Expect_stop`, `Expect_hold`) that integrate with `assert()`. Covers equality (`expect_equal`), comparison (`expect_lt`, `expect_gt`), type checks (`expect_type`, `expect_true`, `expect_false`, `expect_truthy`, `expect_falsy`), error handling (`expect_error`), collections (`expect_length`, `expect_nrow`, `expect_ncol`, `expect_colnames`, `expect_has_colnames`, `expect_unique`, `expect_fields`, `expect_in`), pipelines (`expect_pipeline`, `expect_nodes`, `expect_dependency`, `expect_runtime`, `expect_serializer`, `expect_deserializer`, `expect_noop`, `expect_computed`, `expect_has_pattern`), and diagnostics (`expect_warning`).
+- **40 `expect_*` functions**: First-class assertion primitives for T tests. Returns `VExpect` values (`Expect_pass`, `Expect_stop`, `Expect_hold`) that integrate with `assert()`. Covers equality (`expect_equal`), comparison (`expect_lt`, `expect_gt`, `expect_lte`, `expect_gte`), type checks (`expect_type`, `expect_true`, `expect_false`, `expect_truthy`, `expect_falsy`), error handling (`expect_error`), collections (`expect_length`, `expect_nrow`, `expect_ncol`, `expect_colnames`, `expect_has_colnames`, `expect_unique`, `expect_fields`, `expect_in`, `expect_no_na`, `expect_empty`, `expect_summary`), pipelines (`expect_pipeline`, `expect_nodes`, `expect_dependency`, `expect_runtime`, `expect_serializer`, `expect_deserializer`, `expect_noop`, `expect_computed`, `expect_has_pattern`), diagnostics (`expect_warning`), datasets (`expect_column_types`, `expect_values`, `expect_range`, `expect_table_equal`), and string/comparison (`expect_between`, `expect_match`, `expect_str_contains`, `expect_set_equal`).
 - **`check()` builtin**: Inline assertion wrapper that prints `true` on success and preserves `VError` on failure, suitable for pipeline node commands.
 - **Recursive VDict comparison**: `expect_equal` performs order-insensitive, deep structural comparison of Dicts with nested crash safety.
 - **Three-tier Expect system**: `Expect_pass` (comparison succeeded), `Expect_stop msg` (failed with diagnostic), `Expect_hold msg` (NA involved, cannot determine). `assert()` passes on `Expect_pass`, raises `AssertionError` with the diagnostic message on `Expect_stop`/`Expect_hold`.
 
 ### `t test` — Test Runner Enhancements
 
-- **Test pipeline auto-evaluation**: `t test` now auto-evaluates pipeline definitions in test files and reports node failures inline.
-
-### Bug Fixes
-
-- **`t test --coverage` target directory fix**: Coverage cleaning and discovery now check both the project directory and the current working directory for `.coverage` files.
-
-## [0.54.1] - 2026-07-20
-
-### `t test` — Test Runner Enhancements
-
+- **Agentic test output (`t test --json`)**: Structured JSON output (schema version 1) with per-file `status`, `duration_ms`, and `error` fields, designed for agent tooling and CI automation.
+- **`t_test()` returns a DataFrame**: The REPL function now returns a DataFrame with columns `file`, `status`, `duration_ms`, and `error` instead of printing pass/fail text. Use `t_test() |> filter($status == "failed")` for programmatic inspection.
 - **Test filtering (`--only`, `--not`)**: Run a subset of tests by substring matching. `--only "stats"` runs only tests whose path contains "stats". Multiple `--only` flags use OR semantics. `--not "slow"` excludes tests matching "slow".
 - **JUnit XML output (`--format junit`)**: Machine-readable test output for CI/CD pipelines. Use `--format junit` or combine with `--json` for JSON output.
 - **`.tignore` support**: Create `tests/.tignore` to automatically exclude test files. One pattern per line, `#` comments, blank lines ignored.
@@ -10045,6 +10037,14 @@ For datasets exceeding 2-3 GB:
 - **`--timeout SECONDS`**: Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure.
 - **`--coverage`**: Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage`).
 - **`t_test()` filtering**: `t_test(only = ["arithmetic"])` and `t_test(not = ["slow"])` for programmatic filtering from the REPL.
+- **Test pipeline auto-evaluation**: `t test` now auto-evaluates pipeline definitions in test files and reports node failures inline.
+- **Expanded test discovery**: Matches `test_*.t` pattern in addition to `test-*.t` and `*_test.t`.
+
+### Bug Fixes
+
+- **`t test --coverage` target directory fix**: Coverage cleaning and discovery now check both the project directory and the current working directory for `.coverage` files.
+
+## [0.54.1] - 2026-07-20
 
 ### Type System: Annotations and Inference
 
