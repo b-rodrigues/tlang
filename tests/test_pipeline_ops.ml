@@ -753,6 +753,24 @@ pipeline_edges(p)|}
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
+  Printf.printf "Phase 4 — suppress_warnings:\n";
+
+  test "suppress_warnings passthrough"
+    "suppress_warnings(42)"
+    "42";
+
+  test "suppress_warnings with string"
+    {|suppress_warnings("hello")|}
+    {|"hello"|};
+
+  test "suppress_warnings with NA"
+    "suppress_warnings(NA)"
+    "NA";
+
+  test "suppress_warnings rejects too many args"
+    "suppress_warnings(1, 2)"
+    {|Error(ArityError: "Function `suppress_warnings` expects 1 arguments but received 2.")|};
+
   Printf.printf "Phase 4 — trace_nodes and pipeline_print:\n";
 
   test "trace_nodes returns NA"
