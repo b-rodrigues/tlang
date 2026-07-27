@@ -89,9 +89,17 @@ apply_mutation() {
       backup_file "$REPO_ROOT/src/eval.ml"
       perl -i -pe 's/\| \(Div, VInt a, VFloat b\) -> if Float\.equal b 0\.0 then Error\.division_by_zero \(\) else VFloat \(float_of_int a \/\. b\)/| (Div, VInt a, VFloat b) -> VFloat (float_of_int a \/\. b)/' "$REPO_ROOT/src/eval.ml"
       ;;
+    div_zero_mixed_reverse)
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| \(Div, VFloat a, VInt b\) -> if b = 0 then Error\.division_by_zero \(\) else VFloat \(a \/\. float_of_int b\)/| (Div, VFloat a, VInt b) -> VFloat (a \/\. float_of_int b)/' "$REPO_ROOT/src/eval.ml"
+      ;;
     mod_zero_mixed)
       backup_file "$REPO_ROOT/src/eval.ml"
       perl -i -pe 's/\| \(Mod, VInt a, VFloat b\) -> if Float\.equal b 0\.0 then Error\.division_by_zero \(\) else VFloat \(mod_float \(float_of_int a\) b\)/| (Mod, VInt a, VFloat b) -> VFloat (mod_float (float_of_int a) b)/' "$REPO_ROOT/src/eval.ml"
+      ;;
+    mod_zero_mixed_reverse)
+      backup_file "$REPO_ROOT/src/eval.ml"
+      perl -i -pe 's/\| \(Mod, VFloat a, VInt b\) -> if b = 0 then Error\.division_by_zero \(\) else VFloat \(mod_float a \(float_of_int b\)\)/| (Mod, VFloat a, VInt b) -> VFloat (mod_float a (float_of_int b))/' "$REPO_ROOT/src/eval.ml"
       ;;
     negate_float)
       backup_file "$REPO_ROOT/src/eval.ml"
@@ -202,7 +210,9 @@ declare -a MUTATION_NAMES=(
   "unary_not"
   "na_silent_pass"
   "div_zero_mixed"
+  "div_zero_mixed_reverse"
   "mod_zero_mixed"
+  "mod_zero_mixed_reverse"
   "negate_float"
   "negate_type_guard"
   "date_lt_swap"
