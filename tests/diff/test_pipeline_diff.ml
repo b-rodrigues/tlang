@@ -46,11 +46,13 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
       raise exn
   in
   Printf.printf "Diff — Pipeline:\n";
-  let env0 = Packages.init_env () in
-  let (p_a_val, _) = eval_string_env {|pipeline { a = 1; b = a + 1; c = b + 1 }|} env0 in
-  let (p_b_val, _) = eval_string_env {|pipeline { a = 1; c = a + 2; d = c + 1 }|} env0 in
-  let merged_env = Ast.Env.add "p_a" p_a_val (Ast.Env.add "p_b" p_b_val env0) in
-  let (diff_value, _) = eval_string_env {|pipeline_diff(p_a, p_b)|} merged_env in
+  let (diff_value, _) =
+    eval_string_env
+      {|p_a = pipeline { a = 1; b = a + 1; c = b + 1 }
+        p_b = pipeline { a = 1; c = a + 2; d = c + 1 }
+        pipeline_diff(p_a, p_b)|}
+      (Packages.init_env ())
+  in
   (match diff_value with
    | Ast.VDict fields ->
        let list_has name expected =
@@ -94,11 +96,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
       | _ -> false)
     "pipeline_diff detects identical pipelines"
     "identical pipelines should set identical=true";
-  let (p_a_val2, _) = eval_string_env {|pipeline { a = 1; b = a + 1 }|} env0 in
-  let (p_b_val2, _) = eval_string_env {|pipeline { a = 1; c = a + 1 }|} env0 in
-  let merged_env2 = Ast.Env.add "p_a" p_a_val2 (Ast.Env.add "p_b" p_b_val2 env0) in
   let (explain_value, _) =
-    eval_string_env {|explain(pipeline_diff(p_a, p_b))|} merged_env2
+    eval_string_env
+      {|p_a = pipeline { a = 1; b = a + 1 }
+        p_b = pipeline { a = 1; c = a + 1 }
+        explain(pipeline_diff(p_a, p_b))|}
+      (Packages.init_env ())
   in
   report (match explain_value with
       | Ast.VDict fields -> List.assoc_opt "kind" fields = Some (Ast.VString "VDiff (pipeline_diff)")

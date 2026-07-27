@@ -138,7 +138,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "Phase 3 — Deterministic Execution:\n";
   test "pipeline executes deterministically"
-    "p = pipeline {\n  a = 5\n  b = a * 2\n  c = b + 1\n}; p.c == p.c"
+    "p1 = pipeline {\n  a = 5\n  b = a * 2\n  c = b + 1\n}; p2 = pipeline {\n  a = 5\n  b = a * 2\n  c = b + 1\n}; p1.c == p2.c"
     "true";
   print_newline ();
 
@@ -189,27 +189,23 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|pipeline { a = 1; a = 2 }|}
     {|Error(NameError: "Duplicate node name `a` in pipeline.")|};
 
-  Printf.printf "\nPhase — Cross-pipeline node name uniqueness:\n";
-  let env0 = Packages.init_env () in
-  let (v1, _) = eval_string_env {|p_x1 = pipeline { a = 1 }; p_x2 = pipeline { b = 2 }; nrow(pipeline_to_frame(p_x2))|} env0 in
-  if Ast.Utils.value_to_string v1 = "1" then begin
-    incr pass_count; Printf.printf "  ✓ cross-pipeline: non-overlapping node names permitted\n"
+  Printf.printf "\nPhase — Lens set + read_node roundtrip:\n";
+  let lens_env = Packages.init_env () in
+  let (v4, _) = eval_string_env
+    {|p = pipeline { x = 1 }; p2 = set(p, node_lens("x"), 42); read_node(p2.x)|}
+    lens_env in
+  if Ast.Utils.value_to_string v4 = "42" then begin
+    incr pass_count; Printf.printf "  ✓ lens set (existing node) then read_node returns value\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ cross-pipeline: non-overlapping node names permitted\n    Got: %s\n" (Ast.Utils.value_to_string v1)
+    incr fail_count; Printf.printf "  ✗ lens set (existing node) then read_node\n    Got: %s\n" (Ast.Utils.value_to_string v4)
   end;
-  let (v2, _) = eval_string_env {|p_y1 = pipeline { a = 1 }; p_y2 = pipeline { a = 2 }|} env0 in
-  let result2 = Ast.Utils.value_to_string v2 in
-  if Test_helpers.contains result2 "conflicts with a previously defined pipeline" then begin
-    incr pass_count; Printf.printf "  ✓ cross-pipeline: overlapping node names rejected\n"
+  let (v5, _) = eval_string_env
+    {|p = pipeline { x = 1 }; p2 = set(p, node_lens("y"), 99); read_node(p2.y)|}
+    lens_env in
+  if Ast.Utils.value_to_string v5 = "99" then begin
+    incr pass_count; Printf.printf "  ✓ lens set (new node) then read_node returns value\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ cross-pipeline: overlapping node names rejected\n    Got: %s\n" result2
-  end;
-  let (v3, _) = eval_string_env {|p_z1 = pipeline { a = 1; b = 2 }; p_z2 = pipeline { a = 3; b = 4 }|} env0 in
-  let result3 = Ast.Utils.value_to_string v3 in
-  if Test_helpers.contains result3 "conflicts with a previously defined pipeline" then begin
-    incr pass_count; Printf.printf "  ✓ cross-pipeline: multiple overlapping nodes rejected\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ cross-pipeline: multiple overlapping nodes rejected\n    Got: %s\n" result3
+    incr fail_count; Printf.printf "  ✗ lens set (new node) then read_node\n    Got: %s\n" (Ast.Utils.value_to_string v5)
   end;
 
   let (v, _) = eval_string_env "p_drv = pipeline { a = 1 }; pipeline_to_drv(p_drv)" env_p3 in

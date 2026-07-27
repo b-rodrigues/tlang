@@ -59,7 +59,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Golden test 11: Pipeline determinism *)
   test "golden: deterministic execution"
-    "p = pipeline {\n  a = 7\n  b = a * 3\n  c = b + 1\n}; read_node(p.c)"
+    "p1 = pipeline {\n  a = 7\n  b = a * 3\n  c = b + 1\n}; p2 = pipeline {\n  a = 7\n  b = a * 3\n  c = b + 1\n}; read_node(p1.c) == read_node(p2.c)"
     "not been built yet";
   print_newline ();
 
