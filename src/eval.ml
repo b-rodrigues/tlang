@@ -1747,6 +1747,32 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     Error.make_error NameError
       (Printf.sprintf "Duplicate node name `%s` in pipeline." dup_name)
   | None ->
+  let new_names = List.map fst nodes in
+  let cross_conflicts =
+    Env.fold (fun var_name value acc ->
+      match value with
+      | VPipeline { p_exprs; _ } ->
+          let existing_names = List.map fst p_exprs in
+          let overlaps = List.filter (fun n -> List.mem n existing_names) new_names in
+          (match overlaps with [] -> acc | _ -> (var_name, overlaps) :: acc)
+      | _ -> acc
+    ) !env_ref []
+  in
+  if cross_conflicts <> [] then
+    let parts = List.map (fun (p_name, names) ->
+      Printf.sprintf "`%s` (in pipeline `%s`)" (List.hd names) p_name
+    ) cross_conflicts in
+    let suggestion =
+      let first_conflict = List.hd (List.hd cross_conflicts |> snd) in
+      let first_pipeline = List.hd cross_conflicts |> fst in
+      Printf.sprintf " Consider renaming to `%s` or `%s`."
+        (first_pipeline ^ "_" ^ first_conflict)
+        ("my_" ^ first_conflict)
+    in
+    Error.make_error NameError
+      (Printf.sprintf "Node name %s in this pipeline conflicts with a previously defined pipeline.%s"
+         (String.concat ", " parts) suggestion)
+  else
   let rec substitute_env_vars env node_names expr =
     let sub = substitute_env_vars env node_names in
     let new_node = match expr.node with
@@ -2700,7 +2726,7 @@ and get_pipeline_member p field =
                   { cn with cn_path; cn_class; cn_runtime; cn_serializer }
               | None -> !Ast.computed_node_resolver cn)
          | _ -> !Ast.computed_node_resolver cn)
-    | None -> !Ast.computed_node_resolver cn
+    | None -> cn
   in
   match List.assoc_opt field p.p_nodes with
   | Some (VComputedNode cn) -> Some (VComputedNode (resolved_cn p cn))

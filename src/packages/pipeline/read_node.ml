@@ -518,6 +518,7 @@ let read_fn named_args _env =
                  | _ ->
                      Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
         end
+    | (VInt _ | VFloat _ | VBool _ | VList _ | VVector _ | VDataFrame _ | VDict _ as v) -> v
     | VString _ ->
         Error.type_error (not_computed_node_msg "String")
     | VSymbol name ->

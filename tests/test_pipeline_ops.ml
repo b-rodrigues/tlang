@@ -256,7 +256,7 @@ p1 |> union(p2) |> pipeline_nodes|}
     {|p1 = pipeline { a = 1 }
 p2 = pipeline { a = 2 }
 p1 |> union(p2)|}
-    {|Error(ValueError: "Function `union`: name collision(s) detected: a. Use `rename_node` to resolve.")|};
+    {|Error(NameError: "Node name `a` (in pipeline `p1`) in this pipeline conflicts with a previously defined pipeline. Consider renaming to `p1_a` or `my_a`.")|};
 
   test "union rejects non-pipeline first arg"
     {|union(42, pipeline { a = 1 })|}
@@ -435,7 +435,7 @@ p1 |> chain(p2)|}
     {|p1 = pipeline { a = 1 }
 p2 = pipeline { a = 2 }
 p1 |> chain(p2)|}
-    {|Error(ValueError: "Function `chain`: name collision(s) detected: a. Use `rename_node` to resolve.")|};
+    {|Error(NameError: "Node name `a` (in pipeline `p1`) in this pipeline conflicts with a previously defined pipeline. Consider renaming to `p1_a` or `my_a`.")|};
 
   print_newline ();
 
@@ -451,7 +451,7 @@ p1 |> parallel(p2) |> pipeline_nodes|}
     {|p1 = pipeline { a = 1 }
 p2 = pipeline { a = 2 }
 p1 |> parallel(p2)|}
-    {|Error(ValueError: "Function `parallel`: name collision(s) detected: a. Use `rename_node` to resolve.")|};
+    {|Error(NameError: "Node name `a` (in pipeline `p1`) in this pipeline conflicts with a previously defined pipeline. Consider renaming to `p1_a` or `my_a`.")|};
 
   print_newline ();
 

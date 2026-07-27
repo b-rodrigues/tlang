@@ -638,17 +638,13 @@ let rec apply_lens_set ~eval_call lens data val_v env =
     | NodeLens node_name ->
        (match data with
         | VPipeline p ->
-            Ast.set_in_memory_node_value ~p_exprs:p.p_exprs ~node_name
-              (Ast.VNodeResult { v = val_v; node_name; diagnostics = Ast.Utils.empty_node_diagnostics });
             if List.mem_assoc node_name p.p_nodes then
-              VPipeline p
+              let updated_nodes = List.map (fun (n, v) ->
+                if n = node_name then (n, val_v) else (n, v)
+              ) p.p_nodes in
+              VPipeline { p with p_nodes = updated_nodes }
             else
-              let placeholder = VComputedNode {
-                cn_name = node_name; cn_runtime = "T"; cn_path = "<unbuilt>";
-                cn_serializer = "default"; cn_class = "Unknown";
-                cn_dependencies = []; cn_p_exprs = Some p.p_exprs; cn_flake = None;
-              } in
-              VPipeline { p with p_nodes = p.p_nodes @ [(node_name, placeholder)] }
+              VPipeline { p with p_nodes = p.p_nodes @ [(node_name, val_v)] }
         | _ -> Error.type_error "node_lens set expects a Pipeline")
   | EnvVarLens (node_name, var_name) ->
       (match data with
