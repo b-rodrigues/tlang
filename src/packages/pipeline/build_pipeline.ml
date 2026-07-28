@@ -151,11 +151,16 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                     | Some (VInt n) -> n
                     | _ -> 0
                   in
-                  let soft_failed =
-                    match List.assoc_opt "soft_failed" pairs with
-                    | Some (VList items) -> List.length items
-                    | _ -> 0
-                  in
+                   let cached =
+                     match List.assoc_opt "cached" pairs with
+                     | Some (VInt n) -> n
+                     | _ -> 0
+                   in
+                   let soft_failed =
+                     match List.assoc_opt "soft_failed" pairs with
+                     | Some (VList items) -> List.length items
+                     | _ -> 0
+                   in
                   let var_name = match pipeline_name with Some n -> n | None -> "p" in
                   let first_node =
                     match p_resolved.p_nodes with
@@ -171,19 +176,25 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                   Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
                   Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
                   Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name;
-                  if built > 0 then
-                    (match Builder.find_log_for_out_path out_path with
-                     | Some log_path ->
-                         Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path;
-                         Hashtbl.replace Ast.pipeline_build_logs p_resolved.p_exprs log_path;
-                         Builder.parse_json_log_to_vbuildlog log_path
-                     | None ->
-                         Error.make_error FileError
-                           (Printf.sprintf
-                              "No build log matching output path `%s` was found after build completed."
-                              out_path))
-                  else
-                    out
+                   if built > 0 || cached > 0 then
+                     (match Builder.find_log_for_out_path out_path with
+                      | Some log_path ->
+                          Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path;
+                          Hashtbl.replace Ast.pipeline_build_logs p_resolved.p_exprs log_path;
+                          if built > 0 then
+                            Builder.parse_json_log_to_vbuildlog log_path
+                          else
+                            out
+                      | None ->
+                          if built > 0 then
+                            Error.make_error FileError
+                              (Printf.sprintf
+                                 "No build log matching output path `%s` was found after build completed."
+                                 out_path)
+                          else
+                            out)
+                   else
+                     out
               | Ok other -> other
               | Error msg -> Error.make_error StructuralError msg)
          | VError _ as err -> err
