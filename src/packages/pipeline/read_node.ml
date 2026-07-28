@@ -494,7 +494,13 @@ let read_fn named_args _env =
                   (match Ast.get_in_memory_node_value_for_cn cn with
                     | Some v when not (is_in_memory_placeholder v) -> v
                     | _ ->
-                        let branch_names = Builder.branch_names_in_latest_log cn.cn_name in
+                        let branch_names =
+                          match cn.cn_p_exprs with
+                          | Some p_exprs when Hashtbl.mem Ast.pipeline_build_logs p_exprs ->
+                              Builder.branch_names_in_latest_log cn.cn_name
+                          | None -> Builder.branch_names_in_latest_log cn.cn_name
+                          | _ -> []
+                        in
                         (match branch_names with
                          | [] ->
                              Error.make_error FileError (Printf.sprintf "read_node: node `%s` has not been built yet. Build the pipeline first with build_pipeline(p), or use read_past_node(p.%s, which_log = ...) to read from a past build log." cn.cn_name cn.cn_name)
@@ -518,7 +524,6 @@ let read_fn named_args _env =
                  | _ ->
                      Builder.wrap_with_diagnostics cn.cn_name cn raw_val)
         end
-    | (VInt _ | VFloat _ | VBool _ | VList _ | VVector _ | VDataFrame _ | VDict _ as v) -> v
     | VString _ ->
         Error.type_error (not_computed_node_msg "String")
     | VSymbol name ->
@@ -697,7 +702,27 @@ let read_fn named_args _env =
       | VError _ -> None
       | v -> Some v);
     Ast.computed_node_resolver := (fun cn ->
-      match Builder.latest_logged_computed_node cn.cn_name with
+      let logged_opt =
+        match cn.cn_p_exprs with
+        | Some p_exprs ->
+            (match Hashtbl.find_opt Ast.pipeline_build_logs p_exprs with
+             | Some log_path ->
+                 (match Builder_logs.read_log log_path with
+                  | Ok entries -> List.assoc_opt cn.cn_name entries
+                  | Error _ -> None)
+             | None ->
+                 (match Builder.latest_logged_computed_node cn.cn_name with
+                  | Some logged_cn ->
+                      let is_lens_modified =
+                        match List.assoc_opt cn.cn_name p_exprs with
+                        | Some { node = Value _; _ } -> true
+                        | _ -> false
+                      in
+                      if is_lens_modified then None else Some logged_cn
+                  | None -> None))
+        | None -> Builder.latest_logged_computed_node cn.cn_name
+      in
+      match logged_opt with
       | Some logged_cn ->
           let cn_class =
             if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class

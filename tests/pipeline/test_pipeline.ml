@@ -189,23 +189,25 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|pipeline { a = 1; a = 2 }|}
     {|Error(NameError: "Duplicate node name `a` in pipeline.")|};
 
-  Printf.printf "\nPhase — Lens set + read_node roundtrip:\n";
+  Printf.printf "\nPhase — Lens set + read_node behavior:\n";
   let lens_env = Packages.init_env () in
   let (v4, _) = eval_string_env
     {|p = pipeline { x = 1 }; p2 = set(p, node_lens("x"), 42); read_node(p2.x)|}
     lens_env in
-  if Ast.Utils.value_to_string v4 = "42" then begin
-    incr pass_count; Printf.printf "  ✓ lens set (existing node) then read_node returns value\n"
+  let result4 = Ast.Utils.value_to_string v4 in
+  if Test_helpers.contains result4 "has not been built yet" then begin
+    incr pass_count; Printf.printf "  ✓ lens set (existing node) marks node as unbuilt for read_node\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lens set (existing node) then read_node\n    Got: %s\n" (Ast.Utils.value_to_string v4)
+    incr fail_count; Printf.printf "  ✗ lens set (existing node) marks node as unbuilt\n    Got: %s\n" result4
   end;
   let (v5, _) = eval_string_env
     {|p = pipeline { x = 1 }; p2 = set(p, node_lens("y"), 99); read_node(p2.y)|}
     lens_env in
-  if Ast.Utils.value_to_string v5 = "99" then begin
-    incr pass_count; Printf.printf "  ✓ lens set (new node) then read_node returns value\n"
+  let result5 = Ast.Utils.value_to_string v5 in
+  if Test_helpers.contains result5 "has not been built yet" then begin
+    incr pass_count; Printf.printf "  ✓ lens set (new node) marks node as unbuilt for read_node\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lens set (new node) then read_node\n    Got: %s\n" (Ast.Utils.value_to_string v5)
+    incr fail_count; Printf.printf "  ✗ lens set (new node) marks node as unbuilt\n    Got: %s\n" result5
   end;
 
   test "get_pipeline_member: dot-access on unbuilt node returns unresolved computed_node"
