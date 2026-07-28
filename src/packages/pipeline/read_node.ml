@@ -711,15 +711,8 @@ let read_fn named_args _env =
                   | Ok entries -> List.assoc_opt cn.cn_name entries
                   | Error _ -> None)
              | None ->
-                 (match Builder.latest_logged_computed_node cn.cn_name with
-                  | Some logged_cn ->
-                      let is_lens_modified =
-                        match List.assoc_opt cn.cn_name p_exprs with
-                        | Some { node = Value _; _ } -> true
-                        | _ -> false
-                      in
-                      if is_lens_modified then None else Some logged_cn
-                  | None -> None))
+                 if cn.cn_class = "<lens_modified>" then None
+                 else Builder.latest_logged_computed_node cn.cn_name)
         | None -> Builder.latest_logged_computed_node cn.cn_name
       in
       match logged_opt with

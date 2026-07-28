@@ -63,6 +63,10 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     {|p = pipeline { a = 1; b = 2 }; l = node_lens("a"); p2 = set(p, l, 10); read_node(p2.a)|}
     {|Error(FileError: "read_node: node `a` has not been built yet. Build the pipeline first with build_pipeline(p), or use read_past_node(p.a, which_log = ...) to read from a past build log.")|};
 
+  test "node_lens set complex expression marks node as unbuilt"
+    {|p = pipeline { a = 1; b = 2 }; l = node_lens("a"); p2 = set(p, l, quote(1 + 2)); read_node(p2.a)|}
+    {|Error(FileError: "read_node: node `a` has not been built yet. Build the pipeline first with build_pipeline(p), or use read_past_node(p.a, which_log = ...) to read from a past build log.")|};
+
   test "node_lens get missing node returns NA"
     {|p = pipeline { a = 1 }; get(p, node_lens("b"))|}
     "NA";

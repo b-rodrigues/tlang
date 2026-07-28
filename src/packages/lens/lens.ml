@@ -327,7 +327,7 @@ let update_pipeline_node p node_name val_v =
     cn_serializer = (match List.assoc_opt node_name p.p_serializers with
                      | Some e -> Nix_unparse.expr_to_string e
                      | None -> "default");
-    cn_class = "Unknown";
+    cn_class = "<lens_modified>";
     cn_dependencies = (match List.assoc_opt node_name p.p_deps with Some d -> d | None -> []);
     cn_p_exprs = Some updated_exprs;
     cn_flake = (match List.assoc_opt node_name p.p_flakes with Some f -> f | None -> None);
