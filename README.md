@@ -316,3 +316,4 @@ We welcome contributions! Please see our [Contributing Guide](docs/contributing.
 T is licensed under the [European Union Public License v1.2](LICENSE).
 
 > **Version codenames** are taken from the French edition of *Dragon Ball* by Glénat.
+
