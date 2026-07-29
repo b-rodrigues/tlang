@@ -543,12 +543,12 @@ let resolve_plot_node input_value =
           "show_plot: only unbuilt R/Python/Julia plot nodes are supported. Pass an R/Python/Julia plot node or a built plot node."
       else
         build_ephemeral_plot_node temp_name un
-  | VComputedNode cn when cn.cn_path <> "<unbuilt>" && supported_plot_class cn.cn_class ->
+  | VComputedNode cn when cn.cn_path <> Ast.unbuilt_path && supported_plot_class cn.cn_class ->
       Ok cn
   | VComputedNode _ ->
       Error
         "show_plot: expected a built plot node, an unbuilt R/Python/Julia plot node, or a `read_node()` result for a built plot."
-  | VNodeResult { v = VComputedNode cn; _ } when cn.cn_path <> "<unbuilt>" && supported_plot_class cn.cn_class ->
+  | VNodeResult { v = VComputedNode cn; _ } when cn.cn_path <> Ast.unbuilt_path && supported_plot_class cn.cn_class ->
       Ok cn
   | VNodeResult { node_name; _ } ->
       computed_node_from_registry node_name

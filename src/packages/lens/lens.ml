@@ -323,7 +323,7 @@ let update_pipeline_node p node_name val_v =
   let placeholder = VComputedNode {
     cn_name = node_name;
     cn_runtime = (match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T");
-    cn_path = "<unbuilt>";
+    cn_path = Ast.unbuilt_path;
     cn_serializer = (match List.assoc_opt node_name p.p_serializers with
                      | Some e -> Nix_unparse.expr_to_string e
                      | None -> "default");

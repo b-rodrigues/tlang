@@ -77,7 +77,7 @@ let rec collect_upstream_warnings ?(visited : string list = []) (dep_names : str
   | dep_name :: rest ->
       let from_this_dep =
         match !latest_logged_computed_node_forward dep_name with
-        | Some dep_cn when dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" ->
+        | Some dep_cn when dep_cn.cn_path <> "" && dep_cn.cn_path <> Ast.unbuilt_path ->
             let dep_dir = Filename.dirname dep_cn.cn_path in
             let dep_warnings_path = Filename.concat dep_dir "warnings" in
             let dep_warnings = parse_node_warnings dep_warnings_path in
@@ -186,7 +186,7 @@ let read_standard_node_value cn =
 
 let read_logged_node_value name cn =
   let noop_build_detected =
-    if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
+    if cn.cn_path <> "" && cn.cn_path <> Ast.unbuilt_path then
       let noop_path = Filename.concat (Filename.dirname cn.cn_path) "NOOPBUILD" in
       Sys.file_exists noop_path
     else
@@ -387,7 +387,7 @@ let matching_pipeline_log_entries ?which_log (p : Ast.pipeline_result) =
 
 let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
   let should_overlay_value = function
-    | VComputedNode cn -> cn.cn_path = "<unbuilt>" || cn.cn_path = ""
+    | VComputedNode cn -> cn.cn_path = Ast.unbuilt_path || cn.cn_path = ""
     | _ -> false
   in
   let overlay_in_memory pairs =

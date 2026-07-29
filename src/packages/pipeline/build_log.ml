@@ -570,7 +570,7 @@ let node_diff_fn named_args _env =
                                    else Builder_read_node.read_standard_node_value logged_cn )
              in
              match log_val with
-             | VString "latest" when cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" && Sys.file_exists cn.cn_path ->
+             | VString "latest" when cn.cn_path <> "" && cn.cn_path <> Ast.unbuilt_path && Sys.file_exists cn.cn_path ->
                  Ok
                    ( "latest",
                      if preserve_native_object cn

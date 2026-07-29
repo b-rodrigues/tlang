@@ -60,7 +60,7 @@ let resolve_error_val = function
        | None -> None)
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
-      if cn.cn_path = "" || cn.cn_path = "<unbuilt>" then
+      if cn.cn_path = "" || cn.cn_path = Ast.unbuilt_path then
         (* No store path exists; must be a hard nix-build failure *)
         (match find_logged_error cn.cn_name with
          | Some (code, message) ->
@@ -101,7 +101,7 @@ let resolve_warning_val = function
            let s = Ast.Utils.format_warning_messages diagnostics.nd_warnings in
            if s <> "" then Some s else None
        | _ ->
-           if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
+           if cn.cn_path <> "" && cn.cn_path <> Ast.unbuilt_path then
              let diag = Builder.logged_node_diagnostics cn.cn_name cn in
              let s = Ast.Utils.format_warning_messages diag.nd_warnings in
              if s <> "" then Some s else None

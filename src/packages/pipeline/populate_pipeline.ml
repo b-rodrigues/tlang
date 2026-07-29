@@ -181,7 +181,38 @@ let register env =
                 if built > 0 || cached > 0 then
                   (match Builder.find_log_for_out_path out_path with
                    | Some log_path ->
-                       Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path
+                       Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path;
+                        (* Update in-memory cache with build-log diagnostics (warnings, errors).
+                           Only nodes that appear in the build log are updated; unmatched nodes
+                           retain whatever diagnostics they already have (populate-phase or prior
+                           build results). This is safe because pipeline node sets are fixed once
+                           created — within the same pipeline expression no nodes "drop out" between
+                           successive populate_pipeline calls. *)
+                        (match Builder_logs.read_log log_path with
+                         | Ok entries ->
+                             let entry_tbl = Hashtbl.create (List.length entries) in
+                             List.iter (fun (n, cn) -> Hashtbl.replace entry_tbl n cn) entries;
+                             List.iter (fun (name, v) ->
+                               match v, Hashtbl.find_opt entry_tbl name with
+                               | VComputedNode cn, Some logged_cn
+                                   when logged_cn.cn_path <> "" && logged_cn.cn_path <> Ast.unbuilt_path ->
+                                     if logged_cn.cn_name <> name then
+                                       Printf.eprintf "[pipeline] warning: log entry name '%s' != node name '%s' (skipping diagnostics update)\n" logged_cn.cn_name name
+                                      else (
+                                      let resolved = { cn with
+                                        cn_path = logged_cn.cn_path;
+                                        cn_class = logged_cn.cn_class;
+                                        cn_runtime = logged_cn.cn_runtime;
+                                        cn_serializer = logged_cn.cn_serializer;
+                                      } in
+                                      let diag = Builder.logged_node_diagnostics resolved.cn_name resolved in
+                                      Ast.set_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name
+                                        (VNodeResult { v; node_name = name; diagnostics = diag })
+                                      )
+                               | _ -> ()
+                             ) p.p_nodes
+                         | Error e ->
+                             Printf.eprintf "[pipeline] warning: failed to read build log (%s) — in-memory diagnostics may be stale\n" e)
                    | None -> ())
               );
                out
