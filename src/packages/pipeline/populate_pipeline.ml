@@ -198,16 +198,17 @@ let register env =
                                    when logged_cn.cn_path <> "" && logged_cn.cn_path <> Ast.unbuilt_path ->
                                      if logged_cn.cn_name <> name then
                                        Printf.eprintf "[pipeline] warning: log entry name '%s' != node name '%s' (skipping diagnostics update)\n" logged_cn.cn_name name
-                                     else
-                                     let resolved = { cn with
-                                       cn_path = logged_cn.cn_path;
-                                       cn_class = logged_cn.cn_class;
-                                       cn_runtime = logged_cn.cn_runtime;
-                                       cn_serializer = logged_cn.cn_serializer;
-                                     } in
-                                     let diag = Builder.logged_node_diagnostics resolved.cn_name resolved in
-                                     Ast.set_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name
-                                       (VNodeResult { v; node_name = name; diagnostics = diag })
+                                      else (
+                                      let resolved = { cn with
+                                        cn_path = logged_cn.cn_path;
+                                        cn_class = logged_cn.cn_class;
+                                        cn_runtime = logged_cn.cn_runtime;
+                                        cn_serializer = logged_cn.cn_serializer;
+                                      } in
+                                      let diag = Builder.logged_node_diagnostics resolved.cn_name resolved in
+                                      Ast.set_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name
+                                        (VNodeResult { v; node_name = name; diagnostics = diag })
+                                      )
                                | _ -> ()
                              ) p.p_nodes
                          | Error e ->
