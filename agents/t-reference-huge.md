@@ -10015,7 +10015,7 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.54.2] - 2026-07-27
+## [0.54.2] - 2026-07-29
 
 ### `testcraft` — Testing Package
 
