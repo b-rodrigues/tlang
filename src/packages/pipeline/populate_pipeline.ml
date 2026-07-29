@@ -181,7 +181,26 @@ let register env =
                 if built > 0 || cached > 0 then
                   (match Builder.find_log_for_out_path out_path with
                    | Some log_path ->
-                       Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path
+                       Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path;
+                       (* Update in-memory cache with build-log diagnostics (warnings, errors). *)
+                       (match Builder_logs.read_log log_path with
+                        | Ok entries ->
+                            List.iter (fun (name, v) ->
+                              match v, List.assoc_opt name entries with
+                              | VComputedNode cn, Some logged_cn
+                                  when logged_cn.cn_path <> "" && logged_cn.cn_path <> "<unbuilt>" ->
+                                  let resolved = { cn with
+                                    cn_path = logged_cn.cn_path;
+                                    cn_class = logged_cn.cn_class;
+                                    cn_runtime = logged_cn.cn_runtime;
+                                    cn_serializer = logged_cn.cn_serializer;
+                                  } in
+                                  let diag = Builder.logged_node_diagnostics resolved.cn_name resolved in
+                                  Ast.set_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:name
+                                    (VNodeResult { v; node_name = name; diagnostics = diag })
+                              | _ -> ()
+                            ) p.p_nodes
+                        | _ -> ())
                    | None -> ())
               );
                out
