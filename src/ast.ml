@@ -400,6 +400,9 @@ and typ =
 
 type program = stmt list
 
+(** Sentinel path used when a computed node has not been built yet. *)
+let unbuilt_path = "<unbuilt>"
+
 (** Located constructors and accessors *)
 let mk_expr ?loc node = { node; loc }
 let mk_stmt ?loc node = { node; loc }

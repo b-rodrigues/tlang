@@ -145,7 +145,7 @@ let rec render_tree_entry prefix is_last (label, value) =
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
       let lines =
-        let path_str = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then "" else "\npath: " ^ cn.cn_path in
+        let path_str = if cn.cn_path = Ast.unbuilt_path || cn.cn_path = "" then "" else "\npath: " ^ cn.cn_path in
         Printf.sprintf "computed_node<%s>%s\nserializer: %s\nclass: %s"
           cn.cn_runtime path_str cn.cn_serializer cn.cn_class
       in
@@ -315,7 +315,7 @@ let rec pretty_print_value v =
         s
   | VComputedNode cn ->
       let cn = !Ast.computed_node_resolver cn in
-      let path_str = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then "" else "\npath: " ^ cn.cn_path in
+      let path_str = if cn.cn_path = Ast.unbuilt_path || cn.cn_path = "" then "" else "\npath: " ^ cn.cn_path in
       Printf.sprintf "computed_node<%s>%s\nserializer: %s\nclass: %s\n"
         cn.cn_runtime path_str cn.cn_serializer cn.cn_class
   | VBuildLog bl ->

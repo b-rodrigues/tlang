@@ -1670,7 +1670,7 @@ p_cross = pipeline {
 p.t_step|}
     (Packages.init_env ()) in
   (match v_t_deferred with
-  | Ast.VComputedNode cn when cn.cn_path = "<unbuilt>" ->
+  | Ast.VComputedNode cn when cn.cn_path = Ast.unbuilt_path ->
       incr pass_count; Printf.printf "  ✓ T node is deferred when its sibling node is <unbuilt>\n"
   | other ->
       incr fail_count; Printf.printf "  ✗ T node should be deferred when sibling is <unbuilt>\n    Got: %s\n"
@@ -1702,7 +1702,7 @@ p.t_step|}
     (match Eval.rerun_pipeline (ref (Packages.init_env ())) p with
     | Ast.VPipeline rerun ->
       (match List.assoc_opt "t_step" rerun.p_nodes with
-      | Some (Ast.VComputedNode cn) when cn.cn_path = "<unbuilt>" ->
+      | Some (Ast.VComputedNode cn) when cn.cn_path = Ast.unbuilt_path ->
           incr pass_count; Printf.printf "  ✓ T node stays deferred after rerun when sibling is <unbuilt>\n"
       | Some other ->
           incr fail_count; Printf.printf "  ✗ T node should stay deferred after rerun\n    Got: %s\n"

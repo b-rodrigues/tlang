@@ -285,7 +285,7 @@ let register env =
       List.iter (fun dep_name ->
         match Builder.latest_logged_computed_node dep_name with
         | Some dep_cn ->
-            if dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" then (
+            if dep_cn.cn_path <> "" && dep_cn.cn_path <> Ast.unbuilt_path then (
               let store_dir = Filename.dirname dep_cn.cn_path in
               resolved_deps := (dep_name, store_dir, dep_cn.cn_serializer) :: !resolved_deps
             )
@@ -483,14 +483,14 @@ let read_fn named_args _env =
           let resolved_cn = !Ast.computed_node_resolver cn in
           let is_in_memory_placeholder v =
             match v with
-            | VNodeResult { v = VComputedNode inner; _ } -> inner.cn_path = "" || inner.cn_path = "<unbuilt>"
+            | VNodeResult { v = VComputedNode inner; _ } -> inner.cn_path = "" || inner.cn_path = Ast.unbuilt_path
             | _ -> false
           in
           match Ast.get_in_memory_node_value_for_cn cn with
           | Some v when not (is_in_memory_placeholder v) -> v
           | _ ->
             (match resolved_cn with
-              | cn when cn.cn_path = "<unbuilt>" ->
+              | cn when cn.cn_path = Ast.unbuilt_path ->
                   (match Ast.get_in_memory_node_value_for_cn cn with
                     | Some v when not (is_in_memory_placeholder v) -> v
                     | _ ->
@@ -722,7 +722,7 @@ let read_fn named_args _env =
           in
           let cn_path =
             if logged_cn.cn_path = "" then ""
-            else if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
+            else if cn.cn_path = Ast.unbuilt_path || cn.cn_path = ""
             then logged_cn.cn_path
             else cn.cn_path
           in
