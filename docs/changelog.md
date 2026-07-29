@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.54.2] - 2026-07-27
+## [0.54.2] - 2026-07-29
 
 ### `testcraft` — Testing Package
 
