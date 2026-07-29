@@ -196,9 +196,10 @@ let register env =
                                match v, Hashtbl.find_opt entry_tbl name with
                                | VComputedNode cn, Some logged_cn
                                    when logged_cn.cn_path <> "" && logged_cn.cn_path <> Ast.unbuilt_path ->
-                                   (* name and logged_cn.cn_name are identical by construction —
-                                      both originate from the same node name in the pipeline JSON. *)
-                                   let resolved = { cn with
+                                    (* name and logged_cn.cn_name are identical by construction —
+                                       both originate from the same node name in the pipeline JSON. *)
+                                    assert (logged_cn.cn_name = name);
+                                    let resolved = { cn with
                                      cn_path = logged_cn.cn_path;
                                      cn_class = logged_cn.cn_class;
                                      cn_runtime = logged_cn.cn_runtime;
