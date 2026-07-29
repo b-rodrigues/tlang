@@ -312,6 +312,34 @@ let filter_lens_get_impl p ~eval_call args env =
         (Utils.type_name other))
   | _ -> Error.arity_error_named "filter_lens.get" 1 (List.length args)
 
+let update_pipeline_node p node_name val_v =
+  let val_expr = match val_v with VExpr e -> e | _ -> mk_expr (Value val_v) in
+  let updated_exprs =
+    if List.mem_assoc node_name p.p_exprs then
+      List.map (fun (n, e) -> if n = node_name then (n, val_expr) else (n, e)) p.p_exprs
+    else
+      p.p_exprs @ [(node_name, val_expr)]
+  in
+  let placeholder = VComputedNode {
+    cn_name = node_name;
+    cn_runtime = (match List.assoc_opt node_name p.p_runtimes with Some r -> r | None -> "T");
+    cn_path = "<unbuilt>";
+    cn_serializer = (match List.assoc_opt node_name p.p_serializers with
+                     | Some e -> Nix_unparse.expr_to_string e
+                     | None -> "default");
+    cn_class = "<lens_modified>";
+    cn_dependencies = (match List.assoc_opt node_name p.p_deps with Some d -> d | None -> []);
+    cn_p_exprs = Some updated_exprs;
+    cn_flake = (match List.assoc_opt node_name p.p_flakes with Some f -> f | None -> None);
+  } in
+  let updated_nodes =
+    if List.mem_assoc node_name p.p_nodes then
+      List.map (fun (n, orig_v) -> if n = node_name then (n, placeholder) else (n, orig_v)) p.p_nodes
+    else
+      p.p_nodes @ [(node_name, placeholder)]
+  in
+  { p with p_nodes = updated_nodes; p_exprs = updated_exprs }
+
 let filter_lens_set_impl p ~eval_call args env =
   let eval_pred v =
     match eval_call env p [(None, mk_expr (Value v))] with
@@ -478,27 +506,23 @@ let filter_lens_set_impl p ~eval_call args env =
                   else
                     let repl_arr = Array.of_list (List.map snd repl_items) in
                     let repl_idx = ref 0 in
+                    let updated_pipe = ref pipe in
                     List.iteri (fun i (name, _v) ->
-                      if mask.(i) then
+                      if mask.(i) then begin
                         let new_v = repl_arr.(!repl_idx) in
                         incr repl_idx;
-                        Ast.set_in_memory_node_value ~p_exprs:pipe.p_exprs ~node_name:name
-                          (Ast.VNodeResult { v = new_v; node_name = name; diagnostics = Ast.Utils.empty_node_diagnostics })
+                        updated_pipe := update_pipeline_node !updated_pipe name new_v
+                      end
                     ) pipe.p_nodes;
-                    VPipeline pipe
+                    VPipeline !updated_pipe
              | val_v ->
                  (* scalar broadcast *)
-                  List.iteri (fun i (name, _v) ->
-                    if mask.(i) then
-                      Ast.set_in_memory_node_value ~p_exprs:pipe.p_exprs ~node_name:name
-                        (Ast.VNodeResult { v = val_v; node_name = name; diagnostics = Ast.Utils.empty_node_diagnostics })
-                  ) pipe.p_nodes;
-                  (* Returns the same VPipeline record — the observable change is in the
-                     global in_memory_node_values cache, not in pipe's fields. Callers
-                     that compare p == p2 structurally will get true. This is correct
-                     under the lazy model: p_nodes holds structure, the cache holds
-                     live values, and pipeline_get_node_value reconciles them. *)
-                  VPipeline pipe))
+                 let updated_pipe = ref pipe in
+                 List.iteri (fun i (name, _v) ->
+                   if mask.(i) then
+                     updated_pipe := update_pipeline_node !updated_pipe name val_v
+                 ) pipe.p_nodes;
+                 VPipeline !updated_pipe))
   | [(_, other); _] ->
       Error.type_error (Printf.sprintf "filter_lens set expects a Collection, got %s"
         (Utils.type_name other))
@@ -637,18 +661,7 @@ let rec apply_lens_set ~eval_call lens data val_v env =
   | RowLens i -> row_lens_set_impl i ~eval_call [(None, data); (None, val_v)] env
     | NodeLens node_name ->
        (match data with
-        | VPipeline p ->
-            Ast.set_in_memory_node_value ~p_exprs:p.p_exprs ~node_name
-              (Ast.VNodeResult { v = val_v; node_name; diagnostics = Ast.Utils.empty_node_diagnostics });
-            if List.mem_assoc node_name p.p_nodes then
-              VPipeline p
-            else
-              let placeholder = VComputedNode {
-                cn_name = node_name; cn_runtime = "T"; cn_path = "<unbuilt>";
-                cn_serializer = "default"; cn_class = "Unknown";
-                cn_dependencies = []; cn_p_exprs = Some p.p_exprs; cn_flake = None;
-              } in
-              VPipeline { p with p_nodes = p.p_nodes @ [(node_name, placeholder)] }
+        | VPipeline p -> VPipeline (update_pipeline_node p node_name val_v)
         | _ -> Error.type_error "node_lens set expects a Pipeline")
   | EnvVarLens (node_name, var_name) ->
       (match data with

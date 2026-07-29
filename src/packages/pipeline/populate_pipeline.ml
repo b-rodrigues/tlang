@@ -128,42 +128,63 @@ let register env =
           | Some _ -> pipeline_name_explicit
           | None -> resolve_pipeline_name env p
         in
-        (match Builder.populate_pipeline ~build:final_build ?verbose ?pipeline_name ?nix_options:final_nix_options p with
-         | Ok out ->
-             if final_build && (match final_nix_options with Some opts -> opts.dry_run <> Some true | None -> true) then (
-               let built =
-                 match out with
-                 | VDict pairs ->
-                     (match List.assoc_opt "built" pairs with
-                      | Some (VInt n) -> n
-                      | _ -> 1)
-                 | _ -> 1
-               in
-               let soft_failed =
-                 match out with
-                 | VDict pairs ->
-                     (match List.assoc_opt "soft_failed" pairs with
-                      | Some (VList items) -> List.length items
-                      | _ -> 0)
-                 | _ -> 0
-               in
-               let var_name = match pipeline_name with Some n -> n | None -> "p" in
-               let first_node =
-                 match p.p_nodes with
-                 | (name, _) :: _ -> name
-                 | [] -> "my_node"
-               in
-               if built > 0 then
-                 if soft_failed > 0 then
-                   Printf.eprintf "\nPipeline built successfully but with errors\n"
-                 else
-                   Printf.eprintf "\nPipeline successfully built!\n";
-               Printf.eprintf "  - Pipeline saved in variable '%s'\n" var_name;
-               Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
-               Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
-               Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name
-             );
-              out
+         (match Builder.populate_pipeline ~build:final_build ?verbose ?pipeline_name ?nix_options:final_nix_options p with
+          | Ok out ->
+              if final_build && (match final_nix_options with Some opts -> opts.dry_run <> Some true | None -> true) then (
+                let built =
+                  match out with
+                  | VDict pairs ->
+                      (match List.assoc_opt "built" pairs with
+                       | Some (VInt n) -> n
+                       | _ -> 1)
+                  | _ -> 1
+                in
+                let cached =
+                  match out with
+                  | VDict pairs ->
+                      (match List.assoc_opt "cached" pairs with
+                       | Some (VInt n) -> n
+                       | _ -> 0)
+                  | _ -> 0
+                in
+                let out_path =
+                  match out with
+                  | VDict pairs ->
+                      (match List.assoc_opt "out_path" pairs with
+                       | Some (VString s) -> s
+                       | _ -> "")
+                  | _ -> ""
+                in
+                let soft_failed =
+                  match out with
+                  | VDict pairs ->
+                      (match List.assoc_opt "soft_failed" pairs with
+                       | Some (VList items) -> List.length items
+                       | _ -> 0)
+                  | _ -> 0
+                in
+                let var_name = match pipeline_name with Some n -> n | None -> "p" in
+                let first_node =
+                  match p.p_nodes with
+                  | (name, _) :: _ -> name
+                  | [] -> "my_node"
+                in
+                if built > 0 then
+                  if soft_failed > 0 then
+                    Printf.eprintf "\nPipeline built successfully but with errors\n"
+                  else
+                    Printf.eprintf "\nPipeline successfully built!\n";
+                Printf.eprintf "  - Pipeline saved in variable '%s'\n" var_name;
+                Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
+                Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
+                Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name;
+                if built > 0 || cached > 0 then
+                  (match Builder.find_log_for_out_path out_path with
+                   | Some log_path ->
+                       Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path
+                   | None -> ())
+              );
+               out
           | Error msg -> Error.make_error StructuralError msg))
        | _ ->
           Error.type_error "Function `populate_pipeline` expects a Pipeline."

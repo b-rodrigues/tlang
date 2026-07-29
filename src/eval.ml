@@ -2700,7 +2700,7 @@ and get_pipeline_member p field =
                   { cn with cn_path; cn_class; cn_runtime; cn_serializer }
               | None -> !Ast.computed_node_resolver cn)
          | _ -> !Ast.computed_node_resolver cn)
-    | None -> !Ast.computed_node_resolver cn
+    | None -> cn
   in
   match List.assoc_opt field p.p_nodes with
   | Some (VComputedNode cn) -> Some (VComputedNode (resolved_cn p cn))
