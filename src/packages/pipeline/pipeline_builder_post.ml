@@ -138,32 +138,32 @@ let register_build_logs ~p_exprs_keys ~p_nodes ~out_path =
       List.iter (fun exprs ->
         Hashtbl.replace Ast.pipeline_build_logs exprs log_path
       ) p_exprs_keys;
-      List.iter (fun exprs ->
-        match Builder_logs.read_log log_path with
-        | Ok entries ->
-            let entry_tbl = Hashtbl.create (List.length entries) in
-            List.iter (fun (n, cn) -> Hashtbl.replace entry_tbl n cn) entries;
-            List.iter (fun (name, v) ->
-              match v, Hashtbl.find_opt entry_tbl name with
-              | VComputedNode cn, Some logged_cn
-                  when logged_cn.cn_path <> "" && logged_cn.cn_path <> Ast.unbuilt_path ->
-                    if logged_cn.cn_name <> name then
-                      Printf.eprintf "[pipeline] warning: log entry name '%s' != node name '%s' (skipping diagnostics update)\n" logged_cn.cn_name name
-                    else (
-                      let resolved = { cn with
-                        cn_path = logged_cn.cn_path;
-                        cn_class = logged_cn.cn_class;
-                        cn_runtime = logged_cn.cn_runtime;
-                        cn_serializer = logged_cn.cn_serializer;
-                      } in
-                      let diag = Builder.logged_node_diagnostics resolved.cn_name resolved in
-                      Ast.set_in_memory_node_value ~p_exprs:exprs ~node_name:name
-                        (VNodeResult { v; node_name = name; diagnostics = diag })
-                    )
-              | _ -> ()
-            ) p_nodes
-        | Error e ->
-            Printf.eprintf "[pipeline] warning: failed to read build log (%s) — in-memory diagnostics may be stale\n" e
-      ) p_exprs_keys;
+      (match Builder_logs.read_log log_path with
+       | Ok entries ->
+           let entry_tbl = Hashtbl.create (List.length entries) in
+           List.iter (fun (n, cn) -> Hashtbl.replace entry_tbl n cn) entries;
+           List.iter (fun exprs ->
+             List.iter (fun (name, v) ->
+               match v, Hashtbl.find_opt entry_tbl name with
+               | VComputedNode cn, Some logged_cn
+                   when logged_cn.cn_path <> "" && logged_cn.cn_path <> Ast.unbuilt_path ->
+                     if logged_cn.cn_name <> name then
+                       Printf.eprintf "[pipeline] warning: log entry name '%s' != node name '%s' (skipping diagnostics update)\n" logged_cn.cn_name name
+                     else (
+                       let resolved = { cn with
+                         cn_path = logged_cn.cn_path;
+                         cn_class = logged_cn.cn_class;
+                         cn_runtime = logged_cn.cn_runtime;
+                         cn_serializer = logged_cn.cn_serializer;
+                       } in
+                       let diag = Builder.logged_node_diagnostics resolved.cn_name resolved in
+                       Ast.set_in_memory_node_value ~p_exprs:exprs ~node_name:name
+                         (VNodeResult { v; node_name = name; diagnostics = diag })
+                     )
+               | _ -> ()
+             ) p_nodes
+           ) p_exprs_keys
+       | Error e ->
+           Printf.eprintf "[pipeline] warning: failed to read build log (%s) — in-memory diagnostics may be stale\n" e);
       Some log_path
   | None -> None

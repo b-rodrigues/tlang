@@ -70,8 +70,8 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
                       ~p_exprs_keys:[p.p_exprs; p_resolved.p_exprs]
                       ~p_nodes:p_resolved.p_nodes
                       ~out_path:stats.out_path with
-                    | Some _ when stats.built > 0 ->
-                        Builder.parse_json_log_to_vbuildlog stats.out_path
+                    | Some log_path when stats.built > 0 ->
+                        Builder.parse_json_log_to_vbuildlog log_path
                     | Some _ -> out
                     | None when stats.built > 0 ->
                         Error.make_error FileError
