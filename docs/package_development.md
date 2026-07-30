@@ -123,14 +123,113 @@ Example `tests/test-mean.t`:
 ```t
 import "src/stats.t"
 
-assert(stats.mean([1, 2, 3]) == 2.0)
-assert(stats.mean([-1, -1]) == -1.0)
+-- Using specialized expect_* functions provides rich diagnostic diffs when tests fail:
+assert(expect_equal(stats.mean([1, 2, 3]), 2.0))
+assert(expect_equal(stats.mean([-1, -1]), -1.0))
 ```
 
 Run all tests with:
 
 ```bash
 $ t test
+
+# Structured JSON output for agents and automation:
+$ t test --json
+
+# JUnit XML output for CI/CD:
+$ t test --format junit
+
+# Run only specific tests:
+$ t test --only "stats"      # run tests matching "stats"
+$ t test --not "slow"        # skip tests matching "slow"
+
+# Stop on first failure:
+$ t test --failfast
+
+# List discovered tests without running:
+$ t test --list
+
+# Mark tests exceeding 30s as failed:
+$ t test --timeout 30
+
+# Generate coverage summary (requires instrumented build):
+$ t test --coverage
+```
+
+Create `tests/.tignore` to automatically exclude test files (one pattern per line):
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
+```
+
+### Test Fixtures
+
+Share expensive setup (like loading large datasets) across tests using `chain()`:
+
+```t
+fixture = pipeline {
+  data = node(command = read_csv("data/large.csv"), serializer = ^csv)
+}
+test_a = pipeline { ... }
+test_b = pipeline { ... }
+build_pipeline(chain(fixture, parallel(test_a, test_b)))
+```
+
+Each node runs in an isolated Nix sandbox. The fixture's output is available to downstream test nodes via the dependency DAG — no redundant `read_csv()` wrapper needed. See the [API reference](api-reference.md#test-fixtures) for a full example.
+
+In the REPL, `t_test()` returns a DataFrame with test results:
+
+```t
+results = t_test()
+results |> filter($status == "failed")
+
+-- Filter from the REPL
+results = t_test(only = ["arithmetic"])
+results = t_test(not = ["slow"])
+```
+
+### Why Use `expect_*` Functions with `assert()`?
+
+While a plain boolean check like `assert(colnames(df) == ["a", "b", "c"])` works, it only evaluates to `true` or `false`. When it fails, `assert` produces a generic error (`AssertionError: expression evaluated to false`), providing no detail on what differed.
+
+By contrast, `expect_*` functions (such as `expect_equal`, `expect_colnames`, `expect_nrow`, `expect_type`, etc.) perform deep structural comparisons and provide rich diagnostic diffs:
+
+```t
+-- Plain assert: fails with unhelpful generic "expression evaluated to false"
+assert(colnames(df) == ["a", "b", "c"])
+
+-- Recommended: produces exact structural diff on failure (e.g. expected "b" at index 2, got "x")
+assert(expect_colnames(df, ["a", "b", "c"]))
+assert(expect_equal(colnames(df), ["a", "b", "c"]))
+```
+
+`expect_*` functions also return first-class `Expect` values (`Expect_pass`, `Expect_stop msg`, `Expect_hold msg`) that allow soft failure, NA handling, or programmatic inspection before passing to `assert()`.
+
+### Skipping Pipeline Tests Conditionally
+
+Since pipeline nodes are compiled and executed via Nix, tests that build or run pipelines might fail or block in sandboxed environments or systems lacking Nix. You can conditionally skip the execution of specific pipeline nodes using the `noop` parameter with any T expression.
+
+Because `noop` accepts T expressions (evaluated at runtime), you can pass conditions referencing environment variables:
+
+```t
+import my_package
+
+p = pipeline {
+  heavy_node = node(
+    command = <{ run_heavy_nix_job() }>,
+    # Skip execution if not running in CI
+    noop = (env_var("CI") == "")
+  )
+}
+
+res = build_pipeline(p)
+
+# Because errors are first-class values in T, skipped nodes propagate VError values cleanly.
+# You can check if the node was skipped using expect_error or custom checks:
+assert(expect_error(read_node(res.heavy_node), class = "TypeError", message = "was skipped"))
 ```
 
 ## 5. Documentation

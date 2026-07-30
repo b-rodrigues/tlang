@@ -135,6 +135,8 @@ update lenses</li>
 introspection</li>
 <li><a href="#explain-package">Explain Package</a> — Introspection and
 debugging tools</li>
+<li><a href="#testcraft-package">Testcraft Package</a> — Unit-testing
+primitives</li>
 </ul>
 <hr />
 <p>For generated one-page documentation for every exported function,
@@ -3508,6 +3510,206 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb110-1"><a href
 <span id="cb110-9"><a href="#cb110-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;confidence&quot;</span><span class="ex">:</span> <span class="st">&quot;high&quot;</span></span>
 <span id="cb110-10"><a href="#cb110-10" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
 <hr />
+<h3 id="t_test"><code>t_test()</code></h3>
+<p>REPL-callable version of <code>t test</code>. Runs the test suite and
+returns a DataFrame with structured results for programmatic
+inspection.</p>
+<p><strong>Returns:</strong> <code>DataFrame</code> — columns:
+<code>file</code> (String), <code>status</code> (“passed” or “failed”),
+<code>duration_ms</code> (Float), <code>error</code> (String or NA)</p>
+<p>Note: <code>duration_ms</code> is a Float in the REPL DataFrame, but
+an integer in CLI <code>--json</code> output. Both represent
+milliseconds.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |&gt; filter($status == &quot;failed&quot;)
+nrow(failed)  -- 0 if all tests passed
+
+-- Count passed tests
+results |&gt; filter($status == &quot;passed&quot;) |&gt; nrow()
+
+-- Run only specific tests
+results = t_test(only = [&quot;arithmetic&quot;, &quot;strings&quot;])
+
+-- Exclude slow tests
+results = t_test(not = [&quot;slow&quot;])</code></pre>
+<hr />
+<h3 id="cli-t-test">CLI: <code>t test</code></h3>
+<p>Runs the test suite for the current project. Discovers test files
+(<code>test-*.t</code>, <code>test_*.t</code>, or <code>*_test.t</code>)
+recursively in the <code>tests/</code> directory.</p>
+<div class="sourceCode" id="cb112"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb112-1"><a href="#cb112-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test                        <span class="co"># human-readable output</span></span>
+<span id="cb112-2"><a href="#cb112-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span>                 <span class="co"># structured JSON output (no preamble)</span></span>
+<span id="cb112-3"><a href="#cb112-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--format</span> junit         <span class="co"># JUnit XML output for CI</span></span>
+<span id="cb112-4"><a href="#cb112-4" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span> tests/          <span class="co"># specify project directory</span></span>
+<span id="cb112-5"><a href="#cb112-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span>         <span class="co"># run only tests matching &quot;stats&quot;</span></span>
+<span id="cb112-6"><a href="#cb112-6" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--not</span> <span class="st">&quot;slow&quot;</span>           <span class="co"># skip tests matching &quot;slow&quot;</span></span>
+<span id="cb112-7"><a href="#cb112-7" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span> <span class="at">--not</span> <span class="st">&quot;anova&quot;</span>  <span class="co"># combine filters (OR semantics for --only)</span></span>
+<span id="cb112-8"><a href="#cb112-8" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--failfast</span>             <span class="co"># stop on first failure</span></span>
+<span id="cb112-9"><a href="#cb112-9" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--list</span>                 <span class="co"># list discovered tests without running</span></span>
+<span id="cb112-10"><a href="#cb112-10" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--timeout</span> 30           <span class="co"># mark tests exceeding 30s as failed</span></span>
+<span id="cb112-11"><a href="#cb112-11" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--coverage</span>             <span class="co"># generate Bisect_ppx coverage summary after tests</span></span></code></pre></div>
+<p><strong>Output formats:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>(default)</td>
+<td>Human-readable output with ✓/✗ indicators</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>Structured JSON output (shorthand for
+<code>--format json</code>)</td>
+</tr>
+<tr>
+<td><code>--format json</code></td>
+<td>Structured JSON output</td>
+</tr>
+<tr>
+<td><code>--format junit</code></td>
+<td>JUnit XML output for CI/CD pipelines</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Filtering flags:</strong></p>
+<table>
+<colgroup>
+<col style="width: 31%" />
+<col style="width: 68%" />
+</colgroup>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--only PATTERN</code></td>
+<td>Run only tests whose path contains PATTERN (case-insensitive).
+Multiple <code>--only</code> flags use OR semantics.</td>
+</tr>
+<tr>
+<td><code>--not PATTERN</code></td>
+<td>Skip tests whose path contains PATTERN (case-insensitive). Multiple
+<code>--not</code> flags use OR semantics.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Execution flags:</strong></p>
+<table>
+<colgroup>
+<col style="width: 31%" />
+<col style="width: 68%" />
+</colgroup>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--failfast</code></td>
+<td>Stop running tests after the first failure.</td>
+</tr>
+<tr>
+<td><code>--list</code></td>
+<td>List discovered test files without running them. Respects
+<code>--only</code> and <code>--not</code> filters.</td>
+</tr>
+<tr>
+<td><code>--timeout SECONDS</code></td>
+<td>Mark any test exceeding SECONDS as failed. Does not interrupt
+execution — the test runs to completion but is reported as a timeout
+failure.</td>
+</tr>
+<tr>
+<td><code>--coverage</code></td>
+<td>Clean old <code>.coverage</code> files, run tests, then generate a
+Bisect_ppx coverage summary. Requires a coverage-instrumented build
+(<code>nix build .#t-coverage</code> or
+<code>dune build --instrument-with bisect_ppx</code>).</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>.tignore</code> support:</strong></p>
+<p>Create <code>tests/.tignore</code> to automatically exclude test
+files. One pattern per line, <code>#</code> comments, blank lines
+ignored. Patterns match against the relative path from
+<code>tests/</code>. Directory patterns (e.g. <code>legacy/</code>)
+match at any depth, similar to <code>.gitignore</code> semantics.</p>
+<pre><code># tests/.tignore
+slow_integration.t      # exact filename
+*_benchmark.t           # glob pattern
+legacy/                 # directory at any depth</code></pre>
+<p><strong>JUnit XML schema (when using
+<code>--format junit</code>):</strong></p>
+<div class="sourceCode" id="cb114"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb114-1"><a href="#cb114-1" aria-hidden="true" tabindex="-1"></a><span class="fu">&lt;?xml</span> <span class="ot">version=</span><span class="st">&quot;1.0&quot;</span> <span class="ot">encoding=</span><span class="st">&quot;UTF-8&quot;</span><span class="fu">?&gt;</span></span>
+<span id="cb114-2"><a href="#cb114-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">testsuites</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
+<span id="cb114-3"><a href="#cb114-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">testsuite</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
+<span id="cb114-4"><a href="#cb114-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_pass.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.050&quot;</span> /&gt;</span>
+<span id="cb114-5"><a href="#cb114-5" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_fail.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.073&quot;</span>&gt;</span>
+<span id="cb114-6"><a href="#cb114-6" aria-hidden="true" tabindex="-1"></a>      &lt;<span class="kw">failure</span> <span class="ot">message=</span><span class="st">&quot;Assertion failed&quot;</span> <span class="ot">type=</span><span class="st">&quot;TestFailure&quot;</span>&gt;</span>
+<span id="cb114-7"><a href="#cb114-7" aria-hidden="true" tabindex="-1"></a>        AssertionError: test failed</span>
+<span id="cb114-8"><a href="#cb114-8" aria-hidden="true" tabindex="-1"></a>      &lt;/<span class="kw">failure</span>&gt;</span>
+<span id="cb114-9"><a href="#cb114-9" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">testcase</span>&gt;</span>
+<span id="cb114-10"><a href="#cb114-10" aria-hidden="true" tabindex="-1"></a>  &lt;/<span class="kw">testsuite</span>&gt;</span>
+<span id="cb114-11"><a href="#cb114-11" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">testsuites</span>&gt;</span></code></pre></div>
+<h3 id="test-fixtures">Test Fixtures</h3>
+<p>T doesn’t have a dedicated
+<code>before_each</code>/<code>after_each</code> fixture mechanism
+because pipelines already provide the necessary isolation and
+composition. Use <code>chain()</code> to share a setup pipeline across
+test nodes:</p>
+<pre class="t"><code>-- tests/test_with_fixture.t
+fixture = pipeline {
+  data = node(
+    command = read_csv(&quot;tests/data/mtcars.csv&quot;),
+    serializer = ^csv
+  )
+}
+
+test_filter = pipeline {
+  check = node(
+    command = {
+      result = data |&gt; filter($mpg &gt; 20)
+      assert(nrow(result) &gt; 0)
+    },
+    serializer = ^csv
+  )
+}
+
+test_mutate = pipeline {
+  check = node(
+    command = {
+      result = data |&gt; mutate($kpg = $mpg * 1.609)
+      assert(&quot;kpg&quot; in colnames(result))
+    },
+    serializer = ^csv
+  )
+}
+
+-- Wire fixture output into each test
+combined = chain(fixture, parallel(test_filter, test_mutate))
+build_pipeline(combined)</code></pre>
+<p>Each node runs in an isolated Nix sandbox. The <code>fixture</code>
+pipeline’s <code>data</code> node builds a dataframe (via
+<code>read_csv</code>), serializes it to CSV for cross-sandbox transfer,
+and downstream test nodes receive it as a dataframe they can pipe
+directly — no redundant <code>read_csv()</code> wrapper needed.</p>
+<hr />
 <h2 id="explain-package">Explain Package</h2>
 <p>Introspection and LLM tooling.</p>
 <h3 id="explainvalue"><code>explain(value)</code></h3>
@@ -3601,6 +3803,426 @@ id="intent_getintent-field"><code>intent_get(intent, field)</code></h3>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>i = intent { description: &quot;Customer analysis&quot; }
 intent_get(i, &quot;description&quot;)  -- &quot;Customer analysis&quot;</code></pre>
+<hr />
+<h2 id="testcraft-package">Testcraft Package</h2>
+<p>Purpose: unit-testing primitives, inspired by R’s
+<code>testthat</code>. <code>expect_*</code> comparisons return an
+<code>Expect</code> value (<code>Expect_pass</code>,
+<code>Expect_stop msg</code>, or <code>Expect_hold msg</code>) rather
+than raising directly, so results can be inspected, combined, or passed
+straight to <code>assert()</code>.</p>
+<h3 id="why-assertexpect_...-instead-of-plain-assertcondition">Why
+<code>assert(expect_*(...))</code> instead of plain
+<code>assert(condition)</code>?</h3>
+<p>While a raw boolean expression like
+<code>assert(colnames(df) == ["a", "b", "c"])</code> works, it evaluates
+to a bare <code>Bool</code>. When it fails, <code>assert</code> can only
+report a generic
+<code>AssertionError: expression evaluated to false</code>, giving no
+details on which element or column differed.</p>
+<p>By contrast, <code>expect_*</code> functions perform detailed
+element-wise and structural comparisons. When wrapped in
+<code>assert()</code>, they provide rich diagnostic feedback:</p>
+<ul>
+<li><strong>Detailed Diff Messages</strong>:
+<code>assert(expect_colnames(df, ["a", "b", "c"]))</code> or
+<code>assert(expect_equal(colnames(df), ["a", "b", "c"]))</code> reports
+exact mismatched column names, row counts, index differences, or type
+mismatches.</li>
+<li><strong>First-Class Expect Values</strong>: Return
+<code>Expect_pass</code>, <code>Expect_stop msg</code>, or
+<code>Expect_hold msg</code> (used when comparisons involve
+<code>NA</code>), allowing tests to inspect outcomes or handle
+missingness explicitly.</li>
+<li><strong>Domain-Specific Expectations</strong>: Dedicated helpers for
+type checking (<code>expect_type</code>), error matching
+(<code>expect_error</code>), dataset dimensions
+(<code>expect_nrow</code>, <code>expect_colnames</code>), and pipeline
+DAG structures (<code>expect_pipeline</code>, <code>expect_nodes</code>,
+<code>expect_dependency</code>).</li>
+</ul>
+<hr />
+<h3
+id="expect_equalactual-expected-tolerance-1e-9"><code>expect_equal(actual, expected, tolerance = 1e-9)</code></h3>
+<p>Compare <code>actual</code> against <code>expected</code>, returning
+an <code>Expect</code> value.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>actual</code> — The computed value to check</li>
+<li><code>expected</code> — The value <code>actual</code> is expected to
+equal</li>
+<li><code>tolerance</code> (optional, named) — Absolute tolerance used
+for Float comparisons (default <code>1e-9</code>)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>An <code>Expect</code> value: <code>Expect_pass</code> (values
+matched), <code>Expect_stop</code> (values differed), or
+<code>Expect_hold</code> (comparison involved NA)</p>
+<p><strong>Comparison rules:</strong></p>
+<ul>
+<li><code>Error</code> arguments always stop:
+<code>`actual`/`expected` is an error: ...</code></li>
+<li><code>NA</code> arguments always hold:
+<code>`actual` is NA, cannot compare `actual` != `expected`</code></li>
+<li><code>Int</code>/<code>Float</code> are compared with tolerance
+(cross-numeric promotes to <code>Float</code>); <code>Bool</code>,
+<code>String</code>, <code>Date</code>, <code>Datetime</code> compare
+directly</li>
+<li><code>Factor</code> compares against a <code>String</code> or
+another <code>Factor</code> by resolved level</li>
+<li><code>DataFrame</code>, <code>Vector</code>, <code>List</code>, and
+<code>Dict</code> are compared element-wise (Dict comparison is
+order-insensitive), reporting the location of the first difference
+(column/row, index, label, or key)</li>
+<li>Mismatched types always stop:
+<code>`actual` (Int) != `expected` (String)</code></li>
+</ul>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>expect_equal(1, 1)                              -- Expect_pass
+expect_equal(1, 2)                               -- Expect_stop(&quot;`1` != `2`&quot;)
+expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9)   -- Expect_pass
+expect_equal(NA, 1)                              -- Expect_hold
+assert(expect_equal(1, 1))                       -- true
+assert(expect_equal(1, 2))                       -- Error(AssertionError: `1` != `2`.)</code></pre>
+<hr />
+<h3 id="expect_passx"><code>expect_pass(x)</code></h3>
+<p>Check whether an <code>Expect</code> value passed.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — An <code>Expect</code> value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>true</code> if <code>x</code> is <code>Expect_pass</code>,
+<code>false</code> otherwise</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>expect_pass(expect_equal(1, 1))   -- true
+expect_pass(expect_equal(1, 2))   -- false</code></pre>
+<hr />
+<h3 id="expect_failx"><code>expect_fail(x)</code></h3>
+<p>Check whether an <code>Expect</code> value failed (stopped or
+held).</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — An <code>Expect</code> value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>true</code> if <code>x</code> is <code>Expect_stop</code> or
+<code>Expect_hold</code>, <code>false</code> otherwise</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>expect_fail(expect_equal(1, 2))   -- true
+expect_fail(expect_equal(1, 1))   -- false</code></pre>
+<hr />
+<h3 id="expect_msgx"><code>expect_msg(x)</code></h3>
+<p>Get the diagnostic message from a failing <code>Expect</code>
+value.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — An <code>Expect</code> value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The <code>Stop</code>/<code>Hold</code> message (String), or an error
+if <code>x</code> is <code>Expect_pass</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>expect_msg(expect_equal(1, 2))   -- &quot;`1` != `2`&quot;</code></pre>
+<hr />
+<h3 id="expect_lta-b"><code>expect_lt(a, b)</code></h3>
+<p>Pass if <code>a &lt; b</code> (numeric only).</p>
+<p><strong>Parameters:</strong> - <code>a</code>, <code>b</code> —
+Numeric values (Int or Float)</p>
+<p><strong>Returns:</strong> An <code>Expect</code> value,
+<code>Expect_hold</code> on NA/Error, <code>Expect_stop</code> if not
+strictly less.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_lt(1, 2))
+assert(expect_lt(1.5, 2.5))</code></pre>
+<hr />
+<h3 id="expect_ltea-b"><code>expect_lte(a, b)</code></h3>
+<p>Pass if <code>a &lt;= b</code> (numeric only).</p>
+<h3 id="expect_gta-b"><code>expect_gt(a, b)</code></h3>
+<p>Pass if <code>a &gt; b</code> (numeric only).</p>
+<h3 id="expect_gtea-b"><code>expect_gte(a, b)</code></h3>
+<p>Pass if <code>a &gt;= b</code> (numeric only).</p>
+<hr />
+<h3 id="expect_truex"><code>expect_true(x)</code></h3>
+<p>Pass only if <code>x</code> is <code>VBool true</code>. For a looser
+truthiness check, use <code>expect_truthy</code>.</p>
+<p><strong>Parameters:</strong> - <code>x</code> — Value to check</p>
+<p><strong>Returns:</strong> <code>Expect_pass</code> only when
+<code>x</code> is <code>VBool true</code>; <code>Expect_hold</code> on
+NA; <code>Expect_stop</code> otherwise.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_true(true))</code></pre>
+<hr />
+<h3 id="expect_falsex"><code>expect_false(x)</code></h3>
+<p>Pass only if <code>x</code> is <code>VBool false</code>. For a looser
+falsiness check, use <code>expect_falsy</code>.</p>
+<hr />
+<h3 id="expect_truthyx"><code>expect_truthy(x)</code></h3>
+<p>Pass if <code>x</code> is truthy per <code>is_truthy</code>
+(<code>1</code>, <code>"a"</code>, non-empty containers, etc.).</p>
+<hr />
+<h3 id="expect_falsyx"><code>expect_falsy(x)</code></h3>
+<p>Pass if <code>x</code> is falsy (<code>0</code>, <code>false</code>,
+<code>VNullNode</code>, etc.). NA still holds.</p>
+<hr />
+<h3
+id="expect_typex-type_name"><code>expect_type(x, type_name)</code></h3>
+<p>Pass if <code>type_name(x)</code> matches the given
+<code>type_name</code> string.</p>
+<p><strong>Parameters:</strong> - <code>x</code> — Value to inspect -
+<code>type_name</code> (String) — Expected type name
+(e.g. <code>"Int"</code>, <code>"String"</code>,
+<code>"DataFrame"</code>)</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_type(42, &quot;Int&quot;))
+assert(expect_type(&quot;hello&quot;, &quot;String&quot;))</code></pre>
+<hr />
+<h3
+id="expect_errorexpr-class-message"><code>expect_error(expr, class = "", message = "")</code></h3>
+<p>Pass if <code>expr</code> is a <code>VError</code>. Optionally filter
+by error class or message pattern.</p>
+<p><strong>Parameters:</strong> - <code>expr</code> — Any value
+(typically the result of calling <code>error(...)</code>) -
+<code>class</code> (optional, named) — Expected error code string
+(e.g. <code>"TypeError"</code>, <code>"RuntimeError"</code>) -
+<code>message</code> (optional, named) — Regex pattern to match against
+the error message</p>
+<p><strong>Returns:</strong> <code>Expect_pass</code> if all checks
+pass; <code>Expect_stop</code> describing what didn’t match.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_error(error(&quot;boom&quot;)))
+assert(expect_error(error(&quot;boom&quot;), class = &quot;RuntimeError&quot;))
+assert(expect_error(error(&quot;invalid&quot;), message = &quot;invalid&quot;))</code></pre>
+<hr />
+<h3 id="expect_lengthx-n"><code>expect_length(x, n)</code></h3>
+<p>Pass if the length/size/row-count of <code>x</code> equals
+<code>n</code>.</p>
+<p><strong>Parameters:</strong> - <code>x</code> — A container (Vector,
+List, String, DataFrame, Dict) - <code>n</code> (Int) — Expected
+length</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_length(1:5, 5))
+assert(expect_length(&quot;hello&quot;, 5))</code></pre>
+<hr />
+<h3 id="expect_nrowdf-n"><code>expect_nrow(df, n)</code></h3>
+<p>Pass if DataFrame has exactly <code>n</code> rows.</p>
+<p><strong>Parameters:</strong> - <code>df</code> — A DataFrame -
+<code>n</code> (Int) — Expected row count</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_nrow(to_dataframe(col1 = 1:3), 3))</code></pre>
+<hr />
+<h3 id="expect_ncoldf-n"><code>expect_ncol(df, n)</code></h3>
+<p>Pass if DataFrame has exactly <code>n</code> columns.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_ncol(to_dataframe(col1 = 1:3, col2 = 4:6), 2))</code></pre>
+<hr />
+<h3
+id="expect_colnamesdf-names"><code>expect_colnames(df, names)</code></h3>
+<p>Pass if DataFrame column names match the given list of strings
+exactly (order-sensitive).</p>
+<p><strong>Parameters:</strong> - <code>df</code> — A DataFrame -
+<code>names</code> — List or Vector of Strings</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_colnames(to_dataframe(col1 = 1:3, col2 = 4:6), [&quot;col1&quot;, &quot;col2&quot;]))</code></pre>
+<hr />
+<h3
+id="expect_has_colnamesdata-names"><code>expect_has_colnames(data, names)</code></h3>
+<p>Pass if a DataFrame, Dict, or named List contains at least all of the
+expected column/field names. Order is not required, and additional
+columns are permitted.</p>
+<p><strong>Parameters:</strong> - <code>data</code> — A DataFrame, Dict,
+or named List - <code>names</code> — String, or List/Vector of
+Strings</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_has_colnames(df, [&quot;id&quot;, &quot;val&quot;]))
+assert(expect_has_colnames(df, &quot;id&quot;))</code></pre>
+<hr />
+<h3 id="expect_uniquex"><code>expect_unique(x)</code></h3>
+<p>Pass if all elements in a Vector, List, or DataFrame are distinct.
+Returns <code>Expect_stop</code> detailing the location of duplicate
+values if any are found.</p>
+<p><strong>Parameters:</strong> - <code>x</code> — A Vector, List, or
+DataFrame</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_unique([1, 2, 3, 4]))
+assert(expect_unique(df.$id))</code></pre>
+<hr />
+<h3 id="expect_fieldsx-names"><code>expect_fields(x, names)</code></h3>
+<p>Pass if a Dict’s keys or a named List’s labels match the given list
+of strings exactly.</p>
+<p><strong>Parameters:</strong> - <code>x</code> — A Dict or named List
+- <code>names</code> — List or Vector of Strings</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_fields({&quot;a&quot;: 1, &quot;b&quot;: 2}, [&quot;a&quot;, &quot;b&quot;]))</code></pre>
+<hr />
+<h3
+id="expect_inx-values-tolerance-1e-9"><code>expect_in(x, values, tolerance = 1e-9)</code></h3>
+<p>Pass if <code>x</code> (or every element of a Vector or List
+<code>x</code>) is present in <code>values</code>. Checks each element
+of collections individually.</p>
+<p><strong>Parameters:</strong> - <code>x</code> — A scalar value,
+Vector, or List to look for - <code>values</code> — A Vector or List of
+values to search in - <code>tolerance</code> (optional, named) —
+Absolute tolerance used for Float comparisons (default
+<code>1e-9</code>)</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_in(3, 1:5))
+assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))</code></pre>
+<hr />
+<h3
+id="expect_no_naactual-col"><code>expect_no_na(actual, col = "")</code></h3>
+<p>Pass if the actual value, Vector, List, or DataFrame (optional
+column) contains zero NA values.</p>
+<p><strong>Parameters:</strong> - <code>actual</code> — Any value,
+Vector, List, or DataFrame to check - <code>col</code> (optional) —
+String column name when checking a specific DataFrame column</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_no_na([1, 2, 3]))
+assert(expect_no_na(df, &quot;val&quot;))</code></pre>
+<hr />
+<h3
+id="expect_betweenactual-min-max"><code>expect_between(actual, min, max)</code></h3>
+<p>Pass if the numeric value or vector elements fall inside the closed
+range <code>[min, max]</code>.</p>
+<p><strong>Parameters:</strong> - <code>actual</code> — Int, Float, or
+Vector to check - <code>min</code> — Numeric lower bound (inclusive) -
+<code>max</code> — Numeric upper bound (inclusive)</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_between(25.0, 10.0, 50.0))</code></pre>
+<hr />
+<h3
+id="expect_matchactual-pattern"><code>expect_match(actual, pattern)</code></h3>
+<p>Pass if the actual String matches the given regular expression
+pattern.</p>
+<p><strong>Parameters:</strong> - <code>actual</code> — String value to
+inspect - <code>pattern</code> — Regular expression pattern string</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_match(&quot;user@example.com&quot;, &quot;.*@.*&quot;))</code></pre>
+<hr />
+<h3
+id="expect_str_containsactual-substring"><code>expect_str_contains(actual, substring)</code></h3>
+<p>Pass if the actual String contains the specified substring.</p>
+<p><strong>Parameters:</strong> - <code>actual</code> — String value to
+inspect - <code>substring</code> — Substring to search for</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_str_contains(&quot;hello world&quot;, &quot;world&quot;))</code></pre>
+<hr />
+<h3
+id="expect_set_equallist1-list2"><code>expect_set_equal(list1, list2)</code></h3>
+<p>Pass if two Lists or Vectors contain the exact same unique elements
+regardless of order.</p>
+<p><strong>Parameters:</strong> - <code>list1</code> — First List or
+Vector - <code>list2</code> — Second List or Vector</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_set_equal([1, 2, 3], [3, 2, 1]))</code></pre>
+<hr />
+<h3 id="expect_emptyactual"><code>expect_empty(actual)</code></h3>
+<p>Pass if a List, Dict, Vector, String, or DataFrame is empty (0
+elements/rows/length).</p>
+<p><strong>Parameters:</strong> - <code>actual</code> — List, Dict,
+Vector, String, or DataFrame</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_empty([]))</code></pre>
+<hr />
+<h3 id="expect_summarychecks"><code>expect_summary(checks)</code></h3>
+<p>Summarize a List or Dict of <code>Expect</code> values / check
+results into a DataFrame report table.</p>
+<p><strong>Parameters:</strong> - <code>checks</code> — Dict or List of
+expectation check results</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>summary_df = expect_summary([c1: expect_equal(1, 1), c2: expect_equal(2, 2)])</code></pre>
+<h3
+id="expect_warningnode-kind-message"><code>expect_warning(node, kind = "", message = "")</code></h3>
+<p>Pass if the given pipeline node produced at least one warning during
+execution. Optionally filter by warning <code>kind</code> string (exact
+match) or <code>message</code> regex pattern.</p>
+<p><strong>Parameters:</strong> - <code>node</code> — A
+<code>NodeResult</code> or <code>ComputedNode</code> value (obtained
+from <code>read_node()</code> or a pipeline result) - <code>kind</code>
+(optional, named) — Exact warning kind to match
+(e.g. <code>"NAExcluded"</code>) - <code>message</code> (optional,
+named) — Regex pattern to match against the warning message</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_warning(read_node(p.my_node)))
+assert(expect_warning(read_node(p.my_node), kind = &quot;NAExcluded&quot;))
+assert(expect_warning(read_node(p.my_node), message = &quot;excluded&quot;))</code></pre>
+<h3 id="expect_pipelinex"><code>expect_pipeline(x)</code></h3>
+<p>Pass if the given value <code>x</code> is a <code>Pipeline</code>
+value.</p>
+<p><strong>Parameters:</strong> - <code>x</code> — The value to
+inspect.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_pipeline(p))</code></pre>
+<h3
+id="expect_nodesp-expected_names"><code>expect_nodes(p, expected_names)</code></h3>
+<p>Pass if the pipeline contains exactly the expected node names
+(including dynamic branch nodes).</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>expected_names</code> — List or Vector of expected node
+names.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_nodes(p, [&quot;load&quot;, &quot;clean&quot;, &quot;model&quot;]))</code></pre>
+<h3
+id="expect_dependencyp-from_node-to_node"><code>expect_dependency(p, from_node, to_node)</code></h3>
+<p>Pass if <code>to_node</code> directly or transitively depends on
+<code>from_node</code> in the pipeline DAG.</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>from_node</code> — The upstream node name (String). -
+<code>to_node</code> — The downstream node name (String).</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_dependency(p, &quot;load&quot;, &quot;model&quot;))</code></pre>
+<h3
+id="expect_has_patternp-node_name"><code>expect_has_pattern(p, node_name)</code></h3>
+<p>Pass if <code>node_name</code> is defined with a dynamic branching
+pattern (e.g. mapping or crossing).</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>node_name</code> — The node name to inspect.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_has_pattern(p, &quot;train_model&quot;))</code></pre>
+<h3
+id="expect_runtimep-node_name-expected"><code>expect_runtime(p, node_name, expected)</code></h3>
+<p>Pass if <code>node_name</code> runtime matches the expected runtime
+name (e.g. <code>"R"</code>, <code>"Python"</code>, <code>"T"</code>,
+<code>"sh"</code>).</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>node_name</code> — The node name. - <code>expected</code>
+— Expected runtime (String).</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_runtime(p, &quot;model&quot;, &quot;Python&quot;))</code></pre>
+<h3
+id="expect_serializerp-node_name-expected"><code>expect_serializer(p, node_name, expected)</code></h3>
+<p>Pass if <code>node_name</code> serializer matches the expected
+serializer.</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>node_name</code> — The node name. - <code>expected</code>
+— Expected serializer (String or Symbol, e.g. <code>^arrow</code>,
+<code>^csv</code>).</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_serializer(p, &quot;data&quot;, ^csv))</code></pre>
+<h3
+id="expect_deserializerp-node_name-expected"><code>expect_deserializer(p, node_name, expected)</code></h3>
+<p>Pass if <code>node_name</code> deserializer matches the expected
+deserializer.</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>node_name</code> — The node name. - <code>expected</code>
+— Expected deserializer (String or Symbol).</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_deserializer(p, &quot;model&quot;, ^onnx))</code></pre>
+<h3
+id="expect_noopp-node_name-expected_noop"><code>expect_noop(p, node_name, expected_noop)</code></h3>
+<p>Pass if <code>node_name</code> noop flag matches the expected boolean
+value.</p>
+<p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
+check. - <code>node_name</code> — The node name. -
+<code>expected_noop</code> — Expected noop boolean value.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_noop(p, &quot;heavy_job&quot;, true))</code></pre>
+<h3 id="expect_computednode"><code>expect_computed(node)</code></h3>
+<p>Pass if the node is computed and has a finished value.</p>
+<p><strong>Parameters:</strong> - <code>node</code> — A
+<code>ComputedNode</code> or <code>NodeResult</code> to check.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>assert(expect_computed(res.heavy_job))</code></pre>
 <hr />
 <h2 id="operators">Operators</h2>
 <h3 id="arithmetic">Arithmetic</h3>
@@ -3829,6 +4451,11 @@ side is a list/vector. You do not need <code>.in</code>.</p>
 <hr />
 <h2 id="type-system">Type System</h2>
 <table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 32%" />
+<col style="width: 46%" />
+</colgroup>
 <thead>
 <tr>
 <th>Type</th>
@@ -3906,6 +4533,11 @@ side is a list/vector. You do not need <code>.in</code>.</p>
 <td><code>Formula</code></td>
 <td><code>y ~ x</code></td>
 <td>Statistical model specification</td>
+</tr>
+<tr>
+<td><code>Expect</code></td>
+<td><code>expect_equal(a, b)</code></td>
+<td>Result of a testcraft comparison (pass/stop/hold)</td>
 </tr>
 </tbody>
 </table>

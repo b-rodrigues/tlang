@@ -85,6 +85,14 @@ let register env =
     Env.add "assert"
       (make_builtin ~name:"assert" ~variadic:true 1 (fun args _env ->
         match args with
+        | [VExpect Expect_pass] -> VBool true
+        | [VExpect (Expect_stop msg)] -> Error.make_error AssertionError ("Assertion failed: " ^ msg ^ ".")
+        | [VExpect (Expect_hold msg)] -> Error.make_error AssertionError ("Assertion failed: " ^ msg ^ ".")
+        | [VExpect Expect_pass; VString _] -> VBool true
+        | [VExpect (Expect_stop msg); VString custom] ->
+            Error.make_error AssertionError ("Assertion failed: " ^ custom ^ " (" ^ msg ^ ").")
+        | [VExpect (Expect_hold msg); VString custom] ->
+            Error.make_error AssertionError ("Assertion failed: " ^ custom ^ " (" ^ msg ^ ").")
         | [v] ->
             if is_na_value v then
               Error.make_error AssertionError "Assertion received NA."

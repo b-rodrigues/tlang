@@ -474,11 +474,28 @@ greet = \(name: String -> String) str_sprintf("Hello, %s!", name)
 |}
 
 let package_test_example = {|-- tests/test-{{name}}.t
--- Tests for {{name}}
+-- Tests for package '{{name}}'
+--
+-- Run tests with: t test (or t_test() in the REPL)
+--
+-- T automatically discovers all test files in tests/ matching `test-*.t` or `*_test.t`.
+-- Test scripts can combine direct function assertions and pipeline tests.
 
--- Test: greet function
-result = greet("world")
-assert(result == "Hello, world!")
+-- 1. Direct Function Unit Test
+res = greet("world")
+assert(expect_equal(res, "Hello, world!"))
+
+-- 2. Demo Test Pipeline
+-- Pipelines defined in test files are automatically discovered and validated by `t test`.
+test_p = pipeline {
+  input_val = "world"
+  greeting  = greet(input_val)
+}
+
+-- Validate pipeline DAG structure and node dependencies statically
+assert(expect_pipeline(test_p))
+assert(expect_nodes(test_p, ["input_val", "greeting"]))
+assert(expect_dependency(test_p, "input_val", "greeting"))
 |}
 
 (* ================================================================ *)
@@ -576,7 +593,6 @@ t repl
 - `src/` — T source files
 - `data/` — Input data files
 - `outputs/` — Generated outputs
-- `tests/` — Test files
 
 ## Dependencies
 
@@ -635,19 +651,30 @@ let project_pipeline_example = {|-- {{name}} — main pipeline script
 --
 -- Run with: t run src/pipeline.t
 
--- import my_stats
--- import data_utils[read_clean, normalize]
+p = pipeline {
+  raw = [10, 20, 30, 40]
 
--- p = pipeline {
---   raw = read_csv("data/dataset.csv")
---   clean = read_clean(raw)              -- uses imported function
---   normed = normalize(clean)            -- uses imported function
---   result = weighted_mean(normed.$x, normed.$w)  -- uses imported function
--- }
+  -- Inline Test Node: Asserts raw data length using testcraft expect_gt
+  check_raw = node(
+    command = check(expect_gt(length(raw), 0)),
+    runtime = T
+  )
 
--- build_pipeline(p)
+  cleaned = map(raw, \x -> x * 2)
 
-print("Hello from {{name}} pipeline!")
+  -- Inline Test Node: Asserts calculation result invariants using check
+  check_cleaned = node(
+    command = {
+      check(expect_gt(mean(cleaned), 0))
+      check(expect_equal(length(cleaned), 4))
+    },
+    runtime = T
+  )
+
+  result = sum(cleaned)
+}
+
+build_pipeline(p)
 |}
 
 (* ================================================================ *)
@@ -885,7 +912,6 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         create_dir (Filename.concat dir "src");
         create_dir (Filename.concat dir "data");
         create_dir (Filename.concat dir "outputs");
-        create_dir (Filename.concat dir "tests");
         (* Write files from templates *)
         write_file (Filename.concat dir "tproject.toml") (sub project_tproject_toml);
         let flake_content = Nix_generator.generate_project_flake
@@ -919,7 +945,6 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  │   └── pipeline.t\n";
         Printf.printf "  ├── data/\n";
         Printf.printf "  ├── outputs/\n";
-        Printf.printf "  ├── tests/\n";
         Printf.printf "  └── .claude/skills/t-project/\n";
         Printf.printf "      └── SKILL.md\n";
         Printf.printf "\nNext steps:\n";

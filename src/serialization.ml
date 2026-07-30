@@ -311,6 +311,12 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       in
       `Assoc [("class", `String "VLens"); ("data", lens_to_yojson l)]
   | VNodeResult { v; _ } -> value_to_yojson v
+  | VExpect Expect_pass ->
+      `Assoc [("type", `String "VExpect"); ("kind", `String "pass")]
+  | VExpect (Expect_stop msg) ->
+      `Assoc [("type", `String "VExpect"); ("kind", `String "stop"); ("message", `String msg)]
+  | VExpect (Expect_hold msg) ->
+      `Assoc [("type", `String "VExpect"); ("kind", `String "hold"); ("message", `String msg)]
 
 and column_data_to_yojson (col : Arrow_table.column_data) (row : int) : Yojson.Safe.t option =
   match col with

@@ -22,56 +22,47 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "RNG determinism:\n";
 
-  (* Determinism test: same seed → same result via identical() *)
-  let expr = {|
+  let env = Packages.init_env () in
+  let (result, _) = eval_string_env {|
     set_seed(42);
     a = sample([1,2,3,4,5,6,7,8,9,10], n=5);
     set_seed(42);
     b = sample([1,2,3,4,5,6,7,8,9,10], n=5);
     identical(a, b)
-  |} in
-  let env = Packages.init_env () in
-  let (result, _env) = eval_string_env expr env in
-  let str = Ast.Utils.value_to_string result in
-  if str = "true" then begin
+  |} env in
+  if Ast.Utils.value_to_string result = "true" then begin
     incr pass_count; Printf.printf "  ✓ sample determinism: same seed → same result\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ sample determinism: expected true, got %s\n" str
+    incr fail_count; Printf.printf "  ✗ sample determinism: expected true, got %s\n" (Ast.Utils.value_to_string result)
   end;
 
-  (* Different seeds → different results *)
-  let diff_expr = {|
+  let env2 = Packages.init_env () in
+  let (result2, _) = eval_string_env {|
     set_seed(42);
     a = sample([1,2,3,4,5,6,7,8,9,10], n=5);
     set_seed(99);
     b = sample([1,2,3,4,5,6,7,8,9,10], n=5);
     identical(a, b)
-  |} in
-  let env2 = Packages.init_env () in
-  let (result2, _env2) = eval_string_env diff_expr env2 in
-  let str2 = Ast.Utils.value_to_string result2 in
-  if str2 = "false" then begin
+  |} env2 in
+  if Ast.Utils.value_to_string result2 = "false" then begin
     incr pass_count; Printf.printf "  ✓ sample different seeds → different results\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ sample different seeds: expected false, got %s\n" str2
+    incr fail_count; Printf.printf "  ✗ sample different seeds: expected false, got %s\n" (Ast.Utils.value_to_string result2)
   end;
 
-  (* slice_sample determinism *)
-  let slice_expr = {|
+  let env3 = Packages.init_env () in
+  let (result3, _) = eval_string_env {|
     set_seed(42);
     df = to_dataframe([[x: 1], [x: 2], [x: 3], [x: 4], [x: 5], [x: 6], [x: 7], [x: 8]]);
     a = slice_sample(df, n=3);
     set_seed(42);
     b = slice_sample(df, n=3);
     identical(a, b)
-  |} in
-  let env3 = Packages.init_env () in
-  let (result3, _env3) = eval_string_env slice_expr env3 in
-  let str3 = Ast.Utils.value_to_string result3 in
-  if str3 = "true" then begin
+  |} env3 in
+  if Ast.Utils.value_to_string result3 = "true" then begin
     incr pass_count; Printf.printf "  ✓ slice_sample determinism: same seed → same result\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ slice_sample determinism: expected true, got %s\n" str3
+    incr fail_count; Printf.printf "  ✗ slice_sample determinism: expected true, got %s\n" (Ast.Utils.value_to_string result3)
   end;
 
   print_newline ();

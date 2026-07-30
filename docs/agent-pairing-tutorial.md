@@ -443,6 +443,97 @@ The `root_causes` field tells the agent which node is the actual source of the f
 
 ---
 
+## Programmatic test results with `t test --json`
+
+When an agent needs to verify that its changes don't break existing tests, it can
+use `t test --json` to get structured test results. This is essential for agent
+workflows where test results must be consumed programmatically.
+
+```bash
+$ t test --json tests/
+$ t test --format junit tests/  # JUnit XML for CI
+```
+
+**Filtering tests:**
+
+```bash
+$ t test --only "stats"     # run only tests matching "stats"
+$ t test --not "slow"       # skip tests matching "slow"
+$ t test --failfast         # stop on first failure
+$ t test --list             # list tests without running
+$ t test --timeout 30       # mark slow tests as failed
+```
+
+**Excluding tests with `.tignore`:**
+
+Create `tests/.tignore` to automatically exclude test files:
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
+```
+
+The output is a JSON object with the test suite summary:
+
+```json
+{
+  "schema_version": "1",
+  "status": "passed",
+  "total": 15,
+  "passed": 14,
+  "failed": 1,
+  "duration_ms": 2340,
+  "results": [
+    {
+      "file": "tests/test_arithmetic.t",
+      "status": "passed",
+      "duration_ms": 120,
+      "error": null
+    },
+    {
+      "file": "tests/test_strings.t",
+      "status": "failed",
+      "duration_ms": 85,
+      "error": "Assertion failed at line 42: expected \"hello\" but got \"world\""
+    }
+  ]
+}
+```
+
+**Agent workflow for test-driven iteration:**
+
+1. Agent modifies code
+2. Agent runs `t test --json tests/`
+3. Agent parses JSON to check `status` field
+4. If `status` is `"failed"`, agent reads `error` field from failed results
+5. Agent fixes the issue and re-runs tests
+
+The JSON output follows the same schema version as `t check --json` and `t run --json`,
+making it easy to integrate with existing agent tooling.
+
+### REPL-callable version
+
+For agents working in the REPL, `t_test()` returns a DataFrame with the same results:
+
+```t
+results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |> filter($status == "failed")
+nrow(failed)  -- 0 if all tests passed
+```
+
+The DataFrame columns are:
+- `file`: Path to the test file
+- `status`: "passed" or "failed"
+- `duration_ms`: Duration in milliseconds
+- `error`: Error message (NA for passed tests)
+
+---
+
 ## Tips for effective pairing
 
 ### What to tell the agent

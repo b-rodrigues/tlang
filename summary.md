@@ -100,6 +100,30 @@ result = t_fix("path/to/script.t", dry_run = true)
 
 t test
 
+# Run tests with structured JSON output (for agents and automation):
+t test --json tests/
+
+# JUnit XML output for CI/CD:
+t test --format junit tests/
+
+# Filter tests:
+t test --only "stats"     # run only tests matching "stats"
+t test --not "slow"       # skip tests matching "slow"
+
+# Stop on first failure:
+t test --failfast
+
+# List discovered tests without running:
+t test --list
+
+# Mark tests exceeding 30s as failed:
+t test --timeout 30
+
+# Generate coverage summary (requires instrumented build):
+t test --coverage
+
+# Exclude tests with tests/.tignore (one pattern per line)
+
 t doc --parse --generate
 
 t doctor
@@ -397,7 +421,7 @@ Purpose: printing, introspection, collections, metaprogramming, filesystem/path 
 - Converters: `to_integer(x)`, `to_float(x)`, `to_numeric(x)`
 - Execution and shell/file helpers: `run(command, ...)`, `exit(code = 0)`, `getwd()`, `file_exists(path)`, `dir_exists(path)`, `read_file(path)`, `list_files(path = ".")`, `env(name)`
 - Path helpers: `path_join(...)`, `path_basename(path)`, `path_dirname(path)`, `path_ext(path)`, `path_stem(path)`, `path_abs(path)`
-- Tooling wrappers discussed in the docs/reference: `t_run(path)`, `t_test(path = na())`, `t_doc(...)`
+- Tooling wrappers discussed in the docs/reference: `t_run(path)`, `t_test()`, `t_doc(...)`
 
 ### `dataframe`
 
@@ -517,6 +541,26 @@ Note the overloaded names:
 - `contains`, `starts_with`, and `ends_with` also exist as `colcraft` selection helpers.
 - `slice` is both a `colcraft` row helper and a `strcraft` substring helper.
 - `length` works on strings and collections in `core`, while `str_nchar` is the dedicated string-character-count helper.
+
+### `testcraft`
+
+Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons don't raise directly — they return a `VExpect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg` on NA) that is truthy/falsy and understood directly by `assert()`.
+
+- Comparison: `expect_equal(actual, expected, tolerance = 1e-9)` — compares scalars, Dates/Datetimes, Factors, DataFrames, Vectors, Lists, and Dicts, reporting the location of the first difference for collections (e.g. which DataFrame column/row, Vector index, or Dict key).
+- Inspecting an Expect value: `expect_pass(x)`, `expect_fail(x)`, `expect_msg(x)`
+- Numeric relations: `expect_lt(a, b)`, `expect_lte(a, b)`, `expect_gt(a, b)`, `expect_gte(a, b)` — numeric-only comparisons.
+- Type/truth: `expect_true(x)`, `expect_false(x)` (strict VBool), `expect_truthy(x)`, `expect_falsy(x)` (loose `is_truthy`), `expect_type(x, t)` (type name match).
+- Error checking: `expect_error(expr, class = "", message = "")` — passes if `expr` is an error, optionally filtered by class string or message regex.
+- Length: `expect_length(x, n)` — checks length of Vector, List, String, DataFrame, Dict.
+- Data frames & Collections: `expect_nrow(df, n)`, `expect_ncol(df, n)`, `expect_colnames(df, names)` (exact order), `expect_has_colnames(data, names)` (subset check), `expect_unique(x)` (uniqueness of Vector/List/DataFrame), `expect_no_na(x, [col])` (absence of NAs), `expect_empty(x)` (empty container/DataFrame check).
+- Ranges & Sets: `expect_between(x, min, max)` (closed range numerical bounds), `expect_set_equal(l1, l2)` (order-independent set equality), `expect_fields(x, names)` (Dict keys or List labels), `expect_in(x, values)` (set membership).
+- Pattern & String Assertions: `expect_match(s, pattern)` (regex matching), `expect_str_contains(s, sub)` (substring search).
+- Test Reporting: `expect_summary(checks)` (summarizes List/Dict of Expect results into a DataFrame report with `check`, `status`, and `message` columns).
+- Pipeline node diagnostics: `expect_warning(node, kind = "", message = "")` — passes if node produced a warning, optionally filtering by warning kind string or message regex.
+- Pipeline & DAG structure: `expect_pipeline(x)` — checks if `x` is a Pipeline; `expect_nodes(p, expected_names)` — checks all node names (including dynamic branch names); `expect_dependency(p, from, to)` — checks if `to` directly/transitively depends on `from` in the DAG; `expect_has_pattern(p, name)` — checks if node has a dynamic branching pattern (e.g. mapping/crossing).
+- Node & runtime configs: `expect_runtime(p, name, rt)` — checks node runtime; `expect_serializer(p, name, ser)` — checks node serializer format; `expect_deserializer(p, name, deser)` — checks node deserializer format; `expect_noop(p, name, bool)` — checks node noop flag.
+- Build state: `expect_computed(node)` — checks if node has been successfully built and evaluated.
+- Standard usage: `assert(expect_equal(a, b))` — passes silently on `Expect_pass`, raises `AssertionError` with the comparison's own diagnostic message otherwise.
 
 Disambiguation rule of thumb for LLMs:
 - inside `select(...)`/selection-helper contexts, prefer the `colcraft` helper meaning;

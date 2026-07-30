@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.54.1 "Le Tournoi".
+**Status:** Version 0.54.2 "Le Tournoi".
 
 ---
 
@@ -410,7 +410,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.54.1
+> **Version**: 0.54.2
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -1590,6 +1590,7 @@ Package-oriented guide to T's standard library.
 - [Lens Package](#lens-package) — Composable access and update lenses
 - [Pipeline Package](#pipeline-package) — Pipeline introspection
 - [Explain Package](#explain-package) — Introspection and debugging tools
+- [Testcraft Package](#testcraft-package) — Unit-testing primitives
 
 ---
 
@@ -5355,6 +5356,153 @@ $ t check --json pipeline.t | jq '.diagnostics[].suggested_fix'
 
 ---
 
+### `t_test()`
+
+REPL-callable version of `t test`. Runs the test suite and returns a DataFrame with structured results for programmatic inspection.
+
+**Returns:** `DataFrame` — columns: `file` (String), `status` ("passed" or "failed"), `duration_ms` (Float), `error` (String or NA)
+
+Note: `duration_ms` is a Float in the REPL DataFrame, but an integer in CLI `--json` output. Both represent milliseconds.
+
+**Examples:**
+
+```t
+results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |> filter($status == "failed")
+nrow(failed)  -- 0 if all tests passed
+
+-- Count passed tests
+results |> filter($status == "passed") |> nrow()
+
+-- Run only specific tests
+results = t_test(only = ["arithmetic", "strings"])
+
+-- Exclude slow tests
+results = t_test(not = ["slow"])
+```
+
+---
+
+### CLI: `t test`
+
+Runs the test suite for the current project. Discovers test files (`test-*.t`, `test_*.t`, or `*_test.t`) recursively in the `tests/` directory.
+
+```bash
+t test                        # human-readable output
+t test --json                 # structured JSON output (no preamble)
+t test --format junit         # JUnit XML output for CI
+t test --json tests/          # specify project directory
+t test --only "stats"         # run only tests matching "stats"
+t test --not "slow"           # skip tests matching "slow"
+t test --only "stats" --not "anova"  # combine filters (OR semantics for --only)
+t test --failfast             # stop on first failure
+t test --list                 # list discovered tests without running
+t test --timeout 30           # mark tests exceeding 30s as failed
+t test --coverage             # generate Bisect_ppx coverage summary after tests
+```
+
+**Output formats:**
+
+| Flag | Description |
+|------|-------------|
+| (default) | Human-readable output with ✓/✗ indicators |
+| `--json` | Structured JSON output (shorthand for `--format json`) |
+| `--format json` | Structured JSON output |
+| `--format junit` | JUnit XML output for CI/CD pipelines |
+
+**Filtering flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--only PATTERN` | Run only tests whose path contains PATTERN (case-insensitive). Multiple `--only` flags use OR semantics. |
+| `--not PATTERN` | Skip tests whose path contains PATTERN (case-insensitive). Multiple `--not` flags use OR semantics. |
+
+**Execution flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--failfast` | Stop running tests after the first failure. |
+| `--list` | List discovered test files without running them. Respects `--only` and `--not` filters. |
+| `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. |
+| `--coverage` | Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage` or `dune build --instrument-with bisect_ppx`). |
+
+**`.tignore` support:**
+
+Create `tests/.tignore` to automatically exclude test files. One pattern per line, `#` comments, blank lines ignored. Patterns match against the relative path from `tests/`. Directory patterns (e.g. `legacy/`) match at any depth, similar to `.gitignore` semantics.
+
+```
+# tests/.tignore
+slow_integration.t      # exact filename
+*_benchmark.t           # glob pattern
+legacy/                 # directory at any depth
+```
+
+**JUnit XML schema (when using `--format junit`):**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="t test" tests="2" failures="1" time="0.123">
+  <testsuite name="t test" tests="2" failures="1" time="0.123">
+    <testcase name="tests/test_pass.t" time="0.050" />
+    <testcase name="tests/test_fail.t" time="0.073">
+      <failure message="Assertion failed" type="TestFailure">
+        AssertionError: test failed
+      </failure>
+    </testcase>
+  </testsuite>
+</testsuites>
+```
+
+### Test Fixtures
+
+T doesn't have a dedicated `before_each`/`after_each` fixture mechanism because
+pipelines already provide the necessary isolation and composition. Use `chain()`
+to share a setup pipeline across test nodes:
+
+```t
+-- tests/test_with_fixture.t
+fixture = pipeline {
+  data = node(
+    command = read_csv("tests/data/mtcars.csv"),
+    serializer = ^csv
+  )
+}
+
+test_filter = pipeline {
+  check = node(
+    command = {
+      result = data |> filter($mpg > 20)
+      assert(nrow(result) > 0)
+    },
+    serializer = ^csv
+  )
+}
+
+test_mutate = pipeline {
+  check = node(
+    command = {
+      result = data |> mutate($kpg = $mpg * 1.609)
+      assert("kpg" in colnames(result))
+    },
+    serializer = ^csv
+  )
+}
+
+-- Wire fixture output into each test
+combined = chain(fixture, parallel(test_filter, test_mutate))
+build_pipeline(combined)
+```
+
+Each node runs in an isolated Nix sandbox. The `fixture` pipeline's `data` node
+builds a dataframe (via `read_csv`), serializes it to CSV for cross-sandbox
+transfer, and downstream test nodes receive it as a dataframe they can pipe
+directly — no redundant `read_csv()` wrapper needed.
+
+---
+
 ## Explain Package
 
 Introspection and LLM tooling.
@@ -5459,6 +5607,582 @@ intent_get(i, "description")  -- "Customer analysis"
 
 ---
 
+## Testcraft Package
+
+Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` comparisons return an `Expect` value (`Expect_pass`, `Expect_stop msg`, or `Expect_hold msg`) rather than raising directly, so results can be inspected, combined, or passed straight to `assert()`.
+
+### Why `assert(expect_*(...))` instead of plain `assert(condition)`?
+
+While a raw boolean expression like `assert(colnames(df) == ["a", "b", "c"])` works, it evaluates to a bare `Bool`. When it fails, `assert` can only report a generic `AssertionError: expression evaluated to false`, giving no details on which element or column differed.
+
+By contrast, `expect_*` functions perform detailed element-wise and structural comparisons. When wrapped in `assert()`, they provide rich diagnostic feedback:
+
+- **Detailed Diff Messages**: `assert(expect_colnames(df, ["a", "b", "c"]))` or `assert(expect_equal(colnames(df), ["a", "b", "c"]))` reports exact mismatched column names, row counts, index differences, or type mismatches.
+- **First-Class Expect Values**: Return `Expect_pass`, `Expect_stop msg`, or `Expect_hold msg` (used when comparisons involve `NA`), allowing tests to inspect outcomes or handle missingness explicitly.
+- **Domain-Specific Expectations**: Dedicated helpers for type checking (`expect_type`), error matching (`expect_error`), dataset dimensions (`expect_nrow`, `expect_colnames`), and pipeline DAG structures (`expect_pipeline`, `expect_nodes`, `expect_dependency`).
+
+---
+
+### `expect_equal(actual, expected, tolerance = 1e-9)`
+
+Compare `actual` against `expected`, returning an `Expect` value.
+
+**Parameters:**
+
+- `actual` — The computed value to check
+- `expected` — The value `actual` is expected to equal
+- `tolerance` (optional, named) — Absolute tolerance used for Float comparisons (default `1e-9`)
+
+**Returns:**
+
+An `Expect` value: `Expect_pass` (values matched), `Expect_stop` (values differed), or `Expect_hold` (comparison involved NA)
+
+**Comparison rules:**
+
+- `Error` arguments always stop: `` `actual`/`expected` is an error: ... ``
+- `NA` arguments always hold: `` `actual` is NA, cannot compare `actual` != `expected` ``
+- `Int`/`Float` are compared with tolerance (cross-numeric promotes to `Float`); `Bool`, `String`, `Date`, `Datetime` compare directly
+- `Factor` compares against a `String` or another `Factor` by resolved level
+- `DataFrame`, `Vector`, `List`, and `Dict` are compared element-wise (Dict comparison is order-insensitive), reporting the location of the first difference (column/row, index, label, or key)
+- Mismatched types always stop: `` `actual` (Int) != `expected` (String) ``
+
+**Examples:**
+```t
+expect_equal(1, 1)                              -- Expect_pass
+expect_equal(1, 2)                               -- Expect_stop("`1` != `2`")
+expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9)   -- Expect_pass
+expect_equal(NA, 1)                              -- Expect_hold
+assert(expect_equal(1, 1))                       -- true
+assert(expect_equal(1, 2))                       -- Error(AssertionError: `1` != `2`.)
+```
+
+---
+
+### `expect_pass(x)`
+
+Check whether an `Expect` value passed.
+
+**Parameters:**
+
+- `x` — An `Expect` value
+
+**Returns:**
+
+`true` if `x` is `Expect_pass`, `false` otherwise
+
+**Examples:**
+```t
+expect_pass(expect_equal(1, 1))   -- true
+expect_pass(expect_equal(1, 2))   -- false
+```
+
+---
+
+### `expect_fail(x)`
+
+Check whether an `Expect` value failed (stopped or held).
+
+**Parameters:**
+
+- `x` — An `Expect` value
+
+**Returns:**
+
+`true` if `x` is `Expect_stop` or `Expect_hold`, `false` otherwise
+
+**Examples:**
+```t
+expect_fail(expect_equal(1, 2))   -- true
+expect_fail(expect_equal(1, 1))   -- false
+```
+
+---
+
+### `expect_msg(x)`
+
+Get the diagnostic message from a failing `Expect` value.
+
+**Parameters:**
+
+- `x` — An `Expect` value
+
+**Returns:**
+
+The `Stop`/`Hold` message (String), or an error if `x` is `Expect_pass`
+
+**Examples:**
+```t
+expect_msg(expect_equal(1, 2))   -- "`1` != `2`"
+```
+
+---
+
+### `expect_lt(a, b)`
+
+Pass if `a < b` (numeric only).
+
+**Parameters:**
+- `a`, `b` — Numeric values (Int or Float)
+
+**Returns:**
+An `Expect` value, `Expect_hold` on NA/Error, `Expect_stop` if not strictly less.
+
+**Examples:**
+```t
+assert(expect_lt(1, 2))
+assert(expect_lt(1.5, 2.5))
+```
+
+---
+
+### `expect_lte(a, b)`
+
+Pass if `a <= b` (numeric only).
+
+### `expect_gt(a, b)`
+
+Pass if `a > b` (numeric only).
+
+### `expect_gte(a, b)`
+
+Pass if `a >= b` (numeric only).
+
+---
+
+### `expect_true(x)`
+
+Pass only if `x` is `VBool true`. For a looser truthiness check, use `expect_truthy`.
+
+**Parameters:**
+- `x` — Value to check
+
+**Returns:**
+`Expect_pass` only when `x` is `VBool true`; `Expect_hold` on NA; `Expect_stop` otherwise.
+
+**Examples:**
+```t
+assert(expect_true(true))
+```
+
+---
+
+### `expect_false(x)`
+
+Pass only if `x` is `VBool false`. For a looser falsiness check, use `expect_falsy`.
+
+---
+
+### `expect_truthy(x)`
+
+Pass if `x` is truthy per `is_truthy` (`1`, `"a"`, non-empty containers, etc.).
+
+---
+
+### `expect_falsy(x)`
+
+Pass if `x` is falsy (`0`, `false`, `VNullNode`, etc.). NA still holds.
+
+---
+
+### `expect_type(x, type_name)`
+
+Pass if `type_name(x)` matches the given `type_name` string.
+
+**Parameters:**
+- `x` — Value to inspect
+- `type_name` (String) — Expected type name (e.g. `"Int"`, `"String"`, `"DataFrame"`)
+
+**Examples:**
+```t
+assert(expect_type(42, "Int"))
+assert(expect_type("hello", "String"))
+```
+
+---
+
+### `expect_error(expr, class = "", message = "")`
+
+Pass if `expr` is a `VError`. Optionally filter by error class or message pattern.
+
+**Parameters:**
+- `expr` — Any value (typically the result of calling `error(...)`)
+- `class` (optional, named) — Expected error code string (e.g. `"TypeError"`, `"RuntimeError"`)
+- `message` (optional, named) — Regex pattern to match against the error message
+
+**Returns:**
+`Expect_pass` if all checks pass; `Expect_stop` describing what didn't match.
+
+**Examples:**
+```t
+assert(expect_error(error("boom")))
+assert(expect_error(error("boom"), class = "RuntimeError"))
+assert(expect_error(error("invalid"), message = "invalid"))
+```
+
+---
+
+### `expect_length(x, n)`
+
+Pass if the length/size/row-count of `x` equals `n`.
+
+**Parameters:**
+- `x` — A container (Vector, List, String, DataFrame, Dict)
+- `n` (Int) — Expected length
+
+**Examples:**
+```t
+assert(expect_length(1:5, 5))
+assert(expect_length("hello", 5))
+```
+
+---
+
+### `expect_nrow(df, n)`
+
+Pass if DataFrame has exactly `n` rows.
+
+**Parameters:**
+- `df` — A DataFrame
+- `n` (Int) — Expected row count
+
+**Examples:**
+```t
+assert(expect_nrow(to_dataframe(col1 = 1:3), 3))
+```
+
+---
+
+### `expect_ncol(df, n)`
+
+Pass if DataFrame has exactly `n` columns.
+
+**Examples:**
+```t
+assert(expect_ncol(to_dataframe(col1 = 1:3, col2 = 4:6), 2))
+```
+
+---
+
+### `expect_colnames(df, names)`
+
+Pass if DataFrame column names match the given list of strings exactly (order-sensitive).
+
+**Parameters:**
+- `df` — A DataFrame
+- `names` — List or Vector of Strings
+
+**Examples:**
+```t
+assert(expect_colnames(to_dataframe(col1 = 1:3, col2 = 4:6), ["col1", "col2"]))
+```
+
+---
+
+### `expect_has_colnames(data, names)`
+
+Pass if a DataFrame, Dict, or named List contains at least all of the expected column/field names. Order is not required, and additional columns are permitted.
+
+**Parameters:**
+- `data` — A DataFrame, Dict, or named List
+- `names` — String, or List/Vector of Strings
+
+**Examples:**
+```t
+assert(expect_has_colnames(df, ["id", "val"]))
+assert(expect_has_colnames(df, "id"))
+```
+
+---
+
+### `expect_unique(x)`
+
+Pass if all elements in a Vector, List, or DataFrame are distinct. Returns `Expect_stop` detailing the location of duplicate values if any are found.
+
+**Parameters:**
+- `x` — A Vector, List, or DataFrame
+
+**Examples:**
+```t
+assert(expect_unique([1, 2, 3, 4]))
+assert(expect_unique(df.$id))
+```
+
+---
+
+### `expect_fields(x, names)`
+
+Pass if a Dict's keys or a named List's labels match the given list of strings exactly.
+
+**Parameters:**
+- `x` — A Dict or named List
+- `names` — List or Vector of Strings
+
+**Examples:**
+```t
+assert(expect_fields({"a": 1, "b": 2}, ["a", "b"]))
+```
+
+---
+
+### `expect_in(x, values, tolerance = 1e-9)`
+
+Pass if `x` (or every element of a Vector or List `x`) is present in `values`. Checks each element of collections individually.
+
+**Parameters:**
+- `x` — A scalar value, Vector, or List to look for
+- `values` — A Vector or List of values to search in
+- `tolerance` (optional, named) — Absolute tolerance used for Float comparisons (default `1e-9`)
+
+**Examples:**
+```t
+assert(expect_in(3, 1:5))
+assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
+```
+
+---
+
+### `expect_no_na(actual, col = "")`
+
+Pass if the actual value, Vector, List, or DataFrame (optional column) contains zero NA values.
+
+**Parameters:**
+- `actual` — Any value, Vector, List, or DataFrame to check
+- `col` (optional) — String column name when checking a specific DataFrame column
+
+**Examples:**
+```t
+assert(expect_no_na([1, 2, 3]))
+assert(expect_no_na(df, "val"))
+```
+
+---
+
+### `expect_between(actual, min, max)`
+
+Pass if the numeric value or vector elements fall inside the closed range `[min, max]`.
+
+**Parameters:**
+- `actual` — Int, Float, or Vector to check
+- `min` — Numeric lower bound (inclusive)
+- `max` — Numeric upper bound (inclusive)
+
+**Examples:**
+```t
+assert(expect_between(25.0, 10.0, 50.0))
+```
+
+---
+
+### `expect_match(actual, pattern)`
+
+Pass if the actual String matches the given regular expression pattern.
+
+**Parameters:**
+- `actual` — String value to inspect
+- `pattern` — Regular expression pattern string
+
+**Examples:**
+```t
+assert(expect_match("user@example.com", ".*@.*"))
+```
+
+---
+
+### `expect_str_contains(actual, substring)`
+
+Pass if the actual String contains the specified substring.
+
+**Parameters:**
+- `actual` — String value to inspect
+- `substring` — Substring to search for
+
+**Examples:**
+```t
+assert(expect_str_contains("hello world", "world"))
+```
+
+---
+
+### `expect_set_equal(list1, list2)`
+
+Pass if two Lists or Vectors contain the exact same unique elements regardless of order.
+
+**Parameters:**
+- `list1` — First List or Vector
+- `list2` — Second List or Vector
+
+**Examples:**
+```t
+assert(expect_set_equal([1, 2, 3], [3, 2, 1]))
+```
+
+---
+
+### `expect_empty(actual)`
+
+Pass if a List, Dict, Vector, String, or DataFrame is empty (0 elements/rows/length).
+
+**Parameters:**
+- `actual` — List, Dict, Vector, String, or DataFrame
+
+**Examples:**
+```t
+assert(expect_empty([]))
+```
+
+---
+
+### `expect_summary(checks)`
+
+Summarize a List or Dict of `Expect` values / check results into a DataFrame report table.
+
+**Parameters:**
+- `checks` — Dict or List of expectation check results
+
+**Examples:**
+```t
+summary_df = expect_summary([c1: expect_equal(1, 1), c2: expect_equal(2, 2)])
+```
+
+### `expect_warning(node, kind = "", message = "")`
+
+Pass if the given pipeline node produced at least one warning during execution.
+Optionally filter by warning `kind` string (exact match) or `message` regex pattern.
+
+**Parameters:**
+- `node` — A `NodeResult` or `ComputedNode` value (obtained from `read_node()` or a pipeline result)
+- `kind` (optional, named) — Exact warning kind to match (e.g. `"NAExcluded"`)
+- `message` (optional, named) — Regex pattern to match against the warning message
+
+**Examples:**
+```t
+assert(expect_warning(read_node(p.my_node)))
+assert(expect_warning(read_node(p.my_node), kind = "NAExcluded"))
+assert(expect_warning(read_node(p.my_node), message = "excluded"))
+```
+
+### `expect_pipeline(x)`
+
+Pass if the given value `x` is a `Pipeline` value.
+
+**Parameters:**
+- `x` — The value to inspect.
+
+**Examples:**
+```t
+assert(expect_pipeline(p))
+```
+
+### `expect_nodes(p, expected_names)`
+
+Pass if the pipeline contains exactly the expected node names (including dynamic branch nodes).
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `expected_names` — List or Vector of expected node names.
+
+**Examples:**
+```t
+assert(expect_nodes(p, ["load", "clean", "model"]))
+```
+
+### `expect_dependency(p, from_node, to_node)`
+
+Pass if `to_node` directly or transitively depends on `from_node` in the pipeline DAG.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `from_node` — The upstream node name (String).
+- `to_node` — The downstream node name (String).
+
+**Examples:**
+```t
+assert(expect_dependency(p, "load", "model"))
+```
+
+### `expect_has_pattern(p, node_name)`
+
+Pass if `node_name` is defined with a dynamic branching pattern (e.g. mapping or crossing).
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name to inspect.
+
+**Examples:**
+```t
+assert(expect_has_pattern(p, "train_model"))
+```
+
+### `expect_runtime(p, node_name, expected)`
+
+Pass if `node_name` runtime matches the expected runtime name (e.g. `"R"`, `"Python"`, `"T"`, `"sh"`).
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected` — Expected runtime (String).
+
+**Examples:**
+```t
+assert(expect_runtime(p, "model", "Python"))
+```
+
+### `expect_serializer(p, node_name, expected)`
+
+Pass if `node_name` serializer matches the expected serializer.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected` — Expected serializer (String or Symbol, e.g. `^arrow`, `^csv`).
+
+**Examples:**
+```t
+assert(expect_serializer(p, "data", ^csv))
+```
+
+### `expect_deserializer(p, node_name, expected)`
+
+Pass if `node_name` deserializer matches the expected deserializer.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected` — Expected deserializer (String or Symbol).
+
+**Examples:**
+```t
+assert(expect_deserializer(p, "model", ^onnx))
+```
+
+### `expect_noop(p, node_name, expected_noop)`
+
+Pass if `node_name` noop flag matches the expected boolean value.
+
+**Parameters:**
+- `p` — The pipeline to check.
+- `node_name` — The node name.
+- `expected_noop` — Expected noop boolean value.
+
+**Examples:**
+```t
+assert(expect_noop(p, "heavy_job", true))
+```
+
+### `expect_computed(node)`
+
+Pass if the node is computed and has a finished value.
+
+**Parameters:**
+- `node` — A `ComputedNode` or `NodeResult` to check.
+
+**Examples:**
+```t
+assert(expect_computed(res.heavy_job))
+```
+
+---
+
 ## Operators
 
 ### Arithmetic
@@ -5551,6 +6275,7 @@ Standard operators can be broadcasted over lists/vectors by prefixing with `.`.
 | `Intent` | `intent { ... }` | LLM metadata block |
 | `Pipeline` | `pipeline { ... }` | DAG computation graph |
 | `Formula` | `y ~ x` | Statistical model specification |
+| `Expect` | `expect_equal(a, b)` | Result of a testcraft comparison (pass/stop/hold) |
 
 ---
 
@@ -7786,6 +8511,97 @@ The `root_causes` field tells the agent which node is the actual source of the f
 
 ---
 
+## Programmatic test results with `t test --json`
+
+When an agent needs to verify that its changes don't break existing tests, it can
+use `t test --json` to get structured test results. This is essential for agent
+workflows where test results must be consumed programmatically.
+
+```bash
+$ t test --json tests/
+$ t test --format junit tests/  # JUnit XML for CI
+```
+
+**Filtering tests:**
+
+```bash
+$ t test --only "stats"     # run only tests matching "stats"
+$ t test --not "slow"       # skip tests matching "slow"
+$ t test --failfast         # stop on first failure
+$ t test --list             # list tests without running
+$ t test --timeout 30       # mark slow tests as failed
+```
+
+**Excluding tests with `.tignore`:**
+
+Create `tests/.tignore` to automatically exclude test files:
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
+```
+
+The output is a JSON object with the test suite summary:
+
+```json
+{
+  "schema_version": "1",
+  "status": "passed",
+  "total": 15,
+  "passed": 14,
+  "failed": 1,
+  "duration_ms": 2340,
+  "results": [
+    {
+      "file": "tests/test_arithmetic.t",
+      "status": "passed",
+      "duration_ms": 120,
+      "error": null
+    },
+    {
+      "file": "tests/test_strings.t",
+      "status": "failed",
+      "duration_ms": 85,
+      "error": "Assertion failed at line 42: expected \"hello\" but got \"world\""
+    }
+  ]
+}
+```
+
+**Agent workflow for test-driven iteration:**
+
+1. Agent modifies code
+2. Agent runs `t test --json tests/`
+3. Agent parses JSON to check `status` field
+4. If `status` is `"failed"`, agent reads `error` field from failed results
+5. Agent fixes the issue and re-runs tests
+
+The JSON output follows the same schema version as `t check --json` and `t run --json`,
+making it easy to integrate with existing agent tooling.
+
+### REPL-callable version
+
+For agents working in the REPL, `t_test()` returns a DataFrame with the same results:
+
+```t
+results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |> filter($status == "failed")
+nrow(failed)  -- 0 if all tests passed
+```
+
+The DataFrame columns are:
+- `file`: Path to the test file
+- `status`: "passed" or "failed"
+- `duration_ms`: Duration in milliseconds
+- `error`: Error message (NA for passed tests)
+
+---
+
 ## Tips for effective pairing
 
 ### What to tell the agent
@@ -9199,6 +10015,35 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
+## [0.54.2] - 2026-07-29
+
+### `testcraft` — Testing Package
+
+- **40 `expect_*` functions**: First-class assertion primitives for T tests. Returns `VExpect` values (`Expect_pass`, `Expect_stop`, `Expect_hold`) that integrate with `assert()`. Covers equality (`expect_equal`), comparison (`expect_lt`, `expect_gt`, `expect_lte`, `expect_gte`), type checks (`expect_type`, `expect_true`, `expect_false`, `expect_truthy`, `expect_falsy`), error handling (`expect_error`), collections (`expect_length`, `expect_nrow`, `expect_ncol`, `expect_colnames`, `expect_has_colnames`, `expect_unique`, `expect_fields`, `expect_in`, `expect_no_na`, `expect_empty`, `expect_summary`), pipelines (`expect_pipeline`, `expect_nodes`, `expect_dependency`, `expect_runtime`, `expect_serializer`, `expect_deserializer`, `expect_noop`, `expect_computed`, `expect_has_pattern`), diagnostics (`expect_warning`), datasets (`expect_column_types`, `expect_values`, `expect_range`, `expect_table_equal`), and string/comparison (`expect_between`, `expect_match`, `expect_str_contains`, `expect_set_equal`).
+- **`check()` builtin**: Inline assertion wrapper that prints `true` on success and preserves `VError` on failure, suitable for pipeline node commands.
+- **Recursive VDict comparison**: `expect_equal` performs order-insensitive, deep structural comparison of Dicts with nested crash safety.
+- **Three-tier Expect system**: `Expect_pass` (comparison succeeded), `Expect_stop msg` (failed with diagnostic), `Expect_hold msg` (NA involved, cannot determine). `assert()` passes on `Expect_pass`, raises `AssertionError` with the diagnostic message on `Expect_stop`/`Expect_hold`.
+
+### `t test` — Test Runner Enhancements
+
+- **Agentic test output (`t test --json`)**: Structured JSON output (schema version 1) with per-file `status`, `duration_ms`, and `error` fields, designed for agent tooling and CI automation.
+- **`t_test()` returns a DataFrame**: The REPL function now returns a DataFrame with columns `file`, `status`, `duration_ms`, and `error` instead of printing pass/fail text. Use `t_test() |> filter($status == "failed")` for programmatic inspection.
+- **Test filtering (`--only`, `--not`)**: Run a subset of tests by substring matching. `--only "stats"` runs only tests whose path contains "stats". Multiple `--only` flags use OR semantics. `--not "slow"` excludes tests matching "slow".
+- **JUnit XML output (`--format junit`)**: Machine-readable test output for CI/CD pipelines. Use `--format junit` or combine with `--json` for JSON output.
+- **`.tignore` support**: Create `tests/.tignore` to automatically exclude test files. One pattern per line, `#` comments, blank lines ignored.
+- **Backward-compatible `--json`**: `--json` continues to work as shorthand for `--format json`.
+- **`--failfast`**: Stop running tests after the first failure.
+- **`--list`**: List discovered test files without running them. Respects `--only` and `--not` filters.
+- **`--timeout SECONDS`**: Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure.
+- **`--coverage`**: Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage`).
+- **`t_test()` filtering**: `t_test(only = ["arithmetic"])` and `t_test(not = ["slow"])` for programmatic filtering from the REPL.
+- **Test pipeline auto-evaluation**: `t test` now auto-evaluates pipeline definitions in test files and reports node failures inline.
+- **Expanded test discovery**: Matches `test_*.t` pattern in addition to `test-*.t` and `*_test.t`.
+
+### Bug Fixes
+
+- **`t test --coverage` target directory fix**: Coverage cleaning and discovery now check both the project directory and the current working directory for `.coverage` files.
+
 ## [0.54.1] - 2026-07-20
 
 ### Type System: Annotations and Inference
@@ -10488,8 +11333,10 @@ See the [Development Guide](development.md) for detailed setup instructions.
    cd tlang
    nix develop
    dune build
-   dune runtest
-   ```
+    dune runtest
+    ```
+
+3. **Coverage**: See the [Development Guide](development.md#coverage) for building with coverage instrumentation.
 
 ---
 
@@ -12039,6 +12886,36 @@ dune runtest --verbose
 ```bash
 dune runtest --watch
 ```
+
+### Coverage
+
+Build with Bisect_ppx instrumentation:
+
+```bash
+nix build .#t-coverage
+```
+
+Or locally:
+
+```bash
+dune build --instrument-with bisect_ppx src/repl.exe
+```
+
+Run tests and print a coverage summary:
+
+```bash
+t test --coverage
+```
+
+Generate an HTML report:
+
+```bash
+bisect-ppx-report html
+```
+
+The report is written to `_coverage/`. The Nix `t-coverage` output bundles
+`bisect-ppx-report` with the source path pre-configured, so no extra flags
+are needed.
 
 ### Writing Unit Tests
 
@@ -15872,7 +16749,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.54.1 "Le Tournoi" using Nix <nix-version>
+Version 0.54.2 "Le Tournoi" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -16872,6 +17749,91 @@ diff_summary(p)
 ```
 
 This is useful for verifying that a code change only affected the intended nodes.
+
+---
+
+## Programmatic Test Results: `t test --json`
+
+When agents modify code, they need to verify that existing tests still pass. T provides
+structured test output via `t test --json`:
+
+```bash
+t test --json tests/
+t test --format junit tests/  # JUnit XML for CI
+```
+
+**Filtering tests:**
+
+```bash
+t test --only "stats"     # run only tests matching "stats"
+t test --not "slow"       # skip tests matching "slow"
+t test --only "stats" --not "anova"  # combine filters
+t test --failfast         # stop on first failure
+t test --list             # list tests without running
+t test --timeout 30       # mark slow tests as failed
+```
+
+**Excluding tests with `.tignore`:**
+
+Create `tests/.tignore` to automatically exclude test files:
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
+```
+
+This returns a JSON object with test results:
+
+```json
+{
+  "schema_version": "1",
+  "status": "passed",
+  "total": 15,
+  "passed": 14,
+  "failed": 1,
+  "duration_ms": 2340,
+  "results": [
+    {
+      "file": "tests/test_arithmetic.t",
+      "status": "passed",
+      "duration_ms": 120,
+      "error": null
+    },
+    {
+      "file": "tests/test_strings.t",
+      "status": "failed",
+      "duration_ms": 85,
+      "error": "Assertion failed at line 42: expected \"hello\" but got \"world\""
+    }
+  ]
+}
+```
+
+**Agent workflow:**
+
+1. Agent modifies code
+2. Agent runs `t test --json tests/`
+3. Agent parses JSON to check `status` field
+4. If `status` is `"failed"`, agent reads `error` field from failed results
+5. Agent fixes the issue and re-runs tests
+
+The JSON output follows the same schema version as `t check --json` and `t run --json`,
+enabling consistent tooling across all T commands.
+
+### REPL-callable version
+
+For agents working in the REPL, `t_test()` returns a DataFrame with the same results:
+
+```t
+results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |> filter($status == "failed")
+nrow(failed)  -- 0 if all tests passed
+```
 
 ---
 
@@ -18455,14 +19417,113 @@ Example `tests/test-mean.t`:
 ```t
 import "src/stats.t"
 
-assert(stats.mean([1, 2, 3]) == 2.0)
-assert(stats.mean([-1, -1]) == -1.0)
+-- Using specialized expect_* functions provides rich diagnostic diffs when tests fail:
+assert(expect_equal(stats.mean([1, 2, 3]), 2.0))
+assert(expect_equal(stats.mean([-1, -1]), -1.0))
 ```
 
 Run all tests with:
 
 ```bash
 $ t test
+
+# Structured JSON output for agents and automation:
+$ t test --json
+
+# JUnit XML output for CI/CD:
+$ t test --format junit
+
+# Run only specific tests:
+$ t test --only "stats"      # run tests matching "stats"
+$ t test --not "slow"        # skip tests matching "slow"
+
+# Stop on first failure:
+$ t test --failfast
+
+# List discovered tests without running:
+$ t test --list
+
+# Mark tests exceeding 30s as failed:
+$ t test --timeout 30
+
+# Generate coverage summary (requires instrumented build):
+$ t test --coverage
+```
+
+Create `tests/.tignore` to automatically exclude test files (one pattern per line):
+
+```
+# tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/
+```
+
+### Test Fixtures
+
+Share expensive setup (like loading large datasets) across tests using `chain()`:
+
+```t
+fixture = pipeline {
+  data = node(command = read_csv("data/large.csv"), serializer = ^csv)
+}
+test_a = pipeline { ... }
+test_b = pipeline { ... }
+build_pipeline(chain(fixture, parallel(test_a, test_b)))
+```
+
+Each node runs in an isolated Nix sandbox. The fixture's output is available to downstream test nodes via the dependency DAG — no redundant `read_csv()` wrapper needed. See the [API reference](api-reference.md#test-fixtures) for a full example.
+
+In the REPL, `t_test()` returns a DataFrame with test results:
+
+```t
+results = t_test()
+results |> filter($status == "failed")
+
+-- Filter from the REPL
+results = t_test(only = ["arithmetic"])
+results = t_test(not = ["slow"])
+```
+
+### Why Use `expect_*` Functions with `assert()`?
+
+While a plain boolean check like `assert(colnames(df) == ["a", "b", "c"])` works, it only evaluates to `true` or `false`. When it fails, `assert` produces a generic error (`AssertionError: expression evaluated to false`), providing no detail on what differed.
+
+By contrast, `expect_*` functions (such as `expect_equal`, `expect_colnames`, `expect_nrow`, `expect_type`, etc.) perform deep structural comparisons and provide rich diagnostic diffs:
+
+```t
+-- Plain assert: fails with unhelpful generic "expression evaluated to false"
+assert(colnames(df) == ["a", "b", "c"])
+
+-- Recommended: produces exact structural diff on failure (e.g. expected "b" at index 2, got "x")
+assert(expect_colnames(df, ["a", "b", "c"]))
+assert(expect_equal(colnames(df), ["a", "b", "c"]))
+```
+
+`expect_*` functions also return first-class `Expect` values (`Expect_pass`, `Expect_stop msg`, `Expect_hold msg`) that allow soft failure, NA handling, or programmatic inspection before passing to `assert()`.
+
+### Skipping Pipeline Tests Conditionally
+
+Since pipeline nodes are compiled and executed via Nix, tests that build or run pipelines might fail or block in sandboxed environments or systems lacking Nix. You can conditionally skip the execution of specific pipeline nodes using the `noop` parameter with any T expression.
+
+Because `noop` accepts T expressions (evaluated at runtime), you can pass conditions referencing environment variables:
+
+```t
+import my_package
+
+p = pipeline {
+  heavy_node = node(
+    command = <{ run_heavy_nix_job() }>,
+    # Skip execution if not running in CI
+    noop = (env_var("CI") == "")
+  )
+}
+
+res = build_pipeline(p)
+
+# Because errors are first-class values in T, skipped nodes propagate VError values cleanly.
+# You can check if the node was skipped using expect_error or custom checks:
+assert(expect_error(read_node(res.heavy_node), class = "TypeError", message = "was skipped"))
 ```
 
 ## 5. Documentation
@@ -19462,6 +20523,26 @@ T maintains a persistent state directory for your pipeline. When you populate or
 4. **Inspect before consuming**: Use `pipeline_nodes()`, `pipeline_deps()`, and `pipeline_to_frame()` to understand pipeline structure
 5. **Build incrementally**: Start with data loading, add transformations one node at a time
 6. **Validate at construction time**: Use `pipeline_assert` at the end of a construction chain to catch structural errors early
+7. **Separate data nodes from verification nodes**: Keep data transformation nodes (`serializer = ^csv`) separate from assertion check nodes. Verification nodes should return named dictionaries of `assert(expect_*(...))` calls (`serializer = ^json`) so that passing builds output a structured `{ check: true }` JSON artifact, while failing assertions immediately short-circuit to record detailed `AssertionError` tracebacks in the build log:
+   ```t
+   test_filter = pipeline {
+     -- Transformation node
+     filtered_data = node(
+       command = data |> filter($score >= 88),
+       serializer = ^csv,
+       deserializer = ^csv
+     )
+     -- Verification node
+     check_filter = node(
+       command = [
+         nrow_check: assert(expect_nrow(filtered_data, 2)),
+         colnames_check: assert(expect_colnames(filtered_data, ["name", "score", "grade"]))
+       ],
+       serializer = ^json,
+       deserializer = ^csv
+     )
+   }
+   ```
 
 ---
 
@@ -20213,7 +21294,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.54.1"
+min_version = "0.54.2"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -20516,6 +21597,60 @@ Run them with:
 
 ```bash
 $ t test
+```
+
+### 6.1 Pipeline Verification Nodes & Assertion Dictionaries
+
+When testing pipeline workflows, separate data transformation nodes from check/assertion nodes. In verification nodes, return a named dictionary of `assert(expect_*(...))` calls serialized as JSON (`serializer = ^json`):
+
+```t
+test_filter = pipeline {
+  -- Data transformation node (produces CSV filtered_data)
+  filtered_data = node(
+    command = data |> filter($score >= 88),
+    serializer = ^csv,
+    deserializer = ^csv
+  )
+  -- Test node (returns named Dict of assertion results)
+  -- On success: serializes [ nrow_check: true, colnames_check: true ] as JSON
+  -- On failure: assert short-circuits and records VError failure object in build log
+  check_filter = node(
+    command = [
+      nrow_check: assert(expect_nrow(filtered_data, 2)),
+      colnames_check: assert(expect_colnames(filtered_data, ["name", "score", "grade"]))
+    ],
+    serializer = ^json,
+    deserializer = ^csv
+  )
+}
+```
+
+This pattern provides a clean duality:
+- **Passing builds** output a structured JSON status artifact mapping check names to `true` (accessible via `read_node(p.check_filter)`).
+- **Failing assertions** short-circuit execution immediately, recording the full `AssertionError` object in the node's build log.
+
+### Skipping Pipeline Tests Conditionally
+
+Since pipeline nodes are compiled and executed via Nix, tests that build or run pipelines might fail or block in sandboxed environments or systems lacking Nix. You can conditionally skip the execution of specific pipeline nodes using the `noop` parameter with any T expression.
+
+Because `noop` accepts T expressions (evaluated at runtime), you can pass conditions referencing environment variables:
+
+```t
+import my_project
+
+p = pipeline {
+  heavy_node = node(
+    command = <{ run_heavy_nix_job() }>,
+    # Skip execution if not running in CI
+    noop = (env_var("CI") == "")
+  )
+}
+
+res = build_pipeline(p)
+
+# Because errors are first-class values in T, skipped nodes propagate VError values cleanly.
+# You can check if the node was skipped using expect_error or custom checks:
+assert(expect_error(read_node(res.heavy_node), class = "TypeError", message = "was skipped"))
 ```
 
 ## 7. Reproducibility
@@ -22726,6 +23861,25 @@ Returns the nodes that appear in the first pipeline but not the second.
 
 
 
+# FILE: docs/reference/diff_summary.md
+
+# diff_summary
+
+Summarize Output Changes Across Builds
+
+Compares the two most recent builds of a pipeline and returns a DataFrame summarizing which nodes changed, were added, or were removed.  Uses per-node Nix content hashes stored in build logs to detect changes without loading artifacts. Only loads artifacts for nodes that actually changed.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to compare builds for.
+
+
+## Returns
+
+A summary with columns: name, status, hash_a, hash_b.
+
+
+
 # FILE: docs/reference/dir_exists.md
 
 # dir_exists
@@ -23173,6 +24327,1325 @@ A Pipeline with branches in place of patterned nodes. `p_has_patterns` is set to
 ## See Also
 
 [pipeline_nodes](pipeline_nodes.html), [populate_pipeline](populate_pipeline.html), [build_pipeline](build_pipeline.html)
+
+
+# FILE: docs/reference/expect_between.md
+
+# expect_between
+
+Closed range numerical bounds assertion
+
+Passes if the numeric value or vector elements fall inside [min, max].
+
+## Parameters
+
+- **actual** (`Int`): | Float | Vector The numeric value or vector to check.
+
+- **min** (`Int`): | Float Lower bound (inclusive).
+
+- **max** (`Int`): | Float Upper bound (inclusive).
+
+
+## Returns
+
+`Expect_pass` when within bounds; `Expect_hold` on NA; `Expect_stop` if out of bounds.
+
+## Examples
+
+```t
+assert(expect_between(25.0, 10.0, 50.0))
+```
+
+## See Also
+
+[expect_lt](expect_lt.html), [expect_gt](expect_gt.html)
+
+
+
+# FILE: docs/reference/expect_colnames.md
+
+# expect_colnames
+
+DataFrame column names assertion
+
+Passes if the DataFrame column names match the given list of strings exactly (order-sensitive).
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to check.
+
+- **names** (`List`): | Vector A list or vector of expected column name strings.
+
+
+## Returns
+
+`Expect_pass` when names match; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_colnames(to_dataframe([x: [1], y = [2]]), ["x", "y"]))
+```
+
+## See Also
+
+[expect_fields](expect_fields.html), [expect_has_colnames](expect_has_colnames.html), [expect_ncol](expect_ncol.html), [expect_nrow](expect_nrow.html)
+
+
+
+# FILE: docs/reference/expect_column_types.md
+
+# expect_column_types
+
+DataFrame column types assertion
+
+Passes if the specified DataFrame columns match the expected type strings.
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to check.
+
+- **expected_types** (`Dict`): | List Column name -> expected type string map.
+
+
+## Returns
+
+`Expect_pass` when types match; `Expect_hold` on NA; `Expect_stop` on mismatch.
+
+## Examples
+
+```t
+assert(expect_column_types(df, [id: "Int", name = "String"]))
+```
+
+## See Also
+
+[expect_type](expect_type.html), [expect_colnames](expect_colnames.html)
+
+
+
+# FILE: docs/reference/expect_computed.md
+
+# expect_computed
+
+Computed node assertion
+
+Passes if the node is computed and has a finished value.
+
+## Parameters
+
+- **node** (`ComputedNode`): | NodeResult The node to check.
+
+
+## Returns
+
+`Expect_pass` if computed; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_computed(res.heavy_job))
+```
+
+
+
+# FILE: docs/reference/expect_dependency.md
+
+# expect_dependency
+
+Node dependency assertion
+
+Passes if `to_node` directly or transitively depends on `from_node` in the pipeline DAG.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **from_node** (`String`): The upstream node name.
+
+- **to_node** (`String`): The downstream node name.
+
+
+## Returns
+
+`Expect_pass` if dependency exists; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_dependency(p, "load", "model"))
+```
+
+
+
+# FILE: docs/reference/expect_deserializer.md
+
+# expect_deserializer
+
+Node deserializer assertion
+
+Passes if `node_name` deserializer matches the expected deserializer.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **node_name** (`String`): The node name.
+
+- **expected** (`String`): | Symbol The expected deserializer.
+
+
+## Returns
+
+`Expect_pass` if matches; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_deserializer(p, "model", ^onnx))
+```
+
+
+
+# FILE: docs/reference/expect_empty.md
+
+# expect_empty
+
+Empty container / string assertion
+
+Passes if a List, Dict, Vector, String, or DataFrame is empty (0 elements/rows/length).
+
+## Parameters
+
+- **actual** (`List`): | Dict | Vector | String | DataFrame The container to check.
+
+
+## Returns
+
+`Expect_pass` when empty; `Expect_hold` on NA; `Expect_stop` if non-empty.
+
+## Examples
+
+```t
+assert(expect_empty([]))
+```
+
+## See Also
+
+[expect_nrow](expect_nrow.html), [expect_length](expect_length.html)
+
+
+
+# FILE: docs/reference/expect_equal.md
+
+# expect_equal
+
+Compare two values for testing
+
+Compares `actual` against `expected` and returns a testcraft Expect value (`Expect_pass`, `Expect_stop`, or `Expect_hold`) describing the outcome. Designed to be used with `assert()`: `assert(expect_equal(a, b))`.
+
+## Parameters
+
+- **actual** (`Any`): The computed value to check.
+
+- **expected** (`Any`): The value `actual` is expected to equal.
+
+- **tolerance** (`Float`): = 1e-9 Absolute tolerance used for Float comparisons.
+
+
+## Returns
+
+A `VExpect` value: passing, stopping, or holding (on NA).
+
+## Examples
+
+```t
+expect_equal(1, 1)
+assert(expect_equal(0.1 + 0.2, 0.3, tolerance = 1e-9))
+```
+
+## See Also
+
+[assert](assert.html), [expect_msg](expect_msg.html), [expect_fail](expect_fail.html), [expect_pass](expect_pass.html)
+
+
+
+# FILE: docs/reference/expect_error.md
+
+# expect_error
+
+Error assertion with optional class and message filtering
+
+Passes if `expr` is a `VError`. Optionally verifies the error class string and/or applies a regex pattern match against the error message.
+
+## Parameters
+
+- **expr** (`Any`): The value to check (typically the result of an expression that may error).
+
+- **class** (`String`): = "" Optional error class to match (e.g. `"TypeError"`, `"RuntimeError"`).
+
+- **message** (`String`): = "" Optional regex pattern to match against the error message.
+
+
+## Returns
+
+`Expect_pass` when all checks pass; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_error(error("boom")))
+assert(expect_error(error("boom"), class = "GenericError"))
+assert(expect_error(error("invalid value"), message = "invalid"))
+```
+
+## See Also
+
+[expect_true](expect_true.html), [expect_type](expect_type.html)
+
+
+
+# FILE: docs/reference/expect_fail.md
+
+# expect_fail
+
+Check whether an Expect value failed
+
+Returns `true` if `x` is a `VExpect Expect_stop` or `VExpect Expect_hold` value (i.e. an `expect_*` comparison that did not pass). Useful for explicit checks alongside `assert()`.
+
+## Parameters
+
+- **x** (`Expect`): The Expect value to inspect.
+
+
+## Returns
+
+True if `x` is a stopping or holding Expect value.
+
+## Examples
+
+```t
+assert(expect_fail(expect_equal(1, 2)))
+```
+
+## See Also
+
+[expect_msg](expect_msg.html), [expect_pass](expect_pass.html), [expect_equal](expect_equal.html)
+
+
+
+# FILE: docs/reference/expect_false.md
+
+# expect_false
+
+Strict boolean false assertion
+
+Passes only if `x` is `VBool false`. For a looser falsiness check, use `expect_falsy` instead.
+
+## Parameters
+
+- **x** (`Any`): The value to check.
+
+
+## Returns
+
+`Expect_pass` only when `x` is `false`; `Expect_hold` on NA; `Expect_stop` on errors or non-false values.
+
+## Examples
+
+```t
+assert(expect_false(false))
+assert(expect_false(2 < 1))
+```
+
+## See Also
+
+[expect_falsy](expect_falsy.html), [expect_truthy](expect_truthy.html), [expect_true](expect_true.html)
+
+
+
+# FILE: docs/reference/expect_falsy.md
+
+# expect_falsy
+
+Loose falsiness assertion
+
+Passes if `x` is falsy per `is_truthy` (`0`, `false`, `VNullNode`, empty containers, etc.). NA produces `Expect_hold`.
+
+## Parameters
+
+- **x** (`Any`): The value to check.
+
+
+## Returns
+
+`Expect_pass` when `x` is falsy; `Expect_hold` on NA; `Expect_stop` on errors or truthy values.
+
+## Examples
+
+```t
+assert(expect_falsy(0))
+assert(expect_falsy(false))
+```
+
+## See Also
+
+[expect_truthy](expect_truthy.html), [expect_false](expect_false.html), [expect_true](expect_true.html)
+
+
+
+# FILE: docs/reference/expect_fields.md
+
+# expect_fields
+
+Dict key / named List label assertion
+
+Passes if a Dict's keys or a named List's labels match the given list of strings exactly (order-sensitive).
+
+## Parameters
+
+- **x** (`Dict`): | List The Dict or named List to inspect.
+
+- **names** (`List`): | Vector A list or vector of expected field name strings.
+
+
+## Returns
+
+`Expect_pass` when fields match; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_fields([a: 1, b = 2], ["a", "b"]))
+```
+
+## See Also
+
+[expect_in](expect_in.html), [expect_colnames](expect_colnames.html)
+
+
+
+# FILE: docs/reference/expect_gte.md
+
+# expect_gte
+
+Numeric greater-than-or-equal assertion
+
+Passes if `a >= b` for numeric arguments (Int or Float).
+
+## Parameters
+
+- **a** (`Int`): | Float The left-hand numeric value.
+
+- **b** (`Int`): | Float The right-hand numeric value.
+
+
+## Returns
+
+`Expect_pass` when `a >= b`, `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_gte(2, 1))
+assert(expect_gte(1, 1))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_gt](expect_gt.html), [expect_lte](expect_lte.html), [expect_lt](expect_lt.html)
+
+
+
+# FILE: docs/reference/expect_gt.md
+
+# expect_gt
+
+Numeric greater-than assertion
+
+Passes if `a > b` for numeric arguments (Int or Float).
+
+## Parameters
+
+- **a** (`Int`): | Float The left-hand numeric value.
+
+- **b** (`Int`): | Float The right-hand numeric value.
+
+
+## Returns
+
+`Expect_pass` when `a > b`, `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_gt(2, 1))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_gte](expect_gte.html), [expect_lte](expect_lte.html), [expect_lt](expect_lt.html)
+
+
+
+# FILE: docs/reference/expect_has_colnames.md
+
+# expect_has_colnames
+
+DataFrame / Dict subset column names assertion
+
+Passes if the DataFrame, Dict, or named List contains at least all of the expected column/field names. Order is not required, and additional columns/fields are permitted.
+
+## Parameters
+
+- **data** (`DataFrame`): | Dict | List The container to check.
+
+- **names** (`String`): | List | Vector The required column/field name or list/vector of required names.
+
+
+## Returns
+
+`Expect_pass` when all expected columns exist; `Expect_hold` on NA; `Expect_stop` on missing columns.
+
+## Examples
+
+```t
+assert(expect_has_colnames(to_dataframe([x: [1], y = [2]]), ["x"]))
+assert(expect_has_colnames(to_dataframe([x: [1], y = [2]]), "y"))
+```
+
+## See Also
+
+[expect_ncol](expect_ncol.html), [expect_nrow](expect_nrow.html), [expect_fields](expect_fields.html), [expect_colnames](expect_colnames.html)
+
+
+
+# FILE: docs/reference/expect_has_pattern.md
+
+# expect_has_pattern
+
+Node dynamic branching pattern assertion
+
+Passes if `node_name` is defined with a dynamic branching pattern (e.g. mapping or crossing).
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **node_name** (`String`): The node name to inspect.
+
+
+## Returns
+
+`Expect_pass` if pattern exists; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_has_pattern(p, "train_model"))
+```
+
+
+
+# FILE: docs/reference/expect_in.md
+
+# expect_in
+
+Set membership assertion
+
+Passes if `x` (or every element of a Vector/List `x`) is present in `values`. Checks each element of collections individually.
+
+## Parameters
+
+- **x** (`Any`): A scalar value, Vector, or List to look for.
+
+- **values** (`Vector`): | List The haystack collection to search in.
+
+- **tolerance** (`Float`): = 1e-9 Absolute tolerance used for Float comparisons.
+
+
+## Returns
+
+`Expect_pass` when all elements are found; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_in(3, [1, 2, 3, 4, 5]))
+assert(expect_in(0.1 + 0.2, [0.3], tolerance = 1e-9))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_fields](expect_fields.html)
+
+
+
+# FILE: docs/reference/expect_length.md
+
+# expect_length
+
+Container length assertion
+
+Passes if the length/size/row-count of `x` equals `n`. Supports Vector, List, String, DataFrame (row count), and Dict (entry count).
+
+## Parameters
+
+- **x** (`Vector`): | List | String | DataFrame | Dict The container to measure.
+
+- **n** (`Int`): Expected length.
+
+
+## Returns
+
+`Expect_pass` when length matches; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_length([1, 2, 3], 3))
+assert(expect_length("hello", 5))
+```
+
+## See Also
+
+[expect_ncol](expect_ncol.html), [expect_nrow](expect_nrow.html)
+
+
+
+# FILE: docs/reference/expect_lte.md
+
+# expect_lte
+
+Numeric less-than-or-equal assertion
+
+Passes if `a <= b` for numeric arguments (Int or Float).
+
+## Parameters
+
+- **a** (`Int`): | Float The left-hand numeric value.
+
+- **b** (`Int`): | Float The right-hand numeric value.
+
+
+## Returns
+
+`Expect_pass` when `a <= b`, `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_lte(1, 1))
+assert(expect_lte(1, 2))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_gte](expect_gte.html), [expect_gt](expect_gt.html), [expect_lt](expect_lt.html)
+
+
+
+# FILE: docs/reference/expect_lt.md
+
+# expect_lt
+
+Numeric less-than assertion
+
+Passes if `a < b` for numeric arguments (Int or Float). Returns `Expect_hold` when either argument is NA; `Expect_stop` on errors.
+
+## Parameters
+
+- **a** (`Int`): | Float The left-hand numeric value.
+
+- **b** (`Int`): | Float The right-hand numeric value.
+
+
+## Returns
+
+`Expect_pass` when `a < b`, `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_lt(1, 2))
+assert(expect_lt(1.5, 2.5))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_gte](expect_gte.html), [expect_gt](expect_gt.html), [expect_lte](expect_lte.html)
+
+
+
+# FILE: docs/reference/expect_match.md
+
+# expect_match
+
+Regex string match assertion
+
+Passes if the actual String matches the given regular expression pattern.
+
+## Parameters
+
+- **actual** (`String`): The string value to inspect.
+
+- **pattern** (`String`): Regular expression pattern string.
+
+
+## Returns
+
+`Expect_pass` when matching; `Expect_hold` on NA; `Expect_stop` on mismatch or invalid pattern.
+
+## Examples
+
+```t
+assert(expect_match("user@example.com", ".*@.*"))
+```
+
+## See Also
+
+[expect_type](expect_type.html), [expect_str_contains](expect_str_contains.html)
+
+
+
+# FILE: docs/reference/expect_msg.md
+
+# expect_msg
+
+Get the diagnostic message from a failing Expect value
+
+Returns the `Stop`/`Hold` message carried by a failing `VExpect` value. If `x` passed (`Expect_pass`), there is no message to extract and a `VError` is returned instead.
+
+## Parameters
+
+- **x** (`Expect`): The Expect value to inspect.
+
+
+## Returns
+
+The diagnostic message, or an error if `x` is not a failure.
+
+## Examples
+
+```t
+expect_msg(expect_equal(1, 2))
+```
+
+## See Also
+
+[expect_fail](expect_fail.html), [expect_pass](expect_pass.html), [expect_equal](expect_equal.html)
+
+
+
+# FILE: docs/reference/expect_ncol.md
+
+# expect_ncol
+
+DataFrame column count assertion
+
+Passes if the DataFrame has exactly `n` columns.
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to check.
+
+- **n** (`Int`): Expected column count.
+
+
+## Returns
+
+`Expect_pass` when column count matches; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_ncol(to_dataframe([x: [1], y = [2]]), 2))
+```
+
+## See Also
+
+[expect_length](expect_length.html), [expect_colnames](expect_colnames.html), [expect_nrow](expect_nrow.html)
+
+
+
+# FILE: docs/reference/expect_nodes.md
+
+# expect_nodes
+
+Pipeline nodes assertion
+
+Passes if a pipeline contains exactly the expected node names (including dynamic branch nodes).
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline to check.
+
+- **expected_names** (`List`): | Vector Expected node names.
+
+
+## Returns
+
+`Expect_pass` if match; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_nodes(p, ["load", "clean", "model"]))
+```
+
+
+
+# FILE: docs/reference/expect_no_na.md
+
+# expect_no_na
+
+Absence of NA values assertion
+
+Passes if the actual value, Vector, List, or DataFrame (optional column) contains zero NA values.
+
+## Parameters
+
+- **actual** (`Any`): The value, container, or DataFrame to check.
+
+- **col** (`String`): (Optional) Column name when checking a DataFrame.
+
+
+## Returns
+
+`Expect_pass` when no NA values exist; `Expect_stop` if NA values are found.
+
+## Examples
+
+```t
+assert(expect_no_na([1, 2, 3]))
+assert(expect_no_na(df, "val"))
+```
+
+## See Also
+
+[expect_true](expect_true.html), [expect_type](expect_type.html)
+
+
+
+# FILE: docs/reference/expect_noop.md
+
+# expect_noop
+
+Node noop assertion
+
+Passes if `node_name` noop flag matches the expected value.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **node_name** (`String`): The node name.
+
+- **expected** (`Bool`): Expected noop value.
+
+
+## Returns
+
+`Expect_pass` if matches; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_noop(p, "heavy_job", true))
+```
+
+
+
+# FILE: docs/reference/expect_nrow.md
+
+# expect_nrow
+
+DataFrame row count assertion
+
+Passes if the DataFrame has exactly `n` rows.
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to check.
+
+- **n** (`Int`): Expected row count.
+
+
+## Returns
+
+`Expect_pass` when row count matches; `Expect_hold` on NA; `Expect_stop` on errors or mismatch.
+
+## Examples
+
+```t
+assert(expect_nrow(to_dataframe([x: [1, 2, 3]]), 3))
+```
+
+## See Also
+
+[expect_length](expect_length.html), [expect_colnames](expect_colnames.html), [expect_ncol](expect_ncol.html)
+
+
+
+# FILE: docs/reference/expect_pass.md
+
+# expect_pass
+
+Check whether an Expect value passed
+
+Returns `true` if `x` is a `VExpect Expect_pass` value (i.e. an `expect_*` comparison that succeeded). Useful for explicit checks alongside `assert()`.
+
+## Parameters
+
+- **x** (`Expect`): The Expect value to inspect.
+
+
+## Returns
+
+True if `x` is a passing Expect value.
+
+## Examples
+
+```t
+assert(expect_pass(expect_equal(a, b)))
+```
+
+## See Also
+
+[expect_msg](expect_msg.html), [expect_fail](expect_fail.html), [expect_equal](expect_equal.html)
+
+
+
+# FILE: docs/reference/expect_pipeline.md
+
+# expect_pipeline
+
+Pipeline assertion
+
+Passes if `x` is a Pipeline value.
+
+## Parameters
+
+- **x** (`Any`): The value to check.
+
+
+## Returns
+
+`Expect_pass` if a Pipeline; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_pipeline(p))
+```
+
+
+
+# FILE: docs/reference/expect_range.md
+
+# expect_range
+
+DataFrame numeric column closed range bounds assertion
+
+Passes if all non-NA cell values in a numeric DataFrame column fall within [min, max].
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to inspect.
+
+- **col** (`String`): Column name to check.
+
+- **min** (`Int`): | Float Lower bound (inclusive).
+
+- **max** (`Int`): | Float Upper bound (inclusive).
+
+
+## Returns
+
+`Expect_pass` when within bounds; `Expect_hold` on NA; `Expect_stop` if out of bounds.
+
+## Examples
+
+```t
+assert(expect_range(df, "age", 0, 120))
+```
+
+## See Also
+
+[expect_values](expect_values.html), [expect_between](expect_between.html)
+
+
+
+# FILE: docs/reference/expect_runtime.md
+
+# expect_runtime
+
+Node runtime assertion
+
+Passes if `node_name` runtime matches the expected runtime.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **node_name** (`String`): The node name.
+
+- **expected** (`String`): The expected runtime name (e.g. "R", "Python").
+
+
+## Returns
+
+`Expect_pass` if matches; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_runtime(p, "model", "Python"))
+```
+
+
+
+# FILE: docs/reference/expect_serializer.md
+
+# expect_serializer
+
+Node serializer assertion
+
+Passes if `node_name` serializer matches the expected serializer.
+
+## Parameters
+
+- **p** (`Pipeline`): The pipeline.
+
+- **node_name** (`String`): The node name.
+
+- **expected** (`String`): | Symbol The expected serializer.
+
+
+## Returns
+
+`Expect_pass` if matches; `Expect_stop` otherwise.
+
+## Examples
+
+```t
+assert(expect_serializer(p, "data", ^csv))
+```
+
+
+
+# FILE: docs/reference/expect_set_equal.md
+
+# expect_set_equal
+
+Order-independent set equality assertion
+
+Passes if two Lists or Vectors contain the exact same unique elements regardless of order.
+
+## Parameters
+
+- **list1** (`List`): | Vector First collection.
+
+- **list2** (`List`): | Vector Second collection.
+
+
+## Returns
+
+`Expect_pass` when sets match; `Expect_hold` on NA; `Expect_stop` if elements differ.
+
+## Examples
+
+```t
+assert(expect_set_equal([1, 2, 3], [3, 2, 1]))
+```
+
+## See Also
+
+[expect_in](expect_in.html), [expect_equal](expect_equal.html)
+
+
+
+# FILE: docs/reference/expect_str_contains.md
+
+# expect_str_contains
+
+Substring search assertion
+
+Passes if the actual String contains the specified substring.
+
+## Parameters
+
+- **actual** (`String`): The string value to inspect.
+
+- **substring** (`String`): Substring to search for.
+
+
+## Returns
+
+`Expect_pass` when found; `Expect_hold` on NA; `Expect_stop` if missing.
+
+## Examples
+
+```t
+assert(expect_str_contains("hello world", "world"))
+```
+
+## See Also
+
+[expect_match](expect_match.html)
+
+
+
+# FILE: docs/reference/expect_summary.md
+
+# expect_summary
+
+Expectation test suite summary report
+
+Summarizes a List or Dict of Expect values / check results into a DataFrame report table.
+
+## Parameters
+
+- **checks** (`Dict`): | List A dictionary or list of expectation check results.
+
+
+## Returns
+
+A DataFrame with columns `check`, `status`, and `message`.
+
+## Examples
+
+```t
+summary_df = expect_summary([c1: expect_equal(1, 1), c2 = expect_equal(2, 2)])
+```
+
+## See Also
+
+[expect_fail](expect_fail.html), [expect_pass](expect_pass.html)
+
+
+
+# FILE: docs/reference/expect_table_equal.md
+
+# expect_table_equal
+
+DataFrame table equality assertion
+
+Passes if two DataFrames have equal dimensions, column names, and matching row contents.
+
+## Parameters
+
+- **df1** (`DataFrame`): First DataFrame.
+
+- **df2** (`DataFrame`): Second DataFrame.
+
+- **ignore_row_order** (`Bool`): = true Ignore row ordering during comparison.
+
+
+## Returns
+
+`Expect_pass` when tables match; `Expect_hold` on NA; `Expect_stop` on mismatch.
+
+## Examples
+
+```t
+assert(expect_table_equal(df1, df2))
+```
+
+## See Also
+
+[expect_colnames](expect_colnames.html), [expect_equal](expect_equal.html)
+
+
+
+# FILE: docs/reference/expect_true.md
+
+# expect_true
+
+Strict boolean true assertion
+
+Passes only if `x` is `VBool true`. For a looser truthiness check, use `expect_truthy` instead.
+
+## Parameters
+
+- **x** (`Any`): The value to check.
+
+
+## Returns
+
+`Expect_pass` only when `x` is `true`; `Expect_hold` on NA; `Expect_stop` on errors or non-true values.
+
+## Examples
+
+```t
+assert(expect_true(true))
+assert(expect_true(1 < 2))
+```
+
+## See Also
+
+[expect_falsy](expect_falsy.html), [expect_truthy](expect_truthy.html), [expect_false](expect_false.html)
+
+
+
+# FILE: docs/reference/expect_truthy.md
+
+# expect_truthy
+
+Loose truthiness assertion
+
+Passes if `x` is truthy per `is_truthy` (non-zero numbers, non-empty strings, non-empty containers, etc.).
+
+## Parameters
+
+- **x** (`Any`): The value to check.
+
+
+## Returns
+
+`Expect_pass` when `x` is truthy; `Expect_hold` on NA; `Expect_stop` on errors or falsy values.
+
+## Examples
+
+```t
+assert(expect_truthy(42))
+assert(expect_truthy("hello"))
+```
+
+## See Also
+
+[expect_falsy](expect_falsy.html), [expect_false](expect_false.html), [expect_true](expect_true.html)
+
+
+
+# FILE: docs/reference/expect_type.md
+
+# expect_type
+
+Type name assertion
+
+Passes if the runtime type name of `x` matches the given string (e.g. `"Int"`, `"String"`, `"DataFrame"`).
+
+## Parameters
+
+- **x** (`Any`): The value to inspect.
+
+- **type_name** (`String`): Expected type name.
+
+
+## Returns
+
+`Expect_pass` when types match; `Expect_hold` on NA; `Expect_stop` on errors or type mismatch.
+
+## Examples
+
+```t
+assert(expect_type(42, "Int"))
+assert(expect_type("hello", "String"))
+```
+
+## See Also
+
+[expect_error](expect_error.html), [expect_true](expect_true.html)
+
+
+
+# FILE: docs/reference/expect_unique.md
+
+# expect_unique
+
+Element uniqueness assertion
+
+Passes if all elements in a Vector, List, or DataFrame are distinct. Returns `Expect_stop` detailing duplicate values if any are found.
+
+## Parameters
+
+- **x** (`Vector`): | List | DataFrame The container or vector to check for uniqueness.
+
+
+## Returns
+
+`Expect_pass` if all elements are unique; `Expect_hold` on NA; `Expect_stop` if duplicates exist.
+
+## Examples
+
+```t
+assert(expect_unique([1, 2, 3, 4]))
+assert(expect_unique(df.$id))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [expect_in](expect_in.html), [expect_length](expect_length.html)
+
+
+
+# FILE: docs/reference/expect_values.md
+
+# expect_values
+
+DataFrame column allowed values assertion
+
+Passes if all cell values in a DataFrame column belong to an allowed set of values.
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to inspect.
+
+- **col** (`String`): Column name to check.
+
+- **allowed_values** (`List`): | Vector Set of allowed values.
+
+
+## Returns
+
+`Expect_pass` when all values are allowed; `Expect_hold` on NA; `Expect_stop` on disallowed values.
+
+## Examples
+
+```t
+assert(expect_values(df, "status", ["PENDING", "APPROVED"]))
+```
+
+## See Also
+
+[expect_range](expect_range.html), [expect_in](expect_in.html)
+
+
+
+# FILE: docs/reference/expect_warning.md
+
+# expect_warning
+
+Assert that a pipeline node produced a warning diagnostic
+
+Passes if the node's diagnostics contain at least one warning. Optionally filters by warning `kind` string and/or regex on the warning `message`.  This only checks pipeline node warning diagnostics (stored in `nd_warnings` on `NodeResult`/`ComputedNode`). It does not capture runtime warnings or print output.  `ComputedNode` values must already have been evaluated (e.g. via `build_pipeline` or `run_pipeline`); otherwise the expectation fails.  The `message` pattern uses OCaml's standard `Str` regular expression syntax (not PCRE). Matching is substring-based (searches anywhere in the message). Empty string values for `kind` or `message` are treated as omitted filters (match any).
+
+## Parameters
+
+- **node** (`NodeResult`): | ComputedNode The computed node to inspect.
+
+- **kind** (`String`): = "" Optional warning kind to match exactly (e.g. "NAExcluded").
+
+- **message** (`String`): = "" Optional regex pattern to match against the warning message.
+
+
+## Returns
+
+Pass if warnings are present and match any provided filters.
+
+## Examples
+
+```t
+assert(expect_warning(read_node(p.my_node)))
+assert(expect_warning(read_node(p.my_node), kind = "NAExcluded"))
+assert(expect_warning(read_node(p.my_node), message = "excluded"))
+```
+
+## See Also
+
+[expect_error](expect_error.html)
+
 
 
 # FILE: docs/reference/explain_json.md
@@ -23638,6 +26111,42 @@ A factor vector with levels in reverse order.
 
 ```t
 fct_rev(fct)
+```
+
+
+
+# FILE: docs/reference/fetchurl.md
+
+# fetchurl
+
+Fetch a URL
+
+Downloads a file from a URL. In the REPL, wraps curl. In a pipeline, creates a node that uses Nix's builtins.fetchurl to fetch the asset into the Nix store, making it available downstream.
+
+## Parameters
+
+- **url** (`String`): The URL to download.
+
+- **sha256** (`String`): (Optional) Expected SHA-256 hash (required in pipeline mode).
+
+- **serializer** (`String`): (Optional) Serializer format for pipeline mode. Defaults to "bin". Use "text" for plain text files.
+
+- **output** (`String`): (Optional) Output file path (REPL mode only). Defaults to the basename of the URL.
+
+- **dest** (`String`): (Optional) Output directory (REPL mode only). Defaults to the current directory.
+
+
+## Returns
+
+| Node In REPL mode, returns the file path as a String. In pipeline mode, returns a Node value.
+
+## Examples
+
+```t
+data = fetchurl("https://example.com/data.csv", output = "data.csv")
+p = pipeline {
+data = fetchurl("https://example.com/data.csv", sha256 = "abc123...")
+}
 ```
 
 
@@ -27881,6 +30390,36 @@ Calculates predicted values for a model object. Standardized on JPMML as the sol
 
 
 
+# FILE: docs/reference/prefetch.md
+
+# prefetch
+
+Prefetch a URL and compute its SHA-256 hash
+
+Downloads a URL via nix-prefetch-url and returns its SHA-256 hash. The file is stored in the Nix store so that fetchurl in pipeline mode finds it cached and does not re-download.
+
+## Parameters
+
+- **url** (`String`): The URL to prefetch.
+
+
+## Returns
+
+The SHA-256 hash of the downloaded content.
+
+## Examples
+
+```t
+hash = prefetch("https://example.com/data.csv")
+print(hash)
+```
+
+## See Also
+
+[fetchurl](fetchurl.html)
+
+
+
 # FILE: docs/reference/pretty_print.md
 
 # pretty_print
@@ -30534,6 +33073,58 @@ Compute tangent (radians).
 
 
 
+# FILE: docs/reference/t_check.md
+
+# t_check
+
+Check a T Script for Errors
+
+Runs structural, wire-phase, schema, and environment checks on a T script. Returns the same diagnostics as the CLI `t check` command.
+
+## Parameters
+
+- **file** (`String`): The path to the .t file to check.
+
+- **json** (`Bool`): = false Output diagnostics as JSON.
+
+- **schema** (`Bool`): = false Enable column-level schema validation.
+
+- **env** (`Bool`): = false Enable tproject.toml environment checks.
+
+- **offline** (`Bool`): = false Prevent network access during env checks.
+
+
+## Returns
+
+The formatted diagnostics (text or JSON).
+
+
+
+# FILE: docs/reference/t_diff.md
+
+# t_diff
+
+Compare Two Builds of a Pipeline
+
+Compares two builds of a pipeline and returns a summary of which nodes changed, were added, or were removed. Uses per-node Nix content hashes.
+
+## Parameters
+
+- **file** (`String`): The path to the .t file to diff.
+
+- **json** (`Bool`): = false Output diff as JSON.
+
+- **log_a** (`Int`): = 2 Rank of the first (older) build log.
+
+- **log_b** (`Int`): = 1 Rank of the second (newer) build log.
+
+
+## Returns
+
+The formatted diff (text or JSON).
+
+
+
 # FILE: docs/reference/t_doc.md
 
 # t_doc
@@ -30557,6 +33148,27 @@ Documentation tools. Call with "parse" to extract docs from `src/`, or "generate
 t_doc("parse")
 t_doc("generate")
 ```
+
+
+
+# FILE: docs/reference/t_fix.md
+
+# t_fix
+
+Mechanically Apply Suggested Fixes
+
+Runs `t check --schema` on a file, extracts diagnostics with suggested_fix, and applies them (e.g., renaming columns, adding missing node arguments). Uses bottom-up line order to avoid line-number drift.
+
+## Parameters
+
+- **file** (`String`): The path to the .t file to fix.
+
+- **dry_run** (`Bool`): = false Show what would be fixed without modifying the file.
+
+
+## Returns
+
+Summary of fixes applied (or would be applied).
 
 
 
@@ -31221,11 +33833,27 @@ Evaluates a PMML model against a DataFrame using the JPMML-evaluator library. Re
 
 Run tests
 
-Runs the test suite for the current package. Wraps the CLI `t test` command for use within the REPL.
+Runs the test suite for the current package and returns a DataFrame with results. Wraps the CLI `t test` command for use within the REPL.
+
+## Parameters
+
+- **only** (`List`): = [] Filter to tests whose path contains any of these substrings.
+
+- **not** (`List`): = [] Exclude tests whose path contains any of these substrings.
+
 
 ## Returns
 
-Returns NA on success, or an Error if tests fail.
+A DataFrame with columns: file, status, duration_ms, error.
+
+## Examples
+
+```t
+results = t_test()
+results |> filter($status == "failed")
+results = t_test(only = ["arithmetic"])
+results = t_test(not = ["slow"])
+```
 
 
 
@@ -32018,7 +34646,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.54.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.54.2";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -32141,7 +34769,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.54.1",
+    t_version: "0.54.2",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -32184,7 +34812,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.54.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.54.2";
   };
   
   outputs = { self, nixpkgs, tlang }: {

@@ -64,8 +64,8 @@
     chrono
     ; packages/dataframe
    t_read_csv t_read_parquet t_write_csv t_read_arrow t_write_arrow t_write_parquet t_dataframe colnames nrow ncol clean_colnames glimpse
-      ; packages/pipeline
-       pipeline_utils pipeline_args pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node read_past_node pipeline_copy
+       ; packages/pipeline
+        pipeline_utils pipeline_args pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node read_past_node pipeline_copy pipeline_builder_post
        pipeline_to_frame filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
          pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_expand pipeline_inspect2 pipeline_to_ga t_make_mod build_log pipeline_diff diff_summary pipeline_report t_check t_diff t_fix
       pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc export_artifacts import_artifacts inspect_artifacts
@@ -81,6 +81,8 @@
     lens
     ; packages/explain
     intent_fields intent_get t_explain explain_json
+    ; packages/testcraft
+    testcraft_utils t_expect_equal t_expect_pass t_expect_fail t_expect_msg t_expect_relational t_expect_type t_expect_ds t_expect_condition t_expect_pipeline
    ; package_manager
    version nixpkgs_date uv2nix_commit package_types toml_parser template_engine scaffold nix_generator renv_resolver r_description_resolver test_discovery package_doctor release_manager documentation_manager update_manager package_loader
    ; tdoc

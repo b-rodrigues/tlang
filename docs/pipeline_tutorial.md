@@ -635,6 +635,26 @@ T maintains a persistent state directory for your pipeline. When you populate or
 4. **Inspect before consuming**: Use `pipeline_nodes()`, `pipeline_deps()`, and `pipeline_to_frame()` to understand pipeline structure
 5. **Build incrementally**: Start with data loading, add transformations one node at a time
 6. **Validate at construction time**: Use `pipeline_assert` at the end of a construction chain to catch structural errors early
+7. **Separate data nodes from verification nodes**: Keep data transformation nodes (`serializer = ^csv`) separate from assertion check nodes. Verification nodes should return named dictionaries of `assert(expect_*(...))` calls (`serializer = ^json`) so that passing builds output a structured `{ check: true }` JSON artifact, while failing assertions immediately short-circuit to record detailed `AssertionError` tracebacks in the build log:
+   ```t
+   test_filter = pipeline {
+     -- Transformation node
+     filtered_data = node(
+       command = data |> filter($score >= 88),
+       serializer = ^csv,
+       deserializer = ^csv
+     )
+     -- Verification node
+     check_filter = node(
+       command = [
+         nrow_check: assert(expect_nrow(filtered_data, 2)),
+         colnames_check: assert(expect_colnames(filtered_data, ["name", "score", "grade"]))
+       ],
+       serializer = ^json,
+       deserializer = ^csv
+     )
+   }
+   ```
 
 ---
 

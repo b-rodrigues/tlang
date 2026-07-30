@@ -137,7 +137,24 @@ df
 
 
   -- --------------------------------------------------------------------------
-  -- F. Quarto Rendering Node (qn)
+  -- F. Test / Data Quality Assertion Node
+  -- --------------------------------------------------------------------------
+  -- Inline test nodes use testcraft functions (expect_gt, expect_equal, expect_type)
+  -- wrapped in assert() inside a named dictionary.
+  -- On success: serializes [ check_name: true ] as a JSON artifact.
+  -- On failure: assert() short-circuits to record an AssertionError failure object in build log.
+  check_data_quality = node(
+    command = [
+      row_count_check: assert(expect_gt(nrow(r_transformation), 0)),
+      data_type_check: assert(expect_type(r_transformation, "DataFrame"))
+    ],
+    serializer = ^json,
+    deserializer = ^csv
+  )
+
+
+  -- --------------------------------------------------------------------------
+  -- G. Quarto Rendering Node (qn)
   -- --------------------------------------------------------------------------
   -- `qn(...)` is a wrapper for `node(runtime = Quarto, ...)`.
   -- Points directly to an external file using `script = ...` (mutually exclusive with `command`).

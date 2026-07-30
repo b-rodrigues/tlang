@@ -91,6 +91,12 @@ and intent_block = {
   intent_fields : (string * string) list;  (* Key-value pairs of metadata *)
 }
 
+(** testcraft: outcome of an expect_* comparison *)
+and expect_kind =
+  | Expect_pass
+  | Expect_stop of string
+  | Expect_hold of string
+
 and node_warning_source =
   | WarningOwn
   | WarningUpstream of string
@@ -300,6 +306,8 @@ and value =
       node_name : string;
       diagnostics : node_diagnostics;
     }
+  (* testcraft: result of an expect_* comparison *)
+  | VExpect of expect_kind
 
 
 
@@ -391,6 +399,9 @@ and typ =
   | TArrow of typ list * typ
 
 type program = stmt list
+
+(** Sentinel path used when a computed node has not been built yet. *)
+let unbuilt_path = "<unbuilt>"
 
 (** Located constructors and accessors *)
 let mk_expr ?loc node = { node; loc }
@@ -603,6 +614,8 @@ module Utils = struct
     | VNA _ -> false
     | VNullNode -> false
     | VNodeResult { v; _ } -> is_truthy v
+    | VExpect Expect_pass -> true
+    | VExpect (Expect_stop _ | Expect_hold _) -> false
     | _ -> true
 
   (** Check if an expression is a column reference and extract the column name.
@@ -814,6 +827,7 @@ module Utils = struct
     | VDynamicArg _ -> "DynamicArg"
     | VEnv _ -> "Environment"
     | VNodeResult { v; _ } -> type_name v
+    | VExpect _ -> "Expect"
 
   let escape_string_utf8 s =
     let buf = Buffer.create (String.length s * 2) in
@@ -1129,6 +1143,9 @@ module Utils = struct
     | VDynamicArg (n, v) -> n ^ " := " ^ value_to_string v
     | VEnv _ -> "<environment>"
     | VNodeResult { v; _ } -> value_to_string v
+    | VExpect Expect_pass -> "PASS"
+    | VExpect (Expect_stop msg) -> Printf.sprintf "STOP(%s)" msg
+    | VExpect (Expect_hold msg) -> Printf.sprintf "HOLD(%s)" msg
 
   let value_to_raw_string = function
     | VString s -> s

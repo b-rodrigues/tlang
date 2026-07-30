@@ -215,11 +215,109 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="
 <p>Example <code>tests/test-mean.t</code>:</p>
 <pre class="t"><code>import &quot;src/stats.t&quot;
 
-assert(stats.mean([1, 2, 3]) == 2.0)
-assert(stats.mean([-1, -1]) == -1.0)</code></pre>
+-- Using specialized expect_* functions provides rich diagnostic diffs when tests fail:
+assert(expect_equal(stats.mean([1, 2, 3]), 2.0))
+assert(expect_equal(stats.mean([-1, -1]), -1.0))</code></pre>
 <p>Run all tests with:</p>
 <div class="sourceCode" id="cb10"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Structured JSON output for agents and automation:</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--json</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="co"># JUnit XML output for CI/CD:</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--format</span> junit</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Run only specific tests:</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span>      <span class="co"># run tests matching &quot;stats&quot;</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--not</span> <span class="st">&quot;slow&quot;</span>        <span class="co"># skip tests matching &quot;slow&quot;</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Stop on first failure:</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--failfast</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="co"># List discovered tests without running:</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--list</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Mark tests exceeding 30s as failed:</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--timeout</span> 30</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate coverage summary (requires instrumented build):</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--coverage</span></span></code></pre></div>
+<p>Create <code>tests/.tignore</code> to automatically exclude test
+files (one pattern per line):</p>
+<pre><code># tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/</code></pre>
+<h3 id="test-fixtures">Test Fixtures</h3>
+<p>Share expensive setup (like loading large datasets) across tests
+using <code>chain()</code>:</p>
+<pre class="t"><code>fixture = pipeline {
+  data = node(command = read_csv(&quot;data/large.csv&quot;), serializer = ^csv)
+}
+test_a = pipeline { ... }
+test_b = pipeline { ... }
+build_pipeline(chain(fixture, parallel(test_a, test_b)))</code></pre>
+<p>Each node runs in an isolated Nix sandbox. The fixture’s output is
+available to downstream test nodes via the dependency DAG — no redundant
+<code>read_csv()</code> wrapper needed. See the <a
+href="api-reference.md#test-fixtures">API reference</a> for a full
+example.</p>
+<p>In the REPL, <code>t_test()</code> returns a DataFrame with test
+results:</p>
+<pre class="t"><code>results = t_test()
+results |&gt; filter($status == &quot;failed&quot;)
+
+-- Filter from the REPL
+results = t_test(only = [&quot;arithmetic&quot;])
+results = t_test(not = [&quot;slow&quot;])</code></pre>
+<h3 id="why-use-expect_-functions-with-assert">Why Use
+<code>expect_*</code> Functions with <code>assert()</code>?</h3>
+<p>While a plain boolean check like
+<code>assert(colnames(df) == ["a", "b", "c"])</code> works, it only
+evaluates to <code>true</code> or <code>false</code>. When it fails,
+<code>assert</code> produces a generic error
+(<code>AssertionError: expression evaluated to false</code>), providing
+no detail on what differed.</p>
+<p>By contrast, <code>expect_*</code> functions (such as
+<code>expect_equal</code>, <code>expect_colnames</code>,
+<code>expect_nrow</code>, <code>expect_type</code>, etc.) perform deep
+structural comparisons and provide rich diagnostic diffs:</p>
+<pre class="t"><code>-- Plain assert: fails with unhelpful generic &quot;expression evaluated to false&quot;
+assert(colnames(df) == [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;])
+
+-- Recommended: produces exact structural diff on failure (e.g. expected &quot;b&quot; at index 2, got &quot;x&quot;)
+assert(expect_colnames(df, [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]))
+assert(expect_equal(colnames(df), [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]))</code></pre>
+<p><code>expect_*</code> functions also return first-class
+<code>Expect</code> values (<code>Expect_pass</code>,
+<code>Expect_stop msg</code>, <code>Expect_hold msg</code>) that allow
+soft failure, NA handling, or programmatic inspection before passing to
+<code>assert()</code>.</p>
+<h3 id="skipping-pipeline-tests-conditionally">Skipping Pipeline Tests
+Conditionally</h3>
+<p>Since pipeline nodes are compiled and executed via Nix, tests that
+build or run pipelines might fail or block in sandboxed environments or
+systems lacking Nix. You can conditionally skip the execution of
+specific pipeline nodes using the <code>noop</code> parameter with any T
+expression.</p>
+<p>Because <code>noop</code> accepts T expressions (evaluated at
+runtime), you can pass conditions referencing environment variables:</p>
+<pre class="t"><code>import my_package
+
+p = pipeline {
+  heavy_node = node(
+    command = &lt;{ run_heavy_nix_job() }&gt;,
+    # Skip execution if not running in CI
+    noop = (env_var(&quot;CI&quot;) == &quot;&quot;)
+  )
+}
+
+res = build_pipeline(p)
+
+# Because errors are first-class values in T, skipped nodes propagate VError values cleanly.
+# You can check if the node was skipped using expect_error or custom checks:
+assert(expect_error(read_node(res.heavy_node), class = &quot;TypeError&quot;, message = &quot;was skipped&quot;))</code></pre>
 <h2 id="documentation">5. Documentation</h2>
 <p>T packages use <strong>T-Doc</strong>, a comment-based documentation
 system. Documentation lives in source files close to the code and is
@@ -256,25 +354,25 @@ mark as public (this is the default, so usually not needed).</p>
 <h3 id="generating-documentation">Generating Documentation</h3>
 <p>To generate the documentation files in
 <code>docs/reference/</code>:</p>
-<div class="sourceCode" id="cb12"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doc <span class="at">--parse</span> <span class="at">--generate</span></span></code></pre></div>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doc <span class="at">--parse</span> <span class="at">--generate</span></span></code></pre></div>
 <p>This will: 1. Scan your <code>src/</code> directory for
 <code>--#</code> blocks. 2. Generate Markdown files for each function in
 <code>docs/reference/</code>. 3. Generate a
 <code>docs/reference/index.md</code> listing all exported functions.</p>
 <h3 id="viewing-documentation">Viewing Documentation</h3>
 <p>You can view your documentation locally using:</p>
-<div class="sourceCode" id="cb13"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t docs</span></code></pre></div>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t docs</span></code></pre></div>
 <p>This opens <code>docs/index.md</code> (or <code>README.md</code>) in
 your system viewer. You can link to your reference documentation from
 there.</p>
 <h2 id="quality-control">6. Quality Control</h2>
 <p>Before publishing, run <code>t doctor</code> to check your package
 for common issues:</p>
-<div class="sourceCode" id="cb14"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doctor</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Everything looks good!</span></code></pre></div>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doctor</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Everything looks good!</span></code></pre></div>
 <p>It checks for: - Required files (<code>DESCRIPTION.toml</code>,
 <code>flake.nix</code>). - Valid directory structure. - Documentation
 existence. - Nix installation.</p>
@@ -288,13 +386,13 @@ version.</li>
 <li>Commit all changes to git.</li>
 <li>Run <code>t publish</code>.</li>
 </ol>
-<div class="sourceCode" id="cb15"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t publish</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Preparing</span> to publish version 0.1.0...</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Validation complete.</span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Proceed</span> to tag and push v0.1.0<span class="pp">?</span> <span class="pp">[</span><span class="ss">y/N</span><span class="pp">]</span> y</span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Tag v0.1.0 pushed to remote.</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t publish</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Preparing</span> to publish version 0.1.0...</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Validation complete.</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Proceed</span> to tag and push v0.1.0<span class="pp">?</span> <span class="pp">[</span><span class="ss">y/N</span><span class="pp">]</span> y</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Tag v0.1.0 pushed to remote.</span></code></pre></div>
 <p>This will run your tests, verify the changelog, and push a git tag to
 your repository.</p>
 <h2 id="how-others-import-your-package">8. How Others Import Your
@@ -302,9 +400,9 @@ Package</h2>
 <p>Once published, other packages or projects can depend on yours by
 adding it to their <code>DESCRIPTION.toml</code> or
 <code>tproject.toml</code>:</p>
-<div class="sourceCode" id="cb16"><pre
-class="sourceCode toml"><code class="sourceCode toml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[dependencies]</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="dt">advanced-stats</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/advanced-stats&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v0.1.0&quot;</span><span class="op"> }</span></span></code></pre></div>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[dependencies]</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="dt">advanced-stats</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/advanced-stats&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v0.1.0&quot;</span><span class="op"> }</span></span></code></pre></div>
 <p>Then in their T code, they can import your package:</p>
 <pre class="t"><code>-- Import everything (all public functions)
 import advanced_stats

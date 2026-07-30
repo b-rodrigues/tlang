@@ -1,5 +1,5 @@
 (* src/package_manager/test_discovery.ml *)
-(* Test runner for T packages: discovers and runs test-*.t files *)
+(* Test runner for T packages: discovers and runs test-*.t, test_*.t, or *_test.t files *)
 
 (** Single test result *)
 type test_result = {
@@ -18,38 +18,152 @@ type suite_result = {
   total_duration : float;
 }
 
+(** Compute relative path of full_path with respect to dir *)
+let relative_path (dir : string) (full_path : string) : string =
+  let dir_clean =
+    if String.ends_with ~suffix:"/" dir then
+      String.sub dir 0 (String.length dir - 1)
+    else dir
+  in
+  let dir_len = String.length dir_clean in
+  if dir_len > 0 && String.length full_path > dir_len + 1 && String.starts_with ~prefix:(dir_clean ^ "/") full_path then
+    String.sub full_path (dir_len + 1) (String.length full_path - dir_len - 1)
+  else full_path
+
+(** Wildcard matching ('*' matches any substring) *)
+let glob_match pattern str =
+  let parts = String.split_on_char '*' pattern in
+  let len_str = String.length str in
+  let rec match_parts str_pos is_first parts =
+    match parts with
+    | [] -> true
+    | [last] ->
+        if last = "" then true
+        else
+          let len_last = String.length last in
+          len_str - str_pos >= len_last &&
+          String.sub str (len_str - len_last) len_last = last
+    | first :: rest ->
+        if is_first && first <> "" then
+          let len_first = String.length first in
+          len_str >= len_first &&
+          String.sub str 0 len_first = first &&
+          match_parts len_first false rest
+        else if first = "" then
+          match_parts str_pos false rest
+        else
+          let len_first = String.length first in
+          let rec search idx =
+            if idx + len_first > len_str then None
+            else if String.sub str idx len_first = first then Some idx
+            else search (idx + 1)
+          in
+          match search str_pos with
+          | Some found_idx -> match_parts (found_idx + len_first) false rest
+          | None -> false
+  in
+  match_parts 0 true parts
+
+(** Check if relative path or filename matches an ignore pattern from .tignore *)
+let matches_ignore_pattern pat rel_path =
+  if String.length pat = 0 then false
+  else if pat.[0] = '#' then false
+  else
+    let file_base = Filename.basename rel_path in
+    let file_no_ext = Filename.remove_extension file_base in
+    let rel_no_ext = Filename.remove_extension rel_path in
+    let pat_clean =
+      if String.ends_with ~suffix:"/" pat then
+        String.sub pat 0 (String.length pat - 1)
+      else pat
+    in
+    if String.contains pat_clean '*' then
+      if String.contains pat_clean '/' then
+        glob_match pat_clean rel_path || glob_match pat_clean rel_no_ext
+      else
+        glob_match pat_clean file_base || glob_match pat_clean file_no_ext
+    else
+      let path_components = String.split_on_char '/' rel_path in
+      pat_clean = rel_path
+      || pat_clean = rel_no_ext
+      || pat_clean = file_base
+      || pat_clean = file_no_ext
+      || String.starts_with ~prefix:(pat_clean ^ "/") rel_path
+      || List.mem pat_clean path_components
+
 (** Discover test files in a directory.
-    Matches files named test-*.t or *_test.t, recursively. *)
-let discover_tests (dir : string) : string list =
+    Matches files named test-*.t, test_*.t, or *_test.t, recursively.
+    Respects ignore patterns from tests/.tignore *)
+let discover_tests ?(ignore_patterns=[]) (dir : string) : string list =
   let results = ref [] in
   let rec scan path =
     if Sys.file_exists path && Sys.is_directory path then begin
-      let entries =
-        try Sys.readdir path
-        with Sys_error _ -> [||]
+      let rel_path = relative_path dir path in
+      let is_root = (rel_path = path || rel_path = "") in
+      let ignored_dir =
+        if is_root then false
+        else List.exists (fun pat -> matches_ignore_pattern pat rel_path) ignore_patterns
       in
-      Array.sort String.compare entries;
-      Array.iter (fun entry ->
-        let full_path = Filename.concat path entry in
-        if Sys.is_directory full_path then
-          scan full_path
-        else if Filename.check_suffix entry ".t" then begin
-          (* Match test-*.t or *_test.t *)
-          let base = Filename.remove_extension entry in
-          let is_test_prefix =
-            String.length base >= 5 &&
-            String.sub base 0 5 = "test-" in
-          let is_test_suffix =
-            String.length base >= 5 &&
-            String.sub base (String.length base - 5) 5 = "_test" in
-          if is_test_prefix || is_test_suffix then
-            results := full_path :: !results
-        end
-      ) entries
+      if not ignored_dir then begin
+        let entries =
+          try Sys.readdir path
+          with Sys_error _ -> [||]
+        in
+        Array.sort String.compare entries;
+        Array.iter (fun entry ->
+          let full_path = Filename.concat path entry in
+          if Sys.is_directory full_path then
+            scan full_path
+          else if Filename.check_suffix entry ".t" then begin
+            (* Match test-*.t, test_*.t, or *_test.t *)
+            let base = Filename.remove_extension entry in
+            let is_test_prefix =
+              String.length base >= 5 &&
+              String.sub base 0 5 = "test-" in
+            let is_test_underscore =
+              String.length base >= 5 &&
+              String.sub base 0 5 = "test_" in
+            let is_test_suffix =
+              String.length base >= 5 &&
+              String.sub base (String.length base - 5) 5 = "_test" in
+            if is_test_prefix || is_test_underscore || is_test_suffix then begin
+              let rel_file = relative_path dir full_path in
+              let ignored = List.exists (fun pat -> matches_ignore_pattern pat rel_file) ignore_patterns in
+              if not ignored then
+                results := full_path :: !results
+            end
+          end
+        ) entries
+      end
     end
   in
   scan dir;
   List.rev !results
+
+(** Read ignore patterns from tests/.tignore *)
+let read_tignore (dir : string) : string list =
+  let tignore_path = Filename.concat dir ".tignore" in
+  if Sys.file_exists tignore_path then begin
+    let ch = open_in tignore_path in
+    Fun.protect
+      ~finally:(fun () -> close_in_noerr ch)
+      (fun () ->
+        let lines = ref [] in
+        (try
+           while true do
+             let line = input_line ch in
+             let code_part =
+               match String.split_on_char '#' line with
+               | hd :: _ -> hd
+               | [] -> ""
+             in
+             let trimmed = String.trim code_part in
+             if trimmed <> "" then
+               lines := trimmed :: !lines
+           done
+         with End_of_file -> ());
+        List.rev !lines)
+  end else []
 
 (** Run a single test file in an isolated environment.
     Returns a test_result indicating pass/fail. *)
@@ -120,7 +234,27 @@ let run_test_file (file : string) : test_result =
         in
         run_stmts new_env errs' rest
     in
-    let (errors, _) = run_stmts env [] program in
+    let (stmt_errors, final_env) = run_stmts env [] program in
+    let pipeline_errors =
+      Ast.Env.fold (fun var_name value acc ->
+        if Ast.Env.mem var_name env then acc
+        else match value with
+        | Ast.VPipeline p ->
+            let p_to_run =
+              if p.Ast.p_has_patterns then
+                match Pipeline_expand.expand_pipeline_for_build p final_env with
+                | Ok p_exp -> p_exp
+                | Error _ -> p
+              else p
+            in
+            (match Builder.populate_pipeline ~build:false p_to_run with
+             | Error msg ->
+                 Printf.sprintf "Pipeline '%s' validation error: %s" var_name msg :: acc
+             | Ok _ -> acc)
+        | _ -> acc
+      ) final_env []
+    in
+    let errors = stmt_errors @ pipeline_errors in
     let duration = Unix.gettimeofday () -. start in
     if errors = [] then
       { file; success = true; error_msg = None; duration }
@@ -166,62 +300,173 @@ let format_duration d =
   else if d < 1.0 then Printf.sprintf "%.0fms" (d *. 1000.0)
   else Printf.sprintf "%.2fs" d
 
+(** JSON serialization for test results *)
+let test_result_to_yojson r =
+  `Assoc [
+    ("file", `String r.file);
+    ("status", `String (if r.success then "passed" else "failed"));
+    ("duration_ms", `Int (Int.of_float (Float.round (r.duration *. 1000.0))));
+    ("error", (match r.error_msg with Some e -> `String e | None -> `Null));
+  ]
+
+let suite_result_to_yojson r =
+  `Assoc [
+    ("schema_version", `String "1");
+    ("status", `String (if r.failed = 0 then "passed" else "failed"));
+    ("total", `Int r.total);
+    ("passed", `Int r.passed);
+    ("failed", `Int r.failed);
+    ("duration_ms", `Int (Int.of_float (Float.round (r.total_duration *. 1000.0))));
+    ("results", `List (List.map test_result_to_yojson r.results));
+  ]
+
+(** Escape XML special characters *)
+let xml_escape s =
+  let buf = Buffer.create (String.length s) in
+  String.iter (fun c ->
+    match c with
+    | '&' -> Buffer.add_string buf "&amp;"
+    | '<' -> Buffer.add_string buf "&lt;"
+    | '>' -> Buffer.add_string buf "&gt;"
+    | '"' -> Buffer.add_string buf "&quot;"
+    | '\'' -> Buffer.add_string buf "&apos;"
+    | '\n' -> Buffer.add_string buf "&#10;"
+    | '\r' -> Buffer.add_string buf "&#13;"
+    | '\t' -> Buffer.add_string buf "&#9;"
+    | c when Char.code c < 0x20 -> ()
+    | c -> Buffer.add_char buf c
+  ) s;
+  Buffer.contents buf
+
+(** JUnit XML serialization for test results *)
+let suite_result_to_xml r =
+  let buf = Buffer.create 1024 in
+  Buffer.add_string buf "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+  let time_str = Printf.sprintf "%.3f" r.total_duration in
+  let failures = r.failed in
+  Buffer.add_string buf (Printf.sprintf "<testsuites name=\"t test\" tests=\"%d\" failures=\"%d\" time=\"%s\">\n"
+    r.total failures time_str);
+  Buffer.add_string buf (Printf.sprintf "  <testsuite name=\"t test\" tests=\"%d\" failures=\"%d\" time=\"%s\">\n"
+    r.total failures time_str);
+  List.iter (fun tr ->
+    let name = xml_escape tr.file in
+    let t_time = Printf.sprintf "%.3f" tr.duration in
+    if tr.success then
+      Buffer.add_string buf (Printf.sprintf "    <testcase name=\"%s\" time=\"%s\" />\n" name t_time)
+    else begin
+      let message = match tr.error_msg with
+        | Some msg -> xml_escape msg
+        | None -> "Test failed"
+      in
+      Buffer.add_string buf (Printf.sprintf "    <testcase name=\"%s\" time=\"%s\">\n" name t_time);
+      Buffer.add_string buf (Printf.sprintf "      <failure message=\"%s\" type=\"TestFailure\">\n" message);
+      Buffer.add_string buf (Printf.sprintf "        %s\n" message);
+      Buffer.add_string buf "      </failure>\n";
+      Buffer.add_string buf "    </testcase>\n"
+    end
+  ) r.results;
+  Buffer.add_string buf "  </testsuite>\n";
+  Buffer.add_string buf "</testsuites>\n";
+  Buffer.contents buf
+
+(** Check if substring exists in string (case-insensitive) *)
+let contains_substring s sub =
+  let s_len = String.length s in
+  let sub_len = String.length sub in
+  let rec loop i =
+    if i + sub_len > s_len then false
+    else if String.sub s i sub_len = sub then true
+    else loop (i + 1)
+  in
+  loop 0
+
+(** Check if a file matches any of the filter patterns *)
+let matches_any_pattern dir file patterns =
+  let rel_lower = String.lowercase_ascii (relative_path dir file) in
+  List.exists (fun pat -> contains_substring rel_lower (String.lowercase_ascii pat)) patterns
+
 (** Run a full test suite: discover + execute all tests *)
-let run_suite ?(verbose=false) (dir : string) : suite_result =
+let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) ?(failfast=false) ?(timeout=None) (dir : string) : suite_result =
   let test_dir = Filename.concat dir "tests" in
   if not (Sys.file_exists test_dir && Sys.is_directory test_dir) then begin
-    Printf.printf "No tests/ directory found.\n";
+    if not quiet then Printf.printf "No tests/ directory found.\n";
     { total = 0; passed = 0; failed = 0; results = []; total_duration = 0.0 }
   end else begin
-    let files = discover_tests test_dir in
+    let ignore_patterns = read_tignore test_dir in
+    let files = discover_tests ~ignore_patterns test_dir in
     if files = [] then begin
-      Printf.printf "No test files found (looking for test-*.t or *_test.t).\n";
+      if not quiet then Printf.printf "No test files found (looking for test-*.t, test_*.t, or *_test.t).\n";
       { total = 0; passed = 0; failed = 0; results = []; total_duration = 0.0 }
     end else begin
-      let start_total = Unix.gettimeofday () in
-      Printf.printf "Running %d test file%s...\n\n"
-        (List.length files) (if List.length files > 1 then "s" else "");
-      let results = List.map (fun file ->
-        let r = run_test_file file in
-        let short_name = 
-          if String.length file > String.length dir + 1 then
-            String.sub file (String.length dir + 1) (String.length file - String.length dir - 1)
-          else file
+      let files =
+        if only <> [] then List.filter (fun f -> matches_any_pattern dir f only) files
+        else files
+      in
+      let files =
+        if not_ <> [] then List.filter (fun f -> not (matches_any_pattern dir f not_)) files
+        else files
+      in
+      if files = [] then begin
+        if not quiet then Printf.printf "No test files matched the filters.\n";
+        { total = 0; passed = 0; failed = 0; results = []; total_duration = 0.0 }
+      end else begin
+        let start_total = Unix.gettimeofday () in
+        if not quiet then Printf.printf "Running %d test file%s...\n\n"
+          (List.length files) (if List.length files > 1 then "s" else "");
+        let rec execute_files acc = function
+          | [] -> List.rev acc
+          | file :: rest ->
+              let r = run_test_file file in
+              let r = match timeout with
+                | Some secs when r.duration > secs ->
+                    { r with success = false;
+                      error_msg = Some (Printf.sprintf "Timeout: exceeded %.0fs limit (%.2fs)"
+                        secs r.duration) }
+                | _ -> r
+              in
+              let short_name = relative_path dir file in
+              if not quiet then begin
+                if r.success then
+                  Printf.printf "  ✓ %s (%s)\n" short_name (format_duration r.duration)
+                else begin
+                  Printf.printf "  ✗ %s (%s)\n" short_name (format_duration r.duration);
+                  if verbose then
+                    match r.error_msg with
+                    | Some msg -> Printf.printf "    → %s\n" msg
+                    | None -> ()
+                end
+              end;
+              if failfast && not r.success then
+                List.rev (r :: acc)
+              else
+                execute_files (r :: acc) rest
         in
-        if r.success then
-          Printf.printf "  ✓ %s (%s)\n" short_name (format_duration r.duration)
-        else begin
-          Printf.printf "  ✗ %s (%s)\n" short_name (format_duration r.duration);
-          if verbose then
-            match r.error_msg with
-            | Some msg -> Printf.printf "    → %s\n" msg
-            | None -> ()
-        end;
-        r
-      ) files in
-      let total_duration = Unix.gettimeofday () -. start_total in
-      let passed_results = List.filter (fun r -> r.success) results in
-      let passed = List.length passed_results in
-      let failed = List.length results - passed in
-      Printf.printf "\n";
-      if failed = 0 then
-        Printf.printf "✓ All %d test%s passed (%s)\n"
-          passed (if passed > 1 then "s" else "") (format_duration total_duration)
-      else begin
-        Printf.printf "✗ %d/%d test%s failed (%s)\n\n"
-          failed (List.length results)
-          (if List.length results > 1 then "s" else "")
-          (format_duration total_duration);
-        (* Show failure details *)
-        List.iter (fun r ->
-          if not r.success then begin
-            Printf.printf "FAIL: %s\n" r.file;
-            match r.error_msg with
-            | Some msg -> Printf.printf "  %s\n" msg
-            | None -> ()
+        let results = execute_files [] files in
+        let total_duration = Unix.gettimeofday () -. start_total in
+        let passed_results = List.filter (fun r -> r.success) results in
+        let passed = List.length passed_results in
+        let failed = List.length results - passed in
+        if not quiet then begin
+          Printf.printf "\n";
+          if failed = 0 then
+            Printf.printf "✓ All %d test%s passed (%s)\n"
+              passed (if passed > 1 then "s" else "") (format_duration total_duration)
+          else begin
+            Printf.printf "✗ %d/%d test%s failed (%s)\n\n"
+              failed (List.length results)
+              (if List.length results > 1 then "s" else "")
+              (format_duration total_duration);
+            List.iter (fun r ->
+              if not r.success then begin
+                Printf.printf "FAIL: %s\n" r.file;
+                match r.error_msg with
+                | Some msg -> Printf.printf "  %s\n" msg
+                | None -> ()
+              end
+            ) results
           end
-        ) results
-      end;
-      { total = List.length results; passed; failed; results; total_duration }
+        end;
+        { total = List.length results; passed; failed; results; total_duration }
+      end
     end
   end

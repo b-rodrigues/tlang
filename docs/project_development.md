@@ -65,7 +65,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.54.1"
+min_version = "0.54.2"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -368,6 +368,60 @@ Run them with:
 
 ```bash
 $ t test
+```
+
+### 6.1 Pipeline Verification Nodes & Assertion Dictionaries
+
+When testing pipeline workflows, separate data transformation nodes from check/assertion nodes. In verification nodes, return a named dictionary of `assert(expect_*(...))` calls serialized as JSON (`serializer = ^json`):
+
+```t
+test_filter = pipeline {
+  -- Data transformation node (produces CSV filtered_data)
+  filtered_data = node(
+    command = data |> filter($score >= 88),
+    serializer = ^csv,
+    deserializer = ^csv
+  )
+  -- Test node (returns named Dict of assertion results)
+  -- On success: serializes [ nrow_check: true, colnames_check: true ] as JSON
+  -- On failure: assert short-circuits and records VError failure object in build log
+  check_filter = node(
+    command = [
+      nrow_check: assert(expect_nrow(filtered_data, 2)),
+      colnames_check: assert(expect_colnames(filtered_data, ["name", "score", "grade"]))
+    ],
+    serializer = ^json,
+    deserializer = ^csv
+  )
+}
+```
+
+This pattern provides a clean duality:
+- **Passing builds** output a structured JSON status artifact mapping check names to `true` (accessible via `read_node(p.check_filter)`).
+- **Failing assertions** short-circuit execution immediately, recording the full `AssertionError` object in the node's build log.
+
+### Skipping Pipeline Tests Conditionally
+
+Since pipeline nodes are compiled and executed via Nix, tests that build or run pipelines might fail or block in sandboxed environments or systems lacking Nix. You can conditionally skip the execution of specific pipeline nodes using the `noop` parameter with any T expression.
+
+Because `noop` accepts T expressions (evaluated at runtime), you can pass conditions referencing environment variables:
+
+```t
+import my_project
+
+p = pipeline {
+  heavy_node = node(
+    command = <{ run_heavy_nix_job() }>,
+    # Skip execution if not running in CI
+    noop = (env_var("CI") == "")
+  )
+}
+
+res = build_pipeline(p)
+
+# Because errors are first-class values in T, skipped nodes propagate VError values cleanly.
+# You can check if the node was skipped using expect_error or custom checks:
+assert(expect_error(read_node(res.heavy_node), class = "TypeError", message = "was skipped"))
 ```
 
 ## 7. Reproducibility

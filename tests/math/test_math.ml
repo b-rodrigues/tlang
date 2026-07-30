@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env test test_env =
   Printf.printf "Phase 5 — Math: sqrt():\n";
   test "sqrt of integer" "sqrt(4)" "2.";
   test "sqrt of float" "sqrt(2.0)" "1.41421356237";
@@ -53,29 +53,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let env_p5 = Packages.init_env () in
   let (_, env_p5) = eval_string_env (Printf.sprintf {|vdf = read_csv("%s")|} csv_p5_vec) env_p5 in
 
-  let (v, _) = eval_string_env "sqrt(vdf.a)" env_p5 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "Vector[1., 2., 3.]" then begin
-    incr pass_count; Printf.printf "  ✓ sqrt on vector\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ sqrt on vector\n    Expected: Vector[1., 2., 3.]\n    Got: %s\n" result
-  end;
+  test_env env_p5 "sqrt on vector"
+    "sqrt(vdf.a)"
+    "Vector[1., 2., 3.]";
 
-  let (v, _) = eval_string_env "abs(vdf.c)" env_p5 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "Vector[1, 2, 3]" then begin
-    incr pass_count; Printf.printf "  ✓ abs on vector\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ abs on vector\n    Expected: Vector[1, 2, 3]\n    Got: %s\n" result
-  end;
+  test_env env_p5 "abs on vector"
+    "abs(vdf.c)"
+    "Vector[1, 2, 3]";
 
-  let (v, _) = eval_string_env "pow(vdf.b, 2)" env_p5 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "Vector[4., 9., 16.]" then begin
-    incr pass_count; Printf.printf "  ✓ pow on vector\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ pow on vector\n    Expected: Vector[4., 9., 16.]\n    Got: %s\n" result
-  end;
+  test_env env_p5 "pow on vector"
+    "pow(vdf.b, 2)"
+    "Vector[4., 9., 16.]";
   (try Sys.remove csv_p5_vec with _ -> ());
   print_newline ();
 
@@ -149,5 +137,32 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   test "reshape 3d"
     "shape(reshape(ndarray([[[1,2,3,4],[5,6,7,8],[9,10,11,12]],[[13,14,15,16],[17,18,19,20],[21,22,23,24]]]), [3,2,4]))"
     "[3, 2, 4]";
-  
+
+  Printf.printf "Phase 5 — Math: transpose and cbind:\n";
+  test "transpose 2x3 matrix"
+    "transpose(ndarray([[1,2,3],[4,5,6]]))"
+    "NDArray(shape=[3, 2], data=[1., 4., 2., 5., 3., 6.])";
+  test "transpose square matrix"
+    "transpose(ndarray([[1,2],[3,4]]))"
+    "NDArray(shape=[2, 2], data=[1., 3., 2., 4.])";
+  test "transpose 1D array errors"
+    "transpose(ndarray([1,2,3]))"
+    {|Error(ValueError: "transpose expects a 2D NDArray.")|};
+  test "transpose non-NDArray errors"
+    "transpose([1,2,3])"
+    {|Error(TypeError: "transpose expects an NDArray.")|};
+
+  test "cbind two 2x2 matrices"
+    "cbind(ndarray([[1,2],[3,4]]), ndarray([[5,6],[7,8]]))"
+    "NDArray(shape=[2, 4], data=[1., 2., 5., 6., 3., 4., 7., 8.])";
+  test "cbind row count mismatch errors"
+    "cbind(ndarray([[1,2]]), ndarray([[3,4],[5,6]]))"
+    {|Error(ValueError: "cbind expects matrices with same number of rows.")|};
+  test "cbind non-2D errors"
+    "cbind(ndarray([1,2]), ndarray([3,4]))"
+    {|Error(ValueError: "cbind expects two 2D NDArrays.")|};
+  test "cbind non-NDArray errors"
+    "cbind([1,2], [3,4])"
+    {|Error(TypeError: "cbind expects two NDArrays.")|};
+
   print_newline ()

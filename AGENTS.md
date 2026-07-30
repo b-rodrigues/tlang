@@ -293,7 +293,7 @@ Follow this checklist whenever you add a new function or language feature:
 
 ### 2. Add Tests
 
-- **Unit tests**: add `tests/unit/test_<function_name>.ml` (OCaml) and register it in the corresponding `dune` file.
+- **Unit tests**: add a test module in the appropriate `tests/` subdirectory. Use `test` for stateless assertions, `test_env` when the test depends on prior env state. Register the module in `test_runner.ml` with `run` (for `test`-only modules) or `run_with_env` (for modules using `test_env`), and in the corresponding `dune` file.
 - **Golden tests** (preferred for numerical or statistical functions): add a `.t` script in `tests/golden/t_scripts/`, a matching R script in `tests/golden/r_scripts/` (or extend `generate_expected.R`), and a `test_that(…)` block in `tests/golden/test_golden_r.R`.
 
   Golden tests are **required** for any function that produces numeric or statistical output that can be verified against R or Python.
@@ -340,32 +340,116 @@ When adding new builtins to the standard library, you **must** update the `#matc
 
 ## Testing Requirements
 
+### Test Infrastructure
+
+All OCaml tests are orchestrated by `tests/test_runner.ml`, which provides shared helpers and counts pass/fail across all modules. **Do not write standalone test runners** — add your test function to a module registered in `test_runner.ml`.
+
+#### Helpers
+
+| Helper | Signature | Use when |
+|--------|-----------|----------|
+| `test name input expected` | Evaluates `input` against `shared_env`, compares string output to `expected`. | The test expression doesn't depend on prior state (no CSV loads, no pipeline setup). |
+| `test_env env name input expected` | Evaluates `input` against an explicit `env`, compares string output to `expected`. | The test depends on prior state — e.g. a CSV was loaded, a pipeline was created, or a variable was bound earlier in the same test. |
+
+Both helpers:
+1. Try exact string match first.
+2. Fall back to substring match if the exact match fails.
+3. Strip `[L1:C1]` location markers from results before comparing.
+
+**Regex semantics differ between the two:**
+- `test` fallback uses the expected string as a live `Str` regex — `.`, `[`, `]`, `*` are metacharacters. Use `{|...|}` delimiters for patterns containing these intentionally (e.g. `{|.*t check.*|}`).
+- `test_env` fallback wraps the expected string in `Str.quote` — all metacharacters match literally. This is the safer default for new tests.
+
+#### When to keep OCaml-level assertions
+
+Use `test`/`test_env` for all simple assertions. Keep OCaml-level assertions (manual `incr pass_count` + pattern matching) only when the test requires:
+- **Float comparison with tolerance** — e.g. `Float.abs (slope -. 1.0) < 0.001` (see `test_formula_edge_cases.ml`)
+- **Multi-step try/with with env injection** — e.g. evaluating an expression, catching an exception, then injecting the result into a new env for a follow-up check (see `test_colcraft_edge_cases.ml`)
+- **Substring/contains checks** — `test_env` does substring matching, but if you need to assert the *absence* of a substring, or use a custom predicate, use OCaml-level code
+
+Never use manual `incr pass_count` for assertions that `test`/`test_env` can express — it's error-prone (easy to increment on both branches of an if/else) and can hide individual hollow branches that strict mode's module-level check won't catch.
+
 ### Unit Tests (OCaml)
 
-Located in `tests/unit/`. Each test file follows the same pattern:
+Located in `tests/` subdirectories (`unit/`, `golden/`, `stats/`, `colcraft/`, etc.). Each test module exposes a `run_tests` function.
+
+**Module using `test` only** (most common):
 
 ```ocaml
-open Ast
-open Eval
-
-let test_my_function () =
-  let env = base_env () in
-  let result = eval env (parse "my_function([1, 2, 3])") in
-  assert (result = VFloat 2.0)
-
-let () =
-  List.iter (fun (name, test) ->
-    try test (); Printf.printf "✓ %s\n" name
-    with e -> Printf.printf "✗ %s: %s\n" name (Printexc.to_string e)
-  ) [("my_function_basic", test_my_function)]
+(* tests/unit/test_my_thing.ml *)
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env test =
+  Printf.printf "My Thing:\n";
+  test "basic arithmetic"
+    "1 + 2"
+    "3";
+  test "string length"
+    "length(\"hello\")"
+    "5"
 ```
 
-Register the test in the corresponding `tests/unit/dune` file:
+**Module using `test_env`** (when test depends on prior state):
+
+```ocaml
+(* tests/colcraft/test_my_thing.ml *)
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env =
+  Printf.printf "My Thing:\n";
+  let env = Packages.init_env () in
+  let (_, env) = eval_string_env {|df = read_csv("data/test.csv")|} env in
+  test_env env "nrow after filter"
+    {|df |> filter($x > 5) |> nrow|}
+    "3"
+```
+
+**Register in `tests/test_runner.ml`:**
+
+```ocaml
+(* For modules using `test` only: *)
+run "Test_my_thing" Test_my_thing.run_tests;
+
+(* For modules using `test_env`: *)
+run_with_env "Test_my_thing" Test_my_thing.run_tests;
+```
+
+**Register in the corresponding `dune` file:**
+
 ```sexp
 (test
- (name test_my_function)
+ (name test_my_thing)
  (libraries t_lang))
 ```
+
+### Strict Mode
+
+Set `TLANG_TEST_STRICT=1` to enable strict mode. The `run_module` wrapper tracks assertion counts per module and reports any module that produced **zero assertions** — catches hollow tests that print but never assert.
+
+```bash
+TLANG_TEST_STRICT=1 dune exec tests/test_runner.exe
+```
+
+### Mutation Testing
+
+`scripts/mutation_test.sh` verifies the test suite catches real regressions by temporarily breaking known code paths and confirming tests fail.
+
+```bash
+./scripts/mutation_test.sh              # run all 9 mutations
+./scripts/mutation_test.sh integer_add  # run a single mutation
+```
+
+Current mutation targets:
+
+| Name | File | What it breaks | What catches it |
+|------|------|---------------|-----------------|
+| `integer_add` | `src/eval.ml` | `a + b` → `a * b` | Arithmetic tests |
+| `if_else_swap` | `src/eval.ml` | Swaps `then_`/`else_` branches | Conditional logic tests |
+| `unary_not` | `src/eval.ml` | `not b` → `b` (identity) | Boolean negation tests |
+| `na_silent_pass` | `src/eval.ml` | NA error → silent `VNA` return | NA propagation tests |
+| `arrow_add_scalar` | `src/arrow/arrow_compute.ml` | Float add → subtract in `add_scalar` | Scalar operation tests |
+| `arrow_compare_gt` | `src/arrow/arrow_compute.ml` | `Gt` comparison → `Lt` | Comparison/filter tests |
+| `clean_safe_char` | `src/packages/dataframe/clean_colnames.ml` | `c >= 'a'` → `c > 'a'` (excludes `'a'`) | Column name cleaning tests |
+| `clean_collision` | `src/packages/dataframe/clean_colnames.ml` | Collision counter `count + 1` → `count - 1` | Duplicate column name tests |
+| `csv_type_fallback` | `src/packages/dataframe/t_read_csv.ml` | String fallback → `VInt 0` | CSV type inference tests |
+
+The script verifies each mutation was actually applied (via `diff -q`) before building/testing. If a mutation pattern doesn't match the current source, it reports "pattern did not match" instead of a false SURVIVED. The backup/restore mechanism uses an associative array to support mutations across multiple source files.
 
 ### Golden Tests (T vs R)
 
@@ -401,6 +485,8 @@ Or just re-run T scripts and compare (when data already exists):
 ```bash
 make golden-quick
 ```
+
+**When T and R disagree:** If T's behavior is correct but differs from R (e.g. tie-breaking, NA handling, sort stability), maintain the expected CSV manually (checked-in) and remove the generation block from `generate_expected.R` (so it isn't auto-overwritten), but keep the `compare_csvs(...)` call in `test_golden_r.R` so the manually-maintained CSV is still enforced. Add a `#` comment in both files explaining why.
 
 ---
 

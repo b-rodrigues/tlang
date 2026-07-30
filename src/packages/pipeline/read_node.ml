@@ -285,7 +285,7 @@ let register env =
       List.iter (fun dep_name ->
         match Builder.latest_logged_computed_node dep_name with
         | Some dep_cn ->
-            if dep_cn.cn_path <> "" && dep_cn.cn_path <> "<unbuilt>" then (
+            if dep_cn.cn_path <> "" && dep_cn.cn_path <> Ast.unbuilt_path then (
               let store_dir = Filename.dirname dep_cn.cn_path in
               resolved_deps := (dep_name, store_dir, dep_cn.cn_serializer) :: !resolved_deps
             )
@@ -483,18 +483,30 @@ let read_fn named_args _env =
           let resolved_cn = !Ast.computed_node_resolver cn in
           let is_in_memory_placeholder v =
             match v with
-            | VNodeResult { v = VComputedNode inner; _ } -> inner.cn_path = "" || inner.cn_path = "<unbuilt>"
+            | VNodeResult { v = VComputedNode inner; _ } -> inner.cn_path = "" || inner.cn_path = Ast.unbuilt_path
             | _ -> false
           in
           match Ast.get_in_memory_node_value_for_cn cn with
+          | Some (VNodeResult { v = VComputedNode inner; node_name = n; diagnostics = d })
+              when inner.cn_path <> "" && inner.cn_path <> Ast.unbuilt_path ->
+                let raw_val = Builder.logged_node_value inner.cn_name inner in
+                let build_diag = Builder.logged_node_diagnostics ~value:raw_val inner.cn_name inner in
+                let merged = { d with nd_error = build_diag.nd_error; nd_recovered = build_diag.nd_recovered } in
+                VNodeResult { v = raw_val; node_name = n; diagnostics = merged }
           | Some v when not (is_in_memory_placeholder v) -> v
           | _ ->
             (match resolved_cn with
-              | cn when cn.cn_path = "<unbuilt>" ->
+              | cn when cn.cn_path = Ast.unbuilt_path ->
                   (match Ast.get_in_memory_node_value_for_cn cn with
                     | Some v when not (is_in_memory_placeholder v) -> v
                     | _ ->
-                        let branch_names = Builder.branch_names_in_latest_log cn.cn_name in
+                        let branch_names =
+                          match cn.cn_p_exprs with
+                          | Some p_exprs when Hashtbl.mem Ast.pipeline_build_logs p_exprs ->
+                              Builder.branch_names_in_latest_log cn.cn_name
+                          | None -> Builder.branch_names_in_latest_log cn.cn_name
+                          | _ -> []
+                        in
                         (match branch_names with
                          | [] ->
                              Error.make_error FileError (Printf.sprintf "read_node: node `%s` has not been built yet. Build the pipeline first with build_pipeline(p), or use read_past_node(p.%s, which_log = ...) to read from a past build log." cn.cn_name cn.cn_name)
@@ -696,14 +708,27 @@ let read_fn named_args _env =
       | VError _ -> None
       | v -> Some v);
     Ast.computed_node_resolver := (fun cn ->
-      match Builder.latest_logged_computed_node cn.cn_name with
+      let logged_opt =
+        match cn.cn_p_exprs with
+        | Some p_exprs ->
+            (match Hashtbl.find_opt Ast.pipeline_build_logs p_exprs with
+             | Some log_path ->
+                 (match Builder_logs.read_log log_path with
+                  | Ok entries -> List.assoc_opt cn.cn_name entries
+                  | Error _ -> None)
+             | None ->
+                 if cn.cn_class = "<lens_modified>" then None
+                 else Builder.latest_logged_computed_node cn.cn_name)
+        | None -> Builder.latest_logged_computed_node cn.cn_name
+      in
+      match logged_opt with
       | Some logged_cn ->
           let cn_class =
             if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class
           in
           let cn_path =
             if logged_cn.cn_path = "" then ""
-            else if cn.cn_path = "<unbuilt>" || cn.cn_path = ""
+            else if cn.cn_path = Ast.unbuilt_path || cn.cn_path = ""
             then logged_cn.cn_path
             else cn.cn_path
           in

@@ -16,6 +16,23 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   (* Division by Zero *)
   test "Div Zero Int" "1 / 0" {|Error(DivisionByZero: "Division by zero.")|};
   test "Div Zero Float" "1.0 / 0.0" {|Error(DivisionByZero: "Division by zero.")|};
+  test "Div Zero Mixed Int/Float" "1 / 0.0" {|Error(DivisionByZero: "Division by zero.")|};
+  test "Div Zero Mixed Float/Int" "1.0 / 0" {|Error(DivisionByZero: "Division by zero.")|};
+
+  (* Modulo by Zero *)
+  test "Mod Zero Int" "10 % 0" {|Error(DivisionByZero: "Division by zero.")|};
+  test "Mod Zero Float" "10.0 % 0.0" {|Error(DivisionByZero: "Division by zero.")|};
+  test "Mod Zero Mixed Int/Float" "10 % 0.0" {|Error(DivisionByZero: "Division by zero.")|};
+  test "Mod Zero Mixed Float/Int" "10.5 % 0" {|Error(DivisionByZero: "Division by zero.")|};
+  test "Mod Basic" "10 % 3" "1";
+  test "Mod Float" "10.5 % 3.0" "1.5";
+
+  (* Unary Negation *)
+  test "Negate Int" "-5" "-5";
+  test "Negate Float" "-3.14" "-3.14";
+  test "Negate Zero" "-0" "0";
+  test "Negate String error" {|-"hello"|} {|Error(TypeError: "Cannot negate String")|};
+  test "Negate Bool error" "-true" {|Error(TypeError: "Cannot negate Bool")|};
 
   (* --- Comparison Operators --- *)
   Printf.printf "  Comparison:\n";

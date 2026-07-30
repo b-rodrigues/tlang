@@ -61,7 +61,11 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   (* 5. Pipeline Lenses *)
   test "node_lens on Pipeline"
     {|p = pipeline { a = 1; b = 2 }; l = node_lens("a"); p2 = set(p, l, 10); read_node(p2.a)|}
-    "10";
+    {|Error(FileError: "read_node: node `a` has not been built yet. Build the pipeline first with build_pipeline(p), or use read_past_node(p.a, which_log = ...) to read from a past build log.")|};
+
+  test "node_lens set complex expression marks node as unbuilt"
+    {|p = pipeline { a = 1; b = 2 }; l = node_lens("a"); p2 = set(p, l, quote(1 + 2)); read_node(p2.a)|}
+    {|Error(FileError: "read_node: node `a` has not been built yet. Build the pipeline first with build_pipeline(p), or use read_past_node(p.a, which_log = ...) to read from a past build log.")|};
 
   test "node_lens get missing node returns NA"
     {|p = pipeline { a = 1 }; get(p, node_lens("b"))|}
@@ -69,7 +73,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
 
   test "node_lens set adds missing pipeline node"
     {|p = pipeline { a = 1 }; p2 = set(p, node_lens("b"), 2); get(p2, node_lens("b"))|}
-    "2";
+    "computed_node<T>";
 
   test "node_meta_lens get runtime"
     {|p = pipeline { a = node(command = <{ 1 }>, runtime = R) }; get(p, node_meta_lens("a", "runtime"))|}
@@ -134,7 +138,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
 
   test "filter_lens set on Pipeline"
     {|p = pipeline { a = 1; b = node(command = <{ 2 }>, runtime = R) }; l = filter_lens(\(meta) meta.runtime == "R"); p2 = set(p, l, 99); get(p2, node_lens("b"))|}
-    "99";
+    "computed_node<R>";
 
   (* 7. Additional filter_lens coverage *)
   test "filter_lens over on List"
@@ -242,7 +246,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
      lens operation on the structural pipeline, not a runtime evaluation. *)
   test "filter_lens over on Pipeline"
     {|p = pipeline { a = 1; b = 2; c = 3 }; l = filter_lens(\(meta) meta.name == "b"); p2 = over(p, l, \(v) v .+ 10); read_node(p2.b)|}
-    "TypeError";
+    {|Error(FileError: "read_node: node `b` has not been built yet. Build the pipeline first with build_pipeline(p), or use read_past_node(p.b, which_log = ...) to read from a past build log.")|};
 
   (* 12. modify with errors *)
   test "modify stops at first error"

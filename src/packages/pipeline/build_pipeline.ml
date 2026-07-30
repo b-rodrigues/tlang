@@ -27,162 +27,59 @@ let write_atelier_diagrams p env =
         with _ -> ())
      | _ -> ())
 
-(*
---# Build Pipeline Artifacts
---#
---# Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry.
---# Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs.
---#
---# If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`,
---# `cross_pattern`), they are automatically expanded before building.
---#
---# @name build_pipeline
---# @param pipeline :: Pipeline The pipeline to build.
---# @param verbose :: Int (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
---# @param dry_run :: Bool (Optional) Return a planned build DataFrame without executing. Maps to `--dry-run`.
---# @param nix_options :: Dict (Optional) A dictionary of Nix orchestration options:
---#   - `targets` :: List[String] Specific node names to build. Maps to `-A <target>` in nix-build.
---#   - `force` :: Bool|List[String] Force-rebuild nodes even if cached. Maps to `--check`.
---#   - `max_jobs` :: Int Maximum parallel build jobs. Maps to `--max-jobs N`.
---#   - `cache` :: String Cachix cache name to configure as an extra binary substituter.
---# @return :: BuildLog|DataFrame A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`), or a dry-run DataFrame.
---# @family pipeline
---# @seealso read_node
---# @export
-*)
 let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> pipeline_result -> value) env =
   let build_fn named_args env =
     if !Ast.check_mode then
       VString "<check mode: build_pipeline skipped>"
     else
-    let named_keys = List.filter_map (fun (k, _) -> k) named_args in
-    let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
-    match List.find_opt (fun k -> not (List.mem k ["p"; "verbose"; "nix_options"; "dry_run"; "pipeline_name"])) named_keys with
-    | Some k ->
-        Error.type_error (Printf.sprintf "build_pipeline: unknown argument '%s'" k)
-    | None when positional_count > 4 ->
-        Error.make_error ArityError
-          (Printf.sprintf "Function `build_pipeline` accepts at most 4 positional arguments but received %d." positional_count)
+    let fn_name = "build_pipeline" in
+    match Pipeline_builder_post.check_unknown_keys ~known_keys:["p"; "verbose"; "nix_options"; "dry_run"; "pipeline_name"] ~fn_name named_args with
+    | Some err -> err
+    | None ->
+    match Pipeline_builder_post.check_arity ~max:5 ~fn_name named_args with
+    | Some err -> err
     | None ->
       match Pipeline_args.get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
           (match Pipeline_expand.expand_pipeline_for_build p env with
            | Error e -> e
            | Ok p ->
-            let (verbose_provided, verbose_val) = Pipeline_args.get_arg "verbose" 2 (VNA NAGeneric) named_args in
-        let (_, nix_options_val) = Pipeline_args.get_arg "nix_options" 3 (VDict []) named_args in
-        let (dry_run_provided, dry_run_val) = Pipeline_args.get_arg "dry_run" 4 (VNA NAGeneric) named_args in
-
-        let verbose_result =
-          match verbose_val with
-          | VInt i when i >= 0 -> Ok (Some i)
-          | VInt _ ->
-              Error (Error.value_error "Function `build_pipeline` expects `verbose` to be a non-negative Int.")
-          | _ when verbose_provided ->
-              Error (Error.type_error "Function `build_pipeline` expects `verbose` to be an Int.")
-          | _ ->
-              Ok None
-        in
-
-        let nix_options_result =
-          match nix_options_val with
-          | VNA _ -> Ok None
-          | VDict pairs ->
-              (match Builder_utils.validate_nix_options "build_pipeline" pairs with
-               | Ok opts -> Ok (Some opts)
-               | Error e -> Error e)
-          | _ -> Error (Error.type_error "Function `build_pipeline` expects `nix_options` to be a Dictionary.")
-        in
-
-        let dry_run_result =
-          match dry_run_val with
-          | VBool b -> Ok (Some b)
-          | VNA _ -> Ok None
-          | _ when dry_run_provided ->
-              Error (Error.type_error "Function `build_pipeline` expects `dry_run` to be a Bool.")
-          | _ -> Ok None
-        in
-        let (pipeline_name_provided, pipeline_name_val) = Pipeline_args.get_arg "pipeline_name" 5 (VNA NAGeneric) named_args in
-        let pipeline_name_result =
-          match pipeline_name_val with
-          | VString s -> Ok (Some s)
-          | VSymbol s -> Ok (Some s)
-          | VNA _ -> Ok None
-          | _ when pipeline_name_provided ->
-              Error (Error.type_error "Function `build_pipeline` expects `pipeline_name` to be a String.")
-          | _ -> Ok None
-        in
-
-        let (let*) x f = match x with Ok v -> f v | Error e -> e in
-        let* verbose = verbose_result in
-        let* nix_options = nix_options_result in
-        let* dry_opt = dry_run_result in
-        let* pipeline_name = pipeline_name_result in
-        let final_nix_options =
-          let base_opts =
-            match nix_options with
-            | Some opts -> opts
-            | None -> Builder_utils.default_nix_opts
-          in
-          match dry_opt with
-          | Some d -> Some { base_opts with dry_run = Some d }
-          | None -> Some base_opts
-        in
+            let (let*) x f = match x with Ok v -> f v | Error e -> e in
+            let* verbose = Pipeline_builder_post.parse_verbose ~fn_name ~pos:2 named_args in
+            let* nix_options = Pipeline_builder_post.parse_nix_options ~fn_name ~pos:3 named_args in
+            let* dry_opt = Pipeline_builder_post.parse_dry_run ~fn_name ~pos:4 named_args in
+            let* pipeline_name_explicit = Pipeline_builder_post.parse_pipeline_name ~fn_name ~pos:5 named_args in
+        let final_nix_options = Pipeline_builder_post.combine_nix_options ?dry_opt nix_options in
         (match rerun_pipeline ?strict:(Some true) ~verbose:false env p with
          | VPipeline p_resolved ->
              let pipeline_name =
-               match pipeline_name with
-               | Some _ -> pipeline_name
+               match pipeline_name_explicit with
+               | Some _ -> pipeline_name_explicit
                | None -> resolve_pipeline_name env p
              in
              (match Builder.populate_pipeline ~build:true ?verbose ?pipeline_name ?nix_options:final_nix_options p_resolved with
               | Ok (VDataFrame _ as df) ->
                   write_atelier_diagrams p_resolved env;
                   df
-              | Ok (VDict pairs as out) ->
+              | Ok (VDict _ as out) ->
                   write_atelier_diagrams p_resolved env;
-                  let out_path =
-                    match List.assoc_opt "out_path" pairs with
-                    | Some (VString s) -> s
-                    | _ -> ""
-                  in
-                  let built =
-                    match List.assoc_opt "built" pairs with
-                    | Some (VInt n) -> n
-                    | _ -> 0
-                  in
-                  let soft_failed =
-                    match List.assoc_opt "soft_failed" pairs with
-                    | Some (VList items) -> List.length items
-                    | _ -> 0
-                  in
-                  let var_name = match pipeline_name with Some n -> n | None -> "p" in
-                  let first_node =
-                    match p_resolved.p_nodes with
-                    | (name, _) :: _ -> name
-                    | [] -> "my_node"
-                  in
-                  if built > 0 then
-                    if soft_failed > 0 then
-                      Printf.eprintf "\nPipeline built successfully but with errors\n"
-                    else
-                      Printf.eprintf "\nPipeline successfully built!\n";
-                  Printf.eprintf "  - Pipeline saved in variable '%s'\n" var_name;
-                  Printf.eprintf "  - To read the contents of node '%s', use: read_node(%s.%s)\n" first_node var_name first_node;
-                  Printf.eprintf "  - To inspect node metadata, use: inspect_node(%s.%s)\n" var_name first_node;
-                  Printf.eprintf "  - To view pipeline summary, use: inspect_pipeline(%s)\n\n%!" var_name;
-                  if built > 0 then
-                    (match Builder.find_log_for_out_path out_path with
-                     | Some log_path ->
-                         Hashtbl.replace Ast.pipeline_build_logs p.p_exprs log_path;
-                         Hashtbl.replace Ast.pipeline_build_logs p_resolved.p_exprs log_path;
-                         Builder.parse_json_log_to_vbuildlog log_path
-                     | None ->
-                         Error.make_error FileError
-                           (Printf.sprintf
-                              "No build log matching output path `%s` was found after build completed."
-                              out_path))
-                  else
+                  let stats = Pipeline_builder_post.extract_build_stats out in
+                  Pipeline_builder_post.print_build_success ~pipeline_name ~p_nodes:p_resolved.p_nodes stats;
+                  if stats.built > 0 || stats.cached > 0 then (
+                    match Pipeline_builder_post.register_build_logs
+                      ~p_exprs_keys:[p.p_exprs; p_resolved.p_exprs]
+                      ~p_nodes:p_resolved.p_nodes
+                      ~out_path:stats.out_path with
+                    | Some log_path when stats.built > 0 ->
+                        Builder.parse_json_log_to_vbuildlog log_path
+                    | Some _ -> out
+                    | None when stats.built > 0 ->
+                        Error.make_error FileError
+                          (Printf.sprintf
+                             "No build log matching output path `%s` was found after build completed."
+                             stats.out_path)
+                    | None -> out
+                  ) else
                     out
               | Ok other -> other
               | Error msg -> Error.make_error StructuralError msg)

@@ -2015,7 +2015,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       else VComputedNode {
         cn_name = name;
         cn_runtime = un.un_runtime;
-        cn_path = "<unbuilt>";
+        cn_path = Ast.unbuilt_path;
         cn_serializer = Nix_unparse.expr_to_string un.un_serializer;
         cn_class = "Unknown";
         cn_dependencies = (match List.assoc_opt name deps with Some d -> d | None -> []);
@@ -2162,14 +2162,14 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
                Error.make_error NameError (Printf.sprintf "Pipeline node `%s` depends on unknown identifier `%s`." name missing)
             | None ->
                 VComputedNode {
-                  cn_name = name; cn_runtime = un.un_runtime; cn_path = "<unbuilt>";
+                  cn_name = name; cn_runtime = un.un_runtime; cn_path = Ast.unbuilt_path;
                   cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.expr_to_string un.un_serializer);
                   cn_class = "Unknown"; cn_dependencies = node_deps; cn_p_exprs = Some prev.p_exprs;
                   cn_flake = un.un_flake;
                 }
            end else
             VComputedNode {
-              cn_name = name; cn_runtime = un.un_runtime; cn_path = "<unbuilt>";
+              cn_name = name; cn_runtime = un.un_runtime; cn_path = Ast.unbuilt_path;
               cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.expr_to_string un.un_serializer);
               cn_class = "Unknown"; cn_dependencies = node_deps; cn_p_exprs = Some prev.p_exprs;
               cn_flake = un.un_flake;
@@ -2549,7 +2549,7 @@ and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field 
     Some (Ast.VComputedNode {
       Ast.cn_name = field;
       Ast.cn_runtime;
-      Ast.cn_path = "<unbuilt>";
+      Ast.cn_path = Ast.unbuilt_path;
       Ast.cn_serializer;
       Ast.cn_class = "Unknown";
       Ast.cn_dependencies;
@@ -2693,14 +2693,14 @@ and get_pipeline_member p field =
          | Ok entries ->
              (match List.assoc_opt cn.cn_name entries with
               | Some logged_cn ->
-                  let cn_path = if cn.cn_path = "<unbuilt>" || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
+                  let cn_path = if cn.cn_path = Ast.unbuilt_path || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
                   let cn_class = if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class in
                   let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
                   let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
                   { cn with cn_path; cn_class; cn_runtime; cn_serializer }
               | None -> !Ast.computed_node_resolver cn)
          | _ -> !Ast.computed_node_resolver cn)
-    | None -> !Ast.computed_node_resolver cn
+    | None -> cn
   in
   match List.assoc_opt field p.p_nodes with
   | Some (VComputedNode cn) -> Some (VComputedNode (resolved_cn p cn))
@@ -2726,7 +2726,7 @@ and get_pipeline_member p field =
                 Some (VComputedNode (resolved_cn p {
                   cn_name = field;
                   cn_runtime;
-                  cn_path = "<unbuilt>";
+                  cn_path = Ast.unbuilt_path;
                   cn_serializer;
                   cn_class = "Unknown";
                   cn_dependencies;
@@ -2852,7 +2852,7 @@ and eval_dot_access_val env_ref target_val field =
       | "path" ->
           (match !Ast.node_resolver s with
            | Some (VComputedNode cn) -> VString (!Ast.computed_node_resolver cn).cn_path
-           | Some (VNode _) -> VString "<unbuilt>"
+           | Some (VNode _) -> VString Ast.unbuilt_path
            | _ -> Error.make_error KeyError (Printf.sprintf "Symbol `%s` has no field `path` (and no built node with this name was found)." s))
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Symbol has no field `%s`" field))
   | VList named_items ->
@@ -2912,7 +2912,7 @@ and eval_dot_access_val env_ref target_val field =
            | Some (VNodeResult { diagnostics; _ }) ->
                VString (Ast.Utils.format_warning_messages diagnostics.nd_warnings)
            | _ ->
-               if cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" then
+               if cn.cn_path <> "" && cn.cn_path <> Ast.unbuilt_path then
                  let diag = Builder_read_node.logged_node_diagnostics cn.cn_name cn in
                  VString (Ast.Utils.format_warning_messages diag.nd_warnings)
                else VString "")
@@ -2922,7 +2922,7 @@ and eval_dot_access_val env_ref target_val field =
       | "command" -> VString (Nix_unparse.unparse_expr un.un_command)
       | "script" -> (match un.un_script with Some p -> VString p | None -> (VNA NAGeneric))
       | "runtime" -> VString un.un_runtime
-      | "path" -> VString "<unbuilt>"
+      | "path" -> VString Ast.unbuilt_path
       | "serializer" -> VString (Nix_unparse.unparse_expr un.un_serializer)
       | "deserializer" -> VString (Nix_unparse.unparse_expr un.un_deserializer)
       | "args" -> VDict un.un_args

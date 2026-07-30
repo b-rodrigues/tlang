@@ -96,8 +96,10 @@ See the [Development Guide](development.md) for detailed setup instructions.
    cd tlang
    nix develop
    dune build
-   dune runtest
-   ```
+    dune runtest
+    ```
+
+3. **Coverage**: See the [Development Guide](development.md#coverage) for building with coverage instrumentation.
 
 ---
 

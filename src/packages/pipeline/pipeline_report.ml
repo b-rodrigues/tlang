@@ -133,7 +133,7 @@ let rec classify_node name p log_entries_map =
 
 and classify_node_by_value name p =
   match List.assoc_opt name p.p_nodes with
-  | Some (VComputedNode cn) when cn.cn_path <> "" && cn.cn_path <> "<unbuilt>" -> Built
+  | Some (VComputedNode cn) when cn.cn_path <> "" && cn.cn_path <> Ast.unbuilt_path -> Built
   | Some (VComputedNode _) -> Unbuilt
   | Some (VNode _) -> Unbuilt
   | Some (VError _) -> Errored

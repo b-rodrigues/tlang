@@ -2,7 +2,7 @@
 (* Phase 8: Golden tests for pipelines *)
 (* These tests verify complete pipeline outputs against expected baselines *)
 
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env =
   Printf.printf "Phase 8 — Golden: Pipeline Baseline Outputs:\n";
 
   (* Golden test 1: Simple arithmetic pipeline *)
@@ -48,22 +48,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Golden test 9: Pipeline introspection - deps *)
   let env_g = Packages.init_env () in
   let (_, env_g) = eval_string_env "p = pipeline {\n  a = 1\n  b = 2\n  c = a + b\n}" env_g in
-  let (v, _) = eval_string_env "pipeline_deps(p)" env_g in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|{`a`: [], `b`: [], `c`: ["a", "b"]}|} then begin
-    incr pass_count; Printf.printf "  ✓ golden: introspection deps\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: introspection deps\n    Expected: {`a`: [], `b`: [], `c`: [\"a\", \"b\"]}\n    Got: %s\n" result
-  end;
+  test_env env_g "golden: introspection deps"
+    "pipeline_deps(p)"
+    {|{`a`: [], `b`: [], `c`: ["a", "b"]}|};
 
   (* Golden test 10: Pipeline re-run preserves values *)
-  let (v, _) = eval_string_env "p2 = pipeline_run(p); read_node(p2.c)" env_g in
-  let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "not been built yet" then begin
-    incr pass_count; Printf.printf "  ✓ golden: re-run returns FileError for unbuilt pipeline\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: re-run returns FileError for unbuilt pipeline\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
-  end;
+  test_env env_g "golden: re-run returns FileError for unbuilt pipeline"
+    "p2 = pipeline_run(p); read_node(p2.c)"
+    "not been built yet";
 
   (* Golden test 11: Pipeline determinism *)
   test "golden: deterministic execution"
@@ -179,37 +171,21 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
   filtered_count = filtered |> nrow
 }|} csv_golden) env_gd in
 
-  let (v, _) = eval_string_env "read_node(p.rows)" env_gd in
-  let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "not been built yet" then begin
-    incr pass_count; Printf.printf "  ✓ golden: data pipeline nrow returns FileError for unbuilt pipeline\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline nrow\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
-  end;
+  test_env env_gd "golden: data pipeline nrow returns FileError for unbuilt pipeline"
+    "read_node(p.rows)"
+    "not been built yet";
 
-  let (v, _) = eval_string_env "read_node(p.cols)" env_gd in
-  let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "not been built yet" then begin
-    incr pass_count; Printf.printf "  ✓ golden: data pipeline ncol returns FileError for unbuilt pipeline\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline ncol\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
-  end;
+  test_env env_gd "golden: data pipeline ncol returns FileError for unbuilt pipeline"
+    "read_node(p.cols)"
+    "not been built yet";
 
-  let (v, _) = eval_string_env "read_node(p.names)" env_gd in
-  let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "not been built yet" then begin
-    incr pass_count; Printf.printf "  ✓ golden: data pipeline colnames returns FileError for unbuilt pipeline\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline colnames\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
-  end;
+  test_env env_gd "golden: data pipeline colnames returns FileError for unbuilt pipeline"
+    "read_node(p.names)"
+    "not been built yet";
 
-  let (v, _) = eval_string_env "read_node(p.filtered_count)" env_gd in
-  let result = Ast.Utils.value_to_string v in
-  if Test_helpers.contains result "not been built yet" then begin
-    incr pass_count; Printf.printf "  ✓ golden: data pipeline filtered count returns FileError for unbuilt pipeline\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline filtered count\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
-  end;
+  test_env env_gd "golden: data pipeline filtered count returns FileError for unbuilt pipeline"
+    "read_node(p.filtered_count)"
+    "not been built yet";
 
   (try Sys.remove csv_golden with _ -> ());
   print_newline ();
@@ -235,20 +211,10 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
     {|write_csv(df, "%s")|} csv_golden_out) env_rw in
   let (_, env_rw) = eval_string_env (Printf.sprintf
     {|df2 = read_csv("%s")|} csv_golden_out) env_rw in
-  let (v, _) = eval_string_env "nrow(df2)" env_rw in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ golden: read->write->read roundtrip preserves rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: read->write->read roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
-  end;
-  let (v, _) = eval_string_env "colnames(df2)" env_rw in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|["name", "value"]|} then begin
-    incr pass_count; Printf.printf "  ✓ golden: read->write->read roundtrip preserves columns\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: read->write->read roundtrip preserves columns\n    Expected: [\"name\", \"value\"]\n    Got: %s\n" result
-  end;
+  test_env env_rw "golden: read->write->read roundtrip preserves rows"
+    "nrow(df2)" "3";
+  test_env env_rw "golden: read->write->read roundtrip preserves columns"
+    "colnames(df2)" {|["name", "value"]|};
 
   (* Test: write_csv with custom separator and read back *)
   let csv_golden_sep_out = "test_golden_sep_out.csv" in
@@ -256,20 +222,10 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
     {|write_csv(df, "%s", separator = ";")|} csv_golden_sep_out) env_rw in
   let (_, env_rw) = eval_string_env (Printf.sprintf
     {|df3 = read_csv("%s", separator = ";")|} csv_golden_sep_out) env_rw in
-  let (v, _) = eval_string_env "nrow(df3)" env_rw in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
-  end;
-  let (v, _) = eval_string_env "colnames(df3)" env_rw in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|["name", "value"]|} then begin
-    incr pass_count; Printf.printf "  ✓ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves columns\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves columns\n    Expected: [\"name\", \"value\"]\n    Got: %s\n" result
-  end;
+  test_env env_rw "golden: write separator=\";\" -> read separator=\";\" roundtrip preserves rows"
+    "nrow(df3)" "3";
+  test_env env_rw "golden: write separator=\";\" -> read separator=\";\" roundtrip preserves columns"
+    "colnames(df3)" {|["name", "value"]|};
 
   (* Test: write empty DataFrame *)
   let csv_golden_empty = "test_golden_empty_rw.csv" in
@@ -282,13 +238,8 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
     {|write_csv(empty_df, "%s")|} csv_golden_empty) env_empty in
   let (_, env_empty) = eval_string_env (Printf.sprintf
     {|df_back = read_csv("%s")|} csv_golden_empty) env_empty in
-  let (v, _) = eval_string_env "nrow(df_back)" env_empty in
-  let result = Ast.Utils.value_to_string v in
-  if result = "0" then begin
-    incr pass_count; Printf.printf "  ✓ golden: write empty DataFrame roundtrip\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: write empty DataFrame roundtrip\n    Expected: 0\n    Got: %s\n" result
-  end;
+  test_env env_empty "golden: write empty DataFrame roundtrip"
+    "nrow(df_back)" "0";
 
   (* Test: write DataFrame with NA values *)
   let csv_golden_na = "test_golden_na_rw.csv" in
@@ -303,13 +254,8 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
     {|write_csv(df, "%s")|} csv_golden_na) env_na in
   let (_, env_na) = eval_string_env (Printf.sprintf
     {|df2 = read_csv("%s")|} csv_golden_na) env_na in
-  let (v, _) = eval_string_env "nrow(df2)" env_na in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ golden: write NA DataFrame roundtrip preserves rows\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ golden: write NA DataFrame roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
-  end;
+  test_env env_na "golden: write NA DataFrame roundtrip preserves rows"
+    "nrow(df2)" "3";
 
   (* Clean up roundtrip test files *)
   (try Sys.remove csv_golden_rw with _ -> ());
@@ -632,29 +578,15 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
       |} iris_csv iris_onnx) env_ml in
 
     (* Test: Metadata extraction *)
-    let (v, _) = eval_string_env "model.input_width" env_ml in
-    if Ast.Utils.value_to_string v = "4" then begin
-      incr pass_count; Printf.printf "  ✓ golden onnx: input_width extraction\n"
-    end else begin
-      incr fail_count; Printf.printf "  ✗ golden onnx: input_width extraction (got %s)\n" (Ast.Utils.value_to_string v)
-    end;
+    test_env env_ml "golden onnx: input_width extraction"
+      "model.input_width" "4";
 
-    let (v, _) = eval_string_env "model.inputs" env_ml in
-    if Ast.Utils.value_to_string v = {|["X"]|} then begin
-      incr pass_count; Printf.printf "  ✓ golden onnx: input names extraction\n"
-    end else begin
-      incr fail_count; Printf.printf "  ✗ golden onnx: input names extraction (got %s)\n" (Ast.Utils.value_to_string v)
-    end;
+    test_env env_ml "golden onnx: input names extraction"
+      "model.inputs" {|["X"]|};
 
     (* Test: Prediction batch *)
-    (* Since iris_logreg.onnx was trained on (Sepal.Length, Sepal.Width, Petal.Length, Petal.Width),
-       and iris.csv has those columns, predict(df, model) should work. *)
-    let (v, _) = eval_string_env "preds = predict(df, model); length(preds)" env_ml in
-    if Ast.Utils.value_to_string v = "150" then begin
-      incr pass_count; Printf.printf "  ✓ golden onnx: batch prediction successful (150 rows)\n"
-    end else begin
-      incr fail_count; Printf.printf "  ✗ golden onnx: batch prediction failed (got %s)\n" (Ast.Utils.value_to_string v)
-    end
+    test_env env_ml "golden onnx: batch prediction successful (150 rows)"
+      "preds = predict(df, model); length(preds)" "150";
   end else begin
     Printf.printf "  ! skipping ONNX golden tests: baseline files not found\n"
   end;
@@ -671,35 +603,16 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
       |} iris_csv iris_pmml) env_pmml in
 
     (* Test: Metadata check *)
-    let (v, _) = eval_string_env "model.class" env_pmml in
-    let model_class = Ast.Utils.value_to_string v in
-    if model_class = {|"random_forest"|} then begin
-      incr pass_count; Printf.printf "  ✓ golden jpmml: model import successful\n"
-    end else begin
-      incr fail_count; Printf.printf "  ✗ golden jpmml: model import failed (got %s)\n" model_class
-    end;
+    test_env env_pmml "golden jpmml: model import successful"
+      "model.class" {|"random_forest"|};
 
     (* Test: JPMML Bridge Prediction (triggered by predict builtin through authority pivot) *)
-    (try
-      let (v, _) = eval_string_env "preds = predict(df, model); nrow(preds)" env_pmml in
-      if Ast.Utils.value_to_string v = "150" then begin
-        incr pass_count; Printf.printf "  ✓ golden jpmml: bridge prediction successful (150 rows verified via nrow)\n"
-      end else begin
-        incr fail_count; Printf.printf "  ✗ golden jpmml: bridge prediction failed (got %s)\n" (Ast.Utils.value_to_string v)
-      end
-    with e ->
-      incr fail_count; Printf.printf "  ✗ golden jpmml: bridge prediction Exception: %s\n" (Printexc.to_string e));
+    test_env env_pmml "golden jpmml: bridge prediction successful (150 rows verified via nrow)"
+      "preds = predict(df, model); nrow(preds)" "150";
 
     (* Test: Cross-Engine Validation (Native vs JPMML) *)
-    (try
-      let (v, _) = eval_string_env "val = compare_native_vs_pmml_scores(df, model); val.`match`" env_pmml in
-      if Ast.Utils.value_to_string v = "true" then begin
-        incr pass_count; Printf.printf "  ✓ golden jpmml: native vs jpmml parity verified\n"
-      end else begin
-        incr fail_count; Printf.printf "  ✗ golden jpmml: native vs jpmml parity failure (got %s)\n" (Ast.Utils.value_to_string v)
-      end
-    with e ->
-      incr fail_count; Printf.printf "  ✗ golden jpmml: native vs jpmml Exception: %s\n" (Printexc.to_string e));
+    test_env env_pmml "golden jpmml: native vs jpmml parity verified"
+      "val = compare_native_vs_pmml_scores(df, model); val.`match`" "true";
   end else begin
     Printf.printf "  ! skipping PMML golden tests: baseline files not found\n"
   end;

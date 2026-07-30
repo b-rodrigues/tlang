@@ -467,6 +467,79 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb28-1"><a href=
 <p>The <code>root_causes</code> field tells the agent which node is the
 actual source of the failure — the one it should fix first.</p>
 <hr />
+<h2 id="programmatic-test-results-with-t-test---json">Programmatic test
+results with <code>t test --json</code></h2>
+<p>When an agent needs to verify that its changes don’t break existing
+tests, it can use <code>t test --json</code> to get structured test
+results. This is essential for agent workflows where test results must
+be consumed programmatically.</p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--json</span> tests/</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--format</span> junit tests/  <span class="co"># JUnit XML for CI</span></span></code></pre></div>
+<p><strong>Filtering tests:</strong></p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span>     <span class="co"># run only tests matching &quot;stats&quot;</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--not</span> <span class="st">&quot;slow&quot;</span>       <span class="co"># skip tests matching &quot;slow&quot;</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--failfast</span>         <span class="co"># stop on first failure</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--list</span>             <span class="co"># list tests without running</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test <span class="at">--timeout</span> 30       <span class="co"># mark slow tests as failed</span></span></code></pre></div>
+<p><strong>Excluding tests with <code>.tignore</code>:</strong></p>
+<p>Create <code>tests/.tignore</code> to automatically exclude test
+files:</p>
+<pre><code># tests/.tignore
+slow_integration.t
+*_benchmark.t
+legacy/</code></pre>
+<p>The output is a JSON object with the test suite summary:</p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1&quot;</span><span class="fu">,</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;passed&quot;</span><span class="fu">,</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;total&quot;</span><span class="fu">:</span> <span class="dv">15</span><span class="fu">,</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;passed&quot;</span><span class="fu">:</span> <span class="dv">14</span><span class="fu">,</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;failed&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;duration_ms&quot;</span><span class="fu">:</span> <span class="dv">2340</span><span class="fu">,</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;results&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;file&quot;</span><span class="fu">:</span> <span class="st">&quot;tests/test_arithmetic.t&quot;</span><span class="fu">,</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;passed&quot;</span><span class="fu">,</span></span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;duration_ms&quot;</span><span class="fu">:</span> <span class="dv">120</span><span class="fu">,</span></span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;error&quot;</span><span class="fu">:</span> <span class="kw">null</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;file&quot;</span><span class="fu">:</span> <span class="st">&quot;tests/test_strings.t&quot;</span><span class="fu">,</span></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;failed&quot;</span><span class="fu">,</span></span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;duration_ms&quot;</span><span class="fu">:</span> <span class="dv">85</span><span class="fu">,</span></span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;error&quot;</span><span class="fu">:</span> <span class="st">&quot;Assertion failed at line 42: expected </span><span class="ch">\&quot;</span><span class="st">hello</span><span class="ch">\&quot;</span><span class="st"> but got </span><span class="ch">\&quot;</span><span class="st">world</span><span class="ch">\&quot;</span><span class="st">&quot;</span></span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Agent workflow for test-driven iteration:</strong></p>
+<ol type="1">
+<li>Agent modifies code</li>
+<li>Agent runs <code>t test --json tests/</code></li>
+<li>Agent parses JSON to check <code>status</code> field</li>
+<li>If <code>status</code> is <code>"failed"</code>, agent reads
+<code>error</code> field from failed results</li>
+<li>Agent fixes the issue and re-runs tests</li>
+</ol>
+<p>The JSON output follows the same schema version as
+<code>t check --json</code> and <code>t run --json</code>, making it
+easy to integrate with existing agent tooling.</p>
+<h3 id="repl-callable-version">REPL-callable version</h3>
+<p>For agents working in the REPL, <code>t_test()</code> returns a
+DataFrame with the same results:</p>
+<pre class="t"><code>results = t_test()
+-- DataFrame with columns: file, status, duration_ms, error
+
+-- Filter to show only failed tests
+failed = results |&gt; filter($status == &quot;failed&quot;)
+nrow(failed)  -- 0 if all tests passed</code></pre>
+<p>The DataFrame columns are: - <code>file</code>: Path to the test file
+- <code>status</code>: “passed” or “failed” - <code>duration_ms</code>:
+Duration in milliseconds - <code>error</code>: Error message (NA for
+passed tests)</p>
+<hr />
 <h2 id="tips-for-effective-pairing">Tips for effective pairing</h2>
 <h3 id="what-to-tell-the-agent">What to tell the agent</h3>
 <ul>

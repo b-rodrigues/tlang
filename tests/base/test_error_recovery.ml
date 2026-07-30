@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env test test_env =
   (* === Error Recovery Edge Cases === *)
 
   Printf.printf "Error Recovery — Deep pipe error propagation:\n";
@@ -33,16 +33,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let (_, env0) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_err) env0 in
 
   (* Summarize with function that produces error on some groups *)
-  let (v, _) = eval_string_env
+  test_env env0 "grouped summarize with sd (2 rows per group) returns DataFrame"
     {|df |> group_by($group) |> summarize($result = sd($value))|}
-    env0 in
-  let result = Ast.Utils.value_to_string v in
-  (* Each group has 2 values, so sd() should work for all groups *)
-  if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ grouped summarize with sd (2 rows per group) returns DataFrame\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ grouped summarize with sd (2 rows per group) returns DataFrame\n    Got: %s\n" result
-  end;
+    "DataFrame";
 
   (* Error propagation rules changed: arithmetic now propagates errors instead of TypeError *)
   test "error value in arithmetic" "(1/0) + 1" "Error(DivisionByZero: \"Division by zero.\")";
@@ -108,24 +101,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   output_string oc2 "name,value\nAlice,10\nBob,20\nCharlie,30\n";
   close_out oc2;
 
-  let env_pipe = Packages.init_env () in
-  let (_, env_pipe) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_pipe_err) env_pipe in
-
   (* Error in filter predicate propagation *)
-  let (v, _) = eval_string_env
-    {|df |> filter($nonexistent > 10)|}
-    env_pipe in
-  let result = Ast.Utils.value_to_string v in
-  let starts_with s prefix =
-    String.length s >= String.length prefix &&
-    String.sub s 0 (String.length prefix) = prefix
-  in
-  if starts_with result "Error(" then begin
-    incr pass_count; Printf.printf "  ✓ error in filter predicate propagates\n"
-  end else begin
-    (* It may also return 0 rows if nonexistent field is treated as falsy *)
-    incr pass_count; Printf.printf "  ✓ filter with nonexistent field handled (got: %s)\n" (String.sub result 0 (min 50 (String.length result)))
-  end;
+  test "filter with nonexistent field returns error"
+    (Printf.sprintf {|df = read_csv("%s"); df |> filter($nonexistent > 10)|} csv_pipe_err)
+    {|Error(KeyError: "Key `nonexistent` not found in Dict.")|};
 
   (* Select nonexistent column in pipeline *)
   test "select nonexistent in pipeline"

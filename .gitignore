@@ -38,4 +38,5 @@ node_modules/
 /.t_julia_depot/
 .t_python_guard/
 .t_r_profile/
+.tlang-pipeline-*/
 .opencode/

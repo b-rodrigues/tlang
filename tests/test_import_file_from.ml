@@ -1,7 +1,7 @@
 (* tests/test_import_file_from.ml *)
 (* Unit tests for the ImportFileFrom feature: import "file.t"[name] *)
 
-let run_tests pass_count fail_count failures _eval_string eval_string_env _test =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env test test_env =
 
   Printf.printf "ImportFileFrom — Basic selective import:\n";
 
@@ -11,137 +11,60 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
    output_string oc "foo = 42\nbar = 99\n";
    close_out oc);
 
-  (* Import one name from the file *)
-  let env = Packages.init_env () in
-  let (v, env2) = eval_string_env
+  test "single name imported correctly"
     (Printf.sprintf {|import "%s"[foo]; foo|} tmp_file)
-    env in
-  let result = Ast.Utils.value_to_string v in
-  if result = "42" then begin
-    incr pass_count;
-    Printf.printf "  ✓ single name imported correctly\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ single name imported correctly\n    Expected: 42\n    Got: %s\n" result in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+    "42";
 
   (* The non-imported name should not be in scope *)
-  let (v2, _) = eval_string_env "bar" env2 in
-  let r2 = Ast.Utils.value_to_string v2 in
-  if String.length r2 >= 5 && String.sub r2 0 5 = "Error" then begin
-    incr pass_count;
-    Printf.printf "  ✓ non-imported name is not in scope\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ non-imported name is not in scope\n    Expected: Error(...)\n    Got: %s\n" r2 in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+  let env = Packages.init_env () in
+  let (_, env2) = eval_string_env
+    (Printf.sprintf {|import "%s"[foo]|} tmp_file)
+    env in
+  test_env env2 "non-imported name is not in scope"
+    "bar"
+    "Error";
 
-  (* Import multiple names at once *)
-  let (v3, _) = eval_string_env
+  test "multiple names imported correctly"
     (Printf.sprintf {|import "%s"[foo, bar]; foo + bar|} tmp_file)
-    (Packages.init_env ()) in
-  let r3 = Ast.Utils.value_to_string v3 in
-  if r3 = "141" then begin
-    incr pass_count;
-    Printf.printf "  ✓ multiple names imported correctly\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ multiple names imported correctly\n    Expected: 141\n    Got: %s\n" r3 in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+    "141";
 
   print_newline ();
 
   Printf.printf "ImportFileFrom — Alias support:\n";
 
-  (* Import with alias: import "file.t"[myalias=foo] *)
-  let (v4, _) = eval_string_env
+  test "aliased import bound under alias name"
     (Printf.sprintf {|import "%s"[myalias=foo]; myalias|} tmp_file)
-    (Packages.init_env ()) in
-  let r4 = Ast.Utils.value_to_string v4 in
-  if r4 = "42" then begin
-    incr pass_count;
-    Printf.printf "  ✓ aliased import bound under alias name\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ aliased import bound under alias name\n    Expected: 42\n    Got: %s\n" r4 in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+    "42";
 
   (* The original name should not be bound when an alias is used *)
-  let (_v5, env5) = eval_string_env
+  let env_alias = Packages.init_env () in
+  let (_, env_alias2) = eval_string_env
     (Printf.sprintf {|import "%s"[myalias=foo]|} tmp_file)
-    (Packages.init_env ()) in
-  let (v5b, _) = eval_string_env "foo" env5 in
-  let r5b = Ast.Utils.value_to_string v5b in
-  if String.length r5b >= 5 && String.sub r5b 0 5 = "Error" then begin
-    incr pass_count;
-    Printf.printf "  ✓ original name not in scope when alias used\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ original name not in scope when alias used\n    Expected: Error(...)\n    Got: %s\n" r5b in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+    env_alias in
+  test_env env_alias2 "original name not in scope when alias used"
+    "foo"
+    "Error";
 
   print_newline ();
 
   Printf.printf "ImportFileFrom — Error handling:\n";
 
-  (* Missing name in file returns NameError *)
-  let (v6, _) = eval_string_env
+  test "missing name returns error"
     (Printf.sprintf {|import "%s"[nonexistent]|} tmp_file)
-    (Packages.init_env ()) in
-  let r6 = Ast.Utils.value_to_string v6 in
-  if String.length r6 >= 5 && String.sub r6 0 5 = "Error" then begin
-    incr pass_count;
-    Printf.printf "  ✓ missing name returns error\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ missing name returns error\n    Expected: Error(...)\n    Got: %s\n" r6 in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+    "Error";
 
-  (* Missing file returns FileError *)
-  let (v7, _) = eval_string_env
+  test "missing file returns error"
     {|import "/nonexistent/path/file.t"[foo]|}
-    (Packages.init_env ()) in
-  let r7 = Ast.Utils.value_to_string v7 in
-  if String.length r7 >= 5 && String.sub r7 0 5 = "Error" then begin
-    incr pass_count;
-    Printf.printf "  ✓ missing file returns error\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ missing file returns error\n    Expected: Error(...)\n    Got: %s\n" r7 in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+    "Error";
 
   (* Syntax error in imported file returns parse error *)
   let bad_file = Filename.temp_file "t_import_bad" ".t" in
   (let oc = open_out bad_file in
    output_string oc "this is not valid T @@@ syntax!!!\n";
    close_out oc);
-  let (v8, _) = eval_string_env
+  test "parse error in imported file returns error"
     (Printf.sprintf {|import "%s"[foo]|} bad_file)
-    (Packages.init_env ()) in
-  let r8 = Ast.Utils.value_to_string v8 in
-  if String.length r8 >= 5 && String.sub r8 0 5 = "Error" then begin
-    incr pass_count;
-    Printf.printf "  ✓ parse error in imported file returns error\n"
-  end else begin
-    incr fail_count;
-    let msg = Printf.sprintf "  ✗ parse error in imported file returns error\n    Expected: Error(...)\n    Got: %s\n" r8 in
-    failures := msg :: !failures;
-    Printf.printf "%s" msg
-  end;
+    "Error";
 
   (* Clean up temporary files *)
   (try Sys.remove tmp_file with _ -> ());

@@ -141,6 +141,21 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "path_abs wrong type" {|path_abs(42)|} {|Error(TypeError: "Function `path_abs` expects a String path, got Int.")|};
   print_newline ();
 
+  Printf.printf "Function introspection:\n";
+  test "body of lambda"
+    "f = \\(x) (x + 1); type(body(f))"
+    {|"Expression"|};
+  test "body of builtin returns string"
+    {|type(body(print))|}
+    {|"String"|};
+  test "body on non-function errors"
+    "body(42)"
+    {|Error(TypeError: "body: expected a Function, got Int.")|};
+  test "body arity error"
+    "body()"
+    {|Error(ArityError: "Function `body` expects 1 arguments but received 0.")|};
+  print_newline ();
+
   Printf.printf "Error Handling:\n";
   test "error propagation in addition" "(1 / 0) + 1" {|Error(DivisionByZero: "Division by zero.")|};
   test "error in list" "[1, 1/0, 3]" {|Error(DivisionByZero: "Division by zero.")|};
