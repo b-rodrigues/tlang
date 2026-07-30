@@ -1260,6 +1260,27 @@ p_cross = pipeline {
         incr fail_count; Printf.printf "  ✗ Quarto node args parsing failed: %s\n"
           (Ast.Utils.value_to_string other));
 
+  let (v_per_node_include, _) = eval_string_env
+    {|node(command = 1, include = "config.yaml", functions = ["utils.R"])|}
+    (Packages.init_env ()) in
+  (match v_per_node_include with
+   | Ast.VNode un ->
+       let has_include = List.exists (function
+         | { Ast.node = Ast.Value (VString s); _ } -> s = "config.yaml"
+         | _ -> false) un.un_includes
+       in
+       let has_functions = List.exists (function
+         | { Ast.node = Ast.Value (VString s); _ } -> s = "utils.R"
+         | _ -> false) un.un_functions
+       in
+       if has_include && has_functions then begin
+         incr pass_count; Printf.printf "  ✓ per-node include and functions are correctly resolved\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ per-node include/functions not found\n    include_found=%b functions_found=%b\n" has_include has_functions
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ per-node include test: unexpected value %s\n" (Ast.Utils.value_to_string other));
+
   let (v_qn_node, _) = eval_string_env
     {|qn(args = [subcommand: "render", path: "report.qmd", to: "html"])|}
     (Packages.init_env ()) in
