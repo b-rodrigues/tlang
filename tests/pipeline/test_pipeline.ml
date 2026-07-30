@@ -2943,6 +2943,7 @@ p.t_step|}
   end;
 
   (* pipeline_options tests *)
+  Ast.reset_pipeline_global_settings ();
   Printf.printf "Pipeline Options — pipeline_options():\n";
 
   let (_, env_po) = eval_string_env {|
@@ -3011,4 +3012,5 @@ p.t_step|}
     {|pipeline_options(unknown_arg = "foo")|}
     {|Error(TypeError: "pipeline_options: unknown argument 'unknown_arg'. Supported arguments are: functions, include.")|};
 
+  Ast.reset_pipeline_global_settings ();
   print_newline ()
