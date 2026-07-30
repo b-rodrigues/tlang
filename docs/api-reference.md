@@ -2775,6 +2775,40 @@ pipeline_report(p, target = "web", file = "report.html")
 
 ---
 
+### `pipeline_options(functions = [:], include = [])`
+
+Declares default settings applied to every node in subsequent pipeline blocks.
+Call this at the top of a pipeline script to avoid repeating common arguments
+(such as shared R/Python function files or config files) on every node.
+
+**Parameters:**
+
+- `functions` (optional) — Dict mapping runtime shorthands to function file paths.
+  For example: `[rn: "functions.R", pyn: ["preproc.py", "utils.py"]]`.
+  Each value can be a single path (String) or list of paths (List[String]).
+  Runtime shorthands match node constructors: `rn` → R, `pyn` → Python, `jln` → Julia,
+  `qn` → Quarto, `shn` → sh, `node` → T.
+  Per-node `functions` arguments are appended after these global files.
+- `include` (optional) — String or List[String]. File paths to include in every node's sandbox.
+  Per-node `include` arguments are appended after these global includes.
+
+**Returns:**
+
+NullNode.
+
+**Examples:**
+```t
+pipeline_options(
+  functions = [rn: "functions.R"],
+  include = "shared/config.yaml"
+)
+p = pipeline {
+  a = rn(<{ ... }>)
+}
+```
+
+---
+
 ### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.

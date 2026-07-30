@@ -1442,6 +1442,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                     | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | _ -> default_runtime)
                     | _ -> default_runtime)
             in
+            let global_functions = Ast.get_global_functions runtime in
+            let global_include_exprs = Ast.get_global_includes () in
             if has_command && runtime = "Quarto" then
               Error.make_error TypeError "Quarto nodes require a script and do not support inlined `command` blocks."
             else
@@ -1473,13 +1475,15 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                     in (Ast.mk_expr (RawCode { raw_text = ""; raw_identifiers = ids }), Some path)
                 | None -> (command, None)
               in
-              let base_includes = lookup_list "includes" in
+              let base_includes = lookup_list "include" in
               let un_includes =
-                match arg_path_opt with
-                | Some p when has_command ->
-                    let already_included = List.exists (function { node = Value (VString s); _ } | { node = Value (VSymbol s); _ } -> s = p | _ -> false) base_includes in
-                    if already_included then base_includes else base_includes @ [vexpr (VString p)]
-                | _ -> base_includes
+                let per_node_includes = match arg_path_opt with
+                  | Some p when has_command ->
+                      let already_included = List.exists (function { node = Value (VString s); _ } | { node = Value (VSymbol s); _ } -> s = p | _ -> false) base_includes in
+                      if already_included then base_includes else base_includes @ [vexpr (VString p)]
+                  | _ -> base_includes
+                in
+                global_include_exprs @ per_node_includes
               in
                if runtime = "Quarto" && un_script = None then
                 Error.make_error TypeError
@@ -1494,7 +1498,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
-                      un_functions = lookup_list "functions";
+                      un_functions = global_functions @ lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
@@ -1512,7 +1516,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
-                      un_functions = lookup_list "functions";
+                      un_functions = global_functions @ lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
@@ -1530,7 +1534,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
-                      un_functions = lookup_list "functions";
+                      un_functions = global_functions @ lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
@@ -1551,7 +1555,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_env_vars; un_args;
                   un_shell = shell_opt;
                   un_shell_args = shell_args;
-                  un_functions = lookup_list "functions";
+                  un_functions = global_functions @ lookup_list "functions";
                   un_includes;
                   un_noop = eval_bool "noop" false;
                   un_dependencies;

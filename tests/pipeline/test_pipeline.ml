@@ -2942,4 +2942,73 @@ p.t_step|}
     incr fail_count; Printf.printf "  ✗ patience diff hunk kinds classify mixed changes correctly\n"
   end;
 
+  (* pipeline_options tests *)
+  Printf.printf "Pipeline Options — pipeline_options():\n";
+
+  let (_, env_po) = eval_string_env {|
+    pipeline_options(
+      functions = [rn: "test.R", pyn: ["a.py", "b.py"]],
+      include = "config.yaml"
+    )
+    p = pipeline {
+      n1 = rn(command = <{ 1 + 1 }>)
+      n2 = pyn(command = <{ 2 + 2 }>, functions = ["extra.py"])
+      n3 = jln(command = <{ 3 + 3 }>)
+      n4 = node(command = 1 + 1)
+    }
+  |} (Packages.init_env ()) in
+  let (v_po, _) = eval_string_env "p" env_po in
+  (match v_po with
+   | Ast.VPipeline p ->
+       let get_functions name =
+         match List.assoc_opt name p.p_functions with
+         | Some lst -> List.map (fun e -> match e.Ast.node with Ast.Value (Ast.VString s) -> s | _ -> "__not_a_string__") lst
+         | None -> []
+       in
+       let string_set_equal a b = List.sort compare a = List.sort compare b in
+       let n1_funcs = get_functions "n1" in
+       let n2_funcs = get_functions "n2" in
+       let n3_funcs = get_functions "n3" in
+       let n4_funcs = get_functions "n4" in
+       let all_ok =
+         string_set_equal n1_funcs ["test.R"]
+         && string_set_equal n2_funcs ["a.py"; "b.py"; "extra.py"]
+         && n3_funcs = []
+         && n4_funcs = []
+       in
+       if all_ok then
+         (incr pass_count; Printf.printf "  ✓ pipeline_options merges global functions into nodes\n")
+       else
+         (incr fail_count; Printf.printf "  ✗ pipeline_options merge failed\n    n1: {%s}\n    n2: {%s}\n    n3: {%s}\n    n4: {%s}\n"
+            (String.concat ", " n1_funcs) (String.concat ", " n2_funcs) (String.concat ", " n3_funcs) (String.concat ", " n4_funcs))
+   | other ->
+       incr fail_count; Printf.printf "  ✗ pipeline_options test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+
+  (* Test: pipeline_options with include only *)
+  let (_, env_po2) = eval_string_env {|
+    pipeline_options(include = "shared.yaml")
+    p = pipeline {
+      n1 = rn(command = <{ 1 + 1 }>, include = ["extra.csv"])
+    }
+  |} (Packages.init_env ()) in
+  let (v_po2, _) = eval_string_env "p" env_po2 in
+  (match v_po2 with
+   | Ast.VPipeline p ->
+       let get_includes name =
+         match List.assoc_opt name p.p_includes with
+         | Some lst -> List.map (fun e -> match e.Ast.node with Ast.Value (Ast.VString s) -> s | _ -> "__not_a_string__") lst
+         | None -> []
+       in
+       let n1_includes = get_includes "n1" in
+       if List.mem "shared.yaml" n1_includes && List.mem "extra.csv" n1_includes then
+         (incr pass_count; Printf.printf "  ✓ pipeline_options merges global include with per-node include\n")
+       else
+         (incr fail_count; Printf.printf "  ✗ pipeline_options include merge failed: {%s}\n" (String.concat ", " n1_includes))
+   | other ->
+       incr fail_count; Printf.printf "  ✗ pipeline_options include test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+
+  test "pipeline_options unknown argument"
+    {|pipeline_options(unknown_arg = "foo")|}
+    {|Error(TypeError: "pipeline_options: unknown argument 'unknown_arg'. Supported arguments are: functions, include.")|};
+
   print_newline ()
