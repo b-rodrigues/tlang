@@ -51,23 +51,18 @@ let register env =
               | "node" -> "T"
               | other  -> other
             in
-            let dedup_last_wins pairs =
-              List.rev (List.fold_left (fun acc (rt, fs) ->
-                (rt, fs) :: List.filter (fun (r, _) -> r <> rt) acc
-              ) [] pairs)
-            in
             let parse_functions value =
               match value with
               | VList pairs ->
-                  Ok (dedup_last_wins (List.filter_map (fun (runtime_name_opt, files_val) ->
+                  Ok (List.filter_map (fun (runtime_name_opt, files_val) ->
                     match runtime_name_opt with
                     | Some runtime -> Some (translate_runtime runtime, options_value_to_expr_list files_val)
                     | None -> None
-                  ) pairs))
+                  ) pairs)
               | VDict pairs ->
-                  Ok (dedup_last_wins (List.map (fun (runtime_name, files_val) ->
+                  Ok (List.map (fun (runtime_name, files_val) ->
                     (translate_runtime runtime_name, options_value_to_expr_list files_val)
-                  ) pairs))
+                  ) pairs)
               | VNA _ -> Ok []
               | other ->
                   Error (Error.type_error
@@ -91,10 +86,11 @@ let register env =
                      | Some r -> r
                      | None -> "T"
                    in
-                   let global_funcs = match List.assoc_opt runtime global_functions with
-                     | Some fs -> fs
-                     | None -> []
-                   in
+                    let global_funcs = 
+                      List.filter_map (fun (rt, fs) -> if rt = runtime then Some fs else None) 
+                        global_functions 
+                      |> List.flatten
+                    in
                    (name, global_funcs @ funcs)
                  ) p.p_functions in
                  let updated_includes = List.map (fun (name, incs) ->

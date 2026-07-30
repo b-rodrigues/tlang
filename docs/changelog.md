@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.54.3] - 2026-07-30
+
+### Pipeline Global Options — Pure Function
+
+- **`set_pipeline_global_options(pipeline, functions, include)`** replaces the
+  old side-effecting `pipeline_options()`. Returns a new pipeline with defaults
+  merged into every node; the original pipeline is never mutated and no global
+  state is used. Composes naturally with pipeline transforms and the pipe operator.
+  Duplicate runtime keys in the `functions` dict concatenate all values
+  (e.g. `[rn: "a.R", rn: "b.R"]` includes both files).
+
 ## [0.54.2] - 2026-07-29
 
 ### `testcraft` — Testing Package

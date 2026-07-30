@@ -2788,6 +2788,7 @@ into every node. The original pipeline is not modified.
   Each value can be a single path (String) or list of paths (List[String]).
   Runtime shorthands match node constructors: `rn` → R, `pyn` → Python, `jln` → Julia,
   `qn` → Quarto, `shn` → sh, `node` → T.
+  If the same runtime shorthand appears more than once, all values are concatenated.
   Per-node `functions` arguments are appended after these global files.
 - `include` (optional) — String or List[String]. File paths to include in every node's sandbox.
   Per-node `include` arguments are appended after these global includes.

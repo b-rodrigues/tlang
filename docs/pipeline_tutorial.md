@@ -177,6 +177,12 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `pipeline_gc(p, dry_run?)` | `Pipeline`, optional `Bool` | `DataFrame` | GC pipeline store paths (dry_run=true previews) |
 | `t_gc()` | — | `String` | Global Nix garbage collection |
 
+### Global Options
+
+| Function | Parameters | Returns | What it does |
+|---|---|---|---|
+| `set_pipeline_global_options(p, functions?, include?)` | `Pipeline`, optional `Dict`, optional `String`/`List` | `Pipeline` | Returns a new pipeline with `functions`/`include` defaults prepended to every node's config. Original unchanged. Duplicate runtime keys in the dict concatenate all values. |
+
 ---
 
 ## 4. Explicit Node Configuration
@@ -283,6 +289,26 @@ fetchurl("https://example.com/data.csv", output = "data.csv")
 ```
 
 The companion function `prefetch(url)` downloads a URL and returns its SHA-256 hash, enabling the two-step workflow of computing the hash upfront then pinning it in a pipeline for reproducible builds.
+
+### Setting Global Options for All Nodes
+
+Use `set_pipeline_global_options` to share functions and includes across every
+node in a pipeline without repeating them per-node:
+
+```t
+p = pipeline {
+  data = rn(<{ ... }>),
+  model = pyn(<{ ... }>)
+}
+q = set_pipeline_global_options(p,
+  functions = [rn: "utils.R", pyn: "preproc.py"],
+  include = "shared/config.yaml"
+)
+```
+
+Per-node `functions` and `include` values are still applied after these globals.
+If you pass the same runtime shorthand more than once (e.g. `[rn: "a.R", rn: "b.R"]`),
+all values are concatenated — both files are included.
 
 ---
 
