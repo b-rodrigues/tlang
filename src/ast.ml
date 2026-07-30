@@ -474,26 +474,6 @@ let check_mode = ref false
     human-readable output to stderr.  Set by `t run --json`. *)
 let ndjson_mode = ref false
 
-(** Pipeline-level default settings, set by `pipeline_options()` at the top of
-    pipeline scripts.  Currently supports:
-    - `functions`: a VList of runtime-name -> file-path pairs (e.g. `[rn: "f.R"]`)
-    - `include`: a VList of file paths common to all nodes
-    These are merged into every node's `un_functions` / `un_includes` during
-    pipeline construction. *)
-type pipeline_global_settings = {
-  global_functions : (string * value) list;  (* runtime name -> file path value(s) *)
-  global_includes : value list;
-}
-
-let pipeline_global_settings : pipeline_global_settings ref = ref {
-  global_functions = [];
-  global_includes = [];
-}
-
-(** Reset pipeline global settings (called at start of pipeline eval). *)
-let reset_pipeline_global_settings () =
-  pipeline_global_settings := { global_functions = []; global_includes = [] }
-
 (** Convert a value (single path or list of paths) to a string list. *)
 let rec options_value_to_strings = function
   | VString s -> [s]
@@ -507,18 +487,6 @@ let rec options_value_to_strings = function
     suitable for merging into un_functions / un_includes. *)
 let options_value_to_expr_list v =
   List.map (fun s -> mk_expr (Value (VString s))) (options_value_to_strings v)
-
-(** Get global function file expressions for a given runtime name
-    (e.g. "R", "Python", "Julia", "T", "Quarto", "sh"). *)
-let get_global_functions runtime =
-  match List.assoc_opt runtime (!pipeline_global_settings).global_functions with
-  | Some v -> options_value_to_expr_list v
-  | None -> []
-
-(** Get global include file expressions (language-agnostic, applies to all nodes). *)
-let get_global_includes () =
-  List.concat_map (fun v -> options_value_to_expr_list v) (!pipeline_global_settings).global_includes
-
 
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.

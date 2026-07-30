@@ -1442,8 +1442,6 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                     | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | _ -> default_runtime)
                     | _ -> default_runtime)
             in
-            let global_functions = Ast.get_global_functions runtime in
-            let global_include_exprs = Ast.get_global_includes () in
             if has_command && runtime = "Quarto" then
               Error.make_error TypeError "Quarto nodes require a script and do not support inlined `command` blocks."
             else
@@ -1483,7 +1481,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       if already_included then base_includes else base_includes @ [vexpr (VString p)]
                   | _ -> base_includes
                 in
-                global_include_exprs @ per_node_includes
+                per_node_includes
               in
                if runtime = "Quarto" && un_script = None then
                 Error.make_error TypeError
@@ -1498,7 +1496,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
-                      un_functions = global_functions @ lookup_list "functions";
+                       un_functions = lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
@@ -1516,7 +1514,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
-                      un_functions = global_functions @ lookup_list "functions";
+                       un_functions = lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
@@ -1534,7 +1532,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
-                      un_functions = global_functions @ lookup_list "functions";
+                       un_functions = lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
@@ -1555,7 +1553,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_env_vars; un_args;
                   un_shell = shell_opt;
                   un_shell_args = shell_args;
-                  un_functions = global_functions @ lookup_list "functions";
+                   un_functions = lookup_list "functions";
                   un_includes;
                   un_noop = eval_bool "noop" false;
                   un_dependencies;

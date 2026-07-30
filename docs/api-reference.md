@@ -2775,14 +2775,14 @@ pipeline_report(p, target = "web", file = "report.html")
 
 ---
 
-### `pipeline_options(functions = [:], include = [])`
+### `set_pipeline_global_options(pipeline, functions = [:], include = [])`
 
-Declares default settings applied to every node in subsequent pipeline blocks.
-Call this at the top of a pipeline script to avoid repeating common arguments
-(such as shared R/Python function files or config files) on every node.
+Pure function that returns a new pipeline with the given defaults merged
+into every node. The original pipeline is not modified.
 
 **Parameters:**
 
+- `pipeline` — The input pipeline (positional or piped).
 - `functions` (optional) — Dict mapping runtime shorthands to function file paths.
   For example: `[rn: "functions.R", pyn: ["preproc.py", "utils.py"]]`.
   Each value can be a single path (String) or list of paths (List[String]).
@@ -2794,20 +2794,23 @@ Call this at the top of a pipeline script to avoid repeating common arguments
 
 **Returns:**
 
-NullNode.
+Pipeline — a new pipeline with the settings merged into every node.
 
 **Examples:**
 ```t
-pipeline_options(
+p = pipeline {
+  a = rn(<{ ... }>),
+  b = pyn(<{ ... }>)
+}
+q = set_pipeline_global_options(p,
   functions = [rn: "functions.R"],
   include = "shared/config.yaml"
 )
-p = pipeline {
-  a = rn(<{ ... }>)
-}
 ```
 
 ---
+
+
 
 ### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
