@@ -10,15 +10,52 @@
 
 [![Watch the T Orchestration Engine Trailer](https://img.youtube.com/vi/LIatS0k0JEI/maxresdefault.jpg)](https://youtu.be/LIatS0k0JEI?si=tk11_vqRb1JY75Hq)
 
-**T** is an experimental, reproducibility-by-design DSL for polyglot data science. It provides a functional, immutable language for constructing composable micropipelines—first-class, introspectable computation graphs that coordinate R, Python, and Shell execution within a unified system. Pipelines in T are not configuration artifacts but executable program structures with explicit dataflow, typed nodes, and content-addressed outputs.
+**T** is an experimental, reproducibility-by-design DSL for polyglot data
+science. It provides a functional, immutable language for constructing
+composable micropipelines—first-class, introspectable computation graphs
+that coordinate R, Python, and Shell execution within a unified system.
+Pipelines in T are not configuration artifacts but executable program
+structures with explicit dataflow, typed nodes, and content-addressed
+outputs.
 
-> [!IMPORTANT]
-> **T’s source code is 100% AI-generated. It is thouroughly tested with almost 3000 unit tests and +/- 80 end-to-end integration tests.**
+The engine is built for seamless interoperability: you can manipulate
+objects defined in foreign-language nodes directly from within the T
+environment. Data conversion is handled transparently for common types, and
+T offers the flexibility to define custom serializers for complex
+interchanges—allowing you to leverage the strengths of each language
+without ever leaving the T runtime.
 
+## Reproducibility Is the Point
 
-Built on Nix, T integrates declarative environment management and deterministic builds at the language level, enabling reproducible execution across machines without external orchestration layers. The result is a system where workflow structure, dependency resolution, and provenance tracking are intrinsic properties of the language rather than concerns delegated to external tools.
+Most data science pipelines don't fail because the code is wrong — they fail
+months or years later because the *environment* silently changed. A pinned
+`requirements.txt` doesn't tell you which system libraries were linked, which
+compiler built your R package, or what happened when your Python node called
+out to a Julia script that nobody re-pinned. This gets worse, not better, the
+moment a project spans more than one language: `renv` can lock your R
+dependencies and `conda` can lock your Python ones, but nothing locks the
+*seam* between them.
 
-The engine is built for seamless interoperability: you can manipulate objects defined in foreign-language nodes directly from within the T environment. Data conversion is handled transparently for common types, and T offers the flexibility to define custom serializers for complex interchanges—allowing you to leverage the strengths of each language without ever leaving the T runtime.
+**T makes that seam a first-class part of the language.** Every node in a T
+pipeline — R, Python, Julia, or shell — runs in its own hermetic Nix sandbox,
+and every output is content-addressed. This isn't a convention or a CI
+best-practice you have to remember to follow: it's enforced by the language
+itself. You cannot build a T pipeline outside of Nix, and you cannot define a
+node without T tracking exactly what it depends on and what it produced. A
+pipeline that builds today will build byte-for-byte identically in five
+years, on a different machine, with a different person at the keyboard.
+
+|  | Locks language deps | Locks system libraries | Locks the polyglot seam | Enforced at build time |
+|---|:---:|:---:|:---:|:---:|
+| `renv` / `conda` | ✅ | ❌ | ❌ | ❌ |
+| Docker | ⚠️ (if maintained) | ✅ | ⚠️ (one image, not per-node) | ❌ |
+| Snakemake / Nextflow / `targets` | ❌ (delegates to user) | ❌ | ❌ | ❌ |
+| **T** | ✅ | ✅ | ✅ | ✅ |
+
+The result: reproducibility isn't something you *configure* in T, it's
+something you can't opt out of. Below is what that looks like in practice —
+an R model trained via Nix-sandboxed `rn()`, evaluated natively in T with no
+R runtime required at prediction time, content-addressed at every step.
 
 ### The Polyglot Orchestrator
 
@@ -86,8 +123,6 @@ p = pipeline {
 
 ## Why T?
 
-Data science projects often suffer from "dependency drift" and "works on my machine" syndrome. T eliminates these by making **Nix mandatory**. 
-
 - **Orchestration, Not Invention**: T doesn't aim to replace R or Python. It aims to coordinate them. Use R for its stats, Python for its ML, and T to ensure they always talk to each other correctly.
 - **Strictly Functional**: No loops, no mutable variables, and explicit `NA` handling. This reduces the "hallucination surface" for AI-assisted coding and makes logic easier to audit.
 - **Mandatory Pipelines**: To run a script in T, you *must* define it as a pipeline. This forces you to move away from spaghetti scripts and toward a documented, cacheable architecture. Interactive line-by-line exploration is always possible in the **REPL**, however.
@@ -111,13 +146,53 @@ intent {
 
 T is designed to treat AI agents as first-class collaborators. Its strictly functional, immutable syntax and explicit error handling significantly reduce the "hallucination surface" for LLMs.
 
+> [!IMPORTANT]
+> **T's source code is itself 100% AI-generated** — written by AI agents
+> using the same design principles described below (strict functional
+> semantics, immutable state, explicit errors). It's tested with more than
+> 3,000 unit tests and more than 80 end-to-end integration tests. We think of
+> it as the project putting its own thesis to the test.
+
 When you initialize a new T project, the CLI prompts you to select an **AI Agent Onboarding Level** (Small, Medium, Full, or Huge). T then automatically generates:
 - **`AGENTS.md`**: A project-specific onboarding guide for LLMs.
 - **`T-LANGUAGE-REFERENCE.md`**: A tiered language reference tailored to the project's complexity and the agent's context window.
 
 This ensures that any AI assistant you pair-program with has the exact technical context required to be productive immediately.
 
-For a hands-on walkthrough, see the **[Agent Pairing Tutorial](docs/agent-pairing-tutorial.md)** — it walks through building a pipeline interactively with an agent, from first edit to verified build.
+### The Verification Loop: Cheap Checks Before Expensive Builds
+
+The core reason T works well with agents isn't the onboarding docs — it's that
+**`t check` is milliseconds and `t run` is minutes.** An agent can iterate on a
+pipeline dozens of times against `t check --schema` before ever triggering a Nix
+build, catching name errors, schema mismatches, and structural problems in the
+same loop it already uses to write code.
+
+Every check emits structured JSON, not a stack trace:
+
+```bash
+$ t check --json pipeline.t
+```
+```json
+{
+  "error_class": "schema_mismatch",
+  "node": { "id": "summary", "lang": "python" },
+  "message": "Column 'mg' not found. Did you mean 'mpg'?",
+  "caused_by": ["clean"],
+  "suggested_fix": { "kind": "rename_column", "old_name": "mg", "new_name": "mpg" }
+}
+```
+
+An agent can parse `error_class`, locate the failing `node`, trace `caused_by`
+upstream, and either apply the `suggested_fix` via `t fix --dry-run` / `t fix`,
+or fix the root cause itself. Once `t check` is clean, `t run --json` streams
+NDJSON build events — including a `root_causes` field on failure, so the agent
+knows exactly which node to fix first instead of guessing from a wall of logs.
+After a build, `t diff` reports the blast radius of a change (which nodes were
+`Added` / `Changed` / `Unchanged`), so both agent and human can confirm an edit
+had only the intended effect.
+
+See the **[Agent Pairing Tutorial](docs/agent-pairing-tutorial.md)** for the
+full loop end-to-end, with real terminal output at every step.
 
 ## Key Features
 
@@ -315,5 +390,4 @@ We welcome contributions! Please see our [Contributing Guide](docs/contributing.
 
 T is licensed under the [European Union Public License v1.2](LICENSE).
 
-> **Version codenames** are taken from the French edition of *Dragon Ball* by Glénat.
-
+> **Version codenames** are taken from the French edition of *Dragon Ball* published by Glénat.
