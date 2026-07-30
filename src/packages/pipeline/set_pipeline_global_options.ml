@@ -40,8 +40,8 @@ let register env =
       | Some (Some k, _) ->
           Error.type_error (Printf.sprintf "set_pipeline_global_options: unknown argument '%s'. Supported arguments are: functions, include." k)
       | _ ->
-        match named_args with
-        | (None, VPipeline p) :: _ ->
+        match List.assoc_opt None named_args with
+        | Some (VPipeline p) ->
             let translate_runtime = function
               | "rn"   -> "R"
               | "pyn"  -> "Python"
@@ -84,7 +84,7 @@ let register env =
                  let updated_functions = List.map (fun (name, funcs) ->
                    let runtime = match List.assoc_opt name p.p_runtimes with
                      | Some r -> r
-                     | None -> ""
+                     | None -> "T"
                    in
                    let global_funcs = match List.assoc_opt runtime global_functions with
                      | Some fs -> fs
@@ -96,10 +96,9 @@ let register env =
                    (name, includes @ incs)
                  ) p.p_includes in
                  VPipeline { p with p_functions = updated_functions; p_includes = updated_includes })
-        | (None, other) :: _ ->
+        | Some other ->
             Error.type_error (Printf.sprintf "set_pipeline_global_options: expected a pipeline, got %s." (Utils.type_name other))
-        | _ ->
-            Error.arity_error_named "set_pipeline_global_options" 1
-              (List.length (List.filter (fun (k, _) -> k = None) named_args))
+        | None ->
+            Error.arity_error_named "set_pipeline_global_options" 1 0
     ))
     env

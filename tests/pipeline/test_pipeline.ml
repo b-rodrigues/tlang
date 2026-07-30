@@ -3014,4 +3014,42 @@ p.t_step|}
     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), unknown_arg = "foo")|}
     {|Error(TypeError: "set_pipeline_global_options: unknown argument 'unknown_arg'. Supported arguments are: functions, include.")|};
 
+  (* Test 4: Composability — calling twice merges both sets of defaults *)
+  (let (_, env) = eval_string_env {|
+    p = pipeline {
+      n1 = rn(command = <{ 1 + 1 }>)
+    }
+    q = set_pipeline_global_options(set_pipeline_global_options(p, functions = [rn: "first.R"]), functions = [rn: "second.R"])
+  |} (Packages.init_env ()) in
+   let (vq, _) = eval_string_env "q" env in
+   match vq with
+   | Ast.VPipeline q ->
+       let n1_funcs = get_funcs q "n1" in
+       if n1_funcs = ["second.R"; "first.R"] then
+         (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options composable: second call prepends before first\n")
+       else
+         (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options composability failed: {%s}\n" (String.concat ", " n1_funcs))
+   | other ->
+       incr fail_count; Printf.printf "  ✗ set_pipeline_global_options composability test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+
+  (* Test 5: Nodes added after the call do not inherit defaults *)
+  (let (_, env) = eval_string_env {|
+    p = pipeline { n1 = rn(command = <{ 1 + 1 }>) }
+    q = set_pipeline_global_options(p, include = "global.yaml")
+    r = pipeline { n2 = rn(command = <{ 2 + 2 }>) }
+    s = union(q, r)
+  |} (Packages.init_env ()) in
+   let (vs, _) = eval_string_env "s" env in
+   match vs with
+   | Ast.VPipeline s ->
+       let n1_includes = get_incs s "n1" in
+       let n2_includes = get_incs s "n2" in
+       if List.mem "global.yaml" n1_includes && n2_includes = [] then
+         (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options: nodes added after call do not inherit defaults\n")
+       else
+         (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options nodes-after failed: n1={%s} n2={%s}\n"
+            (String.concat ", " n1_includes) (String.concat ", " n2_includes))
+   | other ->
+       incr fail_count; Printf.printf "  ✗ set_pipeline_global_options nodes-after test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+
   print_newline ()

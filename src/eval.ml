@@ -1474,14 +1474,11 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | None -> (command, None)
               in
               let base_includes = lookup_list "include" in
-              let un_includes =
-                let per_node_includes = match arg_path_opt with
-                  | Some p when has_command ->
-                      let already_included = List.exists (function { node = Value (VString s); _ } | { node = Value (VSymbol s); _ } -> s = p | _ -> false) base_includes in
-                      if already_included then base_includes else base_includes @ [vexpr (VString p)]
-                  | _ -> base_includes
-                in
-                per_node_includes
+              let un_includes = match arg_path_opt with
+                | Some p when has_command ->
+                    let already_included = List.exists (function { node = Value (VString s); _ } | { node = Value (VSymbol s); _ } -> s = p | _ -> false) base_includes in
+                    if already_included then base_includes else base_includes @ [vexpr (VString p)]
+                | _ -> base_includes
               in
                if runtime = "Quarto" && un_script = None then
                 Error.make_error TypeError
