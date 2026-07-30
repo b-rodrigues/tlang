@@ -1493,7 +1493,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
-                       un_functions = lookup_list "functions";
+                      un_functions = lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
@@ -1511,7 +1511,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
-                       un_functions = lookup_list "functions";
+                      un_functions = lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
@@ -1529,7 +1529,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
-                       un_functions = lookup_list "functions";
+                      un_functions = lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
                       un_dependencies;
@@ -1550,7 +1550,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_env_vars; un_args;
                   un_shell = shell_opt;
                   un_shell_args = shell_args;
-                   un_functions = lookup_list "functions";
+                  un_functions = lookup_list "functions";
                   un_includes;
                   un_noop = eval_bool "noop" false;
                   un_dependencies;

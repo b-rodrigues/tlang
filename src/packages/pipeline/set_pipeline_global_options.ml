@@ -51,18 +51,23 @@ let register env =
               | "node" -> "T"
               | other  -> other
             in
+            let dedup_last_wins pairs =
+              List.rev (List.fold_left (fun acc (rt, fs) ->
+                (rt, fs) :: List.filter (fun (r, _) -> r <> rt) acc
+              ) [] pairs)
+            in
             let parse_functions value =
               match value with
               | VList pairs ->
-                  Ok (List.filter_map (fun (runtime_name_opt, files_val) ->
+                  Ok (dedup_last_wins (List.filter_map (fun (runtime_name_opt, files_val) ->
                     match runtime_name_opt with
                     | Some runtime -> Some (translate_runtime runtime, options_value_to_expr_list files_val)
                     | None -> None
-                  ) pairs)
+                  ) pairs))
               | VDict pairs ->
-                  Ok (List.map (fun (runtime_name, files_val) ->
+                  Ok (dedup_last_wins (List.map (fun (runtime_name, files_val) ->
                     (translate_runtime runtime_name, options_value_to_expr_list files_val)
-                  ) pairs)
+                  ) pairs))
               | VNA _ -> Ok []
               | other ->
                   Error (Error.type_error
