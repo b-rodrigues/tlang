@@ -487,6 +487,12 @@ let read_fn named_args _env =
             | _ -> false
           in
           match Ast.get_in_memory_node_value_for_cn cn with
+          | Some (VNodeResult { v = VComputedNode inner; node_name = n; diagnostics = d })
+              when inner.cn_path <> "" && inner.cn_path <> Ast.unbuilt_path ->
+                let raw_val = Builder.logged_node_value inner.cn_name inner in
+                let build_diag = Builder.logged_node_diagnostics ~value:raw_val inner.cn_name inner in
+                let merged = { d with nd_error = build_diag.nd_error; nd_recovered = build_diag.nd_recovered } in
+                VNodeResult { v = raw_val; node_name = n; diagnostics = merged }
           | Some v when not (is_in_memory_placeholder v) -> v
           | _ ->
             (match resolved_cn with
