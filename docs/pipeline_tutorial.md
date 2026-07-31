@@ -181,7 +181,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 
 | Function | Parameters | Returns | What it does |
 |---|---|---|---|
-| `set_pipeline_global_options(p, functions?, include?)` | `Pipeline`, optional `Dict`, optional `String`/`List` | `Pipeline` | Returns a new pipeline with `functions`/`include` defaults prepended to every node's config. Original unchanged. Duplicate runtime keys in the dict concatenate all values. |
+| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?)` | `Pipeline` plus optional `Dict`/`String`/`List`/`Bool` settings | `Pipeline` | Returns a new pipeline with global defaults merged into every node's config. Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). |
 
 ---
 
@@ -292,8 +292,9 @@ The companion function `prefetch(url)` downloads a URL and returns its SHA-256 h
 
 ### Setting Global Options for All Nodes
 
-Use `set_pipeline_global_options` to share functions and includes across every
-node in a pipeline without repeating them per-node:
+Use `set_pipeline_global_options` to share functions, includes, environment
+variables, serializers, and other settings across every node in a pipeline
+without repeating them per-node:
 
 ```t
 p = pipeline {
@@ -302,13 +303,26 @@ p = pipeline {
 }
 q = set_pipeline_global_options(p,
   functions = [rn: "utils.R", pyn: "preproc.py"],
-  include = "shared/config.yaml"
+  include = "shared/config.yaml",
+  env_vars = [FOO: "bar"],
+  serializer = ^json,
+  noop = true
 )
 ```
 
 Per-node `functions` and `include` values are still applied after these globals.
 If you pass the same runtime shorthand more than once (e.g. `[rn: "a.R", rn: "b.R"]`),
 all values are concatenated — both files are included.
+
+The merge strategy depends on the option:
+
+- **Combine (prepend):** `functions`, `include`, `env_vars`, `args`, `shell_args`,
+  `dependencies` — global values come first; per-node values follow. For dict
+  options (`env_vars`, `args`), a per-node value for the same key wins.
+- **Override:** `serializer`, `deserializer`, `shell`, `flake` — a provided global
+  value replaces every node's per-node value entirely.
+- **Force-only:** `noop` — `noop = true` forces every node to no-op; `noop = false`
+  has no effect and cannot un-set a per-node `noop = true`.
 
 ---
 

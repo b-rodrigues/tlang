@@ -2775,10 +2775,20 @@ pipeline_report(p, target = "web", file = "report.html")
 
 ---
 
-### `set_pipeline_global_options(pipeline, functions = [:], include = [])`
+### `set_pipeline_global_options(pipeline, functions = [:], include = [], env_vars = [:], serializer = NA, deserializer = NA, noop = false, args = [:], shell = NA, shell_args = [], flake = NA, dependencies = NA)`
 
 Pure function that returns a new pipeline with the given defaults merged
 into every node. The original pipeline is not modified.
+
+Merge semantics vary per option:
+
+- **Combine (prepend)** — `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies`.
+  Global values come first; per-node values follow. For same-key dict entries
+  (`env_vars`, `args`) the later per-node value wins.
+- **Override** — `serializer`, `deserializer`, `shell`, `flake`.
+  A provided global value replaces every node's per-node value entirely.
+- **Force-only** — `noop`. `noop = true` forces every node to no-op;
+  `noop = false` has no effect and cannot un-set a per-node `noop = true`.
 
 **Parameters:**
 
@@ -2792,6 +2802,25 @@ into every node. The original pipeline is not modified.
   Per-node `functions` arguments are appended after these global files.
 - `include` (optional) — String or List[String]. File paths to include in every node's sandbox.
   Per-node `include` arguments are appended after these global includes.
+- `env_vars` (optional) — Dict of environment variables for every node. Per-node
+  `env_vars` override global values for the same key.
+- `serializer` (optional) — String, Symbol, or `^`-prefixed serializer name. Default
+  serializer for every node; replaces any per-node serializer. `"default"` selects
+  the runtime's default.
+- `deserializer` (optional) — String, Symbol, or `^`-prefixed deserializer name. Default
+  deserializer for every node; replaces any per-node deserializer. `"default"` selects
+  the runtime's default.
+- `noop` (optional) — Bool. If true, every node becomes a no-op. Setting false has no
+  effect (it cannot un-set a per-node `noop = true`).
+- `args` (optional) — Dict of runtime/tool arguments for every node. Per-node `args`
+  override global values for the same key.
+- `shell` (optional) — String. Shell interpreter for every node; replaces per-node `shell`.
+- `shell_args` (optional) — String or List[String]. Shell arguments, prepended before
+  per-node `shell_args`.
+- `flake` (optional) — String. Nix flake reference for every node; replaces per-node `flake`.
+- `dependencies` (optional) — String or List[String]. Explicit dependencies, prepended
+  before per-node `deps`. Note: per-node node constructors use the shorter `deps`
+  argument name for the same field.
 
 **Returns:**
 
@@ -2805,7 +2834,10 @@ p = pipeline {
 }
 q = set_pipeline_global_options(p,
   functions = [rn: "functions.R"],
-  include = "shared/config.yaml"
+  include = "shared/config.yaml",
+  env_vars = [FOO: "bar"],
+  serializer = ^json,
+  noop = true
 )
 ```
 
