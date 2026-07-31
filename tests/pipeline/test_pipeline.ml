@@ -3114,9 +3114,12 @@ p.t_step|}
    let get_flake p name =
      match List.assoc_opt name p.p_flakes with Some f -> f | None -> None
    in
-   let get_deps p name =
-     match List.assoc_opt name p.p_explicit_deps with Some d -> d | None -> Some []
-   in
+    let get_deps p name =
+      match List.assoc_opt name p.p_explicit_deps with Some d -> d | None -> Some []
+    in
+    let get_p_deps p name =
+      match List.assoc_opt name p.p_deps with Some d -> d | None -> []
+    in
 
    (* Test 6: env_vars merge *)
    (let (_, env) = eval_string_env {|
@@ -3596,5 +3599,135 @@ p.t_step|}
           (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes + runtimes union failed: n1=%s n2=%s\n" (get_serializer q "n1") (get_serializer q "n2"))
     | other ->
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes + runtimes union test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 33 (reviewer issue 1): serializer provenance — explicit ^text
+      shows "node", sh constructor default shows NA *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       r = rn(command = <{ 1 }>, serializer = ^text)
+       s = shn(command = <{ echo x }>)
+     }
+     info_r = pipeline_node_options(p, "r")
+     info_s = pipeline_node_options(p, "s")
+   |} (Packages.init_env ()) in
+    let (vi_r, _) = eval_string_env "info_r" env in
+    let (vi_s, _) = eval_string_env "info_s" env in
+    match vi_r, vi_s with
+    | VDict rpairs, VDict spairs ->
+        let f k pairs = match List.assoc_opt k pairs with Some v -> v | None -> VNA NAGeneric in
+        let r_prov = match f "provenance" rpairs with VDict ps -> ps | _ -> [] in
+        let s_prov = match f "provenance" spairs with VDict ps -> ps | _ -> [] in
+        let ser_src p = match List.assoc_opt "serializer" p with
+          | Some (VString "node") -> "node" | Some (VNA _) -> "NA" | _ -> "?" in
+        let r_src = ser_src r_prov in
+        let s_src = ser_src s_prov in
+        let ok = r_src = "node" && s_src = "NA" in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ serializer provenance: ^text -> node, sh default -> NA\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ serializer provenance failed: R^text got '%s' (exp node), sh default got '%s' (exp NA)\n" r_src s_src)
+    | _ -> incr fail_count; Printf.printf "  ✗ serializer provenance test: expected VDict\n");
+
+   (* Test 34a (reviewer issue 2): global deps visible in p_deps *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       a = rn(command = <{ 1 }>)
+       b = node(command = 1)
+     }
+     q = set_pipeline_global_options(p, dependencies = ["b"], nodes = ["a"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let deps_a = get_p_deps q "a" in
+        let ok = List.mem "b" deps_a && List.length deps_a = 1 in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ global deps visible in p_deps\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ global deps not in p_deps: a deps=[%s]\n" (String.concat ", " deps_a))
+    | _ -> incr fail_count; Printf.printf "  ✗ global deps p_deps test: expected VPipeline\n");
+
+   (* Test 34b (reviewer issue 2): self-dep filtered from global deps *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       a = rn(command = <{ 1 }>)
+     }
+     q = set_pipeline_global_options(p, dependencies = ["a"], nodes = ["a"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let deps_a = get_p_deps q "a" in
+        let ok = not (List.mem "a" deps_a) in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ global deps self-reference filtered\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ self-ref not filtered: a deps=[%s]\n" (String.concat ", " deps_a))
+    | _ -> incr fail_count; Printf.printf "  ✗ self-dep filter test: expected VPipeline\n");
+
+   (* Test 34c (reviewer issue 2): global-dep-created cycle caught *)
+   test "global-dep cycle caught by validate"
+     {|pipeline { a = rn(command = <{ 1 }>); b = rn(command = <{ 2 }>) }
+       |> set_pipeline_global_options(dependencies = ["b"], nodes = ["a"])
+       |> set_pipeline_global_options(dependencies = ["a"], nodes = ["b"])
+       |> pipeline_validate
+       |> length|}
+     "1";
+
+   (* Test 35 (reviewer issue 3): pipeline_cycles and pipeline_validate consistent *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       a = rn(command = <{ 1 }>)
+       b = rn(command = <{ 2 }>)
+     }
+     q = set_pipeline_global_options(p, dependencies = ["b"], nodes = ["a"])
+     q2 = set_pipeline_global_options(q, dependencies = ["a"], nodes = ["b"])
+   |} (Packages.init_env ()) in
+    let (vcyc, _) = eval_string_env {|pipeline_cycles(q2)|} env in
+    let (vval, _) = eval_string_env {|pipeline_validate(q2)|} env in
+    let cycles_match =
+      match vcyc with VList [(_, VString "a")] -> true | _ -> false in
+    let validate_catches =
+      match vval with VList items -> List.length items > 0 | _ -> false in
+    if cycles_match && validate_catches then
+      (incr pass_count; Printf.printf "  ✓ pipeline_cycles and pipeline_validate consistent for global-dep cycle\n")
+    else
+      (incr fail_count; Printf.printf "  ✗ cycle consistency failed: cycles=%s validate=%s\n"
+        (Ast.Utils.value_to_string vcyc) (Ast.Utils.value_to_string vval)));
+
+   (* Test 36 (reviewer issue 4): provenance per-function source mapping *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       a = rn(command = <{ 1 }>, functions = ["node.R"])
+       b = rn(command = <{ 2 }>)
+     }
+     q = set_pipeline_global_options(p, functions = [rn: "global.R"], dependencies = ["b"], nodes = ["a"])
+     info = pipeline_node_options(q, "a")
+   |} (Packages.init_env ()) in
+    let (vi, _) = eval_string_env "info" env in
+    match vi with
+    | VDict pairs ->
+        let f k = match List.assoc_opt k pairs with Some v -> v | None -> VNA NAGeneric in
+        let prov = match f "provenance" with VDict ps -> ps | _ -> [] in
+        let funcs_prov = match List.assoc_opt "functions" prov with
+          | Some (VDict fps) -> fps | _ -> [] in
+        let globals = match List.assoc_opt "global" funcs_prov with
+          | Some (VList items) -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items
+          | _ -> [] in
+        let nodes = match List.assoc_opt "node" funcs_prov with
+          | Some (VList items) -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items
+          | _ -> [] in
+        let deps_prov = match List.assoc_opt "dependencies" prov with
+          | Some (VDict dps) -> dps | _ -> [] in
+        let dep_globals = match List.assoc_opt "global" deps_prov with
+          | Some (VList items) -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items
+          | _ -> [] in
+        let ok = globals = ["global.R"] && nodes = ["node.R"] && dep_globals = ["b"] in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ provenance per-function source mapping (global vs node)\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ provenance mapping failed: funcs global=[%s] node=[%s] deps global=[%s]\n"
+            (String.concat ", " globals) (String.concat ", " nodes) (String.concat ", " dep_globals))
+    | _ -> incr fail_count; Printf.printf "  ✗ provenance mapping test: expected VDict\n");
 
    print_newline ()

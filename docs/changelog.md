@@ -26,6 +26,12 @@
   resolved configuration (runtime, serializer/deserializer, noop, deps, depth, functions,
   include, env_vars, args, shell, shell_args, flake) after any global-options merges.
   What you merge in with `set_pipeline_global_options`, you can read back out.
+- **Global `dependencies` are now visible to the build DAG**: In addition to
+  `p_explicit_deps`, `set_pipeline_global_options` now writes globally-injected
+  dependencies into `p_deps` so they participate in build ordering, depth computation,
+  `pipeline_validate`/`pipeline_cycles` cycle detection, and `pipeline_to_frame`
+  read-back. Self-references (a node depending on itself via global deps) are filtered
+  out to prevent false cycles.
 
 ### Node Config Provenance (`explain` + `pipeline_node_options`)
 

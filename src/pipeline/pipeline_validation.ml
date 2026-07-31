@@ -28,8 +28,12 @@ let builtin_pipeline_strategies =
 (** Pure local evaluation of serializer/function expressions.  Avoids a
     dependency on Eval (which in turn calls the pipeline validator), and is
     behaviourally equivalent for the Value/Literal forms these checks consume:
-    calls and lookups that would fail under Eval yield [VNA NAGeneric], which
-    the checks treat as "unset". *)
+    symbols are treated as bare file names (matching how the build path handles
+    [^myfunc] references), while unknown forms yield [VNA NAGeneric].
+    NOTE: [Var] nodes (bound-variable references like [functions = some_var])
+    cannot be resolved here without an eval environment.  The build path
+    resolves them against the real env; `t check` tier 1 has this known
+    limitation. *)
 let rec expr_to_value (e : expr) : value =
   match e.node with
   | Value v -> v
@@ -45,7 +49,10 @@ let check_missing_files (p : pipeline_result) : validation_error list =
   let eval_string_list lst =
     lst
     |> List.map expr_to_value
-    |> List.filter_map (function VString s when s <> "" -> Some s | _ -> None)
+    |> List.filter_map (function
+         | VString s when s <> "" -> Some s
+         | VSymbol s -> Some s
+         | _ -> None)
   in
   let files =
     (List.concat_map snd p.p_functions @ List.concat_map snd p.p_includes)
@@ -90,9 +97,13 @@ let check_missing_deps (p : pipeline_result) : validation_error list =
     ) deps
   ) p.p_deps
 
-(** Cycle detection via DFS with three-color marking (white/gray/black). *)
-let check_cycles (p : pipeline_result) : validation_error list =
-  let all_names = List.map fst p.p_deps in
+(** Cycle detection via DFS with three-color marking (white/gray/black).
+    Returns the list of node names where a back-edge was detected (i.e. nodes
+    that participate in a cycle and were re-entered during traversal).
+    This is the canonical source of truth — both [pipeline_cycles] and the
+    validation error path delegate to it. *)
+let detect_cycles (p_deps : (string * string list) list) : string list =
+  let all_names = List.map fst p_deps in
   let color = Hashtbl.create 16 in
   List.iter (fun n -> Hashtbl.add color n 0) all_names;
   let cycle_nodes = ref [] in
@@ -103,13 +114,17 @@ let check_cycles (p : pipeline_result) : validation_error list =
         cycle_nodes := name :: !cycle_nodes
     end else if c = 0 then begin
       Hashtbl.replace color name 1;
-      let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+      let deps = match List.assoc_opt name p_deps with Some d -> d | None -> [] in
       List.iter visit deps;
       Hashtbl.replace color name 2
     end
   in
   List.iter visit all_names;
-  match !cycle_nodes with
+  !cycle_nodes
+
+(** Cycle-detection check returning structured validation errors. *)
+let check_cycles (p : pipeline_result) : validation_error list =
+  match detect_cycles p.p_deps with
   | [] -> []
   | nodes ->
       [{ ve_kind = "StructuralError";

@@ -1253,12 +1253,14 @@ module Utils = struct
     | v :: vs, (_, src) :: rest -> (v, src) :: zip_sources vs rest
     | v :: vs, [] -> (v, Source_node) :: zip_sources vs []
 
-  (** Default serializer/deserializer expressions are bare vars "default"/"text"
-      (the latter for stdout-capturing or sh nodes). Anything else was set
-      explicitly in the node constructor. *)
-  let is_default_serializer_expr e =
+  (** Default serializer/deserializer expressions are bare vars "default" on
+      any runtime, or "text" on sh/stdout-capture nodes.  Runtime-aware so
+      that an explicit [^text] (which desugars to [Value (VSymbol "text")]) on
+      a non-sh node is never conflated with an unset constructor default. *)
+  let is_default_serializer_expr ~runtime e =
     match e.node with
-    | Var ("default" | "text") -> true
+    | Var "default" -> true
+    | Var "text" -> runtime = "sh"
     | _ -> false
 
   (** Build the resolved per-node config snapshot for a pipeline node. *)
@@ -1302,7 +1304,7 @@ module Utils = struct
     let shell =
       match prov.prov_shell, List.assoc_opt name p.p_shells with
       | Some src, Some (Some s) -> Some (s, src)
-      | Some src, _ -> Some ("bash", src)
+      | Some _, _ -> invalid_arg "node_config_of_pipeline: shell provenance recorded without a shell value"
       | None, _ -> None
     in
     let shell_args =
@@ -1314,7 +1316,7 @@ module Utils = struct
       match prov.prov_flake, List.assoc_opt name p.p_flakes with
       | Some src, Some (Some f) -> Some (f, src)
       | None, _ -> None
-      | Some src, _ -> Some ("<flake>", src)
+      | Some _, _ -> invalid_arg "node_config_of_pipeline: flake provenance recorded without a flake value"
     in
     let noop =
       match prov.prov_noop, List.assoc_opt name p.p_noops with
@@ -1325,13 +1327,13 @@ module Utils = struct
     let serializer =
       match prov.prov_serializer, List.assoc_opt name p.p_serializers with
       | Some src, Some e -> Some (e, src)
-      | None, Some e when not (is_default_serializer_expr e) -> Some (e, Source_node)
+      | None, Some e when not (is_default_serializer_expr ~runtime e) -> Some (e, Source_node)
       | _ -> None
     in
     let deserializer =
       match prov.prov_deserializer, List.assoc_opt name p.p_deserializers with
       | Some src, Some e -> Some (e, src)
-      | None, Some e when not (is_default_serializer_expr e) -> Some (e, Source_node)
+      | None, Some e when not (is_default_serializer_expr ~runtime e) -> Some (e, Source_node)
       | _ -> None
     in
     let deps =
@@ -1381,9 +1383,9 @@ module Utils = struct
          | Some d -> List.map (fun d -> (d, Source_node)) d
          | None -> []);
       prov_serializer =
-        (if is_default_serializer_expr un.un_serializer then None else Some Source_node);
+        (if is_default_serializer_expr ~runtime:un.un_runtime un.un_serializer then None else Some Source_node);
       prov_deserializer =
-        (if is_default_serializer_expr un.un_deserializer then None else Some Source_node);
+        (if is_default_serializer_expr ~runtime:un.un_runtime un.un_deserializer then None else Some Source_node);
       prov_shell = (match un.un_shell with Some _ -> Some Source_node | None -> None);
       prov_flake = (match un.un_flake with Some _ -> Some Source_node | None -> None);
       prov_noop = (match un.un_noop with true -> Some Source_node | false -> None);

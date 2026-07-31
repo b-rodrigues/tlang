@@ -1,29 +1,5 @@
 open Ast
 
-(** Detect cycles in a directed graph using DFS with three-color marking.
-    Returns a list of node names involved in cycles.
-    White=0 (unvisited), Gray=1 (in-progress), Black=2 (done). *)
-let detect_cycles (p_deps : (string * string list) list) : string list =
-  let all_names = List.map fst p_deps in
-  let color = Hashtbl.create 16 in
-  List.iter (fun n -> Hashtbl.add color n 0) all_names;
-  let cycle_nodes = ref [] in
-  let rec visit name =
-    let c = match Hashtbl.find_opt color name with Some x -> x | None -> 0 in
-    if c = 1 then begin
-      (* Back-edge found: cycle *)
-      if not (List.mem name !cycle_nodes) then
-        cycle_nodes := name :: !cycle_nodes
-    end else if c = 0 then begin
-      Hashtbl.replace color name 1;
-      let deps = match List.assoc_opt name p_deps with Some d -> d | None -> [] in
-      List.iter visit deps;
-      Hashtbl.replace color name 2
-    end
-  in
-  List.iter visit all_names;
-  !cycle_nodes
-
 (** Find all nodes not referenced in any dep list — nodes with no dependents. *)
 let leaf_nodes (p_deps : (string * string list) list) : string list =
   let all_deps = List.concat_map snd p_deps in
@@ -242,7 +218,7 @@ let register env =
     (make_builtin ~name:"pipeline_cycles" 1 (fun args _env ->
       match args with
       | [VPipeline p] ->
-          let cycles = detect_cycles p.p_deps in
+          let cycles = Pipeline_validation.detect_cycles p.p_deps in
           VList (List.map (fun n -> (None, VString n)) cycles)
       | [other] ->
           Error.type_error
