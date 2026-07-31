@@ -8,7 +8,7 @@ open Ast
 --# nodes are affected.
 --#
 --# Mutable metadata fields: `noop` (Bool), `serializer` (String),
---# `deserializer` (String), `runtime` (String).
+--# `deserializer` (String), `runtime` (String), `deps` (List[String]).
 --#
 --# The `where` clause uses NSE (`$field`) just like `filter_node`.
 --#
