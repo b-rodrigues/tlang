@@ -2068,6 +2068,9 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     let pipeline = Ast.Utils.attach_node_configs pipeline in
     let result = VPipeline pipeline in
     let p_nodes = pipeline.p_nodes in
+    (* Re-populate the in-memory cache with the post-attach values so that
+       [explain(p.node)] sees the cn_config snapshot populated by
+       [attach_node_configs] (provenance, resolved config). *)
     List.iter (fun (name, diag) ->
       let node_val = match List.assoc_opt name p_nodes with Some v -> v | None -> VNA NAGeneric in
       Ast.set_in_memory_node_value ~p_exprs:new_p_exprs ~node_name:name
