@@ -181,7 +181,8 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 
 | Function | Parameters | Returns | What it does |
 |---|---|---|---|
-| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?)` | `Pipeline` plus optional `Dict`/`String`/`List`/`Bool` settings | `Pipeline` | Returns a new pipeline with global defaults merged into every node's config. Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). |
+| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)` | `Pipeline` plus optional `Dict`/`String`/`List`/`Bool` settings | `Pipeline` | Returns a new pipeline with global defaults merged into target nodes (all nodes by default). Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). `runtimes`/`nodes` restrict the merge to a subset (union when both given). |
+| `pipeline_node_options(p, node)` | `Pipeline`, `String` | `Dict` | Read-back: returns the fully resolved configuration of a single node after any global-options merges (runtime, serializer, functions, env_vars, shell, flake, deps, depth, ...). Unknown node is a `TypeError`. |
 
 ---
 
@@ -323,6 +324,40 @@ The merge strategy depends on the option:
   value replaces every node's per-node value entirely.
 - **Force-only:** `noop` — `noop = true` forces every node to no-op; `noop = false`
   has no effect and cannot un-set a per-node `noop = true`.
+
+#### Scoping Options to a Subset of Nodes
+
+By default the settings are merged into every node. Pass `runtimes` and/or `nodes`
+to restrict the merge to a subset; when both are given the target is their union:
+
+```t
+# Only R nodes get the arrow serializer
+q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+
+# Only the named nodes become no-ops
+q2 = set_pipeline_global_options(p, nodes = ["data"], noop = true)
+
+# Union: the R nodes plus the "data" node
+q3 = set_pipeline_global_options(p, runtimes = ["rn"], nodes = ["data"], noop = true)
+```
+
+An unmatched runtime or an unknown node name is an explicit `TypeError`.
+
+#### Reading Back a Node's Resolved Configuration
+
+Use `pipeline_node_options(pipeline, node)` to read back the fully resolved
+configuration of a single node — including anything merged in by
+`set_pipeline_global_options`:
+
+```t
+info = pipeline_node_options(q1, "data")
+info.functions   # => function files merged into the node
+info.noop        # => whether the node is a no-op
+info.depth       # => topological depth in the DAG
+```
+
+See `set_pipeline_global_options` and `pipeline_node_options` in the
+[API reference](api-reference.md) for the full key list.
 
 ---
 

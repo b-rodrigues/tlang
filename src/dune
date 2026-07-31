@@ -67,7 +67,7 @@
        ; packages/pipeline
         pipeline_utils pipeline_args pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node read_past_node pipeline_copy pipeline_builder_post
        pipeline_to_frame filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
-          pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_expand pipeline_inspect2 pipeline_to_ga t_make_mod build_log pipeline_diff diff_summary pipeline_report t_check t_diff t_fix set_pipeline_global_options
+          pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_expand pipeline_inspect2 pipeline_to_ga t_make_mod build_log pipeline_diff diff_summary pipeline_report t_check t_diff t_fix set_pipeline_global_options pipeline_node_options
       pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc export_artifacts import_artifacts inspect_artifacts
     ; packages/colcraft
     t_select t_filter mutate arrange group_by ungroup summarize n n_distinct
