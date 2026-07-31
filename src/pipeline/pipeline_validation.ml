@@ -22,9 +22,6 @@ type validation_error = {
 
 let known_runtimes = [ "T"; "R"; "Python"; "Julia"; "Quarto"; "sh"; "fetchurl" ]
 
-let builtin_pipeline_strategies =
-  [ "pmml"; "arrow"; "json"; "csv"; "default"; "onnx"; "bin"; "text" ]
-
 (** Pure local evaluation of serializer/function expressions.  Avoids a
     dependency on Eval (which in turn calls the pipeline validator), and is
     behaviourally equivalent for the Value/Literal forms these checks consume:
