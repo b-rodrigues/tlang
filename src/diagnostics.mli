@@ -115,6 +115,7 @@ val no_fix : suggested_fix
 val extract_caused_by_from_context : (string * Ast.value) list -> string list
 val of_verror : ?file:string -> Ast.error_info -> diagnostic
 val of_pipeline_result : ?file:string -> Ast.pipeline_result -> diagnostic list
+val of_pipeline_validation : ?file:string -> Ast.pipeline_result -> diagnostic list
 val exit_code_of_diagnostics : diagnostic list -> int
 val worst_phase : diagnostic list -> diagnostic_phase
 val worst_tier : diagnostic list -> int

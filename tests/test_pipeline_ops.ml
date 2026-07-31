@@ -494,6 +494,43 @@ pipeline_edges(p)|}
     {|p = pipeline { a = 1; b = a + 1 }; pipeline_assert(p) |> pipeline_nodes|}
     {|["a", "b"]|};
 
+  test "pipeline_validate reports missing function file"
+    {|p = pipeline { a = rn(command = <{ 1 }>, functions = "nonexistent.R") }; pipeline_validate(p)|}
+    "missing from the file system: nonexistent.R";
+
+  test "pipeline_validate reports unknown runtime"
+    {|p = pipeline { a = rn(command = <{ 1 }>, runtime = "bogus") }; pipeline_validate(p)|}
+    {|Node `a` uses unknown runtime `bogus`|};
+
+  test "pipeline_validate reports serializer coherence mismatch"
+    {|p = pipeline {
+         x = rn(command = <{ 1 }>, serializer = ^csv);
+         y = rn(command = <{ x + 1 }>, deserializer = ^arrow, deps = ["x"])
+       }; pipeline_validate(p)|}
+    "expects format `arrow` for dependency `x`";
+
+  test "pipeline_validate reports multi-dep single strategy"
+    {|p = pipeline {
+         x = rn(command = <{ 1 }>, serializer = ^csv);
+         y = rn(command = <{ 2 }>, serializer = ^json);
+         z = rn(command = <{ 3 }>, deps = ["x", "y"], deserializer = ^json)
+       }; pipeline_validate(p)|}
+    "single deserializer strategy";
+
+  test "pipeline_validate reports bin on non-fetchurl node"
+    {|p = pipeline { a = rn(command = <{ 1 }>, serializer = ^bin) }; pipeline_validate(p)|}
+    "only supported for fetchurl nodes";
+
+  test "pipeline_validate aggregates multiple errors"
+    {|p = pipeline {
+         a = rn(command = <{ 1 }>, functions = "missing1.R", runtime = "bogus")
+       }; length(pipeline_validate(p))|}
+    "2";
+
+  test "pipeline_assert throws first validation error"
+    {|p = pipeline { a = rn(command = <{ 1 }>, runtime = "bogus") }; pipeline_assert(p)|}
+    "unknown runtime `bogus`";
+
   print_newline ();
 
   Printf.printf "Phase 4 — pipeline_to_dot:\n";

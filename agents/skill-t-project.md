@@ -309,9 +309,27 @@ To see what a node's configuration **resolves to** after any global merges, use
 serializer/deserializer, noop, deps, depth, functions, include, env_vars, args,
 shell, shell_args, and flake. Unknown node names raise a `TypeError`.
 
+The returned Dict includes a **`provenance` key** reporting the *source* of
+every resolved value: mergeable lists (`functions`, `include`, `shell_args`,
+`dependencies`) are grouped as `{ global: [...], node: [...] }`; scalar
+overrides (`serializer`, `deserializer`, `shell`, `flake`, `noop`) are
+`"global"`, `"node"`, or NA when unset. `explain(p.node)`'s `config` section
+shows the same provenance in human-readable form.
+
 **Agentic use case:** when a node builds with the wrong serializer, `noop`, or
 dependency set and you can't tell why, read back the resolved configuration
-instead of guessing: `pipeline_node_options(p, problem_node)`.
+instead of guessing: `pipeline_node_options(p, problem_node)`. To find out
+*where* a value came from (global defaults vs the node itself), check the
+`provenance` key.
+
+To verify a pipeline structurally **without building**, use `pipeline_validate(p)`
+(all errors as a List, empty = valid) or `pipeline_assert(p)` (throws the first
+error). These share checks with `populate_pipeline`/`build_pipeline` and
+`t check` tier 1: missing files, unknown runtimes, missing deps, cycles,
+cross-runtime deserializer gaps, serializer/deserializer coherence,
+multi-dependency deserializer strategies, and `^bin`-only-for-fetchurl.
+`t check <file.t>` surfaces the same problems as `file_error`/`type_error`/
+`structural_error` diagnostics with a non-zero exit code — no Nix required.
 
 ### Typical agent workflow
 

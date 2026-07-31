@@ -2886,6 +2886,14 @@ The returned Dict has the following keys:
 - `shell` — shell interpreter, or NA when unset (String | NA)
 - `shell_args` — shell interpreter arguments (List of String)
 - `flake` — Nix flake path, or NA when unset (String | NA)
+- `provenance` — provenance of every resolved value, as a Dict with one
+  entry per option key (`functions`, `include`, `env_vars`, `args`,
+  `shell_args`, `serializer`, `deserializer`, `shell`, `flake`, `noop`,
+  `dependencies`). Mergeable lists are grouped as `{ global: [...], node: [...] }`;
+  scalar options are either `"global"`, `"node"`, or NA when unset. This is the
+  source-provenance companion to `explain(p.node)`, telling you which values came
+  from `set_pipeline_global_options` (global) and which were declared on the node
+  itself.
 
 An unknown node name is a `TypeError` listing the valid node names.
 
@@ -2907,6 +2915,85 @@ p = pipeline {
 q = set_pipeline_global_options(p, functions = [rn: "functions.R"], noop = true)
 pipeline_node_options(q, "a")
 # => { name = "a", runtime = "R", functions = ["functions.R"], noop = true, ... }
+```
+
+---
+
+### `pipeline_validate(p)`
+
+Checks a pipeline for structural errors **without throwing**, returning a list
+of error messages (empty list = valid). Shares its checks with
+`populate_pipeline`/`build_pipeline` and `t check` tier 1, so the same
+structural guarantees are enforced everywhere.
+
+Checks performed:
+
+- No dependency cycles
+- All referenced dependencies exist as nodes in the pipeline
+- Referenced function/include/script files exist on the file system
+- Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`)
+- Cross-runtime dependencies declare an explicit deserializer
+- Deserializer/format coherence across dependency edges
+- Multiple dependencies with a single non-dictionary deserializer strategy
+- The `^bin` serializer is only used by `fetchurl` nodes
+
+**Parameters:**
+
+- `p` — Pipeline to validate.
+
+**Returns:**
+
+`List[String]` — validation error messages (empty = valid).
+
+**Examples:**
+```t
+p = pipeline {
+  a = rn(command = <{ 1 }>, runtime = "bogus", serializer = ^bin)
+}
+pipeline_validate(p)
+# => ["Node `a` uses unknown runtime `bogus`. ...",
+#     "The ^bin serializer is only supported for fetchurl nodes. ..."]
+```
+
+---
+
+### `pipeline_assert(p)`
+
+Validates the pipeline like `pipeline_validate`, but returns the pipeline
+unchanged if valid and throws the **first** validation error if invalid.
+Useful as a guard in the middle of a pipeline chain.
+
+**Parameters:**
+
+- `p` — Pipeline to validate.
+
+**Returns:**
+
+`Pipeline` — the same pipeline if valid; throws otherwise.
+
+**Examples:**
+```t
+p |> pipeline_assert |> build_pipeline
+```
+
+---
+
+### `pipeline_cycles(p)`
+
+Returns the names of nodes involved in dependency cycles (empty list if the
+DAG is valid). A cycle means the pipeline cannot be topologically sorted.
+
+**Parameters:**
+
+- `p` — Pipeline to inspect.
+
+**Returns:**
+
+`List[String]` — node names in cycles.
+
+**Examples:**
+```t
+pipeline_cycles(p)
 ```
 
 ---

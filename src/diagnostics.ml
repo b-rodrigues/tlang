@@ -605,6 +605,39 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
     errors @ warnings
   ) p.Ast.p_node_diagnostics)
 
+let of_pipeline_validation ?file (p : Ast.pipeline_result) : diagnostic list =
+  List.map (fun (e : Pipeline_validation.validation_error) ->
+    let suggested_fix =
+      match e.Pipeline_validation.ve_kind with
+      | "StructuralError" ->
+          (match extract_cross_runtime_info e.Pipeline_validation.ve_message with
+           | Some (_dep_runtime, serializer) ->
+               let node = match e.Pipeline_validation.ve_node with Some n -> n | None -> "" in
+               make_add_node_arg_fix ~node ~arg:("deserializer = " ^ serializer)
+                 ?target_node:e.Pipeline_validation.ve_node ?file ()
+           | None -> NoFix)
+      | _ -> NoFix
+    in
+    {
+      diag_id = gen_id ();
+      diag_error_class = error_class_of_string e.Pipeline_validation.ve_kind;
+      diag_severity = Error;
+      diag_phase = Wire;
+      diag_node_id = e.Pipeline_validation.ve_node;
+      diag_node_lang = None;
+      diag_file = file;
+      diag_line = None;
+      diag_column = None;
+      diag_end_line = None;
+      diag_end_column = None;
+      diag_message = e.Pipeline_validation.ve_message;
+      diag_expected = None;
+      diag_actual = None;
+      diag_caused_by = [];
+      diag_suggested_fix = suggested_fix;
+    }
+  ) (Pipeline_validation.collect_errors p)
+
 let exit_code_of_diagnostics entries =
   if entries = [] then 0
   else

@@ -439,6 +439,62 @@ let register env =
         ]
     | VComputedNode cn ->
         let cn = !Ast.computed_node_resolver cn in
+        let src_str = Ast.Utils.option_source_to_string in
+        let serializer_str e =
+          match e.Ast.node with
+          | Ast.Value (Ast.VString s) -> s
+          | Ast.Value (Ast.VSerializer s) -> s.Ast.s_format
+          | Ast.Var v -> v
+          | _ -> Nix_unparse.unparse_expr e
+        in
+        let expr_str e = Utils.value_to_string (Ast.Utils.expr_to_display_value e) in
+        let is_global = function Source_global -> true | _ -> false in
+        let grouped_entries entries =
+          let globals, nodes = List.partition (fun (_, s) -> is_global s) entries in
+          VDict [
+            ("global", VList (List.map (fun (v, _) -> (None, VString v)) globals));
+            ("node", VList (List.map (fun (v, _) -> (None, VString v)) nodes));
+          ]
+        in
+        let config_value =
+          match cn.cn_config with
+          | Some cfg ->
+              let config_fields = [
+                ("runtime", VString cfg.nc_runtime);
+              ] @
+              (if cfg.nc_functions = [] then []
+               else [("functions", grouped_entries (List.map (fun (e, s) -> (expr_str e, s)) cfg.nc_functions))]) @
+              (if cfg.nc_includes = [] then []
+               else [("includes", grouped_entries (List.map (fun (e, s) -> (expr_str e, s)) cfg.nc_includes))]) @
+              (if cfg.nc_env_vars = [] then []
+               else [("env_vars", VDict (List.map (fun (k, v, s) ->
+                        (k, VDict [("value", v); ("source", VString (src_str s))])) cfg.nc_env_vars))]) @
+              (if cfg.nc_args = [] then []
+               else [("args", VDict (List.map (fun (k, v, s) ->
+                        (k, VDict [("value", v); ("source", VString (src_str s))])) cfg.nc_args))]) @
+              (match cfg.nc_shell with
+               | Some (s, src) -> [("shell", VDict [("value", VString s); ("source", VString (src_str src))])]
+               | None -> []) @
+              (if cfg.nc_shell_args = [] then []
+               else [("shell_args", grouped_entries (List.map (fun (e, s) -> (expr_str e, s)) cfg.nc_shell_args))]) @
+              (match cfg.nc_flake with
+               | Some (f, src) -> [("flake", VDict [("value", VString f); ("source", VString (src_str src))])]
+               | None -> []) @
+              (match cfg.nc_noop with
+               | Some (b, src) -> [("noop", VDict [("value", VBool b); ("source", VString (src_str src))])]
+               | None -> []) @
+              (match cfg.nc_serializer with
+               | Some (e, src) -> [("serializer", VDict [("value", VString (serializer_str e)); ("source", VString (src_str src))])]
+               | None -> []) @
+              (match cfg.nc_deserializer with
+               | Some (e, src) -> [("deserializer", VDict [("value", VString (serializer_str e)); ("source", VString (src_str src))])]
+               | None -> []) @
+              (if cfg.nc_deps = [] then []
+               else [("dependencies", grouped_entries (List.map (fun (d, s) -> (d, s)) cfg.nc_deps))])
+              in
+              VDict config_fields
+          | None -> VNA NAGeneric
+        in
         make_explain_dict [
           ("kind", VString "computed_node");
           ("name", VString cn.cn_name);
@@ -447,6 +503,7 @@ let register env =
           ("serializer", VString cn.cn_serializer);
           ("class", VString cn.cn_class);
           ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies));
+          ("config", config_value);
         ]
     | VNode un ->
         make_explain_dict [

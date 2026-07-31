@@ -360,14 +360,68 @@ let register env =
               let updated_deps = match global_deps with
                 | Some gd -> List.map (fun (name, deps) ->
                     if should_apply name then
-                      let merged = gd @ match deps with Some d -> d | None -> [] in
+                      let gd_no_self = List.filter (fun d -> d <> name) gd in
+                      let merged = gd_no_self @ match deps with Some d -> d | None -> [] in
                       (name, Some merged)
                     else (name, deps)
                   ) p.p_explicit_deps
                 | None -> p.p_explicit_deps
               in
 
-              Ok (VPipeline {
+              (* Reconcile p_deps so global dependencies are visible to the
+                 build DAG, read-back, and cycle detection — not just to
+                 p_explicit_deps.  Dedupe against existing edges and exclude
+                 self-references (a node can never depend on itself). *)
+              let updated_p_deps = match global_deps with
+                | Some gd -> List.map (fun (name, deps) ->
+                    if should_apply name then
+                      let gd_no_self = List.filter (fun d -> d <> name) gd in
+                      (name, gd_no_self @ List.filter (fun d -> not (List.mem d gd_no_self)) deps)
+                    else (name, deps)
+                  ) p.p_deps
+                | None -> p.p_deps
+              in
+
+              let updated_provenance = List.map (fun (name, prov) ->
+                if not (should_apply name) then (name, prov)
+                else
+                  let runtime = match List.assoc_opt name p.p_runtimes with
+                    | Some r -> r
+                    | None -> "T"
+                  in
+                  let global_funcs =
+                    List.filter_map (fun (rt, fs) -> if rt = runtime then Some fs else None)
+                      global_functions
+                    |> List.flatten
+                  in
+                  let prov_explicit_deps =
+                    match global_deps with
+                    | Some gd ->
+                        let gd_no_self = List.filter (fun d -> d <> name) gd in
+                        List.map (fun d -> (d, Source_global)) gd_no_self @ prov.prov_explicit_deps
+                    | None -> prov.prov_explicit_deps
+                  in
+                  (name, {
+                    prov_functions = List.map (fun f -> (f, Source_global)) global_funcs @ prov.prov_functions;
+                    prov_includes = List.map (fun i -> (i, Source_global)) includes @ prov.prov_includes;
+                    prov_env_vars = List.map (fun (k, _) -> (k, Source_global)) global_env_vars @ prov.prov_env_vars;
+                    prov_args = List.map (fun (k, _) -> (k, Source_global)) global_args @ prov.prov_args;
+                    prov_shell_args = List.map (fun sa -> (sa, Source_global)) shell_args @ prov.prov_shell_args;
+                    prov_explicit_deps;
+                    prov_serializer =
+                      (match global_serializer with Some _ -> Some Source_global | None -> prov.prov_serializer);
+                    prov_deserializer =
+                      (match global_deserializer with Some _ -> Some Source_global | None -> prov.prov_deserializer);
+                    prov_noop =
+                      (if global_noop then Some Source_global else prov.prov_noop);
+                    prov_shell =
+                      (match global_shell with Some _ -> Some Source_global | None -> prov.prov_shell);
+                    prov_flake =
+                      (match global_flake with Some _ -> Some Source_global | None -> prov.prov_flake);
+                  })
+              ) p.p_provenance in
+
+              Ok (VPipeline (Ast.Utils.attach_node_configs {
                 p with
                 p_functions = updated_functions;
                 p_includes = updated_includes;
@@ -380,7 +434,9 @@ let register env =
                 p_shell_args = updated_shell_args;
                 p_flakes = updated_flakes;
                 p_explicit_deps = updated_deps;
-              })
+                p_deps = updated_p_deps;
+                p_provenance = updated_provenance;
+              }))
             in
 
             (match

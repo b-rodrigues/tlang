@@ -148,6 +148,27 @@ and pipeline_result = {
   p_patterns     : (string * pattern_expr) list; (* Map node name -> pattern *)
   p_iterations   : (string * string) list;       (* Map node name -> iteration type *)
   p_flakes       : (string * string option) list; (* Map node name -> optional flake path *)
+  p_provenance   : (string * option_provenance) list; (* Map node name -> per-option source provenance *)
+}
+
+(** Provenance of a resolved option value: declared in the node()
+    constructor, or injected globally via set_pipeline_global_options. *)
+and option_source =
+  | Source_global
+  | Source_node
+
+and option_provenance = {
+  prov_functions     : (expr * option_source) list; (* parallel to p_functions entries *)
+  prov_includes      : (expr * option_source) list; (* parallel to p_includes entries *)
+  prov_env_vars      : (string * option_source) list; (* parallel to p_env_vars keys *)
+  prov_args          : (string * option_source) list; (* parallel to p_args keys *)
+  prov_shell_args    : (expr * option_source) list; (* parallel to p_shell_args entries *)
+  prov_explicit_deps : (string * option_source) list; (* parallel to explicit deps *)
+  prov_serializer    : option_source option; (* None = unset (default used) *)
+  prov_deserializer  : option_source option; (* None = unset (default used) *)
+  prov_shell         : option_source option; (* None = unset *)
+  prov_flake         : option_source option; (* None = unset *)
+  prov_noop          : option_source option; (* None = not forced *)
 }
 
 and meta_pipeline = {
@@ -173,6 +194,27 @@ and computed_node = {
   cn_dependencies : string list;
   cn_p_exprs : ((string * expr) list) option;  (* Pipeline identity for scoped cache lookups *)
   cn_flake : string option;                    (* Optional path to a dedicated Nix flake *)
+  cn_config : node_config option;              (* Resolved per-node config snapshot (provenance) *)
+}
+
+(** Resolved per-node configuration snapshot attached to computed nodes for
+    introspection (e.g. explain).  Carries both the resolved values and the
+    source of each value.  It has no back-reference to the pipeline, so it can
+    be embedded in a computed node without creating structural equality
+    cycles.  Nodes restored from build logs carry None. *)
+and node_config = {
+  nc_runtime       : string;
+  nc_functions     : (expr * option_source) list;
+  nc_includes      : (expr * option_source) list;
+  nc_env_vars      : (string * value * option_source) list;
+  nc_args          : (string * value * option_source) list;
+  nc_shell         : (string * option_source) option;
+  nc_shell_args    : (expr * option_source) list;
+  nc_flake         : (string * option_source) option;
+  nc_noop          : (bool * option_source) option;
+  nc_serializer    : (expr * option_source) option;
+  nc_deserializer  : (expr * option_source) option;
+  nc_deps          : (string * option_source) list;
 }
 
 (** Metadata for an unbuilt node (first-class value from node() function) *)
@@ -1177,6 +1219,175 @@ module Utils = struct
         in
         "[" ^ (items |> List.map item_to_string |> String.concat ", ") ^ "]"
     | val_ -> value_to_string val_
+
+  let option_source_to_string = function
+    | Source_global -> "global"
+    | Source_node -> "node"
+
+  let empty_option_provenance = {
+    prov_functions = []; prov_includes = []; prov_env_vars = []; prov_args = [];
+    prov_shell_args = []; prov_explicit_deps = [];
+    prov_serializer = None; prov_deserializer = None;
+    prov_shell = None; prov_flake = None; prov_noop = None;
+  }
+
+  let option_provenance_of p name =
+    match List.assoc_opt name p.p_provenance with
+    | Some prov -> prov
+    | None -> empty_option_provenance
+
+  (** Render an option expr the same way pipeline_node_options does:
+      concrete values pass through, bare variables are shown as their name. *)
+  let expr_to_display_value e =
+    match e.node with
+    | Value v -> v
+    | Var v -> VString v
+    | _ -> VNA NAGeneric
+
+  (** Pair values with their provenance sources, falling back to Source_node
+      for values without a recorded source (defensive; provenance is recorded
+      for every value at eval time). *)
+  let rec zip_sources values prov =
+    match values, prov with
+    | [], _ -> []
+    | v :: vs, (_, src) :: rest -> (v, src) :: zip_sources vs rest
+    | v :: vs, [] -> (v, Source_node) :: zip_sources vs []
+
+  (** Default serializer/deserializer expressions are bare vars "default"/"text"
+      (the latter for stdout-capturing or sh nodes). Anything else was set
+      explicitly in the node constructor. *)
+  let is_default_serializer_expr e =
+    match e.node with
+    | Var ("default" | "text") -> true
+    | _ -> false
+
+  (** Build the resolved per-node config snapshot for a pipeline node. *)
+  let node_config_of_pipeline p name =
+    let prov = option_provenance_of p name in
+    let runtime =
+      match List.assoc_opt name p.p_runtimes with
+      | Some r -> r
+      | None -> "T"
+    in
+    let functions =
+      match List.assoc_opt name p.p_functions with
+      | Some fs -> zip_sources fs prov.prov_functions
+      | None -> []
+    in
+    let includes =
+      match List.assoc_opt name p.p_includes with
+      | Some fs -> zip_sources fs prov.prov_includes
+      | None -> []
+    in
+    let env_vars =
+      let env =
+        match List.assoc_opt name p.p_env_vars with
+        | Some e -> e
+        | None -> []
+      in
+      List.map (fun (k, src) ->
+        let v = match List.assoc_opt k env with Some v -> v | None -> VNA NAGeneric in
+        (k, v, src)) prov.prov_env_vars
+    in
+    let args =
+      let arg_list =
+        match List.assoc_opt name p.p_args with
+        | Some a -> a
+        | None -> []
+      in
+      List.map (fun (k, src) ->
+        let v = match List.assoc_opt k arg_list with Some v -> v | None -> VNA NAGeneric in
+        (k, v, src)) prov.prov_args
+    in
+    let shell =
+      match prov.prov_shell, List.assoc_opt name p.p_shells with
+      | Some src, Some (Some s) -> Some (s, src)
+      | Some src, _ -> Some ("bash", src)
+      | None, _ -> None
+    in
+    let shell_args =
+      match List.assoc_opt name p.p_shell_args with
+      | Some sa -> zip_sources sa prov.prov_shell_args
+      | None -> []
+    in
+    let flake =
+      match prov.prov_flake, List.assoc_opt name p.p_flakes with
+      | Some src, Some (Some f) -> Some (f, src)
+      | None, _ -> None
+      | Some src, _ -> Some ("<flake>", src)
+    in
+    let noop =
+      match prov.prov_noop, List.assoc_opt name p.p_noops with
+      | Some src, Some b -> Some (b, src)
+      | None, _ -> None
+      | Some src, _ -> Some (false, src)
+    in
+    let serializer =
+      match prov.prov_serializer, List.assoc_opt name p.p_serializers with
+      | Some src, Some e -> Some (e, src)
+      | None, Some e when not (is_default_serializer_expr e) -> Some (e, Source_node)
+      | _ -> None
+    in
+    let deserializer =
+      match prov.prov_deserializer, List.assoc_opt name p.p_deserializers with
+      | Some src, Some e -> Some (e, src)
+      | None, Some e when not (is_default_serializer_expr e) -> Some (e, Source_node)
+      | _ -> None
+    in
+    let deps =
+      let dep_list = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+      let explicit = prov.prov_explicit_deps in
+      let explicit_names = List.map fst explicit in
+      let auto = List.filter (fun d -> not (List.mem d explicit_names)) dep_list in
+      List.map (fun d -> (d, Source_node)) auto @ explicit
+    in
+    {
+      nc_runtime = runtime;
+      nc_functions = functions;
+      nc_includes = includes;
+      nc_env_vars = env_vars;
+      nc_args = args;
+      nc_shell = shell;
+      nc_shell_args = shell_args;
+      nc_flake = flake;
+      nc_noop = noop;
+      nc_serializer = serializer;
+      nc_deserializer = deserializer;
+      nc_deps = deps;
+    }
+
+  (** Re-attach fresh resolved-config snapshots onto every computed node of a
+      pipeline. Used after any transform that changes resolved configuration
+      (global options, merges, re-runs) so that nodes always reflect the
+      current pipeline state. *)
+  let attach_node_configs p =
+    let update (name, v) =
+      match v with
+      | VComputedNode cn ->
+          (name, VComputedNode { cn with cn_config = Some (node_config_of_pipeline p name) })
+      | _ -> (name, v)
+    in
+    { p with p_nodes = List.map update p.p_nodes }
+
+  let build_node_provenance un =
+    {
+      prov_functions = List.map (fun f -> (f, Source_node)) un.un_functions;
+      prov_includes = List.map (fun i -> (i, Source_node)) un.un_includes;
+      prov_env_vars = List.map (fun (k, _) -> (k, Source_node)) un.un_env_vars;
+      prov_args = List.map (fun (k, _) -> (k, Source_node)) un.un_args;
+      prov_shell_args = List.map (fun sa -> (sa, Source_node)) un.un_shell_args;
+      prov_explicit_deps =
+        (match un.un_dependencies with
+         | Some d -> List.map (fun d -> (d, Source_node)) d
+         | None -> []);
+      prov_serializer =
+        (if is_default_serializer_expr un.un_serializer then None else Some Source_node);
+      prov_deserializer =
+        (if is_default_serializer_expr un.un_deserializer then None else Some Source_node);
+      prov_shell = (match un.un_shell with Some _ -> Some Source_node | None -> None);
+      prov_flake = (match un.un_flake with Some _ -> Some Source_node | None -> None);
+      prov_noop = (match un.un_noop with true -> Some Source_node | false -> None);
+    }
 end
 
 (* --- Shared Helper Functions --- *)

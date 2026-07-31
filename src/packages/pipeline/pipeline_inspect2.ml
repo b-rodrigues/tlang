@@ -259,9 +259,15 @@ let register env =
 --# Checks a pipeline for structural errors without throwing. Returns a list
 --# of error messages. An empty list means the pipeline is valid.
 --#
---# Checks performed:
+--# Checks performed (shared with populate_pipeline and `t check` tier 1):
 --# - No dependency cycles
 --# - All referenced dependencies exist as nodes in the pipeline
+--# - Referenced function/include/script files exist on the file system
+--# - Every node uses a known runtime
+--# - Cross-runtime dependencies declare an explicit deserializer
+--# - Deserializer/format coherence across dependency edges
+--# - Multiple dependencies with a single non-dictionary deserializer strategy
+--# - The ^bin serializer is only used by fetchurl nodes
 --#
 --# @name pipeline_validate
 --# @param p :: Pipeline The pipeline to validate.
@@ -276,24 +282,8 @@ let register env =
     (make_builtin ~name:"pipeline_validate" 1 (fun args _env ->
       match args with
       | [VPipeline p] ->
-          let errors = ref [] in
-          let all_names = List.map fst p.p_exprs in
-          (* Check: all deps reference existing nodes *)
-          List.iter (fun (name, deps) ->
-            List.iter (fun dep ->
-              if not (List.mem dep all_names) then
-                errors := Printf.sprintf
-                  "Node `%s` depends on `%s` which does not exist in the pipeline."
-                  name dep :: !errors
-            ) deps
-          ) p.p_deps;
-          (* Check: no cycles *)
-          let cycles = detect_cycles p.p_deps in
-          if cycles <> [] then
-            errors := Printf.sprintf
-              "Pipeline has dependency cycle(s) involving: %s."
-              (String.concat ", " cycles) :: !errors;
-          VList (List.map (fun msg -> (None, VString msg)) (List.rev !errors))
+          let errors = Pipeline_validation.collect_errors p in
+          VList (List.map (fun e -> (None, VString e.Pipeline_validation.ve_message)) errors)
       | [other] ->
           Error.type_error
             (Printf.sprintf "Function `pipeline_validate` expects a Pipeline, but got %s."
@@ -322,26 +312,9 @@ let register env =
     (make_builtin ~name:"pipeline_assert" 1 (fun args _env ->
       match args with
       | [VPipeline p as v] ->
-          let all_names = List.map fst p.p_exprs in
-          (* Check: missing deps *)
-          let first_missing = List.find_map (fun (name, deps) ->
-            List.find_map (fun dep ->
-              if not (List.mem dep all_names) then
-                Some (Printf.sprintf
-                  "Node `%s` depends on `%s` which does not exist in the pipeline."
-                  name dep)
-              else None
-            ) deps
-          ) p.p_deps in
-          (match first_missing with
-           | Some msg -> Error.make_error ValueError msg
-           | None ->
-               let cycles = detect_cycles p.p_deps in
-               if cycles <> [] then
-                 Error.make_error ValueError
-                   (Printf.sprintf "Pipeline has dependency cycle(s) involving: %s."
-                      (String.concat ", " cycles))
-               else v)
+          (match Pipeline_validation.first_error p with
+           | Some err -> Error.make_error ValueError err.Pipeline_validation.ve_message
+           | None -> v)
       | [other] ->
           Error.type_error
             (Printf.sprintf "Function `pipeline_assert` expects a Pipeline, but got %s."

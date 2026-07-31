@@ -331,6 +331,7 @@ let update_pipeline_node p node_name val_v =
     cn_dependencies = (match List.assoc_opt node_name p.p_deps with Some d -> d | None -> []);
     cn_p_exprs = Some updated_exprs;
     cn_flake = (match List.assoc_opt node_name p.p_flakes with Some f -> f | None -> None);
+    cn_config = Some (Ast.Utils.node_config_of_pipeline p node_name);
   } in
   let updated_nodes =
     if List.mem_assoc node_name p.p_nodes then
@@ -663,30 +664,48 @@ let rec apply_lens_set ~eval_call lens data val_v env =
        (match data with
         | VPipeline p -> VPipeline (update_pipeline_node p node_name val_v)
         | _ -> Error.type_error "node_lens set expects a Pipeline")
-  | EnvVarLens (node_name, var_name) ->
-      (match data with
-       | VPipeline p ->
-           let vars = match List.assoc_opt node_name p.p_env_vars with Some v -> v | None -> [] in
-           let new_vars = List.map (fun (k, v) -> if k = var_name then (k, val_v) else (k, v)) vars in
-           let final_vars = if List.mem_assoc var_name vars then new_vars else new_vars @ [(var_name, val_v)] in
-           let new_env_vars = List.map (fun (n, v) -> if n = node_name then (n, final_vars) else (n, v)) p.p_env_vars in
-            let final_env_vars = if List.mem_assoc node_name p.p_env_vars then new_env_vars else new_env_vars @ [(node_name, final_vars)] in
-            VPipeline { p with p_env_vars = final_env_vars }
+   | EnvVarLens (node_name, var_name) ->
+       (match data with
+        | VPipeline p ->
+            let vars = match List.assoc_opt node_name p.p_env_vars with Some v -> v | None -> [] in
+            let new_vars = List.map (fun (k, v) -> if k = var_name then (k, val_v) else (k, v)) vars in
+            let final_vars = if List.mem_assoc var_name vars then new_vars else new_vars @ [(var_name, val_v)] in
+            let new_env_vars = List.map (fun (n, v) -> if n = node_name then (n, final_vars) else (n, v)) p.p_env_vars in
+             let final_env_vars = if List.mem_assoc node_name p.p_env_vars then new_env_vars else new_env_vars @ [(node_name, final_vars)] in
+             let new_provenance =
+               List.map (fun (n, prov) ->
+                 if n = node_name then
+                   (n, { prov with Ast.prov_env_vars = List.map (fun k -> (k, Ast.Source_node)) (List.map fst final_vars) })
+                 else (n, prov)
+               ) p.p_provenance
+             in
+             VPipeline { p with p_env_vars = final_env_vars; p_provenance = new_provenance }
         | _ -> Error.type_error "env_var_lens set expects a Pipeline")
-  | NodeMetaLens (name, field) ->
-      (match data with
-       | VPipeline p ->
-           let update_assoc lst new_v =
-             let updated = List.map (fun (n, old) -> if n = name then (n, new_v) else (n, old)) lst in
-             if List.mem_assoc name lst then updated else updated @ [(name, new_v)]
-           in
-           (match field with
-            | "runtime" -> (match val_v with VString v -> VPipeline { p with p_runtimes = update_assoc p.p_runtimes v } | _ -> Error.type_error "runtime must be a String")
-            | "noop" -> (match val_v with VBool b -> VPipeline { p with p_noops = update_assoc p.p_noops b } | _ -> Error.type_error "noop must be a Bool")
-            | "serializer" -> VPipeline { p with p_serializers = update_assoc p.p_serializers (mk_expr (Value val_v)) }
-            | "deserializer" -> VPipeline { p with p_deserializers = update_assoc p.p_deserializers (mk_expr (Value val_v)) }
-            | _ -> Error.type_error (Printf.sprintf "Unknown node metadata field: %s" field))
-       | _ -> Error.type_error "node_meta_lens set expects a Pipeline")
+   | NodeMetaLens (name, field) ->
+       (match data with
+        | VPipeline p ->
+            let update_assoc lst new_v =
+              let updated = List.map (fun (n, old) -> if n = name then (n, new_v) else (n, old)) lst in
+              if List.mem_assoc name lst then updated else updated @ [(name, new_v)]
+            in
+            let bump_provenance =
+              List.map (fun (n, prov) ->
+                if n = name then
+                  (n, match field with
+                      | "noop" -> { prov with Ast.prov_noop = Some Ast.Source_node }
+                      | "serializer" -> { prov with Ast.prov_serializer = Some Ast.Source_node }
+                      | "deserializer" -> { prov with Ast.prov_deserializer = Some Ast.Source_node }
+                      | _ -> prov)
+                else (n, prov)
+              ) p.p_provenance
+            in
+            (match field with
+             | "runtime" -> (match val_v with VString v -> VPipeline { p with p_runtimes = update_assoc p.p_runtimes v; p_provenance = bump_provenance } | _ -> Error.type_error "runtime must be a String")
+             | "noop" -> (match val_v with VBool b -> VPipeline { p with p_noops = update_assoc p.p_noops b; p_provenance = bump_provenance } | _ -> Error.type_error "noop must be a Bool")
+             | "serializer" -> VPipeline { p with p_serializers = update_assoc p.p_serializers (mk_expr (Value val_v)); p_provenance = bump_provenance }
+             | "deserializer" -> VPipeline { p with p_deserializers = update_assoc p.p_deserializers (mk_expr (Value val_v)); p_provenance = bump_provenance }
+             | _ -> Error.type_error (Printf.sprintf "Unknown node metadata field: %s" field))
+        | _ -> Error.type_error "node_meta_lens set expects a Pipeline")
   | FilterLens p -> filter_lens_set_impl p ~eval_call [(None, data); (None, val_v)] env
   | CompositeLens (l1, l2) ->
       let inner = apply_lens_get ~eval_call l1 data env in

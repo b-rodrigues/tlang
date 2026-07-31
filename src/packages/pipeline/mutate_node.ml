@@ -138,6 +138,28 @@ let register ~eval_call env =
           (match !first_error with
           | Some e -> e
           | None ->
+              let mut_ser = List.mem_assoc (Some "serializer") mutations in
+              let mut_deser = List.mem_assoc (Some "deserializer") mutations in
+              let mut_noop = List.mem_assoc (Some "noop") mutations in
+              let mut_deps = List.mem_assoc (Some "deps") mutations in
+              let new_provenance =
+                List.map (fun (n, prov) ->
+                  if not (matches n) then (n, prov)
+                  else
+                    let explicit_deps =
+                      if mut_deps then
+                        (match List.assoc_opt n new_p_deps with
+                         | Some ds -> List.map (fun d -> (d, Ast.Source_node)) ds
+                         | None -> prov.Ast.prov_explicit_deps)
+                      else prov.Ast.prov_explicit_deps
+                    in
+                    (n, { prov with
+                          Ast.prov_serializer = (if mut_ser then Some Ast.Source_node else prov.Ast.prov_serializer);
+                          Ast.prov_deserializer = (if mut_deser then Some Ast.Source_node else prov.Ast.prov_deserializer);
+                          Ast.prov_noop = (if mut_noop then Some Ast.Source_node else prov.Ast.prov_noop);
+                          Ast.prov_explicit_deps = explicit_deps })
+                ) p.p_provenance
+              in
               VPipeline {
                 p with
                 p_runtimes     = new_runtimes;
@@ -146,6 +168,7 @@ let register ~eval_call env =
                 p_deserializers = new_deserializers;
                 p_explicit_deps = new_explicit_deps;
                 p_deps         = new_p_deps;
+                p_provenance   = new_provenance;
               })
       | (_, _) :: _ -> Error.type_error "Function `mutate_node` expects a Pipeline as first argument."
     ))

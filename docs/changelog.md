@@ -27,6 +27,35 @@
   include, env_vars, args, shell, shell_args, flake) after any global-options merges.
   What you merge in with `set_pipeline_global_options`, you can read back out.
 
+### Node Config Provenance (`explain` + `pipeline_node_options`)
+
+- **`explain(p.node)` shows source provenance**: The `config` section of `explain()`
+  output for a computed node now distinguishes which settings came from global
+  pipeline options versus the node itself. `pipeline_node_options(p, node)` includes a
+  machine-readable `provenance` key (`{ global: [...], node: [...] }` groups for
+  mergeable lists; `"global"`/`"node"` markers for scalar overrides), so tooling can
+  audit where every setting originated.
+- **`pipeline_node_options` provenance key**: Mergeable options (`functions`, `include`,
+  `shell_args`, `dependencies`) report both `global` and `node` contributions; scalar
+  overrides (`serializer`, `deserializer`, `shell`, `flake`, `noop`) report which source
+  won; unset scalars are `NA`.
+
+### Pipeline Structural Validation — Shared Validator
+
+- **`pipeline_validate(p)` reports all structural errors**: New shared validator
+  (`pipeline_validation.ml`) backs `populate_pipeline`/`build_pipeline`, the eval-time
+  cross-runtime guard, `pipeline_validate`/`pipeline_assert`, and `t check` tier 1.
+  Checks now include missing function/include/script files, unknown runtimes (known set:
+  `T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`), missing dependencies, cycles,
+  cross-runtime deserializer gaps, serializer/deserializer format coherence across
+  dependency edges, multiple dependencies with a single deserializer strategy, and
+  `^bin` serializers on non-`fetchurl` nodes.
+- **`t check` tier 1 surfaces structural errors**: `t check <file.t>` (no Nix needed)
+  now reports these as structured `file_error`/`type_error`/`structural_error`
+  diagnostics with a non-zero exit code, matching the build path's guarantees.
+- **`pipeline_assert(p)` throws the first error** and returns the pipeline unchanged
+  when valid, for guard-style use in pipeline chains.
+
 ## [0.54.2] - 2026-07-29
 
 ### `testcraft` — Testing Package

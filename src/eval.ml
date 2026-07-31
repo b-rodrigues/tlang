@@ -1974,31 +1974,18 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     propagate desugared_nodes
   in
 
-  (* Validation: Cross-runtime dependencies must have explicit deserializer *)
+  (* Validation: Cross-runtime dependencies must have explicit deserializer.
+     Shared with pipeline_validate and t check via Pipeline_validation. *)
   let runtime_mapping = List.map (fun (name, un) -> (name, un.un_runtime)) desugared_nodes in
-  let validation_errors = List.filter_map (fun (name, un) ->
-    let my_runtime = un.un_runtime in
-    let my_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
-    let offenders = List.filter (fun dname ->
-      match List.assoc_opt dname runtime_mapping with
-      | Some dep_runtime -> 
-          dep_runtime <> my_runtime && 
-          my_runtime <> "Quarto" && 
-          my_runtime <> "sh" &&
-          my_runtime <> "T" &&
-          (match un.un_deserializer.node with Var "default" -> true | _ -> false)
-      | None -> false (* External dependency — we don't know its runtime yet *)
-    ) my_deps in
-    (match offenders with
-     | offender :: _ ->
-         let offender_runtime = match List.assoc_opt offender runtime_mapping with Some r -> r | None -> "Unknown" in
-         Some (Printf.sprintf "Node `%s` (%s) depends on `%s` (%s) but has no explicit deserializer."
-                name my_runtime offender offender_runtime)
-     | [] -> None)
-  ) desugared_nodes in
+  let validation_errors =
+    Pipeline_validation.check_cross_runtime
+      ~deps
+      ~runtimes:runtime_mapping
+      ~deserializers:(List.map (fun (name, un) -> (name, un.un_deserializer)) desugared_nodes)
+  in
 
   match validation_errors with
-  | first_err :: _ -> Error.make_error StructuralError first_err
+  | first_err :: _ -> Error.make_error StructuralError first_err.Pipeline_validation.ve_message
   | [] -> begin
   let new_p_exprs = List.map (fun (name, un) -> (name, un.un_command)) desugared_nodes in
   Ast.clear_pipeline_in_memory ~p_exprs:new_p_exprs;
@@ -2020,6 +2007,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
         cn_dependencies = (match List.assoc_opt name deps with Some d -> d | None -> []);
         cn_p_exprs = Some new_p_exprs;
         cn_flake = un.un_flake;
+        cn_config = None;
       }
     in
     let (results, diagnostics, _) = List.fold_left (fun (results, diagnostics, current_env_ref) name ->
@@ -2053,7 +2041,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     last_pipeline_exprs := Some new_p_exprs;
     last_evaluated_node_name := (match List.rev exec_order with h :: _ -> Some h | [] -> None);
 
-    let result = VPipeline {
+    let pipeline = {
       p_nodes;
       p_exprs = new_p_exprs;
       p_deps = deps;
@@ -2075,7 +2063,16 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       p_patterns = List.filter_map (fun (name, un) -> match un.un_pattern with Some p -> Some (name, p) | None -> None) desugared_nodes;
       p_iterations = List.map (fun (name, un) -> (name, un.un_iteration)) desugared_nodes;
       p_flakes = List.map (fun (name, un) -> (name, un.un_flake)) desugared_nodes;
+      p_provenance = List.map (fun (name, un) -> (name, Ast.Utils.build_node_provenance un)) desugared_nodes;
     } in
+    let pipeline = Ast.Utils.attach_node_configs pipeline in
+    let result = VPipeline pipeline in
+    let p_nodes = pipeline.p_nodes in
+    List.iter (fun (name, diag) ->
+      let node_val = match List.assoc_opt name p_nodes with Some v -> v | None -> VNA NAGeneric in
+      Ast.set_in_memory_node_value ~p_exprs:new_p_exprs ~node_name:name
+        (VNodeResult { v = node_val; node_name = name; diagnostics = diag })
+    ) p_node_diagnostics;
     result
   end
   ))
@@ -2165,6 +2162,7 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
                   cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.expr_to_string un.un_serializer);
                   cn_class = "Unknown"; cn_dependencies = node_deps; cn_p_exprs = Some prev.p_exprs;
                   cn_flake = un.un_flake;
+                  cn_config = None;
                 }
            end else
             VComputedNode {
@@ -2172,6 +2170,7 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
               cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.expr_to_string un.un_serializer);
               cn_class = "Unknown"; cn_dependencies = node_deps; cn_p_exprs = Some prev.p_exprs;
               cn_flake = un.un_flake;
+              cn_config = None;
             }
     in
     let (results, diagnostics, _, _) = List.fold_left (fun (results, diagnostics, current_env_ref, changed) name ->
@@ -2225,7 +2224,10 @@ and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_
     last_pipeline_exprs := Some prev.p_exprs;
     last_evaluated_node_name := (match List.rev exec_order with h :: _ -> Some h | [] -> None);
 
-    VPipeline { prev with p_nodes = List.rev results; p_node_diagnostics }
+    let result = VPipeline { prev with p_nodes = List.rev results; p_node_diagnostics } in
+    (match result with
+     | VPipeline p -> VPipeline (Ast.Utils.attach_node_configs p)
+     | other -> other)
 
 (** Evaluate a splice operand (!!!) and expand its elements as named pairs.
     Used by quote_expr in Call args, ListLit items, and DictLit pairs. *)
@@ -2554,6 +2556,7 @@ and try_lazy_expand_branch (p : Ast.pipeline_result) (env : value Env.t) (field 
       Ast.cn_dependencies;
       Ast.cn_p_exprs = Some p.Ast.p_exprs;
       Ast.cn_flake = None;
+      Ast.cn_config = Some (Ast.Utils.node_config_of_pipeline p orig_name);
     })
   in
   match parse_branch_suffix field with
@@ -2686,20 +2689,25 @@ and pattern_branch_names_for_error p field pattern =
 
 and get_pipeline_member p field =
   let resolved_cn p cn =
-    match Hashtbl.find_opt Ast.pipeline_build_logs p.p_exprs with
-    | Some log_path ->
-        (match Builder_logs.read_log log_path with
-         | Ok entries ->
-             (match List.assoc_opt cn.cn_name entries with
-              | Some logged_cn ->
-                  let cn_path = if cn.cn_path = Ast.unbuilt_path || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
-                  let cn_class = if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class in
-                  let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
-                  let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
-                  { cn with cn_path; cn_class; cn_runtime; cn_serializer }
-              | None -> !Ast.computed_node_resolver cn)
-         | _ -> !Ast.computed_node_resolver cn)
-    | None -> cn
+    let base_cn =
+      match Hashtbl.find_opt Ast.pipeline_build_logs p.p_exprs with
+      | Some log_path ->
+          (match Builder_logs.read_log log_path with
+           | Ok entries ->
+               (match List.assoc_opt cn.cn_name entries with
+                | Some logged_cn ->
+                    let cn_path = if cn.cn_path = Ast.unbuilt_path || cn.cn_path = "" then logged_cn.cn_path else cn.cn_path in
+                    let cn_class = if cn.cn_class = "Unknown" || cn.cn_class = "" then logged_cn.cn_class else cn.cn_class in
+                    let cn_runtime = if cn.cn_runtime = "T" || cn.cn_runtime = "" then logged_cn.cn_runtime else cn.cn_runtime in
+                    let cn_serializer = if cn.cn_serializer = "default" || cn.cn_serializer = "" then logged_cn.cn_serializer else cn.cn_serializer in
+                    { cn with cn_path; cn_class; cn_runtime; cn_serializer }
+                | None -> !Ast.computed_node_resolver cn)
+           | _ -> !Ast.computed_node_resolver cn)
+      | None -> cn
+    in
+    (* Chokepoint: re-attach the resolved per-node config snapshot so that
+       dot-accessed nodes always reflect the current pipeline configuration. *)
+    { base_cn with cn_config = Some (Ast.Utils.node_config_of_pipeline p cn.cn_name) }
   in
   match List.assoc_opt field p.p_nodes with
   | Some (VComputedNode cn) -> Some (VComputedNode (resolved_cn p cn))
@@ -2731,6 +2739,7 @@ and get_pipeline_member p field =
                   cn_dependencies;
                   cn_p_exprs = Some p.p_exprs;
                   cn_flake;
+                  cn_config = None;
                 }))
         | None ->
             (* Check if this is a patterned node that expands into branches *)

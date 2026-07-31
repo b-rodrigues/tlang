@@ -1186,6 +1186,7 @@ let update_pipeline_with_build_paths (p : Ast.pipeline_result) out_path =
           cn_dependencies;
           cn_p_exprs = None;
           cn_flake = None;
+          cn_config = Some (Ast.Utils.node_config_of_pipeline p name);
         } in
         (name, VComputedNode updated_cn)
       else
