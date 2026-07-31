@@ -3033,7 +3033,7 @@ p.t_step|}
   (* Test 3: Unknown argument error *)
   test "set_pipeline_global_options unknown argument"
     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), unknown_arg = "foo")|}
-     {|Error(TypeError: "set_pipeline_global_options: unknown argument 'unknown_arg'. Supported arguments are: functions, include, env_vars, serializer, deserializer, noop, args, shell, shell_args, flake, dependencies, runtimes, nodes.")|};
+    {|Error(TypeError: "set_pipeline_global_options: unknown argument 'unknown_arg'. Supported arguments are: functions, include, env_vars, serializer, deserializer, noop, args, shell, shell_args, flake, dependencies, runtimes, nodes.")|};
 
   (* Test 4: Composability — calling twice merges both sets of defaults *)
   (let (_, env) = eval_string_env {|
@@ -3356,6 +3356,31 @@ p.t_step|}
     | other ->
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deps omitted test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
+   (* Test 15: Type error for wrong env_vars type *)
+   test "set_pipeline_global_options env_vars type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), env_vars = "not_a_dict")|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a dict (e.g. [key: value]), but got String.")|};
+
+   (* Test 16: Type error for wrong noop type *)
+   test "set_pipeline_global_options noop type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), noop = "not_a_bool")|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a bool, but got String.")|};
+
+   (* Test 17: Type error for wrong shell type *)
+   test "set_pipeline_global_options shell type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), shell = 42)|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a string, but got Int.")|};
+
+   (* Test 18: Type error for wrong serializer type *)
+   test "set_pipeline_global_options serializer type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), serializer = 42)|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a string or symbol for serializer/deserializer, but got Int.")|};
+
+   (* Test 19: Type error for wrong dependencies type *)
+   test "set_pipeline_global_options dependencies type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), dependencies = 42)|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a string or list of strings for `dependencies`, but got Int.")|};
+
    (* Test 20: runtimes scope — serializer override only applies to R nodes *)
    (let (_, env) = eval_string_env {|
      p = pipeline {
@@ -3526,29 +3551,47 @@ p.t_step|}
      {|pipeline_node_options((pipeline { n1 = node(command = 1) }), 1)|}
      {|Error(TypeError: "pipeline_node_options: expected a String node name, got Int.")|};
 
-   (* Test 15: Type error for wrong env_vars type *)
-   test "set_pipeline_global_options env_vars type error"
-     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), env_vars = "not_a_dict")|}
-     {|Error(TypeError: "set_pipeline_global_options: expected a dict (e.g. [key: value]), but got String.")|};
+   (* Test 30: pipeline_node_options named pipeline argument *)
+   test "pipeline_node_options named pipeline arg error"
+     {|pipeline_node_options(p = (pipeline { n1 = node(command = 1) }), "n1")|}
+     {|Error(TypeError: "pipeline_node_options: arguments must be passed positionally (pipeline, node), but got named argument `p`.")|};
 
-   (* Test 16: Type error for wrong noop type *)
-   test "set_pipeline_global_options noop type error"
-     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), noop = "not_a_bool")|}
-     {|Error(TypeError: "set_pipeline_global_options: expected a bool, but got String.")|};
+   (* Test 31: explicit empty nodes scope targets no nodes *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, nodes = [], serializer = ^json)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let q_ok = get_serializer q "n1" = "default" && get_serializer q "n2" = "default" in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options explicit empty nodes scope targets no nodes\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes scope failed: n1=%s n2=%s\n" (get_serializer q "n1") (get_serializer q "n2"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
-   (* Test 17: Type error for wrong shell type *)
-   test "set_pipeline_global_options shell type error"
-     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), shell = 42)|}
-     {|Error(TypeError: "set_pipeline_global_options: expected a string, but got Int.")|};
-
-   (* Test 18: Type error for wrong serializer type *)
-   test "set_pipeline_global_options serializer type error"
-     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), serializer = 42)|}
-     {|Error(TypeError: "set_pipeline_global_options: expected a string or symbol for serializer/deserializer, but got Int.")|};
-
-   (* Test 19: Type error for wrong dependencies type *)
-   test "set_pipeline_global_options dependencies type error"
-     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), dependencies = 42)|}
-     {|Error(TypeError: "set_pipeline_global_options: expected a string or list of strings for `dependencies`, but got Int.")|};
+   (* Test 32: explicit empty nodes + runtimes still targets the runtime's nodes *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, nodes = [], runtimes = ["rn"], serializer = ^json)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let q_ok = get_serializer q "n1" = "json" && get_serializer q "n2" = "default" in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options empty nodes + runtimes union\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes + runtimes union failed: n1=%s n2=%s\n" (get_serializer q "n1") (get_serializer q "n2"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes + runtimes union test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    print_newline ()

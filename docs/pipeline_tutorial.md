@@ -341,6 +341,8 @@ q2 = set_pipeline_global_options(p, nodes = ["data"], noop = true)
 q3 = set_pipeline_global_options(p, runtimes = ["rn"], nodes = ["data"], noop = true)
 ```
 
+Omitting the scoping arguments (or passing `na()`) targets every node; an explicitly
+empty list (`nodes = []`) targets no nodes — the pipeline is returned unchanged.
 An unmatched runtime or an unknown node name is an explicit `TypeError`.
 
 #### Reading Back a Node's Resolved Configuration

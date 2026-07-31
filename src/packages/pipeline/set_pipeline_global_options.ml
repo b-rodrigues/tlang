@@ -6,7 +6,9 @@ open Ast
 --# Pure function that returns a new pipeline with the given defaults merged
 --# into nodes.  The original pipeline is not modified.  By default the settings
 --# are merged into every node; pass `runtimes` and/or `nodes` to restrict the
---# merge to a subset (union semantics when both are given).
+--# merge to a subset (union semantics when both are given).  Omitting both
+--# scoping arguments (or passing `na()`) targets every node; an explicitly
+--# empty list (`nodes = []`) targets no nodes.
 --#
 --# Merge semantics vary per option:
 --#   * Combine (prepend): `functions`, `include`, `env_vars`, `args`, `shell_args`,
@@ -43,10 +45,12 @@ open Ast
 --# @param runtimes :: String | List[String] (Optional) Scope the merge to nodes
 --#   whose runtime is in this set.  Accepts translated runtimes (`"R"`,
 --#   `"Python"`) or constructor shorthands (`"rn"`, `"pyn"`).  An unmatched
---#   runtime is a `TypeError`.
+--#   runtime is a `TypeError`.  Omitted (or `na()`) targets all nodes; an
+--#   explicit empty list targets no nodes.
 --# @param nodes :: String | List[String] (Optional) Scope the merge to exactly
 --#   these node names.  An unknown node name is a `TypeError`.  When both
---#   `runtimes` and `nodes` are given, the target is their union.
+--#   `runtimes` and `nodes` are given, the target is their union.  Omitted (or
+--#   `na()`) targets all nodes; an explicit empty list targets no nodes.
 --# @return :: Pipeline A new pipeline with the settings merged into the target nodes.
 --# @family pipeline
 --# @export
@@ -169,13 +173,13 @@ let register env =
 
             let parse_names param_name v =
               match v with
-              | VString s -> Ok [s]
-              | VSymbol s -> Ok [s]
+              | VString s -> Ok (Some [s])
+              | VSymbol s -> Ok (Some [s])
               | VList items ->
-                  Ok (List.filter_map (fun (_, v') ->
+                  Ok (Some (List.filter_map (fun (_, v') ->
                     match v' with VString s | VSymbol s -> Some s | _ -> None
-                  ) items)
-              | VNA _ -> Ok []
+                  ) items))
+              | VNA _ -> Ok None
               | other ->
                   Error (Error.type_error
                     (Printf.sprintf
@@ -231,21 +235,23 @@ let register env =
             in
             let nodes_result = match List.assoc_opt (Some "nodes") named_args with
               | Some v -> parse_names "nodes" v
-              | None -> Ok []
+              | None -> Ok None
             in
             let runtimes_result = match List.assoc_opt (Some "runtimes") named_args with
               | Some v -> parse_names "runtimes" v
-              | None -> Ok []
+              | None -> Ok None
             in
 
             (* --- compute the target node set, bailing on unknown names/runtimes --- *)
 
             let compute_target nodes_opt raw_runtimes =
-              let runtimes_opt = List.map translate_runtime raw_runtimes in
+              let runtimes_opt = Option.map (List.map translate_runtime) raw_runtimes in
               let node_names = List.map fst p.p_exprs in
               let present_runtimes = List.map snd p.p_runtimes in
-              let unknown_nodes = List.filter (fun n -> not (List.mem n node_names)) nodes_opt in
-              let unmatched = List.filter (fun rt -> not (List.mem rt present_runtimes)) runtimes_opt in
+              let nodes_specified = match nodes_opt with Some ns -> ns | None -> [] in
+              let runtimes_specified = match runtimes_opt with Some rts -> rts | None -> [] in
+              let unknown_nodes = List.filter (fun n -> not (List.mem n node_names)) nodes_specified in
+              let unmatched = List.filter (fun rt -> not (List.mem rt present_runtimes)) runtimes_specified in
               match unknown_nodes, unmatched with
               | _ :: _, _ ->
                   Error (Error.type_error
@@ -260,16 +266,21 @@ let register env =
                        (String.concat ", " (List.map (fun s -> "`" ^ s ^ "`") unmatched))
                        (String.concat ", " (List.map (fun s -> "`" ^ s ^ "`") (List.sort_uniq String.compare present_runtimes)))))
               | [], [] ->
+                  let runtime_of name = match List.assoc_opt name p.p_runtimes with
+                    | Some r -> r
+                    | None -> ""
+                  in
                   let target =
-                    if nodes_opt = [] && runtimes_opt = [] then node_names
-                    else
-                      let runtime_of name = match List.assoc_opt name p.p_runtimes with
-                        | Some r -> r
-                        | None -> ""
-                      in
-                      List.filter (fun name ->
-                        List.mem name nodes_opt || List.mem (runtime_of name) runtimes_opt
-                      ) node_names
+                    match nodes_opt, runtimes_opt with
+                    | None, None -> node_names
+                    | Some ns, None ->
+                        List.filter (fun name -> List.mem name ns) node_names
+                    | None, Some rts ->
+                        List.filter (fun name -> List.mem (runtime_of name) rts) node_names
+                    | Some ns, Some rts ->
+                        List.filter (fun name ->
+                          List.mem name ns || List.mem (runtime_of name) rts
+                        ) node_names
                   in
                   Ok target
             in

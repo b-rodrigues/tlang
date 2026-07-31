@@ -91,6 +91,8 @@ let register env =
           Error.type_error (Printf.sprintf "pipeline_node_options: node must be passed positionally, but got named argument `%s`." n)
       | [None, other; _] ->
           Error.type_error (Printf.sprintf "pipeline_node_options: expected a pipeline, got %s." (Utils.type_name other))
+      | [Some n, _; _] ->
+          Error.type_error (Printf.sprintf "pipeline_node_options: arguments must be passed positionally (pipeline, node), but got named argument `%s`." n)
       | _ ->
           Error.arity_error_named "pipeline_node_options" 2 (List.length args)))
     env

@@ -2781,6 +2781,8 @@ Pure function that returns a new pipeline with the given defaults merged
 into target nodes. The original pipeline is not modified. By default the
 settings are merged into every node; pass `runtimes` and/or `nodes` to
 restrict the merge to a subset (union semantics when both are given).
+Omitting both scoping arguments (or passing `na()`) targets every node; an
+explicitly empty list (`nodes = []`) targets no nodes.
 
 Merge semantics vary per option:
 
@@ -2825,10 +2827,12 @@ Merge semantics vary per option:
   argument name for the same field.
 - `runtimes` (optional) — String or List[String]. Scope the merge to nodes whose
   runtime is in this set. Accepts translated runtimes (`"R"`, `"Python"`) or constructor
-  shorthands (`"rn"`, `"pyn"`). An unmatched runtime is a `TypeError`.
+  shorthands (`"rn"`, `"pyn"`). An unmatched runtime is a `TypeError`. Omitted (or
+  `na()`) targets all nodes; an explicitly empty list (`runtimes = []`) targets no nodes.
 - `nodes` (optional) — String or List[String]. Scope the merge to exactly these node
   names. An unknown node name is a `TypeError`. When both `runtimes` and `nodes` are
-  given, the target is their union.
+  given, the target is their union. Omitted (or `na()`) targets all nodes; an explicitly
+  empty list (`nodes = []`) targets no nodes.
 
 **Returns:**
 
