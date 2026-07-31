@@ -3033,7 +3033,7 @@ p.t_step|}
   (* Test 3: Unknown argument error *)
   test "set_pipeline_global_options unknown argument"
     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), unknown_arg = "foo")|}
-    {|Error(TypeError: "set_pipeline_global_options: unknown argument 'unknown_arg'. Supported arguments are: functions, include.")|};
+    {|Error(TypeError: "set_pipeline_global_options: unknown argument 'unknown_arg'. Supported arguments are: functions, include, env_vars, serializer, deserializer, noop, args, shell, shell_args, flake, dependencies.")|};
 
   (* Test 4: Composability — calling twice merges both sets of defaults *)
   (let (_, env) = eval_string_env {|
@@ -3070,7 +3070,290 @@ p.t_step|}
        else
          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options nodes-after failed: n1={%s} n2={%s}\n"
             (String.concat ", " n1_includes) (String.concat ", " n2_includes))
-   | other ->
-       incr fail_count; Printf.printf "  ✗ set_pipeline_global_options nodes-after test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options nodes-after test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
-  print_newline ()
+   (* Helper accessors for new pipeline fields *)
+   let get_env_vars p name =
+     match List.assoc_opt name p.p_env_vars with
+     | Some lst -> List.map (fun (k, v) ->
+         (k, match v with VString s -> s | VSymbol s -> s | _ -> "__not_a_string__")
+       ) lst
+     | None -> []
+   in
+   let get_args p name =
+     match List.assoc_opt name p.p_args with
+     | Some lst -> List.map (fun (k, v) ->
+         (k, match v with VString s -> s | VSymbol s -> s | _ -> "__not_a_string__")
+       ) lst
+     | None -> []
+   in
+   let get_serializer p name =
+     match List.assoc_opt name p.p_serializers with
+     | Some e ->
+         (match e.node with Value (VString s) -> s | Var "default" -> "default" | _ -> "__other__")
+     | None -> "__missing__"
+   in
+   let get_deserializer p name =
+     match List.assoc_opt name p.p_deserializers with
+     | Some e ->
+         (match e.node with Value (VString s) -> s | Var "default" -> "default" | _ -> "__other__")
+     | None -> "__missing__"
+   in
+   let get_noop p name =
+     match List.assoc_opt name p.p_noops with Some b -> b | None -> false
+   in
+   let get_shell p name =
+     match List.assoc_opt name p.p_shells with Some s -> s | None -> None
+   in
+   let get_shell_args p name =
+     match List.assoc_opt name p.p_shell_args with
+     | Some lst -> List.map (fun e -> match e.node with Value (VString s) -> s | _ -> "__not_a_string__") lst
+     | None -> []
+   in
+   let get_flake p name =
+     match List.assoc_opt name p.p_flakes with Some f -> f | None -> None
+   in
+   let get_deps p name =
+     match List.assoc_opt name p.p_explicit_deps with Some d -> d | None -> Some []
+   in
+
+   (* Test 6: env_vars merge *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, env_vars = [EXTRA: "per_node"])
+       n2 = pyn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, env_vars = [MODE: "fast", API_KEY: "secret"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    let (vp, _) = eval_string_env "p" env in
+    match vq with
+    | VPipeline q ->
+        let n1_vars = get_env_vars q "n1" in
+        let n2_vars = get_env_vars q "n2" in
+        let q_ok =
+          List.mem ("MODE", "fast") n1_vars
+          && List.mem ("API_KEY", "secret") n1_vars
+          && List.mem ("EXTRA", "per_node") n1_vars
+          && List.mem ("MODE", "fast") n2_vars
+          && List.mem ("API_KEY", "secret") n2_vars
+        in
+        let p_unchanged = match vp with
+          | VPipeline p -> get_env_vars p "n1" = ["EXTRA", "per_node"] && get_env_vars p "n2" = []
+          | _ -> false
+        in
+        if q_ok && p_unchanged then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options merges env_vars and leaves original unchanged\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options env_vars merge failed: n1={%s} n2={%s} p_unchanged=%b\n"
+             (String.concat ", " (List.map (fun (k, v) -> k ^ "=" ^ v) n1_vars))
+             (String.concat ", " (List.map (fun (k, v) -> k ^ "=" ^ v) n2_vars))
+             p_unchanged)
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options env_vars test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 7: args merge *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, args = [extra_arg: "per_node"])
+     }
+     q = set_pipeline_global_options(p, args = [mode: "batch"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_args = get_args q "n1" in
+        if List.mem ("mode", "batch") n1_args && List.mem ("extra_arg", "per_node") n1_args then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options merges args (global prepended)\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options args merge failed: {%s}\n"
+             (String.concat ", " (List.map (fun (k, v) -> k ^ "=" ^ v) n1_args)))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options args test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 8: serializer override *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, serializer = ^json)
+       n2 = pyn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, serializer = ^arrow)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_ser = get_serializer q "n1" in
+        let n2_ser = get_serializer q "n2" in
+        if n1_ser = "arrow" && n2_ser = "arrow" then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides serializer for all nodes\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options serializer override failed: n1=%s n2=%s\n" n1_ser n2_ser)
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options serializer test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 9: deserializer override *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, deserializer = ^json)
+     }
+     q = set_pipeline_global_options(p, deserializer = "csv")
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_deser = get_deserializer q "n1" in
+        if n1_deser = "csv" then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides deserializer\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deserializer override failed: n1=%s\n" n1_deser)
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deserializer test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 10: noop override (OR semantics) *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>, noop = true)
+     }
+     q = set_pipeline_global_options(p, noop = true)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_noop = get_noop q "n1" in
+        let n2_noop = get_noop q "n2" in
+        if n1_noop && n2_noop then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options noop=true sets all nodes to noop\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options noop failed: n1=%b n2=%b\n" n1_noop n2_noop)
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options noop test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 10b: noop=false leaves nodes unchanged *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, noop = true)
+     }
+     q = set_pipeline_global_options(p, noop = false)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_noop = get_noop q "n1" in
+        if n1_noop then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options noop=false does not clear per-node noop\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options noop=false incorrectly cleared per-node noop\n")
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options noop false test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 11: shell override *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, shell = "bash")
+     }
+     q = set_pipeline_global_options(p, shell = "zsh")
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_shell = get_shell q "n1" in
+        if n1_shell = Some "zsh" then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides shell\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options shell override failed: got %s\n"
+             (match n1_shell with Some s -> s | None -> "None"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options shell test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 12: shell_args prepend *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, shell_args = ["--per-node"])
+     }
+     q = set_pipeline_global_options(p, shell_args = ["--global"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_shell_args = get_shell_args q "n1" in
+        if n1_shell_args = ["--global"; "--per-node"] then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options prepends shell_args\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options shell_args prepend failed: {%s}\n"
+             (String.concat ", " n1_shell_args))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options shell_args test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 13: flake override *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>, flake = "path:./custom")
+     }
+     q = set_pipeline_global_options(p, flake = "path:./global")
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_flake = get_flake q "n1" in
+        let n2_flake = get_flake q "n2" in
+        if n1_flake = Some "path:./global" && n2_flake = Some "path:./global" then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides flake for all nodes\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options flake override failed: n1=%s n2=%s\n"
+             (match n1_flake with Some f -> f | None -> "None")
+             (match n2_flake with Some f -> f | None -> "None"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options flake test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 14: dependencies prepend (per-node arg is `deps`) *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
+       n2 = rn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, dependencies = ["global_dep"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_deps = get_deps q "n1" in
+        let n2_deps = get_deps q "n2" in
+        let q_ok = n1_deps = Some ["global_dep"; "n2"] && n2_deps = Some ["global_dep"] in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options prepends dependencies\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deps prepend failed: n1=%s n2=%s\n"
+             (match n1_deps with Some d -> String.concat ", " d | None -> "None")
+             (match n2_deps with Some d -> String.concat ", " d | None -> "None"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deps test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 15: Type error for wrong env_vars type *)
+   test "set_pipeline_global_options env_vars type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), env_vars = "not_a_dict")|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a dict (e.g. [key: value]), but got String.")|};
+
+   (* Test 16: Type error for wrong noop type *)
+   test "set_pipeline_global_options noop type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), noop = "not_a_bool")|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a bool, but got String.")|};
+
+   (* Test 17: Type error for wrong shell type *)
+   test "set_pipeline_global_options shell type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), shell = 42)|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a string, but got Int.")|};
+
+   (* Test 18: Type error for wrong serializer type *)
+   test "set_pipeline_global_options serializer type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), serializer = 42)|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a string or symbol for serializer/deserializer, but got Int.")|};
+
+   (* Test 19: Type error for wrong dependencies type *)
+   test "set_pipeline_global_options dependencies type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), dependencies = 42)|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a string or list of strings for `dependencies`, but got Int.")|};
+
+   print_newline ()
