@@ -452,6 +452,8 @@ Current mutation targets:
 
 The script verifies each mutation was actually applied (via `diff -q`) before building/testing. If a mutation pattern doesn't match the current source, it reports "pattern did not match" instead of a false SURVIVED. The backup/restore mechanism uses an associative array to support mutations across multiple source files.
 
+**Mutation-test hygiene:** if `mutation_test.sh` is interrupted or aborted mid-run, the target source file can be left mutated (e.g. `src/eval.ml`) and a `.bak` file left behind. After any run, verify with `git status` that no unexpected `.ml` files are modified and no stray `*.bak` files exist. Restore with `git checkout <file>` and `rm <file>.bak`.
+
 ### Golden Tests (T vs R)
 
 Located in `tests/golden/`. These compare T output to R/dplyr output:
@@ -494,6 +496,16 @@ make golden-quick
 ## Troubleshooting and Fixing Tests
 
 If tests fail during development, follow this guide to identify and fix common issues:
+
+### 0. `✗` lines in `dune runtest` output are not always failures
+**Symptoms**: `dune runtest` prints `✗ tests/test-fail.t` and `✗ tests/test-syntax.t`
+with an `Assertion failed.` line, yet exits 0.
+**Cause**: `tests/test_misc_coverage.ml` deliberately writes broken fixtures
+(`assert(helper_value == 0)` and a syntax error) and asserts that `t test`
+reports them as failures. The `✗`/`Assertion failed.` text is that fixture
+runner's expected output.
+**Fix**: None — it is intended behaviour. Do not "fix" these files. Treat a
+`dune runtest` exit code of 0 as green even when such lines appear.
 
 ### 1. NameError: Variable Shadowing
 **Symptoms**: `Error(NameError: "[L1:C1] Variable 'x' is immutable and cannot be reassigned.")`

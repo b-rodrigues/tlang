@@ -4,15 +4,19 @@ open Ast
 --# Set Pipeline Global Options (pure)
 --#
 --# Pure function that returns a new pipeline with the given defaults merged
---# into every node.  The original pipeline is not modified.
+--# into nodes.  The original pipeline is not modified.  By default the settings
+--# are merged into every node; pass `runtimes` and/or `nodes` to restrict the
+--# merge to a subset (union semantics when both are given).  Omitting both
+--# scoping arguments (or passing `na()`) targets every node; an explicitly
+--# empty list (`nodes = []`) targets no nodes.
 --#
 --# Merge semantics vary per option:
 --#   * Combine (prepend): `functions`, `include`, `env_vars`, `args`, `shell_args`,
 --#     `dependencies`.  Global values come first; per-node values follow (for
 --#     same-key dict entries, the later per-node value wins).
 --#   * Override: `serializer`, `deserializer`, `shell`, `flake`.  A provided
---#     global value replaces every node's per-node value entirely.
---#   * Force-only: `noop`.  `noop = true` forces every node to no-op;
+--#     global value replaces the node's per-node value entirely.
+--#   * Force-only: `noop`.  `noop = true` forces nodes to no-op;
 --#     `noop = false` has no effect and cannot un-set a per-node `noop = true`.
 --#
 --# @name set_pipeline_global_options
@@ -20,39 +24,51 @@ open Ast
 --# @param functions :: Dict (Optional) Combine (prepend). Runtime-shorthand to
 --#   function-file mappings.  Per-node `functions` are appended after.
 --# @param include :: String | List[String] (Optional) Combine (prepend). File
---#   path(s) to include in every node's sandbox.  Per-node `include` appended after.
---# @param env_vars :: Dict (Optional) Combine (prepend). Environment variables for
---#   every node.  Per-node env vars override same keys.
---# @param serializer :: String | Symbol (Optional) Override. Default serializer for
---#   every node; replaces per-node serializer.
---# @param deserializer :: String | Symbol (Optional) Override. Default deserializer
---#   for every node; replaces per-node deserializer.
---# @param noop :: Bool (Optional) Force-only. If true, every node becomes a no-op.
+--#   path(s) to include in the node sandbox.  Per-node `include` appended after.
+--# @param env_vars :: Dict (Optional) Combine (prepend). Environment variables.
+--#   Per-node env vars override same keys.
+--# @param serializer :: String | Symbol (Optional) Override. Default serializer;
+--#   replaces per-node serializer.
+--# @param deserializer :: String | Symbol (Optional) Override. Default deserializer;
+--#   replaces per-node deserializer.
+--# @param noop :: Bool (Optional) Force-only. If true, nodes become no-ops.
 --#   Setting false has no effect — it cannot un-set a per-node noop.
---# @param args :: Dict (Optional) Combine (prepend). Runtime arguments for every
---#   node.  Per-node args override same keys.
---# @param shell :: String (Optional) Override. Shell interpreter for every node.
+--# @param args :: Dict (Optional) Combine (prepend). Runtime arguments.  Per-node
+--#   args override same keys.
+--# @param shell :: String (Optional) Override. Shell interpreter.
 --# @param shell_args :: String | List[String] (Optional) Combine (prepend). Shell
 --#   arguments, prepended before per-node shell args.
---# @param flake :: String (Optional) Override. Nix flake path for every node.
+--# @param flake :: String (Optional) Override. Nix flake path.
 --# @param dependencies :: String | List[String] (Optional) Combine (prepend).
 --#   Explicit dependencies, prepended before per-node deps.  Note: per-node node
 --#   constructors use the shorter `deps` argument name for the same field.
---# @return :: Pipeline A new pipeline with the settings merged into every node.
+--# @param runtimes :: String | List[String] (Optional) Scope the merge to nodes
+--#   whose runtime is in this set.  Accepts translated runtimes (`"R"`,
+--#   `"Python"`) or constructor shorthands (`"rn"`, `"pyn"`).  An unmatched
+--#   runtime is a `TypeError`.  Omitted (or `na()`) targets all nodes; an
+--#   explicit empty list targets no nodes.
+--# @param nodes :: String | List[String] (Optional) Scope the merge to exactly
+--#   these node names.  An unknown node name is a `TypeError`.  When both
+--#   `runtimes` and `nodes` are given, the target is their union.  Omitted (or
+--#   `na()`) targets all nodes; an explicit empty list targets no nodes.
+--# @return :: Pipeline A new pipeline with the settings merged into the target nodes.
 --# @family pipeline
 --# @export
 --# @example
+--#   set_pipeline_global_options(p, runtimes = ["R"], serializer = ^arrow)
+--#   set_pipeline_global_options(p, nodes = ["n1", "n3"], noop = true)
 --*)
 
 let register env =
   Env.add "set_pipeline_global_options"
     (make_builtin_named ~name:"set_pipeline_global_options" ~variadic:true 1 (fun named_args _env ->
       let known_keys = ["functions"; "include"; "env_vars"; "serializer"; "deserializer";
-                        "noop"; "args"; "shell"; "shell_args"; "flake"; "dependencies"] in
+                        "noop"; "args"; "shell"; "shell_args"; "flake"; "dependencies";
+                        "runtimes"; "nodes"] in
       match List.find_opt (fun (k, _) -> k <> None && not (List.mem (Option.get k) known_keys)) named_args with
       | Some (Some k, _) ->
           Error.type_error (Printf.sprintf
-            "set_pipeline_global_options: unknown argument '%s'. Supported arguments are: functions, include, env_vars, serializer, deserializer, noop, args, shell, shell_args, flake, dependencies."
+            "set_pipeline_global_options: unknown argument '%s'. Supported arguments are: functions, include, env_vars, serializer, deserializer, noop, args, shell, shell_args, flake, dependencies, runtimes, nodes."
             k)
       | _ ->
         match List.assoc_opt None named_args with
@@ -155,6 +171,22 @@ let register env =
                        (Utils.type_name other)))
             in
 
+            let parse_names param_name v =
+              match v with
+              | VString s -> Ok (Some [s])
+              | VSymbol s -> Ok (Some [s])
+              | VList items ->
+                  Ok (Some (List.filter_map (fun (_, v') ->
+                    match v' with VString s | VSymbol s -> Some s | _ -> None
+                  ) items))
+              | VNA _ -> Ok None
+              | other ->
+                  Error (Error.type_error
+                    (Printf.sprintf
+                       "set_pipeline_global_options: expected a string or list of strings for `%s`, but got %s."
+                       param_name (Utils.type_name other)))
+            in
+
             (* --- extract values from named_args --- *)
 
             let functions_result = match List.assoc_opt (Some "functions") named_args with
@@ -201,70 +233,136 @@ let register env =
               | Some v -> parse_deps v
               | None -> Ok None
             in
+            let nodes_result = match List.assoc_opt (Some "nodes") named_args with
+              | Some v -> parse_names "nodes" v
+              | None -> Ok None
+            in
+            let runtimes_result = match List.assoc_opt (Some "runtimes") named_args with
+              | Some v -> parse_names "runtimes" v
+              | None -> Ok None
+            in
+
+            (* --- compute the target node set, bailing on unknown names/runtimes --- *)
+
+            let compute_target nodes_opt raw_runtimes =
+              let runtimes_opt = Option.map (List.map translate_runtime) raw_runtimes in
+              let node_names = List.map fst p.p_exprs in
+              let present_runtimes = List.map snd p.p_runtimes in
+              let nodes_specified = match nodes_opt with Some ns -> ns | None -> [] in
+              let runtimes_specified = match runtimes_opt with Some rts -> rts | None -> [] in
+              let unknown_nodes = List.filter (fun n -> not (List.mem n node_names)) nodes_specified in
+              let unmatched = List.filter (fun rt -> not (List.mem rt present_runtimes)) runtimes_specified in
+              match unknown_nodes, unmatched with
+              | _ :: _, _ ->
+                  Error (Error.type_error
+                    (Printf.sprintf
+                       "set_pipeline_global_options: unknown node name(s): %s. Valid node names are: %s."
+                       (String.concat ", " (List.map (fun s -> "`" ^ s ^ "`") unknown_nodes))
+                       (String.concat ", " (List.map (fun s -> "`" ^ s ^ "`") node_names))))
+              | [], _ :: _ ->
+                  Error (Error.type_error
+                    (Printf.sprintf
+                       "set_pipeline_global_options: unknown runtime(s) in pipeline: %s. Pipeline runtimes are: %s."
+                       (String.concat ", " (List.map (fun s -> "`" ^ s ^ "`") unmatched))
+                       (String.concat ", " (List.map (fun s -> "`" ^ s ^ "`") (List.sort_uniq String.compare present_runtimes)))))
+              | [], [] ->
+                  let runtime_of name = match List.assoc_opt name p.p_runtimes with
+                    | Some r -> r
+                    | None -> ""
+                  in
+                  let target =
+                    match nodes_opt, runtimes_opt with
+                    | None, None -> node_names
+                    | Some ns, None ->
+                        List.filter (fun name -> List.mem name ns) node_names
+                    | None, Some rts ->
+                        List.filter (fun name -> List.mem (runtime_of name) rts) node_names
+                    | Some ns, Some rts ->
+                        List.filter (fun name ->
+                          List.mem name ns || List.mem (runtime_of name) rts
+                        ) node_names
+                  in
+                  Ok target
+            in
 
             (* --- apply all results, bailing on first error --- *)
 
-            let apply_global_options global_functions global_env_vars global_serializer
+            let apply_global_options target global_functions global_env_vars global_serializer
                 global_deserializer global_noop global_args global_shell global_flake global_deps =
+              let should_apply name = List.mem name target in
               let updated_functions = List.map (fun (name, funcs) ->
-                let runtime = match List.assoc_opt name p.p_runtimes with
-                  | Some r -> r
-                  | None -> "T"
-                in
-                let global_funcs =
-                  List.filter_map (fun (rt, fs) -> if rt = runtime then Some fs else None)
-                    global_functions
-                  |> List.flatten
-                in
-                (name, global_funcs @ funcs)
+                if not (should_apply name) then (name, funcs)
+                else
+                  let runtime = match List.assoc_opt name p.p_runtimes with
+                    | Some r -> r
+                    | None -> "T"
+                  in
+                  let global_funcs =
+                    List.filter_map (fun (rt, fs) -> if rt = runtime then Some fs else None)
+                      global_functions
+                    |> List.flatten
+                  in
+                  (name, global_funcs @ funcs)
               ) p.p_functions in
 
               let updated_includes = List.map (fun (name, incs) ->
-                (name, includes @ incs)
+                if should_apply name then (name, includes @ incs) else (name, incs)
               ) p.p_includes in
 
               let updated_env_vars = List.map (fun (name, vars) ->
-                (name, global_env_vars @ vars)
+                if should_apply name then (name, global_env_vars @ vars) else (name, vars)
               ) p.p_env_vars in
 
               let updated_args = List.map (fun (name, rt_args) ->
-                (name, global_args @ rt_args)
+                if should_apply name then (name, global_args @ rt_args) else (name, rt_args)
               ) p.p_args in
 
               let updated_serializers = match global_serializer with
-                | Some s -> List.map (fun (name, _) -> (name, s)) p.p_serializers
+                | Some s -> List.map (fun (name, orig) ->
+                    if should_apply name then (name, s) else (name, orig)
+                  ) p.p_serializers
                 | None -> p.p_serializers
               in
 
               let updated_deserializers = match global_deserializer with
-                | Some d -> List.map (fun (name, _) -> (name, d)) p.p_deserializers
+                | Some d -> List.map (fun (name, orig) ->
+                    if should_apply name then (name, d) else (name, orig)
+                  ) p.p_deserializers
                 | None -> p.p_deserializers
               in
 
               let updated_noops = if global_noop then
-                List.map (fun (name, _) -> (name, true)) p.p_noops
+                List.map (fun (name, orig) ->
+                  if should_apply name then (name, true) else (name, orig)
+                ) p.p_noops
               else
                 p.p_noops
               in
 
               let updated_shells = match global_shell with
-                | Some s -> List.map (fun (name, _) -> (name, Some s)) p.p_shells
+                | Some s -> List.map (fun (name, orig) ->
+                    if should_apply name then (name, Some s) else (name, orig)
+                  ) p.p_shells
                 | None -> p.p_shells
               in
 
               let updated_shell_args = List.map (fun (name, args) ->
-                (name, shell_args @ args)
+                if should_apply name then (name, shell_args @ args) else (name, args)
               ) p.p_shell_args in
 
               let updated_flakes = match global_flake with
-                | Some f -> List.map (fun (name, _) -> (name, Some f)) p.p_flakes
+                | Some f -> List.map (fun (name, orig) ->
+                    if should_apply name then (name, Some f) else (name, orig)
+                  ) p.p_flakes
                 | None -> p.p_flakes
               in
 
               let updated_deps = match global_deps with
                 | Some gd -> List.map (fun (name, deps) ->
-                    let merged = gd @ match deps with Some d -> d | None -> [] in
-                    (name, Some merged)
+                    if should_apply name then
+                      let merged = gd @ match deps with Some d -> d | None -> [] in
+                      (name, Some merged)
+                    else (name, deps)
                   ) p.p_explicit_deps
                 | None -> p.p_explicit_deps
               in
@@ -286,6 +384,9 @@ let register env =
             in
 
             (match
+               nodes_result >>= fun nodes_opt ->
+               runtimes_result >>= fun raw_runtimes ->
+               compute_target nodes_opt raw_runtimes >>= fun target ->
                functions_result >>= fun global_functions ->
                env_vars_result >>= fun global_env_vars ->
                serializer_result >>= fun global_serializer ->
@@ -295,7 +396,7 @@ let register env =
                shell_result >>= fun global_shell ->
                flake_result >>= fun global_flake ->
                deps_result >>= fun global_deps ->
-               apply_global_options global_functions global_env_vars global_serializer
+               apply_global_options target global_functions global_env_vars global_serializer
                  global_deserializer global_noop global_args global_shell global_flake global_deps
              with
              | Error e -> e

@@ -17,6 +17,15 @@
   `dependencies` prepends explicit dependencies before per-node `deps`;
   and `noop = true` forces every node to no-op while `noop = false` leaves per-node
   noop settings untouched.
+- **Scoped merging (`runtimes`, `nodes`)**: Restrict the merge to a subset of nodes.
+  `runtimes = ["rn"]` targets R nodes; `nodes = ["n1"]` targets exact node names; when
+  both are given the target is their union. Omitted scoping arguments target all nodes,
+  while an explicitly empty list (`nodes = []`) targets none. An unmatched runtime or an
+  unknown node name raises an explicit `TypeError` instead of silently changing nothing.
+- **`pipeline_node_options(pipeline, node)` read-back**: Returns a Dict of a node's fully
+  resolved configuration (runtime, serializer/deserializer, noop, deps, depth, functions,
+  include, env_vars, args, shell, shell_args, flake) after any global-options merges.
+  What you merge in with `set_pipeline_global_options`, you can read back out.
 
 ## [0.54.2] - 2026-07-29
 

@@ -2775,10 +2775,14 @@ pipeline_report(p, target = "web", file = "report.html")
 
 ---
 
-### `set_pipeline_global_options(pipeline, functions = [:], include = [], env_vars = [:], serializer = NA, deserializer = NA, noop = false, args = [:], shell = NA, shell_args = [], flake = NA, dependencies = NA)`
+### `set_pipeline_global_options(pipeline, functions = [:], include = [], env_vars = [:], serializer = NA, deserializer = NA, noop = false, args = [:], shell = NA, shell_args = [], flake = NA, dependencies = NA, runtimes = NA, nodes = NA)`
 
 Pure function that returns a new pipeline with the given defaults merged
-into every node. The original pipeline is not modified.
+into target nodes. The original pipeline is not modified. By default the
+settings are merged into every node; pass `runtimes` and/or `nodes` to
+restrict the merge to a subset (union semantics when both are given).
+Omitting both scoping arguments (or passing `na()`) targets every node; an
+explicitly empty list (`nodes = []`) targets no nodes.
 
 Merge semantics vary per option:
 
@@ -2786,8 +2790,8 @@ Merge semantics vary per option:
   Global values come first; per-node values follow. For same-key dict entries
   (`env_vars`, `args`) the later per-node value wins.
 - **Override** — `serializer`, `deserializer`, `shell`, `flake`.
-  A provided global value replaces every node's per-node value entirely.
-- **Force-only** — `noop`. `noop = true` forces every node to no-op;
+  A provided global value replaces every target node's per-node value entirely.
+- **Force-only** — `noop`. `noop = true` forces target nodes to no-op;
   `noop = false` has no effect and cannot un-set a per-node `noop = true`.
 
 **Parameters:**
@@ -2821,10 +2825,18 @@ Merge semantics vary per option:
 - `dependencies` (optional) — String or List[String]. Explicit dependencies, prepended
   before per-node `deps`. Note: per-node node constructors use the shorter `deps`
   argument name for the same field.
+- `runtimes` (optional) — String or List[String]. Scope the merge to nodes whose
+  runtime is in this set. Accepts translated runtimes (`"R"`, `"Python"`) or constructor
+  shorthands (`"rn"`, `"pyn"`). An unmatched runtime is a `TypeError`. Omitted (or
+  `na()`) targets all nodes; an explicitly empty list (`runtimes = []`) targets no nodes.
+- `nodes` (optional) — String or List[String]. Scope the merge to exactly these node
+  names. An unknown node name is a `TypeError`. When both `runtimes` and `nodes` are
+  given, the target is their union. Omitted (or `na()`) targets all nodes; an explicitly
+  empty list (`nodes = []`) targets no nodes.
 
 **Returns:**
 
-Pipeline — a new pipeline with the settings merged into every node.
+Pipeline — a new pipeline with the settings merged into the target nodes.
 
 **Examples:**
 ```t
@@ -2839,6 +2851,62 @@ q = set_pipeline_global_options(p,
   serializer = ^json,
   noop = true
 )
+
+# Scope to R nodes only
+q2 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+
+# Scope to specific nodes
+q3 = set_pipeline_global_options(p, nodes = ["a"], noop = true)
+```
+
+---
+
+### `pipeline_node_options(pipeline, node)`
+
+Returns a Dict describing the fully resolved configuration of a single
+pipeline node, after any `set_pipeline_global_options` merges have been
+applied. This is the read-back companion to `set_pipeline_global_options`:
+what you merged in, you can read back out.
+
+The returned Dict has the following keys:
+
+- `name` — the node name (String)
+- `runtime` — one of `"T"`, `"R"`, `"Python"`, `"Julia"`, `"Quarto"`, `"sh"` (String)
+- `serializer` — e.g. `"default"`, `"pmml"` (String)
+- `deserializer` — e.g. `"default"`, `"pmml"` (String)
+- `noop` — whether the node is a no-op (Bool)
+- `deps` — names of nodes this node depends on (List of String)
+- `depth` — topological depth in the DAG (Int); roots are depth 0
+- `command_type` — one of `"command"` or `"script"` (String)
+- `diagnostics` — node diagnostics (Dict)
+- `functions` — function files merged into the node (List of String)
+- `include` — included files (List of String)
+- `env_vars` — build environment variables (Dict)
+- `args` — runtime/tool arguments (Dict)
+- `shell` — shell interpreter, or NA when unset (String | NA)
+- `shell_args` — shell interpreter arguments (List of String)
+- `flake` — Nix flake path, or NA when unset (String | NA)
+
+An unknown node name is a `TypeError` listing the valid node names.
+
+**Parameters:**
+
+- `pipeline` — The input pipeline (positional or piped).
+- `node` — The node name to read back (String).
+
+**Returns:**
+
+Dict — the resolved node configuration.
+
+**Examples:**
+```t
+p = pipeline {
+  a = rn(<{ ... }>),
+  b = pyn(<{ ... }>)
+}
+q = set_pipeline_global_options(p, functions = [rn: "functions.R"], noop = true)
+pipeline_node_options(q, "a")
+# => { name = "a", runtime = "R", functions = ["functions.R"], noop = true, ... }
 ```
 
 ---

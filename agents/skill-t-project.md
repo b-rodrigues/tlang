@@ -249,6 +249,11 @@ pipeline_copy(node = "clean_data", target_dir = "outputs")
 - **Reassigning a variable with `=`:** T is immutable. Use `:=` to rebind, or give the new value a new name. E.g., `a = 1; a = 2` is invalid.
 - **Writing a `for` loop:** Loops do not exist in T. Use `map()`, `summarize()`, or a colcraft verb.
 - **Referencing a column as a bare name inside a colcraft verb:** E.g., `filter(df, amount > 0)` is invalid. It must be `filter(df, $amount > 0)`. The `$` is required for NSE.
+- **A named argument literally named `pipeline`:** The name collides with the `pipeline`
+  keyword in named-argument position and is a parser error, regardless of the value —
+  `pipeline_node_options(pipeline = p, "n1")` fails to parse. Use any other name:
+  `pipeline_node_options(p = p, "n1")`.
+- **String-literal keys in dict arguments:** Dict-literal keys in node args (e.g. `env_vars`, `args`) must be bare symbols, not strings. `env_vars = [GLOBAL: "1"]` is valid; `env_vars = ["GLOBAL": "1"]` is a parse error.
 - **Adding trailing commas after nodes in `pipeline { }`:** Pipeline nodes are separated by newlines or semicolons, NOT commas. A trailing comma causes a parse error. `t check` will report: "Unexpected ',' in pipeline block."
 - **Writing output to `data/`:** Treat it as read-only. Pipeline outputs must go through `pipeline_copy(target_dir = "outputs")` into `outputs/`.
 - **Skipping the `pipeline { ... }` wrapper:** A bare script of T statements cannot run. Everything reproducible must be a node inside a pipeline.
@@ -280,6 +285,33 @@ Use this workflow to understand what a pipeline node does, what it produced, and
 | `explain(read_node(p.node))` | Structured dict of the value's type, shape, columns, preview | Understand what the data looks like |
 | `rebuild_node(p.node)` | Rebuilds a single node, returns updated ComputedNode | One node changed, don't rebuild entire pipeline |
 | `debug_node(p.node)` | Launches interactive REPL in the node's runtime env | Deep debugging of R/Python/Julia code |
+
+### Pipeline configuration & read-back
+
+To apply runtime-wide defaults to a pipeline without editing every node, use
+`set_pipeline_global_options(p, ...)`. It is a pure function: it returns a new
+pipeline and leaves the original unchanged.
+
+- Scoping: by default the merge targets **every** node. Pass `runtimes` and/or
+  `nodes` to restrict it (union semantics when both are given).
+  - `runtimes = ["rn"]` targets all R nodes; `nodes = ["clean_data"]` targets
+    exact node names.
+  - Omitted scoping args (or `na()`) target **all** nodes; an explicitly empty
+    list (`nodes = []`) targets **no** nodes — the pipeline is returned unchanged.
+  - An unmatched runtime or an unknown node name is an explicit `TypeError`.
+- Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`,
+  `dependencies` prepend global values before per-node values (per-node dict keys
+  win); `serializer`, `deserializer`, `shell`, `flake` override per-node values;
+  `noop = true` forces nodes to no-op.
+
+To see what a node's configuration **resolves to** after any global merges, use
+`pipeline_node_options(p, node)` — it returns a Dict with the node's runtime,
+serializer/deserializer, noop, deps, depth, functions, include, env_vars, args,
+shell, shell_args, and flake. Unknown node names raise a `TypeError`.
+
+**Agentic use case:** when a node builds with the wrong serializer, `noop`, or
+dependency set and you can't tell why, read back the resolved configuration
+instead of guessing: `pipeline_node_options(p, problem_node)`.
 
 ### Typical agent workflow
 
