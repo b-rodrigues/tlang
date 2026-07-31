@@ -3331,6 +3331,31 @@ p.t_step|}
     | other ->
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deps test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
+   (* Test 14b: dependencies omitted leaves p_explicit_deps untouched *)
+   (* Regression: when `dependencies` is not passed, n1's deps must stay Some ["n2"]
+      (not Some [], not mutated) and n2's None must not be flipped to Some []. *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
+       n2 = rn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, include = "x.yaml")
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_deps = get_deps q "n1" in
+        let n2_deps = get_deps q "n2" in
+        let q_ok = n1_deps = Some ["n2"] && n2_deps = None in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options leaves deps untouched when dependencies omitted\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deps omitted test failed: n1=%s n2=%s\n"
+             (match n1_deps with Some d -> String.concat ", " d | None -> "None")
+             (match n2_deps with Some d -> String.concat ", " d | None -> "None"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deps omitted test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
    (* Test 15: Type error for wrong env_vars type *)
    test "set_pipeline_global_options env_vars type error"
      {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), env_vars = "not_a_dict")|}
