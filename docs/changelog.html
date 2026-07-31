@@ -34,7 +34,45 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.54.2] - 2026-07-29</h2>
+<h2 id="section">[0.54.3] - 2026-07-30</h2>
+<h3 id="pipeline-global-options-pure-function">Pipeline Global Options —
+Pure Function</h3>
+<ul>
+<li><strong><code>set_pipeline_global_options(pipeline, ...)</code></strong>
+replaces the old side-effecting <code>pipeline_options()</code>. Returns
+a new pipeline with defaults merged into every node; the original
+pipeline is never mutated and no global state is used. Composes
+naturally with pipeline transforms and the pipe operator. Duplicate
+runtime keys in the <code>functions</code> dict concatenate all values
+(e.g. <code>[rn: "a.R", rn: "b.R"]</code> includes both files).</li>
+<li><strong>Nine additional global options</strong> beyond
+<code>functions</code>/<code>include</code>: <code>env_vars</code>,
+<code>args</code>, and <code>shell_args</code> prepend global values
+before per-node values (per-node dict keys win);
+<code>serializer</code>, <code>deserializer</code>, <code>shell</code>,
+and <code>flake</code> override every node’s per-node value entirely
+(<code>serializer</code>/<code>deserializer</code> accept
+<code>^</code>-prefixed names such as <code>^json</code>);
+<code>dependencies</code> prepends explicit dependencies before per-node
+<code>deps</code>; and <code>noop = true</code> forces every node to
+no-op while <code>noop = false</code> leaves per-node noop settings
+untouched.</li>
+<li><strong>Scoped merging (<code>runtimes</code>,
+<code>nodes</code>)</strong>: Restrict the merge to a subset of nodes.
+<code>runtimes = ["rn"]</code> targets R nodes;
+<code>nodes = ["n1"]</code> targets exact node names; when both are
+given the target is their union. Omitted scoping arguments target all
+nodes, while an explicitly empty list (<code>nodes = []</code>) targets
+none. An unmatched runtime or an unknown node name raises an explicit
+<code>TypeError</code> instead of silently changing nothing.</li>
+<li><strong><code>pipeline_node_options(pipeline, node)</code>
+read-back</strong>: Returns a Dict of a node’s fully resolved
+configuration (runtime, serializer/deserializer, noop, deps, depth,
+functions, include, env_vars, args, shell, shell_args, flake) after any
+global-options merges. What you merge in with
+<code>set_pipeline_global_options</code>, you can read back out.</li>
+</ul>
+<h2 id="section-1">[0.54.2] - 2026-07-29</h2>
 <h3 id="testcraft-testing-package"><code>testcraft</code> — Testing
 Package</h3>
 <ul>
@@ -136,7 +174,7 @@ fix</strong>: Coverage cleaning and discovery now check both the project
 directory and the current working directory for <code>.coverage</code>
 files.</li>
 </ul>
-<h2 id="section-1">[0.54.1] - 2026-07-20</h2>
+<h2 id="section-2">[0.54.1] - 2026-07-20</h2>
 <h3 id="type-system-annotations-and-inference">Type System: Annotations
 and Inference</h3>
 <ul>
@@ -364,7 +402,7 @@ commands.</li>
 <li><strong><code>write_parquet(data, path)</code></strong>: Write a
 DataFrame to a Parquet file via Arrow.</li>
 </ul>
-<h2 id="section-2">[0.54.0] - 2026-07-08</h2>
+<h2 id="section-3">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
 <ul>
 <li><strong>SoftFailed Node Classification</strong>: Fixed
@@ -538,7 +576,7 @@ returns its SHA-256 hash, usable as the <code>sha256</code> argument to
 <code>fetchurl</code>. Enables a two-step workflow: compute the hash
 upfront, then pin it in a pipeline for reproducible builds.</li>
 </ul>
-<h2 id="section-3">[0.53.3] - 2026-06-26</h2>
+<h2 id="section-4">[0.53.3] - 2026-06-26</h2>
 <h3 id="toolchain-ci-updates">Toolchain &amp; CI Updates</h3>
 <ul>
 <li><strong>Nixpkgs Snapshot &amp; Package Updates</strong>: Updated the
@@ -591,7 +629,7 @@ distribution quantile, via binary search on <code>pchisq</code>.</li>
 <li>Enables power analysis and exact p-value thresholds natively in T
 without calling R.</li>
 </ul>
-<h2 id="section-4">[0.53.2] - 2026-06-24</h2>
+<h2 id="section-5">[0.53.2] - 2026-06-24</h2>
 <h3 id="hotfix">Hotfix</h3>
 <ul>
 <li><strong>Nix Flake Update / Maven Dependency Parity</strong>: Fixed
@@ -600,7 +638,7 @@ for the <code>jpmml-evaluator</code> library (used for PMML model
 scoring). The nixpkgs fetch source hash has been updated to restore
 local build compatibility.</li>
 </ul>
-<h2 id="section-5">[0.53.1] - 2026-06-24</h2>
+<h2 id="section-6">[0.53.1] - 2026-06-24</h2>
 <h3 id="hotfix-1">Hotfix</h3>
 <p>Fix for https://github.com/b-rodrigues/tlang/issues/434</p>
 <p>jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master
@@ -653,7 +691,7 @@ Fixes</h3>
 before the global environment, enabling dynamic column name
 resolution.</li>
 </ul>
-<h2 id="section-6">[0.53.0] - 2026-06-22</h2>
+<h2 id="section-7">[0.53.0] - 2026-06-22</h2>
 <p>This release:</p>
 <ul>
 <li><strong>Atelier TUI IDE Integration</strong>: This release
@@ -755,7 +793,7 @@ inside assignment/reassignment statements. The error is bound to the
 variable and propagated correctly, enabling robust recovery patterns via
 subsequent <code>match</code> blocks.</li>
 </ul>
-<h2 id="section-7">[0.52.3] - 2026-06-12</h2>
+<h2 id="section-8">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature
@@ -1104,7 +1142,7 @@ code.</li>
 Checklist to <code>AGENTS.md</code> as a permanent reference for future
 contributions.</li>
 </ul>
-<h2 id="section-8">[0.52.2] - 2026-05-31</h2>
+<h2 id="section-9">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -1327,7 +1365,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-9">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-10">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -1681,7 +1719,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-10">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-11">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -1910,7 +1948,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-11">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-12">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -2173,7 +2211,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-12">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-13">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -2470,7 +2508,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-13">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-14">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.54.2 "Le Tournoi".
+**Status:** Version 0.54.3 "Le Tournoi".
 
 ---
 
@@ -410,7 +410,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.54.2
+> **Version**: 0.54.3
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -4342,6 +4342,144 @@ pipeline_report(p, target = "web", file = "report.html")
 ```
 
 ---
+
+### `set_pipeline_global_options(pipeline, functions = [:], include = [], env_vars = [:], serializer = NA, deserializer = NA, noop = false, args = [:], shell = NA, shell_args = [], flake = NA, dependencies = NA, runtimes = NA, nodes = NA)`
+
+Pure function that returns a new pipeline with the given defaults merged
+into target nodes. The original pipeline is not modified. By default the
+settings are merged into every node; pass `runtimes` and/or `nodes` to
+restrict the merge to a subset (union semantics when both are given).
+Omitting both scoping arguments (or passing `na()`) targets every node; an
+explicitly empty list (`nodes = []`) targets no nodes.
+
+Merge semantics vary per option:
+
+- **Combine (prepend)** — `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies`.
+  Global values come first; per-node values follow. For same-key dict entries
+  (`env_vars`, `args`) the later per-node value wins.
+- **Override** — `serializer`, `deserializer`, `shell`, `flake`.
+  A provided global value replaces every target node's per-node value entirely.
+- **Force-only** — `noop`. `noop = true` forces target nodes to no-op;
+  `noop = false` has no effect and cannot un-set a per-node `noop = true`.
+
+**Parameters:**
+
+- `pipeline` — The input pipeline (positional or piped).
+- `functions` (optional) — Dict mapping runtime shorthands to function file paths.
+  For example: `[rn: "functions.R", pyn: ["preproc.py", "utils.py"]]`.
+  Each value can be a single path (String) or list of paths (List[String]).
+  Runtime shorthands match node constructors: `rn` → R, `pyn` → Python, `jln` → Julia,
+  `qn` → Quarto, `shn` → sh, `node` → T.
+  If the same runtime shorthand appears more than once, all values are concatenated.
+  Per-node `functions` arguments are appended after these global files.
+- `include` (optional) — String or List[String]. File paths to include in every node's sandbox.
+  Per-node `include` arguments are appended after these global includes.
+- `env_vars` (optional) — Dict of environment variables for every node. Per-node
+  `env_vars` override global values for the same key.
+- `serializer` (optional) — String, Symbol, or `^`-prefixed serializer name. Default
+  serializer for every node; replaces any per-node serializer. `"default"` selects
+  the runtime's default.
+- `deserializer` (optional) — String, Symbol, or `^`-prefixed deserializer name. Default
+  deserializer for every node; replaces any per-node deserializer. `"default"` selects
+  the runtime's default.
+- `noop` (optional) — Bool. If true, every node becomes a no-op. Setting false has no
+  effect (it cannot un-set a per-node `noop = true`).
+- `args` (optional) — Dict of runtime/tool arguments for every node. Per-node `args`
+  override global values for the same key.
+- `shell` (optional) — String. Shell interpreter for every node; replaces per-node `shell`.
+- `shell_args` (optional) — String or List[String]. Shell arguments, prepended before
+  per-node `shell_args`.
+- `flake` (optional) — String. Nix flake reference for every node; replaces per-node `flake`.
+- `dependencies` (optional) — String or List[String]. Explicit dependencies, prepended
+  before per-node `deps`. Note: per-node node constructors use the shorter `deps`
+  argument name for the same field.
+- `runtimes` (optional) — String or List[String]. Scope the merge to nodes whose
+  runtime is in this set. Accepts translated runtimes (`"R"`, `"Python"`) or constructor
+  shorthands (`"rn"`, `"pyn"`). An unmatched runtime is a `TypeError`. Omitted (or
+  `na()`) targets all nodes; an explicitly empty list (`runtimes = []`) targets no nodes.
+- `nodes` (optional) — String or List[String]. Scope the merge to exactly these node
+  names. An unknown node name is a `TypeError`. When both `runtimes` and `nodes` are
+  given, the target is their union. Omitted (or `na()`) targets all nodes; an explicitly
+  empty list (`nodes = []`) targets no nodes.
+
+**Returns:**
+
+Pipeline — a new pipeline with the settings merged into the target nodes.
+
+**Examples:**
+```t
+p = pipeline {
+  a = rn(<{ ... }>),
+  b = pyn(<{ ... }>)
+}
+q = set_pipeline_global_options(p,
+  functions = [rn: "functions.R"],
+  include = "shared/config.yaml",
+  env_vars = [FOO: "bar"],
+  serializer = ^json,
+  noop = true
+)
+
+# Scope to R nodes only
+q2 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+
+# Scope to specific nodes
+q3 = set_pipeline_global_options(p, nodes = ["a"], noop = true)
+```
+
+---
+
+### `pipeline_node_options(pipeline, node)`
+
+Returns a Dict describing the fully resolved configuration of a single
+pipeline node, after any `set_pipeline_global_options` merges have been
+applied. This is the read-back companion to `set_pipeline_global_options`:
+what you merged in, you can read back out.
+
+The returned Dict has the following keys:
+
+- `name` — the node name (String)
+- `runtime` — one of `"T"`, `"R"`, `"Python"`, `"Julia"`, `"Quarto"`, `"sh"` (String)
+- `serializer` — e.g. `"default"`, `"pmml"` (String)
+- `deserializer` — e.g. `"default"`, `"pmml"` (String)
+- `noop` — whether the node is a no-op (Bool)
+- `deps` — names of nodes this node depends on (List of String)
+- `depth` — topological depth in the DAG (Int); roots are depth 0
+- `command_type` — one of `"command"` or `"script"` (String)
+- `diagnostics` — node diagnostics (Dict)
+- `functions` — function files merged into the node (List of String)
+- `include` — included files (List of String)
+- `env_vars` — build environment variables (Dict)
+- `args` — runtime/tool arguments (Dict)
+- `shell` — shell interpreter, or NA when unset (String | NA)
+- `shell_args` — shell interpreter arguments (List of String)
+- `flake` — Nix flake path, or NA when unset (String | NA)
+
+An unknown node name is a `TypeError` listing the valid node names.
+
+**Parameters:**
+
+- `pipeline` — The input pipeline (positional or piped).
+- `node` — The node name to read back (String).
+
+**Returns:**
+
+Dict — the resolved node configuration.
+
+**Examples:**
+```t
+p = pipeline {
+  a = rn(<{ ... }>),
+  b = pyn(<{ ... }>)
+}
+q = set_pipeline_global_options(p, functions = [rn: "functions.R"], noop = true)
+pipeline_node_options(q, "a")
+# => { name = "a", runtime = "R", functions = ["functions.R"], noop = true, ... }
+```
+
+---
+
+
 
 ### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
@@ -10014,6 +10152,33 @@ For datasets exceeding 2-3 GB:
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.54.3] - 2026-07-30
+
+### Pipeline Global Options — Pure Function
+
+- **`set_pipeline_global_options(pipeline, ...)`** replaces the
+  old side-effecting `pipeline_options()`. Returns a new pipeline with defaults
+  merged into every node; the original pipeline is never mutated and no global
+  state is used. Composes naturally with pipeline transforms and the pipe operator.
+  Duplicate runtime keys in the `functions` dict concatenate all values
+  (e.g. `[rn: "a.R", rn: "b.R"]` includes both files).
+- **Nine additional global options** beyond `functions`/`include`: `env_vars`, `args`,
+  and `shell_args` prepend global values before per-node values (per-node dict keys win);
+  `serializer`, `deserializer`, `shell`, and `flake` override every node's per-node value
+  entirely (`serializer`/`deserializer` accept `^`-prefixed names such as `^json`);
+  `dependencies` prepends explicit dependencies before per-node `deps`;
+  and `noop = true` forces every node to no-op while `noop = false` leaves per-node
+  noop settings untouched.
+- **Scoped merging (`runtimes`, `nodes`)**: Restrict the merge to a subset of nodes.
+  `runtimes = ["rn"]` targets R nodes; `nodes = ["n1"]` targets exact node names; when
+  both are given the target is their union. Omitted scoping arguments target all nodes,
+  while an explicitly empty list (`nodes = []`) targets none. An unmatched runtime or an
+  unknown node name raises an explicit `TypeError` instead of silently changing nothing.
+- **`pipeline_node_options(pipeline, node)` read-back**: Returns a Dict of a node's fully
+  resolved configuration (runtime, serializer/deserializer, noop, deps, depth, functions,
+  include, env_vars, args, shell, shell_args, flake) after any global-options merges.
+  What you merge in with `set_pipeline_global_options`, you can read back out.
 
 ## [0.54.2] - 2026-07-29
 
@@ -16749,7 +16914,7 @@ You should see:
 ```
 T, a reproducibility-first orchestration engine for polyglot
 data science and statistical analysis.
-Version 0.54.2 "Le Tournoi" using Nix <nix-version>
+Version 0.54.3 "Le Tournoi" using Nix <nix-version>
 Licensed under the EUPL v1.2. No warranties.
 This software is in beta and is entirely LLM-generated — caveat emptor.
 Website: https://tstats-project.org
@@ -20065,6 +20230,13 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `pipeline_gc(p, dry_run?)` | `Pipeline`, optional `Bool` | `DataFrame` | GC pipeline store paths (dry_run=true previews) |
 | `t_gc()` | — | `String` | Global Nix garbage collection |
 
+### Global Options
+
+| Function | Parameters | Returns | What it does |
+|---|---|---|---|
+| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)` | `Pipeline` plus optional `Dict`/`String`/`List`/`Bool` settings | `Pipeline` | Returns a new pipeline with global defaults merged into target nodes (all nodes by default). Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). `runtimes`/`nodes` restrict the merge to a subset (union when both given). |
+| `pipeline_node_options(p, node)` | `Pipeline`, `String` | `Dict` | Read-back: returns the fully resolved configuration of a single node after any global-options merges (runtime, serializer, functions, env_vars, shell, flake, deps, depth, ...). Unknown node is a `TypeError`. |
+
 ---
 
 ## 4. Explicit Node Configuration
@@ -20171,6 +20343,76 @@ fetchurl("https://example.com/data.csv", output = "data.csv")
 ```
 
 The companion function `prefetch(url)` downloads a URL and returns its SHA-256 hash, enabling the two-step workflow of computing the hash upfront then pinning it in a pipeline for reproducible builds.
+
+### Setting Global Options for All Nodes
+
+Use `set_pipeline_global_options` to share functions, includes, environment
+variables, serializers, and other settings across every node in a pipeline
+without repeating them per-node:
+
+```t
+p = pipeline {
+  data = rn(<{ ... }>),
+  model = pyn(<{ ... }>)
+}
+q = set_pipeline_global_options(p,
+  functions = [rn: "utils.R", pyn: "preproc.py"],
+  include = "shared/config.yaml",
+  env_vars = [FOO: "bar"],
+  serializer = ^json,
+  noop = true
+)
+```
+
+Per-node `functions` and `include` values are still applied after these globals.
+If you pass the same runtime shorthand more than once (e.g. `[rn: "a.R", rn: "b.R"]`),
+all values are concatenated — both files are included.
+
+The merge strategy depends on the option:
+
+- **Combine (prepend):** `functions`, `include`, `env_vars`, `args`, `shell_args`,
+  `dependencies` — global values come first; per-node values follow. For dict
+  options (`env_vars`, `args`), a per-node value for the same key wins.
+- **Override:** `serializer`, `deserializer`, `shell`, `flake` — a provided global
+  value replaces every node's per-node value entirely.
+- **Force-only:** `noop` — `noop = true` forces every node to no-op; `noop = false`
+  has no effect and cannot un-set a per-node `noop = true`.
+
+#### Scoping Options to a Subset of Nodes
+
+By default the settings are merged into every node. Pass `runtimes` and/or `nodes`
+to restrict the merge to a subset; when both are given the target is their union:
+
+```t
+# Only R nodes get the arrow serializer
+q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+
+# Only the named nodes become no-ops
+q2 = set_pipeline_global_options(p, nodes = ["data"], noop = true)
+
+# Union: the R nodes plus the "data" node
+q3 = set_pipeline_global_options(p, runtimes = ["rn"], nodes = ["data"], noop = true)
+```
+
+Omitting the scoping arguments (or passing `na()`) targets every node; an explicitly
+empty list (`nodes = []`) targets no nodes — the pipeline is returned unchanged.
+An unmatched runtime or an unknown node name is an explicit `TypeError`.
+
+#### Reading Back a Node's Resolved Configuration
+
+Use `pipeline_node_options(pipeline, node)` to read back the fully resolved
+configuration of a single node — including anything merged in by
+`set_pipeline_global_options`:
+
+```t
+info = pipeline_node_options(q1, "data")
+info.functions   # => function files merged into the node
+info.noop        # => whether the node is a no-op
+info.depth       # => topological depth in the DAG
+```
+
+See `set_pipeline_global_options` and `pipeline_node_options` in the
+[API reference](api-reference.md) for the full key list.
 
 ---
 
@@ -21294,7 +21536,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.54.2"
+min_version = "0.54.3"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -34646,7 +34888,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.54.2";
+    tlang.url = "github:b-rodrigues/tlang/v0.54.3";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -34769,7 +35011,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.54.2",
+    t_version: "0.54.3",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -34812,7 +35054,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.54.2";
+    tlang.url = "github:b-rodrigues/tlang/v0.54.3";
   };
   
   outputs = { self, nixpkgs, tlang }: {
