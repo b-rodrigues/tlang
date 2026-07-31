@@ -448,6 +448,7 @@ Current mutation targets:
 | `clean_safe_char` | `src/packages/dataframe/clean_colnames.ml` | `c >= 'a'` → `c > 'a'` (excludes `'a'`) | Column name cleaning tests |
 | `clean_collision` | `src/packages/dataframe/clean_colnames.ml` | Collision counter `count + 1` → `count - 1` | Duplicate column name tests |
 | `csv_type_fallback` | `src/packages/dataframe/t_read_csv.ml` | String fallback → `VInt 0` | CSV type inference tests |
+| `global_deps_guard` | `src/packages/pipeline/set_pipeline_global_options.ml` | `p_explicit_deps` rewritten unconditionally (flips `None` → `Some []`) when `dependencies` omitted | `set_pipeline_global_options` deps-omitted regression test |
 
 The script verifies each mutation was actually applied (via `diff -q`) before building/testing. If a mutation pattern doesn't match the current source, it reports "pattern did not match" instead of a false SURVIVED. The backup/restore mechanism uses an associative array to support mutations across multiple source files.
 

@@ -1,5 +1,25 @@
 open Ast
 open Pipeline_utils
+(*
+--# Build Pipeline
+--#
+--# Shorthand for `populate_pipeline(p, build = true)`. Materializes all nodes of
+--# the pipeline via Nix and returns a `BuildLog` (or a DataFrame of build stats).
+--# Recommended for scripts run with `t run`.
+--#
+--# @name build_pipeline
+--# @param p :: Pipeline The pipeline to build.
+--# @param verbose :: Int = 0 Nix build verbosity level (`0` = quiet, higher values print node stdout/stderr).
+--# @param nix_options :: Dict (Optional) Nix build options. Supported keys: `targets`, `force`, `dry_run`, `max_jobs`, `cache`, `builders`, `keep_env`, `sandbox`.
+--# @param dry_run :: Bool (Optional) If `true`, returns a planned build actions DataFrame instead of building.
+--# @param pipeline_name :: String (Optional) Explicit name for the pipeline.
+--# @return :: BuildLog | DataFrame A BuildLog of the build, or a planned-actions DataFrame when `dry_run` is set.
+--# @example
+--#   build_pipeline(p)
+--# @family pipeline
+--# @seealso populate_pipeline, pipeline_run
+--# @export
+--*)
 
 let write_atelier_diagrams p env =
   if not (Builder_utils.is_atelier_active ()) then ()

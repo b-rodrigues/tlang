@@ -155,6 +155,12 @@ apply_mutation() {
       backup_file "$REPO_ROOT/src/packages/dataframe/t_read_csv.ml"
       perl -i -pe 's/\| _ -> VString trimmed/| _ -> VInt 0/' "$REPO_ROOT/src/packages/dataframe/t_read_csv.ml"
       ;;
+
+    # ── set_pipeline_global_options.ml mutations ───────────────────────
+    global_deps_guard)
+      backup_file "$REPO_ROOT/src/packages/pipeline/set_pipeline_global_options.ml"
+      perl -i -pe 's/\| None -> p\.p_explicit_deps/| None -> List.map (fun (name, deps) -> (name, Some (match deps with Some d -> d | None -> []))) p.p_explicit_deps/' "$REPO_ROOT/src/packages/pipeline/set_pipeline_global_options.ml"
+      ;;
   esac
 
   # Verify at least one file was changed
@@ -225,6 +231,7 @@ declare -a MUTATION_NAMES=(
   "clean_safe_char"
   "clean_collision"
   "csv_type_fallback"
+  "global_deps_guard"
 )
 
 KILLED=0

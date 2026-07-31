@@ -20,6 +20,7 @@
 --#   pipeline_nodes(expanded)  -- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
 --# @family pipeline
 --# @export
+--# @name expand_pipeline
 *)
 
 open Ast

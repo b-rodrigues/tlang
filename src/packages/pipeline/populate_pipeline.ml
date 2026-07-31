@@ -1,6 +1,27 @@
 open Ast
 open Pipeline_utils
-
+(*
+--# Prepare Pipeline Infrastructure
+--#
+--# Writes the pipeline's Nix expression into `_pipeline/` and, when `build = true`,
+--# materializes all nodes. Returns a BuildLog on success or a DataFrame of planned
+--# build actions when a `dry_run` option is set.
+--#
+--# @name populate_pipeline
+--# @param p :: Pipeline The pipeline to populate.
+--# @param build :: Bool = false If `true`, triggers a Nix build of all nodes.
+--# @param verbose :: Int = 0 Nix build verbosity level (`0` = quiet, higher values print node stdout/stderr).
+--# @param nix_options :: Dict (Optional) Nix build options. Supported keys: `targets`, `force`, `dry_run`, `max_jobs`, `cache`, `builders`, `keep_env`, `sandbox`.
+--# @param dry_run :: Bool (Optional) If `true`, returns a planned build actions DataFrame instead of building.
+--# @param pipeline_name :: String (Optional) Explicit name for the pipeline.
+--# @return :: String | BuildLog | DataFrame Success message, BuildLog, or planned-actions DataFrame.
+--# @example
+--#   populate_pipeline(p)
+--#   populate_pipeline(p, build = true)
+--# @family pipeline
+--# @seealso build_pipeline, pipeline_run
+--# @export
+--*)
 let register env =
   let populate_fn named_args env =
     if !Ast.check_mode then
