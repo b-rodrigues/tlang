@@ -3091,13 +3091,13 @@ p.t_step|}
    let get_serializer p name =
      match List.assoc_opt name p.p_serializers with
      | Some e ->
-         (match e.node with Value (VString s) -> s | Var "default" -> "default" | _ -> "__other__")
+         (match e.node with Value (VString s) -> s | Value (VSerializer s) -> s.s_format | Var "default" -> "default" | _ -> "__other__")
      | None -> "__missing__"
    in
    let get_deserializer p name =
      match List.assoc_opt name p.p_deserializers with
      | Some e ->
-         (match e.node with Value (VString s) -> s | Var "default" -> "default" | _ -> "__other__")
+         (match e.node with Value (VString s) -> s | Value (VSerializer s) -> s.s_format | Var "default" -> "default" | _ -> "__other__")
      | None -> "__missing__"
    in
    let get_noop p name =
@@ -3493,10 +3493,11 @@ p.t_step|}
        n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
        n2 = rn(command = <{ 2 + 2 }>)
      }
-     q = set_pipeline_global_options(p, functions = [rn: "global.R"], include = "g.yaml",
-                                     env_vars = [GLOBAL: "1"], noop = true, shell = "bash",
-                                     shell_args = "-e", flake = "git+file:///tmp/flake")
-     info = pipeline_node_options(q, "n1")
+      q = set_pipeline_global_options(p, functions = [rn: "global.R"], include = "g.yaml",
+                                      env_vars = [GLOBAL: "1"], noop = true, shell = "bash",
+                                      shell_args = "-e", flake = "git+file:///tmp/flake",
+                                      serializer = ^json)
+      info = pipeline_node_options(q, "n1")
    |} (Packages.init_env ()) in
     let (vi, _) = eval_string_env "info" env in
     match vi with
@@ -3513,12 +3514,14 @@ p.t_step|}
         let rt = match f "runtime" with Some (VString s) -> s | _ -> "?" in
         let depth = match f "depth" with Some (VInt d) -> d | _ -> -1 in
         let cmd_type = match f "command_type" with Some (VString s) -> s | _ -> "?" in
+        let serializer = match f "serializer" with Some (VString s) -> s | _ -> "?" in
         let ok =
           funcs = ["global.R"] && incs = ["g.yaml"]
           && sh = "bash" && fl = "git+file:///tmp/flake"
           && noop && env_vars = Some (VString "1")
           && deps = ["n2"] && shell_args = ["-e"]
           && rt = "R" && depth = 1 && cmd_type = "command"
+          && serializer = "json"
         in
         let dbg = Printf.sprintf "funcs_eq=%b incs_eq=%b sh_eq=%b fl_eq=%b noop_eq=%b envvars_eq=%b deps_eq=%b shellargs_eq=%b rt_eq=%b depth_eq=%b cmdtype_eq=%b"
           (funcs = ["global.R"]) (incs = ["g.yaml"]) (sh = "bash") (fl = "git+file:///tmp/flake") noop

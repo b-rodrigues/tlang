@@ -120,7 +120,7 @@ let register env =
 
             let parse_expr_opt v =
               match v with
-              | VSerializer s -> Ok (Some (mk_expr (Value (VString s.s_format))))
+              | VSerializer s -> Ok (Some (mk_expr (Value (VSerializer s))))
               | VSymbol "default" | VString "default" -> Ok (Some (mk_expr (Var "default")))
               | VString s -> Ok (Some (mk_expr (Value (VString s))))
               | VSymbol s -> Ok (Some (mk_expr (Value (VString s))))
