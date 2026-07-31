@@ -35,6 +35,19 @@
 
 ### Node Config Provenance (`explain` + `pipeline_node_options`)
 
+- **`pipeline_config_to_frame(p)`**: New tabular config read-back. Produces a DataFrame
+  with one row per node and 32 columns covering resolved config values (serializer,
+  deserializer, noop, shell, flake), per-field provenance (scalar source markers +
+  global/node count columns for lists), and identity columns (name, runtime, depth,
+  command_type). Complements `pipeline_node_options` (Dict detail) with queryable
+  DataFrame-wide overview — e.g., "filter on `prov_serializer == \"global\"` to find
+  every node whose serializer came from global options."
+- **Expanded `mutate_node` field coverage**: Now supports `functions`, `include`,
+  `env_vars`, `args`, `shell`, `shell_args`, and `flake` in addition to the existing
+  `noop`/`serializer`/`deserializer`/`runtime`/`deps`. All new fields participate in
+  provenance tracking so `pipeline_node_options` correctly shows them as `"node"`-sourced
+  after mutation. Pass `NA` to clear an optional or list field.
+
 - **`explain(p.node)` shows source provenance**: The `config` section of `explain()`
   output for a computed node now distinguishes which settings came from global
   pipeline options versus the node itself. `pipeline_node_options(p, node)` includes a

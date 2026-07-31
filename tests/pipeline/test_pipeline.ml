@@ -333,6 +333,26 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "p = pipeline { a = 1; b = a + 1 }; length(pipeline_edges(p))"
     "1";
 
+  test "pipeline_config_to_frame returns correct row count"
+    {|p = pipeline { a = 1; b = a + 1; c = b + 1 }
+      nrow(pipeline_config_to_frame(p))|}
+    "3";
+
+  test "pipeline_config_to_frame has expected provenance columns"
+    {|p = pipeline { a = rn(command = <{ 1 }>) }
+      ncol(pipeline_config_to_frame(p)) > 20|}
+    "true";
+
+  test "pipeline_config_to_frame provenance: nrow after global options"
+    {|p = pipeline { a = node(command = 1); b = node(command = 2) }
+      q = set_pipeline_global_options(p, serializer = ^json)
+      nrow(pipeline_config_to_frame(q))|}
+    "2";
+
+  test "pipeline_config_to_frame rejects non-pipeline"
+    {|pipeline_config_to_frame(42)|}
+    {|Error(TypeError: "[L1:C1] Function `pipeline_config_to_frame` expects a Pipeline, but got Int.")|};
+
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Re-run (Caching):\n";
