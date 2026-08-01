@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Pipeline Validation Fixes
+
+- **`text` is now treated as format-agnostic raw bytes in serializer checks**:
+  shell nodes (runtime `sh`) and `capture = "stdout"` nodes may consume any
+  producer format through `$T_INPUT_<dep>` without a "serializer coherence
+  error", and typed nodes may read a shell node's raw text output with an
+  explicit deserializer (e.g. `deserializer = [node: ^csv]`). Previously,
+  valid pipelines combining a shell node with a `^json`/`^csv` producer (or a
+  typed consumer reading a shell node's output) were wrongly rejected by
+  `build_pipeline`, `populate_pipeline`, `pipeline_validate`, and `t check`.
+  A shell node with multiple dependencies also no longer trips the
+  "single deserializer strategy" check.
+
 ## [0.54.3] - 2026-07-30
 
 ### Pipeline Global Options — Pure Function

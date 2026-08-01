@@ -166,7 +166,9 @@ let check_cross_runtime
     | None -> None
   ) deps
 
-(** Multiple dependencies with a single non-default deserializer strategy. *)
+(** Multiple dependencies with a single non-default deserializer strategy.
+    `text` is exempt: it is the implicit default for shell/`capture = "stdout"`
+    nodes, which read dependency artifacts as raw bytes and are format-agnostic. *)
 let check_multi_dep_strategies (p : pipeline_result) : validation_error list =
   let is_dict_or_list = function
     | DictLit _ | ListLit _ | Value (VDict _) | Value (VList _) -> true
@@ -179,7 +181,7 @@ let check_multi_dep_strategies (p : pipeline_result) : validation_error list =
     in
     if List.length deps >= 2 && not (is_dict_or_list des.node) then
       let strategy = Nix_unparse.expr_to_string des in
-      if strategy <> "default" then
+      if strategy <> "default" && strategy <> "text" then
         (match deps with
          | d1 :: d2 :: _ ->
              Some { ve_kind = "StructuralError";
@@ -193,7 +195,11 @@ let check_multi_dep_strategies (p : pipeline_result) : validation_error list =
     else None
   ) p.p_exprs
 
-(** Serializer/deserializer format coherence across dependency edges. *)
+(** Serializer/deserializer format coherence across dependency edges.
+    `text` is treated as a format-agnostic wildcard on either side: it is the
+    implicit default for shell/`capture = "stdout"` nodes, which emit and
+    consume raw bytes (e.g. a shell node reading `$T_INPUT_<dep>`, or a node
+    reading a shell node's raw stdout as `csv`). *)
 let check_serializer_coherence (p : pipeline_result) : validation_error list =
   let get_ser name =
     match List.assoc_opt name p.p_serializers with
@@ -231,7 +237,7 @@ let check_serializer_coherence (p : pipeline_result) : validation_error list =
         | _ -> extract_format node_des_val
       in
       match producer_fmt, consumer_fmt with
-      | Some pf, Some cf when pf <> cf && pf <> "default" && cf <> "default" ->
+      | Some pf, Some cf when pf <> cf && pf <> "default" && cf <> "default" && pf <> "text" && cf <> "text" ->
           Some { ve_kind = "StructuralError";
                  ve_message =
                    Printf.sprintf "Serializer coherence error: Node `%s` expects format `%s` for dependency `%s`, but `%s` produces format `%s`."

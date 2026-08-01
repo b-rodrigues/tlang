@@ -3007,7 +3007,9 @@ Checks performed:
 - Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`)
 - Cross-runtime dependencies declare an explicit deserializer
 - Multiple dependencies with a single non-dictionary deserializer strategy
-- Deserializer/format coherence across dependency edges
+- Deserializer/format coherence across dependency edges (`text` is treated as
+  format-agnostic raw bytes: shell/`capture = "stdout"` nodes may consume any
+  format, and typed nodes may read a shell node's raw output)
 - Referenced function/include/script files exist on the file system
 - The `^bin` serializer is only used by `fetchurl` nodes
 

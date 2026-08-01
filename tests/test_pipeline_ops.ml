@@ -601,6 +601,29 @@ pipeline_edges(p)|}
        }; pipeline_validate(p)|}
     "single deserializer strategy";
 
+  test "pipeline_validate accepts shell node consuming json producer"
+    {|p = pipeline {
+         dep_node = node(command = <{ "hello" }>, serializer = ^json);
+         sh_node = shn(command = <{ cat "$T_INPUT_dep_node" }>, deps = ["dep_node"])
+       }; pipeline_validate(p)|}
+    {|[]|};
+
+  test "pipeline_validate accepts typed consumer reading shell text producer"
+    {|p = pipeline {
+         awk_node = shn(command = <{ echo "variable,value" }>);
+         final_summary = node(command = <{ awk_node |> head(1) }>,
+                              deserializer = [awk_node: ^csv], deps = ["awk_node"])
+       }; pipeline_validate(p)|}
+    {|[]|};
+
+  test "pipeline_validate accepts shell node with multiple deps"
+    {|p = pipeline {
+         a = node(command = <{ 1 }>, serializer = ^json);
+         b = node(command = <{ 2 }>, serializer = ^csv);
+         sh = shn(command = <{ cat "$T_INPUT_a" "$T_INPUT_b" }>, deps = ["a", "b"])
+       }; pipeline_validate(p)|}
+    {|[]|};
+
   test "pipeline_validate reports bin on non-fetchurl node"
     {|p = pipeline { a = rn(command = <{ 1 }>, serializer = ^bin) }; pipeline_validate(p)|}
     "only supported for fetchurl nodes";
