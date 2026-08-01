@@ -34,6 +34,24 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
+<h2 id="unreleased">Unreleased</h2>
+<h3 id="pipeline-validation-fixes">Pipeline Validation Fixes</h3>
+<ul>
+<li><strong><code>text</code> is now treated as format-agnostic raw
+bytes in serializer checks</strong>: shell nodes (runtime
+<code>sh</code>) and <code>capture = "stdout"</code> nodes may consume
+any producer format through <code>$T_INPUT_&lt;dep&gt;</code> without a
+“serializer coherence error”, and typed nodes may read a shell node’s
+raw text output with an explicit deserializer
+(e.g. <code>deserializer = [node: ^csv]</code>). Previously, valid
+pipelines combining a shell node with a
+<code>^json</code>/<code>^csv</code> producer (or a typed consumer
+reading a shell node’s output) were wrongly rejected by
+<code>build_pipeline</code>, <code>populate_pipeline</code>,
+<code>pipeline_validate</code>, and <code>t check</code>. A shell node
+with multiple dependencies also no longer trips the “single deserializer
+strategy” check.</li>
+</ul>
 <h2 id="section">[0.54.3] - 2026-07-30</h2>
 <h3 id="pipeline-global-options-pure-function">Pipeline Global Options —
 Pure Function</h3>

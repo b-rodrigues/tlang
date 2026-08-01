@@ -2447,7 +2447,10 @@ enforced everywhere.</p>
 <li>Cross-runtime dependencies declare an explicit deserializer</li>
 <li>Multiple dependencies with a single non-dictionary deserializer
 strategy</li>
-<li>Deserializer/format coherence across dependency edges</li>
+<li>Deserializer/format coherence across dependency edges
+(<code>text</code> is treated as format-agnostic raw bytes:
+shell/<code>capture = "stdout"</code> nodes may consume any format, and
+typed nodes may read a shell node’s raw output)</li>
 <li>Referenced function/include/script files exist on the file
 system</li>
 <li>The <code>^bin</code> serializer is only used by
