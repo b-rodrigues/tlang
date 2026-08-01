@@ -227,6 +227,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test =
     cn_dependencies = [];
     cn_p_exprs = None;
     cn_flake = None;
+    cn_config = None;
   } in
   Ast.set_in_memory_node_value ~p_exprs:[] ~node_name:"test_cn" (make_warning_node ());
   assert_pass "expect_warning computed node resolved"

@@ -1,4 +1,82 @@
 open Ast
+(*
+--# Map pattern stub
+--#
+--# `map_pattern` can only be used as a `pattern=` argument inside `node()` to
+--# expand a node over the elements of a dependency (List, Vector, or DataFrame).
+--# Calling it directly returns a `TypeError`.
+--#
+--# @name map_pattern
+--# @return :: VError A `TypeError` explaining that patterns are only valid inside `node()`.
+--# @family pipeline
+--# @seealso cross_pattern, slice_pattern, head_pattern, tail_pattern, sample_pattern, expand_pipeline
+--# @export
+--*)
+(*
+--# Cross pattern stub
+--#
+--# `cross_pattern` can only be used as a `pattern=` argument inside `node()` to
+--# expand a node over the cross product of two or more dependencies. Calling it
+--# directly returns a `TypeError`.
+--#
+--# @name cross_pattern
+--# @return :: VError A `TypeError` explaining that patterns are only valid inside `node()`.
+--# @family pipeline
+--# @seealso map_pattern, slice_pattern, head_pattern, tail_pattern, sample_pattern, expand_pipeline
+--# @export
+--*)
+(*
+--# Slice pattern stub
+--#
+--# `slice_pattern` can only be used as a `pattern=` argument inside `node()` to
+--# expand a node over a contiguous slice of a dependency. Calling it directly
+--# returns a `TypeError`.
+--#
+--# @name slice_pattern
+--# @return :: VError A `TypeError` explaining that patterns are only valid inside `node()`.
+--# @family pipeline
+--# @seealso map_pattern, cross_pattern, head_pattern, tail_pattern, sample_pattern, expand_pipeline
+--# @export
+--*)
+(*
+--# Head pattern stub
+--#
+--# `head_pattern` can only be used as a `pattern=` argument inside `node()` to
+--# expand a node over the first `n` elements of a dependency. Calling it directly
+--# returns a `TypeError`.
+--#
+--# @name head_pattern
+--# @return :: VError A `TypeError` explaining that patterns are only valid inside `node()`.
+--# @family pipeline
+--# @seealso map_pattern, cross_pattern, slice_pattern, tail_pattern, sample_pattern, expand_pipeline
+--# @export
+--*)
+(*
+--# Tail pattern stub
+--#
+--# `tail_pattern` can only be used as a `pattern=` argument inside `node()` to
+--# expand a node over the last `n` elements of a dependency. Calling it directly
+--# returns a `TypeError`.
+--#
+--# @name tail_pattern
+--# @return :: VError A `TypeError` explaining that patterns are only valid inside `node()`.
+--# @family pipeline
+--# @seealso map_pattern, cross_pattern, slice_pattern, head_pattern, sample_pattern, expand_pipeline
+--# @export
+--*)
+(*
+--# Sample pattern stub
+--#
+--# `sample_pattern` can only be used as a `pattern=` argument inside `node()` to
+--# expand a node over a random sample of a dependency. Calling it directly returns
+--# a `TypeError`.
+--#
+--# @name sample_pattern
+--# @return :: VError A `TypeError` explaining that patterns are only valid inside `node()`.
+--# @family pipeline
+--# @seealso map_pattern, cross_pattern, slice_pattern, head_pattern, tail_pattern, expand_pipeline
+--# @export
+--*)
 
 let register env =
   let make_pattern_stub name =

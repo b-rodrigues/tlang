@@ -511,6 +511,7 @@ let read_node ?which_log name =
           cn_dependencies = [];
           cn_p_exprs = None;
           cn_flake = None;
+          cn_config = None;
         } in
         
         let v = read_env_node_value name cn in

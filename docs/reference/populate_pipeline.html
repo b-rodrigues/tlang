@@ -34,31 +34,40 @@
 </nav>
 <div class="container">
 <h1 id="populate_pipeline">populate_pipeline</h1>
-<p>Populate Pipeline</p>
-<p>Generates the <code>_pipeline/</code> directory with
-<code>pipeline.nix</code> and <code>dag.json</code>. Optionally builds
-the pipeline with full Nix-native orchestration support. If the pipeline
-contains unexpanded dynamic branching patterns
-(<code>map_pattern</code>, <code>cross_pattern</code>), they are
-automatically expanded before population.</p>
+<p>Prepare Pipeline Infrastructure</p>
+<p>Writes the pipeline’s Nix expression into <code>_pipeline/</code>
+and, when <code>build = true</code>, materializes all nodes. Returns a
+BuildLog on success or a DataFrame of planned build actions when a
+<code>dry_run</code> option is set.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
 populate.</p></li>
-<li><p><strong>build</strong> (<code>Bool</code>): (Optional) Whether to
-trigger the Nix build immediately. Defaults to false.</p></li>
-<li><p><strong>verbose</strong> (<code>Int</code>): (Optional) Nix build
-verbosity level. <code>0</code> keeps build failures quiet; values above
-<code>0</code> print failed node logs.</p></li>
-<li><p><strong>dry_run</strong> (<code>Bool</code>): (Optional) Perform
-a dry run via Nix (<code>--dry-run</code>), returning a DataFrame of
-planned actions without executing.</p></li>
-<li><p><strong>nix_options</strong> (<code>Dict</code>): (Optional) A
-dictionary of Nix orchestration options:</p></li>
+<li><p><strong>build</strong> (<code>Bool</code>): = false If
+<code>true</code>, triggers a Nix build of all nodes.</p></li>
+<li><p><strong>verbose</strong> (<code>Int</code>): = 0 Nix build
+verbosity level (<code>0</code> = quiet, higher values print node
+stdout/stderr).</p></li>
+<li><p><strong>nix_options</strong> (<code>Dict</code>): (Optional) Nix
+build options. Supported keys: <code>targets</code>, <code>force</code>,
+<code>dry_run</code>, <code>max_jobs</code>, <code>cache</code>,
+<code>builders</code>, <code>keep_env</code>,
+<code>sandbox</code>.</p></li>
+<li><p><strong>dry_run</strong> (<code>Bool</code>): (Optional) If
+<code>true</code>, returns a planned build actions DataFrame instead of
+building.</p></li>
+<li><p><strong>pipeline_name</strong> (<code>String</code>): (Optional)
+Explicit name for the pipeline.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A status message, structured build log, or dry-run plan
-DataFrame.</p>
+<div class="line-block">BuildLog | DataFrame Success message, BuildLog,
+or planned-actions DataFrame.</div>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>populate_pipeline(p)
+populate_pipeline(p, build = true)</code></pre>
+<h2 id="see-also">See Also</h2>
+<p><a href="pipeline_run.html">pipeline_run</a>, <a
+href="build_pipeline.html">build_pipeline</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

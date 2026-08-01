@@ -1,23 +1,36 @@
 # populate_pipeline
 
-Populate Pipeline
+Prepare Pipeline Infrastructure
 
-Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optionally builds the pipeline with full Nix-native orchestration support.  If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before population.
+Writes the pipeline's Nix expression into `_pipeline/` and, when `build = true`, materializes all nodes. Returns a BuildLog on success or a DataFrame of planned build actions when a `dry_run` option is set.
 
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline to populate.
 
-- **build** (`Bool`): (Optional) Whether to trigger the Nix build immediately. Defaults to false.
+- **build** (`Bool`): = false If `true`, triggers a Nix build of all nodes.
 
-- **verbose** (`Int`): (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+- **verbose** (`Int`): = 0 Nix build verbosity level (`0` = quiet, higher values print node stdout/stderr).
 
-- **dry_run** (`Bool`): (Optional) Perform a dry run via Nix (`--dry-run`), returning a DataFrame of planned actions without executing.
+- **nix_options** (`Dict`): (Optional) Nix build options. Supported keys: `targets`, `force`, `dry_run`, `max_jobs`, `cache`, `builders`, `keep_env`, `sandbox`.
 
-- **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
+- **dry_run** (`Bool`): (Optional) If `true`, returns a planned build actions DataFrame instead of building.
+
+- **pipeline_name** (`String`): (Optional) Explicit name for the pipeline.
 
 
 ## Returns
 
-A status message, structured build log, or dry-run plan DataFrame.
+| BuildLog | DataFrame Success message, BuildLog, or planned-actions DataFrame.
+
+## Examples
+
+```t
+populate_pipeline(p)
+populate_pipeline(p, build = true)
+```
+
+## See Also
+
+[pipeline_run](pipeline_run.html), [build_pipeline](build_pipeline.html)
 

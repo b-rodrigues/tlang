@@ -333,6 +333,22 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "p = pipeline { a = 1; b = a + 1 }; length(pipeline_edges(p))"
     "1";
 
+  test "pipeline_config_to_frame returns correct row count"
+    {|p = pipeline { a = 1; b = a + 1; c = b + 1 }
+      nrow(pipeline_config_to_frame(p))|}
+    "3";
+
+  test "pipeline_config_to_frame has expected provenance columns"
+    {|p = pipeline { a = rn(command = <{ 1 }>) }
+      ncol(pipeline_config_to_frame(p)) > 20|}
+    "true";
+
+  test "pipeline_config_to_frame provenance: nrow after global options"
+    {|p = pipeline { a = node(command = 1); b = node(command = 2) }
+      q = set_pipeline_global_options(p, serializer = ^json)
+      nrow(pipeline_config_to_frame(q))|}
+    "2";
+
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Re-run (Caching):\n";
@@ -1259,6 +1275,27 @@ p_cross = pipeline {
    | other ->
         incr fail_count; Printf.printf "  ✗ Quarto node args parsing failed: %s\n"
           (Ast.Utils.value_to_string other));
+
+  let (v_per_node_include, _) = eval_string_env
+    {|node(command = 1, include = "config.yaml", functions = ["utils.R"])|}
+    (Packages.init_env ()) in
+  (match v_per_node_include with
+   | Ast.VNode un ->
+       let has_include = List.exists (function
+         | { Ast.node = Ast.Value (VString s); _ } -> s = "config.yaml"
+         | _ -> false) un.un_includes
+       in
+       let has_functions = List.exists (function
+         | { Ast.node = Ast.Value (VString s); _ } -> s = "utils.R"
+         | _ -> false) un.un_functions
+       in
+       if has_include && has_functions then begin
+         incr pass_count; Printf.printf "  ✓ per-node include and functions are correctly resolved\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ per-node include/functions not found\n    include_found=%b functions_found=%b\n" has_include has_functions
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ per-node include test: unexpected value %s\n" (Ast.Utils.value_to_string other));
 
   let (v_qn_node, _) = eval_string_env
     {|qn(args = [subcommand: "render", path: "report.qmd", to: "html"])|}
@@ -2942,4 +2979,850 @@ p.t_step|}
     incr fail_count; Printf.printf "  ✗ patience diff hunk kinds classify mixed changes correctly\n"
   end;
 
-  print_newline ()
+  (* set_pipeline_global_options tests *)
+  Printf.printf "Pipeline Options — set_pipeline_global_options():\n";
+
+  let open Ast in
+  let get_funcs p name =
+    match List.assoc_opt name p.p_functions with
+    | Some lst -> List.map (fun e -> match e.node with Value (VString s) -> s | _ -> "__not_a_string__") lst
+    | None -> []
+  in
+  let get_incs p name =
+    match List.assoc_opt name p.p_includes with
+    | Some lst -> List.map (fun e -> match e.node with Value (VString s) -> s | _ -> "__not_a_string__") lst
+    | None -> []
+  in
+  let string_set_equal a b = List.sort compare a = List.sort compare b in
+
+  (* Test 1: Global functions merge, runtime isolation, original pipeline unchanged *)
+  (let (_, env) = eval_string_env {|
+    p = pipeline {
+      n1 = rn(command = <{ 1 + 1 }>)
+      n2 = pyn(command = <{ 2 + 2 }>, functions = ["extra.py"])
+      n3 = jln(command = <{ 3 + 3 }>)
+      n4 = node(command = 1 + 1)
+    }
+    q = set_pipeline_global_options(p, functions = [rn: "test.R", pyn: ["a.py", "b.py"]])
+  |} (Packages.init_env ()) in
+   let (vp, _) = eval_string_env "p" env in
+   let (vq, _) = eval_string_env "q" env in
+   match vq with
+   | VPipeline q ->
+       let q_ok =
+         string_set_equal (get_funcs q "n1") ["test.R"]
+         && string_set_equal (get_funcs q "n2") ["a.py"; "b.py"; "extra.py"]
+         && get_funcs q "n3" = []
+         && get_funcs q "n4" = []
+       in
+       let p_unchanged = match vp with
+         | VPipeline p -> get_funcs p "n1" = [] && get_funcs p "n2" = ["extra.py"]
+         | _ -> false
+       in
+       if q_ok && p_unchanged then
+         (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options merges functions and leaves original unchanged\n")
+       else
+         (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options functions merge failed\n    n1: {%s}\n    n2: {%s}\n    n3: {%s}\n    n4: {%s}\n    p_unchanged: %b\n"
+            (String.concat ", " (get_funcs q "n1")) (String.concat ", " (get_funcs q "n2"))
+            (String.concat ", " (get_funcs q "n3")) (String.concat ", " (get_funcs q "n4")) p_unchanged)
+   | other ->
+       incr fail_count; Printf.printf "  ✗ set_pipeline_global_options test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+  (* Test 2: Include merge *)
+  (let (_, env) = eval_string_env {|
+    p = pipeline {
+      n1 = rn(command = <{ 1 + 1 }>, include = ["extra.csv"])
+    }
+    q = set_pipeline_global_options(p, include = "shared.yaml")
+  |} (Packages.init_env ()) in
+   let (vq, _) = eval_string_env "q" env in
+   match vq with
+   | VPipeline q ->
+       let n1_includes = get_incs q "n1" in
+       if List.mem "shared.yaml" n1_includes && List.mem "extra.csv" n1_includes then
+         (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options merges global include with per-node include\n")
+       else
+         (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options include merge failed: {%s}\n" (String.concat ", " n1_includes))
+   | other ->
+       incr fail_count; Printf.printf "  ✗ set_pipeline_global_options include test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+  (* Test 3: Unknown argument error *)
+  test "set_pipeline_global_options unknown argument"
+    {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), unknown_arg = "foo")|}
+    {|Error(TypeError: "set_pipeline_global_options: unknown argument 'unknown_arg'. Supported arguments are: functions, include, env_vars, serializer, deserializer, noop, args, shell, shell_args, flake, dependencies, runtimes, nodes.")|};
+
+  (* Test 4: Composability — calling twice merges both sets of defaults *)
+  (let (_, env) = eval_string_env {|
+    p = pipeline {
+      n1 = rn(command = <{ 1 + 1 }>)
+    }
+    q = set_pipeline_global_options(set_pipeline_global_options(p, functions = [rn: "first.R"]), functions = [rn: "second.R"])
+  |} (Packages.init_env ()) in
+   let (vq, _) = eval_string_env "q" env in
+   match vq with
+   | Ast.VPipeline q ->
+       let n1_funcs = get_funcs q "n1" in
+       if n1_funcs = ["second.R"; "first.R"] then
+         (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options composable: second call prepends before first\n")
+       else
+         (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options composability failed: {%s}\n" (String.concat ", " n1_funcs))
+   | other ->
+       incr fail_count; Printf.printf "  ✗ set_pipeline_global_options composability test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+
+  (* Test 5: Nodes added after the call do not inherit defaults *)
+  (let (_, env) = eval_string_env {|
+    p = pipeline { n1 = rn(command = <{ 1 + 1 }>) }
+    q = set_pipeline_global_options(p, include = "global.yaml")
+    r = pipeline { n2 = rn(command = <{ 2 + 2 }>) }
+    s = union(q, r)
+  |} (Packages.init_env ()) in
+   let (vs, _) = eval_string_env "s" env in
+   match vs with
+   | Ast.VPipeline s ->
+       let n1_includes = get_incs s "n1" in
+       let n2_includes = get_incs s "n2" in
+       if List.mem "global.yaml" n1_includes && n2_includes = [] then
+         (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options: nodes added after call do not inherit defaults\n")
+       else
+         (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options nodes-after failed: n1={%s} n2={%s}\n"
+            (String.concat ", " n1_includes) (String.concat ", " n2_includes))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options nodes-after test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+
+   (* Helper accessors for new pipeline fields *)
+   let get_env_vars p name =
+     match List.assoc_opt name p.p_env_vars with
+     | Some lst -> List.map (fun (k, v) ->
+         (k, match v with VString s -> s | VSymbol s -> s | _ -> "__not_a_string__")
+       ) lst
+     | None -> []
+   in
+   let get_args p name =
+     match List.assoc_opt name p.p_args with
+     | Some lst -> List.map (fun (k, v) ->
+         (k, match v with VString s -> s | VSymbol s -> s | _ -> "__not_a_string__")
+       ) lst
+     | None -> []
+   in
+   let get_serializer p name =
+     match List.assoc_opt name p.p_serializers with
+     | Some e ->
+         (match e.node with Value (VString s) -> s | Value (VSerializer s) -> s.s_format | Var "default" -> "default" | _ -> "__other__")
+     | None -> "__missing__"
+   in
+   let get_deserializer p name =
+     match List.assoc_opt name p.p_deserializers with
+     | Some e ->
+         (match e.node with Value (VString s) -> s | Value (VSerializer s) -> s.s_format | Var "default" -> "default" | _ -> "__other__")
+     | None -> "__missing__"
+   in
+   let get_noop p name =
+     match List.assoc_opt name p.p_noops with Some b -> b | None -> false
+   in
+   let get_shell p name =
+     match List.assoc_opt name p.p_shells with Some s -> s | None -> None
+   in
+   let get_shell_args p name =
+     match List.assoc_opt name p.p_shell_args with
+     | Some lst -> List.map (fun e -> match e.node with Value (VString s) -> s | _ -> "__not_a_string__") lst
+     | None -> []
+   in
+   let get_flake p name =
+     match List.assoc_opt name p.p_flakes with Some f -> f | None -> None
+   in
+    let get_deps p name =
+      match List.assoc_opt name p.p_explicit_deps with Some d -> d | None -> Some []
+    in
+    let get_p_deps p name =
+      match List.assoc_opt name p.p_deps with Some d -> d | None -> []
+    in
+
+   (* Test 6: env_vars merge *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, env_vars = [EXTRA: "per_node"])
+       n2 = pyn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, env_vars = [MODE: "fast", API_KEY: "secret"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    let (vp, _) = eval_string_env "p" env in
+    match vq with
+    | VPipeline q ->
+        let n1_vars = get_env_vars q "n1" in
+        let n2_vars = get_env_vars q "n2" in
+        let q_ok =
+          List.mem ("MODE", "fast") n1_vars
+          && List.mem ("API_KEY", "secret") n1_vars
+          && List.mem ("EXTRA", "per_node") n1_vars
+          && List.mem ("MODE", "fast") n2_vars
+          && List.mem ("API_KEY", "secret") n2_vars
+        in
+        let p_unchanged = match vp with
+          | VPipeline p -> get_env_vars p "n1" = ["EXTRA", "per_node"] && get_env_vars p "n2" = []
+          | _ -> false
+        in
+        if q_ok && p_unchanged then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options merges env_vars and leaves original unchanged\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options env_vars merge failed: n1={%s} n2={%s} p_unchanged=%b\n"
+             (String.concat ", " (List.map (fun (k, v) -> k ^ "=" ^ v) n1_vars))
+             (String.concat ", " (List.map (fun (k, v) -> k ^ "=" ^ v) n2_vars))
+             p_unchanged)
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options env_vars test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 7: args merge *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, args = [extra_arg: "per_node"])
+     }
+     q = set_pipeline_global_options(p, args = [mode: "batch"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_args = get_args q "n1" in
+        if List.mem ("mode", "batch") n1_args && List.mem ("extra_arg", "per_node") n1_args then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options merges args (global prepended)\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options args merge failed: {%s}\n"
+             (String.concat ", " (List.map (fun (k, v) -> k ^ "=" ^ v) n1_args)))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options args test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 8: serializer override *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, serializer = ^json)
+       n2 = pyn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, serializer = ^arrow)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_ser = get_serializer q "n1" in
+        let n2_ser = get_serializer q "n2" in
+        if n1_ser = "arrow" && n2_ser = "arrow" then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides serializer for all nodes\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options serializer override failed: n1=%s n2=%s\n" n1_ser n2_ser)
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options serializer test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 9: deserializer override *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, deserializer = ^json)
+     }
+     q = set_pipeline_global_options(p, deserializer = "csv")
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_deser = get_deserializer q "n1" in
+        if n1_deser = "csv" then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides deserializer\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deserializer override failed: n1=%s\n" n1_deser)
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deserializer test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 10: noop override (OR semantics) *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>, noop = true)
+     }
+     q = set_pipeline_global_options(p, noop = true)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_noop = get_noop q "n1" in
+        let n2_noop = get_noop q "n2" in
+        if n1_noop && n2_noop then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options noop=true sets all nodes to noop\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options noop failed: n1=%b n2=%b\n" n1_noop n2_noop)
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options noop test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 10b: noop=false leaves nodes unchanged *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, noop = true)
+     }
+     q = set_pipeline_global_options(p, noop = false)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_noop = get_noop q "n1" in
+        if n1_noop then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options noop=false does not clear per-node noop\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options noop=false incorrectly cleared per-node noop\n")
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options noop false test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 11: shell override *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, shell = "bash")
+     }
+     q = set_pipeline_global_options(p, shell = "zsh")
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_shell = get_shell q "n1" in
+        if n1_shell = Some "zsh" then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides shell\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options shell override failed: got %s\n"
+             (match n1_shell with Some s -> s | None -> "None"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options shell test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 12: shell_args prepend *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, shell_args = ["--per-node"])
+     }
+     q = set_pipeline_global_options(p, shell_args = ["--global"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_shell_args = get_shell_args q "n1" in
+        if n1_shell_args = ["--global"; "--per-node"] then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options prepends shell_args\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options shell_args prepend failed: {%s}\n"
+             (String.concat ", " n1_shell_args))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options shell_args test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 13: flake override *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>, flake = "path:./custom")
+     }
+     q = set_pipeline_global_options(p, flake = "path:./global")
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_flake = get_flake q "n1" in
+        let n2_flake = get_flake q "n2" in
+        if n1_flake = Some "path:./global" && n2_flake = Some "path:./global" then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides flake for all nodes\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options flake override failed: n1=%s n2=%s\n"
+             (match n1_flake with Some f -> f | None -> "None")
+             (match n2_flake with Some f -> f | None -> "None"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options flake test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 14: dependencies prepend (per-node arg is `deps`) *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
+       n2 = rn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, dependencies = ["global_dep"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_deps = get_deps q "n1" in
+        let n2_deps = get_deps q "n2" in
+        let q_ok = n1_deps = Some ["global_dep"; "n2"] && n2_deps = Some ["global_dep"] in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options prepends dependencies\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deps prepend failed: n1=%s n2=%s\n"
+             (match n1_deps with Some d -> String.concat ", " d | None -> "None")
+             (match n2_deps with Some d -> String.concat ", " d | None -> "None"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deps test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 14b: dependencies omitted leaves p_explicit_deps untouched *)
+   (* Regression: when `dependencies` is not passed, n1's deps must stay Some ["n2"]
+      (not Some [], not mutated) and n2's None must not be flipped to Some []. *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
+       n2 = rn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, include = "x.yaml")
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_deps = get_deps q "n1" in
+        let n2_deps = get_deps q "n2" in
+        let q_ok = n1_deps = Some ["n2"] && n2_deps = None in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options leaves deps untouched when dependencies omitted\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deps omitted test failed: n1=%s n2=%s\n"
+             (match n1_deps with Some d -> String.concat ", " d | None -> "None")
+             (match n2_deps with Some d -> String.concat ", " d | None -> "None"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deps omitted test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 15: Type error for wrong env_vars type *)
+   test "set_pipeline_global_options env_vars type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), env_vars = "not_a_dict")|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a dict (e.g. [key: value]), but got String.")|};
+
+   (* Test 16: Type error for wrong noop type *)
+   test "set_pipeline_global_options noop type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), noop = "not_a_bool")|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a bool, but got String.")|};
+
+   (* Test 17: Type error for wrong shell type *)
+   test "set_pipeline_global_options shell type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), shell = 42)|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a string, but got Int.")|};
+
+   (* Test 18: Type error for wrong serializer type *)
+   test "set_pipeline_global_options serializer type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), serializer = 42)|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a string or symbol for serializer/deserializer, but got Int.")|};
+
+   (* Test 19: Type error for wrong dependencies type *)
+   test "set_pipeline_global_options dependencies type error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), dependencies = 42)|}
+     {|Error(TypeError: "set_pipeline_global_options: expected a string or list of strings for `dependencies`, but got Int.")|};
+
+   (* Test 20: runtimes scope — serializer override only applies to R nodes *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>)
+       n3 = rn(command = <{ 3 + 3 }>)
+     }
+     q = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^json)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_ser = get_serializer q "n1" in
+        let n2_ser = get_serializer q "n2" in
+        let n3_ser = get_serializer q "n3" in
+        let q_ok =
+          n1_ser = "json" && n3_ser = "json" && n2_ser = "default"
+        in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options runtimes scope\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options runtimes scope failed: n1=%s n2=%s n3=%s\n" n1_ser n2_ser n3_ser)
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options runtimes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 21: nodes scope — include only applies to listed nodes *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>)
+       n3 = rn(command = <{ 3 + 3 }>)
+     }
+     q = set_pipeline_global_options(p, nodes = ["n1"], include = "x.yaml")
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_incs = get_incs q "n1" in
+        let n2_incs = get_incs q "n2" in
+        let n3_incs = get_incs q "n3" in
+        let q_ok = n1_incs = ["x.yaml"] && n2_incs = [] && n3_incs = [] in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options nodes scope\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options nodes scope failed: n1={%s} n2={%s} n3={%s}\n"
+             (String.concat ", " n1_incs) (String.concat ", " n2_incs) (String.concat ", " n3_incs))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options nodes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 22: union of nodes and runtimes scopes *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>)
+       n3 = node(command = 3 + 3)
+     }
+     q = set_pipeline_global_options(p, nodes = ["n3"], runtimes = ["rn"], noop = true)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let q_ok = get_noop q "n1" && get_noop q "n3" && not (get_noop q "n2") in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options nodes+runtimes union scope\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options union scope failed: n1=%b n2=%b n3=%b\n"
+             (get_noop q "n1") (get_noop q "n2") (get_noop q "n3"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options union scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 23: unknown node name errors *)
+   test "set_pipeline_global_options unknown node error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), nodes = ["missing"])|}
+     {|Error(TypeError: "set_pipeline_global_options: unknown node name(s): `missing`. Valid node names are: `n1`.")|};
+
+   (* Test 24: unmatched runtime errors *)
+   test "set_pipeline_global_options unmatched runtime error"
+     {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), runtimes = ["Julia"])|}
+     {|Error(TypeError: "set_pipeline_global_options: unknown runtime(s) in pipeline: `Julia`. Pipeline runtimes are: `T`.")|};
+
+   (* Test 25: scoped dependencies leave non-target deps untouched *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
+       n2 = rn(command = <{ 2 + 2 }>)
+       n3 = pyn(command = <{ 3 + 3 }>)
+     }
+     q = set_pipeline_global_options(p, nodes = ["n3"], dependencies = ["global_dep"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let n1_deps = get_deps q "n1" in
+        let n2_deps = get_deps q "n2" in
+        let n3_deps = get_deps q "n3" in
+        let q_ok = n1_deps = Some ["n2"] && n2_deps = None && n3_deps = Some ["global_dep"] in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options scoped dependencies leave non-targets untouched\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options scoped deps failed: n1=%s n2=%s n3=%s\n"
+             (match n1_deps with Some d -> String.concat ", " d | None -> "None")
+             (match n2_deps with Some d -> String.concat ", " d | None -> "None")
+             (match n3_deps with Some d -> String.concat ", " d | None -> "None"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options scoped deps test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 26: pipeline_node_options read-back after global options merge *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
+       n2 = rn(command = <{ 2 + 2 }>)
+     }
+      q = set_pipeline_global_options(p, functions = [rn: "global.R"], include = "g.yaml",
+                                      env_vars = [GLOBAL: "1"], noop = true, shell = "bash",
+                                      shell_args = "-e", flake = "git+file:///tmp/flake",
+                                      serializer = ^json)
+      info = pipeline_node_options(q, "n1")
+   |} (Packages.init_env ()) in
+    let (vi, _) = eval_string_env "info" env in
+    match vi with
+    | VDict pairs ->
+        let f k = match List.assoc_opt k pairs with Some v -> Some v | None -> None in
+        let funcs = match f "functions" with Some (VList items) -> List.map (fun (_, v) -> match v with VString s -> s | _ -> "") items | _ -> [] in
+        let incs = match f "include" with Some (VList items) -> List.map (fun (_, v) -> match v with VString s -> s | _ -> "") items | _ -> [] in
+        let sh = match f "shell" with Some (VString s) -> s | _ -> "?" in
+        let fl = match f "flake" with Some (VString s) -> s | _ -> "?" in
+        let noop = match f "noop" with Some (VBool b) -> b | _ -> false in
+        let env_vars = match f "env_vars" with Some (VDict ps) -> List.assoc_opt "GLOBAL" ps | _ -> None in
+        let deps = match f "deps" with Some (VList items) -> List.map (fun (_, v) -> match v with VString s -> s | _ -> "") items | _ -> [] in
+        let shell_args = match f "shell_args" with Some (VList items) -> List.map (fun (_, v) -> match v with VString s -> s | _ -> "") items | _ -> [] in
+        let rt = match f "runtime" with Some (VString s) -> s | _ -> "?" in
+        let depth = match f "depth" with Some (VInt d) -> d | _ -> -1 in
+        let cmd_type = match f "command_type" with Some (VString s) -> s | _ -> "?" in
+        let serializer = match f "serializer" with Some (VString s) -> s | _ -> "?" in
+        let ok =
+          funcs = ["global.R"] && incs = ["g.yaml"]
+          && sh = "bash" && fl = "git+file:///tmp/flake"
+          && noop && env_vars = Some (VString "1")
+          && deps = ["n2"] && shell_args = ["-e"]
+          && rt = "R" && depth = 1 && cmd_type = "command"
+          && serializer = "json"
+        in
+        let dbg = Printf.sprintf "funcs_eq=%b incs_eq=%b sh_eq=%b fl_eq=%b noop_eq=%b envvars_eq=%b deps_eq=%b shellargs_eq=%b rt_eq=%b depth_eq=%b cmdtype_eq=%b"
+          (funcs = ["global.R"]) (incs = ["g.yaml"]) (sh = "bash") (fl = "git+file:///tmp/flake") noop
+          (env_vars = Some (VString "1")) (deps = ["n2"]) (shell_args = ["-e"])
+          (rt = "R") (depth = 1) (cmd_type = "command")
+        in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ pipeline_node_options read-back after global merge\n")
+        else
+          (incr fail_count;
+           Printf.printf "  ✗ pipeline_node_options read-back failed: funcs={%s} incs={%s} shell=%s flake=%s noop=%b env_vars=%s deps={%s} shell_args={%s} rt=%s depth=%d cmd_type=%s\n%s\n"
+             (String.concat ", " funcs) (String.concat ", " incs) sh fl noop
+             (match env_vars with Some (VString s) -> s | _ -> "?")
+             (String.concat ", " deps) (String.concat ", " shell_args) rt depth cmd_type dbg)
+    | other ->
+        incr fail_count; Printf.printf "  ✗ pipeline_node_options read-back test: expected VDict, got %s\n" (Utils.value_to_string other));
+
+   (* Test 27: pipeline_node_options unknown node error *)
+   test "pipeline_node_options unknown node error"
+     {|pipeline_node_options((pipeline { n1 = node(command = 1) }), "missing")|}
+     {|Error(TypeError: "pipeline_node_options: unknown node `missing`. Valid node names are: `n1`.")|};
+
+   (* Test 28: pipeline_node_options non-pipeline argument *)
+   test "pipeline_node_options non-pipeline error"
+     {|pipeline_node_options(1, "n1")|}
+     {|Error(TypeError: "pipeline_node_options: expected a pipeline, got Int.")|};
+
+   (* Test 29: pipeline_node_options non-string node *)
+   test "pipeline_node_options non-string node error"
+     {|pipeline_node_options((pipeline { n1 = node(command = 1) }), 1)|}
+     {|Error(TypeError: "pipeline_node_options: expected a String node name, got Int.")|};
+
+   (* Test 30: pipeline_node_options named pipeline argument *)
+   test "pipeline_node_options named pipeline arg error"
+     {|pipeline_node_options(p = (pipeline { n1 = node(command = 1) }), "n1")|}
+     {|Error(TypeError: "pipeline_node_options: arguments must be passed positionally (pipeline, node), but got named argument `p`.")|};
+
+   (* Test 31: explicit empty nodes scope targets no nodes *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, nodes = [], serializer = ^json)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let q_ok = get_serializer q "n1" = "default" && get_serializer q "n2" = "default" in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options explicit empty nodes scope targets no nodes\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes scope failed: n1=%s n2=%s\n" (get_serializer q "n1") (get_serializer q "n2"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 32: explicit empty nodes + runtimes still targets the runtime's nodes *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       n1 = rn(command = <{ 1 + 1 }>)
+       n2 = pyn(command = <{ 2 + 2 }>)
+     }
+     q = set_pipeline_global_options(p, nodes = [], runtimes = ["rn"], serializer = ^json)
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let q_ok = get_serializer q "n1" = "json" && get_serializer q "n2" = "default" in
+        if q_ok then
+          (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options empty nodes + runtimes union\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes + runtimes union failed: n1=%s n2=%s\n" (get_serializer q "n1") (get_serializer q "n2"))
+    | other ->
+        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes + runtimes union test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+
+   (* Test 33 (reviewer issue 1): serializer provenance — explicit ^text
+      shows "node", sh constructor default shows NA *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       r = rn(command = <{ 1 }>, serializer = ^text)
+       s = shn(command = <{ echo x }>)
+     }
+     info_r = pipeline_node_options(p, "r")
+     info_s = pipeline_node_options(p, "s")
+   |} (Packages.init_env ()) in
+    let (vi_r, _) = eval_string_env "info_r" env in
+    let (vi_s, _) = eval_string_env "info_s" env in
+    match vi_r, vi_s with
+    | VDict rpairs, VDict spairs ->
+        let f k pairs = match List.assoc_opt k pairs with Some v -> v | None -> VNA NAGeneric in
+        let r_prov = match f "provenance" rpairs with VDict ps -> ps | _ -> [] in
+        let s_prov = match f "provenance" spairs with VDict ps -> ps | _ -> [] in
+        let ser_src p = match List.assoc_opt "serializer" p with
+          | Some (VString "node") -> "node" | Some (VNA _) -> "NA" | _ -> "?" in
+        let r_src = ser_src r_prov in
+        let s_src = ser_src s_prov in
+        let ok = r_src = "node" && s_src = "NA" in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ serializer provenance: ^text -> node, sh default -> NA\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ serializer provenance failed: R^text got '%s' (exp node), sh default got '%s' (exp NA)\n" r_src s_src)
+    | _ -> incr fail_count; Printf.printf "  ✗ serializer provenance test: expected VDict\n");
+
+   (* Test 34a (reviewer issue 2): global deps visible in p_deps *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       a = rn(command = <{ 1 }>)
+       b = node(command = 1)
+     }
+     q = set_pipeline_global_options(p, dependencies = ["b"], nodes = ["a"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let deps_a = get_p_deps q "a" in
+        let ok = List.mem "b" deps_a && List.length deps_a = 1 in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ global deps visible in p_deps\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ global deps not in p_deps: a deps=[%s]\n" (String.concat ", " deps_a))
+    | _ -> incr fail_count; Printf.printf "  ✗ global deps p_deps test: expected VPipeline\n");
+
+   (* Test 34b (reviewer issue 2): self-dep filtered from global deps *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       a = rn(command = <{ 1 }>)
+     }
+     q = set_pipeline_global_options(p, dependencies = ["a"], nodes = ["a"])
+   |} (Packages.init_env ()) in
+    let (vq, _) = eval_string_env "q" env in
+    match vq with
+    | VPipeline q ->
+        let deps_a = get_p_deps q "a" in
+        let ok = not (List.mem "a" deps_a) in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ global deps self-reference filtered\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ self-ref not filtered: a deps=[%s]\n" (String.concat ", " deps_a))
+    | _ -> incr fail_count; Printf.printf "  ✗ self-dep filter test: expected VPipeline\n");
+
+   (* Test 34c (reviewer issue 2): global-dep-created cycle caught *)
+   test "global-dep cycle caught by validate"
+     {|pipeline { a = rn(command = <{ 1 }>); b = rn(command = <{ 2 }>) }
+       |> set_pipeline_global_options(dependencies = ["b"], nodes = ["a"])
+       |> set_pipeline_global_options(dependencies = ["a"], nodes = ["b"])
+       |> pipeline_validate
+       |> length|}
+     "1";
+
+   (* Test 35 (reviewer issue 3): pipeline_cycles and pipeline_validate consistent *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       a = rn(command = <{ 1 }>)
+       b = rn(command = <{ 2 }>)
+     }
+     q = set_pipeline_global_options(p, dependencies = ["b"], nodes = ["a"])
+     q2 = set_pipeline_global_options(q, dependencies = ["a"], nodes = ["b"])
+   |} (Packages.init_env ()) in
+    let (vcyc, _) = eval_string_env {|pipeline_cycles(q2)|} env in
+    let (vval, _) = eval_string_env {|pipeline_validate(q2)|} env in
+    let cycles_match =
+      match vcyc with VList [(_, VString "a")] -> true | _ -> false in
+    let validate_catches =
+      match vval with VList items -> List.length items > 0 | _ -> false in
+    if cycles_match && validate_catches then
+      (incr pass_count; Printf.printf "  ✓ pipeline_cycles and pipeline_validate consistent for global-dep cycle\n")
+    else
+      (incr fail_count; Printf.printf "  ✗ cycle consistency failed: cycles=%s validate=%s\n"
+        (Ast.Utils.value_to_string vcyc) (Ast.Utils.value_to_string vval)));
+
+   (* Test 36 (reviewer issue 4): provenance per-function source mapping *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       a = rn(command = <{ 1 }>, functions = ["node.R"])
+       b = rn(command = <{ 2 }>)
+     }
+     q = set_pipeline_global_options(p, functions = [rn: "global.R"], dependencies = ["b"], nodes = ["a"])
+     info = pipeline_node_options(q, "a")
+   |} (Packages.init_env ()) in
+    let (vi, _) = eval_string_env "info" env in
+    match vi with
+    | VDict pairs ->
+        let f k = match List.assoc_opt k pairs with Some v -> v | None -> VNA NAGeneric in
+        let prov = match f "provenance" with VDict ps -> ps | _ -> [] in
+        let funcs_prov = match List.assoc_opt "functions" prov with
+          | Some (VDict fps) -> fps | _ -> [] in
+        let globals = match List.assoc_opt "global" funcs_prov with
+          | Some (VList items) -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items
+          | _ -> [] in
+        let nodes = match List.assoc_opt "node" funcs_prov with
+          | Some (VList items) -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items
+          | _ -> [] in
+        let deps_prov = match List.assoc_opt "dependencies" prov with
+          | Some (VDict dps) -> dps | _ -> [] in
+        let dep_globals = match List.assoc_opt "global" deps_prov with
+          | Some (VList items) -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items
+          | _ -> [] in
+        let ok = globals = ["global.R"] && nodes = ["node.R"] && dep_globals = ["b"] in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ provenance per-function source mapping (global vs node)\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ provenance mapping failed: funcs global=[%s] node=[%s] deps global=[%s]\n"
+            (String.concat ", " globals) (String.concat ", " nodes) (String.concat ", " dep_globals))
+     | _ -> incr fail_count; Printf.printf "  ✗ provenance mapping test: expected VDict\n");
+
+   (* pipeline_config_to_frame: value-content test — verifies provenance columns
+      reflect actual global-option merges *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       a = rn(command = <{ 1 }>, functions = ["node.R"])
+       b = pyn(command = <{ 2 }>)
+     }
+     q = set_pipeline_global_options(p, functions = [rn: "global.R"], serializer = ^json, dependencies = ["b"])
+     df = pipeline_config_to_frame(q)
+   |} (Packages.init_env ()) in
+    let (vdf, _) = eval_string_env "df" env in
+    match vdf with
+    | VDataFrame { arrow_table; _ } ->
+        let columns = arrow_table.columns in
+        let find_row name =
+          match List.assoc "name" columns with
+          | Arrow_table.StringColumn arr ->
+              let rec loop i =
+                if i >= Array.length arr then -1
+                else match arr.(i) with Some n when n = name -> i | _ -> loop (i + 1)
+              in loop 0
+          | _ -> -1
+        in
+        let read_string col idx =
+          match List.assoc col columns with
+          | Arrow_table.StringColumn arr ->
+              (match arr.(idx) with Some s -> s | None -> "")
+          | _ -> ""
+        in
+        let read_int col idx =
+          match List.assoc col columns with
+          | Arrow_table.IntColumn arr ->
+              (match arr.(idx) with Some n -> n | None -> 0)
+          | _ -> 0
+        in
+        let idx = find_row "a" in
+        let prov_ser = read_string "prov_serializer" idx in
+        let n_funcs_g = read_int "n_funcs_global" idx in
+        let n_funcs_n = read_int "n_funcs_node" idx in
+        let n_deps_g = read_int "n_deps_global" idx in
+        let ok = prov_ser = "global" && n_funcs_g = 1 && n_funcs_n = 1 && n_deps_g = 1 in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ pipeline_config_to_frame value-content after global merge\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ pipeline_config_to_frame value-content failed: prov_ser=%s n_funcs_g=%d n_funcs_n=%d n_deps_g=%d\n"
+             prov_ser n_funcs_g n_funcs_n n_deps_g)
+    | _ -> incr fail_count; Printf.printf "  ✗ pipeline_config_to_frame value-content test: expected VDataFrame\n");
+
+   (* mutate_node: provenance check — mutated fields show Source_node, not global *)
+   (let (_, env) = eval_string_env {|
+     p = pipeline {
+       a = rn(command = <{ 1 }>, functions = ["old.R"])
+     }
+     q = set_pipeline_global_options(p, functions = [rn: "global.R"])
+     r = mutate_node(q, $functions = ["mutated.R"], $shell = "zsh")
+     info = pipeline_node_options(r, "a")
+   |} (Packages.init_env ()) in
+    let (vi, _) = eval_string_env "info" env in
+    match vi with
+    | VDict pairs ->
+        let f k = match List.assoc_opt k pairs with Some v -> v | None -> VNA NAGeneric in
+        let prov = match f "provenance" with VDict ps -> ps | _ -> [] in
+        let funcs_prov = match List.assoc_opt "functions" prov with
+          | Some (VDict fps) -> fps | _ -> [] in
+        let f_globals = match List.assoc_opt "global" funcs_prov with
+          | Some (VList items) -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items
+          | _ -> [] in
+        let f_nodes = match List.assoc_opt "node" funcs_prov with
+          | Some (VList items) -> List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items
+          | _ -> [] in
+        let shell_src = match List.assoc_opt "shell" prov with Some (VString s) -> s | _ -> "" in
+        let ok = f_globals = [] && f_nodes = ["mutated.R"] && shell_src = "node" in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ mutate_node provenance: functions -> node, shell -> node after mutation\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ mutate_node provenance failed: funcs global=[%s] node=[%s] shell_src=%s\n"
+             (String.concat ", " f_globals) (String.concat ", " f_nodes) shell_src)
+    | _ -> incr fail_count; Printf.printf "  ✗ mutate_node provenance test: expected VDict\n");
+
+   print_newline ()

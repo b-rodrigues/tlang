@@ -174,7 +174,66 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
-  (* 4b. Explicit dependency checks happen before pipeline emission/build.
+  (* 4b. Shell/capture `text` edges are format-agnostic: a shell node
+     consuming a typed producer, a typed consumer reading a shell node's
+     raw text output, and a shell node with multiple deps all build. *)
+  let env_text = Packages.init_env () in
+  let (v, _) = eval_string_env {|
+    p = pipeline {
+       dep_node = node(command = <{ "hello" }>, serializer = ^json)
+       sh_node = shn(command = <{ cat "$T_INPUT_dep_node" }>, deps = ["dep_node"])
+    }
+    populate_pipeline(p)
+  |} env_text in
+  (match v with
+   | VString _ ->
+       incr pass_count; Printf.printf "  ✓ Coherence accepts shell node consuming json producer\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ Coherence rejected shell node consuming json producer. Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  let env_text2 = Packages.init_env () in
+  let (v, _) = eval_string_env {|
+    p = pipeline {
+       awk_node = shn(command = <{ echo "variable,value" }>)
+       final_summary = node(command = <{ awk_node |> head(1) }>,
+                            deserializer = [awk_node: ^csv], deps = ["awk_node"])
+    }
+    populate_pipeline(p)
+  |} env_text2 in
+  (match v with
+   | VString _ ->
+       incr pass_count; Printf.printf "  ✓ Coherence accepts typed consumer reading shell text producer\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ Coherence rejected typed consumer reading shell text producer. Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  let env_text3 = Packages.init_env () in
+  let (v, _) = eval_string_env {|
+    p = pipeline {
+       a = node(command = <{ 1 }>, serializer = ^json)
+       b = node(command = <{ 2 }>, serializer = ^csv)
+       sh = shn(command = <{ cat "$T_INPUT_a" "$T_INPUT_b" }>, deps = ["a", "b"])
+    }
+    populate_pipeline(p)
+  |} env_text3 in
+  (match v with
+   | VString _ ->
+       incr pass_count; Printf.printf "  ✓ Multi-dep strategy accepts shell node with multiple deps\n"
+   | other ->
+       incr fail_count;
+       let msg = Printf.sprintf "  ✗ Multi-dep strategy rejected shell node with multiple deps. Got: %s\n"
+         (Ast.Utils.value_to_string other) in
+       failures := msg :: !failures;
+       Printf.printf "%s" msg);
+
+  (* 4c. Explicit dependency checks happen before pipeline emission/build.
      These must run from a temp dir that has NO tproject.toml so that
      ensure_project_requirements cannot find the repo's tproject.toml
      (which already declares all the packages) and return Ok () instead

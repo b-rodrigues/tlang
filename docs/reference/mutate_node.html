@@ -39,7 +39,11 @@
 <code>where</code> named argument to scope changes to a subset of nodes.
 Without <code>where</code>, all nodes are affected. Mutable metadata
 fields: <code>noop</code> (Bool), <code>serializer</code> (String),
-<code>deserializer</code> (String), <code>runtime</code> (String). The
+<code>deserializer</code> (String), <code>runtime</code> (String),
+<code>deps</code> (List[String]), <code>functions</code> (List[String]),
+<code>include</code> (List[String]), <code>env_vars</code> (Dict),
+<code>args</code> (Dict), <code>shell</code> (String),
+<code>shell_args</code> (List[String]), <code>flake</code> (String). The
 <code>where</code> clause uses NSE (<code>$field</code>) just like
 <code>filter_node</code>.</p>
 <h2 id="parameters">Parameters</h2>

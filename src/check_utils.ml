@@ -124,7 +124,10 @@ let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename 
         | _ -> []
       in
       let pipeline_diags = List.concat_map (fun (_name, p) ->
-        let wire_diags = Diagnostics.of_pipeline_result ~file:filename p in
+        let wire_diags =
+          Diagnostics.of_pipeline_result ~file:filename p
+          @ Diagnostics.of_pipeline_validation ~file:filename p
+        in
         let schema_diags =
           if schema then Schema_check.check_pipeline_schemas ~file:filename p
           else []

@@ -62,6 +62,7 @@ let filter_pipeline (names : string list) (p : pipeline_result) : pipeline_resul
     p_patterns     = List.filter (fun (n, _) -> keep n) p.p_patterns;
     p_iterations   = List.filter (fun (n, _) -> keep n) p.p_iterations;
     p_flakes       = List.filter (fun (n, _) -> keep n) p.p_flakes;
+    p_provenance   = List.filter (fun (n, _) -> keep n) p.p_provenance;
     p_has_patterns = (List.filter (fun (n, _) -> keep n) p.p_patterns <> []);
   }
 
@@ -96,6 +97,13 @@ let register env =
             let replace_at lst v =
               List.map (fun (k, old) -> if k = name then (k, v) else (k, old)) lst
             in
+            let new_provenance =
+              List.map (fun (n, prov) ->
+                if n = name then
+                  (n, Ast.Utils.build_node_provenance un)
+                else (n, prov)
+              ) p.p_provenance
+            in
             VPipeline {
               p with
               p_exprs        = replace_at p.p_exprs un.un_command;
@@ -110,6 +118,7 @@ let register env =
               p_includes     = replace_at p.p_includes un.un_includes;
               p_noops        = replace_at p.p_noops un.un_noop;
               p_scripts      = replace_at p.p_scripts un.un_script;
+              p_provenance   = new_provenance;
               (* p_nodes and p_deps are deliberately preserved *)
             }
       | [VPipeline _; VString _; _] ->

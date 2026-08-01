@@ -97,7 +97,7 @@ df
   summary = pyn(
     command = <{
 import pandas as pd
-result = clean.groupby("region")["amount"].sum().reset_index()
+result = clean.groupby("region")["amunt"].sum().reset_index()
 result.columns = ["region", "total"]
 result
     }>,
@@ -177,6 +177,11 @@ No `suggested_fix` for typos — the agent has to fix this itself. It corrects
 $ t check --json pipeline.t
 ```
 
+`t check --schema` runs in stages: the **parse phase (tier 1)** must be clean
+before the **schema phase (tier 2)** runs. Because the command had a name error,
+column analysis never got a chance to run — so this next problem only surfaces
+now that the parse phase passes:
+
 Now a different error surfaces:
 
 ```json
@@ -195,19 +200,19 @@ Now a different error surfaces:
         "id": "summary",
         "lang": "python",
         "file": "pipeline.t",
-        "span": { "start": [20, 20], "end": [20, 40] }
+        "span": { "start": [22, 35], "end": [22, 41] }
       },
-      "message": "Column 'mg' not found. Did you mean 'mpg'?",
+      "message": "Column 'amunt' not found. Did you mean 'amount'?",
       "expected": null,
       "actual": null,
       "caused_by": ["clean"],
       "suggested_fix": {
         "kind": "rename_column",
-        "old_name": "mg",
-        "new_name": "mpg",
+        "old_name": "amunt",
+        "new_name": "amount",
         "edit_distance": 1,
         "is_unique": true,
-        "target_node": "clean"
+        "target_node": "summary"
       }
     }
   ]
@@ -216,13 +221,13 @@ Now a different error surfaces:
 
 The agent sees:
 - **`error_class: "schema_mismatch"`** — column name doesn't match upstream schema
-- **`caused_by: ["clean"]`** — the upstream `clean` node is the source
-- **`suggested_fix`** — rename `mg` to `mpg` in the clean node
+- **`caused_by: ["clean"]`** — the `summary` node reads from `clean`'s output
+- **`suggested_fix`** — rename `amunt` to `amount` in the summary node
 
-The agent fixes the typo in the upstream Python code:
+The agent fixes the column reference:
 
 ```python
-df["mpg"] = pd.to_numeric(df["mpg"], errors="coerce")
+result = clean.groupby("region")["amount"].sum().reset_index()
 ```
 
 Re-check:
@@ -251,15 +256,15 @@ $ t check --json pipeline.t
 
 ## Step 3: Agent applies fixes (or edits manually)
 
-In this case the agent edited the Python code directly (fixing the typo). No `t fix` needed — the `suggested_fix` was a `rename_column`, but the agent
-chose to fix the root cause in the upstream node instead.
+In this case the agent edited the Python code directly (fixing the column typo). No `t fix` needed — the `suggested_fix` was a `rename_column`, but the agent
+chose to fix the reference directly instead.
 
 If `t fix` had been applicable, the agent would preview first:
 
 ```bash
 $ t fix --dry-run pipeline.t
 dry-run: would apply 1 fix to pipeline.t:
-  [Rename_column] line 20: rename column 'mg' to 'mpg' in node 'clean'
+  [Rename_column] line 22: rename column 'amunt' to 'amount' in node 'summary'
 ```
 
 Then apply:

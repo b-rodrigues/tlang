@@ -1,5 +1,95 @@
 # Changelog
 
+## Unreleased
+
+### Pipeline Validation Fixes
+
+- **`text` is now treated as format-agnostic raw bytes in serializer checks**:
+  shell nodes (runtime `sh`) and `capture = "stdout"` nodes may consume any
+  producer format through `$T_INPUT_<dep>` without a "serializer coherence
+  error", and typed nodes may read a shell node's raw text output with an
+  explicit deserializer (e.g. `deserializer = [node: ^csv]`). Previously,
+  valid pipelines combining a shell node with a `^json`/`^csv` producer (or a
+  typed consumer reading a shell node's output) were wrongly rejected by
+  `build_pipeline`, `populate_pipeline`, `pipeline_validate`, and `t check`.
+  A shell node with multiple dependencies also no longer trips the
+  "single deserializer strategy" check.
+
+## [0.54.3] - 2026-07-30
+
+### Pipeline Global Options — Pure Function
+
+- **`set_pipeline_global_options(pipeline, ...)`** replaces the
+  old side-effecting `pipeline_options()`. Returns a new pipeline with defaults
+  merged into every node; the original pipeline is never mutated and no global
+  state is used. Composes naturally with pipeline transforms and the pipe operator.
+  Duplicate runtime keys in the `functions` dict concatenate all values
+  (e.g. `[rn: "a.R", rn: "b.R"]` includes both files).
+- **Nine additional global options** beyond `functions`/`include`: `env_vars`, `args`,
+  and `shell_args` prepend global values before per-node values (per-node dict keys win);
+  `serializer`, `deserializer`, `shell`, and `flake` override every node's per-node value
+  entirely (`serializer`/`deserializer` accept `^`-prefixed names such as `^json`);
+  `dependencies` prepends explicit dependencies before per-node `deps`;
+  and `noop = true` forces every node to no-op while `noop = false` leaves per-node
+  noop settings untouched.
+- **Scoped merging (`runtimes`, `nodes`)**: Restrict the merge to a subset of nodes.
+  `runtimes = ["rn"]` targets R nodes; `nodes = ["n1"]` targets exact node names; when
+  both are given the target is their union. Omitted scoping arguments target all nodes,
+  while an explicitly empty list (`nodes = []`) targets none. An unmatched runtime or an
+  unknown node name raises an explicit `TypeError` instead of silently changing nothing.
+- **`pipeline_node_options(pipeline, node)` read-back**: Returns a Dict of a node's fully
+  resolved configuration (runtime, serializer/deserializer, noop, deps, depth, functions,
+  include, env_vars, args, shell, shell_args, flake) after any global-options merges.
+  What you merge in with `set_pipeline_global_options`, you can read back out.
+- **Global `dependencies` are now visible to the build DAG**: In addition to
+  `p_explicit_deps`, `set_pipeline_global_options` now writes globally-injected
+  dependencies into `p_deps` so they participate in build ordering, depth computation,
+  `pipeline_validate`/`pipeline_cycles` cycle detection, and `pipeline_to_frame`
+  read-back. Self-references (a node depending on itself via global deps) are filtered
+  out to prevent false cycles.
+
+### Node Config Provenance (`explain` + `pipeline_node_options`)
+
+- **`pipeline_config_to_frame(p)`**: New tabular config read-back. Produces a DataFrame
+  with one row per node covering resolved config values (serializer,
+  deserializer, noop, shell, flake), per-field provenance (scalar source markers +
+  global/node count columns for lists), and identity columns (name, runtime, depth,
+  command_type). Complements `pipeline_node_options` (Dict detail) with queryable
+  DataFrame-wide overview — e.g., "filter on `prov_serializer == \"global\"` to find
+  every node whose serializer came from global options."
+- **Expanded `mutate_node` field coverage**: Now supports `functions`, `include`,
+  `env_vars`, `args`, `shell`, `shell_args`, and `flake` in addition to the existing
+  `noop`/`serializer`/`deserializer`/`runtime`/`deps`. All new fields participate in
+  provenance tracking so `pipeline_node_options` correctly shows them as `"node"`-sourced
+  after mutation. Pass `NA` to clear an optional or list field.
+
+- **`explain(p.node)` shows source provenance**: The `config` section of `explain()`
+  output for a computed node now distinguishes which settings came from global
+  pipeline options versus the node itself. `pipeline_node_options(p, node)` includes a
+  machine-readable `provenance` key (`{ global: [...], node: [...] }` groups for
+  mergeable lists; `"global"`/`"node"` markers for scalar overrides), so tooling can
+  audit where every setting originated.
+- **`pipeline_node_options` provenance key**: Mergeable options (`functions`, `include`,
+  `shell_args`, `dependencies`) report both `global` and `node` contributions; scalar
+  overrides (`serializer`, `deserializer`, `shell`, `flake`, `noop`) report which source
+  won; unset scalars are `NA`.
+
+### Pipeline Structural Validation — Shared Validator
+
+- **`pipeline_validate(p)` reports all structural errors**: New shared validator
+  (`pipeline_validation.ml`) backs `populate_pipeline`/`build_pipeline`, the eval-time
+  cross-runtime guard, `pipeline_validate`/`pipeline_assert`, and `t check` tier 1.
+  Checks now include missing function/include/script files, unknown runtimes (known set:
+  `T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`), missing dependencies, cycles,
+  cross-runtime deserializer gaps, serializer/deserializer format coherence across
+  dependency edges, multiple dependencies with a single deserializer strategy, and
+  `^bin` serializers on non-`fetchurl` nodes.
+- **`t check` tier 1 surfaces structural errors**: `t check <file.t>` (no Nix needed)
+  now reports these as structured `file_error`/`type_error`/`structural_error`
+  diagnostics with a non-zero exit code, matching the build path's guarantees.
+- **`pipeline_assert(p)` throws the first error** and returns the pipeline unchanged
+  when valid, for guard-style use in pipeline chains.
+
 ## [0.54.2] - 2026-07-29
 
 ### `testcraft` — Testing Package

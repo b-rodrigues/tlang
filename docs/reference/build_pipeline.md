@@ -1,25 +1,33 @@
 # build_pipeline
 
-Build Pipeline Artifacts
+Build Pipeline
 
-Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry. Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs.  If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before building.
+Shorthand for `populate_pipeline(p, build = true)`. Materializes all nodes of the pipeline via Nix and returns a `BuildLog` (or a DataFrame of build stats). Recommended for scripts run with `t run`.
 
 ## Parameters
 
-- **pipeline** (`Pipeline`): The pipeline to build.
+- **p** (`Pipeline`): The pipeline to build.
 
-- **verbose** (`Int`): (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+- **verbose** (`Int`): = 0 Nix build verbosity level (`0` = quiet, higher values print node stdout/stderr).
 
-- **dry_run** (`Bool`): (Optional) Return a planned build DataFrame without executing. Maps to `--dry-run`.
+- **nix_options** (`Dict`): (Optional) Nix build options. Supported keys: `targets`, `force`, `dry_run`, `max_jobs`, `cache`, `builders`, `keep_env`, `sandbox`.
 
-- **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
+- **dry_run** (`Bool`): (Optional) If `true`, returns a planned build actions DataFrame instead of building.
+
+- **pipeline_name** (`String`): (Optional) Explicit name for the pipeline.
 
 
 ## Returns
 
-A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`), or a dry-run DataFrame.
+| DataFrame A BuildLog of the build, or a planned-actions DataFrame when `dry_run` is set.
+
+## Examples
+
+```t
+build_pipeline(p)
+```
 
 ## See Also
 
-[read_node](read_node.html)
+[pipeline_run](pipeline_run.html), [populate_pipeline](populate_pipeline.html)
 

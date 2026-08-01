@@ -363,6 +363,14 @@ warnings</td>
 command_type)</td>
 </tr>
 <tr>
+<td><code>pipeline_config_to_frame(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>DataFrame</code></td>
+<td>Node config + provenance: resolved values, per-field source
+(<code>global</code>/<code>node</code>), and global/node counts for
+every list option</td>
+</tr>
+<tr>
 <td><code>pipeline_nodes(p)</code></td>
 <td><code>Pipeline</code></td>
 <td><code>List[String]</code></td>
@@ -408,7 +416,12 @@ command_type)</td>
 <td><code>pipeline_validate(p)</code></td>
 <td><code>Pipeline</code></td>
 <td><code>List[String]</code></td>
-<td>Validation errors (empty = valid); checks missing deps + cycles</td>
+<td>All structural validation errors (empty = valid); checks missing
+files, unknown runtimes, missing deps, cycles, cross-runtime
+deserializer gaps, serializer coherence, multi-dep deserializer
+strategies, and <code>^bin</code>-only-for-fetchurl. Same checks power
+<code>populate_pipeline</code>, <code>build_pipeline</code>, and
+<code>t check</code> tier 1</td>
 </tr>
 <tr>
 <td><code>pipeline_assert(p)</code></td>
@@ -569,6 +582,51 @@ predicate</td>
 </tr>
 </tbody>
 </table>
+<h3 id="global-options">Global Options</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Parameters</th>
+<th>Returns</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)</code></td>
+<td><code>Pipeline</code> plus optional
+<code>Dict</code>/<code>String</code>/<code>List</code>/<code>Bool</code>
+settings</td>
+<td><code>Pipeline</code></td>
+<td>Returns a new pipeline with global defaults merged into target nodes
+(all nodes by default). Original unchanged. Merge semantics:
+<code>functions</code>, <code>include</code>, <code>env_vars</code>,
+<code>args</code>, <code>shell_args</code>, <code>dependencies</code>
+prepend global values before per-node values (per-node dict keys win);
+<code>serializer</code>, <code>deserializer</code>, <code>shell</code>,
+<code>flake</code> override per-node values entirely;
+<code>noop = true</code> forces every node to no-op (<code>false</code>
+has no effect). <code>runtimes</code>/<code>nodes</code> restrict the
+merge to a subset (union when both given).</td>
+</tr>
+<tr>
+<td><code>pipeline_node_options(p, node)</code></td>
+<td><code>Pipeline</code>, <code>String</code></td>
+<td><code>Dict</code></td>
+<td>Read-back: returns the fully resolved configuration of a single node
+after any global-options merges (runtime, serializer, functions,
+env_vars, shell, flake, deps, depth, …). Unknown node is a
+<code>TypeError</code>.</td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="explicit-node-configuration">4. Explicit Node Configuration</h2>
 <p>In addition to bare assignments, you can explicitly configure nodes
@@ -698,6 +756,103 @@ content = read_file(p.raw.path)</code></pre>
 returns its SHA-256 hash, enabling the two-step workflow of computing
 the hash upfront then pinning it in a pipeline for reproducible
 builds.</p>
+<h3 id="setting-global-options-for-all-nodes">Setting Global Options for
+All Nodes</h3>
+<p>Use <code>set_pipeline_global_options</code> to share functions,
+includes, environment variables, serializers, and other settings across
+every node in a pipeline without repeating them per-node:</p>
+<pre class="t"><code>p = pipeline {
+  data = rn(&lt;{ ... }&gt;),
+  model = pyn(&lt;{ ... }&gt;)
+}
+q = set_pipeline_global_options(p,
+  functions = [rn: &quot;utils.R&quot;, pyn: &quot;preproc.py&quot;],
+  include = &quot;shared/config.yaml&quot;,
+  env_vars = [FOO: &quot;bar&quot;],
+  serializer = ^json,
+  noop = true
+)</code></pre>
+<p>Per-node <code>functions</code> and <code>include</code> values are
+still applied after these globals. If you pass the same runtime
+shorthand more than once (e.g. <code>[rn: "a.R", rn: "b.R"]</code>), all
+values are concatenated — both files are included.</p>
+<p>The merge strategy depends on the option:</p>
+<ul>
+<li><strong>Combine (prepend):</strong> <code>functions</code>,
+<code>include</code>, <code>env_vars</code>, <code>args</code>,
+<code>shell_args</code>, <code>dependencies</code> — global values come
+first; per-node values follow. For dict options (<code>env_vars</code>,
+<code>args</code>), a per-node value for the same key wins.</li>
+<li><strong>Override:</strong> <code>serializer</code>,
+<code>deserializer</code>, <code>shell</code>, <code>flake</code> — a
+provided global value replaces every node’s per-node value
+entirely.</li>
+<li><strong>Force-only:</strong> <code>noop</code> —
+<code>noop = true</code> forces every node to no-op;
+<code>noop = false</code> has no effect and cannot un-set a per-node
+<code>noop = true</code>.</li>
+</ul>
+<h4 id="scoping-options-to-a-subset-of-nodes">Scoping Options to a
+Subset of Nodes</h4>
+<p>By default the settings are merged into every node. Pass
+<code>runtimes</code> and/or <code>nodes</code> to restrict the merge to
+a subset; when both are given the target is their union:</p>
+<pre class="t"><code># Only R nodes get the arrow serializer
+q1 = set_pipeline_global_options(p, runtimes = [&quot;rn&quot;], serializer = ^arrow)
+
+# Only the named nodes become no-ops
+q2 = set_pipeline_global_options(p, nodes = [&quot;data&quot;], noop = true)
+
+# Union: the R nodes plus the &quot;data&quot; node
+q3 = set_pipeline_global_options(p, runtimes = [&quot;rn&quot;], nodes = [&quot;data&quot;], noop = true)</code></pre>
+<p>Omitting the scoping arguments (or passing <code>na()</code>) targets
+every node; an explicitly empty list (<code>nodes = []</code>) targets
+no nodes — the pipeline is returned unchanged. An unmatched runtime or
+an unknown node name is an explicit <code>TypeError</code>.</p>
+<h4 id="reading-back-a-nodes-resolved-configuration">Reading Back a
+Node’s Resolved Configuration</h4>
+<p>Use <code>pipeline_node_options(pipeline, node)</code> to read back
+the fully resolved configuration of a single node — including anything
+merged in by <code>set_pipeline_global_options</code>:</p>
+<pre class="t"><code>info = pipeline_node_options(q1, &quot;data&quot;)
+info.functions   # =&gt; function files merged into the node
+info.noop        # =&gt; whether the node is a no-op
+info.depth       # =&gt; topological depth in the DAG</code></pre>
+<h5 id="the-provenance-key">The <code>provenance</code> Key</h5>
+<p>Every node tracks <strong>where each resolved setting came
+from</strong>. The returned dict includes a <code>provenance</code> key
+with one entry per option:</p>
+<ul>
+<li><strong>Mergeable lists</strong> (<code>functions</code>,
+<code>include</code>, <code>shell_args</code>,
+<code>dependencies</code>) are grouped as
+<code>{ global: [...], node: [...] }</code> — the global list holds
+values injected by <code>set_pipeline_global_options</code>, the node
+list holds values declared on the node itself (or set later via
+<code>mutate_node</code>).</li>
+<li><strong>Scalar overrides</strong> (<code>serializer</code>,
+<code>deserializer</code>, <code>shell</code>, <code>flake</code>,
+<code>noop</code>) map to the source that won: <code>"global"</code> or
+<code>"node"</code>, or <code>NA</code> when unset.</li>
+<li><strong>Keyed options</strong> (<code>env_vars</code>,
+<code>args</code>) map each individual key to its source.</li>
+</ul>
+<pre class="t"><code>info = pipeline_node_options(q, &quot;data&quot;)
+info.provenance.functions.global   # =&gt; [&quot;utils.R&quot;] (injected globally)
+info.provenance.functions.node     # =&gt; [&quot;data.R&quot;]  (declared on the node)
+info.provenance.serializer         # =&gt; &quot;global&quot; or &quot;node&quot; or NA</code></pre>
+<p>This is the audit trail behind every resolved value:
+<strong>what</strong> the node uses is in the top-level keys,
+<strong>where it came from</strong> is in <code>provenance</code>.</p>
+<p>For a DataFrame-wide view across all nodes at once — e.g. “which
+nodes got their serializer from global options?” — use
+<code>pipeline_config_to_frame(p)</code> (see the <a
+href="advanced-pipeline-tutorial.md#node-metadata">Advanced Pipeline
+Tutorial</a>). <code>explain(p.node)</code> also includes a
+<code>config</code> section with this provenance.</p>
+<p>See <code>set_pipeline_global_options</code> and
+<code>pipeline_node_options</code> in the <a href="api-reference.html">API
+reference</a> for the full key list.</p>
 <hr />
 <h2 id="cross-language-integration">5. Cross-Language Integration</h2>
 <p>T is designed to orchestrate code across multiple languages. The
@@ -868,7 +1023,7 @@ p.summary  -- DataFrame with regional totals</code></pre>
 <hr />
 <h2 id="pipeline-introspection">11. Pipeline Introspection</h2>
 <blockquote>
-<p><a href="#3-pipeline-function-quick-reference">↩︎ Quick Reference:
+<p><a href="#pipeline-function-quick-reference">↩︎ Quick Reference:
 Reading Node Artifacts</a></p>
 </blockquote>
 <p>T provides functions to inspect pipeline structure:</p>
@@ -925,8 +1080,8 @@ nodes succeeded and which failed.</p>
 <p>If you prefer the usual, common behaviour where evaluation stops
 immediately at the first error, you can use the <code>--failfast</code>
 flag:</p>
-<div class="sourceCode" id="cb29"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
 <p>In your T scripts, you can also opt-in to this behavior via
 <code>t_make()</code>:</p>
 <pre class="t"><code>t_make(failfast = true)</code></pre>
@@ -946,7 +1101,7 @@ p.nonexistent
 <hr />
 <h2 id="materializing-pipelines">15. Materializing Pipelines</h2>
 <blockquote>
-<p><a href="#3-pipeline-function-quick-reference">↩︎ Quick Reference:
+<p><a href="#pipeline-function-quick-reference">↩︎ Quick Reference:
 Reading Node Artifacts</a></p>
 </blockquote>
 <p>Defining a pipeline with <code>pipeline { ... }</code> evaluates
@@ -970,8 +1125,8 @@ node. Crucially, if you define <code>[r-dependencies]</code> or
 <code>[py-dependencies]</code> in your <code>tproject.toml</code>,
 pipeline nodes have access to these language environments — including
 nodes that use a custom per-node flake (see <a
-href="advanced-pipeline-tutorial.md#37-custom-flakes-per-node">Custom
-Flakes per Node</a> for inheritance details).</li>
+href="pipeline-materialization.md#custom-flakes-per-node">Custom Flakes
+per Node</a> for inheritance details).</li>
 <li><strong>Triggers</strong> a Nix build to materialize each node as a
 serialized artifact.</li>
 <li><strong>Records</strong> the build in a timestamped log file
@@ -1091,9 +1246,12 @@ p.ranked        -- DataFrame sorted by score</code></pre>
 topics:</p>
 <ol type="1">
 <li><strong><a href="advanced-pipeline-tutorial.html">Advanced Pipeline
-Tutorial</a></strong> — Dynamic branching (pattern expansion), node
-manipulation, pipeline composition, DAG transformations, CI/CD, and
-more.</li>
+Tutorial</a></strong> — Node manipulation, set operations, DAG
+transformations, composition, inspection, and validation.</li>
+<li><strong><a href="pipeline-materialization.html">Pipeline
+Materialization &amp; Nix Orchestration</a></strong> — Building
+pipelines into reproducible Nix artifacts, orchestrating builds,
+transferring archives, CI/CD, branching, and custom flakes.</li>
 <li><strong><a href="project_development.html">Project
 Development</a></strong> — Master T’s project structure and dependency
 management.</li>

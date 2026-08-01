@@ -2,7 +2,7 @@
 
 Mutate Pipeline Node Metadata
 
-Modifies metadata fields on pipeline nodes. Supports a `where` named argument to scope changes to a subset of nodes. Without `where`, all nodes are affected.  Mutable metadata fields: `noop` (Bool), `serializer` (String), `deserializer` (String), `runtime` (String).  The `where` clause uses NSE (`$field`) just like `filter_node`.
+Modifies metadata fields on pipeline nodes. Supports a `where` named argument to scope changes to a subset of nodes. Without `where`, all nodes are affected.  Mutable metadata fields: `noop` (Bool), `serializer` (String), `deserializer` (String), `runtime` (String), `deps` (List[String]), `functions` (List[String]), `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String), `shell_args` (List[String]), `flake` (String).  The `where` clause uses NSE (`$field`) just like `filter_node`.
 
 ## Parameters
 

@@ -139,6 +139,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | Function | Parameters | Returns | What it does |
 |---|---|---|---|
 | `pipeline_to_frame(p)` | `Pipeline` | `DataFrame` | Full node metadata (runtime, serializer, deps, depth, command_type) |
+| `pipeline_config_to_frame(p)` | `Pipeline` | `DataFrame` | Node config + provenance: resolved values, per-field source (`global`/`node`), and global/node counts for every list option |
 | `pipeline_nodes(p)` | `Pipeline` | `List[String]` | All node names |
 | `pipeline_deps(p)` | `Pipeline` | `Dict` | Node name → list of dependency names |
 | `pipeline_edges(p)` | `Pipeline` | `List[[from, to]]` | Edge list as dependency pairs |
@@ -146,7 +147,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `pipeline_leaves(p)` | `Pipeline` | `List[String]` | Nodes that nothing depends on |
 | `pipeline_depth(p)` | `Pipeline` | `Int` | Maximum topological depth |
 | `pipeline_cycles(p)` | `Pipeline` | `List[String]` | Nodes involved in cycles (empty = valid) |
-| `pipeline_validate(p)` | `Pipeline` | `List[String]` | Validation errors (empty = valid); checks missing deps + cycles |
+| `pipeline_validate(p)` | `Pipeline` | `List[String]` | All structural validation errors (empty = valid); checks missing files, unknown runtimes, missing deps, cycles, cross-runtime deserializer gaps, serializer coherence, multi-dep deserializer strategies, and `^bin`-only-for-fetchurl. Same checks power `populate_pipeline`, `build_pipeline`, and `t check` tier 1 |
 | `pipeline_assert(p)` | `Pipeline` | `Pipeline` | Throws first error, or returns pipeline unchanged |
 | `pipeline_print(p)` | `Pipeline` | `NA` | Pretty-print node table to stdout |
 | `pipeline_to_dot(p)` | `Pipeline` \| `MetaPipeline` | `String` | Graphviz DOT representation |
@@ -176,6 +177,13 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `inspect_artifacts(archive)` | `String` | `DataFrame` | Preview archive contents without importing |
 | `pipeline_gc(p, dry_run?)` | `Pipeline`, optional `Bool` | `DataFrame` | GC pipeline store paths (dry_run=true previews) |
 | `t_gc()` | — | `String` | Global Nix garbage collection |
+
+### Global Options
+
+| Function | Parameters | Returns | What it does |
+|---|---|---|---|
+| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)` | `Pipeline` plus optional `Dict`/`String`/`List`/`Bool` settings | `Pipeline` | Returns a new pipeline with global defaults merged into target nodes (all nodes by default). Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). `runtimes`/`nodes` restrict the merge to a subset (union when both given). |
+| `pipeline_node_options(p, node)` | `Pipeline`, `String` | `Dict` | Read-back: returns the fully resolved configuration of a single node after any global-options merges (runtime, serializer, functions, env_vars, shell, flake, deps, depth, ...). Unknown node is a `TypeError`. |
 
 ---
 
@@ -283,6 +291,104 @@ fetchurl("https://example.com/data.csv", output = "data.csv")
 ```
 
 The companion function `prefetch(url)` downloads a URL and returns its SHA-256 hash, enabling the two-step workflow of computing the hash upfront then pinning it in a pipeline for reproducible builds.
+
+### Setting Global Options for All Nodes
+
+Use `set_pipeline_global_options` to share functions, includes, environment
+variables, serializers, and other settings across every node in a pipeline
+without repeating them per-node:
+
+```t
+p = pipeline {
+  data = rn(<{ ... }>),
+  model = pyn(<{ ... }>)
+}
+q = set_pipeline_global_options(p,
+  functions = [rn: "utils.R", pyn: "preproc.py"],
+  include = "shared/config.yaml",
+  env_vars = [FOO: "bar"],
+  serializer = ^json,
+  noop = true
+)
+```
+
+Per-node `functions` and `include` values are still applied after these globals.
+If you pass the same runtime shorthand more than once (e.g. `[rn: "a.R", rn: "b.R"]`),
+all values are concatenated — both files are included.
+
+The merge strategy depends on the option:
+
+- **Combine (prepend):** `functions`, `include`, `env_vars`, `args`, `shell_args`,
+  `dependencies` — global values come first; per-node values follow. For dict
+  options (`env_vars`, `args`), a per-node value for the same key wins.
+- **Override:** `serializer`, `deserializer`, `shell`, `flake` — a provided global
+  value replaces every node's per-node value entirely.
+- **Force-only:** `noop` — `noop = true` forces every node to no-op; `noop = false`
+  has no effect and cannot un-set a per-node `noop = true`.
+
+#### Scoping Options to a Subset of Nodes
+
+By default the settings are merged into every node. Pass `runtimes` and/or `nodes`
+to restrict the merge to a subset; when both are given the target is their union:
+
+```t
+# Only R nodes get the arrow serializer
+q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+
+# Only the named nodes become no-ops
+q2 = set_pipeline_global_options(p, nodes = ["data"], noop = true)
+
+# Union: the R nodes plus the "data" node
+q3 = set_pipeline_global_options(p, runtimes = ["rn"], nodes = ["data"], noop = true)
+```
+
+Omitting the scoping arguments (or passing `na()`) targets every node; an explicitly
+empty list (`nodes = []`) targets no nodes — the pipeline is returned unchanged.
+An unmatched runtime or an unknown node name is an explicit `TypeError`.
+
+#### Reading Back a Node's Resolved Configuration
+
+Use `pipeline_node_options(pipeline, node)` to read back the fully resolved
+configuration of a single node — including anything merged in by
+`set_pipeline_global_options`:
+
+```t
+info = pipeline_node_options(q1, "data")
+info.functions   # => function files merged into the node
+info.noop        # => whether the node is a no-op
+info.depth       # => topological depth in the DAG
+```
+
+##### The `provenance` Key
+
+Every node tracks **where each resolved setting came from**. The returned dict
+includes a `provenance` key with one entry per option:
+
+- **Mergeable lists** (`functions`, `include`, `shell_args`, `dependencies`)
+  are grouped as `{ global: [...], node: [...] }` — the global list holds
+  values injected by `set_pipeline_global_options`, the node list holds values
+  declared on the node itself (or set later via `mutate_node`).
+- **Scalar overrides** (`serializer`, `deserializer`, `shell`, `flake`, `noop`)
+  map to the source that won: `"global"` or `"node"`, or `NA` when unset.
+- **Keyed options** (`env_vars`, `args`) map each individual key to its source.
+
+```t
+info = pipeline_node_options(q, "data")
+info.provenance.functions.global   # => ["utils.R"] (injected globally)
+info.provenance.functions.node     # => ["data.R"]  (declared on the node)
+info.provenance.serializer         # => "global" or "node" or NA
+```
+
+This is the audit trail behind every resolved value: **what** the node uses is
+in the top-level keys, **where it came from** is in `provenance`.
+
+For a DataFrame-wide view across all nodes at once — e.g. "which nodes got
+their serializer from global options?" — use `pipeline_config_to_frame(p)`
+(see the [Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md#node-metadata)).
+`explain(p.node)` also includes a `config` section with this provenance.
+
+See `set_pipeline_global_options` and `pipeline_node_options` in the
+[API reference](api-reference.md) for the full key list.
 
 ---
 
@@ -449,7 +555,7 @@ p.summary  -- DataFrame with regional totals
 
 ## 11. Pipeline Introspection
 
-> [↩ Quick Reference: Reading Node Artifacts](#3-pipeline-function-quick-reference)
+> [↩ Quick Reference: Reading Node Artifacts](#pipeline-function-quick-reference)
 
 T provides functions to inspect pipeline structure:
 
@@ -570,7 +676,7 @@ p.nonexistent
 
 ## 15. Materializing Pipelines
 
-> [↩ Quick Reference: Reading Node Artifacts](#3-pipeline-function-quick-reference)
+> [↩ Quick Reference: Reading Node Artifacts](#pipeline-function-quick-reference)
 
 Defining a pipeline with `pipeline { ... }` evaluates nodes in-memory. To **materialize** them as reproducible Nix artifacts (potentially using R or Python dependencies you've defined in `tproject.toml`), use `populate_pipeline()` with the `build = true` argument:
 
@@ -586,7 +692,7 @@ populate_pipeline(p, build = true)
 `populate_pipeline(p, build = true)` is the primary command for materializing a pipeline. It does the following:
 
 1. **Populates** the `_pipeline/` directory with `pipeline.nix` and `dag.json`.
-2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments — including nodes that use a custom per-node flake (see [Custom Flakes per Node](advanced-pipeline-tutorial.md#37-custom-flakes-per-node) for inheritance details).
+2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments — including nodes that use a custom per-node flake (see [Custom Flakes per Node](pipeline-materialization.md#custom-flakes-per-node) for inheritance details).
 3. **Triggers** a Nix build to materialize each node as a serialized artifact.
 4. **Records** the build in a timestamped log file (`_pipeline/build_log_YYYYMMdd_HHmmss_hash.json`).
 
@@ -692,8 +798,9 @@ p.ranked        -- DataFrame sorted by score
 
 Now that you've mastered pipeline basics, explore advanced topics:
 
-1. **[Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md)** — Dynamic branching (pattern expansion), node manipulation, pipeline composition, DAG transformations, CI/CD, and more.
-2. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
-3. **[Package Development](package_development.md)** — Create reusable T libraries.
-4. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
-5. **[API Reference](api-reference.md)** — Complete function reference by package.
+1. **[Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md)** — Node manipulation, set operations, DAG transformations, composition, inspection, and validation.
+2. **[Pipeline Materialization & Nix Orchestration](pipeline-materialization.md)** — Building pipelines into reproducible Nix artifacts, orchestrating builds, transferring archives, CI/CD, branching, and custom flakes.
+3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+4. **[Package Development](package_development.md)** — Create reusable T libraries.
+5. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
+6. **[API Reference](api-reference.md)** — Complete function reference by package.

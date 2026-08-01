@@ -20,6 +20,7 @@
 --#   pipeline_nodes(expanded)  -- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
 --# @family pipeline
 --# @export
+--# @name expand_pipeline
 *)
 
 open Ast
@@ -479,6 +480,13 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
               | None -> None
             ) branches
           in
+          let make_branch_provenance =
+            List.filter_map (fun b ->
+              match copy_entry b.orig_name p.p_provenance with
+              | Some prov -> Some (b.branch_name, prov)
+              | None -> None
+            ) branches
+          in
           let dep_index_for_branch (b : branch_info) (dep : string) : int =
             match List.assoc_opt dep b.branch_dep_indices with
             | Some idx -> idx
@@ -558,9 +566,10 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                  p_patterns       = [];
                  p_iterations     = List.filter (fun (n, _) -> not (is_removed n)) p.p_iterations @
                    List.map (fun b -> (b.branch_name, "vector")) branches;
-                 p_flakes         = List.filter (fun (n, _) -> not (is_removed n)) p.p_flakes @
-                    List.map (fun b -> (b.branch_name, None)) branches;
-               } in
+                  p_flakes         = List.filter (fun (n, _) -> not (is_removed n)) p.p_flakes @
+                     List.map (fun b -> (b.branch_name, None)) branches;
+                  p_provenance     = List.filter (fun (n, _) -> not (is_removed n)) p.p_provenance @ make_branch_provenance;
+                } in
 
                match to_script with
                | None -> VPipeline expanded

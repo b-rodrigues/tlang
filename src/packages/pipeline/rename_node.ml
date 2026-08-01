@@ -109,6 +109,7 @@ let register env =
               p_patterns     = rewire_patterns p.p_patterns;
               p_iterations   = rename_key p.p_iterations;
               p_flakes       = rename_key p.p_flakes;
+              p_provenance   = rename_key p.p_provenance;
             } in
             begin match Ast.get_in_memory_node_value ~p_exprs:p.p_exprs ~node_name:old_name with
             | Some v ->

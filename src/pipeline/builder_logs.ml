@@ -92,6 +92,7 @@ let read_log path =
         cn_dependencies = node_json |> member "dependencies" |> to_list |> filter_string;
         cn_p_exprs = None;
         cn_flake = None;
+        cn_config = None;
       } in
       (name, cn)
     ) nodes in
@@ -149,6 +150,7 @@ let read_log_with_hashes path =
         cn_dependencies = node_json |> member "dependencies" |> to_list |> filter_string;
         cn_p_exprs = None;
         cn_flake = None;
+        cn_config = None;
       } in
       (name, cn, node_hash)
     ) nodes in

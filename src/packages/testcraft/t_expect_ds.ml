@@ -298,6 +298,23 @@
 --# @export
 *)
 
+(*
+--# Inline assertion wrapper
+--#
+--# Evaluates `assert(val)`, prints `true` on success, and preserves the original
+--# `VError` on failure. Suitable for use inside pipeline node commands where the
+--# result must be visible in logs.
+--#
+--# @name check
+--# @param val :: Any The value to assert.
+--# @return :: Bool `true` on success; the original `VError` on failure.
+--# @example
+--#   check(expect_equal(1 + 1, 2))
+--# @family testcraft
+--# @seealso assert, expect_equal
+--# @export
+*)
+
 open Ast
 open Testcraft_utils
 

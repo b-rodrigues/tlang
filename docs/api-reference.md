@@ -15,7 +15,7 @@ Package-oriented guide to T's standard library.
 - [Base Package](#base-package) — Errors, NA, assertions
 - [Math Package](#math-package) — Mathematical functions
 - [Stats Package](#stats-package) — Statistical functions
-- [DataFrame Package](#to_dataframe-package) — CSV I/O and DataFrame operations
+- [DataFrame Package](#dataframe-package) — CSV I/O and DataFrame operations
 - [Colcraft Package](#colcraft-package) — Data manipulation verbs and window functions
 - [Chrono Package](#chrono-package) — High-performance date and time manipulation
 - [Strcraft Package](#strcraft-package) — Modern string manipulation
@@ -2689,7 +2689,7 @@ Returns a dictionary with node metadata and diagnostics summary. `inspect_pipeli
 
 ### `read_node(node)`
 
-Retrieves the dynamically evaluated or built artifact of a node from an in-scope pipeline. Strictly expects a `ComputedNode` object (e.g. `p.node_name`). For reading from historical build logs without the pipeline in scope, use [`read_past_node(p.node_name, which_log = ...)`](#read_past_node).
+Retrieves the dynamically evaluated or built artifact of a node from an in-scope pipeline. Strictly expects a `ComputedNode` object (e.g. `p.node_name`). For reading from historical build logs without the pipeline in scope, use [`read_past_node(p.node_name, which_log = ...)`](#read_past_nodenode-which_log).
 
 ---
 
@@ -2701,7 +2701,38 @@ Subsetting nodes in a pipeline. `filter_node` keeps nodes matching a condition; 
 
 ### `mutate_node(p, ...)` / `rename_node(p, ...)`
 
-Modify nodes within a pipeline. `mutate_node` can redefine or add nodes; `rename_node` changes node labels while preserving dependencies.
+`mutate_node` modifies metadata fields on pipeline nodes (all nodes, or scoped
+to a subset via the `where` named argument). `rename_node` changes a node's
+label while preserving its dependency edges.
+
+**Mutable fields:** `noop` (Bool), `runtime` (String), `serializer` (String),
+`deserializer` (String), `deps` (List[String]), `functions` (List[String]),
+`include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String),
+`shell_args` (List[String]), `flake` (String).
+
+Unlike `set_pipeline_global_options`, `mutate_node` **replaces** list/dict
+fields entirely rather than combining them. Pass `NA` to clear an optional or
+list/dict field — except `deps`, which cannot be cleared with `NA` because
+dependency edges cannot be re-derived outside the original evaluation
+environment (mutate it to a concrete list instead). All mutated fields are
+marked `"node"`-sourced in provenance tracking.
+
+**Parameters:**
+
+- `p` — The pipeline to modify.
+- `...` — Metadata assignments as `$field = value` pairs.
+- `where` (optional) — Predicate scoping which nodes are updated.
+
+**Returns:**
+
+`Pipeline` — a new pipeline with updated node metadata.
+
+**Examples:**
+```t
+p |> mutate_node($noop = true)
+p |> mutate_node($serializer = "pmml", where = $runtime == "R")
+p |> mutate_node($functions = ["utils.R"], $env_vars = NA)
+```
 
 ---
 
@@ -2774,6 +2805,276 @@ pipeline_report(p, target = "web", file = "report.html")
 ```
 
 ---
+
+### `set_pipeline_global_options(pipeline, functions = [:], include = [], env_vars = [:], serializer = NA, deserializer = NA, noop = false, args = [:], shell = NA, shell_args = [], flake = NA, dependencies = NA, runtimes = NA, nodes = NA)`
+
+Pure function that returns a new pipeline with the given defaults merged
+into target nodes. The original pipeline is not modified. By default the
+settings are merged into every node; pass `runtimes` and/or `nodes` to
+restrict the merge to a subset (union semantics when both are given).
+Omitting both scoping arguments (or passing `na()`) targets every node; an
+explicitly empty list (`nodes = []`) targets no nodes.
+
+Merge semantics vary per option:
+
+- **Combine (prepend)** — `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies`.
+  Global values come first; per-node values follow. For same-key dict entries
+  (`env_vars`, `args`) the later per-node value wins.
+- **Override** — `serializer`, `deserializer`, `shell`, `flake`.
+  A provided global value replaces every target node's per-node value entirely.
+- **Force-only** — `noop`. `noop = true` forces target nodes to no-op;
+  `noop = false` has no effect and cannot un-set a per-node `noop = true`.
+
+**Parameters:**
+
+- `pipeline` — The input pipeline (positional or piped).
+- `functions` (optional) — Dict mapping runtime shorthands to function file paths.
+  For example: `[rn: "functions.R", pyn: ["preproc.py", "utils.py"]]`.
+  Each value can be a single path (String) or list of paths (List[String]).
+  Runtime shorthands match node constructors: `rn` → R, `pyn` → Python, `jln` → Julia,
+  `qn` → Quarto, `shn` → sh, `node` → T.
+  If the same runtime shorthand appears more than once, all values are concatenated.
+  Per-node `functions` arguments are appended after these global files.
+- `include` (optional) — String or List[String]. File paths to include in every node's sandbox.
+  Per-node `include` arguments are appended after these global includes.
+- `env_vars` (optional) — Dict of environment variables for every node. Per-node
+  `env_vars` override global values for the same key.
+- `serializer` (optional) — String, Symbol, or `^`-prefixed serializer name. Default
+  serializer for every node; replaces any per-node serializer. `"default"` selects
+  the runtime's default.
+- `deserializer` (optional) — String, Symbol, or `^`-prefixed deserializer name. Default
+  deserializer for every node; replaces any per-node deserializer. `"default"` selects
+  the runtime's default.
+- `noop` (optional) — Bool. If true, every node becomes a no-op. Setting false has no
+  effect (it cannot un-set a per-node `noop = true`).
+- `args` (optional) — Dict of runtime/tool arguments for every node. Per-node `args`
+  override global values for the same key.
+- `shell` (optional) — String. Shell interpreter for every node; replaces per-node `shell`.
+- `shell_args` (optional) — String or List[String]. Shell arguments, prepended before
+  per-node `shell_args`.
+- `flake` (optional) — String. Nix flake reference for every node; replaces per-node `flake`.
+- `dependencies` (optional) — String or List[String]. Explicit dependencies, prepended
+  before per-node `deps`. Note: per-node node constructors use the shorter `deps`
+  argument name for the same field.
+- `runtimes` (optional) — String or List[String]. Scope the merge to nodes whose
+  runtime is in this set. Accepts translated runtimes (`"R"`, `"Python"`) or constructor
+  shorthands (`"rn"`, `"pyn"`). An unmatched runtime is a `TypeError`. Omitted (or
+  `na()`) targets all nodes; an explicitly empty list (`runtimes = []`) targets no nodes.
+- `nodes` (optional) — String or List[String]. Scope the merge to exactly these node
+  names. An unknown node name is a `TypeError`. When both `runtimes` and `nodes` are
+  given, the target is their union. Omitted (or `na()`) targets all nodes; an explicitly
+  empty list (`nodes = []`) targets no nodes.
+
+**Returns:**
+
+Pipeline — a new pipeline with the settings merged into the target nodes.
+
+**Examples:**
+```t
+p = pipeline {
+  a = rn(<{ ... }>),
+  b = pyn(<{ ... }>)
+}
+q = set_pipeline_global_options(p,
+  functions = [rn: "functions.R"],
+  include = "shared/config.yaml",
+  env_vars = [FOO: "bar"],
+  serializer = ^json,
+  noop = true
+)
+
+# Scope to R nodes only
+q2 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+
+# Scope to specific nodes
+q3 = set_pipeline_global_options(p, nodes = ["a"], noop = true)
+```
+
+---
+
+### `pipeline_node_options(pipeline, node)`
+
+Returns a Dict describing the fully resolved configuration of a single
+pipeline node, after any `set_pipeline_global_options` merges have been
+applied. This is the read-back companion to `set_pipeline_global_options`:
+what you merged in, you can read back out.
+
+The returned Dict has the following keys:
+
+- `name` — the node name (String)
+- `runtime` — one of `"T"`, `"R"`, `"Python"`, `"Julia"`, `"Quarto"`, `"sh"` (String)
+- `serializer` — e.g. `"default"`, `"pmml"` (String)
+- `deserializer` — e.g. `"default"`, `"pmml"` (String)
+- `noop` — whether the node is a no-op (Bool)
+- `deps` — names of nodes this node depends on (List of String)
+- `depth` — topological depth in the DAG (Int); roots are depth 0
+- `command_type` — one of `"command"` or `"script"` (String)
+- `diagnostics` — node diagnostics (Dict)
+- `functions` — function files merged into the node (List of String)
+- `include` — included files (List of String)
+- `env_vars` — build environment variables (Dict)
+- `args` — runtime/tool arguments (Dict)
+- `shell` — shell interpreter, or NA when unset (String | NA)
+- `shell_args` — shell interpreter arguments (List of String)
+- `flake` — Nix flake path, or NA when unset (String | NA)
+- `provenance` — provenance of every resolved value, as a Dict with one
+  entry per option key (`functions`, `include`, `env_vars`, `args`,
+  `shell_args`, `serializer`, `deserializer`, `shell`, `flake`, `noop`,
+  `dependencies`). Mergeable lists are grouped as `{ global: [...], node: [...] }`;
+  scalar options are either `"global"`, `"node"`, or NA when unset. This is the
+  source-provenance companion to `explain(p.node)`, telling you which values came
+  from `set_pipeline_global_options` (global) and which were declared on the node
+  itself.
+
+An unknown node name is a `TypeError` listing the valid node names.
+
+**Parameters:**
+
+- `pipeline` — The input pipeline (positional or piped).
+- `node` — The node name to read back (String).
+
+**Returns:**
+
+Dict — the resolved node configuration.
+
+**Examples:**
+```t
+p = pipeline {
+  a = rn(<{ ... }>),
+  b = pyn(<{ ... }>)
+}
+q = set_pipeline_global_options(p, functions = [rn: "functions.R"], noop = true)
+pipeline_node_options(q, "a")
+# => { name = "a", runtime = "R", functions = ["functions.R"], noop = true, ... }
+```
+
+---
+
+### `pipeline_config_to_frame(p)`
+
+Produces a DataFrame with one row per node showing resolved configuration
+values **and** per-field provenance counts. Extends `pipeline_to_frame` with
+provenance columns so queries like "which nodes got their serializer from
+global options?" can be answered directly in T.
+
+**Columns:**
+
+- Identity: `name`, `runtime`, `depth`, `command_type` (as in `pipeline_to_frame`)
+- Resolved scalar values: `serializer`, `deserializer`, `noop`, `shell`, `flake`
+- Provenance source markers: `prov_serializer`, `prov_deserializer`, `prov_noop`,
+  `prov_shell`, `prov_flake` — each `"global"`, `"node"`, or empty when unset
+- Total counts: `n_deps`, `n_funcs`, `n_incs`, `n_env_vars`, `n_args`,
+  `n_shell_args`
+- Provenance counts: `n_<option>_global` / `n_<option>_node` for each of the above
+
+> [!NOTE]
+> `n_deps` is sourced from `p_deps`, which includes **auto-inferred**
+> dependencies, while `n_deps_global` / `n_deps_node` come from
+> `prov_explicit_deps`, which only tracks explicitly-declared or
+> globally-injected deps. Consequently `n_deps` may exceed
+> `n_deps_global + n_deps_node` when a node has auto-inferred edges. The other
+> five list-count groups (`n_funcs`, `n_incs`, `n_env_vars`, `n_args`,
+> `n_shell_args`) do reconcile because they come from the same underlying lists
+> as their provenance columns.
+
+**Parameters:**
+
+- `p` — Pipeline to convert.
+
+**Returns:**
+
+`DataFrame` — one row per node with identity, resolved configuration, provenance markers, and provenance counts.
+
+**Examples:**
+```t
+q = set_pipeline_global_options(p, serializer = ^json)
+pipeline_config_to_frame(q) |> filter($prov_serializer == "global")
+```
+
+---
+
+### `pipeline_validate(p)`
+
+Checks a pipeline for structural errors **without throwing**, returning a list
+of error messages (empty list = valid). Shares its checks with
+`populate_pipeline`/`build_pipeline` and `t check` tier 1, so the same
+structural guarantees are enforced everywhere.
+
+Checks performed:
+
+- No dependency cycles
+- All referenced dependencies exist as nodes in the pipeline
+- Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`)
+- Cross-runtime dependencies declare an explicit deserializer
+- Multiple dependencies with a single non-dictionary deserializer strategy
+- Deserializer/format coherence across dependency edges (`text` is treated as
+  format-agnostic raw bytes: shell/`capture = "stdout"` nodes may consume any
+  format, and typed nodes may read a shell node's raw output)
+- Referenced function/include/script files exist on the file system
+- The `^bin` serializer is only used by `fetchurl` nodes
+
+**Parameters:**
+
+- `p` — Pipeline to validate.
+
+**Returns:**
+
+`List[String]` — validation error messages (empty = valid).
+
+**Examples:**
+```t
+p = pipeline {
+  a = rn(command = <{ 1 }>, runtime = "bogus", serializer = ^bin)
+}
+pipeline_validate(p)
+# => ["Node `a` uses unknown runtime `bogus`. ...",
+#     "The ^bin serializer is only supported for fetchurl nodes. ..."]
+```
+
+---
+
+### `pipeline_assert(p)`
+
+Validates the pipeline like `pipeline_validate`, but returns the pipeline
+unchanged if valid and throws the **first** validation error if invalid.
+Useful as a guard in the middle of a pipeline chain.
+
+**Parameters:**
+
+- `p` — Pipeline to validate.
+
+**Returns:**
+
+`Pipeline` — the same pipeline if valid; throws otherwise.
+
+**Examples:**
+```t
+p |> pipeline_assert |> build_pipeline
+```
+
+---
+
+### `pipeline_cycles(p)`
+
+Returns the names of nodes involved in dependency cycles (empty list if the
+DAG is valid). A cycle means the pipeline cannot be topologically sorted.
+
+**Parameters:**
+
+- `p` — Pipeline to inspect.
+
+**Returns:**
+
+`List[String]` — node names in cycles.
+
+**Examples:**
+```t
+pipeline_cycles(p)
+```
+
+---
+
+
 
 ### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 

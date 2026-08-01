@@ -472,16 +472,17 @@ let computed_node_from_registry node_name =
              Error
                (Printf.sprintf "show_plot: node `%s` has unsupported plot class `%s`." node_name class_name)
            else
-              Ok {
-                cn_name = node_name;
-                cn_runtime = (match runtime_of_plot_class class_name with Some runtime -> runtime | None -> "unknown");
-                cn_path = artifact_path;
-                cn_serializer = "default";
-                cn_class = class_name;
-                 cn_dependencies = [];
-                 cn_p_exprs = None;
-                 cn_flake = None;
-               })
+               Ok {
+                 cn_name = node_name;
+                 cn_runtime = (match runtime_of_plot_class class_name with Some runtime -> runtime | None -> "unknown");
+                 cn_path = artifact_path;
+                 cn_serializer = "default";
+                 cn_class = class_name;
+                  cn_dependencies = [];
+                  cn_p_exprs = None;
+                  cn_flake = None;
+                  cn_config = None;
+                })
   | _ ->
       match Builder_logs.get_logs () with
       | [] ->
@@ -526,6 +527,7 @@ let build_ephemeral_plot_node node_name (un : unbuilt_node) =
       p_patterns = (match un.un_pattern with Some p -> [ (node_name, p) ] | None -> []);
       p_iterations = [ (node_name, un.un_iteration) ];
       p_flakes = [ (node_name, un.un_flake) ];
+      p_provenance = [ (node_name, Ast.Utils.build_node_provenance un) ];
     }
   in
   match Builder.populate_pipeline ~build:true pipeline with
