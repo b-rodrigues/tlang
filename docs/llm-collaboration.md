@@ -111,6 +111,7 @@ This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. Th
 ```
 
 Each diagnostic includes:
+
 - `error_class`: categorizes the issue (`schema_mismatch`, `type_mismatch`, `cycle_detected`, etc.)
 - `node`: the pipeline node where the issue was found
 - `span`: source location `[line, column]`
@@ -340,6 +341,7 @@ write_csv(analysis.summary, "segment_summary.csv")
 ```
 
 **Benefits**:
+
 - LLM understands exact requirements
 - Human can verify LLM understood correctly
 - Future LLMs can regenerate code from intent
@@ -368,6 +370,7 @@ print(df_grouped)
 ```
 
 **Problems**:
+
 - If requirements change, LLM rewrites everything
 - No separation between data loading, cleaning, analysis
 - Hard to modify one step without breaking others
@@ -404,6 +407,7 @@ analysis = pipeline {
 ```
 
 **Benefits**:
+
 - **Change request**: "Also filter by date"
   - LLM only regenerates `cleaned` node
   - `raw` and `by_region` unchanged
@@ -795,6 +799,7 @@ git show abc123:src/pipeline.t
 ---
 
 **See Also**:
+
 - [Reproducibility](reproducibility.md) — Nix for reproducible environments
 - [Examples](examples.md) — Intent-driven analysis examples
 - [Pipeline Tutorial](pipeline_tutorial.md) — Pipeline structure

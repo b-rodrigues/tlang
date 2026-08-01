@@ -824,6 +824,7 @@ Pipelines define named computation nodes with automatic dependency resolution an
 Built-in serializer symbols include `^csv`, `^arrow`, `^pmml`, and `^onnx`, which you pass to node constructors like `serializer = ^csv`.
 
 The **ONNX** system provides full cross-runtime model portability:
+
 - **`^onnx` Serializer**: Automatically handles model export/import between R, Python, and T nodes.
 - **Native Inference**: Use `t_read_onnx()` to load models and `predict()` for high-performance scoring directly inside T nodes, with no dependency on R or Python at prediction time.
 - **Rich Metadata**: T-native ONNX objects contain input/output schema and custom model properties (producer, description, feature names) extracted directly from the session.
@@ -907,6 +908,7 @@ For more comprehensive examples and templates, visit the [T Demos repository](ht
 Instead of inlining code with `command`, nodes can point to an external file using `script`. `command` and `script` are mutually exclusive, and the runtime can be inferred from file extensions such as `.R` or `.py`.
 
 Pipeline features:
+
 - **Automatic dependency resolution**: Nodes can be declared in any order
 - **Deterministic execution**: Same inputs always produce same outputs
 - **Cycle detection**: Circular dependencies are caught and reported

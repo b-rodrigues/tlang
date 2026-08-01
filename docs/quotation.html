@@ -135,10 +135,14 @@ context. This is useful for building Domain Specific Languages
 -- &#39;select&#39;, &#39;age&#39;, and &#39;height&#39; are captured as symbols.</code></pre>
 <h2 id="evaluating-code">Evaluating Code</h2>
 <h3 id="evalexpr_or_quosure"><code>eval(expr_or_quosure)</code></h3>
-<p>The <code>eval()</code> function evaluates an Expression or Quosure:
-- <strong>Expression</strong>: evaluated in the <em>current</em>
-environment. - <strong>Quosure</strong>: evaluated in its
-<em>captured</em> environment.</p>
+<p>The <code>eval()</code> function evaluates an Expression or
+Quosure:</p>
+<ul>
+<li><strong>Expression</strong>: evaluated in the <em>current</em>
+environment.</li>
+<li><strong>Quosure</strong>: evaluated in its <em>captured</em>
+environment.</li>
+</ul>
 <pre class="t"><code>e = to_expr(10 + 20)
 eval(e)          -- evaluates in current env → 30
 

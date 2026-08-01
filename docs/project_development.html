@@ -148,9 +148,9 @@ definition.</li>
 <li><strong>AGENTS.md</strong>: Onboarding guide for AI Agents.</li>
 <li><strong>T-LANGUAGE-REFERENCE.md</strong>: Tiered language reference
 for LLMs.</li>
-<li><strong>.claude/skills/SKILL.md</strong>: An AI agent skill file
-that teaches LLMs how to work with T projects (scaffolded
-automatically).</li>
+<li><strong><code>.claude/skills/t-project/SKILL.md</code></strong>: An
+AI agent skill file that teaches LLMs how to work with T projects
+(scaffolded automatically).</li>
 </ul>
 <h2 id="entering-the-development-environment">2. Entering the
 Development Environment</h2>
@@ -218,7 +218,7 @@ project’s nixpkgs date to today’s UTC date:</p>
 <div class="sourceCode" id="cb8"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t upgrade</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Checking</span> for new T releases...</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Upgrading</span> project to T 0.53.0 and nixpkgs date 2026-05-08 <span class="er">(</span><span class="ex">today</span><span class="st">&#39;s UTC date)...</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Upgrading</span> project to T 0.54.3 and nixpkgs date 2026-07-27 <span class="er">(</span><span class="ex">today</span><span class="st">&#39;s UTC date)...</span></span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="st">Regenerating flake.nix and updating dependencies...</span></span>
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="st">Running nix flake update...</span></span></code></pre></div>
 <p>This updates your <code>tproject.toml</code> and then runs
@@ -321,7 +321,7 @@ workspace from scratch</h4>
 package metadata — you are starting from an empty T project.</p>
 <p><strong>1. Create a new T project</strong></p>
 <div class="sourceCode" id="cb15"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> project my_project</span>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init <span class="at">--project</span> my_project</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> my_project</span></code></pre></div>
 <p><strong>2. Edit <code>tproject.toml</code></strong></p>
 <p>Replace the default <code>[py-dependencies]</code> section (or add it
@@ -332,8 +332,11 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb16-1"><a href=
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="dt">workspace</span> <span class="op">=</span> <span class="st">&quot;python&quot;</span></span></code></pre></div>
 <p>The <code>version</code> field is optional when using the UV resolver
 — T infers it from <code>requires-python</code> in
-<code>pyproject.toml</code>. Remove any <code>packages</code> key if
-present — UV and <code>packages</code> are mutually exclusive.</p>
+<code>pyproject.toml</code>. The specifier must constrain Python to a
+single minor version (e.g. <code>&gt;=3.12,&lt;3.13</code>); an
+open-ended specifier like <code>&gt;=3.12</code> is rejected as
+ambiguous. Remove any <code>packages</code> key if present — UV and
+<code>packages</code> are mutually exclusive.</p>
 <p><strong>3. Create the Python workspace directory and
 <code>pyproject.toml</code></strong></p>
 <div class="sourceCode" id="cb17"><pre
@@ -343,7 +346,7 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb18-1"><a href=
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">[project]</span></span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="dt">name</span> <span class="op">=</span> <span class="st">&quot;my_project_python_env&quot;</span></span>
 <span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;0.1.0&quot;</span></span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="dt">requires-python</span> <span class="op">=</span> <span class="st">&quot;&gt;=3.12&quot;</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="dt">requires-python</span> <span class="op">=</span> <span class="st">&quot;&gt;=3.12,&lt;3.13&quot;</span></span>
 <span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="dt">dependencies</span> <span class="op">=</span> <span class="op">[</span></span>
 <span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;pandas&quot;</span><span class="op">,</span></span>
 <span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a><span class="op">]</span></span></code></pre></div>
@@ -464,12 +467,15 @@ JSON (<code>serializer = ^json</code>):</p>
     deserializer = ^csv
   )
 }</code></pre>
-<p>This pattern provides a clean duality: - <strong>Passing
-builds</strong> output a structured JSON status artifact mapping check
-names to <code>true</code> (accessible via
-<code>read_node(p.check_filter)</code>). - <strong>Failing
-assertions</strong> short-circuit execution immediately, recording the
-full <code>AssertionError</code> object in the node’s build log.</p>
+<p>This pattern provides a clean duality:</p>
+<ul>
+<li><strong>Passing builds</strong> output a structured JSON status
+artifact mapping check names to <code>true</code> (accessible via
+<code>read_node(p.check_filter)</code>).</li>
+<li><strong>Failing assertions</strong> short-circuit execution
+immediately, recording the full <code>AssertionError</code> object in
+the node’s build log.</li>
+</ul>
 <h3 id="skipping-pipeline-tests-conditionally">Skipping Pipeline Tests
 Conditionally</h3>
 <p>Since pipeline nodes are compiled and executed via Nix, tests that
@@ -485,7 +491,7 @@ p = pipeline {
   heavy_node = node(
     command = &lt;{ run_heavy_nix_job() }&gt;,
     # Skip execution if not running in CI
-    noop = (env_var(&quot;CI&quot;) == &quot;&quot;)
+    noop = (get(env(&quot;CI&quot;), &quot;&quot;) == &quot;&quot;)
   )
 }
 
@@ -535,11 +541,15 @@ REPL, file tree, variable watcher, pipeline diagram, and plot viewer. To
 enable Atelier in a new project, pass <code>--include-atelier</code> to
 <code>t init</code>. Once inside <code>nix develop</code>, simply run
 <code>atelier</code>.</p>
-<p>Once active, you will get real-time autocompletion for: -
-<strong>Package functions</strong>: Suggestions for all imported
-functions. - <strong>Local variables</strong>: Defined earlier in your
-script. - <strong>DataFrame columns</strong>: Column names from your
-data sources (accessible via the <code>$</code> prefix).</p>
+<p>Once active, you will get real-time autocompletion for:</p>
+<ul>
+<li><strong>Package functions</strong>: Suggestions for all imported
+functions.</li>
+<li><strong>Local variables</strong>: Defined earlier in your
+script.</li>
+<li><strong>DataFrame columns</strong>: Column names from your data
+sources (accessible via the <code>$</code> prefix).</li>
+</ul>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <ol type="1">

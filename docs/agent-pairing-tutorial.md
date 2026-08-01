@@ -110,6 +110,7 @@ build_pipeline(p)
 ```
 
 Notice the pipeline structure:
+
 - **`raw`** is a T node that reads the CSV (T handles file I/O natively)
 - **`clean`** is a Python node (`pyn`) that filters and transforms the data
 - **`summary`** is a Python node that groups and aggregates
@@ -166,6 +167,7 @@ $ t check --json pipeline.t
 ```
 
 The agent sees:
+
 - **`error_class: "name_error"`** — an undefined name
 - **`node.id: "clean"`, `node.lang: "python"`** — the error is in the Python node
 - **`span: [12, 14]`** — line 12, column 14 in the pipeline file
@@ -220,6 +222,7 @@ Now a different error surfaces:
 ```
 
 The agent sees:
+
 - **`error_class: "schema_mismatch"`** — column name doesn't match upstream schema
 - **`caused_by: ["clean"]`** — the `summary` node reads from `clean`'s output
 - **`suggested_fix`** — rename `amunt` to `amount` in the summary node
@@ -532,6 +535,7 @@ nrow(failed)  -- 0 if all tests passed
 ```
 
 The DataFrame columns are:
+
 - `file`: Path to the test file
 - `status`: "passed" or "failed"
 - `duration_ms`: Duration in milliseconds

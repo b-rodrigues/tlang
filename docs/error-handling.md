@@ -42,6 +42,7 @@ Evaluation continues even when statements or pipeline nodes result in `VError` v
 Evaluation stops immediately upon encountering the first `VError`. This is the usual, common behaviour for critical scripts where subsequent steps should only run if previous ones were flawlessly successful.
 
 **How to toggle**:
+
 - **CLI**: Use `t run --failfast script.t`
 - **REPL**: Set `t_run(failfast = true, ...)`
 - **Pipelines**: Use `t_make(failfast = true)`
@@ -79,6 +80,7 @@ prnt(42)
 ```
 
 **Features**:
+
 - Levenshtein distance-based suggestions
 - Searches current scope and standard library
 - Case-insensitive suggestions
@@ -114,6 +116,7 @@ add(1, 2, 3)
 ```
 
 **Features**:
+
 - Shows expected parameter names
 - Shows actual argument count
 - Suggests correct usage
@@ -231,6 +234,7 @@ T provides powerful primitives to analyze exceptions/diagnostics and preserve th
 Converts all terminal errors and warning diagnostics from computed nodes of a built pipeline into a structured four-column `DataFrame` (`node`, `status`, `code`, and `message`), allowing you to inspect and filter multiple pipeline issues.
 
 To keep the printed output clean and readable:
+
 * **Traceback Truncation**: `collect_exceptions` automatically extracts the **last non-empty line** of multi-line tracebacks (like Python or Arrow error messages) to preserve the actual error class and message, and caps the text length at `100` characters.
 * **Polars-Style Cell Truncation**: When pretty-printing any `DataFrame` in the REPL, all string cells exceeding `35` characters are truncated to `32` characters followed by `...` (Polars-style) to prevent wide/broken columns.
 
@@ -248,6 +252,7 @@ exceptions_df |> filter($status == "Warning")
 ##### Explaining Collected Exceptions
 
 T's built-in `explain()` function has specialized support for `collect_exceptions` DataFrames:
+
 - **Direct Explanation (1 exception)**: If there is exactly one exception row in the DataFrame, calling `explain(exceptions_df)` will automatically map to that diagnostic exception and return a structured dictionary explaining the exact error or warning details (containing the originating node, diagnostic code, and description message).
 - **Consolidated Explanation (multiple exceptions)**: If there are zero or multiple exceptions, calling `explain(exceptions_df)` returns a structured representation of the exception collection itself (`exceptions_list`), with a `count` property and an `exceptions` list containing the mapped explanation of each individual diagnostic element.
 
@@ -635,6 +640,7 @@ p = pipeline {
 ```
 
 **Why use this?**:
+
 *   **Adaptive Modeling**: Your pipeline automatically scales its complexity to match the quality of the incoming data, avoiding "singular matrix" or "one level to_factor" errors.
 *   **Operational Intelligence**: Instead of the whole pipeline failing due to a minor data shift (like one category disappearing from today's extract), the system gracefully degrades its service while still providing a result.
 *   **Auditability**: Every run clearly states which path was taken through the use of descriptive tags like `low_diversity` or `high_quality`.
@@ -654,6 +660,7 @@ T offers several tools for managing errors, each suited for different scenarios:
     *   **Complex Recovery Logic**: When `if (is_error(x))` becomes too nested or less readable.
 
 **General Guidance**:
+
 *   Use `|>` for the majority of your data pipelines where you expect success and want to stop on the first error.
 *   Use `?|>` when you need to inspect or act on an error *at a specific point* in a pipeline, often followed by `match` or an `if (is_error(...))` check.
 *   Use `match` when your error recovery logic involves different actions for different error types, or when you want a clear, declarative way to distinguish between success and various error states.
@@ -916,6 +923,7 @@ assert(length(result_list) == expected_length, "Length mismatch")
 ---
 
 **See Also**:
+
 - [Examples](examples.md) — Error handling patterns in practice
 - [API Reference](api-reference.md) — Error-related functions
 - [Troubleshooting](troubleshooting.md) — Common issues and solutions

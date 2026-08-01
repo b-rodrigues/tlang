@@ -192,15 +192,20 @@ functionality</li>
 <h2 id="core-components">Core Components</h2>
 <h3 id="lexer-srclexer.mll">1. Lexer (<code>src/lexer.mll</code>)</h3>
 <p><strong>Purpose</strong>: Convert source text into tokens.</p>
-<p><strong>Key Features</strong>: - Keyword recognition
-(<code>if</code>, <code>else</code>, <code>function</code>,
-<code>pipeline</code>, etc.) - Operators: arithmetic (<code>+</code>,
-<code>-</code>, <code>*</code>, <code>/</code>), comparison
-(<code>==</code>, <code>&lt;</code>, <code>&gt;</code>), logical
-(<code>and</code>, <code>or</code>, <code>not</code>) - Pipe operators:
-<code>|&gt;</code>, <code>?|&gt;</code>, <code>~</code> (formula) -
-Multiline support: Pipes can span multiple lines - String literals with
-escape sequences - Comments: <code>--</code> to end of line</p>
+<p><strong>Key Features</strong>:</p>
+<ul>
+<li>Keyword recognition (<code>if</code>, <code>else</code>,
+<code>function</code>, <code>pipeline</code>, etc.)</li>
+<li>Operators: arithmetic (<code>+</code>, <code>-</code>,
+<code>*</code>, <code>/</code>), comparison (<code>==</code>,
+<code>&lt;</code>, <code>&gt;</code>), logical (<code>and</code>,
+<code>or</code>, <code>not</code>)</li>
+<li>Pipe operators: <code>|&gt;</code>, <code>?|&gt;</code>,
+<code>~</code> (formula)</li>
+<li>Multiline support: Pipes can span multiple lines</li>
+<li>String literals with escape sequences</li>
+<li>Comments: <code>--</code> to end of line</li>
+</ul>
 <p><strong>Example</strong>:</p>
 <pre class="t"><code>df |&gt; filter($age &gt; 30)</code></pre>
 <p>Tokens:</p>
@@ -209,24 +214,31 @@ escape sequences - Comments: <code>--</code> to end of line</p>
 (<code>src/parser.mly</code>)</h3>
 <p><strong>Purpose</strong>: Build abstract syntax tree (AST) from
 tokens.</p>
-<p><strong>Grammar Highlights</strong>: - Expression-oriented:
-Everything is an expression (conditionals, blocks, etc.) - Operator
-precedence: <code>*</code> / <code>/</code> bind tighter than
-<code>+</code> / <code>-</code> - Pipe associativity: Left-associative
-(<code>a |&gt; f |&gt; g</code> = <code>(a |&gt; f) |&gt; g</code>) -
-Named arguments: <code>f(a = 1, b = 2)</code></p>
+<p><strong>Grammar Highlights</strong>:</p>
+<ul>
+<li>Expression-oriented: Everything is an expression (conditionals,
+blocks, etc.)</li>
+<li>Operator precedence: <code>*</code> / <code>/</code> bind tighter
+than <code>+</code> / <code>-</code></li>
+<li>Pipe associativity: Left-associative (<code>a |&gt; f |&gt; g</code>
+= <code>(a |&gt; f) |&gt; g</code>)</li>
+<li>Named arguments: <code>f(a = 1, b = 2)</code></li>
+</ul>
 <p><strong>Precedence</strong> (low to high): 1. <code>|&gt;</code>,
 <code>?|&gt;</code> (pipes) 2. <code>or</code> 3. <code>and</code> 4.
 <code>not</code> 5. <code>==</code>, <code>!=</code>, <code>&lt;</code>,
 <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> 6.
 <code>+</code>, <code>-</code> 7. <code>*</code>, <code>/</code>,
 <code>%</code> 8. Unary <code>-</code> 9. Function application</p>
-<p><strong>Special Constructs</strong>: - <strong>Pipelines</strong>:
-<code>pipeline { node1 = expr1; node2 = expr2 }</code> -
-<strong>Intents</strong>: <code>intent { field: value }</code> -
-<strong>Formulas</strong>: <code>response ~ predictor</code> -
-<strong>Lambdas</strong>: <code>\(x) expr</code> or
-<code>function(x) expr</code></p>
+<p><strong>Special Constructs</strong>:</p>
+<ul>
+<li><strong>Pipelines</strong>:
+<code>pipeline { node1 = expr1; node2 = expr2 }</code></li>
+<li><strong>Intents</strong>: <code>intent { field: value }</code></li>
+<li><strong>Formulas</strong>: <code>response ~ predictor</code></li>
+<li><strong>Lambdas</strong>: <code>\(x) expr</code> or
+<code>function(x) expr</code></li>
+</ul>
 <h3 id="ast-srcast.ml">3. AST (<code>src/ast.ml</code>)</h3>
 <p><strong>Purpose</strong>: Define data structures for the abstract
 syntax tree and runtime values.</p>
@@ -270,10 +282,13 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb4-1"><a href
 <span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>  | VPipeline <span class="kw">of</span> pipeline_data</span>
 <span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>  | VIntent <span class="kw">of</span> intent_data</span>
 <span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* ... *)</span></span></code></pre></div>
-<p><strong>Design Notes</strong>: - Expressions are immutable;
-evaluation produces new values - Functions capture environment as
-closures - Errors and NA are first-class values, not exceptions -
-DataFrames hold Arrow table handles (or fallback lists)</p>
+<p><strong>Design Notes</strong>:</p>
+<ul>
+<li>Expressions are immutable; evaluation produces new values</li>
+<li>Functions capture environment as closures</li>
+<li>Errors and NA are first-class values, not exceptions</li>
+<li>DataFrames hold Arrow table handles (or fallback lists)</li>
+</ul>
 <h3 id="evaluator-srceval.ml">4. Evaluator
 (<code>src/eval.ml</code>)</h3>
 <p><strong>Purpose</strong>: Execute AST nodes and produce values.</p>
@@ -290,10 +305,13 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb5-1"><a href
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co">(* Built-in operator evaluation *)</span></span>
 <span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> eval_binop : binop -&gt; value -&gt; value -&gt; value</span>
 <span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> eval_unop : unop -&gt; value -&gt; value</span></code></pre></div>
-<p><strong>Environment Model</strong>: - Environments are hash tables:
-<code>string -&gt; value</code> - Nested scopes: Functions create child
-environments - Closures: Functions capture their defining environment -
-Immutability: Variables can’t be reassigned (shadowing allowed)</p>
+<p><strong>Environment Model</strong>:</p>
+<ul>
+<li>Environments are hash tables: <code>string -&gt; value</code></li>
+<li>Nested scopes: Functions create child environments</li>
+<li>Closures: Functions capture their defining environment</li>
+<li>Immutability: Variables can’t be reassigned (shadowing allowed)</li>
+</ul>
 <p><strong>Pipe Evaluation</strong>:</p>
 <div class="sourceCode" id="cb6"><pre
 class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* Conditional pipe |&gt; *)</span></span>
@@ -304,15 +322,22 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb6-1"><a href
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co">(* Maybe-pipe ?|&gt; *)</span></span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> value = eval env left <span class="kw">in</span></span>
 <span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>apply_function (eval env right) [value]  <span class="co">(* Always forward *)</span></span></code></pre></div>
-<p><strong>Error Handling</strong>: - Errors are <code>VError</code>
-values, not OCaml exceptions - Propagate through pipelines (unless
-caught) - Actionable error messages with context</p>
+<p><strong>Error Handling</strong>:</p>
+<ul>
+<li>Errors are <code>VError</code> values, not OCaml exceptions</li>
+<li>Propagate through pipelines (unless caught)</li>
+<li>Actionable error messages with context</li>
+</ul>
 <h3 id="repl-srcrepl.ml">5. REPL (<code>src/repl.ml</code>)</h3>
 <p><strong>Purpose</strong>: Interactive read-eval-print loop.</p>
-<p><strong>Features</strong>: - Persistent environment across
-evaluations - Pretty-printing of results - Multiline input support -
-Error recovery (don’t crash on errors) - Standard library auto-loaded at
-startup</p>
+<p><strong>Features</strong>:</p>
+<ul>
+<li>Persistent environment across evaluations</li>
+<li>Pretty-printing of results</li>
+<li>Multiline input support</li>
+<li>Error recovery (don’t crash on errors)</li>
+<li>Standard library auto-loaded at startup</li>
+</ul>
 <p><strong>Flow</strong>:</p>
 <pre><code>1. Read input
 2. Lex &amp; parse → AST
@@ -495,12 +520,11 @@ representations of Python, R, and Julia objects.</p>
 function is designed to never crash the primary T environment, even if
 the node’s artifacts are missing or corrupted.</li>
 <li><strong>Representation Wrappers</strong>: T provides specialized
-“host object” representations for common foreign types (Lists, Dicts,
-DataFrames, Models). If a node produces an object that T doesn’t
-natively understand, it is safely wrapped as a generic
-<code>HostObject</code> that can still be passed as a reference to other
-nodes of the same language (e.g., from one R node to another) without T
-needing to understand its internal structure.</li>
+representations for common foreign types (Lists, Dicts, DataFrames,
+Models). If a node produces an object that T doesn’t natively
+understand, <code>read_node()</code> returns an explicit
+<code>VError</code> rather than a placeholder, so no data is silently
+dropped or mangled.</li>
 <li><strong>Native Fallback</strong>: If T’s representation is
 insufficient for a particular task, users can always access the raw
 object by reading the node’s artifact directly from within a native
@@ -541,9 +565,11 @@ data.</p>
 │ • Zero-copy slicing                      │
 └─────────────────────────────────────────┘</code></pre>
 <h3 id="ffi-bindings">FFI Bindings</h3>
-<p>Located in <code>src/arrow/</code>: - <strong>arrow_ffi.ml</strong>:
-OCaml wrappers for C functions - <strong>C stubs</strong>: Interface to
-Arrow C GLib</p>
+<p>Located in <code>src/arrow/</code>:</p>
+<ul>
+<li><strong>arrow_ffi.ml</strong>: OCaml wrappers for C functions</li>
+<li><strong>C stubs</strong>: Interface to Arrow C GLib</li>
+</ul>
 <p><strong>Examples</strong>:</p>
 <div class="sourceCode" id="cb16"><pre
 class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">external</span> read_csv_native : <span class="dt">string</span> -&gt; arrow_table = <span class="st">&quot;caml_arrow_read_csv&quot;</span></span>
@@ -584,8 +610,11 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb17-1"><a hre
 <span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">List</span>.filter predicate df.rows</span></code></pre></div>
 <h3 id="column-access">Column Access</h3>
 <pre class="t"><code>df.age</code></pre>
-<p>Returns a <code>VVector</code>: - If native handle: Zero-copy view
-into Arrow column - If fallback: Extracted OCaml list</p>
+<p>Returns a <code>VVector</code>:</p>
+<ul>
+<li>If native handle: Zero-copy view into Arrow column</li>
+<li>If fallback: Extracted OCaml list</li>
+</ul>
 <hr />
 <h2 id="package-system">Package System</h2>
 <p>Standard library functions are organized into packages.</p>
@@ -624,50 +653,95 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb22-1"><a hre
 <hr />
 <h2 id="design-decisions">Design Decisions</h2>
 <h3 id="why-tree-walking-interpreter">Why Tree-Walking Interpreter?</h3>
-<p><strong>Pros</strong>: - Simple to implement and modify - Direct AST
-representation - Easy debugging - Fast development iteration</p>
-<p><strong>Cons</strong>: - Slower than bytecode or JIT - No
-ahead-of-time optimization</p>
+<p><strong>Pros</strong>:</p>
+<ul>
+<li>Simple to implement and modify</li>
+<li>Direct AST representation</li>
+<li>Easy debugging</li>
+<li>Fast development iteration</li>
+</ul>
+<p><strong>Cons</strong>:</p>
+<ul>
+<li>Slower than bytecode or JIT</li>
+<li>No ahead-of-time optimization</li>
+</ul>
 <p><strong>Decision</strong>: For alpha, simplicity and correctness
 outweigh raw performance. Future versions may add bytecode
 compilation.</p>
 <h3 id="why-ocaml">Why OCaml?</h3>
-<p><strong>Pros</strong>: - Excellent parser/compiler tooling (Menhir,
-ocamllex) - Strong type system for host language (prevents bugs) - Good
-FFI story (C bindings for Arrow) - Fast native compilation - Functional
-paradigm matches T’s design</p>
-<p><strong>Cons</strong>: - Smaller ecosystem than Python/JavaScript -
-Steeper learning curve for contributors</p>
+<p><strong>Pros</strong>:</p>
+<ul>
+<li>Excellent parser/compiler tooling (Menhir, ocamllex)</li>
+<li>Strong type system for host language (prevents bugs)</li>
+<li>Good FFI story (C bindings for Arrow)</li>
+<li>Fast native compilation</li>
+<li>Functional paradigm matches T’s design</li>
+</ul>
+<p><strong>Cons</strong>:</p>
+<ul>
+<li>Smaller ecosystem than Python/JavaScript</li>
+<li>Steeper learning curve for contributors</li>
+</ul>
 <p><strong>Decision</strong>: OCaml’s strengths in language
 implementation outweigh ecosystem concerns.</p>
 <h3 id="why-apache-arrow">Why Apache Arrow?</h3>
-<p><strong>Pros</strong>: - Industry-standard columnar format -
-Zero-copy interoperability (Parquet, R, Python, Julia) -
-High-performance compute kernels - Cross-language support</p>
-<p><strong>Cons</strong>: - Large dependency - C++ dependency management
-complexity (mitigated by Nix) - FFI maintenance burden</p>
+<p><strong>Pros</strong>:</p>
+<ul>
+<li>Industry-standard columnar format</li>
+<li>Zero-copy interoperability (Parquet, R, Python, Julia)</li>
+<li>High-performance compute kernels</li>
+<li>Cross-language support</li>
+</ul>
+<p><strong>Cons</strong>:</p>
+<ul>
+<li>Large dependency</li>
+<li>C++ dependency management complexity (mitigated by Nix)</li>
+<li>FFI maintenance burden</li>
+</ul>
 <p><strong>Decision</strong>: Arrow’s performance and interoperability
 are critical for data analysis. Nix ensures reproducible builds.</p>
 <h3 id="why-nix">Why Nix?</h3>
-<p><strong>Pros</strong>: - Perfect reproducibility (same inputs → same
-outputs) - Declarative dependency management - Isolated development
-environments - Cross-platform consistency</p>
-<p><strong>Cons</strong>: - Steep learning curve - Longer initial build
-times - Smaller user base than Docker</p>
+<p><strong>Pros</strong>:</p>
+<ul>
+<li>Perfect reproducibility (same inputs → same outputs)</li>
+<li>Declarative dependency management</li>
+<li>Isolated development environments</li>
+<li>Cross-platform consistency</li>
+</ul>
+<p><strong>Cons</strong>:</p>
+<ul>
+<li>Steep learning curve</li>
+<li>Longer initial build times</li>
+<li>Smaller user base than Docker</li>
+</ul>
 <p><strong>Decision</strong>: Reproducibility is a core value; Nix is
 the best tool for this goal.</p>
 <h3 id="why-explicit-na-handling">Why Explicit NA Handling?</h3>
-<p><strong>Pros</strong>: - No silent data loss - Forces user to think
-about missingness - Predictable behavior</p>
-<p><strong>Cons</strong>: - More verbose than automatic propagation -
-Requires <code>na_rm</code> parameters everywhere</p>
+<p><strong>Pros</strong>:</p>
+<ul>
+<li>No silent data loss</li>
+<li>Forces user to think about missingness</li>
+<li>Predictable behavior</li>
+</ul>
+<p><strong>Cons</strong>:</p>
+<ul>
+<li>More verbose than automatic propagation</li>
+<li>Requires <code>na_rm</code> parameters everywhere</li>
+</ul>
 <p><strong>Decision</strong>: Explicit beats implicit. R’s silent NA
 propagation leads to subtle bugs; T forces intentionality.</p>
 <h3 id="why-no-static-types">Why No Static Types?</h3>
-<p><strong>Pros</strong>: - Faster prototyping - Simpler user experience
-(no type annotations) - Easier REPL workflow</p>
-<p><strong>Cons</strong>: - Runtime errors instead of compile-time
-errors - Less safety for large codebases</p>
+<p><strong>Pros</strong>:</p>
+<ul>
+<li>Faster prototyping</li>
+<li>Simpler user experience (no type annotations)</li>
+<li>Easier REPL workflow</li>
+</ul>
+<p><strong>Cons</strong>:</p>
+<ul>
+<li>Runtime errors instead of compile-time errors</li>
+<li>Less safety for large codebases</li>
+</ul>
 <p><strong>Decision</strong>: For alpha, dynamic typing matches T’s
 exploratory, REPL-first workflow. Static typing may be added in future
 versions as an optional layer.</p>
@@ -775,20 +849,33 @@ synthetic data</li>
 <h2 id="future-architecture-directions">Future Architecture
 Directions</h2>
 <h3 id="bytecode-compilation">Bytecode Compilation</h3>
-<p>Replace tree-walking interpreter with bytecode VM: - Compile AST →
-bytecode - Stack-based VM for execution - Faster loops and function
-calls</p>
+<p>Replace tree-walking interpreter with bytecode VM:</p>
+<ul>
+<li>Compile AST → bytecode</li>
+<li>Stack-based VM for execution</li>
+<li>Faster loops and function calls</li>
+</ul>
 <h3 id="type-inference">Type Inference</h3>
-<p>Add optional static typing: - Hindley-Milner type inference - Gradual
-typing (mix static/dynamic) - IDE support via Language Server
-Protocol</p>
+<p>Add optional static typing:</p>
+<ul>
+<li>Hindley-Milner type inference</li>
+<li>Gradual typing (mix static/dynamic)</li>
+<li>IDE support via Language Server Protocol</li>
+</ul>
 <h3 id="distributed-execution">Distributed Execution</h3>
-<p>Pipeline nodes run on clusters: - Serialize pipelines to remote
-workers - Arrow Flight for zero-copy data transfer - Fault tolerance via
-re-execution</p>
+<p>Pipeline nodes run on clusters:</p>
+<ul>
+<li>Serialize pipelines to remote workers</li>
+<li>Arrow Flight for zero-copy data transfer</li>
+<li>Fault tolerance via re-execution</li>
+</ul>
 <h3 id="gpu-acceleration">GPU Acceleration</h3>
-<p>Arrow Compute on CUDA: - Offload aggregations to GPU - Vectorized
-operations on GPU - Requires cuDF or similar</p>
+<p>Arrow Compute on CUDA:</p>
+<ul>
+<li>Offload aggregations to GPU</li>
+<li>Vectorized operations on GPU</li>
+<li>Requires cuDF or similar</li>
+</ul>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you understand T’s internal architecture, explore the full

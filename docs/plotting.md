@@ -67,6 +67,7 @@ When you build a pipeline containing these nodes, T creates two artifacts for ea
 2.  **The Metadata (`viz`)**: A JSON representation of the plot's contents.
 
 T automatically extracts:
+
 - **Title**: The main title of the plot.
 - **Backend**: The runtime used to produce the plot (`"R"`, `"Python"`, or `"Julia"`).
 - **Class**: The stable plot class tag (for example `"ggplot"`, `"plotnine"`, `"tidierplots"`, `"plotsjl"`, or `"makie"`).

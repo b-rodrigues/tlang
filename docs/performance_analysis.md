@@ -53,6 +53,7 @@
 ### Scaling Behavior
 
 Operations should scale approximately linearly with row count:
+
 - 10x rows → ~10x time for columnar operations
 - Group-by scaling depends on group cardinality
 

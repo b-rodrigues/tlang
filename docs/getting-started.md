@@ -146,7 +146,7 @@ You should see the following:
 
 ```bash
 ==================================================
-T Project: start_t
+T Project: my_analysis
 ==================================================
 
 Available commands:

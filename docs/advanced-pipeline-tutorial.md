@@ -186,6 +186,7 @@ The `env_vars` dictionary supports the following scalar-like values:
 ### Validation
 
 T performs early validation on environment variables:
+
 - `env_vars` must be a dictionary.
 - Unsupported types (like Lists or nested Dicts) trigger a structured type error during pipeline construction.
 - `NA` values are silently omitted from the generated Nix derivation instead of being materialized as empty strings.
@@ -1015,6 +1016,7 @@ p = pipeline {
 ```
 
 **Key Features of `deps`**:
+
 - **First-Class Syntax**: `deps` is an optional argument available in `node()`, `rn()`, `pyn()`, and `shn()`.
 - **Bare Identifiers**: You can list direct node names as bare identifiers (e.g., `deps = [node1, node2]`).
 - **Manual Override**: It ensures the specified nodes are added to the dependency graph even if they aren't parsed from the command or script body.

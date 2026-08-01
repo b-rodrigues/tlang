@@ -374,7 +374,7 @@ You should see the following:
 
 ```bash
 ==================================================
-T Project: start_t
+T Project: my_analysis
 ==================================================
 
 Available commands:
@@ -1242,6 +1242,7 @@ Pipelines define named computation nodes with automatic dependency resolution an
 Built-in serializer symbols include `^csv`, `^arrow`, `^pmml`, and `^onnx`, which you pass to node constructors like `serializer = ^csv`.
 
 The **ONNX** system provides full cross-runtime model portability:
+
 - **`^onnx` Serializer**: Automatically handles model export/import between R, Python, and T nodes.
 - **Native Inference**: Use `t_read_onnx()` to load models and `predict()` for high-performance scoring directly inside T nodes, with no dependency on R or Python at prediction time.
 - **Rich Metadata**: T-native ONNX objects contain input/output schema and custom model properties (producer, description, feature names) extracted directly from the session.
@@ -1325,6 +1326,7 @@ For more comprehensive examples and templates, visit the [T Demos repository](ht
 Instead of inlining code with `command`, nodes can point to an external file using `script`. `command` and `script` are mutually exclusive, and the runtime can be inferred from file extensions such as `.R` or `.py`.
 
 Pipeline features:
+
 - **Automatic dependency resolution**: Nodes can be declared in any order
 - **Deterministic execution**: Same inputs always produce same outputs
 - **Cycle detection**: Circular dependencies are caught and reported
@@ -5063,6 +5065,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 **Returns:**
 
 `BuildLog` with fields:
+
 - `nodes` — per-node status/duration records
 - `duration` — total build duration in seconds
 - `failed_nodes` — list of failed/errored node names
@@ -5522,6 +5525,7 @@ Returns a summary DataFrame of all historical builds matching the current pipeli
 **Returns:**
 
 `DataFrame` — A DataFrame detailing historical builds with columns:
+
 - `build_id` (1-indexed rank from most recent to oldest)
 - `timestamp` (ISO-8601 UTC string of build time)
 - `duration` (total duration in seconds)
@@ -5555,6 +5559,7 @@ Compares the dynamic evaluations or built artifacts of `node_a` and `node_b` acr
 **Returns:**
 
 `Dict` — A structured type-sensitive diff dictionary containing:
+
 - **For DataFrames** (`csv`, `arrow`, `parquet`): `schema_changed` (Bool), `added_columns` (List), `removed_columns` (List), `nrows_a` (Int), `nrows_b` (Int), and `numeric_drift` (DataFrame summarizing column-level mean values and shift percentages).
 - **For PMML Models** (`pmml`): `model_type` (String), `coefficients_changed` (Bool), and `coef_diff` (DataFrame comparing regression coefficients and intercept shift deltas). Falls back to generic structural equality diff for non-regression models.
 - **For Text Files** (`text`): `changed` (Bool), `lines_added` (Int), `lines_removed` (Int), and `diff` (String unified diff output).
@@ -5593,6 +5598,7 @@ Compares the two most recent builds of a pipeline and returns a DataFrame summar
 **Returns:**
 
 `DataFrame` — A summary with columns:
+
 - `name` (String) — Node name.
 - `status` (String) — One of `"unchanged"`, `"changed"`, `"added"`, `"removed"`.
 - `hash_a` (String) — Nix content hash from build A.
@@ -5824,6 +5830,7 @@ For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `nc
 
 **Specialized support for `collect_exceptions(p)` DataFrames**:
 If the input DataFrame is the diagnostics table returned by `collect_exceptions(p)` (detected via the columns `["node", "status", "code", "message"]`), `explain()` behaves as follows:
+
 - **Single Exception**: If the DataFrame contains exactly one row, calling `explain()` directly maps to that specific exception, returning a dictionary with keys `kind`, `type` (`"Error"` or `"Warning"`), `error_code`/`warning_code`, `error_message`/`warning_message`, and `node`.
 - **Multiple Exceptions**: If there are zero or multiple rows, `explain()` returns an overarching `exceptions_list` dictionary containing keys `kind`, `type`, `description`, `count`, and `exceptions` (a list of mapped explanation dictionaries for each diagnostic element).
 
@@ -6788,6 +6795,7 @@ The `env_vars` dictionary supports the following scalar-like values:
 ### Validation
 
 T performs early validation on environment variables:
+
 - `env_vars` must be a dictionary.
 - Unsupported types (like Lists or nested Dicts) trigger a structured type error during pipeline construction.
 - `NA` values are silently omitted from the generated Nix derivation instead of being materialized as empty strings.
@@ -7617,6 +7625,7 @@ p = pipeline {
 ```
 
 **Key Features of `deps`**:
+
 - **First-Class Syntax**: `deps` is an optional argument available in `node()`, `rn()`, `pyn()`, and `shn()`.
 - **Bare Identifiers**: You can list direct node names as bare identifiers (e.g., `deps = [node1, node2]`).
 - **Manual Override**: It ensures the specified nodes are added to the dependency graph even if they aren't parsed from the command or script body.
@@ -7761,6 +7770,7 @@ build_pipeline(p)
 ```
 
 Notice the pipeline structure:
+
 - **`raw`** is a T node that reads the CSV (T handles file I/O natively)
 - **`clean`** is a Python node (`pyn`) that filters and transforms the data
 - **`summary`** is a Python node that groups and aggregates
@@ -7817,6 +7827,7 @@ $ t check --json pipeline.t
 ```
 
 The agent sees:
+
 - **`error_class: "name_error"`** — an undefined name
 - **`node.id: "clean"`, `node.lang: "python"`** — the error is in the Python node
 - **`span: [12, 14]`** — line 12, column 14 in the pipeline file
@@ -7871,6 +7882,7 @@ Now a different error surfaces:
 ```
 
 The agent sees:
+
 - **`error_class: "schema_mismatch"`** — column name doesn't match upstream schema
 - **`caused_by: ["clean"]`** — the `summary` node reads from `clean`'s output
 - **`suggested_fix`** — rename `amunt` to `amount` in the summary node
@@ -8183,6 +8195,7 @@ nrow(failed)  -- 0 if all tests passed
 ```
 
 The DataFrame columns are:
+
 - `file`: Path to the test file
 - `status`: "passed" or "failed"
 - `duration_ms`: Duration in milliseconds
@@ -8389,6 +8402,7 @@ T is a tree-walking interpreter built in OCaml. The architecture prioritizes:
 **Purpose**: Convert source text into tokens.
 
 **Key Features**:
+
 - Keyword recognition (`if`, `else`, `function`, `pipeline`, etc.)
 - Operators: arithmetic (`+`, `-`, `*`, `/`), comparison (`==`, `<`, `>`), logical (`and`, `or`, `not`)
 - Pipe operators: `|>`, `?|>`, `~` (formula)
@@ -8411,6 +8425,7 @@ IDENT("df") PIPE IDENT("filter") LPAREN LAMBDA ...
 **Purpose**: Build abstract syntax tree (AST) from tokens.
 
 **Grammar Highlights**:
+
 - Expression-oriented: Everything is an expression (conditionals, blocks, etc.)
 - Operator precedence: `*` / `/` bind tighter than `+` / `-`
 - Pipe associativity: Left-associative (`a |> f |> g` = `(a |> f) |> g`)
@@ -8428,6 +8443,7 @@ IDENT("df") PIPE IDENT("filter") LPAREN LAMBDA ...
 9. Function application
 
 **Special Constructs**:
+
 - **Pipelines**: `pipeline { node1 = expr1; node2 = expr2 }`
 - **Intents**: `intent { field: value }`
 - **Formulas**: `response ~ predictor`
@@ -8481,6 +8497,7 @@ type value =
 ```
 
 **Design Notes**:
+
 - Expressions are immutable; evaluation produces new values
 - Functions capture environment as closures
 - Errors and NA are first-class values, not exceptions
@@ -8507,6 +8524,7 @@ val eval_unop : unop -> value -> value
 ```
 
 **Environment Model**:
+
 - Environments are hash tables: `string -> value`
 - Nested scopes: Functions create child environments
 - Closures: Functions capture their defining environment
@@ -8526,6 +8544,7 @@ apply_function (eval env right) [value]  (* Always forward *)
 ```
 
 **Error Handling**:
+
 - Errors are `VError` values, not OCaml exceptions
 - Propagate through pipelines (unless caught)
 - Actionable error messages with context
@@ -8535,6 +8554,7 @@ apply_function (eval env right) [value]  (* Always forward *)
 **Purpose**: Interactive read-eval-print loop.
 
 **Features**:
+
 - Persistent environment across evaluations
 - Pretty-printing of results
 - Multiline input support
@@ -8685,7 +8705,7 @@ That means Arrow is used both as an internal storage backend and as an interchan
 T puts significant effort into providing high-fidelity representations of Python, R, and Julia objects. 
 
 - **Fail-Safe Loading**: The `read_node()` function is designed to never crash the primary T environment, even if the node's artifacts are missing or corrupted. 
-- **Representation Wrappers**: T provides specialized "host object" representations for common foreign types (Lists, Dicts, DataFrames, Models). If a node produces an object that T doesn't natively understand, it is safely wrapped as a generic `HostObject` that can still be passed as a reference to other nodes of the same language (e.g., from one R node to another) without T needing to understand its internal structure.
+- **Representation Wrappers**: T provides specialized representations for common foreign types (Lists, Dicts, DataFrames, Models). If a node produces an object that T doesn't natively understand, `read_node()` returns an explicit `VError` rather than a placeholder, so no data is silently dropped or mangled.
 - **Native Fallback**: If T's representation is insufficient for a particular task, users can always access the raw object by reading the node's artifact directly from within a native script (e.g., using `read_node()` inside a `.qmd` or `.py` component). This ensures full interop with the entire ecosystem of libraries in those languages.
 
 
@@ -8730,6 +8750,7 @@ T uses **Apache Arrow** for high-performance columnar data.
 ### FFI Bindings
 
 Located in `src/arrow/`:
+
 - **arrow_ffi.ml**: OCaml wrappers for C functions
 - **C stubs**: Interface to Arrow C GLib
 
@@ -8775,6 +8796,7 @@ df.age
 ```
 
 Returns a `VVector`:
+
 - If native handle: Zero-copy view into Arrow column
 - If fallback: Extracted OCaml list
 
@@ -8834,12 +8856,14 @@ Functions are registered in the global environment by name.
 ### Why Tree-Walking Interpreter?
 
 **Pros**:
+
 - Simple to implement and modify
 - Direct AST representation
 - Easy debugging
 - Fast development iteration
 
 **Cons**:
+
 - Slower than bytecode or JIT
 - No ahead-of-time optimization
 
@@ -8848,6 +8872,7 @@ Functions are registered in the global environment by name.
 ### Why OCaml?
 
 **Pros**:
+
 - Excellent parser/compiler tooling (Menhir, ocamllex)
 - Strong type system for host language (prevents bugs)
 - Good FFI story (C bindings for Arrow)
@@ -8855,6 +8880,7 @@ Functions are registered in the global environment by name.
 - Functional paradigm matches T's design
 
 **Cons**:
+
 - Smaller ecosystem than Python/JavaScript
 - Steeper learning curve for contributors
 
@@ -8863,12 +8889,14 @@ Functions are registered in the global environment by name.
 ### Why Apache Arrow?
 
 **Pros**:
+
 - Industry-standard columnar format
 - Zero-copy interoperability (Parquet, R, Python, Julia)
 - High-performance compute kernels
 - Cross-language support
 
 **Cons**:
+
 - Large dependency
 - C++ dependency management complexity (mitigated by Nix)
 - FFI maintenance burden
@@ -8878,12 +8906,14 @@ Functions are registered in the global environment by name.
 ### Why Nix?
 
 **Pros**:
+
 - Perfect reproducibility (same inputs → same outputs)
 - Declarative dependency management
 - Isolated development environments
 - Cross-platform consistency
 
 **Cons**:
+
 - Steep learning curve
 - Longer initial build times
 - Smaller user base than Docker
@@ -8893,11 +8923,13 @@ Functions are registered in the global environment by name.
 ### Why Explicit NA Handling?
 
 **Pros**:
+
 - No silent data loss
 - Forces user to think about missingness
 - Predictable behavior
 
 **Cons**:
+
 - More verbose than automatic propagation
 - Requires `na_rm` parameters everywhere
 
@@ -8906,11 +8938,13 @@ Functions are registered in the global environment by name.
 ### Why No Static Types?
 
 **Pros**:
+
 - Faster prototyping
 - Simpler user experience (no type annotations)
 - Easier REPL workflow
 
 **Cons**:
+
 - Runtime errors instead of compile-time errors
 - Less safety for large codebases
 
@@ -8988,6 +9022,7 @@ diff t_output.txt r_output.txt
 ### Bytecode Compilation
 
 Replace tree-walking interpreter with bytecode VM:
+
 - Compile AST → bytecode
 - Stack-based VM for execution
 - Faster loops and function calls
@@ -8995,6 +9030,7 @@ Replace tree-walking interpreter with bytecode VM:
 ### Type Inference
 
 Add optional static typing:
+
 - Hindley-Milner type inference
 - Gradual typing (mix static/dynamic)
 - IDE support via Language Server Protocol
@@ -9002,6 +9038,7 @@ Add optional static typing:
 ### Distributed Execution
 
 Pipeline nodes run on clusters:
+
 - Serialize pipelines to remote workers
 - Arrow Flight for zero-copy data transfer
 - Fault tolerance via re-execution
@@ -9009,6 +9046,7 @@ Pipeline nodes run on clusters:
 ### GPU Acceleration
 
 Arrow Compute on CUDA:
+
 - Offload aggregations to GPU
 - Vectorized operations on GPU
 - Requires cuDF or similar
@@ -10477,6 +10515,7 @@ Please review it to understand the detailed ethical guidelines and expected beha
 3. Expected: `1e10`, Got: `9.99999e9`
 
 **Environment**:
+
 - OS: Ubuntu 22.04
 - Nix: 2.13.3
 - OCaml: 4.14.1
@@ -10485,6 +10524,7 @@ Please review it to understand the detailed ethical guidelines and expected beha
 ### Suggesting Features
 
 **Before suggesting**, consider:
+
 - Is it aligned with T's design goals (reproducibility, explicitness, data analysis)?
 - Is it too broad or general-purpose?
 - Could it be a library instead of core language feature?
@@ -10497,6 +10537,7 @@ Please review it to understand the detailed ethical guidelines and expected beha
 ### Contributing Code
 
 We welcome:
+
 - Bug fixes
 - New standard library functions
 - Performance improvements
@@ -10508,6 +10549,7 @@ We welcome:
 ### Improving Documentation
 
 Documentation contributions are highly valued:
+
 - Fix typos and grammatical errors
 - Add examples to existing docs
 - Write tutorials for common workflows
@@ -10579,6 +10621,7 @@ tlang/
 Follow standard OCaml conventions:
 
 **Naming**:
+
 - `snake_case` for functions and variables
 - `PascalCase` for modules and types
 - `SCREAMING_CASE` for constants
@@ -10599,11 +10642,13 @@ let eval env expr =
 ```
 
 **Comments**:
+
 - Use `(* OCaml comments *)` for implementation notes
 - Document complex logic
 - Explain "why" not "what"
 
 **Pattern Matching**:
+
 - Exhaustively match all cases
 - Use `_` for catch-all only when intentional
 - Avoid deeply nested matches (extract functions)
@@ -10623,6 +10668,7 @@ a = mean(c.age)  -- Errors if NA present
 ```
 
 **Documentation**:
+
 - Include docstrings for new functions
 - Provide usage examples
 - Document parameters and return values
@@ -10677,11 +10723,13 @@ diff t_output.txt r_output.txt
 ### Test Coverage
 
 **Required**:
+
 - All new functions must have unit tests
 - Bug fixes must include regression tests
 - Performance claims must include benchmarks
 
 **Recommended**:
+
 - Test edge cases (empty lists, NA values, errors)
 - Test cross-platform behavior (Linux, macOS)
 - Test integration with existing features
@@ -10750,6 +10798,7 @@ Follow conventional commit format:
 ```
 
 **Types**:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation only
@@ -10782,6 +10831,7 @@ Add median function to stats package
 ```
 
 **Description**: Include:
+
 - What changed and why
 - Related issue numbers (`Fixes #42`, `Closes #17`)
 - Testing done
@@ -10806,6 +10856,7 @@ Fixes #42
 ```
 
 **Checklist**:
+
 - [ ] Code follows style guidelines
 - [ ] Tests added/updated
 - [ ] Documentation updated
@@ -10862,11 +10913,13 @@ Fixes #42
 ### Function Signature Guidelines
 
 **Parameters**:
+
 - Required parameters first
 - Optional parameters (e.g., `na_rm`) last
 - Use named arguments for clarity
 
 **Return values**:
+
 - Return values, not side effects (when possible)
 - Use `VError` for errors, not OCaml exceptions
 - Document return type in comments
@@ -10897,6 +10950,7 @@ if List.length values = 0 then
 ### Asking Good Questions
 
 Include:
+
 - What you're trying to do
 - What you've tried
 - Specific error messages
@@ -10925,6 +10979,7 @@ Environment: Ubuntu 22.04, OCaml 4.14.1
 ## Recognition
 
 Contributors are recognized in:
+
 - GitHub contributor graph
 - Release notes for significant contributions
 - `CONTRIBUTORS.md` file (coming soon)
@@ -11278,6 +11333,7 @@ df = to_dataframe([
 ```
 
 This is particularly useful for:
+
 - Creating lookup tables
 - Writing test cases
 - Entering small datasets manually
@@ -12001,6 +12057,7 @@ However, if you have configured custom node-specific environment variables in yo
 
 ### Custom Prompts and R Quiet Mode
 The interactive subshells automatically apply customized prompt configurations so you always know you are in a debugger session:
+
 * **Python**: Launches with a `py> ` prompt.
 * **R**: Launches quietly (suppressing R's verbose default welcome copyright banner) with a `r> ` prompt.
 * **Julia**: Configures an asynchronous REPL prompt hook to display `jl> `.
@@ -12083,7 +12140,7 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 - **Description**: Moving trained models between high-level languages and T's native scoring engine.
 - **Key Features**: `predict()` across language boundaries, standardized model storage.
 
-### [Julia Interop](julia_interop_t.html)
+### [Julia Interop](https://github.com/b-rodrigues/t_demos/tree/master/julia_interop_t)
 - **Repo**: `julia_interop_t`
 - **Description**: Demonstrates first-class support for Julia nodes and CSV data interchange.
 - **Key Features**: `jln()`, automatic Julia environment provisioning.
@@ -12095,7 +12152,7 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 
 ## Meta-programming & Introspection
 
-### [Dynamic Lookup & Symbols](metaprogramming.html)
+### [Dynamic Lookup & Symbols](https://github.com/b-rodrigues/t_demos/tree/master/get_sym_demo_t)
 - **Repo**: `get_sym_demo_t`
 - **Description**: Showcases runtime variable lookup and symbol construction for dynamic orchestration.
 - **Key Features**: `get()`, `to_symbol()`, dynamic node access.
@@ -12108,7 +12165,7 @@ To try any of these demos locally:
 
 1.  **Clone the demos repository**:
     ```bash
-    git clone https://github.com/tstats-project/t_demos
+    git clone https://github.com/b-rodrigues/t_demos
     cd t_demos/<project_name>
     ```
 2.  **Bootstrap the T environment**:
@@ -12184,6 +12241,7 @@ dune exec src/repl.exe
 #### VS Code
 
 Install extensions:
+
 - **OCaml Platform** (`ocamllabs.ocaml-platform`)
 - **Dune** (syntax highlighting for `dune` files)
 
@@ -12244,6 +12302,7 @@ dune build --watch
 ### Build Artifacts
 
 Compiled outputs are in `_build/default/`:
+
 - `src/repl.exe` — REPL executable
 - `src/*.cmo`, `src/*.cmi` — Compiled modules
 - `tests/*.exe` — Test executables
@@ -12272,6 +12331,7 @@ Compiled outputs are in `_build/default/`:
 ### Dependencies
 
 Managed by Nix (in `flake.nix`):
+
 - **OCaml** 4.14+
 - **Dune** 3.0+
 - **Menhir** (parser generator)
@@ -12542,6 +12602,7 @@ Error(TypeError: Cannot add Int and String)
 ```
 
 Check:
+
 - Value types (use `type()`)
 - Function signatures
 - Conversion functions available
@@ -12553,6 +12614,7 @@ Error(NameError: 'undefined_var' is not defined)
 ```
 
 Check:
+
 - Variable spelling
 - Scope (is it in current environment?)
 - Package loaded correctly
@@ -12563,6 +12625,7 @@ Error: Undefined symbol: caml_arrow_read_csv
 ```
 
 Check:
+
 - You're in Nix shell (`nix develop`)
 - Arrow GLib is available: `pkg-config --modversion arrow-glib`
 - FFI stubs compiled correctly
@@ -13607,6 +13670,7 @@ Evaluation continues even when statements or pipeline nodes result in `VError` v
 Evaluation stops immediately upon encountering the first `VError`. This is the usual, common behaviour for critical scripts where subsequent steps should only run if previous ones were flawlessly successful.
 
 **How to toggle**:
+
 - **CLI**: Use `t run --failfast script.t`
 - **REPL**: Set `t_run(failfast = true, ...)`
 - **Pipelines**: Use `t_make(failfast = true)`
@@ -13644,6 +13708,7 @@ prnt(42)
 ```
 
 **Features**:
+
 - Levenshtein distance-based suggestions
 - Searches current scope and standard library
 - Case-insensitive suggestions
@@ -13679,6 +13744,7 @@ add(1, 2, 3)
 ```
 
 **Features**:
+
 - Shows expected parameter names
 - Shows actual argument count
 - Suggests correct usage
@@ -13796,6 +13862,7 @@ T provides powerful primitives to analyze exceptions/diagnostics and preserve th
 Converts all terminal errors and warning diagnostics from computed nodes of a built pipeline into a structured four-column `DataFrame` (`node`, `status`, `code`, and `message`), allowing you to inspect and filter multiple pipeline issues.
 
 To keep the printed output clean and readable:
+
 * **Traceback Truncation**: `collect_exceptions` automatically extracts the **last non-empty line** of multi-line tracebacks (like Python or Arrow error messages) to preserve the actual error class and message, and caps the text length at `100` characters.
 * **Polars-Style Cell Truncation**: When pretty-printing any `DataFrame` in the REPL, all string cells exceeding `35` characters are truncated to `32` characters followed by `...` (Polars-style) to prevent wide/broken columns.
 
@@ -13813,6 +13880,7 @@ exceptions_df |> filter($status == "Warning")
 ##### Explaining Collected Exceptions
 
 T's built-in `explain()` function has specialized support for `collect_exceptions` DataFrames:
+
 - **Direct Explanation (1 exception)**: If there is exactly one exception row in the DataFrame, calling `explain(exceptions_df)` will automatically map to that diagnostic exception and return a structured dictionary explaining the exact error or warning details (containing the originating node, diagnostic code, and description message).
 - **Consolidated Explanation (multiple exceptions)**: If there are zero or multiple exceptions, calling `explain(exceptions_df)` returns a structured representation of the exception collection itself (`exceptions_list`), with a `count` property and an `exceptions` list containing the mapped explanation of each individual diagnostic element.
 
@@ -14200,6 +14268,7 @@ p = pipeline {
 ```
 
 **Why use this?**:
+
 *   **Adaptive Modeling**: Your pipeline automatically scales its complexity to match the quality of the incoming data, avoiding "singular matrix" or "one level to_factor" errors.
 *   **Operational Intelligence**: Instead of the whole pipeline failing due to a minor data shift (like one category disappearing from today's extract), the system gracefully degrades its service while still providing a result.
 *   **Auditability**: Every run clearly states which path was taken through the use of descriptive tags like `low_diversity` or `high_quality`.
@@ -14219,6 +14288,7 @@ T offers several tools for managing errors, each suited for different scenarios:
     *   **Complex Recovery Logic**: When `if (is_error(x))` becomes too nested or less readable.
 
 **General Guidance**:
+
 *   Use `|>` for the majority of your data pipelines where you expect success and want to stop on the first error.
 *   Use `?|>` when you need to inspect or act on an error *at a specific point* in a pipeline, often followed by `match` or an `if (is_error(...))` check.
 *   Use `match` when your error recovery logic involves different actions for different error types, or when you want a clear, declarative way to distinguish between success and various error states.
@@ -14481,6 +14551,7 @@ assert(length(result_list) == expected_length, "Length mismatch")
 ---
 
 **See Also**:
+
 - [Examples](examples.md) — Error handling patterns in practice
 - [API Reference](api-reference.md) — Error-related functions
 - [Troubleshooting](troubleshooting.md) — Common issues and solutions
@@ -15583,7 +15654,7 @@ T isn't just another data analysis language; it's a **reproducibility-first** en
 - **LLM-First Developers**: T's functional, immutable, and pipeline-centric design is optimized for high-fidelity code generation by AI.
 
 ### Is T production-ready?
-T is currently in **Beta (v0.53.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R, Python, or Julia nodes.
+T is currently in **Beta (v0.54.3)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R, Python, or Julia nodes.
 
 ---
 
@@ -15634,12 +15705,14 @@ Not for basic work. Running `nix develop` sets up your entire environment. Howev
 
 ### What libraries are included?
 The T standard library includes:
+
 - **`colcraft`**: A powerful suite of verbs (`mutate`, `summarize`, `pivot_longer`) following `tidyverse` semantics.
 - **`chrono`**: Precise date and time manipulation with calendar-aware rounding.
-- **`factors`**: Native Arrow-backed categorical data handling.
+- **`colcraft`** (factors): Native Arrow-backed categorical data handling (`fct_relevel`, `fct_lump_n`, `to_factor`, …).
 
 ### How do I program with column names?
 If you're building a reusable function that takes a column name as an argument, T provides first-class support for **Metaprogramming**:
+
 - Use `enquo(col)` to capture the argument.
 - Use `!!` (unquote) to inject it into a verb.
 - Use `!!name := value` for dynamic column naming.
@@ -15664,13 +15737,15 @@ For simple reports, you can use T's built-in **`colcraft`** verbs to summarize d
 
 ### Is there an LSP or VS Code support?
 Yes! The T Language Server (`t-lsp`) provides:
+
 - **Autocompletion**: For functions, variables, and even **DataFrame column names**.
 - **Hover Docs**: View docstrings directly in your editor.
 - **Diagnostics**: Real-time syntax and type error reporting.
 
 ### What about the REPL?
 The T REPL is designed for productivity:
-- **Ghost Hints**: Inline suggestions based on your command history.
+
+- **Inline Hints**: As you type, the REPL suggests the remainder of the matching function or variable name in scope.
 - **Signal Safety**: Hit `Ctrl+C` to cancel a long-running calculation without crashing the session.
 - **Multi-line Detection**: Automatic detection of nested blocks for easy copy-pasting.
 
@@ -15678,7 +15753,7 @@ The T REPL is designed for productivity:
 T is built with **robustness** in mind. If a node fails (e.g., an R script crashes), T captures the error and presents it as a first-class `VError` value, preventing the whole pipeline engine from crashing.
 - **Fail-Safe Loading**: The `read_node()` function will never crash your session. Even if an artifact is missing or corrupted, you get a clean error value you can handle with `?|>`.
 - **High-Fidelity Representation**: T works hard to provide native representations of list, dict, and DataFrame objects from other languages.
-- **Generic Fallbacks**: If a node produces a complex object that T doesn't natively understand (like a custom private class in Python), it is safely wrapped as a `HostObject`. You can still pass this object as a reference to other nodes of the same language, keeping your polyglot workflow intact.
+- **Explicit Errors**: T never silently drops data. If a node produces a complex object that cannot be serialized (like a custom private class in Python), `read_node()` returns an explicit `VError` explaining what failed rather than a placeholder.
 - **Native Escape Hatch**: If you need to manipulate a complex object that cannot be serialized, you can always read the node's artifact directly using the native interpreter's own libraries (e.g., by calling `read_node()` inside a Python or R script).
 
 ### Can I write Literate Programming reports?
@@ -15690,6 +15765,7 @@ Absolutely. T integrates with **Quarto** through a native extension. You can wri
 
 ### How can I help?
 T is an open-source project. You can contribute by:
+
 - Porting R/Python utility functions to native T.
 - Improving the `t-lsp` implementation.
 - Reporting bugs or suggesting features on [GitHub](https://github.com/b-rodrigues/tlang/issues).
@@ -15714,7 +15790,7 @@ The developer (Bruno Rodrigues) works on T based on community interest and exper
 This guide takes you from a bare machine to a working polyglot pipeline. T itself is
 never installed — you install Nix, then bootstrap a project that pins its own copy of
 the T toolchain. If you already have a T project created with `t init --project`, skip
-straight to [section 1](#1-enter-the-project-environment).
+straight to [section 1](#enter-the-project-environment).
 
 ## 0. Bootstrap a project
 
@@ -15939,6 +16015,7 @@ lm(data: DataFrame, formula: Formula, ...) -> Dict
 ### Returns
 
 Dictionary containing:
+
 - `formula`: The model formula
 - `coefficients`: Dictionary of term estimates
 - `std_errors`: Dictionary of standard errors
@@ -15981,6 +16058,7 @@ The `chrono` package provides comprehensive tools for working with dates and tim
 ## Core Types
 
 T supports several temporal types:
+
 - **Date**: A calendar date (e.g., `2024-03-08`).
 - **Datetime**: A precise point in time with a timezone label.
 - **Interval**: A span of time between two specific instants.
@@ -16775,6 +16853,7 @@ This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. Th
 ```
 
 Each diagnostic includes:
+
 - `error_class`: categorizes the issue (`schema_mismatch`, `type_mismatch`, `cycle_detected`, etc.)
 - `node`: the pipeline node where the issue was found
 - `span`: source location `[line, column]`
@@ -17004,6 +17083,7 @@ write_csv(analysis.summary, "segment_summary.csv")
 ```
 
 **Benefits**:
+
 - LLM understands exact requirements
 - Human can verify LLM understood correctly
 - Future LLMs can regenerate code from intent
@@ -17032,6 +17112,7 @@ print(df_grouped)
 ```
 
 **Problems**:
+
 - If requirements change, LLM rewrites everything
 - No separation between data loading, cleaning, analysis
 - Hard to modify one step without breaking others
@@ -17068,6 +17149,7 @@ analysis = pipeline {
 ```
 
 **Benefits**:
+
 - **Change request**: "Also filter by date"
   - LLM only regenerates `cleaned` node
   - `raw` and `by_region` unchanged
@@ -17459,6 +17541,7 @@ git show abc123:src/pipeline.t
 ---
 
 **See Also**:
+
 - [Reproducibility](reproducibility.md) — Nix for reproducible environments
 - [Examples](examples.md) — Intent-driven analysis examples
 - [Pipeline Tutorial](pipeline_tutorial.md) — Pipeline structure
@@ -18194,6 +18277,7 @@ Now that Nix is installed and your first project is bootstrapped, continue with:
 T integrates declaratively with the Nix ecosystem to compile, build, and run pipelines in completely isolated, reproducible sandboxes. To offer fine-grained control over Nix builds, T provides a unified `nix_options` dictionary argument. 
 
 This argument is accepted by all primary orchestration and execution entry points:
+
 - `populate_pipeline()`
 - `build_pipeline()`
 - `pipeline_run()`
@@ -18253,9 +18337,10 @@ print(plan_df)
 ```
 
 The returned DataFrame contains three columns:
+
 - **`node`**: The name of the pipeline node.
-- **`action`**: The build action determined by Nix (`"build"`, `"fetch"` from cache, or `"noop"`).
-- **`path`**: The absolute `/nix/store/` path where the node's output derivation resides.
+- **`action`**: The build action determined by Nix (`"rebuild"`, `"fetch"` from cache, or `"cache_hit"`).
+- **`store_path`**: The absolute `/nix/store/` path where the node's output derivation resides.
 
 This allows you to programmatically inspect build plans, perform capacity planning, or check whether specific nodes will be pulled from a binary cache before initiating a build.
 
@@ -18323,6 +18408,7 @@ pipeline_run(p, nix_options = [
 ```
 
 Supported values for `sandbox`:
+
 - `true` or `"strict"`: All build jobs are completely isolated (default).
 - `"relaxed"`: Relaxes sandboxing rules for derivations that request it, allowing paths in the host filesystem to be accessed.
 - `false` or `"none"`: Sandboxing is disabled entirely.
@@ -18357,7 +18443,7 @@ The `env_vars` parameter (on node-level functions) and `keep_env` (in `nix_optio
 | | `env_vars` | `keep_env` |
 | :--- | :--- | :--- |
 | **Scope** | Per-node | Whole pipeline (all nodes) |
-| **Where** | `node()`, `py()`, `rn()`, `shn()`, `jln()`, `qn()` | `nix_options` in `t_make()`, `pipeline_run()`, `pipeline_build()` |
+| **Where** | `node()`, `py()`, `rn()`, `shn()`, `jln()`, `qn()` | `nix_options` in `t_make()`, `pipeline_run()`, `build_pipeline()`, `populate_pipeline()` |
 | **What it does** | Sets env vars to explicit values you provide | Forwards existing host env vars by name |
 | **Type** | Dict (key-value pairs) | String or List of variable names |
 
@@ -18386,7 +18472,7 @@ t_make(nix_options = [max_jobs: "high"])
 -- ❌ TypeError: t_make: unknown option 'threads' in nix_options
 t_make(nix_options = [threads: 4])
 
--- ❌ ValueError: sandbox: 'invalid_sandbox' is not a valid sandboxing mode
+-- ❌ TypeError: t_make: 'sandbox' in nix_options must be 'relaxed', 'strict', 'none', or a Bool
 t_make(nix_options = [sandbox: "invalid_sandbox"])
 ```
 
@@ -18636,7 +18722,7 @@ p = pipeline {
   heavy_node = node(
     command = <{ run_heavy_nix_job() }>,
     # Skip execution if not running in CI
-    noop = (env_var("CI") == "")
+    noop = (get(env("CI"), "") == "")
   )
 }
 
@@ -18715,6 +18801,7 @@ $ t doctor
 ```
 
 It checks for:
+
 - Required files (`DESCRIPTION.toml`, `flake.nix`).
 - Valid directory structure.
 - Documentation existence.
@@ -18833,6 +18920,7 @@ Now that you know how to build packages, explore how to ensure your work is repr
 ### Scaling Behavior
 
 Operations should scale approximately linearly with row count:
+
 - 10x rows → ~10x time for columnar operations
 - Group-by scaling depends on group cardinality
 
@@ -19089,6 +19177,7 @@ print(actions)
 ```
 
 The resulting `DataFrame` contains the columns:
+
 - `node`: The name of the pipeline node.
 - `action`: The action planned (e.g., `"build"`, `"substitute"`, or `"noop"`).
 - `path`: The absolute store path of the Nix derivation or artifact.
@@ -19805,6 +19894,7 @@ To work with `mkNodeEnv`, the custom flake must expose the same outputs that T's
 ```
 
 The key requirements are:
+
 - `legacyPackages.${system}` — provides the full nixpkgs package set
 - `packages.${system}.default` — provides the `t` binary
 - `packages.${system}.tlang-r` — provides R packages declared in the flake
@@ -20776,6 +20866,7 @@ When you build a pipeline containing these nodes, T creates two artifacts for ea
 2.  **The Metadata (`viz`)**: A JSON representation of the plot's contents.
 
 T automatically extracts:
+
 - **Title**: The main title of the plot.
 - **Backend**: The runtime used to produce the plot (`"R"`, `"Python"`, or `"Julia"`).
 - **Class**: The stable plot class tag (for example `"ggplot"`, `"plotnine"`, `"tidierplots"`, `"plotsjl"`, or `"makie"`).
@@ -21320,7 +21411,7 @@ This creates the following structure:
 - **tests/**: Project-specific tests.
 - **AGENTS.md**: Onboarding guide for AI Agents.
 - **T-LANGUAGE-REFERENCE.md**: Tiered language reference for LLMs.
-- **.claude/skills/SKILL.md**: An AI agent skill file that teaches LLMs how to work with T projects (scaffolded automatically).
+- **`.claude/skills/t-project/SKILL.md`**: An AI agent skill file that teaches LLMs how to work with T projects (scaffolded automatically).
 
 ## 2. Entering the Development Environment
 
@@ -21394,7 +21485,7 @@ To upgrade your project to the latest version of T and set the project's nixpkgs
 ```bash
 $ t upgrade
 Checking for new T releases...
-Upgrading project to T 0.53.0 and nixpkgs date 2026-05-08 (today's UTC date)...
+Upgrading project to T 0.54.3 and nixpkgs date 2026-07-27 (today's UTC date)...
 Regenerating flake.nix and updating dependencies...
 Running nix flake update...
 ```
@@ -21493,7 +21584,7 @@ This walkthrough assumes you do **not** have `uv` installed and have **no** exis
 **1. Create a new T project**
 
 ```bash
-t project my_project
+t init --project my_project
 cd my_project
 ```
 
@@ -21507,7 +21598,7 @@ resolver = "uv"
 workspace = "python"
 ```
 
-The `version` field is optional when using the UV resolver — T infers it from `requires-python` in `pyproject.toml`. Remove any `packages` key if present — UV and `packages` are mutually exclusive.
+The `version` field is optional when using the UV resolver — T infers it from `requires-python` in `pyproject.toml`. The specifier must constrain Python to a single minor version (e.g. `>=3.12,<3.13`); an open-ended specifier like `>=3.12` is rejected as ambiguous. Remove any `packages` key if present — UV and `packages` are mutually exclusive.
 
 **3. Create the Python workspace directory and `pyproject.toml`**
 
@@ -21520,7 +21611,7 @@ mkdir python
 [project]
 name = "my_project_python_env"
 version = "0.1.0"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "pandas",
 ]
@@ -21678,6 +21769,7 @@ test_filter = pipeline {
 ```
 
 This pattern provides a clean duality:
+
 - **Passing builds** output a structured JSON status artifact mapping check names to `true` (accessible via `read_node(p.check_filter)`).
 - **Failing assertions** short-circuit execution immediately, recording the full `AssertionError` object in the node's build log.
 
@@ -21694,7 +21786,7 @@ p = pipeline {
   heavy_node = node(
     command = <{ run_heavy_nix_job() }>,
     # Skip execution if not running in CI
-    noop = (env_var("CI") == "")
+    noop = (get(env("CI"), "") == "")
   )
 }
 
@@ -21745,6 +21837,7 @@ To enable Atelier in a new project, pass `--include-atelier` to `t init`. Once
 inside `nix develop`, simply run `atelier`.
 
 Once active, you will get real-time autocompletion for:
+
 -   **Package functions**: Suggestions for all imported functions.
 -   **Local variables**: Defined earlier in your script.
 -   **DataFrame columns**: Column names from your data sources (accessible via the `$` prefix).
@@ -21839,6 +21932,7 @@ e = to_expr(select(df, age, height))
 ### `eval(expr_or_quosure)`
 
 The `eval()` function evaluates an Expression or Quosure:
+
 - **Expression**: evaluated in the *current* environment.
 - **Quosure**: evaluated in its *captured* environment.
 
@@ -34947,6 +35041,7 @@ T provides **perfect reproducibility**: The same T code with the same data produ
 ### What is Nix?
 
 Nix is a declarative package manager that ensures:
+
 - **Bit-for-bit identical builds** across machines
 - **Isolated environments** (no global state)
 - **Versioned dependencies** (pinned to exact commits)
@@ -34997,6 +35092,7 @@ Every T project is a **Nix flake**:
 **Scenario**: You run an analysis today. A colleague tries to run it in 2026.
 
 **Without Nix**:
+
 - Package versions have changed
 - APIs have breaking changes
 - Results differ or code errors
@@ -35019,6 +35115,7 @@ The `flake.lock` file ensures every dependency (OCaml, Arrow, system libraries) 
 ### No Hidden Randomness
 
 T provides **explicit, reproducible randomness**:
+
 - **`set_seed(seed)`**: Initializes a global random number generator with a given integer seed.
 - **`sample(x, n, replace)`**: Draw a random sample of size n from a Vector or List.
 - **`slice_sample(data, n, replace)`**: Draw a random sample of n rows from a DataFrame.
@@ -35095,6 +35192,7 @@ intent {
 ```
 
 **Benefits**:
+
 - Future readers understand context
 - LLMs can regenerate code correctly
 - Auditors can verify assumptions
@@ -35374,7 +35472,7 @@ node(..., serializer = my_ser)
 
 
 ### Implicit Serialization
-If you don't specify a serializer, T uses the `^tlang` (internal binary) format for T-to-T communication. For other runtimes, T attempts to infer a sensible default based on the data type or the specific wrapper used (e.g., `shn()` defaults to `^text`).
+If you don't specify a serializer, T uses the `default` serializer, which selects each runtime's native binary format for in-language interchange (`serialize` for T, `saveRDS` for R, `pickle` for Python, and Julia's `Serialization` package). For shell nodes, `shn()` defaults to `^text`.
 
 ## 2. Built-in Serializers
 
@@ -35632,13 +35730,13 @@ That is why these names are intentionally left without the `str_` prefix.
 
 For per-function details, see the reference pages:
 
-- [`str_nchar`](reference/nchar.html)
-- [`str_substring`](reference/substring.html)
-- [`str_replace`](reference/replace.html)
-- [`str_sprintf`](reference/sprintf.html)
-- [`str_join`](reference/join.html)
-- [`to_string`](reference/string.html)
-- [`str_split`](reference/strsplit.html)
+- [`str_nchar`](reference/str_nchar.html)
+- [`str_substring`](reference/str_substring.html)
+- [`str_replace`](reference/str_replace.html)
+- [`str_sprintf`](reference/str_sprintf.html)
+- [`str_join`](reference/str_join.html)
+- [`to_string`](reference/to_string.html)
+- [`str_split`](reference/str_split.html)
 - [`contains`](reference/contains.html)
 - [`starts_with`](reference/starts_with.html)
 - [`ends_with`](reference/ends_with.html)
@@ -35662,27 +35760,6 @@ Now that you can manipulate text, explore categorical data and vector operations
 Solutions to common issues when using T.
 
 ## Installation Issues
-
-### "command not found: nix"
-
-**Problem**: Nix is not installed or not in PATH.
-
-**Solution**:
-```bash
-# Install Nix (recommended: Determinate Systems installer)
-curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install --no-confirm
-
-# Restart shell or source profile
-source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-```
-
-**Verify**:
-```bash
-nix --version
-# Should output: nix (Nix) 2.x.x
-```
-
----
 
 ### "error: experimental feature 'flakes' is disabled"
 
@@ -35815,6 +35892,7 @@ Warning: 2 shift/reduce conflicts
 ```
 
 **Solution** (for contributors):
+
 - Review `parser.mly` for ambiguous rules
 - Add precedence directives (`%left`, `%right`)
 - Refactor grammar to remove ambiguity
@@ -35855,11 +35933,8 @@ Error(NameError: ...)
 "Age: " + 25
 -- Error: Cannot add String and Int
 
--- Workaround: Convert manually or use string concatenation with print
--- Note: Alpha does not have a to_string() conversion function yet
--- Use print for output instead:
-print("Age: ")
-print(25)
+-- Workaround: Convert explicitly with to_string() and join with str_join()
+print(str_join(["Age: ", to_string(25)]))
 ```
 
 ---
@@ -35955,6 +36030,7 @@ df = read_csv("huge.csv")
 **Problem**: Waiting for multiline completion or invalid syntax.
 
 **Solution**:
+
 - Press Ctrl+C to cancel
 - Check for unclosed `(`, `{`, `[`
 - Ctrl+C now safely interrupts long-running evaluations and returns you to the prompt
@@ -35986,6 +36062,7 @@ ls data.csv  # In shell
 **Problem**: Arrow infers types from first rows.
 
 **Solution**: Ensure data is consistent:
+
 - No mixed types in columns
 - Missing values represented as empty strings (inferred as NA)
 - Numeric columns don't have text
@@ -36155,6 +36232,7 @@ nix develop --command dune build
 ### When asking for help
 
 Include:
+
 - **Exact error message**
 - **Minimal code to reproduce**
 - **Your environment**:

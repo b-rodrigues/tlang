@@ -258,11 +258,14 @@ derivations):</p>
 -- Inspect planned build actions without running them
 actions = build_pipeline(p, nix_options = [dry_run: true])
 print(actions)</code></pre>
-<p>The resulting <code>DataFrame</code> contains the columns: -
-<code>node</code>: The name of the pipeline node. - <code>action</code>:
-The action planned (e.g., <code>"build"</code>,
-<code>"substitute"</code>, or <code>"noop"</code>). - <code>path</code>:
-The absolute store path of the Nix derivation or artifact.</p>
+<p>The resulting <code>DataFrame</code> contains the columns:</p>
+<ul>
+<li><code>node</code>: The name of the pipeline node.</li>
+<li><code>action</code>: The action planned (e.g., <code>"build"</code>,
+<code>"substitute"</code>, or <code>"noop"</code>).</li>
+<li><code>path</code>: The absolute store path of the Nix derivation or
+artifact.</li>
+</ul>
 <h3 id="advanced-nix-orchestration-example">Advanced Nix Orchestration
 Example</h3>
 <p>Below is an example showing how to trigger a parallel, cache-backed
@@ -1133,13 +1136,18 @@ class="sourceCode nix"><code class="sourceCode nix"><span id="cb35-1"><a href="#
 <span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
 <span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
 <span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p>The key requirements are: - <code>legacyPackages.${system}</code> —
-provides the full nixpkgs package set -
-<code>packages.${system}.default</code> — provides the <code>t</code>
-binary - <code>packages.${system}.tlang-r</code> — provides R packages
-declared in the flake - <code>packages.${system}.tlang-julia-path</code>
-/ <code>packages.${system}."tlang-julia"</code> — provides Julia
-packages</p>
+<p>The key requirements are:</p>
+<ul>
+<li><code>legacyPackages.${system}</code> — provides the full nixpkgs
+package set</li>
+<li><code>packages.${system}.default</code> — provides the
+<code>t</code> binary</li>
+<li><code>packages.${system}.tlang-r</code> — provides R packages
+declared in the flake</li>
+<li><code>packages.${system}.tlang-julia-path</code> /
+<code>packages.${system}."tlang-julia"</code> — provides Julia
+packages</li>
+</ul>
 <p>If these outputs are missing, the per-node sandbox will fail at build
 time when attempting to resolve runtime dependencies.</p>
 <h3 id="backward-compatibility">Backward Compatibility</h3>

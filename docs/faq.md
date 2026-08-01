@@ -15,7 +15,7 @@ T isn't just another data analysis language; it's a **reproducibility-first** en
 - **LLM-First Developers**: T's functional, immutable, and pipeline-centric design is optimized for high-fidelity code generation by AI.
 
 ### Is T production-ready?
-T is currently in **Beta (v0.53.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R, Python, or Julia nodes.
+T is currently in **Beta (v0.54.3)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R, Python, or Julia nodes.
 
 ---
 
@@ -66,12 +66,14 @@ Not for basic work. Running `nix develop` sets up your entire environment. Howev
 
 ### What libraries are included?
 The T standard library includes:
+
 - **`colcraft`**: A powerful suite of verbs (`mutate`, `summarize`, `pivot_longer`) following `tidyverse` semantics.
 - **`chrono`**: Precise date and time manipulation with calendar-aware rounding.
-- **`factors`**: Native Arrow-backed categorical data handling.
+- **`colcraft`** (factors): Native Arrow-backed categorical data handling (`fct_relevel`, `fct_lump_n`, `to_factor`, …).
 
 ### How do I program with column names?
 If you're building a reusable function that takes a column name as an argument, T provides first-class support for **Metaprogramming**:
+
 - Use `enquo(col)` to capture the argument.
 - Use `!!` (unquote) to inject it into a verb.
 - Use `!!name := value` for dynamic column naming.
@@ -96,13 +98,15 @@ For simple reports, you can use T's built-in **`colcraft`** verbs to summarize d
 
 ### Is there an LSP or VS Code support?
 Yes! The T Language Server (`t-lsp`) provides:
+
 - **Autocompletion**: For functions, variables, and even **DataFrame column names**.
 - **Hover Docs**: View docstrings directly in your editor.
 - **Diagnostics**: Real-time syntax and type error reporting.
 
 ### What about the REPL?
 The T REPL is designed for productivity:
-- **Ghost Hints**: Inline suggestions based on your command history.
+
+- **Inline Hints**: As you type, the REPL suggests the remainder of the matching function or variable name in scope.
 - **Signal Safety**: Hit `Ctrl+C` to cancel a long-running calculation without crashing the session.
 - **Multi-line Detection**: Automatic detection of nested blocks for easy copy-pasting.
 
@@ -110,7 +114,7 @@ The T REPL is designed for productivity:
 T is built with **robustness** in mind. If a node fails (e.g., an R script crashes), T captures the error and presents it as a first-class `VError` value, preventing the whole pipeline engine from crashing.
 - **Fail-Safe Loading**: The `read_node()` function will never crash your session. Even if an artifact is missing or corrupted, you get a clean error value you can handle with `?|>`.
 - **High-Fidelity Representation**: T works hard to provide native representations of list, dict, and DataFrame objects from other languages.
-- **Generic Fallbacks**: If a node produces a complex object that T doesn't natively understand (like a custom private class in Python), it is safely wrapped as a `HostObject`. You can still pass this object as a reference to other nodes of the same language, keeping your polyglot workflow intact.
+- **Explicit Errors**: T never silently drops data. If a node produces a complex object that cannot be serialized (like a custom private class in Python), `read_node()` returns an explicit `VError` explaining what failed rather than a placeholder.
 - **Native Escape Hatch**: If you need to manipulate a complex object that cannot be serialized, you can always read the node's artifact directly using the native interpreter's own libraries (e.g., by calling `read_node()` inside a Python or R script).
 
 ### Can I write Literate Programming reports?
@@ -122,6 +126,7 @@ Absolutely. T integrates with **Quarto** through a native extension. You can wri
 
 ### How can I help?
 T is an open-source project. You can contribute by:
+
 - Porting R/Python utility functions to native T.
 - Improving the `t-lsp` implementation.
 - Reporting bugs or suggesting features on [GitHub](https://github.com/b-rodrigues/tlang/issues).

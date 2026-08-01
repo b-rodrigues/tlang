@@ -5,6 +5,7 @@ The `chrono` package provides comprehensive tools for working with dates and tim
 ## Core Types
 
 T supports several temporal types:
+
 - **Date**: A calendar date (e.g., `2024-03-08`).
 - **Datetime**: A precise point in time with a timezone label.
 - **Interval**: A span of time between two specific instants.

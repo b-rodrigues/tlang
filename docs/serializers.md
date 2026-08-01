@@ -40,7 +40,7 @@ node(..., serializer = my_ser)
 
 
 ### Implicit Serialization
-If you don't specify a serializer, T uses the `^tlang` (internal binary) format for T-to-T communication. For other runtimes, T attempts to infer a sensible default based on the data type or the specific wrapper used (e.g., `shn()` defaults to `^text`).
+If you don't specify a serializer, T uses the `default` serializer, which selects each runtime's native binary format for in-language interchange (`serialize` for T, `saveRDS` for R, `pickle` for Python, and Julia's `Serialization` package). For shell nodes, `shn()` defaults to `^text`.
 
 ## 2. Built-in Serializers
 

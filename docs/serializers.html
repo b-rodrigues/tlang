@@ -78,11 +78,12 @@ a variable name for custom serializers. Using a string literal will
 result in a <code>TypeError</code>.</p>
 </blockquote>
 <h3 id="implicit-serialization">Implicit Serialization</h3>
-<p>If you don’t specify a serializer, T uses the <code>^tlang</code>
-(internal binary) format for T-to-T communication. For other runtimes, T
-attempts to infer a sensible default based on the data type or the
-specific wrapper used (e.g., <code>shn()</code> defaults to
-<code>^text</code>).</p>
+<p>If you don’t specify a serializer, T uses the <code>default</code>
+serializer, which selects each runtime’s native binary format for
+in-language interchange (<code>serialize</code> for T,
+<code>saveRDS</code> for R, <code>pickle</code> for Python, and Julia’s
+<code>Serialization</code> package). For shell nodes, <code>shn()</code>
+defaults to <code>^text</code>.</p>
 <h2 id="built-in-serializers">2. Built-in Serializers</h2>
 <table>
 <thead>

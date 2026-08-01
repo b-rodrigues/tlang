@@ -91,10 +91,15 @@ possible in a single pass.</p>
 <code>VError</code>. This is the usual, common behaviour for critical
 scripts where subsequent steps should only run if previous ones were
 flawlessly successful.</p>
-<p><strong>How to toggle</strong>: - <strong>CLI</strong>: Use
-<code>t run --failfast script.t</code> - <strong>REPL</strong>: Set
-<code>t_run(failfast = true, ...)</code> - <strong>Pipelines</strong>:
-Use <code>t_make(failfast = true)</code></p>
+<p><strong>How to toggle</strong>:</p>
+<ul>
+<li><strong>CLI</strong>: Use
+<code>t run --failfast script.t</code></li>
+<li><strong>REPL</strong>: Set
+<code>t_run(failfast = true, ...)</code></li>
+<li><strong>Pipelines</strong>: Use
+<code>t_make(failfast = true)</code></li>
+</ul>
 <hr />
 <hr />
 <h2 id="error-types">Error Types</h2>
@@ -113,14 +118,19 @@ Use <code>t_make(failfast = true)</code></p>
 
 prnt(42)
 -- Error(NameError: &#39;prnt&#39; is not defined. Did you mean &#39;print&#39;?)</code></pre>
-<p><strong>Features</strong>: - Levenshtein distance-based suggestions -
-Searches current scope and standard library - Case-insensitive
-suggestions - <strong>Reserved Keyword &amp; Built-in
-Protection</strong>: Prevents overwriting core standard library
-functions or keywords (such as <code>build_log</code> or
-<code>print</code>), triggering a <code>NameError</code> if assignment
-(<code>=</code>) or reassignment (<code>:=</code>) is attempted:
-<code>t   print = 42   -- Error(NameError: Cannot overwrite print: it's a reserved keyword!)</code></p>
+<p><strong>Features</strong>:</p>
+<ul>
+<li><p>Levenshtein distance-based suggestions</p></li>
+<li><p>Searches current scope and standard library</p></li>
+<li><p>Case-insensitive suggestions</p></li>
+<li><p><strong>Reserved Keyword &amp; Built-in Protection</strong>:
+Prevents overwriting core standard library functions or keywords (such
+as <code>build_log</code> or <code>print</code>), triggering a
+<code>NameError</code> if assignment (<code>=</code>) or reassignment
+(<code>:=</code>) is attempted:</p>
+<pre class="t"><code>print = 42
+-- Error(NameError: Cannot overwrite print: it&#39;s a reserved keyword!)</code></pre></li>
+</ul>
 <h3 id="value-errors">3. Value Errors</h3>
 <p>Occur when values are invalid for the operation:</p>
 <pre class="t"><code>sqrt(-1)
@@ -136,8 +146,12 @@ add(1)
 
 add(1, 2, 3)
 -- Error(ArityError: Expected 2 arguments (a, b) but got 3)</code></pre>
-<p><strong>Features</strong>: - Shows expected parameter names - Shows
-actual argument count - Suggests correct usage</p>
+<p><strong>Features</strong>:</p>
+<ul>
+<li>Shows expected parameter names</li>
+<li>Shows actual argument count</li>
+<li>Suggests correct usage</li>
+</ul>
 <h3 id="division-by-zero">5. Division by Zero</h3>
 <pre class="t"><code>1 / 0
 -- Error(DivisionByZero: Division by zero)
@@ -232,16 +246,19 @@ nodes of a built pipeline into a structured four-column
 <code>DataFrame</code> (<code>node</code>, <code>status</code>,
 <code>code</code>, and <code>message</code>), allowing you to inspect
 and filter multiple pipeline issues.</p>
-<p>To keep the printed output clean and readable: * <strong>Traceback
-Truncation</strong>: <code>collect_exceptions</code> automatically
-extracts the <strong>last non-empty line</strong> of multi-line
-tracebacks (like Python or Arrow error messages) to preserve the actual
-error class and message, and caps the text length at <code>100</code>
-characters. * <strong>Polars-Style Cell Truncation</strong>: When
-pretty-printing any <code>DataFrame</code> in the REPL, all string cells
-exceeding <code>35</code> characters are truncated to <code>32</code>
-characters followed by <code>...</code> (Polars-style) to prevent
-wide/broken columns.</p>
+<p>To keep the printed output clean and readable:</p>
+<ul>
+<li><strong>Traceback Truncation</strong>:
+<code>collect_exceptions</code> automatically extracts the <strong>last
+non-empty line</strong> of multi-line tracebacks (like Python or Arrow
+error messages) to preserve the actual error class and message, and caps
+the text length at <code>100</code> characters.</li>
+<li><strong>Polars-Style Cell Truncation</strong>: When pretty-printing
+any <code>DataFrame</code> in the REPL, all string cells exceeding
+<code>35</code> characters are truncated to <code>32</code> characters
+followed by <code>...</code> (Polars-style) to prevent wide/broken
+columns.</li>
+</ul>
 <blockquote>
 <p>[!NOTE] Even if a build fails, <strong>the build log is written
 unconditionally</strong> to the <code>_pipeline/</code> directory. This
@@ -256,19 +273,22 @@ exceptions_df |&gt; filter($status == &quot;Warning&quot;)</code></pre>
 <h5 id="explaining-collected-exceptions">Explaining Collected
 Exceptions</h5>
 <p>T’s built-in <code>explain()</code> function has specialized support
-for <code>collect_exceptions</code> DataFrames: - <strong>Direct
-Explanation (1 exception)</strong>: If there is exactly one exception
-row in the DataFrame, calling <code>explain(exceptions_df)</code> will
-automatically map to that diagnostic exception and return a structured
-dictionary explaining the exact error or warning details (containing the
-originating node, diagnostic code, and description message). -
-<strong>Consolidated Explanation (multiple exceptions)</strong>: If
+for <code>collect_exceptions</code> DataFrames:</p>
+<ul>
+<li><strong>Direct Explanation (1 exception)</strong>: If there is
+exactly one exception row in the DataFrame, calling
+<code>explain(exceptions_df)</code> will automatically map to that
+diagnostic exception and return a structured dictionary explaining the
+exact error or warning details (containing the originating node,
+diagnostic code, and description message).</li>
+<li><strong>Consolidated Explanation (multiple exceptions)</strong>: If
 there are zero or multiple exceptions, calling
 <code>explain(exceptions_df)</code> returns a structured representation
 of the exception collection itself (<code>exceptions_list</code>), with
 a <code>count</code> property and an <code>exceptions</code> list
 containing the mapped explanation of each individual diagnostic
-element.</p>
+element.</li>
+</ul>
 <h4 id="error_chainerr1-err2">2.
 <code>error_chain(err1, err2)</code></h4>
 <p>Preserves the causal chain of multiple failures. Chaining sets
@@ -659,16 +679,19 @@ model, or a validation report based on the data’s characteristics.</p>
     }
   )
 }</code></pre>
-<p><strong>Why use this?</strong>: * <strong>Adaptive Modeling</strong>:
-Your pipeline automatically scales its complexity to match the quality
-of the incoming data, avoiding “singular matrix” or “one level
-to_factor” errors. * <strong>Operational Intelligence</strong>: Instead
-of the whole pipeline failing due to a minor data shift (like one
-category disappearing from today’s extract), the system gracefully
-degrades its service while still providing a result. *
-<strong>Auditability</strong>: Every run clearly states which path was
-taken through the use of descriptive tags like
-<code>low_diversity</code> or <code>high_quality</code>.</p>
+<p><strong>Why use this?</strong>:</p>
+<ul>
+<li><strong>Adaptive Modeling</strong>: Your pipeline automatically
+scales its complexity to match the quality of the incoming data,
+avoiding “singular matrix” or “one level to_factor” errors.</li>
+<li><strong>Operational Intelligence</strong>: Instead of the whole
+pipeline failing due to a minor data shift (like one category
+disappearing from today’s extract), the system gracefully degrades its
+service while still providing a result.</li>
+<li><strong>Auditability</strong>: Every run clearly states which path
+was taken through the use of descriptive tags like
+<code>low_diversity</code> or <code>high_quality</code>.</li>
+</ul>
 <hr />
 <h2 id="comparing-error-handling-tools">Comparing Error Handling
 Tools</h2>
@@ -696,15 +719,18 @@ into more domain-specific ones.</li>
 <code>if (is_error(x))</code> becomes too nested or less readable.</li>
 </ul></li>
 </ul>
-<p><strong>General Guidance</strong>: * Use <code>|&gt;</code> for the
-majority of your data pipelines where you expect success and want to
-stop on the first error. * Use <code>?|&gt;</code> when you need to
-inspect or act on an error <em>at a specific point</em> in a pipeline,
-often followed by <code>match</code> or an
-<code>if (is_error(...))</code> check. * Use <code>match</code> when
-your error recovery logic involves different actions for different error
-types, or when you want a clear, declarative way to distinguish between
-success and various error states.</p>
+<p><strong>General Guidance</strong>:</p>
+<ul>
+<li>Use <code>|&gt;</code> for the majority of your data pipelines where
+you expect success and want to stop on the first error.</li>
+<li>Use <code>?|&gt;</code> when you need to inspect or act on an error
+<em>at a specific point</em> in a pipeline, often followed by
+<code>match</code> or an <code>if (is_error(...))</code> check.</li>
+<li>Use <code>match</code> when your error recovery logic involves
+different actions for different error types, or when you want a clear,
+declarative way to distinguish between success and various error
+states.</li>
+</ul>
 <hr />
 <h2 id="common-errors">Common Errors</h2>
 <h3 id="na-handling-errors">NA Handling Errors</h3>
@@ -854,11 +880,15 @@ result = computation()
 assert(result &gt; 0, &quot;Result should be positive&quot;)
 assert(length(result_list) == expected_length, &quot;Length mismatch&quot;)</code></pre>
 <hr />
-<p><strong>See Also</strong>: - <a href="examples.html">Examples</a> —
-Error handling patterns in practice - <a href="api-reference.html">API
-Reference</a> — Error-related functions - <a
-href="troubleshooting.html">Troubleshooting</a> — Common issues and
-solutions</p>
+<p><strong>See Also</strong>:</p>
+<ul>
+<li><a href="examples.html">Examples</a> — Error handling patterns in
+practice</li>
+<li><a href="api-reference.html">API Reference</a> — Error-related
+functions</li>
+<li><a href="troubleshooting.html">Troubleshooting</a> — Common issues and
+solutions</li>
+</ul>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

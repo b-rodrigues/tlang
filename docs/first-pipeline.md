@@ -6,7 +6,7 @@
 This guide takes you from a bare machine to a working polyglot pipeline. T itself is
 never installed — you install Nix, then bootstrap a project that pins its own copy of
 the T toolchain. If you already have a T project created with `t init --project`, skip
-straight to [section 1](#1-enter-the-project-environment).
+straight to [section 1](#enter-the-project-environment).
 
 ## 0. Bootstrap a project
 

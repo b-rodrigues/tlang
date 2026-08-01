@@ -308,12 +308,14 @@ scalar-like values:</p>
 </tbody>
 </table>
 <h3 id="validation">Validation</h3>
-<p>T performs early validation on environment variables: -
-<code>env_vars</code> must be a dictionary. - Unsupported types (like
-Lists or nested Dicts) trigger a structured type error during pipeline
-construction. - <code>NA</code> values are silently omitted from the
-generated Nix derivation instead of being materialized as empty
-strings.</p>
+<p>T performs early validation on environment variables:</p>
+<ul>
+<li><code>env_vars</code> must be a dictionary.</li>
+<li>Unsupported types (like Lists or nested Dicts) trigger a structured
+type error during pipeline construction.</li>
+<li><code>NA</code> values are silently omitted from the generated Nix
+derivation instead of being materialized as empty strings.</li>
+</ul>
 <p>These variables are automatically threaded into the generated
 <code>stdenv.mkDerivation</code> and are available via standard system
 methods (e.g., <code>Sys.getenv()</code> in R or <code>os.environ</code>
@@ -1083,16 +1085,19 @@ definitions to manually declare one or more dependencies:</p>
     serializer = ^text
   )
 }</code></pre>
-<p><strong>Key Features of <code>deps</code></strong>: -
-<strong>First-Class Syntax</strong>: <code>deps</code> is an optional
-argument available in <code>node()</code>, <code>rn()</code>,
-<code>pyn()</code>, and <code>shn()</code>. - <strong>Bare
-Identifiers</strong>: You can list direct node names as bare identifiers
-(e.g., <code>deps = [node1, node2]</code>). - <strong>Manual
-Override</strong>: It ensures the specified nodes are added to the
-dependency graph even if they aren’t parsed from the command or script
-body. - <strong>Strict Validation</strong>: T validates that all listed
-dependencies exist within the same pipeline.</p>
+<p><strong>Key Features of <code>deps</code></strong>:</p>
+<ul>
+<li><strong>First-Class Syntax</strong>: <code>deps</code> is an
+optional argument available in <code>node()</code>, <code>rn()</code>,
+<code>pyn()</code>, and <code>shn()</code>.</li>
+<li><strong>Bare Identifiers</strong>: You can list direct node names as
+bare identifiers (e.g., <code>deps = [node1, node2]</code>).</li>
+<li><strong>Manual Override</strong>: It ensures the specified nodes are
+added to the dependency graph even if they aren’t parsed from the
+command or script body.</li>
+<li><strong>Strict Validation</strong>: T validates that all listed
+dependencies exist within the same pipeline.</li>
+</ul>
 <hr />
 <h2 id="best-practices">Best Practices</h2>
 <blockquote>

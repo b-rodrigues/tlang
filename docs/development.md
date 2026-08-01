@@ -44,6 +44,7 @@ dune exec src/repl.exe
 #### VS Code
 
 Install extensions:
+
 - **OCaml Platform** (`ocamllabs.ocaml-platform`)
 - **Dune** (syntax highlighting for `dune` files)
 
@@ -104,6 +105,7 @@ dune build --watch
 ### Build Artifacts
 
 Compiled outputs are in `_build/default/`:
+
 - `src/repl.exe` — REPL executable
 - `src/*.cmo`, `src/*.cmi` — Compiled modules
 - `tests/*.exe` — Test executables
@@ -132,6 +134,7 @@ Compiled outputs are in `_build/default/`:
 ### Dependencies
 
 Managed by Nix (in `flake.nix`):
+
 - **OCaml** 4.14+
 - **Dune** 3.0+
 - **Menhir** (parser generator)
@@ -402,6 +405,7 @@ Error(TypeError: Cannot add Int and String)
 ```
 
 Check:
+
 - Value types (use `type()`)
 - Function signatures
 - Conversion functions available
@@ -413,6 +417,7 @@ Error(NameError: 'undefined_var' is not defined)
 ```
 
 Check:
+
 - Variable spelling
 - Scope (is it in current environment?)
 - Package loaded correctly
@@ -423,6 +428,7 @@ Error: Undefined symbol: caml_arrow_read_csv
 ```
 
 Check:
+
 - You're in Nix shell (`nix develop`)
 - Arrow GLib is available: `pkg-config --modversion arrow-glib`
 - FFI stubs compiled correctly

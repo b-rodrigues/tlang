@@ -939,15 +939,18 @@ Julia (<code>jln()</code>), Quarto (<code>qn()</code>), and Shell
 <code>^arrow</code>, <code>^pmml</code>, and <code>^onnx</code>, which
 you pass to node constructors like <code>serializer = ^csv</code>.</p>
 <p>The <strong>ONNX</strong> system provides full cross-runtime model
-portability: - <strong><code>^onnx</code> Serializer</strong>:
-Automatically handles model export/import between R, Python, and T
-nodes. - <strong>Native Inference</strong>: Use
-<code>t_read_onnx()</code> to load models and <code>predict()</code> for
-high-performance scoring directly inside T nodes, with no dependency on
-R or Python at prediction time. - <strong>Rich Metadata</strong>:
-T-native ONNX objects contain input/output schema and custom model
-properties (producer, description, feature names) extracted directly
-from the session.</p>
+portability:</p>
+<ul>
+<li><strong><code>^onnx</code> Serializer</strong>: Automatically
+handles model export/import between R, Python, and T nodes.</li>
+<li><strong>Native Inference</strong>: Use <code>t_read_onnx()</code> to
+load models and <code>predict()</code> for high-performance scoring
+directly inside T nodes, with no dependency on R or Python at prediction
+time.</li>
+<li><strong>Rich Metadata</strong>: T-native ONNX objects contain
+input/output schema and custom model properties (producer, description,
+feature names) extracted directly from the session.</li>
+</ul>
 <pre class="t"><code>p = pipeline {
   -- 1. Load data natively in T (CSV backend)
   data = node(
@@ -1020,19 +1023,25 @@ to an external file using <code>script</code>. <code>command</code> and
 <code>script</code> are mutually exclusive, and the runtime can be
 inferred from file extensions such as <code>.R</code> or
 <code>.py</code>.</p>
-<p>Pipeline features: - <strong>Automatic dependency
-resolution</strong>: Nodes can be declared in any order -
-<strong>Deterministic execution</strong>: Same inputs always produce
-same outputs - <strong>Cycle detection</strong>: Circular dependencies
-are caught and reported - <strong>Introspection</strong>:
-<code>pipeline_nodes()</code>, <code>pipeline_deps()</code>,
-<code>pipeline_node()</code> - <strong>Cross-language</strong>:
-<code>node()</code>, <code>py()</code>/<code>pyn()</code>,
-<code>rn()</code>, and <code>shn()</code> enable execution in T, Python,
-R, and shell runtimes - <strong>Environment Variables</strong>: Pass
-custom variables into Nix build sandboxes via <code>env_vars</code> -
-<strong>Re-run</strong>: <code>pipeline_run()</code> re-executes the
-pipeline</p>
+<p>Pipeline features:</p>
+<ul>
+<li><strong>Automatic dependency resolution</strong>: Nodes can be
+declared in any order</li>
+<li><strong>Deterministic execution</strong>: Same inputs always produce
+same outputs</li>
+<li><strong>Cycle detection</strong>: Circular dependencies are caught
+and reported</li>
+<li><strong>Introspection</strong>: <code>pipeline_nodes()</code>,
+<code>pipeline_deps()</code>, <code>pipeline_node()</code></li>
+<li><strong>Cross-language</strong>: <code>node()</code>,
+<code>py()</code>/<code>pyn()</code>, <code>rn()</code>, and
+<code>shn()</code> enable execution in T, Python, R, and shell
+runtimes</li>
+<li><strong>Environment Variables</strong>: Pass custom variables into
+Nix build sandboxes via <code>env_vars</code></li>
+<li><strong>Re-run</strong>: <code>pipeline_run()</code> re-executes the
+pipeline</li>
+</ul>
 <p>You can also inspect and transform pipelines without rebuilding them
 from scratch:</p>
 <pre class="t"><code>p_full = p_etl |&gt; union(p_model)

@@ -45,6 +45,7 @@ lm(data: DataFrame, formula: Formula, ...) -> Dict
 ### Returns
 
 Dictionary containing:
+
 - `formula`: The model formula
 - `coefficients`: Dictionary of term estimates
 - `std_errors`: Dictionary of standard errors

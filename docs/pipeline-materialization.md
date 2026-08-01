@@ -80,6 +80,7 @@ print(actions)
 ```
 
 The resulting `DataFrame` contains the columns:
+
 - `node`: The name of the pipeline node.
 - `action`: The action planned (e.g., `"build"`, `"substitute"`, or `"noop"`).
 - `path`: The absolute store path of the Nix derivation or artifact.
@@ -796,6 +797,7 @@ To work with `mkNodeEnv`, the custom flake must expose the same outputs that T's
 ```
 
 The key requirements are:
+
 - `legacyPackages.${system}` — provides the full nixpkgs package set
 - `packages.${system}.default` — provides the `t` binary
 - `packages.${system}.tlang-r` — provides R packages declared in the flake
