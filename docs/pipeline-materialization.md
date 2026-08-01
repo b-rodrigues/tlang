@@ -22,7 +22,7 @@ The canonical way to access a sibling node's artifact is using the `node_lens` w
 
 ```t
 p = pipeline {
-  node_a = node(command = 100, serializer = "json")
+  node_a = node(command = 100, serializer = ^json)
   
   -- This node retrieves node_a's value from its Nix artifact
   dynamic_access = node(

@@ -166,7 +166,7 @@ The T REPL (`t repl` or `t` in a project shell) supports:
 - **Readline editing** with arrow keys and history navigation
 - **Persistent history** in `~/.t_history`
 - **Multi-line input** for open brackets, parentheses, and braces
-- **Magic commands** such as `:help`, `:quit`, and `:clear`
+- **Magic commands** such as `:help`, `:quit`, `:version`, and `:packages`
 - **Signal-safe interrupts** so `Ctrl+C` returns you to the prompt cleanly
 
 ### Language Server Protocol (LSP)
@@ -821,7 +821,7 @@ is_error(result)  -- true
 
 Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file. T supports R (`rn()`), Python (`pyn()`), Julia (`jln()`), Quarto (`qn()`), and Shell (`shn()`) nodes out of the box.
 
-Built-in serializer keywords include `"csv"`, `"arrow"`, `"pmml"`, and `"onnx"` (or `^csv`, `^arrow`, `^pmml`, `^onnx` when referencing the first-class serializer values directly).
+Built-in serializer symbols include `^csv`, `^arrow`, `^pmml`, and `^onnx`, which you pass to node constructors like `serializer = ^csv`.
 
 The **ONNX** system provides full cross-runtime model portability:
 - **`^onnx` Serializer**: Automatically handles model export/import between R, Python, and T nodes.
@@ -833,20 +833,20 @@ p = pipeline {
   -- 1. Load data natively in T (CSV backend)
   data = node(
     command = read_csv("examples/sample_data.csv") |> filter($age > 25),
-    serializer = "csv"
+    serializer = ^csv
   )
   
   -- 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
     command = <{ lm(score ~ age, data = data) }>,
-    serializer = "pmml",
-    deserializer = "csv"
+    serializer = ^pmml,
+    deserializer = ^csv
   )
   
   -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
   predictions = node(
     command = data |> mutate($pred = predict(data, model_r)),
-    deserializer = "pmml"
+    deserializer = ^pmml
   )
 
   -- 4. Generate a shell report
@@ -1004,9 +1004,9 @@ These signatures provide a compact map of the most commonly used functions:
 
 #### Pipelines
 
-- `node(command :: Any, script :: String, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
-- `pyn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
-- `rn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
+- `node(command :: Any, script :: String, runtime = T, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any`
+- `pyn(command :: Any, script :: String, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any`
+- `rn(command :: Any, script :: String, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any`
 - `build_pipeline(pipeline :: Pipeline) :: NA`
 - `pipeline_run(pipeline :: Pipeline) :: Pipeline`
 - `pipeline_nodes(p :: Pipeline) :: List[String]`

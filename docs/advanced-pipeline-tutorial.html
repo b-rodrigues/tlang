@@ -197,7 +197,7 @@ can use T’s standard <code>filter</code>, <code>select</code>, and
 you request, using NSE <code>$field</code> references:</p>
 <pre class="t"><code>p = pipeline {
   a = 1
-  b = node(command = &lt;{ 2 }&gt;, runtime = R, serializer = &quot;pmml&quot;)
+  b = node(command = &lt;{ 2 }&gt;, runtime = R, serializer = ^pmml)
   c = b + 1
 }
 
@@ -331,8 +331,8 @@ references a removed node, that surfaces at <code>build_pipeline</code>
 time.</p>
 <pre class="t"><code>p = pipeline {
   load   = read_csv(&quot;data.csv&quot;)
-  model  = rn(command = &lt;{ lm(y ~ x, data = load) }&gt;, serializer = &quot;pmml&quot;)
-  score  = node(command = predict(model, load), deserializer = &quot;pmml&quot;)
+  model  = rn(command = &lt;{ lm(y ~ x, data = load) }&gt;, serializer = ^pmml)
+  score  = node(command = predict(model, load), deserializer = ^pmml)
 }
 
 -- Keep only R nodes
@@ -579,11 +579,11 @@ Ideal for overriding configurations without accidentally importing stray
 nodes.</p>
 <pre class="t"><code>p_prod = pipeline {
   load  = read_csv(&quot;data.csv&quot;)
-  model = rn(command = &lt;{ lm(y ~ x, data = load) }&gt;, serializer = &quot;pmml&quot;)
+  model = rn(command = &lt;{ lm(y ~ x, data = load) }&gt;, serializer = ^pmml)
 }
 
 p_overrides = pipeline {
-  model = rn(command = &lt;{ lm(y ~ x + z, data = load) }&gt;, serializer = &quot;pmml&quot;)
+  model = rn(command = &lt;{ lm(y ~ x + z, data = load) }&gt;, serializer = ^pmml)
   extra = 99  -- stray node
 }
 
@@ -599,12 +599,12 @@ extract subgraphs.</p>
 dependency edges. The new node is specified as the third argument.</p>
 <pre class="t"><code>p = pipeline {
   data  = read_csv(&quot;data.csv&quot;)
-  model = rn(command = &lt;{ lm(y ~ x, data = data) }&gt;, serializer = &quot;pmml&quot;)
-  score = node(command = predict(model, data), deserializer = &quot;pmml&quot;)
+  model = rn(command = &lt;{ lm(y ~ x, data = data) }&gt;, serializer = ^pmml)
+  score = node(command = predict(model, data), deserializer = ^pmml)
 }
 
 -- Replace the model node with a new implementation; edges to/from model are preserved
-new_model = rn(command = &lt;{ glm(y ~ x, data = data, family = binomial) }&gt;, serializer = &quot;pmml&quot;)
+new_model = rn(command = &lt;{ glm(y ~ x, data = data, family = binomial) }&gt;, serializer = ^pmml)
 p2 = p |&gt; swap(&quot;model&quot;, new_model)
 
 pipeline_deps(p2)
@@ -616,7 +616,7 @@ dependency list is updated.</p>
 <pre class="t"><code>p = pipeline {
   data    = read_csv(&quot;data.csv&quot;)
   data_v2 = read_csv(&quot;data_v2.csv&quot;)
-  model   = rn(command = &lt;{ lm(y ~ x, data) }&gt;, serializer = &quot;pmml&quot;)
+  model   = rn(command = &lt;{ lm(y ~ x, data) }&gt;, serializer = ^pmml)
 }
 
 -- Re-point model to use data_v2 instead of data
@@ -644,7 +644,7 @@ indirectly).</p>
 <pre class="t"><code>p = pipeline {
   raw     = read_csv(&quot;data.csv&quot;)
   clean   = raw |&gt; filter($value &gt; 0)
-  model   = rn(command = &lt;{ lm(y ~ x, clean) }&gt;, serializer = &quot;pmml&quot;)
+  model   = rn(command = &lt;{ lm(y ~ x, clean) }&gt;, serializer = ^pmml)
   report  = summary(model)
   sidebar = &quot;metadata&quot;
 }
@@ -800,7 +800,7 @@ p_model = pipeline {
   model = rn(&lt;{ 
     lm(mpg ~ hp, data = data_input)  -- use the alias name in R
   }&gt;,
-  deserializer = &quot;arrow&quot;)
+  deserializer = ^arrow)
 }
 
 -- Success! T sees `raw_data` as a dependency of `data_input`, wiring the pipelines.
@@ -838,7 +838,7 @@ Nix-reproducible pipelines.</p>
 <p>Combines two pipelines that are intended to run independently. No
 dependency wiring is performed. Errors on name collision.</p>
 <pre class="t"><code>p_r_model = pipeline {
-  r_fit = rn(command = &lt;{ lm(y ~ x, data) }&gt;, serializer = &quot;pmml&quot;)
+  r_fit = rn(command = &lt;{ lm(y ~ x, data) }&gt;, serializer = ^pmml)
 }
 
 p_py_model = pipeline {
@@ -847,7 +847,7 @@ p_py_model = pipeline {
       from sklearn.linear_model import LinearRegression
       LinearRegression().fit(X, y)
     }&gt;,
-    serializer = &quot;pmml&quot;
+    serializer = ^pmml
   )
 }
 
@@ -892,7 +892,7 @@ pipeline_cycles(p)  -- []</code></pre>
 their runtime, depth, noop status, and dependency list:</p>
 <pre class="t"><code>p = pipeline {
   a = 1
-  b = node(command = &lt;{ 2 }&gt;, runtime = R, serializer = &quot;pmml&quot;)
+  b = node(command = &lt;{ 2 }&gt;, runtime = R, serializer = ^pmml)
   c = b + 1
 }
 
@@ -1080,7 +1080,7 @@ definitions to manually declare one or more dependencies:</p>
   summary = shn(
     command = &lt;{ cat data.csv | wc -l }&gt;, 
     deps = [raw_file],
-    serializer = &quot;text&quot;
+    serializer = ^text
   )
 }</code></pre>
 <p><strong>Key Features of <code>deps</code></strong>: -

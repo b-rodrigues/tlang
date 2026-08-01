@@ -38,20 +38,20 @@ p = pipeline {
   -- 1. Load data natively in T (CSV backend)
   data = node(
     command = read_csv("examples/sample_data.csv") |> filter($age > 25),
-    serializer = "csv"
+    serializer = ^csv
   )
 
   -- 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
     command = <{ lm(score ~ age, data = data) }>,
-    serializer = "pmml",
-    deserializer = "csv"
+    serializer = ^pmml,
+    deserializer = ^csv
   )
 
   -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
   predictions = node(
     command = data |> mutate($pred = predict(data, model_r)),
-    deserializer = "pmml"
+    deserializer = ^pmml
   )
 
   -- 4. Generate a shell report
@@ -199,7 +199,6 @@ resolution and deserialization from within those environments.
 - [Performance Analysis](performance_analysis.html) — in-depth analysis of T's performance metrics
 - [Composable Lenses](lens.html) — functional updates for nested structures
 - [Nix Build Options & Orchestration](nix-options.html) — passing low-level nix arguments to the build
-- [Arrow: Current Status & Next Steps](arrow-current-status-next-steps.html) — state of the Arrow backend and roadmap
 
 ### Developer Resources
 - [Architecture](architecture.html) — language design and implementation

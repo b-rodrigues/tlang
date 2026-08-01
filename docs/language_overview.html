@@ -270,7 +270,8 @@ navigation</li>
 <li><strong>Multi-line input</strong> for open brackets, parentheses,
 and braces</li>
 <li><strong>Magic commands</strong> such as <code>:help</code>,
-<code>:quit</code>, and <code>:clear</code></li>
+<code>:quit</code>, <code>:version</code>, and
+<code>:packages</code></li>
 <li><strong>Signal-safe interrupts</strong> so <code>Ctrl+C</code>
 returns you to the prompt cleanly</li>
 </ul>
@@ -934,11 +935,9 @@ href="../examples/polyglot_pipeline.t"><code>examples/polyglot_pipeline.t</code>
 file. T supports R (<code>rn()</code>), Python (<code>pyn()</code>),
 Julia (<code>jln()</code>), Quarto (<code>qn()</code>), and Shell
 (<code>shn()</code>) nodes out of the box.</p>
-<p>Built-in serializer keywords include <code>"csv"</code>,
-<code>"arrow"</code>, <code>"pmml"</code>, and <code>"onnx"</code> (or
-<code>^csv</code>, <code>^arrow</code>, <code>^pmml</code>,
-<code>^onnx</code> when referencing the first-class serializer values
-directly).</p>
+<p>Built-in serializer symbols include <code>^csv</code>,
+<code>^arrow</code>, <code>^pmml</code>, and <code>^onnx</code>, which
+you pass to node constructors like <code>serializer = ^csv</code>.</p>
 <p>The <strong>ONNX</strong> system provides full cross-runtime model
 portability: - <strong><code>^onnx</code> Serializer</strong>:
 Automatically handles model export/import between R, Python, and T
@@ -953,20 +952,20 @@ from the session.</p>
   -- 1. Load data natively in T (CSV backend)
   data = node(
     command = read_csv(&quot;examples/sample_data.csv&quot;) |&gt; filter($age &gt; 25),
-    serializer = &quot;csv&quot;
+    serializer = ^csv
   )
   
   -- 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
     command = &lt;{ lm(score ~ age, data = data) }&gt;,
-    serializer = &quot;pmml&quot;,
-    deserializer = &quot;csv&quot;
+    serializer = ^pmml,
+    deserializer = ^csv
   )
   
   -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
   predictions = node(
     command = data |&gt; mutate($pred = predict(data, model_r)),
-    deserializer = &quot;pmml&quot;
+    deserializer = ^pmml
   )
 
   -- 4. Generate a shell report
@@ -1175,9 +1174,9 @@ functions:</p>
 </ul>
 <h4 id="pipelines-1">Pipelines</h4>
 <ul>
-<li><code>node(command :: Any, script :: String, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any</code></li>
-<li><code>pyn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any</code></li>
-<li><code>rn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any</code></li>
+<li><code>node(command :: Any, script :: String, runtime = T, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any</code></li>
+<li><code>pyn(command :: Any, script :: String, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any</code></li>
+<li><code>rn(command :: Any, script :: String, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any</code></li>
 <li><code>build_pipeline(pipeline :: Pipeline) :: NA</code></li>
 <li><code>pipeline_run(pipeline :: Pipeline) :: Pipeline</code></li>
 <li><code>pipeline_nodes(p :: Pipeline) :: List[String]</code></li>

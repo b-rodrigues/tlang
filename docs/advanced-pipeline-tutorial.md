@@ -110,7 +110,7 @@ The columns returned are:
 ```t
 p = pipeline {
   a = 1
-  b = node(command = <{ 2 }>, runtime = R, serializer = "pmml")
+  b = node(command = <{ 2 }>, runtime = R, serializer = ^pmml)
   c = b + 1
 }
 
@@ -206,8 +206,8 @@ Returns a new pipeline containing only the nodes where the predicate is true. No
 ```t
 p = pipeline {
   load   = read_csv("data.csv")
-  model  = rn(command = <{ lm(y ~ x, data = load) }>, serializer = "pmml")
-  score  = node(command = predict(model, load), deserializer = "pmml")
+  model  = rn(command = <{ lm(y ~ x, data = load) }>, serializer = ^pmml)
+  score  = node(command = predict(model, load), deserializer = ^pmml)
 }
 
 -- Keep only R nodes
@@ -488,11 +488,11 @@ Like `union`, but only updates nodes that already exist in the first pipeline â€
 ```t
 p_prod = pipeline {
   load  = read_csv("data.csv")
-  model = rn(command = <{ lm(y ~ x, data = load) }>, serializer = "pmml")
+  model = rn(command = <{ lm(y ~ x, data = load) }>, serializer = ^pmml)
 }
 
 p_overrides = pipeline {
-  model = rn(command = <{ lm(y ~ x + z, data = load) }>, serializer = "pmml")
+  model = rn(command = <{ lm(y ~ x + z, data = load) }>, serializer = ^pmml)
   extra = 99  -- stray node
 }
 
@@ -513,12 +513,12 @@ Replaces a node's implementation while preserving its existing dependency edges.
 ```t
 p = pipeline {
   data  = read_csv("data.csv")
-  model = rn(command = <{ lm(y ~ x, data = data) }>, serializer = "pmml")
-  score = node(command = predict(model, data), deserializer = "pmml")
+  model = rn(command = <{ lm(y ~ x, data = data) }>, serializer = ^pmml)
+  score = node(command = predict(model, data), deserializer = ^pmml)
 }
 
 -- Replace the model node with a new implementation; edges to/from model are preserved
-new_model = rn(command = <{ glm(y ~ x, data = data, family = binomial) }>, serializer = "pmml")
+new_model = rn(command = <{ glm(y ~ x, data = data, family = binomial) }>, serializer = ^pmml)
 p2 = p |> swap("model", new_model)
 
 pipeline_deps(p2)
@@ -533,7 +533,7 @@ Reroutes a node's declared dependencies. The `replace` argument maps old depende
 p = pipeline {
   data    = read_csv("data.csv")
   data_v2 = read_csv("data_v2.csv")
-  model   = rn(command = <{ lm(y ~ x, data) }>, serializer = "pmml")
+  model   = rn(command = <{ lm(y ~ x, data) }>, serializer = ^pmml)
 }
 
 -- Re-point model to use data_v2 instead of data
@@ -569,7 +569,7 @@ Returns a new pipeline containing the named node and all its transitive ancestor
 p = pipeline {
   raw     = read_csv("data.csv")
   clean   = raw |> filter($value > 0)
-  model   = rn(command = <{ lm(y ~ x, clean) }>, serializer = "pmml")
+  model   = rn(command = <{ lm(y ~ x, clean) }>, serializer = ^pmml)
   report  = summary(model)
   sidebar = "metadata"
 }
@@ -726,7 +726,7 @@ p_model = pipeline {
   model = rn(<{ 
     lm(mpg ~ hp, data = data_input)  -- use the alias name in R
   }>,
-  deserializer = "arrow")
+  deserializer = ^arrow)
 }
 
 -- Success! T sees `raw_data` as a dependency of `data_input`, wiring the pipelines.
@@ -763,7 +763,7 @@ Combines two pipelines that are intended to run independently. No dependency wir
 
 ```t
 p_r_model = pipeline {
-  r_fit = rn(command = <{ lm(y ~ x, data) }>, serializer = "pmml")
+  r_fit = rn(command = <{ lm(y ~ x, data) }>, serializer = ^pmml)
 }
 
 p_py_model = pipeline {
@@ -772,7 +772,7 @@ p_py_model = pipeline {
       from sklearn.linear_model import LinearRegression
       LinearRegression().fit(X, y)
     }>,
-    serializer = "pmml"
+    serializer = ^pmml
   )
 }
 
@@ -836,7 +836,7 @@ Prints a human-readable summary of all nodes to stdout, including their runtime,
 ```t
 p = pipeline {
   a = 1
-  b = node(command = <{ 2 }>, runtime = R, serializer = "pmml")
+  b = node(command = <{ 2 }>, runtime = R, serializer = ^pmml)
   c = b + 1
 }
 
@@ -1009,7 +1009,7 @@ p = pipeline {
   summary = shn(
     command = <{ cat data.csv | wc -l }>, 
     deps = [raw_file],
-    serializer = "text"
+    serializer = ^text
   )
 }
 ```

@@ -643,7 +643,7 @@ serialization methods for when a pipeline is materialized by Nix:</p>
         fit = LinearRegression().fit(X, y)
         fit
     }&gt;,
-    serializer = &quot;pmml&quot;
+    serializer = ^pmml
   )
 }</code></pre>
 <p>Bare syntax (like <code>x = 10</code>) is automatically desugared to
@@ -674,16 +674,16 @@ This works with <code>node()</code>, <code>pyn()</code>,
 <code>command</code> arguments are mutually exclusive.</p>
 <pre class="t"><code>p = pipeline {
   -- Execute an external R script
-  model = rn(script = &quot;train_model.R&quot;, serializer = &quot;pmml&quot;)
+  model = rn(script = &quot;train_model.R&quot;, serializer = ^pmml)
 
   -- Execute an external Python script
-  predictions = pyn(script = &quot;predict.py&quot;, deserializer = &quot;pmml&quot;)
+  predictions = pyn(script = &quot;predict.py&quot;, deserializer = ^pmml)
 
   -- Execute an external shell script
   report = shn(script = &quot;postprocess.sh&quot;)
 
   -- node() auto-detects the runtime from the file extension
-  summary = node(script = &quot;summarise.R&quot;, serializer = &quot;json&quot;)
+  summary = node(script = &quot;summarise.R&quot;, serializer = ^json)
 }</code></pre>
 <p>When using <code>script</code>, the runtime is auto-detected from the
 file extension (<code>.R</code> → R, <code>.py</code> → Python,
@@ -915,7 +915,7 @@ to make predictions without leaving the T runtime:</p>
       data &lt;- read.csv(&quot;data.csv&quot;)
       lm(mpg ~ wt + hp, data = data)
     }&gt;,
-    serializer = &quot;pmml&quot;
+    serializer = ^pmml
   )
   
   -- Node 2: Predict in T using the R model
@@ -925,10 +925,10 @@ to make predictions without leaving the T runtime:</p>
       predict(test_df, model_r)
     }&gt;,
     runtime = &quot;T&quot;,
-    deserializer = &quot;pmml&quot;
+    deserializer = ^pmml
   )
 }</code></pre>
-<p>Setting <code>deserializer = "pmml"</code> on the T node tells the
+<p>Setting <code>deserializer = ^pmml</code> on the T node tells the
 pipeline runner to use T’s native PMML parser to convert the R model
 into a T model object.</p>
 <hr />

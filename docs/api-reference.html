@@ -2500,7 +2500,7 @@ sorted.</p>
 <pre class="t"><code>pipeline_cycles(p)</code></pre>
 <hr />
 <h3
-id="nodecommand-script-na-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-na-shell_args-functions-include-noop-false-flake-na"><code>node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="nodecommand-script-na-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-na-shell_args-functions-include-noop-false-flake-na"><code>node(command, script = NA, runtime = "T", serializer = default, deserializer = default, env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure execution settings such as the runtime and custom
 serialized methods for a pipeline node.</p>
 <p><strong>Parameters:</strong></p>
@@ -2557,9 +2557,9 @@ include = &quot;config.yml&quot;
 }</code></pre>
 <hr />
 <h3
-id="pycommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="pycommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>py(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <h3
-id="pyncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="pyncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>pyn(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a Python Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Python"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Python code.</p>
@@ -2593,7 +2593,7 @@ the Python code is executed by the pipeline builder, not
 immediately.</p>
 <hr />
 <h3
-id="rncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="rncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>rn(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure an R Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "R"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute R code.</p>
@@ -2626,7 +2626,7 @@ used as a named binding inside a <code>pipeline { ... }</code> block;
 the R code is executed by the pipeline builder, not immediately.</p>
 <hr />
 <h3
-id="jlncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="jlncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>jln(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a Julia Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Julia"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Julia code.</p>
@@ -2663,7 +2663,7 @@ used as a named binding inside a <code>pipeline { ... }</code> block;
 the Julia code is executed by the pipeline builder, not immediately.</p>
 <hr />
 <h3
-id="qnscript-na-serializer-default-deserializer-default-env_vars-args-functions-include-noop-false-flake-na"><code>qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="qnscript-na-serializer-default-deserializer-default-env_vars-args-functions-include-noop-false-flake-na"><code>qn(script = NA, serializer = default, deserializer = default, env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a Quarto pipeline node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Quarto"</code>. Use it to
 render <code>.qmd</code> files inside <code>pipeline { ... }</code>
@@ -2702,7 +2702,7 @@ the Quarto document is rendered by the pipeline builder, not
 immediately.</p>
 <hr />
 <h3
-id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false-flake-na"><code>shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false-flake-na"><code>shn(command, script = NA, serializer = text, deserializer = default, env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a shell pipeline node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "sh"</code>. Use it for CLI
 tools, inline shell scripts, and <code>.sh</code> files inside

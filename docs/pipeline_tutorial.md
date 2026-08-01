@@ -202,7 +202,7 @@ p = pipeline {
         fit = LinearRegression().fit(X, y)
         fit
     }>,
-    serializer = "pmml"
+    serializer = ^pmml
   )
 }
 ```
@@ -218,16 +218,16 @@ Instead of inlining code with `command`, you can point a node to an external sou
 ```t
 p = pipeline {
   -- Execute an external R script
-  model = rn(script = "train_model.R", serializer = "pmml")
+  model = rn(script = "train_model.R", serializer = ^pmml)
 
   -- Execute an external Python script
-  predictions = pyn(script = "predict.py", deserializer = "pmml")
+  predictions = pyn(script = "predict.py", deserializer = ^pmml)
 
   -- Execute an external shell script
   report = shn(script = "postprocess.sh")
 
   -- node() auto-detects the runtime from the file extension
-  summary = node(script = "summarise.R", serializer = "json")
+  summary = node(script = "summarise.R", serializer = ^json)
 }
 ```
 
@@ -417,7 +417,7 @@ p = pipeline {
       data <- read.csv("data.csv")
       lm(mpg ~ wt + hp, data = data)
     }>,
-    serializer = "pmml"
+    serializer = ^pmml
   )
   
   -- Node 2: Predict in T using the R model
@@ -427,12 +427,12 @@ p = pipeline {
       predict(test_df, model_r)
     }>,
     runtime = "T",
-    deserializer = "pmml"
+    deserializer = ^pmml
   )
 }
 ```
 
-Setting `deserializer = "pmml"` on the T node tells the pipeline runner to use T's native PMML parser to convert the R model into a T model object.
+Setting `deserializer = ^pmml` on the T node tells the pipeline runner to use T's native PMML parser to convert the R model into a T model object.
 
 ---
 

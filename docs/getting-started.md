@@ -1,7 +1,7 @@
 # Getting Started with T
 
-Welcome to T! This guide will help you install T, create your first project, and
-understand the basic layout of a T workspace.
+Welcome to T! This guide will help you bootstrap a T project, create your first
+workspace, and understand the basic layout of a T workspace.
 
 ## Prerequisites
 

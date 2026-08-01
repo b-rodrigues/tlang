@@ -3076,7 +3076,7 @@ pipeline_cycles(p)
 
 
 
-### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)`
+### `node(command, script = NA, runtime = "T", serializer = default, deserializer = default, env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
 
@@ -3115,9 +3115,9 @@ include = "config.yml"
 
 ---
 
-### `py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
+### `py(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
-### `pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
+### `pyn(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
 
@@ -3139,7 +3139,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
+### `rn(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtime = "R"`. Used directly within a `pipeline { ... }` block to execute R code.
 
@@ -3161,7 +3161,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
+### `jln(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
 
@@ -3184,7 +3184,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)`
+### `qn(script = NA, serializer = default, deserializer = default, env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Quarto pipeline node. A convenience wrapper around `node()` with `runtime = "Quarto"`. Use it to render `.qmd` files inside `pipeline { ... }` blocks.
 
@@ -3207,7 +3207,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)`
+### `shn(command, script = NA, serializer = text, deserializer = default, env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a shell pipeline node. A convenience wrapper around `node()` with `runtime = "sh"`. Use it for CLI tools, inline shell scripts, and `.sh` files inside `pipeline { ... }` blocks.
 

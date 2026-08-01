@@ -134,7 +134,7 @@ resolution and deserialization automatically. 2. It is
 <strong>integrated</strong>: It uses the same deserializer system as the
 rest of the pipeline.</p>
 <pre class="t"><code>p = pipeline {
-  node_a = node(command = 100, serializer = &quot;json&quot;)
+  node_a = node(command = 100, serializer = ^json)
   
   -- This node retrieves node_a&#39;s value from its Nix artifact
   dynamic_access = node(
