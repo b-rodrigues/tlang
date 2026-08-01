@@ -172,23 +172,18 @@ solves 2. Provide concrete examples 3. Discuss alternatives</p>
 </ul>
 <hr />
 <h2 id="development-setup">Development Setup</h2>
-<p>See the <a href="development.html">Development Guide</a> for detailed
-setup instructions.</p>
-<p><strong>Quick Start</strong>:</p>
-<ol type="1">
-<li><p><strong>Install Nix</strong>: Follow the <a
-href="nix-installation.html">Nix Installation Guide</a>.</p></li>
-<li><p><strong>Clone and Build</strong>:</p>
+<p>The repository’s <code>flake.nix</code> provides the complete
+development toolchain — OCaml compiler, Menhir parser generator,
+development tools, and all library dependencies. There is nothing to
+install separately.</p>
 <div class="sourceCode" id="cb2"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/b-rodrigues/tlang.git</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> tlang</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a> <span class="ex">dune</span> runtest</span></code></pre></div></li>
-<li><p><strong>Coverage</strong>: See the <a
-href="development.md#coverage">Development Guide</a> for building with
-coverage instrumentation.</p></li>
-</ol>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> runtest</span></code></pre></div>
+<p>For coverage builds and deeper environment details, see the <a
+href="development.html">Development Guide</a>.</p>
 <hr />
 <h2 id="project-structure">Project Structure</h2>
 <pre><code>tlang/

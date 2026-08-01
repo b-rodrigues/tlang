@@ -10585,21 +10585,17 @@ Documentation contributions are highly valued:
 
 ## Development Setup
 
-See the [Development Guide](development.md) for detailed setup instructions.
+The repository's `flake.nix` provides the complete development toolchain — OCaml compiler, Menhir parser generator, development tools, and all library dependencies. There is nothing to install separately.
 
-**Quick Start**:
+```bash
+git clone https://github.com/b-rodrigues/tlang.git
+cd tlang
+nix develop
+dune build
+dune runtest
+```
 
-1. **Install Nix**: Follow the [Nix Installation Guide](nix-installation.md).
-2. **Clone and Build**:
-   ```bash
-   git clone https://github.com/b-rodrigues/tlang.git
-   cd tlang
-   nix develop
-   dune build
-    dune runtest
-    ```
-
-3. **Coverage**: See the [Development Guide](development.md#coverage) for building with coverage instrumentation.
+For coverage builds and deeper environment details, see the [Development Guide](development.md).
 
 ---
 
