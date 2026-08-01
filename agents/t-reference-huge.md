@@ -4514,7 +4514,7 @@ p = pipeline {
   b = pyn(<{ ... }>)
 }
 q = set_pipeline_global_options(p, functions = [rn: "functions.R"], noop = true)
- pipeline_node_options(q, "a")
+pipeline_node_options(q, "a")
 # => { name = "a", runtime = "R", functions = ["functions.R"], noop = true, ... }
 ```
 
@@ -4553,7 +4553,7 @@ global options?" can be answered directly in T.
 
 **Returns:**
 
-`DataFrame` — one row per node, 32 columns.
+`DataFrame` — one row per node with identity, resolved configuration, provenance markers, and provenance counts.
 
 **Examples:**
 ```t
@@ -4574,11 +4574,11 @@ Checks performed:
 
 - No dependency cycles
 - All referenced dependencies exist as nodes in the pipeline
-- Referenced function/include/script files exist on the file system
 - Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`)
 - Cross-runtime dependencies declare an explicit deserializer
-- Deserializer/format coherence across dependency edges
 - Multiple dependencies with a single non-dictionary deserializer strategy
+- Deserializer/format coherence across dependency edges
+- Referenced function/include/script files exist on the file system
 - The `^bin` serializer is only used by `fetchurl` nodes
 
 **Parameters:**
@@ -6718,7 +6718,7 @@ Available fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, 
 
 ### `pipeline_config_to_frame`
 
-`pipeline_to_frame` shows *what* each node's configuration is. `pipeline_config_to_frame` adds *where it came from*: one row per node and **32 columns** covering resolved config values, per-field provenance source markers, and global/node count breakdowns for every list-type option.
+`pipeline_config_to_frame` extends `pipeline_to_frame` by adding resolved configuration values and provenance columns: one row per node with identity fields, resolved scalars, per-field provenance source markers, and global/node count splits for every list option. See the [API reference](api-reference.md#pipeline_config_to_framep) for the full column list.
 
 ```t
 p = pipeline {
@@ -6728,27 +6728,20 @@ p = pipeline {
 q = set_pipeline_global_options(p, functions = [rn: "global.R"], serializer = ^json)
 
 pipeline_config_to_frame(q)
--- DataFrame(2 rows x 32 cols)
+-- DataFrame(2 rows)
 ```
-
-The columns fall into four groups:
-
-1. **Identity** — `name`, `runtime`, `depth`, `command_type` (same as `pipeline_to_frame`).
-2. **Resolved scalar values** — `serializer`, `deserializer`, `noop`, `shell`, `flake` (after any global-option merges).
-3. **Provenance source markers** — `prov_serializer`, `prov_deserializer`, `prov_noop`, `prov_shell`, `prov_flake`: each is `"global"`, `"node"`, or empty (`NA`) when unset.
-4. **List counts with provenance split** — for each of `deps`, `funcs`, `incs`, `env_vars`, `args`, `shell_args`, three columns: `n_<option>` (total), `n_<option>_global`, `n_<option>_node`.
 
 Because the provenance columns are plain DataFrame columns, you can query them with the standard verbs:
 
 ```t
 pipeline_config_to_frame(q)
   |> filter($prov_serializer == "global")
-  |> select_node($name, $serializer)
+  |> select($name, $serializer)
 -- The row for every node whose serializer came from global options
 ```
 
 > [!NOTE]
-> `n_deps` is sourced from `p_deps`, which includes **auto-inferred** dependencies, while `n_deps_global` / `n_deps_node` come from `prov_explicit_deps`, which only tracks explicitly-declared or globally-injected deps. So `n_deps` may exceed `n_deps_global + n_deps_node` when a node has auto-inferred edges. The other five count groups (`funcs`, `incs`, `env_vars`, `args`, `shell_args`) do reconcile because they share the same underlying lists as their provenance columns.
+> `n_deps` counts **auto-inferred** dependencies (`p_deps`), while its provenance split (`n_deps_global` / `n_deps_node`) only tracks explicitly-declared or globally-injected deps — so `n_deps` can exceed the sum for nodes with auto-inferred edges. The other list-count groups reconcile because they come from the same underlying lists as their provenance columns.
 
 See [§4.4 of the Pipeline Tutorial](pipeline_tutorial.md#reading-back-a-nodes-resolved-configuration) for the provenance model behind these columns.
 
@@ -6877,22 +6870,7 @@ p |> mutate_node(
 
 #### Mutable Fields
 
-`mutate_node` can change all of the following metadata fields:
-
-| Field | Type | Semantics |
-|---|---|---|
-| `noop` | `Bool` | Whether the node is skipped (no-op) |
-| `runtime` | `String` | Execution runtime (`"T"`, `"R"`, `"Python"`, …) |
-| `serializer` | `String` | Serializer to use when materializing this node |
-| `deserializer` | `String` | Deserializer to use when reading this node |
-| `deps` | `List[String]` | Explicit dependency names (replaces the node's declared deps) |
-| `functions` | `List[String]` | Function files included in the node's sandbox |
-| `include` | `List[String]` | Included files propagated into the sandbox |
-| `env_vars` | `Dict` | Build-time environment variables |
-| `args` | `Dict` | Runtime/tool arguments |
-| `shell` | `String` | Shell interpreter for shell nodes |
-| `shell_args` | `List[String]` | Shell interpreter arguments |
-| `flake` | `String` | Custom Nix flake for this node's environment |
+`mutate_node` can update a node's `runtime`, `serializer`/`deserializer`, `noop` flag, `deps`, `functions`, `include`, `env_vars`, `args`, `shell`, `shell_args`, and `flake` configuration. See the [API reference](api-reference.md#mutate_nodep-...-rename_nodep-...) for the complete list with types.
 
 Unlike `set_pipeline_global_options` (which **combines/prepends** mergeable lists), `mutate_node` **replaces** the field's value entirely — whatever you pass becomes the new value.
 
@@ -7546,16 +7524,16 @@ pipeline_validate(p_broken)
 
 Checks performed:
 
-1. All referenced dependencies exist as nodes in the pipeline.
-2. No dependency cycles.
-3. All referenced `functions`, `include`, and `script` files exist on the file system.
-4. Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`).
-5. Cross-runtime dependencies declare an explicit deserializer (R/Python/Julia consumers of a dependency in a different runtime must set one).
-6. Multiple dependencies on a single non-dictionary deserializer strategy — a node with several dependencies should use a per-dependency dictionary rather than one format for all.
-7. Serializer/deserializer format coherence across dependency edges — a consumer's expected format matches what its producer emits.
+1. No dependency cycles — the graph must be a DAG (malformed graphs).
+2. All referenced dependencies exist as nodes in the pipeline (missing nodes).
+3. Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`).
+4. Cross-runtime dependencies declare an explicit deserializer (R/Python/Julia consumers of a dependency in a different runtime must set one).
+5. Multiple dependencies on a single non-dictionary deserializer strategy — a node with several dependencies should use a per-dependency dictionary rather than one format for all.
+6. Serializer/deserializer format coherence across dependency edges — a consumer's expected format matches what its producer emits.
+7. All referenced `functions`, `include`, and `script` files exist on the file system.
 8. The `^bin` serializer is only used by `fetchurl` nodes.
 
-Errors are reported deterministically (file order, then pipeline declaration order) and are classified as `StructuralError`, `FileError`, or `TypeError`, which drives how each surface (the REPL error, the `pipeline_validate` list, and the `t check` JSON diagnostics) renders them.
+Errors are classified as `StructuralError`, `FileError`, or `TypeError`, which drives how each surface (the REPL error, the `pipeline_validate` list, and the `t check` JSON diagnostics) renders them. Within each check, results are reported deterministically — file order first, then pipeline declaration order.
 
 ### `t check` Tier 1
 
@@ -7762,7 +7740,7 @@ df
   summary = pyn(
     command = <{
 import pandas as pd
-result = clean.groupby("region")["amount"].sum().reset_index()
+result = clean.groupby("region")["amunt"].sum().reset_index()
 result.columns = ["region", "total"]
 result
     }>,
@@ -7842,6 +7820,11 @@ No `suggested_fix` for typos — the agent has to fix this itself. It corrects
 $ t check --json pipeline.t
 ```
 
+`t check --schema` runs in stages: the **parse phase (tier 1)** must be clean
+before the **schema phase (tier 2)** runs. Because the command had a name error,
+column analysis never got a chance to run — so this next problem only surfaces
+now that the parse phase passes:
+
 Now a different error surfaces:
 
 ```json
@@ -7860,19 +7843,19 @@ Now a different error surfaces:
         "id": "summary",
         "lang": "python",
         "file": "pipeline.t",
-        "span": { "start": [20, 20], "end": [20, 40] }
+        "span": { "start": [22, 35], "end": [22, 41] }
       },
-      "message": "Column 'mg' not found. Did you mean 'mpg'?",
+      "message": "Column 'amunt' not found. Did you mean 'amount'?",
       "expected": null,
       "actual": null,
       "caused_by": ["clean"],
       "suggested_fix": {
         "kind": "rename_column",
-        "old_name": "mg",
-        "new_name": "mpg",
+        "old_name": "amunt",
+        "new_name": "amount",
         "edit_distance": 1,
         "is_unique": true,
-        "target_node": "clean"
+        "target_node": "summary"
       }
     }
   ]
@@ -7881,13 +7864,13 @@ Now a different error surfaces:
 
 The agent sees:
 - **`error_class: "schema_mismatch"`** — column name doesn't match upstream schema
-- **`caused_by: ["clean"]`** — the upstream `clean` node is the source
-- **`suggested_fix`** — rename `mg` to `mpg` in the clean node
+- **`caused_by: ["clean"]`** — the `summary` node reads from `clean`'s output
+- **`suggested_fix`** — rename `amunt` to `amount` in the summary node
 
-The agent fixes the typo in the upstream Python code:
+The agent fixes the column reference:
 
 ```python
-df["mpg"] = pd.to_numeric(df["mpg"], errors="coerce")
+result = clean.groupby("region")["amount"].sum().reset_index()
 ```
 
 Re-check:
@@ -7916,15 +7899,15 @@ $ t check --json pipeline.t
 
 ## Step 3: Agent applies fixes (or edits manually)
 
-In this case the agent edited the Python code directly (fixing the typo). No `t fix` needed — the `suggested_fix` was a `rename_column`, but the agent
-chose to fix the root cause in the upstream node instead.
+In this case the agent edited the Python code directly (fixing the column typo). No `t fix` needed — the `suggested_fix` was a `rename_column`, but the agent
+chose to fix the reference directly instead.
 
 If `t fix` had been applicable, the agent would preview first:
 
 ```bash
 $ t fix --dry-run pipeline.t
 dry-run: would apply 1 fix to pipeline.t:
-  [Rename_column] line 20: rename column 'mg' to 'mpg' in node 'clean'
+  [Rename_column] line 22: rename column 'amunt' to 'amount' in node 'summary'
 ```
 
 Then apply:
@@ -9648,7 +9631,7 @@ For datasets exceeding 2-3 GB:
 ### Node Config Provenance (`explain` + `pipeline_node_options`)
 
 - **`pipeline_config_to_frame(p)`**: New tabular config read-back. Produces a DataFrame
-  with one row per node and 32 columns covering resolved config values (serializer,
+  with one row per node covering resolved config values (serializer,
   deserializer, noop, shell, flake), per-field provenance (scalar source markers +
   global/node count columns for lists), and identity columns (name, runtime, depth,
   command_type). Complements `pipeline_node_options` (Dict detail) with queryable
@@ -20523,7 +20506,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | Function | Parameters | Returns | What it does |
 |---|---|---|---|
 | `pipeline_to_frame(p)` | `Pipeline` | `DataFrame` | Full node metadata (runtime, serializer, deps, depth, command_type) |
-| `pipeline_config_to_frame(p)` | `Pipeline` | `DataFrame` | Node config + provenance: resolved values, per-field source (`global`/`node`), and global/node counts for every list option (32 columns) |
+| `pipeline_config_to_frame(p)` | `Pipeline` | `DataFrame` | Node config + provenance: resolved values, per-field source (`global`/`node`), and global/node counts for every list option |
 | `pipeline_nodes(p)` | `Pipeline` | `List[String]` | All node names |
 | `pipeline_deps(p)` | `Pipeline` | `Dict` | Node name → list of dependency names |
 | `pipeline_edges(p)` | `Pipeline` | `List[[from, to]]` | Edge list as dependency pairs |
@@ -30914,7 +30897,7 @@ pipeline_to_store(p)
 
 Validate a Pipeline
 
-Checks a pipeline for structural errors without throwing. Returns a list of error messages. An empty list means the pipeline is valid.  Checks performed (shared with populate_pipeline and `t check` tier 1): - No dependency cycles - All referenced dependencies exist as nodes in the pipeline - Referenced function/include/script files exist on the file system - Every node uses a known runtime - Cross-runtime dependencies declare an explicit deserializer - Deserializer/format coherence across dependency edges - Multiple dependencies with a single non-dictionary deserializer strategy - The ^bin serializer is only used by fetchurl nodes
+Checks a pipeline for structural errors without throwing. Returns a list of error messages. An empty list means the pipeline is valid.  Checks performed (shared with populate_pipeline and `t check` tier 1): - No dependency cycles - All referenced dependencies exist as nodes in the pipeline - Every node uses a known runtime - Cross-runtime dependencies declare an explicit deserializer - Multiple dependencies with a single non-dictionary deserializer strategy - Deserializer/format coherence across dependency edges - Referenced function/include/script files exist on the file system - The ^bin serializer is only used by fetchurl nodes
 
 ## Parameters
 

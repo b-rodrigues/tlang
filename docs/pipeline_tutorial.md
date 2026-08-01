@@ -139,7 +139,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | Function | Parameters | Returns | What it does |
 |---|---|---|---|
 | `pipeline_to_frame(p)` | `Pipeline` | `DataFrame` | Full node metadata (runtime, serializer, deps, depth, command_type) |
-| `pipeline_config_to_frame(p)` | `Pipeline` | `DataFrame` | Node config + provenance: resolved values, per-field source (`global`/`node`), and global/node counts for every list option (32 columns) |
+| `pipeline_config_to_frame(p)` | `Pipeline` | `DataFrame` | Node config + provenance: resolved values, per-field source (`global`/`node`), and global/node counts for every list option |
 | `pipeline_nodes(p)` | `Pipeline` | `List[String]` | All node names |
 | `pipeline_deps(p)` | `Pipeline` | `Dict` | Node name → list of dependency names |
 | `pipeline_edges(p)` | `Pipeline` | `List[[from, to]]` | Edge list as dependency pairs |

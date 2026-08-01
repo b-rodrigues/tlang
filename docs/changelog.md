@@ -36,7 +36,7 @@
 ### Node Config Provenance (`explain` + `pipeline_node_options`)
 
 - **`pipeline_config_to_frame(p)`**: New tabular config read-back. Produces a DataFrame
-  with one row per node and 32 columns covering resolved config values (serializer,
+  with one row per node covering resolved config values (serializer,
   deserializer, noop, shell, flake), per-field provenance (scalar source markers +
   global/node count columns for lists), and identity columns (name, runtime, depth,
   command_type). Complements `pipeline_node_options` (Dict detail) with queryable

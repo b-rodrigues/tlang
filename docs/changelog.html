@@ -86,13 +86,12 @@ Config Provenance (<code>explain</code> +
 <code>pipeline_node_options</code>)</h3>
 <ul>
 <li><p><strong><code>pipeline_config_to_frame(p)</code></strong>: New
-tabular config read-back. Produces a DataFrame with one row per node and
-32 columns covering resolved config values (serializer, deserializer,
-noop, shell, flake), per-field provenance (scalar source markers +
-global/node count columns for lists), and identity columns (name,
-runtime, depth, command_type). Complements
-<code>pipeline_node_options</code> (Dict detail) with queryable
-DataFrame-wide overview — e.g., “filter on
+tabular config read-back. Produces a DataFrame with one row per node
+covering resolved config values (serializer, deserializer, noop, shell,
+flake), per-field provenance (scalar source markers + global/node count
+columns for lists), and identity columns (name, runtime, depth,
+command_type). Complements <code>pipeline_node_options</code> (Dict
+detail) with queryable DataFrame-wide overview — e.g., “filter on
 <code>prov_serializer == \"global\"</code> to find every node whose
 serializer came from global options.”</p></li>
 <li><p><strong>Expanded <code>mutate_node</code> field

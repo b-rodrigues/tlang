@@ -2944,7 +2944,7 @@ p = pipeline {
   b = pyn(<{ ... }>)
 }
 q = set_pipeline_global_options(p, functions = [rn: "functions.R"], noop = true)
- pipeline_node_options(q, "a")
+pipeline_node_options(q, "a")
 # => { name = "a", runtime = "R", functions = ["functions.R"], noop = true, ... }
 ```
 
@@ -2983,7 +2983,7 @@ global options?" can be answered directly in T.
 
 **Returns:**
 
-`DataFrame` — one row per node, 32 columns.
+`DataFrame` — one row per node with identity, resolved configuration, provenance markers, and provenance counts.
 
 **Examples:**
 ```t
@@ -3004,11 +3004,11 @@ Checks performed:
 
 - No dependency cycles
 - All referenced dependencies exist as nodes in the pipeline
-- Referenced function/include/script files exist on the file system
 - Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`)
 - Cross-runtime dependencies declare an explicit deserializer
-- Deserializer/format coherence across dependency edges
 - Multiple dependencies with a single non-dictionary deserializer strategy
+- Deserializer/format coherence across dependency edges
+- Referenced function/include/script files exist on the file system
 - The `^bin` serializer is only used by `fetchurl` nodes
 
 **Parameters:**

@@ -211,11 +211,13 @@ p |&gt; select_node($name, $runtime, $depth)
 <code>$command_type</code>.</p>
 <h3
 id="pipeline_config_to_frame"><code>pipeline_config_to_frame</code></h3>
-<p><code>pipeline_to_frame</code> shows <em>what</em> each node’s
-configuration is. <code>pipeline_config_to_frame</code> adds <em>where
-it came from</em>: one row per node and <strong>32 columns</strong>
-covering resolved config values, per-field provenance source markers,
-and global/node count breakdowns for every list-type option.</p>
+<p><code>pipeline_config_to_frame</code> extends
+<code>pipeline_to_frame</code> by adding resolved configuration values
+and provenance columns: one row per node with identity fields, resolved
+scalars, per-field provenance source markers, and global/node count
+splits for every list option. See the <a
+href="api-reference.md#pipeline_config_to_framep">API reference</a> for
+the full column list.</p>
 <pre class="t"><code>p = pipeline {
   a = rn(command = &lt;{ 1 }&gt;, functions = [&quot;a.R&quot;])
   b = pyn(command = &lt;{ 2 }&gt;)
@@ -223,44 +225,21 @@ and global/node count breakdowns for every list-type option.</p>
 q = set_pipeline_global_options(p, functions = [rn: &quot;global.R&quot;], serializer = ^json)
 
 pipeline_config_to_frame(q)
--- DataFrame(2 rows x 32 cols)</code></pre>
-<p>The columns fall into four groups:</p>
-<ol type="1">
-<li><strong>Identity</strong> — <code>name</code>, <code>runtime</code>,
-<code>depth</code>, <code>command_type</code> (same as
-<code>pipeline_to_frame</code>).</li>
-<li><strong>Resolved scalar values</strong> — <code>serializer</code>,
-<code>deserializer</code>, <code>noop</code>, <code>shell</code>,
-<code>flake</code> (after any global-option merges).</li>
-<li><strong>Provenance source markers</strong> —
-<code>prov_serializer</code>, <code>prov_deserializer</code>,
-<code>prov_noop</code>, <code>prov_shell</code>,
-<code>prov_flake</code>: each is <code>"global"</code>,
-<code>"node"</code>, or empty (<code>NA</code>) when unset.</li>
-<li><strong>List counts with provenance split</strong> — for each of
-<code>deps</code>, <code>funcs</code>, <code>incs</code>,
-<code>env_vars</code>, <code>args</code>, <code>shell_args</code>, three
-columns: <code>n_&lt;option&gt;</code> (total),
-<code>n_&lt;option&gt;_global</code>,
-<code>n_&lt;option&gt;_node</code>.</li>
-</ol>
+-- DataFrame(2 rows)</code></pre>
 <p>Because the provenance columns are plain DataFrame columns, you can
 query them with the standard verbs:</p>
 <pre class="t"><code>pipeline_config_to_frame(q)
   |&gt; filter($prov_serializer == &quot;global&quot;)
-  |&gt; select_node($name, $serializer)
+  |&gt; select($name, $serializer)
 -- The row for every node whose serializer came from global options</code></pre>
 <blockquote>
-<p>[!NOTE] <code>n_deps</code> is sourced from <code>p_deps</code>,
-which includes <strong>auto-inferred</strong> dependencies, while
-<code>n_deps_global</code> / <code>n_deps_node</code> come from
-<code>prov_explicit_deps</code>, which only tracks explicitly-declared
-or globally-injected deps. So <code>n_deps</code> may exceed
-<code>n_deps_global + n_deps_node</code> when a node has auto-inferred
-edges. The other five count groups (<code>funcs</code>,
-<code>incs</code>, <code>env_vars</code>, <code>args</code>,
-<code>shell_args</code>) do reconcile because they share the same
-underlying lists as their provenance columns.</p>
+<p>[!NOTE] <code>n_deps</code> counts <strong>auto-inferred</strong>
+dependencies (<code>p_deps</code>), while its provenance split
+(<code>n_deps_global</code> / <code>n_deps_node</code>) only tracks
+explicitly-declared or globally-injected deps — so <code>n_deps</code>
+can exceed the sum for nodes with auto-inferred edges. The other
+list-count groups reconcile because they come from the same underlying
+lists as their provenance columns.</p>
 </blockquote>
 <p>See <a
 href="pipeline_tutorial.md#reading-back-a-nodes-resolved-configuration">§4.4
@@ -413,85 +392,13 @@ p |&gt; mutate_node(
   $shell_args = [&quot;-lc&quot;]
 )</code></pre>
 <h4 id="mutable-fields">Mutable Fields</h4>
-<p><code>mutate_node</code> can change all of the following metadata
-fields:</p>
-<table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
-<thead>
-<tr>
-<th>Field</th>
-<th>Type</th>
-<th>Semantics</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>noop</code></td>
-<td><code>Bool</code></td>
-<td>Whether the node is skipped (no-op)</td>
-</tr>
-<tr>
-<td><code>runtime</code></td>
-<td><code>String</code></td>
-<td>Execution runtime (<code>"T"</code>, <code>"R"</code>,
-<code>"Python"</code>, …)</td>
-</tr>
-<tr>
-<td><code>serializer</code></td>
-<td><code>String</code></td>
-<td>Serializer to use when materializing this node</td>
-</tr>
-<tr>
-<td><code>deserializer</code></td>
-<td><code>String</code></td>
-<td>Deserializer to use when reading this node</td>
-</tr>
-<tr>
-<td><code>deps</code></td>
-<td><code>List[String]</code></td>
-<td>Explicit dependency names (replaces the node’s declared deps)</td>
-</tr>
-<tr>
-<td><code>functions</code></td>
-<td><code>List[String]</code></td>
-<td>Function files included in the node’s sandbox</td>
-</tr>
-<tr>
-<td><code>include</code></td>
-<td><code>List[String]</code></td>
-<td>Included files propagated into the sandbox</td>
-</tr>
-<tr>
-<td><code>env_vars</code></td>
-<td><code>Dict</code></td>
-<td>Build-time environment variables</td>
-</tr>
-<tr>
-<td><code>args</code></td>
-<td><code>Dict</code></td>
-<td>Runtime/tool arguments</td>
-</tr>
-<tr>
-<td><code>shell</code></td>
-<td><code>String</code></td>
-<td>Shell interpreter for shell nodes</td>
-</tr>
-<tr>
-<td><code>shell_args</code></td>
-<td><code>List[String]</code></td>
-<td>Shell interpreter arguments</td>
-</tr>
-<tr>
-<td><code>flake</code></td>
-<td><code>String</code></td>
-<td>Custom Nix flake for this node’s environment</td>
-</tr>
-</tbody>
-</table>
+<p><code>mutate_node</code> can update a node’s <code>runtime</code>,
+<code>serializer</code>/<code>deserializer</code>, <code>noop</code>
+flag, <code>deps</code>, <code>functions</code>, <code>include</code>,
+<code>env_vars</code>, <code>args</code>, <code>shell</code>,
+<code>shell_args</code>, and <code>flake</code> configuration. See the
+<a href="api-reference.md#mutate_nodep-...-rename_nodep-...">API
+reference</a> for the complete list with types.</p>
 <p>Unlike <code>set_pipeline_global_options</code> (which
 <strong>combines/prepends</strong> mergeable lists),
 <code>mutate_node</code> <strong>replaces</strong> the field’s value
@@ -1077,10 +984,10 @@ pipeline_validate(p_broken)
 -- [&quot;Node `b` depends on `a` which does not exist in the pipeline.&quot;]</code></pre>
 <p>Checks performed:</p>
 <ol type="1">
-<li>All referenced dependencies exist as nodes in the pipeline.</li>
-<li>No dependency cycles.</li>
-<li>All referenced <code>functions</code>, <code>include</code>, and
-<code>script</code> files exist on the file system.</li>
+<li>No dependency cycles — the graph must be a DAG (malformed
+graphs).</li>
+<li>All referenced dependencies exist as nodes in the pipeline (missing
+nodes).</li>
 <li>Every node uses a known runtime (<code>T</code>, <code>R</code>,
 <code>Python</code>, <code>Julia</code>, <code>Quarto</code>,
 <code>sh</code>, <code>fetchurl</code>).</li>
@@ -1092,14 +999,17 @@ strategy — a node with several dependencies should use a per-dependency
 dictionary rather than one format for all.</li>
 <li>Serializer/deserializer format coherence across dependency edges — a
 consumer’s expected format matches what its producer emits.</li>
+<li>All referenced <code>functions</code>, <code>include</code>, and
+<code>script</code> files exist on the file system.</li>
 <li>The <code>^bin</code> serializer is only used by
 <code>fetchurl</code> nodes.</li>
 </ol>
-<p>Errors are reported deterministically (file order, then pipeline
-declaration order) and are classified as <code>StructuralError</code>,
+<p>Errors are classified as <code>StructuralError</code>,
 <code>FileError</code>, or <code>TypeError</code>, which drives how each
 surface (the REPL error, the <code>pipeline_validate</code> list, and
-the <code>t check</code> JSON diagnostics) renders them.</p>
+the <code>t check</code> JSON diagnostics) renders them. Within each
+check, results are reported deterministically — file order first, then
+pipeline declaration order.</p>
 <h3 id="t-check-tier-1"><code>t check</code> Tier 1</h3>
 <p>The same checks run when you execute
 <code>t check &lt;file.t&gt;</code> — T’s instant structural checker

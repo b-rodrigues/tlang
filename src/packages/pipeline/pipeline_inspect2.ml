@@ -238,11 +238,11 @@ let register env =
 --# Checks performed (shared with populate_pipeline and `t check` tier 1):
 --# - No dependency cycles
 --# - All referenced dependencies exist as nodes in the pipeline
---# - Referenced function/include/script files exist on the file system
 --# - Every node uses a known runtime
 --# - Cross-runtime dependencies declare an explicit deserializer
---# - Deserializer/format coherence across dependency edges
 --# - Multiple dependencies with a single non-dictionary deserializer strategy
+--# - Deserializer/format coherence across dependency edges
+--# - Referenced function/include/script files exist on the file system
 --# - The ^bin serializer is only used by fetchurl nodes
 --#
 --# @name pipeline_validate

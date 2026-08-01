@@ -124,7 +124,7 @@ Available fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, 
 
 ### `pipeline_config_to_frame`
 
-`pipeline_to_frame` shows *what* each node's configuration is. `pipeline_config_to_frame` adds *where it came from*: one row per node and **32 columns** covering resolved config values, per-field provenance source markers, and global/node count breakdowns for every list-type option.
+`pipeline_config_to_frame` extends `pipeline_to_frame` by adding resolved configuration values and provenance columns: one row per node with identity fields, resolved scalars, per-field provenance source markers, and global/node count splits for every list option. See the [API reference](api-reference.md#pipeline_config_to_framep) for the full column list.
 
 ```t
 p = pipeline {
@@ -134,27 +134,20 @@ p = pipeline {
 q = set_pipeline_global_options(p, functions = [rn: "global.R"], serializer = ^json)
 
 pipeline_config_to_frame(q)
--- DataFrame(2 rows x 32 cols)
+-- DataFrame(2 rows)
 ```
-
-The columns fall into four groups:
-
-1. **Identity** — `name`, `runtime`, `depth`, `command_type` (same as `pipeline_to_frame`).
-2. **Resolved scalar values** — `serializer`, `deserializer`, `noop`, `shell`, `flake` (after any global-option merges).
-3. **Provenance source markers** — `prov_serializer`, `prov_deserializer`, `prov_noop`, `prov_shell`, `prov_flake`: each is `"global"`, `"node"`, or empty (`NA`) when unset.
-4. **List counts with provenance split** — for each of `deps`, `funcs`, `incs`, `env_vars`, `args`, `shell_args`, three columns: `n_<option>` (total), `n_<option>_global`, `n_<option>_node`.
 
 Because the provenance columns are plain DataFrame columns, you can query them with the standard verbs:
 
 ```t
 pipeline_config_to_frame(q)
   |> filter($prov_serializer == "global")
-  |> select_node($name, $serializer)
+  |> select($name, $serializer)
 -- The row for every node whose serializer came from global options
 ```
 
 > [!NOTE]
-> `n_deps` is sourced from `p_deps`, which includes **auto-inferred** dependencies, while `n_deps_global` / `n_deps_node` come from `prov_explicit_deps`, which only tracks explicitly-declared or globally-injected deps. So `n_deps` may exceed `n_deps_global + n_deps_node` when a node has auto-inferred edges. The other five count groups (`funcs`, `incs`, `env_vars`, `args`, `shell_args`) do reconcile because they share the same underlying lists as their provenance columns.
+> `n_deps` counts **auto-inferred** dependencies (`p_deps`), while its provenance split (`n_deps_global` / `n_deps_node`) only tracks explicitly-declared or globally-injected deps — so `n_deps` can exceed the sum for nodes with auto-inferred edges. The other list-count groups reconcile because they come from the same underlying lists as their provenance columns.
 
 See [§4.4 of the Pipeline Tutorial](pipeline_tutorial.md#reading-back-a-nodes-resolved-configuration) for the provenance model behind these columns.
 
@@ -283,22 +276,7 @@ p |> mutate_node(
 
 #### Mutable Fields
 
-`mutate_node` can change all of the following metadata fields:
-
-| Field | Type | Semantics |
-|---|---|---|
-| `noop` | `Bool` | Whether the node is skipped (no-op) |
-| `runtime` | `String` | Execution runtime (`"T"`, `"R"`, `"Python"`, …) |
-| `serializer` | `String` | Serializer to use when materializing this node |
-| `deserializer` | `String` | Deserializer to use when reading this node |
-| `deps` | `List[String]` | Explicit dependency names (replaces the node's declared deps) |
-| `functions` | `List[String]` | Function files included in the node's sandbox |
-| `include` | `List[String]` | Included files propagated into the sandbox |
-| `env_vars` | `Dict` | Build-time environment variables |
-| `args` | `Dict` | Runtime/tool arguments |
-| `shell` | `String` | Shell interpreter for shell nodes |
-| `shell_args` | `List[String]` | Shell interpreter arguments |
-| `flake` | `String` | Custom Nix flake for this node's environment |
+`mutate_node` can update a node's `runtime`, `serializer`/`deserializer`, `noop` flag, `deps`, `functions`, `include`, `env_vars`, `args`, `shell`, `shell_args`, and `flake` configuration. See the [API reference](api-reference.md#mutate_nodep-...-rename_nodep-...) for the complete list with types.
 
 Unlike `set_pipeline_global_options` (which **combines/prepends** mergeable lists), `mutate_node` **replaces** the field's value entirely — whatever you pass becomes the new value.
 
@@ -952,16 +930,16 @@ pipeline_validate(p_broken)
 
 Checks performed:
 
-1. All referenced dependencies exist as nodes in the pipeline.
-2. No dependency cycles.
-3. All referenced `functions`, `include`, and `script` files exist on the file system.
-4. Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`).
-5. Cross-runtime dependencies declare an explicit deserializer (R/Python/Julia consumers of a dependency in a different runtime must set one).
-6. Multiple dependencies on a single non-dictionary deserializer strategy — a node with several dependencies should use a per-dependency dictionary rather than one format for all.
-7. Serializer/deserializer format coherence across dependency edges — a consumer's expected format matches what its producer emits.
+1. No dependency cycles — the graph must be a DAG (malformed graphs).
+2. All referenced dependencies exist as nodes in the pipeline (missing nodes).
+3. Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`).
+4. Cross-runtime dependencies declare an explicit deserializer (R/Python/Julia consumers of a dependency in a different runtime must set one).
+5. Multiple dependencies on a single non-dictionary deserializer strategy — a node with several dependencies should use a per-dependency dictionary rather than one format for all.
+6. Serializer/deserializer format coherence across dependency edges — a consumer's expected format matches what its producer emits.
+7. All referenced `functions`, `include`, and `script` files exist on the file system.
 8. The `^bin` serializer is only used by `fetchurl` nodes.
 
-Errors are reported deterministically (file order, then pipeline declaration order) and are classified as `StructuralError`, `FileError`, or `TypeError`, which drives how each surface (the REPL error, the `pipeline_validate` list, and the `t check` JSON diagnostics) renders them.
+Errors are classified as `StructuralError`, `FileError`, or `TypeError`, which drives how each surface (the REPL error, the `pipeline_validate` list, and the `t check` JSON diagnostics) renders them. Within each check, results are reported deterministically — file order first, then pipeline declaration order.
 
 ### `t check` Tier 1
 
