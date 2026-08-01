@@ -18,7 +18,78 @@ natively.
 | **JSON** | `t_read_json()` / `t_write_json()` | Config, nested lists and dicts | See the [Serializers](serializers.md) guide for pipeline usage |
 
 All three tabular readers (`read_csv`, `read_parquet`, `read_arrow`) accept a
-local path **or a URL**.
+local path **or a URL**. For reproducible downloads inside pipelines, use
+`fetchurl` with a pinned SHA-256 hash instead — see
+[Downloading Data from URLs](#downloading-data-from-urls).
+
+---
+
+## Downloading Data from URLs
+
+`read_csv`, `read_parquet`, and `read_arrow` all accept a URL in place of a
+local path. How the download is handled depends on where you are running T.
+
+### In the REPL or a script
+
+The reader downloads the file to a temporary location, parses it, and removes
+the temporary file. This is convenient for exploration, but the contents of a
+URL can change between runs, so it is **not reproducible**.
+
+```t
+df = read_csv("https://example.com/data.csv")
+```
+
+If you want to keep a copy on disk, use `fetchurl`, which downloads immediately
+via `curl`:
+
+```t
+fetchurl("https://example.com/data.csv", output = "data.csv")
+```
+
+### In a pipeline (reproducible downloads)
+
+Pipeline builds run in the Nix sandbox, where downloads must be
+content-addressed. Use `fetchurl` to create a node backed by Nix's
+`builtins.fetchurl` with a pinned `sha256`, so every build fetches exactly the
+same bytes:
+
+```t
+p = pipeline {
+  raw = fetchurl("https://example.com/data.csv", sha256 = "sha256-abc123...")
+  data = read_csv(raw) |> mutate($x > 0)
+}
+```
+
+To obtain the hash for a URL, use `prefetch`. It runs `nix-prefetch-url`,
+returns the SHA-256 hash, and seeds the file in the Nix store so the later
+`fetchurl` build finds it cached and does not re-download:
+
+```t
+hash = prefetch("https://example.com/data.csv")
+print(hash)  -- e.g. "sha256-abc123..."
+
+p = pipeline {
+  raw = fetchurl("https://example.com/data.csv", sha256 = hash)
+  data = read_csv(raw) |> mutate($x > 0)
+}
+
+populate_pipeline(p, build = true)
+
+-- The downloaded asset is available at p.raw.path after the build:
+content = read_file(p.raw.path)
+```
+
+Notes on `fetchurl` nodes:
+
+- `fetchurl` defaults to `serializer = ^bin`, so the node artifact is the raw
+  downloaded bytes, ready for downstream T nodes to read.
+- Pass `serializer = ^text` for plain-text assets (e.g. a JSON config file)
+  that should be materialized as text.
+- In pipeline mode, `sha256` is **required** — omitting it raises a `TypeError`.
+
+See [Fetching Remote Assets](pipeline_tutorial.md#fetching-remote-assets) in the
+Pipeline Tutorial and the [`fetchurl`](reference/fetchurl.md) /
+[`prefetch`](reference/prefetch.md) reference pages for more details.
 
 ---
 
@@ -45,7 +116,7 @@ standard ones.
 ```t
 df = read_csv("data.csv")                     -- native fast path
 df = read_csv("data.csv", separator = ";")    -- OCaml parser
-df = read_csv("https://example.com/data.csv") -- URL, downloaded then parsed
+df = read_csv("https://example.com/data.csv") -- URL: see Downloading Data from URLs
 ```
 
 ### NA Handling
