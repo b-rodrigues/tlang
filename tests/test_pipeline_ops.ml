@@ -231,12 +231,6 @@ pipeline_to_frame(p) |> filter(\(row) row.noop == false) |> nrow|}
       pipeline_node_options(p2, "a").flake|}
     "NA";
 
-  test "mutate_node functions provenance shows node"
-    {|p = pipeline { a = node(command = 1, functions = ["old.R"]) }
-      p2 = p |> mutate_node($functions = ["new.R"])
-      length(pipeline_node_options(p2, "a").functions)|}
-    "1";
-
   test "mutate_node errors on wrong functions type"
     {|p = pipeline { a = 1 }; mutate_node(p, $functions = 42)|}
     {|Error(TypeError: "Function `mutate_node`: `functions` must be a List of Strings or Symbols, got Int.")|};

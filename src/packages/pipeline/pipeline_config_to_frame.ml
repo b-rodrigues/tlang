@@ -16,6 +16,15 @@ open Ast
 --#   — total counts (non-NA columns)
 --# - `n_*_global`, `n_*_node` — provenance counts for each list-type option
 --#
+--# NOTE: `n_deps` is sourced from `p_deps` (which includes auto-inferred
+--# dependencies), while `n_deps_global` / `n_deps_node` are sourced from
+--# `prov_explicit_deps` (which only tracks explicitly-declared or
+--# globally-injected deps).  Consequently `n_deps` may exceed
+--# `n_deps_global + n_deps_node` when a node has auto-inferred edges.
+--# The other five list-count groups (`n_funcs`, `n_incs`, `n_env_vars`,
+--# `n_args`, `n_shell_args`) DO reconcile because they come from the same
+--# underlying lists as their provenance columns.
+--#
 --# @name pipeline_config_to_frame
 --# @param pipeline :: Pipeline The pipeline to convert.
 --# @return :: DataFrame A DataFrame with one row per node and config + provenance columns.
