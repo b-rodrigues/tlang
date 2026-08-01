@@ -182,6 +182,8 @@ resolution and deserialization from within those environments.
 - [Factors & Categorical Data](factors.html) — to_factor creation, level ordering, and `fct_*` helpers
 - [String Manipulation](string_manipulation.html) — naming rules, examples, and exceptions for text helpers
 - [Pipeline Tutorial](pipeline_tutorial.html) — step-by-step guide to T's pipeline model
+- [Advanced Pipeline Tutorial](advanced-pipeline-tutorial.html) — node manipulation, set operations, DAG transformations, composition, and validation
+- [Pipeline Materialization & Nix Orchestration](pipeline-materialization.html) — building pipelines into reproducible Nix artifacts, orchestration, archives, CI/CD, branching, and custom flakes
 - [Literate Programming with Quarto](literate-programming-quarto.html) — rendering reports from pipelines
 - [Statistical Models](models.html) — linear regression, GLMs, and broom-style output
 - [Plotting & Visualization](plotting.html) — ggplot2, matplotlib, and visual metadata capture
@@ -1583,7 +1585,7 @@ Package-oriented guide to T's standard library.
 - [Base Package](#base-package) — Errors, NA, assertions
 - [Math Package](#math-package) — Mathematical functions
 - [Stats Package](#stats-package) — Statistical functions
-- [DataFrame Package](#to_dataframe-package) — CSV I/O and DataFrame operations
+- [DataFrame Package](#dataframe-package) — CSV I/O and DataFrame operations
 - [Colcraft Package](#colcraft-package) — Data manipulation verbs and window functions
 - [Chrono Package](#chrono-package) — High-performance date and time manipulation
 - [Strcraft Package](#strcraft-package) — Modern string manipulation
@@ -4257,7 +4259,7 @@ Returns a dictionary with node metadata and diagnostics summary. `inspect_pipeli
 
 ### `read_node(node)`
 
-Retrieves the dynamically evaluated or built artifact of a node from an in-scope pipeline. Strictly expects a `ComputedNode` object (e.g. `p.node_name`). For reading from historical build logs without the pipeline in scope, use [`read_past_node(p.node_name, which_log = ...)`](#read_past_node).
+Retrieves the dynamically evaluated or built artifact of a node from an in-scope pipeline. Strictly expects a `ComputedNode` object (e.g. `p.node_name`). For reading from historical build logs without the pipeline in scope, use [`read_past_node(p.node_name, which_log = ...)`](#read_past_nodenode-which_log).
 
 ---
 
@@ -4269,7 +4271,38 @@ Subsetting nodes in a pipeline. `filter_node` keeps nodes matching a condition; 
 
 ### `mutate_node(p, ...)` / `rename_node(p, ...)`
 
-Modify nodes within a pipeline. `mutate_node` can redefine or add nodes; `rename_node` changes node labels while preserving dependencies.
+`mutate_node` modifies metadata fields on pipeline nodes (all nodes, or scoped
+to a subset via the `where` named argument). `rename_node` changes a node's
+label while preserving its dependency edges.
+
+**Mutable fields:** `noop` (Bool), `runtime` (String), `serializer` (String),
+`deserializer` (String), `deps` (List[String]), `functions` (List[String]),
+`include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String),
+`shell_args` (List[String]), `flake` (String).
+
+Unlike `set_pipeline_global_options`, `mutate_node` **replaces** list/dict
+fields entirely rather than combining them. Pass `NA` to clear an optional or
+list/dict field — except `deps`, which cannot be cleared with `NA` because
+dependency edges cannot be re-derived outside the original evaluation
+environment (mutate it to a concrete list instead). All mutated fields are
+marked `"node"`-sourced in provenance tracking.
+
+**Parameters:**
+
+- `p` — The pipeline to modify.
+- `...` — Metadata assignments as `$field = value` pairs.
+- `where` (optional) — Predicate scoping which nodes are updated.
+
+**Returns:**
+
+`Pipeline` — a new pipeline with updated node metadata.
+
+**Examples:**
+```t
+p |> mutate_node($noop = true)
+p |> mutate_node($serializer = "pmml", where = $runtime == "R")
+p |> mutate_node($functions = ["utils.R"], $env_vars = NA)
+```
 
 ---
 
@@ -4454,6 +4487,14 @@ The returned Dict has the following keys:
 - `shell` — shell interpreter, or NA when unset (String | NA)
 - `shell_args` — shell interpreter arguments (List of String)
 - `flake` — Nix flake path, or NA when unset (String | NA)
+- `provenance` — provenance of every resolved value, as a Dict with one
+  entry per option key (`functions`, `include`, `env_vars`, `args`,
+  `shell_args`, `serializer`, `deserializer`, `shell`, `flake`, `noop`,
+  `dependencies`). Mergeable lists are grouped as `{ global: [...], node: [...] }`;
+  scalar options are either `"global"`, `"node"`, or NA when unset. This is the
+  source-provenance companion to `explain(p.node)`, telling you which values came
+  from `set_pipeline_global_options` (global) and which were declared on the node
+  itself.
 
 An unknown node name is a `TypeError` listing the valid node names.
 
@@ -4473,8 +4514,130 @@ p = pipeline {
   b = pyn(<{ ... }>)
 }
 q = set_pipeline_global_options(p, functions = [rn: "functions.R"], noop = true)
-pipeline_node_options(q, "a")
+ pipeline_node_options(q, "a")
 # => { name = "a", runtime = "R", functions = ["functions.R"], noop = true, ... }
+```
+
+---
+
+### `pipeline_config_to_frame(p)`
+
+Produces a DataFrame with one row per node showing resolved configuration
+values **and** per-field provenance counts. Extends `pipeline_to_frame` with
+provenance columns so queries like "which nodes got their serializer from
+global options?" can be answered directly in T.
+
+**Columns:**
+
+- Identity: `name`, `runtime`, `depth`, `command_type` (as in `pipeline_to_frame`)
+- Resolved scalar values: `serializer`, `deserializer`, `noop`, `shell`, `flake`
+- Provenance source markers: `prov_serializer`, `prov_deserializer`, `prov_noop`,
+  `prov_shell`, `prov_flake` — each `"global"`, `"node"`, or empty when unset
+- Total counts: `n_deps`, `n_funcs`, `n_incs`, `n_env_vars`, `n_args`,
+  `n_shell_args`
+- Provenance counts: `n_<option>_global` / `n_<option>_node` for each of the above
+
+> [!NOTE]
+> `n_deps` is sourced from `p_deps`, which includes **auto-inferred**
+> dependencies, while `n_deps_global` / `n_deps_node` come from
+> `prov_explicit_deps`, which only tracks explicitly-declared or
+> globally-injected deps. Consequently `n_deps` may exceed
+> `n_deps_global + n_deps_node` when a node has auto-inferred edges. The other
+> five list-count groups (`n_funcs`, `n_incs`, `n_env_vars`, `n_args`,
+> `n_shell_args`) do reconcile because they come from the same underlying lists
+> as their provenance columns.
+
+**Parameters:**
+
+- `p` — Pipeline to convert.
+
+**Returns:**
+
+`DataFrame` — one row per node, 32 columns.
+
+**Examples:**
+```t
+q = set_pipeline_global_options(p, serializer = ^json)
+pipeline_config_to_frame(q) |> filter($prov_serializer == "global")
+```
+
+---
+
+### `pipeline_validate(p)`
+
+Checks a pipeline for structural errors **without throwing**, returning a list
+of error messages (empty list = valid). Shares its checks with
+`populate_pipeline`/`build_pipeline` and `t check` tier 1, so the same
+structural guarantees are enforced everywhere.
+
+Checks performed:
+
+- No dependency cycles
+- All referenced dependencies exist as nodes in the pipeline
+- Referenced function/include/script files exist on the file system
+- Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`)
+- Cross-runtime dependencies declare an explicit deserializer
+- Deserializer/format coherence across dependency edges
+- Multiple dependencies with a single non-dictionary deserializer strategy
+- The `^bin` serializer is only used by `fetchurl` nodes
+
+**Parameters:**
+
+- `p` — Pipeline to validate.
+
+**Returns:**
+
+`List[String]` — validation error messages (empty = valid).
+
+**Examples:**
+```t
+p = pipeline {
+  a = rn(command = <{ 1 }>, runtime = "bogus", serializer = ^bin)
+}
+pipeline_validate(p)
+# => ["Node `a` uses unknown runtime `bogus`. ...",
+#     "The ^bin serializer is only supported for fetchurl nodes. ..."]
+```
+
+---
+
+### `pipeline_assert(p)`
+
+Validates the pipeline like `pipeline_validate`, but returns the pipeline
+unchanged if valid and throws the **first** validation error if invalid.
+Useful as a guard in the middle of a pipeline chain.
+
+**Parameters:**
+
+- `p` — Pipeline to validate.
+
+**Returns:**
+
+`Pipeline` — the same pipeline if valid; throws otherwise.
+
+**Examples:**
+```t
+p |> pipeline_assert |> build_pipeline
+```
+
+---
+
+### `pipeline_cycles(p)`
+
+Returns the names of nodes involved in dependency cycles (empty list if the
+DAG is valid). A cycle means the pipeline cannot be topologically sorted.
+
+**Parameters:**
+
+- `p` — Pipeline to inspect.
+
+**Returns:**
+
+`List[String]` — node names in cycles.
+
+**Examples:**
+```t
+pipeline_cycles(p)
 ```
 
 ---
@@ -6435,6 +6598,8 @@ Now that you've explored the API, learn how to build reproducible data pipelines
 
 This guide covers advanced pipeline features building on the fundamentals from the [Pipeline Tutorial](pipeline_tutorial.md). You should be familiar with basic pipeline concepts (nodes, dependencies, building, and inspecting) before diving in here.
 
+Once you are comfortable manipulating pipelines as data, continue to [Pipeline Materialization & Nix Orchestration](pipeline-materialization.md) for building pipelines into reproducible Nix artifacts, orchestrating builds, transferring archives, and customizing per-node build environments.
+
 ---
 
 ## 17. Using Imports in Pipelines
@@ -6505,7 +6670,7 @@ In a Nix sandbox context, `noop` generates a lightweight stub instead of a real 
 
 ## 19. Node Metadata
 
-> [↩ Quick Reference: Pipeline DAG Structure](#3-pipeline-function-quick-reference)
+> [↩ Quick Reference: Pipeline DAG Structure](pipeline_tutorial.md#pipeline-function-quick-reference)
 
 Every node in a pipeline carries structured metadata that you can query and manipulate. The `pipeline_to_frame()` function converts this metadata into a DataFrame with one row per node.
 
@@ -6550,6 +6715,42 @@ p |> select_node($name, $runtime, $depth)
 ```
 
 Available fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$deps`, `$depth`, `$command_type`.
+
+### `pipeline_config_to_frame`
+
+`pipeline_to_frame` shows *what* each node's configuration is. `pipeline_config_to_frame` adds *where it came from*: one row per node and **32 columns** covering resolved config values, per-field provenance source markers, and global/node count breakdowns for every list-type option.
+
+```t
+p = pipeline {
+  a = rn(command = <{ 1 }>, functions = ["a.R"])
+  b = pyn(command = <{ 2 }>)
+}
+q = set_pipeline_global_options(p, functions = [rn: "global.R"], serializer = ^json)
+
+pipeline_config_to_frame(q)
+-- DataFrame(2 rows x 32 cols)
+```
+
+The columns fall into four groups:
+
+1. **Identity** — `name`, `runtime`, `depth`, `command_type` (same as `pipeline_to_frame`).
+2. **Resolved scalar values** — `serializer`, `deserializer`, `noop`, `shell`, `flake` (after any global-option merges).
+3. **Provenance source markers** — `prov_serializer`, `prov_deserializer`, `prov_noop`, `prov_shell`, `prov_flake`: each is `"global"`, `"node"`, or empty (`NA`) when unset.
+4. **List counts with provenance split** — for each of `deps`, `funcs`, `incs`, `env_vars`, `args`, `shell_args`, three columns: `n_<option>` (total), `n_<option>_global`, `n_<option>_node`.
+
+Because the provenance columns are plain DataFrame columns, you can query them with the standard verbs:
+
+```t
+pipeline_config_to_frame(q)
+  |> filter($prov_serializer == "global")
+  |> select_node($name, $serializer)
+-- The row for every node whose serializer came from global options
+```
+
+> [!NOTE]
+> `n_deps` is sourced from `p_deps`, which includes **auto-inferred** dependencies, while `n_deps_global` / `n_deps_node` come from `prov_explicit_deps`, which only tracks explicitly-declared or globally-injected deps. So `n_deps` may exceed `n_deps_global + n_deps_node` when a node has auto-inferred edges. The other five count groups (`funcs`, `incs`, `env_vars`, `args`, `shell_args`) do reconcile because they share the same underlying lists as their provenance columns.
+
+See [§4.4 of the Pipeline Tutorial](pipeline_tutorial.md#reading-back-a-nodes-resolved-configuration) for the provenance model behind these columns.
 
 ---
 
@@ -6664,9 +6865,54 @@ p |> mutate_node($noop = true, where = $runtime == "R")
 
 -- Override serializer for all nodes
 p |> mutate_node($serializer = "pmml", where = $runtime == "R")
+
+-- Swap a node's function files, arguments, and shell interpreter
+p |> mutate_node(
+  $functions = ["utils.R"],
+  $args = [FLAGS: "-O2"],
+  $shell = "bash",
+  $shell_args = ["-lc"]
+)
 ```
 
-Mutable metadata fields: `noop` (Bool), `runtime` (String), `serializer` (String), `deserializer` (String).
+#### Mutable Fields
+
+`mutate_node` can change all of the following metadata fields:
+
+| Field | Type | Semantics |
+|---|---|---|
+| `noop` | `Bool` | Whether the node is skipped (no-op) |
+| `runtime` | `String` | Execution runtime (`"T"`, `"R"`, `"Python"`, …) |
+| `serializer` | `String` | Serializer to use when materializing this node |
+| `deserializer` | `String` | Deserializer to use when reading this node |
+| `deps` | `List[String]` | Explicit dependency names (replaces the node's declared deps) |
+| `functions` | `List[String]` | Function files included in the node's sandbox |
+| `include` | `List[String]` | Included files propagated into the sandbox |
+| `env_vars` | `Dict` | Build-time environment variables |
+| `args` | `Dict` | Runtime/tool arguments |
+| `shell` | `String` | Shell interpreter for shell nodes |
+| `shell_args` | `List[String]` | Shell interpreter arguments |
+| `flake` | `String` | Custom Nix flake for this node's environment |
+
+Unlike `set_pipeline_global_options` (which **combines/prepends** mergeable lists), `mutate_node` **replaces** the field's value entirely — whatever you pass becomes the new value.
+
+#### Clearing Fields with `NA`
+
+Pass `NA` to clear an optional or list/dict field:
+
+```t
+-- Remove the per-node shell and flake overrides
+p |> mutate_node($shell = NA, $flake = NA)
+
+-- Empty out the function files and env vars
+p |> mutate_node($functions = NA, $env_vars = NA)
+```
+
+One exception: `deps` **cannot** be cleared with `NA`, because dependency edges cannot be safely re-derived outside the original evaluation environment. Mutating `deps` to a concrete list is fine; clearing it to `NA` returns an error telling you to re-run the pipeline to rebuild the dependency graph.
+
+#### Provenance
+
+Every field you mutate is marked as **`node`-sourced** in provenance tracking. After `p |> mutate_node($functions = ["utils.R"])`, `pipeline_node_options(p, "a").provenance.functions` shows `{ global: [], node: ["utils.R"] }` — even if the pipeline previously had a global `functions` option for that node, the mutation overrides it and provenance records the fact.
 
 ### `rename_node`
 
@@ -7155,7 +7401,7 @@ pipeline_nodes(p_both)  -- ["r_fit", "py_fit"]
 
 ## 28. Extended Inspection API
 
-> [↩ Quick Reference: Pipeline DAG Structure](#3-pipeline-function-quick-reference)
+> [↩ Quick Reference: Pipeline DAG Structure](pipeline_tutorial.md#pipeline-function-quick-reference)
 
 Beyond `pipeline_nodes` and `pipeline_deps`, T provides a complete structural inspection surface for pipelines.
 
@@ -7276,11 +7522,11 @@ When you pass a pipeline, meta-pipeline, or a string starting with a Mermaid key
 
 ## 29. Pipeline Validation
 
-> [↩ Quick Reference: Pipeline DAG Structure](#3-pipeline-function-quick-reference)
+> [↩ Quick Reference: Pipeline DAG Structure](pipeline_tutorial.md#pipeline-function-quick-reference)
 
-By design, T uses **lazy validation**: structural errors (missing dependencies, cycles) surface at `build_pipeline` or `pipeline_run` time, not at operation time. This allows you to compose and transform pipelines freely.
+By design, T uses **lazy validation**: structural errors surface at `build_pipeline` or `pipeline_run` time, not at operation time. This allows you to compose and transform pipelines freely.
 
-When you want to validate eagerly, T provides opt-in validation utilities.
+When you want to validate eagerly, T provides opt-in validation utilities. All of them are backed by a single **shared validator** that also guards `populate_pipeline`/`build_pipeline`, the eval-time cross-runtime check, and `t check` tier 1 — so the same structural guarantees are enforced everywhere, whether you validate eagerly or let the build catch problems.
 
 ### `pipeline_validate`
 
@@ -7299,8 +7545,21 @@ pipeline_validate(p_broken)
 ```
 
 Checks performed:
+
 1. All referenced dependencies exist as nodes in the pipeline.
 2. No dependency cycles.
+3. All referenced `functions`, `include`, and `script` files exist on the file system.
+4. Every node uses a known runtime (`T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`).
+5. Cross-runtime dependencies declare an explicit deserializer (R/Python/Julia consumers of a dependency in a different runtime must set one).
+6. Multiple dependencies on a single non-dictionary deserializer strategy — a node with several dependencies should use a per-dependency dictionary rather than one format for all.
+7. Serializer/deserializer format coherence across dependency edges — a consumer's expected format matches what its producer emits.
+8. The `^bin` serializer is only used by `fetchurl` nodes.
+
+Errors are reported deterministically (file order, then pipeline declaration order) and are classified as `StructuralError`, `FileError`, or `TypeError`, which drives how each surface (the REPL error, the `pipeline_validate` list, and the `t check` JSON diagnostics) renders them.
+
+### `t check` Tier 1
+
+The same checks run when you execute `t check <file.t>` — T's instant structural checker that needs no Nix or runtime dependencies. `t check` parses the pipeline script, builds the DAG, and reports any of the above problems as structured diagnostics with a non-zero exit code, matching the build path's guarantees. See [Instant Feedback: `t check`](llm-collaboration.md#instant-feedback-t-check) for the full command surface.
 
 ### `pipeline_assert`
 
@@ -7386,820 +7645,20 @@ p = pipeline {
 7. **Compose with `chain` over `union`**: When two pipelines are intentionally connected, `chain` makes the dependency explicit; use `union` only when combining truly independent pipelines
 8. **Use `filter_node` + `upstream_of` for partial builds**: Trim a large pipeline to just what you need before calling `build_pipeline`
 9. **Resolve collisions with `rename_node` before set ops**: Both `union` and `chain` enforce unique names; rename conflicting nodes before merging
-
----
-
-## 31. Cross-Node Artifact Retrieval
-
-When nodes are executed within a Nix-managed sandbox (via `populate_pipeline(p, build = true)`), they are isolated from each other. However, T provides a built-in mechanism for nodes to access the serialized artifacts of their dependencies.
-
-### Automatic Environment Propagation
-
-For every dependency `dep` that a node has, the pipeline runner automatically injects an environment variable named `T_NODE_<dep>` into the sandbox. This variable contains the path to the Nix store directory where that dependency's artifact is stored.
-
-### Retrieval with `node_lens`
-
-The canonical way to access a sibling node's artifact is using the `node_lens` with the single-argument `get()` function. This is preferred over manual environment variable lookup because:
-1. It is **portable**: T handles the path resolution and deserialization automatically.
-2. It is **integrated**: It uses the same deserializer system as the rest of the pipeline.
-
-```t
-p = pipeline {
-  node_a = node(command = 100, serializer = "json")
-  
-  -- This node retrieves node_a's value from its Nix artifact
-  dynamic_access = node(
-    command = {
-        -- Using get(node_lens("...")) for cross-node access
-        val = get(node_lens("node_a"))
-        val * 2
-    },
-    runtime = "T"
-  )
-}
-```
-
-When `dynamic_access` runs inside the Nix sandbox:
-1. T sees the `node_lens("node_a")` and looks for the `T_NODE_node_a` environment variable.
-2. It locates the `artifact` file within that path.
-3. It detects the artifact class (e.g., `Int` from JSON) and deserializes it back into a T value.
-
-This pattern is essential for **polyglot pipelines** where data is passed between T, R, and Python nodes through files, and for **dynamic access** nodes where the target of a retrieval is determined at runtime (e.g., `target = "A"; get(node_lens(target))`).
-
----
-
-## 32. Nix-Native Orchestration & Cachix
-
-To optimize large-scale pipelines and manage remote binary caching, T-Lang includes native Nix orchestration features in `build_pipeline` and `pipeline_run`. These features map directly to native `nix build` mechanics, allowing granular rebuild control, job parallelization, Cachix integration, and dry-runs.
-
-### Orchestration Parameters
-
-The functions `build_pipeline()` and `pipeline_run()` accept an optional `nix_options` dictionary containing the following keys:
-
-| Key | Type | Description | Nix Command Mapping |
-|---|---|---|---|
-| `targets` | String/List/Vector | Specific node(s) or outputs to build (e.g., `targets: ["model_a"]`) | `-A <targets>` |
-| `force` | Bool/String/List/Vector | Rebuild nodes even if they already exist in the Nix store. Pass `true` to force-rebuild all nodes, or a string/list of specific node names. | `--check` (rebuilds target) |
-| `dry_run` | Bool | Preview build actions without executing them. Returns a structured `DataFrame` of planned actions. | `--dry-run` |
-| `max_jobs` | Int | Limit parallel compilation/build jobs. | `--max-jobs N` |
-| `cache` | String | A Cachix binary cache name (e.g., `"rstats-on-nix"`) to pull/push built artifacts. | `--option extra-substituters ...` & `--option extra-trusted-public-keys ...` |
-| `builders` | String | Remote builder specification in SSH syntax. | `--builders ...` |
-| `keep_env` | String/List/Vector | Environment variable names to pass into the Nix sandbox. | `--option keep-env ...` |
-| `sandbox` | Bool/String | Sandboxing policy: `true`/`"strict"`, `"relaxed"`, or `false`/`"none"`. | `--option sandbox ...` |
-
-### Using `dry_run` for Build Previews
-
-If you set `dry_run: true` inside `nix_options`, T-Lang will invoke Nix in dry-run mode and return a structured `DataFrame` detailing the exact actions Nix plans to take (e.g., fetching from binary caches, building derivations):
-
-```t
-p = pipeline {
-  a = 1
-  b = a + 1
-}
-
--- Inspect planned build actions without running them
-actions = build_pipeline(p, nix_options = [dry_run: true])
-print(actions)
-```
-
-The resulting `DataFrame` contains the columns:
-- `node`: The name of the pipeline node.
-- `action`: The action planned (e.g., `"build"`, `"substitute"`, or `"noop"`).
-- `path`: The absolute store path of the Nix derivation or artifact.
-
-### Advanced Nix Orchestration Example
-
-Below is an example showing how to trigger a parallel, cache-backed build targeting a specific node:
-
-```t
-p = pipeline {
-  a = 1
-  b = a + 1
-  c = b * 2
-}
-
--- Rebuild only node 'c', with parallel execution, using a Cachix binary cache
-build_pipeline(p,
-               nix_options = [
-                 targets: ["c"],
-                 max_jobs: 4,
-                 cache: "rstats-on-nix",
-                 force: ["c"]
-               ])
-```
-
-## 33. Granular Artifact Transfer & Archive Introspection
-
-For teams working on large projects, T supports exporting Nix-materialized pipeline cache artifacts into portable archive files (`.nar` format). These archives can be transferred between machines, imported without rebuilding, or inspected without installing.
-
-### Granular Artifact Export
-
-To export cached artifacts, use `export_artifacts()`. In addition to entire pipelines, you can target specific sub-structures:
-
-```t
-p = pipeline {
-  a = shn(command = "echo -n 'hello'", capture = "stdout")
-  b = a |> \(x) x + " world"
-}
-build_pipeline(p)
-
--- 1. Export the entire pipeline's artifacts
-export_artifacts(p, "full_cache.nar")
-
--- 2. Granular export: Export a single computed node
-export_artifacts(p.a, "node_a.nar")
-
--- 3. Export a list or vector of nodes/pipelines
-export_artifacts([p.a, p.b], "subset.nar")
-
--- 4. Export nested structures/dictionaries
-export_artifacts([first: p.a, second: p.b], "dict_subset.nar")
-```
-
-### Variadic Artifact Import
-
-To restore exported artifacts, use `import_artifacts()`. It is variadic and supports two calling conventions:
-
-1. **Verification Import (2 arguments)**: Imports the archive and verifies that a specific pipeline, node, or value's paths exist in the local store.
-2. **Immediate Store Import (1 argument)**: Unpacks and loads the archive directly into the local Nix store without needing a target object for verification. This is especially useful for setting up an environment prior to loading or parsing a pipeline script.
-
-```t
--- Convention 1: Import and verify against a pipeline
-import_artifacts(p, "full_cache.nar")
-
--- Convention 2: Load archive directly into the Nix store
-import_artifacts("full_cache.nar")
-```
-
-### Archive Introspection
-
-You can inspect the contents of an artifact archive file without unpacking it permanently or changing your local store. The `inspect_artifacts()` function imports the archive into a temporary, isolated Nix store, extracts metadata for each path, and returns a DataFrame.
-
-```t
-df = inspect_artifacts("full_cache.nar")
-
--- View the details of the archive
-df
--- DataFrame with columns:
---   - node: The name of the node (if known)
---   - store_path: The Nix store path of the artifact
---   - hash: The SHA-256 hash of the store path
---   - size_bytes: The size of the unpacked artifact in bytes
---   - references: Comma-separated basenames of dependency store paths
-```
-
-### Cache-Aware Dry Runs
-
-For convenience, you can perform a dry-run check directly using the `dry_run = true` parameter in `populate_pipeline()`. This reports which nodes are already in the Nix cache and which ones require rebuilding or downloading:
-
-```t
-p = pipeline {
-  a = 1
-  b = a + 1
-}
-
--- Check cache hit/miss status directly
-plan = populate_pipeline(p, dry_run = true)
-print(plan)
--- Returns a DataFrame with columns: node, action, and path.
--- "action" will be one of:
---   - "cached": path is already built/cached locally
---   - "build": path must be rebuilt locally
---   - "fetch": path can be retrieved from remote binary substitutes
-```
-
-### Programmatic Garbage Collection
-
-Over time, your local Nix store can accumulate unused derivations and cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix artifacts directly:
-
-1. **`pipeline_gc(p, dry_run = false)`**: Deletes the store paths of the given pipeline `p`. By default (`dry_run = true`), it queries what would be deleted and returns a DataFrame showing the `node`, `store_path`, and `deleted` status. Set `dry_run = false` to perform the actual deletion.
-2. **`t_gc()`**: Performs a global Nix store garbage collection (`nix-store --gc`), removing all unused derivations and freeing up disk space.
-
-```t
-p = pipeline {
-  a = 1
-}
-
--- Preview what would be deleted
-plan = pipeline_gc(p, dry_run = true)
-
--- Perform the deletion of the pipeline's nodes
-pipeline_gc(p, dry_run = false)
-
--- Perform global garbage collection
-t_gc()
-```
-
----
-
-## 34. CI/CD with GitHub Actions
-
-T can generate a complete GitHub Actions workflow YAML for executing a pipeline via `pipeline_to_ga()`. The generated workflow:
-
-1. Restores cached Nix artifacts from the `t-runs` branch (via `nix-store --import`)
-2. Runs the pipeline via `nix develop --command t run <pipeline_script>`
-3. Exports updated artifacts back to the `t-runs` branch
-
-```t
--- Write the generated YAML directly to .github/workflows/<name>.yml (uses "src/pipeline.t" by default)
-pipeline_to_ga()
-
--- Write directly to a custom path (e.g. .github/workflows/ci.yml)
-pipeline_to_ga("src/run.t", file = ".github/workflows/ci.yml")
-
--- Get the generated YAML back as a string instead of writing to disk
-yaml = pipeline_to_ga(file = "")
-print(yaml)
-```
-
-### Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `pipeline_script` | `String` | `"src/pipeline.t"` | Path to the pipeline T script. Can be passed as the first positional argument. |
-| `name` | `String` | Auto-detected | Project name from `tproject.toml`. Controls the workflow display name, job ID, and NAR archive filename. |
-| `file` | `String` | `".github/workflows/<name>.yml"` | Output file path. Defaults to `.github/workflows/<name>.yml`. Set to an empty string (`""`) to return the YAML workflow as a string without writing to disk. |
-
-The auto-detected project name comes from the `name` field in your project's `tproject.toml`. If neither a `name` argument nor a `tproject.toml` is found, an error is raised prompting you to provide an explicit name.
-
----
-
-## 35. Pattern-Based Branching
-
-T lets you dynamically expand a single pipeline node into multiple branches using pattern functions. This is useful when you need to run the same computation over each element of a list, vector, or data frame.
-
-Patterns are **automatically expanded** when you call `populate_pipeline()` or `build_pipeline()` — you do not need to call `expand_pipeline()` explicitly. The explicit function is available if you want to inspect the expanded structure before building.
-
-### 11.1 `map_pattern` — One Branch Per Element
-
-Use `map_pattern(dep)` to create one branch for each element of an upstream dependency:
-
-```t
-p = pipeline {
-  x = [10, 20, 30]
-  y = node(command = <{ x * 2 }>, pattern = map_pattern(x))
-}
-
--- Auto-expansion happens inside build_pipeline:
-build_pipeline(p)
-
--- Or inspect the expanded structure explicitly:
-expanded = expand_pipeline(p)
-pipeline_nodes(expanded)
--- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
-
-expanded.y_branch_1  -- 20  (10 * 2)
-expanded.y_branch_2  -- 40  (20 * 2)
-expanded.y_branch_3  -- 60  (30 * 2)
-```
-
-Multiple dependencies can be mapped simultaneously — all must have the same length, and branch `i` receives element `i` from each:
-
-```t
-p = pipeline {
-  xs = [1, 2, 3]
-  ys = [10, 20, 30]
-  z = node(command = <{ xs + ys }>, pattern = map_pattern(xs, ys))
-}
--- build_pipeline(p) auto-expands before building
-```
-
-### 11.2 `cross_pattern` — Cartesian Product
-
-Use `cross_pattern(sub1, sub2, ...)` for a Cartesian product of multiple `map_pattern` sub-patterns:
-
-```t
-p = pipeline {
-  a = [1, 2]
-  b = [10, 20]
-  c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))
-}
-expanded = expand_pipeline(p)
-pipeline_nodes(expanded)
--- ["a", "b", "c_branch_1", "c_branch_2", "c_branch_3", "c_branch_4"]
--- Branch order: (a=1,b=10), (a=1,b=20), (a=2,b=10), (a=2,b=20)
-```
-
-### 11.3 DataFrame Row Branching
-
-When a dependency is a DataFrame, each row becomes one branch element:
-
-```t
-df = to_dataframe([[x: 10], [x: 20], [x: 30]])
-
-p = pipeline {
-  data = df
-  result = node(command = <{ data }>, pattern = map_pattern(data))
-}
-expanded = expand_pipeline(p)
-pipeline_nodes(expanded)
--- ["data", "result_branch_1", "result_branch_2", "result_branch_3"]
--- Each branch receives a 1-row DataFrame
-```
-
-### 11.4 Selector Patterns
-
-For finer-grained control over which elements produce branches, use selector patterns.
-All four take exactly one dependency and an integer parameter, and produce N branches
-where N is determined by the parameter.
-
-#### 11.4.1 `slice_pattern(dep, [i, j, ...])` — Branch on Specific Indices
-
-Select specific indices (0-based) from the dependency. Each index in the list becomes one
-branch. This is useful when you want to recompute only a subset of values, or when you
-want to reorder branches.
-
-```t
-p = pipeline {
-  x = [10, 20, 30, 40, 50]
-  -- Only branches for indices 0, 2, 4:
-  y = node(command = <{ x }>, pattern = slice_pattern(x, [0, 2, 4]))
-}
--- expand_pipeline(p) produces:
---   y_branch_1 with x = 10  (index 0)
---   y_branch_2 with x = 30  (index 2)
---   y_branch_3 with x = 50  (index 4)
-```
-
-Indices must be within the dependency's bounds (0 ≤ i < length). Out-of-range indices
-return an error at expansion time.
-
-#### 11.4.2 `head_pattern(dep, n)` — Branch on First N Elements
-
-Take the first `n` elements of the dependency. Each of the first N elements becomes
-one branch. If `n` exceeds the dependency length, it is silently capped — you get at
-most `length(dep)` branches.
-
-```t
-p = pipeline {
-  x = [10, 20, 30, 40, 50]
-  -- First two elements:
-  y = node(command = <{ x }>, pattern = head_pattern(x, 2))
-  -- First ten (capped at 5):
-  z = node(command = <{ x }>, pattern = head_pattern(x, 10))
-}
--- y produces 2 branches: y_branch_1 (x=10), y_branch_2 (x=20)
--- z produces 5 branches (one per element, since 10 > 5)
-```
-
-#### 11.4.3 `tail_pattern(dep, n)` — Branch on Last N Elements
-
-Take the last `n` elements of the dependency. Branches are indexed from the end —
-element at `length - n` becomes `branch_1`, and so on. Like `head_pattern`, n is
-capped to the dependency length if it exceeds it.
-
-```t
-p = pipeline {
-  x = [10, 20, 30, 40, 50]
-  -- Last two elements:
-  y = node(command = <{ x }>, pattern = tail_pattern(x, 2))
-}
--- y produces 2 branches:
---   y_branch_1 with x = 40  (index 3)
---   y_branch_2 with x = 50  (index 4)
-```
-
-#### 11.4.4 `sample_pattern(dep, n)` — Randomly Select N Elements
-
-Randomly select `n` elements from the dependency (without replacement — no duplicate
-branches). Uses a Fisher-Yates partial shuffle seeded deterministically from the
-node name (`Hashtbl.hash name`), so repeated expansions of the same pipeline always
-produce the same random draw. Different node names produce different draws.
-As with the other selectors, n is capped to the dependency length.
-
-```t
-p = pipeline {
-  x = [10, 20, 30, 40, 50]
-  -- Randomly pick 2 elements:
-  y = node(command = <{ x }>, pattern = sample_pattern(x, 2))
-}
--- y produces 2 branches with randomly chosen values from x.
--- The selection is deterministic: calling expand_pipeline(p) again on
--- the same pipeline always picks the same two indices.
-```
-
-#### Selector Patterns Summary
-
-| Pattern | Branch count | Branches from |
-|---|---|---|
-| `slice_pattern(dep, [i, j, ...])` | `len(indices)` | Values at given indices |
-| `head_pattern(dep, n)` | `min(n, length(dep))` | First n elements |
-| `tail_pattern(dep, n)` | `min(n, length(dep))` | Last n elements |
-| `sample_pattern(dep, n)` | `min(n, length(dep))` | Random n elements |
-
-All four patterns are automatically expanded on `build_pipeline`, `populate_pipeline`,
-and composition builtins (`chain`, `parallel`, `union`, etc.), just like `map_pattern`
-and `cross_pattern`. They cannot be nested inside `cross_pattern()` — only
-`map_pattern` is supported as a sub-pattern of `cross_pattern`.
-
-### 11.5 Pattern Branching with Non-T Runtimes
-
-Pattern branching works with non-T runtimes (`R`, `Python`, `Julia`, etc.), but requires explicit `serializer` and `deserializer` configuration so cross-runtime data interchange works correctly. Each branch runs under the same runtime as the original patterned node:
-
-```t
-p = pipeline {
-  a = [1, 2, 3]
-  b = node(
-    command = <{ a }>,
-    runtime = R,
-    serializer = ^json,
-    deserializer = ^json,
-    pattern = map_pattern(a)
-  )
-}
-
-build_pipeline(p)
--- Each branch (b_branch_1, b_branch_2, b_branch_3) runs in R
-```
-
-The serializer/deserializer symbols (`^json` in the example) must match a supported interchange format on both sides of the runtime boundary. If serializer and deserializer are omitted, expansion succeeds but the build will fail — the default serializer cannot produce runtime-specific artifacts for cross-runtime data interchange.
-
-See §11.8 for a complete polyglot example using `cross_pattern` and `map_pattern` with R `ggplot2`.
-
-### 11.6 Writing the Expanded Pipeline to a File
-
-Pass `to_script` to write the expanded pipeline as a T source file for inspection or debugging:
-
-```t
-expand_pipeline(p, to_script = "expanded_pipeline.t")
-```
-
-The output file contains the full `pipeline { ... }` definition with all branches unrolled.
-
-### 11.7 Build and Composition Auto-Expand
-
-`populate_pipeline()`, `build_pipeline()`, `chain()`, `parallel()`, `union()`, `intersect()`, `difference()`, and `patch()` all automatically expand any unexpanded patterns in their pipeline inputs before proceeding. You only need to call `expand_pipeline()` explicitly when you want to inspect the branch structure before building.
-
-### 11.8 Lazy Branch Access
-
-Even before calling `expand_pipeline()`, you can inspect and interact with the branch structure of a patterned pipeline directly:
-
-**List branch names** with `pipeline_nodes(p)`:
-
-```t
-p = pipeline {
-  a = [10, 20, 30]
-  b = map_pattern(a) ~> a * 2
-}
-pipeline_nodes(p)
--- Result: ["a", "b_branch_1", "b_branch_2", "b_branch_3"]
-```
-
-**Inspect branch structure** with `inspect_pipeline(p)`:
-
-```t
-inspect_pipeline(p)
--- DataFrame with one row per branch, including auto-generated branch names
-```
-
-**Access a branch by name** with dot notation — `p.b_branch_1` lazily synthesizes a `VComputedNode` without triggering expansion:
-
-```t
-b1 = p.b_branch_1
--- b1 is a computed node that will be resolved when built
-```
-
-**Helpful error on the parent node**: if you try `read_node(p.b)` on a patterned node before building, instead of a generic "not built yet" error you get a message listing the available branches:
-
-```
-Error(ValueError): Node `b` has a pattern and expands into b_branch_1, b_branch_2, b_branch_3.
-  Use read_node(p.<branch_name>) to access individual branches directly.
-```
-
-**Reserved naming**: node names ending in `_branch_N` (e.g. `x_branch_1`) are reserved for auto-generated branch nodes. Using such a name at pipeline construction produces a `NameError`.
-
-### 11.9 Complete Example: Polyglot Dynamic Branching Pipeline
-
-This demo (from `t_demos/dynamic_branching_t`) combines `cross_pattern`, `map_pattern`, and cross-runtime (T ↔ R) serialization into a single end-to-end pipeline. It generates spirograph data points in T and plots them with R `ggplot2` — one plot per parameter combination.
-
-#### Problem
-
-You have a list of radii `[3, 5, 8]` and `[2, 4, 6]`. You want all 9 combinations of spirograph curves drawn as ggplot2 faceted plots. Writing 9 nodes by hand is tedious — use pattern branching instead.
-
-#### Pipeline Definition
-
-```t
-p = pipeline {
-  fixed_radii = [3, 5, 8]
-  cycling_radii = [2, 4, 6]
-
-  points = node(
-    command = <{
-      import "src/spirograph.t"
-      spirograph_points(fixed_radii, cycling_radii)
-    }>,
-    pattern = cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii)),
-    runtime = T,
-    serializer = ^json
-  )
-
-  single_plot = node(
-    command = <{ plot_spirographs(points) }>,
-    pattern = map_pattern(points),
-    functions = ["src/spirograph.R"],
-    runtime = R,
-    deserializer = ^json
-  )
-}
-```
-
-#### How It Works
-
-1. **`cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii))`** — takes the Cartesian product of both lists (3 × 3 = 9). Each branch calls `spirograph_points(r_fixed, r_cycling)` from `src/spirograph.t` with one specific radius pair, returning a DataFrame of x, y coordinates.
-
-2. **`serializer = ^json`** — the `points` node uses the `^json` symbol serializer to write each branch's DataFrame as a JSON array of records. Without this, the R node downstream cannot read the data.
-
-3. **`map_pattern(points)`** — creates one branch per `points` output (9 branches total). Each branch calls `plot_spirographs()` from `src/spirograph.R`.
-
-4. **`deserializer = ^json`** — Tells the pipeline runner to read the R node's JSON artifact back so it can be cached and inspected.
-
-5. **`^json` symbol syntax** — required for serializer/deserializer values in cross-runtime pipelines (string literals like `"json"` are not accepted). This is the canonical way to declare interchange formats.
-
-#### The Helper Code
-
-**`src/spirograph.t`** — a parametric spirograph function called by each data branch:
-
-```t
-spirograph_points = \(fixed_radius, cycling_radius) {
-  num_points = 10000
-  max_t = 30 * pi
-  t_values = float_seq(0, max_t, num_points)
-  diff = fixed_radius - cycling_radius
-  ratio = diff / cycling_radius
-  xs = t_values |> map(\(t) diff * cos(t) + cos(t * ratio))
-  ys = t_values |> map(\(t) diff * sin(t) - sin(t * ratio))
-  to_dataframe([x: xs, y: ys,
-    fixed_radius: fixed_radius,
-    cycling_radius: cycling_radius])
-}
-```
-
-**`src/spirograph.R`** — renders a faceted ggplot for one parameter combination:
-
-```r
-library(ggplot2)
-
-plot_spirographs <- function(points) {
-  label <- "fixed_radius = %s, cycling_radius = %s"
-  points$parameters <- sprintf(label, points$fixed_radius, points$cycling_radius)
-  ggplot(points) +
-    geom_point(aes(x = x, y = y, color = parameters), size = 0.1) +
-    facet_wrap(~parameters) +
-    theme_gray(16) +
-    guides(color = "none")
-}
-```
-
-Note the `functions = ["src/spirograph.R"]` argument on the R node — this propagates the script into the Nix sandbox so it is available at build time.
-
-#### Building
-
-When you run `build_pipeline(p, verbose = 1)`, T automatically expands the patterns before building:
-
-```
-+ points_branch_1 building
-+ points_branch_2 building
-...
-+ points_branch_9 building
-+ single_plot_branch_3 building
-+ single_plot_branch_5 building
-...
-+ single_plot_branch_1 building
-
-✓ Pipeline build completed [20 built / 20 nodes]
-```
-
-20 nodes total: 2 root (`fixed_radii`, `cycling_radii`), 9 data branches, 9 plot branches.
-
-#### Post-Build Verification
-
-Since `build_pipeline` does not modify the original pipeline variable `p`, expanded branch nodes are only visible in the build log. Use `build_log_to_frame()` to inspect them:
-
-```t
-res = build_pipeline(p, verbose = 1)
-
-node_frame = build_log_to_frame(res)
-points_branches = filter(node_frame, \(r) starts_with(r.name, "points"))
-plot_branches = filter(node_frame, \(r) starts_with(r.name, "single_plot"))
-
-assert(nrow(points_branches) == 9, "Expected 9 points branches")
-assert(nrow(plot_branches) == 9, "Expected 9 single_plot branches")
-assert(length(res.failed_nodes) == 0, "All nodes should succeed")
-```
-
-This pattern — `build_log_to_frame(res)` + `filter` with a lambda — is the recommended way to verify branched pipeline builds when you need to inspect individual expanded nodes.
-
-#### Key Takeaways
-
-- **`cross_pattern(map_pattern(...), map_pattern(...))`** generates a Cartesian product of branches.
-- **Chaining patterns** (`cross_pattern` → `map_pattern`) lets you build multi-phase branched pipelines.
-- **`^json` serializer/deserializer** enables cross-runtime data interchange between T and R nodes.
-- **Expanded nodes exist only in the build log**, not in the original pipeline variable. Use `build_log_to_frame()` for post-build queries.
-- **Patterns work with non-T runtimes downstream** — a `map_pattern` node can depend on T data branches and run in R (or Python or Julia), as long as serialization is configured correctly.
-
----
-
-## 36. Static Conditionals
-
-T supports conditional node inclusion evaluated at pipeline construction time, preserving Nix's static DAG requirement. There are two functions: `node_when` and `node_fork`.
-
-### `node_when(condition, value)`
-
-Returns `value` if `condition` is truthy, otherwise returns a null marker that causes the pipeline to exclude the node entirely. The condition is evaluated before the build.
-
-```t
-p = pipeline {
-  dev_data = read_csv("data/dev.csv")
-
-  model = node_when(env("CI") == "1", pyn(script = "train.py"))
-
-  deployed = node_when(env("BRANCH") == "main", pyn(script = "deploy.py"))
-}
-
-build_pipeline(p)
-```
-
-If `CI` is not `"1"`, the `model` node is excluded and no attempt is made to resolve its dependencies. If `BRANCH` is not `"main"`, the `deployed` node is similarly excluded.
-
-### `node_fork(...condition_value_pairs, .default = ...)`
-
-A multi-way branch: takes condition-value pairs and returns the value for the first truthy condition. If no condition matches and no `.default` is provided, the node is excluded.
-
-```t
-p = pipeline {
-  data = read_csv("data.csv")
-
-  model = node_fork(
-    env("MODEL") == "linear", lm(mpg ~ wt, data),
-    env("MODEL") == "forest", pyn(script = "rf.py"),
-    env("MODEL") == "neural", pyn(script = "nn.py"),
-    .default = lm(mpg ~ wt, data)
-  )
-}
-```
-
-Here, setting `MODEL=forest` in the environment selects the random forest node; any other value falls back to the `.default` linear model.
-
-### Important Notes
-
-- Both `node_when` and `node_fork` are only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
-- Conditions must be evaluable at pipeline construction time — typically using `env()` to read environment variables.
-- The null marker from an unmatched condition is not a regular value; it cannot be inspected, stored, or tested with `is_na()`. It exists only to signal node exclusion to the pipeline machinery.
-
----
-
-## 37. Custom Flakes per Node
-
-By default, every node in a pipeline uses the project's flake (defined by `tproject.toml`) for its build environment. The **`flake`** named argument lets you override this — each node can use a completely different Nix flake, replacing the entire environment for that node.
-
-```t
-p = pipeline {
-  -- Node using the default project flake (unchanged)
-  a = node(command = "hello from default flake", runtime = T)
-
-  -- Node using a different flake from GitHub
-  b = node(
-    command = "hello from custom flake",
-    runtime = T,
-    flake = "github:b-rodrigues/tlang"
-  )
-}
-```
-
-### How It Works
-
-When `populate_pipeline(p)` generates the Nix expression, each unique flake path creates a dedicated environment via the `mkNodeEnv` helper:
-
-```nix
-env_github_b_rodrigues_tlang = mkNodeEnv "github:b-rodrigues/tlang";
-env_github_jbedo_rshells     = mkNodeEnv "github:jbedo/rshells";
-env_path_test_flake           = mkNodeEnv "path:../test_flake";
-```
-
-Nodes referencing a custom flake are rewritten to use that flake's bindings (`env_<name>.stdenv`, `env_<name>.tBin`, etc.) instead of the project-level bindings. Nodes without a `flake` argument continue to use the project flake unchanged.
-
-### Supported Flake References
-
-| Format | Example | Notes |
-|--------|---------|-------|
-| `github:owner/repo` | `github:b-rodrigues/tlang` | GitHub repository |
-| `github:owner/repo/rev` | `github:b-rodrigues/tlang/main` | With branch/commit |
-| `gitlab:owner/repo` | `gitlab:example/project` | GitLab repository |
-| `sourcehut:owner/repo` | `sourcehut:~user/project` | SourceHut repository |
-| `path:/abs/path` | `path:/home/user/myflake` | Absolute local path |
-| `path:../relative/path` | `path:../test_flake` | Relative local path |
-
-### Selective Replacement with Fallback
-
-A per-node flake **replaces** the project flake for that node on a per-component basis. Each runtime component is resolved independently from the custom flake when available, otherwise it falls back to the project-level binding:
-
-| Component | Resolved from custom flake if… | Falls back to project if missing |
-|-----------|-------------------------------|----------------------------------|
-| `tBin` (T binary) | `flake.inputs.t-lang.packages.${system}.default` | Project `t` binary |
-| `r-env` (R environment) | `flake.inputs.t-lang.packages.${system}.tlang-r` | Just `pkgs.rWrapper` (no `tlang-r`) |
-| `tlangJl` (Julia path) | `flake.inputs.t-lang.packages.${system}.tlang-julia-path` | Project Julia path |
-| `pkgs` (nixpkgs) | `flake.legacyPackages.${system}` or `flake.inputs.nixpkgs.legacyPackages.${system}` | Project nixpkgs |
-| `stdenv` | `pkgs.stdenv` from the custom flake's nixpkgs | — (derives from `pkgs`) |
-| `py-env` (Python) | `pkgs.${pyVersion}.withPackages` from custom nixpkgs | — (just the packages, no `t-lang` component) |
-| `juliaPkg` (Julia) | `pkgs.${juliaPackageName}` from custom nixpkgs | — (just the package, no `t-lang` component) |
-
-This means:
-
-- **An R-only flake** (like `github:jbedo/rshells`) provides R packages and nixpkgs snapshot, while T serialization infrastructure comes from the project
-- **A full t-lang flake** (like `github:b-rodrigues/tlang`) replaces everything — nixpkgs, R/Python/Julia, and T binary
-- **Different nixpkgs version** — a node can use an older or newer nixpkgs than the project
-- **Different R/Python packages** — each node can have its own package set
-- **Different t-lang version** — each node can run a different build of T (if the flake provides `t-lang`)
-
-### Project-Level Package Inheritance
-
-A per-node flake replaces the **runtime components** (t-lang binary, language runtimes, nixpkgs) for that node. However, **project-level package declarations** from `tproject.toml` (`[r-dependencies]`, `[py-dependencies]`, `[jl-dependencies]`) are still installed in every node, including those using a custom flake. The flake determines *which nixpkgs revision* the packages are built from, but `tproject.toml` determines *what packages* are installed on top of the flake's environment.
-
-This means:
-
-- **Same package, different nixpkgs** — A package declared in `[r-dependencies]` is built from each per-node flake's nixpkgs. A node using `nixpkgs/r-updates` may get a different version than a node using `nixos-24.11`.
-- **Project-level convenience** — Common packages can be declared once in `tproject.toml` and shared across all nodes, regardless of which flake each node uses.
-- **Self-contained flakes** — If you need a flake to be fully self-contained (usable in any project without modifying `tproject.toml`), configure the desired packages directly within the flake's R/Python/Julia environment rather than relying on project-level declarations.
-
-```t
--- Example: both nodes use different flakes, but both inherit jsonlite
--- from the project's [r-dependencies]:
-f = node(
-  command = <{ library(jsonlite); toJSON(mtcars) }>,
-  runtime = R,
-  flake = "github:jbedo/rshells"
-)
-g = node(
-  command = <{ library(jsonlite); fromJSON("data.json") }>,
-  runtime = R,
-  flake = "path:../minimal_r_flake"
-)
-```
-
-> [!TIP]
-> To check which packages a per-node flake environment has access to, use `require()` in R or `import` in Python/Julia within the node's command block rather than assuming the flake's nixpkgs determines package availability.
-
-### Local Flakes
-
-You can reference a local flake directory using `path:` URLs. The path is resolved relative to the `_pipeline/` directory where the Nix expression is generated:
-
-```t
-d = node(
-  command = "hello from local flake",
-  runtime = T,
-  flake = "path:../test_flake"
-)
-```
-
-The referenced directory must contain a valid `flake.nix` with `inputs.nixpkgs` and the standard t-lang `packages` (including `tlang-r`, `tlang-julia`, etc.) for proper sandbox resolution.
-
-### How the Flake Must Be Structured
-
-To work with `mkNodeEnv`, the custom flake must expose the same outputs that T's project flake provides:
-
-```nix
-{
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
-    t-lang.url  = "github:b-rodrigues/tlang";
-  };
-
-  outputs = { self, nixpkgs, t-lang }: {
-    legacyPackages.${builtins.currentSystem} =
-      nixpkgs.legacyPackages.${builtins.currentSystem};
-
-    packages.${builtins.currentSystem} = rec {
-      default          = t-lang.packages.${builtins.currentSystem}.default;
-      tlang-r          = t-lang.packages.${builtins.currentSystem}.tlang-r;
-      tlang-julia-path = t-lang.packages.${builtins.currentSystem}.tlang-julia-path;
-      "tlang-julia"    = t-lang.packages.${builtins.currentSystem}."tlang-julia";
-    };
-  };
-}
-```
-
-The key requirements are:
-- `legacyPackages.${system}` — provides the full nixpkgs package set
-- `packages.${system}.default` — provides the `t` binary
-- `packages.${system}.tlang-r` — provides R packages declared in the flake
-- `packages.${system}.tlang-julia-path` / `packages.${system}."tlang-julia"` — provides Julia packages
-
-If these outputs are missing, the per-node sandbox will fail at build time when attempting to resolve runtime dependencies.
-
-### Backward Compatibility
-
-Nodes without a `flake` argument are completely unaffected. The project-level environment is aliased (`stdenv = projectStdenv`, `tBin = projectTBin`, etc.) so existing pipeline definitions require no changes.
+10. **Audit provenance before refactoring global options**: Before moving settings between `set_pipeline_global_options` and per-node declarations, use `pipeline_config_to_frame` (filter on `$prov_serializer == "global"`) or the `provenance` key of `pipeline_node_options` to see exactly which nodes rely on each global option
 
 ---
 
 ## Next Steps
 
-Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:
+Now that you've mastered pipeline manipulation and composition, explore the build side of pipelines:
 
-1. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
-2. **[Package Development](package_development.md)** — Create reusable T libraries.
-3. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
-4. **[API Reference](api-reference.md)** — Complete function reference by package.
+1. **[Pipeline Materialization & Nix Orchestration](pipeline-materialization.md)** — Building pipelines into reproducible Nix artifacts, orchestrating builds, transferring archives, CI/CD, branching, and custom flakes.
+2. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+3. **[Package Development](package_development.md)** — Create reusable T libraries.
+4. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
+5. **[API Reference](api-reference.md)** — Complete function reference by package.
+
 
 
 # FILE: docs/agent-pairing-tutorial.md
@@ -10179,6 +9638,54 @@ For datasets exceeding 2-3 GB:
   resolved configuration (runtime, serializer/deserializer, noop, deps, depth, functions,
   include, env_vars, args, shell, shell_args, flake) after any global-options merges.
   What you merge in with `set_pipeline_global_options`, you can read back out.
+- **Global `dependencies` are now visible to the build DAG**: In addition to
+  `p_explicit_deps`, `set_pipeline_global_options` now writes globally-injected
+  dependencies into `p_deps` so they participate in build ordering, depth computation,
+  `pipeline_validate`/`pipeline_cycles` cycle detection, and `pipeline_to_frame`
+  read-back. Self-references (a node depending on itself via global deps) are filtered
+  out to prevent false cycles.
+
+### Node Config Provenance (`explain` + `pipeline_node_options`)
+
+- **`pipeline_config_to_frame(p)`**: New tabular config read-back. Produces a DataFrame
+  with one row per node and 32 columns covering resolved config values (serializer,
+  deserializer, noop, shell, flake), per-field provenance (scalar source markers +
+  global/node count columns for lists), and identity columns (name, runtime, depth,
+  command_type). Complements `pipeline_node_options` (Dict detail) with queryable
+  DataFrame-wide overview — e.g., "filter on `prov_serializer == \"global\"` to find
+  every node whose serializer came from global options."
+- **Expanded `mutate_node` field coverage**: Now supports `functions`, `include`,
+  `env_vars`, `args`, `shell`, `shell_args`, and `flake` in addition to the existing
+  `noop`/`serializer`/`deserializer`/`runtime`/`deps`. All new fields participate in
+  provenance tracking so `pipeline_node_options` correctly shows them as `"node"`-sourced
+  after mutation. Pass `NA` to clear an optional or list field.
+
+- **`explain(p.node)` shows source provenance**: The `config` section of `explain()`
+  output for a computed node now distinguishes which settings came from global
+  pipeline options versus the node itself. `pipeline_node_options(p, node)` includes a
+  machine-readable `provenance` key (`{ global: [...], node: [...] }` groups for
+  mergeable lists; `"global"`/`"node"` markers for scalar overrides), so tooling can
+  audit where every setting originated.
+- **`pipeline_node_options` provenance key**: Mergeable options (`functions`, `include`,
+  `shell_args`, `dependencies`) report both `global` and `node` contributions; scalar
+  overrides (`serializer`, `deserializer`, `shell`, `flake`, `noop`) report which source
+  won; unset scalars are `NA`.
+
+### Pipeline Structural Validation — Shared Validator
+
+- **`pipeline_validate(p)` reports all structural errors**: New shared validator
+  (`pipeline_validation.ml`) backs `populate_pipeline`/`build_pipeline`, the eval-time
+  cross-runtime guard, `pipeline_validate`/`pipeline_assert`, and `t check` tier 1.
+  Checks now include missing function/include/script files, unknown runtimes (known set:
+  `T`, `R`, `Python`, `Julia`, `Quarto`, `sh`, `fetchurl`), missing dependencies, cycles,
+  cross-runtime deserializer gaps, serializer/deserializer format coherence across
+  dependency edges, multiple dependencies with a single deserializer strategy, and
+  `^bin` serializers on non-`fetchurl` nodes.
+- **`t check` tier 1 surfaces structural errors**: `t check <file.t>` (no Nix needed)
+  now reports these as structured `file_error`/`type_error`/`structural_error`
+  diagnostics with a non-zero exit code, matching the build path's guarantees.
+- **`pipeline_assert(p)` throws the first error** and returns the pipeline unchanged
+  when valid, for guard-style use in pipeline chains.
 
 ## [0.54.2] - 2026-07-29
 
@@ -20049,6 +19556,830 @@ The following optimizations are planned for future versions:
 - Zero-copy interop with Python/Pandas via Arrow Flight
 
 
+# FILE: docs/pipeline-materialization.md
+
+# Pipeline Materialization & Nix Orchestration
+
+> Building pipelines into reproducible Nix artifacts, orchestrating builds, transferring archives, and customizing build environments
+
+This guide covers how pipelines are *materialized* — turned into reproducible Nix derivations and artifacts — and how to orchestrate that process. It builds on the [Pipeline Tutorial](pipeline_tutorial.md) (basics) and the [Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md) (pipeline manipulation and composition).
+
+---
+
+## 31. Cross-Node Artifact Retrieval
+
+When nodes are executed within a Nix-managed sandbox (via `populate_pipeline(p, build = true)`), they are isolated from each other. However, T provides a built-in mechanism for nodes to access the serialized artifacts of their dependencies.
+
+### Automatic Environment Propagation
+
+For every dependency `dep` that a node has, the pipeline runner automatically injects an environment variable named `T_NODE_<dep>` into the sandbox. This variable contains the path to the Nix store directory where that dependency's artifact is stored.
+
+### Retrieval with `node_lens`
+
+The canonical way to access a sibling node's artifact is using the `node_lens` with the single-argument `get()` function. This is preferred over manual environment variable lookup because:
+1. It is **portable**: T handles the path resolution and deserialization automatically.
+2. It is **integrated**: It uses the same deserializer system as the rest of the pipeline.
+
+```t
+p = pipeline {
+  node_a = node(command = 100, serializer = "json")
+  
+  -- This node retrieves node_a's value from its Nix artifact
+  dynamic_access = node(
+    command = {
+        -- Using get(node_lens("...")) for cross-node access
+        val = get(node_lens("node_a"))
+        val * 2
+    },
+    runtime = "T"
+  )
+}
+```
+
+When `dynamic_access` runs inside the Nix sandbox:
+1. T sees the `node_lens("node_a")` and looks for the `T_NODE_node_a` environment variable.
+2. It locates the `artifact` file within that path.
+3. It detects the artifact class (e.g., `Int` from JSON) and deserializes it back into a T value.
+
+This pattern is essential for **polyglot pipelines** where data is passed between T, R, and Python nodes through files, and for **dynamic access** nodes where the target of a retrieval is determined at runtime (e.g., `target = "A"; get(node_lens(target))`).
+
+---
+
+## 32. Nix-Native Orchestration & Cachix
+
+To optimize large-scale pipelines and manage remote binary caching, T-Lang includes native Nix orchestration features in `build_pipeline` and `pipeline_run`. These features map directly to native `nix build` mechanics, allowing granular rebuild control, job parallelization, Cachix integration, and dry-runs.
+
+### Orchestration Parameters
+
+The functions `build_pipeline()` and `pipeline_run()` accept an optional `nix_options` dictionary containing the following keys:
+
+| Key | Type | Description | Nix Command Mapping |
+|---|---|---|---|
+| `targets` | String/List/Vector | Specific node(s) or outputs to build (e.g., `targets: ["model_a"]`) | `-A <targets>` |
+| `force` | Bool/String/List/Vector | Rebuild nodes even if they already exist in the Nix store. Pass `true` to force-rebuild all nodes, or a string/list of specific node names. | `--check` (rebuilds target) |
+| `dry_run` | Bool | Preview build actions without executing them. Returns a structured `DataFrame` of planned actions. | `--dry-run` |
+| `max_jobs` | Int | Limit parallel compilation/build jobs. | `--max-jobs N` |
+| `cache` | String | A Cachix binary cache name (e.g., `"rstats-on-nix"`) to pull/push built artifacts. | `--option extra-substituters ...` & `--option extra-trusted-public-keys ...` |
+| `builders` | String | Remote builder specification in SSH syntax. | `--builders ...` |
+| `keep_env` | String/List/Vector | Environment variable names to pass into the Nix sandbox. | `--option keep-env ...` |
+| `sandbox` | Bool/String | Sandboxing policy: `true`/`"strict"`, `"relaxed"`, or `false`/`"none"`. | `--option sandbox ...` |
+
+### Using `dry_run` for Build Previews
+
+If you set `dry_run: true` inside `nix_options`, T-Lang will invoke Nix in dry-run mode and return a structured `DataFrame` detailing the exact actions Nix plans to take (e.g., fetching from binary caches, building derivations):
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Inspect planned build actions without running them
+actions = build_pipeline(p, nix_options = [dry_run: true])
+print(actions)
+```
+
+The resulting `DataFrame` contains the columns:
+- `node`: The name of the pipeline node.
+- `action`: The action planned (e.g., `"build"`, `"substitute"`, or `"noop"`).
+- `path`: The absolute store path of the Nix derivation or artifact.
+
+### Advanced Nix Orchestration Example
+
+Below is an example showing how to trigger a parallel, cache-backed build targeting a specific node:
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+  c = b * 2
+}
+
+-- Rebuild only node 'c', with parallel execution, using a Cachix binary cache
+build_pipeline(p,
+               nix_options = [
+                 targets: ["c"],
+                 max_jobs: 4,
+                 cache: "rstats-on-nix",
+                 force: ["c"]
+               ])
+```
+
+## 33. Granular Artifact Transfer & Archive Introspection
+
+For teams working on large projects, T supports exporting Nix-materialized pipeline cache artifacts into portable archive files (`.nar` format). These archives can be transferred between machines, imported without rebuilding, or inspected without installing.
+
+### Granular Artifact Export
+
+To export cached artifacts, use `export_artifacts()`. In addition to entire pipelines, you can target specific sub-structures:
+
+```t
+p = pipeline {
+  a = shn(command = "echo -n 'hello'", capture = "stdout")
+  b = a |> \(x) x + " world"
+}
+build_pipeline(p)
+
+-- 1. Export the entire pipeline's artifacts
+export_artifacts(p, "full_cache.nar")
+
+-- 2. Granular export: Export a single computed node
+export_artifacts(p.a, "node_a.nar")
+
+-- 3. Export a list or vector of nodes/pipelines
+export_artifacts([p.a, p.b], "subset.nar")
+
+-- 4. Export nested structures/dictionaries
+export_artifacts([first: p.a, second: p.b], "dict_subset.nar")
+```
+
+### Variadic Artifact Import
+
+To restore exported artifacts, use `import_artifacts()`. It is variadic and supports two calling conventions:
+
+1. **Verification Import (2 arguments)**: Imports the archive and verifies that a specific pipeline, node, or value's paths exist in the local store.
+2. **Immediate Store Import (1 argument)**: Unpacks and loads the archive directly into the local Nix store without needing a target object for verification. This is especially useful for setting up an environment prior to loading or parsing a pipeline script.
+
+```t
+-- Convention 1: Import and verify against a pipeline
+import_artifacts(p, "full_cache.nar")
+
+-- Convention 2: Load archive directly into the Nix store
+import_artifacts("full_cache.nar")
+```
+
+### Archive Introspection
+
+You can inspect the contents of an artifact archive file without unpacking it permanently or changing your local store. The `inspect_artifacts()` function imports the archive into a temporary, isolated Nix store, extracts metadata for each path, and returns a DataFrame.
+
+```t
+df = inspect_artifacts("full_cache.nar")
+
+-- View the details of the archive
+df
+-- DataFrame with columns:
+--   - node: The name of the node (if known)
+--   - store_path: The Nix store path of the artifact
+--   - hash: The SHA-256 hash of the store path
+--   - size_bytes: The size of the unpacked artifact in bytes
+--   - references: Comma-separated basenames of dependency store paths
+```
+
+### Cache-Aware Dry Runs
+
+For convenience, you can perform a dry-run check directly using the `dry_run = true` parameter in `populate_pipeline()`. This reports which nodes are already in the Nix cache and which ones require rebuilding or downloading:
+
+```t
+p = pipeline {
+  a = 1
+  b = a + 1
+}
+
+-- Check cache hit/miss status directly
+plan = populate_pipeline(p, dry_run = true)
+print(plan)
+-- Returns a DataFrame with columns: node, action, and path.
+-- "action" will be one of:
+--   - "cached": path is already built/cached locally
+--   - "build": path must be rebuilt locally
+--   - "fetch": path can be retrieved from remote binary substitutes
+```
+
+### Programmatic Garbage Collection
+
+Over time, your local Nix store can accumulate unused derivations and cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix artifacts directly:
+
+1. **`pipeline_gc(p, dry_run = false)`**: Deletes the store paths of the given pipeline `p`. By default (`dry_run = true`), it queries what would be deleted and returns a DataFrame showing the `node`, `store_path`, and `deleted` status. Set `dry_run = false` to perform the actual deletion.
+2. **`t_gc()`**: Performs a global Nix store garbage collection (`nix-store --gc`), removing all unused derivations and freeing up disk space.
+
+```t
+p = pipeline {
+  a = 1
+}
+
+-- Preview what would be deleted
+plan = pipeline_gc(p, dry_run = true)
+
+-- Perform the deletion of the pipeline's nodes
+pipeline_gc(p, dry_run = false)
+
+-- Perform global garbage collection
+t_gc()
+```
+
+---
+
+## 34. CI/CD with GitHub Actions
+
+T can generate a complete GitHub Actions workflow YAML for executing a pipeline via `pipeline_to_ga()`. The generated workflow:
+
+1. Restores cached Nix artifacts from the `t-runs` branch (via `nix-store --import`)
+2. Runs the pipeline via `nix develop --command t run <pipeline_script>`
+3. Exports updated artifacts back to the `t-runs` branch
+
+```t
+-- Write the generated YAML directly to .github/workflows/<name>.yml (uses "src/pipeline.t" by default)
+pipeline_to_ga()
+
+-- Write directly to a custom path (e.g. .github/workflows/ci.yml)
+pipeline_to_ga("src/run.t", file = ".github/workflows/ci.yml")
+
+-- Get the generated YAML back as a string instead of writing to disk
+yaml = pipeline_to_ga(file = "")
+print(yaml)
+```
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `pipeline_script` | `String` | `"src/pipeline.t"` | Path to the pipeline T script. Can be passed as the first positional argument. |
+| `name` | `String` | Auto-detected | Project name from `tproject.toml`. Controls the workflow display name, job ID, and NAR archive filename. |
+| `file` | `String` | `".github/workflows/<name>.yml"` | Output file path. Defaults to `.github/workflows/<name>.yml`. Set to an empty string (`""`) to return the YAML workflow as a string without writing to disk. |
+
+The auto-detected project name comes from the `name` field in your project's `tproject.toml`. If neither a `name` argument nor a `tproject.toml` is found, an error is raised prompting you to provide an explicit name.
+
+---
+
+## 35. Pattern-Based Branching
+
+T lets you dynamically expand a single pipeline node into multiple branches using pattern functions. This is useful when you need to run the same computation over each element of a list, vector, or data frame.
+
+Patterns are **automatically expanded** when you call `populate_pipeline()` or `build_pipeline()` — you do not need to call `expand_pipeline()` explicitly. The explicit function is available if you want to inspect the expanded structure before building.
+
+### 35.1 `map_pattern` — One Branch Per Element
+
+Use `map_pattern(dep)` to create one branch for each element of an upstream dependency:
+
+```t
+p = pipeline {
+  x = [10, 20, 30]
+  y = node(command = <{ x * 2 }>, pattern = map_pattern(x))
+}
+
+-- Auto-expansion happens inside build_pipeline:
+build_pipeline(p)
+
+-- Or inspect the expanded structure explicitly:
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
+
+expanded.y_branch_1  -- 20  (10 * 2)
+expanded.y_branch_2  -- 40  (20 * 2)
+expanded.y_branch_3  -- 60  (30 * 2)
+```
+
+Multiple dependencies can be mapped simultaneously — all must have the same length, and branch `i` receives element `i` from each:
+
+```t
+p = pipeline {
+  xs = [1, 2, 3]
+  ys = [10, 20, 30]
+  z = node(command = <{ xs + ys }>, pattern = map_pattern(xs, ys))
+}
+-- build_pipeline(p) auto-expands before building
+```
+
+### 35.2 `cross_pattern` — Cartesian Product
+
+Use `cross_pattern(sub1, sub2, ...)` for a Cartesian product of multiple `map_pattern` sub-patterns:
+
+```t
+p = pipeline {
+  a = [1, 2]
+  b = [10, 20]
+  c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- ["a", "b", "c_branch_1", "c_branch_2", "c_branch_3", "c_branch_4"]
+-- Branch order: (a=1,b=10), (a=1,b=20), (a=2,b=10), (a=2,b=20)
+```
+
+### 35.3 DataFrame Row Branching
+
+When a dependency is a DataFrame, each row becomes one branch element:
+
+```t
+df = to_dataframe([[x: 10], [x: 20], [x: 30]])
+
+p = pipeline {
+  data = df
+  result = node(command = <{ data }>, pattern = map_pattern(data))
+}
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)
+-- ["data", "result_branch_1", "result_branch_2", "result_branch_3"]
+-- Each branch receives a 1-row DataFrame
+```
+
+### 35.4 Selector Patterns
+
+For finer-grained control over which elements produce branches, use selector patterns.
+All four take exactly one dependency and an integer parameter, and produce N branches
+where N is determined by the parameter.
+
+#### 35.4.1 `slice_pattern(dep, [i, j, ...])` — Branch on Specific Indices
+
+Select specific indices (0-based) from the dependency. Each index in the list becomes one
+branch. This is useful when you want to recompute only a subset of values, or when you
+want to reorder branches.
+
+```t
+p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Only branches for indices 0, 2, 4:
+  y = node(command = <{ x }>, pattern = slice_pattern(x, [0, 2, 4]))
+}
+-- expand_pipeline(p) produces:
+--   y_branch_1 with x = 10  (index 0)
+--   y_branch_2 with x = 30  (index 2)
+--   y_branch_3 with x = 50  (index 4)
+```
+
+Indices must be within the dependency's bounds (0 ≤ i < length). Out-of-range indices
+return an error at expansion time.
+
+#### 35.4.2 `head_pattern(dep, n)` — Branch on First N Elements
+
+Take the first `n` elements of the dependency. Each of the first N elements becomes
+one branch. If `n` exceeds the dependency length, it is silently capped — you get at
+most `length(dep)` branches.
+
+```t
+p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- First two elements:
+  y = node(command = <{ x }>, pattern = head_pattern(x, 2))
+  -- First ten (capped at 5):
+  z = node(command = <{ x }>, pattern = head_pattern(x, 10))
+}
+-- y produces 2 branches: y_branch_1 (x=10), y_branch_2 (x=20)
+-- z produces 5 branches (one per element, since 10 > 5)
+```
+
+#### 35.4.3 `tail_pattern(dep, n)` — Branch on Last N Elements
+
+Take the last `n` elements of the dependency. Branches are indexed from the end —
+element at `length - n` becomes `branch_1`, and so on. Like `head_pattern`, n is
+capped to the dependency length if it exceeds it.
+
+```t
+p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Last two elements:
+  y = node(command = <{ x }>, pattern = tail_pattern(x, 2))
+}
+-- y produces 2 branches:
+--   y_branch_1 with x = 40  (index 3)
+--   y_branch_2 with x = 50  (index 4)
+```
+
+#### 35.4.4 `sample_pattern(dep, n)` — Randomly Select N Elements
+
+Randomly select `n` elements from the dependency (without replacement — no duplicate
+branches). Uses a Fisher-Yates partial shuffle seeded deterministically from the
+node name (`Hashtbl.hash name`), so repeated expansions of the same pipeline always
+produce the same random draw. Different node names produce different draws.
+As with the other selectors, n is capped to the dependency length.
+
+```t
+p = pipeline {
+  x = [10, 20, 30, 40, 50]
+  -- Randomly pick 2 elements:
+  y = node(command = <{ x }>, pattern = sample_pattern(x, 2))
+}
+-- y produces 2 branches with randomly chosen values from x.
+-- The selection is deterministic: calling expand_pipeline(p) again on
+-- the same pipeline always picks the same two indices.
+```
+
+#### Selector Patterns Summary
+
+| Pattern | Branch count | Branches from |
+|---|---|---|
+| `slice_pattern(dep, [i, j, ...])` | `len(indices)` | Values at given indices |
+| `head_pattern(dep, n)` | `min(n, length(dep))` | First n elements |
+| `tail_pattern(dep, n)` | `min(n, length(dep))` | Last n elements |
+| `sample_pattern(dep, n)` | `min(n, length(dep))` | Random n elements |
+
+All four patterns are automatically expanded on `build_pipeline`, `populate_pipeline`,
+and composition builtins (`chain`, `parallel`, `union`, etc.), just like `map_pattern`
+and `cross_pattern`. They cannot be nested inside `cross_pattern()` — only
+`map_pattern` is supported as a sub-pattern of `cross_pattern`.
+
+### 35.5 Pattern Branching with Non-T Runtimes
+
+Pattern branching works with non-T runtimes (`R`, `Python`, `Julia`, etc.), but requires explicit `serializer` and `deserializer` configuration so cross-runtime data interchange works correctly. Each branch runs under the same runtime as the original patterned node:
+
+```t
+p = pipeline {
+  a = [1, 2, 3]
+  b = node(
+    command = <{ a }>,
+    runtime = R,
+    serializer = ^json,
+    deserializer = ^json,
+    pattern = map_pattern(a)
+  )
+}
+
+build_pipeline(p)
+-- Each branch (b_branch_1, b_branch_2, b_branch_3) runs in R
+```
+
+The serializer/deserializer symbols (`^json` in the example) must match a supported interchange format on both sides of the runtime boundary. If serializer and deserializer are omitted, expansion succeeds but the build will fail — the default serializer cannot produce runtime-specific artifacts for cross-runtime data interchange.
+
+See §35.8 for a complete polyglot example using `cross_pattern` and `map_pattern` with R `ggplot2`.
+
+### 35.6 Writing the Expanded Pipeline to a File
+
+Pass `to_script` to write the expanded pipeline as a T source file for inspection or debugging:
+
+```t
+expand_pipeline(p, to_script = "expanded_pipeline.t")
+```
+
+The output file contains the full `pipeline { ... }` definition with all branches unrolled.
+
+### 35.7 Build and Composition Auto-Expand
+
+`populate_pipeline()`, `build_pipeline()`, `chain()`, `parallel()`, `union()`, `intersect()`, `difference()`, and `patch()` all automatically expand any unexpanded patterns in their pipeline inputs before proceeding. You only need to call `expand_pipeline()` explicitly when you want to inspect the branch structure before building.
+
+### 35.8 Lazy Branch Access
+
+Even before calling `expand_pipeline()`, you can inspect and interact with the branch structure of a patterned pipeline directly:
+
+**List branch names** with `pipeline_nodes(p)`:
+
+```t
+p = pipeline {
+  a = [10, 20, 30]
+  b = map_pattern(a) ~> a * 2
+}
+pipeline_nodes(p)
+-- Result: ["a", "b_branch_1", "b_branch_2", "b_branch_3"]
+```
+
+**Inspect branch structure** with `inspect_pipeline(p)`:
+
+```t
+inspect_pipeline(p)
+-- DataFrame with one row per branch, including auto-generated branch names
+```
+
+**Access a branch by name** with dot notation — `p.b_branch_1` lazily synthesizes a `VComputedNode` without triggering expansion:
+
+```t
+b1 = p.b_branch_1
+-- b1 is a computed node that will be resolved when built
+```
+
+**Helpful error on the parent node**: if you try `read_node(p.b)` on a patterned node before building, instead of a generic "not built yet" error you get a message listing the available branches:
+
+```
+Error(ValueError): Node `b` has a pattern and expands into b_branch_1, b_branch_2, b_branch_3.
+  Use read_node(p.<branch_name>) to access individual branches directly.
+```
+
+**Reserved naming**: node names ending in `_branch_N` (e.g. `x_branch_1`) are reserved for auto-generated branch nodes. Using such a name at pipeline construction produces a `NameError`.
+
+### 35.9 Complete Example: Polyglot Dynamic Branching Pipeline
+
+This demo (from `t_demos/dynamic_branching_t`) combines `cross_pattern`, `map_pattern`, and cross-runtime (T ↔ R) serialization into a single end-to-end pipeline. It generates spirograph data points in T and plots them with R `ggplot2` — one plot per parameter combination.
+
+#### Problem
+
+You have a list of radii `[3, 5, 8]` and `[2, 4, 6]`. You want all 9 combinations of spirograph curves drawn as ggplot2 faceted plots. Writing 9 nodes by hand is tedious — use pattern branching instead.
+
+#### Pipeline Definition
+
+```t
+p = pipeline {
+  fixed_radii = [3, 5, 8]
+  cycling_radii = [2, 4, 6]
+
+  points = node(
+    command = <{
+      import "src/spirograph.t"
+      spirograph_points(fixed_radii, cycling_radii)
+    }>,
+    pattern = cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii)),
+    runtime = T,
+    serializer = ^json
+  )
+
+  single_plot = node(
+    command = <{ plot_spirographs(points) }>,
+    pattern = map_pattern(points),
+    functions = ["src/spirograph.R"],
+    runtime = R,
+    deserializer = ^json
+  )
+}
+```
+
+#### How It Works
+
+1. **`cross_pattern(map_pattern(fixed_radii), map_pattern(cycling_radii))`** — takes the Cartesian product of both lists (3 × 3 = 9). Each branch calls `spirograph_points(r_fixed, r_cycling)` from `src/spirograph.t` with one specific radius pair, returning a DataFrame of x, y coordinates.
+
+2. **`serializer = ^json`** — the `points` node uses the `^json` symbol serializer to write each branch's DataFrame as a JSON array of records. Without this, the R node downstream cannot read the data.
+
+3. **`map_pattern(points)`** — creates one branch per `points` output (9 branches total). Each branch calls `plot_spirographs()` from `src/spirograph.R`.
+
+4. **`deserializer = ^json`** — Tells the pipeline runner to read the R node's JSON artifact back so it can be cached and inspected.
+
+5. **`^json` symbol syntax** — required for serializer/deserializer values in cross-runtime pipelines (string literals like `"json"` are not accepted). This is the canonical way to declare interchange formats.
+
+#### The Helper Code
+
+**`src/spirograph.t`** — a parametric spirograph function called by each data branch:
+
+```t
+spirograph_points = \(fixed_radius, cycling_radius) {
+  num_points = 10000
+  max_t = 30 * pi
+  t_values = float_seq(0, max_t, num_points)
+  diff = fixed_radius - cycling_radius
+  ratio = diff / cycling_radius
+  xs = t_values |> map(\(t) diff * cos(t) + cos(t * ratio))
+  ys = t_values |> map(\(t) diff * sin(t) - sin(t * ratio))
+  to_dataframe([x: xs, y: ys,
+    fixed_radius: fixed_radius,
+    cycling_radius: cycling_radius])
+}
+```
+
+**`src/spirograph.R`** — renders a faceted ggplot for one parameter combination:
+
+```r
+library(ggplot2)
+
+plot_spirographs <- function(points) {
+  label <- "fixed_radius = %s, cycling_radius = %s"
+  points$parameters <- sprintf(label, points$fixed_radius, points$cycling_radius)
+  ggplot(points) +
+    geom_point(aes(x = x, y = y, color = parameters), size = 0.1) +
+    facet_wrap(~parameters) +
+    theme_gray(16) +
+    guides(color = "none")
+}
+```
+
+Note the `functions = ["src/spirograph.R"]` argument on the R node — this propagates the script into the Nix sandbox so it is available at build time.
+
+#### Building
+
+When you run `build_pipeline(p, verbose = 1)`, T automatically expands the patterns before building:
+
+```
++ points_branch_1 building
++ points_branch_2 building
+...
++ points_branch_9 building
++ single_plot_branch_3 building
++ single_plot_branch_5 building
+...
++ single_plot_branch_1 building
+
+✓ Pipeline build completed [20 built / 20 nodes]
+```
+
+20 nodes total: 2 root (`fixed_radii`, `cycling_radii`), 9 data branches, 9 plot branches.
+
+#### Post-Build Verification
+
+Since `build_pipeline` does not modify the original pipeline variable `p`, expanded branch nodes are only visible in the build log. Use `build_log_to_frame()` to inspect them:
+
+```t
+res = build_pipeline(p, verbose = 1)
+
+node_frame = build_log_to_frame(res)
+points_branches = filter(node_frame, \(r) starts_with(r.name, "points"))
+plot_branches = filter(node_frame, \(r) starts_with(r.name, "single_plot"))
+
+assert(nrow(points_branches) == 9, "Expected 9 points branches")
+assert(nrow(plot_branches) == 9, "Expected 9 single_plot branches")
+assert(length(res.failed_nodes) == 0, "All nodes should succeed")
+```
+
+This pattern — `build_log_to_frame(res)` + `filter` with a lambda — is the recommended way to verify branched pipeline builds when you need to inspect individual expanded nodes.
+
+#### Key Takeaways
+
+- **`cross_pattern(map_pattern(...), map_pattern(...))`** generates a Cartesian product of branches.
+- **Chaining patterns** (`cross_pattern` → `map_pattern`) lets you build multi-phase branched pipelines.
+- **`^json` serializer/deserializer** enables cross-runtime data interchange between T and R nodes.
+- **Expanded nodes exist only in the build log**, not in the original pipeline variable. Use `build_log_to_frame()` for post-build queries.
+- **Patterns work with non-T runtimes downstream** — a `map_pattern` node can depend on T data branches and run in R (or Python or Julia), as long as serialization is configured correctly.
+
+---
+
+## 36. Static Conditionals
+
+T supports conditional node inclusion evaluated at pipeline construction time, preserving Nix's static DAG requirement. There are two functions: `node_when` and `node_fork`.
+
+### `node_when(condition, value)`
+
+Returns `value` if `condition` is truthy, otherwise returns a null marker that causes the pipeline to exclude the node entirely. The condition is evaluated before the build.
+
+```t
+p = pipeline {
+  dev_data = read_csv("data/dev.csv")
+
+  model = node_when(env("CI") == "1", pyn(script = "train.py"))
+
+  deployed = node_when(env("BRANCH") == "main", pyn(script = "deploy.py"))
+}
+
+build_pipeline(p)
+```
+
+If `CI` is not `"1"`, the `model` node is excluded and no attempt is made to resolve its dependencies. If `BRANCH` is not `"main"`, the `deployed` node is similarly excluded.
+
+### `node_fork(...condition_value_pairs, .default = ...)`
+
+A multi-way branch: takes condition-value pairs and returns the value for the first truthy condition. If no condition matches and no `.default` is provided, the node is excluded.
+
+```t
+p = pipeline {
+  data = read_csv("data.csv")
+
+  model = node_fork(
+    env("MODEL") == "linear", lm(mpg ~ wt, data),
+    env("MODEL") == "forest", pyn(script = "rf.py"),
+    env("MODEL") == "neural", pyn(script = "nn.py"),
+    .default = lm(mpg ~ wt, data)
+  )
+}
+```
+
+Here, setting `MODEL=forest` in the environment selects the random forest node; any other value falls back to the `.default` linear model.
+
+### Important Notes
+
+- Both `node_when` and `node_fork` are only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
+- Conditions must be evaluable at pipeline construction time — typically using `env()` to read environment variables.
+- The null marker from an unmatched condition is not a regular value; it cannot be inspected, stored, or tested with `is_na()`. It exists only to signal node exclusion to the pipeline machinery.
+
+---
+
+## 37. Custom Flakes per Node
+
+By default, every node in a pipeline uses the project's flake (defined by `tproject.toml`) for its build environment. The **`flake`** named argument lets you override this — each node can use a completely different Nix flake, replacing the entire environment for that node.
+
+```t
+p = pipeline {
+  -- Node using the default project flake (unchanged)
+  a = node(command = "hello from default flake", runtime = T)
+
+  -- Node using a different flake from GitHub
+  b = node(
+    command = "hello from custom flake",
+    runtime = T,
+    flake = "github:b-rodrigues/tlang"
+  )
+}
+```
+
+### How It Works
+
+When `populate_pipeline(p)` generates the Nix expression, each unique flake path creates a dedicated environment via the `mkNodeEnv` helper:
+
+```nix
+env_github_b_rodrigues_tlang = mkNodeEnv "github:b-rodrigues/tlang";
+env_github_jbedo_rshells     = mkNodeEnv "github:jbedo/rshells";
+env_path_test_flake           = mkNodeEnv "path:../test_flake";
+```
+
+Nodes referencing a custom flake are rewritten to use that flake's bindings (`env_<name>.stdenv`, `env_<name>.tBin`, etc.) instead of the project-level bindings. Nodes without a `flake` argument continue to use the project flake unchanged.
+
+### Supported Flake References
+
+| Format | Example | Notes |
+|--------|---------|-------|
+| `github:owner/repo` | `github:b-rodrigues/tlang` | GitHub repository |
+| `github:owner/repo/rev` | `github:b-rodrigues/tlang/main` | With branch/commit |
+| `gitlab:owner/repo` | `gitlab:example/project` | GitLab repository |
+| `sourcehut:owner/repo` | `sourcehut:~user/project` | SourceHut repository |
+| `path:/abs/path` | `path:/home/user/myflake` | Absolute local path |
+| `path:../relative/path` | `path:../test_flake` | Relative local path |
+
+### Selective Replacement with Fallback
+
+A per-node flake **replaces** the project flake for that node on a per-component basis. Each runtime component is resolved independently from the custom flake when available, otherwise it falls back to the project-level binding:
+
+| Component | Resolved from custom flake if… | Falls back to project if missing |
+|-----------|-------------------------------|----------------------------------|
+| `tBin` (T binary) | `flake.inputs.t-lang.packages.${system}.default` | Project `t` binary |
+| `r-env` (R environment) | `flake.inputs.t-lang.packages.${system}.tlang-r` | Just `pkgs.rWrapper` (no `tlang-r`) |
+| `tlangJl` (Julia path) | `flake.inputs.t-lang.packages.${system}.tlang-julia-path` | Project Julia path |
+| `pkgs` (nixpkgs) | `flake.legacyPackages.${system}` or `flake.inputs.nixpkgs.legacyPackages.${system}` | Project nixpkgs |
+| `stdenv` | `pkgs.stdenv` from the custom flake's nixpkgs | — (derives from `pkgs`) |
+| `py-env` (Python) | `pkgs.${pyVersion}.withPackages` from custom nixpkgs | — (just the packages, no `t-lang` component) |
+| `juliaPkg` (Julia) | `pkgs.${juliaPackageName}` from custom nixpkgs | — (just the package, no `t-lang` component) |
+
+This means:
+
+- **An R-only flake** (like `github:jbedo/rshells`) provides R packages and nixpkgs snapshot, while T serialization infrastructure comes from the project
+- **A full t-lang flake** (like `github:b-rodrigues/tlang`) replaces everything — nixpkgs, R/Python/Julia, and T binary
+- **Different nixpkgs version** — a node can use an older or newer nixpkgs than the project
+- **Different R/Python packages** — each node can have its own package set
+- **Different t-lang version** — each node can run a different build of T (if the flake provides `t-lang`)
+
+### Project-Level Package Inheritance
+
+A per-node flake replaces the **runtime components** (t-lang binary, language runtimes, nixpkgs) for that node. However, **project-level package declarations** from `tproject.toml` (`[r-dependencies]`, `[py-dependencies]`, `[jl-dependencies]`) are still installed in every node, including those using a custom flake. The flake determines *which nixpkgs revision* the packages are built from, but `tproject.toml` determines *what packages* are installed on top of the flake's environment.
+
+This means:
+
+- **Same package, different nixpkgs** — A package declared in `[r-dependencies]` is built from each per-node flake's nixpkgs. A node using `nixpkgs/r-updates` may get a different version than a node using `nixos-24.11`.
+- **Project-level convenience** — Common packages can be declared once in `tproject.toml` and shared across all nodes, regardless of which flake each node uses.
+- **Self-contained flakes** — If you need a flake to be fully self-contained (usable in any project without modifying `tproject.toml`), configure the desired packages directly within the flake's R/Python/Julia environment rather than relying on project-level declarations.
+
+```t
+-- Example: both nodes use different flakes, but both inherit jsonlite
+-- from the project's [r-dependencies]:
+f = node(
+  command = <{ library(jsonlite); toJSON(mtcars) }>,
+  runtime = R,
+  flake = "github:jbedo/rshells"
+)
+g = node(
+  command = <{ library(jsonlite); fromJSON("data.json") }>,
+  runtime = R,
+  flake = "path:../minimal_r_flake"
+)
+```
+
+> [!TIP]
+> To check which packages a per-node flake environment has access to, use `require()` in R or `import` in Python/Julia within the node's command block rather than assuming the flake's nixpkgs determines package availability.
+
+### Local Flakes
+
+You can reference a local flake directory using `path:` URLs. The path is resolved relative to the `_pipeline/` directory where the Nix expression is generated:
+
+```t
+d = node(
+  command = "hello from local flake",
+  runtime = T,
+  flake = "path:../test_flake"
+)
+```
+
+The referenced directory must contain a valid `flake.nix` with `inputs.nixpkgs` and the standard t-lang `packages` (including `tlang-r`, `tlang-julia`, etc.) for proper sandbox resolution.
+
+### How the Flake Must Be Structured
+
+To work with `mkNodeEnv`, the custom flake must expose the same outputs that T's project flake provides:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    t-lang.url  = "github:b-rodrigues/tlang";
+  };
+
+  outputs = { self, nixpkgs, t-lang }: {
+    legacyPackages.${builtins.currentSystem} =
+      nixpkgs.legacyPackages.${builtins.currentSystem};
+
+    packages.${builtins.currentSystem} = rec {
+      default          = t-lang.packages.${builtins.currentSystem}.default;
+      tlang-r          = t-lang.packages.${builtins.currentSystem}.tlang-r;
+      tlang-julia-path = t-lang.packages.${builtins.currentSystem}.tlang-julia-path;
+      "tlang-julia"    = t-lang.packages.${builtins.currentSystem}."tlang-julia";
+    };
+  };
+}
+```
+
+The key requirements are:
+- `legacyPackages.${system}` — provides the full nixpkgs package set
+- `packages.${system}.default` — provides the `t` binary
+- `packages.${system}.tlang-r` — provides R packages declared in the flake
+- `packages.${system}.tlang-julia-path` / `packages.${system}."tlang-julia"` — provides Julia packages
+
+If these outputs are missing, the per-node sandbox will fail at build time when attempting to resolve runtime dependencies.
+
+### Backward Compatibility
+
+Nodes without a `flake` argument are completely unaffected. The project-level environment is aliased (`stdenv = projectStdenv`, `tBin = projectTBin`, etc.) so existing pipeline definitions require no changes.
+
+---
+
+## Next Steps
+
+Now that you've mastered pipeline materialization, learn how to manage reproducible projects and develop T packages:
+
+1. **[Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md)** — Node manipulation, set operations, DAG transformations, composition, and validation.
+2. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+3. **[Package Development](package_development.md)** — Create reusable T libraries.
+4. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
+5. **[API Reference](api-reference.md)** — Complete function reference by package.
+
+
 # FILE: docs/pipeline_tutorial.md
 
 # Pipeline Tutorial
@@ -20192,6 +20523,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | Function | Parameters | Returns | What it does |
 |---|---|---|---|
 | `pipeline_to_frame(p)` | `Pipeline` | `DataFrame` | Full node metadata (runtime, serializer, deps, depth, command_type) |
+| `pipeline_config_to_frame(p)` | `Pipeline` | `DataFrame` | Node config + provenance: resolved values, per-field source (`global`/`node`), and global/node counts for every list option (32 columns) |
 | `pipeline_nodes(p)` | `Pipeline` | `List[String]` | All node names |
 | `pipeline_deps(p)` | `Pipeline` | `Dict` | Node name → list of dependency names |
 | `pipeline_edges(p)` | `Pipeline` | `List[[from, to]]` | Edge list as dependency pairs |
@@ -20199,7 +20531,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `pipeline_leaves(p)` | `Pipeline` | `List[String]` | Nodes that nothing depends on |
 | `pipeline_depth(p)` | `Pipeline` | `Int` | Maximum topological depth |
 | `pipeline_cycles(p)` | `Pipeline` | `List[String]` | Nodes involved in cycles (empty = valid) |
-| `pipeline_validate(p)` | `Pipeline` | `List[String]` | All structural validation errors (empty = valid); checks missing files, unknown runtimes, missing deps, cycles, cross-runtime deserializer gaps, serializer coherence, multi-dep deserializer strategies, and `^bin`-only-for-fetchurl |
+| `pipeline_validate(p)` | `Pipeline` | `List[String]` | All structural validation errors (empty = valid); checks missing files, unknown runtimes, missing deps, cycles, cross-runtime deserializer gaps, serializer coherence, multi-dep deserializer strategies, and `^bin`-only-for-fetchurl. Same checks power `populate_pipeline`, `build_pipeline`, and `t check` tier 1 |
 | `pipeline_assert(p)` | `Pipeline` | `Pipeline` | Throws first error, or returns pipeline unchanged |
 | `pipeline_print(p)` | `Pipeline` | `NA` | Pretty-print node table to stdout |
 | `pipeline_to_dot(p)` | `Pipeline` \| `MetaPipeline` | `String` | Graphviz DOT representation |
@@ -20411,6 +20743,34 @@ info.noop        # => whether the node is a no-op
 info.depth       # => topological depth in the DAG
 ```
 
+##### The `provenance` Key
+
+Every node tracks **where each resolved setting came from**. The returned dict
+includes a `provenance` key with one entry per option:
+
+- **Mergeable lists** (`functions`, `include`, `shell_args`, `dependencies`)
+  are grouped as `{ global: [...], node: [...] }` — the global list holds
+  values injected by `set_pipeline_global_options`, the node list holds values
+  declared on the node itself (or set later via `mutate_node`).
+- **Scalar overrides** (`serializer`, `deserializer`, `shell`, `flake`, `noop`)
+  map to the source that won: `"global"` or `"node"`, or `NA` when unset.
+- **Keyed options** (`env_vars`, `args`) map each individual key to its source.
+
+```t
+info = pipeline_node_options(q, "data")
+info.provenance.functions.global   # => ["utils.R"] (injected globally)
+info.provenance.functions.node     # => ["data.R"]  (declared on the node)
+info.provenance.serializer         # => "global" or "node" or NA
+```
+
+This is the audit trail behind every resolved value: **what** the node uses is
+in the top-level keys, **where it came from** is in `provenance`.
+
+For a DataFrame-wide view across all nodes at once — e.g. "which nodes got
+their serializer from global options?" — use `pipeline_config_to_frame(p)`
+(see the [Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md#node-metadata)).
+`explain(p.node)` also includes a `config` section with this provenance.
+
 See `set_pipeline_global_options` and `pipeline_node_options` in the
 [API reference](api-reference.md) for the full key list.
 
@@ -20579,7 +20939,7 @@ p.summary  -- DataFrame with regional totals
 
 ## 11. Pipeline Introspection
 
-> [↩ Quick Reference: Reading Node Artifacts](#3-pipeline-function-quick-reference)
+> [↩ Quick Reference: Reading Node Artifacts](#pipeline-function-quick-reference)
 
 T provides functions to inspect pipeline structure:
 
@@ -20700,7 +21060,7 @@ p.nonexistent
 
 ## 15. Materializing Pipelines
 
-> [↩ Quick Reference: Reading Node Artifacts](#3-pipeline-function-quick-reference)
+> [↩ Quick Reference: Reading Node Artifacts](#pipeline-function-quick-reference)
 
 Defining a pipeline with `pipeline { ... }` evaluates nodes in-memory. To **materialize** them as reproducible Nix artifacts (potentially using R or Python dependencies you've defined in `tproject.toml`), use `populate_pipeline()` with the `build = true` argument:
 
@@ -20716,7 +21076,7 @@ populate_pipeline(p, build = true)
 `populate_pipeline(p, build = true)` is the primary command for materializing a pipeline. It does the following:
 
 1. **Populates** the `_pipeline/` directory with `pipeline.nix` and `dag.json`.
-2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments — including nodes that use a custom per-node flake (see [Custom Flakes per Node](advanced-pipeline-tutorial.md#37-custom-flakes-per-node) for inheritance details).
+2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments — including nodes that use a custom per-node flake (see [Custom Flakes per Node](pipeline-materialization.md#custom-flakes-per-node) for inheritance details).
 3. **Triggers** a Nix build to materialize each node as a serialized artifact.
 4. **Records** the build in a timestamped log file (`_pipeline/build_log_YYYYMMdd_HHmmss_hash.json`).
 
@@ -20822,11 +21182,12 @@ p.ranked        -- DataFrame sorted by score
 
 Now that you've mastered pipeline basics, explore advanced topics:
 
-1. **[Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md)** — Dynamic branching (pattern expansion), node manipulation, pipeline composition, DAG transformations, CI/CD, and more.
-2. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
-3. **[Package Development](package_development.md)** — Create reusable T libraries.
-4. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
-5. **[API Reference](api-reference.md)** — Complete function reference by package.
+1. **[Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md)** — Node manipulation, set operations, DAG transformations, composition, inspection, and validation.
+2. **[Pipeline Materialization & Nix Orchestration](pipeline-materialization.md)** — Building pipelines into reproducible Nix artifacts, orchestrating builds, transferring archives, CI/CD, branching, and custom flakes.
+3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+4. **[Package Development](package_development.md)** — Create reusable T libraries.
+5. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
+6. **[API Reference](api-reference.md)** — Complete function reference by package.
 
 
 # FILE: docs/pipes.md
@@ -22955,28 +23316,36 @@ The output Nix store path or the dry-run DataFrame.
 
 # build_pipeline
 
-Build Pipeline Artifacts
+Build Pipeline
 
-Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry. Supports Nix-native orchestration flags for targeted builds, cache usage, and dry-runs.  If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before building.
+Shorthand for `populate_pipeline(p, build = true)`. Materializes all nodes of the pipeline via Nix and returns a `BuildLog` (or a DataFrame of build stats). Recommended for scripts run with `t run`.
 
 ## Parameters
 
-- **pipeline** (`Pipeline`): The pipeline to build.
+- **p** (`Pipeline`): The pipeline to build.
 
-- **verbose** (`Int`): (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+- **verbose** (`Int`): = 0 Nix build verbosity level (`0` = quiet, higher values print node stdout/stderr).
 
-- **dry_run** (`Bool`): (Optional) Return a planned build DataFrame without executing. Maps to `--dry-run`.
+- **nix_options** (`Dict`): (Optional) Nix build options. Supported keys: `targets`, `force`, `dry_run`, `max_jobs`, `cache`, `builders`, `keep_env`, `sandbox`.
 
-- **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
+- **dry_run** (`Bool`): (Optional) If `true`, returns a planned build actions DataFrame instead of building.
+
+- **pipeline_name** (`String`): (Optional) Explicit name for the pipeline.
 
 
 ## Returns
 
-A structured build log (`nodes`, `duration`, `failed_nodes`, `out_path`), or a dry-run DataFrame.
+| DataFrame A BuildLog of the build, or a planned-actions DataFrame when `dry_run` is set.
+
+## Examples
+
+```t
+build_pipeline(p)
+```
 
 ## See Also
 
-[read_node](read_node.html)
+[pipeline_run](pipeline_run.html), [populate_pipeline](populate_pipeline.html)
 
 
 
@@ -23138,6 +23507,35 @@ Returns a single-character string at the specified index.
 ## Returns
 
 The character at the index.
+
+
+
+# FILE: docs/reference/check.md
+
+# check
+
+Inline assertion wrapper
+
+Evaluates `assert(val)`, prints `true` on success, and preserves the original `VError` on failure. Suitable for use inside pipeline node commands where the result must be visible in logs.
+
+## Parameters
+
+- **val** (`Any`): The value to assert.
+
+
+## Returns
+
+`true` on success; the original `VError` on failure.
+
+## Examples
+
+```t
+check(expect_equal(1 + 1, 2))
+```
+
+## See Also
+
+[expect_equal](expect_equal.html), [assert](assert.html)
 
 
 
@@ -23580,6 +23978,24 @@ A DataFrame with all unique combinations.
 ```t
 crossing(x = 1:3, y = ["a", "b"])
 ```
+
+
+
+# FILE: docs/reference/cross_pattern.md
+
+# cross_pattern
+
+Cross pattern stub
+
+`cross_pattern` can only be used as a `pattern=` argument inside `node()` to expand a node over the cross product of two or more dependencies. Calling it directly returns a `TypeError`.
+
+## Returns
+
+A `TypeError` explaining that patterns are only valid inside `node()`.
+
+## See Also
+
+[expand_pipeline](expand_pipeline.html), [sample_pattern](sample_pattern.html), [tail_pattern](tail_pattern.html), [head_pattern](head_pattern.html), [slice_pattern](slice_pattern.html), [map_pattern](map_pattern.html)
 
 
 
@@ -24552,23 +24968,29 @@ expand(df, $type, 2010:2012)
 
 # expand_pipeline
 
-Expand Pattern-Based Branching
+Expand pattern-based branching in a pipeline.
 
-Expands patterned nodes (using `map_pattern`, `cross_pattern`, `slice_pattern`, `head_pattern`, `tail_pattern`, or `sample_pattern`) into individual branch nodes. Each branch is named `<original>_branch_<N>`. Supports List, Vector, and DataFrame dependencies.
+Patterned nodes using `map_pattern(dep)`, `cross_pattern(...)`, `slice_pattern(dep, [i1, i2, ...])`, `head_pattern(dep, n)`, `tail_pattern(dep, n)`, or `sample_pattern(dep, n)` are replaced with N branch copies, where N depends on the pattern type. Supports List, Vector, and DataFrame dependencies.  `populate_pipeline(p)`, `build_pipeline(p)`, and pipeline composition functions (`chain`, `parallel`, `union`, ...) now call this function automatically when they detect unexpanded patterns.
 
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline to expand.
 
-- **to_script** (`String`): (Optional) File path to write the expanded pipeline script as a T source file.
+- **to_script** (`String`): | NA = NA Optional file path to write the expanded pipeline script.
+
 
 ## Returns
 
-A Pipeline with branches in place of patterned nodes. `p_has_patterns` is set to `false`.
+The expanded pipeline with branches in place of patterned nodes.
 
-## See Also
+## Examples
 
-[pipeline_nodes](pipeline_nodes.html), [populate_pipeline](populate_pipeline.html), [build_pipeline](build_pipeline.html)
+```t
+p = pipeline { x = [1, 2, 3]; y = node(command = <{ x }>, pattern = map_pattern(x)) }
+expanded = expand_pipeline(p)
+pipeline_nodes(expanded)  -- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
+```
+
 
 
 # FILE: docs/reference/expect_between.md
@@ -26889,6 +27311,24 @@ df |> head(n = 10)
 
 
 
+# FILE: docs/reference/head_pattern.md
+
+# head_pattern
+
+Head pattern stub
+
+`head_pattern` can only be used as a `pattern=` argument inside `node()` to expand a node over the first `n` elements of a dependency. Calling it directly returns a `TypeError`.
+
+## Returns
+
+A `TypeError` explaining that patterns are only valid inside `node()`.
+
+## See Also
+
+[expand_pipeline](expand_pipeline.html), [sample_pattern](sample_pattern.html), [tail_pattern](tail_pattern.html), [slice_pattern](slice_pattern.html), [cross_pattern](cross_pattern.html), [map_pattern](map_pattern.html)
+
+
+
 # FILE: docs/reference/help.md
 
 # help
@@ -28437,6 +28877,24 @@ map([1, 2, 3], fn(x) -> x * 2)
 
 
 
+# FILE: docs/reference/map_pattern.md
+
+# map_pattern
+
+Map pattern stub
+
+`map_pattern` can only be used as a `pattern=` argument inside `node()` to expand a node over the elements of a dependency (List, Vector, or DataFrame). Calling it directly returns a `TypeError`.
+
+## Returns
+
+A `TypeError` explaining that patterns are only valid inside `node()`.
+
+## See Also
+
+[expand_pipeline](expand_pipeline.html), [sample_pattern](sample_pattern.html), [tail_pattern](tail_pattern.html), [head_pattern](head_pattern.html), [slice_pattern](slice_pattern.html), [cross_pattern](cross_pattern.html)
+
+
+
 # FILE: docs/reference/matches.md
 
 # matches
@@ -28769,7 +29227,7 @@ mutate(mtcars, $ratio = $mpg / $hp)
 
 Mutate Pipeline Node Metadata
 
-Modifies metadata fields on pipeline nodes. Supports a `where` named argument to scope changes to a subset of nodes. Without `where`, all nodes are affected.  Mutable metadata fields: `noop` (Bool), `serializer` (String), `deserializer` (String), `runtime` (String).  The `where` clause uses NSE (`$field`) just like `filter_node`.
+Modifies metadata fields on pipeline nodes. Supports a `where` named argument to scope changes to a subset of nodes. Without `where`, all nodes are affected.  Mutable metadata fields: `noop` (Bool), `serializer` (String), `deserializer` (String), `runtime` (String), `deps` (List[String]), `functions` (List[String]), `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String), `shell_args` (List[String]), `flake` (String).  The `where` clause uses NSE (`$field`) just like `filter_node`.
 
 ## Parameters
 
@@ -29826,6 +30284,35 @@ pipeline_cache_status(p)
 
 
 
+# FILE: docs/reference/pipeline_config_to_frame.md
+
+# pipeline_config_to_frame
+
+Convert Pipeline Config to DataFrame
+
+Produces a DataFrame with one row per node, showing resolved configuration values and per-field provenance counts.  Extends [pipeline_to_frame] with provenance columns so queries like "which nodes got their serializer from global options?" can be answered directly in T.  Columns: - `name`, `runtime`, `depth`, `command_type` — identity (as in pipeline_to_frame) - `serializer`, `deserializer`, `noop`, `shell`, `flake` — resolved values - `prov_serializer`, ..., `prov_flake` — source ("node" / "global" / NA) - `n_deps`, `n_funcs`, `n_incs`, `n_env_vars`, `n_args`, `n_shell_args` — total counts (non-NA columns) - `n_*_global`, `n_*_node` — provenance counts for each list-type option  NOTE: `n_deps` is sourced from `p_deps` (which includes auto-inferred dependencies), while `n_deps_global` / `n_deps_node` are sourced from `prov_explicit_deps` (which only tracks explicitly-declared or globally-injected deps).  Consequently `n_deps` may exceed `n_deps_global + n_deps_node` when a node has auto-inferred edges. The other five list-count groups (`n_funcs`, `n_incs`, `n_env_vars`, `n_args`, `n_shell_args`) DO reconcile because they come from the same underlying lists as their provenance columns.
+
+## Parameters
+
+- **pipeline** (`Pipeline`): The pipeline to convert.
+
+
+## Returns
+
+A DataFrame with one row per node and config + provenance columns.
+
+## Examples
+
+```t
+pipeline_config_to_frame(p)
+```
+
+## See Also
+
+[pipeline_node_options](pipeline_node_options.html), [pipeline_to_frame](pipeline_to_frame.html)
+
+
+
 # FILE: docs/reference/pipeline_copy.md
 
 # pipeline_copy
@@ -30060,6 +30547,37 @@ The value of the node.
 ## See Also
 
 [pipeline_nodes](pipeline_nodes.html)
+
+
+
+# FILE: docs/reference/pipeline_node_options.md
+
+# pipeline_node_options
+
+Get Pipeline Node Options (read-back)
+
+Returns a Dict describing the fully resolved configuration of a single pipeline node, after any `set_pipeline_global_options` merges have been applied.  This is the read-back companion to `set_pipeline_global_options`: what you merged in, you can read back out.  The returned Dict has the following keys: - `name` — the node name (String) - `runtime` — one of "T", "R", "Python", "Julia", "Quarto", "sh" (String) - `serializer` — e.g. "default", "pmml" (String) - `deserializer` — e.g. "default", "pmml" (String) - `noop` — whether the node is a no-op (Bool) - `deps` — names of nodes this node depends on (List of String) - `depth` — topological depth in the DAG (Int); roots are depth 0 - `command_type` — one of "command" or "script" (String) - `diagnostics` — node diagnostics (Dict) - `functions` — function files merged into the node (List of String) - `include` — included files (List of String) - `env_vars` — build environment variables (Dict) - `args` — runtime/tool arguments (Dict) - `shell` — shell interpreter, or NA when unset (String | NA) - `shell_args` — shell interpreter arguments (List of String) - `flake` — Nix flake path, or NA when unset (String | NA) - `provenance` — where each resolved option came from (Dict).  Combine options (`functions`, `include`, `shell_args`, `dependencies`) are grouped into `global`/`node` sub-lists; override options (`serializer`, `deserializer`, `shell`, `flake`, `noop`) map to a source String ("global" | "node") or NA when unset; `env_vars` and `args` map each key to its source String.  An unknown node name is a `TypeError` listing the valid node names.
+
+## Parameters
+
+- **pipeline** (`Pipeline`): The input pipeline.
+
+- **node** (`String`): The node name to read back.
+
+
+## Returns
+
+The resolved node configuration.
+
+## Examples
+
+```t
+pipeline_node_options(p, "n1")
+```
+
+## See Also
+
+[pipeline_to_frame](pipeline_to_frame.html), [set_pipeline_global_options](set_pipeline_global_options.html)
 
 
 
@@ -30396,7 +30914,7 @@ pipeline_to_store(p)
 
 Validate a Pipeline
 
-Checks a pipeline for structural errors without throwing. Returns a list of error messages. An empty list means the pipeline is valid.  Checks performed: - No dependency cycles - All referenced dependencies exist as nodes in the pipeline
+Checks a pipeline for structural errors without throwing. Returns a list of error messages. An empty list means the pipeline is valid.  Checks performed (shared with populate_pipeline and `t check` tier 1): - No dependency cycles - All referenced dependencies exist as nodes in the pipeline - Referenced function/include/script files exist on the file system - Every node uses a known runtime - Cross-runtime dependencies declare an explicit deserializer - Deserializer/format coherence across dependency edges - Multiple dependencies with a single non-dictionary deserializer strategy - The ^bin serializer is only used by fetchurl nodes
 
 ## Parameters
 
@@ -30550,26 +31068,39 @@ mutate(df, !!!poly($age, 3, raw = true))
 
 # populate_pipeline
 
-Populate Pipeline
+Prepare Pipeline Infrastructure
 
-Generates the `_pipeline/` directory with `pipeline.nix` and `dag.json`. Optionally builds the pipeline with full Nix-native orchestration support.  If the pipeline contains unexpanded dynamic branching patterns (`map_pattern`, `cross_pattern`), they are automatically expanded before population.
+Writes the pipeline's Nix expression into `_pipeline/` and, when `build = true`, materializes all nodes. Returns a BuildLog on success or a DataFrame of planned build actions when a `dry_run` option is set.
 
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline to populate.
 
-- **build** (`Bool`): (Optional) Whether to trigger the Nix build immediately. Defaults to false.
+- **build** (`Bool`): = false If `true`, triggers a Nix build of all nodes.
 
-- **verbose** (`Int`): (Optional) Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
+- **verbose** (`Int`): = 0 Nix build verbosity level (`0` = quiet, higher values print node stdout/stderr).
 
-- **dry_run** (`Bool`): (Optional) Perform a dry run via Nix (`--dry-run`), returning a DataFrame of planned actions without executing.
+- **nix_options** (`Dict`): (Optional) Nix build options. Supported keys: `targets`, `force`, `dry_run`, `max_jobs`, `cache`, `builders`, `keep_env`, `sandbox`.
 
-- **nix_options** (`Dict`): (Optional) A dictionary of Nix orchestration options:
+- **dry_run** (`Bool`): (Optional) If `true`, returns a planned build actions DataFrame instead of building.
+
+- **pipeline_name** (`String`): (Optional) Explicit name for the pipeline.
 
 
 ## Returns
 
-A status message, structured build log, or dry-run plan DataFrame.
+| BuildLog | DataFrame Success message, BuildLog, or planned-actions DataFrame.
+
+## Examples
+
+```t
+populate_pipeline(p)
+populate_pipeline(p, build = true)
+```
+
+## See Also
+
+[pipeline_run](pipeline_run.html), [build_pipeline](build_pipeline.html)
 
 
 
@@ -31798,6 +32329,24 @@ sample([1, 2, 3], n = 5, replace = true)
 
 
 
+# FILE: docs/reference/sample_pattern.md
+
+# sample_pattern
+
+Sample pattern stub
+
+`sample_pattern` can only be used as a `pattern=` argument inside `node()` to expand a node over a random sample of a dependency. Calling it directly returns a `TypeError`.
+
+## Returns
+
+A `TypeError` explaining that patterns are only valid inside `node()`.
+
+## See Also
+
+[expand_pipeline](expand_pipeline.html), [tail_pattern](tail_pattern.html), [head_pattern](head_pattern.html), [slice_pattern](slice_pattern.html), [cross_pattern](cross_pattern.html), [map_pattern](map_pattern.html)
+
+
+
 # FILE: docs/reference/scaffold_package.md
 
 # scaffold_package
@@ -32210,6 +32759,58 @@ Returns "Nix defaults updated" upon successfully setting the defaults.
 
 
 
+# FILE: docs/reference/set_pipeline_global_options.md
+
+# set_pipeline_global_options
+
+Set Pipeline Global Options (pure)
+
+Pure function that returns a new pipeline with the given defaults merged into nodes.  The original pipeline is not modified.  By default the settings are merged into every node; pass `runtimes` and/or `nodes` to restrict the merge to a subset (union semantics when both are given).  Omitting both scoping arguments (or passing `na()`) targets every node; an explicitly empty list (`nodes = []`) targets no nodes.  Merge semantics vary per option: * Combine (prepend): `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies`.  Global values come first; per-node values follow (for same-key dict entries, the later per-node value wins). * Override: `serializer`, `deserializer`, `shell`, `flake`.  A provided global value replaces the node's per-node value entirely. * Force-only: `noop`.  `noop = true` forces nodes to no-op; `noop = false` has no effect and cannot un-set a per-node `noop = true`.
+
+## Parameters
+
+- **pipeline** (`Pipeline`): The input pipeline.
+
+- **functions** (`Dict`): (Optional) Combine (prepend). Runtime-shorthand to
+
+- **include** (`String`): | List[String] (Optional) Combine (prepend). File
+
+- **env_vars** (`Dict`): (Optional) Combine (prepend). Environment variables.
+
+- **serializer** (`String`): | Symbol (Optional) Override. Default serializer;
+
+- **deserializer** (`String`): | Symbol (Optional) Override. Default deserializer;
+
+- **noop** (`Bool`): (Optional) Force-only. If true, nodes become no-ops.
+
+- **args** (`Dict`): (Optional) Combine (prepend). Runtime arguments. Per-node
+
+- **shell** (`String`): (Optional) Override. Shell interpreter.
+
+- **shell_args** (`String`): | List[String] (Optional) Combine (prepend). Shell
+
+- **flake** (`String`): (Optional) Override. Nix flake path.
+
+- **dependencies** (`String`): | List[String] (Optional) Combine (prepend).
+
+- **runtimes** (`String`): | List[String] (Optional) Scope the merge to nodes
+
+- **nodes** (`String`): | List[String] (Optional) Scope the merge to exactly
+
+
+## Returns
+
+A new pipeline with the settings merged into the target nodes.
+
+## Examples
+
+```t
+set_pipeline_global_options(p, runtimes = ["R"], serializer = ^arrow)
+set_pipeline_global_options(p, nodes = ["n1", "n3"], noop = true)
+```
+
+
+
 # FILE: docs/reference/set_seed.md
 
 # set_seed
@@ -32540,6 +33141,24 @@ A DataFrame with the bottom n rows by the ordering column.
 slice_min(df, $score)
 slice_min(df, $score, n = 5)
 ```
+
+
+
+# FILE: docs/reference/slice_pattern.md
+
+# slice_pattern
+
+Slice pattern stub
+
+`slice_pattern` can only be used as a `pattern=` argument inside `node()` to expand a node over a contiguous slice of a dependency. Calling it directly returns a `TypeError`.
+
+## Returns
+
+A `TypeError` explaining that patterns are only valid inside `node()`.
+
+## See Also
+
+[expand_pipeline](expand_pipeline.html), [sample_pattern](sample_pattern.html), [tail_pattern](tail_pattern.html), [head_pattern](head_pattern.html), [cross_pattern](cross_pattern.html), [map_pattern](map_pattern.html)
 
 
 
@@ -33274,6 +33893,24 @@ tail([1, 2, 3, 4, 5, 6], n = 3)
 
 df |> tail(n = 10)
 ```
+
+
+
+# FILE: docs/reference/tail_pattern.md
+
+# tail_pattern
+
+Tail pattern stub
+
+`tail_pattern` can only be used as a `pattern=` argument inside `node()` to expand a node over the last `n` elements of a dependency. Calling it directly returns a `TypeError`.
+
+## Returns
+
+A `TypeError` explaining that patterns are only valid inside `node()`.
+
+## See Also
+
+[expand_pipeline](expand_pipeline.html), [sample_pattern](sample_pattern.html), [head_pattern](head_pattern.html), [slice_pattern](slice_pattern.html), [cross_pattern](cross_pattern.html), [map_pattern](map_pattern.html)
 
 
 
@@ -34322,28 +34959,16 @@ unite(df, "full_name", $first_name, $last_name, sep = " ")
 
 # unknown
 
-Expand pattern-based branching in a pipeline.
+Print Failed Node Logs
 
-Patterned nodes using `map_pattern(dep)`, `cross_pattern(...)`, `slice_pattern(dep, [i1, i2, ...])`, `head_pattern(dep, n)`, `tail_pattern(dep, n)`, or `sample_pattern(dep, n)` are replaced with N branch copies, where N depends on the pattern type. Supports List, Vector, and DataFrame dependencies.  `populate_pipeline(p)`, `build_pipeline(p)`, and pipeline composition functions (`chain`, `parallel`, `union`, ...) now call this function automatically when they detect unexpanded patterns.
+Prints stderr log sections for each failed node by resolving its derivation path through `nix log`.
 
 ## Parameters
 
-- **p** (`Pipeline`): The pipeline to expand.
+- **drv_paths** (`Hashtbl`): Captured derivation paths keyed by node name.
 
-- **to_script** (`String`): | NA = NA Optional file path to write the expanded pipeline script.
+- **errored** (`List[String]`): Node names that failed during the build.
 
-
-## Returns
-
-The expanded pipeline with branches in place of patterned nodes.
-
-## Examples
-
-```t
-p = pipeline { x = [1, 2, 3]; y = node(command = <{ x }>, pattern = map_pattern(x)) }
-expanded = expand_pipeline(p)
-pipeline_nodes(expanded)  -- ["x", "y_branch_1", "y_branch_2", "y_branch_3"]
-```
 
 
 
