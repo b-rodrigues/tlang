@@ -170,7 +170,7 @@ resolution and deserialization from within those environments.
 ### Getting Started
 - [Getting Started Guide](getting-started.html) — first steps with T
 - [Your First Pipeline](first-pipeline.html) — declare R, Python, and Julia packages, run `t update`, and build a hello-world pipeline
-- [Installation Guide](installation.html) — detailed setup with Nix
+- [Installing Nix for T](nix-installation.html) — recommended Determinate Systems installer and setup
 - [Language Overview](language_overview.html) — types, syntax, functions, and standard library
 - [Type System](type-system.html) — detailed guide to T's type hierarchy and semantics
 - [Numerical Arrays](arrays.html) — tutorial on N-dimensional arrays and linear algebra
@@ -182,6 +182,9 @@ resolution and deserialization from within those environments.
 - [Factors & Categorical Data](factors.html) — to_factor creation, level ordering, and `fct_*` helpers
 - [String Manipulation](string_manipulation.html) — naming rules, examples, and exceptions for text helpers
 - [Pipeline Tutorial](pipeline_tutorial.html) — step-by-step guide to T's pipeline model
+- [The Pipe Operator](pipes.html) — `|>` forwarding semantics and short-circuiting
+- [Serializers in T](serializers.html) — first-class `^serializer` system for data interchange and materialization
+- [Agent Pairing Tutorial](agent-pairing-tutorial.html) — building a T pipeline interactively with an AI agent
 - [Advanced Pipeline Tutorial](advanced-pipeline-tutorial.html) — node manipulation, set operations, DAG transformations, composition, and validation
 - [Pipeline Materialization & Nix Orchestration](pipeline-materialization.html) — building pipelines into reproducible Nix artifacts, orchestration, archives, CI/CD, branching, and custom flakes
 - [Literate Programming with Quarto](literate-programming-quarto.html) — rendering reports from pipelines
@@ -192,6 +195,7 @@ resolution and deserialization from within those environments.
 - [Error Handling Guide](error-handling.html) — error patterns and recovery strategies
 - [Comprehensive Examples](examples.html) — real-world analysis patterns
 - [T Pipeline Demos](demos.html) — interactive reports for T demo projects
+- [Magic Commands](magic-cmds.html) — REPL-only `%` shortcuts (`%cd`, `%env`, and more)
 - [External Helper Packages](external-packages.html) — reading T artifacts from R, Python, and Julia
 
 ### Advanced Topics
@@ -203,10 +207,12 @@ resolution and deserialization from within those environments.
 - [Performance Analysis](performance_analysis.html) — in-depth analysis of T's performance metrics
 - [Composable Lenses](lens.html) — functional updates for nested structures
 - [Nix Build Options & Orchestration](nix-options.html) — passing low-level nix arguments to the build
+- [Arrow: Current Status & Next Steps](arrow-current-status-next-steps.html) — state of the Arrow backend and roadmap
 
 ### Developer Resources
 - [Architecture](architecture.html) — language design and implementation
 - [Contributing Guide](contributing.html) — how to contribute to T
+- [Code of Ethics](code-of-ethics.html) — principles and values for the T community
 - [Development Guide](development.html) — building, testings, and debugging
 - [Project Development](project_development.html) — managing T projects and workspaces
 - [Package Development Guide](package_development.html) — creating and publishing T packages
@@ -9160,7 +9166,7 @@ Relevant files:
 
 - `docs/architecture.md`
   - describes Arrow as the DataFrame backend and mentions zero-copy access and vectorized compute.
-- `docs/installation.md`
+- `docs/development.md`
   - explains that the Nix environment builds Apache Arrow and related dependencies.
 - `docs/troubleshooting.md`
   - includes Arrow-specific setup and debugging notes such as `arrow-glib` availability and native-code crash guidance.
@@ -12388,7 +12394,7 @@ Comprehensive guide for T language development, building, testing, and debugging
 
 ### Prerequisites
 
-1. **Nix** with flakes enabled (see [Installation Guide](installation.md))
+1. **Nix** with flakes enabled (see [Nix Installation Guide](nix-installation.md))
 2. **Git** for version control
 3. **Editor** with OCaml support (VS Code, Emacs, Vim)
 
@@ -15941,8 +15947,32 @@ The developer (Bruno Rodrigues) works on T based on community interest and exper
 > A quick, end-to-end tutorial for declaring R, Python, and Julia dependencies,
 > syncing the reproducible environment, and running a small polyglot pipeline.
 
-This guide assumes you have already completed the [Getting Started](getting-started.md)
-setup and are inside a T project created with `t init --project`.
+This guide takes you from a bare machine to a working polyglot pipeline. T itself is
+never installed — you install Nix, then bootstrap a project that pins its own copy of
+the T toolchain. If you already have a T project created with `t init --project`, skip
+straight to [section 1](#1-enter-the-project-environment).
+
+## 0. Bootstrap a project
+
+T is distributed exclusively via Nix. Follow the [Nix Installation Guide](nix-installation.md)
+to install Nix and configure the `rstats-on-nix` binary cache. Then:
+
+```bash
+# 1. Start a temporary shell that provides the `t` executable
+nix shell --accept-flake-config github:b-rodrigues/tlang
+
+# 2. Scaffold a new project (still inside the temporary shell)
+t init --project my_analysis
+
+# 3. Leave the temporary shell and enter the project environment
+exit
+cd my_analysis
+nix develop
+```
+
+You are now inside a reproducible development shell with the `t` command and the
+project-specific runtimes on `PATH`. All commands below should be run inside that
+shell.
 
 ## 1. Enter the project environment
 
@@ -16300,392 +16330,6 @@ Now that you can handle temporal data, explore text processing and categorical d
 2. **[Factors & Categorical Data](factors.md)** — Learn how to work with categorical data.
 3. **[Arrays and Matrices](arrays.md)** — Vector and matrix operations.
 4. **[API Reference](api-reference.md)** — Complete function reference by package.
-
-
-# FILE: docs/installation.md
-
-# Installation Guide
-
-Complete guide for installing and setting up the T programming language.
-
-## System Requirements
-
-### Operating System
-- **Linux** (recommended): Any modern distribution (Ubuntu 20.04+, Fedora 35+, Arch, etc.)
-- **macOS**: 11 (Big Sur) or later
-- **Windows**: Via WSL2 (Windows Subsystem for Linux)
-
-### Prerequisites
-- **Nix package manager** 2.4 or later with flakes enabled
-- **Git** for version control
-- At least **2GB free disk space** for Nix store
-- **Internet connection** for initial setup
-
-## Step 1: Install Nix
-
-T requires the **Nix package manager** with flakes enabled. We strongly recommend using the **Determinate Systems Nix Installer** for its robustness and ease of use.
-
-### Platform-Specific Nix Installation
-
-For detailed instructions on installing Nix on **Linux**, **macOS**, and **Windows (WSL2)**, please see our dedicated:
-
-👉 **[Nix Installation Guide](nix-installation.md)**
-
-Once Nix is installed, you can proceed to Step 2.
-
-## Step 2: Enable Nix Flakes
-
-T requires the `nix-command` and `flakes` experimental features. The Determinate Systems installer enables these by default. If you used the standard installer, you may need to enable them:
-
-**Option 1: Add to config (Recommended)**
-```bash
-mkdir -p ~/.config/nix
-echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
-```
-
-**Option 2: Use a command flag**
-Append `--extra-experimental-features "nix-command flakes"` to each Nix command.
-
-**Note:** If you installed Nix through a method other than the Determinate Systems installer, you also need to configure trusted users and the binary cache. See the [Nix Installation Guide](nix-installation.md#already-have-nix) for details.
-
-## Step 3: Clone T Repository
-
-```bash
-# Choose a directory for T (e.g., ~/projects)
-mkdir -p ~/projects
-cd ~/projects
-
-# Clone the repository
-git clone https://github.com/b-rodrigues/tlang.git
-cd tlang
-```
-
-## Step 4: Enter Development Environment
-
-The Nix flake provides a complete, isolated development environment:
-
-```bash
-nix develop
-```
-
-**First run** will take several minutes to:
-- Download and compile OCaml toolchain
-- Build Apache Arrow and dependencies
-- Set up development tools (dune, menhir, etc.)
-
-All dependencies are cached in the Nix store (`/nix/store/`) and reused for future sessions.
-
-**Expected output:**
-
-```
-warning: creating lock file '/home/user/projects/tlang/flake.lock'
-...
-(nix development shell activated)
-```
-
-## Step 5: Build T
-
-Inside the development environment:
-
-```bash
-dune build
-```
-
-This compiles:
-- Lexer and parser
-- Evaluator and runtime
-- Standard library packages
-- REPL
-
-**Expected output:**
-
-```
-File "src/repl.ml", line 1, characters 0-0:
-Building...
-```
-
-Build artifacts are placed in `_build/default/`.
-
-## Step 6: Verify Installation
-
-### Start the REPL
-
-```bash
-dune exec src/repl.exe
-```
-
-You should see:
-
-```
-T, a reproducibility-first orchestration engine for polyglot
-data science and statistical analysis.
-Version 0.54.3 "Le Tournoi" using Nix <nix-version>
-Licensed under the EUPL v1.2. No warranties.
-This software is in beta and is entirely LLM-generated — caveat emptor.
-Website: https://tstats-project.org
-Contributions are welcome!
-Type :quit or :q to exit, :help for commands.
-
-T> 
-```
-
-### Test Basic Operations
-
-```t
-> 2 + 3
-5
-
-> [1, 2, 3] |> sum
-6
-
-> type(42)
-"Int"
-
-> exit()
-```
-
-If all commands work, installation is successful! 🎉
-
-## Step 7: Run Tests (Optional)
-
-Verify everything works correctly:
-
-```bash
-dune runtest
-```
-
-Expected behavior:
-- All tests should pass
-- Golden tests compare T output against R results
-- Test execution may take 1-2 minutes
-
-## Development Workflow
-
-### Entering the Environment
-
-Every time you want to work with T:
-
-```bash
-cd ~/projects/tlang
-nix develop
-```
-
-### Updating Dependencies
-
-If `flake.nix` changes (e.g., after pulling updates):
-
-```bash
-nix flake update
-nix develop
-```
-
-### Cleaning Build Artifacts
-
-```bash
-dune clean
-dune build
-```
-
-## Advanced Configuration
-
-### Direnv Integration (Optional)
-
-Automatically enter the Nix shell when entering the directory:
-
-```bash
-# Install direnv
-nix-env -iA nixpkgs.direnv
-
-# Enable direnv in your shell (bash/zsh)
-echo 'eval "$(direnv hook bash)"' >> ~/.bashrc  # for bash
-echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc   # for zsh
-
-# Create .envrc in tlang directory
-cd ~/projects/tlang
-echo "use flake" > .envrc
-direnv allow
-```
-
-Now `cd tlang` automatically activates the environment.
-
-### Binary Cache (Faster Builds)
-
-T's flake declares the `rstats-on-nix` Cachix cache, so `nix develop` will automatically pull pre-built R and Python packages when you use `--accept-flake-config` (which is the default). However, if you want the cache configured system-wide, or if you're not using the Determinate Systems installer, you may need to add it manually.
-
-**On NixOS**, add to `/etc/nixos/configuration.nix`:
-
-```nix
-nix.settings = {
-  substituters = [
-    "https://cache.nixos.org"
-    "https://rstats-on-nix.cachix.org"
-  ];
-  trustedPublicKeys = [
-    "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
-    "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
-  ];
-};
-```
-
-**On non-NixOS Linux or macOS**, add to `/etc/nix/nix.conf`:
-
-```bash
-echo "substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org" | sudo tee -a /etc/nix/nix.conf
-echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=" | sudo tee -a /etc/nix/nix.conf
-```
-
-See the [Nix Installation Guide](nix-installation.md#already-have-nix) for detailed instructions on trusted users and cache configuration.
-
-## Troubleshooting
-
-### "command not found: nix"
-
-The Nix installation may not have updated your PATH. Try:
-
-```bash
-source ~/.nix-profile/etc/profile.d/nix.sh
-```
-
-Or restart your terminal.
-
-### "experimental-features" Error
-
-Flakes aren't enabled. Double-check `~/.config/nix/nix.conf`:
-
-```bash
-cat ~/.config/nix/nix.conf
-# Should contain: experimental-features = nix-command flakes
-```
-
-### "nix develop" Hangs
-
-Nix is building dependencies from source. This is normal on first run. Check progress:
-
-```bash
-nix develop --show-trace
-```
-
-Or use a faster binary cache (if available).
-
-### Build Fails with Dune Errors
-
-Clean and rebuild:
-
-```bash
-dune clean
-rm -rf _build
-dune build
-```
-
-If errors persist, check:
-- You're inside `nix develop` shell
-- OCaml version: `ocaml --version` should be 4.14+
-- Dune version: `dune --version` should be 3.0+
-
-### Arrow FFI Issues
-
-T uses Apache Arrow C GLib bindings. If you see linking errors:
-
-```bash
-# Inside nix develop
-pkg-config --modversion arrow-glib
-# Should output: 10.0.0 or similar
-```
-
-The Nix flake ensures Arrow is available; these errors usually indicate you're not in the Nix shell.
-
-### Tests Failing
-
-Some tests require R (for golden test comparisons). Check test logs:
-
-```bash
-dune runtest --verbose
-```
-
-Known issues:
-- Floating-point precision differences across platforms
-- R package availability for comparison tests
-
-## Platform-Specific Notes
-
-### macOS
-
-- **Apple Silicon (M1/M2)**: Fully supported via Nix's ARM64 support
-- **Rosetta**: Not required; native ARM builds are used
-
-### WSL2
-
-- **File permissions**: Ensure cloned repo is on Linux filesystem (`/home/user/...`), not Windows mount (`/mnt/c/...`)
-- **Performance**: Native Linux filesystem is significantly faster
-
-### NixOS
-
-T works natively on NixOS. Since Nix is already part of the system, do not use the Determinate Systems installer. Instead, add the required settings to `/etc/nixos/configuration.nix`:
-
-```nix
-nix.settings = {
-  trusted-users = [ "root" "your-username" ];
-  experimental-features = [ "nix-command" "flakes" ];
-  substituters = [
-    "https://cache.nixos.org"
-    "https://rstats-on-nix.cachix.org"
-  ];
-  trustedPublicKeys = [
-    "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
-    "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
-  ];
-};
-```
-
-Then rebuild:
-
-```bash
-sudo nixos-rebuild switch
-```
-
-For step-by-step details, see the [Nix Installation Guide](nix-installation.md#nixos).
-
-## Next Steps
-
-Now that T is installed:
-
-1. **[Getting Started Guide](getting-started.md)** — Write your first program
-2. **[Language Overview](language_overview.md)** — Learn T syntax
-3. **[Examples](examples.md)** — See practical code
-
-## Uninstalling
-
-### Remove T Repository
-
-```bash
-rm -rf ~/projects/tlang
-```
-
-### Remove Nix Store Entries
-
-```bash
-# Remove just T's dependencies (preserves other Nix packages)
-nix-store --gc
-
-# Or remove all unused packages
-nix-collect-garbage -d
-```
-
-### Uninstall Nix Completely
-
-```bash
-# For multi-user install
-sudo rm -rf /nix
-sudo rm /etc/profile.d/nix.sh
-sudo rm /etc/nix
-
-# For single-user install
-rm -rf ~/.nix-profile ~/.nix-defexpr ~/.nix-channels ~/.config/nix
-```
-
----
-
-**Ready to start?** Head to the [Getting Started Guide](getting-started.md)!
 
 
 # FILE: docs/lens.md
@@ -18729,9 +18373,52 @@ This means your user is not in the Nix `trusted-users` list. The fix depends on 
 - **Official Nix installer or other method**: Follow the [Already Have Nix?](#already-have-nix) steps to manually add your user to `trusted-users` and configure the cache.
 - **NixOS**: Add `nix.settings.trusted-users = [ "root" "your-username" ];` to your `configuration.nix` and run `sudo nixos-rebuild switch`.
 
+## From Nix to your first T project
+
+Once Nix is installed and the binary cache is configured, you are done with installation. T itself is **never installed** as a system program — it is distributed exclusively through Nix. Instead of installing T, you bootstrap a project that pins its own copy of the T toolchain.
+
+### 1. Start a temporary shell with `t`
+
+The `t` executable is provided by the `github:b-rodrigues/tlang` flake. Launch a temporary shell that puts `t` on your `PATH`:
+
+```bash
+nix shell --accept-flake-config github:b-rodrigues/tlang
+```
+
+This downloads the T executable (and the pinned OCaml, R, Python, and Julia runtimes it needs) and drops you into an ephemeral environment where `t` works — for as long as you stay in that shell.
+
+### 2. Bootstrap a new project
+
+Inside the temporary shell, scaffold a new project:
+
+```bash
+t init --project my_analysis
+```
+
+You will be prompted for basic project information (your name, the license, the Nixpkgs date, the AI Agent Context Level, and the pipeline template). This creates a `my_analysis/` directory containing the project's reproducible environment — most importantly `tproject.toml` (your dependency manifest) and `flake.nix`.
+
+### 3. Enter the project environment
+
+Leave the temporary shell, move into the project, and drop into the project's own development environment:
+
+```bash
+exit
+cd my_analysis
+nix develop
+```
+
+`nix develop` rebuilds an environment that pins the `t` version and all declared R, Python, and Julia packages from `tproject.toml`. From here on, you work inside the project environment — that is what "running T" means in practice.
+
+### 4. Start working
+
+You can now edit `src/pipeline.t` and run it with `t run src/pipeline.t`, or explore interactively with `t repl`. When you add dependencies to `tproject.toml`, run `t update` and re-enter `nix develop` to pick them up.
+
 ## Next Steps
 
-Now that Nix is installed, you are ready to [Get Started with T](getting-started.md)!
+Now that Nix is installed and your first project is bootstrapped, continue with:
+
+1. **[Getting Started with T](getting-started.md)** — understand the workspace layout and available commands.
+2. **[Your First Pipeline](first-pipeline.md)** — declare R, Python, and Julia packages, run `t update`, and build a hello-world polyglot pipeline.
 
 
 # FILE: docs/nix-options.md

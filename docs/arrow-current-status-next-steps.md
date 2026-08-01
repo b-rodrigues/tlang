@@ -44,7 +44,7 @@ Relevant files:
 
 - `docs/architecture.md`
   - describes Arrow as the DataFrame backend and mentions zero-copy access and vectorized compute.
-- `docs/installation.md`
+- `docs/development.md`
   - explains that the Nix environment builds Apache Arrow and related dependencies.
 - `docs/troubleshooting.md`
   - includes Arrow-specific setup and debugging notes such as `arrow-glib` availability and native-code crash guidance.

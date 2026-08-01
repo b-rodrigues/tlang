@@ -104,14 +104,35 @@
 dependencies, syncing the reproducible environment, and running a small
 polyglot pipeline.</p>
 </blockquote>
-<p>This guide assumes you have already completed the <a
-href="getting-started.html">Getting Started</a> setup and are inside a T
-project created with <code>t init --project</code>.</p>
+<p>This guide takes you from a bare machine to a working polyglot
+pipeline. T itself is never installed — you install Nix, then bootstrap
+a project that pins its own copy of the T toolchain. If you already have
+a T project created with <code>t init --project</code>, skip straight to
+<a href="#1-enter-the-project-environment">section 1</a>.</p>
+<h2 id="bootstrap-a-project">0. Bootstrap a project</h2>
+<p>T is distributed exclusively via Nix. Follow the <a
+href="nix-installation.html">Nix Installation Guide</a> to install Nix and
+configure the <code>rstats-on-nix</code> binary cache. Then:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Start a temporary shell that provides the `t` executable</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> shell <span class="at">--accept-flake-config</span> github:b-rodrigues/tlang</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Scaffold a new project (still inside the temporary shell)</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init <span class="at">--project</span> my_analysis</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Leave the temporary shell and enter the project environment</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="bu">exit</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> my_analysis</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
+<p>You are now inside a reproducible development shell with the
+<code>t</code> command and the project-specific runtimes on
+<code>PATH</code>. All commands below should be run inside that
+shell.</p>
 <h2 id="enter-the-project-environment">1. Enter the project
 environment</h2>
 <p>From the project root, enter the reproducible development shell:</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
 <p>All commands below should be run inside that shell. This ensures
 <code>t</code>, the project-specific runtimes, and the dependency guards
 are all on <code>PATH</code>.</p>
@@ -123,17 +144,17 @@ packages in <code>tproject.toml</code></h2>
 <code>Pkg.add()</code> calls. Open <code>tproject.toml</code> and make
 sure the runtime dependency sections contain the packages you plan to
 use:</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode toml"><code class="sourceCode toml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;stringr&quot;</span><span class="op">]</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">[py-dependencies]</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;python313&quot;</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;numpy&quot;</span><span class="op">]</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="kw">[jl-dependencies]</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;lts&quot;</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;DataFrames&quot;</span><span class="op">]</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;stringr&quot;</span><span class="op">]</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">[py-dependencies]</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;python313&quot;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;numpy&quot;</span><span class="op">]</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="kw">[jl-dependencies]</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;lts&quot;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;DataFrames&quot;</span><span class="op">]</span></span></code></pre></div>
 <p>A few rules of thumb:</p>
 <ul>
 <li>Add R packages under <code>[r-dependencies].packages</code>.</li>
@@ -149,13 +170,13 @@ edit those lists instead of creating duplicate sections.</li>
 after editing dependencies</h2>
 <p>After changing <code>tproject.toml</code>, regenerate the project
 environment:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> update</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> update</span></code></pre></div>
 <p>Then re-enter the development shell so the updated package set is
 active:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">exit</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">exit</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
 <p>If T reports that a package used by a pipeline node is missing, add
 it to the matching dependency section, run <code>t update</code>, and
 enter <code>nix develop</code> again.</p>
@@ -207,8 +228,8 @@ uses the declared <code>DataFrames</code> package.</li>
 first hello-world pipeline because every node returns a string.</p>
 <h2 id="run-the-pipeline">5. Run the pipeline</h2>
 <p>From the project root, run:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span></code></pre></div>
 <p>T will materialize the pipeline under <code>_pipeline/</code>, build
 each node in a Nix-managed sandbox, and write a timestamped build log.
 The first run may take longer because Nix may need to fetch or build

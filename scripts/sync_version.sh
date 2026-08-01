@@ -30,7 +30,4 @@ sed -i "s/min_version = \"[0-9.]*\"/min_version = \"$VERSION\"/g" docs/project_d
 sed -i "s/tlang\/v[0-9.]*/tlang\/$TAG/g" docs/reproducibility.md
 sed -i "s/t_version: \"[0-9.]*\"/t_version: \"$VERSION\"/g" docs/reproducibility.md
 
-# docs/installation.md
-sed -i "s/Version [0-9.]* \"[^\"]*\"/Version $VERSION \"$CODENAME\"/g" docs/installation.md
-
 echo "Done. Please review changes and commit."

@@ -3,8 +3,32 @@
 > A quick, end-to-end tutorial for declaring R, Python, and Julia dependencies,
 > syncing the reproducible environment, and running a small polyglot pipeline.
 
-This guide assumes you have already completed the [Getting Started](getting-started.md)
-setup and are inside a T project created with `t init --project`.
+This guide takes you from a bare machine to a working polyglot pipeline. T itself is
+never installed — you install Nix, then bootstrap a project that pins its own copy of
+the T toolchain. If you already have a T project created with `t init --project`, skip
+straight to [section 1](#1-enter-the-project-environment).
+
+## 0. Bootstrap a project
+
+T is distributed exclusively via Nix. Follow the [Nix Installation Guide](nix-installation.md)
+to install Nix and configure the `rstats-on-nix` binary cache. Then:
+
+```bash
+# 1. Start a temporary shell that provides the `t` executable
+nix shell --accept-flake-config github:b-rodrigues/tlang
+
+# 2. Scaffold a new project (still inside the temporary shell)
+t init --project my_analysis
+
+# 3. Leave the temporary shell and enter the project environment
+exit
+cd my_analysis
+nix develop
+```
+
+You are now inside a reproducible development shell with the `t` command and the
+project-specific runtimes on `PATH`. All commands below should be run inside that
+shell.
 
 ## 1. Enter the project environment
 
