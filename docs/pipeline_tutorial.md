@@ -884,5 +884,7 @@ Now that you've mastered pipeline basics, explore advanced topics:
 2. **[Pipeline Materialization & Nix Orchestration](pipeline-materialization.md)** — Building pipelines into reproducible Nix artifacts, orchestrating builds, transferring archives, CI/CD, branching, and custom flakes.
 3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
 4. **[Package Development](package_development.md)** — Create reusable T libraries.
-5. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
-6. **[API Reference](api-reference.md)** — Complete function reference by package.
+5. **[Error Handling](error-handling.md)** — Understand T's first-class error system, `?|>` pipe, `collect_exceptions()`, and failfast mode.
+6. **[Debugging](debugging.md)** — Interactive node debugging and REPL diagnostics.
+7. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
+8. **[API Reference](api-reference.md)** — Complete function reference by package.

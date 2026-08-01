@@ -180,7 +180,8 @@ t run src/pipeline.t
 Now that you have your first project set up and understand the folder structure, the best next step is to run a tiny reproducible pipeline before configuring editor integrations or reading the deeper reference material.
 
 1. **[Your First Pipeline](first-pipeline.md)** — Add R, Python, and Julia packages to `tproject.toml`, run `t update`, and build a small hello-world polyglot pipeline.
-2. **[Configure Editors](editors.md)** — Configure your editor to play well with T.
-3. **[Language Overview](language_overview.md)** — Explore T's syntax, types, and standard library functions.
-4. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows (the core feature of T).
-5. **[Project Development](project_development.md)** — Dive deeper into managing your `tproject.toml` and Nix environments.
+2. **[Data I/O & Formats](data-formats.md)** — Read CSV, Parquet, and Arrow files; download data from URLs; understand NA handling.
+3. **[Configure Editors](editors.md)** — Configure your editor to play well with T.
+4. **[Language Overview](language_overview.md)** — Explore T's syntax, types, and standard library functions.
+5. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows (the core feature of T).
+6. **[Project Development](project_development.md)** — Dive deeper into managing your `tproject.toml` and Nix environments.

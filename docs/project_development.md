@@ -504,5 +504,7 @@ Once active, you will get real-time autocompletion for:
 
 1. **[Language Overview](language_overview.md)** — Learn about types, syntax, and logic.
 2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to structure your analysis as a DAG.
-3. **[API Reference](api-reference.md)** — Explore the standard library.
-4. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.
+3. **[Serializers](serializers.md)** — Understand data interchange between T, R, Python, and Julia nodes.
+4. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files.
+5. **[API Reference](api-reference.md)** — Explore the standard library.
+6. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.

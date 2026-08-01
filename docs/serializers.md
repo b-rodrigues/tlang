@@ -170,4 +170,10 @@ If you use a custom format name (e.g., `format: "myformat"`), you should ensure 
 
 For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl` via the built-in `jl_read_onnx()` helper. Julia ONNX export is not supported yet, so `jl_write_onnx()` fails explicitly instead of silently falling back to another format.
 
-For more information on how pipelines use these serializers, see the [Pipeline Tutorial](pipeline_tutorial.md). For a model-focused walkthrough of `^pmml`, see the [PMML Tutorial](pmml_tutorial.md).
+---
+
+## Next Steps
+
+1. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how pipelines use serializers for polyglot data interchange.
+2. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files; download data from URLs.
+3. **[Project Development](project_development.md)** — Declare runtime dependencies so serializer packages are available at build time.

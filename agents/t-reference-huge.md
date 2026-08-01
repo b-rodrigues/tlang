@@ -408,10 +408,11 @@ t run src/pipeline.t
 Now that you have your first project set up and understand the folder structure, the best next step is to run a tiny reproducible pipeline before configuring editor integrations or reading the deeper reference material.
 
 1. **[Your First Pipeline](first-pipeline.md)** — Add R, Python, and Julia packages to `tproject.toml`, run `t update`, and build a small hello-world polyglot pipeline.
-2. **[Configure Editors](editors.md)** — Configure your editor to play well with T.
-3. **[Language Overview](language_overview.md)** — Explore T's syntax, types, and standard library functions.
-4. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows (the core feature of T).
-5. **[Project Development](project_development.md)** — Dive deeper into managing your `tproject.toml` and Nix environments.
+2. **[Data I/O & Formats](data-formats.md)** — Read CSV, Parquet, and Arrow files; download data from URLs; understand NA handling.
+3. **[Configure Editors](editors.md)** — Configure your editor to play well with T.
+4. **[Language Overview](language_overview.md)** — Explore T's syntax, types, and standard library functions.
+5. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows (the core feature of T).
+6. **[Project Development](project_development.md)** — Dive deeper into managing your `tproject.toml` and Nix environments.
 
 
 # FILE: docs/language_overview.md
@@ -15984,11 +15985,13 @@ Once this quick pipeline works, continue in this order:
 
 1. [Configure Editors](editors.md) — Set up syntax highlighting, LSP support,
    and formatting conveniences.
-2. [Language Overview](language_overview.md) — Learn T expressions, data types,
+2. [Data I/O & Formats](data-formats.md) — Read CSV, Parquet, and Arrow IPC files;
+   download data from URLs; understand NA handling.
+3. [Language Overview](language_overview.md) — Learn T expressions, data types,
    functions, and pipes.
-3. [Pipeline Tutorial](pipeline_tutorial.md) — Go deeper into dependency graphs,
+4. [Pipeline Tutorial](pipeline_tutorial.md) — Go deeper into dependency graphs,
    serializers, materialization, error handling, and larger DAGs.
-4. [Project Development](project_development.md) — Learn more about
+5. [Project Development](project_development.md) — Learn more about
    `tproject.toml`, Nix environments, tests, and project structure.
 
 
@@ -20833,8 +20836,10 @@ Now that you've mastered pipeline basics, explore advanced topics:
 2. **[Pipeline Materialization & Nix Orchestration](pipeline-materialization.md)** — Building pipelines into reproducible Nix artifacts, orchestrating builds, transferring archives, CI/CD, branching, and custom flakes.
 3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
 4. **[Package Development](package_development.md)** — Create reusable T libraries.
-5. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
-6. **[API Reference](api-reference.md)** — Complete function reference by package.
+5. **[Error Handling](error-handling.md)** — Understand T's first-class error system, `?|>` pipe, `collect_exceptions()`, and failfast mode.
+6. **[Debugging](debugging.md)** — Interactive node debugging and REPL diagnostics.
+7. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
+8. **[API Reference](api-reference.md)** — Complete function reference by package.
 
 
 # FILE: docs/pipes.md
@@ -21984,8 +21989,10 @@ Once active, you will get real-time autocompletion for:
 
 1. **[Language Overview](language_overview.md)** — Learn about types, syntax, and logic.
 2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to structure your analysis as a DAG.
-3. **[API Reference](api-reference.md)** — Explore the standard library.
-4. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.
+3. **[Serializers](serializers.md)** — Understand data interchange between T, R, Python, and Julia nodes.
+4. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files.
+5. **[API Reference](api-reference.md)** — Explore the standard library.
+6. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.
 
 
 # FILE: docs/quotation.md
@@ -35738,7 +35745,13 @@ If you use a custom format name (e.g., `format: "myformat"`), you should ensure 
 
 For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl` via the built-in `jl_read_onnx()` helper. Julia ONNX export is not supported yet, so `jl_write_onnx()` fails explicitly instead of silently falling back to another format.
 
-For more information on how pipelines use these serializers, see the [Pipeline Tutorial](pipeline_tutorial.md). For a model-focused walkthrough of `^pmml`, see the [PMML Tutorial](pmml_tutorial.md).
+---
+
+## Next Steps
+
+1. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how pipelines use serializers for polyglot data interchange.
+2. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files; download data from URLs.
+3. **[Project Development](project_development.md)** — Declare runtime dependencies so serializer packages are available at build time.
 
 
 # FILE: docs/string_manipulation.md
