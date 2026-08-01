@@ -171,6 +171,7 @@ resolution and deserialization from within those environments.
 ### User Guides
 - [API Reference](api-reference.html) — complete function reference by package
 - [Data Manipulation Examples](data_manipulation_examples.html) — practical examples with core data verbs
+- [Data I/O & Formats](data-formats.html) — loading and saving CSV, Parquet, and Arrow IPC files
 - [Factors & Categorical Data](factors.html) — to_factor creation, level ordering, and `fct_*` helpers
 - [String Manipulation](string_manipulation.html) — naming rules, examples, and exceptions for text helpers
 - [Pipeline Tutorial](pipeline_tutorial.html) — step-by-step guide to T's pipeline model

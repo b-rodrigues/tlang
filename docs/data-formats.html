@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - data-formats</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="data-io-formats">Data I/O &amp; Formats</h1>
+<p>T’s data layer is built on <a href="https://arrow.apache.org/">Apache
+Arrow</a>: DataFrames are backed by Arrow tables, and T provides fast
+native readers and writers for the most common tabular formats. This
+guide explains how to load and save data, which format to pick, and what
+to do when you need a format T does not read natively.</p>
+<hr />
+<h2 id="choosing-a-format">Choosing a Format</h2>
+<table>
+<colgroup>
+<col style="width: 22%" />
+<col style="width: 30%" />
+<col style="width: 27%" />
+<col style="width: 19%" />
+</colgroup>
+<thead>
+<tr>
+<th>Format</th>
+<th>Functions</th>
+<th>Best For</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CSV</strong></td>
+<td><code>read_csv()</code> / <code>write_csv()</code></td>
+<td>Small-to-medium data, interchange with other tools</td>
+<td>Human-readable; type inference; fast native path when using
+defaults</td>
+</tr>
+<tr>
+<td><strong>Parquet</strong></td>
+<td><code>read_parquet()</code> / <code>write_parquet()</code></td>
+<td>Large datasets, analytics workloads</td>
+<td>Columnar, compressed, type-preserving; recommended above ~2–3
+GB</td>
+</tr>
+<tr>
+<td><strong>Arrow IPC</strong></td>
+<td><code>read_arrow()</code> / <code>write_arrow()</code></td>
+<td>Large dataframes, cross-runtime interchange</td>
+<td>Zero-copy; also known as Feather v2</td>
+</tr>
+<tr>
+<td><strong>JSON</strong></td>
+<td><code>t_read_json()</code> / <code>t_write_json()</code></td>
+<td>Config, nested lists and dicts</td>
+<td>See the <a href="serializers.html">Serializers</a> guide for pipeline
+usage</td>
+</tr>
+</tbody>
+</table>
+<p>All three tabular readers (<code>read_csv</code>,
+<code>read_parquet</code>, <code>read_arrow</code>) accept a local path
+<strong>or a URL</strong>.</p>
+<hr />
+<h2 id="csv">CSV</h2>
+<p><code>read_csv()</code> reads a CSV file into a DataFrame. For
+standard files it uses a <strong>native Arrow CSV reader</strong>
+(<code>GArrowCSVReader</code>), which is significantly faster and more
+memory-efficient than a pure OCaml parser for large datasets.</p>
+<h3 id="when-the-native-fast-path-is-used">When the Native Fast Path Is
+Used</h3>
+<p>The native Arrow reader is used automatically when you call
+<code>read_csv()</code> with its default parameters:</p>
+<ul>
+<li>Comma separator (<code>,</code>)</li>
+<li>No skipping of the header or lines</li>
+<li>No automatic column name cleaning</li>
+</ul>
+<p>If you pass any non-default option (<code>separator = ";"</code>,
+<code>skip_lines = 5</code>, <code>clean_colnames = true</code>, …), T
+falls back to a pure OCaml CSV parser. This keeps full compatibility
+with complex CSV layouts while providing maximum speed for standard
+ones.</p>
+<pre class="t"><code>df = read_csv(&quot;data.csv&quot;)                     -- native fast path
+df = read_csv(&quot;data.csv&quot;, separator = &quot;;&quot;)    -- OCaml parser
+df = read_csv(&quot;https://example.com/data.csv&quot;) -- URL, downloaded then parsed</code></pre>
+<h3 id="na-handling">NA Handling</h3>
+<p>The native reader recognizes the following values as
+<code>NA</code>:</p>
+<ul>
+<li><code>NA</code></li>
+<li><code>na</code></li>
+<li><code>N/A</code></li>
+<li>Empty fields</li>
+</ul>
+<p>This keeps the native reader consistent with the OCaml fallback
+parser.</p>
+<h3 id="fallback-behavior">Fallback Behavior</h3>
+<p>If the native Arrow reader fails (e.g. malformed file or unsupported
+encoding), T falls back automatically:</p>
+<ol type="1">
+<li><strong>Native attempt</strong>: read with the Arrow CSV
+reader.</li>
+<li><strong>Warning</strong>: a warning is printed to stderr.</li>
+<li><strong>OCaml fallback</strong>: the file is re-read with the pure
+OCaml parser.</li>
+</ol>
+<p>Note that the fallback is more memory-intensive and may hit
+<code>Out_of_memory</code> errors for files larger than a few gigabytes
+on systems with limited RAM.</p>
+<hr />
+<h2 id="parquet">Parquet</h2>
+<p>Parquet is the recommended format for large-scale data in T because
+it is:</p>
+<ul>
+<li><strong>Binary and columnar</strong>, with built-in
+compression.</li>
+<li><strong>Type-preserving</strong>, avoiding the overhead of type
+inference.</li>
+<li><strong>Fast to ingest</strong>, using a native
+<code>parquet-glib</code> reader that is quicker than CSV reading.</li>
+<li><strong>Zero-copy loadable</strong> into memory for large
+datasets.</li>
+</ul>
+<pre class="t"><code>df = read_parquet(&quot;data.parquet&quot;)
+write_parquet(df, &quot;data.parquet&quot;)</code></pre>
+<hr />
+<h2 id="arrow-ipc-feather-v2">Arrow IPC (Feather v2)</h2>
+<p>Arrow IPC files (also known as Feather v2) give the fastest
+read/write round trip and preserve the native Arrow storage model
+exactly. They are the ideal choice for passing large DataFrames between
+runtimes.</p>
+<pre class="t"><code>df = read_arrow(&quot;data.arrow&quot;)
+write_arrow(df, &quot;data.arrow&quot;)</code></pre>
+<p>Within a pipeline, DataFrames passed between T, R, Python, and Julia
+nodes use Arrow IPC through the <code>^arrow</code> serializer — see the
+<a href="serializers.html">Serializers</a> guide and the <a
+href="pipeline_tutorial.html">Pipeline Tutorial</a> for details.</p>
+<hr />
+<h2 id="formats-t-does-not-read-natively">Formats T Does Not Read
+Natively</h2>
+<p>T does <strong>not</strong> ship parsers for proprietary office or
+statistical formats such as Excel
+(<code>.xlsx</code>/<code>.xls</code>), SPSS (<code>.sav</code>), SAS,
+Stata (<code>.dta</code>), or similar. Do not look for a
+<code>read_excel()</code> in T — it does not exist.</p>
+<p>For these formats, use <strong>R or Python</strong> inside a pipeline
+node and let T orchestrate the conversion:</p>
+<ol type="1">
+<li><strong>Declare the package</strong> you need in
+<code>tproject.toml</code> — e.g. <code>readxl</code> or
+<code>openxlsx</code> (R), <code>pandas</code> or <code>polars</code>
+(Python) — under <code>[r-dependencies]</code> or
+<code>[py-dependencies]</code>, then run <code>t update</code>. See the
+<a href="first-pipeline.html">First Pipeline</a> guide for declaring
+dependencies.</li>
+<li><strong>Read the file in a node</strong> and hand the result onward
+via a serializer:</li>
+</ol>
+<pre class="t"><code>p = pipeline {
+  raw = rn(
+    command = &lt;{
+      library(readxl)
+      read_excel(&quot;data.xlsx&quot;)
+    }&gt;,
+    serializer = ^arrow
+  )
+
+  clean = node(
+    command = raw |&gt; filter($amount &gt; 0),
+    deserializer = ^arrow
+  )
+}</code></pre>
+<ol start="3" type="1">
+<li><strong>Save from a node</strong> the same way — write the file with
+the package of your choice inside an R or Python node, or convert with
+<code>write_csv()</code>/<code>write_parquet()</code> in T for
+downstream consumption.</li>
+</ol>
+<p>This keeps T’s standard library small and focused while giving you
+access to the full ecosystem of R and Python readers, writers, and
+converters.</p>
+<hr />
+<h2 id="recommendations-for-large-data">Recommendations for Large
+Data</h2>
+<p>For datasets exceeding 2–3 GB:</p>
+<ol type="1">
+<li><strong>Prefer Parquet</strong>: convert CSVs to Parquet before
+reading them into T (e.g. with R’s <code>arrow::write_parquet()</code>
+or Python’s <code>pandas.DataFrame.to_parquet()</code>).</li>
+<li><strong>Use standard CSVs</strong>: if you must use CSV, stick to
+the default comma separator and no leading comment lines to stay on the
+native fast path.</li>
+<li><strong>Mind memory limits</strong>: the pure OCaml fallback path is
+bounded by OCaml’s heap and string-size limits — still large on 64-bit
+systems, but less efficient than Arrow’s memory mapping.</li>
+</ol>
+<hr />
+<h2 id="related-guides">Related Guides</h2>
+<ul>
+<li><a href="performance.html">Performance</a> — how the Arrow backend
+works, vectorization, and the native vs. fallback paths</li>
+<li><a href="serializers.html">Serializers in T</a> — <code>^arrow</code>,
+<code>^csv</code>, <code>^json</code>, and custom serializers for
+pipelines</li>
+<li><a href="pipeline-materialization.html">Pipeline Materialization</a> —
+how node artifacts are stored and read back</li>
+<li><a href="reference/index.html">Function Reference</a> —
+<code>read_csv</code>, <code>write_csv</code>,
+<code>read_parquet</code>, <code>write_parquet</code>,
+<code>read_arrow</code>, <code>write_arrow</code></li>
+</ul>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>
