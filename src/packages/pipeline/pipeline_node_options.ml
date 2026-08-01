@@ -25,6 +25,12 @@ open Ast
 --# - `shell` — shell interpreter, or NA when unset (String | NA)
 --# - `shell_args` — shell interpreter arguments (List of String)
 --# - `flake` — Nix flake path, or NA when unset (String | NA)
+--# - `provenance` — where each resolved option came from (Dict).  Combine
+--#   options (`functions`, `include`, `shell_args`, `dependencies`) are
+--#   grouped into `global`/`node` sub-lists; override options
+--#   (`serializer`, `deserializer`, `shell`, `flake`, `noop`) map to a source
+--#   String ("global" | "node") or NA when unset; `env_vars` and `args` map
+--#   each key to its source String.
 --#
 --# An unknown node name is a `TypeError` listing the valid node names.
 --#
@@ -76,6 +82,40 @@ let register env =
               | Some f -> expr_list_to_value f | None -> VList [] in
             let flake = match List.assoc_opt name p.p_flakes with
               | Some (Some f) -> VString f | _ -> VNA NAGeneric in
+            let prov = Ast.Utils.option_provenance_of p name in
+            let src_str = Ast.Utils.option_source_to_string in
+            let grouped_sources entries =
+              let globals, nodes = List.partition (fun (_, s) ->
+                match s with Source_global -> true | _ -> false) entries in
+              VDict [
+                ("global", VList (List.map (fun (e, _) -> (None, expr_to_value e)) globals));
+                ("node", VList (List.map (fun (e, _) -> (None, expr_to_value e)) nodes));
+              ]
+            in
+            let grouped_string_sources entries =
+              let globals, nodes = List.partition (fun (_, s) ->
+                match s with Source_global -> true | _ -> false) entries in
+              VDict [
+                ("global", VList (List.map (fun (d, _) -> (None, VString d)) globals));
+                ("node", VList (List.map (fun (d, _) -> (None, VString d)) nodes));
+              ]
+            in
+            let source_of src_opt =
+              match src_opt with Some s -> VString (src_str s) | None -> VNA NAGeneric
+            in
+            let provenance = VDict [
+              ("functions", grouped_sources prov.prov_functions);
+              ("include", grouped_sources prov.prov_includes);
+              ("env_vars", VDict (List.map (fun (k, s) -> (k, VString (src_str s))) prov.prov_env_vars));
+              ("args", VDict (List.map (fun (k, s) -> (k, VString (src_str s))) prov.prov_args));
+              ("shell_args", grouped_sources prov.prov_shell_args);
+              ("serializer", source_of prov.prov_serializer);
+              ("deserializer", source_of prov.prov_deserializer);
+              ("shell", source_of prov.prov_shell);
+              ("flake", source_of prov.prov_flake);
+              ("noop", source_of prov.prov_noop);
+              ("dependencies", grouped_string_sources prov.prov_explicit_deps);
+            ] in
             VDict (base @ [
               ("functions",  funcs);
               ("include",    incs);
@@ -84,6 +124,7 @@ let register env =
               ("shell",      shell);
               ("shell_args", shell_args);
               ("flake",      flake);
+              ("provenance", provenance);
             ])
       | [None, VPipeline _; None, other] ->
           Error.type_error (Printf.sprintf "pipeline_node_options: expected a String node name, got %s." (Utils.type_name other))

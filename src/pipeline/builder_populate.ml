@@ -83,32 +83,20 @@ let generate_and_maybe_build ?verbose ?pipeline_name ?nix_options ~build (p : As
       else Ok (Ast.VString (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir))
 
 let populate_pipeline ?(build=false) ?(skip_requirements=false) ?verbose ?pipeline_name ?(nix_options : nix_opts option) (p : Ast.pipeline_result) =
-  let eval_string_list lst =
-    lst
-    |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))
-    |> List.map (function Ast.VString s -> s | _ -> "")
-    |> List.filter (fun s -> s <> "")
-  in
-  let get_all_files () =
-    (List.map snd p.p_functions @ List.map snd p.p_includes)
-    |> List.concat
-    |> eval_string_list
-  in
-  let script_files =
-    List.filter_map (fun (_, s) -> s) p.p_scripts
-  in
-  let missing_files =
-    (get_all_files () @ script_files)
-    |> List.filter (fun f -> not (Sys.file_exists f))
-  in
-  if missing_files <> [] then
-    Error (Printf.sprintf "The following required files are missing from the file system: %s" (String.concat ", " missing_files))
-  else begin
+  match Pipeline_validation.check_missing_files p with
+  | first :: _ -> Error first.Pipeline_validation.ve_message
+  | [] ->
   if not skip_requirements then begin
     match Pipeline_dependency_requirements.ensure_project_requirements p with
     | Error msg -> Error ("Pipeline dependency check failed: " ^ msg)
     | Ok () ->
     let () =
+      let eval_string_list lst =
+        lst
+        |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))
+        |> List.map (function Ast.VString s -> s | _ -> "")
+        |> List.filter (fun s -> s <> "")
+      in
       List.iter (fun (name, _) ->
         let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
         let des = match List.assoc_opt name p.p_deserializers with Some e -> e | None -> Ast.mk_expr (Ast.Var "default") in
@@ -145,108 +133,9 @@ let populate_pipeline ?(build=false) ?(skip_requirements=false) ?verbose ?pipeli
       ) p.p_exprs
     in
 
-    (* Ensure nodes with multiple dependencies use a dictionary for their deserializer strategy. *)
-    let check_multi_dep_strategies () =
-      List.find_map (fun (name, _) ->
-        let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
-        let des = match List.assoc_opt name p.p_deserializers with Some e -> e | None -> Ast.mk_expr (Ast.Var "default") in
-        
-        let is_dict_or_list = function
-          | Ast.DictLit _ | Ast.ListLit _
-          | Ast.Value (Ast.VDict _) | Ast.Value (Ast.VList _) -> true
-          | _ -> false
-        in
-        
-        if List.length deps >= 2 && not (is_dict_or_list des.Ast.node) then
-          let strategy = Nix_unparse.expr_to_string des in
-          if strategy <> "default" then
-            (match deps with
-             | d1 :: d2 :: _ ->
-                 Some (Printf.sprintf "Node `%s` has multiple dependencies but uses a single deserializer strategy (\"%s\").\nThis strategy is applied to ALL dependencies, which may cause parse errors if they use different formats (e.g. Arrow vs PMML).\nPlease use a dictionary to specify the deserializer for each dependency, e.g.:\n  deserializer = [ %s: \"...\", %s: \"...\" ]"
-                        name strategy d1 d2)
-             | _ -> None)
-          else None
-        else None
-      ) p.p_exprs
-    in
-    
-    let check_serializer_coherence () =
-      let eval_expr e = Eval.eval_expr (ref Ast.Env.empty) e in
-      let get_ser name = 
-        match List.assoc_opt name p.p_serializers with
-        | Some e -> eval_expr e
-        | None -> Ast.(VNA NAGeneric)
-      in
-      let get_des name = 
-        match List.assoc_opt name p.p_deserializers with
-        | Some e -> eval_expr e
-        | None -> Ast.(VNA NAGeneric)
-      in
-      let extract_format = function
-        | Ast.VSerializer s -> Some s.s_format
-        | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
-        | Ast.VDict pairs ->
-            (match List.assoc_opt "format" pairs with
-             | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
-             | Some (VSerializer s) -> Some s.s_format
-             | _ -> None)
-        | _ -> None
-
-      in
-      List.find_map (fun (name, _) ->
-        let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
-        let node_des_val = get_des name in
-        List.find_map (fun dep_name ->
-          let producer_ser_val = get_ser dep_name in
-          let producer_fmt = extract_format producer_ser_val in
-          let consumer_fmt =
-            match node_des_val with
-            | Ast.VDict pairs ->
-                (match List.assoc_opt dep_name pairs with
-                 | Some v -> extract_format v
-                 | None -> extract_format node_des_val)
-            | _ -> extract_format node_des_val
-          in
-          match producer_fmt, consumer_fmt with
-          | Some pf, Some cf when pf <> cf && pf <> "default" && cf <> "default" -> 
-              Some (Printf.sprintf "Serializer coherence error: Node `%s` expects format `%s` for dependency `%s`, but `%s` produces format `%s`."
-                      name cf dep_name dep_name pf)
-          | _ -> None
-        ) deps
-      ) p.p_exprs
-    in
-
-    match check_multi_dep_strategies () with
-    | Some err -> Error (err)
-    | None ->
-    match check_serializer_coherence () with
-    | Some err -> Error (err)
-    | None ->
-    let check_bin_only_for_fetchurl () =
-      List.find_map (fun (name, _) ->
-        let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
-        let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-        let rec is_bin_format expr =
-          match expr.Ast.node with
-          | Ast.Value (Ast.VString s) -> String.lowercase_ascii s = "bin"
-          | Ast.Value (Ast.VSymbol s) ->
-              let s = String.lowercase_ascii (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s) in
-              s = "bin"
-          | Ast.Value (Ast.VSerializer s) -> s.s_format = "bin"
-          | Ast.ListLit items -> List.exists (fun (_, e) -> is_bin_format e) items
-          | Ast.DictLit items -> List.exists (fun (_, e) -> is_bin_format e) items
-          | _ -> false
-        in
-        if is_bin_format ser && runtime <> "fetchurl" then
-          Some (Printf.sprintf "The ^bin serializer is only supported for fetchurl nodes. Node `%s` uses runtime `%s`. Either set runtime = fetchurl or choose a different serializer." name runtime)
-        else
-          None
-      ) p.p_exprs
-    in
-    match check_bin_only_for_fetchurl () with
-    | Some err -> Error (err)
-    | None ->
+    match Pipeline_validation.serializer_errors p with
+    | first :: _ -> Error first.Pipeline_validation.ve_message
+    | [] ->
       generate_and_maybe_build ?verbose ?pipeline_name ?nix_options ~build p
   end else
     generate_and_maybe_build ?verbose ?pipeline_name ?nix_options ~build p
-  end

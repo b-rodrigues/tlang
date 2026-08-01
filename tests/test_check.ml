@@ -485,4 +485,49 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   in
   test_rename_confidence ();
 
+  Printf.printf "\nof_pipeline_validation (structural checks):\n";
+  let contains_substring haystack needle =
+    try Str.search_forward (Str.regexp needle) haystack 0 >= 0
+    with Not_found -> false
+  in
+  let validate_pipeline = eval_string
+    {|p = pipeline {
+         a = rn(command = <{ 1 }>, runtime = "bogus");
+         b = rn(command = <{ 2 }>, functions = "missing_check_file.R")
+       }; p|} in
+  (match validate_pipeline with
+   | Ast.VPipeline p ->
+       let diags = Diagnostics.of_pipeline_validation p in
+       let messages = List.map Diagnostics.diagnostic_message diags in
+       let has_runtime = List.exists (fun m -> contains_substring m "unknown runtime `bogus`") messages in
+       let has_file = List.exists (fun m -> contains_substring m "missing from the file system: missing_check_file.R") messages in
+       check "of_pipeline_validation: reports invalid runtime" has_runtime;
+       check "of_pipeline_validation: reports missing file" has_file;
+       check "of_pipeline_validation: all severity Error"
+         (List.for_all (fun d -> Diagnostics.diagnostic_severity d = Diagnostics.Error) diags);
+       check "of_pipeline_validation: all phase Wire"
+         (List.for_all (fun d -> Diagnostics.diagnostic_phase d = Diagnostics.Wire) diags);
+       check "of_pipeline_validation: node id populated"
+         (List.exists (fun d -> d.Diagnostics.diag_node_id = Some "a") diags);
+       check "of_pipeline_validation: exit code 1"
+         (Diagnostics.exit_code_of_diagnostics diags = 1)
+   | _ -> check "of_pipeline_validation: pipeline built" false);
+
+  Printf.printf "\nt check tier 1 wiring:\n";
+  let tmp_file = Filename.temp_file "tlang_check_validation" ".t" in
+  let oc = open_out tmp_file in
+  output_string oc {|p = pipeline { a = rn(command = <{ 1 }>, runtime = "bogus") }|};
+  close_out oc;
+  let env = Packages.init_env () in
+  let cr = Check_utils.run_check Typecheck.Strict tmp_file env in
+  let diags = Diagnostics.check_result_entries cr in
+  check "t check tier 1: reports unknown runtime"
+    (List.exists (fun d ->
+       contains_substring (Diagnostics.diagnostic_message d) "unknown runtime `bogus`") diags);
+  check "t check tier 1: all phase Wire"
+    (List.for_all (fun d -> Diagnostics.diagnostic_phase d = Diagnostics.Wire) diags);
+  check "t check tier 1: exit code 1"
+    (Diagnostics.exit_code_of_diagnostics diags = 1);
+  Sys.remove tmp_file;
+
   Printf.printf "\n";;

@@ -165,6 +165,90 @@ pipeline_to_frame(p) |> filter(\(row) row.noop == false) |> nrow|}
     {|p = pipeline { a = 1 }; mutate_node(p, $noop = "yes")|}
     {|Error(TypeError: "Function `mutate_node`: `noop` must be a Bool, got String.")|};
 
+  test "mutate_node sets functions on all nodes"
+    {|p = pipeline { a = node(command = 1, functions = ["x.R"]); b = node(command = 2) }
+      p2 = p |> mutate_node($functions = ["new.R"])
+      length(pipeline_node_options(p2, "a").functions)|}
+    "1";
+
+  test "mutate_node clears functions with NA"
+    {|p = pipeline { a = node(command = 1, functions = ["x.R", "y.R"]) }
+      p2 = p |> mutate_node($functions = na())
+      length(pipeline_node_options(p2, "a").functions)|}
+    "0";
+
+  test "mutate_node sets include on all nodes"
+    {|p = pipeline { a = node(command = 1, include = ["x.csv"]) }
+      p2 = p |> mutate_node($include = ["shared.R"])
+      length(pipeline_node_options(p2, "a").include)|}
+    "1";
+
+  test "mutate_node sets env_vars"
+    {|p = pipeline { a = node(command = 1, env_vars = [OLD: "val"]) }
+      p2 = p |> mutate_node($env_vars = [FOO: "bar", BAZ: "qux"])
+      length(pipeline_node_options(p2, "a").env_vars)|}
+    "2";
+
+  test "mutate_node clears env_vars with NA"
+    {|p = pipeline { a = node(command = 1, env_vars = [OLD: "val"]) }
+      p2 = p |> mutate_node($env_vars = na())
+      length(pipeline_node_options(p2, "a").env_vars)|}
+    "0";
+
+  test "mutate_node sets args"
+    {|p = pipeline { a = node(command = 1) }
+      p2 = p |> mutate_node($args = [mode: "batch"])
+      length(pipeline_node_options(p2, "a").args)|}
+    "1";
+
+  test "mutate_node sets shell"
+    {|p = pipeline { a = node(command = 1) }
+      p2 = p |> mutate_node($shell = "zsh")
+      pipeline_node_options(p2, "a").shell|}
+    "zsh";
+
+  test "mutate_node clears shell with NA"
+    {|p = pipeline { a = node(command = 1) }
+      p2 = p |> mutate_node($shell = na())
+      pipeline_node_options(p2, "a").shell|}
+    "NA";
+
+  test "mutate_node sets shell_args"
+    {|p = pipeline { a = node(command = 1, shell_args = ["-x"]) }
+      p2 = p |> mutate_node($shell_args = ["--mutated"])
+      length(pipeline_node_options(p2, "a").shell_args)|}
+    "1";
+
+  test "mutate_node sets flake"
+    {|p = pipeline { a = node(command = 1) }
+      p2 = p |> mutate_node($flake = "path:./custom")
+      pipeline_node_options(p2, "a").flake|}
+    "path:./custom";
+
+  test "mutate_node clears flake with NA"
+    {|p = pipeline { a = node(command = 1, flake = "path:./old") }
+      p2 = p |> mutate_node($flake = na())
+      pipeline_node_options(p2, "a").flake|}
+    "NA";
+
+  test "mutate_node errors on wrong functions type"
+    {|p = pipeline { a = 1 }; mutate_node(p, $functions = 42)|}
+    {|Error(TypeError: "Function `mutate_node`: `functions` must be a List of Strings or Symbols, got Int.")|};
+
+  test "mutate_node errors on wrong env_vars type"
+    {|p = pipeline { a = 1 }; mutate_node(p, $env_vars = "not_a_dict")|}
+    {|Error(TypeError: "Function `mutate_node`: `env_vars` must be a Dict, got String.")|};
+
+  test "mutate_node errors on wrong shell type"
+    {|p = pipeline { a = 1 }; mutate_node(p, $shell = 42)|}
+    {|Error(TypeError: "Function `mutate_node`: `shell` must be a String, got Int.")|};
+
+  test "mutate_node where clause scopes new fields"
+    {|p = pipeline { a = node(command = 1, functions = ["a.R"]); b = node(command = 2, functions = ["b.R"]) }
+      p2 = p |> mutate_node($functions = ["only-b.R"], where = $name == "b")
+      length(pipeline_node_options(p2, "a").functions)|}
+    "1";
+
   print_newline ();
 
   Printf.printf "Phase 2 — rename_node:\n";
@@ -493,6 +577,43 @@ pipeline_edges(p)|}
   test "pipeline_assert returns pipeline when valid"
     {|p = pipeline { a = 1; b = a + 1 }; pipeline_assert(p) |> pipeline_nodes|}
     {|["a", "b"]|};
+
+  test "pipeline_validate reports missing function file"
+    {|p = pipeline { a = rn(command = <{ 1 }>, functions = "nonexistent.R") }; pipeline_validate(p)|}
+    "missing from the file system: nonexistent.R";
+
+  test "pipeline_validate reports unknown runtime"
+    {|p = pipeline { a = rn(command = <{ 1 }>, runtime = "bogus") }; pipeline_validate(p)|}
+    {|Node `a` uses unknown runtime `bogus`|};
+
+  test "pipeline_validate reports serializer coherence mismatch"
+    {|p = pipeline {
+         x = rn(command = <{ 1 }>, serializer = ^csv);
+         y = rn(command = <{ x + 1 }>, deserializer = ^arrow, deps = ["x"])
+       }; pipeline_validate(p)|}
+    "expects format `arrow` for dependency `x`";
+
+  test "pipeline_validate reports multi-dep single strategy"
+    {|p = pipeline {
+         x = rn(command = <{ 1 }>, serializer = ^csv);
+         y = rn(command = <{ 2 }>, serializer = ^json);
+         z = rn(command = <{ 3 }>, deps = ["x", "y"], deserializer = ^json)
+       }; pipeline_validate(p)|}
+    "single deserializer strategy";
+
+  test "pipeline_validate reports bin on non-fetchurl node"
+    {|p = pipeline { a = rn(command = <{ 1 }>, serializer = ^bin) }; pipeline_validate(p)|}
+    "only supported for fetchurl nodes";
+
+  test "pipeline_validate aggregates multiple errors"
+    {|p = pipeline {
+         a = rn(command = <{ 1 }>, functions = "missing1.R", runtime = "bogus")
+       }; length(pipeline_validate(p))|}
+    "2";
+
+  test "pipeline_assert throws first validation error"
+    {|p = pipeline { a = rn(command = <{ 1 }>, runtime = "bogus") }; pipeline_assert(p)|}
+    "unknown runtime `bogus`";
 
   print_newline ();
 
