@@ -55,6 +55,7 @@ If you don't specify a serializer, T uses the `default` serializer, which select
 | `^pmml` | PMML | Predictive Models | T, R, Python, Julia | T, R, Python, Julia | Julia writer: GLM.jl → PMML 4.4; Julia reader: JPMML evaluator via `JavaCall` |
 | `^onnx` | ONNX | ML Models | T, R, Python | T, R, Python, Julia | Julia: inference only (`ONNXRunTime.jl`); export is experimental/limited |
 | `^text` | Plain Text | Logs, shell output | All | All | Raw text, no format constraints |
+| `^bin` | Binary | Passthrough, fetchurl | T | T | Opaque binary blob; default for `fetchurl()` nodes |
 
 ## 3. The `serializer` Structure
 
@@ -124,6 +125,7 @@ The table below shows which packages each format pulls in per runtime:
 | `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | `GLM`, `JavaCall` |
 | `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |
 | `^text` | *(base R)* | *(stdlib)* | *(stdlib)* |
+| `^bin` | *(none)* | *(none)* | *(none)* |
 | `default` | *(none)* | *(stdlib pickle)* | *(stdlib Serialization)* |
 
 The `^pmml` format also requires the `jre` system tool for R, Python, and Julia nodes (for JPMML evaluator execution). Add `"jre"` to `[additional-tools].packages` in `tproject.toml`.

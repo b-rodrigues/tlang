@@ -172,6 +172,14 @@ experimental/limited</td>
 <td>All</td>
 <td>Raw text, no format constraints</td>
 </tr>
+<tr>
+<td><code>^bin</code></td>
+<td>Binary</td>
+<td>Passthrough, fetchurl</td>
+<td>T</td>
+<td>T</td>
+<td>Opaque binary blob; default for <code>fetchurl()</code> nodes</td>
+</tr>
 </tbody>
 </table>
 <h2 id="the-serializer-structure">3. The <code>serializer</code>
@@ -291,6 +299,12 @@ runtime:</p>
 <td><em>(base R)</em></td>
 <td><em>(stdlib)</em></td>
 <td><em>(stdlib)</em></td>
+</tr>
+<tr>
+<td><code>^bin</code></td>
+<td><em>(none)</em></td>
+<td><em>(none)</em></td>
+<td><em>(none)</em></td>
 </tr>
 <tr>
 <td><code>default</code></td>
