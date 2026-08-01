@@ -389,7 +389,7 @@ error(&quot;fail&quot;) ?|&gt; recovery |&gt; increment  -- 1</code></pre>
 <pre class="t"><code>result = if (5 &gt; 3) &quot;yes&quot; else &quot;no&quot;   -- &quot;yes&quot;</code></pre>
 <p>Conditionals are expressions — they return values.</p>
 <hr />
-<h2 id="pattern-matching-new">Pattern Matching (New)</h2>
+<h2 id="pattern-matching">Pattern Matching</h2>
 <p>T now supports pattern matching on lists and errors using the
 <code>match</code> expression. This addition provides a more declarative
 way to destructure data and handle error states.</p>
@@ -601,10 +601,11 @@ get(data, l_deep)            -- 1
 data_updated = over(data, l_deep, \(x) 99)
 get(data_updated, l_deep)    -- 99</code></pre>
 <blockquote>
-<p>[!NOTE] <strong>Serializable Pipelines</strong>: Tlang lenses are now
-implemented as structured data (<code>VLens</code>), not closures. This
-ensures they can be saved to disk by one pipeline node and loaded by
-another without losing functionality.</p>
+<p>[!NOTE] <strong>Serializable Pipelines</strong>: Pipeline lenses are
+first-class values that can be passed between pipeline nodes and
+serialized to disk. Use <code>mutate_node()</code> or
+<code>set_pipeline_global_options()</code> to apply a lens to a
+pipeline.</p>
 </blockquote>
 <hr />
 <h2 id="missing-values-na">Missing Values (NA)</h2>
@@ -1312,8 +1313,7 @@ type(&quot;hello&quot;)        -- &quot;String&quot;
 type([1, 2])         -- &quot;List&quot;
 type([x: 1])         -- &quot;Dict&quot;
 type(NA)             -- &quot;NA&quot;
-type(1 / 0)          -- &quot;Error&quot;
-type(NA)           -- &quot;NA&quot;</code></pre>
+type(1 / 0)          -- &quot;Error&quot;</code></pre>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you have a solid grasp of T’s syntax and core features,

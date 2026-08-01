@@ -725,7 +725,7 @@ Conditionals are expressions — they return values.
 
 ---
 
-## Pattern Matching (New)
+## Pattern Matching
 
 T now supports pattern matching on lists and errors using the `match` expression. This addition provides a more declarative way to destructure data and handle error states.
 
@@ -907,7 +907,7 @@ get(data_updated, l_deep)    -- 99
 ```
 
 > [!NOTE]
-> **Serializable Pipelines**: Tlang lenses are now implemented as structured data (`VLens`), not closures. This ensures they can be saved to disk by one pipeline node and loaded by another without losing functionality.
+> **Serializable Pipelines**: Pipeline lenses are first-class values that can be passed between pipeline nodes and serialized to disk. Use `mutate_node()` or `set_pipeline_global_options()` to apply a lens to a pipeline.
 
 ---
 
@@ -1586,7 +1586,6 @@ type([1, 2])         -- "List"
 type([x: 1])         -- "Dict"
 type(NA)             -- "NA"
 type(1 / 0)          -- "Error"
-type(NA)           -- "NA"
 ```
 
 ---
@@ -8352,7 +8351,7 @@ T is a tree-walking interpreter built in OCaml. The architecture prioritizes:
 4. **Extensibility**: Modular package system for adding functionality
 
 **Tech Stack:**
-- **Host Language**: OCaml 4.14+
+- **Host Language**: OCaml 5.x
 - **Parser Generator**: Menhir (LR parser)
 - **Lexer**: ocamllex
 - **Build System**: Dune
@@ -13688,7 +13687,7 @@ T treats errors as **first-class values**, not exceptions. This design enables:
 
 ## Execution Modes: Resilient vs. Fail-Fast
 
-T-Lang provides two modes of evaluation, controlled by the "resilience" setting:
+T provides two modes of evaluation, controlled by the "resilience" setting:
 
 ### 1. Resilient Mode (Default)
 Evaluation continues even when statements or pipeline nodes result in `VError` values. This is aligned with the "Errors are Values" philosophy, allowing you to collect as much information as possible from a single run. Residual errors are simply passed to downstream functions (which may short-circuit via `|>` or recover via `?|>`). This is the recommended mode for complex data pipelines where you want to observe as many diagnostic outcomes as possible in a single pass.
@@ -13701,8 +13700,6 @@ Evaluation stops immediately upon encountering the first `VError`. This is the u
 - **CLI**: Use `t run --failfast script.t`
 - **REPL**: Set `t_run(failfast = true, ...)`
 - **Pipelines**: Use `t_make(failfast = true)`
-
----
 
 ---
 
@@ -14157,7 +14154,7 @@ risky_calc() ?|> enhance_error
 
 ## Pipeline Diagnostics and Soft-Failures
 
-In T-Lang, the materialization of a pipeline is a separate phase from the logic execution. When a node in a pipeline fails, it doesn't necessarily halt the entire build.
+In T, the materialization of a pipeline is a separate phase from the logic execution. When a node in a pipeline fails, it doesn't necessarily halt the entire build.
 
 ### Pipeline Node Statuses & Failure Modes
 
@@ -14166,14 +14163,14 @@ When you run `build_pipeline(p)` and inspect the build log using `build_log(p) |
 | Node Status | Did it execute? | Did it fail? | Pipeline Impact | Description & Cause |
 | :--- | :---: | :---: | :--- | :--- |
 | **`Completed`** | Yes | No | **Success** (propagates data) | The node ran successfully and serialized its output artifact. |
-| **`Completed with error`** (Soft-Fail) | Yes | **Yes (Soft)** | **Continues** (propagates error) | The script ran inside the sandbox but raised a user-space exception. T-Lang captures this as a first-class `VError` value so independent branches can still build. |
+| **`Completed with error`** (Soft-Fail) | Yes | **Yes (Soft)** | **Continues** (propagates error) | The script ran inside the sandbox but raised a user-space exception. T captures this as a first-class `VError` value so independent branches can still build. |
 | **`Errored`** (Hard-Fail) | Yes | **Yes (Hard)** | **Aborts Build** | The sandbox execution crashed entirely or exited with a non-zero code (e.g., syntax errors, missing packages, memory exhaustion). |
 | **`Skipped`** | **No** | No | **Bypassed** | The node was never evaluated or executed because an upstream dependency suffered a hard `Errored` failure. |
 
 #### Detailed Failure Mechanics
 
 1. **Why `Completed with error` propagates downstream:**
-   Because T-Lang treats errors as first-class values, a soft-failure is saved as a normal serialized directory outcome. Downstream nodes are still scheduled to run, receive the `VError` as input, and automatically propagate it further down the pipe unless you explicitly recover from it.
+   Because T treats errors as first-class values, a soft-failure is saved as a normal serialized directory outcome. Downstream nodes are still scheduled to run, receive the `VError` as input, and automatically propagate it further down the pipe unless you explicitly recover from it.
 
 2. **Why `Errored` halts downstream execution:**
    When a node suffers a hard `Errored` nix-build failure, the Nix daemon immediately stops evaluating that branch. No output directory is produced, and the entire build process terminates.
@@ -14223,7 +14220,7 @@ The per-node diagnostics in `read_pipeline(p).nodes` carry full warning lists as
 
 ### Investigating with `explain()`
 
-When you load a node that soft-failed, you receive a T-Lang Error object. You can use the `explain()` builtin to see the exact cause, including tracebacks from other languages.
+When you load a node that soft-failed, you receive a T Error object. You can use the `explain()` builtin to see the exact cause, including tracebacks from other languages.
 
 ```t
 hu = read_node("py_err")
@@ -14241,10 +14238,10 @@ explain(hu)
 
 ## Polyglot Error Handling (Python/R)
 
-T-Lang provides a "diagnostic bridge" for nodes running in other languages.
+T provides a "diagnostic bridge" for nodes running in other languages.
 
 ### Python Nodes
-- **Exceptions**: All uncaught exceptions are caught by the T-Lang runner. The exception type, message, and full traceback are serialized into the `VError` artifact.
+- **Exceptions**: All uncaught exceptions are caught by the T runner. The exception type, message, and full traceback are serialized into the `VError` artifact.
 - **Warnings**: Captured via `warnings.catch_warnings()`. These are listed in the build summary but do not cause the node to return an error state.
 
 ### R Nodes
@@ -15677,7 +15674,7 @@ T isn't just another data analysis language; it's a **reproducibility-first** en
 
 ### Who should use T?
 - **Scientific Researchers**: Who need ironclad, auditable proof of how results were derived.
-- **Data Engineering Teams**: Looking for a polyglot orchestration layer that passes data between R and Python without serialization overhead.
+- **Data Engineering Teams**: Looking for a polyglot orchestration layer that passes data between R and Python with high-performance Arrow serialization.
 - **LLM-First Developers**: T's functional, immutable, and pipeline-centric design is optimized for high-fidelity code generation by AI.
 
 ### Is T production-ready?
@@ -15704,7 +15701,7 @@ T takes a strict approach to safety. Unlike other languages where `NA` might pro
 
 ### Does T have loops or mutable state?
 **No.** T is a pure functional language. 
-- Instead of `for` or `while` loops, use `map()`, `filter()`, or **recursion**.
+- Instead of `for` or `while` loops, use `map()`, `filter()`, or `reduce()`.
 - Variables are immutable. This prevents the "spaghetti state" common in long data scripts.
 
 ---

@@ -306,7 +306,7 @@ Conditionals are expressions — they return values.
 
 ---
 
-## Pattern Matching (New)
+## Pattern Matching
 
 T now supports pattern matching on lists and errors using the `match` expression. This addition provides a more declarative way to destructure data and handle error states.
 
@@ -488,7 +488,7 @@ get(data_updated, l_deep)    -- 99
 ```
 
 > [!NOTE]
-> **Serializable Pipelines**: Tlang lenses are now implemented as structured data (`VLens`), not closures. This ensures they can be saved to disk by one pipeline node and loaded by another without losing functionality.
+> **Serializable Pipelines**: Pipeline lenses are first-class values that can be passed between pipeline nodes and serialized to disk. Use `mutate_node()` or `set_pipeline_global_options()` to apply a lens to a pipeline.
 
 ---
 
@@ -1167,7 +1167,6 @@ type([1, 2])         -- "List"
 type([x: 1])         -- "Dict"
 type(NA)             -- "NA"
 type(1 / 0)          -- "Error"
-type(NA)           -- "NA"
 ```
 
 ---

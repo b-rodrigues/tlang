@@ -11,7 +11,7 @@ T isn't just another data analysis language; it's a **reproducibility-first** en
 
 ### Who should use T?
 - **Scientific Researchers**: Who need ironclad, auditable proof of how results were derived.
-- **Data Engineering Teams**: Looking for a polyglot orchestration layer that passes data between R and Python without serialization overhead.
+- **Data Engineering Teams**: Looking for a polyglot orchestration layer that passes data between R and Python with high-performance Arrow serialization.
 - **LLM-First Developers**: T's functional, immutable, and pipeline-centric design is optimized for high-fidelity code generation by AI.
 
 ### Is T production-ready?
@@ -38,7 +38,7 @@ T takes a strict approach to safety. Unlike other languages where `NA` might pro
 
 ### Does T have loops or mutable state?
 **No.** T is a pure functional language. 
-- Instead of `for` or `while` loops, use `map()`, `filter()`, or **recursion**.
+- Instead of `for` or `while` loops, use `map()`, `filter()`, or `reduce()`.
 - Variables are immutable. This prevents the "spaghetti state" common in long data scripts.
 
 ---

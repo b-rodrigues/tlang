@@ -26,7 +26,7 @@ T is a tree-walking interpreter built in OCaml. The architecture prioritizes:
 4. **Extensibility**: Modular package system for adding functionality
 
 **Tech Stack:**
-- **Host Language**: OCaml 4.14+
+- **Host Language**: OCaml 5.x
 - **Parser Generator**: Menhir (LR parser)
 - **Lexer**: ocamllex
 - **Build System**: Dune

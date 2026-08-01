@@ -52,8 +52,8 @@ ensuring that your analysis is as stable as the hardware it runs on.</p>
 <li><strong>Scientific Researchers</strong>: Who need ironclad,
 auditable proof of how results were derived.</li>
 <li><strong>Data Engineering Teams</strong>: Looking for a polyglot
-orchestration layer that passes data between R and Python without
-serialization overhead.</li>
+orchestration layer that passes data between R and Python with
+high-performance Arrow serialization.</li>
 <li><strong>LLM-First Developers</strong>: T’s functional, immutable,
 and pipeline-centric design is optimized for high-fidelity code
 generation by AI.</li>
@@ -104,7 +104,7 @@ encounter an <code>NA</code> unless you pass <code>na_rm = true</code>.
 state?</h3>
 <p><strong>No.</strong> T is a pure functional language. - Instead of
 <code>for</code> or <code>while</code> loops, use <code>map()</code>,
-<code>filter()</code>, or <strong>recursion</strong>. - Variables are
+<code>filter()</code>, or <code>reduce()</code>. - Variables are
 immutable. This prevents the “spaghetti state” common in long data
 scripts.</p>
 <hr />

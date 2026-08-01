@@ -477,7 +477,6 @@ Purpose: parsing, constructing, formatting, extracting, and reasoning about date
 - Period accessors: `period_years(p)`, `period_months(p)`, `period_days(p)`, `period_hours(p)`, `period_minutes(p)`, `period_seconds(p)`
 - Coercion and formatting: `to_date(x)`, `to_datetime(x)`, `format_date(x, format = na())`, `format_datetime(x, format = na())`
 - Rounding and timezone labeling: `floor_date(x, unit)`, `ceiling_date(x, unit)`, `round_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`
-- Rounding and timezone labeling: `floor_date(x, unit)`, `ceiling_date(x, unit)`, `round_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`
 
 Current implementation note: timezone relabeling should be treated as a **current implementation limitation**; `with_tz()` and `force_tz()` are presently label-oriented rather than full offset-conversion logic.
 

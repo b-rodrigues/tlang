@@ -75,8 +75,8 @@ transformed, inspected, and recovered from.</p>
 <hr />
 <h2 id="execution-modes-resilient-vs.-fail-fast">Execution Modes:
 Resilient vs. Fail-Fast</h2>
-<p>T-Lang provides two modes of evaluation, controlled by the
-“resilience” setting:</p>
+<p>T provides two modes of evaluation, controlled by the “resilience”
+setting:</p>
 <h3 id="resilient-mode-default">1. Resilient Mode (Default)</h3>
 <p>Evaluation continues even when statements or pipeline nodes result in
 <code>VError</code> values. This is aligned with the “Errors are Values”
@@ -100,7 +100,6 @@ flawlessly successful.</p>
 <li><strong>Pipelines</strong>: Use
 <code>t_make(failfast = true)</code></li>
 </ul>
-<hr />
 <hr />
 <h2 id="error-types">Error Types</h2>
 <p>T has several categories of errors:</p>
@@ -478,9 +477,9 @@ risky_calc() ?|&gt; enhance_error</code></pre>
 <hr />
 <h2 id="pipeline-diagnostics-and-soft-failures">Pipeline Diagnostics and
 Soft-Failures</h2>
-<p>In T-Lang, the materialization of a pipeline is a separate phase from
-the logic execution. When a node in a pipeline fails, it doesn’t
-necessarily halt the entire build.</p>
+<p>In T, the materialization of a pipeline is a separate phase from the
+logic execution. When a node in a pipeline fails, it doesn’t necessarily
+halt the entire build.</p>
 <h3 id="pipeline-node-statuses-failure-modes">Pipeline Node Statuses
 &amp; Failure Modes</h3>
 <p>When you run <code>build_pipeline(p)</code> and inspect the build log
@@ -523,7 +522,7 @@ style="text-align: left;"><strong><code>Completed with error</code></strong>
 <td style="text-align: left;"><strong>Continues</strong> (propagates
 error)</td>
 <td style="text-align: left;">The script ran inside the sandbox but
-raised a user-space exception. T-Lang captures this as a first-class
+raised a user-space exception. T captures this as a first-class
 <code>VError</code> value so independent branches can still build.</td>
 </tr>
 <tr>
@@ -550,8 +549,8 @@ failure.</td>
 <h4 id="detailed-failure-mechanics">Detailed Failure Mechanics</h4>
 <ol type="1">
 <li><p><strong>Why <code>Completed with error</code> propagates
-downstream:</strong> Because T-Lang treats errors as first-class values,
-a soft-failure is saved as a normal serialized directory outcome.
+downstream:</strong> Because T treats errors as first-class values, a
+soft-failure is saved as a normal serialized directory outcome.
 Downstream nodes are still scheduled to run, receive the
 <code>VError</code> as input, and automatically propagate it further
 down the pipe unless you explicitly recover from it.</p></li>
@@ -604,9 +603,9 @@ pipeline-level summary reflects which nodes originally produced warnings
 without double-counting inherited ones.</p>
 <h3 id="investigating-with-explain">Investigating with
 <code>explain()</code></h3>
-<p>When you load a node that soft-failed, you receive a T-Lang Error
-object. You can use the <code>explain()</code> builtin to see the exact
-cause, including tracebacks from other languages.</p>
+<p>When you load a node that soft-failed, you receive a T Error object.
+You can use the <code>explain()</code> builtin to see the exact cause,
+including tracebacks from other languages.</p>
 <pre class="t"><code>hu = read_node(&quot;py_err&quot;)
 -- Error(RuntimeError: &quot;Critical error in Python logic&quot;)
 
@@ -619,12 +618,12 @@ explain(hu)
 <hr />
 <h2 id="polyglot-error-handling-pythonr">Polyglot Error Handling
 (Python/R)</h2>
-<p>T-Lang provides a “diagnostic bridge” for nodes running in other
+<p>T provides a “diagnostic bridge” for nodes running in other
 languages.</p>
 <h3 id="python-nodes">Python Nodes</h3>
 <ul>
 <li><strong>Exceptions</strong>: All uncaught exceptions are caught by
-the T-Lang runner. The exception type, message, and full traceback are
+the T runner. The exception type, message, and full traceback are
 serialized into the <code>VError</code> artifact.</li>
 <li><strong>Warnings</strong>: Captured via
 <code>warnings.catch_warnings()</code>. These are listed in the build
