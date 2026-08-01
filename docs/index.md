@@ -162,7 +162,7 @@ resolution and deserialization from within those environments.
 ### Getting Started
 - [Getting Started Guide](getting-started.html) — first steps with T
 - [Your First Pipeline](first-pipeline.html) — declare R, Python, and Julia packages, run `t update`, and build a hello-world pipeline
-- [Installation Guide](installation.html) — detailed setup with Nix
+- [Installing Nix for T](nix-installation.html) — recommended Determinate Systems installer and setup
 - [Language Overview](language_overview.html) — types, syntax, functions, and standard library
 - [Type System](type-system.html) — detailed guide to T's type hierarchy and semantics
 - [Numerical Arrays](arrays.html) — tutorial on N-dimensional arrays and linear algebra
@@ -174,6 +174,9 @@ resolution and deserialization from within those environments.
 - [Factors & Categorical Data](factors.html) — to_factor creation, level ordering, and `fct_*` helpers
 - [String Manipulation](string_manipulation.html) — naming rules, examples, and exceptions for text helpers
 - [Pipeline Tutorial](pipeline_tutorial.html) — step-by-step guide to T's pipeline model
+- [The Pipe Operator](pipes.html) — `|>` forwarding semantics and short-circuiting
+- [Serializers in T](serializers.html) — first-class `^serializer` system for data interchange and materialization
+- [Agent Pairing Tutorial](agent-pairing-tutorial.html) — building a T pipeline interactively with an AI agent
 - [Advanced Pipeline Tutorial](advanced-pipeline-tutorial.html) — node manipulation, set operations, DAG transformations, composition, and validation
 - [Pipeline Materialization & Nix Orchestration](pipeline-materialization.html) — building pipelines into reproducible Nix artifacts, orchestration, archives, CI/CD, branching, and custom flakes
 - [Literate Programming with Quarto](literate-programming-quarto.html) — rendering reports from pipelines
@@ -184,6 +187,7 @@ resolution and deserialization from within those environments.
 - [Error Handling Guide](error-handling.html) — error patterns and recovery strategies
 - [Comprehensive Examples](examples.html) — real-world analysis patterns
 - [T Pipeline Demos](demos.html) — interactive reports for T demo projects
+- [Magic Commands](magic-cmds.html) — REPL-only `%` shortcuts (`%cd`, `%env`, and more)
 - [External Helper Packages](external-packages.html) — reading T artifacts from R, Python, and Julia
 
 ### Advanced Topics
@@ -195,10 +199,12 @@ resolution and deserialization from within those environments.
 - [Performance Analysis](performance_analysis.html) — in-depth analysis of T's performance metrics
 - [Composable Lenses](lens.html) — functional updates for nested structures
 - [Nix Build Options & Orchestration](nix-options.html) — passing low-level nix arguments to the build
+- [Arrow: Current Status & Next Steps](arrow-current-status-next-steps.html) — state of the Arrow backend and roadmap
 
 ### Developer Resources
 - [Architecture](architecture.html) — language design and implementation
 - [Contributing Guide](contributing.html) — how to contribute to T
+- [Code of Ethics](code-of-ethics.html) — principles and values for the T community
 - [Development Guide](development.html) — building, testings, and debugging
 - [Project Development](project_development.html) — managing T projects and workspaces
 - [Package Development Guide](package_development.html) — creating and publishing T packages

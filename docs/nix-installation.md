@@ -257,6 +257,49 @@ This means your user is not in the Nix `trusted-users` list. The fix depends on 
 - **Official Nix installer or other method**: Follow the [Already Have Nix?](#already-have-nix) steps to manually add your user to `trusted-users` and configure the cache.
 - **NixOS**: Add `nix.settings.trusted-users = [ "root" "your-username" ];` to your `configuration.nix` and run `sudo nixos-rebuild switch`.
 
+## From Nix to your first T project
+
+Once Nix is installed and the binary cache is configured, you are done with installation. T itself is **never installed** as a system program — it is distributed exclusively through Nix. Instead of installing T, you bootstrap a project that pins its own copy of the T toolchain.
+
+### 1. Start a temporary shell with `t`
+
+The `t` executable is provided by the `github:b-rodrigues/tlang` flake. Launch a temporary shell that puts `t` on your `PATH`:
+
+```bash
+nix shell --accept-flake-config github:b-rodrigues/tlang
+```
+
+This downloads the T executable (and the pinned OCaml, R, Python, and Julia runtimes it needs) and drops you into an ephemeral environment where `t` works — for as long as you stay in that shell.
+
+### 2. Bootstrap a new project
+
+Inside the temporary shell, scaffold a new project:
+
+```bash
+t init --project my_analysis
+```
+
+You will be prompted for basic project information (your name, the license, the Nixpkgs date, the AI Agent Context Level, and the pipeline template). This creates a `my_analysis/` directory containing the project's reproducible environment — most importantly `tproject.toml` (your dependency manifest) and `flake.nix`.
+
+### 3. Enter the project environment
+
+Leave the temporary shell, move into the project, and drop into the project's own development environment:
+
+```bash
+exit
+cd my_analysis
+nix develop
+```
+
+`nix develop` rebuilds an environment that pins the `t` version and all declared R, Python, and Julia packages from `tproject.toml`. From here on, you work inside the project environment — that is what "running T" means in practice.
+
+### 4. Start working
+
+You can now edit `src/pipeline.t` and run it with `t run src/pipeline.t`, or explore interactively with `t repl`. When you add dependencies to `tproject.toml`, run `t update` and re-enter `nix develop` to pick them up.
+
 ## Next Steps
 
-Now that Nix is installed, you are ready to [Get Started with T](getting-started.md)!
+Now that Nix is installed and your first project is bootstrapped, continue with:
+
+1. **[Getting Started with T](getting-started.md)** — understand the workspace layout and available commands.
+2. **[Your First Pipeline](first-pipeline.md)** — declare R, Python, and Julia packages, run `t update`, and build a hello-world polyglot pipeline.

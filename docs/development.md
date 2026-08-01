@@ -18,7 +18,7 @@ Comprehensive guide for T language development, building, testing, and debugging
 
 ### Prerequisites
 
-1. **Nix** with flakes enabled (see [Installation Guide](installation.md))
+1. **Nix** with flakes enabled (see [Nix Installation Guide](nix-installation.md))
 2. **Git** for version control
 3. **Editor** with OCaml support (VS Code, Emacs, Vim)
 

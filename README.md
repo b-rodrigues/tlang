@@ -287,7 +287,7 @@ p = pipeline {
 build_pipeline(p)
 ```
 
-See the [Installation Guide](docs/installation.md) for detailed setup instructions if you wish to build from source.
+See the [Development Guide](docs/development.md) for detailed setup instructions if you wish to build from source.
 
 ---
 
