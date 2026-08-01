@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - pipeline_validate</title>
+  <title>T Function Reference - pipeline_node_options</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,30 +33,52 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="pipeline_validate">pipeline_validate</h1>
-<p>Validate a Pipeline</p>
-<p>Checks a pipeline for structural errors without throwing. Returns a
-list of error messages. An empty list means the pipeline is valid.
-Checks performed (shared with populate_pipeline and <code>t check</code>
-tier 1): - No dependency cycles - All referenced dependencies exist as
-nodes in the pipeline - Referenced function/include/script files exist
-on the file system - Every node uses a known runtime - Cross-runtime
-dependencies declare an explicit deserializer - Deserializer/format
-coherence across dependency edges - Multiple dependencies with a single
-non-dictionary deserializer strategy - The ^bin serializer is only used
-by fetchurl nodes</p>
+<h1 id="pipeline_node_options">pipeline_node_options</h1>
+<p>Get Pipeline Node Options (read-back)</p>
+<p>Returns a Dict describing the fully resolved configuration of a
+single pipeline node, after any <code>set_pipeline_global_options</code>
+merges have been applied. This is the read-back companion to
+<code>set_pipeline_global_options</code>: what you merged in, you can
+read back out. The returned Dict has the following keys: -
+<code>name</code> — the node name (String) - <code>runtime</code> — one
+of “T”, “R”, “Python”, “Julia”, “Quarto”, “sh” (String) -
+<code>serializer</code> — e.g. “default”, “pmml” (String) -
+<code>deserializer</code> — e.g. “default”, “pmml” (String) -
+<code>noop</code> — whether the node is a no-op (Bool) -
+<code>deps</code> — names of nodes this node depends on (List of String)
+- <code>depth</code> — topological depth in the DAG (Int); roots are
+depth 0 - <code>command_type</code> — one of “command” or “script”
+(String) - <code>diagnostics</code> — node diagnostics (Dict) -
+<code>functions</code> — function files merged into the node (List of
+String) - <code>include</code> — included files (List of String) -
+<code>env_vars</code> — build environment variables (Dict) -
+<code>args</code> — runtime/tool arguments (Dict) - <code>shell</code> —
+shell interpreter, or NA when unset (String | NA) -
+<code>shell_args</code> — shell interpreter arguments (List of String) -
+<code>flake</code> — Nix flake path, or NA when unset (String | NA) -
+<code>provenance</code> — where each resolved option came from (Dict).
+Combine options (<code>functions</code>, <code>include</code>,
+<code>shell_args</code>, <code>dependencies</code>) are grouped into
+<code>global</code>/<code>node</code> sub-lists; override options
+(<code>serializer</code>, <code>deserializer</code>, <code>shell</code>,
+<code>flake</code>, <code>noop</code>) map to a source String (“global”
+| “node”) or NA when unset; <code>env_vars</code> and <code>args</code>
+map each key to its source String. An unknown node name is a
+<code>TypeError</code> listing the valid node names.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-validate.</li>
+<li><p><strong>pipeline</strong> (<code>Pipeline</code>): The input
+pipeline.</p></li>
+<li><p><strong>node</strong> (<code>String</code>): The node name to
+read back.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A list of validation error messages (empty = valid).</p>
+<p>The resolved node configuration.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>pipeline_validate(p)</code></pre>
+<pre class="t"><code>pipeline_node_options(p, &quot;n1&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="pipeline_cycles.html">pipeline_cycles</a>, <a
-href="pipeline_assert.html">pipeline_assert</a></p>
+<p><a href="pipeline_to_frame.html">pipeline_to_frame</a>, <a
+href="set_pipeline_global_options.html">set_pipeline_global_options</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

@@ -174,6 +174,8 @@ resolution and deserialization from within those environments.
 - [Factors & Categorical Data](factors.html) — to_factor creation, level ordering, and `fct_*` helpers
 - [String Manipulation](string_manipulation.html) — naming rules, examples, and exceptions for text helpers
 - [Pipeline Tutorial](pipeline_tutorial.html) — step-by-step guide to T's pipeline model
+- [Advanced Pipeline Tutorial](advanced-pipeline-tutorial.html) — node manipulation, set operations, DAG transformations, composition, and validation
+- [Pipeline Materialization & Nix Orchestration](pipeline-materialization.html) — building pipelines into reproducible Nix artifacts, orchestration, archives, CI/CD, branching, and custom flakes
 - [Literate Programming with Quarto](literate-programming-quarto.html) — rendering reports from pipelines
 - [Statistical Models](models.html) — linear regression, GLMs, and broom-style output
 - [Plotting & Visualization](plotting.html) — ggplot2, matplotlib, and visual metadata capture

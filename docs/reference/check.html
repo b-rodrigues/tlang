@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - pipeline_validate</title>
+  <title>T Function Reference - check</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,30 +33,24 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="pipeline_validate">pipeline_validate</h1>
-<p>Validate a Pipeline</p>
-<p>Checks a pipeline for structural errors without throwing. Returns a
-list of error messages. An empty list means the pipeline is valid.
-Checks performed (shared with populate_pipeline and <code>t check</code>
-tier 1): - No dependency cycles - All referenced dependencies exist as
-nodes in the pipeline - Referenced function/include/script files exist
-on the file system - Every node uses a known runtime - Cross-runtime
-dependencies declare an explicit deserializer - Deserializer/format
-coherence across dependency edges - Multiple dependencies with a single
-non-dictionary deserializer strategy - The ^bin serializer is only used
-by fetchurl nodes</p>
+<h1 id="check">check</h1>
+<p>Inline assertion wrapper</p>
+<p>Evaluates <code>assert(val)</code>, prints <code>true</code> on
+success, and preserves the original <code>VError</code> on failure.
+Suitable for use inside pipeline node commands where the result must be
+visible in logs.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-validate.</li>
+<li><strong>val</strong> (<code>Any</code>): The value to assert.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A list of validation error messages (empty = valid).</p>
+<p><code>true</code> on success; the original <code>VError</code> on
+failure.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>pipeline_validate(p)</code></pre>
+<pre class="t"><code>check(expect_equal(1 + 1, 2))</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="pipeline_cycles.html">pipeline_cycles</a>, <a
-href="pipeline_assert.html">pipeline_assert</a></p>
+<p><a href="expect_equal.html">expect_equal</a>, <a
+href="assert.html">assert</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - pipeline_validate</title>
+  <title>T Function Reference - pipeline_config_to_frame</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,30 +33,45 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="pipeline_validate">pipeline_validate</h1>
-<p>Validate a Pipeline</p>
-<p>Checks a pipeline for structural errors without throwing. Returns a
-list of error messages. An empty list means the pipeline is valid.
-Checks performed (shared with populate_pipeline and <code>t check</code>
-tier 1): - No dependency cycles - All referenced dependencies exist as
-nodes in the pipeline - Referenced function/include/script files exist
-on the file system - Every node uses a known runtime - Cross-runtime
-dependencies declare an explicit deserializer - Deserializer/format
-coherence across dependency edges - Multiple dependencies with a single
-non-dictionary deserializer strategy - The ^bin serializer is only used
-by fetchurl nodes</p>
+<h1 id="pipeline_config_to_frame">pipeline_config_to_frame</h1>
+<p>Convert Pipeline Config to DataFrame</p>
+<p>Produces a DataFrame with one row per node, showing resolved
+configuration values and per-field provenance counts. Extends
+[pipeline_to_frame] with provenance columns so queries like “which nodes
+got their serializer from global options?” can be answered directly in
+T. Columns: - <code>name</code>, <code>runtime</code>,
+<code>depth</code>, <code>command_type</code> — identity (as in
+pipeline_to_frame) - <code>serializer</code>, <code>deserializer</code>,
+<code>noop</code>, <code>shell</code>, <code>flake</code> — resolved
+values - <code>prov_serializer</code>, …, <code>prov_flake</code> —
+source (“node” / “global” / NA) - <code>n_deps</code>,
+<code>n_funcs</code>, <code>n_incs</code>, <code>n_env_vars</code>,
+<code>n_args</code>, <code>n_shell_args</code> — total counts (non-NA
+columns) - <code>n_*_global</code>, <code>n_*_node</code> — provenance
+counts for each list-type option NOTE: <code>n_deps</code> is sourced
+from <code>p_deps</code> (which includes auto-inferred dependencies),
+while <code>n_deps_global</code> / <code>n_deps_node</code> are sourced
+from <code>prov_explicit_deps</code> (which only tracks
+explicitly-declared or globally-injected deps). Consequently
+<code>n_deps</code> may exceed <code>n_deps_global + n_deps_node</code>
+when a node has auto-inferred edges. The other five list-count groups
+(<code>n_funcs</code>, <code>n_incs</code>, <code>n_env_vars</code>,
+<code>n_args</code>, <code>n_shell_args</code>) DO reconcile because
+they come from the same underlying lists as their provenance
+columns.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-validate.</li>
+<li><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline to
+convert.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>A list of validation error messages (empty = valid).</p>
+<p>A DataFrame with one row per node and config + provenance
+columns.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>pipeline_validate(p)</code></pre>
+<pre class="t"><code>pipeline_config_to_frame(p)</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="pipeline_cycles.html">pipeline_cycles</a>, <a
-href="pipeline_assert.html">pipeline_assert</a></p>
+<p><a href="pipeline_node_options.html">pipeline_node_options</a>, <a
+href="pipeline_to_frame.html">pipeline_to_frame</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

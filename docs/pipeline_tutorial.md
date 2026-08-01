@@ -139,6 +139,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | Function | Parameters | Returns | What it does |
 |---|---|---|---|
 | `pipeline_to_frame(p)` | `Pipeline` | `DataFrame` | Full node metadata (runtime, serializer, deps, depth, command_type) |
+| `pipeline_config_to_frame(p)` | `Pipeline` | `DataFrame` | Node config + provenance: resolved values, per-field source (`global`/`node`), and global/node counts for every list option (32 columns) |
 | `pipeline_nodes(p)` | `Pipeline` | `List[String]` | All node names |
 | `pipeline_deps(p)` | `Pipeline` | `Dict` | Node name → list of dependency names |
 | `pipeline_edges(p)` | `Pipeline` | `List[[from, to]]` | Edge list as dependency pairs |
@@ -358,6 +359,34 @@ info.noop        # => whether the node is a no-op
 info.depth       # => topological depth in the DAG
 ```
 
+##### The `provenance` Key
+
+Every node tracks **where each resolved setting came from**. The returned dict
+includes a `provenance` key with one entry per option:
+
+- **Mergeable lists** (`functions`, `include`, `shell_args`, `dependencies`)
+  are grouped as `{ global: [...], node: [...] }` — the global list holds
+  values injected by `set_pipeline_global_options`, the node list holds values
+  declared on the node itself (or set later via `mutate_node`).
+- **Scalar overrides** (`serializer`, `deserializer`, `shell`, `flake`, `noop`)
+  map to the source that won: `"global"` or `"node"`, or `NA` when unset.
+- **Keyed options** (`env_vars`, `args`) map each individual key to its source.
+
+```t
+info = pipeline_node_options(q, "data")
+info.provenance.functions.global   # => ["utils.R"] (injected globally)
+info.provenance.functions.node     # => ["data.R"]  (declared on the node)
+info.provenance.serializer         # => "global" or "node" or NA
+```
+
+This is the audit trail behind every resolved value: **what** the node uses is
+in the top-level keys, **where it came from** is in `provenance`.
+
+For a DataFrame-wide view across all nodes at once — e.g. "which nodes got
+their serializer from global options?" — use `pipeline_config_to_frame(p)`
+(see the [Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md#node-metadata)).
+`explain(p.node)` also includes a `config` section with this provenance.
+
 See `set_pipeline_global_options` and `pipeline_node_options` in the
 [API reference](api-reference.md) for the full key list.
 
@@ -526,7 +555,7 @@ p.summary  -- DataFrame with regional totals
 
 ## 11. Pipeline Introspection
 
-> [↩ Quick Reference: Reading Node Artifacts](#3-pipeline-function-quick-reference)
+> [↩ Quick Reference: Reading Node Artifacts](#pipeline-function-quick-reference)
 
 T provides functions to inspect pipeline structure:
 
@@ -647,7 +676,7 @@ p.nonexistent
 
 ## 15. Materializing Pipelines
 
-> [↩ Quick Reference: Reading Node Artifacts](#3-pipeline-function-quick-reference)
+> [↩ Quick Reference: Reading Node Artifacts](#pipeline-function-quick-reference)
 
 Defining a pipeline with `pipeline { ... }` evaluates nodes in-memory. To **materialize** them as reproducible Nix artifacts (potentially using R or Python dependencies you've defined in `tproject.toml`), use `populate_pipeline()` with the `build = true` argument:
 
@@ -663,7 +692,7 @@ populate_pipeline(p, build = true)
 `populate_pipeline(p, build = true)` is the primary command for materializing a pipeline. It does the following:
 
 1. **Populates** the `_pipeline/` directory with `pipeline.nix` and `dag.json`.
-2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments — including nodes that use a custom per-node flake (see [Custom Flakes per Node](advanced-pipeline-tutorial.md#37-custom-flakes-per-node) for inheritance details).
+2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments — including nodes that use a custom per-node flake (see [Custom Flakes per Node](pipeline-materialization.md#custom-flakes-per-node) for inheritance details).
 3. **Triggers** a Nix build to materialize each node as a serialized artifact.
 4. **Records** the build in a timestamped log file (`_pipeline/build_log_YYYYMMdd_HHmmss_hash.json`).
 
@@ -769,8 +798,9 @@ p.ranked        -- DataFrame sorted by score
 
 Now that you've mastered pipeline basics, explore advanced topics:
 
-1. **[Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md)** — Dynamic branching (pattern expansion), node manipulation, pipeline composition, DAG transformations, CI/CD, and more.
-2. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
-3. **[Package Development](package_development.md)** — Create reusable T libraries.
-4. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
-5. **[API Reference](api-reference.md)** — Complete function reference by package.
+1. **[Advanced Pipeline Tutorial](advanced-pipeline-tutorial.md)** — Node manipulation, set operations, DAG transformations, composition, inspection, and validation.
+2. **[Pipeline Materialization & Nix Orchestration](pipeline-materialization.md)** — Building pipelines into reproducible Nix artifacts, orchestrating builds, transferring archives, CI/CD, branching, and custom flakes.
+3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+4. **[Package Development](package_development.md)** — Create reusable T libraries.
+5. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
+6. **[API Reference](api-reference.md)** — Complete function reference by package.

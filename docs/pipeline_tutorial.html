@@ -363,6 +363,14 @@ warnings</td>
 command_type)</td>
 </tr>
 <tr>
+<td><code>pipeline_config_to_frame(p)</code></td>
+<td><code>Pipeline</code></td>
+<td><code>DataFrame</code></td>
+<td>Node config + provenance: resolved values, per-field source
+(<code>global</code>/<code>node</code>), and global/node counts for
+every list option (32 columns)</td>
+</tr>
+<tr>
 <td><code>pipeline_nodes(p)</code></td>
 <td><code>Pipeline</code></td>
 <td><code>List[String]</code></td>
@@ -408,7 +416,12 @@ command_type)</td>
 <td><code>pipeline_validate(p)</code></td>
 <td><code>Pipeline</code></td>
 <td><code>List[String]</code></td>
-<td>Validation errors (empty = valid); checks missing deps + cycles</td>
+<td>All structural validation errors (empty = valid); checks missing
+files, unknown runtimes, missing deps, cycles, cross-runtime
+deserializer gaps, serializer coherence, multi-dep deserializer
+strategies, and <code>^bin</code>-only-for-fetchurl. Same checks power
+<code>populate_pipeline</code>, <code>build_pipeline</code>, and
+<code>t check</code> tier 1</td>
 </tr>
 <tr>
 <td><code>pipeline_assert(p)</code></td>
@@ -805,6 +818,38 @@ merged in by <code>set_pipeline_global_options</code>:</p>
 info.functions   # =&gt; function files merged into the node
 info.noop        # =&gt; whether the node is a no-op
 info.depth       # =&gt; topological depth in the DAG</code></pre>
+<h5 id="the-provenance-key">The <code>provenance</code> Key</h5>
+<p>Every node tracks <strong>where each resolved setting came
+from</strong>. The returned dict includes a <code>provenance</code> key
+with one entry per option:</p>
+<ul>
+<li><strong>Mergeable lists</strong> (<code>functions</code>,
+<code>include</code>, <code>shell_args</code>,
+<code>dependencies</code>) are grouped as
+<code>{ global: [...], node: [...] }</code> — the global list holds
+values injected by <code>set_pipeline_global_options</code>, the node
+list holds values declared on the node itself (or set later via
+<code>mutate_node</code>).</li>
+<li><strong>Scalar overrides</strong> (<code>serializer</code>,
+<code>deserializer</code>, <code>shell</code>, <code>flake</code>,
+<code>noop</code>) map to the source that won: <code>"global"</code> or
+<code>"node"</code>, or <code>NA</code> when unset.</li>
+<li><strong>Keyed options</strong> (<code>env_vars</code>,
+<code>args</code>) map each individual key to its source.</li>
+</ul>
+<pre class="t"><code>info = pipeline_node_options(q, &quot;data&quot;)
+info.provenance.functions.global   # =&gt; [&quot;utils.R&quot;] (injected globally)
+info.provenance.functions.node     # =&gt; [&quot;data.R&quot;]  (declared on the node)
+info.provenance.serializer         # =&gt; &quot;global&quot; or &quot;node&quot; or NA</code></pre>
+<p>This is the audit trail behind every resolved value:
+<strong>what</strong> the node uses is in the top-level keys,
+<strong>where it came from</strong> is in <code>provenance</code>.</p>
+<p>For a DataFrame-wide view across all nodes at once — e.g. “which
+nodes got their serializer from global options?” — use
+<code>pipeline_config_to_frame(p)</code> (see the <a
+href="advanced-pipeline-tutorial.md#node-metadata">Advanced Pipeline
+Tutorial</a>). <code>explain(p.node)</code> also includes a
+<code>config</code> section with this provenance.</p>
 <p>See <code>set_pipeline_global_options</code> and
 <code>pipeline_node_options</code> in the <a href="api-reference.html">API
 reference</a> for the full key list.</p>
@@ -978,7 +1023,7 @@ p.summary  -- DataFrame with regional totals</code></pre>
 <hr />
 <h2 id="pipeline-introspection">11. Pipeline Introspection</h2>
 <blockquote>
-<p><a href="#3-pipeline-function-quick-reference">↩︎ Quick Reference:
+<p><a href="#pipeline-function-quick-reference">↩︎ Quick Reference:
 Reading Node Artifacts</a></p>
 </blockquote>
 <p>T provides functions to inspect pipeline structure:</p>
@@ -1035,8 +1080,8 @@ nodes succeeded and which failed.</p>
 <p>If you prefer the usual, common behaviour where evaluation stops
 immediately at the first error, you can use the <code>--failfast</code>
 flag:</p>
-<div class="sourceCode" id="cb32"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
 <p>In your T scripts, you can also opt-in to this behavior via
 <code>t_make()</code>:</p>
 <pre class="t"><code>t_make(failfast = true)</code></pre>
@@ -1056,7 +1101,7 @@ p.nonexistent
 <hr />
 <h2 id="materializing-pipelines">15. Materializing Pipelines</h2>
 <blockquote>
-<p><a href="#3-pipeline-function-quick-reference">↩︎ Quick Reference:
+<p><a href="#pipeline-function-quick-reference">↩︎ Quick Reference:
 Reading Node Artifacts</a></p>
 </blockquote>
 <p>Defining a pipeline with <code>pipeline { ... }</code> evaluates
@@ -1080,8 +1125,8 @@ node. Crucially, if you define <code>[r-dependencies]</code> or
 <code>[py-dependencies]</code> in your <code>tproject.toml</code>,
 pipeline nodes have access to these language environments — including
 nodes that use a custom per-node flake (see <a
-href="advanced-pipeline-tutorial.md#37-custom-flakes-per-node">Custom
-Flakes per Node</a> for inheritance details).</li>
+href="pipeline-materialization.md#custom-flakes-per-node">Custom Flakes
+per Node</a> for inheritance details).</li>
 <li><strong>Triggers</strong> a Nix build to materialize each node as a
 serialized artifact.</li>
 <li><strong>Records</strong> the build in a timestamped log file
@@ -1201,9 +1246,12 @@ p.ranked        -- DataFrame sorted by score</code></pre>
 topics:</p>
 <ol type="1">
 <li><strong><a href="advanced-pipeline-tutorial.html">Advanced Pipeline
-Tutorial</a></strong> — Dynamic branching (pattern expansion), node
-manipulation, pipeline composition, DAG transformations, CI/CD, and
-more.</li>
+Tutorial</a></strong> — Node manipulation, set operations, DAG
+transformations, composition, inspection, and validation.</li>
+<li><strong><a href="pipeline-materialization.html">Pipeline
+Materialization &amp; Nix Orchestration</a></strong> — Building
+pipelines into reproducible Nix artifacts, orchestrating builds,
+transferring archives, CI/CD, branching, and custom flakes.</li>
 <li><strong><a href="project_development.html">Project
 Development</a></strong> — Master T’s project structure and dependency
 management.</li>

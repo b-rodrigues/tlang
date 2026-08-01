@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - pipeline_validate</title>
+  <title>T Function Reference - map_pattern</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,30 +33,22 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="pipeline_validate">pipeline_validate</h1>
-<p>Validate a Pipeline</p>
-<p>Checks a pipeline for structural errors without throwing. Returns a
-list of error messages. An empty list means the pipeline is valid.
-Checks performed (shared with populate_pipeline and <code>t check</code>
-tier 1): - No dependency cycles - All referenced dependencies exist as
-nodes in the pipeline - Referenced function/include/script files exist
-on the file system - Every node uses a known runtime - Cross-runtime
-dependencies declare an explicit deserializer - Deserializer/format
-coherence across dependency edges - Multiple dependencies with a single
-non-dictionary deserializer strategy - The ^bin serializer is only used
-by fetchurl nodes</p>
-<h2 id="parameters">Parameters</h2>
-<ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-validate.</li>
-</ul>
+<h1 id="map_pattern">map_pattern</h1>
+<p>Map pattern stub</p>
+<p><code>map_pattern</code> can only be used as a <code>pattern=</code>
+argument inside <code>node()</code> to expand a node over the elements
+of a dependency (List, Vector, or DataFrame). Calling it directly
+returns a <code>TypeError</code>.</p>
 <h2 id="returns">Returns</h2>
-<p>A list of validation error messages (empty = valid).</p>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>pipeline_validate(p)</code></pre>
+<p>A <code>TypeError</code> explaining that patterns are only valid
+inside <code>node()</code>.</p>
 <h2 id="see-also">See Also</h2>
-<p><a href="pipeline_cycles.html">pipeline_cycles</a>, <a
-href="pipeline_assert.html">pipeline_assert</a></p>
+<p><a href="expand_pipeline.html">expand_pipeline</a>, <a
+href="sample_pattern.html">sample_pattern</a>, <a
+href="tail_pattern.html">tail_pattern</a>, <a
+href="head_pattern.html">head_pattern</a>, <a
+href="slice_pattern.html">slice_pattern</a>, <a
+href="cross_pattern.html">cross_pattern</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

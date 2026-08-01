@@ -15,7 +15,7 @@ Package-oriented guide to T's standard library.
 - [Base Package](#base-package) — Errors, NA, assertions
 - [Math Package](#math-package) — Mathematical functions
 - [Stats Package](#stats-package) — Statistical functions
-- [DataFrame Package](#to_dataframe-package) — CSV I/O and DataFrame operations
+- [DataFrame Package](#dataframe-package) — CSV I/O and DataFrame operations
 - [Colcraft Package](#colcraft-package) — Data manipulation verbs and window functions
 - [Chrono Package](#chrono-package) — High-performance date and time manipulation
 - [Strcraft Package](#strcraft-package) — Modern string manipulation
@@ -2689,7 +2689,7 @@ Returns a dictionary with node metadata and diagnostics summary. `inspect_pipeli
 
 ### `read_node(node)`
 
-Retrieves the dynamically evaluated or built artifact of a node from an in-scope pipeline. Strictly expects a `ComputedNode` object (e.g. `p.node_name`). For reading from historical build logs without the pipeline in scope, use [`read_past_node(p.node_name, which_log = ...)`](#read_past_node).
+Retrieves the dynamically evaluated or built artifact of a node from an in-scope pipeline. Strictly expects a `ComputedNode` object (e.g. `p.node_name`). For reading from historical build logs without the pipeline in scope, use [`read_past_node(p.node_name, which_log = ...)`](#read_past_nodenode-which_log).
 
 ---
 
@@ -2701,7 +2701,38 @@ Subsetting nodes in a pipeline. `filter_node` keeps nodes matching a condition; 
 
 ### `mutate_node(p, ...)` / `rename_node(p, ...)`
 
-Modify nodes within a pipeline. `mutate_node` can redefine or add nodes; `rename_node` changes node labels while preserving dependencies.
+`mutate_node` modifies metadata fields on pipeline nodes (all nodes, or scoped
+to a subset via the `where` named argument). `rename_node` changes a node's
+label while preserving its dependency edges.
+
+**Mutable fields:** `noop` (Bool), `runtime` (String), `serializer` (String),
+`deserializer` (String), `deps` (List[String]), `functions` (List[String]),
+`include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String),
+`shell_args` (List[String]), `flake` (String).
+
+Unlike `set_pipeline_global_options`, `mutate_node` **replaces** list/dict
+fields entirely rather than combining them. Pass `NA` to clear an optional or
+list/dict field — except `deps`, which cannot be cleared with `NA` because
+dependency edges cannot be re-derived outside the original evaluation
+environment (mutate it to a concrete list instead). All mutated fields are
+marked `"node"`-sourced in provenance tracking.
+
+**Parameters:**
+
+- `p` — The pipeline to modify.
+- `...` — Metadata assignments as `$field = value` pairs.
+- `where` (optional) — Predicate scoping which nodes are updated.
+
+**Returns:**
+
+`Pipeline` — a new pipeline with updated node metadata.
+
+**Examples:**
+```t
+p |> mutate_node($noop = true)
+p |> mutate_node($serializer = "pmml", where = $runtime == "R")
+p |> mutate_node($functions = ["utils.R"], $env_vars = NA)
+```
 
 ---
 
@@ -2913,8 +2944,51 @@ p = pipeline {
   b = pyn(<{ ... }>)
 }
 q = set_pipeline_global_options(p, functions = [rn: "functions.R"], noop = true)
-pipeline_node_options(q, "a")
+ pipeline_node_options(q, "a")
 # => { name = "a", runtime = "R", functions = ["functions.R"], noop = true, ... }
+```
+
+---
+
+### `pipeline_config_to_frame(p)`
+
+Produces a DataFrame with one row per node showing resolved configuration
+values **and** per-field provenance counts. Extends `pipeline_to_frame` with
+provenance columns so queries like "which nodes got their serializer from
+global options?" can be answered directly in T.
+
+**Columns:**
+
+- Identity: `name`, `runtime`, `depth`, `command_type` (as in `pipeline_to_frame`)
+- Resolved scalar values: `serializer`, `deserializer`, `noop`, `shell`, `flake`
+- Provenance source markers: `prov_serializer`, `prov_deserializer`, `prov_noop`,
+  `prov_shell`, `prov_flake` — each `"global"`, `"node"`, or empty when unset
+- Total counts: `n_deps`, `n_funcs`, `n_incs`, `n_env_vars`, `n_args`,
+  `n_shell_args`
+- Provenance counts: `n_<option>_global` / `n_<option>_node` for each of the above
+
+> [!NOTE]
+> `n_deps` is sourced from `p_deps`, which includes **auto-inferred**
+> dependencies, while `n_deps_global` / `n_deps_node` come from
+> `prov_explicit_deps`, which only tracks explicitly-declared or
+> globally-injected deps. Consequently `n_deps` may exceed
+> `n_deps_global + n_deps_node` when a node has auto-inferred edges. The other
+> five list-count groups (`n_funcs`, `n_incs`, `n_env_vars`, `n_args`,
+> `n_shell_args`) do reconcile because they come from the same underlying lists
+> as their provenance columns.
+
+**Parameters:**
+
+- `p` — Pipeline to convert.
+
+**Returns:**
+
+`DataFrame` — one row per node, 32 columns.
+
+**Examples:**
+```t
+q = set_pipeline_global_options(p, serializer = ^json)
+pipeline_config_to_frame(q) |> filter($prov_serializer == "global")
 ```
 
 ---

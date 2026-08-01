@@ -71,6 +71,84 @@ configuration (runtime, serializer/deserializer, noop, deps, depth,
 functions, include, env_vars, args, shell, shell_args, flake) after any
 global-options merges. What you merge in with
 <code>set_pipeline_global_options</code>, you can read back out.</li>
+<li><strong>Global <code>dependencies</code> are now visible to the
+build DAG</strong>: In addition to <code>p_explicit_deps</code>,
+<code>set_pipeline_global_options</code> now writes globally-injected
+dependencies into <code>p_deps</code> so they participate in build
+ordering, depth computation,
+<code>pipeline_validate</code>/<code>pipeline_cycles</code> cycle
+detection, and <code>pipeline_to_frame</code> read-back. Self-references
+(a node depending on itself via global deps) are filtered out to prevent
+false cycles.</li>
+</ul>
+<h3 id="node-config-provenance-explain-pipeline_node_options">Node
+Config Provenance (<code>explain</code> +
+<code>pipeline_node_options</code>)</h3>
+<ul>
+<li><p><strong><code>pipeline_config_to_frame(p)</code></strong>: New
+tabular config read-back. Produces a DataFrame with one row per node and
+32 columns covering resolved config values (serializer, deserializer,
+noop, shell, flake), per-field provenance (scalar source markers +
+global/node count columns for lists), and identity columns (name,
+runtime, depth, command_type). Complements
+<code>pipeline_node_options</code> (Dict detail) with queryable
+DataFrame-wide overview — e.g., “filter on
+<code>prov_serializer == \"global\"</code> to find every node whose
+serializer came from global options.”</p></li>
+<li><p><strong>Expanded <code>mutate_node</code> field
+coverage</strong>: Now supports <code>functions</code>,
+<code>include</code>, <code>env_vars</code>, <code>args</code>,
+<code>shell</code>, <code>shell_args</code>, and <code>flake</code> in
+addition to the existing
+<code>noop</code>/<code>serializer</code>/<code>deserializer</code>/<code>runtime</code>/<code>deps</code>.
+All new fields participate in provenance tracking so
+<code>pipeline_node_options</code> correctly shows them as
+<code>"node"</code>-sourced after mutation. Pass <code>NA</code> to
+clear an optional or list field.</p></li>
+<li><p><strong><code>explain(p.node)</code> shows source
+provenance</strong>: The <code>config</code> section of
+<code>explain()</code> output for a computed node now distinguishes
+which settings came from global pipeline options versus the node itself.
+<code>pipeline_node_options(p, node)</code> includes a machine-readable
+<code>provenance</code> key (<code>{ global: [...], node: [...] }</code>
+groups for mergeable lists; <code>"global"</code>/<code>"node"</code>
+markers for scalar overrides), so tooling can audit where every setting
+originated.</p></li>
+<li><p><strong><code>pipeline_node_options</code> provenance
+key</strong>: Mergeable options (<code>functions</code>,
+<code>include</code>, <code>shell_args</code>,
+<code>dependencies</code>) report both <code>global</code> and
+<code>node</code> contributions; scalar overrides
+(<code>serializer</code>, <code>deserializer</code>, <code>shell</code>,
+<code>flake</code>, <code>noop</code>) report which source won; unset
+scalars are <code>NA</code>.</p></li>
+</ul>
+<h3 id="pipeline-structural-validation-shared-validator">Pipeline
+Structural Validation — Shared Validator</h3>
+<ul>
+<li><strong><code>pipeline_validate(p)</code> reports all structural
+errors</strong>: New shared validator
+(<code>pipeline_validation.ml</code>) backs
+<code>populate_pipeline</code>/<code>build_pipeline</code>, the
+eval-time cross-runtime guard,
+<code>pipeline_validate</code>/<code>pipeline_assert</code>, and
+<code>t check</code> tier 1. Checks now include missing
+function/include/script files, unknown runtimes (known set:
+<code>T</code>, <code>R</code>, <code>Python</code>, <code>Julia</code>,
+<code>Quarto</code>, <code>sh</code>, <code>fetchurl</code>), missing
+dependencies, cycles, cross-runtime deserializer gaps,
+serializer/deserializer format coherence across dependency edges,
+multiple dependencies with a single deserializer strategy, and
+<code>^bin</code> serializers on non-<code>fetchurl</code> nodes.</li>
+<li><strong><code>t check</code> tier 1 surfaces structural
+errors</strong>: <code>t check &lt;file.t&gt;</code> (no Nix needed) now
+reports these as structured
+<code>file_error</code>/<code>type_error</code>/<code>structural_error</code>
+diagnostics with a non-zero exit code, matching the build path’s
+guarantees.</li>
+<li><strong><code>pipeline_assert(p)</code> throws the first
+error</strong> and returns the pipeline unchanged when valid, for
+guard-style use in pipeline chains.</li>
 </ul>
 <h2 id="section-1">[0.54.2] - 2026-07-29</h2>
 <h3 id="testcraft-testing-package"><code>testcraft</code> — Testing
