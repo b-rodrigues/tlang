@@ -85,13 +85,23 @@ in-language interchange (<code>serialize</code> for T,
 <code>Serialization</code> package). For shell nodes, <code>shn()</code>
 defaults to <code>^text</code>.</p>
 <h2 id="built-in-serializers">2. Built-in Serializers</h2>
-<table>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
 <thead>
 <tr>
 <th>Identifier</th>
 <th>Name</th>
 <th>Best For</th>
-<th>Compatibility</th>
+<th>Write support</th>
+<th>Read support</th>
+<th>Notes</th>
 </tr>
 </thead>
 <tbody>
@@ -99,43 +109,60 @@ defaults to <code>^text</code>.</p>
 <td><code>^tlang</code></td>
 <td>T-Native</td>
 <td>T-to-T interchange</td>
-<td>T only</td>
+<td>T</td>
+<td>T</td>
+<td>Internal binary format</td>
 </tr>
 <tr>
 <td><code>^arrow</code></td>
 <td>Apache Arrow</td>
 <td>Large DataFrames</td>
 <td>T, R, Python, Julia</td>
-</tr>
-<tr>
-<td><code>^pmml</code></td>
-<td>PMML</td>
-<td>Predictive Models</td>
-<td>T, R, Python</td>
-</tr>
-<tr>
-<td><code>^onnx</code></td>
-<td>ONNX</td>
-<td>ML Models</td>
-<td>T, R, Python, Julia (read/inference)</td>
-</tr>
-<tr>
-<td><code>^json</code></td>
-<td>JSON</td>
-<td>Config, lists, dicts</td>
 <td>T, R, Python, Julia</td>
+<td>Fully symmetric across all runtimes</td>
 </tr>
 <tr>
 <td><code>^csv</code></td>
 <td>CSV</td>
 <td>Tabular data</td>
 <td>T, R, Python, Julia</td>
+<td>T, R, Python, Julia</td>
+<td>Fully symmetric; R uses base
+<code>write.csv</code>/<code>read.csv</code></td>
+</tr>
+<tr>
+<td><code>^json</code></td>
+<td>JSON</td>
+<td>Config, lists, dicts</td>
+<td>T, R, Python, Julia</td>
+<td>T, R, Python, Julia</td>
+<td>Fully symmetric; Python uses stdlib</td>
+</tr>
+<tr>
+<td><code>^pmml</code></td>
+<td>PMML</td>
+<td>Predictive Models</td>
+<td>T, R, Python, Julia</td>
+<td>T, R, Python, Julia</td>
+<td>Julia writer: GLM.jl → PMML 4.4; Julia reader: JPMML evaluator via
+<code>JavaCall</code></td>
+</tr>
+<tr>
+<td><code>^onnx</code></td>
+<td>ONNX</td>
+<td>ML Models</td>
+<td>T, R, Python</td>
+<td>T, R, Python, Julia</td>
+<td>Julia: inference only (<code>ONNXRunTime.jl</code>); export is
+experimental/limited</td>
 </tr>
 <tr>
 <td><code>^text</code></td>
 <td>Plain Text</td>
 <td>Logs, shell output</td>
 <td>All</td>
+<td>All</td>
+<td>Raw text, no format constraints</td>
 </tr>
 </tbody>
 </table>
@@ -190,12 +217,19 @@ node B {
 catching interchange mismatches at the start of the build.</p>
 <h2 id="serializer-runtime-dependencies">5. Serializer Runtime
 Dependencies</h2>
-<p>Each serializer format may require specific runtime packages. T
-auto-detects which packages are needed based on the node’s serializer
-and runtime, but these packages must still be declared in
-<code>tproject.toml</code> (unless
-<code>TLANG_AUTO_ADD_PIPELINE_DEPS=1</code> is set). The table below
-shows which packages each format pulls in per runtime:</p>
+<p>When you build a pipeline, T scans every node’s serializer and
+runtime to determine which packages are needed, then checks
+<code>tproject.toml</code> for those packages. If any are missing, T
+<strong>prompts you</strong> with the exact
+<code>[r-dependencies]</code>, <code>[py-dependencies]</code>, and
+<code>[jl-dependencies]</code> entries to add before proceeding. You
+must then run <code>t update</code> and re-enter
+<code>nix develop</code> for the packages to become available. (Set
+<code>TLANG_AUTO_ADD_PIPELINE_DEPS=1</code> to skip the prompt in CI — T
+auto-appends the missing entries and exits with instructions to rerun
+the build.)</p>
+<p>The table below shows which packages each format pulls in per
+runtime:</p>
 <table>
 <colgroup>
 <col style="width: 16%" />
@@ -236,7 +270,7 @@ shows which packages each format pulls in per runtime:</p>
 <td><code>numpy</code>, <code>pandas</code>, <code>pyarrow</code>,
 <code>scikit-learn</code>, <code>scipy</code>,
 <code>sklearn2pmml</code>, <code>statsmodels</code></td>
-<td>—</td>
+<td><code>GLM</code>, <code>JavaCall</code></td>
 </tr>
 <tr>
 <td><code>^onnx</code></td>
@@ -258,10 +292,11 @@ shows which packages each format pulls in per runtime:</p>
 </tr>
 </tbody>
 </table>
-<p>The <code>^pmml</code> format also requires <code>jre</code> as a
-system tool (for R and Python). T automatically discovers scanning
-dependencies from your pipeline code and prompts you to add missing
-entries to <code>tproject.toml</code> before building.</p>
+<p>The <code>^pmml</code> format also requires the <code>jre</code>
+system tool for R, Python, and Julia nodes (for JPMML evaluator
+execution). Add <code>"jre"</code> to
+<code>[additional-tools].packages</code> in
+<code>tproject.toml</code>.</p>
 <h2 id="polyglot-support">6. Polyglot Support</h2>
 <p>For cross-language nodes, serializers provide the necessary glue code
 for the target runtime. For example, when using <code>^arrow</code> in

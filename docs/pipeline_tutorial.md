@@ -4,6 +4,18 @@
 
 Pipelines are T's core execution model. They let you define named computation steps (nodes) that are automatically ordered by their dependencies, executed deterministically, and cached for re-use.
 
+### How Polyglot Pipelines Work
+
+From declaration to result, every pipeline follows the same five-stage flow:
+
+1. **Declare**. You define nodes inside a `pipeline { ... }` block. Each node gets a name, a command (T expression or `<{ }>` foreign-code block), a runtime (`rn()`, `pyn()`, `jln()`, `qn()`, `shn()`, or `node()` for T), and a serializer that controls how data enters and leaves the node.
+2. **Analyze**. T scans the DAG — it resolves which node depends on which, detects cycles, and extracts identifier references from foreign-code blocks for dependency tracking.
+3. **Emit**. T generates one Nix derivation per node. Each derivation bundles the right runtime (R, Python, Julia, Quarto, or shell), the packages declared in `tproject.toml`, and the serializer/deserializer glue code that will handle data interchange.
+4. **Build**. Nix executes each derivation in a hermetic sandbox. Upstream artifacts are already materialized in the Nix store, so the serializer writes the node's output and the deserializer reads upstream inputs — all without shared memory or runtime coupling.
+5. **Read back**. After `build_pipeline(p)` or `populate_pipeline(p, build = true)` completes, use `read_node(p.node_name)` to load any node's serialized artifact back into T for inspection, and use `<{ }>` to embed command blocks.
+
+> **Key insight**: A pipeline is a **declarative build graph**, not a script. Nodes describe *what* to produce, not *when* to compute. T handles the ordering, caching, and reproducibility — the same pipeline produces the same results on any machine.
+
 ---
 
 ## 1. Your First Pipeline
@@ -243,6 +255,25 @@ p = pipeline {
 
 When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.jl` → Julia, `.sh` → sh, `.qmd` → Quarto) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
 
+### Sourcing Functions and Including Files
+
+All non-T node constructors accept two optional parameters that control what gets loaded into the Nix sandbox before execution:
+
+- **`functions`**: Code files to **source, import, or exec** before the node's command runs. T emits the right instruction per runtime. Use this to share utility functions across nodes.
+- **`include`**: Additional files (config, data, templates) to copy into the sandbox. These are present at the root of the sandbox and can be referenced by relative paths from your command or script.
+
+| Runtime | `functions` behavior | Example |
+|---------|---------------------|---------|
+| R | `source('file.R')` | `rn(command = <{...}>, functions = ["utils.R"])` |
+| Python | `exec(open('file.py').read())` | `pyn(command = <{...}>, functions = ["preproc.py"])` |
+| Julia | `include("file.jl")` | `jln(command = <{...}>, functions = ["helpers.jl"])` |
+| T | `import "file.t"` | `node(command = ..., functions = ["lib.t"])` |
+| Shell / Quarto | *(no sourcing)* | `shn(command = <{...}>, functions = [...])` |
+
+The Nix derivation copies the entire project tree into the sandbox (excluding `.git`, `_pipeline`, `_build`), so any file listed in `functions` or `include` is available automatically as long as it exists in the project.
+
+Both parameters are **combinable**: use `set_pipeline_global_options(p, functions = [rn: "utils.R"], include = "config.yml")` to prepend global files that apply to every node. Pass per-node `functions` or `include` to add files for a specific node — the lists are concatenated (global first, then per-node). Use `mutate_node` to replace a node's lists entirely, or `$functions = NA` to clear them.
+
 ### Shell / Bash nodes with `shn()`
 
 Use `shn()` for pipeline steps that are easiest to express as shell or CLI commands. It is a convenience wrapper around `node(runtime = sh, ...)`, just like `rn()` and `pyn()` wrap `node()` for R and Python.
@@ -296,6 +327,24 @@ p = pipeline {
 ```
 
 Julia nodes default to `serializer = default`, which uses Julia's standard `Serialization` module to write `.jls` artifacts. Use `^csv`, `^arrow`, or `^json` for cross-runtime interchange with T, R, or Python nodes.
+
+### Quarto nodes with `qn()`
+
+Use `qn()` for pipeline steps that render Quarto documents (`.qmd` files) as part of a reproducible build. It wraps `node(runtime = Quarto, ...)`. The `.qmd` file path goes in the `script` argument:
+
+```t
+p = pipeline {
+  data = read_csv("data.csv") |> filter($age > 18)
+
+  report = qn(
+    script = "analysis.qmd"
+  )
+}
+```
+
+During the Nix build, Quarto renders the `.qmd` to HTML inside the sandbox. If the `.qmd` file calls `read_node("data")`, T automatically detects this as a pipeline dependency and substitutes the node's Nix store path at build time. The rendered output stays in `/nix/store/` — use `pipeline_copy(p, "report")` to retrieve it.
+
+For full Quarto setup (YAML filters, `additional-tools`, formatting), see the [Literate Programming & Quarto](literate-programming-quarto.md) guide.
 
 ### Fetching Remote Assets
 

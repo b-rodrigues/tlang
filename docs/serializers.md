@@ -44,15 +44,15 @@ If you don't specify a serializer, T uses the `default` serializer, which select
 
 ## 2. Built-in Serializers
 
-| Identifier | Name | Best For | Compatibility |
-|---|---|---|---|
-| `^tlang` | T-Native | T-to-T interchange | T only |
-| `^arrow` | Apache Arrow | Large DataFrames | T, R, Python, Julia |
-| `^pmml` | PMML | Predictive Models | T, R, Python |
-| `^onnx` | ONNX | ML Models | T, R, Python, Julia (read/inference) |
-| `^json` | JSON | Config, lists, dicts | T, R, Python, Julia |
-| `^csv` | CSV | Tabular data | T, R, Python, Julia |
-| `^text` | Plain Text | Logs, shell output | All |
+| Identifier | Name | Best For | Write support | Read support | Notes |
+|---|---|---|---|---|---|
+| `^tlang` | T-Native | T-to-T interchange | T | T | Internal binary format |
+| `^arrow` | Apache Arrow | Large DataFrames | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes |
+| `^csv` | CSV | Tabular data | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; R uses base `write.csv`/`read.csv` |
+| `^json` | JSON | Config, lists, dicts | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; Python uses stdlib |
+| `^pmml` | PMML | Predictive Models | T, R, Python, Julia | T, R, Python, Julia | Julia writer: GLM.jl → PMML 4.4; Julia reader: JPMML evaluator via `JavaCall` |
+| `^onnx` | ONNX | ML Models | T, R, Python | T, R, Python, Julia | Julia: inference only (`ONNXRunTime.jl`); export is experimental/limited |
+| `^text` | Plain Text | Logs, shell output | All | All | Raw text, no format constraints |
 
 ## 3. The `serializer` Structure
 
@@ -110,19 +110,21 @@ This prevents runtime errors after long-running computations by catching interch
 
 ## 5. Serializer Runtime Dependencies
 
-Each serializer format may require specific runtime packages. T auto-detects which packages are needed based on the node's serializer and runtime, but these packages must still be declared in `tproject.toml` (unless `TLANG_AUTO_ADD_PIPELINE_DEPS=1` is set). The table below shows which packages each format pulls in per runtime:
+When you build a pipeline, T scans every node's serializer and runtime to determine which packages are needed, then checks `tproject.toml` for those packages. If any are missing, T **prompts you** with the exact `[r-dependencies]`, `[py-dependencies]`, and `[jl-dependencies]` entries to add before proceeding. You must then run `t update` and re-enter `nix develop` for the packages to become available. (Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI — T auto-appends the missing entries and exits with instructions to rerun the build.)
+
+The table below shows which packages each format pulls in per runtime:
 
 | Format | R packages | Python packages | Julia packages |
 |--------|-----------|----------------|---------------|
 | `^csv` | *(base R)* | `pandas` | `CSV`, `DataFrames` |
 | `^arrow` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
 | `^json` | `jsonlite` | *(stdlib)* | `JSON` |
-| `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | — |
+| `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | `GLM`, `JavaCall` |
 | `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |
 | `^text` | *(base R)* | *(stdlib)* | *(stdlib)* |
 | `default` | *(none)* | *(stdlib pickle)* | *(stdlib Serialization)* |
 
-The `^pmml` format also requires `jre` as a system tool (for R and Python). T automatically discovers scanning dependencies from your pipeline code and prompts you to add missing entries to `tproject.toml` before building.
+The `^pmml` format also requires the `jre` system tool for R, Python, and Julia nodes (for JPMML evaluator execution). Add `"jre"` to `[additional-tools].packages` in `tproject.toml`.
 
 ## 6. Polyglot Support
 
