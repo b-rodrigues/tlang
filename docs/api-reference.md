@@ -3205,7 +3205,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `shn(command, script = NA, serializer = text, deserializer = default, env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)`
+### `shn(command, script = NA, serializer = ^text, deserializer = default, env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a shell pipeline node. A convenience wrapper around `node()` with `runtime = "sh"`. Use it for CLI tools, inline shell scripts, and `.sh` files inside `pipeline { ... }` blocks.
 

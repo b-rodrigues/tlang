@@ -54,7 +54,7 @@ T supports the following value types:
 | `Bool`      | `true`, `false`          | Boolean values                      |
 | `String`    | `"hello"`                | Text strings                        |
 | `List`      | `[1, 2, 3]`             | Ordered, heterogeneous collections  |
-| `Dict`      | `{x: 1, y: 2}`          | Key-value maps with string keys     |
+| `Dict`      | `[x: 1, y: 2]`          | Key-value maps with string keys     |
 | `Vector`    | Column data              | Typed arrays (from DataFrames)      |
 | `DataFrame` | `read_csv("data.csv")`   | Tabular data (rows × columns)       |
 | `Pipeline`  | `pipeline { ... }`       | DAG-based execution graph           |
@@ -409,7 +409,7 @@ person.age   -- 30
 ### Dictionaries
 
 ```t
-config = {host: "localhost", port: 8080}
+config = [host: "localhost", port: 8080]
 config.host  -- "localhost"
 config.port  -- 8080
 ```
@@ -1164,7 +1164,7 @@ type(3.14)           -- "Float"
 type(true)           -- "Bool"
 type("hello")        -- "String"
 type([1, 2])         -- "List"
-type({x: 1})         -- "Dict"
+type([x: 1])         -- "Dict"
 type(NA)             -- "NA"
 type(1 / 0)          -- "Error"
 type(NA)           -- "NA"

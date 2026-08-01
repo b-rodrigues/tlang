@@ -2700,7 +2700,7 @@ the Quarto document is rendered by the pipeline builder, not
 immediately.</p>
 <hr />
 <h3
-id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false-flake-na"><code>shn(command, script = NA, serializer = text, deserializer = default, env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false-flake-na"><code>shn(command, script = NA, serializer = ^text, deserializer = default, env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a shell pipeline node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "sh"</code>. Use it for CLI
 tools, inline shell scripts, and <code>.sh</code> files inside
